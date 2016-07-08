@@ -27,7 +27,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -55,7 +55,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -86,7 +86,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -116,7 +116,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -147,7 +147,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -177,7 +177,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -208,7 +208,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -238,7 +238,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -269,7 +269,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -299,7 +299,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -330,7 +330,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -360,7 +360,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -391,7 +391,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -421,7 +421,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -452,7 +452,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -482,7 +482,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -514,7 +514,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -542,7 +542,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -574,7 +574,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -602,7 +602,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -635,7 +635,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -660,7 +660,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -690,7 +690,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -716,7 +716,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -748,7 +748,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -773,7 +773,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -803,7 +803,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -829,7 +829,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -861,7 +861,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -886,7 +886,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -916,7 +916,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -942,7 +942,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -974,7 +974,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -999,7 +999,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1029,7 +1029,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1055,7 +1055,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1087,7 +1087,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1112,7 +1112,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1142,7 +1142,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1168,7 +1168,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1200,7 +1200,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1225,7 +1225,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1255,7 +1255,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1281,7 +1281,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1313,7 +1313,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1338,7 +1338,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1368,7 +1368,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1394,7 +1394,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1426,7 +1426,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1451,7 +1451,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -1482,7 +1482,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1508,7 +1508,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -1541,7 +1541,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1566,7 +1566,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -1597,7 +1597,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1623,7 +1623,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -1656,7 +1656,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1681,7 +1681,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -1712,7 +1712,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1738,7 +1738,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -1772,7 +1772,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1799,7 +1799,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1830,7 +1830,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1859,7 +1859,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1890,7 +1890,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1919,7 +1919,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1950,7 +1950,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -1979,7 +1979,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2005,7 +2005,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2034,7 +2034,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2060,7 +2060,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2089,7 +2089,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2115,7 +2115,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2142,7 +2142,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2168,7 +2168,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2195,7 +2195,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2221,7 +2221,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2248,7 +2248,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2275,7 +2275,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2299,7 +2299,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2329,7 +2329,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2354,7 +2354,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2386,7 +2386,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2410,7 +2410,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2440,7 +2440,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2465,7 +2465,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2497,7 +2497,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2521,7 +2521,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2551,7 +2551,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2576,7 +2576,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2608,7 +2608,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2632,7 +2632,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2657,7 +2657,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2682,7 +2682,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2709,7 +2709,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2733,7 +2733,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2758,7 +2758,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2783,7 +2783,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2810,7 +2810,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2834,7 +2834,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2859,7 +2859,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2884,7 +2884,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2911,7 +2911,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2935,7 +2935,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -2960,7 +2960,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -2985,7 +2985,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -3012,7 +3012,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3036,7 +3036,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -3061,7 +3061,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3086,7 +3086,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -3113,7 +3113,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3137,7 +3137,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -3162,7 +3162,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3187,7 +3187,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB) */
 SELECT * FROM t1;
@@ -3216,7 +3216,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3245,7 +3245,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3276,7 +3276,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3307,7 +3307,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3338,7 +3338,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3369,7 +3369,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3400,7 +3400,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3431,7 +3431,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3462,7 +3462,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3493,7 +3493,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3524,7 +3524,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3555,7 +3555,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3586,7 +3586,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3617,7 +3617,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -3649,7 +3649,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3680,7 +3680,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -3712,7 +3712,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3741,7 +3741,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -3773,7 +3773,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3802,7 +3802,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -3834,7 +3834,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3863,7 +3863,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -3895,7 +3895,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3924,7 +3924,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -3958,7 +3958,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -3984,7 +3984,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4014,7 +4014,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4041,7 +4041,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4073,7 +4073,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4099,7 +4099,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4129,7 +4129,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4156,7 +4156,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4188,7 +4188,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4214,7 +4214,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4244,7 +4244,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4271,7 +4271,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4303,7 +4303,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4329,7 +4329,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4359,7 +4359,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4386,7 +4386,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4418,7 +4418,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4444,7 +4444,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4474,7 +4474,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4501,7 +4501,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4533,7 +4533,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4559,7 +4559,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4589,7 +4589,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4616,7 +4616,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4648,7 +4648,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4674,7 +4674,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -4705,7 +4705,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4732,7 +4732,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -4765,7 +4765,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4791,7 +4791,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -4822,7 +4822,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4849,7 +4849,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -4882,7 +4882,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4908,7 +4908,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -4939,7 +4939,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -4966,7 +4966,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -4999,7 +4999,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -5025,7 +5025,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -5056,7 +5056,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -5083,7 +5083,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -5116,7 +5116,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -5142,7 +5142,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -5173,7 +5173,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -5200,7 +5200,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -5233,7 +5233,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -5259,7 +5259,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -5290,7 +5290,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (11,12,13,14,15,16,17,18,19) ENGINE = TokuDB) */
@@ -5317,7 +5317,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (a)
 (PARTITION p0 VALUES IN (0,1,2,3,4,5,6,7,8,9) ENGINE = TokuDB,
  PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19) ENGINE = TokuDB,
@@ -5349,7 +5349,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5371,7 +5371,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5404,7 +5404,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5428,7 +5428,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5445,7 +5445,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5467,7 +5467,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5500,7 +5500,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5524,7 +5524,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5541,7 +5541,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5563,7 +5563,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5596,7 +5596,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5620,7 +5620,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5637,7 +5637,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5659,7 +5659,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5692,7 +5692,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5716,7 +5716,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5733,7 +5733,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5755,7 +5755,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5788,7 +5788,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5812,7 +5812,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5829,7 +5829,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5851,7 +5851,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5884,7 +5884,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5908,7 +5908,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5925,7 +5925,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -5947,7 +5947,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -5980,7 +5980,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6004,7 +6004,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6021,7 +6021,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6043,7 +6043,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6076,7 +6076,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6100,7 +6100,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6117,7 +6117,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6139,7 +6139,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6172,7 +6172,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6196,7 +6196,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 1	Original from partition p0
@@ -6213,7 +6213,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6235,7 +6235,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6264,7 +6264,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6288,7 +6288,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6305,7 +6305,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6327,7 +6327,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6356,7 +6356,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6380,7 +6380,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6397,7 +6397,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6419,7 +6419,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6448,7 +6448,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6472,7 +6472,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6489,7 +6489,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6511,7 +6511,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6540,7 +6540,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6564,7 +6564,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6581,7 +6581,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6603,7 +6603,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6632,7 +6632,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6656,7 +6656,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6673,7 +6673,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6695,7 +6695,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6724,7 +6724,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6748,7 +6748,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6765,7 +6765,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6787,7 +6787,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6816,7 +6816,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6840,7 +6840,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6857,7 +6857,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6879,7 +6879,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6908,7 +6908,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -6932,7 +6932,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6949,7 +6949,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 5	Original from table t2
@@ -6971,7 +6971,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -7000,7 +7000,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (a)
 (PARTITION p0 VALUES LESS THAN (10) ENGINE = TokuDB,
  PARTITION p1 VALUES LESS THAN MAXVALUE ENGINE = TokuDB) */
@@ -7024,7 +7024,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` varchar(64) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 SELECT * FROM t2;
 a	b
 1	Original from partition p0
