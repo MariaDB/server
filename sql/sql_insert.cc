@@ -721,19 +721,19 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     
   context= &thd->lex->select_lex.context;
   if(table_list->table!=NULL)
-  {
-    Field ** f=table_list->table->field;
-    List<Item> * i_list = (List<Item> *)values_list.first_node()->info;
-    for(uint i=0;i<table_list->table->s->fields;i++)
     {
-      if((*f)->is_hash ||(*f)->field_visibility==USER_DEFINED_HIDDEN)
+      Field ** f=table_list->table->field;
+      List<Item> * i_list = (List<Item> *)values_list.first_node()->info;
+      for(uint i=0;i<table_list->table->s->fields;i++)
       {
-        i_list->push_front(new (thd->mem_root)
-        Item_default_value(thd,context),thd->mem_root);
+        if((*f)->is_hash ||(*f)->field_visibility==USER_DEFINED_HIDDEN)
+        {
+          i_list->push_front(new (thd->mem_root)
+          Item_default_value(thd,context),thd->mem_root);
+        }
+        f++;
       }
-      f++;
     }
-  }
   List_iterator_fast<List_item> its(values_list);
      
   lock_type= table_list->lock_type;

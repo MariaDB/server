@@ -960,7 +960,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     tmp_keydef.block_length=	(uint16) maria_block_size;
     tmp_keydef.keylength=	MARIA_UNIQUE_HASH_LENGTH + pointer;
     tmp_keydef.minlength=tmp_keydef.maxlength=tmp_keydef.keylength;
-    tmp_keyseg.type=		MARIA_UNIQUE_hash_type;
+    tmp_keyseg.type=		MARIA_UNIQUE_HASH_TYPE;
     tmp_keyseg.length=		MARIA_UNIQUE_HASH_LENGTH;
     tmp_keyseg.start=		offset;
     offset+=			MARIA_UNIQUE_HASH_LENGTH;

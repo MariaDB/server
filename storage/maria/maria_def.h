@@ -896,7 +896,7 @@ struct st_maria_handler
 
 /* The UNIQUE check is done with a hashed long key */
 
-#define MARIA_UNIQUE_hash_type	HA_KEYTYPE_ULONG_INT
+#define MARIA_UNIQUE_HASH_TYPE	HA_KEYTYPE_ULONG_INT
 #define maria_unique_store(A,B)    mi_int4store((A),(B))
 
 extern mysql_mutex_t THR_LOCK_maria;

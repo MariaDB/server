@@ -3388,6 +3388,12 @@ void handler::print_error(int error, myf errflag)
     textno=ER_DUP_KEY;
     break;
   }
+  case HA_ERR_FOUND_DUPP_KEY_BLOB:
+  {
+    /* ERROR is already printed and this error is just a*/
+    textno=ER_DUP_KEY;
+    break;
+  }
   case HA_ERR_FOREIGN_DUPLICATE_KEY:
   {
     char rec_buf[MAX_KEY_LENGTH];
@@ -5881,7 +5887,8 @@ int handler::ha_reset()
    and table->record[1]
    @returns true if equal else false
   */
-bool rec_hash_cmp(uchar *first_rec, uchar *sec_rec, Field *hash_field)
+bool rec_hash_cmp(TABLE * table,uchar *first_rec, uchar *sec_rec,
+                    Field *hash_field,KEY *key_part)
 {
   Item_func_or_sum * temp=(Item_func_or_sum *)hash_field->vcol_info->expr_item;
   Item_args * t_item=static_cast<Item_args *>(temp);
@@ -5895,6 +5902,19 @@ bool rec_hash_cmp(uchar *first_rec, uchar *sec_rec, Field *hash_field)
     if(t_field->cmp_binary_offset(diff))
       return false;
   }
+  char key_buff[MAX_KEY_LENGTH];
+  String str(key_buff,sizeof(key_buff),system_charset_info);
+  str.length(0);
+  for(int i=0;i<arg_count;i++)
+  {
+    t_field = ((Item_field *)arguments[i])->field;
+    if (str.length())
+      str.append('-');
+    field_unpack(&str,t_field,sec_rec,10,//since blob can be to long
+                 false);
+  }
+  my_printf_error(ER_DUP_ENTRY, ER_THD(table->in_use, ER_DUP_ENTRY_WITH_KEY_NAME)
+                   ,MYF(0), str.c_ptr_safe(),key_part->name);
   return true;
 }
 int handler::ha_write_row(uchar *buf)
@@ -5924,10 +5944,9 @@ int handler::ha_write_row(uchar *buf)
           HA_WHOLE_KEY,HA_READ_KEY_EXACT);
       if(!result)
       {
-        if(rec_hash_cmp(table->record[0],table->record[1],field_iter))
-        {
-          DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);
-        }
+        if(rec_hash_cmp(table,table->record[0],table->record[1],
+                        field_iter,&table->key_info[i]))
+          DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY_BLOB);
       }
     }
   }
@@ -5989,8 +6008,9 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
                             HA_WHOLE_KEY,HA_READ_KEY_EXACT);
       if(!result)
       {
-        if(rec_hash_cmp(table->record[0],new_rec,field_iter))
-          return HA_ERR_FOUND_DUPP_KEY;
+        if(rec_hash_cmp(table,table->record[0],new_rec,
+                        field_iter,&table->key_info[i]))
+          return HA_ERR_FOUND_DUPP_KEY_BLOB;
       }
     }
   }
