@@ -30,8 +30,7 @@ public class MysqlInterface extends JdbcInterface {
 	    		System.out.println("Connecting to MySQL data source");
 	      
 	      try {
-		      if (url == null)
-		    	  throw new Exception("URL cannot be null");
+			CheckURL(url, "mysql");
 			         
 	    	if ((ds = dst.get(url)) == null) {
 	    		mds = new MysqlDataSource();

@@ -1752,7 +1752,7 @@ bool ODBConn::BindParam(ODBCCOL *colp)
   void        *buf;
   int          buftype = colp->GetResultType();
   SQLUSMALLINT n = colp->GetRank();
-  SQLSMALLINT  ct, sqlt, dec, nul;
+	SQLSMALLINT  ct, sqlt, dec, nul __attribute__((unused));
   SQLULEN      colsize;
   SQLLEN       len;
   SQLLEN      *strlen = colp->GetStrLen();

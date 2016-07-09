@@ -1,0 +1,13 @@
+-- source jdbconn.inc
+
+#
+# List available drivers
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=drivers;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Clean up
+#
+-- source jdbconn_cleanup.inc

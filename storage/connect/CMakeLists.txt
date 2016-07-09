@@ -235,31 +235,25 @@ ENDIF(CONNECT_WITH_ODBC)
 #
 # JDBC
 #
-
-OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
-
 IF(CONNECT_WITH_JDBC)
   # TODO: detect Java SDK and the presence of JDBC connectors
   # TODO: Find how to compile and install the java wrapper class
   # Find required libraries and include directories
 
-  FIND_PACKAGE(Java)
+  FIND_PACKAGE(Java 1.6)
   FIND_PACKAGE(JNI)
   IF (JAVA_FOUND AND JNI_FOUND)
-    # INCLUDE(UseJava)			 failed compile	 on buildbot Labrador
+    INCLUDE(UseJava)
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH})
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH2})
-    # SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY})
+    # SET(JDBC_LIBRARY ${JAVA_JVM_LIBRARY}) will be dynamically linked
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
     jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h
-    JdbcInterface.java wrappers/JdbcInterface.class
-    ApacheInterface.java wrappers/ApacheInterface.class
-    MariadbInterface.java wrappers/MariadbInterface.class
-    MysqlInterface.java wrappers/MysqlInterface.class
-    OracleInterface.java wrappers/OracleInterface.class
-    PostgresqlInterface.java wrappers/PostgresqlInterface.class)
-    # SET (JAVA_SOURCES JdbcInterface.java)
-    # add_jar(JdbcInterface ${JAVA_SOURCES})
+    JdbcInterface.java ApacheInterface.java MariadbInterface.java
+    MysqlInterface.java OracleInterface.java PostgresqlInterface.java)
+    SET (JAVA_SOURCES JdbcInterface.java)
+    add_jar(JdbcInterface ${JAVA_SOURCES})
+#		install_jar(JdbcInterface ${INSTALL_PLUGIN_DIR} COMPONENT CONNECT)
     add_definitions(-DJDBC_SUPPORT)
   ELSE()
     SET(JDBC_LIBRARY "")

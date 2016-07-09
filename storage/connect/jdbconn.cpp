@@ -6,6 +6,13 @@
 /*  This file contains the JDBC connection classes functions.          */
 /***********************************************************************/
 
+#if defined(__WIN__)
+// This is needed for RegGetValue
+#define _WINVER 0x0601
+#undef  _WIN32_WINNT
+#define _WIN32_WINNT 0x0601
+#endif   // __WIN__
+
 /***********************************************************************/
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
@@ -55,7 +62,8 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 int GetConvSize();
 extern char *JvmPath;   // The connect_jvm_path global variable value
 extern char *ClassPath; // The connect_class_path global variable value
-extern char *Wrapper;		// The connect_java_wrapper global variable value
+
+char *GetJavaWrapper(void);		// The connect_java_wrapper variable value
 
 /***********************************************************************/
 /*  Static JDBConn objects.                                            */
@@ -79,7 +87,7 @@ GETDEF JDBConn::GetDefaultJavaVMInitArgs = NULL;
 #endif  // !_DEBUG
 
 // To avoid gcc warning
-int TranslateJDBCType(int stp, int prec, int& len, char& v);
+int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 
 /***********************************************************************/
 /*  GetJDBCType: returns the SQL_TYPE corresponding to a PLG type.      */
@@ -107,7 +115,7 @@ static short GetJDBCType(int type)
 /***********************************************************************/
 /*  TranslateJDBCType: translate a JDBC Type to a PLG type.            */
 /***********************************************************************/
-int TranslateJDBCType(int stp, int prec, int& len, char& v)
+int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 {
 	int type;
 
@@ -139,17 +147,24 @@ int TranslateJDBCType(int stp, int prec, int& len, char& v)
 	case 8:   // DOUBLE
 		type = TYPE_DOUBLE;
 		break;
-	case 93:  // TIMESTAMP
+	case 93:  // TIMESTAMP, DATETIME
 		type = TYPE_DATE;
 		len = 19 + ((prec) ? (prec+1) : 0);
-		v = 'S';
+		v = (tn && toupper(tn[0]) == 'T') ? 'S' : 'E';
 		break;
-	case 91:  // TYPE_DATE
+	case 91:  // DATE, YEAR
 		type = TYPE_DATE;
-		len = 10;
-		v = 'D';
+
+		if (!tn || toupper(tn[0]) != 'Y') {
+			len = 10;
+			v = 'D';
+		} else {
+			len = 4;
+			v = 'Y';
+		}	// endif len
+
 		break;
-	case 92:  // TYPE_TIME
+	case 92:  // TIME
 		type = TYPE_DATE;
 		len = 8 + ((prec) ? (prec+1) : 0);
 		v = 'T';
@@ -378,7 +393,9 @@ PQRYRES JDBCTables(PGLOBAL g, char *db, char *tabpat, char *tabtyp,
 	if (info || !qrp)
 		return qrp;
 
-	if (!(cap = AllocCatInfo(g, CAT_TAB, db, tabpat, qrp)))
+	// Tabpat cannot be null or empty for some drivers
+	if (!(cap = AllocCatInfo(g, CAT_TAB, db, 
+	               (tabpat && *tabpat) ? tabpat : PlugDup(g, "%"), qrp)))
 		return NULL;
 
 	cap->Pat = tabtyp;
@@ -616,7 +633,7 @@ PQRYRES JDBCPrimaryKeys(PGLOBAL g, JDBConn *op, char *dsn, char *table)
 } // end of JDBCPrimaryKeys
 #endif // 0
 
-/************************************************Wrapper***********************/
+/***********************************************************************/
 /*  JDBConn construction/destruction.                                  */
 /***********************************************************************/
 JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
@@ -629,12 +646,13 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 	job = nullptr;						// The java wrapper class object
 	xqid = xuid = xid = grs = readid = fetchid = typid = errid = nullptr;
 	prepid = xpid = pcid = nullptr;
-	chrfldid = intfldid = dblfldid = fltfldid = datfldid = bigfldid = nullptr;
-//m_LoginTimeout = DEFAULT_LOGIN_TIMEOUT;
+	chrfldid = intfldid = dblfldid = fltfldid = bigfldid = nullptr;
+	datfldid = timfldid = tspfldid = nullptr;
+	//m_LoginTimeout = DEFAULT_LOGIN_TIMEOUT;
 //m_QueryTimeout = DEFAULT_QUERY_TIMEOUT;
 //m_UpdateOptions = 0;
 	Msg = NULL;
-	m_Wrap = (tdbp && tdbp->WrapName) ? tdbp->WrapName : Wrapper;
+	m_Wrap = (tdbp && tdbp->WrapName) ? tdbp->WrapName : GetJavaWrapper();
 
 	if (!strchr(m_Wrap, '/')) {
 		// Add the wrapper package name
@@ -821,10 +839,32 @@ bool JDBConn::GetJVM(PGLOBAL g)
 		char soname[512];
 
 #if defined(__WIN__)
-		if (JvmPath)
+		if (JvmPath) {
 			strcat(strcpy(soname, JvmPath), "\\jvm.dll");
-		else
-			strcpy(soname, "jvm.dll");
+		} else if (getenv("JAVA_HOME")) {
+				strcpy(soname, getenv("JAVA_HOME"));
+				strcat(soname, "\\bin\\client\\jvm.dll");
+		} else {
+			// Try to find it through the registry
+			char version[16];
+			char javaKey[64] = "SOFTWARE\\JavaSoft\\Java Runtime Environment";
+			LONG  rc;
+			DWORD BufferSize = 16;
+
+			strcpy(soname, "jvm.dll");		// In case it fails
+
+			if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "CurrentVersion",
+				RRF_RT_ANY, NULL, (PVOID)&version, &BufferSize)) == ERROR_SUCCESS) {
+				strcat(strcat(javaKey, "\\"), version);
+				BufferSize = 512;
+
+				if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "RuntimeLib",
+					RRF_RT_ANY, NULL, (PVOID)&soname, &BufferSize)) != ERROR_SUCCESS)
+					printf("rc=%ld\n", rc);
+
+			} // endif rc
+
+		} // endelse
 
 		// Load the desired shared library
 		if (!(LibJvm = LoadLibrary(soname))) {
@@ -860,6 +900,8 @@ bool JDBConn::GetJVM(PGLOBAL g)
 
 		if (JvmPath)
 			strcat(strcpy(soname, JvmPath), "/libjvm.so");
+		else if (getenv("JAVA_HOME"))
+			strcat(strcpy(soname, getenv("JAVA_HOME")), "/bin/client/libjvm.so");
 		else
 			strcpy(soname, "libjvm.so");
 
@@ -1340,31 +1382,22 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 
 		break;
 	case 91:          // DATE
+		if (!gmID(g, datfldid, "DateField", "(ILjava/lang/String;)I")) {
+			val->SetValue((int)env->CallIntMethod(job, datfldid, (jint)rank, jn));
+		} else
+			val->Reset();
+
+		break;
 	case 92:          // TIME
+		if (!gmID(g, timfldid, "TimeField", "(ILjava/lang/String;)I")) {
+			val->SetValue((int)env->CallIntMethod(job, timfldid, (jint)rank, jn));
+		} else
+			val->Reset();
+
+		break;
 	case 93:          // TIMESTAMP
-		if (!gmID(g, datfldid, "TimestampField",
-			                     "(ILjava/lang/String;)Ljava/sql/Timestamp;")) {
-			dob = env->CallObjectMethod(job, datfldid, (jint)rank, jn);
-
-			if (dob) {
-				jclass jts = env->FindClass("java/sql/Timestamp");
-
-				if (env->ExceptionCheck()) {
-					val->Reset();
-				} else {
-					jmethodID getTime = env->GetMethodID(jts, "getTime", "()J");
-
-					if (getTime != nullptr) {
-						dtv = env->CallLongMethod(dob, getTime);
-						val->SetValue((int)(dtv / 1000));
-					} else
-						val->Reset();
-
-				} // endif check
-
-			} else
-				val->Reset();
-
+		if (!gmID(g, tspfldid, "TimestampField", "(ILjava/lang/String;)I")) {
+			val->SetValue((int)env->CallIntMethod(job, tspfldid, (jint)rank, jn));
 		} else
 			val->Reset();
 

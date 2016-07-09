@@ -13,6 +13,7 @@ public class JdbcInterface {
     static Hashtable<String,DataSource> dst = null;
     
 	boolean           DEBUG = false;
+	boolean           CatisSchema = false;
 	String            Errmsg = "No error";
 	Connection        conn = null;
 	DatabaseMetaData  dbmd = null;
@@ -23,7 +24,7 @@ public class JdbcInterface {
     
     // === Constructors/finalize  =========================================
     public JdbcInterface() {
-    	this(true);
+    	this(false);
     } // end of default constructor
 
     public JdbcInterface(boolean b) {
@@ -43,6 +44,22 @@ public class JdbcInterface {
       Errmsg = "No error";
       return err;
     } // end of GetErrmsg
+    
+    protected void CheckURL(String url, String vendor) throws Exception {
+      if (url == null)
+    	throw new Exception("URL cannot be null");
+      
+      String[] tk = url.split(":", 3);
+      
+      if (!tk[0].equals("jdbc") || tk[1] == null)
+    	throw new Exception("Invalid URL");
+      
+      if (vendor != null && !tk[1].equals(vendor))
+    	throw new Exception("Wrong URL for this wrapper");
+    	  
+      // Some drivers use Catalog as Schema
+      CatisSchema = tk[1].equals("mysql") || tk[1].equals("mariadb");
+    } // end of CatalogIsSchema
 
     public int JdbcConnect(String[] parms, int fsize, boolean scrollable) {
       int rc = 0;
@@ -63,6 +80,8 @@ public class JdbcInterface {
 			
 	    if (DEBUG)
 		  System.out.println("URL=" + parms[1]);
+	    
+	    CheckURL(parms[1], null);
 	      
     	if (parms[2] != null && !parms[2].isEmpty()) {
   	      if (DEBUG)
@@ -326,7 +345,11 @@ public class JdbcInterface {
       
       try {
   		if (rs != null) rs.close();
-    	rs = dbmd.getColumns(parms[0], parms[1], parms[2], parms[3]);
+  		
+  		if (CatisSchema)
+  	      rs = dbmd.getColumns(parms[1], null, parms[2], parms[3]);
+  		else	
+    	  rs = dbmd.getColumns(parms[0], parms[1], parms[2], parms[3]);
     	
 		if (rs != null) {
 		  rsmd = rs.getMetaData();
@@ -341,7 +364,7 @@ public class JdbcInterface {
     } // end of GetColumns
     
     public int GetTables(String[] parms) {
-        int ncol = 0;
+        int ncol = -1;
         String[] typ = null;
         
         if (parms[3] != null) {
@@ -351,7 +374,11 @@ public class JdbcInterface {
         
         try {
     	  if (rs != null) rs.close();
-      	  rs = dbmd.getTables(parms[0], parms[1], parms[2], typ);
+    	  
+    	  if (CatisSchema)
+            rs = dbmd.getTables(parms[1], null, parms[2], typ);
+    	  else
+      	    rs = dbmd.getTables(parms[0], parms[1], parms[2], typ);
       	
   		  if (rs != null) {
   		    rsmd = rs.getMetaData();

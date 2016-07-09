@@ -8,6 +8,8 @@ connection master;
 -- source jdbconn.inc
 
 connection slave;
+SET GLOBAL time_zone='+1:00';
+
 CREATE TABLE t1 (a int, b char(10));
 INSERT INTO t1 VALUES (NULL,NULL),(0,'test00'),(1,'test01'),(2,'test02'),(3,'test03');
 SELECT * FROM t1;
@@ -173,6 +175,7 @@ DROP TABLE t1;
 
 connection slave;
 DROP TABLE t1;
+SET GLOBAL time_zone=SYSTEM;
 
 connection master;
 -- source jdbconn_cleanup.inc

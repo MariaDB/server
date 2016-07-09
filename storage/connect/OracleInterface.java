@@ -30,8 +30,7 @@ public class OracleInterface extends JdbcInterface {
 	    	  System.out.println("Connecting to Oracle data source");
 	      
 	      try {
-		      if (url == null)
-		    	  throw new Exception("URL cannot be null");
+			CheckURL(url, "oracle");
 			         
 	    	if ((ds = dst.get(url)) == null) {
 	    		ods = new OracleDataSource();

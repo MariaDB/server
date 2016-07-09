@@ -30,8 +30,7 @@ public class MariadbInterface extends JdbcInterface {
 	    	  System.out.println("Connecting to MariaDB data source");
 	      
 	      try {
-		      if (url == null)
-		    	  throw new Exception("URL cannot be null");
+		    CheckURL(url, "mariadb");
 			         
 	    	if ((ds = dst.get(url)) == null) {
 	    		ads = new MariaDbDataSource();

@@ -30,8 +30,7 @@ public class PostgresqlInterface extends JdbcInterface {
 	    	  System.out.println("Connecting to Postgresql data source");
 	      
 	      try {
-		      if (url == null)
-		    	  throw new Exception("URL cannot be null");
+			CheckURL(url, "postgresql");
 			         
 	    	if ((ds = dst.get(url)) == null) {
 	    		pds = new PoolingDataSource();

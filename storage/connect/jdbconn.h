@@ -169,7 +169,9 @@ protected:
 	jmethodID intfldid;									// The IntField method ID
 	jmethodID dblfldid;									// The DoubleField method ID
 	jmethodID fltfldid;									// The FloatField method ID
-	jmethodID datfldid;									// The TimestampField method ID
+	jmethodID datfldid;									// The DateField method ID
+	jmethodID timfldid;									// The TimeField method ID
+	jmethodID tspfldid;									// The TimestampField method ID
 	jmethodID bigfldid;									// The BigintField method ID
 	//DWORD     m_LoginTimeout;
 //DWORD     m_QueryTimeout;

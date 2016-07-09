@@ -25,8 +25,7 @@ public class ApacheInterface extends JdbcInterface {
 	    	System.out.println("Connecting to Apache data source");
 	      
         try {
-        	if (url == null)
-        		throw new Exception("URL cannot be null");
+    	    CheckURL(url, null);
            
           	if ((ds = pool.get(url)) == null) {
             	ds = new BasicDataSource();
