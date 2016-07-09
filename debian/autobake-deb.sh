@@ -27,9 +27,6 @@ export MARIADB_OPTIONAL_DEBS=""
 #
 source ./VERSION
 UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${MYSQL_VERSION_EXTRA}"
-RELEASE_EXTRA=""
-
-RELEASE_NAME=""
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
 
@@ -69,9 +66,9 @@ fi
 #
 echo "Incrementing changelog and starting build scripts"
 
-dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME}" "Automatic build with ${LOGSTRING}."
+dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
 
-echo "Creating package version ${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME} ... "
+echo "Creating package version ${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
 
 # Build the package.
 # Pass -I so that .git and other unnecessary temporary and source control files
