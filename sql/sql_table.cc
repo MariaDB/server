@@ -7958,7 +7958,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       if ((field->is_hash)&&!my_strcasecmp(system_charset_info,field->field_name,def->field_name))
       {
-        /* got a clash  find the highest number in db_row_hash_* */
+        /* got a clash find the highest number in db_row_hash_* */
         Field *temp_field;
         int max=0;
         for (Field ** f_temp_ptr=table->vfield ; (temp_field= *f_temp_ptr); f_temp_ptr++)
