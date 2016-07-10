@@ -3314,7 +3314,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         }
       }
       it.rewind();
-      //todo check for duplictes and non existence
       /*
         There should be only one key for db_row_hash_* column
         we need to give user a error when the accidently query
@@ -7953,12 +7952,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     /* Need to see whether new added column clashes with already existed
        DB_ROW_HASH_*(is must have is_hash==true)
+       this one is for query
+       create table t1 (abc blob unique);
+       alter table t1 add column db_row_hash_1;
      */
     for (f_ptr=table->vfield ;f_ptr&&(field= *f_ptr) ; f_ptr++)
     {
       if ((field->is_hash)&&!my_strcasecmp(system_charset_info,field->field_name,def->field_name))
       {
-        /* got a clash find the highest number in db_row_hash_* */
+        /* got a clash  find the highest number in db_row_hash_* */
         Field *temp_field;
         int max=0;
         for (Field ** f_temp_ptr=table->vfield ; (temp_field= *f_temp_ptr); f_temp_ptr++)
@@ -8147,14 +8149,24 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       field_it.rewind();
       while ((cfield=field_it++))
       {
+        /*
+           A rare test case when
+           create table t1( abc blob unique);
+           alter table t1 add column db_row_hash_1 blob unique first;
+           in because of first the abc key instead of picking db_row_hash_2
+           column it picks db_row__hash_1 which is of type blob
+           to solve this we can use is_hash flag to see wheter the
+           new field is same as of previous
+           */
 	if (cfield->change)
 	{
 	  if (!my_strcasecmp(system_charset_info, key_part_name,
-			     cfield->change))
+					 cfield->change)&&(key_part->field->is_hash==cfield->is_hash))
 	    break;
 	}
 	else if (!my_strcasecmp(system_charset_info,
-				key_part_name, cfield->field_name))
+				key_part_name, cfield->field_name)&&
+					 (key_part->field->is_hash==cfield->is_hash))
 	  break;
       }
       if (!cfield)
