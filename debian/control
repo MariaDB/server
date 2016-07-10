@@ -381,6 +381,7 @@ Package: mariadb-test
 Architecture: any
 Depends: mariadb-client-10.2 (= ${binary:Version}),
         mariadb-server-10.2 (= ${binary:Version}),
+        mariadb-test-data (= ${source:Version}),
         ${misc:Depends},
         ${shlibs:Depends}
 Breaks: mariadb-test-10.1,
@@ -408,6 +409,33 @@ Description: MariaDB database regression test suite
  ease of use.
  .
  This package includes the regression test suite.
+
+Package: mariadb-test-data
+Architecture: all
+Depends: ${misc:Depends}
+Breaks: mariadb-test-10.1,
+       mariadb-test-10.0,
+       mariadb-test-5.5,
+       mariadb-test-data-10.0,
+       mysql-testsuite,
+       mysql-testsuite-5.5,
+       mysql-testsuite-5.6,
+       mysql-testsuite-5.7
+Replaces: mariadb-test-10.1,
+         mariadb-test-10.0,
+         mariadb-test-5.5,
+         mariadb-test-data-10.0,
+         mysql-testsuite,
+         mysql-testsuite-5.5,
+         mysql-testsuite-5.6,
+         mysql-testsuite-5.7
+Description: MariaDB database regression test suite - data files
+ MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
+ server. SQL (Structured Query Language) is the most popular database query
+ language in the world. The main goals of MariaDB are speed, robustness and
+ ease of use.
+ .
+ This package has the architecture independent data files for the test suite.
 
 Package: mariadb-connect-engine-10.2
 Architecture: any
