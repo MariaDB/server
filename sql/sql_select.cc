@@ -5179,7 +5179,6 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 	continue;
       if (form->key_info[key].flags & (HA_FULLTEXT | HA_SPATIAL))
 	continue;    // ToDo: ft-keys in non-ft queries.   SerG
-
       KEY *keyinfo= form->key_info+key;
       uint key_parts= form->actual_n_key_parts(keyinfo);
       for (uint part=0 ; part <  key_parts ; part++)
@@ -5474,7 +5473,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   sz= MY_MAX(sizeof(KEY_FIELD),sizeof(SARGABLE_PARAM))*
     ((sel->cond_count*2 + sel->between_count)*m+1);
   if (!(key_fields=(KEY_FIELD*)	thd->alloc(sz)))
-    DBUG_RETURN(TRUE); /* purecov: inspected */
+    DBUG_RETURN(TRUE); /*  purecov: inspected */
   and_level= 0;
   field= end= key_fields;
   *sargables= (SARGABLE_PARAM *) key_fields + 

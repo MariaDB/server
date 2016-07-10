@@ -352,6 +352,8 @@ enum key_hash_type{
 int  rem_field_from_hash_col_str(LEX_STRING * hash_str,char * field_name);
 
 int  change_field_from_hash_col_str(LEX_STRING * hash_str,char * old_name,char * new_name);
+
+int find_field_name_in_hash(char * temp,char * field_name,int hash_str_length);
 /**
   Category of table found in the table share.
 */

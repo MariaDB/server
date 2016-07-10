@@ -7993,7 +7993,6 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   {
     /* Ensure that all fields are from the same table */
     DBUG_ASSERT(field->table == table);
-
     value=v++;
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;

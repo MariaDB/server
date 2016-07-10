@@ -3314,6 +3314,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         }
       }
       it.rewind();
+      //todo check for duplictes and non existence
       /*
         There should be only one key for db_row_hash_* column
         we need to give user a error when the accidently query
@@ -3360,6 +3361,16 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       strcpy(key_name,temp_colms->field_name.str);
       strcat(hash_exp,"`");
       while((temp_colms=key_part_iter++)){
+        /*
+          This test for wrong query like
+          create table t1(a blob ,unique(a,a));
+        */
+        if(find_field_name_in_hash(hash_exp,
+                     temp_colms->field_name.str,strlen(hash_exp))!=-1)
+        {
+          my_error(ER_DUP_FIELDNAME, MYF(0),temp_colms->field_name.str);
+          DBUG_RETURN(TRUE);
+        }
         strcat(hash_exp,(const char * )",");
         strcat(key_name,"_");
         strcat(hash_exp,"`");

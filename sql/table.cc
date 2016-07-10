@@ -7827,6 +7827,31 @@ double KEY::actual_rec_per_key(uint i)
   return (is_statistics_from_stat_tables ?
           read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
 }
+
+/*
+   find out that whether field name exists in hash_str
+   return index of  hash_str  if found other wise returns
+   -1
+*/
+int find_field_name_in_hash(char * temp,char * field_name ,int hash_str_length)
+{
+  int j=0,i=0;
+  for( i=0; i<hash_str_length; i++)
+  {
+    while(*(temp+i)==*(field_name+j))
+    {
+      i++;
+      j++;
+      if(*(field_name+j)=='\0' &&*(temp+i)=='`')
+        goto done;
+    }
+    j=0;
+  }
+  return -1;
+  done:
+  return i;
+}
+
 /*
   Remove field name from db_row_hash_* column vcol info str
   For example
@@ -7848,20 +7873,8 @@ int rem_field_from_hash_col_str(LEX_STRING * hash_str,char * field_name)
    /* first of all find field_name in hash_str*/
   char * temp= hash_str->str;
   char * t_field= field_name;
-  int j=0,i=0;
-  for( i=0; i<hash_str->length; i++)
-  {
-    while(*(temp+i)==*(field_name+j))
-    {
-      i++;
-      j++;
-      if(*(field_name+j)=='\0' &&*(temp+i)=='`')
-        goto done;
-    }
-    j=0;
-  }
-  done:
-  if(i<hash_str->length)
+  int i = find_field_name_in_hash( temp,field_name,hash_str->length);
+  if(i!=-1)
   {
    /*
       We found the field location
@@ -7873,7 +7886,7 @@ int rem_field_from_hash_col_str(LEX_STRING * hash_str,char * field_name)
       3  no , return
    */
    // see if there is , before field name
-    // j is equal to field length
+   int j=strlen(field_name);
     if(*(temp+i-j-2)==',')
     {
       hash_str->length=hash_str->length-j-2-1;//-2 for two '`' and -1 for ','
@@ -7901,20 +7914,8 @@ int  change_field_from_hash_col_str(LEX_STRING * hash_str,char * old_name,char *
   /* first of all find field_name in hash_str*/
   char * temp= hash_str->str;
   char * t_field= old_name;
-  int j=0,i=0;
-  for( i=0; i<hash_str->length; i++)
-  {
-    while(*(temp+i)==*(old_name+j))
-    {
-      i++;
-      j++;
-      if(*(old_name+j)=='\0' &&*(temp+i)=='`')
-        goto done;
-    }
-    j=0;
-  }
-done:
-  if(i<hash_str->length)
+  int i = find_field_name_in_hash( temp,old_name,hash_str->length);
+  if(i!=-1)
   {
     int len= hash_str->length-strlen(old_name)+strlen(new_name);
     int num=0;
