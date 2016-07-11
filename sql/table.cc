@@ -1804,6 +1804,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
+        uint add_keyparts_for_this_key= add_first_key_parts;
 
         /* 
           Do not extend the key that contains a component
@@ -1815,19 +1816,20 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           if (share->field[fieldnr-1]->key_length() !=
               keyinfo->key_part[i].length)
 	  {
-            add_first_key_parts= 0;
+            add_keyparts_for_this_key= 0;
             break;
           }
         }
 
-        if (add_first_key_parts < keyinfo->ext_key_parts-keyinfo->user_defined_key_parts)
+        if (add_keyparts_for_this_key < (keyinfo->ext_key_parts -
+                                        keyinfo->user_defined_key_parts))
 	{
           share->ext_key_parts-= keyinfo->ext_key_parts;
           key_part_map ext_key_part_map= keyinfo->ext_key_part_map;
           keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
           keyinfo->ext_key_flags= keyinfo->flags;
 	  keyinfo->ext_key_part_map= 0; 
-          for (i= 0; i < add_first_key_parts; i++)
+          for (i= 0; i < add_keyparts_for_this_key; i++)
 	  {
             if (ext_key_part_map & 1<<i)
 	    {
