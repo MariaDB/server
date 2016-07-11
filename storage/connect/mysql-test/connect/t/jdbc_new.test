@@ -18,6 +18,7 @@ SELECT * FROM t1;
 --echo # Testing errors
 --echo #
 connection master;
+SET GLOBAL time_zone='+1:00';
 
 # Bad user name
 # Suppress "mysql_real_connect failed:" (printed in _DEBUG build)
@@ -178,5 +179,6 @@ DROP TABLE t1;
 SET GLOBAL time_zone=SYSTEM;
 
 connection master;
+SET GLOBAL time_zone=SYSTEM;
 -- source jdbconn_cleanup.inc
 

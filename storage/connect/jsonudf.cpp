@@ -30,6 +30,10 @@
 uint GetJsonGrpSize(void);
 static int IsJson(UDF_ARGS *args, uint i);
 static PSZ MakePSZ(PGLOBAL g, UDF_ARGS *args, int i);
+static char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error);
+static char *bin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error);
 
 static uint JsonGrpSize = 10;
 

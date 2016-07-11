@@ -219,6 +219,7 @@ USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
 uint    GetJsonGrpSize(void);
+char   *GetJavaWrapper(void);
 uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
@@ -395,7 +396,7 @@ extern "C" const char *msglang(void)
 
 #if defined(JDBC_SUPPORT)
 char *GetJavaWrapper(void)
-{return connect_hton ? THDVAR(current_thd, java_wrapper) : "wrappers/JdbcInterface";}
+{return connect_hton ? THDVAR(current_thd, java_wrapper) : (char*)"wrappers/JdbcInterface";}
 #endif   // JDBC_SUPPORT
 
 extern "C" const char *msglang(void)

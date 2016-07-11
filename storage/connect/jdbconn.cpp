@@ -835,39 +835,52 @@ void JDBConn::ResetJVM(void)
 /***********************************************************************/
 bool JDBConn::GetJVM(PGLOBAL g)
 {
+	int ntry;
+
 	if (!LibJvm) {
 		char soname[512];
 
 #if defined(__WIN__)
-		if (JvmPath) {
-			strcat(strcpy(soname, JvmPath), "\\jvm.dll");
-		} else if (getenv("JAVA_HOME")) {
+		for (ntry = 0; !LibJvm && ntry < 3; ntry++) {
+			if (!ntry && JvmPath) {
+				strcat(strcpy(soname, JvmPath), "\\jvm.dll");
+				ntry = 3;		 // No other try
+			} else if (ntry < 2 && getenv("JAVA_HOME")) {
 				strcpy(soname, getenv("JAVA_HOME"));
+
+				if (ntry == 1)
+					strcat(soname, "\\jre");
+
 				strcat(soname, "\\bin\\client\\jvm.dll");
-		} else {
-			// Try to find it through the registry
-			char version[16];
-			char javaKey[64] = "SOFTWARE\\JavaSoft\\Java Runtime Environment";
-			LONG  rc;
-			DWORD BufferSize = 16;
+			} else {
+				// Try to find it through the registry
+				char version[16];
+				char javaKey[64] = "SOFTWARE\\JavaSoft\\Java Runtime Environment";
+				LONG  rc;
+				DWORD BufferSize = 16;
 
-			strcpy(soname, "jvm.dll");		// In case it fails
+				strcpy(soname, "jvm.dll");		// In case it fails
 
-			if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "CurrentVersion",
-				RRF_RT_ANY, NULL, (PVOID)&version, &BufferSize)) == ERROR_SUCCESS) {
-				strcat(strcat(javaKey, "\\"), version);
-				BufferSize = 512;
+				if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "CurrentVersion",
+					RRF_RT_ANY, NULL, (PVOID)&version, &BufferSize)) == ERROR_SUCCESS) {
+					strcat(strcat(javaKey, "\\"), version);
+					BufferSize = sizeof(soname);
 
-				if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "RuntimeLib",
-					RRF_RT_ANY, NULL, (PVOID)&soname, &BufferSize)) != ERROR_SUCCESS)
-					printf("rc=%ld\n", rc);
+					if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "RuntimeLib",
+						RRF_RT_ANY, NULL, (PVOID)&soname, &BufferSize)) != ERROR_SUCCESS)
+						printf("RegGetValue: rc=%ld\n", rc);
 
-			} // endif rc
+				} // endif rc
 
-		} // endelse
+				ntry = 3;		 // Try this only once
+			} // endelse
 
-		// Load the desired shared library
-		if (!(LibJvm = LoadLibrary(soname))) {
+			// Load the desired shared library
+			LibJvm = LoadLibrary(soname);
+		}	// endfor ntry
+
+		// Get the needed entries
+		if (!LibJvm) {
 			char  buf[256];
 			DWORD rc = GetLastError();
 
@@ -898,15 +911,23 @@ bool JDBConn::GetJVM(PGLOBAL g)
 #else   // !__WIN__
 		const char *error = NULL;
 
-		if (JvmPath)
-			strcat(strcpy(soname, JvmPath), "/libjvm.so");
-		else if (getenv("JAVA_HOME"))
-			strcat(strcpy(soname, getenv("JAVA_HOME")), "/bin/client/libjvm.so");
-		else
-			strcpy(soname, "libjvm.so");
+		for (ntry = 0; !LibJvm && ntry < 2; ntry++) {
+			if (!ntry && JvmPath) {
+				strcat(strcpy(soname, JvmPath), "/libjvm.so");
+				ntry = 2;
+			} else if (!ntry && getenv("JAVA_HOME")) {
+				// TODO: Replace i386 by a better guess
+				strcat(strcpy(soname, getenv("JAVA_HOME")), "/jre/lib/i386/client/libjvm.so");
+			} else {	 // Will need LD_LIBRARY_PATH to be set
+				strcpy(soname, "libjvm.so");
+				ntry = 2;
+			} // endelse
+
+			LibJvm = dlopen(soname, RTLD_LAZY);
+		} // endfor ntry
 
 		// Load the desired shared library
-		if (!(LibJvm = dlopen(soname, RTLD_LAZY))) {
+		if (!LibJvm) {
 			error = dlerror();
 			sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
 		} else if (!(CreateJavaVM = (CRTJVM)dlsym(LibJvm, "JNI_CreateJavaVM"))) {
@@ -981,6 +1002,11 @@ int JDBConn::Open(PJPARM sop)
 		sep = ':';
 #define N 1
 #endif
+
+		// Java source will be compiled as ajar file installed in the plugin dir
+		jpop->Append(sep);
+		jpop->Append(GetPluginDir());
+		jpop->Append("JdbcInterface.jar");
 
 		//================== prepare loading of Java VM ============================
 		JavaVMInitArgs vm_args;                        // Initialization arguments
@@ -1317,9 +1343,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 {
 	PGLOBAL&   g = m_G;
 	jint       ctyp;
-	jlong      dtv;
 	jstring    cn, jn = nullptr;
-	jobject    dob;
 
 	if (rank == 0)
 		if (!name || (jn = env->NewStringUTF(name)) == nullptr) {
