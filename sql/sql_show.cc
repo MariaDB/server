@@ -5504,6 +5504,39 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     pos=(uchar*) ((field->flags & PRI_KEY_FLAG) ? "PRI" :
                  (field->flags & UNIQUE_KEY_FLAG) ? "UNI" :
                  (field->flags & MULTIPLE_KEY_FLAG) ? "MUL":"");
+    KEY *key=show_table->key_info;
+    for(int i=0;i<show_table->s->keys;i++,key++)
+    {
+      if(key->ex_flags &(HA_EX_INDEX_HASH|HA_EX_UNIQUE_HASH))
+      {
+        LEX_STRING * ls=&key->key_part->field->vcol_info->expr_str;
+        int position= find_field_name_in_hash(ls->str,
+                   (char *)field->field_name,ls->length);
+        int comma_position= find_field_name_in_hash(ls->str,
+                                                    ",",ls->length);
+        /* key will be of two type unique or multiple
+         for unique key there should no comma in hash_str
+         for multiple key vice versa, we will show multiple to
+         only first field column
+         for example hash(`abc`,`xyz`)
+         multiple will be shown to `abc` only
+         and position should be > 0
+       */
+        //this is for single  hash(`abc`)
+        if(position!=-1&&comma_position==-1)
+        {
+          if(key->ex_flags&HA_EX_UNIQUE_HASH)
+            pos=(uchar *) "UNI";
+          else
+            pos=(uchar * )"MUL";
+        }
+        //this is for   hash(`abc`,`xyzs`)
+        if(position!=-1&&position<comma_position)
+        {
+          pos=(uchar *) "MUL";
+        }
+      }
+    }
     table->field[16]->store((const char*) pos,
                             strlen((const char*) pos), cs);
 

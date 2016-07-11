@@ -729,17 +729,21 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     List_iterator<Item> i_iter(*i_list);
     Field ** f=table_list->table->field;
     for(uint i=0;i<table_list->table->s->fields;i++)
-    {
+    {       //TODO a better logic for adding default
       if((*f)->field_visibility!=NORMAL)
       {
         if(i==0)
+        {
           i_list->push_front(new (thd->mem_root)
                              Item_default_value(thd,context),thd->mem_root);
+          i_iter.rewind();
+          i_iter++;
+        }
         else
-          i_iter.after(new (thd->mem_root) Item_default_value(thd,context));
+         i_iter.after(new (thd->mem_root) Item_default_value(thd,context));
+
       }
       f++;
-      i_iter++;
     }
    }
    its.rewind();
