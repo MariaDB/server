@@ -235,6 +235,9 @@ ENDIF(CONNECT_WITH_ODBC)
 #
 # JDBC
 #
+
+OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
+
 IF(CONNECT_WITH_JDBC)
   # TODO: detect Java SDK and the presence of JDBC connectors
   # TODO: Find how to compile and install the java wrapper class
