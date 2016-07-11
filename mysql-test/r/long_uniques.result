@@ -1,0 +1,148 @@
+create table t1(a blob unique);
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(2);
+ERROR 23000: Duplicate entry '2' for key 'a'
+insert into t1 values('sachin');
+insert into t1 values('maria');
+insert into t1 values('sachin');
+ERROR 23000: Duplicate entry 'sachin' for key 'a'
+insert into t1 values(123456789034567890);
+insert into t1 values(123456789034567891);
+insert into t1 values(123456789034567891);
+ERROR 23000: Duplicate entry '123456789034567891' for key 'a'
+select * from t1;
+a
+1
+2
+sachin
+maria
+123456789034567890
+123456789034567891
+insert into t1 values(11),(22),(33);
+insert into t1 values(12),(22);
+ERROR 23000: Duplicate entry '22' for key 'a'
+select * from t1;
+a
+1
+2
+sachin
+maria
+123456789034567890
+123456789034567891
+11
+22
+33
+12
+insert into t1 values(repeat('s',4000)),(repeat('s',4001));
+insert into t1 values(repeat('m',4000)),(repeat('m',4000));
+ERROR 23000: Duplicate entry 'mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm' for key 'a'
+insert into t1 values(repeat('m',4001)),(repeat('m',4002));
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	blob	YES	UNI	NULL	
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL,
+  UNIQUE KEY `a`(`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 add column b int;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	blob	YES	UNI	NULL	
+b	int(11)	YES		NULL	
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  UNIQUE KEY `a`(`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values('sachin',2);
+ERROR 23000: Duplicate entry 'sachin' for key 'a'
+insert into t1 values(123456789034567890,2);
+ERROR 23000: Duplicate entry '123456789034567890' for key 'a'
+insert into t1 values(1234567890345678,2),(1234567345678,2);
+select db_row_hash_1 from t1;
+ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+alter table t1 add column c blob unique;
+insert into t1 values(123456789034567890,2,3);
+ERROR 23000: Duplicate entry '123456789034567890' for key 'a'
+alter table t1 add column db_row_hash_1 int;
+alter table t1 add column db_row_hash_2 int;
+alter table t1 add column db_row_hash_3 blob unique;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` blob DEFAULT NULL,
+  `db_row_hash_1` int(11) DEFAULT NULL,
+  `db_row_hash_2` int(11) DEFAULT NULL,
+  `db_row_hash_3` blob DEFAULT NULL,
+  UNIQUE KEY `a`(`a`),
+  UNIQUE KEY `c`(`c`),
+  UNIQUE KEY `db_row_hash_3`(`db_row_hash_3`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values(78,87,77,66,66,68);
+insert into t1 values(781,187,177,166,616,68);
+ERROR 23000: Duplicate entry '68' for key 'db_row_hash_3'
+alter table t1 add column db_row_hash_4 blob unique;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	blob	YES	UNI	NULL	
+b	int(11)	YES		NULL	
+c	blob	YES	UNI	NULL	
+db_row_hash_1	int(11)	YES		NULL	
+db_row_hash_2	int(11)	YES		NULL	
+db_row_hash_3	blob	YES	UNI	NULL	
+db_row_hash_4	blob	YES	UNI	NULL	
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` blob DEFAULT NULL,
+  `db_row_hash_1` int(11) DEFAULT NULL,
+  `db_row_hash_2` int(11) DEFAULT NULL,
+  `db_row_hash_3` blob DEFAULT NULL,
+  `db_row_hash_4` blob DEFAULT NULL,
+  UNIQUE KEY `a`(`a`),
+  UNIQUE KEY `c`(`c`),
+  UNIQUE KEY `db_row_hash_3`(`db_row_hash_3`),
+  UNIQUE KEY `db_row_hash_4`(`db_row_hash_4`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 add column db_row_hash_4 blob unique;
+ERROR 42S21: Duplicate column name 'db_row_hash_4'
+select db_row_hash_5 from t1;
+ERROR 42S22: Unknown column 'db_row_hash_5' in 'field list'
+select db_row_hash_6 from t1;
+ERROR 42S22: Unknown column 'db_row_hash_6' in 'field list'
+select db_row_hash_7 from t1;
+ERROR 42S22: Unknown column 'db_row_hash_7' in 'field list'
+select db_row_hash_8 from t1;
+ERROR 42S22: Unknown column 'db_row_hash_8' in 'field list'
+alter table t1  drop db_row_hash_5;
+ERROR 42000: Can't DROP COLUMN `db_row_hash_5`; check that it exists
+alter table t1  drop db_row_hash_6;
+ERROR 42000: Can't DROP COLUMN `db_row_hash_6`; check that it exists
+alter table t1  drop db_row_hash_7;
+ERROR 42000: Can't DROP COLUMN `db_row_hash_7`; check that it exists
+alter table t1  drop db_row_hash_8;
+ERROR 42000: Can't DROP COLUMN `db_row_hash_8`; check that it exists
+alter table t1 change db_row_hash_5 ffdf int;
+ERROR 42S22: Unknown column 'db_row_hash_5' in 't1'
+alter table t1 change db_row_hash_6 ffdf int;
+ERROR 42S22: Unknown column 'db_row_hash_6' in 't1'
+alter table t1 change db_row_hash_7 ffdf int;
+ERROR 42S22: Unknown column 'db_row_hash_7' in 't1'
+alter table t1 change db_row_hash_8 ffdf int;
+ERROR 42S22: Unknown column 'db_row_hash_8' in 't1'
+drop table t1;
+create table t1(a1 blob unique,a2 blob unique);
+insert into t1 values(1,2);
+insert into t1 values(2,3);
+insert into t1 values(2,3);
+ERROR 23000: Duplicate entry '2' for key 'a1'
+alter table t1 change column a1 b1 blob;

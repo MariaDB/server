@@ -1,0 +1,64 @@
+create table h_1(abc int primary key, xyz int hidden);
+create table h_2(a1 int hidden);
+create table h_3(a1 blob,hidden(a1));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'hidden(a1))' at line 1
+create table h_4(a1 int primary key hidden ,a2 int unique hidden , a3 blob,a4
+int not null hidden unique);
+ERROR HY000: Hidden column 'a1' either allow null values or it must have default value
+create table h_5(abc int not null hidden);
+ERROR HY000: Hidden column 'abc' either allow null values or it must have default value
+create table t1(abc int hidden);
+insert into t1 values();
+insert into t1 values();
+insert into t1 values();
+insert into t1 values();
+select * from t1;
+ERROR HY000: No tables used
+select abc from t1;
+abc
+NULL
+NULL
+NULL
+NULL
+create table t2(abc int primary key);
+insert into t2 values();
+Warnings:
+Warning	1364	Field 'abc' doesn't have a default value
+select * from t2;
+abc
+0
+create table sdsdsd(a int , b int, hidden(a,b));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'hidden(a,b))' at line 1
+create table hid_4(a int,abc int as (a mod 3) virtual hidden);
+desc hid_4;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+abc	int(11)	YES		NULL	VIRTUAL, HIDDEN
+create table ht_5(abc int primary key hidden auto_increment, a int);
+desc ht_5;
+Field	Type	Null	Key	Default	Extra
+abc	int(11)	NO	PRI	NULL	auto_increment , HIDDEN
+a	int(11)	YES		NULL	
+insert into ht_5 values(1);
+insert into ht_5 values(2);
+insert into ht_5 values(3);
+select * from ht_5;
+a
+1
+2
+3
+select abc,a from ht_5;
+abc	a
+1	1
+2	2
+3	3
+create table ht_6(abc int hidden);
+alter table ht_6 change abc ss int hidden;
+insert into ht_6 values();
+desc ht_6;
+Field	Type	Null	Key	Default	Extra
+ss	int(11)	YES		NULL	HIDDEN
+alter table ht_6 modify column ss  int ;
+insert into ht_6 values(22);
+alter table ht_6 modify column ss  int hidden;
+insert into ht_6 values();
