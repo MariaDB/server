@@ -1,6 +1,3 @@
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	AES128-GCM-SHA256
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 have_ssl
 1
