@@ -3575,6 +3575,7 @@ void plugin_opt_set_limits(struct my_option *options,
   case PLUGIN_VAR_BOOL:
     options->var_type= GET_BOOL;
     options->def_value= ((sysvar_bool_t*) opt)->def_val;
+    options->typelib= &bool_typelib;
     break;
   case PLUGIN_VAR_STR:
     options->var_type= ((opt->flags & PLUGIN_VAR_MEMALLOC) ?
@@ -3623,6 +3624,7 @@ void plugin_opt_set_limits(struct my_option *options,
   case PLUGIN_VAR_BOOL | PLUGIN_VAR_THDLOCAL:
     options->var_type= GET_BOOL;
     options->def_value= ((thdvar_bool_t*) opt)->def_val;
+    options->typelib= &bool_typelib;
     break;
   case PLUGIN_VAR_STR | PLUGIN_VAR_THDLOCAL:
     options->var_type= ((opt->flags & PLUGIN_VAR_MEMALLOC) ?
