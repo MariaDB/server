@@ -602,7 +602,7 @@ sp_head::sp_head()
    unsafe_flags(0),
    m_recursion_level(0),
    m_next_cached_sp(0),
-  instr_ptr(0),pause_state(FALSE), m_cont_level(0)
+   m_cont_level(0), instr_ptr(0)
 {
   m_first_instance= this;
   m_first_free_instance= this;
@@ -1704,7 +1704,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
     }
 
     /* we should cleanup free_list and memroot, used by instruction */
-    //thd->cleanup_after_query();
+    thd->cleanup_after_query();
     //free_root(&execute_mem_root, MYF(0));
 
     /*
@@ -1737,8 +1737,8 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
 
   thd->restore_active_arena(&execute_arena, &backup_arena);
 
-  /* if(func_quit)
-  thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error*/
+  if(err_status && thd->killed && thd->is_fatal_error && thd->spcont->quit_func)
+      thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error*/
 
   /* Restore all saved */
   thd->server_status= (thd->server_status & ~status_backup_mask) | old_server_status;
@@ -2301,18 +2301,20 @@ err_with_cleanup:
 
 bool
 sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount, 
-                                    Field *return_fld, sp_rcontext *func_ctx,
+                                    Field *return_fld, sp_rcontext **func_ctx,
                                     MEM_ROOT *call_mem_root)
 {
   ulonglong UNINIT_VAR(binlog_save_options);
+  sp_rcontext *octx= thd->spcont;
   bool need_binlog_call= FALSE;
+  bool argument_sent=TRUE;
   uint arg_no;
   char buf[STRING_BUFFER_USUAL_SIZE];
   String binlog_buf(buf, sizeof(buf), &my_charset_bin);
   bool err_status= FALSE;
   Query_arena call_arena(call_mem_root, Query_arena::STMT_INITIALIZED_FOR_SP);
   Query_arena backup_arena;
-  DBUG_ENTER("sp_head::execute_function");
+  DBUG_ENTER("sp_head::execute_aggregate_function");
   DBUG_PRINT("info", ("function %s", m_name.str));
 
   /*
@@ -2342,11 +2344,11 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
     TODO: we should create sp_rcontext once per command and reuse
     it on subsequent executions of a function/trigger.
   */
-  if(!func_ctx)
+  if(!(*func_ctx))
   {
      thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
-     if (!(func_ctx= sp_rcontext::create(thd, m_pcont, return_fld)))
+     if (!(*func_ctx= sp_rcontext::create(thd, m_pcont, return_fld)))
      {
        thd->restore_active_arena(&call_arena, &backup_arena);
        err_status= TRUE;
@@ -2359,12 +2361,21 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
     this function call will be finished (e.g. in Item::cleanup()).
   */
   thd->restore_active_arena(&call_arena, &backup_arena);
+  argument_sent= FALSE;
+  }
+  else
+  {
+    for (arg_no= 0; arg_no < argcount; arg_no++)
+    {
+        // Arguments must be fixed in Item_sum_sp::fix_fields
+        DBUG_ASSERT(args[arg_no]->fixed);
+        if ((err_status= (*func_ctx)->set_variable(thd, arg_no, &(args[arg_no]))))
+          goto err_with_cleanup;
+    }
   }
 
-  
-
 #ifndef DBUG_OFF
-  func_ctx->sp= this;
+  (*func_ctx)->sp= this;
 #endif
 
   /*
@@ -2395,7 +2406,7 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
       if (arg_no)
         binlog_buf.append(',');
 
-      str_value= sp_get_item_value(thd, func_ctx->get_item(arg_no),
+      str_value= sp_get_item_value(thd, (*func_ctx)->get_item(arg_no),
                                    &str_value_holder);
 
       if (str_value)
@@ -2405,7 +2416,7 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
     }
     binlog_buf.append(')');
   }
-  thd->spcont= func_ctx;
+  thd->spcont= *func_ctx;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx;
@@ -2448,26 +2459,23 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
           itself) on it directly rather than juggle with arenas.
   */
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
-
   err_status= execute_agg(thd, TRUE);
   if(!err_status)
   {
-    if(thd->spcont->pause_state)
+    if(!argument_sent && thd->spcont->pause_state)
     {
       for (arg_no= 0; arg_no < argcount; arg_no++)
       {
-        // Arguments must be fixed in Item_func_sp::fix_fields
-        DBUG_ASSERT(args[arg_no]->fixed);
-
-        if ((err_status= thd->spcont->set_variable(thd, arg_no, &(args[arg_no]))))
-         goto err_with_cleanup;
+        // Arguments must be fixed in Item_sum_sp::fix_fields
+         DBUG_ASSERT(args[arg_no]->fixed);
+         if ((err_status= thd->spcont->set_variable(thd, arg_no, &(args[arg_no]))))
+          goto err_with_cleanup;
       }
-      err_status = execute_agg(thd,TRUE);
+      err_status= execute_agg(thd, TRUE);
     }
   }
 
   thd->restore_active_arena(&call_arena, &backup_arena);
-  thd->spcont->pause_state= FALSE;
 
   if (need_binlog_call)
   {
@@ -2509,7 +2517,8 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
 #endif
 
 
-err_with_cleanup: 
+err_with_cleanup:
+  thd->spcont= octx;
   /*
     If not insided a procedure and a function printing warning
     messsages.
@@ -4502,21 +4511,20 @@ sp_instr_cfetch::execute(THD *thd, uint *nextp)
   {
     if(!thd->spcont->pause_state)
     {
-      if(thd->server_status == SERVER_STATUS_LAST_ROW_SENT)
-      {
-        my_message(ER_SP_FETCH_NO_DATA, ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
-        res=-1;
-        thd->spcont->quit_func= TRUE;
-      }
-      else
-      {
-        thd->spcont->pause_state= TRUE;
-      }
+      thd->spcont->pause_state= TRUE;
     }
     else
     {
       thd->spcont->pause_state= FALSE;
-      *nextp = m_ip+1;
+      if(thd->server_status == SERVER_STATUS_LAST_ROW_SENT)
+      {
+        my_message(ER_SP_FETCH_NO_DATA,
+          ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
+        res=-1;
+        thd->spcont->quit_func= TRUE;
+      }
+      else
+        *nextp = m_ip+1;
     }
   }
   return res;

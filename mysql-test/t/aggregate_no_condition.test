@@ -1,0 +1,28 @@
+delimiter |;
+
+create aggregate function agg_sum(x INT) returns double
+begin
+  declare  z double default 0;
+  declare  count double default 0;
+  declare continue handler for not found return z;
+  loop
+  fetch group next row;
+  set z= z+x;
+  end loop;
+end|
+
+delimiter ;|
+
+create table t1 (sal int,id int);
+INSERT INTO t1 (sal,id) VALUES (1000,3);
+INSERT INTO t1 (sal,id) VALUES (2000,1);
+INSERT INTO t1 (sal,id) VALUES (3000,2);
+
+#no condition in select query
+select agg_sum(sal) from t1;
+
+#condition always false in select query
+select agg_sum(sal) from t1 where 0 > 1;
+
+drop table t1;
+drop function agg_sum;

@@ -301,9 +301,6 @@ public:
     being opened is probably enough).
   */
   SQL_I_List<Item_trigger_field> m_trg_table_fields;
-  uint instr_ptr;
-  bool pause_state;
-  
 
   static void *
   operator new(size_t size) throw ();
@@ -342,7 +339,7 @@ public:
   
   bool
   execute_aggregate_function(THD *thd, Item **args, uint argcount,
-                             Field *return_fld, sp_rcontext *nctx,
+                             Field *return_fld, sp_rcontext **nctx,
                              MEM_ROOT *caller_mem_root);
 
   bool
@@ -528,6 +525,10 @@ public:
   }
 
   sp_pcontext *get_parse_context() { return m_pcont; }
+  void init_instr_ptr(int ip)
+  {
+    instr_ptr= ip;
+  }
 
 private:
 
@@ -566,6 +567,7 @@ private:
     in prelocked mode and in non-prelocked mode.
   */
   HASH m_sptabs;
+  uint instr_ptr;
 
   bool
   execute(THD *thd, bool merge_da_on_success);

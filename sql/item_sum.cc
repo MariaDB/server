@@ -1320,7 +1320,7 @@ Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
 Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
                            sp_name *name):
   Item_sum(thd), context(context_arg), m_name(name), m_sp(NULL),
-  func_ctx(NULL),call_arena(NULL),sp_result_field(NULL)
+  func_ctx(NULL), call_arena(NULL), sp_result_field(NULL)
 {
   maybe_null= 1;
   m_name->init_qname(thd);
@@ -1429,10 +1429,9 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     return TRUE;
 
   memcpy (orig_args, args, sizeof (Item *) * arg_count);
-  fixed= 1; 
-  
+  fixed= 1;
   init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
- return FALSE;
+  return FALSE;
 }
 
 bool
@@ -1478,7 +1477,6 @@ bool
 Item_sum_sp::execute_impl(THD *thd)
 {
   bool err_status= TRUE;
-  sp_rcontext *octx= thd->spcont;
   Sub_statement_state statement_state;
   Security_context *save_security_ctx= thd->security_ctx;
   enum enum_sp_data_access access=
@@ -1511,15 +1509,17 @@ Item_sum_sp::execute_impl(THD *thd)
 
   /*
     Disable the binlogging if this is not a SELECT statement. If this is a
-    SELECT, leave binlogging on, so execute_function() code writes the
+    SELECT, leave binlogging on, so execute_aggregate_function() code writes the
     function call into binlog.
   */  
   thd->reset_sub_statement_state(&statement_state, SUB_STMT_FUNCTION);
   err_status= m_sp->execute_aggregate_function(thd, args, arg_count,
-                                               sp_result_field,func_ctx,
+                                               sp_result_field, &func_ctx,
                                                &call_mem_root);
-  func_ctx= thd->spcont;
-  thd->spcont= octx;
+  /*
+    restoring the context(could be done using a pointer to the func_ctx)
+    created in the execute_aggregate_function
+  */
   thd->restore_sub_statement_state(&statement_state);
 
 error:
@@ -1538,20 +1538,14 @@ Item_sum_sp::add()
   }
   return FALSE;
 }
-bool
-Item_sum_sp::set_arguments(THD *thd)
-{
-  uint arg_no;
-  bool err_status= FALSE;
-  for (arg_no= 0; arg_no < arg_count; arg_no++)
-  {
-    // Arguments must be fixed in Item_func_sp::fix_fields 
-    DBUG_ASSERT(args[arg_no]->fixed);
 
-    if ((err_status= func_ctx->set_variable(thd, arg_no, &(args[arg_no]))))
-      return err_status;
-  }
-  return err_status;
+void
+Item_sum_sp::clear()
+{
+    delete func_ctx;
+    m_sp->init_instr_ptr(0);
+    free_root(&call_mem_root, MYF(0));
+    return ;
 }
 /***********************************************************************
 ** reset and add of sum_func

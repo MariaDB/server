@@ -1101,31 +1101,37 @@ public:
   Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
                sp_name *name, List<Item> &list);
   
-  enum Sumfunctype sum_func () const 
+  enum Sumfunctype sum_func () const
   { 
     return SP_AGGREGATE_FUNC;
   }
   
   bool fix_fields(THD *thd, Item **ref);
   const char *func_name() const { return "sp aggregate";}
-  enum Item_result result_type () const { return hybrid_type;}  
-  void clear(){return;}
+  enum Item_result result_type () const { return hybrid_type;}
   bool add();
   bool sp_check_access(THD *thd);
   
+  /* val_xx functions */
   longlong val_int()
   {
-    return 0;
+    if(!func_ctx || execute())
+        return 0;
+    return sp_result_field->val_int();
   }
 
   double val_real()
   {
-    return 0.0;
+    if(!func_ctx || execute())
+        return 0.0;
+    return sp_result_field->val_int();
   }
 
   my_decimal *val_decimal(my_decimal *dec_buf)
   {
-    return NULL;
+    if(!func_ctx || execute())
+        return NULL;
+    return sp_result_field->val_decimal(dec_buf);
   }
 
   String *val_str(String *str)
@@ -1134,7 +1140,7 @@ public:
     char buff[20];
     buf.set(buff, 20, str->charset());
     buf.length(0);
-    if (execute())
+    if (!func_ctx || execute())
       return NULL;
     /*
       result_field will set buf pointing to internal buffer
@@ -1143,18 +1149,12 @@ public:
       corruption of returned value, we make here a copy.
     */
     sp_result_field->val_str(&buf);
-    cleanup();
     str->copy(buf);
     return str;
   }
-
-  void reset_field(){return ;}
-  void update_field(){return ;}  
-  void cleanup()
-  {
-    free_root(&call_mem_root, MYF(0));
-    return ;
-  }
+  void reset_field(){DBUG_ASSERT(0);}
+  void update_field(){DBUG_ASSERT(0);}
+  void clear();
   bool set_arguments(THD *thd);
 };
 
