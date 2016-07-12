@@ -16,11 +16,13 @@ Build-Depends: bison,
                libncurses5-dev (>= 5.0-6~),
                libpam0g-dev,
                libreadline-gplv2-dev,
+               libxml2-dev,
                libssl-dev,
                lsb-release,
                perl (>= 5.6.0),
                po-debconf,
                psmisc,
+               unixodbc-dev,
                zlib1g-dev (>= 1:1.1.3-5~),
                ${MAYBE_LIBCRACK}
                libjemalloc-dev (>= 3.0.0~) [linux-any]
@@ -32,7 +34,7 @@ Vcs-Browser: https://github.com/MariaDB/server/
 Package: libmariadbclient18
 Architecture: any
 Section: libs
-Depends: libmysqlclient18 (= ${source:Version}),
+Depends: libmysqlclient18 (= ${binary:Version}),
          mariadb-common,
          ${misc:Depends},
          ${shlibs:Depends}
@@ -54,7 +56,7 @@ Description: MariaDB database client library
 Package: libmysqlclient18
 Section: libs
 Architecture: any
-Depends: libmariadbclient18 (= ${source:Version})
+Depends: libmariadbclient18 (= ${binary:Version}), ${misc:Depends}
 Replaces: libmysqlclient18 (<< ${source:Version})
 Description: Virtual package to satisfy external depends
  This is an empty package that provides an updated "best" version of
@@ -69,7 +71,7 @@ Description: Virtual package to satisfy external depends
 Package: libmariadbd-dev
 Architecture: any
 Section: libdevel
-Depends: libmariadbclient-dev (>= ${source:Version}), ${misc:Depends}
+Depends: libmariadbclient-dev (>= ${binary:Version}), ${misc:Depends}
 Provides: libmysqld-dev
 Conflicts: libmysqld-dev
 Replaces: libmysqld-dev
@@ -84,7 +86,7 @@ Description: MariaDB embedded database, development files
 Package: libmariadbclient-dev
 Architecture: any
 Section: libdevel
-Depends: libmariadbclient18 (>= ${source:Version}),
+Depends: libmariadbclient18 (= ${binary:Version}),
          zlib1g-dev,
          ${misc:Depends},
          ${shlibs:Depends}
@@ -287,7 +289,9 @@ Description: MariaDB database core server files
 Package: mariadb-test-10.2
 Architecture: any
 Depends: mariadb-client-10.2 (= ${binary:Version}),
-         mariadb-server-10.2 (= ${binary:Version})
+         mariadb-server-10.2 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Suggests: patch
 Conflicts: mariadb-galera-server-5.5 (<< 5.5.33),
            mariadb-server-5.5 (<< 5.5.33),
@@ -319,12 +323,8 @@ Architecture: any
 Suggests: mailx, mariadb-test, netcat-openbsd, tinyca
 Recommends: libhtml-template-perl
 Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
-Depends: bsdutils,
-         coreutils,
-         findutils,
-         galera-3 (>=25.3),
+Depends: galera-3 (>=25.3),
          gawk,
-         grep,
          iproute,
          libdbi-perl,
          lsb-base (>= 3.0-10),
@@ -336,7 +336,6 @@ Depends: bsdutils,
          psmisc,
          rsync,
          socat,
-         tar,
          ${misc:Depends},
          ${shlibs:Depends}
 Provides: mariadb-server, mysql-server, virtual-mysql-server
@@ -416,12 +415,11 @@ Description: MariaDB database regression test suite (metapackage for the latest 
 
 Package: mariadb-connect-engine-10.2
 Architecture: any
-Depends: libxml2, mariadb-server-10.2, unixodbc
-Build-Depends: libxml2-dev,
-               mariadb-server-10.2,
-               unixodbc-dev,
-               ${misc:Depends},
-               ${shlibs:Depends}
+Depends: libxml2,
+         mariadb-server-10.2,
+         unixodbc,
+         ${misc:Depends},
+         ${shlibs:Depends}
 Description: Connect storage engine for MariaDB
  Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
  connections to ODBC tables and remote MySQL tables, as well as a number of
@@ -437,25 +435,22 @@ Description: OQGraph storage engine for MariaDB
  This package contains the OQGraph plugin for MariaDB.
 
 Package: mariadb-cracklib-password-check-10.2
-Section: database
 Architecture: any
-Depends: libcrack2 (>= 2.9.0), mariadb-server-10.2
+Depends: libcrack2 (>= 2.9.0), mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
 Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
 
 Package: mariadb-gssapi-server-10.2
-Section: database
 Architecture: any
-Depends: libgssapi-krb5-2, mariadb-server-10.2
+Depends: libgssapi-krb5-2, mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
 Conflicts: mariadb-gssapi-server-10.1
 Replaces: mariadb-gssapi-server-10.1
 Description: GSSAPI authentication plugin for MariaDB server
 
 Package: mariadb-gssapi-client-10.2
-Section: database
 Architecture: any
-Depends: libgssapi-krb5-2, mariadb-client-10.2
+Depends: libgssapi-krb5-2, mariadb-client-10.2, ${misc:Depends}, ${shlibs:Depends}
 Conflicts: mariadb-gssapi-client-10.1
 Replaces: mariadb-gssapi-client-10.1
 Description: GSSAPI authentication plugin for MariaDB client
