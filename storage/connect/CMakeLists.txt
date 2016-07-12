@@ -235,8 +235,11 @@ ENDIF(CONNECT_WITH_ODBC)
 #
 # JDBC
 #
-
-OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
+IF(APPLE)
+  OPTION(CONNECT_WITH_JDBC "some comment" OFF)
+ELSE()
+  OPTION(CONNECT_WITH_JDBC "some comment" ON)
+ENDIF()
 
 IF(CONNECT_WITH_JDBC)
   # TODO: detect Java SDK and the presence of JDBC connectors
@@ -254,9 +257,11 @@ IF(CONNECT_WITH_JDBC)
     jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java)
+		# TODO: detect presence of components such as the MariaDB JDBC driver or
+		# Apache package in order to add more files to the JAVA_SOURCES.
     SET (JAVA_SOURCES JdbcInterface.java)
     add_jar(JdbcInterface ${JAVA_SOURCES})
-		install_jar(JdbcInterface ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+		install_jar(JdbcInterface DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
     add_definitions(-DJDBC_SUPPORT)
   ELSE()
     SET(JDBC_LIBRARY "")
