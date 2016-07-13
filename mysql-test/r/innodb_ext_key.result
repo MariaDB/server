@@ -1059,10 +1059,6 @@ concat('1234567890-', 1000+ A.a + 10*B.a + 100*C.a),
 repeat('filler-data-', 4)
 from 
 t0 A, t0 B, t0 C;
-# The following must use type=ALL (and NOT type=ref, rows=1)
-explain select * from t1 where col1='1234567890-a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	idx1	NULL	NULL	NULL	#	Using where
 drop table t0,t1;
 # 
 # MDEV-10360: Extended keys: index properties depend on index order

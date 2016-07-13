@@ -715,9 +715,13 @@ select
 from 
   t0 A, t0 B, t0 C;
 
---echo # The following must use type=ALL (and NOT type=ref, rows=1)
---replace_column 9 #
-explain select * from t1 where col1='1234567890-a';
+let $q=explain select * from t1 where col1='1234567890-a';
+let $rows=query_get_value($q, rows, 1);
+if ($rows < 2)
+{
+  --echo The EXPLAIN should not produce a query plan with type=ref, rows=1
+  --die Fix for MDEV-10325 didnt work;
+}
 
 drop table t0,t1;
 
