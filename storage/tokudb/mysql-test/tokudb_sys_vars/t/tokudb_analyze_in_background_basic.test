@@ -17,6 +17,7 @@ SELECT @@global.tokudb_analyze_in_background;
 SET GLOBAL tokudb_analyze_in_background = DEFAULT;
 SELECT @@global.tokudb_analyze_in_background;
 
+-- error ER_WRONG_VALUE_FOR_VAR
 SET GLOBAL tokudb_analyze_in_background = -6;
 SELECT @@global.tokudb_analyze_in_background;
 
@@ -46,6 +47,7 @@ SELECT @@session.tokudb_analyze_in_background;
 SET SESSION tokudb_analyze_in_background = DEFAULT;
 SELECT @@session.tokudb_analyze_in_background;
 
+-- error ER_WRONG_VALUE_FOR_VAR
 SET SESSION tokudb_analyze_in_background = -6;
 SELECT @@session.tokudb_analyze_in_background;
 
