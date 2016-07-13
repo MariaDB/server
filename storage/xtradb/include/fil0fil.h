@@ -1265,6 +1265,14 @@ fil_user_tablespace_restore_page(
 	ulint		page_no);	/* in: page_no to obtain from double
 					write buffer */
 
+/*******************************************************************//**
+Returns a pointer to the file_space_t that is in the memory cache
+associated with a space id.
+@return	file_space_t pointer, NULL if space not found */
+fil_space_t*
+fil_space_get(
+/*==========*/
+	ulint	id);	/*!< in: space id */
 #endif /* !UNIV_INNOCHECKSUM */
 
 /*************************************************************************

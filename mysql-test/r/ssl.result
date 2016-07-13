@@ -1,6 +1,6 @@
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	DHE-RSA-AES256-SHA
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+have_ssl
+1
 SHOW STATUS LIKE 'Ssl_server_not_before';
 Variable_name	Value
 Ssl_server_not_before	Apr 25 14:55:05 2015 GMT
@@ -2163,9 +2163,9 @@ Privat (Private Nutzung)	Mobilfunk
 Warnings:
 Warning	1052	Column 'kundentyp' in group statement is ambiguous
 drop table t1;
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	DHE-RSA-AES256-SHA
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+have_ssl
+1
 select aes_decrypt('MySQL','adf');
 aes_decrypt('MySQL','adf')
 NULL
