@@ -242,10 +242,6 @@ ELSE()
 ENDIF()
 
 IF(CONNECT_WITH_JDBC)
-  # TODO: detect Java SDK and the presence of JDBC connectors
-  # TODO: Find how to compile and install the java wrapper class
-  # Find required libraries and include directories
-
   FIND_PACKAGE(Java 1.6)
   FIND_PACKAGE(JNI)
   IF (JAVA_FOUND AND JNI_FOUND)
@@ -257,8 +253,8 @@ IF(CONNECT_WITH_JDBC)
     jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java)
-		# TODO: detect presence of components such as the MariaDB JDBC driver or
-		# Apache package in order to add more files to the JAVA_SOURCES.
+    # TODO: Find how to compile and install the java wrapper classes
+    # Find required libraries and include directories
     SET (JAVA_SOURCES JdbcInterface.java)
     add_jar(JdbcInterface ${JAVA_SOURCES})
 		install_jar(JdbcInterface DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
