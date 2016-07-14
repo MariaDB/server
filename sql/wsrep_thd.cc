@@ -127,6 +127,7 @@ static void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
 
   shadow->db            = thd->db;
   shadow->db_length     = thd->db_length;
+  shadow->user_time     = thd->user_time;
   thd->reset_db(NULL, 0);
 }
 
@@ -137,6 +138,7 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   thd->wsrep_exec_mode        = shadow->wsrep_exec_mode;
   thd->net.vio                = shadow->vio;
   thd->variables.tx_isolation = shadow->tx_isolation;
+  thd->user_time              = shadow->user_time;
   thd->reset_db(shadow->db, shadow->db_length);
 
   thd->wsrep_rli->cleanup_after_session();
