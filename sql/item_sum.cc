@@ -1420,7 +1420,7 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     set_if_bigger(decimals, args[i]->decimals);
     with_subselect|= args[i]->with_subselect;
   }
-  result_field=0;
+ // result_field=0;
   max_length=float_length(decimals);
   null_value=1;
   fix_length_and_dec();
@@ -1542,11 +1542,35 @@ Item_sum_sp::add()
 void
 Item_sum_sp::clear()
 {
+  if(func_ctx)
     delete func_ctx;
-    m_sp->init_instr_ptr(0);
-    free_root(&call_mem_root, MYF(0));
-    return ;
+  func_ctx= NULL;
+  free_root(&call_mem_root, MYF(0));
 }
+
+enum Item_result
+Item_sum_sp::result_type() const
+{
+  DBUG_ENTER("Item_sum_sp::result_type");
+  DBUG_PRINT("info", ("m_sp = %p", (void *) m_sp));
+  DBUG_ASSERT(sp_result_field);
+  DBUG_RETURN(sp_result_field->result_type());
+}
+
+void
+Item_sum_sp::cleanup()
+{
+  if (sp_result_field)
+  {
+    delete sp_result_field;
+    sp_result_field= NULL;
+  }
+  m_sp= NULL;
+  clear();
+  dummy_table->alias.free();
+  Item_sum::cleanup();
+}
+
 /***********************************************************************
 ** reset and add of sum_func
 ***********************************************************************/

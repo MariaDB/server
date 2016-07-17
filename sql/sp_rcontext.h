@@ -188,6 +188,7 @@ public:
   bool end_partial_result_set;
   bool pause_state;
   bool quit_func;
+  uint instr_ptr;
   
 #ifndef DBUG_OFF
   /// The stored program for which this runtime context is created. Used for

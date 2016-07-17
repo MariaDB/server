@@ -1076,7 +1076,7 @@ class Item_sum_sp :public Item_sum
 {
 
 private:
-  Item_result hybrid_type;
+  Item_result hybrid_type;//I think so there is no need of this
   Name_resolution_context *context;
   sp_name *m_name;
   mutable sp_head *m_sp;
@@ -1088,7 +1088,7 @@ private:
   /*
      The result field of the stored function.
   */
-  Field *sp_result_field;
+  Field *sp_result_field;// result_field can be used, inherited from parent class
 
   bool execute();
   bool execute_impl(THD *thd);
@@ -1106,9 +1106,10 @@ public:
     return SP_AGGREGATE_FUNC;
   }
   
-  bool fix_fields(THD *thd, Item **ref);
+  //void fix_length_and_dec();//need to be given a thought
+  bool fix_fields(THD *thd, Item **ref);//need to be given a thought
   const char *func_name() const { return "sp aggregate";}
-  enum Item_result result_type () const { return hybrid_type;}
+  enum Item_result result_type () const;
   bool add();
   bool sp_check_access(THD *thd);
   
@@ -1155,7 +1156,11 @@ public:
   void reset_field(){DBUG_ASSERT(0);}
   void update_field(){DBUG_ASSERT(0);}
   void clear();
-  bool set_arguments(THD *thd);
+  void cleanup();
+  inline Field *get_sp_result_field()
+  {
+    return sp_result_field;
+  }
 };
 
 

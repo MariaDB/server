@@ -1485,6 +1485,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
   bool cur_db_changed= FALSE;
   sp_rcontext *ctx= thd->spcont;
+  uint ip= ctx->instr_ptr;
   bool err_status= FALSE;
   ulonglong save_sql_mode;
   bool save_abort_on_warning;
@@ -1646,7 +1647,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
 #endif
 
     /* get_instr returns NULL when we're done. */
-    i = get_instr(instr_ptr);
+    i = get_instr(ip);
     if (i == NULL)
     {
 #if defined(ENABLED_PROFILING)
@@ -1658,7 +1659,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
     /* Reset number of warnings for this query. */
     thd->get_stmt_da()->reset_for_next_command();
 
-    DBUG_PRINT("execute", ("Instruction %u", instr_ptr));
+    DBUG_PRINT("execute", ("Instruction %u", ip));
 
     /*
       We need to reset start_time to allow for time to flow inside a stored
@@ -1686,7 +1687,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
     sql_digest_state *parent_digest= thd->m_digest;
     thd->m_digest= NULL;
 
-    err_status= i->execute(thd, &instr_ptr);
+    err_status= i->execute(thd, &ip);
 
     thd->m_digest= parent_digest;
 
@@ -1713,7 +1714,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
       killed during execution.
     */
     if (!thd->is_fatal_error && !thd->killed_errno() &&
-        ctx->handle_sql_condition(thd, &instr_ptr, i))
+        ctx->handle_sql_condition(thd, &ip, i))
     {
       err_status= FALSE;
     }
@@ -1741,6 +1742,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
       thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error*/
 
   /* Restore all saved */
+  thd->spcont->instr_ptr= ip;
   thd->server_status= (thd->server_status & ~status_backup_mask) | old_server_status;
   old_packet.swap(thd->packet);
   DBUG_ASSERT(thd->change_list.is_empty());
