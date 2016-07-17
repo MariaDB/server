@@ -317,8 +317,6 @@ our $opt_user = "root";
 our $opt_valgrind= 0;
 my $opt_valgrind_mysqld= 0;
 my $opt_valgrind_mysqltest= 0;
-my @default_memcheck_valgrind_args= ("--show-reachable=yes",
-  "--leak-check=yes", "--num-callers=16");
 my @valgrind_args;
 my $opt_strace= 0;
 my $opt_strace_client;
@@ -1720,23 +1718,19 @@ sub command_line_setup {
     $opt_valgrind= 1;
     $opt_valgrind_mysqld= 1;
 
-    my @valgrind_args_orig= @valgrind_args;
-
-    unshift(@valgrind_args, "--tool=callgrind");
     # Set special valgrind options unless options passed on command line
     push(@valgrind_args, "--trace-children=yes")
-      unless @valgrind_args_orig;
+      unless @valgrind_args;
+    unshift(@valgrind_args, "--tool=callgrind");
   }
 
   # default to --tool=memcheck
   if ($opt_valgrind && ! grep(/^--tool=/i, @valgrind_args))
   {
-    # Set valgrind_options to default unless already defined
-    push(@valgrind_args, @default_memcheck_valgrind_args)
+    # Set valgrind_option unless already defined
+    push(@valgrind_args, ("--show-reachable=yes", "--leak-check=yes",
+                          "--num-callers=16"))
       unless @valgrind_args;
-    push(@valgrind_args, "--suppressions=${glob_mysql_test_dir}/valgrind.supp")
-      if -f "$glob_mysql_test_dir/valgrind.supp";
-
     unshift(@valgrind_args, "--tool=memcheck");
   }
 
@@ -1744,6 +1738,9 @@ sub command_line_setup {
   {
     # Make valgrind run in quiet mode so it only print errors
     push(@valgrind_args, "--quiet" );
+
+    push(@valgrind_args, "--suppressions=${glob_mysql_test_dir}/valgrind.supp")
+      if -f "$glob_mysql_test_dir/valgrind.supp";
 
     mtr_report("Running valgrind with options \"",
 	       join(" ", @valgrind_args), "\"");
