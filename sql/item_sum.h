@@ -1100,13 +1100,14 @@ public:
 
   Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
                sp_name *name, List<Item> &list);
+  Item_sum_sp(THD *thd, Item_sum_sp *item);
   
   enum Sumfunctype sum_func () const
   { 
     return SP_AGGREGATE_FUNC;
   }
   
-  //void fix_length_and_dec();//need to be given a thought
+  void fix_length_and_dec();//need to be given a thought
   bool fix_fields(THD *thd, Item **ref);//need to be given a thought
   const char *func_name() const { return "sp aggregate";}
   enum Item_result result_type () const;

@@ -1,0 +1,84 @@
+create aggregate function agg_sum(x INT) returns double
+begin
+declare  z double default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+create aggregate function agg_count() returns double
+begin
+declare z int default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z = z+1;
+end loop;
+end|
+create function increm(x int) returns int
+return x+1|
+create table t1 (sal int,id int,val int,counter int);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,2,10,2);
+INSERT INTO t1 (sal,id,val,counter) VALUES (2000,1,16,5);
+INSERT INTO t1 (sal,id,val,counter) VALUES (6000,2,18,1);
+INSERT INTO t1 (sal,id,val,counter) VALUES (5000,3,15,3);
+INSERT INTO t1 (sal,id,val,counter) VALUES (3000,4,11,4);
+prepare test from "select agg_count() from t1 where id>=?";
+set @param=2;
+execute test using @param;
+agg_count()
+4
+execute test using @param;
+agg_count()
+4
+execute test using @param;
+agg_count()
+4
+execute test using @param;
+agg_count()
+4
+set @param=1;
+execute test using @param;
+agg_count()
+5
+set @param=3;
+execute test using @param;
+agg_count()
+2
+set @param=4;
+execute test using @param;
+agg_count()
+1
+deallocate prepare test;
+prepare test from "select agg_sum(sal) from t1 where id>=?";
+set @param=2;
+execute test using @param;
+agg_sum(sal)
+15000
+execute test using @param;
+agg_sum(sal)
+15000
+execute test using @param;
+agg_sum(sal)
+15000
+execute test using @param;
+agg_sum(sal)
+15000
+set @param=1;
+execute test using @param;
+agg_sum(sal)
+17000
+set @param=3;
+execute test using @param;
+agg_sum(sal)
+8000
+set @param=4;
+execute test using @param;
+agg_sum(sal)
+3000
+deallocate prepare test;
+drop table t1;
+drop function agg_sum;
+drop function agg_count;
+drop function increm;
