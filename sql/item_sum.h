@@ -1158,7 +1158,6 @@ public:
   void update_field(){DBUG_ASSERT(0);}//TODO
   void clear();
   void cleanup();
-
   inline Field *get_sp_result_field()
   {
     return sp_result_field;
