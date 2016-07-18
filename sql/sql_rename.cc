@@ -24,7 +24,7 @@
 #include "unireg.h"
 #include "sql_rename.h"
 #include "sql_cache.h"                          // query_cache_*
-#include "sql_table.h"                         // build_table_filename
+#include "sql_table.h"                         // write_bin_log
 #include "sql_view.h"             // mysql_frm_type, mysql_rename_view
 #include "sql_trigger.h"
 #include "lock.h"       // MYSQL_OPEN_SKIP_TEMPORARY

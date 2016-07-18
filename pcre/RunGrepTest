@@ -67,6 +67,15 @@ fi
 ./pcretest -C utf >/dev/null
 utf8=$?
 
+# We need valgrind suppressions when JIT is in use. (This isn't perfect because
+# some tests are run with -no-jit, but as PCRE1 is in maintenance only, I have
+# not bothered about that.)
+
+./pcretest -C jit >/dev/null
+if [ $? -eq 1 -a "$valgrind" != "" ] ; then
+  valgrind="$valgrind --suppressions=./testdata/valgrind-jit.supp"
+fi
+
 echo "Testing pcregrep main features"
 
 echo "---------------------------- Test 1 ------------------------------" >testtrygrep

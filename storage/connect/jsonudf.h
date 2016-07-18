@@ -218,7 +218,11 @@ extern "C" {
 	DllExport my_bool json_serialize_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *json_serialize(UDF_EXEC_ARGS);
 	DllExport void json_serialize_deinit(UDF_INIT*);
+
+	DllExport my_bool envar_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *envar(UDF_EXEC_ARGS);
 } // extern "C"
+
 
 /*********************************************************************************/
 /*  Structure JPN. Used to make the locate path.                                 */

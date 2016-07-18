@@ -1,0 +1,79 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-9614 Roles and Users Longer than 6 characters
+--echo #
+--echo # This test case checks the edge case presented in the MDEV. The
+--echo # real issue is actually apparent when the username is longer than the
+--echo # rolename.
+
+--enable_connect_log
+--echo #
+--echo # We need a separate database not including test or test_% names. Due to
+--echo # default privileges given on these databases.
+--echo #
+DROP DATABASE IF EXISTS `bug_db`;
+
+--echo #
+--echo # The first user did not show the bug as john's length is smaller
+--echo # than client. The bug is apparent most of the time for usertestjohn.
+--echo #
+CREATE USER `john`@`%`;
+CREATE USER `usertestjohn`@`%`;
+CREATE ROLE `client`;
+
+--echo #
+--echo # Setup the required tables.
+--echo #
+CREATE DATABASE `bug_db`;
+CREATE TABLE `bug_db`.`t0`(`c0` INT);
+
+--echo #
+--echo # Setup select privileges only on the role. Setting the role should give
+--echo # select access to bug_db.t0.
+--echo #
+GRANT SELECT ON `bug_db`.`t0` TO `client`;
+GRANT `client` TO `john`@`%`;
+GRANT `client` TO `usertestjohn`@`%`;
+
+--echo #
+--echo # Check to see grants are set.
+--echo #
+SHOW GRANTS FOR `john`@`%`;
+SHOW GRANTS FOR `usertestjohn`@`%`;
+SHOW GRANTS FOR `client`;
+
+show databases;
+
+--echo #
+--echo # Try using the database as john.
+--echo #
+connect (john, localhost, john,,information_schema);
+
+show databases;
+set role client;
+show databases;
+use bug_db;
+
+--echo #
+--echo # Try using the database as usertestjohn.
+--echo #
+connect (usertestjohn, localhost, usertestjohn,,information_schema);
+
+show databases;
+set role client;
+show databases;
+
+show grants;
+use bug_db;
+
+
+--echo #
+--echo # Cleanup
+--echo #
+connection default;
+drop user john;
+drop user usertestjohn;
+drop role client;
+drop database bug_db;
+--disable_connect_log

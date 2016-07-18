@@ -155,11 +155,15 @@ ha_clear(
 
 	switch (table->type) {
 	case HASH_TABLE_SYNC_MUTEX:
+		for (ulint i = 0; i < table->n_sync_obj; i++)
+			mutex_free(table->sync_obj.mutexes + i);
 		mem_free(table->sync_obj.mutexes);
 		table->sync_obj.mutexes = NULL;
 		break;
 
 	case HASH_TABLE_SYNC_RW_LOCK:
+		for (ulint i = 0; i < table->n_sync_obj; i++)
+			rw_lock_free(table->sync_obj.rw_locks + i);
 		mem_free(table->sync_obj.rw_locks);
 		table->sync_obj.rw_locks = NULL;
 		break;

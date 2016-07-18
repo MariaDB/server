@@ -396,6 +396,7 @@ utf8mb4_test_400_ci	utf8mb4	328			8
 latin1_test2	latin1	332			1
 utf8_bengali_standard_ci	utf8	336			8
 utf8_bengali_traditional_ci	utf8	337			8
+utf8_implicit_weights_ci	utf8	338			8
 utf8_phone_ci	utf8	352			8
 utf8_test_ci	utf8	353			8
 utf8_5624_1	utf8	354			8

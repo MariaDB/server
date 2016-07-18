@@ -66,7 +66,7 @@ Arg RE::no_arg((void*)NULL);
 // inclusive test if we ever needed it.  (Note that not only the
 // __attribute__ syntax, but also __USER_LABEL_PREFIX__, are
 // gnu-specific.)
-#if defined(__GNUC__) && __GNUC__ >= 3 && defined(__ELF__)
+#if defined(__GNUC__) && __GNUC__ >= 3 && defined(__ELF__) && !defined(__INTEL_COMPILER)
 # define ULP_AS_STRING(x)            ULP_AS_STRING_INTERNAL(x)
 # define ULP_AS_STRING_INTERNAL(x)   #x
 # define USER_LABEL_PREFIX_STR       ULP_AS_STRING(__USER_LABEL_PREFIX__)
@@ -168,22 +168,22 @@ bool RE::FullMatch(const StringPiece& text,
                    const Arg& ptr16) const {
   const Arg* args[kMaxArgs];
   int n = 0;
-  if (&ptr1  == &no_arg) goto done; args[n++] = &ptr1;
-  if (&ptr2  == &no_arg) goto done; args[n++] = &ptr2;
-  if (&ptr3  == &no_arg) goto done; args[n++] = &ptr3;
-  if (&ptr4  == &no_arg) goto done; args[n++] = &ptr4;
-  if (&ptr5  == &no_arg) goto done; args[n++] = &ptr5;
-  if (&ptr6  == &no_arg) goto done; args[n++] = &ptr6;
-  if (&ptr7  == &no_arg) goto done; args[n++] = &ptr7;
-  if (&ptr8  == &no_arg) goto done; args[n++] = &ptr8;
-  if (&ptr9  == &no_arg) goto done; args[n++] = &ptr9;
-  if (&ptr10 == &no_arg) goto done; args[n++] = &ptr10;
-  if (&ptr11 == &no_arg) goto done; args[n++] = &ptr11;
-  if (&ptr12 == &no_arg) goto done; args[n++] = &ptr12;
-  if (&ptr13 == &no_arg) goto done; args[n++] = &ptr13;
-  if (&ptr14 == &no_arg) goto done; args[n++] = &ptr14;
-  if (&ptr15 == &no_arg) goto done; args[n++] = &ptr15;
-  if (&ptr16 == &no_arg) goto done; args[n++] = &ptr16;
+  if (&ptr1  == &no_arg) { goto done; } args[n++] = &ptr1;
+  if (&ptr2  == &no_arg) { goto done; } args[n++] = &ptr2;
+  if (&ptr3  == &no_arg) { goto done; } args[n++] = &ptr3;
+  if (&ptr4  == &no_arg) { goto done; } args[n++] = &ptr4;
+  if (&ptr5  == &no_arg) { goto done; } args[n++] = &ptr5;
+  if (&ptr6  == &no_arg) { goto done; } args[n++] = &ptr6;
+  if (&ptr7  == &no_arg) { goto done; } args[n++] = &ptr7;
+  if (&ptr8  == &no_arg) { goto done; } args[n++] = &ptr8;
+  if (&ptr9  == &no_arg) { goto done; } args[n++] = &ptr9;
+  if (&ptr10 == &no_arg) { goto done; } args[n++] = &ptr10;
+  if (&ptr11 == &no_arg) { goto done; } args[n++] = &ptr11;
+  if (&ptr12 == &no_arg) { goto done; } args[n++] = &ptr12;
+  if (&ptr13 == &no_arg) { goto done; } args[n++] = &ptr13;
+  if (&ptr14 == &no_arg) { goto done; } args[n++] = &ptr14;
+  if (&ptr15 == &no_arg) { goto done; } args[n++] = &ptr15;
+  if (&ptr16 == &no_arg) { goto done; } args[n++] = &ptr16;
  done:
 
   int consumed;
@@ -210,22 +210,22 @@ bool RE::PartialMatch(const StringPiece& text,
                       const Arg& ptr16) const {
   const Arg* args[kMaxArgs];
   int n = 0;
-  if (&ptr1  == &no_arg) goto done; args[n++] = &ptr1;
-  if (&ptr2  == &no_arg) goto done; args[n++] = &ptr2;
-  if (&ptr3  == &no_arg) goto done; args[n++] = &ptr3;
-  if (&ptr4  == &no_arg) goto done; args[n++] = &ptr4;
-  if (&ptr5  == &no_arg) goto done; args[n++] = &ptr5;
-  if (&ptr6  == &no_arg) goto done; args[n++] = &ptr6;
-  if (&ptr7  == &no_arg) goto done; args[n++] = &ptr7;
-  if (&ptr8  == &no_arg) goto done; args[n++] = &ptr8;
-  if (&ptr9  == &no_arg) goto done; args[n++] = &ptr9;
-  if (&ptr10 == &no_arg) goto done; args[n++] = &ptr10;
-  if (&ptr11 == &no_arg) goto done; args[n++] = &ptr11;
-  if (&ptr12 == &no_arg) goto done; args[n++] = &ptr12;
-  if (&ptr13 == &no_arg) goto done; args[n++] = &ptr13;
-  if (&ptr14 == &no_arg) goto done; args[n++] = &ptr14;
-  if (&ptr15 == &no_arg) goto done; args[n++] = &ptr15;
-  if (&ptr16 == &no_arg) goto done; args[n++] = &ptr16;
+  if (&ptr1  == &no_arg) { goto done; } args[n++] = &ptr1;
+  if (&ptr2  == &no_arg) { goto done; } args[n++] = &ptr2;
+  if (&ptr3  == &no_arg) { goto done; } args[n++] = &ptr3;
+  if (&ptr4  == &no_arg) { goto done; } args[n++] = &ptr4;
+  if (&ptr5  == &no_arg) { goto done; } args[n++] = &ptr5;
+  if (&ptr6  == &no_arg) { goto done; } args[n++] = &ptr6;
+  if (&ptr7  == &no_arg) { goto done; } args[n++] = &ptr7;
+  if (&ptr8  == &no_arg) { goto done; } args[n++] = &ptr8;
+  if (&ptr9  == &no_arg) { goto done; } args[n++] = &ptr9;
+  if (&ptr10 == &no_arg) { goto done; } args[n++] = &ptr10;
+  if (&ptr11 == &no_arg) { goto done; } args[n++] = &ptr11;
+  if (&ptr12 == &no_arg) { goto done; } args[n++] = &ptr12;
+  if (&ptr13 == &no_arg) { goto done; } args[n++] = &ptr13;
+  if (&ptr14 == &no_arg) { goto done; } args[n++] = &ptr14;
+  if (&ptr15 == &no_arg) { goto done; } args[n++] = &ptr15;
+  if (&ptr16 == &no_arg) { goto done; } args[n++] = &ptr16;
  done:
 
   int consumed;
@@ -252,22 +252,22 @@ bool RE::Consume(StringPiece* input,
                  const Arg& ptr16) const {
   const Arg* args[kMaxArgs];
   int n = 0;
-  if (&ptr1  == &no_arg) goto done; args[n++] = &ptr1;
-  if (&ptr2  == &no_arg) goto done; args[n++] = &ptr2;
-  if (&ptr3  == &no_arg) goto done; args[n++] = &ptr3;
-  if (&ptr4  == &no_arg) goto done; args[n++] = &ptr4;
-  if (&ptr5  == &no_arg) goto done; args[n++] = &ptr5;
-  if (&ptr6  == &no_arg) goto done; args[n++] = &ptr6;
-  if (&ptr7  == &no_arg) goto done; args[n++] = &ptr7;
-  if (&ptr8  == &no_arg) goto done; args[n++] = &ptr8;
-  if (&ptr9  == &no_arg) goto done; args[n++] = &ptr9;
-  if (&ptr10 == &no_arg) goto done; args[n++] = &ptr10;
-  if (&ptr11 == &no_arg) goto done; args[n++] = &ptr11;
-  if (&ptr12 == &no_arg) goto done; args[n++] = &ptr12;
-  if (&ptr13 == &no_arg) goto done; args[n++] = &ptr13;
-  if (&ptr14 == &no_arg) goto done; args[n++] = &ptr14;
-  if (&ptr15 == &no_arg) goto done; args[n++] = &ptr15;
-  if (&ptr16 == &no_arg) goto done; args[n++] = &ptr16;
+  if (&ptr1  == &no_arg) { goto done; } args[n++] = &ptr1;
+  if (&ptr2  == &no_arg) { goto done; } args[n++] = &ptr2;
+  if (&ptr3  == &no_arg) { goto done; } args[n++] = &ptr3;
+  if (&ptr4  == &no_arg) { goto done; } args[n++] = &ptr4;
+  if (&ptr5  == &no_arg) { goto done; } args[n++] = &ptr5;
+  if (&ptr6  == &no_arg) { goto done; } args[n++] = &ptr6;
+  if (&ptr7  == &no_arg) { goto done; } args[n++] = &ptr7;
+  if (&ptr8  == &no_arg) { goto done; } args[n++] = &ptr8;
+  if (&ptr9  == &no_arg) { goto done; } args[n++] = &ptr9;
+  if (&ptr10 == &no_arg) { goto done; } args[n++] = &ptr10;
+  if (&ptr11 == &no_arg) { goto done; } args[n++] = &ptr11;
+  if (&ptr12 == &no_arg) { goto done; } args[n++] = &ptr12;
+  if (&ptr13 == &no_arg) { goto done; } args[n++] = &ptr13;
+  if (&ptr14 == &no_arg) { goto done; } args[n++] = &ptr14;
+  if (&ptr15 == &no_arg) { goto done; } args[n++] = &ptr15;
+  if (&ptr16 == &no_arg) { goto done; } args[n++] = &ptr16;
  done:
 
   int consumed;
@@ -300,22 +300,22 @@ bool RE::FindAndConsume(StringPiece* input,
                         const Arg& ptr16) const {
   const Arg* args[kMaxArgs];
   int n = 0;
-  if (&ptr1  == &no_arg) goto done; args[n++] = &ptr1;
-  if (&ptr2  == &no_arg) goto done; args[n++] = &ptr2;
-  if (&ptr3  == &no_arg) goto done; args[n++] = &ptr3;
-  if (&ptr4  == &no_arg) goto done; args[n++] = &ptr4;
-  if (&ptr5  == &no_arg) goto done; args[n++] = &ptr5;
-  if (&ptr6  == &no_arg) goto done; args[n++] = &ptr6;
-  if (&ptr7  == &no_arg) goto done; args[n++] = &ptr7;
-  if (&ptr8  == &no_arg) goto done; args[n++] = &ptr8;
-  if (&ptr9  == &no_arg) goto done; args[n++] = &ptr9;
-  if (&ptr10 == &no_arg) goto done; args[n++] = &ptr10;
-  if (&ptr11 == &no_arg) goto done; args[n++] = &ptr11;
-  if (&ptr12 == &no_arg) goto done; args[n++] = &ptr12;
-  if (&ptr13 == &no_arg) goto done; args[n++] = &ptr13;
-  if (&ptr14 == &no_arg) goto done; args[n++] = &ptr14;
-  if (&ptr15 == &no_arg) goto done; args[n++] = &ptr15;
-  if (&ptr16 == &no_arg) goto done; args[n++] = &ptr16;
+  if (&ptr1  == &no_arg) { goto done; } args[n++] = &ptr1;
+  if (&ptr2  == &no_arg) { goto done; } args[n++] = &ptr2;
+  if (&ptr3  == &no_arg) { goto done; } args[n++] = &ptr3;
+  if (&ptr4  == &no_arg) { goto done; } args[n++] = &ptr4;
+  if (&ptr5  == &no_arg) { goto done; } args[n++] = &ptr5;
+  if (&ptr6  == &no_arg) { goto done; } args[n++] = &ptr6;
+  if (&ptr7  == &no_arg) { goto done; } args[n++] = &ptr7;
+  if (&ptr8  == &no_arg) { goto done; } args[n++] = &ptr8;
+  if (&ptr9  == &no_arg) { goto done; } args[n++] = &ptr9;
+  if (&ptr10 == &no_arg) { goto done; } args[n++] = &ptr10;
+  if (&ptr11 == &no_arg) { goto done; } args[n++] = &ptr11;
+  if (&ptr12 == &no_arg) { goto done; } args[n++] = &ptr12;
+  if (&ptr13 == &no_arg) { goto done; } args[n++] = &ptr13;
+  if (&ptr14 == &no_arg) { goto done; } args[n++] = &ptr14;
+  if (&ptr15 == &no_arg) { goto done; } args[n++] = &ptr15;
+  if (&ptr16 == &no_arg) { goto done; } args[n++] = &ptr16;
  done:
 
   int consumed;

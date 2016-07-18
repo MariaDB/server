@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+Copyright (c) 2000, 2016, Oracle and/or its affiliates.
 Copyright (c) 2013, 2016, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
@@ -4256,6 +4256,16 @@ innobase_change_buffering_inited_ok:
 			innobase_open_files = tc_size;
 		}
 	}
+
+	if (innobase_open_files > (long) open_files_limit) {
+		fprintf(stderr,
+                       "innodb_open_files should not be greater"
+                       " than the open_files_limit.\n");
+		if (innobase_open_files > (long) tc_size) {
+			innobase_open_files = tc_size;
+		}
+	}
+
 	srv_max_n_open_files = (ulint) innobase_open_files;
 	srv_innodb_status = (ibool) innobase_create_status_file;
 
@@ -13080,7 +13090,8 @@ ha_innobase::delete_table(
 
 	/* Drop the table in InnoDB */
 	err = row_drop_table_for_mysql(
-		norm_name, trx, thd_sql_command(thd) == SQLCOM_DROP_DB);
+		norm_name, trx, thd_sql_command(thd) == SQLCOM_DROP_DB,
+		FALSE);
 
 
 	if (err == DB_TABLE_NOT_FOUND
@@ -13111,7 +13122,8 @@ ha_innobase::delete_table(
 #endif
 			err = row_drop_table_for_mysql(
 				par_case_name, trx,
-				thd_sql_command(thd) == SQLCOM_DROP_DB);
+				thd_sql_command(thd) == SQLCOM_DROP_DB,
+				FALSE);
 		}
 	}
 
@@ -14436,7 +14448,7 @@ ha_innobase::optimize(
 	if (innodb_optimize_fulltext_only) {
 		if (prebuilt->table->fts && prebuilt->table->fts->cache
 		    && !dict_table_is_discarded(prebuilt->table)) {
-			fts_sync_table(prebuilt->table);
+			fts_sync_table(prebuilt->table, false, true);
 			fts_optimize_table(prebuilt->table);
 		}
 		return(HA_ADMIN_OK);
@@ -14494,6 +14506,34 @@ ha_innobase::check(
 			thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLESPACE_MISSING,
 			table->s->table_name.str);
+
+		DBUG_RETURN(HA_ADMIN_CORRUPT);
+	}
+
+	if (prebuilt->table->corrupted) {
+		char	index_name[MAX_FULL_NAME_LEN + 1];
+		/* If some previous operation has marked the table as
+		corrupted in memory, and has not propagated such to
+		clustered index, we will do so here */
+		index = dict_table_get_first_index(prebuilt->table);
+
+		if (!dict_index_is_corrupted(index)) {
+			row_mysql_lock_data_dictionary(prebuilt->trx);
+			dict_set_corrupted(index, prebuilt->trx, "CHECK TABLE");
+			row_mysql_unlock_data_dictionary(prebuilt->trx);
+		}
+
+		innobase_format_name(index_name, sizeof index_name,
+			index->name, TRUE);
+
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_INDEX_CORRUPT,
+				    "InnoDB: Index %s is marked as"
+				    " corrupted", index_name);
+
+		/* Now that the table is already marked as corrupted,
+		there is no need to check any index of this table */
+		prebuilt->trx->op_info = "";
 
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
 	}
@@ -14580,6 +14620,15 @@ ha_innobase::check(
 
 		prebuilt->index_usable = row_merge_is_index_usable(
 			prebuilt->trx, prebuilt->index);
+
+		DBUG_EXECUTE_IF(
+			"dict_set_index_corrupted",
+			if (!dict_index_is_clust(index)) {
+				prebuilt->index_usable = FALSE;
+				row_mysql_lock_data_dictionary(prebuilt->trx);
+                                dict_set_corrupted(index, prebuilt->trx, "dict_set_index_corrupted");;
+				row_mysql_unlock_data_dictionary(prebuilt->trx);
+			});
 
 		if (UNIV_UNLIKELY(!prebuilt->index_usable)) {
 			innobase_format_name(

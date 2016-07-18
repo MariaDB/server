@@ -5447,6 +5447,38 @@ static uint my_mbcharlen_utf8(CHARSET_INFO *cs  __attribute__((unused)),
 }
 
 
+/*
+  TODO-10.2: join this with pad_max_char() in ctype-mb.c
+*/
+static void
+my_fill_utf8_mb(CHARSET_INFO *cs, char *str, size_t length, int fill)
+{
+  char *end= str + length;
+  char buf[10];
+  char buflen= cs->cset->native_to_mb(cs, (my_wc_t) fill, (uchar*) buf,
+                                      (uchar*) buf + sizeof(buf));
+  DBUG_ASSERT(buflen > 0);
+  for ( ; str + buflen <= end ; )
+  {
+    memcpy(str, buf, buflen);
+    str+= buflen;
+  }
+
+  for ( ; str < end; )
+    *str++= ' ';
+}
+
+
+static void
+my_fill_utf8(CHARSET_INFO *cs, char *str, size_t length, int fill)
+{
+  if (fill < 0x80)
+    my_fill_8bit(cs, str, length, fill);
+  else
+    my_fill_utf8_mb(cs, str, length, fill);
+}
+
+
 static MY_COLLATION_HANDLER my_collation_utf8_general_ci_handler =
 {
     NULL,               /* init */
@@ -5514,7 +5546,7 @@ MY_CHARSET_HANDLER my_charset_utf8_handler=
     my_snprintf_8bit,
     my_long10_to_str_8bit,
     my_longlong10_to_str_8bit,
-    my_fill_8bit,
+    my_fill_utf8,
     my_strntol_8bit,
     my_strntoul_8bit,
     my_strntoll_8bit,
@@ -7869,7 +7901,7 @@ MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
   my_snprintf_8bit,
   my_long10_to_str_8bit,
   my_longlong10_to_str_8bit,
-  my_fill_8bit,
+  my_fill_utf8,
   my_strntol_8bit,
   my_strntoul_8bit,
   my_strntoll_8bit,

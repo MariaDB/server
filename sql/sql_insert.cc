@@ -3924,11 +3924,11 @@ void select_insert::abort_result_set() {
   CREATE TABLE (SELECT) ...
 ***************************************************************************/
 
-Field *Item::create_field_for_create_select(THD *thd, TABLE *table)
+Field *Item::create_field_for_create_select(TABLE *table)
 {
   Field *def_field, *tmp_field;
-  return create_tmp_field(thd, table, this, type(),
-                          (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0);
+  return ::create_tmp_field(table->in_use, table, this, type(),
+                            (Item ***) 0, &tmp_field, &def_field, 0, 0, 0, 0);
 }
 
 
@@ -4002,7 +4002,7 @@ static TABLE *create_table_from_items(THD *thd,
 
   while ((item=it++))
   {
-    Field *tmp_field= item->create_field_for_create_select(thd, &tmp_table);
+    Field *tmp_field= item->create_field_for_create_select(&tmp_table);
 
     if (!tmp_field)
       DBUG_RETURN(NULL);

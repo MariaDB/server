@@ -1,0 +1,24 @@
+#
+# This shows a bug in vcol charset handling.
+# vcol definition is stored in the connection charset when a table was created
+# vcol is parsed in the connection charset when a table was opened
+#
+# this cannot be fixed without changing frm format, so we only
+# fix it in 10.2.
+#
+set names utf8;
+create table t1 (
+  a int,
+  b varchar(100) as (if(a,collation('й'),hex('ю')))
+) character set koi8r;
+insert t1 (a) values (0),(1);
+select * from t1;
+set names latin1;
+select * from t1;
+flush tables;
+select * from t1;
+set names koi8r;
+select * from t1;
+flush tables;
+select * from t1;
+drop table t1;

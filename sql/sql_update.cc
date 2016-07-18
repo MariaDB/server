@@ -567,7 +567,7 @@ int mysql_update(THD *thd,
       Filesort_tracker *fs_tracker= 
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
-      if (!(sortorder=make_unireg_sortorder(thd, order, &length, NULL)) ||
+      if (!(sortorder=make_unireg_sortorder(thd, NULL, 0, order, &length, NULL)) ||
           (table->sort.found_records= filesort(thd, table, sortorder, length,
                                                select, limit,
                                                true,
@@ -1612,7 +1612,7 @@ bool mysql_multi_update(THD *thd,
     DBUG_RETURN(TRUE);
   }
 
-  thd->abort_on_warning= thd->is_strict_mode();
+  thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
 
   res= mysql_select(thd, &select_lex->ref_pointer_array,

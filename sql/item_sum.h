@@ -482,7 +482,7 @@ public:
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
   Item *get_tmp_table_item(THD *thd);
-  virtual Field *create_tmp_field(bool group, TABLE *table);
+  Field *create_tmp_field(bool group, TABLE *table);
   virtual bool collect_outer_ref_processor(uchar *param);
   bool init_sum_func_check(THD *thd);
   bool check_sum_func(THD *thd, Item **ref);
@@ -1107,8 +1107,8 @@ public:
     return SP_AGGREGATE_FUNC;
   }
   
-  void fix_length_and_dec();//need to be given a thought
-  bool fix_fields(THD *thd, Item **ref);//need to be given a thought
+  void fix_length_and_dec();//TODO need to be given a thought
+  bool fix_fields(THD *thd, Item **ref);//TODO need to be given a thought
   const char *func_name() const { return "sp aggregate";}
   enum Item_result result_type () const;
   bool add();
@@ -1154,10 +1154,11 @@ public:
     str->copy(buf);
     return str;
   }
-  void reset_field(){DBUG_ASSERT(0);}
-  void update_field(){DBUG_ASSERT(0);}
+  void reset_field(){DBUG_ASSERT(0);}//TODO
+  void update_field(){DBUG_ASSERT(0);}//TODO
   void clear();
   void cleanup();
+
   inline Field *get_sp_result_field()
   {
     return sp_result_field;
@@ -1183,7 +1184,6 @@ public:
     fixed= true;
   }
   table_map used_tables() const { return (table_map) 1L; }
-  Field *tmp_table_field(TABLE *) { DBUG_ASSERT(0); return NULL; }
   void set_result_field(Field *) { DBUG_ASSERT(0); }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
 };

@@ -926,7 +926,7 @@ implementation of a mutual exclusion semaphore. */
 
 /** InnoDB mutex */
 struct ib_mutex_t {
-	os_event_t	event;	/*!< Used by sync0arr.cc for the wait queue */
+	struct os_event	event;	/*!< Used by sync0arr.cc for the wait queue */
 	volatile lock_word_t	lock_word;	/*!< lock_word is the target
 				of the atomic test-and-set instruction when
 				atomic operations are enabled. */
@@ -974,14 +974,13 @@ struct ib_mutex_t {
 struct ib_prio_mutex_t {
 	ib_mutex_t	base_mutex;	/* The regular mutex provides the lock
 					word etc. for the priority mutex  */
-	os_event_t	high_priority_event; /* High priority wait array
+	struct os_event	high_priority_event; /* High priority wait array
 					event */
 	volatile ulint	high_priority_waiters; /* Number of threads that asked
 					for this mutex to be acquired with high
 					priority in the global wait array
 					waiting for this mutex to be
 					released. */
-	UT_LIST_NODE_T(ib_prio_mutex_t)	list;
 };
 
 /** Constant determining how long spin wait is continued before suspending

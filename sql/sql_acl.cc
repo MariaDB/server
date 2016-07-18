@@ -31,7 +31,7 @@
 #include "sql_base.h"                           // close_mysql_tables
 #include "key.h"             // key_copy, key_cmp_if_same, key_restore
 #include "sql_show.h"        // append_identifier
-#include "sql_table.h"                         // build_table_filename
+#include "sql_table.h"                         // write_bin_log
 #include "hash_filo.h"
 #include "sql_parse.h"                          // check_access
 #include "sql_view.h"                           // VIEW_ANY_ACL
@@ -7382,8 +7382,7 @@ bool check_grant_db(THD *thd, const char *db)
   len= (uint) (end - helping) + 1;
 
   /*
-     If a role is set, we need to check for privileges
-     here aswell
+     If a role is set, we need to check for privileges here as well.
   */
   if (sctx->priv_role[0])
   {
@@ -7397,11 +7396,10 @@ bool check_grant_db(THD *thd, const char *db)
 
   for (uint idx=0 ; idx < column_priv_hash.records ; idx++)
   {
-    GRANT_TABLE *grant_table= (GRANT_TABLE*)
-      my_hash_element(&column_priv_hash,
-                      idx);
+    GRANT_TABLE *grant_table= (GRANT_TABLE*) my_hash_element(&column_priv_hash,
+                                                             idx);
     if (len < grant_table->key_length &&
-	!memcmp(grant_table->hash_key,helping,len) &&
+        !memcmp(grant_table->hash_key, helping, len) &&
         compare_hostname(&grant_table->host, sctx->host, sctx->ip))
     {
       error= FALSE; /* Found match. */
@@ -7409,7 +7407,7 @@ bool check_grant_db(THD *thd, const char *db)
     }
     if (sctx->priv_role[0] &&
         len2 < grant_table->key_length &&
-        !memcmp(grant_table->hash_key,helping2,len) &&
+        !memcmp(grant_table->hash_key, helping2, len2) &&
         (!grant_table->host.hostname || !grant_table->host.hostname[0]))
     {
       error= FALSE; /* Found role match */
@@ -12201,6 +12199,9 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
         return 1;
       }
     }
+    if (!acl_user->x509_issuer && !acl_user->x509_subject)
+      return 0; // all done
+
     /* Prepare certificate (if exists) */
     if (!(cert= SSL_get_peer_certificate(ssl)))
       return 1;

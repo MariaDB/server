@@ -340,6 +340,7 @@ static int sst_scan_uuid_seqno (const char* str,
                                 wsrep_uuid_t* uuid, wsrep_seqno_t* seqno)
 {
   int offt = wsrep_uuid_scan (str, strlen(str), uuid);
+  errno= 0;                                     /* Reset the errno */
   if (offt > 0 && strlen(str) > (unsigned int)offt && ':' == str[offt])
   {
     *seqno = strtoll (str + offt + 1, NULL, 10);
@@ -1119,6 +1120,16 @@ wait_signal:
         if (!err)
         {
           sst_disallow_writes (thd.ptr, true);
+          /*
+            Lets also keep statements that modify binary logs (like RESET LOGS,
+            RESET MASTER) from proceeding until the files have been transferred
+            to the joiner node.
+          */
+          if (mysql_bin_log.is_open())
+          {
+            mysql_mutex_lock(mysql_bin_log.get_log_lock());
+          }
+
           locked= true;
           goto wait_signal;
         }
@@ -1127,6 +1138,11 @@ wait_signal:
       {
         if (locked)
         {
+          if (mysql_bin_log.is_open())
+          {
+            mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
+            mysql_mutex_unlock(mysql_bin_log.get_log_lock());
+          }
           sst_disallow_writes (thd.ptr, false);
           thd.ptr->global_read_lock.unlock_global_read_lock (thd.ptr);
           locked= false;
@@ -1159,6 +1175,11 @@ wait_signal:
 
   if (locked) // don't forget to unlock server before return
   {
+    if (mysql_bin_log.is_open())
+    {
+      mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
+      mysql_mutex_unlock(mysql_bin_log.get_log_lock());
+    }
     sst_disallow_writes (thd.ptr, false);
     thd.ptr->global_read_lock.unlock_global_read_lock (thd.ptr);
   }

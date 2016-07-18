@@ -1117,6 +1117,16 @@
       </rules>
     </collation>
 
+   <collation name="utf8_implicit_weights_ci" id="338">
+      <rules>
+        <reset>\u3400</reset><i>b</i>
+        <reset>a</reset><i>\u3561</i>
+        <reset>c</reset><i>\u1500</i>
+        <reset>\u3600</reset><i>\u1501</i>
+        <reset>\u3700</reset><i>\u3701</i>
+      </rules>
+   </collation>
+
   </charset>
   
 </charsets>

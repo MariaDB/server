@@ -34,7 +34,7 @@ SELECT t3.task_id, t3.field  FROM
 t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY,ymtasks_type	ymtasks_type	2	NULL	2	Using where; Using index
-1	SIMPLE	t3	ref	ymtasksoptions_task	ymtasksoptions_task	4	test.t2.task_id	7	
+1	SIMPLE	t3	ref	ymtasksoptions_task	ymtasksoptions_task	4	test.t2.task_id	1	
 SELECT t3.task_id, t3.field  FROM
 t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
 task_id	field
@@ -85,7 +85,7 @@ SELECT t3.task_id, t3.field  FROM
 t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	PRIMARY,ymtasks_type	ymtasks_type	2	NULL	2	Using where; Using index
-1	SIMPLE	t3	ref	ymtasksoptions_task	ymtasksoptions_task	4	test.t2.task_id	7	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+1	SIMPLE	t3	ref	ymtasksoptions_task	ymtasksoptions_task	4	test.t2.task_id	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 SELECT t3.task_id, t3.field  FROM
 t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
 task_id	field

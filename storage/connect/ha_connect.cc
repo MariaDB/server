@@ -119,6 +119,7 @@
 #undef  OFFSET
 
 #define NOPARSE
+#define NJDBC
 #if defined(UNIX)
 #include "osutil.h"
 #endif   // UNIX
@@ -128,7 +129,8 @@
 #include "odbccat.h"
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
-#include "jdbccat.h"
+#include "tabjdbc.h"
+#include "jdbconn.h"
 #endif   // JDBC_SUPPORT
 #include "xtable.h"
 #include "tabmysql.h"
@@ -169,7 +171,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0006 March 12, 2016";
+       char version[]= "Version 1.04.0006 May 08, 2016";
 #if defined(__WIN__)
        char compver[]= "Version 1.04.0006 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -189,6 +191,18 @@ extern "C" {
        char *msg_path;
 } // extern "C"
 #endif   // XMSG
+
+#if defined(JDBC_SUPPORT)
+	     char *JvmPath;
+			 char *ClassPath;
+			 char *Wrapper;
+#endif   // JDBC_SUPPORT
+
+#if defined(__WIN__)
+CRITICAL_SECTION parsec;      // Used calling the Flex parser
+#else   // !__WIN__
+pthread_mutex_t parmut = PTHREAD_MUTEX_INITIALIZER;
+#endif  // !__WIN__
 
 /***********************************************************************/
 /*  Utility functions.                                                 */
@@ -634,6 +648,7 @@ static int connect_init_func(void *p)
 
 #if defined(__WIN__)
   sql_print_information("CONNECT: %s", compver);
+	InitializeCriticalSection((LPCRITICAL_SECTION)&parsec);
 #else   // !__WIN__
   sql_print_information("CONNECT: %s", version);
 #endif  // !__WIN__
@@ -660,6 +675,9 @@ static int connect_init_func(void *p)
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
   BINCOL::SetEndian();        // Initialize host endian setting
+#if defined(JDBC_SUPPORT)
+	JDBConn::SetJVM();
+#endif   // JDBC_SUPPORT
   DBUG_RETURN(0);
 } // end of connect_init_func
 
@@ -676,11 +694,17 @@ static int connect_done_func(void *)
 
 #ifdef LIBXML2_SUPPORT
   XmlCleanupParserLib();
-#endif   // LIBXML2_SUPPORT
+#endif // LIBXML2_SUPPORT
 
-#if !defined(__WIN__)
-//PROFILE_End();                Causes signal 11
-#endif   // !__WIN__
+#ifdef JDBC_SUPPORT
+	JDBConn::ResetJVM();
+#endif // JDBC_SUPPORT
+
+#if	defined(__WIN__)
+	DeleteCriticalSection((LPCRITICAL_SECTION)&parsec);
+#else   // !__WIN__
+	PROFILE_End();
+#endif  // !__WIN__
 
   for (pc= user_connect::to_users; pc; pc= pn) {
     if (pc->g)
@@ -1937,7 +1961,7 @@ int ha_connect::MakeRecord(char *buf)
   if (trace > 1)
     htrc("Maps: read=%08X write=%08X vcol=%08X defr=%08X defw=%08X\n",
             *table->read_set->bitmap, *table->write_set->bitmap,
-            *table->vcol_set->bitmap,
+            (table->vcol_set) ? *table->vcol_set->bitmap : 0,
             *table->def_read_set.bitmap, *table->def_write_set.bitmap);
 
   // Avoid asserts in field::store() for columns that are not updated
@@ -5140,7 +5164,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // ODBC_SUPPORT
 #if defined(JDBC_SUPPORT)
 	PJPARM      sjp= NULL;
-	char       *jpath= NULL;
 	char       *driver= NULL;
 	char       *url= NULL;
 	char       *tabtyp = NULL;
@@ -5177,7 +5200,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   spc= (!sep) ? ',' : *sep;
   qch= topt->qchar ? *topt->qchar : (signed)topt->quoted >= 0 ? '"' : 0;
   hdr= (int)topt->header;
-  tbl= topt->tablist;
+	tbl= topt->tablist;
   col= topt->colist;
 
   if (topt->oplist) {
@@ -5207,9 +5230,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
       cnc= (!*ucnc || *ucnc == 'y' || *ucnc == 'Y' || atoi(ucnc) != 0);
 #endif
 #if defined(JDBC_SUPPORT)
-		jpath= GetListOption(g, "Jpath", topt->oplist, NULL);
 		driver= GetListOption(g, "Driver", topt->oplist, NULL);
-		url= GetListOption(g, "URL", topt->oplist, NULL);
+//	url= GetListOption(g, "URL", topt->oplist, NULL);
 		tabtyp = GetListOption(g, "Tabtype", topt->oplist, NULL);
 #endif   // JDBC_SUPPORT
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
@@ -5310,18 +5332,31 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	case TAB_JDBC:
 		if (fnc & FNC_DRIVER) {
 			ok= true;
-		} else if (!url) {
-				strcpy(g->Message, "Missing URL");
+		} else if (!(url= strz(g, create_info->connect_string))) {
+			strcpy(g->Message, "Missing URL");
 		} else {
-			// Store ODBC additional parameters
+			// Store JDBC additional parameters
+			int      rc;
+			PJDBCDEF jdef= new(g) JDBCDEF();
+
+			jdef->SetName(create_info->alias);
 			sjp= (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));
 			sjp->Driver= driver;
-			sjp->Url= url;
-			sjp->User= (char*)user;
-			sjp->Pwd= (char*)pwd;
 			sjp->Fsize= 0;
 			sjp->Scrollable= false;
-			ok= true;
+
+			if ((rc = jdef->ParseURL(g, url, false)) == RC_OK) {
+				sjp->Url= url;
+				sjp->User= (char*)user;
+				sjp->Pwd= (char*)pwd;
+				ok= true;
+			} else if (rc == RC_NF) {
+				if (jdef->GetTabname())
+					tab= jdef->GetTabname();
+
+				ok= jdef->SetParms(sjp);
+			} // endif rc
+
 		} // endif's
 
 		supfnc |= (FNC_DRIVER | FNC_TABLE);
@@ -5473,7 +5508,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
             break;
           case FNC_TABLE:
-            qrp= ODBCTables(g, dsn, shm, tab, mxr, true, sop);
+            qrp= ODBCTables(g, dsn, shm, tab, NULL, mxr, true, sop);
             break;
           case FNC_DSN:
             qrp= ODBCDataSources(g, mxr, true);
@@ -5494,15 +5529,14 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case FNC_NO:
 				case FNC_COL:
 					if (src) {
-						qrp= JDBCSrcCols(g, jpath, (char*)src, sjp);
+						qrp= JDBCSrcCols(g, (char*)src, sjp);
 						src= NULL;     // for next tests
 					} else
-						qrp= JDBCColumns(g, jpath, shm, tab, NULL,
-														 mxr, fnc == FNC_COL, sjp);
+						qrp= JDBCColumns(g, shm, tab, NULL, mxr, fnc == FNC_COL, sjp);
 
 					break;
 				case FNC_TABLE:
-					qrp= JDBCTables(g, dsn, shm, tab, tabtyp, mxr, true, sjp);
+					qrp= JDBCTables(g, shm, tab, tabtyp, mxr, true, sjp);
 					break;
 #if 0
 				case FNC_DSN:
@@ -5510,7 +5544,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					break;
 #endif // 0
 				case FNC_DRIVER:
-					qrp= JDBCDrivers(g, jpath, mxr, true);
+					qrp= JDBCDrivers(g, mxr, true);
 					break;
 				default:
 					sprintf(g->Message, "invalid catfunc %s", fncn);
@@ -5585,7 +5619,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         len= crp->Length;
         dec= crp->Prec;
         flg= crp->Flag;
-        v= crp->Var;
+        v= (crp->Kdata->IsUnsigned()) ? 'U' : crp->Var;
 				tm= (crp->Kdata->IsNullable()) ? 0 : NOT_NULL_FLAG;
 
         if (!len && typ == TYPE_STRING)
@@ -5761,11 +5795,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 						switch (typ) {
 						case TYPE_DOUBLE:
+						case TYPE_DECIM:
 							// Some data sources do not count dec in length (prec)
 							prec += (dec + 2);        // To be safe
-							break;
-						case TYPE_DECIM:
-							prec= len;
 							break;
 						default:
 							dec= 0;
@@ -6831,6 +6863,27 @@ static MYSQL_SYSVAR_STR(errmsg_dir_path, msg_path,
        "../../../../storage/connect/");     // for testing
 #endif   // XMSG
 
+#if defined(JDBC_SUPPORT)
+static MYSQL_SYSVAR_STR(jvm_path, JvmPath,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Path to the directory where is the JVM lib",
+	//     check_jvm_path, update_jvm_path,
+	NULL, NULL,	NULL);
+
+static MYSQL_SYSVAR_STR(class_path, ClassPath,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Java class path",
+	//     check_class_path, update_class_path,
+	NULL, NULL, NULL);
+
+static MYSQL_SYSVAR_STR(java_wrapper, Wrapper,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Java wrapper class",
+	//     check_class_path, update_class_path,
+	NULL, NULL, "JdbcInterface");
+#endif   // JDBC_SUPPORT
+
+
 static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(xtrace),
   MYSQL_SYSVAR(conv_size),
@@ -6848,7 +6901,12 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(errmsg_dir_path),
 #endif   // XMSG
   MYSQL_SYSVAR(json_grp_size),
-  NULL
+#if defined(JDBC_SUPPORT)
+	MYSQL_SYSVAR(jvm_path),
+	MYSQL_SYSVAR(class_path),
+	MYSQL_SYSVAR(java_wrapper),
+#endif   // JDBC_SUPPORT
+	NULL
 };
 
 maria_declare_plugin(connect)

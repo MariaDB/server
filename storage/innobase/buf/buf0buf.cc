@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
@@ -3740,7 +3740,7 @@ buf_page_init_low(
 
 /********************************************************************//**
 Inits a page to the buffer buf_pool. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 buf_page_init(
 /*==========*/
@@ -4836,11 +4836,21 @@ buf_all_freed_instance(
 		const buf_block_t* block = buf_chunk_not_freed(chunk);
 
 		if (UNIV_LIKELY_NULL(block)) {
-			if (block->page.key_version == 0) {
-				fprintf(stderr,
-					"Page %lu %lu still fixed or dirty\n",
+				if (block->page.key_version == 0) {
+				fil_space_t* space = fil_space_get(block->page.space);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Page %lu %lu still fixed or dirty.",
 					(ulong) block->page.space,
 					(ulong) block->page.offset);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Page oldest_modification %lu fix_count %d io_fix %d.",
+					block->page.oldest_modification,
+					block->page.buf_fix_count,
+					buf_page_get_io_fix(&block->page));
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Page space_id %lu name %s.",
+					(ulong)block->page.space,
+					(space && space->name) ? space->name : "NULL");
 				ut_error;
 			}
 		}

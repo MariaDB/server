@@ -318,9 +318,8 @@ id
 delete from t1;
 create trigger t1_bi before insert on t1 for each row begin end;
 insert t1 values (0);
-select * from t1;
-id
-0
+insert t1 (id) values (0);
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
 drop table t1;
 create table t1 (a int not null, b int);
 create trigger trgi before update on t1 for each row do 1;

@@ -1,0 +1,89 @@
+SET @orig_global = @@global.tokudb_analyze_mode;
+SELECT @orig_global;
+@orig_global
+TOKUDB_ANALYZE_STANDARD
+SET @orig_session = @@session.tokudb_analyze_mode;
+SELECT @orig_session;
+@orig_session
+TOKUDB_ANALYZE_STANDARD
+SET GLOBAL tokudb_analyze_mode = 'tokudb_analyze_standard';
+SELECT @@global.tokudb_analyze_mode;
+@@global.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET GLOBAL tokudb_analyze_mode = 'tokudb_analyze_recount_rows';
+SELECT @@global.tokudb_analyze_mode;
+@@global.tokudb_analyze_mode
+TOKUDB_ANALYZE_RECOUNT_ROWS
+SET GLOBAL tokudb_analyze_mode = 'tokudb_analyze_cancel';
+SELECT @@global.tokudb_analyze_mode;
+@@global.tokudb_analyze_mode
+TOKUDB_ANALYZE_CANCEL
+SET GLOBAL tokudb_analyze_mode = DEFAULT;
+SELECT @@global.tokudb_analyze_mode;
+@@global.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET GLOBAL tokudb_analyze_mode = '';
+ERROR 42000: Variable 'tokudb_analyze_mode' can't be set to the value of ''
+SELECT @@global.tokudb_analyze_mode;
+@@global.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET GLOBAL tokudb_analyze_mode = 'foobar';
+ERROR 42000: Variable 'tokudb_analyze_mode' can't be set to the value of 'foobar'
+SELECT @@global.tokudb_analyze_mode;
+@@global.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET GLOBAL tokudb_analyze_mode = 123;
+ERROR 42000: Variable 'tokudb_analyze_mode' can't be set to the value of '123'
+SELECT @@global.tokudb_analyze_mode;
+@@global.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET SESSION tokudb_analyze_mode = 'tokudb_analyze_standard';
+SELECT @@session.tokudb_analyze_mode;
+@@session.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET SESSION tokudb_analyze_mode = 'tokudb_analyze_recount_rows';
+SELECT @@session.tokudb_analyze_mode;
+@@session.tokudb_analyze_mode
+TOKUDB_ANALYZE_RECOUNT_ROWS
+SET SESSION tokudb_analyze_mode = 'tokudb_analyze_cancel';
+SELECT @@session.tokudb_analyze_mode;
+@@session.tokudb_analyze_mode
+TOKUDB_ANALYZE_CANCEL
+SET SESSION tokudb_analyze_mode = DEFAULT;
+SELECT @@session.tokudb_analyze_mode;
+@@session.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET SESSION tokudb_analyze_mode = '';
+ERROR 42000: Variable 'tokudb_analyze_mode' can't be set to the value of ''
+SELECT @@session.tokudb_analyze_mode;
+@@session.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET SESSION tokudb_analyze_mode = 'foobar';
+ERROR 42000: Variable 'tokudb_analyze_mode' can't be set to the value of 'foobar'
+SELECT @@session.tokudb_analyze_mode;
+@@session.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET SESSION tokudb_analyze_mode = 123;
+ERROR 42000: Variable 'tokudb_analyze_mode' can't be set to the value of '123'
+SELECT @@session.tokudb_analyze_mode;
+@@session.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET GLOBAL tokudb_analyze_mode = 'tokudb_analyze_standard';
+SET SESSION tokudb_analyze_mode = 'tokudb_analyze_recount_rows';
+SELECT @@global.tokudb_analyze_mode;
+@@global.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SELECT @@session.tokudb_analyze_mode;
+@@session.tokudb_analyze_mode
+TOKUDB_ANALYZE_RECOUNT_ROWS
+SHOW VARIABLES LIKE 'tokudb_analyze_mode';
+Variable_name	Value
+tokudb_analyze_mode	TOKUDB_ANALYZE_RECOUNT_ROWS
+SET SESSION tokudb_analyze_mode = @orig_session;
+SELECT @@session.tokudb_analyze_mode;
+@@session.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD
+SET GLOBAL tokudb_analyze_mode = @orig_global;
+SELECT @@global.tokudb_analyze_mode;
+@@global.tokudb_analyze_mode
+TOKUDB_ANALYZE_STANDARD

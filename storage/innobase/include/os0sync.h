@@ -466,7 +466,7 @@ amount to decrement. */
 # define os_atomic_decrement_uint64(ptr, amount) \
 	os_atomic_decrement(ptr, amount)
 
-# if defined(IB_STRONG_MEMORY_MODEL)
+# if defined(HAVE_ATOMIC_BUILTINS)
 
 /** Do an atomic test and set.
 @param[in,out]	ptr		Memory location to set to non-zero

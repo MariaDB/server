@@ -1327,6 +1327,13 @@ Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
 }
+Item_sum_sp::Item_sum_sp(THD *thd, Item_sum_sp *item) 
+  :Item_sum(thd, item), context(item->context), m_name(item->m_name),
+   m_sp(item->m_sp), func_ctx(item->func_ctx), call_arena(NULL),
+   sp_result_field(item->sp_result_field)
+{
+      ;
+}
 
 /**
   @brief Initialize the result field by creating a temporary dummy table
@@ -1420,7 +1427,7 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     set_if_bigger(decimals, args[i]->decimals);
     with_subselect|= args[i]->with_subselect;
   }
- // result_field=0;
+  result_field=0;
   max_length=float_length(decimals);
   null_value=1;
   fix_length_and_dec();
@@ -1569,6 +1576,15 @@ Item_sum_sp::cleanup()
   clear();
   dummy_table->alias.free();
   Item_sum::cleanup();
+}
+void
+Item_sum_sp::fix_length_and_dec()
+{
+  DBUG_ENTER("Item_sum_sp::fix_length_and_dec");
+  DBUG_ASSERT(sp_result_field);
+  //Type_std_attributes::set(sp_result_field);
+  Item_sum::fix_length_and_dec();
+  DBUG_VOID_RETURN;
 }
 
 /***********************************************************************

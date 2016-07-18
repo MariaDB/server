@@ -40,7 +40,6 @@
 
 #ifdef HAVE_CHARSET_tis620
 
-#define BUFFER_MULTIPLY 4
 #define M  L_MIDDLE
 #define U  L_UPPER
 #define L  L_LOWER

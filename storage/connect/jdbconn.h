@@ -32,15 +32,6 @@
 typedef unsigned char *PUCHAR;
 #endif   // !__WIN__
 
-// Field Flags, used to indicate status of fields
-//efine SQL_FIELD_FLAG_DIRTY    0x1
-//efine SQL_FIELD_FLAG_NULL     0x2
-
-// Update options flags
-//efine SQL_SETPOSUPDATES       0x0001
-//efine SQL_POSITIONEDSQL       0x0002
-//efine SQL_GDBOUND             0x0004
-
 enum JCATINFO {
 	CAT_TAB   =     1,      // JDBC Tables
 	CAT_COL   =     2,      // JDBC Columns
@@ -55,10 +46,16 @@ enum JCATINFO {
 typedef struct tagJCATPARM {
 	JCATINFO Id;                 // Id to indicate function 
 	PQRYRES  Qrp;                // Result set pointer
-	PUCHAR   DB;                 // Database (Schema)
-	PUCHAR   Tab;                // Table name or pattern
-	PUCHAR   Pat;                // Table type or column pattern
+	char    *DB;                 // Database (Schema)
+	char    *Tab;                // Table name or pattern
+	char    *Pat;                // Table type or column pattern
 } JCATPARM;
+
+typedef jint(JNICALL *CRTJVM) (JavaVM **, void **, void *);
+typedef jint(JNICALL *GETJVM) (JavaVM **, jsize, jsize *);
+#if defined(_DEBUG)
+typedef jint(JNICALL *GETDEF) (void *);
+#endif   // _DEBUG
 
 // JDBC connection to a data source
 class TDBJDBC;
@@ -79,7 +76,7 @@ private:
 public:
 	JDBConn(PGLOBAL g, TDBJDBC *tdbp);
 
-	int  Open(PSZ jpath, PJPARM sop);
+	int  Open(PJPARM sop);
 	int  Rewind(char *sql);
 	void Close(void);
 	PQRYRES AllocateResult(PGLOBAL g);
@@ -114,8 +111,18 @@ public:
 	PQRYRES GetMetaData(PGLOBAL g, char *src);
 
 public:
-	// Set special options
-//void OnSetOptions(HSTMT hstmt);
+	// Set static variables
+	static void SetJVM(void) {
+		LibJvm = NULL; 
+	  CreateJavaVM = NULL; 
+	  GetCreatedJavaVMs = NULL;
+#if defined(_DEBUG)
+		GetDefaultJavaVMInitArgs = NULL;
+#endif   // _DEBUG
+	}	// end of SetJVM
+
+	static void ResetJVM(void);
+	static bool GetJVM(PGLOBAL g);
 
 	// Implementation
 public:
@@ -123,24 +130,30 @@ public:
 
 	// JDBC operations
 protected:
-//bool Check(RETCODE rc);
+	bool gmID(PGLOBAL g, jmethodID& mid, const char *name, const char *sig);
+	bool Check(jint rc = 0);
 //void ThrowDJX(int rc, PSZ msg/*, HSTMT hstmt = SQL_NULL_HSTMT*/);
 //void ThrowDJX(PSZ msg);
-//void AllocConnect(DWORD dwOptions);
-//void Connect(void);
-//bool DriverConnect(DWORD Options);
-//void VerifyConnect(void);
-//void GetConnectInfo(void);
 //void Free(void);
 
 protected:
 	// Members
+#if defined(__WIN__)
+	static HANDLE LibJvm;              // Handle to the jvm DLL
+#else   // !__WIN__
+	static void  *LibJvm;              // Handle for the jvm shared library
+#endif  // !__WIN__
+	static CRTJVM CreateJavaVM;
+	static GETJVM GetCreatedJavaVMs;
+#if defined(_DEBUG)
+	static GETDEF GetDefaultJavaVMInitArgs;
+#endif   // _DEBUG
 	PGLOBAL   m_G;
 	TDBJDBC  *m_Tdb;
 	JavaVM   *jvm;                      // Pointer to the JVM (Java Virtual Machine)
 	JNIEnv   *env;                      // Pointer to native interface
-	jclass    jdi;											// Pointer to the JdbcInterface class
-	jobject   job;											// The JdbcInterface class object
+	jclass    jdi;											// Pointer to the java wrapper class
+	jobject   job;											// The java wrapper class object
 	jmethodID xqid;											// The ExecuteQuery method ID
 	jmethodID xuid;											// The ExecuteUpdate method ID
 	jmethodID xid;											// The Execute method ID
@@ -151,9 +164,17 @@ protected:
 	jmethodID prepid;										// The CreatePrepStmt method ID
 	jmethodID xpid;										  // The ExecutePrep method ID
 	jmethodID pcid;										  // The ClosePrepStmt method ID
+	jmethodID errid;										// The GetErrmsg method ID
+	jmethodID chrfldid;									// The StringField method ID
+	jmethodID intfldid;									// The IntField method ID
+	jmethodID dblfldid;									// The DoubleField method ID
+	jmethodID fltfldid;									// The FloatField method ID
+	jmethodID datfldid;									// The TimestampField method ID
+	jmethodID bigfldid;									// The BigintField method ID
 	//DWORD     m_LoginTimeout;
 //DWORD     m_QueryTimeout;
 //DWORD     m_UpdateOptions;
+	char     *Msg;
 	char      m_IDQuoteChar[2];
 	PSZ       m_Driver;
 	PSZ       m_Url;

@@ -1544,6 +1544,7 @@ buf_pool_free_instance(
 	buf_chunk_t*	chunk;
 	buf_chunk_t*	chunks;
 	buf_page_t*	bpage;
+	ulint		i;
 
 	bpage = UT_LIST_GET_LAST(buf_pool->LRU);
 	while (bpage != NULL) {
@@ -1567,10 +1568,29 @@ buf_pool_free_instance(
 	mem_free(buf_pool->watch);
 	buf_pool->watch = NULL;
 
+	for (i = BUF_FLUSH_LRU; i < BUF_FLUSH_N_TYPES; i++) {
+		os_event_free(buf_pool->no_flush[i]);
+	}
+	mutex_free(&buf_pool->LRU_list_mutex);
+	mutex_free(&buf_pool->free_list_mutex);
+	mutex_free(&buf_pool->zip_free_mutex);
+	mutex_free(&buf_pool->zip_hash_mutex);
+	mutex_free(&buf_pool->zip_mutex);
+	mutex_free(&buf_pool->flush_state_mutex);
+	mutex_free(&buf_pool->flush_list_mutex);
+
 	chunks = buf_pool->chunks;
 	chunk = chunks + buf_pool->n_chunks;
 
 	while (--chunk >= chunks) {
+		buf_block_t* block = chunk->blocks;
+		for (i = 0; i < chunk->size; i++, block++) {
+			mutex_free(&block->mutex);
+			rw_lock_free(&block->lock);
+#ifdef UNIV_SYNC_DEBUG
+			rw_lock_free(&block->debug_latch);
+#endif
+		}
 		os_mem_free_large(chunk->mem, chunk->mem_size);
 	}
 
@@ -4989,11 +5009,21 @@ buf_all_freed_instance(
 		mutex_exit(&buf_pool->LRU_list_mutex);
 
 		if (UNIV_LIKELY_NULL(block)) {
-			if (block->page.key_version == 0) {
-				fprintf(stderr,
-					"Page %lu %lu still fixed or dirty\n",
+				if (block->page.key_version == 0) {
+				fil_space_t* space = fil_space_get(block->page.space);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Page %lu %lu still fixed or dirty.",
 					(ulong) block->page.space,
 					(ulong) block->page.offset);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Page oldest_modification %lu fix_count %d io_fix %d.",
+					block->page.oldest_modification,
+					block->page.buf_fix_count,
+					buf_page_get_io_fix(&block->page));
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Page space_id %lu name %s.",
+					(ulong)block->page.space,
+					(space && space->name) ? space->name : "NULL");
 				ut_error;
 			}
 		}

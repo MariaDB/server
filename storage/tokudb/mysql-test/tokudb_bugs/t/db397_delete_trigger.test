@@ -28,7 +28,7 @@ start transaction;
 delete from t1 where col1 = 1;
 select col1,col2 from t1;
 select col1,action from t1_audit;
-select locks_dname,locks_key_left,locks_key_right from information_schema.tokudb_locks;
+select locks_dname,locks_key_left,locks_key_right from information_schema.tokudb_locks order by locks_dname,locks_key_left,locks_key_right;
 # note the locks on t1 and t1_audit
 commit;
 drop trigger t1_trigger;
@@ -41,7 +41,7 @@ start transaction;
 delete from t1 where col1 = 2;
 select col1,col2 from t1;
 select col1,action from t1_audit;
-select locks_dname,locks_key_left,locks_key_right from information_schema.tokudb_locks;
+select locks_dname,locks_key_left,locks_key_right from information_schema.tokudb_locks order by locks_dname,locks_key_left,locks_key_right;
 # note the locks on t1 and t1_audit
 commit;
 drop trigger t1_trigger;

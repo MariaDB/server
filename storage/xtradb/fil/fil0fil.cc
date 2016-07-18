@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1430,6 +1430,28 @@ fil_space_free(
 	mem_free(space);
 
 	return(TRUE);
+}
+
+/*******************************************************************//**
+Returns a pointer to the file_space_t that is in the memory cache
+associated with a space id.
+@return	file_space_t pointer, NULL if space not found */
+fil_space_t*
+fil_space_get(
+/*==========*/
+	ulint	id)	/*!< in: space id */
+{
+	fil_space_t*	space;
+
+	ut_ad(fil_system);
+
+	mutex_enter(&fil_system->mutex);
+
+	space = fil_space_get_by_id(id);
+
+	mutex_exit(&fil_system->mutex);
+
+	return (space);
 }
 
 /*******************************************************************//**
@@ -5292,7 +5314,7 @@ retry:
 		if (posix_fallocate(node->handle, start_offset, len) == -1) {
 			ib_logf(IB_LOG_LEVEL_ERROR, "preallocating file "
 				"space for file \'%s\' failed.  Current size "
-				INT64PF ", desired size " INT64PF "\n",
+				INT64PF ", desired size " INT64PF,
 				node->name, start_offset, len+start_offset);
 			os_file_handle_error_no_exit(node->name, "posix_fallocate", FALSE, __FILE__, __LINE__);
 			success = FALSE;
@@ -6454,10 +6476,7 @@ fil_close(void)
 {
 	fil_space_crypt_cleanup();
 
-#ifndef UNIV_HOTBACKUP
-	/* The mutex should already have been freed. */
-	ut_ad(fil_system->mutex.magic_n == 0);
-#endif /* !UNIV_HOTBACKUP */
+	mutex_free(&fil_system->mutex);
 
 	hash_table_free(fil_system->spaces);
 
@@ -7105,27 +7124,6 @@ fil_mtr_rename_log(
 
 /*************************************************************************
 functions to access is_corrupt flag of fil_space_t*/
-
-ibool
-fil_space_is_corrupt(
-/*=================*/
-	ulint	space_id)
-{
-	fil_space_t*	space;
-	ibool		ret = FALSE;
-
-	mutex_enter(&fil_system->mutex);
-
-	space = fil_space_get_by_id(space_id);
-
-	if (UNIV_UNLIKELY(space && space->is_corrupt)) {
-		ret = TRUE;
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return(ret);
-}
 
 void
 fil_space_set_corrupt(

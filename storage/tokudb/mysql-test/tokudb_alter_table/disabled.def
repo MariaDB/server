@@ -1,6 +1,0 @@
-# alter table
-hcad_tmp_tables: tmp tables bypass hot alter, we run hcad_tmp_tables_56 instead
-hcad_with_locks: how this could work, if alter needs an exclusive mdl lock?
-
-frm_discover_partition: No partition discovery in MariaDB 5.5
-
