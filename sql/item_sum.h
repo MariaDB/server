@@ -62,7 +62,7 @@ public:
   Aggregator (Item_sum *arg): item_sum(arg) {}
   virtual ~Aggregator () {}                   /* Keep gcc happy */
 
-  enum Aggregator_type { SIMPLE_AGGREGATOR, DISTINCT_AGGREGATOR }; 
+  enum Aggregator_type { SIMPLE_AGGREGATOR, DISTINCT_AGGREGATOR };
   virtual Aggregator_type Aggrtype() = 0;
 
   /**
@@ -1093,27 +1093,27 @@ private:
   bool execute();
   bool execute_impl(THD *thd);
   bool init_result_field(THD *thd);
-   
+ 
 
-public:  
+public:
   Item_sum_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name);
 
   Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
                sp_name *name, List<Item> &list);
   Item_sum_sp(THD *thd, Item_sum_sp *item);
-  
+ 
   enum Sumfunctype sum_func () const
-  { 
+  {
     return SP_AGGREGATE_FUNC;
   }
-  
+ 
   void fix_length_and_dec();//TODO need to be given a thought
   bool fix_fields(THD *thd, Item **ref);//TODO need to be given a thought
   const char *func_name() const { return "sp aggregate";}
   enum Item_result result_type () const;
   bool add();
   bool sp_check_access(THD *thd);
-  
+ 
   /* val_xx functions */
   longlong val_int()
   {

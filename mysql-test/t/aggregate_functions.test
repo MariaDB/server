@@ -29,8 +29,6 @@ INSERT INTO t1 (sal,id,val,counter) VALUES (4000,6,14,1);
 INSERT INTO t1 (sal,id,val,counter) VALUES (8000,5,19,3);
 INSERT INTO t1 (sal,id,val,counter) VALUES (9000,4,11,4);
 INSERT INTO t1 (sal,id,val,counter) VALUES (1000,3,10,2);
-			    
-
 
 select agg_and(sal) from t1 where id>= 1;
 
@@ -50,7 +48,7 @@ begin
   end loop;
 end|
 
-select agg_avg(sal) from t1 where id>= 1| 
+select agg_avg(sal) from t1 where id>= 1|
 
 
 # aggregate MAX function
@@ -133,10 +131,10 @@ create table t2 (sal int,id int);
 INSERT INTO t2 (sal,id) VALUES (NULL,1);
 INSERT INTO t2 (sal,id) VALUES (2000,1);
 INSERT INTO t2 (sal,id) VALUES (3000,1);
-# null values 
+# null values
 select agg_sum(sal) from t2 |
 
-# no tables 
+# no tables
 select agg_sum(1)|
 
 # aggregate function called from regular functions
@@ -182,6 +180,14 @@ select counter,id,agg_sum(sal),agg_sum(sal) from t1 where id>=1 group by id orde
 select counter,id,agg_sum(sal),sum(distinct sal) from t1 where id>=1 group by id order by counter desc|
 select val,counter,id,agg_sum(sal),sum(distinct sal),agg_min(sal),agg_max(sal),agg_avg(sal) from t1 where id>=1 group by id,val order by counter,val|
 
+
+# aggregate functions called from proedures
+
+
+
+
+
+#
 
 drop table t1|
 drop table t2|
