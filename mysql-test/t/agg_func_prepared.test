@@ -20,10 +20,6 @@ create aggregate function agg_count() returns double
    end loop;
 end|
 
-create function increm(x int) returns int
-return x+1|
-
-
 delimiter ;|
 
 create table t1 (sal int,id int,val int,counter int);
@@ -64,5 +60,3 @@ deallocate prepare test;
 drop table t1;
 drop function agg_sum;
 drop function agg_count;
-drop function increm;
-
