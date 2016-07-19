@@ -1504,7 +1504,7 @@ ALTER TABLE t1 DROP KEY IF EXISTS transaction_id, ADD PRIMARY KEY IF NOT EXISTS 
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `transaction_id` int(11) NOT NULL DEFAULT '0',
+  `transaction_id` int(11) NOT NULL DEFAULT 0,
   PRIMARY KEY (`transaction_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;

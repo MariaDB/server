@@ -1304,7 +1304,7 @@ Warning	1264	Out of range value for column 'c1' at row 1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` int(11) NOT NULL DEFAULT '0',
+  `c1` int(11) NOT NULL DEFAULT 0,
   `c2` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -1316,7 +1316,7 @@ c1	c2
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` int(11) NOT NULL DEFAULT '0',
+  `c1` int(11) NOT NULL DEFAULT 0,
   `c2` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1

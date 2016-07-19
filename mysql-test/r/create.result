@@ -803,8 +803,8 @@ select a1,a2 from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT '3',
-  `b` int(11) DEFAULT '3',
+  `a` int(11) DEFAULT 3,
+  `b` int(11) DEFAULT 3,
   `a1` int(11) DEFAULT NULL,
   `a2` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -1133,46 +1133,46 @@ create table t1 like information_schema.processlist;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `ID` bigint(4) NOT NULL DEFAULT '0',
+  `ID` bigint(4) NOT NULL DEFAULT 0,
   `USER` varchar(128) NOT NULL DEFAULT '',
   `HOST` varchar(64) NOT NULL DEFAULT '',
   `DB` varchar(64) DEFAULT NULL,
   `COMMAND` varchar(16) NOT NULL DEFAULT '',
-  `TIME` int(7) NOT NULL DEFAULT '0',
+  `TIME` int(7) NOT NULL DEFAULT 0,
   `STATE` varchar(64) DEFAULT NULL,
   `INFO` longtext DEFAULT NULL,
-  `TIME_MS` decimal(22,3) NOT NULL DEFAULT '0.000',
-  `STAGE` tinyint(2) NOT NULL DEFAULT '0',
-  `MAX_STAGE` tinyint(2) NOT NULL DEFAULT '0',
-  `PROGRESS` decimal(7,3) NOT NULL DEFAULT '0.000',
-  `MEMORY_USED` bigint(7) NOT NULL DEFAULT '0',
-  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0',
-  `QUERY_ID` bigint(4) NOT NULL DEFAULT '0',
+  `TIME_MS` decimal(22,3) NOT NULL DEFAULT 0.000,
+  `STAGE` tinyint(2) NOT NULL DEFAULT 0,
+  `MAX_STAGE` tinyint(2) NOT NULL DEFAULT 0,
+  `PROGRESS` decimal(7,3) NOT NULL DEFAULT 0.000,
+  `MEMORY_USED` bigint(7) NOT NULL DEFAULT 0,
+  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT 0,
+  `QUERY_ID` bigint(4) NOT NULL DEFAULT 0,
   `INFO_BINARY` blob DEFAULT NULL,
-  `TID` bigint(4) NOT NULL DEFAULT '0'
+  `TID` bigint(4) NOT NULL DEFAULT 0
 )  DEFAULT CHARSET=utf8
 drop table t1;
 create temporary table t1 like information_schema.processlist;
 show create table t1;
 Table	Create Table
 t1	CREATE TEMPORARY TABLE `t1` (
-  `ID` bigint(4) NOT NULL DEFAULT '0',
+  `ID` bigint(4) NOT NULL DEFAULT 0,
   `USER` varchar(128) NOT NULL DEFAULT '',
   `HOST` varchar(64) NOT NULL DEFAULT '',
   `DB` varchar(64) DEFAULT NULL,
   `COMMAND` varchar(16) NOT NULL DEFAULT '',
-  `TIME` int(7) NOT NULL DEFAULT '0',
+  `TIME` int(7) NOT NULL DEFAULT 0,
   `STATE` varchar(64) DEFAULT NULL,
   `INFO` longtext DEFAULT NULL,
-  `TIME_MS` decimal(22,3) NOT NULL DEFAULT '0.000',
-  `STAGE` tinyint(2) NOT NULL DEFAULT '0',
-  `MAX_STAGE` tinyint(2) NOT NULL DEFAULT '0',
-  `PROGRESS` decimal(7,3) NOT NULL DEFAULT '0.000',
-  `MEMORY_USED` bigint(7) NOT NULL DEFAULT '0',
-  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0',
-  `QUERY_ID` bigint(4) NOT NULL DEFAULT '0',
+  `TIME_MS` decimal(22,3) NOT NULL DEFAULT 0.000,
+  `STAGE` tinyint(2) NOT NULL DEFAULT 0,
+  `MAX_STAGE` tinyint(2) NOT NULL DEFAULT 0,
+  `PROGRESS` decimal(7,3) NOT NULL DEFAULT 0.000,
+  `MEMORY_USED` bigint(7) NOT NULL DEFAULT 0,
+  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT 0,
+  `QUERY_ID` bigint(4) NOT NULL DEFAULT 0,
   `INFO_BINARY` blob DEFAULT NULL,
-  `TID` bigint(4) NOT NULL DEFAULT '0'
+  `TID` bigint(4) NOT NULL DEFAULT 0
 )  DEFAULT CHARSET=utf8
 drop table t1;
 create table t1 like information_schema.character_sets;
@@ -1182,7 +1182,7 @@ t1	CREATE TABLE `t1` (
   `CHARACTER_SET_NAME` varchar(32) NOT NULL DEFAULT '',
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL DEFAULT '',
   `DESCRIPTION` varchar(60) NOT NULL DEFAULT '',
-  `MAXLEN` bigint(3) NOT NULL DEFAULT '0'
+  `MAXLEN` bigint(3) NOT NULL DEFAULT 0
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8
 drop table t1;
 
@@ -1241,8 +1241,8 @@ CREATE TABLE t1(c1 YEAR DEFAULT 2008, c2 YEAR DEFAULT 0);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` year(4) DEFAULT '2008',
-  `c2` year(4) DEFAULT '0000'
+  `c1` year(4) DEFAULT 2008,
+  `c2` year(4) DEFAULT 0000
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 
 INSERT INTO t1 VALUES();
@@ -1256,8 +1256,8 @@ ALTER TABLE t1 MODIFY c1 YEAR DEFAULT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` year(4) DEFAULT '0000',
-  `c2` year(4) DEFAULT '0000'
+  `c1` year(4) DEFAULT 0000,
+  `c2` year(4) DEFAULT 0000
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 
 INSERT INTO t1 VALUES();

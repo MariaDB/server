@@ -21,7 +21,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `created_at` datetime NOT NULL,
-  `cool` tinyint(4) DEFAULT '0'
+  `cool` tinyint(4) DEFAULT 0
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 /*!50100 PARTITION BY RANGE (TO_DAYS(created_at))
 (PARTITION month_2010_4 VALUES LESS THAN (734258) ENGINE = MyISAM,
@@ -70,7 +70,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `created_at` datetime NOT NULL,
-  `cool` tinyint(4) DEFAULT '0'
+  `cool` tinyint(4) DEFAULT 0
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 /*!50100 PARTITION BY RANGE (TO_DAYS(created_at))
 SUBPARTITION BY HASH (cool)

@@ -82,7 +82,7 @@ SHOW CREATE TABLE func;
 Table	Create Table
 func	CREATE TABLE `func` (
   `name` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `ret` tinyint(1) NOT NULL DEFAULT '0',
+  `ret` tinyint(1) NOT NULL DEFAULT 0,
   `dl` char(128) COLLATE utf8_bin NOT NULL DEFAULT '',
   `type` enum('function','aggregate') CHARACTER SET utf8 NOT NULL,
   PRIMARY KEY (`name`)
@@ -152,7 +152,7 @@ proxies_priv	CREATE TABLE `proxies_priv` (
   `User` char(16) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Proxied_host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Proxied_user` char(16) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `With_grant` tinyint(1) NOT NULL DEFAULT '0',
+  `With_grant` tinyint(1) NOT NULL DEFAULT 0,
   `Grantor` char(77) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`Host`,`User`,`Proxied_host`,`Proxied_user`),
@@ -169,7 +169,7 @@ servers	CREATE TABLE `servers` (
   `Db` char(64) NOT NULL DEFAULT '',
   `Username` char(64) NOT NULL DEFAULT '',
   `Password` char(64) NOT NULL DEFAULT '',
-  `Port` int(4) NOT NULL DEFAULT '0',
+  `Port` int(4) NOT NULL DEFAULT 0,
   `Socket` char(64) NOT NULL DEFAULT '',
   `Wrapper` char(64) NOT NULL DEFAULT '',
   `Owner` char(64) NOT NULL DEFAULT '',
@@ -241,8 +241,8 @@ Table	Create Table
 time_zone_transition_type	CREATE TABLE `time_zone_transition_type` (
   `Time_zone_id` int(10) unsigned NOT NULL,
   `Transition_type_id` int(10) unsigned NOT NULL,
-  `Offset` int(11) NOT NULL DEFAULT '0',
-  `Is_DST` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  `Offset` int(11) NOT NULL DEFAULT 0,
+  `Is_DST` tinyint(3) unsigned NOT NULL DEFAULT 0,
   `Abbreviation` char(8) NOT NULL DEFAULT '',
   PRIMARY KEY (`Time_zone_id`,`Transition_type_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='Time zone transition types'
@@ -288,10 +288,10 @@ user	CREATE TABLE `user` (
   `ssl_cipher` blob NOT NULL,
   `x509_issuer` blob NOT NULL,
   `x509_subject` blob NOT NULL,
-  `max_questions` int(11) unsigned NOT NULL DEFAULT '0',
-  `max_updates` int(11) unsigned NOT NULL DEFAULT '0',
-  `max_connections` int(11) unsigned NOT NULL DEFAULT '0',
-  `max_user_connections` int(11) unsigned NOT NULL DEFAULT '0',
+  `max_questions` int(11) unsigned NOT NULL DEFAULT 0,
+  `max_updates` int(11) unsigned NOT NULL DEFAULT 0,
+  `max_connections` int(11) unsigned NOT NULL DEFAULT 0,
+  `max_user_connections` int(11) unsigned NOT NULL DEFAULT 0,
   `plugin` char(64) COLLATE utf8_bin DEFAULT '',
   `authentication_string` text COLLATE utf8_bin DEFAULT NULL,
   `password_expired` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',

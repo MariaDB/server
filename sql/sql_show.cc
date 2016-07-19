@@ -1689,7 +1689,11 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
         quoted= 0;
       }
       else
+      {
         field->val_str(&type);
+        if (!field->str_needs_quotes())
+          quoted= 0;
+      }
       if (type.length())
       {
         String def_val;

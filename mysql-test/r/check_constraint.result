@@ -54,7 +54,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL CHECK (a>10),
   `b` int(11) DEFAULT NULL CHECK (b > 20),
-  `c` int(11) DEFAULT '0' CHECK (c < 10),
+  `c` int(11) DEFAULT 0 CHECK (c < 10),
   CONSTRAINT `min` CHECK (a+b > 100),
   CONSTRAINT `max` CHECK (a+b <500),
   CONSTRAINT `CONSTRAINT_1` CHECK (a+b+c < 500)
@@ -77,7 +77,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL CHECK (a>10),
   `b` int(11) DEFAULT NULL CHECK (b > 20),
-  `c` int(11) DEFAULT '0' CHECK (c < 10),
+  `c` int(11) DEFAULT 0 CHECK (c < 10),
   CONSTRAINT `min` CHECK (a+b > 100),
   CONSTRAINT `max` CHECK (a+b <500),
   CONSTRAINT `CONSTRAINT_1` CHECK (a+b+c < 500)
@@ -93,7 +93,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL CHECK (a>10),
   `b` int(11) DEFAULT NULL CHECK (b > 20),
-  `c` int(11) DEFAULT '0' CHECK (c < 10),
+  `c` int(11) DEFAULT 0 CHECK (c < 10),
   CONSTRAINT `max` CHECK (a+b <500),
   CONSTRAINT `CONSTRAINT_1` CHECK (a+b+c < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

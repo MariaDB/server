@@ -182,8 +182,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `ID` int(11) NOT NULL,
-  `aaaa,aaaaa` tinyint(3) unsigned NOT NULL DEFAULT '0',
-  `ddddddddd` int(11) NOT NULL DEFAULT '0',
+  `aaaa,aaaaa` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `ddddddddd` int(11) NOT NULL DEFAULT 0,
   `new_field0` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`ID`,`aaaa,aaaaa`,`ddddddddd`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
