@@ -4009,7 +4009,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             base_const_ref.intersect(base_part);
             base_eq_part= eq_part;
             base_eq_part.intersect(base_part);
-            if (table->actual_key_flags(keyinfo) & HA_NOSAME)
+            if ( (table->actual_key_flags(keyinfo) & HA_NOSAME) ||
+                   keyinfo->flags & HA_UNIQUE_HASH )
             {
               
 	      if (base_const_ref == base_eq_part &&
@@ -5181,6 +5182,15 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 	continue;    // ToDo: ft-keys in non-ft queries.   SerG
       KEY *keyinfo= form->key_info+key;
       uint key_parts= form->actual_n_key_parts(keyinfo);
+      if (keyinfo->flags & HA_UNIQUE_HASH)
+      {
+        LEX_STRING *ls = &keyinfo->key_part->field->vcol_info->expr_str;
+        if (find_field_name_in_hash(ls->str,(char *)field->field_name,ls->length) != -1)
+        {
+          if (add_keyuse(keyuse_array, key_field, key,0))
+            return TRUE;
+        }
+      }
       for (uint part=0 ; part <  key_parts ; part++)
       {
         if (field->eq(form->key_info[key].key_part[part].field) &&
@@ -18875,7 +18885,35 @@ join_read_const(JOIN_TAB *tab)
       error=HA_ERR_KEY_NOT_FOUND;
     else
     {
-      error= table->file->ha_index_read_idx_map(table->record[0],tab->ref.key,
+      if (table->key_info[tab->ref.key].flags & HA_UNIQUE_HASH)
+      {
+        Field **f , *field;
+        LEX_STRING *ls= &table->key_info[tab->ref.key].key_part->field->
+                                                 vcol_info->expr_str;
+        for (f= table->field; f && (field= *f); f++)
+        {
+          if (find_field_name_in_hash(ls->str,
+                         (char *) field->field_name, ls->length) != -1)
+          break;
+        }
+        ulong nr1= 1,nr2= 4;
+        CHARSET_INFO *cs;
+        String *str= tab->keyuse->val->val_str();
+        cs= str->charset();
+        uchar l[4];
+        int4store(l,str->length());
+        cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
+        cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
+        uchar hash_key[9];
+        hash_key[0]=0;
+        int8store(hash_key+1,nr1);
+        error= table->file->ha_index_read_idx_map(table->record[0],tab->ref.key,
+                                                  hash_key,
+                                                  HA_WHOLE_KEY,
+                                                  HA_READ_KEY_EXACT);
+      }
+      else
+        error= table->file->ha_index_read_idx_map(table->record[0],tab->ref.key,
                                                 (uchar*) tab->ref.key_buff,
                                                 make_prev_keypart_map(tab->ref.key_parts),
                                                 HA_READ_KEY_EXACT);

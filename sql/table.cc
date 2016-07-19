@@ -7839,10 +7839,10 @@ double KEY::actual_rec_per_key(uint i)
 */
 int find_field_name_in_hash(char * temp,char * field_name ,int hash_str_length)
 {
-  int j=0,i=0;
-  for( i=0; i<hash_str_length; i++)
+  int j= 0, i= 0;
+  for (i= 0; i < hash_str_length; i++)
   {
-    while(*(temp+i)==*(field_name+j))
+    while (*(temp+i) == *(field_name+j))
     {
       i++;
       j++;
