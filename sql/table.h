@@ -333,20 +333,10 @@ enum enum_vcol_update_mode
 /* Field visibility enums */
 
 enum  field_visible_type{
-	NORMAL=0,
+	NOT_HIDDEN=0,
 	USER_DEFINED_HIDDEN,
 	MEDIUM_HIDDEN,
 	FULL_HIDDEN
-};
-
-enum key_hash_type{
-	/* normal column */
-	NOT_HASH=0,
-	/* hash for defination index(A,...) in this case no duplicate will be checked */
-	INDEX_HASH,
-	/* hash for defination unique(A,...) in this duplicate will be checked in ha_write_row and
-		 update */
-	UNIQUE_HASH
 };
 
 int  rem_field_from_hash_col_str(LEX_STRING * hash_str,char * field_name);
@@ -1054,6 +1044,7 @@ public:
   Field **field;			/* Pointer to fields */
 
   uchar *record[2];			/* Pointer to records */
+  uchar *check_unique_buf;  /* Pointer to record with same hash */
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */

@@ -1688,7 +1688,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   unireg_check(unireg_check_arg), field_length(length_arg),
   null_bit(null_bit_arg), is_created_from_null_item(FALSE),
   read_stats(NULL), collected_stats(0), vcol_info(0), check_constraint(0),
-  default_value(0)
+  default_value(0), field_visibility(NOT_HIDDEN), is_long_column_hash(false)
 {
   flags=null_ptr ? 0: NOT_NULL_FLAG;
   comment.str= (char*) "";
@@ -9439,7 +9439,7 @@ int Field_bit::key_cmp(const uchar *str, uint length)
 }
 
 
-int Field_bit::cmp_offset(uint row_offset)
+int Field_bit::cmp_offset(long row_offset)
 {
   if (bit_len)
   {
@@ -10517,7 +10517,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   check_constraint= old_field->check_constraint;
   option_list= old_field->option_list;
   field_visibility= old_field->field_visibility;
-  is_hash= old_field->is_hash;
+  is_long_column_hash= old_field->is_long_column_hash;
   switch (sql_type) {
   case MYSQL_TYPE_BLOB:
     switch (pack_length - portable_sizeof_char_ptr) {

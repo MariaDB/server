@@ -761,11 +761,6 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       if (new_frm_ver >= 3)
         keyinfo->block_size= first_keyinfo->block_size;
     }
-    if(key_ex_flags!=NULL)
-    {
-      keyinfo->ex_flags=uint8korr(key_ex_flags);
-      key_ex_flags+=8;
-    }
     keyinfo->key_part=	 key_part;
     keyinfo->rec_per_key= rec_per_key;
     for (j=keyinfo->user_defined_key_parts ; j-- ; key_part++)
@@ -1108,9 +1103,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         break;
       case EXTRA2_FIELD_FLAGS:
          field_properties = extra2;
-        break;
-      case EXTRA2_KEY_EX_FLAG:
-         key_ex_flags = extra2;
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -1807,9 +1799,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     reg_field->vcol_info= vcol_info;
     if(field_properties!=NULL)
     {
-      reg_field->field_visibility=(field_visible_type)*field_properties++;
-      reg_field->is_hash=(bool)*field_properties++;
+      reg_field->field_visibility=static_cast<field_visible_type>(*field_properties++);
+      reg_field->is_long_column_hash=static_cast<bool>(*field_properties++);
     }
+    /*
+       We will add status variable only when we find a user defined hidden column
+    */
+    if (reg_field->field_visibility == USER_DEFINED_HIDDEN)
+      status_var_increment(thd->status_var.feature_hidden_column);
     if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
     {
       null_bits_are_used= 1;
@@ -2042,7 +2039,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         }
         if (field->type() == MYSQL_TYPE_BIT)
           key_part->key_part_flag|= HA_BIT_PART;
-
+        /*
+          Add HA_UNIQUE_HASH flag if keyinfo has only one field
+          and field has is_long_column_hash flag on
+        */
+        if (keyinfo->user_defined_key_parts == 1 &&
+             field->is_long_column_hash)
+          keyinfo->flags|= HA_UNIQUE_HASH;
         if (i == 0 && key != primary_key)
           field->flags |= (((keyinfo->flags & HA_NOSAME) &&
                            (keyinfo->user_defined_key_parts == 1)) ?
@@ -2139,9 +2142,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if ((keyinfo->flags & HA_NOSAME) ||
           (ha_option & HA_ANY_INDEX_MAY_BE_UNIQUE))
         set_if_bigger(share->max_unique_length,keyinfo->key_length);
-      if(keyinfo->ex_flags&HA_EX_UNIQUE_HASH||keyinfo->ex_flags&HA_EX_INDEX_HASH)
+      if (keyinfo->flags & HA_UNIQUE_HASH)
       {
-        keyinfo->ext_key_parts=1;
+        keyinfo->ext_key_parts= 1;
+        keyinfo->ext_key_part_map= 0;
       }
     }
     if (primary_key < MAX_KEY &&

@@ -97,33 +97,17 @@ static uchar *extra2_write_field_visibility_hash_info(uchar *pos,
    always 2  first for field visibility
    second for is this column represent long unique hash
    */
-  int len = 2*number_of_fields;
+  size_t len = 2*number_of_fields;
   pos= extra2_write_len(pos,len);
   Create_field *cf;
   while((cf=(*it)++))
   {
     *pos++=cf->field_visibility;
-    *pos++=cf->is_hash;
+    *pos++=cf->is_long_column_hash;
   }
   return pos;
 }
 
-static uchar *extra2_write_key_ex_flags(uchar *pos,int keys,KEY * key_info)
-{
-  *pos++=EXTRA2_KEY_EX_FLAG;
-  /*
-   always 2  first for field visibility
-   second for is this column represent long unique hash
-   */
-  int len = 8*keys;
-  pos= extra2_write_len(pos,len);
-  for(int i=0;i<keys;i++)
-  {
-    int8store(pos,key_info[i].ex_flags);
-    pos+=8;
-  }
-  return pos;
-}
 
 /**
   Create a frm (table definition) file
@@ -159,6 +143,21 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   DBUG_ENTER("build_frm_image");
   List_iterator<Create_field> it(create_fields);
   Create_field *field;
+  bool is_hidden_fields_present;
+  /*
+    Loop througt the iterator to find whether we have any field whose
+    visibility_type != NOT_HIDDEN
+  */
+  while ((field=it++))
+  {
+    if (field->field_visibility != NOT_HIDDEN)
+    {
+      is_hidden_fields_present= true;
+      break;
+    }
+  }
+  it.rewind();
+
  /* If fixed row records, we need one bit to check for deleted rows */
   if (!(create_info->table_options & HA_OPTION_PACK_RECORD))
     create_info->null_bits++;
@@ -246,11 +245,10 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
+  if(is_hidden_fields_present)
+    extra2_size+=1 + (2*create_fields.elements > 255 ? 3 : 1) +
+        2*create_fields.elements;// first one for type(extra2_field_flags) next 1 or 3  for length
 
-  extra2_size+=1 + ( 2*create_fields.elements > 255 ? 3 : 1) +
-       2*create_fields.elements;// first one for type(extra2_field_flags) next 1 or 3  for length
-  if(keys)
-    extra2_size+=1 + ( 8*keys > 255 ? 3 : 1) + 8*keys;
   key_buff_length= uint4korr(fileinfo+47);
 
   frm.length= FRM_HEADER_SIZE;                  // fileinfo;
@@ -305,11 +303,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     pos+= gis_field_options_image(pos, create_fields);
   }
 #endif /*HAVE_SPATIAL*/
-
-  pos=extra2_write_field_visibility_hash_info(pos,create_fields.elements,&it);
+  if (is_hidden_fields_present)
+    pos=extra2_write_field_visibility_hash_info(pos,create_fields.elements,&it);
   it.rewind();
-  if(keys)
-    pos=extra2_write_key_ex_flags(pos,keys,key_info);
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;
 

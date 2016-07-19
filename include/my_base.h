@@ -257,7 +257,12 @@ enum ha_base_keytype {
 #define HA_SPATIAL		1024    /* For spatial search */
 #define HA_NULL_ARE_EQUAL	2048	/* NULL in key are cmp as equal */
 #define HA_GENERATED_KEY	8192	/* Automaticly generated key */
-
+/*
+   Some more flags for keys these are stored in flags
+   these are note stored in frm it is calculated on the fly in
+   init_from_binary_frm_image
+*/
+#define HA_UNIQUE_HASH            65536
         /* The combination of the above can be used for key type comparison. */
 #define HA_KEYFLAG_MASK (HA_NOSAME | HA_PACK_KEY | HA_AUTO_KEY | \
                          HA_BINARY_PACK_KEY | HA_FULLTEXT | HA_UNIQUE_CHECK | \
@@ -332,11 +337,7 @@ enum ha_base_keytype {
 */
 #define HA_OPTION_NO_STATS_PERSISTENT	8192
 
-/* Some more flags for keys these are stored in ex_flags
-   Please note that we can use at max 1L<<65 for flags
-   flags should be Ored*/
-#define HA_EX_INDEX_HASH             1
-#define HA_EX_UNIQUE_HASH            2
+
 /* .frm has extra create options in linked-list format */
 #define HA_OPTION_TEXT_CREATE_OPTIONS_legacy (1L << 14) /* 5.2 to 5.5, unused since 10.0 */
 #define HA_OPTION_TEMP_COMPRESS_RECORD  (1L << 15)      /* set by isamchk */

@@ -5882,79 +5882,84 @@ int handler::ha_reset()
 }
 
 /** @brief
-   Compare two records
-   It requires both records to be present in table->record[0]
-   and table->record[1]
-   @returns true if equal else false
+    check whether inserted/updated records breaks the
+    unique constraint on long columns.
+   @returns 0 if no duplicate else returns error
   */
-bool rec_hash_cmp(TABLE * table,uchar *first_rec, uchar *sec_rec,
-                    Field *hash_field,KEY *key_part)
+int check_duplicate_long_entries(TABLE *table, uchar *new_rec)
 {
-  Item_func_or_sum * temp=(Item_func_or_sum *)hash_field->vcol_info->expr_item;
-  Item_args * t_item=static_cast<Item_args *>(temp);
-  int arg_count = t_item->argument_count();
-  Item ** arguments=t_item->arguments();
-  int diff = sec_rec-first_rec;
-  Field * t_field;
-  for(int i=0;i<arg_count;i++)
+  Field *hash_field;
+  int result;
+  /* First need to whether inserted record is unique or not */
+  for (uint i= 0; i < table->s->keys; i++)
   {
-    t_field = ((Item_field *)arguments[i])->field;//need a debug assert
-    if(t_field->cmp_binary_offset(diff))
-      return false;
+    if (table->key_info[i].flags & HA_UNIQUE_HASH)
+    {
+      hash_field= table->key_info[i].key_part->field;
+      DBUG_ASSERT(table->key_info[i].key_length == 9);
+      uchar  ptr[9];
+
+      if (hash_field->is_null())
+        return 0;
+
+      key_copy(ptr, new_rec, &table->key_info[i], 9, false);
+
+      if (!table->check_unique_buf)
+        table->check_unique_buf = (uchar *)alloc_root(&table->mem_root,
+                                        table->s->reclength*sizeof(uchar));
+
+      result= table->file->ha_index_read_idx_map(table->check_unique_buf, i, ptr,
+          HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+      if (!result)
+      {
+        Item_func_or_sum * temp= static_cast<Item_func_or_sum *>(hash_field->vcol_info->expr_item);
+        Item_args * t_item= static_cast<Item_args *>(temp);
+        int arg_count= t_item->argument_count();
+        Item ** arguments= t_item->arguments();
+        int diff= table->check_unique_buf-new_rec;
+        Field * t_field;
+
+        for (int i=0;i<arg_count;i++)
+        {
+          t_field= static_cast<Item_field *>(arguments[i])->field;
+          if(t_field->cmp_binary_offset(diff))
+            return false;
+        }
+
+        char key_buff[MAX_KEY_LENGTH];
+        String str(key_buff,sizeof(key_buff),system_charset_info);
+        str.length(0);
+        for(int i=0;i<arg_count;i++)
+        {
+          t_field = ((Item_field *)arguments[i])->field;
+          if (str.length())
+            str.append('-');
+          field_unpack(&str,t_field,new_rec,10,//since blob can be to long
+                       false);
+        }
+        my_printf_error(ER_DUP_ENTRY, ER_THD(table->in_use, ER_DUP_ENTRY_WITH_KEY_NAME)
+                         ,MYF(0), str.c_ptr_safe(),table->key_info[i].name);
+        return HA_ERR_FOUND_DUPP_KEY_BLOB;
+      }
+    }
   }
-  char key_buff[MAX_KEY_LENGTH];
-  String str(key_buff,sizeof(key_buff),system_charset_info);
-  str.length(0);
-  for(int i=0;i<arg_count;i++)
-  {
-    t_field = ((Item_field *)arguments[i])->field;
-    if (str.length())
-      str.append('-');
-    field_unpack(&str,t_field,sec_rec,10,//since blob can be to long
-                 false);
-  }
-  my_printf_error(ER_DUP_ENTRY, ER_THD(table->in_use, ER_DUP_ENTRY_WITH_KEY_NAME)
-                   ,MYF(0), str.c_ptr_safe(),key_part->name);
-  return true;
+  return 0;
 }
+
+
 int handler::ha_write_row(uchar *buf)
 {
-  int error,result;
+  int error;
   Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
-  Field *field_iter;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type == F_WRLCK);
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
-  /* First need to whether inserted record is unique or not */
-  /* One More Thing  if i implement hidden field then detection can be easy */
-  for(uint i=0;i<table->s->keys;i++)
-  {
-    if(table->key_info[i].ex_flags&HA_EX_UNIQUE_HASH)
-    {
-      field_iter=table->key_info[i].key_part->field;
-      int len =table->key_info[i].key_length;
-      uchar  ptr[len];
-      if(field_iter->is_null())
-      {
-        goto write_row;
-      }
-      key_copy(ptr,buf,&table->key_info[i],len,false);
-      result= table->file->ha_index_read_idx_map(table->record[1],i,ptr,
-          HA_WHOLE_KEY,HA_READ_KEY_EXACT);
-      if(!result)
-      {
-        if(rec_hash_cmp(table,table->record[0],table->record[1],
-                        field_iter,&table->key_info[i]))
-          DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY_BLOB);
-      }
-    }
-  }
-  write_row:
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
-
+  if ((error= check_duplicate_long_entries(table, buf)))
+    DBUG_RETURN(error);
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
                       { error= write_row(buf); })
 
@@ -5985,36 +5990,8 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   DBUG_ASSERT(old_data == table->record[1]);
 
   /* First need to whether inserted record is unique or not */
-  /* One More Thing  if i implement hidden field then detection can be easy */
-  for(uint i=0;i<table->s->keys;i++)
-  {
-    if(table->key_info[i].ex_flags&HA_EX_UNIQUE_HASH)
-    {
-      /*
-        We need to add the null bit
-        If the column can be NULL, then in the first byte we put 1 if the
-        field value is NULL, 0 otherwise.
-       */
-      uchar *new_rec = (uchar *)alloc_root(&table->mem_root,
-                                           table->s->reclength*sizeof(uchar));
-      field_iter=table->key_info[i].key_part->field;
-      uchar  ptr[9];
-      if(field_iter->is_null())
-      {
-        goto write_row;
-      }
-      key_copy(ptr,new_data,&table->key_info[i],9,false);
-      result= table->file->ha_index_read_idx_map(new_rec,i,ptr,
-                            HA_WHOLE_KEY,HA_READ_KEY_EXACT);
-      if(!result)
-      {
-        if(rec_hash_cmp(table,table->record[0],new_rec,
-                        field_iter,&table->key_info[i]))
-          return HA_ERR_FOUND_DUPP_KEY_BLOB;
-      }
-    }
-  }
-  write_row:
+  if ((error= check_duplicate_long_entries(table, new_data)))
+    return error;
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);

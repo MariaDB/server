@@ -305,7 +305,6 @@ public:
   LEX_STRING name;
   engine_option_value *option_list;
   bool generated;
-  key_hash_type hash_type=NOT_HASH;
   Key(enum Keytype type_par, const LEX_STRING &name_arg,
       ha_key_alg algorithm_arg, bool generated_arg, DDL_options_st ddl_options)
     :DDL_options(ddl_options),
@@ -771,6 +770,7 @@ typedef struct system_status_var
   ulong feature_dynamic_columns;    /* +1 when creating a dynamic column */
   ulong feature_fulltext;	    /* +1 when MATCH is used */
   ulong feature_gis;                /* +1 opening a table with GIS features */
+  ulong feature_hidden_column;      /* +1 opening a table with hidden column */
   ulong feature_locale;		    /* +1 when LOCALE is set */
   ulong feature_subquery;	    /* +1 when subqueries are used */
   ulong feature_timezone;	    /* +1 when XPATH is used */

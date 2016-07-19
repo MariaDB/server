@@ -659,8 +659,9 @@ public:
      @c NOT @c NULL field, this member is @c NULL.
   */
   uchar		*null_ptr;
-  field_visible_type field_visibility=NORMAL;
-  bool is_hash=false;
+  field_visible_type field_visibility;
+  /* Does this field stores the hash of long unique column */
+  bool is_long_column_hash;
   /*
     Note that you can use table->in_use as replacement for current_thd member
     only inside of val_*() and store() members (e.g. you can't use it in cons)
@@ -999,9 +1000,9 @@ public:
   virtual int cmp(const uchar *,const uchar *)=0;
   virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L)
   { return memcmp(a,b,pack_length()); }
-  virtual int cmp_offset(uint row_offset)
+  virtual int cmp_offset(long row_offset)
   { return cmp(ptr,ptr+row_offset); }
-  virtual int cmp_binary_offset(uint row_offset)
+  virtual int cmp_binary_offset(long row_offset)
   { return cmp_binary(ptr, ptr+row_offset); };
   virtual int key_cmp(const uchar *a,const uchar *b)
   { return cmp(a, b); }
@@ -3583,13 +3584,13 @@ public:
     else
       return Field_bit::key_cmp(a, bytes_in_rec + MY_TEST(bit_len)) * -1;
   }
-  int cmp_binary_offset(uint row_offset)
+  int cmp_binary_offset(long row_offset)
   { return cmp_offset(row_offset); }
   int cmp_max(const uchar *a, const uchar *b, uint max_length);
   int key_cmp(const uchar *a, const uchar *b)
   { return cmp_binary((uchar *) a, (uchar *) b); }
   int key_cmp(const uchar *str, uint length);
-  int cmp_offset(uint row_offset);
+  int cmp_offset(long row_offset);
   bool update_min(Field *min_val, bool force_update)
   { 
     longlong val= val_int();
@@ -3719,8 +3720,9 @@ public:
     max number of characters. 
   */
   ulonglong length;
-  field_visible_type field_visibility=NORMAL;
-  bool is_hash=false;
+  field_visible_type field_visibility;
+  /* Does this field stores the hash of long unique column */
+  bool is_long_column_hash;
   /*
     The value of `length' as set by parser: is the number of characters
     for most of the types, or of bytes for BLOBs or numeric types.
@@ -3753,7 +3755,8 @@ public:
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), srid(0), geom_type(Field::GEOM_GEOMETRY),
     option_list(NULL),
-    vcol_info(0), default_value(0), check_constraint(0)
+    vcol_info(0), default_value(0), check_constraint(0),
+    field_visibility(NOT_HIDDEN), is_long_column_hash(false)
   {
     interval_list.empty();
   }

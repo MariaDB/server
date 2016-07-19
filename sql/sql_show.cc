@@ -2005,17 +2005,14 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   for (uint i=0 ; i < share->keys ; i++,key_info++)
   {
     KEY_PART_INFO *key_part= key_info->key_part;
-    if(key_info->ex_flags&HA_EX_UNIQUE_HASH||key_info->ex_flags&HA_EX_INDEX_HASH)
+    if(key_info->flags&HA_UNIQUE_HASH)
     {
       char * column_names= key_part->field->vcol_info->
                           expr_str.str+strlen("hash");
       int length=key_part->field->vcol_info->expr_str.length;
       length-=strlen("hash");
       packet->append(STRING_WITH_LEN(",\n"));
-      if(key_info->ex_flags&HA_EX_INDEX_HASH)
-        packet->append(STRING_WITH_LEN("  INDEX `"));
-      else
-        packet->append(STRING_WITH_LEN("  UNIQUE KEY `"));
+      packet->append(STRING_WITH_LEN("  UNIQUE KEY `"));
       packet->append(key_info->name,strlen(key_info->name));
       packet->append(STRING_WITH_LEN("`"));
       packet->append(column_names,length);
@@ -5507,7 +5504,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     KEY *key=show_table->key_info;
     for(int i=0;i<show_table->s->keys;i++,key++)
     {
-      if(key->ex_flags &(HA_EX_INDEX_HASH|HA_EX_UNIQUE_HASH))
+      if(key->flags &HA_UNIQUE_HASH)
       {
         LEX_STRING * ls=&key->key_part->field->vcol_info->expr_str;
         int position= find_field_name_in_hash(ls->str,
@@ -5525,7 +5522,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         //this is for single  hash(`abc`)
         if(position!=-1&&comma_position==-1)
         {
-          if(key->ex_flags&HA_EX_UNIQUE_HASH)
+          if(key->flags&HA_UNIQUE_HASH)
             pos=(uchar *) "UNI";
           else
             pos=(uchar * )"MUL";
@@ -6227,7 +6224,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
 
-        if(key_info->ex_flags&HA_EX_UNIQUE_HASH && key_info->key_part->field)
+        if(key_info->flags&HA_UNIQUE_HASH && key_info->key_part->field)
         {
           char * hash_str = key_info->key_part->field->vcol_info->expr_str.str;
           /*increase the pointer to hash(`fd..
@@ -6647,7 +6644,7 @@ static int get_schema_key_column_usage_record(THD *thd,
                            HA_STATUS_TIME);
     for (uint i=0 ; i < show_table->s->keys ; i++, key_info++)
     {
-      if(key_info->ex_flags&HA_EX_UNIQUE_HASH && key_info->key_part->field)
+      if(key_info->flags&HA_UNIQUE_HASH && key_info->key_part->field)
       {
         char * hash_str = key_info->key_part->field->vcol_info->expr_str.str;
         /*increase the pointer to hash(`fd..

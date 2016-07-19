@@ -730,7 +730,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     Field ** f=table_list->table->field;
     for(uint i=0;i<table_list->table->s->fields;i++)
     {       //TODO a better logic for adding default
-      if((*f)->field_visibility!=NORMAL)
+      if((*f)->field_visibility!=NOT_HIDDEN)
       {
         if(i==0)
         {

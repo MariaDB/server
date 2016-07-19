@@ -3023,7 +3023,7 @@ int prepare_create_field(Column_definition *sql_field,
     break;
   }
   if (!(sql_field->flags & NOT_NULL_FLAG) ||
-      (sql_field->vcol_info))
+      (sql_field->vcol_info))  /* Make virtual columns allow NULL values */
     sql_field->pack_flag|= FIELDFLAG_MAYBE_NULL;
   if (sql_field->flags & NO_DEFAULT_VALUE_FLAG)
     sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
@@ -3345,11 +3345,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       cf->sql_type=MYSQL_TYPE_LONGLONG;
       /* hash column should be atmost hidden */
       cf->field_visibility=FULL_HIDDEN;
-      if(key_iter_key->type==Key::UNIQUE)
-        key_iter_key->hash_type=UNIQUE_HASH;
-      else
-        key_iter_key->hash_type=INDEX_HASH;
-      cf->is_hash=true;
+      cf->is_long_column_hash=true;
       /* add the virtual colmn info */
       Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
       char * hash_exp=(char *)thd->alloc(252);
@@ -3918,10 +3914,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     key_info->key_part=key_part_info;
     key_info->usable_key_parts= key_number;
     key_info->algorithm= key->key_create_info.algorithm;
-    if(key->hash_type==UNIQUE_HASH)
-      key_info->ex_flags|=HA_EX_UNIQUE_HASH;
-    if(key->hash_type==INDEX_HASH)
-      key_info->ex_flags|=HA_EX_INDEX_HASH;
     key_info->option_list= key->option_list;
     if (parse_option_list(thd, create_info->db_type, &key_info->option_struct,
                           &key_info->option_list,
@@ -7723,9 +7715,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if expr str becomes empty then remove db_row_hash column
       */
       KEY *t_key=table->key_info;
-      for(int i =0;i<table->s->keys;i++,t_key++) {
-        if(t_key->ex_flags&HA_EX_INDEX_HASH||
-           t_key->ex_flags&HA_EX_UNIQUE_HASH)
+      for (int i= 0; i < table->s->keys; i++,t_key++) {
+        if (t_key->flags & HA_UNIQUE_HASH)
         {
           /*
             Consider the query
@@ -7842,8 +7833,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         KEY *t_key=table->key_info;
         for(int i =0;i<table->s->keys;i++,t_key++)
         {
-          if(t_key->ex_flags&HA_EX_INDEX_HASH||
-             t_key->ex_flags&HA_EX_UNIQUE_HASH)
+          if (t_key->flags & HA_UNIQUE_HASH)
           {
             Create_field *t_c_f;
             LEX_STRING * ls=&t_key->key_part->field->vcol_info->expr_str;
@@ -7951,21 +7941,21 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       goto err;
     }
     /* Need to see whether new added column clashes with already existed
-       DB_ROW_HASH_*(is must have is_hash==true)
+       DB_ROW_HASH_*(is must have is_long_column_hash==true)
        this one is for query
        create table t1 (abc blob unique);
        alter table t1 add column db_row_hash_1;
      */
     for (f_ptr=table->vfield ;f_ptr&&(field= *f_ptr) ; f_ptr++)
     {
-      if ((field->is_hash)&&!my_strcasecmp(system_charset_info,field->field_name,def->field_name))
+      if ((field->is_long_column_hash)&&!my_strcasecmp(system_charset_info,field->field_name,def->field_name))
       {
         /* got a clash  find the highest number in db_row_hash_* */
         Field *temp_field;
         int max=0;
         for (Field ** f_temp_ptr=table->vfield ; (temp_field= *f_temp_ptr); f_temp_ptr++)
         {
-          if(temp_field->is_hash)
+          if(temp_field->is_long_column_hash)
           {
             int temp = atoi(temp_field->field_name+12);
             if(temp>max)
@@ -8098,7 +8088,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (drop)
     {
       /* If we drop index of blob unique then we need to drop the db_row_hash col */
-      if(key_info->ex_flags&HA_EX_UNIQUE_HASH||key_info->ex_flags&HA_EX_INDEX_HASH)
+      if (key_info->flags & HA_UNIQUE_HASH)
       {
         char * name = (char *)key_info->key_part->field->field_name;
         /*iterate over field_it and remove db_row_hash col  */
@@ -8155,18 +8145,18 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
            alter table t1 add column db_row_hash_1 blob unique first;
            in because of first the abc key instead of picking db_row_hash_2
            column it picks db_row__hash_1 which is of type blob
-           to solve this we can use is_hash flag to see wheter the
+           to solve this we can use is_long_column_hash flag to see wheter the
            new field is same as of previous
            */
 	if (cfield->change)
 	{
 	  if (!my_strcasecmp(system_charset_info, key_part_name,
-					 cfield->change)&&(key_part->field->is_hash==cfield->is_hash))
+					 cfield->change)&&(key_part->field->is_long_column_hash==cfield->is_long_column_hash))
 	    break;
 	}
 	else if (!my_strcasecmp(system_charset_info,
 				key_part_name, cfield->field_name)&&
-					 (key_part->field->is_hash==cfield->is_hash))
+					 (key_part->field->is_long_column_hash==cfield->is_long_column_hash))
 	  break;
       }
       if (!cfield)
@@ -8266,10 +8256,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                    &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
                    key_parts, key_info->option_list, DDL_options());
-      if(key_info->ex_flags&HA_EX_INDEX_HASH)
-        key->hash_type=INDEX_HASH;
-      if(key_info->ex_flags&HA_EX_UNIQUE_HASH)
-        key->hash_type=UNIQUE_HASH;
       new_key_list.push_back(key, thd->mem_root);
     }
   }
