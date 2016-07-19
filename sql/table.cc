@@ -2502,6 +2502,34 @@ void TABLE_SHARE::free_frm_image(const uchar *frm)
 }
 
 
+static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
+{
+  DBUG_ENTER("fix_vcol_expr");
+
+  const enum enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
+  thd->mark_used_columns= MARK_COLUMNS_NONE;
+
+  const char *save_where= thd->where;
+  thd->where= "virtual column function";
+
+  thd->in_stored_expression= 1;
+
+  int error= vcol->expr_item->fix_fields(thd, &vcol->expr_item);
+
+  thd->in_stored_expression= 0;
+  thd->mark_used_columns= save_mark_used_columns;
+  thd->where= save_where;
+
+  if (unlikely(error))
+  {
+    my_error(ER_ERROR_EVALUATING_EXPRESSION, MYF(0), vcol->expr_str);
+    DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
+
 /*
   @brief 
     Perform semantic analysis of the defining expression for a virtual column
@@ -2529,53 +2557,38 @@ void TABLE_SHARE::free_frm_image(const uchar *frm)
     FALSE          Otherwise
 */
 
-static bool fix_vcol_expr(THD *thd, TABLE *table, Field *field,
-                          Virtual_column_info *vcol)
+static bool fix_and_check_vcol_expr(THD *thd, TABLE *table, Field *field,
+                                    Virtual_column_info *vcol)
 {
   Item* func_expr= vcol->expr_item;
-  bool result= TRUE;
-  TABLE_LIST tables;
-  int error= 0;
-  const char *save_where;
-  enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
-  DBUG_ENTER("fix_vcol_expr");
+  DBUG_ENTER("fix_and_check_vcol_expr");
   DBUG_PRINT("info", ("vcol: %p", vcol));
   DBUG_ASSERT(func_expr);
 
-  thd->mark_used_columns= MARK_COLUMNS_NONE;
+  if (func_expr->fixed)
+    DBUG_RETURN(0); // nothing to do
 
-  save_where= thd->where;
-  thd->where= "virtual column function";
+  if (fix_vcol_expr(thd, vcol))
+    DBUG_RETURN(1);
 
-  /* Fix fields referenced to by the virtual column function */
-  thd->in_stored_expression= 1;
-  if (!func_expr->fixed)
-    error= func_expr->fix_fields(thd, &vcol->expr_item);
-  thd->in_stored_expression= 0;
+  if (vcol->flags)
+    DBUG_RETURN(0); // already checked, no need to do it again
 
-  if (unlikely(error))
-  {
-    DBUG_PRINT("info",
-    ("Field in virtual column expression does not belong to the table"));
-    my_error(ER_ERROR_EVALUATING_EXPRESSION, MYF(0), vcol->expr_str);
-    goto end;
-  }
   /* fix_fields could've changed the expression */
   func_expr= vcol->expr_item;
 
   /* Number of columns will be checked later */
-  thd->where= save_where;
   if (unlikely(func_expr->result_type() == ROW_RESULT))
   {
      my_error(ER_ROW_EXPR_FOR_VCOL, MYF(0));
-     goto end;
+     DBUG_RETURN(1);
   }
 
   /* Check that we are not refering to any not yet initialized fields */
   if (field)
   {
     if (func_expr->walk(&Item::check_field_expression_processor, 0, field))
-      goto end;
+      DBUG_RETURN(1);
   }
 
   /*
@@ -2585,12 +2598,12 @@ static bool fix_vcol_expr(THD *thd, TABLE *table, Field *field,
   Item::vcol_func_processor_result res;
   res.errors= 0;
 
-  error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
+  int error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
   if (error || (res.errors & VCOL_IMPOSSIBLE))
   { // this can only happen if the frm was corrupted
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
              "???", field ? field->field_name : "?????");
-    goto end;
+    DBUG_RETURN(1);
   }
   vcol->flags= res.errors;
 
@@ -2600,15 +2613,9 @@ static bool fix_vcol_expr(THD *thd, TABLE *table, Field *field,
   if (vcol->stored_in_db && vcol->flags & VCOL_NON_DETERMINISTIC)
     table->s->non_determinstic_insert= 1;
 
-  result= FALSE;
-
-end:
-
-  thd->mark_used_columns= save_mark_used_columns;
-  table->map= 0; //Restore old value
- 
- DBUG_RETURN(result);
+  DBUG_RETURN(0);
 }
+
 
 /*
   @brief
@@ -2629,7 +2636,7 @@ end:
     pointer to this item is placed into in a Virtual_column_info object
     that is created. After this the function performs
     semantic analysis of the item by calling the the function
-    fix_vcol_expr().  Since the defining expression is part of the table
+    fix_and_check_vcol_expr().  Since the defining expression is part of the table
     definition the item for it is created in table->memroot within the
     special arena TABLE::expr_arena or in the thd memroot for INSERT DELAYED
 
@@ -2736,15 +2743,10 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
   if (error)
     goto err;
 
-  /*
-    mark if expression will be stored in the table. This is also used by
-    fix_vcol_expr() to mark if we are using non deterministic functions.
-  */
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
   vcol_storage.vcol_info->name=              vcol->name;
   vcol_storage.vcol_info->utf8=              vcol->utf8;
-  /* Validate the Item tree. */
-  if (!fix_vcol_expr(thd, table, field, vcol_storage.vcol_info))
+  if (!fix_and_check_vcol_expr(thd, table, field, vcol_storage.vcol_info))
   {
     vcol_info= vcol_storage.vcol_info;          // Expression ok
     goto end;
