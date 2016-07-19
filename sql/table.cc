@@ -2587,9 +2587,9 @@ static bool fix_vcol_expr(THD *thd, TABLE *table, Field *field,
 
   error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
   if (error || (res.errors & VCOL_IMPOSSIBLE))
-  {
+  { // this can only happen if the frm was corrupted
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             "???", field->field_name);
+             "???", field ? field->field_name : "?????");
     goto end;
   }
   vcol->flags= res.errors;
