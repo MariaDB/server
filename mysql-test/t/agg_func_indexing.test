@@ -1,0 +1,81 @@
+delimiter |;
+
+create aggregate function agg_sum(x INT) returns double
+begin
+declare  z double default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+
+delimiter ;|
+
+# primary indexing
+
+create table t1 (sal int,id int,val int,counter int,primary key(id));
+
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,1,10,2);
+INSERT INTO t1 (sal,id,val,counter) VALUES (2000,2,16,2);
+INSERT INTO t1 (sal,id,val,counter) VALUES (6000,3,18,1);
+INSERT INTO t1 (sal,id,val,counter) VALUES (5000,4,15,3);
+INSERT INTO t1 (sal,id,val,counter) VALUES (3000,5,11,5);
+
+select id,agg_sum(sal) from t1;
+select id,agg_sum(sal) from t1 where id>=1;
+select id,agg_sum(sal) from t1 where id>=1 group by counter;
+select id,agg_sum(sal) from t1 where id>=1 group by id;
+select id,agg_sum(sal) from t1 where id>=1 group by val;
+select id,agg_sum(sal) from t1 where id>=1 group by counter order by counter;
+select id,agg_sum(sal) from t1 where id>=1 group by counter order by val;
+select id,agg_sum(sal) from t1 where id>=1 group by counter order by id;
+select id,agg_sum(sal) from t1 where id>=1 group by val order by counter;
+select id,agg_sum(sal) from t1 where id>=1 group by val order by id;
+select id,agg_sum(sal) from t1 where id>=1 group by val order by val;
+drop table t1;
+
+#unique index
+
+create table t1 (sal int,id int,val int,counter int,primary key(id),unique key(val));
+
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,1,10,2);
+INSERT INTO t1 (sal,id,val,counter) VALUES (2000,2,NULL,2);
+INSERT INTO t1 (sal,id,val,counter) VALUES (6000,3,18,1);
+INSERT INTO t1 (sal,id,val,counter) VALUES (5000,4,15,3);
+INSERT INTO t1 (sal,id,val,counter) VALUES (3000,5,11,5);
+
+select id,agg_sum(sal) from t1;
+select id,agg_sum(sal) from t1 where id>=1;
+select id,agg_sum(sal) from t1 where id>=1 group by counter;
+select id,agg_sum(sal) from t1 where id>=1 group by id;
+select id,agg_sum(sal) from t1 where id>=1 group by val;
+select id,agg_sum(sal) from t1 where id>=1 group by counter order by counter;
+select id,agg_sum(sal) from t1 where id>=1 group by counter order by val;
+select id,agg_sum(sal) from t1 where id>=1 group by counter order by id;
+select id,agg_sum(sal) from t1 where id>=1 group by val order by counter;
+select id,agg_sum(sal) from t1 where id>=1 group by val order by id;
+select id,agg_sum(sal) from t1 where id>=1 group by val order by val;
+drop table t1;
+
+# compound indexing
+create table t1 (sal int,id int,val int,counter int,primary key(id),INDEX name (val,counter));
+
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,1,10,2);
+INSERT INTO t1 (sal,id,val,counter) VALUES (2000,2,10,4);
+INSERT INTO t1 (sal,id,val,counter) VALUES (6000,3,18,1);
+INSERT INTO t1 (sal,id,val,counter) VALUES (5000,4,11,3);
+INSERT INTO t1 (sal,id,val,counter) VALUES (3000,5,11,5);
+select id,agg_sum(sal) from t1;
+select id,agg_sum(sal) from t1 where id>=1;
+select id,agg_sum(sal) from t1 where id>=1 group by counter;
+select id,agg_sum(sal) from t1 where id>=1 group by id;
+select id,agg_sum(sal) from t1 where id>=1 group by val;
+select id,agg_sum(sal) from t1 where id>=1 group by counter order by counter;
+select id,agg_sum(sal) from t1 where id>=1 group by counter order by val;
+select id,agg_sum(sal) from t1 where id>=1 group by counter order by id;
+select id,agg_sum(sal) from t1 where id>=1 group by val order by counter;
+select id,agg_sum(sal) from t1 where id>=1 group by val order by id;
+select id,agg_sum(sal) from t1 where id>=1 group by val order by val;
+drop table t1;
+drop function agg_sum;

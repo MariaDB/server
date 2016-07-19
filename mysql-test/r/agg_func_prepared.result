@@ -16,8 +16,6 @@ fetch group next row;
 set z = z+1;
 end loop;
 end|
-create function increm(x int) returns int
-return x+1|
 create table t1 (sal int,id int,val int,counter int);
 INSERT INTO t1 (sal,id,val,counter) VALUES (1000,2,10,2);
 INSERT INTO t1 (sal,id,val,counter) VALUES (2000,1,16,5);
@@ -77,8 +75,11 @@ set @param=4;
 execute test using @param;
 agg_sum(sal)
 3000
+set @param=5;
+execute test using @param;
+agg_sum(sal)
+NULL
 deallocate prepare test;
 drop table t1;
 drop function agg_sum;
 drop function agg_count;
-drop function increm;

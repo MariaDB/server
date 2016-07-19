@@ -55,6 +55,8 @@ set @param=3;
 execute test using @param;
 set @param=4;
 execute test using @param;
+set @param=5;
+execute test using @param;
 deallocate prepare test;
 
 drop table t1;
