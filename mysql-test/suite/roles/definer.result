@@ -22,10 +22,10 @@ show create view test.v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`role1` SQL SECURITY DEFINER VIEW `test`.`v1` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 set role none;
-create definer=role2 view test.v2 as select a+b,c from t1;
+create definer=role2 view test.v2 as select a+b,c,current_role() from t1;
 show create view test.v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`role2` SQL SECURITY DEFINER VIEW `test`.`v2` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`role2` SQL SECURITY DEFINER VIEW `test`.`v2` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c`,current_role() AS `current_role()` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 create definer=role3 view test.v3 as select a+b,c from t1;
 Warnings:
 Note	1449	The user specified as a definer ('role3'@'%') does not exist
@@ -44,9 +44,9 @@ GRANT CREATE VIEW ON `mysqltest1`.* TO 'foo'@'localhost'
 select * from test.v1;
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 select * from test.v2;
-a+b	c
-11	100
-22	200
+a+b	c	current_role()
+11	100	role2
+22	200	role2
 select * from test.v3;
 ERROR 28000: Access denied for user 'foo'@'localhost' (using password: NO)
 create definer=role4 view test.v4 as select a+b,c from t1;
@@ -113,7 +113,7 @@ tr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` trigger tr
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 set role none;
 insert t2 values (11,22,33);
-ERROR 42000: INSERT command denied to user 'role1'@'' for table 't1'
+ERROR 42000: INSERT command denied to user ''@'' for table 't1'
 select * from t1;
 a	b	c
 1	10	100
@@ -179,7 +179,7 @@ pr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` PROCEDURE 
 insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
 set role none;
 call pr1();
-ERROR 42000: INSERT command denied to user 'role1'@'' for table 't1'
+ERROR 42000: INSERT command denied to user ''@'' for table 't1'
 select * from t1;
 a	b	c
 1	10	100
@@ -222,7 +222,7 @@ fn1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` FUNCTION `
 return (select sum(a+b) from t1)	latin1	latin1_swedish_ci	latin1_swedish_ci
 set role none;
 select fn1();
-ERROR 42000: SELECT command denied to user 'role1'@'' for column 'b' in table 't1'
+ERROR 42000: SELECT command denied to user ''@'' for column 'b' in table 't1'
 select * from t1;
 a	b	c
 1	10	100
@@ -289,7 +289,8 @@ SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
 /*!50001 CREATE TABLE `v2` (
   `a+b` tinyint NOT NULL,
-  `c` tinyint NOT NULL
+  `c` tinyint NOT NULL,
+  `current_role()` tinyint NOT NULL
 ) ENGINE=MyISAM */;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
@@ -553,7 +554,7 @@ USE `test`;
 /*!50001 SET character_set_client      = latin1 */;
 /*!50001 SET character_set_results     = latin1 */;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED DEFINER=`role2` SQL SECURITY DEFINER VIEW `v2` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1` */;
+/*!50001 CREATE ALGORITHM=UNDEFINED DEFINER=`role2` SQL SECURITY DEFINER VIEW `v2` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c`,current_role() AS `current_role()` from `mysqltest1`.`t1` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;

@@ -2009,8 +2009,7 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
       sctx->master_access= acl_role->access;
 
       if (acl_role->user.str)
-        strmake_buf(sctx->priv_user, user);
-      sctx->priv_host[0]= 0;
+        strmake_buf(sctx->priv_role, user);
     }
   }
 
@@ -7162,7 +7161,7 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
   GRANT_INFO *grant;
   const char *db_name;
   const char *table_name;
-  Security_context *sctx= MY_TEST(table_ref->security_ctx) ?
+  Security_context *sctx= table_ref->security_ctx ?
                           table_ref->security_ctx : thd->security_ctx;
 
   if (table_ref->view || table_ref->field_translation)
@@ -11078,7 +11077,7 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
   /* global privileges */
   grant->privilege= sctx->master_access;
 
-  if (!sctx->priv_user[0])
+  if (!sctx->priv_user[0] && !sctx->priv_role[0])
   {
     DBUG_PRINT("info", ("privilege 0x%lx", grant->privilege));
     DBUG_VOID_RETURN;                         // it is slave
