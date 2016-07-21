@@ -4894,6 +4894,7 @@ public:
   bool send(Protocol *protocol, String *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
   table_map used_tables() const { return (table_map)0L; }
+  Item_field *field_for_view_update() { return 0; }
 
   bool walk(Item_processor processor, bool walk_subquery, void *args)
   {
