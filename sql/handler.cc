@@ -5896,8 +5896,8 @@ int check_duplicate_long_entries(TABLE *table, uchar *new_rec)
     if (table->key_info[i].flags & HA_UNIQUE_HASH)
     {
       hash_field= table->key_info[i].key_part->field;
-      DBUG_ASSERT(table->key_info[i].key_length == 9);
-      uchar  ptr[9];
+      DBUG_ASSERT(table->key_info[i].key_length == HA_HASH_KEY_LENGTH_WITH_NULL);
+      uchar  ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
 
       if (hash_field->is_null())
         return 0;

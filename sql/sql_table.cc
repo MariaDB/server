@@ -3187,6 +3187,172 @@ static void check_duplicate_key(THD *thd,
 }
 
 /*
+  Add hidden level 3 hash field to table in case of long
+  unique column
+  Returns 0 on success
+  else 1
+*/
+
+int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
+                KEY *current_key_info, KEY *key_info, CHARSET_INFO *cs)
+{
+  int num= 1;
+  List_iterator<Key> key_iter(alter_info->key_list);
+  List_iterator<Key_part_spec> key_part_iter(current_key->columns);
+  List_iterator<Create_field> it(alter_info->create_list);
+  Create_field *dup_field;
+  Key_part_spec *temp_colms;
+
+  Create_field *cf= new (thd->mem_root) Create_field();
+  cf->flags|= UNSIGNED_FLAG;
+  cf->length= cf->char_length= HA_HASH_KEY_LENGHT_WITHOUT_NULL;
+  cf->charset= NULL;
+  cf->decimals= 0;
+  char temp_name[30];
+  strcpy(temp_name, "DB_ROW_HASH_");
+  char num_holder[10];    //10 is way more but i think it is ok
+  sprintf(num_holder, "%d",num);
+  strcat(temp_name, num_holder);
+  /*
+    Check for collusions
+   */
+  while ((dup_field= it++))
+  {
+    if (!my_strcasecmp(system_charset_info, temp_name, dup_field->field_name))
+    {
+      temp_name[12]= '\0'; //now temp_name='DB_ROW_HASH_'
+      num++;
+      sprintf(num_holder, "%d",num);
+      strcat(temp_name, num_holder);
+      it.rewind();
+    }
+  }
+  it.rewind();
+  /*
+    There should be only one key for db_row_hash_* column
+    we need to give user a error when the accidently query
+    like
+
+    create table t1(abc blob unique, unique(db_row_hash_1));
+    alter table t2 add column abc blob unique,add unique key(db_row_hash_1);
+
+    for this we will iterate through the key_list and
+    find if and key_part has the same name as of temp_name
+   */
+  Key * temp_key;
+  while ((temp_key= key_iter++))
+  {
+    Key_part_spec *flds;
+    List_iterator<Key_part_spec> key_part_iter_2(temp_key->columns);
+    while ((flds= key_part_iter_2++))
+    {
+      if(!my_strcasecmp(system_charset_info,flds->field_name.str,temp_name))
+      {
+        my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), temp_name);
+        return 1;
+      }
+    }
+  }
+  char * name= (char *)thd->alloc(30);
+  strcpy(name, temp_name);
+  cf->field_name= name;
+  cf->sql_type= MYSQL_TYPE_LONGLONG;
+  /* hash column should be atmost hidden */
+  cf->field_visibility= FULL_HIDDEN;
+  cf->is_long_column_hash= true;
+  /* add the virtual colmn info */
+  Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
+  char * hash_exp= (char *)thd->alloc(252);
+  char * key_name= (char *)thd->alloc(252);
+  strcpy(hash_exp, "hash(`");
+  temp_colms= key_part_iter++;
+  strcat(hash_exp, temp_colms->field_name.str);
+  strcpy(key_name, temp_colms->field_name.str);
+  strcat(hash_exp, "`");
+  while ((temp_colms= key_part_iter++)){
+    /*
+      This test for wrong query like
+      create table t1(a blob ,unique(a,a));
+    */
+    if (find_field_name_in_hash(hash_exp,
+                 temp_colms->field_name.str, strlen(hash_exp))!=-1)
+    {
+      my_error(ER_DUP_FIELDNAME, MYF(0), temp_colms->field_name.str);
+      return 1;
+    }
+    strcat(hash_exp, (const char * )",");
+    strcat(key_name, "_");
+    strcat(hash_exp, "`");
+    strcat(hash_exp, temp_colms->field_name.str);
+    strcat(key_name, temp_colms->field_name.str);
+    strcat(hash_exp, "`");
+  }
+  strcat(hash_exp, (const char * )")");
+  v->expr_str.str= hash_exp;
+  v->expr_str.length= strlen(hash_exp);
+  v->expr_item= NULL;
+  v->set_stored_in_db_flag(true);
+  cf->vcol_info= v;
+  cf->charset= cs;
+  cf->create_length_to_internal_length();
+  cf->length= cf->char_length= cf->pack_length;
+  prepare_create_field(cf, NULL, 0);
+  alter_info->create_list.push_front(cf,thd->mem_root);
+  /* Update row offset because field is added in first position */
+  int offset=0;
+  it.rewind();
+  while ((dup_field= it++))
+  {
+    dup_field->offset= offset;
+    if (dup_field->stored_in_db())
+      offset+= dup_field->pack_length;
+  }
+  it.rewind();
+  while ((dup_field= it++))
+  {
+    if (!dup_field->stored_in_db())
+    {
+      dup_field->offset= offset;
+      offset+= dup_field->pack_length;
+    }
+  }
+  if(current_key->name.length==0)
+  {
+    current_key_info->name= key_name;
+    current_key_info->name_length= strlen(key_name);
+    key_name=make_unique_key_name(thd, key_name,
+          key_info, current_key_info);
+  }
+  if (check_if_keyname_exists(key_name, key_info,current_key_info))
+  {
+    my_error(ER_DUP_KEYNAME, MYF(0), key_name);
+    return 1;
+  }
+  current_key->type= Key::MULTIPLE;
+  current_key_info->key_length= cf->pack_length; //length of mysql long column
+  current_key_info->user_defined_key_parts= 1;
+  current_key_info->flags= 0;
+  current_key_info->key_part->fieldnr= 0;
+  current_key_info->key_part->offset= 0;
+  current_key_info->key_part->key_type= cf->pack_flag;
+  current_key_info->key_part->length= cf->pack_length;
+  /* As key is added in front so update update keyinfo field ref and offset*/
+  KEY * t_key = key_info;
+  KEY_PART_INFO *t_key_part;
+  while (t_key != current_key_info)
+  {
+    t_key_part= t_key->key_part;
+    for (int i= 0; i < t_key->user_defined_key_parts; i++,t_key_part++)
+    {
+      t_key_part->fieldnr+= 1;
+      t_key_part->offset+= cf->pack_length;
+    }
+    t_key++;
+  }
+  return 0;
+}
+
+/*
   Preparation for table creation
 
   SYNOPSIS
@@ -3233,176 +3399,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   DBUG_ENTER("mysql_prepare_create_table");
 
-  /* 
-    scan the the whole alter list  
-    and add one field if length of blob is zero 
-    TODO change to work for all too-long unique keys like varchar,text
-  */
-    
-  List_iterator<Key> key_iter(alter_info->key_list);
-  List_iterator<Key> key_iter_2(alter_info->key_list);
-  Key *key_iter_key;
-  Key_part_spec *temp_colms;
-  int num= 1;
-  bool is_long_unique=false;
-  int key_initial_elements=alter_info->key_list.elements;
-  int key_index=-1;
-  while((key_iter_key=key_iter++)&&key_initial_elements)
-  {
-    key_initial_elements--;
-    key_index++;
-    if(key_iter_key->type!=Key::UNIQUE && key_iter_key->type!=Key::MULTIPLE)
-      continue;
-    List_iterator<Key_part_spec> key_part_iter(key_iter_key->columns);
-    while((temp_colms=key_part_iter++))
-    {
-      while ((sql_field=it++) &&sql_field&& my_strcasecmp(system_charset_info,
-                                                          temp_colms->field_name.str,
-                                                          sql_field->field_name)){}
-      if(sql_field && (sql_field->sql_type==MYSQL_TYPE_BLOB ||
-                       sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
-                       sql_field->sql_type==MYSQL_TYPE_TINY_BLOB ||
-                       sql_field->sql_type==MYSQL_TYPE_LONG_BLOB)
-         &&temp_colms->length==0)
-      {
-        is_long_unique=true;
-        /*
-          One long key  unique in enough
-         */
-        it.rewind();
-        break;
-      }
-      if(sql_field && sql_field->sql_type==MYSQL_TYPE_VARCHAR&&(temp_colms->length>
-                              file->max_key_part_length()||(temp_colms->length==0&&
-                              sql_field->length>file->max_key_part_length())))
-      {
-        is_long_unique=true;
-        /*
-          One long key  unique in enough
-         */
-        it.rewind();
-        break;
-      }
-      it.rewind();
-    }
-    if(is_long_unique)
-    {
-      /* make a virtual field */
-      key_part_iter.rewind();
-      Create_field *cf = new (thd->mem_root) Create_field();
-      cf->flags|=UNSIGNED_FLAG;
-      cf->length=cf->char_length=8;
-      cf->charset=NULL;
-      cf->decimals=0;
-      char temp_name[30];
-      strcpy(temp_name,"DB_ROW_HASH_");
-      char num_holder[10];    //10 is way more but i think it is ok
-      sprintf(num_holder,"%d",num);
-      strcat(temp_name,num_holder);
-      /*
-        Check for collusions
-       */
-      while((dup_field=it++))
-      {
-        if(!my_strcasecmp(system_charset_info,temp_name,dup_field->field_name))
-        {
-          temp_name[12]='\0'; //now temp_name='DB_ROW_HASH_'
-          num++;
-          sprintf(num_holder,"%d",num);
-          strcat(temp_name,num_holder);
-          it.rewind();
-        }
-      }
-      it.rewind();
-      /*
-        There should be only one key for db_row_hash_* column
-        we need to give user a error when the accidently query
-        like
-
-        create table t1(abc blob unique, index(db_row_hash_1));
-        alter table t2 add column abc blob unique,add index(db_row_hash_1);
-
-        for this we will iterate through the key_list and
-        find if and key_part has the same name as of temp_name
-       */
-      Key * temp_key;
-      while((temp_key=key_iter_2++))
-      {
-        Key_part_spec *flds;
-        List_iterator<Key_part_spec> key_part_iter_2(temp_key->columns);
-        while((flds=key_part_iter_2++))
-        {
-          if(!my_strcasecmp(system_charset_info,flds->field_name.str,temp_name))
-          {
-            my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), temp_name);
-            DBUG_RETURN(TRUE);
-          }
-        }
-      }
-      char * name = (char *)thd->alloc(30);
-      strcpy(name,temp_name);
-      cf->field_name=name;
-      cf->sql_type=MYSQL_TYPE_LONGLONG;
-      /* hash column should be atmost hidden */
-      cf->field_visibility=FULL_HIDDEN;
-      cf->is_long_column_hash=true;
-      /* add the virtual colmn info */
-      Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
-      char * hash_exp=(char *)thd->alloc(252);
-      char * key_name=(char *)thd->alloc(252);
-      strcpy(hash_exp,"hash(`");
-      temp_colms=key_part_iter++;
-      strcat(hash_exp,temp_colms->field_name.str);
-      strcpy(key_name,temp_colms->field_name.str);
-      strcat(hash_exp,"`");
-      while((temp_colms=key_part_iter++)){
-        /*
-          This test for wrong query like
-          create table t1(a blob ,unique(a,a));
-        */
-        if(find_field_name_in_hash(hash_exp,
-                     temp_colms->field_name.str,strlen(hash_exp))!=-1)
-        {
-          my_error(ER_DUP_FIELDNAME, MYF(0),temp_colms->field_name.str);
-          DBUG_RETURN(TRUE);
-        }
-        strcat(hash_exp,(const char * )",");
-        strcat(key_name,"_");
-        strcat(hash_exp,"`");
-        strcat(hash_exp,temp_colms->field_name.str);
-        strcat(key_name,temp_colms->field_name.str);
-        strcat(hash_exp,"`");
-      }
-      strcat(hash_exp,(const char * )")");
-      v->expr_str.str= hash_exp;
-      v->expr_str.length= strlen(hash_exp);
-      v->expr_item= NULL;
-      v->set_stored_in_db_flag(true);
-      cf->vcol_info=v;
-      alter_info->create_list.push_front(cf,thd->mem_root);
-      /*
-         Now create  the key field kind
-         of harder then prevoius one i guess
-                */
-      key_iter_key->type=Key::MULTIPLE;
-      key_iter_key->columns.delete_elements();
-      LEX_STRING  *ls =(LEX_STRING *)thd->alloc(sizeof(LEX_STRING)) ;
-      ls->str=(char *)sql_field->field_name;
-      ls->length =strlen(sql_field->field_name);
-      if(key_iter_key->name.length==0)
-      {
-        LEX_STRING  *ls_name =(LEX_STRING *)thd->alloc(sizeof(LEX_STRING)) ;
-        ls_name->str=key_name;
-        ls_name->length=strlen(key_name);
-        key_iter_key->name= *ls_name;
-      }
-      key_iter_key->columns.push_back(new (thd->mem_root) Key_part_spec(name,
-                                                  strlen(name), 0),thd->mem_root);
-
-    }
-    is_long_unique=false;
-  }
-  it.rewind();
   select_field_pos= alter_info->create_list.elements - select_field_count;
   null_fields=blob_columns=0;
   create_info->varchar= 0;
@@ -3452,16 +3448,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       /* Fix for prepare statement */
       thd->change_item_tree(&sql_field->default_value->expr_item, item);
     }
-    if(sql_field->field_visibility==USER_DEFINED_HIDDEN)
+    if (sql_field->field_visibility == USER_DEFINED_HIDDEN &&
+        sql_field->flags & NOT_NULL_FLAG &&
+        sql_field->flags & NO_DEFAULT_VALUE_FLAG)
     {
-      if(sql_field->flags&NOT_NULL_FLAG)
-      {
-        if(sql_field->flags&NO_DEFAULT_VALUE_FLAG)
-        {
-          my_error(ER_HIDDEN_NOT_NULL_WOUT_DEFAULT, MYF(0), sql_field->field_name);
-          DBUG_RETURN(TRUE);
-        }
-      }
+      my_error(ER_HIDDEN_NOT_NULL_WOUT_DEFAULT, MYF(0), sql_field->field_name);
+      DBUG_RETURN(TRUE);
     }
     if (sql_field->sql_type == MYSQL_TYPE_SET ||
         sql_field->sql_type == MYSQL_TYPE_ENUM)
@@ -3725,8 +3717,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
   }
-  /* Update virtual fields' offset*/
+  /* Update virtual fields' offset and give error if
+     all field of table are hidden */
   it.rewind();
+  bool is_all_hidden= true;
   while ((sql_field=it++))
   {
     if (!sql_field->stored_in_db())
@@ -3734,6 +3728,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       sql_field->offset= record_offset;
       record_offset+= sql_field->pack_length;
     }
+    if (sql_field->field_visibility == NOT_HIDDEN)
+      is_all_hidden= false;
+  }
+  if (is_all_hidden)
+  { //todo correct add error
+    my_error(ER_TABLE_CANT_HANDLE_BLOB, MYF(0), file->table_type());
+    DBUG_RETURN(TRUE);
   }
   if (auto_increment > 1)
   {
@@ -4065,8 +4066,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             column->length= MAX_LEN_GEOM_POINT_FIELD;
     if (!column->length)
 	  {
-			my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
-			DBUG_RETURN(TRUE);
+			if(!add_hash_field(thd, alter_info, key, key_info,
+										*key_info_buffer, create_info->default_table_charset))
+			{
+				key_part_info= key_info->key_part;
+				key_part_info++;
+				null_fields++;
+				key_length= HA_HASH_KEY_LENGHT_WITHOUT_NULL;
+				break;
+			}
+			else
+				DBUG_RETURN(TRUE);
 	  }
 	}
 #ifdef HAVE_SPATIAL
@@ -4153,8 +4163,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    }
 	    else
 	    {
-	      my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
-	      DBUG_RETURN(TRUE);
+				if(!add_hash_field(thd, alter_info, key, key_info,
+											*key_info_buffer, create_info->default_table_charset))
+				{
+					key_part_info= key_info->key_part;
+					key_part_info++;
+					null_fields++;
+					key_length= HA_HASH_KEY_LENGHT_WITHOUT_NULL;
+					break;
+				}
+				else
+					DBUG_RETURN(TRUE);
 	    }
 	  }
 	}
@@ -4200,8 +4219,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
 	else
 	{
-	  my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
-	  DBUG_RETURN(TRUE);
+		if(!add_hash_field(thd, alter_info, key, key_info,
+									*key_info_buffer, create_info->default_table_charset))
+		{
+			key_part_info= key_info->key_part;
+			key_part_info++;
+			null_fields++;
+			key_length= HA_HASH_KEY_LENGHT_WITHOUT_NULL;
+			break;
+		}
+		else
+			DBUG_RETURN(TRUE);
 	}
       }
       key_part_info->length= (uint16) key_part_length;
