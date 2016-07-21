@@ -4065,18 +4065,22 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
               Field::GEOM_POINT)
             column->length= MAX_LEN_GEOM_POINT_FIELD;
     if (!column->length)
-	  {
-			if(!add_hash_field(thd, alter_info, key, key_info,
-										*key_info_buffer, create_info->default_table_charset))
-			{
-				key_part_info= key_info->key_part;
-				key_part_info++;
-				null_fields++;
-				key_length= HA_HASH_KEY_LENGHT_WITHOUT_NULL;
-				break;
-			}
-			else
-				DBUG_RETURN(TRUE);
+    {
+      if (key->type == Key::PRIMARY)
+      {
+        DBUG_RETURN(TRUE);
+      }
+      if (!add_hash_field(thd, alter_info, key, key_info,
+                          *key_info_buffer, create_info->default_table_charset))
+      {
+        key_part_info= key_info->key_part;
+        key_part_info++;
+        null_fields++;
+        key_length= HA_HASH_KEY_LENGHT_WITHOUT_NULL;
+        break;
+      }
+      else
+        DBUG_RETURN(TRUE);
 	  }
 	}
 #ifdef HAVE_SPATIAL
@@ -4163,18 +4167,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    }
 	    else
 	    {
-				if(!add_hash_field(thd, alter_info, key, key_info,
-											*key_info_buffer, create_info->default_table_charset))
-				{
-					key_part_info= key_info->key_part;
-					key_part_info++;
-					null_fields++;
-					key_length= HA_HASH_KEY_LENGHT_WITHOUT_NULL;
-					break;
-				}
-				else
-					DBUG_RETURN(TRUE);
-	    }
+				my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
+				DBUG_RETURN(TRUE);
+			}
 	  }
 	}
         // Catch invalid use of partial keys 
@@ -4219,8 +4214,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
 	else
 	{
+		if(key->type != Key::UNIQUE)
+		{
+			my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
+			DBUG_RETURN(TRUE);
+		}
+		//todo we does not respect length given by user in calculating hash
 		if(!add_hash_field(thd, alter_info, key, key_info,
-									*key_info_buffer, create_info->default_table_charset))
+											 *key_info_buffer, create_info->default_table_charset))
 		{
 			key_part_info= key_info->key_part;
 			key_part_info++;
