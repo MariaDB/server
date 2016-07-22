@@ -68,7 +68,8 @@ parse_arguments() {
 
 wsrep_recover_position() {
   # Redirect server's error log to the log file.
-  eval /usr/sbin/mysqld $cmdline_args --user=$user --wsrep_recover 2> "$log_file"
+  eval /usr/sbin/mysqld $cmdline_args --user=$user --wsrep_recover \
+    --log-error="$log_file"
   ret=$?
   if [ $ret -ne 0 ]; then
     # Something went wrong, let us also print the error log so that it
