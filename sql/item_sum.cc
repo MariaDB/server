@@ -1355,7 +1355,7 @@ Item_sum_sp::init_result_field(THD *thd)
 {
   LEX_STRING empty_name= { C_STRING_WITH_LEN("") };
   TABLE_SHARE *share;
-  DBUG_ENTER("Item_func_sp::init_result_field");
+  DBUG_ENTER("Item_sum_sp::init_result_field");
 
   DBUG_ASSERT(m_sp == NULL);
   DBUG_ASSERT(sp_result_field == NULL);

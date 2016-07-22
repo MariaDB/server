@@ -1493,8 +1493,8 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
   bool save_abort_on_warning;
   Query_arena *old_arena;
   /* per-instruction arena */
-  //MEM_ROOT execute_mem_root;
-  Query_arena execute_arena(thd->mem_root, STMT_INITIALIZED_FOR_SP),
+  MEM_ROOT execute_mem_root;
+  Query_arena execute_arena(&execute_mem_root, STMT_INITIALIZED_FOR_SP),
               backup_arena;
   query_id_t old_query_id;
   TABLE *old_derived_tables;
@@ -1514,7 +1514,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
     DBUG_RETURN(TRUE);
 
   /* init per-instruction memroot */
-  //init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 
   DBUG_ASSERT(!(m_flags & IS_INVOKED));
   m_flags|= IS_INVOKED;
@@ -1708,7 +1708,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
 
     /* we should cleanup free_list and memroot, used by instruction */
     thd->cleanup_after_query();
-    //free_root(&execute_mem_root, MYF(0));
+    free_root(&execute_mem_root, MYF(0));
 
     /*
       Find and process SQL handlers unless it is a fatal error (fatal
