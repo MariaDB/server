@@ -735,7 +735,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
       n_length+int_length+com_length+expression_length > 65535L ||
       int_count > 255)
   {
-    my_message(ER_TOO_MANY_FIELDS, ER_THD(thd, ER_TOO_MANY_FIELDS), MYF(0));
+    my_message(ER_TOO_MANY_FIELDS, "Table definition is too large", MYF(0));
     DBUG_RETURN(1);
   }
 
