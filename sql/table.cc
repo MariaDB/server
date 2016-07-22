@@ -2589,11 +2589,11 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table, Field *field,
   /* fix_fields could've changed the expression */
   func_expr= vcol->expr_item;
 
-  /* Number of columns will be checked later */
+  /* this was checked in check_expression(), but the frm could be mangled... */
   if (unlikely(func_expr->result_type() == ROW_RESULT))
   {
-     my_error(ER_ROW_EXPR_FOR_VCOL, MYF(0));
-     DBUG_RETURN(1);
+    my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
+    DBUG_RETURN(1);
   }
 
   /* Check that we are not refering to any not yet initialized fields */
