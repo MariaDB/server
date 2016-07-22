@@ -4067,7 +4067,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (!column->length)
     {
       if (key->type == Key::PRIMARY)
-      {
+      { //todo change error message
+        my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
         DBUG_RETURN(TRUE);
       }
       if (!add_hash_field(thd, alter_info, key, key_info,

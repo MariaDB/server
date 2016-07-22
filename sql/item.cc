@@ -5144,7 +5144,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     }
     else if (!from_field)
       goto error;
-    if(from_field!=(Field *)1 && from_field!=(Field *)2 && from_field->field_visibility==FULL_HIDDEN)
+    if (from_field != (Field *)not_found_field && from_field != (Field *)2
+         && from_field->field_visibility == FULL_HIDDEN)
     {
       my_error(ER_BAD_FIELD_ERROR, MYF(0), (* reference)->full_name(),
                thd->where);

@@ -5716,6 +5716,8 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                               &actual_table);
     if (cur_field)
     {
+      if (cur_field->field_visibility == FULL_HIDDEN)
+        continue;
       if (cur_field == WRONG_GRANT)
       {
         if (thd->lex->sql_command != SQLCOM_SHOW_FIELDS)
