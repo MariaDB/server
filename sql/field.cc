@@ -9863,59 +9863,43 @@ bool Column_definition::check(THD *thd)
       }
     }
   }
+
   if (default_value && (flags & AUTO_INCREMENT_FLAG))
   {
     my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
     DBUG_RETURN(1);
   }
 
-  if (default_value && !default_value->expr_item->basic_const_item())
+  if (default_value && !default_value->expr_item->basic_const_item() &&
+      mysql_type_to_time_type(sql_type) == MYSQL_TIMESTAMP_DATETIME &&
+      default_value->expr_item->type() == Item::FUNC_ITEM)
   {
-    Item *def_expr= default_value->expr_item;
-
-    unireg_check= Field::NONE;
     /*
-      NOW() for TIMESTAMP and DATETIME fields are handled as in MariaDB 10.1
-      by marking them in unireg_check.
+      Special case: NOW() for TIMESTAMP and DATETIME fields are handled
+      as in MariaDB 10.1 by marking them in unireg_check.
     */
-    if (def_expr->type() == Item::FUNC_ITEM &&
-        (static_cast<Item_func*>(def_expr)->functype() ==
-         Item_func::NOW_FUNC &&
-         (mysql_type_to_time_type(sql_type) == MYSQL_TIMESTAMP_DATETIME)))
+    Item_func *fn= static_cast<Item_func*>(default_value->expr_item);
+    if (fn->functype() == Item_func::NOW_FUNC &&
+        (fn->decimals == 0 || fn->decimals >= length))
     {
-      /*
-        We are not checking the number of decimals for timestamps
-        to allow one to write (for historical reasons)
-        TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
-        Instead we are going to use the number of decimals specifed by the
-        column.
-      */
       default_value= 0;
-      unireg_check= (on_update ?
-                     Field::TIMESTAMP_DNUN_FIELD : // for insertions and for updates.
-                     Field::TIMESTAMP_DN_FIELD);   // only for insertions.
+      unireg_check= Field::TIMESTAMP_DN_FIELD;
     }
-    else if (on_update)
-      unireg_check= Field::TIMESTAMP_UN_FIELD; // function default for updates
-  }
-  else
-  {
-    /* No function default for insertions. Either NULL or a constant. */
-    if (on_update)
-      unireg_check= Field::TIMESTAMP_UN_FIELD; // function default for updates
-    else
-      unireg_check= ((flags & AUTO_INCREMENT_FLAG) ?
-                     Field::NEXT_NUMBER : // Automatic increment.
-                     Field::NONE);
   }
 
-  if (on_update &&
-      (mysql_type_to_time_type(sql_type) != MYSQL_TIMESTAMP_DATETIME ||
-       on_update->decimals < length))
+  if (on_update)
   {
-    my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name);
-    DBUG_RETURN(TRUE);
+    if (mysql_type_to_time_type(sql_type) != MYSQL_TIMESTAMP_DATETIME ||
+        on_update->decimals < length)
+    {
+      my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name);
+      DBUG_RETURN(TRUE);
+    }
+    unireg_check= unireg_check == Field::NONE ? Field::TIMESTAMP_UN_FIELD
+                                              : Field::TIMESTAMP_DNUN_FIELD;
   }
+  else if (flags & AUTO_INCREMENT_FLAG)
+    unireg_check= Field::NEXT_NUMBER;
 
   sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
 
