@@ -604,7 +604,7 @@ sp_head::sp_head()
    unsafe_flags(0),
    m_recursion_level(0),
    m_next_cached_sp(0),
-   m_cont_level(0), instr_ptr(0)
+   m_cont_level(0)
 {
   m_first_instance= this;
   m_first_free_instance= this;
@@ -1114,7 +1114,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   LEX_STRING saved_cur_db_name=
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
   bool cur_db_changed= FALSE;
-  instr_ptr=0;
+  uint ip =0;
   sp_rcontext *ctx= thd->spcont;
   bool err_status= FALSE;
   ulonglong save_sql_mode;
@@ -1277,7 +1277,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 #endif
 
     /* get_instr returns NULL when we're done. */
-    i = get_instr(instr_ptr);
+    i = get_instr(ip);
     if (i == NULL)
     {
 #if defined(ENABLED_PROFILING)
@@ -1289,7 +1289,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     /* Reset number of warnings for this query. */
     thd->get_stmt_da()->reset_for_next_command();
 
-    DBUG_PRINT("execute", ("Instruction %u", instr_ptr));
+    DBUG_PRINT("execute", ("Instruction %u", ip));
 
     /*
       We need to reset start_time to allow for time to flow inside a stored
@@ -1317,7 +1317,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     sql_digest_state *parent_digest= thd->m_digest;
     thd->m_digest= NULL;
 
-    err_status= i->execute(thd, &instr_ptr);
+    err_status= i->execute(thd, &ip);
 
     thd->m_digest= parent_digest;
 
@@ -1344,7 +1344,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       killed during execution.
     */
     if (!thd->is_fatal_error && !thd->killed_errno() &&
-        ctx->handle_sql_condition(thd, &instr_ptr, i))
+        ctx->handle_sql_condition(thd, &ip, i))
     {
       err_status= FALSE;
     }
@@ -2304,7 +2304,7 @@ err_with_cleanup:
 
 
 bool
-sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount, 
+sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
                                     Field *return_fld, sp_rcontext **func_ctx,
                                     MEM_ROOT *call_mem_root)
 {
@@ -2365,6 +2365,7 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
     this function call will be finished (e.g. in Item::cleanup()).
   */
   thd->restore_active_arena(&call_arena, &backup_arena);
+  //(*func_ctx)->list_caller_free= call_arena.free_list;
   argument_sent= FALSE;
   }
   else
@@ -2447,7 +2448,7 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
       as one select and not resetting THD::user_var_events before
       each invocation.
     */
-    
+
     q= get_query_id();
     mysql_bin_log.start_union_events(thd, q + 1);
     binlog_save_options= thd->variables.option_bits;
@@ -2507,7 +2508,7 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
 
   if (!err_status && thd->spcont->quit_func)
   {
-    // We need result only in function but not in trigger 
+    // We need result only in function but not in trigger
 
     if (!thd->spcont->is_return_value_set())
     {
@@ -2523,6 +2524,7 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
 
 err_with_cleanup:
   thd->spcont= octx;
+
   /*
     If not insided a procedure and a function printing warning
     messsages.

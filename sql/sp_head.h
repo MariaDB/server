@@ -336,7 +336,7 @@ public:
 
   bool
   execute_function(THD *thd, Item **args, uint argcount, Field *return_fld);
-  
+
   bool
   execute_aggregate_function(THD *thd, Item **args, uint argcount,
                              Field *return_fld, sp_rcontext **nctx,
@@ -525,10 +525,6 @@ public:
   }
 
   sp_pcontext *get_parse_context() { return m_pcont; }
-  void init_instr_ptr(int ip)
-  {
-    instr_ptr= ip;
-  }
 
 private:
 
@@ -567,7 +563,6 @@ private:
     in prelocked mode and in non-prelocked mode.
   */
   HASH m_sptabs;
-  uint instr_ptr;
 
   bool
   execute(THD *thd, bool merge_da_on_success);
@@ -1324,7 +1319,7 @@ public:
   }
 
 private:
-  
+
   bool normal_cursor_fetch;
   uint m_cursor;
   List<sp_variable> m_varlist;

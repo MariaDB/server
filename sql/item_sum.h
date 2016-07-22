@@ -1071,11 +1071,9 @@ class sp_name;
 class Query_arena;
 struct st_sp_security_context;
 
-
 class Item_sum_sp :public Item_sum
 {
-
-private:
+ private:
   Item_result hybrid_type;//I think so there is no need of this
   Name_resolution_context *context;
   sp_name *m_name;
@@ -1083,56 +1081,53 @@ private:
   TABLE *dummy_table;
   uchar result_buf[64];
   sp_rcontext *func_ctx;
-  MEM_ROOT call_mem_root;
-  Query_arena *call_arena;
+  MEM_ROOT caller_mem_root;
   /*
      The result field of the stored function.
   */
-  Field *sp_result_field;// result_field can be used, inherited from parent class
+  Field *sp_result_field;
 
   bool execute();
   bool execute_impl(THD *thd);
   bool init_result_field(THD *thd);
- 
 
 public:
   Item_sum_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name);
 
   Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
                sp_name *name, List<Item> &list);
-  Item_sum_sp(THD *thd, Item_sum_sp *item);
- 
+
   enum Sumfunctype sum_func () const
   {
     return SP_AGGREGATE_FUNC;
   }
- 
+
   void fix_length_and_dec();//TODO need to be given a thought
   bool fix_fields(THD *thd, Item **ref);//TODO need to be given a thought
   const char *func_name() const { return "sp aggregate";}
   enum Item_result result_type () const;
   bool add();
   bool sp_check_access(THD *thd);
- 
+
   /* val_xx functions */
   longlong val_int()
   {
     if(!func_ctx || execute())
-        return 0;
+      return 0;
     return sp_result_field->val_int();
   }
 
   double val_real()
   {
     if(!func_ctx || execute())
-        return 0.0;
+      return 0.0;
     return sp_result_field->val_int();
   }
 
   my_decimal *val_decimal(my_decimal *dec_buf)
   {
     if(!func_ctx || execute())
-        return NULL;
+      return NULL;
     return sp_result_field->val_decimal(dec_buf);
   }
 
@@ -1449,7 +1444,7 @@ class Item_sum_udf_float :public Item_sum_num
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
   void clear() {}
-  bool add() { return 0; }  
+  bool add() { return 0; } 
   void update_field() {}
 };
 
