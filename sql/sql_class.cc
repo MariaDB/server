@@ -870,7 +870,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    is_fatal_sub_stmt_error(false),
    rand_used(0),
    time_zone_used(0),
-   in_lock_tables(0), in_stored_expression(0),
+   in_lock_tables(0),
    bootstrap(0),
    derived_tables_processing(FALSE),
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
@@ -2338,7 +2338,7 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
   to->length= copy_and_convert((char*) to->str, new_length, to_cs,
 			       from, from_length, from_cs, &errors);
   to->str[to->length]= 0;                       // Safety
-  if (errors && in_stored_expression)
+  if (errors && lex->parse_vcol_expr)
   {
     my_error(ER_BAD_DATA, MYF(0),
              ErrConvString(from, from_length, from_cs).ptr(),

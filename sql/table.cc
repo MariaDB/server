@@ -2512,11 +2512,8 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
   const char *save_where= thd->where;
   thd->where= "virtual column function";
 
-  thd->in_stored_expression= 1;
-
   int error= vcol->expr_item->fix_fields(thd, &vcol->expr_item);
 
-  thd->in_stored_expression= 0;
   thd->mark_used_columns= save_mark_used_columns;
   thd->where= save_where;
 
@@ -2753,9 +2750,7 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
     thd->update_charset(&my_charset_utf8mb4_general_ci,
                         table->s->table_charset);
   }
-  thd->in_stored_expression= 1;
   error= parse_sql(thd, &parser_state, NULL);
-  thd->in_stored_expression= 0;
   if (error)
     goto err;
 
