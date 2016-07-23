@@ -575,7 +575,7 @@ inline bool is_temporal_type_with_time(enum_field_types type)
 }
 
 /* Bits for type of vcol expression */
-#define VCOL_UNKNOWN           1  /* UDF used; Need fix_fields() to know */
+#define VCOL_FIELD_REF         1
 #define VCOL_NON_DETERMINISTIC 2
 #define VCOL_SESSION_FUNC      4  /* uses session data, e.g. USER or DAYNAME */
 #define VCOL_TIME_FUNC         8
