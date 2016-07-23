@@ -409,7 +409,6 @@ create or replace table t1 (a int not null, b int default (a+1));
 create or replace table t1 (a int default a);
 ERROR 01000: Expression for field `a` is refering to uninitialized field `a`
 create or replace table t1 (a int default b, b int default (1+1));
-ERROR 01000: Expression for field `a` is refering to uninitialized field `b`
 create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
 ERROR 01000: Expression for field `b` is refering to uninitialized field `c`
 CREATE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
@@ -3035,7 +3034,7 @@ t1	CREATE TABLE `t1` (
   `a` char(2) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT concat('A')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
-create table t1 (a int default 1, b int default (1+1), c int);
+create table t1 (a int default 1, b int default (rand()*0+2), c int);
 insert t1 (c) values (a);
 insert t1 (c) values (b);
 select * from t1;

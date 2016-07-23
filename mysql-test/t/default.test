@@ -295,7 +295,6 @@ create or replace table t1 (a int not null, b int default (a+1));
 
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create or replace table t1 (a int default a);
---error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create or replace table t1 (a int default b, b int default (1+1));
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
@@ -1810,7 +1809,7 @@ DROP TABLE t1;
 #
 # Order of evaluation:
 #
-create table t1 (a int default 1, b int default (1+1), c int);
+create table t1 (a int default 1, b int default (rand()*0+2), c int);
 insert t1 (c) values (a);
 insert t1 (c) values (b);
 select * from t1;

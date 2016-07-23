@@ -2593,13 +2593,6 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table, Field *field,
     DBUG_RETURN(1);
   }
 
-  /* Check that we are not refering to any not yet initialized fields */
-  if (field)
-  {
-    if (func_expr->walk(&Item::check_field_expression_processor, 0, field))
-      DBUG_RETURN(1);
-  }
-
   /*
     Walk through the Item tree checking if all items are valid
     to be part of the virtual column
@@ -2775,6 +2768,14 @@ end:
     thd->update_charset(save_character_set_client, save_collation);
 
   DBUG_RETURN(vcol_info);
+}
+
+static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol)
+{
+  bool res= vcol &&
+            vcol->expr_item->walk(&Item::check_field_expression_processor, 0,
+                                  field);
+  return res;
 }
 
 /*
@@ -3041,22 +3042,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
           goto err;
         }
         field->default_value= vcol;
-        if (is_create_table && !vcol->flags)
-        {
-          enum_check_fields old_count_cuted_fields= thd->count_cuted_fields;
-          thd->count_cuted_fields= CHECK_FIELD_WARN;    // To find wrong default values
-          my_ptrdiff_t off= share->default_values - outparam->record[0];
-          field->move_field_offset(off);
-          int res= vcol->expr_item->save_in_field(field, 1);
-          field->move_field_offset(-off);
-          thd->count_cuted_fields= old_count_cuted_fields;
-          if (res != 0 && res != 3)
-          {
-            my_error(ER_INVALID_DEFAULT, MYF(0), field->field_name);
-            error= OPEN_FRM_CORRUPTED;
-            goto err;
-          }
-        }
         *(dfield_ptr++)= *field_ptr;
       }
       else
@@ -3067,6 +3052,19 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     }
     *vfield_ptr= 0;                            // End marker
     *dfield_ptr= 0;                            // End marker
+
+    /* Check that expressions aren't refering to not yet initialized fields */
+    for (field_ptr= outparam->field; *field_ptr; field_ptr++)
+    {
+      Field *field= *field_ptr;
+      if (check_vcol_forward_refs(field, field->vcol_info) ||
+          check_vcol_forward_refs(field, field->check_constraint) ||
+          check_vcol_forward_refs(field, field->default_value))
+      {
+        error= OPEN_FRM_CORRUPTED;
+        goto err;
+      }
+    }
 
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
@@ -7316,7 +7314,8 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
     {
       if (!update_command)
       {
-        if (field->default_value)
+        if (field->default_value &&
+            (field->default_value->flags || field->flags & BLOB_FLAG))
           res|= (field->default_value->expr_item->save_in_field(field, 0) < 0);
         else
           res|= field->evaluate_insert_default_function();

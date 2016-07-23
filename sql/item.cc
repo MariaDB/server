@@ -956,8 +956,8 @@ bool Item_field::check_field_expression_processor(void *arg)
 {
   if (field->flags & NO_DEFAULT_VALUE_FLAG)
     return 0;
-  if ((field->default_value || field->has_insert_default_function() ||
-       field->vcol_info))
+  if ((field->default_value  && field->default_value->flags)
+      || field->has_insert_default_function() || field->vcol_info)
   {
     Field *org_field= (Field*) arg;
     if (field == org_field ||
@@ -8232,7 +8232,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   set_field(def_field);
   if (field->default_value)
   {
-    if (field->default_value->expr_item) // it's NULL during CREATE TABLE
+    if (thd->mark_used_columns != MARK_COLUMNS_NONE)
       field->default_value->expr_item->walk(&Item::register_field_in_read_map, 1, 0);
     IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
   }

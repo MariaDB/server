@@ -574,7 +574,11 @@ inline bool is_temporal_type_with_time(enum_field_types type)
   }
 }
 
-/* Bits for type of vcol expression */
+/*
+  Flags for Virtual_column_info. If none is set, the expression must be
+  a constant with no side-effects, so it's calculated at CREATE TABLE time,
+  stored in table->record[2], and not recalculated for every statement.
+*/
 #define VCOL_FIELD_REF         1
 #define VCOL_NON_DETERMINISTIC 2
 #define VCOL_SESSION_FUNC      4  /* uses session data, e.g. USER or DAYNAME */

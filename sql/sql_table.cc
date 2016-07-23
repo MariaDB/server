@@ -3255,35 +3255,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	!(sql_field->charset= find_bin_collation(sql_field->charset)))
       DBUG_RETURN(TRUE);
 
-    /*
-      Convert the default value from client character
-      set into the column character set if necessary.
-      We can only do this for constants as we have not yet run fix_fields.
-    */
-    if (sql_field->default_value &&
-        sql_field->default_value->expr_item->basic_const_item() &&
-        save_cs != sql_field->default_value->expr_item->collation.collation &&
-        (sql_field->sql_type == MYSQL_TYPE_VAR_STRING ||
-         sql_field->sql_type == MYSQL_TYPE_STRING ||
-         sql_field->sql_type == MYSQL_TYPE_SET ||
-         sql_field->sql_type == MYSQL_TYPE_TINY_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_MEDIUM_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_LONG_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_ENUM))
-    {
-      Item *item;
-      if (!(item= sql_field->default_value->expr_item->
-            safe_charset_converter(thd, save_cs)))
-      {
-        /* Could not convert */
-        my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
-        DBUG_RETURN(TRUE);
-      }
-      /* Fix for prepare statement */
-      thd->change_item_tree(&sql_field->default_value->expr_item, item);
-    }
-
     if (sql_field->sql_type == MYSQL_TYPE_SET ||
         sql_field->sql_type == MYSQL_TYPE_ENUM)
     {
@@ -3349,37 +3320,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (sql_field->sql_type == MYSQL_TYPE_SET)
       {
         uint32 field_length;
-        if (sql_field->default_value &&
-            sql_field->default_value->expr_item->basic_const_item())
-        {
-          char *not_used;
-          uint not_used2;
-          bool not_found= 0;
-          String str, *def= sql_field->default_value->expr_item->val_str(&str);
-          if (def == NULL) /* SQL "NULL" maps to NULL */
-          {
-            if ((sql_field->flags & NOT_NULL_FLAG) != 0)
-            {
-              my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
-              DBUG_RETURN(TRUE);
-            }
-
-            /* else, NULL is an allowed value */
-            (void) find_set(interval, NULL, 0,
-                            cs, &not_used, &not_used2, &not_found);
-          }
-          else /* not NULL */
-          {
-            (void) find_set(interval, def->ptr(), def->length(),
-                            cs, &not_used, &not_used2, &not_found);
-          }
-
-          if (not_found)
-          {
-            my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
-            DBUG_RETURN(TRUE);
-          }
-        }
         calculate_interval_lengths(cs, interval, &dummy, &field_length);
         sql_field->length= field_length + (interval->count - 1);
       }
@@ -3387,30 +3327,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       {
         uint32 field_length;
         DBUG_ASSERT(sql_field->sql_type == MYSQL_TYPE_ENUM);
-        if (sql_field->default_value &&
-            sql_field->default_value->expr_item->basic_const_item())
-        {
-          String str, *def= sql_field->default_value->expr_item->val_str(&str);
-          if (def == NULL) /* SQL "NULL" maps to NULL */
-          {
-            if ((sql_field->flags & NOT_NULL_FLAG) != 0)
-            {
-              my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
-              DBUG_RETURN(TRUE);
-            }
-
-            /* else, the defaults yield the correct length for NULLs. */
-          } 
-          else /* not NULL */
-          {
-            def->length(cs->cset->lengthsp(cs, def->ptr(), def->length()));
-            if (find_type2(interval, def->ptr(), def->length(), cs) == 0) /* not found */
-            {
-              my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
-              DBUG_RETURN(TRUE);
-            }
-          }
-        }
         calculate_interval_lengths(cs, interval, &field_length, &dummy);
         sql_field->length= field_length;
       }
@@ -3429,6 +3345,112 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     sql_field->create_length_to_internal_length();
     if (prepare_blob_field(thd, sql_field))
       DBUG_RETURN(TRUE);
+
+    if (sql_field->default_value)
+    {
+      Virtual_column_info *def= sql_field->default_value;
+
+      if (!sql_field->has_default_expression())
+        def->expr_str= null_lex_str;
+
+      if (!def->expr_item->basic_const_item() && !def->flags)
+      {
+        Item *expr= def->expr_item;
+        int err= !expr->fixed && // may be already fixed if ALTER TABLE
+                  expr->fix_fields(thd, &expr);
+        if (!err)
+        {
+          if (expr->result_type() == REAL_RESULT)
+          { // don't convert floats to string and back, it can be lossy
+            double res= expr->val_real();
+            if (expr->null_value)
+              expr= new (thd->mem_root) Item_null(thd);
+            else
+              expr= new (thd->mem_root) Item_float(thd, res, expr->decimals);
+          }
+          else
+          {
+            StringBuffer<MAX_FIELD_WIDTH> buf;
+            String *res= expr->val_str(&buf);
+            if (expr->null_value)
+              expr= new (thd->mem_root) Item_null(thd);
+            else
+            {
+              char *str= (char*) thd->strmake(res->ptr(), res->length());
+              expr= new (thd->mem_root) Item_string(thd, str, res->length(), res->charset());
+            }
+          }
+          thd->change_item_tree(&def->expr_item, expr);
+        }
+      }
+    }
+
+    /*
+      Convert the default value from client character
+      set into the column character set if necessary.
+      We can only do this for constants as we have not yet run fix_fields.
+    */
+    if (sql_field->default_value &&
+        sql_field->default_value->expr_item->basic_const_item() &&
+        save_cs != sql_field->default_value->expr_item->collation.collation &&
+        (sql_field->sql_type == MYSQL_TYPE_VAR_STRING ||
+         sql_field->sql_type == MYSQL_TYPE_STRING ||
+         sql_field->sql_type == MYSQL_TYPE_SET ||
+         sql_field->sql_type == MYSQL_TYPE_TINY_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_MEDIUM_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_LONG_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_ENUM))
+    {
+      Item *item;
+      if (!(item= sql_field->default_value->expr_item->
+            safe_charset_converter(thd, save_cs)))
+      {
+        /* Could not convert */
+        my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
+        DBUG_RETURN(TRUE);
+      }
+      /* Fix for prepare statement */
+      thd->change_item_tree(&sql_field->default_value->expr_item, item);
+    }
+
+    if (sql_field->default_value &&
+        sql_field->default_value->expr_item->basic_const_item() &&
+        (sql_field->sql_type == MYSQL_TYPE_SET ||
+         sql_field->sql_type == MYSQL_TYPE_ENUM))
+    {
+      StringBuffer<MAX_FIELD_WIDTH> str;
+      String *def= sql_field->default_value->expr_item->val_str(&str);
+      bool not_found;
+      if (def == NULL) /* SQL "NULL" maps to NULL */
+      {
+        not_found= sql_field->flags & NOT_NULL_FLAG;
+      }
+      else
+      {
+        not_found= false;
+        if (sql_field->sql_type == MYSQL_TYPE_SET)
+        {
+          char *not_used;
+          uint not_used2;
+          find_set(sql_field->interval, def->ptr(), def->length(),
+                   sql_field->charset, &not_used, &not_used2, &not_found);
+        }
+        else /* MYSQL_TYPE_ENUM */
+        {
+          def->length(sql_field->charset->cset->lengthsp(sql_field->charset,
+                                                  def->ptr(), def->length()));
+          not_found= !find_type2(sql_field->interval, def->ptr(),
+                                 def->length(), sql_field->charset);
+        }
+      }
+
+      if (not_found)
+      {
+        my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
+        DBUG_RETURN(TRUE);
+      }
+    }
 
     if (!(sql_field->flags & NOT_NULL_FLAG))
       null_fields++;
