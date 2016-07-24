@@ -1,0 +1,133 @@
+
+create table t1 (sal int,id int,val varchar(10),counter int);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,2,'ab',2);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,1,'cd',5);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,2,'ef',1);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,3,'gh',3);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,4,'ij',4);
+
+create table t2 (sal int,id int,val int,counter int);
+INSERT INTO t2 (sal,id,val,counter) VALUES (1000,2,10,2);
+INSERT INTO t2 (sal,id,val,counter) VALUES (2000,1,16,5);
+INSERT INTO t2 (sal,id,val,counter) VALUES (6000,2,18,1);
+INSERT INTO t2 (sal,id,val,counter) VALUES (5000,3,15,3);
+INSERT INTO t2 (sal,id,val,counter) VALUES (3000,4,11,4);
+delimiter |;
+
+create aggregate function agg_sum(x double) returns double
+begin
+  declare  z double default 0;
+  declare continue handler for not found return z;
+  loop
+  fetch group next row;
+  set z= z+x;
+  end loop;
+end|
+
+create aggregate function agg_test5(x double) returns double
+begin
+  declare  z double default 0;
+  declare continue handler for not found return z;
+  return -1;
+end|
+
+create aggregate function agg_test(x INT) returns CHAR(10)
+ begin
+   declare  mini INT default 0;
+   declare continue handler for not found return mini;
+   loop
+       fetch group next row;
+	   set mini= mini + x;
+   end loop;
+end|
+
+create aggregate function agg_test2(x INT) returns CHAR(10)
+ begin
+   declare  mini INT default 0;
+   declare continue handler for not found return mini;
+   loop
+       fetch group next row;
+	   set mini= mini + x;
+       fetch group next row;
+	   set mini= mini - x;
+   end loop;
+end|
+
+create aggregate function agg_test4(x INT) returns varchar(1000)
+begin
+   declare  z int default 0;
+   DECLARE cur1 CURSOR FOR SELECT sal FROM test.t2;
+   declare continue handler for not found return 0;
+   loop
+       fetch group next row;
+	   set z = z+x;
+   end loop;
+end|
+
+create aggregate function agg_test3(x INT, y varchar(10)) returns varchar(1000)
+begin
+   declare  str varchar(1000) default '';
+   declare continue handler for not found return str;
+   loop
+       fetch group next row;
+	   set str= concat(str,y);
+   end loop;
+end|
+
+create function increm(x int) returns int
+return (select agg_sum(sal) from t1)|
+
+delimiter ;|
+
+select agg_sum(sal) from t1;
+
+# group by test
+select agg_sum(sal) from t1 where id>=1 group by counter;
+
+# multiple fetch statements in the loop 
+select agg_test2(sal) from t1;
+
+# incorrect column type
+select agg_test(val) from t1;
+
+#subquery
+select val, id, c from (select agg_sum(sal) as c from t2) as t1, t2;
+
+#multiple calls to an aggregate function
+select agg_sum(sal),agg_sum(val), agg_sum(id), agg_sum(sal) from t2;
+
+#string type, also more than one areguments
+select agg_test3(sal,val) from t1;
+
+#select agg_sum((select sal from t2 where id=1))  from t1;
+select c from (select agg_sum(sal) as c from t2) as t1; 
+
+# this fails as more than one row is returned 
+#select agg_sum((select val from t2 where id >1))  from t1;
+
+select agg_sum((select val from t2 where 0>1))  from t1;
+select agg_sum((select val from t2 where id=1))  from t1;
+
+select agg_test4(sal) from t1;
+select agg_test5(sal) from t1;
+
+SELECT agg_sum(sal)*agg_sum(sal) FROM t1;
+SELECT (SELECT agg_sum(sal) FROM t1) FROM t2;
+select id,agg_sum(sal) from t1;
+select id,agg_sum(sal) from t1 where id>=1;
+select agg_sum(sal),agg_sum(sal) from t1 where id>=1 group by counter;
+select agg_sum(sal),agg_sum(sal) from t1 where id>=1 group by id ;
+select agg_sum(sal) from t1 where id>=1 group by id ;
+select agg_sum(sal) from t1 where id>=1 order by counter;
+select agg_sum(sal) from t1 where id>=1 group by id order by counter;
+select counter,id,agg_sum(sal) from t1 where id>=1 group by id order by counter;
+select id,agg_sum(sal) from t1 where id>=1 group by id order by counter;
+drop table t1;
+drop table t2;
+drop function agg_sum;
+drop function agg_test;
+drop function agg_test2;
+drop function increm;
+drop function agg_test3;
+drop function agg_test4;
+drop function agg_test5;

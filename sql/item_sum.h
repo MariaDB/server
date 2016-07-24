@@ -26,7 +26,6 @@
 #include <my_tree.h>
 #include "sql_udf.h"                            /* udf_handler */
 
-
 class Item_sum;
 class Aggregator_distinct;
 class Aggregator_simple;
@@ -348,7 +347,7 @@ public:
   enum Sumfunctype
   { COUNT_FUNC, COUNT_DISTINCT_FUNC, SUM_FUNC, SUM_DISTINCT_FUNC, AVG_FUNC,
     AVG_DISTINCT_FUNC, MIN_FUNC, MAX_FUNC, STD_FUNC,
-    VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC,SP_AGGREGATE_FUNC
+    VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC, SP_AGGREGATE_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -1071,10 +1070,14 @@ class sp_name;
 class Query_arena;
 struct st_sp_security_context;
 
+/*
+USER DEFINED AGGREGATE FUNCTION CLASS
+*/
+
 class Item_sum_sp :public Item_sum
 {
  private:
-  Item_result hybrid_type;//I think so there is no need of this
+  Item_result hybrid_type;
   Name_resolution_context *context;
   sp_name *m_name;
   mutable sp_head *m_sp;
@@ -1102,9 +1105,9 @@ public:
     return SP_AGGREGATE_FUNC;
   }
 
-  void fix_length_and_dec();//TODO need to be given a thought
-  bool fix_fields(THD *thd, Item **ref);//TODO need to be given a thought
-  const char *func_name() const { return "sp aggregate";}
+  void fix_length_and_dec();
+  bool fix_fields(THD *thd, Item **ref);
+  const char *func_name() const;
   enum Item_result result_type () const;
   bool add();
   bool sp_check_access(THD *thd);
@@ -1121,7 +1124,7 @@ public:
   {
     if(!func_ctx || execute())
       return 0.0;
-    return sp_result_field->val_int();
+    return sp_result_field->val_real();
   }
 
   my_decimal *val_decimal(my_decimal *dec_buf)
@@ -1149,8 +1152,8 @@ public:
     str->copy(buf);
     return str;
   }
-  void reset_field(){DBUG_ASSERT(0);}//TODO
-  void update_field(){DBUG_ASSERT(0);}//TODO
+  void reset_field(){DBUG_ASSERT(0);}
+  void update_field(){DBUG_ASSERT(0);}
   void clear();
   void cleanup();
   inline Field *get_sp_result_field()

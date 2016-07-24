@@ -37,7 +37,7 @@ end loop;
 end|
 select agg_avg(sal) from t1 where id>= 1;
 agg_avg(sal)
-4923
+4923.076923076923
 create aggregate function agg_max(x INT) returns INT
 begin
 declare  maxi INT default -1;
@@ -80,7 +80,7 @@ agg_xor(sal)
 16288
 create aggregate function agg_sum(x INT) returns INT
 begin
-declare  z double default 0;
+declare  z int default 0;
 declare continue handler for not found return z;
 loop
 fetch group next row;
@@ -117,9 +117,11 @@ return (select agg_sum(sal) from t1);
 select f1();
 f1()
 64000
+create function increase() returns INT
+return 1;
 create aggregate function agg_reg_func() returns INT
 begin
-declare  z double default 0;
+declare z double default 0;
 declare continue handler for not found return z;
 loop
 fetch group next row;
@@ -152,15 +154,37 @@ agg_sum(sal)
 10000
 10000
 12000
+select agg_sum(sal) from t1 where id>=1 group by counter;
+agg_sum(sal)
+7000
+10000
+2000
+13000
+12000
+7000
+2000
+5000
+6000
+select agg_sum(sal) from t1 where id>=1 group by val;
+agg_sum(sal)
+4000
+12000
+7000
+5000
+4000
+5000
+7000
+6000
+14000
 select counter,agg_sum(sal) from t1 where id>=1 group by id order by counter;
 counter	agg_sum(sal)
-2	NULL
-3	NULL
-4	NULL
-5	NULL
-7	NULL
-8	NULL
-9	NULL
+0	12000
+2	7000
+2	6000
+4	12000
+5	7000
+7	10000
+9	10000
 select counter,id,agg_sum(sal),agg_sum(sal) from t1 where id>=1 group by id order by counter;
 counter	id	agg_sum(sal)	agg_sum(sal)
 0	7	12000	12000
@@ -193,8 +217,14 @@ val	counter	id	agg_sum(sal)	sum(distinct sal)	agg_min(sal)	agg_max(sal)	agg_avg(
 10	7	5	2000	2000	2000	2000	2000
 13	8	7	5000	5000	5000	5000	5000
 19	9	6	6000	6000	6000	6000	6000
+create table t3 (i int);
+INSERT INTO t3 (i) select agg_sum(sal) from t1;
+select * from t3;
+i
+64000
 drop table t1;
 drop table t2;
+drop table t3;
 drop function agg_sum;
 drop function agg_min;
 drop function agg_max;
@@ -203,5 +233,6 @@ drop function agg_xor;
 drop function agg_and;
 drop function agg_increm;
 drop function f1;
+drop function increase;
 drop function agg_reg_func;
 drop function agg_agg_func;

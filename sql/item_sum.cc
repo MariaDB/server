@@ -27,6 +27,7 @@
 #endif
 
 #include <my_global.h>
+#include "sql_show.h"                           // append_identifier
 #include "sql_priv.h"
 #include "sql_select.h"
 #include "sp_rcontext.h"
@@ -1409,7 +1410,7 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(fixed == 0);
   if (init_sum_func_check(thd))
     return TRUE;
-  decimals=0;
+  decimals= 0;
   maybe_null= sum_func() != COUNT_FUNC;
   bool res;
   res= init_result_field(thd);
@@ -1424,9 +1425,9 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     set_if_bigger(decimals, args[i]->decimals);
     with_subselect|= args[i]->with_subselect;
   }
-  result_field=0;
+  result_field= 0;
   max_length=float_length(decimals);
-  null_value=1;
+  null_value= 1;
   fix_length_and_dec();
 
   if (check_sum_func(thd, ref))
@@ -1569,14 +1570,40 @@ Item_sum_sp::cleanup()
   dummy_table->alias.free();
   Item_sum::cleanup();
 }
+
 void
 Item_sum_sp::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_sp::fix_length_and_dec");
   DBUG_ASSERT(sp_result_field);
-  //Type_std_attributes::set(sp_result_field);//TODO
+  Type_std_attributes::set(sp_result_field);
   Item_sum::fix_length_and_dec();
   DBUG_VOID_RETURN;
+}
+
+const char *
+Item_sum_sp::func_name() const
+{
+  THD *thd= current_thd;
+  /* Calculate length to avoid reallocation of string for sure */
+  uint len= (((m_name->m_explicit_name ? m_name->m_db.length : 0) +
+              m_name->m_name.length)*2 + //characters*quoting
+             2 +                         // ` and `
+             (m_name->m_explicit_name ?
+              3 : 0) +                   // '`', '`' and '.' for the db
+             1 +                         // end of string
+             ALIGN_SIZE(1));             // to avoid String reallocation
+  String qname((char *)alloc_root(thd->mem_root, len), len,
+               system_charset_info);
+
+  qname.length(0);
+  if (m_name->m_explicit_name)
+  {
+    append_identifier(thd, &qname, m_name->m_db.str, m_name->m_db.length);
+    qname.append('.');
+  }
+  append_identifier(thd, &qname, m_name->m_name.str, m_name->m_name.length);
+  return qname.c_ptr_safe();
 }
 
 /***********************************************************************

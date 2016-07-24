@@ -1,0 +1,184 @@
+create table t1 (sal int,id int,val varchar(10),counter int);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,2,'ab',2);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,1,'cd',5);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,2,'ef',1);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,3,'gh',3);
+INSERT INTO t1 (sal,id,val,counter) VALUES (1000,4,'ij',4);
+create table t2 (sal int,id int,val int,counter int);
+INSERT INTO t2 (sal,id,val,counter) VALUES (1000,2,10,2);
+INSERT INTO t2 (sal,id,val,counter) VALUES (2000,1,16,5);
+INSERT INTO t2 (sal,id,val,counter) VALUES (6000,2,18,1);
+INSERT INTO t2 (sal,id,val,counter) VALUES (5000,3,15,3);
+INSERT INTO t2 (sal,id,val,counter) VALUES (3000,4,11,4);
+create aggregate function agg_sum(x double) returns double
+begin
+declare  z double default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+create aggregate function agg_test5(x double) returns double
+begin
+declare  z double default 0;
+declare continue handler for not found return z;
+return -1;
+end|
+create aggregate function agg_test(x INT) returns CHAR(10)
+begin
+declare  mini INT default 0;
+declare continue handler for not found return mini;
+loop
+fetch group next row;
+set mini= mini + x;
+end loop;
+end|
+create aggregate function agg_test2(x INT) returns CHAR(10)
+begin
+declare  mini INT default 0;
+declare continue handler for not found return mini;
+loop
+fetch group next row;
+set mini= mini + x;
+fetch group next row;
+set mini= mini - x;
+end loop;
+end|
+create aggregate function agg_test4(x INT) returns varchar(1000)
+begin
+declare  z int default 0;
+DECLARE cur1 CURSOR FOR SELECT sal FROM test.t2;
+declare continue handler for not found return 0;
+loop
+fetch group next row;
+set z = z+x;
+end loop;
+end|
+create aggregate function agg_test3(x INT, y varchar(10)) returns varchar(1000)
+begin
+declare  str varchar(1000) default '';
+declare continue handler for not found return str;
+loop
+fetch group next row;
+set str= concat(str,y);
+end loop;
+end|
+create function increm(x int) returns int
+return (select agg_sum(sal) from t1)|
+select agg_sum(sal) from t1;
+agg_sum(sal)
+5000
+select agg_sum(sal) from t1 where id>=1 group by counter;
+agg_sum(sal)
+1000
+1000
+1000
+1000
+1000
+select agg_test2(sal) from t1;
+agg_test2(sal)
+1000
+select agg_test(val) from t1;
+agg_test(val)
+0
+Warnings:
+Warning	1366	Incorrect integer value: 'ab' for column 'x' at row 1
+Warning	1366	Incorrect integer value: 'cd' for column 'x' at row 2
+Warning	1366	Incorrect integer value: 'ef' for column 'x' at row 3
+Warning	1366	Incorrect integer value: 'gh' for column 'x' at row 4
+Warning	1366	Incorrect integer value: 'ij' for column 'x' at row 5
+Warning	1366	Incorrect integer value: 'ij' for column 'x' at row 6
+select val, id, c from (select agg_sum(sal) as c from t2) as t1, t2;
+val	id	c
+10	2	17000
+16	1	17000
+18	2	17000
+15	3	17000
+11	4	17000
+select agg_sum(sal),agg_sum(val), agg_sum(id), agg_sum(sal) from t2;
+agg_sum(sal)	agg_sum(val)	agg_sum(id)	agg_sum(sal)
+17000	70	12	17000
+select agg_test3(sal,val) from t1;
+agg_test3(sal,val)
+abcdefghij
+select c from (select agg_sum(sal) as c from t2) as t1;
+c
+17000
+select agg_sum((select val from t2 where 0>1))  from t1;
+agg_sum((select val from t2 where 0>1))
+NULL
+select agg_sum((select val from t2 where id=1))  from t1;
+agg_sum((select val from t2 where id=1))
+80
+select agg_test4(sal) from t1;
+agg_test4(sal)
+0
+select agg_test5(sal) from t1;
+agg_test5(sal)
+-1
+SELECT agg_sum(sal)*agg_sum(sal) FROM t1;
+agg_sum(sal)*agg_sum(sal)
+25000000
+SELECT (SELECT agg_sum(sal) FROM t1) FROM t2;
+(SELECT agg_sum(sal) FROM t1)
+5000
+5000
+5000
+5000
+5000
+select id,agg_sum(sal) from t1;
+id	agg_sum(sal)
+2	5000
+select id,agg_sum(sal) from t1 where id>=1;
+id	agg_sum(sal)
+2	5000
+select agg_sum(sal),agg_sum(sal) from t1 where id>=1 group by counter;
+agg_sum(sal)	agg_sum(sal)
+1000	1000
+1000	1000
+1000	1000
+1000	1000
+1000	1000
+select agg_sum(sal),agg_sum(sal) from t1 where id>=1 group by id ;
+agg_sum(sal)	agg_sum(sal)
+1000	1000
+2000	2000
+1000	1000
+1000	1000
+select agg_sum(sal) from t1 where id>=1 group by id ;
+agg_sum(sal)
+1000
+2000
+1000
+1000
+select agg_sum(sal) from t1 where id>=1 order by counter;
+agg_sum(sal)
+5000
+select agg_sum(sal) from t1 where id>=1 group by id order by counter;
+agg_sum(sal)
+2000
+1000
+1000
+1000
+select counter,id,agg_sum(sal) from t1 where id>=1 group by id order by counter;
+counter	id	agg_sum(sal)
+2	2	2000
+3	3	1000
+4	4	1000
+5	1	1000
+select id,agg_sum(sal) from t1 where id>=1 group by id order by counter;
+id	agg_sum(sal)
+2	2000
+3	1000
+4	1000
+1	1000
+drop table t1;
+drop table t2;
+drop function agg_sum;
+drop function agg_test;
+drop function agg_test2;
+drop function increm;
+drop function agg_test3;
+drop function agg_test4;
+drop function agg_test5;

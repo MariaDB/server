@@ -3082,13 +3082,10 @@ Create_sp_func::create_with_db(THD *thd, LEX_STRING db, LEX_STRING name,
   qname->init_qname(thd);
   sp_add_used_routine(lex, thd, qname, TYPE_ENUM_FUNCTION);
 
-  /* need some discussion on this   */
-
   if(!db_get_aggregate_value(thd, TYPE_ENUM_FUNCTION, qname, &chistics))
   {
     if(chistics.agg_type == GROUP_AGGREGATE)
     {
-      printf("CREATE ITEM_SUM_SP OBJECT");
       if (arg_count > 0)
         func= new (thd->mem_root) Item_sum_sp(thd, lex->current_context(), qname,
                                            *item_list);
@@ -3116,7 +3113,6 @@ Create_sp_func::create_with_db(THD *thd, LEX_STRING db, LEX_STRING name,
   lex->safe_to_cache_query= 0;
   return func;
 }
-
 
 Item*
 Create_native_func::create_func(THD *thd, LEX_STRING name, List<Item> *item_list)

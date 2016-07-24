@@ -1655,6 +1655,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
 #if defined(ENABLED_PROFILING)
       thd->profiling.discard_current_query();
 #endif
+      thd->spcont->quit_func= TRUE;
       break;
     }
 
@@ -1740,7 +1741,7 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
 
   thd->restore_active_arena(&execute_arena, &backup_arena);
 
-  if(err_status && thd->killed && thd->is_fatal_error && thd->spcont->quit_func)
+  if(err_status || thd->killed || thd->is_fatal_error || thd->spcont->quit_func)
       thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error*/
 
   /* Restore all saved */
@@ -1847,7 +1848,6 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
                m_first_instance->m_first_free_instance->m_recursion_level ==
                m_recursion_level + 1));
   m_first_instance->m_first_free_instance= this;
-
   DBUG_RETURN(err_status);
 }
 
@@ -2365,7 +2365,6 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
     this function call will be finished (e.g. in Item::cleanup()).
   */
   thd->restore_active_arena(&call_arena, &backup_arena);
-  //(*func_ctx)->list_caller_free= call_arena.free_list;
   argument_sent= FALSE;
   }
   else
@@ -2532,7 +2531,6 @@ err_with_cleanup:
   if (need_binlog_call && 
       thd->spcont == NULL && !thd->binlog_evt_union.do_union)
     thd->issue_unsafe_warnings();
-
   DBUG_RETURN(err_status);
 }
 

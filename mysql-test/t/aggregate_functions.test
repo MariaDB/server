@@ -106,7 +106,7 @@ delimiter |;
 # aggregate SUM function
 create aggregate function agg_sum(x INT) returns INT
 begin
-  declare  z double default 0;
+  declare  z int default 0;
   declare continue handler for not found return z;
   loop
   fetch group next row;
@@ -149,11 +149,14 @@ create function f1() returns int
 return (select agg_sum(sal) from t1);
 select f1();
 
+create function increase() returns INT
+return 1;
+
 # regular functions called from aggregate functions
 delimiter |;
 create aggregate function agg_reg_func() returns INT
 begin
-  declare  z double default 0;
+  declare z double default 0;
   declare continue handler for not found return z;
   loop
   fetch group next row;
@@ -173,7 +176,7 @@ begin
   loop
   fetch group next row;
   if x then
-   set z= z+(select agg_sum(sal) from t1);
+     set z= z+(select agg_sum(sal) from t1);
   end if;
   end loop;
 end|
@@ -184,23 +187,25 @@ select agg_agg_func(sal) from t2;
 # GROUP BY AND ORDER BY
 
 select agg_sum(sal) from t1 where id>=1 group by id;
+select agg_sum(sal) from t1 where id>=1 group by counter;
+select agg_sum(sal) from t1 where id>=1 group by val;
 ##### this test is giving null , required reset_field and update_field ############
 select counter,agg_sum(sal) from t1 where id>=1 group by id order by counter;
 select counter,id,agg_sum(sal),agg_sum(sal) from t1 where id>=1 group by id order by counter;
 select counter,id,agg_sum(sal),sum(distinct sal) from t1 where id>=1 group by id order by counter desc;
 select val,counter,id,agg_sum(sal),sum(distinct sal),agg_min(sal),agg_max(sal),agg_avg(sal) from t1 where id>=1 group by id,val order by counter,val;
 
-
-# aggregate functions called from proedures
-
+# tables with compound indexing
 
 
-
-
-#
+##### insert aggregate function value into a table ######
+create table t3 (i int);
+INSERT INTO t3 (i) select agg_sum(sal) from t1;
+select * from t3;
 
 drop table t1;
 drop table t2;
+drop table t3;
 drop function agg_sum;
 drop function agg_min;
 drop function agg_max;
@@ -209,5 +214,6 @@ drop function agg_xor;
 drop function agg_and;
 drop function agg_increm;
 drop function f1;
+drop function increase;
 drop function agg_reg_func;
 drop function agg_agg_func;

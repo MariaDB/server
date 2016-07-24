@@ -21,10 +21,10 @@ id	agg_sum(sal)
 1	17000
 select id,agg_sum(sal) from t1 where id>=1 group by counter;
 id	agg_sum(sal)
-3	NULL
-1	NULL
-4	NULL
-5	NULL
+3	6000
+1	3000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by id;
 id	agg_sum(sal)
 1	1000
@@ -41,43 +41,43 @@ id	agg_sum(sal)
 3	6000
 select id,agg_sum(sal) from t1 where id>=1 group by counter order by counter;
 id	agg_sum(sal)
-3	NULL
-1	NULL
-4	NULL
-5	NULL
+3	6000
+1	3000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by counter order by val;
 id	agg_sum(sal)
-1	NULL
-5	NULL
-4	NULL
-3	NULL
+1	3000
+5	3000
+4	5000
+3	6000
 select id,agg_sum(sal) from t1 where id>=1 group by counter order by id;
 id	agg_sum(sal)
-1	NULL
-3	NULL
-4	NULL
-5	NULL
+1	3000
+3	6000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by val order by counter;
 id	agg_sum(sal)
-3	NULL
-1	NULL
-2	NULL
-4	NULL
-5	NULL
+3	6000
+1	1000
+2	2000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by val order by id;
 id	agg_sum(sal)
-1	NULL
-2	NULL
-3	NULL
-4	NULL
-5	NULL
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by val order by val;
 id	agg_sum(sal)
-1	NULL
-5	NULL
-4	NULL
-2	NULL
-3	NULL
+1	1000
+5	3000
+4	5000
+2	2000
+3	6000
 drop table t1;
 create table t1 (sal int,id int,val int,counter int,primary key(id),unique key(val));
 INSERT INTO t1 (sal,id,val,counter) VALUES (1000,1,10,2);
@@ -93,10 +93,10 @@ id	agg_sum(sal)
 1	17000
 select id,agg_sum(sal) from t1 where id>=1 group by counter;
 id	agg_sum(sal)
-3	NULL
-1	NULL
-4	NULL
-5	NULL
+3	6000
+1	3000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by id;
 id	agg_sum(sal)
 1	1000
@@ -113,43 +113,43 @@ id	agg_sum(sal)
 3	6000
 select id,agg_sum(sal) from t1 where id>=1 group by counter order by counter;
 id	agg_sum(sal)
-3	NULL
-1	NULL
-4	NULL
-5	NULL
+3	6000
+1	3000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by counter order by val;
 id	agg_sum(sal)
-1	NULL
-5	NULL
-4	NULL
-3	NULL
+1	3000
+5	3000
+4	5000
+3	6000
 select id,agg_sum(sal) from t1 where id>=1 group by counter order by id;
 id	agg_sum(sal)
-1	NULL
-3	NULL
-4	NULL
-5	NULL
+1	3000
+3	6000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by val order by counter;
 id	agg_sum(sal)
-3	NULL
-1	NULL
-2	NULL
-4	NULL
-5	NULL
+3	6000
+2	2000
+1	1000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by val order by id;
 id	agg_sum(sal)
-1	NULL
-2	NULL
-3	NULL
-4	NULL
-5	NULL
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by val order by val;
 id	agg_sum(sal)
-2	NULL
-1	NULL
-5	NULL
-4	NULL
-3	NULL
+2	2000
+1	1000
+5	3000
+4	5000
+3	6000
 drop table t1;
 create table t1 (sal int,id int,val int,counter int,primary key(id),INDEX name (val,counter));
 INSERT INTO t1 (sal,id,val,counter) VALUES (1000,1,10,2);
@@ -165,11 +165,11 @@ id	agg_sum(sal)
 1	17000
 select id,agg_sum(sal) from t1 where id>=1 group by counter;
 id	agg_sum(sal)
-3	NULL
-1	NULL
-4	NULL
-2	NULL
-5	NULL
+3	6000
+1	1000
+4	5000
+2	2000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by id;
 id	agg_sum(sal)
 1	1000
@@ -184,39 +184,39 @@ id	agg_sum(sal)
 3	6000
 select id,agg_sum(sal) from t1 where id>=1 group by counter order by counter;
 id	agg_sum(sal)
-3	NULL
-1	NULL
-4	NULL
-2	NULL
-5	NULL
+3	6000
+1	1000
+4	5000
+2	2000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by counter order by val;
 id	agg_sum(sal)
-1	NULL
-2	NULL
-4	NULL
-5	NULL
-3	NULL
+1	1000
+2	2000
+4	5000
+5	3000
+3	6000
 select id,agg_sum(sal) from t1 where id>=1 group by counter order by id;
 id	agg_sum(sal)
-1	NULL
-2	NULL
-3	NULL
-4	NULL
-5	NULL
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
 select id,agg_sum(sal) from t1 where id>=1 group by val order by counter;
 id	agg_sum(sal)
-3	NULL
-1	NULL
-4	NULL
+3	6000
+1	3000
+4	8000
 select id,agg_sum(sal) from t1 where id>=1 group by val order by id;
 id	agg_sum(sal)
-1	NULL
-3	NULL
-4	NULL
+1	3000
+3	6000
+4	8000
 select id,agg_sum(sal) from t1 where id>=1 group by val order by val;
 id	agg_sum(sal)
-1	NULL
-4	NULL
-3	NULL
+1	3000
+4	8000
+3	6000
 drop table t1;
 drop function agg_sum;
