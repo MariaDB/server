@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2014, 2015, MariaDB Corporation
 
@@ -1126,7 +1126,7 @@ that the caller has made the reservation for free extents!
 @retval block, rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
 (init_mtr == mtr, or the page was not previously freed in mtr)
 @retval block (not allocated or initialized) otherwise */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 buf_block_t*
 btr_page_alloc_low(
 /*===============*/
@@ -2181,7 +2181,8 @@ btr_parse_page_reorganize(
 {
 	ulint	level = page_zip_level;
 
-	ut_ad(ptr && end_ptr);
+	ut_ad(ptr != NULL);
+	ut_ad(end_ptr != NULL);
 
 	/* If dealing with a compressed page the record has the
 	compression level used during original compression written in
@@ -2653,7 +2654,7 @@ func_exit:
 Returns TRUE if the insert fits on the appropriate half-page with the
 chosen split_rec.
 @return	true if fits */
-static __attribute__((nonnull(1,3,4,6), warn_unused_result))
+static MY_ATTRIBUTE((nonnull(1,3,4,6), warn_unused_result))
 bool
 btr_page_insert_fits(
 /*=================*/
@@ -2796,7 +2797,7 @@ btr_insert_on_non_leaf_level_func(
 /**************************************************************//**
 Attaches the halves of an index page on the appropriate level in an
 index tree. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 btr_attach_half_pages(
 /*==================*/
@@ -2932,7 +2933,7 @@ btr_attach_half_pages(
 /*************************************************************//**
 Determine if a tuple is smaller than any record on the page.
 @return TRUE if smaller */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 btr_page_tuple_smaller(
 /*===================*/
@@ -3524,7 +3525,8 @@ btr_level_list_remove_func(
 	ulint	prev_page_no;
 	ulint	next_page_no;
 
-	ut_ad(page && mtr);
+	ut_ad(page != NULL);
+	ut_ad(mtr != NULL);
 	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(space == page_get_space_id(page));
 	/* Get the previous and next page numbers of page */

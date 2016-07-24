@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -87,6 +87,7 @@ enum fts_msg_type_t {
 
 	FTS_MSG_DEL_TABLE,		/*!< Remove a table from the optimize
 					threads work queue */
+	FTS_MSG_SYNC_TABLE		/*!< Sync fts cache of a table */
 };
 
 /** Compressed list of words that have been read from FTS INDEX
@@ -580,7 +581,7 @@ fts_zip_read_word(
 #ifdef UNIV_DEBUG
 	ulint		i;
 #endif
-	byte		len = 0;
+	short		len = 0;
 	void*		null = NULL;
 	byte*		ptr = word->f_str;
 	int		flush = Z_NO_FLUSH;
@@ -590,7 +591,7 @@ fts_zip_read_word(
 		return(NULL);
 	}
 
-	zip->zp->next_out = &len;
+	zip->zp->next_out = reinterpret_cast<byte*>(&len);
 	zip->zp->avail_out = sizeof(len);
 
 	while (zip->status == Z_OK && zip->zp->avail_out > 0) {
@@ -598,7 +599,7 @@ fts_zip_read_word(
 		/* Finished decompressing block. */
 		if (zip->zp->avail_in == 0) {
 
-			/* Free the block thats been decompressed. */
+			/* Free the block that's been decompressed. */
 			if (zip->pos > 0) {
 				ulint	prev = zip->pos - 1;
 
@@ -688,11 +689,12 @@ fts_fetch_index_words(
 	fts_zip_t*	zip = static_cast<fts_zip_t*>(user_arg);
 	que_node_t*	exp = sel_node->select_list;
 	dfield_t*	dfield = que_node_get_val(exp);
-	byte		len = (byte) dfield_get_len(dfield);
+	short		len =  static_cast<short>(dfield_get_len(dfield));
 	void*		data = dfield_get_data(dfield);
 
 	/* Skip the duplicate words. */
-	if (zip->word.f_len == len && !memcmp(zip->word.f_str, data, len)) {
+	if (zip->word.f_len == static_cast<ulint>(len)
+	    && !memcmp(zip->word.f_str, data, len)) {
 
 		return(TRUE);
 	}
@@ -706,7 +708,7 @@ fts_fetch_index_words(
 	ut_a(zip->zp->next_in == NULL);
 
 	/* The string is prefixed by len. */
-	zip->zp->next_in = &len;
+	zip->zp->next_in = reinterpret_cast<byte*>(&len);
 	zip->zp->avail_in = sizeof(len);
 
 	/* Compress the word, create output blocks as necessary. */
@@ -2651,6 +2653,39 @@ fts_optimize_remove_table(
 	os_event_free(event);
 }
 
+/** Send sync fts cache for the table.
+@param[in]	table	table to sync */
+UNIV_INTERN
+void
+fts_optimize_request_sync_table(
+	dict_table_t*	table)
+{
+	fts_msg_t*	msg;
+	table_id_t*	table_id;
+
+	/* if the optimize system not yet initialized, return */
+	if (!fts_optimize_wq) {
+		return;
+	}
+
+	/* FTS optimizer thread is already exited */
+	if (fts_opt_start_shutdown) {
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Try to sync table %s after FTS optimize"
+			" thread exiting.", table->name);
+		return;
+	}
+
+	msg = fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, NULL);
+
+	table_id = static_cast<table_id_t*>(
+		mem_heap_alloc(msg->heap, sizeof(table_id_t)));
+	*table_id = table->id;
+	msg->ptr = table_id;
+
+	ib_wqueue_add(fts_optimize_wq, msg, msg->heap);
+}
+
 /**********************************************************************//**
 Find the slot for a particular table.
 @return slot if found else NULL. */
@@ -2931,6 +2966,25 @@ fts_optimize_need_sync(
 }
 #endif
 
+/** Sync fts cache of a table
+@param[in]	table_id	table id */
+void
+fts_optimize_sync_table(
+	table_id_t	table_id)
+{
+	dict_table_t*   table = NULL;
+
+	table = dict_table_open_on_id(table_id, FALSE, DICT_TABLE_OP_NORMAL);
+
+	if (table) {
+		if (dict_table_has_fts_index(table) && table->fts->cache) {
+			fts_sync_table(table, true, false);
+		}
+
+		dict_table_close(table, FALSE, FALSE);
+	}
+}
+
 /**********************************************************************//**
 Optimize all FTS tables.
 @return Dummy return */
@@ -3052,6 +3106,11 @@ fts_optimize_thread(
 					((fts_msg_del_t*) msg->ptr)->event);
 				break;
 
+			case FTS_MSG_SYNC_TABLE:
+				fts_optimize_sync_table(
+					*static_cast<table_id_t*>(msg->ptr));
+				break;
+
 			default:
 				ut_error;
 			}
@@ -3078,26 +3137,7 @@ fts_optimize_thread(
 				ib_vector_get(tables, i));
 
 			if (slot->state != FTS_STATE_EMPTY) {
-				dict_table_t*	table = NULL;
-
-				/*slot->table may be freed, so we try to open
-				table by slot->table_id.*/
-				table = dict_table_open_on_id(
-					slot->table_id, FALSE,
-					DICT_TABLE_OP_NORMAL);
-
-				if (table) {
-
-					if (dict_table_has_fts_index(table)) {
-						fts_sync_table(table);
-					}
-
-					if (table->fts) {
-						fts_free(table);
-					}
-
-					dict_table_close(table, FALSE, FALSE);
-				}
+				fts_optimize_sync_table(slot->table_id);
 			}
 		}
 	}

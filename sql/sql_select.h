@@ -938,7 +938,7 @@ protected:
   enum enum_reopt_result {
     REOPT_NEW_PLAN, /* there is a new reoptimized plan */
     REOPT_OLD_PLAN, /* no new improved plan can be found, use the old one */
-    REOPT_ERROR,    /* an irrecovarable error occured during reoptimization */
+    REOPT_ERROR,    /* an irrecovarable error occurred during reoptimization */
     REOPT_NONE      /* not yet reoptimized */
   };
 
@@ -1290,7 +1290,8 @@ public:
   enum join_optimization_state { NOT_OPTIMIZED=0,
                                  OPTIMIZATION_IN_PROGRESS=1,
                                  OPTIMIZATION_DONE=2};
-  bool optimized; ///< flag to avoid double optimization in EXPLAIN
+  // state of JOIN optimization
+  enum join_optimization_state optimization_state;
   bool initialized; ///< flag to avoid double init_execution calls
 
   Explain_select *explain;
@@ -1378,7 +1379,7 @@ public:
     ref_pointer_array= items0= items1= items2= items3= 0;
     ref_pointer_array_size= 0;
     zero_result_cause= 0;
-    optimized= 0;
+    optimization_state= JOIN::NOT_OPTIMIZED;
     have_query_plan= QEP_NOT_PRESENT_YET;
     initialized= 0;
     cleaned= 0;
@@ -1590,8 +1591,8 @@ bool copy_funcs(Item **func_ptr, const THD *thd);
 uint find_shortest_key(TABLE *table, const key_map *usable_keys);
 Field* create_tmp_field_from_field(THD *thd, Field* org_field,
                                    const char *name, TABLE *table,
-                                   Item_field *item, uint convert_blob_length);
-                                                                      
+                                   Item_field *item);
+
 bool is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args);
 
 /* functions from opt_sum.cc */
@@ -1821,7 +1822,9 @@ bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);
 int safe_index_read(JOIN_TAB *tab);
 int get_quick_record(SQL_SELECT *select);
-SORT_FIELD * make_unireg_sortorder(THD *thd, ORDER *order, uint *length,
+SORT_FIELD *make_unireg_sortorder(THD *thd, JOIN *join,
+                                  table_map first_table_map,
+                                  ORDER *order, uint *length,
                                   SORT_FIELD *sortorder);
 int setup_order(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List <Item> &all_fields, ORDER *order);
@@ -1849,8 +1852,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                         Field **def_field,
 			bool group, bool modify_item,
 			bool table_cant_handle_bit_fields,
-                        bool make_copy_field,
-                        uint convert_blob_length);
+                        bool make_copy_field);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field

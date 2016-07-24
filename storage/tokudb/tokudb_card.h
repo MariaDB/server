@@ -27,48 +27,54 @@ namespace tokudb {
     uint compute_total_key_parts(TABLE_SHARE *table_share) {
         uint total_key_parts = 0;
         for (uint i = 0; i < table_share->keys; i++) {
-            total_key_parts += get_key_parts(&table_share->key_info[i]);
+            total_key_parts += table_share->key_info[i].user_defined_key_parts;
         }
         return total_key_parts;
     }
 
-    // Set the key_info cardinality counters for the table.
-    void set_card_in_key_info(TABLE *table, uint rec_per_keys, uint64_t rec_per_key[]) {
-        uint next_key_part = 0;
-        for (uint i = 0; i < table->s->keys; i++) {
-            bool is_unique_key = (i == table->s->primary_key) || (table->key_info[i].flags & HA_NOSAME);
-            uint num_key_parts = get_key_parts(&table->key_info[i]);
-            for (uint j = 0; j < num_key_parts; j++) {
-                assert(next_key_part < rec_per_keys);
-                ulong val = rec_per_key[next_key_part++];
-                if (is_unique_key && j == num_key_parts-1)
-                    val = 1;
-                table->key_info[i].rec_per_key[j] = val;
-            }
-        }
-    }
-    
     // Put the cardinality counters into the status dictionary.
-    int set_card_in_status(DB *status_db, DB_TXN *txn, uint rec_per_keys, uint64_t rec_per_key[]) {
+    int set_card_in_status(
+        DB* status_db,
+        DB_TXN* txn,
+        uint rec_per_keys,
+        const uint64_t rec_per_key[]) {
+
         // encode cardinality into the buffer
         tokudb::buffer b;
         size_t s;
         s = b.append_ui<uint32_t>(rec_per_keys);
-        assert(s > 0);
+        assert_always(s > 0);
         for (uint i = 0; i < rec_per_keys; i++) {
             s = b.append_ui<uint64_t>(rec_per_key[i]);
-            assert(s > 0);
+            assert_always(s > 0);
         }
         // write cardinality to status
-        int error = write_to_status(status_db, hatoku_cardinality, b.data(), b.size(), txn);
+        int error =
+            tokudb::metadata::write(
+                status_db,
+                hatoku_cardinality,
+                b.data(),
+                b.size(),
+                txn);
         return error;
     }
 
     // Get the cardinality counters from the status dictionary.
-    int get_card_from_status(DB *status_db, DB_TXN *txn, uint rec_per_keys, uint64_t rec_per_key[]) {
+    int get_card_from_status(
+        DB* status_db,
+        DB_TXN* txn,
+        uint rec_per_keys,
+        uint64_t rec_per_key[]) {
+
         // read cardinality from status
-        void *buf = 0; size_t buf_size = 0;
-        int error = get_status_realloc(status_db, txn, hatoku_cardinality, &buf, &buf_size);
+        void* buf = 0; size_t buf_size = 0;
+        int error =
+            tokudb::metadata::read_realloc(
+                status_db,
+                txn,
+                hatoku_cardinality,
+                &buf,
+                &buf_size);
         if (error == 0) {
             // decode cardinality from the buffer
             tokudb::buffer b(buf, 0, buf_size);
@@ -93,12 +99,17 @@ namespace tokudb {
     }
 
     // Delete the cardinality counters from the status dictionary.
-    int delete_card_from_status(DB *status_db, DB_TXN *txn) {
-        int error = remove_from_status(status_db, hatoku_cardinality, txn);
+    int delete_card_from_status(DB* status_db, DB_TXN* txn) {
+        int error =
+            tokudb::metadata::remove(status_db, hatoku_cardinality, txn);
         return error;
     }
 
-    bool find_index_of_key(const char *key_name, TABLE_SHARE *table_share, uint *index_offset_ptr) {
+    bool find_index_of_key(
+        const char* key_name,
+        TABLE_SHARE* table_share,
+        uint* index_offset_ptr) {
+
         for (uint i = 0; i < table_share->keys; i++) {
             if (strcmp(key_name, table_share->key_info[i].name) == 0) {
                 *index_offset_ptr = i;
@@ -113,16 +124,30 @@ namespace tokudb {
             dest[i] = src[i];
     }
 
-    // Altered table cardinality = select cardinality data from current table cardinality for keys that exist 
+    // Altered table cardinality = select cardinality data from current table
+    // cardinality for keys that exist
     // in the altered table and the current table.
-    int alter_card(DB *status_db, DB_TXN *txn, TABLE_SHARE *table_share, TABLE_SHARE *altered_table_share) {
+    int alter_card(
+        DB* status_db,
+        DB_TXN *txn,
+        TABLE_SHARE* table_share,
+        TABLE_SHARE* altered_table_share) {
+
         int error;
         // read existing cardinality data from status
-        uint table_total_key_parts = tokudb::compute_total_key_parts(table_share);
+        uint table_total_key_parts =
+            tokudb::compute_total_key_parts(table_share);
+
         uint64_t rec_per_key[table_total_key_parts];
-        error = get_card_from_status(status_db, txn, table_total_key_parts, rec_per_key);
+        error =
+            get_card_from_status(
+                status_db,
+                txn,
+                table_total_key_parts,
+                rec_per_key);
         // set altered records per key to unknown
-        uint altered_table_total_key_parts = tokudb::compute_total_key_parts(altered_table_share);
+        uint altered_table_total_key_parts =
+            tokudb::compute_total_key_parts(altered_table_share);
         uint64_t altered_rec_per_key[altered_table_total_key_parts];
         for (uint i = 0; i < altered_table_total_key_parts; i++)
             altered_rec_per_key[i] = 0;
@@ -131,121 +156,37 @@ namespace tokudb {
         uint orig_key_parts = 0;
         for (uint i = 0; i < table_share->keys; i++) {
             orig_key_offset[i] = orig_key_parts;
-            orig_key_parts += get_key_parts(&table_share->key_info[i]);
+            orig_key_parts += table_share->key_info[i].user_defined_key_parts;
         }
         // if orig card data exists, then use it to compute new card data
         if (error == 0) {
             uint next_key_parts = 0;
             for (uint i = 0; error == 0 && i < altered_table_share->keys; i++) {
-                uint ith_key_parts = get_key_parts(&altered_table_share->key_info[i]);
+                uint ith_key_parts =
+                    altered_table_share->key_info[i].user_defined_key_parts;
                 uint orig_key_index;
-                if (find_index_of_key(altered_table_share->key_info[i].name, table_share, &orig_key_index)) {
-                    copy_card(&altered_rec_per_key[next_key_parts], &rec_per_key[orig_key_offset[orig_key_index]], ith_key_parts);
+                if (find_index_of_key(
+                        altered_table_share->key_info[i].name,
+                        table_share,
+                        &orig_key_index)) {
+                    copy_card(
+                        &altered_rec_per_key[next_key_parts],
+                        &rec_per_key[orig_key_offset[orig_key_index]],
+                        ith_key_parts);
                 }
                 next_key_parts += ith_key_parts;
             }
         }
-        if (error == 0)
-            error = set_card_in_status(status_db, txn, altered_table_total_key_parts, altered_rec_per_key);
-        else
-            error = delete_card_from_status(status_db, txn);
-        return error;
-    }
-
-    struct analyze_card_cursor_callback_extra {
-        int (*analyze_progress)(void *extra, uint64_t rows);
-        void *analyze_extra;
-        uint64_t *rows;
-        uint64_t *deleted_rows;
-    };
-
-    bool analyze_card_cursor_callback(void *extra, uint64_t deleted_rows) {
-        analyze_card_cursor_callback_extra *a_extra = static_cast<analyze_card_cursor_callback_extra *>(extra);
-        *a_extra->deleted_rows += deleted_rows;
-        int r = a_extra->analyze_progress(a_extra->analyze_extra, *a_extra->rows);
-        sql_print_information("tokudb analyze_card_cursor_callback %u %" PRIu64 " %" PRIu64, r, *a_extra->deleted_rows, deleted_rows);
-        return r != 0;
-    }
-
-    // Compute records per key for all key parts of the ith key of the table.
-    // For each key part, put records per key part in *rec_per_key_part[key_part_index].
-    // Returns 0 if success, otherwise an error number.
-    // TODO statistical dives into the FT
-    int analyze_card(DB *db, DB_TXN *txn, bool is_unique, uint64_t num_key_parts, uint64_t *rec_per_key_part,
-                     int (*key_compare)(DB *, const DBT *, const DBT *, uint),
-                     int (*analyze_progress)(void *extra, uint64_t rows), void *progress_extra,
-                     uint64_t *return_rows, uint64_t *return_deleted_rows) {
-        int error = 0;
-        uint64_t rows = 0;
-        uint64_t deleted_rows = 0;
-        uint64_t unique_rows[num_key_parts];
-        if (is_unique && num_key_parts == 1) {
-            // dont compute for unique keys with a single part.  we already know the answer.
-            rows = unique_rows[0] = 1;
+        if (error == 0) {
+            error =
+                set_card_in_status(
+                    status_db,
+                    txn,
+                    altered_table_total_key_parts,
+                    altered_rec_per_key);
         } else {
-            DBC *cursor = NULL;
-            error = db->cursor(db, txn, &cursor, 0);
-            if (error == 0) {
-                analyze_card_cursor_callback_extra e = { analyze_progress, progress_extra, &rows, &deleted_rows };
-                cursor->c_set_check_interrupt_callback(cursor, analyze_card_cursor_callback, &e);
-                for (uint64_t i = 0; i < num_key_parts; i++)
-                    unique_rows[i] = 1;
-                // stop looking when the entire dictionary was analyzed, or a cap on execution time was reached, or the analyze was killed.
-                DBT key = {}; key.flags = DB_DBT_REALLOC;
-                DBT prev_key = {}; prev_key.flags = DB_DBT_REALLOC;
-                while (1) {
-                    error = cursor->c_get(cursor, &key, 0, DB_NEXT);
-                    if (error != 0) {
-                        if (error == DB_NOTFOUND || error == TOKUDB_INTERRUPTED)
-                            error = 0; // not an error
-                        break;
-                    }
-                    rows++;
-                    // first row is a unique row, otherwise compare with the previous key
-                    bool copy_key = false;
-                    if (rows == 1) {
-                        copy_key = true;
-                    } else {
-                        // compare this key with the previous key.  ignore appended PK for SK's.
-                        // TODO if a prefix is different, then all larger keys that include the prefix are also different.
-                        // TODO if we are comparing the entire primary key or the entire unique secondary key, then the cardinality must be 1,
-                        // so we can avoid computing it.
-                        for (uint64_t i = 0; i < num_key_parts; i++) {
-                            int cmp = key_compare(db, &prev_key, &key, i+1);
-                            if (cmp != 0) {
-                                unique_rows[i]++;
-                                copy_key = true;
-                            }
-                        }
-                    }
-                    // prev_key = key
-                    if (copy_key) {
-                        prev_key.data = realloc(prev_key.data, key.size);
-                        assert(prev_key.data);
-                        prev_key.size = key.size;
-                        memcpy(prev_key.data, key.data, prev_key.size);
-                    }
-                    // check for limit
-                    if (analyze_progress && (rows % 1000) == 0) {
-                        error = analyze_progress(progress_extra, rows);
-                        if (error)
-                            break;
-                    }
-                }
-                // cleanup
-                free(key.data);
-                free(prev_key.data);
-                int close_error = cursor->c_close(cursor);
-                assert(close_error == 0);
-            }
+            error = delete_card_from_status(status_db, txn);
         }
-        // return cardinality
-        if (return_rows)
-            *return_rows = rows;
-        if (return_deleted_rows)
-            *return_deleted_rows = deleted_rows;
-        for (uint64_t i = 0; i < num_key_parts; i++)
-            rec_per_key_part[i]  = rows / unique_rows[i];
         return error;
     }
 }

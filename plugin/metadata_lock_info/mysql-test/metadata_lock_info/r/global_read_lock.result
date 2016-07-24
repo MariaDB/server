@@ -3,8 +3,8 @@ lock_mode	lock_duration	lock_type	table_schema	table_name
 FLUSH TABLES WITH READ LOCK;
 SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
 lock_mode	lock_duration	lock_type	table_schema	table_name
-MDL_SHARED	MDL_EXPLICIT	Global read lock		
-MDL_SHARED	MDL_EXPLICIT	Commit lock		
+MDL_SHARED	NULL	Commit lock		
+MDL_SHARED	NULL	Global read lock		
 UNLOCK TABLES;
 SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
 lock_mode	lock_duration	lock_type	table_schema	table_name

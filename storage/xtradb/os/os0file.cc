@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2016, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -554,6 +554,42 @@ PIMAGE_TLS_CALLBACK p_thread_callback_base = win_tls_thread_exit;
 #endif /*_WIN32 */
 
 /***********************************************************************//**
+For an EINVAL I/O error, prints a diagnostic message if innodb_flush_method
+== ALL_O_DIRECT.
+@return true if the diagnostic message was printed
+@return false if the diagnostic message does not apply */
+static
+bool
+os_diagnose_all_o_direct_einval(
+/*============================*/
+	ulint err)	/*!< in: C error code */
+{
+	if ((err == EINVAL)
+	    && (srv_unix_file_flush_method == SRV_UNIX_ALL_O_DIRECT)) {
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"The error might be caused by redo log I/O not "
+			"satisfying innodb_flush_method=ALL_O_DIRECT "
+			"requirements by the underlying file system.");
+		if (srv_log_block_size != 512)
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"This might be caused by an incompatible "
+				"non-default innodb_log_block_size value %lu.",
+				srv_log_block_size);
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Please file a bug at https://bugs.percona.com and "
+			"include this error message, my.cnf settings, and "
+			"information about the file system where the redo log "
+			"resides.");
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"A possible workaround is to change "
+			"innodb_flush_method value to something else "
+			"than ALL_O_DIRECT.");
+		return(true);
+	}
+	return(false);
+}
+
+/***********************************************************************//**
 Retrieves the last error number if an error occurs in a file io function.
 The number should be retrieved before any other OS calls (because they may
 overwrite the error number). If the number is not known to this program,
@@ -717,7 +753,7 @@ os_file_get_last_error_low(
 					"InnoDB: Error trying to enable atomic writes on "
 					"non-supported destination!\n");
 			}
-		} else {
+		} else if (!os_diagnose_all_o_direct_einval(err)) {
 			if (strerror(err) != NULL) {
 				fprintf(stderr,
 					"InnoDB: Error number %d"
@@ -974,7 +1010,7 @@ os_file_lock(
 #ifndef UNIV_HOTBACKUP
 /****************************************************************//**
 Creates the seek mutexes used in positioned reads and writes. */
-UNIV_INTERN
+static
 void
 os_io_init_simple(void)
 /*===================*/
@@ -991,19 +1027,21 @@ os_io_init_simple(void)
 #endif
 }
 
-/***********************************************************************//**
-Creates a temporary file.  This function is like tmpfile(3), but
-the temporary file is created in the MySQL temporary directory.
-@return	temporary file handle, or NULL on error */
+/** Create a temporary file. This function is like tmpfile(3), but
+the temporary file is created in the given parameter path. If the path
+is null then it will create the file in the mysql server configuration
+parameter (--tmpdir).
+@param[in]	path	location for creating temporary file
+@return temporary file handle, or NULL on error */
 UNIV_INTERN
 FILE*
-os_file_create_tmpfile(void)
-/*========================*/
+os_file_create_tmpfile(
+	const char*	path)
 {
-	FILE*	file	= NULL;
-	int	fd;
 	WAIT_ALLOW_WRITES();
-	fd	= innobase_mysql_tmpfile();
+
+	FILE*	file	= NULL;
+	int	fd	= innobase_mysql_tmpfile(path);
 
 	ut_ad(!srv_read_only_mode);
 
@@ -1422,7 +1460,8 @@ os_file_create_simple_func(
 
 		access = GENERIC_READ;
 
-	} else if (access_type == OS_FILE_READ_WRITE) {
+	} else if (access_type == OS_FILE_READ_WRITE
+		   || access_type == OS_FILE_READ_WRITE_CACHED) {
 		access = GENERIC_READ | GENERIC_WRITE;
 	} else {
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -1526,7 +1565,8 @@ os_file_create_simple_func(
 #ifdef USE_FILE_LOCK
 	if (!srv_read_only_mode
 	    && *success
-	    && access_type == OS_FILE_READ_WRITE
+	    && (access_type == OS_FILE_READ_WRITE
+		|| access_type == OS_FILE_READ_WRITE_CACHED)
 	    && os_file_lock(file, name)) {
 
 		*success = FALSE;
@@ -1554,15 +1594,16 @@ os_file_set_nocache_if_needed(os_file_t file, const char* name,
 			      const char *mode_str, ulint type,
 			      ulint access_type)
 {
-	if (srv_read_only_mode || access_type == OS_FILE_READ_WRITE_CACHED)
+	if (srv_read_only_mode || access_type == OS_FILE_READ_WRITE_CACHED) {
 		return;
+	}
 
 	if (srv_unix_file_flush_method == SRV_UNIX_ALL_O_DIRECT
-	    || (type != OS_LOG_FILE
+	    || (type == OS_DATA_FILE
 		&& (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
-		    || (srv_unix_file_flush_method
-			== SRV_UNIX_O_DIRECT_NO_FSYNC))))
+		    || (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)))) {
 		os_file_set_nocache(file, name, mode_str);
+	}
 }
 
 /****************************************************************//**
@@ -2154,8 +2195,9 @@ os_file_create_func(
 
 	} while (retry);
 
-	if (*success) {
+	/* We disable OS caching (O_DIRECT) only on data files */
 
+	if (*success) {
 		os_file_set_nocache_if_needed(file, name, mode_str, type, 0);
 	}
 
@@ -2522,7 +2564,7 @@ os_file_set_size(
 
 			ib_logf(IB_LOG_LEVEL_ERROR, "preallocating file "
 				"space for file \'%s\' failed.  Current size "
-				INT64PF ", desired size " INT64PF "\n",
+				INT64PF ", desired size " INT64PF,
 				name, current_size, size);
 			os_file_handle_error_no_exit (name, "posix_fallocate",
 						      FALSE, __FILE__, __LINE__);
@@ -2992,6 +3034,9 @@ os_file_pwrite(
 	/* Handle partial writes and signal interruptions correctly */
 	for (ret = 0; ret < (ssize_t) n; ) {
 		n_written = pwrite(file, buf, (ssize_t)n - ret, offs);
+		DBUG_EXECUTE_IF("xb_simulate_all_o_direct_write_failure",
+				n_written = -1;
+				errno = EINVAL;);
 		if (n_written >= 0) {
 			ret += n_written;
 			offs += n_written;
@@ -3137,6 +3182,10 @@ try_again:
 try_again:
 	ret = os_file_pread(file, buf, n, offset, trx);
 
+	DBUG_EXECUTE_IF("xb_simulate_all_o_direct_read_failure",
+			ret = -1;
+			errno = EINVAL;);
+
 	if ((ulint) ret == n) {
 		return(TRUE);
 	} else if (ret == -1) {
@@ -3144,7 +3193,7 @@ try_again:
 			"Error in system call pread(). The operating"
 			" system error number is %lu.",(ulint) errno);
         } else {
-		/* Partial read occured */
+		/* Partial read occurred */
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Tried to read " ULINTPF " bytes at offset "
 			UINT64PF ". Was only able to read %ld.",
@@ -3248,7 +3297,7 @@ try_again:
 			"Error in system call pread(). The operating"
 			" system error number is %lu.",(ulint) errno);
         } else {
-		/* Partial read occured */
+		/* Partial read occurred */
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"Tried to read " ULINTPF " bytes at offset "
 			UINT64PF ". Was only able to read %ld.",
@@ -3465,6 +3514,8 @@ retry:
 			" are described at\n"
 			"InnoDB: "
 			REFMAN "operating-system-error-codes.html\n");
+
+		os_diagnose_all_o_direct_einval(errno);
 
 		os_has_said_disk_full = TRUE;
 	}
@@ -4063,7 +4114,7 @@ os_aio_native_aio_supported(void)
 		return(FALSE);
 	} else if (!srv_read_only_mode) {
 		/* Now check if tmpdir supports native aio ops. */
-		fd = innobase_mysql_tmpfile();
+		fd = innobase_mysql_tmpfile(NULL);
 
 		if (fd < 0) {
 			ib_logf(IB_LOG_LEVEL_WARN,
@@ -4431,6 +4482,14 @@ os_aio_free(void)
 
 	for (ulint i = 0; i < os_aio_n_segments; i++) {
 		os_event_free(os_aio_segment_wait_events[i]);
+	}
+
+#if !defined(HAVE_ATOMIC_BUILTINS) || UNIV_WORD_SIZE < 8
+	os_mutex_free(os_file_count_mutex);
+#endif /* !HAVE_ATOMIC_BUILTINS || UNIV_WORD_SIZE < 8 */
+
+	for (ulint i = 0; i < OS_FILE_N_SEEK_MUTEXES; i++) {
+		os_mutex_free(os_file_seek_mutexes[i]);
 	}
 
 	ut_free(os_aio_segment_wait_events);
@@ -6120,7 +6179,7 @@ os_aio_print(
 			srv_io_thread_function[i]);
 
 #ifndef __WIN__
-		if (os_aio_segment_wait_events[i]->is_set) {
+		if (os_aio_segment_wait_events[i]->is_set()) {
 			fprintf(file, " ev set");
 		}
 #endif /* __WIN__ */

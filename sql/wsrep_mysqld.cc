@@ -561,8 +561,6 @@ int wsrep_init()
 
   wsrep_sst_auth_init(wsrep_sst_auth);
 
-  wsrep_causal_reads_update(&global_system_variables);
-
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
 
@@ -880,6 +878,9 @@ void wsrep_stop_replication(THD *thd)
 bool wsrep_start_replication()
 {
   wsrep_status_t rcode;
+
+  /* wsrep provider must be loaded. */
+  DBUG_ASSERT(wsrep);
 
   /*
     if provider is trivial, don't even try to connect,
@@ -1260,7 +1261,7 @@ wsrep_alter_query_string(THD *thd, String *buf)
   return 0;
 }
 
-int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len)
+static int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len)
 {
   String log_query;
 
@@ -1355,6 +1356,10 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     //                      buff.ptr(), buff.length(), FALSE, FALSE, FALSE, errcod
     return wsrep_to_buf_helper(thd, buff.ptr(), buff.length(), buf, buf_len);
 }
+
+/* Forward declarations. */
+static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);
+static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 
 /*
   returns: 
@@ -2167,7 +2172,7 @@ void wsrep_kill_mysql(THD *thd)
 }
 
 
-int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
+static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 {
   String log_query;
   sp_head *sp = thd->lex->sphead;
@@ -2494,7 +2499,7 @@ error:
 }
 
 
-int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
+static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
 {
   LEX *lex= thd->lex;
   String stmt_query;

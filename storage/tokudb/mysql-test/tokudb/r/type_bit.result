@@ -675,7 +675,7 @@ INSERT INTO t1(a) VALUES
 (65535),(65525),(65535),(65535),(65535),(65535),(65535),(65535),(65535),(65535);
 EXPLAIN SELECT 1 FROM t1 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	3	NULL	6	Using index for group-by
+1	SIMPLE	t1	index	NULL	a	3	NULL	10	Using index
 SELECT 1 FROM t1 GROUP BY a;
 1
 1

@@ -1101,6 +1101,7 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
                                                   table == (*fld)->table)))
           return 1;
 
+        f->flags= (*fld)->flags;
         f->null_ptr= null_ptr;
         f->null_bit= null_bit;
         if (null_bit == 128)
@@ -2305,7 +2306,7 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
 
 
 /**
-   Signals to the Table_triggers_list that a parse error has occured when
+   Signals to the Table_triggers_list that a parse error has occurred when
    reading a trigger from file. This makes the Table_triggers_list enter an
    error state flagged by m_has_unparseable_trigger == true. The error message
    will be used whenever a statement invoking or manipulating triggers is

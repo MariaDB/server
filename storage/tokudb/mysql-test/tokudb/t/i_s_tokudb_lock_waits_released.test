@@ -25,10 +25,12 @@ select * from information_schema.tokudb_lock_waits;
 connect (conn_a,localhost,root,,);
 set autocommit=0;
 set tokudb_prelock_empty=OFF; # disable the bulk loader
+set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 insert into t values (1);
 
 connect (conn_b,localhost,root,,);
 set autocommit=0;
+set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 send insert into t values (1);
 
 # should find the presence of a lock on 1st transaction
@@ -74,11 +76,13 @@ select * from information_schema.tokudb_lock_waits;
 
 connect (conn_a,localhost,root,,);
 set autocommit=0;
+set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 set tokudb_prelock_empty=OFF; # disable the bulk loader
 replace into t values (1);
 
 connect (conn_b,localhost,root,,);
 set autocommit=0;
+set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 send replace into t values (1);
 
 # should find the presence of a lock on 1st transaction

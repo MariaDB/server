@@ -1503,7 +1503,7 @@ my %exprs = (
 
 my %columns = (
    active_secs                 => { hdr => 'SecsActive',          num => 1, label => 'Seconds transaction has been active', },
-   add_pool_alloc              => { hdr => 'Add\'l Pool',         num => 1, label => 'Additonal pool allocated' },
+   add_pool_alloc              => { hdr => 'Add\'l Pool',         num => 1, label => 'Additional pool allocated' },
    attempted_op                => { hdr => 'Action',              num => 0, label => 'The action that caused the error' },
    awe_mem_alloc               => { hdr => 'AWE Memory',          num => 1, label => '[Windows] AWE memory allocated' },
    binlog_cache_overflow       => { hdr => 'Binlog Cache',        num => 1, label => 'Transactions too big for binlog cache that went to disk' },
@@ -10365,7 +10365,7 @@ show you something like this:
  pages_modified     Dirty Pages  Pages modified (dirty  IB_bp_pages_m
  buf_pool_hit_rate  Hit Rate     Buffer pool hit rate   IB_bp_buf_poo
  total_mem_alloc    Memory       Total memory allocate  IB_bp_total_m
- add_pool_alloc     Add'l Pool   Additonal pool alloca  IB_bp_add_poo
+ add_pool_alloc     Add'l Pool   Additional pool alloca  IB_bp_add_poo
 
 The first line shows which table you're editing, and reminds you again to press
 '?' for a list of key mappings.  The rest is a tabular representation of the

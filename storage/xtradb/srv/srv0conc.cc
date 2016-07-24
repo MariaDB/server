@@ -165,6 +165,10 @@ srv_conc_free(void)
 {
 #ifndef HAVE_ATOMIC_BUILTINS
 	os_fast_mutex_free(&srv_conc_mutex);
+
+	for (ulint i = 0; i < OS_THREAD_MAX_N; i++)
+		os_event_free(srv_conc_slots[i].event);
+
 	mem_free(srv_conc_slots);
 	srv_conc_slots = NULL;
 #endif /* !HAVE_ATOMIC_BUILTINS */

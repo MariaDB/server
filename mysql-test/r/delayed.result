@@ -379,7 +379,7 @@ SELECT * FROM t1 WHERE a=0;
 a
 # Connection con1
 # Sending:
-ALTER TABLE t1 COMMENT 'test';
+ALTER TABLE t1 MODIFY a INT UNSIGNED;;
 # Connection default
 # Wait until ALTER TABLE is blocked on table 't1'.
 INSERT DELAYED INTO t1 VALUES (3);
@@ -466,3 +466,37 @@ commit;
 # Reaping ALTER TABLE:
 # Connection 'default'.
 drop tables tm, t1, t2;
+#
+# MDEV-9621 INSERT DELAYED fails on insert for tables with many columns
+#
+CREATE TABLE t1 (
+a int,b int,c int,d int,e int,f int,g int,h int,i int,j int,k int,l int,m int,n int,o int,p int,q int,r int,s int,t int,u int,v int,x int,y int,z int
+) ENGINE=MyISAM;
+INSERT DELAYED INTO t1 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,x,y,z)
+values                 (1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1);
+INSERT DELAYED INTO t1 (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,x,y,z)
+values                 (1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1);
+drop table t1;
+#
+# INSERT DELAYED hangs if table was crashed
+#
+create table t1 (a int, b int) engine=myisam;
+insert into t1 values (1,1);
+SET debug_dbug="d,crash_shutdown";
+shutdown;
+ERROR HY000: Lost connection to MySQL server during query
+call mtr.add_suppression(" marked as crashed and should be repaired");
+call mtr.add_suppression("Checking table");
+insert delayed into t1 values (2,2);
+Warnings:
+Error	145	Table './test/t1' is marked as crashed and should be repaired
+Error	1194	Table 't1' is marked as crashed and should be repaired
+Error	1034	1 client is using or hasn't closed the table properly
+insert delayed into t1 values (3,3);
+flush tables t1;
+select * from t1;
+a	b
+1	1
+2	2
+3	3
+drop table t1;

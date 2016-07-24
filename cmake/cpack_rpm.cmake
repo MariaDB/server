@@ -43,8 +43,8 @@ SET(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_SUMMARY}
 It is GPL v2 licensed, which means you can use the it free of charge under the
 conditions of the GNU General Public License Version 2 (http://www.gnu.org/licenses/).
 
-MariaDB documentation can be found at http://kb.askmonty.org/
-MariaDB bug reports should be submitted through https://mariadb.atlassian.net/
+MariaDB documentation can be found at https://mariadb.com/kb
+MariaDB bug reports should be submitted through https://jira.mariadb.org 
 
 ")
 
@@ -78,14 +78,16 @@ SET(ignored
   "%ignore ${CMAKE_INSTALL_PREFIX}/bin"
   "%ignore ${CMAKE_INSTALL_PREFIX}/include"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/lib/systemd"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/lib/systemd/system"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib64"
   "%ignore ${CMAKE_INSTALL_PREFIX}/sbin"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/aclocal"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/doc"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man"
-  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1*"
-  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8*"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/pkgconfig"
   )
 
@@ -123,6 +125,7 @@ SETA(CPACK_RPM_server_PACKAGE_OBSOLETES
   "MySQL"
   "mysql-server"
   "MySQL-server"
+  "MariaDB-Galera-server"
   "MySQL-OurDelta-server")
 SETA(CPACK_RPM_server_PACKAGE_PROVIDES
   "MariaDB"
@@ -176,7 +179,7 @@ MACRO(ALTERNATIVE_NAME real alt)
   SET(p "CPACK_RPM_${real}_PACKAGE_PROVIDES")
   SET(${p} "${${p}} ${alt} = ${ver} ${alt}%{?_isa} = ${ver} config(${alt}) = ${ver}")
   SET(o "CPACK_RPM_${real}_PACKAGE_OBSOLETES")
-  SET(${o} "${${o}} ${alt} ${alt}%{_isa}")
+  SET(${o} "${${o}} ${alt} ${alt}%{?_isa}")
 ENDMACRO(ALTERNATIVE_NAME)
 
 ALTERNATIVE_NAME("devel"  "mysql-devel")

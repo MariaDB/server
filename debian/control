@@ -12,6 +12,7 @@ Build-Depends: bison,
                libaio-dev,
                libboost-dev,
                libjudy-dev,
+               libkrb5-dev,
                libncurses5-dev (>= 5.0-6~),
                libpam0g-dev,
                libreadline-gplv2-dev,
@@ -305,7 +306,7 @@ Description: MariaDB database regression test suite
 
 Package: mariadb-server-10.1
 Architecture: any
-Suggests: mailx, mariadb-test, netcat-openbsd, socat, tinyca
+Suggests: mailx, mariadb-test, netcat-openbsd, tinyca
 Recommends: libhtml-template-perl
 Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: bsdutils,
@@ -324,6 +325,7 @@ Depends: bsdutils,
          perl (>= 5.6),
          psmisc,
          rsync,
+         socat,
          tar,
          ${misc:Depends},
          ${shlibs:Depends}
@@ -402,10 +404,10 @@ Description: MariaDB database regression test suite (metapackage for the latest 
 
 Package: mariadb-connect-engine-10.1
 Architecture: any
-Depends: libxml2, mariadb-server-10.1, unixODBC
+Depends: libxml2, mariadb-server-10.1, unixodbc
 Build-Depends: libxml2-dev,
                mariadb-server-10.1,
-               unixODBC-dev,
+               unixodbc-dev,
                ${misc:Depends},
                ${shlibs:Depends}
 Description: Connect storage engine for MariaDB
@@ -429,3 +431,15 @@ Depends: libcrack2 (>= 2.9.0), mariadb-server-10.1
 Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
+
+Package: mariadb-gssapi-server-10.1
+Section: database
+Architecture: any
+Depends: libgssapi-krb5-2, mariadb-server-10.1
+Description: GSSAPI authentication plugin for MariaDB server
+
+Package: mariadb-gssapi-client-10.1
+Section: database
+Architecture: any
+Depends: libgssapi-krb5-2, mariadb-client-10.1
+Description: GSSAPI authentication plugin for MariaDB client

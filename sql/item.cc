@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -186,9 +186,6 @@ bool Item::get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
 */
 String *Item::val_str_ascii(String *str)
 {
-  if (!(collation.collation->state & MY_CS_NONASCII))
-    return val_str(str);
-  
   DBUG_ASSERT(str != &str_value);
   
   uint errors;
@@ -196,11 +193,15 @@ String *Item::val_str_ascii(String *str)
   if (!res)
     return 0;
   
-  if ((null_value= str->copy(res->ptr(), res->length(),
-                             collation.collation, &my_charset_latin1,
-                             &errors)))
-    return 0;
-  
+  if (!(res->charset()->state & MY_CS_NONASCII))
+    str= res;
+  else
+  {
+    if ((null_value= str->copy(res->ptr(), res->length(), collation.collation,
+                               &my_charset_latin1, &errors)))
+      return 0;
+  }
+
   return str;
 }
 
@@ -1219,8 +1220,8 @@ Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
     to it's possible that the converter will not be needed at all:
 
     PREPARE stmt FROM 'SELECT * FROM t1 WHERE field = ?';
-    SET @@arg= 1;
-    EXECUTE stms USING @arg;
+    SET @arg= 1;
+    EXECUTE stmt USING @arg;
 
     In the above example result_type is STRING_RESULT at prepare time,
     and INT_RESULT at execution time.
@@ -1301,6 +1302,22 @@ err:
     if allowed, otherwise - null.
   */
   bzero((char*) ltime,sizeof(*ltime));
+  if (fuzzydate & TIME_TIME_ONLY)
+  {
+    /*
+      In the following scenario:
+      - The caller expected to get a TIME value
+      - Item returned a not NULL string or numeric value
+      - But then conversion from string or number to TIME failed
+      we need to change the default time_type from MYSQL_TIMESTAMP_DATE
+      (which was set in bzero) to MYSQL_TIMESTAMP_TIME and therefore
+      return TIME'00:00:00' rather than DATE'0000-00-00'.
+      If we don't do this, methods like Item::get_time_with_conversion()
+      will erroneously subtract CURRENT_DATE from '0000-00-00 00:00:00'
+      and return TIME'-838:59:59' instead of TIME'00:00:00' as a result.
+    */
+    ltime->time_type= MYSQL_TIMESTAMP_TIME;
+  }
   return null_value|= !(fuzzydate & TIME_FUZZY_DATES);
 }
 
@@ -3685,7 +3702,7 @@ Item_param::eq(const Item *item, bool binary_cmp) const
 
 void Item_param::print(String *str, enum_query_type query_type)
 {
-  if (state == NO_VALUE)
+  if (state == NO_VALUE || query_type & QT_NO_DATA_EXPANSION)
   {
     str->append('?');
   }
@@ -4609,7 +4626,7 @@ bool is_outer_table(TABLE_LIST *table, SELECT_LEX *select)
   @retval
     0   column fully fixed and fix_fields() should return FALSE
   @retval
-    -1  error occured
+    -1  error occurred
 */
 
 int
@@ -6503,6 +6520,7 @@ bool Item::cache_const_expr_analyzer(uchar **arg)
         !(basic_const_item() || item->basic_const_item() ||
           item->type() == Item::FIELD_ITEM ||
           item->type() == SUBSELECT_ITEM ||
+          item->type() == CACHE_ITEM ||
            /*
              Do not cache GET_USER_VAR() function as its const_item() may
              return TRUE for the current thread but it still may change
@@ -6600,7 +6618,7 @@ void Item_field::update_null_value()
     UPDATE statement.
 
   RETURN
-    0             if error occured
+    0             if error occurred
     ref           if all conditions are met
     this field    otherwise
 */
@@ -6632,7 +6650,8 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
 
 void Item_field::print(String *str, enum_query_type query_type)
 {
-  if (field && field->table->const_table)
+  if (field && field->table->const_table &&
+      !(query_type & QT_NO_DATA_EXPANSION))
   {
     print_value(str);
     return;

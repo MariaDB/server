@@ -2142,7 +2142,7 @@ static void test_ps_conj_select()
                           "(2, 'hh', 'hh'), (1, 'ii', 'ii'), (2, 'ii', 'ii')");
   myquery(rc);
 
-  strmov(query, "select id1, value1 from t1 where id1= ? or "
+  strmov(query, "SELECT id1, value1 from t1 where id1= ? or "
                 "CONVERT(value1 USING utf8)= ?");
   stmt= mysql_simple_prepare(mysql, query);
   check_stmt(stmt);
@@ -2310,7 +2310,7 @@ static void test_ps_query_cache()
     return;
   }
 
-  rc= mysql_query(mysql, "SET SQL_MODE=''");
+  rc= mysql_set_character_set(mysql, "utf8");
   myquery(rc);
 
   /* prepare the table */
@@ -2361,6 +2361,8 @@ static void test_ps_query_cache()
         DIE_UNLESS(0);
       }
       rc= mysql_query(lmysql, "SET SQL_MODE=''");
+      myquery(rc);
+      rc= mysql_set_character_set(lmysql, "utf8");
       myquery(rc);
 
       if (!opt_silent)
@@ -11781,10 +11783,10 @@ static void test_bug5315()
   rc= mysql_stmt_prepare(stmt, stmt_text, strlen(stmt_text));
   DIE_UNLESS(rc == 0);
   if (!opt_silent)
-    printf("Excuting mysql_change_user\n");
+    printf("Executing mysql_change_user\n");
   mysql_change_user(mysql, opt_user, opt_password, current_db);
   if (!opt_silent)
-    printf("Excuting mysql_stmt_execute\n");
+    printf("Executing mysql_stmt_execute\n");
   rc= mysql_stmt_execute(stmt);
   DIE_UNLESS(rc != 0);
   if (rc)
@@ -11794,10 +11796,10 @@ static void test_bug5315()
   }
   /* check that connection is OK */
   if (!opt_silent)
-    printf("Excuting mysql_stmt_close\n");
+    printf("Executing mysql_stmt_close\n");
   mysql_stmt_close(stmt);
   if (!opt_silent)
-    printf("Excuting mysql_stmt_init\n");
+    printf("Executing mysql_stmt_init\n");
   stmt= mysql_stmt_init(mysql);
   rc= mysql_stmt_prepare(stmt, stmt_text, strlen(stmt_text));
   DIE_UNLESS(rc == 0);
@@ -16709,7 +16711,7 @@ static void test_bug30472()
 
   /* Switch client character set. */
 
-  DIE_IF(mysql_set_character_set(&con, "utf8"));
+  DIE_IF(mysql_set_character_set(&con, "latin2"));
 
   /* Retrieve character set information. */
 
@@ -16725,10 +16727,10 @@ static void test_bug30472()
       2) new character set is different from the original one.
   */
 
-  DIE_UNLESS(strcmp(character_set_name_2, "utf8") == 0);
-  DIE_UNLESS(strcmp(character_set_client_2, "utf8") == 0);
-  DIE_UNLESS(strcmp(character_set_results_2, "utf8") == 0);
-  DIE_UNLESS(strcmp(collation_connnection_2, "utf8_general_ci") == 0);
+  DIE_UNLESS(strcmp(character_set_name_2, "latin2") == 0);
+  DIE_UNLESS(strcmp(character_set_client_2, "latin2") == 0);
+  DIE_UNLESS(strcmp(character_set_results_2, "latin2") == 0);
+  DIE_UNLESS(strcmp(collation_connnection_2, "latin2_general_ci") == 0);
 
   DIE_UNLESS(strcmp(character_set_name_1, character_set_name_2) != 0);
   DIE_UNLESS(strcmp(character_set_client_1, character_set_client_2) != 0);

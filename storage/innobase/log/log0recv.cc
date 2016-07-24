@@ -1,8 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -334,7 +334,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(recv_writer_thread)(
 /*===============================*/
-	void*	arg __attribute__((unused)))
+	void*	arg MY_ATTRIBUTE((unused)))
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
@@ -755,7 +755,7 @@ recv_check_cp_is_consistent(
 /********************************************************//**
 Looks for the maximum consistent checkpoint from the log groups.
 @return	error code or DB_SUCCESS */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 recv_find_max_checkpoint(
 /*=====================*/
@@ -923,11 +923,11 @@ block.  We also accept a log block in the old format before
 InnoDB-3.23.52 where the checksum field contains the log block number.
 @return TRUE if ok, or if the log block may be in the format of InnoDB
 version predating 3.23.52 */
-static
 ibool
 log_block_checksum_is_ok_or_old_format(
 /*===================================*/
-	const byte*	block)	/*!< in: pointer to a log block */
+	const byte*	block,	/*!< in: pointer to a log block */
+	bool            print_err) /*!< in print error ? */
 {
 #ifdef UNIV_LOG_DEBUG
 	return(TRUE);
@@ -950,11 +950,13 @@ log_block_checksum_is_ok_or_old_format(
 		return(TRUE);
 	}
 
-	fprintf(stderr, "BROKEN: block: %lu checkpoint: %lu %.8lx %.8lx\n",
-		log_block_get_hdr_no(block),
-		log_block_get_checkpoint_no(block),
-		log_block_calc_checksum(block),
-		log_block_get_checksum(block));
+	if (print_err) {
+		fprintf(stderr, "BROKEN: block: %lu checkpoint: %lu %.8lx %.8lx\n",
+			log_block_get_hdr_no(block),
+			log_block_get_checkpoint_no(block),
+			log_block_calc_checksum(block),
+			log_block_get_checksum(block));
+	}
 
 	return(FALSE);
 }
@@ -2664,6 +2666,7 @@ recv_scan_log_recs(
 	ibool		finished;
 	ulint		data_len;
 	ibool		more_data;
+	bool		maybe_encrypted=false;
 
 	ut_ad(start_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
 	ut_ad(len % OS_FILE_LOG_BLOCK_SIZE == 0);
@@ -2678,6 +2681,8 @@ recv_scan_log_recs(
 	*err = DB_SUCCESS;
 
 	do {
+		log_crypt_err_t log_crypt_err;
+
 		no = log_block_get_hdr_no(log_block);
 		/*
 		fprintf(stderr, "Log block header no %lu\n", no);
@@ -2686,12 +2691,11 @@ recv_scan_log_recs(
 		log_block_convert_lsn_to_no(scanned_lsn));
 		*/
 		if (no != log_block_convert_lsn_to_no(scanned_lsn)
-		    || !log_block_checksum_is_ok_or_old_format(log_block)) {
-			log_crypt_err_t log_crypt_err;
+		    || !log_block_checksum_is_ok_or_old_format(log_block, true)) {
 
 			if (no == log_block_convert_lsn_to_no(scanned_lsn)
 			    && !log_block_checksum_is_ok_or_old_format(
-				    log_block)) {
+				    log_block, true)) {
 				fprintf(stderr,
 					"InnoDB: Log block no %lu at"
 					" lsn " LSN_PF " has\n"
@@ -2705,12 +2709,16 @@ recv_scan_log_recs(
 						log_block));
 			}
 
+			maybe_encrypted = log_crypt_block_maybe_encrypted(log_block,
+					&log_crypt_err);
+
 			/* Garbage or an incompletely written log block */
 
+			/* Print checkpoint encryption keys if present */
+			log_crypt_print_checkpoint_keys(log_block);
 			finished = TRUE;
 
-			if (log_crypt_block_maybe_encrypted(log_block,
-					&log_crypt_err)) {
+			if (maybe_encrypted) {
 				/* Log block maybe encrypted finish processing*/
 				log_crypt_print_error(log_crypt_err);
 				*err = DB_ERROR;

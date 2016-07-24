@@ -118,8 +118,6 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 */
 
 /* Used in error handling only */
-#define SP_TYPE_STRING(LP) \
-  ((LP)->sphead->m_type == TYPE_ENUM_FUNCTION ? "FUNCTION" : "PROCEDURE")
 #define SP_COM_STRING(LP) \
   ((LP)->sql_command == SQLCOM_CREATE_SPFUNCTION || \
    (LP)->sql_command == SQLCOM_ALTER_FUNCTION || \
@@ -4927,6 +4925,7 @@ end_with_restore_list:
   }
   case SQLCOM_SHUTDOWN:
 #ifndef EMBEDDED_LIBRARY
+    DBUG_EXECUTE_IF("crash_shutdown", DBUG_SUICIDE(););
     if (check_global_access(thd,SHUTDOWN_ACL))
       goto error;
     kill_mysql();
@@ -4940,21 +4939,10 @@ end_with_restore_list:
   case SQLCOM_SHOW_GRANTS:
   {
     LEX_USER *grant_user= lex->grant_user;
-    Security_context *sctx= thd->security_ctx;
     if (!grant_user)
       goto error;
 
-    if (grant_user->user.str && !strcmp(sctx->priv_user, grant_user->user.str) &&
-        grant_user->host.str && !strcmp(sctx->priv_host, grant_user->host.str))
-      grant_user->user= current_user;
-
-    if (grant_user->user.str == current_user.str ||
-        grant_user->user.str == current_role.str ||
-        grant_user->user.str == current_user_and_current_role.str ||
-        !check_access(thd, SELECT_ACL, "mysql", NULL, NULL, 1, 0))
-    {
-      res = mysql_show_grants(thd, grant_user);
-    }
+    res = mysql_show_grants(thd, grant_user);
     break;
   }
 #endif
@@ -5104,7 +5092,6 @@ end_with_restore_list:
   {
     uint namelen;
     char *name;
-    int sp_result= SP_INTERNAL_ERROR;
 
     DBUG_ASSERT(lex->sphead != 0);
     DBUG_ASSERT(lex->sphead->m_db.str); /* Must be initialized in the parser */
@@ -5115,23 +5102,12 @@ end_with_restore_list:
     if (check_db_name(&lex->sphead->m_db))
     {
       my_error(ER_WRONG_DB_NAME, MYF(0), lex->sphead->m_db.str);
-      goto create_sp_error;
+      goto error;
     }
 
     if (check_access(thd, CREATE_PROC_ACL, lex->sphead->m_db.str,
                      NULL, NULL, 0, 0))
-      goto create_sp_error;
-
-    /*
-      Check that a database directory with this name
-      exists. Design note: This won't work on virtual databases
-      like information_schema.
-    */
-    if (check_db_dir_existence(lex->sphead->m_db.str))
-    {
-      my_error(ER_BAD_DB_ERROR, MYF(0), lex->sphead->m_db.str);
-      goto create_sp_error;
-    }
+      goto error;
 
     /* Checking the drop permissions if CREATE OR REPLACE is used */
     if (lex->create_info.or_replace())
@@ -5139,7 +5115,7 @@ end_with_restore_list:
       if (check_routine_access(thd, ALTER_PROC_ACL, lex->spname->m_db.str,
                                lex->spname->m_name.str,
                                lex->sql_command == SQLCOM_DROP_PROCEDURE, 0))
-        goto create_sp_error;
+        goto error;
     }
 
     name= lex->sphead->name(&namelen);
@@ -5151,18 +5127,17 @@ end_with_restore_list:
       if (udf)
       {
         my_error(ER_UDF_EXISTS, MYF(0), name);
-        goto create_sp_error;
+        goto error;
       }
     }
 #endif
 
     if (sp_process_definer(thd))
-      goto create_sp_error;
+      goto error;
 
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
-    res= (sp_result= sp_create_routine(thd, lex->sphead->m_type, lex->sphead));
-    switch (sp_result) {
-    case SP_OK: {
+    if (!sp_create_routine(thd, lex->sphead->m_type, lex->sphead))
+    {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       /* only add privileges if really neccessary */
 
@@ -5227,31 +5202,8 @@ end_with_restore_list:
       }
 
 #endif
-    break;
     }
-    case SP_WRITE_ROW_FAILED:
-      my_error(ER_SP_ALREADY_EXISTS, MYF(0), SP_TYPE_STRING(lex), name);
-    break;
-    case SP_BAD_IDENTIFIER:
-      my_error(ER_TOO_LONG_IDENT, MYF(0), name);
-    break;
-    case SP_BODY_TOO_LONG:
-      my_error(ER_TOO_LONG_BODY, MYF(0), name);
-    break;
-    case SP_FLD_STORE_FAILED:
-      my_error(ER_CANT_CREATE_SROUTINE, MYF(0), name);
-      break;
-    default:
-      my_error(ER_SP_STORE_FAILED, MYF(0), SP_TYPE_STRING(lex), name);
-    break;
-    } /* end switch */
-
-    /*
-      Capture all errors within this CASE and
-      clean up the environment.
-    */
-create_sp_error:
-    if (sp_result != SP_OK )
+    else
       goto error;
     my_ok(thd);
     break; /* break super switch */
@@ -5649,6 +5601,8 @@ create_sp_error:
     if (check_global_access(thd, SUPER_ACL))
       break;
 
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+
     res= create_server(thd, &lex->server_options);
     break;
   }
@@ -5659,6 +5613,8 @@ create_sp_error:
 
     if (check_global_access(thd, SUPER_ACL))
       break;
+
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
     if ((error= alter_server(thd, &lex->server_options)))
     {
@@ -5677,6 +5633,8 @@ create_sp_error:
 
     if (check_global_access(thd, SUPER_ACL))
       break;
+
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
     if ((err_code= drop_server(thd, &lex->server_options)))
     {
@@ -6684,6 +6642,7 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors)
                                 temporary table flag)
   @param alter_info    [in]     Initial list of columns and indexes for the
                                 table to be created
+  @param create_db     [in]     Database of the created table
 
   @retval
    false  ok.
@@ -6692,7 +6651,8 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors)
 */
 bool check_fk_parent_table_access(THD *thd,
                                   HA_CREATE_INFO *create_info,
-                                  Alter_info *alter_info)
+                                  Alter_info *alter_info,
+                                  const char* create_db)
 {
   Key *key;
   List_iterator<Key> key_iterator(alter_info->key_list);
@@ -6732,10 +6692,28 @@ bool check_fk_parent_table_access(THD *thd,
           return true;
         }
       }
-      else if (thd->lex->copy_db_to(&db_name.str, &db_name.length))
-        return true;
       else
-        is_qualified_table_name= false;
+      {
+        if (!thd->db)
+        {
+          db_name.str= (char *) thd->memdup(create_db, strlen(create_db)+1);
+          db_name.length= strlen(create_db);
+          is_qualified_table_name= true;
+
+          if(create_db && check_db_name(&db_name))
+          {
+            my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
+            return true;
+          }
+        }
+        else
+        {
+          if (thd->lex->copy_db_to(&db_name.str, &db_name.length))
+            return true;
+          else
+           is_qualified_table_name= false;
+        }
+      }
 
       // if lower_case_table_names is set then convert tablename to lower case.
       if (lower_case_table_names)
@@ -7977,7 +7955,7 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
   @retval
     FALSE  if all is OK
   @retval
-    TRUE   if a memory allocation error occured
+    TRUE   if a memory allocation error occurred
 */
 
 bool
@@ -8886,7 +8864,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
       goto err;
   }
 
-  if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info))
+  if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info, create_table->db))
     goto err;
 
   /*

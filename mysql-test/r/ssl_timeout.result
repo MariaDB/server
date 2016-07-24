@@ -1,7 +1,7 @@
 # connect with read timeout so SLEEP() should timeout
 # Check ssl turned on
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	DHE-RSA-AES256-SHA
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+have_ssl
+1
 SELECT SLEEP(600);
 ERROR HY000: Lost connection to MySQL server during query

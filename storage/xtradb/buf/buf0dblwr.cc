@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,6 +37,7 @@ Created 2011/12/19
 #include "page0zip.h"
 #include "trx0sys.h"
 #include "fil0crypt.h"
+#include "fil0pagecompress.h"
 
 #ifndef UNIV_HOTBACKUP
 
@@ -500,6 +501,7 @@ buf_dblwr_process()
 
 	for (std::list<byte*>::iterator i = recv_dblwr.pages.begin();
 	     i != recv_dblwr.pages.end(); ++i, ++page_no_dblwr ) {
+		bool is_compressed = false;
 
 		page = *i;
 		page_no  = mach_read_from_4(page + FIL_PAGE_OFFSET);
@@ -533,6 +535,16 @@ buf_dblwr_process()
 				NULL,
 				0);
 
+			/* Is page compressed ? */
+			is_compressed = fil_page_is_compressed_encrypted(read_buf) |
+				fil_page_is_compressed(read_buf);
+
+			/* If page was compressed, decompress it before we
+			check checksum. */
+			if (is_compressed) {
+				fil_decompress_page(NULL, read_buf, UNIV_PAGE_SIZE, NULL, true);
+			}
+
 			if (fil_space_verify_crypt_checksum(read_buf, zip_size)) {
 				/* page is encrypted and checksum is OK */
 			} else if (buf_page_is_corrupted(true, read_buf, zip_size)) {
@@ -545,6 +557,16 @@ buf_dblwr_process()
 					"InnoDB: Trying to recover it from"
 					" the doublewrite buffer.\n",
 					(ulong) space_id, (ulong) page_no);
+
+				/* Is page compressed ? */
+				is_compressed = fil_page_is_compressed_encrypted(page) |
+					fil_page_is_compressed(page);
+
+				/* If page was compressed, decompress it before we
+				check checksum. */
+				if (is_compressed) {
+					fil_decompress_page(NULL, page, UNIV_PAGE_SIZE, NULL, true);
+				}
 
 				if (fil_space_verify_crypt_checksum(page, zip_size)) {
 					/* the doublewrite buffer page is encrypted and OK */

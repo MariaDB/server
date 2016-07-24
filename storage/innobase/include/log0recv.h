@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -51,7 +51,7 @@ recv_read_checkpoint_info_for_backup(
 	lsn_t*		first_header_lsn)
 				/*!< out: lsn of of the start of the
 				first log file */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 /*******************************************************************//**
 Scans the log segment and n_bytes_scanned is set to the length of valid
 log scanned. */
@@ -497,6 +497,18 @@ the log and store the scanned log records in the buffer pool: we will
 use these free frames to read in pages when we start applying the
 log records to the database. */
 extern ulint	recv_n_pool_free_frames;
+
+/******************************************************//**
+Checks the 4-byte checksum to the trailer checksum field of a log
+block.  We also accept a log block in the old format before
+InnoDB-3.23.52 where the checksum field contains the log block number.
+@return TRUE if ok, or if the log block may be in the format of InnoDB
+version predating 3.23.52 */
+ibool
+log_block_checksum_is_ok_or_old_format(
+/*===================================*/
+	const byte*	block,	/*!< in: pointer to a log block */
+	bool            print_err); /*!< in print error ? */
 
 #ifndef UNIV_NONINL
 #include "log0recv.ic"

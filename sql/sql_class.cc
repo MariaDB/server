@@ -914,7 +914,8 @@ THD::THD(bool is_wsrep_applier)
   */
   THD *old_THR_THD= current_thd;
   set_current_thd(this);
-  status_var.local_memory_used= status_var.global_memory_used= 0;
+  status_var.local_memory_used= sizeof(THD);
+  status_var.global_memory_used= 0;
   main_da.init();
 
   /*
@@ -1636,6 +1637,8 @@ THD::~THD()
     that memory allocation counting is done correctly
   */
   set_current_thd(this);
+  if (!status_in_global)
+    add_status_to_global();
 
   /* Ensure that no one is using THD */
   mysql_mutex_lock(&LOCK_thd_data);
@@ -1698,13 +1701,14 @@ THD::~THD()
   if (xid_hash_pins)
     lf_hash_put_pins(xid_hash_pins);
   /* Ensure everything is freed */
+  status_var.local_memory_used-= sizeof(THD);
   if (status_var.local_memory_used != 0)
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
     SAFEMALLOC_REPORT_MEMORY(my_thread_dbug_id());
     DBUG_ASSERT(status_var.local_memory_used == 0);
   }
-
+  update_global_memory_status(status_var.global_memory_used);
   set_current_thd(orig_thd == this ? 0 : orig_thd);
   DBUG_VOID_RETURN;
 }
@@ -1722,6 +1726,7 @@ THD::~THD()
     This function assumes that all variables at start are long/ulong and
     other types are handled explicitely
 */
+
 
 void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
 {
@@ -1742,12 +1747,17 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   to_var->binlog_bytes_written+= from_var->binlog_bytes_written;
   to_var->cpu_time+=            from_var->cpu_time;
   to_var->busy_time+=           from_var->busy_time;
-  to_var->local_memory_used+=   from_var->local_memory_used;
 
   /*
     Update global_memory_used. We have to do this with atomic_add as the
     global value can change outside of LOCK_status.
   */
+  if (to_var == &global_status_var)
+  {
+    DBUG_PRINT("info", ("global memory_used: %lld  size: %lld",
+                        (longlong) global_status_var.global_memory_used,
+                        (longlong) from_var->global_memory_used));
+  }
   // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
   int64 volatile * volatile ptr= &to_var->global_memory_used;
   my_atomic_add64_explicit(ptr, from_var->global_memory_used,
@@ -1963,46 +1973,63 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
 {
   THD *in_use= ctx_in_use->get_thd();
   bool signalled= FALSE;
+  DBUG_ENTER("THD::notify_shared_lock");
+  DBUG_PRINT("enter",("needs_thr_lock_abort: %d", needs_thr_lock_abort));
 
   if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
       !in_use->killed)
   {
-    in_use->killed= KILL_CONNECTION;
-    mysql_mutex_lock(&in_use->mysys_var->mutex);
-    if (in_use->mysys_var->current_cond)
-      mysql_cond_broadcast(in_use->mysys_var->current_cond);
-    mysql_mutex_unlock(&in_use->mysys_var->mutex);
+    /* This code is similar to kill_delayed_threads() */
+    DBUG_PRINT("info", ("kill delayed thread"));
+    mysql_mutex_lock(&in_use->LOCK_thd_data);
+    if (in_use->killed < KILL_CONNECTION)
+      in_use->killed= KILL_CONNECTION;
+    if (in_use->mysys_var)
+    {
+      mysql_mutex_lock(&in_use->mysys_var->mutex);
+      if (in_use->mysys_var->current_cond)
+        mysql_cond_broadcast(in_use->mysys_var->current_cond);
+
+      /* Abort if about to wait in thr_upgrade_write_delay_lock */
+      in_use->mysys_var->abort= 1;
+      mysql_mutex_unlock(&in_use->mysys_var->mutex);
+    }
+    mysql_mutex_unlock(&in_use->LOCK_thd_data);
     signalled= TRUE;
   }
 
   if (needs_thr_lock_abort)
   {
     mysql_mutex_lock(&in_use->LOCK_thd_data);
-    for (TABLE *thd_table= in_use->open_tables;
-         thd_table ;
-         thd_table= thd_table->next)
+    /* If not already dying */
+    if (in_use->killed != KILL_CONNECTION_HARD)
     {
-      /*
-        Check for TABLE::needs_reopen() is needed since in some places we call
-        handler::close() for table instance (and set TABLE::db_stat to 0)
-        and do not remove such instances from the THD::open_tables
-        for some time, during which other thread can see those instances
-        (e.g. see partitioning code).
-      */
-      if (!thd_table->needs_reopen())
+      for (TABLE *thd_table= in_use->open_tables;
+           thd_table ;
+           thd_table= thd_table->next)
       {
-        signalled|= mysql_lock_abort_for_thread(this, thd_table);
-        if (this && WSREP(this) && wsrep_thd_is_BF(this, FALSE))
+        /*
+          Check for TABLE::needs_reopen() is needed since in some
+          places we call handler::close() for table instance (and set
+          TABLE::db_stat to 0) and do not remove such instances from
+          the THD::open_tables for some time, during which other
+          thread can see those instances (e.g. see partitioning code).
+        */
+        if (!thd_table->needs_reopen())
         {
-          WSREP_DEBUG("remove_table_from_cache: %llu",
-                      (unsigned long long) this->real_id);
-          wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
+          signalled|= mysql_lock_abort_for_thread(this, thd_table);
+          if (this && WSREP(this) && wsrep_thd_is_BF(this, FALSE))
+          {
+            WSREP_DEBUG("remove_table_from_cache: %llu",
+                        (unsigned long long) this->real_id);
+            wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
+          }
         }
       }
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }
-  return signalled;
+  DBUG_RETURN(signalled);
 }
 
 

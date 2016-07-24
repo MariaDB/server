@@ -74,7 +74,9 @@ MACRO(MYSQL_ADD_PLUGIN)
       SET(compat "with${compat}")
     ENDIF()
 
-    IF (compat STREQUAL ".")
+    IF (ARG_DISABLED)
+      SET(howtobuild NO)
+    ELSEIF (compat STREQUAL ".")
       SET(howtobuild DYNAMIC)
     ELSEIF (compat STREQUAL "with.")
       IF (NOT ARG_MODULE_ONLY)
@@ -122,7 +124,7 @@ MACRO(MYSQL_ADD_PLUGIN)
 
   # Build either static library or module
   IF (PLUGIN_${plugin} MATCHES "(STATIC|AUTO|YES)" AND NOT ARG_MODULE_ONLY
-      AND NOT ARG_DISABLED AND NOT ARG_CLIENT)
+      AND NOT ARG_CLIENT)
 
     IF(CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
       # If there is a shared library from previous shared build,
@@ -178,8 +180,7 @@ MACRO(MYSQL_ADD_PLUGIN)
       SET (mysql_optional_plugins ${mysql_optional_plugins} PARENT_SCOPE)
     ENDIF()
   ELSEIF(PLUGIN_${plugin} MATCHES "(DYNAMIC|AUTO|YES)"
-         AND NOT ARG_STATIC_ONLY  AND NOT WITHOUT_DYNAMIC_PLUGINS
-         AND NOT ARG_DISABLED)
+         AND NOT ARG_STATIC_ONLY AND NOT WITHOUT_DYNAMIC_PLUGINS)
 
     ADD_VERSION_INFO(${target} MODULE SOURCES)
     ADD_LIBRARY(${target} MODULE ${SOURCES}) 
@@ -208,11 +209,16 @@ MACRO(MYSQL_ADD_PLUGIN)
     IF(ARG_COMPONENT)
       IF(CPACK_COMPONENTS_ALL AND
          NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT})
-
+        IF (ARG_STORAGE_ENGINE)
+          SET(ver " = %{version}-%{release}")
+        ELSE()
+          SET(ver "")
+        ENDIF()
         SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT})
-        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL}  PARENT_SCOPE)
+        SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} PARENT_SCOPE)
+
         IF (NOT ARG_CLIENT)
-          SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB" PARENT_SCOPE)
+          SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB${ver}" PARENT_SCOPE)
         ENDIF()
         # workarounds for cmake issues #13248 and #12864:
         SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)

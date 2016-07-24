@@ -1,0 +1,5 @@
+create table tcon (i int) engine=Connect table_type=DOS file_name='tcon.dos';
+create table tin (i int);
+create trigger tr after insert on tin for each row insert into tcon values (new.i);
+insert into tin values (1);
+drop table tin,tcon;

@@ -27,7 +27,6 @@
 #include "sql_delete.h"
 #include "sql_cache.h"                          // query_cache_*
 #include "sql_base.h"                           // open_temprary_table
-#include "sql_table.h"                         // build_table_filename
 #include "lock.h"                              // unlock_table_name
 #include "sql_view.h"             // check_key_in_view, mysql_frm_type
 #include "sql_parse.h"            // mysql_init_select
@@ -499,7 +498,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       Filesort_tracker *fs_tracker= 
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
-      if (!(sortorder= make_unireg_sortorder(thd, order, &length, NULL)) ||
+      if (!(sortorder= make_unireg_sortorder(thd, NULL, 0, order, &length, NULL)) ||
 	  (table->sort.found_records= filesort(thd, table, sortorder, length,
                                                select, HA_POS_ERROR,
                                                true,

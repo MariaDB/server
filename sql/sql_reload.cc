@@ -1,4 +1,5 @@
-/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -154,6 +155,12 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     {
       if (mysql_bin_log.rotate_and_purge(true))
         *write_to_binlog= -1;
+
+      if (WSREP_ON)
+      {
+        /* Wait for last binlog checkpoint event to be logged. */
+        mysql_bin_log.wait_for_last_checkpoint_event();
+      }
     }
   }
   if (options & REFRESH_RELAY_LOG)

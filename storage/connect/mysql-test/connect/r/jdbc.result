@@ -1,0 +1,269 @@
+CREATE DATABASE connect;
+USE connect;
+CREATE TABLE t2 (
+id bigint not null,
+msg varchar(500),
+tm time,
+dt date,
+dtm datetime,
+ts timestamp);
+INSERT INTO t2 VALUES(455000000000, 'A very big number', '18:10:25', '2016-03-16', '1999-12-11 23:01:52', '2015-07-24 09:32:45');
+SELECT * FROM t2;
+id	msg	tm	dt	dtm	ts
+455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
+#
+# Testing JDBC connection to MySQL driver
+#
+USE test;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2 CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root';
+SELECT * FROM t1;
+id	msg	tm	dt	dtm	ts
+455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
+INSERT INTO t1 VALUES(786325481247, 'Hello!', '19:45:03', '1933-08-10', '1985-11-12 09:02:44', '2014-06-17 10:32:01');
+Warnings:
+Note	1105	t2: 1 affected rows
+SELECT * FROM t1;
+id	msg	tm	dt	dtm	ts
+455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
+786325481247	Hello!	19:45:03	1933-08-09	1985-11-12 09:02:44	2014-06-17 10:32:01
+DELETE FROM t1 WHERE msg = 'Hello!';
+Warnings:
+Note	1105	t2: 1 affected rows
+SELECT * FROM t1;
+id	msg	tm	dt	dtm	ts
+455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
+DROP TABLE t1;
+#
+# Testing JDBC view
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt from t2' CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root';
+SELECT * FROM t1;
+id	msg	tm	dt
+455000000000	A very big number	18:10:25	2016-03-16
+SELECT msg, dt FROM t1;
+msg	dt
+A very big number	2016-03-16
+DROP TABLE t1, connect.t2;
+#
+# Testing JDBC write operations
+#
+USE connect;
+CREATE TABLE boys (
+name CHAR(12) NOT NULL,
+city CHAR(11),
+birth DATE DATE_FORMAT='DD/MM/YYYY',
+hired DATE DATE_FORMAT='DD/MM/YYYY' flag=36)
+ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
+SELECT * FROM boys;
+name	city	birth	hired
+John	Boston	1986-01-25	2010-06-02
+Henry	Boston	1987-06-07	2008-04-01
+George	San Jose	1981-08-10	2010-06-02
+Sam	Chicago	1979-11-22	2007-10-10
+James	Dallas	1992-05-13	2009-12-14
+Bill	Boston	1986-09-11	2008-02-10
+USE test;
+CREATE TABLE t3 (
+name CHAR(12) NOT NULL,
+city CHAR(12),
+birth DATE,
+hired DATE);
+INSERT INTO t3 VALUES('Donald','Atlanta','1999-04-01','2016-03-31'),('Mick','New York','1980-01-20','2002-09-11');
+SELECT * FROM t3;
+name	city	birth	hired
+Donald	Atlanta	1999-04-01	2016-03-31
+Mick	New York	1980-01-20	2002-09-11
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=boys CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root' OPTION_LIST='scrollable=1';
+SELECT * FROM t1;
+name	city	birth	hired
+John	Boston	1986-01-25	2010-06-02
+Henry	Boston	1987-06-07	2008-04-01
+George	San Jose	1981-08-10	2010-06-02
+Sam	Chicago	1979-11-22	2007-10-10
+James	Dallas	1992-05-13	2009-12-14
+Bill	Boston	1986-09-11	2008-02-10
+UPDATE t1 SET city = 'Phoenix' WHERE name = 'Henry';
+Warnings:
+Note	1105	boys: 1 affected rows
+INSERT INTO t1 SELECT * FROM t3;
+Warnings:
+Note	1105	boys: 2 affected rows
+INSERT INTO t1 VALUES('Tom','Seatle','2002-03-15',NULL);
+Warnings:
+Note	1105	boys: 1 affected rows
+SELECT * FROM t1;
+name	city	birth	hired
+John	Boston	1986-01-25	2010-06-02
+Henry	Phoenix	1987-06-07	2008-04-01
+George	San Jose	1981-08-10	2010-06-02
+Sam	Chicago	1979-11-22	2007-10-10
+James	Dallas	1992-05-13	2009-12-14
+Bill	Boston	1986-09-11	2008-02-10
+Donald	Atlanta	1999-04-01	2016-03-31
+Mick	New York	1980-01-20	2002-09-11
+Tom	Seatle	2002-03-15	1970-01-01
+DROP TABLE t3;
+#
+# Testing JDBC join operations
+#
+CREATE TABLE t3 (
+name CHAR(9) NOT NULL,
+city CHAR(12) NOT NULL,
+age INT(2))
+engine=CONNECT table_type=FIX file_name='girls.txt';
+SELECT g.name, b.name, g.city FROM t3 g STRAIGHT_JOIN connect.boys b where g.city = b.city;
+name	name	city
+Mary	John	Boston
+Susan	Sam	Chicago
+Betty	Sam	Chicago
+Mary	Bill	Boston
+SELECT g.name, b.name, g.city FROM t3 g STRAIGHT_JOIN t1 b where g.city = b.city;
+name	name	city
+Mary	John	Boston
+Susan	Sam	Chicago
+Betty	Sam	Chicago
+Mary	Bill	Boston
+DROP TABLE t1, t3, connect.boys;
+#
+# Testing MariaDB JDBC driver
+#
+USE connect;
+CREATE TABLE emp (
+serialno CHAR(5) NOT NULL,
+name VARCHAR(12) NOT NULL FLAG=6,
+sex TINYINT(1) NOT NULL,
+title VARCHAR(15) NOT NULL FLAG=20,
+manager CHAR(5) NOT NULL,
+department CHAR(4) NOT NULL FLAG=41,
+secretary CHAR(5) NOT NULL FLAG=46,
+salary DOUBLE(8,2) NOT NULL FLAG=52)
+ENGINE=connect TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
+SELECT * FROM emp;
+serialno	name	sex	title	manager	department	secretary	salary
+74200	BANCROFT	2	SALESMAN	70012	0318	24888	9600.00
+02345	SMITH	1	ENGINEER	31416	2452	11111	9000.00
+78943	MERCHANT	1	SALESMAN	70012	0318	24888	8700.00
+07654	FUNNIGUY	1	ADMINISTRATOR	40567	0319	33333	8500.00
+45678	BUGHAPPY	1	PROGRAMMER	40567	0319	12345	8500.00
+34567	BIGHEAD	1	SCIENTIST	31416	2452	11111	8000.00
+77777	SHRINKY	2	ADMINISTRATOR	70012	0318	27845	7500.00
+74234	WALTER	1	ENGINEER	70012	0318	24888	7400.00
+56789	FODDERMAN	1	SALESMAN	40567	0319	12345	7000.00
+73452	TONGHO	1	ENGINEER	70012	0318	24888	6800.00
+22222	SHORTSIGHT	2	SECRETARY	87777	0021		5500.00
+55555	MESSIFUL	2	SECRETARY	40567	0319	12345	5000.50
+27845	HONEY	2	SECRETARY	70012	0318	24888	4900.00
+98765	GOOSEPEN	1	ADMINISTRATOR	07654	0319	33333	4700.00
+11111	CHERRY	2	SECRETARY	31416	2452		4500.00
+33333	MONAPENNY	2	SECRETARY	07654	0319		3800.00
+12345	KITTY	2	TYPIST	40567	0319		3000.45
+24888	PLUMHEAD	2	TYPIST	27845	0318		2800.00
+87777	STRONG	1	DIRECTOR		0021	22222	23000.00
+76543	BULLOZER	1	SALESMAN	40567	0319	12345	14800.00
+70012	WERTHER	1	DIRECTOR	87777	0318	27845	14500.00
+40567	QUINN	1	DIRECTOR	87777	0319	55555	14000.00
+31416	ORELLY	1	ENGINEER	87777	2452	11111	13400.00
+36666	BIGHORN	1	SCIENTIST	31416	2452	11111	11000.00
+00137	BROWNY	1	ENGINEER	40567	0319	12345	10500.00
+73111	WHEELFOR	1	SALESMAN	70012	0318	24888	10030.00
+00023	MARTIN	1	ENGINEER	40567	0319	12345	10000.00
+USE test;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=emp CONNECTION='jdbc:mariadb://localhost:PORT/connect?user=root';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `serialno` char(5) NOT NULL,
+  `name` varchar(12) NOT NULL,
+  `sex` tinyint(3) NOT NULL,
+  `title` varchar(15) NOT NULL,
+  `manager` char(5) NOT NULL,
+  `department` char(4) NOT NULL,
+  `secretary` char(5) NOT NULL,
+  `salary` double(12,2) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mariadb://localhost:PORT/connect?user=root' `TABLE_TYPE`='JDBC' `TABNAME`='emp'
+SELECT * FROM t1;
+serialno	name	sex	title	manager	department	secretary	salary
+74200	BANCROFT	2	SALESMAN	70012	0318	24888	9600.00
+02345	SMITH	1	ENGINEER	31416	2452	11111	9000.00
+78943	MERCHANT	1	SALESMAN	70012	0318	24888	8700.00
+07654	FUNNIGUY	1	ADMINISTRATOR	40567	0319	33333	8500.00
+45678	BUGHAPPY	1	PROGRAMMER	40567	0319	12345	8500.00
+34567	BIGHEAD	1	SCIENTIST	31416	2452	11111	8000.00
+77777	SHRINKY	2	ADMINISTRATOR	70012	0318	27845	7500.00
+74234	WALTER	1	ENGINEER	70012	0318	24888	7400.00
+56789	FODDERMAN	1	SALESMAN	40567	0319	12345	7000.00
+73452	TONGHO	1	ENGINEER	70012	0318	24888	6800.00
+22222	SHORTSIGHT	2	SECRETARY	87777	0021		5500.00
+55555	MESSIFUL	2	SECRETARY	40567	0319	12345	5000.50
+27845	HONEY	2	SECRETARY	70012	0318	24888	4900.00
+98765	GOOSEPEN	1	ADMINISTRATOR	07654	0319	33333	4700.00
+11111	CHERRY	2	SECRETARY	31416	2452		4500.00
+33333	MONAPENNY	2	SECRETARY	07654	0319		3800.00
+12345	KITTY	2	TYPIST	40567	0319		3000.45
+24888	PLUMHEAD	2	TYPIST	27845	0318		2800.00
+87777	STRONG	1	DIRECTOR		0021	22222	23000.00
+76543	BULLOZER	1	SALESMAN	40567	0319	12345	14800.00
+70012	WERTHER	1	DIRECTOR	87777	0318	27845	14500.00
+40567	QUINN	1	DIRECTOR	87777	0319	55555	14000.00
+31416	ORELLY	1	ENGINEER	87777	2452	11111	13400.00
+36666	BIGHORN	1	SCIENTIST	31416	2452	11111	11000.00
+00137	BROWNY	1	ENGINEER	40567	0319	12345	10500.00
+73111	WHEELFOR	1	SALESMAN	70012	0318	24888	10030.00
+00023	MARTIN	1	ENGINEER	40567	0319	12345	10000.00
+SELECT name, title, salary FROM t1 WHERE sex = 1;
+name	title	salary
+SMITH	ENGINEER	9000.00
+MERCHANT	SALESMAN	8700.00
+FUNNIGUY	ADMINISTRATOR	8500.00
+BUGHAPPY	PROGRAMMER	8500.00
+BIGHEAD	SCIENTIST	8000.00
+WALTER	ENGINEER	7400.00
+FODDERMAN	SALESMAN	7000.00
+TONGHO	ENGINEER	6800.00
+GOOSEPEN	ADMINISTRATOR	4700.00
+STRONG	DIRECTOR	23000.00
+BULLOZER	SALESMAN	14800.00
+WERTHER	DIRECTOR	14500.00
+QUINN	DIRECTOR	14000.00
+ORELLY	ENGINEER	13400.00
+BIGHORN	SCIENTIST	11000.00
+BROWNY	ENGINEER	10500.00
+WHEELFOR	SALESMAN	10030.00
+MARTIN	ENGINEER	10000.00
+DROP TABLE t1, connect.emp;
+CREATE TABLE t2 (command varchar(128) not null,number int(5) not null flag=1,message varchar(255) flag=2) ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='jdbc:mariadb://localhost:PORT/connect' OPTION_LIST='User=root,Execsrc=1';
+SELECT * FROM t2 WHERE command='drop table tx1';
+command	number	message
+drop table tx1	0	Execute: java.sql.SQLSyntaxErrorException: Unknown table 'connect.tx1'
+Query is : drop table tx1
+SELECT * FROM t2 WHERE command = 'create table tx1 (a int not null, b char(32), c double(8,2))';
+command	number	message
+create table tx1 (a int not null, b char(32), c double(8,2))	0	Affected rows
+SELECT * FROM t2 WHERE command in ('insert into tx1 values(1,''The number one'',456.12)',"insert into tx1(a,b) values(2,'The number two'),(3,'The number three')");
+command	number	message
+insert into tx1 values(1,'The number one',456.12)	1	Affected rows
+insert into tx1(a,b) values(2,'The number two'),(3,'The number three')	2	Affected rows
+SELECT * FROM t2 WHERE command='update tx1 set c = 3.1416 where a = 2';
+command	number	message
+update tx1 set c = 3.1416 where a = 2	1	Affected rows
+SELECT * FROM t2 WHERE command='select * from tx1';
+command	number	message
+select * from tx1	3	Result set column number
+SELECT * FROM t2 WHERE command='delete from tx1 where a = 2';
+command	number	message
+delete from tx1 where a = 2	1	Affected rows
+SELECT * FROM connect.tx1;
+a	b	c
+1	The number one	456.12
+3	The number three	NULL
+DROP TABLE t2;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables CONNECTION='jdbc:mariadb://localhost:PORT/connect' option_list='User=root,Maxres=50';
+SELECT * FROM t1;
+Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
+connect	NULL	tx1	BASE TABLE	
+DROP TABLE t1;
+DROP TABLE connect.tx1;
+DROP DATABASE connect;
+SET GLOBAL connect_jvm_path=NULL;
+SET GLOBAL connect_class_path=NULL;
+SET GLOBAL time_zone = SYSTEM;

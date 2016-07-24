@@ -305,6 +305,20 @@ buf_page_set_state(
 		ut_a(state == BUF_BLOCK_NOT_USED);
 		break;
 	case BUF_BLOCK_FILE_PAGE:
+		if (!(state == BUF_BLOCK_NOT_USED
+	              || state == BUF_BLOCK_REMOVE_HASH)) {
+			const char *old_state_name = buf_get_state_name((buf_block_t*)bpage);
+			bpage->state = state;
+
+			fprintf(stderr,
+				"InnoDB: Error: block old state %d (%s) "
+				" new state %d (%s) not correct\n",
+				old_state,
+				old_state_name,
+				state,
+				buf_get_state_name((buf_block_t*)bpage));
+		}
+
 		ut_a(state == BUF_BLOCK_NOT_USED
 		     || state == BUF_BLOCK_REMOVE_HASH);
 		break;

@@ -3710,7 +3710,7 @@ int spider_check_trx_and_get_conn(
         {
           TABLE *table = spider->get_table();
           TABLE_SHARE *table_share = table->s;
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
           char *db, *table_name;
           if (!(db = (char *)
             spider_bulk_malloc(spider_current_trx, 57, MYF(MY_WME),
@@ -3732,7 +3732,7 @@ int spider_check_trx_and_get_conn(
           table_name[table_share->table_name.length] = '\0';
           my_printf_error(ER_SPIDER_ALL_LINKS_FAILED_NUM,
             ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
           spider_free(trx, db, MYF(MY_WME));
 #endif
           DBUG_RETURN(ER_SPIDER_ALL_LINKS_FAILED_NUM);
@@ -3869,7 +3869,7 @@ int spider_check_trx_and_get_conn(
       {
         TABLE *table = spider->get_table();
         TABLE_SHARE *table_share = table->s;
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
         char *db, *table_name;
         if (!(db = (char *)
           spider_bulk_malloc(spider_current_trx, 57, MYF(MY_WME),
@@ -3891,7 +3891,7 @@ int spider_check_trx_and_get_conn(
         table_name[table_share->table_name.length] = '\0';
         my_printf_error(ER_SPIDER_LINK_MON_JUST_NG_NUM,
           ER_SPIDER_LINK_MON_JUST_NG_STR, MYF(0), db, table_name);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
         spider_free(trx, db, MYF(MY_WME));
 #endif
         DBUG_RETURN(ER_SPIDER_LINK_MON_JUST_NG_NUM);
@@ -4015,7 +4015,7 @@ int spider_check_trx_and_get_conn(
       {
         TABLE *table = spider->get_table();
         TABLE_SHARE *table_share = table->s;
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
         char *db, *table_name;
         if (!(db = (char *)
           spider_bulk_malloc(spider_current_trx, 57, MYF(MY_WME),
@@ -4037,7 +4037,7 @@ int spider_check_trx_and_get_conn(
         table_name[table_share->table_name.length] = '\0';
         my_printf_error(ER_SPIDER_LINK_MON_JUST_NG_NUM,
           ER_SPIDER_LINK_MON_JUST_NG_STR, MYF(0), db, table_name);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
         spider_free(trx, db, MYF(MY_WME));
 #endif
         DBUG_RETURN(ER_SPIDER_LINK_MON_JUST_NG_NUM);

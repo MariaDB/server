@@ -855,6 +855,17 @@ IF(NOT CMAKE_CROSSCOMPILING AND NOT MSVC)
     }
    " HAVE_FAKE_PAUSE_INSTRUCTION)
   ENDIF()
+  IF (NOT HAVE_PAUSE_INSTRUCTION)
+    CHECK_C_SOURCE_COMPILES("
+    #include <sys/platform/ppc.h>
+    int main()
+    {
+     __ppc_set_ppr_low();
+     __ppc_set_ppr_med();
+     return 0;
+    }
+    " HAVE_HMT_PRIORITY_INSTRUCTION)
+  ENDIF()
 ENDIF()
   
 CHECK_SYMBOL_EXISTS(tcgetattr "termios.h" HAVE_TCGETATTR 1)
@@ -1096,7 +1107,7 @@ CHECK_STRUCT_HAS_MEMBER("struct timespec" tv_sec "time.h" STRUCT_TIMESPEC_HAS_TV
 CHECK_STRUCT_HAS_MEMBER("struct timespec" tv_nsec "time.h" STRUCT_TIMESPEC_HAS_TV_NSEC)
 
 IF(NOT MSVC)
-  CHECK_C_SOURCE_RUNS(
+  CHECK_C_SOURCE_COMPILES(
   "
   #define _GNU_SOURCE
   #include <fcntl.h>

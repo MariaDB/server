@@ -119,10 +119,10 @@ static void die(const char *fmt, ...)
   if (verbose_errors)
   {
    fprintf(stderr,
-   "http://kb.askmonty.org/v/installation-issues-on-windows contains some help\n"
+   "https://mariadb.com/kb/en/installation-issues-on-windows contains some help\n"
    "for solving the most common problems.  If this doesn't help you, please\n"
-   "leave a comment in the Knowledgebase or file a bug report at\n"
-   "http://mariadb.org/jira");
+   "leave a comment in the Knowledge Base or file a bug report at\n"
+   "https://jira.mariadb.org");
   }
   fflush(stderr);
   va_end(args);

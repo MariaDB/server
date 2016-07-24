@@ -63,7 +63,7 @@
 #ifdef VERBOSE_DEBUG
 #else
 #undef DBUG_PRINT
-#define DBUG_PRINT(x ...)
+#define DBUG_PRINT(x,y)
 #endif
 
 #ifdef RETAIN_INT_LATCH_COMPATIBILITY
@@ -753,6 +753,10 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 int ha_oqgraph::close(void)
 {
   DBUG_PRINT( "oq-debug", ("close()"));
+  if (graph->get_thd() != current_thd) {
+    DBUG_PRINT( "oq-debug", ("index_next_same g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    graph->set_thd(current_thd);
+  }
   oqgraph::free(graph); graph= 0;
   oqgraph::free(graph_share); graph_share= 0;
 
@@ -1132,6 +1136,10 @@ int ha_oqgraph::info(uint flag)
 
 int ha_oqgraph::extra(enum ha_extra_function operation)
 {
+  if (graph->get_thd() != ha_thd()) {
+    DBUG_PRINT( "oq-debug", ("rnd_pos g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    graph->set_thd(current_thd);
+  }
   return edges->file->extra(operation);
 }
 
@@ -1372,6 +1380,6 @@ maria_declare_plugin(oqgraph)
   oqgraph_status,                /* status variables             */
   oqgraph_sysvars,               /* system variables             */
   "3.0",
-  MariaDB_PLUGIN_MATURITY_BETA
+  MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;

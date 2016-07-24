@@ -434,5 +434,28 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-9653 Assertion `length || !scale' failed in uint my_decimal_length_to_precision(uint, uint, bool)
+--echo #
+SELECT CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END;
+SELECT CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END;
+SELECT CASE WHEN TRUE THEN COALESCE(NULL) ELSE 4 END;
+
+--disable_ps_protocol
+--enable_metadata
+SELECT COALESCE(COALESCE(NULL), 1.1) AS c0, IF(0, COALESCE(NULL), 1.1) AS c1;
+--disable_metadata
+--enable_ps_protocol
+
+
+--echo #
+--echo # MDEV-9752 Wrong data type for COALEASCE(?,1) in prepared statements
+--echo #
+PREPARE stmt FROM "CREATE TABLE t1 AS SELECT CONCAT(COALESCE(?,1)) AS a, CONCAT(CASE WHEN TRUE THEN ? ELSE 1 END) AS b";
+SET @a=1;
+EXECUTE stmt USING @a,@a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

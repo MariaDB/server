@@ -9,8 +9,10 @@ select @@log_slow_verbosity;
 
 show variables like "log_slow%";
 Variable_name	Value
+log_slow_admin_statements	OFF
 log_slow_filter	admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log_slow_rate_limit	1
+log_slow_slave_statements	OFF
 log_slow_verbosity	
 set @org_slow_query_log= @@global.slow_query_log;
 set @@log_slow_filter= "filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk,admin";

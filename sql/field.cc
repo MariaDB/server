@@ -1477,10 +1477,12 @@ Value_source::Converter_string_to_number::check_edom_and_truncation(THD *thd,
 */
 
 
-int Field_num::check_edom_and_truncation(const char *type, bool edom,
-                                         CHARSET_INFO *cs,
-                                         const char *str, uint length,
-                                         const char *end)
+int Field_num::check_edom_and_important_data_truncation(const char *type,
+                                                        bool edom,
+                                                        CHARSET_INFO *cs,
+                                                        const char *str,
+                                                        uint length,
+                                                        const char *end)
 {
   /* Test if we get an empty string or garbage */
   if (edom)
@@ -1495,9 +1497,20 @@ int Field_num::check_edom_and_truncation(const char *type, bool edom,
     set_warning(WARN_DATA_TRUNCATED, 1);
     return 2;
   }
-  if (end < str + length)
-    set_note(WARN_DATA_TRUNCATED, 1);
   return 0;
+}
+
+
+int Field_num::check_edom_and_truncation(const char *type, bool edom,
+                                         CHARSET_INFO *cs,
+                                         const char *str, uint length,
+                                         const char *end)
+{
+  int rc= check_edom_and_important_data_truncation(type, edom,
+                                                   cs, str, length, end);
+  if (!rc && end < str + length)
+    set_note(WARN_DATA_TRUNCATED, 1);
+  return rc;
 }
 
 
@@ -2025,6 +2038,7 @@ Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
   if (charset_arg->state & MY_CS_BINSORT)
     flags|=BINARY_FLAG;
   field_derivation= DERIVATION_IMPLICIT;
+  field_repertoire= my_charset_repertoire(charset_arg);
 }
 
 
@@ -3005,7 +3019,8 @@ void Field_new_decimal::set_value_on_overflow(my_decimal *decimal_value,
   If it does, stores the decimal in the buffer using binary format.
   Otherwise sets maximal number that can be stored in the field.
 
-  @param decimal_value   my_decimal
+  @param       decimal_value   my_decimal
+  @param [OUT] native_error    the error returned by my_decimal2binary().
 
   @retval
     0 ok
@@ -3013,7 +3028,8 @@ void Field_new_decimal::set_value_on_overflow(my_decimal *decimal_value,
     1 error
 */
 
-bool Field_new_decimal::store_value(const my_decimal *decimal_value)
+bool Field_new_decimal::store_value(const my_decimal *decimal_value,
+                                    int *native_error)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   int error= 0;
@@ -3042,11 +3058,14 @@ bool Field_new_decimal::store_value(const my_decimal *decimal_value)
   }
 #endif
 
-  if (warn_if_overflow(my_decimal2binary(E_DEC_FATAL_ERROR & ~E_DEC_OVERFLOW,
-                                         decimal_value, ptr, precision, dec)))
+  *native_error= my_decimal2binary(E_DEC_FATAL_ERROR & ~E_DEC_OVERFLOW,
+                                   decimal_value, ptr, precision, dec);
+
+  if (*native_error == E_DEC_OVERFLOW)
   {
     my_decimal buff;
     DBUG_PRINT("info", ("overflow"));
+    set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     set_value_on_overflow(&buff, decimal_value->sign());
     my_decimal2binary(E_DEC_FATAL_ERROR, &buff, ptr, precision, dec);
     error= 1;
@@ -3054,6 +3073,16 @@ bool Field_new_decimal::store_value(const my_decimal *decimal_value)
   DBUG_EXECUTE("info", print_decimal_buff(decimal_value, (uchar *) ptr,
                                           bin_size););
   DBUG_RETURN(error);
+}
+
+
+bool Field_new_decimal::store_value(const my_decimal *decimal_value)
+{
+  int native_error;
+  bool rc= store_value(decimal_value, &native_error);
+  if (!rc && native_error == E_DEC_TRUNCATED)
+    set_note(WARN_DATA_TRUNCATED, 1);
+  return rc;
 }
 
 
@@ -3084,9 +3113,10 @@ int Field_new_decimal::store(const char *from, uint length,
 
   if (thd->count_cuted_fields)
   {
-    if (check_edom_and_truncation("decimal",
-                                  err && err != E_DEC_TRUNCATED,
-                                  charset_arg, from, length, end))
+    if (check_edom_and_important_data_truncation("decimal",
+                                                 err && err != E_DEC_TRUNCATED,
+                                                 charset_arg,
+                                                 from, length, end))
     {
       if (!thd->abort_on_warning)
       {
@@ -3109,12 +3139,6 @@ int Field_new_decimal::store(const char *from, uint length,
       }
       DBUG_RETURN(1);
     }
-    /*
-      E_DEC_TRUNCATED means minor truncation '1e-1000000000000' -> 0.0
-      A note should be enough.
-    */
-    if (err == E_DEC_TRUNCATED)
-      set_note(WARN_DATA_TRUNCATED, 1);
   }
 
 #ifndef DBUG_OFF
@@ -3122,7 +3146,21 @@ int Field_new_decimal::store(const char *from, uint length,
   DBUG_PRINT("enter", ("value: %s",
                        dbug_decimal_as_string(dbug_buff, &decimal_value)));
 #endif
-  store_value(&decimal_value);
+  int err2;
+  if (store_value(&decimal_value, &err2))
+    DBUG_RETURN(1);
+
+  /*
+    E_DEC_TRUNCATED means minor truncation, a note should be enough:
+    - in err: str2my_decimal() truncated '1e-1000000000000' to 0.0
+    - in err2: store_value() truncated 1.123 to 1.12, e.g. for DECIMAL(10,2)
+    Also, we send a note if a string had some trailing spaces: '1.12 '
+  */
+  if (thd->count_cuted_fields &&
+      (err == E_DEC_TRUNCATED ||
+       err2 == E_DEC_TRUNCATED ||
+       end < from + length))
+    set_note(WARN_DATA_TRUNCATED, 1);
   DBUG_RETURN(0);
 }
 
@@ -5624,6 +5662,18 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
     }
     break;
   case ANY_SUBST:
+    if (!is_temporal_type_with_date(const_item->field_type()))
+    {
+      MYSQL_TIME ltime;
+      if (const_item->get_date_with_conversion(&ltime,
+                                               TIME_FUZZY_DATES |
+                                               TIME_INVALID_DATES))
+        return NULL;
+      return new (thd->mem_root)
+        Item_datetime_literal_for_invalid_dates(thd, &ltime,
+                                                ltime.second_part ?
+                                                TIME_SECOND_PART_DIGITS : 0);
+    }
     break;
   }
   return const_item;
@@ -5932,7 +5982,10 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
     {
       MYSQL_TIME ltime;
       // Get the value of const_item with conversion from DATETIME to TIME
-      if (const_item->get_time_with_conversion(thd, &ltime, TIME_TIME_ONLY))
+      if (const_item->get_time_with_conversion(thd, &ltime,
+                                               TIME_TIME_ONLY |
+                                               TIME_FUZZY_DATES |
+                                               TIME_INVALID_DATES))
         return NULL;
       /*
         Replace a DATE/DATETIME constant to a TIME constant:
@@ -7845,13 +7898,36 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint copy_length, new_length;
   String_copier copier;
-  const char *tmp;
+  char *tmp;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmpstr(buff,sizeof(buff), &my_charset_bin);
 
   if (!length)
   {
     bzero(ptr,Field_blob::pack_length());
+    return 0;
+  }
+
+  if (table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
+  {
+    DBUG_ASSERT(!f_is_hex_escape(flags));
+    DBUG_ASSERT(field_charset == cs);
+    DBUG_ASSERT(length <= max_data_length());
+    
+    new_length= length;
+    copy_length= table->in_use->variables.group_concat_max_len;
+    if (new_length > copy_length)
+    {
+      int well_formed_error;
+      new_length= cs->cset->well_formed_len(cs, from, from + copy_length,
+                                            new_length, &well_formed_error);
+      table->blob_storage->set_truncated_value(true);
+    }
+    if (!(tmp= table->blob_storage->store(from, new_length)))
+      goto oom_error;
+
+    Field_blob::store_length(new_length);
+    bmove(ptr + packlength, (uchar*) &tmp, sizeof(char*));
     return 0;
   }
 
@@ -7881,15 +7957,14 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
   new_length= MY_MIN(max_data_length(), field_charset->mbmaxlen * length);
   if (value.alloc(new_length))
     goto oom_error;
-
+  tmp= const_cast<char*>(value.ptr());
 
   if (f_is_hex_escape(flags))
   {
     copy_length= my_copy_with_hex_escaping(field_charset,
-                                           (char*) value.ptr(), new_length,
-                                            from, length);
+                                           tmp, new_length,
+                                           from, length);
     Field_blob::store_length(copy_length);
-    tmp= value.ptr();
     bmove(ptr + packlength, (uchar*) &tmp, sizeof(char*));
     return 0;
   }
@@ -7897,7 +7972,6 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
                                        (char*) value.ptr(), new_length,
                                        cs, from, length);
   Field_blob::store_length(copy_length);
-  tmp= value.ptr();
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 
   return check_conversion_status(&copier, from + length, cs, true);

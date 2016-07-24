@@ -101,7 +101,7 @@ extern MY_UNICASE_INFO my_unicase_unicode520;
 */
 #define MY_UCA_MAX_WEIGHT_SIZE (8+1)               /* Including 0 terminator */
 #define MY_UCA_CONTRACTION_MAX_WEIGHT_SIZE (2*8+1) /* Including 0 terminator */
-#define MY_UCA_WEIGHT_LEVELS   1
+#define MY_UCA_WEIGHT_LEVELS   2
 
 typedef struct my_contraction_t
 {
@@ -131,6 +131,7 @@ typedef struct my_uca_level_info_st
   uchar   *lengths;
   uint16  **weights;
   MY_CONTRACTIONS contractions;
+  uint    levelno;
 } MY_UCA_WEIGHT_LEVEL;
 
 

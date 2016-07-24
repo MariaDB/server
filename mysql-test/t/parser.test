@@ -759,6 +759,22 @@ CREATE TRIGGER trigger1 BEFORE INSERT ON t1 FOR EACH ROW
 SET default_storage_engine = NEW.INNODB;
 DROP TABLE t1;
 
+#
+# MDEV-8328 Evaluation of two "!" operators depends on space in beetween
+#
+--error ER_PARSE_ERROR
+select 0==0;
+select 1=!0,  1 = ! 0;
+select !!0,     ! ! 0;
+select 2>!0,  2 > ! 0;
+select 0<=!0, 0 <= !0;
+select 1<<!0, 1 << !0;
+select 0<!0,  0 < ! 0;
+
+#
+# start of 10.1 tests
+#
+
 --echo #
 --echo # MDEV-7792 - SQL Parsing Error - UNION AND ORDER BY WITH JOIN
 --echo #

@@ -30,7 +30,7 @@
 
 /*
   Run the appropriate poll() syscall to wait for the event that libmysql
-  requested. Return which event(s) occured.
+  requested. Return which event(s) occurred.
 */
 static int
 wait_for_mysql(MYSQL *mysql, int status)

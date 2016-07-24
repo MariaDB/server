@@ -248,11 +248,24 @@ static txn_child_manager tcm;
         .xa_xid = {0, 0, 0, ""},
         .progress_poll_fun = NULL,
         .progress_poll_fun_extra = NULL,
-        .txn_lock = ZERO_MUTEX_INITIALIZER,
+
+        // You cannot initialize txn_lock a TOKU_MUTEX_INITIALIZER, because we
+        // will initialize it in the code below, and it cannot already
+        // be initialized at that point.  Also, in general, you don't
+        // get to use PTHREAD_MUTEX_INITALIZER (which is what is inside
+        // TOKU_MUTEX_INITIALIZER) except in static variables, and this
+        // is initializing an auto variable.
+        // 
+        // And we cannot simply avoid initializing these fields
+        // because, although it avoids -Wmissing-field-initializer
+        // errors under gcc, it gets other errors about non-trivial
+        // designated initializers not being supported.
+
+        .txn_lock = ZERO_MUTEX_INITIALIZER,   // Not TOKU_MUTEX_INITIALIZER
         .open_fts = open_fts,
         .roll_info = roll_info,
-        .state_lock = ZERO_MUTEX_INITIALIZER,
-        .state_cond = TOKU_COND_INITIALIZER,
+        .state_lock = ZERO_MUTEX_INITIALIZER, // Not TOKU_MUTEX_INITIALIZER
+        .state_cond = ZERO_COND_INITIALIZER,  // Not TOKU_COND_INITIALIZER
         .state = TOKUTXN_LIVE,
         .num_pin = 0,
         .client_id = 0,

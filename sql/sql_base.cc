@@ -2570,8 +2570,13 @@ retry_share:
         (void) ot_ctx->request_backoff_action(Open_table_context::OT_DISCOVER,
                                               table_list);
       else if (share->crashed)
-        (void) ot_ctx->request_backoff_action(Open_table_context::OT_REPAIR,
-                                              table_list);
+      {
+        if (!(flags & MYSQL_OPEN_IGNORE_REPAIR))
+          (void) ot_ctx->request_backoff_action(Open_table_context::OT_REPAIR,
+                                                table_list);
+        else
+          table_list->crashed= 1;  /* Mark that table was crashed */
+      }
       goto err_lock;
     }
     if (open_table_entry_fini(thd, share, table))
@@ -8563,7 +8568,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
     TODO
 
   RETURN
-    TRUE  if some error occured (e.g. out of memory)
+    TRUE  if some error occurred (e.g. out of memory)
     FALSE if all is OK
 */
 
@@ -8673,7 +8678,7 @@ err_no_arena:
     function.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -8723,7 +8728,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     value=v++;
     Field *rfield= field->field;
     TABLE* table= rfield->table;
-    if (rfield == table->next_number_field)
+    if (table->next_number_field &&
+        rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
     if (rfield->vcol_info && 
         value->type() != Item::DEFAULT_VALUE_ITEM && 
@@ -8835,7 +8841,7 @@ static bool not_null_fields_have_null_values(TABLE *table)
     record[1] buffers correspond to new and old versions of row respectively.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -8895,7 +8901,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
     function.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 
@@ -8990,7 +8996,7 @@ err:
     record[1] buffers correspond to new and old versions of row respectively.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
 */
 

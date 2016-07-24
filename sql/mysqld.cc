@@ -290,7 +290,7 @@ const char *show_comp_option_name[]= {"YES", "NO", "DISABLED"};
 
 static const char *tc_heuristic_recover_names[]=
 {
-  "COMMIT", "ROLLBACK", NullS
+  "OFF", "COMMIT", "ROLLBACK", NullS
 };
 static TYPELIB tc_heuristic_recover_typelib=
 {
@@ -3997,35 +3997,31 @@ extern "C" {
 static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
   THD *thd= current_thd;
-  /* If thread specific memory */
-  if (likely(is_thread_specific))
+
+  if (likely(is_thread_specific))  /* If thread specific memory */
   {
-    if (mysqld_server_initialized || thd)
-    {
-      /*
-        THD may not be set if we are called from my_net_init() before THD
-        thread has started.
-        However, this should never happen, so better to assert and
-        fix this.
-      */
-      DBUG_ASSERT(thd);
-      if (thd)
-      {
-        DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
-                            (longlong) thd->status_var.local_memory_used,
-                            size));
-        thd->status_var.local_memory_used+= size;
-        DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0);
-      }
-    }
+    /*
+      When thread specfic is set, both mysqld_server_initialized and thd
+      must be set
+    */
+    DBUG_ASSERT(mysqld_server_initialized && thd);
+
+    DBUG_PRINT("info", ("thd memory_used: %lld  size: %lld",
+                        (longlong) thd->status_var.local_memory_used,
+                        size));
+    thd->status_var.local_memory_used+= size;
+    DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0);
   }
   else if (likely(thd))
+  {
+    DBUG_PRINT("info", ("global thd memory_used: %lld  size: %lld",
+                        (longlong) thd->status_var.global_memory_used,
+                        size));
     thd->status_var.global_memory_used+= size;
+  }
   else
   {
-    // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
-    int64 volatile * volatile ptr=&global_status_var.global_memory_used;
-    my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
+    update_global_memory_status(size);
   }
 }
 }
@@ -4066,6 +4062,22 @@ rpl_make_log_name(const char *opt,
     DBUG_RETURN(NULL);
 }
 
+/* We have to setup my_malloc_size_cb_func early to catch all mallocs */
+
+static int init_early_variables()
+{
+  if (pthread_key_create(&THR_THD, NULL))
+  {
+    fprintf(stderr, "Fatal error: Can't create thread-keys\n");
+    return 1;
+  }
+  set_current_thd(0);
+  set_malloc_size_cb(my_malloc_size_cb_func);
+  global_status_var.global_memory_used= 0;
+  return 0;
+}
+
+
 static int init_common_variables()
 {
   umask(((~my_umask) & 0666));
@@ -4077,15 +4089,11 @@ static int init_common_variables()
   connection_errors_peer_addr= 0;
   my_decimal_set_zero(&decimal_zero); // set decimal_zero constant;
 
-  if (pthread_key_create(&THR_THD,NULL) ||
-      pthread_key_create(&THR_MALLOC,NULL))
+  if (pthread_key_create(&THR_MALLOC,NULL))
   {
     sql_print_error("Can't create thread-keys");
     return 1;
   }
-
-  set_current_thd(0);
-  set_malloc_size_cb(my_malloc_size_cb_func);
 
   init_libstrings();
   tzset();			// Set tzname
@@ -4181,14 +4189,6 @@ static int init_common_variables()
   }
   else
     opt_log_basename= glob_hostname;
-
-#ifdef WITH_WSREP
-  if (wsrep_node_name == 0 || wsrep_node_name[0] == 0)
-  {
-    my_free((void *)wsrep_node_name);
-    wsrep_node_name= my_strdup(glob_hostname, MYF(MY_WME));
-  }
-#endif /* WITH_WSREP */
 
   strmake(pidfile_name, opt_log_basename, sizeof(pidfile_name)-5);
   strmov(fn_ext(pidfile_name),".pid");		// Add proper extension
@@ -4622,6 +4622,7 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_global_system_variables,
                    &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
   mysql_mutex_record_order(&LOCK_active_mi, &LOCK_global_system_variables);
+  mysql_mutex_record_order(&LOCK_status, &LOCK_thread_count);
   mysql_rwlock_init(key_rwlock_LOCK_system_variables_hash,
                     &LOCK_system_variables_hash);
   mysql_mutex_init(key_LOCK_prepared_stmt_count,
@@ -5094,6 +5095,9 @@ static int init_server_components()
     variables even when a wsrep provider is not loaded.
   */
 
+  /* It's now safe to use thread specific memory */
+  mysqld_server_initialized= 1;
+
   wsrep_thr_init();
 
   if (WSREP_ON && !wsrep_recovery && !opt_abort) /* WSREP BEFORE SE */
@@ -5544,6 +5548,9 @@ int mysqld_main(int argc, char **argv)
   sf_leaking_memory= 1; // no safemalloc memory leak reports if we exit early
   mysqld_server_started= mysqld_server_initialized= 0;
 
+  if (init_early_variables())
+    exit(1);
+
 #ifdef HAVE_NPTL
   ld_assume_kernel_is_set= (getenv("LD_ASSUME_KERNEL") != 0);
 #endif
@@ -5845,9 +5852,6 @@ int mysqld_main(int argc, char **argv)
   Events::set_original_state(Events::opt_event_scheduler);
   if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
-
-  /* It's now safe to use thread specific memory */
-  mysqld_server_initialized= 1;
 
   if (WSREP_ON)
   {
@@ -7027,7 +7031,7 @@ pthread_handler_t handle_connections_shared_memory(void *arg)
     thd->security_ctx->host= my_strdup(my_localhost, MYF(0)); /* Host is unknown */
     create_new_thread(thd);
     connect_number++;
-    set_current_thd(thd);
+    set_current_thd(0);
     continue;
 
 errorconn:
@@ -7372,14 +7376,6 @@ struct my_option my_long_options[]=
    "Don't log extra information to update and slow-query logs.",
    &opt_short_log_format, &opt_short_log_format,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"log-slow-admin-statements", 0,
-   "Log slow OPTIMIZE, ANALYZE, ALTER and other administrative statements to "
-   "the slow log if it is open.", &opt_log_slow_admin_statements,
-   &opt_log_slow_admin_statements, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
- {"log-slow-slave-statements", 0,
-  "Log slow statements executed by slave thread to the slow log if it is open.",
-  &opt_log_slow_slave_statements, &opt_log_slow_slave_statements,
-  0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"log-tc", 0,
    "Path to transaction coordinator log (used for transactions that affect "
    "more than one storage engine, when binary log is disabled).",
@@ -8268,15 +8264,16 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff,
 
 
 static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
+                            struct system_status_var *status_var,
                             enum enum_var_type scope)
 {
   var->type= SHOW_LONGLONG;
   var->value= buff;
   if (scope == OPT_GLOBAL)
-    *(longlong*) buff= (global_status_var.local_memory_used +
-                        global_status_var.global_memory_used);
+    *(longlong*) buff= (status_var->global_memory_used +
+                        status_var->local_memory_used);
   else
-    *(longlong*) buff= thd->status_var.local_memory_used;
+    *(longlong*) buff= status_var->local_memory_used;
   return 0;
 }
 
@@ -8705,7 +8702,9 @@ static int mysql_init_variables(void)
   prepared_stmt_count= 0;
   mysqld_unix_port= opt_mysql_tmpdir= my_bind_addr_str= NullS;
   bzero((uchar*) &mysql_tmpdir_list, sizeof(mysql_tmpdir_list));
-  bzero((char *) &global_status_var, sizeof(global_status_var));
+  /* Clear all except global_memory_used */
+  bzero((char*) &global_status_var, offsetof(STATUS_VAR,
+                                             last_cleared_system_status_var));
   opt_large_pages= 0;
   opt_super_large_pages= 0;
 #if defined(ENABLED_DEBUG_SYNC)
@@ -9173,6 +9172,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       log_error_file_ptr= const_cast<char*>("");
     break;
   case OPT_IGNORE_DB_DIRECTORY:
+    opt_ignore_db_dirs= NULL; // will be set in ignore_db_dirs_process_additions
     if (*argument == 0)
       ignore_db_dirs_reset();
     else
@@ -9266,6 +9266,16 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
 #endif
     break;
   }
+#ifdef WITH_WSREP
+  case OPT_WSREP_CAUSAL_READS:
+    wsrep_causal_reads_update(&global_system_variables);
+    break;
+  case OPT_WSREP_SYNC_WAIT:
+    global_system_variables.wsrep_causal_reads=
+      MY_TEST(global_system_variables.wsrep_sync_wait &
+              WSREP_SYNC_WAIT_BEFORE_READ);
+    break;
+#endif /* WITH_WSREP */
   }
   return 0;
 }
@@ -9939,6 +9949,7 @@ void refresh_status(THD *thd)
 
   /* Reset thread's status variables */
   thd->set_status_var_init();
+  thd->status_var.global_memory_used= 0;
   bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var)); 
   thd->start_bytes_received= 0;
 

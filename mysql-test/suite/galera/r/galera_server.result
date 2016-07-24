@@ -1,0 +1,20 @@
+# On node_1
+CREATE SERVER s1
+FOREIGN DATA WRAPPER mysql
+OPTIONS (HOST 'foo');
+# On node_2
+SELECT * FROM mysql.servers;
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
+s1	foo				3306		mysql	
+ALTER SERVER s1
+OPTIONS (HOST 'bar');
+# On node_1
+SELECT * FROM mysql.servers;
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
+s1	bar				3306		mysql	
+DROP SERVER s1;
+# On node_2
+SELECT COUNT(*)=0 FROM mysql.servers;
+COUNT(*)=0
+1
+# End of test

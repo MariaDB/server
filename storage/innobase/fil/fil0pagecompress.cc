@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -447,8 +447,11 @@ fil_decompress_page(
 	byte*	buf,		/*!< out: buffer from which to read; in aio
 				this must be appropriately aligned */
 	ulong	len,		/*!< in: length of output buffer.*/
-	ulint*	write_size)	/*!< in/out: Actual payload size of
+	ulint*	write_size,	/*!< in/out: Actual payload size of
 				the compressed data. */
+	bool	return_error)	/*!< in: true if only an error should
+				be produced when decompression fails.
+				By default this parameter is false. */
 {
 	int err = 0;
 	ulint actual_size = 0;
@@ -493,6 +496,9 @@ fil_decompress_page(
 			mach_read_from_2(buf+FIL_PAGE_TYPE), len);
 
 		fflush(stderr);
+		if (return_error) {
+			goto error_return;
+		}
 		ut_error;
 	}
 
@@ -512,6 +518,9 @@ fil_decompress_page(
 			" actual size %lu compression %s.",
 			actual_size, fil_get_compression_alg_name(compression_alg));
 		fflush(stderr);
+		if (return_error) {
+			goto error_return;
+		}
 		ut_error;
 	}
 
@@ -543,6 +552,9 @@ fil_decompress_page(
 
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 		break;
@@ -559,6 +571,9 @@ fil_decompress_page(
 				err, actual_size, len);
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 		break;
@@ -577,6 +592,9 @@ fil_decompress_page(
 				olen, actual_size, len);
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 		break;
@@ -610,6 +628,9 @@ fil_decompress_page(
 				dst_pos, actual_size, len);
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 
@@ -636,6 +657,9 @@ fil_decompress_page(
 				dst_pos, actual_size, len, err);
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 		break;
@@ -661,6 +685,9 @@ fil_decompress_page(
 				olen, actual_size, len, (int)cstatus);
 			fflush(stderr);
 
+			if (return_error) {
+				goto error_return;
+			}
 			ut_error;
 		}
 		break;
@@ -674,6 +701,9 @@ fil_decompress_page(
 			,fil_get_compression_alg_name(compression_alg));
 
 		fflush(stderr);
+		if (return_error) {
+			goto error_return;
+		}
 		ut_error;
 		break;
 	}
@@ -684,6 +714,7 @@ fil_decompress_page(
 	really any other options. */
 	memcpy(buf, in_buf, len);
 
+error_return:
 	// Need to free temporal buffer if no buffer was given
 	if (page_buf == NULL) {
 		ut_free(in_buf);

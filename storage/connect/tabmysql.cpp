@@ -19,7 +19,7 @@
 /*  ---------------                                                     */
 /*    TABMYSQL.CPP   - Source code                                      */
 /*    PLGDBSEM.H     - DB application declaration file                  */
-/*    TABMYSQL.H     - TABODBC classes declaration file                 */
+/*    TABMYSQL.H     - TABMYSQL classes declaration file                */
 /*    GLOBAL.H       - Global declaration file                          */
 /*                                                                      */
 /*  REQUIRED LIBRARIES:                                                 */
@@ -334,7 +334,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     Delayed = !!GetIntCatInfo("Delayed", 0);
   } else {
     // MYSQL access from a PROXY table 
-    Database = GetStringCatInfo(g, "Database", Schema ? Schema : (char*)"*");
+    Database = GetStringCatInfo(g, "Database", Schema ? Schema : PlugDup(g, "*"));
     Isview = GetBoolCatInfo("View", false);
 
     // We must get other connection parms from the calling table
@@ -806,7 +806,7 @@ int TDBMYSQL::GetMaxSize(PGLOBAL g)
     else if (!Cardinality(NULL))
       MaxSize = 10;   // To make MySQL happy
     else if ((MaxSize = Cardinality(g)) < 0)
-      MaxSize = 12;   // So we can see an error occured
+      MaxSize = 12;   // So we can see an error occurred
 
     } // endif MaxSize
 
@@ -857,7 +857,9 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open, just replace it at its beginning.          */
     /*******************************************************************/
-    Myc.Rewind();
+		if (Myc.Rewind(g, (Mode == MODE_READX) ? Query->GetStr() : NULL) != RC_OK)
+			return true;
+
     N = -1;
     return false;
     } // endif use

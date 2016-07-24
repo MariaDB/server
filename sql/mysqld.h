@@ -1,5 +1,5 @@
-/* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+/* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -636,6 +636,10 @@ enum options_mysqld
   OPT_SSL_KEY,
   OPT_THREAD_CONCURRENCY,
   OPT_WANT_CORE,
+#ifdef WITH_WSREP
+  OPT_WSREP_CAUSAL_READS,
+  OPT_WSREP_SYNC_WAIT,
+#endif /* WITH_WSREP */
   OPT_MYSQL_COMPATIBILITY,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
   OPT_which_is_always_the_last
@@ -665,15 +669,16 @@ enum enum_query_type
   /// If NULLIF(a,b) should print itself as
   /// CASE WHEN a_for_comparison=b THEN NULL ELSE a_for_return_value END
   /// when "a" was replaced to two different items
-  /// (e.g. by equal fields propagation in optimize_cond()).
-  /// The default behaviour is to print as NULLIF(a_for_return, b)
-  /// which should be Ok for SHOW CREATE {VIEW|PROCEDURE|FUNCTION}
-  /// as they are not affected by WHERE optimization.
-  QT_ITEM_FUNC_NULLIF_TO_CASE= (1 <<6),
+  /// (e.g. by equal fields propagation in optimize_cond())
+  /// or always as NULLIF(a, b).
+  /// The default behaviour is to use CASE syntax when
+  /// a_for_return_value is not the same as a_for_comparison.
+  /// SHOW CREATE {VIEW|PROCEDURE|FUNCTION} and other cases where the
+  /// original representation is required, should set this flag.
+  QT_ITEM_ORIGINAL_FUNC_NULLIF= (1 <<6),
 
   /// This value means focus on readability, not on ability to parse back, etc.
   QT_EXPLAIN=           QT_TO_SYSTEM_CHARSET |
-                        QT_ITEM_FUNC_NULLIF_TO_CASE |
                         QT_ITEM_IDENT_SKIP_CURRENT_DATABASE |
                         QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
                         QT_ITEM_SUBSELECT_ID_ONLY,
@@ -682,7 +687,12 @@ enum enum_query_type
   /// Be more detailed than QT_EXPLAIN.
   /// Perhaps we should eventually include QT_ITEM_IDENT_SKIP_CURRENT_DATABASE
   /// here, as it would give better readable results
-  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET | QT_ITEM_FUNC_NULLIF_TO_CASE
+  QT_EXPLAIN_EXTENDED=  QT_TO_SYSTEM_CHARSET,
+
+  // If an expression is constant, print the expression, not the value
+  // it evaluates to. Should be used for error messages, so that they
+  // don't reveal values.
+  QT_NO_DATA_EXPANSION= (1 << 9),
 };
 
 

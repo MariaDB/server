@@ -61,6 +61,12 @@ help '%function_7';
 help '%category_2';
 help 'impossible_function_1';
 help 'impossible_category_1';
+
+--echo # MDEV-9524 Cannot load from mysql.event when sql_mode is set to PAD_CHAR_TO_FULL_LENGTH
+help 'impossible_function_1';
+SET sql_mode=PAD_CHAR_TO_FULL_LENGTH;
+help 'impossible_function_1';
+SET sql_mode=DEFAULT;
 ##############
 
 set sql_mode="";

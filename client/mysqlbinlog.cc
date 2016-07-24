@@ -34,6 +34,7 @@
 #define TABLE TABLE_CLIENT
 #include "client_priv.h"
 #include <my_time.h>
+#include <sslopt-vars.h>
 /* That one is necessary for defines of OPTION_NO_FOREIGN_KEY_CHECKS etc */
 #include "sql_priv.h"
 #include "log_event.h"
@@ -73,6 +74,8 @@ ulong opt_binlog_rows_event_max_size;
 uint test_flags = 0; 
 static uint opt_protocol= 0;
 static FILE *result_file;
+static char *result_file_name= 0;
+static const char *output_prefix= "";
 
 #ifndef DBUG_OFF
 static const char* default_dbug_option = "d:t:o,/tmp/mysqlbinlog.trace";
@@ -96,6 +99,8 @@ static char* database= 0;
 static my_bool force_opt= 0, short_form= 0, remote_opt= 0;
 static my_bool debug_info_flag, debug_check_flag;
 static my_bool force_if_open_opt= 1;
+static my_bool opt_raw_mode= 0, opt_stop_never= 0;
+static ulong opt_stop_never_slave_server_id= 0;
 static my_bool opt_verify_binlog_checksum= 1;
 static ulonglong offset = 0;
 static char* host = 0;
@@ -120,7 +125,6 @@ static ulonglong start_position, stop_position;
 static char *start_datetime_str, *stop_datetime_str;
 static my_time_t start_datetime= 0, stop_datetime= MY_TIME_T_MAX;
 static ulonglong rec_count= 0;
-static short binlog_flags = 0; 
 static MYSQL* mysql = NULL;
 static const char* dirname_for_local_load= 0;
 static bool opt_skip_annotate_row_events= 0;
@@ -142,7 +146,9 @@ enum Exit_status {
   /** An error occurred and execution should stop. */
   ERROR_STOP,
   /** No error occurred but execution should stop. */
-  OK_STOP
+  OK_STOP,
+  /** No error occurred - end of file reached. */
+  OK_EOF,
 };
 
 /**
@@ -1368,8 +1374,14 @@ static struct my_option my_options[] =
   {"read-from-remote-server", 'R', "Read binary logs from a MySQL server.",
    &remote_opt, &remote_opt, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
-  {"result-file", 'r', "Direct output to a given file.", 0, 0, 0, GET_STR,
-   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"raw", 0, "Requires -R. Output raw binlog data instead of SQL "
+   "statements. Output files named after server logs.",
+   &opt_raw_mode, &opt_raw_mode, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
+   0, 0},
+  {"result-file", 'r', "Direct output to a given file. With --raw this is a "
+   "prefix for the file names.",
+   &result_file_name, &result_file_name, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0},
   {"server-id", 0,
    "Extract only binlog entries created by the server having the given id.",
    &server_id, &server_id, 0, GET_ULONG,
@@ -1392,6 +1404,7 @@ static struct my_option my_options[] =
   {"socket", 'S', "The socket file to use for connection.",
    &sock, &sock, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0,
    0, 0},
+#include <sslopt-longopts.h>
   {"start-datetime", OPT_START_DATETIME,
    "Start reading the binlog at first event having a datetime equal or "
    "posterior to the argument; the argument must be a date and time "
@@ -1418,6 +1431,14 @@ static struct my_option my_options[] =
    "(you should probably use quotes for your shell to set it properly).",
    &stop_datetime_str, &stop_datetime_str,
    0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"stop-never", 0, "Wait for more data from the server "
+   "instead of stopping at the end of the last log. Implies --to-last-log.",
+   &opt_stop_never, &opt_stop_never, 0,
+   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"stop-never-slave-server-id", 0,
+   "The slave server_id used for --read-from-remote-server --stop-never.",
+   &opt_stop_never_slave_server_id, &opt_stop_never_slave_server_id, 0,
+   GET_ULONG, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"stop-position", OPT_STOP_POSITION,
    "Stop reading the binlog at position N. Applies to the last binlog "
    "passed on the command line.",
@@ -1602,6 +1623,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     DBUG_PUSH(argument ? argument : default_dbug_option);
     break;
 #endif
+#include <sslopt-case.h>
   case 'd':
     one_database = 1;
     break;
@@ -1619,10 +1641,6 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     }
     else
       tty_password=1;
-    break;
-  case 'r':
-    if (!(result_file = my_fopen(argument, O_WRONLY | O_BINARY, MYF(MY_WME))))
-      exit(1);
     break;
   case 'R':
     remote_opt= 1;
@@ -1719,7 +1737,6 @@ static int parse_args(int *argc, char*** argv)
 {
   int ho_error;
 
-  result_file = stdout;
   if ((ho_error=handle_options(argc, argv, my_options, get_one_option)))
     exit(ho_error);
   if (debug_info_flag)
@@ -1758,6 +1775,18 @@ static Exit_status safe_connect()
     error("Failed on mysql_init.");
     return ERROR_STOP;
   }
+
+#ifdef HAVE_OPENSSL
+  if (opt_use_ssl)
+  {
+    mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
+                  opt_ssl_capath, opt_ssl_cipher);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+  }
+  mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                (char*)&opt_ssl_verify_server_cert);
+#endif /*HAVE_OPENSSL*/
 
   if (opt_plugindir && *opt_plugindir)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugindir);
@@ -1809,7 +1838,8 @@ static Exit_status dump_log_entries(const char* logname)
      Set safe delimiter, to dump things
      like CREATE PROCEDURE safely
   */
-  fprintf(result_file, "DELIMITER /*!*/;\n");
+  if (!opt_raw_mode)
+    fprintf(result_file, "DELIMITER /*!*/;\n");
   strmov(print_event_info.delimiter, "/*!*/;");
   
   print_event_info.verbose= short_form ? 0 : verbose;
@@ -1818,7 +1848,8 @@ static Exit_status dump_log_entries(const char* logname)
        dump_local_log_entries(&print_event_info, logname));
 
   /* Set delimiter back to semicolon */
-  fprintf(result_file, "DELIMITER ;\n");
+  if (!opt_raw_mode)
+    fprintf(result_file, "DELIMITER ;\n");
   strmov(print_event_info.delimiter, ";");
   return rc;
 }
@@ -1924,6 +1955,247 @@ err:
 }
 
 
+static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
+                                          ulong *len,
+                                          const char* logname,
+                                          uint logname_len, my_off_t old_off)
+{
+  const char *error_msg;
+  Log_event *ev;
+  NET *net= &mysql->net;
+  DBUG_ENTER("handle_event_text_mode");
+
+  if (net->read_pos[5] == ANNOTATE_ROWS_EVENT)
+  {
+    if (!(ev= read_remote_annotate_event(net->read_pos + 1, *len - 1,
+                                         &error_msg)))
+    {
+      error("Could not construct annotate event object: %s", error_msg);
+      DBUG_RETURN(ERROR_STOP);
+    }   
+  }
+  else
+  {
+    if (!(ev= Log_event::read_log_event((const char*) net->read_pos + 1 ,
+                                        *len - 1, &error_msg,
+                                        glob_description_event,
+                                        opt_verify_binlog_checksum)))
+    {
+      error("Could not construct log event object: %s", error_msg);
+      DBUG_RETURN(ERROR_STOP);
+    }   
+    /*
+      If reading from a remote host, ensure the temp_buf for the
+      Log_event class is pointing to the incoming stream.
+    */
+    ev->register_temp_buf((char *) net->read_pos + 1, FALSE);
+  }
+
+  Log_event_type type= ev->get_type_code();
+  if (glob_description_event->binlog_version >= 3 ||
+      (type != LOAD_EVENT && type != CREATE_FILE_EVENT))
+  {
+    /*
+      If this is a Rotate event, maybe it's the end of the requested binlog;
+      in this case we are done (stop transfer).
+      This is suitable for binlogs, not relay logs (but for now we don't read
+      relay logs remotely because the server is not able to do that). If one
+      day we read relay logs remotely, then we will have a problem with the
+      detection below: relay logs contain Rotate events which are about the
+      binlogs, so which would trigger the end-detection below.
+    */
+    if (type == ROTATE_EVENT)
+    {
+      Rotate_log_event *rev= (Rotate_log_event *)ev;
+      /*
+        If this is a fake Rotate event, and not about our log, we can stop
+        transfer. If this a real Rotate event (so it's not about our log,
+        it's in our log describing the next log), we print it (because it's
+        part of our log) and then we will stop when we receive the fake one
+        soon.
+      */
+      if (rev->when == 0)
+      {
+        *len= 1; // fake Rotate, so don't increment old_off
+        if (!to_last_remote_log)
+        {
+          if ((rev->ident_len != logname_len) ||
+              memcmp(rev->new_log_ident, logname, logname_len))
+          {
+            delete ev;
+            DBUG_RETURN(OK_EOF);
+          }
+          /*
+            Otherwise, this is a fake Rotate for our log, at the very
+            beginning for sure. Skip it, because it was not in the original
+            log. If we are running with to_last_remote_log, we print it,
+            because it serves as a useful marker between binlogs then.
+          */
+          delete ev;
+          DBUG_RETURN(OK_CONTINUE);
+        }
+      }
+    }
+    else if (type == FORMAT_DESCRIPTION_EVENT)
+    {
+      /*
+        This could be an fake Format_description_log_event that server
+        (5.0+) automatically sends to a slave on connect, before sending
+        a first event at the requested position.  If this is the case,
+        don't increment old_off. Real Format_description_log_event always
+        starts from BIN_LOG_HEADER_SIZE position.
+      */
+      if (old_off != BIN_LOG_HEADER_SIZE)
+        *len= 1;         // fake event, don't increment old_off
+    }
+    Exit_status retval= process_event(print_event_info, ev, old_off, logname);
+    if (retval != OK_CONTINUE)
+      DBUG_RETURN(retval);
+  }
+  else
+  {
+    Load_log_event *le= (Load_log_event*)ev;
+    const char *old_fname= le->fname;
+    uint old_len= le->fname_len;
+    File file;
+    Exit_status retval;
+    char fname[FN_REFLEN+1];
+
+    if ((file= load_processor.prepare_new_file_for_old_format(le,fname)) < 0)
+    {
+      DBUG_RETURN(ERROR_STOP);
+    }
+
+    retval= process_event(print_event_info, ev, old_off, logname);
+    if (retval != OK_CONTINUE)
+    {
+      my_close(file,MYF(MY_WME));
+      DBUG_RETURN(retval);
+    }
+    retval= load_processor.load_old_format_file(net,old_fname,old_len,file);
+    my_close(file,MYF(MY_WME));
+    if (retval != OK_CONTINUE)
+      DBUG_RETURN(retval);
+  }
+
+  DBUG_RETURN(OK_CONTINUE);
+}
+
+
+static char out_file_name[FN_REFLEN + 1];
+
+static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
+                                         ulong *len,
+                                         const char* logname, uint logname_len)
+{
+  const char *error_msg;
+  const unsigned char *read_pos= mysql->net.read_pos + 1;
+  Log_event_type type;
+  DBUG_ENTER("handle_event_raw_mode");
+  DBUG_ASSERT(opt_raw_mode && remote_opt);
+
+  type= (Log_event_type) read_pos[EVENT_TYPE_OFFSET];
+
+  if (type == HEARTBEAT_LOG_EVENT)
+    DBUG_RETURN(OK_CONTINUE);
+
+  if (type == ROTATE_EVENT || type == FORMAT_DESCRIPTION_EVENT)
+  {
+    Log_event *ev;
+    if (!(ev= Log_event::read_log_event((const char*) read_pos ,
+                                        *len - 1, &error_msg,
+                                        glob_description_event,
+                                        opt_verify_binlog_checksum)))
+    {
+      error("Could not construct %s event object: %s",
+            type == ROTATE_EVENT ? "rotate" : "format description", error_msg);
+      DBUG_RETURN(ERROR_STOP);
+    }
+    /*
+      If reading from a remote host, ensure the temp_buf for the
+      Log_event class is pointing to the incoming stream.
+    */
+    ev->register_temp_buf((char *) read_pos, FALSE);
+
+    if (type == ROTATE_EVENT)
+    {
+      Exit_status ret_val= OK_CONTINUE;
+      Rotate_log_event *rev= (Rotate_log_event *)ev;
+      char *pe= strmake(out_file_name, output_prefix, sizeof(out_file_name)-1);
+      strmake(pe, rev->new_log_ident, sizeof(out_file_name) - (pe-out_file_name));
+
+      /*
+        If this is a fake Rotate event, and not about our log, we can stop
+        transfer. If this a real Rotate event (so it's not about our log,
+        it's in our log describing the next log), we print it (because it's
+        part of our log) and then we will stop when we receive the fake one
+        soon.
+      */
+      if (rev->when == 0)
+      {
+        if (!to_last_remote_log)
+        {
+          if ((rev->ident_len != logname_len) ||
+              memcmp(rev->new_log_ident, logname, logname_len))
+          {
+            ret_val= OK_EOF;
+          }
+          /*
+            Otherwise, this is a fake Rotate for our log, at the very
+            beginning for sure. Skip it, because it was not in the original
+            log. If we are running with to_last_remote_log, we print it,
+            because it serves as a useful marker between binlogs then.
+          */
+        }
+        *len= 1; // fake Rotate, so don't increment old_off
+        ev->temp_buf= 0;
+        delete ev;
+        DBUG_RETURN(ret_val);
+      }
+      ev->temp_buf= 0;
+      delete ev;
+    }
+    else /* if (type == FORMAT_DESCRIPTION_EVENT) */
+    {
+      DBUG_ASSERT(type == FORMAT_DESCRIPTION_EVENT);
+
+      if (result_file)
+        my_fclose(result_file, MYF(0));
+
+      if (!(result_file= my_fopen(out_file_name,
+                                  O_WRONLY | O_BINARY, MYF(MY_WME))))
+      {
+        error("Could not create output log file: %s", out_file_name);
+        DBUG_RETURN(ERROR_STOP);
+      }
+      /* TODO - add write error simulation here */
+
+      if (my_fwrite(result_file, (const uchar *) BINLOG_MAGIC,
+                    BIN_LOG_HEADER_SIZE, MYF(MY_NABP)))
+      {
+        error("Could not write into log file '%s'", out_file_name);
+        DBUG_RETURN(ERROR_STOP);
+      }
+
+      delete glob_description_event;
+      glob_description_event= (Format_description_log_event*) ev;
+      print_event_info->common_header_len=
+        glob_description_event->common_header_len;
+      ev->temp_buf= 0;
+      /* We do not want to delete the event here. */
+    }
+  }
+
+  if (my_fwrite(result_file, read_pos, *len - 1, MYF(MY_NABP)))
+  {
+    error("Could not write into log file '%s'", out_file_name);
+    DBUG_RETURN(ERROR_STOP);
+  }
+
+  DBUG_RETURN(OK_CONTINUE);
+}
+
+
 /**
   Requests binlog dump from a remote server and prints the events it
   receives.
@@ -1946,8 +2218,9 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
   uint logname_len;
   NET* net;
   my_off_t old_off= start_position_mot;
-  char fname[FN_REFLEN+1];
   Exit_status retval= OK_CONTINUE;
+  short binlog_flags = 0; 
+  ulong slave_id;
   DBUG_ENTER("dump_remote_log_entries");
 
   /*
@@ -1970,6 +2243,9 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
   int4store(buf, (uint32)start_position);
   if (!opt_skip_annotate_row_events)
     binlog_flags|= BINLOG_SEND_ANNOTATE_ROWS_EVENT;
+  if (!opt_stop_never)
+    binlog_flags|= BINLOG_DUMP_NON_BLOCK;
+
   int2store(buf + BIN_LOG_HEADER_SIZE, binlog_flags);
 
   size_t tlen = strlen(logname);
@@ -1979,7 +2255,15 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
     DBUG_RETURN(ERROR_STOP);
   }
   logname_len = (uint) tlen;
-  int4store(buf + 6, 0);
+  if (opt_stop_never)
+  {
+    DBUG_ASSERT(to_last_remote_log);
+    slave_id= (opt_stop_never_slave_server_id == 0) ?
+                1 : opt_stop_never_slave_server_id;
+  }
+  else
+    slave_id= 0;
+  int4store(buf + 6, slave_id);
   memcpy(buf + 10, logname, logname_len);
   if (simple_command(mysql, COM_BINLOG_DUMP, buf, logname_len + 10, 1))
   {
@@ -1989,9 +2273,6 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
 
   for (;;)
   {
-    const char *error_msg;
-    Log_event *ev;
-
     len= cli_safe_read(mysql);
     if (len == packet_error)
     {
@@ -2002,117 +2283,23 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
       break; // end of data
     DBUG_PRINT("info",( "len: %lu  net->read_pos[5]: %d\n",
 			len, net->read_pos[5]));
-    if (net->read_pos[5] == ANNOTATE_ROWS_EVENT)
+    if (opt_raw_mode)
     {
-      if (!(ev= read_remote_annotate_event(net->read_pos + 1, len - 1,
-                                           &error_msg)))
-      {
-        error("Could not construct annotate event object: %s", error_msg);
-        DBUG_RETURN(ERROR_STOP);
-      }   
+      retval= handle_event_raw_mode(print_event_info, &len,
+                                    logname, logname_len);
     }
     else
     {
-      if (!(ev= Log_event::read_log_event((const char*) net->read_pos + 1 ,
-                                          len - 1, &error_msg,
-                                          glob_description_event,
-                                          opt_verify_binlog_checksum)))
-      {
-        error("Could not construct log event object: %s", error_msg);
-        DBUG_RETURN(ERROR_STOP);
-      }   
-      /*
-        If reading from a remote host, ensure the temp_buf for the
-        Log_event class is pointing to the incoming stream.
-      */
-      ev->register_temp_buf((char *) net->read_pos + 1, FALSE);
+      retval= handle_event_text_mode(print_event_info, &len,
+                                     logname, logname_len, old_off);
     }
-
-    Log_event_type type= ev->get_type_code();
-    if (glob_description_event->binlog_version >= 3 ||
-        (type != LOAD_EVENT && type != CREATE_FILE_EVENT))
+    if (retval != OK_CONTINUE)
     {
-      /*
-        If this is a Rotate event, maybe it's the end of the requested binlog;
-        in this case we are done (stop transfer).
-        This is suitable for binlogs, not relay logs (but for now we don't read
-        relay logs remotely because the server is not able to do that). If one
-        day we read relay logs remotely, then we will have a problem with the
-        detection below: relay logs contain Rotate events which are about the
-        binlogs, so which would trigger the end-detection below.
-      */
-      if (type == ROTATE_EVENT)
-      {
-        Rotate_log_event *rev= (Rotate_log_event *)ev;
-        /*
-          If this is a fake Rotate event, and not about our log, we can stop
-          transfer. If this a real Rotate event (so it's not about our log,
-          it's in our log describing the next log), we print it (because it's
-          part of our log) and then we will stop when we receive the fake one
-          soon.
-        */
-        if (rev->when == 0)
-        {
-          if (!to_last_remote_log)
-          {
-            if ((rev->ident_len != logname_len) ||
-                memcmp(rev->new_log_ident, logname, logname_len))
-            {
-              delete ev;
-              DBUG_RETURN(OK_CONTINUE);
-            }
-            /*
-              Otherwise, this is a fake Rotate for our log, at the very
-              beginning for sure. Skip it, because it was not in the original
-              log. If we are running with to_last_remote_log, we print it,
-              because it serves as a useful marker between binlogs then.
-            */
-            delete ev;
-            continue;
-          }
-          len= 1; // fake Rotate, so don't increment old_off
-        }
-      }
-      else if (type == FORMAT_DESCRIPTION_EVENT)
-      {
-        /*
-          This could be an fake Format_description_log_event that server
-          (5.0+) automatically sends to a slave on connect, before sending
-          a first event at the requested position.  If this is the case,
-          don't increment old_off. Real Format_description_log_event always
-          starts from BIN_LOG_HEADER_SIZE position.
-        */
-        if (old_off != BIN_LOG_HEADER_SIZE)
-          len= 1;         // fake event, don't increment old_off
-      }
-      Exit_status retval= process_event(print_event_info, ev, old_off, logname);
-      if (retval != OK_CONTINUE)
-        DBUG_RETURN(retval);
+      if (retval == OK_EOF)
+        break;
+      DBUG_RETURN(retval);
     }
-    else
-    {
-      Load_log_event *le= (Load_log_event*)ev;
-      const char *old_fname= le->fname;
-      uint old_len= le->fname_len;
-      File file;
-      Exit_status retval;
 
-      if ((file= load_processor.prepare_new_file_for_old_format(le,fname)) < 0)
-      {
-        DBUG_RETURN(ERROR_STOP);
-      }
-
-      retval= process_event(print_event_info, ev, old_off, logname);
-      if (retval != OK_CONTINUE)
-      {
-        my_close(file,MYF(MY_WME));
-        DBUG_RETURN(retval);
-      }
-      retval= load_processor.load_old_format_file(net,old_fname,old_len,file);
-      my_close(file,MYF(MY_WME));
-      if (retval != OK_CONTINUE)
-        DBUG_RETURN(retval);
-    }
     /*
       Let's adjust offset for remote log as for local log to produce
       similar text and to have --stop-position to work identically.
@@ -2499,6 +2686,43 @@ int main(int argc, char** argv)
 
   my_set_max_open_files(open_files_limit);
 
+  if (opt_stop_never)
+    to_last_remote_log= TRUE;
+
+  if (opt_raw_mode)
+  {
+    if (!remote_opt)
+    {
+      error("The --raw mode only works with --read-from-remote-server");
+      exit(1);
+    }
+    if (one_database)
+      warning("The --database option is ignored in raw mode");
+
+    if (stop_position != (ulonglong)(~(my_off_t)0))
+      warning("The --stop-position option is ignored in raw mode");
+
+    if (stop_datetime != MY_TIME_T_MAX)
+      warning("The --stop-datetime option is ignored in raw mode");
+    result_file= 0;
+    if (result_file_name)
+      output_prefix= result_file_name;
+  }
+  else
+  {
+    if (result_file_name)
+    {
+      if (!(result_file= my_fopen(result_file_name,
+                                  O_WRONLY | O_BINARY, MYF(MY_WME))))
+      {
+        error("Could not create log file '%s'", result_file_name);
+        exit(1);
+      }
+    }
+    else
+      result_file= stdout;
+  }
+
   MY_TMPDIR tmpdir;
   tmpdir.list= 0;
   if (!dirname_for_local_load)
@@ -2521,29 +2745,32 @@ int main(int argc, char** argv)
   else
     load_processor.init_by_cur_dir();
 
-  fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;\n");
+  if (!opt_raw_mode)
+  {
+    fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;\n");
 
-  fprintf(result_file,
-	  "/*!40019 SET @@session.max_insert_delayed_threads=0*/;\n");
-
-  if (disable_log_bin)
     fprintf(result_file,
-            "/*!32316 SET @OLD_SQL_LOG_BIN=@@SQL_LOG_BIN, SQL_LOG_BIN=0*/;\n");
+	    "/*!40019 SET @@session.max_insert_delayed_threads=0*/;\n");
 
-  /*
-    In mysqlbinlog|mysql, don't want mysql to be disconnected after each
-    transaction (which would be the case with GLOBAL.COMPLETION_TYPE==2).
-  */
-  fprintf(result_file,
-          "/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,"
-          "COMPLETION_TYPE=0*/;\n");
+    if (disable_log_bin)
+      fprintf(result_file,
+              "/*!32316 SET @OLD_SQL_LOG_BIN=@@SQL_LOG_BIN, SQL_LOG_BIN=0*/;\n");
 
-  if (charset)
+    /*
+      In mysqlbinlog|mysql, don't want mysql to be disconnected after each
+      transaction (which would be the case with GLOBAL.COMPLETION_TYPE==2).
+    */
     fprintf(result_file,
-            "\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
-            "\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
-            "\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"  
-            "\n/*!40101 SET NAMES %s */;\n", charset);
+            "/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,"
+            "COMPLETION_TYPE=0*/;\n");
+
+    if (charset)
+      fprintf(result_file,
+              "\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
+              "\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
+              "\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"  
+              "\n/*!40101 SET NAMES %s */;\n", charset);
+  }
 
   for (save_stop_position= stop_position, stop_position= ~(my_off_t)0 ;
        (--argc >= 0) ; )
@@ -2557,27 +2784,30 @@ int main(int argc, char** argv)
     start_position= BIN_LOG_HEADER_SIZE;
   }
 
-  /*
-    Issue a ROLLBACK in case the last printed binlog was crashed and had half
-    of transaction.
-  */
-  fprintf(result_file,
-          "# End of log file\nROLLBACK /* added by mysqlbinlog */;\n"
-          "/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;\n");
-  if (disable_log_bin)
-    fprintf(result_file, "/*!32316 SET SQL_LOG_BIN=@OLD_SQL_LOG_BIN*/;\n");
-
-  if (charset)
+  if (!opt_raw_mode)
+  {
+    /*
+      Issue a ROLLBACK in case the last printed binlog was crashed and had half
+      of transaction.
+    */
     fprintf(result_file,
-            "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n"
-            "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n"
-            "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
+            "# End of log file\nROLLBACK /* added by mysqlbinlog */;\n"
+            "/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;\n");
+    if (disable_log_bin)
+      fprintf(result_file, "/*!32316 SET SQL_LOG_BIN=@OLD_SQL_LOG_BIN*/;\n");
 
-  fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;\n");
+    if (charset)
+      fprintf(result_file,
+              "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n"
+              "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n"
+              "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
+
+    fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;\n");
+  }
 
   if (tmpdir.list)
     free_tmpdir(&tmpdir);
-  if (result_file != stdout)
+  if (result_file && result_file != stdout)
     my_fclose(result_file, MYF(0));
   cleanup();
   free_annotate_event();

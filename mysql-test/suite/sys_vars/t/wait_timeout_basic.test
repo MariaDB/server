@@ -203,6 +203,20 @@ SELECT session.wait_timeout;
 --Error ER_BAD_FIELD_ERROR
 SELECT wait_timeout = @@session.wait_timeout;
 
+--echo #
+--echo # MDEV-9516 type error when setting session variable
+--echo #
+
+SET SESSION wait_timeout= 28000;
+SET SESSION wait_timeout= GREATEST(28000, @@wait_timeout);
+SET SESSION wait_timeout= COALESCE(28000, @@wait_timeout);
+SET SESSION wait_timeout= IFNULL(28000, @@wait_timeout);
+SET SESSION wait_timeout= CASE WHEN TRUE THEN 28000 ELSE @@wait_timeout END;
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET SESSION wait_timeout= 28000.0;
+--error ER_WRONG_TYPE_FOR_VAR
+SET SESSION wait_timeout= 28000.1;
 
 ####################################
 #     Restore initial value        #

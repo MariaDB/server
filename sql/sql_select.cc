@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2015 Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2016 Oracle and/or its affiliates.
    Copyright (c) 2009, 2016 MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -454,7 +454,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
     this field from inner subqueries.
 
   @return Status
-  @retval true An error occured.
+  @retval true An error occurred.
   @retval false OK.
  */
 
@@ -694,7 +694,7 @@ JOIN::prepare(Item ***rref_pointer_array,
   DBUG_ENTER("JOIN::prepare");
 
   // to prevent double initialization on EXPLAIN
-  if (optimized)
+  if (optimization_state != JOIN::NOT_OPTIMIZED)
     DBUG_RETURN(0);
 
   conds= conds_init;
@@ -1032,24 +1032,13 @@ err:
 
 int JOIN::optimize()
 {
-  bool was_optimized= optimized;
+  // to prevent double initialization on EXPLAIN
+  if (optimization_state != JOIN::NOT_OPTIMIZED)
+    return FALSE;
+  optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+
   int res= optimize_inner();
-  /*
-    If we're inside a non-correlated subquery, this function may be 
-    called for the second time after the subquery has been executed
-    and deleted. The second call will not produce a valid query plan, it will
-    short-circuit because optimized==TRUE.
-
-    "was_optimized != optimized" is here to handle this case:
-      - first optimization starts, gets an error (from a const. cheap
-        subquery), returns 1
-      - another JOIN::optimize() call made, and now join->optimize() will
-        return 0, even though we never had a query plan.
-
-    Can have QEP_NOT_PRESENT_YET for degenerate queries (for example,
-    SELECT * FROM tbl LIMIT 0)
-  */
-  if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
+  if (!res && have_query_plan != QEP_DELETED)
   {
     create_explain_query_if_not_exists(thd->lex, thd->mem_root);
     have_query_plan= QEP_AVAILABLE;
@@ -1058,6 +1047,7 @@ int JOIN::optimize()
                       !skip_sort_order && !no_order && (order || group_list),
                       select_distinct);
   }
+  optimization_state= JOIN::OPTIMIZATION_DONE;
   return res;
 }
 
@@ -1083,10 +1073,6 @@ JOIN::optimize_inner()
   DBUG_ENTER("JOIN::optimize");
 
   do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
-  // to prevent double initialization on EXPLAIN
-  if (optimized)
-    DBUG_RETURN(0);
-  optimized= 1;
   DEBUG_SYNC(thd, "before_join_optimize");
 
   THD_STAGE_INFO(thd, stage_optimizing);
@@ -2060,7 +2046,7 @@ int JOIN::init_execution()
 {
   DBUG_ENTER("JOIN::init_execution");
 
-  DBUG_ASSERT(optimized);
+  DBUG_ASSERT(optimization_state == JOIN::OPTIMIZATION_DONE);
   DBUG_ASSERT(!(select_options & SELECT_DESCRIBE));
   initialized= true;
 
@@ -12327,7 +12313,50 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
 	    DBUG_PRINT("info",("removing: %s", order->item[0]->full_name()));
 	    continue;
 	  }
-	  *simple_order=0;			// Must do a temp table to sort
+          /*
+            UseMultipleEqualitiesToRemoveTempTable:
+            Can use multiple-equalities here to check that ORDER BY columns
+            can be used without tmp. table.
+          */
+          bool can_subst_to_first_table= false;
+          if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP) &&
+              first_is_base_table &&
+              order->item[0]->real_item()->type() == Item::FIELD_ITEM &&
+              join->cond_equal)
+          {
+            table_map first_table_bit=
+              join->join_tab[join->const_tables].table->map;
+
+            Item *item= order->item[0];
+
+            /*
+              TODO: equality substitution in the context of ORDER BY is 
+              sometimes allowed when it is not allowed in the general case.
+              
+              We make the below call for its side effect: it will locate the
+              multiple equality the item belongs to and set item->item_equal
+              accordingly.
+            */
+            Item *res= item->propagate_equal_fields(join->thd,
+                                                    Value_source::
+                                                    Context_identity(),
+                                                    join->cond_equal);
+            Item_equal *item_eq;
+            if ((item_eq= res->get_item_equal()))
+            {
+              Item *first= item_eq->get_first(NO_PARTICULAR_TAB, NULL);
+              if (first->const_item() || first->used_tables() ==
+                                         first_table_bit)
+              {
+                can_subst_to_first_table= true;
+              }
+            }
+          }
+
+          if (!can_subst_to_first_table)
+          {
+            *simple_order=0;			// Must do a temp table to sort
+          }
 	}
       }
     }
@@ -12976,7 +13005,7 @@ bool Item_func_eq::check_equality(THD *thd, COND_EQUAL *cond_equal,
     equality predicates that is equivalent to the conjunction.
     Thus, =(a1,a2,a3) can substitute for ((a1=a3) AND (a2=a3) AND (a2=a1)) as
     it is equivalent to ((a1=a2) AND (a2=a3)).
-    The function always makes a substitution of all equality predicates occured
+    The function always makes a substitution of all equality predicates occurred
     in a conjuction for a minimal set of multiple equality predicates.
     This set can be considered as a canonical representation of the
     sub-conjunction of the equality predicates.
@@ -14418,6 +14447,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       if (table->outer_join && !table->embedding && table->table)
         table->table->maybe_null= FALSE;
       table->outer_join= 0;
+      if (!(straight_join || table->straight))
+        table->dep_tables= table->embedding? table->embedding->dep_tables: 0;
       if (table->on_expr)
       {
         /* Add ON expression to the WHERE or upper-level ON condition. */
@@ -15751,8 +15782,6 @@ const_expression_in_where(COND *cond, Item *comp_item, Field *comp_field,
                       the record in the original table.
                       If item == NULL then fill_record() will update
                       the temporary table
-  @param convert_blob_length   If >0 create a varstring(convert_blob_length)
-                               field instead of blob.
 
   @retval
     NULL		on error
@@ -15762,23 +15791,12 @@ const_expression_in_where(COND *cond, Item *comp_item, Field *comp_field,
 
 Field *create_tmp_field_from_field(THD *thd, Field *org_field,
                                    const char *name, TABLE *table,
-                                   Item_field *item, uint convert_blob_length)
+                                   Item_field *item)
 {
   Field *new_field;
 
-  /* 
-    Make sure that the blob fits into a Field_varstring which has 
-    2-byte lenght. 
-  */
-  if (convert_blob_length && convert_blob_length <= Field_varstring::MAX_SIZE &&
-      (org_field->flags & BLOB_FLAG))
-    new_field= new Field_varstring(convert_blob_length,
-                                   org_field->maybe_null(),
-                                   org_field->field_name, table->s,
-                                   org_field->charset());
-  else
-    new_field= org_field->make_new_field(thd->mem_root, table,
-                                         table == org_field->table);
+  new_field= org_field->make_new_field(thd->mem_root, table,
+                                       table == org_field->table);
   if (new_field)
   {
     new_field->init(table);
@@ -15805,6 +15823,60 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
   return new_field;
 }
 
+
+Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
+{
+  Field *UNINIT_VAR(new_field);
+  MEM_ROOT *mem_root= table->in_use->mem_root;
+
+  switch (cmp_type()) {
+  case REAL_RESULT:
+    new_field= new (mem_root)
+      Field_double(max_length, maybe_null, name, decimals, TRUE);
+    break;
+  case INT_RESULT:
+    /*
+      Select an integer type with the minimal fit precision.
+      convert_int_length is sign inclusive, don't consider the sign.
+    */
+    if (max_char_length() > convert_int_length)
+      new_field= new (mem_root)
+        Field_longlong(max_char_length(), maybe_null, name, unsigned_flag);
+    else
+      new_field= new (mem_root)
+        Field_long(max_char_length(), maybe_null, name, unsigned_flag);
+    break;
+  case TIME_RESULT:
+    new_field= tmp_table_field_from_field_type(table, true, false);
+    break;
+  case STRING_RESULT:
+    DBUG_ASSERT(collation.collation);
+    /*
+      GEOMETRY fields have STRING_RESULT result type.
+      To preserve type they needed to be handled separately.
+    */
+    if (field_type() == MYSQL_TYPE_GEOMETRY)
+      new_field= tmp_table_field_from_field_type(table, true, false);
+    else
+      new_field= make_string_field(table);
+    new_field->set_derivation(collation.derivation, collation.repertoire);
+    break;
+  case DECIMAL_RESULT:
+    new_field= Field_new_decimal::create_from_item(mem_root, this);
+    break;
+  case ROW_RESULT:
+    // This case should never be choosen
+    DBUG_ASSERT(0);
+    new_field= 0;
+    break;
+  }
+  if (new_field)
+    new_field->init(table);
+  return new_field;
+}
+
+
+
 /**
   Create field for temporary table using type of given item.
 
@@ -15820,8 +15892,6 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
                                update the record in the original table.
                                If modify_item is 0 then fill_record() will
                                update the temporary table
-  @param convert_blob_length   If >0 create a varstring(convert_blob_length)
-                               field instead of blob.
 
   @retval
     0  on error
@@ -15830,72 +15900,11 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
 */
 
 static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
-                                         Item ***copy_func, bool modify_item,
-                                         uint convert_blob_length)
+                                         Item ***copy_func, bool modify_item)
 {
-  bool maybe_null= item->maybe_null;
   Field *UNINIT_VAR(new_field);
-  MEM_ROOT *mem_root= thd->mem_root;
-
-  switch (item->result_type()) {
-  case REAL_RESULT:
-    new_field= new (mem_root)
-      Field_double(item->max_length, maybe_null,
-                   item->name, item->decimals, TRUE);
-    break;
-  case INT_RESULT:
-    /* 
-      Select an integer type with the minimal fit precision.
-      MY_INT32_NUM_DECIMAL_DIGITS is sign inclusive, don't consider the sign.
-      Values with MY_INT32_NUM_DECIMAL_DIGITS digits may or may not fit into 
-      Field_long : make them Field_longlong.  
-    */
-    if (item->max_length >= (MY_INT32_NUM_DECIMAL_DIGITS - 1))
-      new_field=new (mem_root)
-        Field_longlong(item->max_length, maybe_null,
-                       item->name, item->unsigned_flag);
-    else
-      new_field=new (mem_root)
-        Field_long(item->max_length, maybe_null, item->name,
-                   item->unsigned_flag);
-    break;
-  case STRING_RESULT:
-    DBUG_ASSERT(item->collation.collation);
-  
-    /*
-      DATE/TIME and GEOMETRY fields have STRING_RESULT result type. 
-      To preserve type they needed to be handled separately.
-    */
-    if (item->cmp_type() == TIME_RESULT ||
-        item->field_type() == MYSQL_TYPE_GEOMETRY)
-      new_field= item->tmp_table_field_from_field_type(table, true, false);
-    /* 
-      Make sure that the blob fits into a Field_varstring which has 
-      2-byte lenght. 
-    */
-    else if (item->max_length/item->collation.collation->mbmaxlen > 255 &&
-             convert_blob_length <= Field_varstring::MAX_SIZE && 
-             convert_blob_length)
-      new_field= new (mem_root)
-        Field_varstring(convert_blob_length, maybe_null,
-                        item->name, table->s,
-                        item->collation.collation);
-    else
-      new_field= item->make_string_field(table);
-    new_field->set_derivation(item->collation.derivation);
-    break;
-  case DECIMAL_RESULT:
-    new_field= Field_new_decimal::create_from_item(mem_root, item);
-    break;
-  case ROW_RESULT:
-  default:
-    // This case should never be choosen
-    DBUG_ASSERT(0);
-    new_field= 0;
-    break;
-  }
-  if (new_field)
-    new_field->init(table);
+  DBUG_ASSERT(thd == table->in_use);
+  new_field= item->Item::create_tmp_field(false, table);
     
   if (copy_func && item->real_item()->is_result_field())
     *((*copy_func)++) = item;			// Save for copy_funcs
@@ -15958,8 +15967,6 @@ Field *Item::create_field_for_schema(THD *thd, TABLE *table)
                        the record in the original table.
                        If modify_item is 0 then fill_record() will update
                        the temporary table
-  @param convert_blob_length If >0 create a varstring(convert_blob_length)
-                             field instead of blob.
 
   @retval
     0			on error
@@ -15972,8 +15979,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                         Field **default_field,
                         bool group, bool modify_item,
                         bool table_cant_handle_bit_fields,
-                        bool make_copy_field,
-                        uint convert_blob_length)
+                        bool make_copy_field)
 {
   Field *result;
   Item::Type orig_type= type;
@@ -15990,8 +15996,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   switch (type) {
   case Item::SUM_FUNC_ITEM:
   {
-    Item_sum *item_sum=(Item_sum*) item;
-    result= item_sum->create_tmp_field(group, table, convert_blob_length);
+    result= item->create_tmp_field(group, table);
     if (!result)
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
     return result;
@@ -16027,7 +16032,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
         item->maybe_null= orig_item->maybe_null;
       }
       result= create_tmp_field_from_item(thd, item, table, NULL,
-                                         modify_item, convert_blob_length);
+                                         modify_item);
       *from_field= field->field;
       if (result && modify_item)
         field->result_field= result;
@@ -16039,7 +16044,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
     {
       *from_field= field->field;
       result= create_tmp_field_from_item(thd, item, table, copy_func,
-                                        modify_item, convert_blob_length);
+                                         modify_item);
       if (result && modify_item)
         field->result_field= result;
     }
@@ -16049,8 +16054,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                                           item->name,
                                           table,
                                           modify_item ? field :
-                                          NULL,
-                                          convert_blob_length);
+                                          NULL);
     if (orig_type == Item::REF_ITEM && orig_modify)
       ((Item_ref*)orig_item)->set_result_field(result);
     /*
@@ -16084,8 +16088,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                                     sp_result_field,
                                     item_func_sp->name,
                                     table,
-                                    NULL,
-                                    convert_blob_length);
+                                    NULL);
 
       if (modify_item)
         item->set_result_field(result_field);
@@ -16117,10 +16120,11 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
     }
     return create_tmp_field_from_item(thd, item, table,
                                       (make_copy_field ? 0 : copy_func),
-                                       modify_item, convert_blob_length);
+                                       modify_item);
   case Item::TYPE_HOLDER:  
     result= ((Item_type_holder *)item)->make_field_by_type(table);
-    result->set_derivation(item->collation.derivation);
+    result->set_derivation(item->collation.derivation,
+                           item->collation.repertoire);
     return result;
   default:					// Dosen't have to be stored
     return 0;
@@ -16420,8 +16424,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
             create_tmp_field(thd, table, arg, arg->type(), &copy_func,
                              tmp_from_field, &default_field[fieldnr],
                              group != 0,not_all_columns,
-                             distinct, 0,
-                             param->convert_blob_length);
+                             distinct, false);
 	  if (!new_field)
 	    goto err;					// Should be OOM
 	  tmp_from_field++;
@@ -16491,8 +16494,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                            to be usable in this case too.
                          */
                          item->marker == 4  || param->bit_fields_as_long,
-                         force_copy_fields,
-                         param->convert_blob_length);
+                         force_copy_fields);
 
       if (!new_field)
       {
@@ -20360,6 +20362,8 @@ part_of_refkey(TABLE *table,Field *field)
 /**
   Test if one can use the key to resolve ORDER BY.
 
+  @param join                  if not NULL, can use the join's top-level
+                               multiple-equalities.
   @param order                 Sort order
   @param table                 Table to sort
   @param idx                   Index to check
@@ -20382,7 +20386,8 @@ part_of_refkey(TABLE *table,Field *field)
     -1   Reverse key can be used
 */
 
-static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
+static int test_if_order_by_key(JOIN *join,
+                                ORDER *order, TABLE *table, uint idx,
 				uint *used_key_parts= NULL)
 {
   KEY_PART_INFO *key_part,*key_part_end;
@@ -20405,7 +20410,8 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
 
   for (; order ; order=order->next, const_key_parts>>=1)
   {
-    Field *field=((Item_field*) (*order->item)->real_item())->field;
+    Item_field *item_field= ((Item_field*) (*order->item)->real_item());
+    Field *field= item_field->field;
     int flag;
 
     /*
@@ -20447,6 +20453,17 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
       DBUG_RETURN(0);
     }
 
+    if (key_part->field != field)
+    {
+      /*
+        Check if there is a multiple equality that allows to infer that field
+        and key_part->field are equal 
+        (see also: compute_part_of_sort_key_for_equals)
+      */
+      if (item_field->item_equal && 
+          item_field->item_equal->contains(key_part->field))
+        field= key_part->field;
+    }
     if (key_part->field != field || !field->part_of_sortkey.is_set(idx))
       DBUG_RETURN(0);
 
@@ -20574,7 +20591,7 @@ test_if_subkey(ORDER *order, TABLE *table, uint ref, uint ref_key_parts,
 	table->key_info[nr].user_defined_key_parts >= ref_key_parts &&
 	is_subkey(table->key_info[nr].key_part, ref_key_part,
 		  ref_key_part_end) &&
-	test_if_order_by_key(order, table, nr))
+	test_if_order_by_key(NULL, order, table, nr))
     {
       min_length= table->key_info[nr].key_length;
       best= nr;
@@ -20713,6 +20730,71 @@ find_field_in_item_list (Field *field, void *data)
 }
 
 
+/*
+  Fill *col_keys with a union of Field::part_of_sortkey of all fields
+  that belong to 'table' and are equal to 'item_field'.
+*/
+
+void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
+                                         Item_field *item_field,
+                                         key_map *col_keys)
+{
+  col_keys->clear_all();
+  col_keys->merge(item_field->field->part_of_sortkey);
+  
+  if (!optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP))
+    return;
+
+  Item_equal *item_eq= NULL;
+
+  if (item_field->item_equal)
+  {
+    /* 
+      The item_field is from ORDER structure, but it already has an item_equal
+      pointer set (UseMultipleEqualitiesToRemoveTempTable code have set it)
+    */
+    item_eq= item_field->item_equal;
+  }
+  else
+  {
+    /* 
+      Walk through join's muliple equalities and find the one that contains
+      item_field.
+    */
+    if (!join->cond_equal)
+      return;
+    table_map needed_tbl_map= item_field->used_tables() | table->map;
+    List_iterator<Item_equal> li(join->cond_equal->current_level);
+    Item_equal *cur_item_eq;
+    while ((cur_item_eq= li++))
+    {
+      if ((cur_item_eq->used_tables() & needed_tbl_map) &&
+          cur_item_eq->contains(item_field->field))
+      {
+        item_eq= cur_item_eq;
+        item_field->item_equal= item_eq; // Save the pointer to our Item_equal.
+        break;
+      }
+    }
+  }
+  
+  if (item_eq)
+  {
+    Item_equal_fields_iterator it(*item_eq);
+    Item *item;
+    /* Loop through other members that belong to table table */
+    while ((item= it++))
+    {
+      if (item->type() == Item::FIELD_ITEM &&
+          ((Item_field*)item)->field->table == table)
+      {
+        col_keys->merge(((Item_field*)item)->field->part_of_sortkey);
+      }
+    }
+  }
+}
+
+
 /**
   Test if we can skip the ORDER BY by using an index.
 
@@ -20769,7 +20851,27 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       usable_keys.clear_all();
       DBUG_RETURN(0);
     }
-    usable_keys.intersect(((Item_field*) item)->field->part_of_sortkey);
+
+    /*
+      Take multiple-equalities into account. Suppose we have
+        ORDER BY col1, col10
+      and there are
+         multiple-equal(col1, col2, col3),
+         multiple-equal(col10, col11).
+
+      Then, 
+      - when item=col1, we find the set of indexes that cover one of {col1,
+        col2, col3}
+      - when item=col10, we find the set of indexes that cover one of {col10,
+        col11}
+
+      And we compute an intersection of these sets to find set of indexes that
+      cover all ORDER BY components.
+    */
+    key_map col_keys;
+    compute_part_of_sort_key_for_equals(tab->join, table, (Item_field*)item,
+                                        &col_keys);
+    usable_keys.intersect(col_keys);
     if (usable_keys.is_clear_all())
       goto use_filesort;                        // No usable keys
   }
@@ -20927,7 +21029,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     }
     /* Check if we get the rows in requested sorted order by using the key */
     if (usable_keys.is_set(ref_key) &&
-        (order_direction= test_if_order_by_key(order,table,ref_key,
+        (order_direction= test_if_order_by_key(tab->join, order,table,ref_key,
 					       &used_key_parts)))
       goto check_reverse_order;
   }
@@ -21307,8 +21409,11 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   for (ORDER *ord= join->order; ord; ord= ord->next)
     length++;
   if (!(join->sortorder= 
-        make_unireg_sortorder(thd, order, &length, join->sortorder)))
+        make_unireg_sortorder(thd, join, tab->table->map, order, &length,
+                              join->sortorder)))
+  {
     goto err;				/* purecov: inspected */
+  }
 
   table->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
                                              MYF(MY_WME | MY_ZEROFILL|
@@ -21726,7 +21831,9 @@ err:
 }
 
 
-SORT_FIELD *make_unireg_sortorder(THD *thd, ORDER *order, uint *length,
+SORT_FIELD *make_unireg_sortorder(THD *thd, JOIN *join,
+                                  table_map first_table_bit,
+                                  ORDER *order, uint *length,
                                   SORT_FIELD *sortorder)
 {
   uint count;
@@ -21746,7 +21853,30 @@ SORT_FIELD *make_unireg_sortorder(THD *thd, ORDER *order, uint *length,
 
   for (;order;order=order->next,pos++)
   {
-    Item *const item= order->item[0], *const real_item= item->real_item();
+    Item *first= order->item[0];
+    /*
+      It is possible that the query plan is to read table t1, while the
+      sort criteria actually has "ORDER BY t2.col" and the WHERE clause has 
+      a multi-equality(t1.col, t2.col, ...).  
+      The optimizer detects such cases (grep for
+      UseMultipleEqualitiesToRemoveTempTable to see where), but doesn't 
+      perform equality substitution in the order->item. We need to do the
+      substitution here ourselves.
+    */
+    table_map item_map= first->used_tables();
+    if (join && (item_map & ~join->const_table_map) &&
+        !(item_map & first_table_bit) && join->cond_equal &&
+         first->get_item_equal())
+    {
+      /*
+        Ok, this is the case descibed just above. Get the first element of the
+        multi-equality.
+      */
+      Item_equal *item_eq= first->get_item_equal();
+      first= item_eq->get_first(NO_PARTICULAR_TAB, NULL);
+    }
+
+    Item *const item= first, *const real_item= item->real_item();
     pos->field= 0; pos->item= 0;
     if (real_item->type() == Item::FIELD_ITEM)
     {
@@ -21908,7 +22038,11 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
   */
   if (order_item->type() == Item::INT_ITEM && order_item->basic_const_item())
   {						/* Order by position */
-    uint count= (uint) order_item->val_int();
+    uint count;
+    if (order->counter_used)
+      count= order->counter; // counter was once resolved
+    else
+      count= (uint) order_item->val_int();
     if (!count || count > fields.elements)
     {
       my_error(ER_BAD_FIELD_ERROR, MYF(0),
@@ -21925,7 +22059,7 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
   select_item= find_item_in_list(order_item, fields, &counter,
                                  REPORT_EXCEPT_NOT_FOUND, &resolution);
   if (!select_item)
-    return TRUE; /* The item is not unique, or some other error occured. */
+    return TRUE; /* The item is not unique, or some other error occurred. */
 
 
   /* Check whether the resolved field is not ambiguos. */
@@ -24688,33 +24822,53 @@ static void print_join(THD *thd,
   /* List is reversed => we should reverse it before using */
   List_iterator_fast<TABLE_LIST> ti(*tables);
   TABLE_LIST **table;
-  uint non_const_tables= 0;
   DBUG_ENTER("print_join");
+
+  /*
+    If the QT_NO_DATA_EXPANSION flag is specified, we print the
+    original table list, including constant tables that have been
+    optimized away, as the constant tables may be referenced in the
+    expression printed by Item_field::print() when this flag is given.
+    Otherwise, only non-const tables are printed.
+
+    Example:
+
+    Original SQL:
+    select * from (select 1) t
+
+    Printed without QT_NO_DATA_EXPANSION:
+    select '1' AS `1` from dual
+
+    Printed with QT_NO_DATA_EXPANSION:
+    select `t`.`1` from (select 1 AS `1`) `t`
+  */
+  const bool print_const_tables= (query_type & QT_NO_DATA_EXPANSION);
+  size_t tables_to_print= 0;
 
   for (TABLE_LIST *t= ti++; t ; t= ti++)
   {
-    /* 
-      See comment in print_table_array() about the second part of the
-      condition 
-    */
-    if (!t->optimized_away && !is_eliminated_table(eliminated_tables, t))
-      non_const_tables++;
+    /* See comment in print_table_array() about the second condition */
+    if (print_const_tables || !t->optimized_away)
+      if (!is_eliminated_table(eliminated_tables, t))
+        tables_to_print++;
   }
-  if (!non_const_tables)
+  if (tables_to_print == 0)
   {
     str->append(STRING_WITH_LEN("dual"));
     DBUG_VOID_RETURN;                   // all tables were optimized away
   }
   ti.rewind();
 
-  if (!(table= (TABLE_LIST **)thd->alloc(sizeof(TABLE_LIST*) *
-                                                non_const_tables)))
+  if (!(table= static_cast<TABLE_LIST **>(thd->alloc(sizeof(TABLE_LIST*) *
+                                                     tables_to_print))))
     DBUG_VOID_RETURN;                   // out of memory
 
-  TABLE_LIST *tmp, **t= table + (non_const_tables - 1);
+  TABLE_LIST *tmp, **t= table + (tables_to_print - 1);
   while ((tmp= ti++))
   {
-    if (tmp->optimized_away || is_eliminated_table(eliminated_tables, tmp))
+    if (tmp->optimized_away && !print_const_tables)
+      continue;
+    if (is_eliminated_table(eliminated_tables, tmp))
       continue;
     *t--= tmp;
   }
@@ -24734,7 +24888,7 @@ static void print_join(THD *thd,
   */
   if ((*table)->sj_inner_tables)
   {
-    TABLE_LIST **end= table + non_const_tables;
+    TABLE_LIST **end= table + tables_to_print;
     for (TABLE_LIST **t2= table; t2!=end; t2++)
     {
       if (!(*t2)->sj_inner_tables)
@@ -24747,7 +24901,7 @@ static void print_join(THD *thd,
     }
   }
   print_table_array(thd, eliminated_tables, str, table, 
-                    table +  non_const_tables, query_type);
+                    table +  tables_to_print, query_type);
   DBUG_VOID_RETURN;
 }
 
@@ -25162,7 +25316,7 @@ void JOIN::save_query_plan(Join_plan_state *save_to)
   }
   memcpy((uchar*) save_to->best_positions, (uchar*) best_positions,
          sizeof(POSITION) * (table_count + 1));
-  memset(best_positions, 0, sizeof(POSITION) * (table_count + 1));
+  memset((uchar*) best_positions, 0, sizeof(POSITION) * (table_count + 1));
   
   /* Save SJM nests */
   List_iterator<TABLE_LIST> it(select_lex->sj_nests);
@@ -25247,7 +25401,7 @@ void JOIN::restore_query_plan(Join_plan_state *restore_from)
  
   @retval REOPT_NEW_PLAN  there is a new plan.
   @retval REOPT_OLD_PLAN  no new improved plan was produced, use the old one.
-  @retval REOPT_ERROR     an irrecovarable error occured during reoptimization.
+  @retval REOPT_ERROR     an irrecovarable error occurred during reoptimization.
 */
 
 JOIN::enum_reopt_result
@@ -25590,7 +25744,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     uint used_key_parts= 0;
 
     if (keys.is_set(nr) &&
-        (direction= test_if_order_by_key(order, table, nr, &used_key_parts)))
+        (direction= test_if_order_by_key(join, order, table, nr,
+                                         &used_key_parts)))
     {
       /*
         At this point we are sure that ref_key is a non-ordering
@@ -25833,7 +25988,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     }
 
     uint used_key_parts;
-    switch (test_if_order_by_key(order, table, select->quick->index,
+    switch (test_if_order_by_key(NULL, order, table, select->quick->index,
                                  &used_key_parts)) {
     case 1: // desired order
       *need_sort= FALSE; 

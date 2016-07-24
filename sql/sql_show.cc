@@ -816,18 +816,36 @@ ignore_db_dirs_process_additions()
   for (i= 0; i < ignore_db_dirs_array.elements; i++)
   {
     get_dynamic(&ignore_db_dirs_array, (uchar *) &dir, i);
-    if (my_hash_insert(&ignore_db_dirs_hash, (uchar *) dir))
-      return true;
-    ptr= strnmov(ptr, dir->str, dir->length);
-    if (i + 1 < ignore_db_dirs_array.elements)
-      ptr= strmov(ptr, ",");
+    if (my_hash_insert(&ignore_db_dirs_hash, (uchar *)dir))
+    {
+      /* ignore duplicates from the config file */
+      if (my_hash_search(&ignore_db_dirs_hash, (uchar *)dir->str, dir->length))
+      {
+        sql_print_warning("Duplicate ignore-db-dir directory name '%.*s' "
+                          "found in the config file(s). Ignoring the duplicate.",
+                          (int) dir->length, dir->str);
+        my_free(dir);
+        goto continue_loop;
+      }
 
+      return true;
+    }
+    ptr= strnmov(ptr, dir->str, dir->length);
+    *(ptr++)= ',';
+
+continue_loop:
     /*
       Set the transferred array element to NULL to avoid double free
       in case of error.
     */
     dir= NULL;
     set_dynamic(&ignore_db_dirs_array, (uchar *) &dir, i);
+  }
+
+  if (ptr > opt_ignore_db_dirs)
+  {
+    ptr--;
+    DBUG_ASSERT(*ptr == ',');
   }
 
   /* make sure the string is terminated */
@@ -2352,7 +2370,8 @@ static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
     We can't just use table->query, because our SQL_MODE may trigger
     a different syntax, like when ANSI_QUOTES is defined.
   */
-  table->view->unit.print(buff, QT_ORDINARY);
+  table->view->unit.print(buff, enum_query_type(QT_ORDINARY |
+                                                QT_ITEM_ORIGINAL_FUNC_NULLIF));
 
   if (table->with_check != VIEW_CHECK_NONE)
   {
@@ -2960,8 +2979,7 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         thread in this thread. However it's better that we notice it eventually
         than hide it.
       */
-      table->field[12]->store((longlong) (tmp->status_var.local_memory_used +
-                                          sizeof(THD)),
+      table->field[12]->store((longlong) tmp->status_var.local_memory_used,
                               FALSE);
       table->field[12]->set_notnull();
       table->field[13]->store((longlong) tmp->get_examined_row_count(), TRUE);
@@ -3257,7 +3275,8 @@ static bool show_status_array(THD *thd, const char *wild,
     */
     for (var=variables; var->type == SHOW_FUNC ||
            var->type == SHOW_SIMPLE_FUNC; var= &tmp)
-      ((mysql_show_var_func)(var->value))(thd, &tmp, buff, scope);
+      ((mysql_show_var_func)(var->value))(thd, &tmp, buff,
+                                          status_var, scope);
     
     SHOW_TYPE show_type=var->type;
     if (show_type == SHOW_ARRAY)
@@ -3389,10 +3408,14 @@ end:
   DBUG_RETURN(res);
 }
 
-/* collect status for all running threads */
+/*
+  collect status for all running threads
+  Return number of threads used
+*/
 
-void calc_sum_of_all_status(STATUS_VAR *to)
+uint calc_sum_of_all_status(STATUS_VAR *to)
 {
+  uint count= 0;
   DBUG_ENTER("calc_sum_of_all_status");
 
   /* Ensure that thread id not killed during loop */
@@ -3403,16 +3426,21 @@ void calc_sum_of_all_status(STATUS_VAR *to)
 
   /* Get global values as base */
   *to= global_status_var;
+  to->local_memory_used= 0;
 
   /* Add to this status from existing threads */
   while ((tmp= it++))
   {
+    count++;
     if (!tmp->status_in_global)
+    {
       add_to_status(to, &tmp->status_var);
+      to->local_memory_used+= tmp->status_var.local_memory_used;
+    }
   }
   
   mysql_mutex_unlock(&LOCK_thread_count);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(count);
 }
 
 
@@ -4343,7 +4371,7 @@ uint get_table_open_method(TABLE_LIST *tables,
 
    @retval FALSE  No error, if lock was obtained TABLE_LIST::mdl_request::ticket
                   is set to non-NULL value.
-   @retval TRUE   Some error occured (probably thread was killed).
+   @retval TRUE   Some error occurred (probably thread was killed).
 */
 
 static bool
@@ -4451,7 +4479,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   if (try_acquire_high_prio_shared_mdl_lock(thd, &table_list, can_deadlock))
   {
     /*
-      Some error occured (most probably we have been killed while
+      Some error occurred (most probably we have been killed while
       waiting for conflicting locks to go away), let the caller to
       handle the situation.
     */
@@ -5062,7 +5090,10 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
                                   HA_STATUS_TIME |
                                   HA_STATUS_VARIABLE_EXTRA |
                                   HA_STATUS_AUTO)) != 0)
+      {
+        file->print_error(info_error, MYF(0));
         goto err;
+      }
 
       enum row_type row_type = file->get_row_type();
       switch (row_type) {
@@ -7178,6 +7209,17 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
   COND *partial_cond= make_cond_for_info_schema(thd, cond, tables);
 
   mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+
+  /*
+    Avoid recursive LOCK_system_variables_hash acquisition in
+    intern_sys_var_ptr() by pre-syncing dynamic session variables.
+  */
+  if (scope == OPT_SESSION &&
+      (!thd->variables.dynamic_variables_ptr ||
+       global_system_variables.dynamic_variables_head >
+       thd->variables.dynamic_variables_head))
+    sync_dynamic_session_variables(thd, true);
+
   res= show_status_array(thd, wild, enumerate_sys_vars(thd, sorted_vars, scope),
                          scope, NULL, "", tables->table,
                          upper_case_names, partial_cond);

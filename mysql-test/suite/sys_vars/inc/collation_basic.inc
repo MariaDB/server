@@ -152,6 +152,8 @@ eval SET $collation_variable = utf8_esperanto_ci;
 eval SELECT $collation_variable;
 eval SET $collation_variable = utf8_hungarian_ci;
 eval SELECT $collation_variable;
+eval SET $collation_variable = utf8_thai_520_w2;
+eval SELECT $collation_variable;
 eval SET $collation_variable = ucs2_general_ci;
 eval SELECT $collation_variable;
 eval SET $collation_variable = ucs2_bin;

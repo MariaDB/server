@@ -40,8 +40,11 @@ extern wsrep_uuid_t  local_uuid;
 extern wsrep_seqno_t local_seqno;
 
 // a helper function
-void wsrep_sst_received(wsrep_t*, const wsrep_uuid_t&, wsrep_seqno_t,
-                        const void*, size_t);
+void wsrep_sst_received (wsrep_t* const wsrep,
+                         const wsrep_uuid_t& uuid,
+                         wsrep_seqno_t const segno,
+                         const void * const state,
+                         size_t const state_len);
 /*! SST thread signals init thread about sst completion */
 void wsrep_sst_complete(const wsrep_uuid_t*, wsrep_seqno_t, bool);
 

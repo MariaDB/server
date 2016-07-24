@@ -1,5 +1,5 @@
-/* Copyright (c) 2005, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab
+/* Copyright (c) 2005, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -788,6 +788,7 @@ public:
   bool reset_logs(THD* thd, bool create_new_log,
                   rpl_gtid *init_state, uint32 init_state_len,
                   ulong next_log_number);
+  void wait_for_last_checkpoint_event();
   void close(uint exiting);
   void clear_inuse_flag_when_closing(File file);
 

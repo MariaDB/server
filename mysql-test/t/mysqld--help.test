@@ -22,7 +22,7 @@ perl;
                log-slow-queries pid-file slow-query-log-file log-basename
                datadir slave-load-tmpdir tmpdir socket thread-pool-size
                large-files-support lower-case-file-system system-time-zone
-               log-tc-size version.*/;
+               collation-server character-set-server log-tc-size version.*/;
 
   # Plugins which may or may not be there:
   @plugins=qw/innodb archive blackhole federated partition
@@ -31,7 +31,7 @@ perl;
               connect null-audit aria oqgraph sphinx thread-handling
               test-sql-discovery rpl-semi-sync query-cache-info
               query-response-time metadata-lock-info locales unix-socket
-              wsrep file-key-management/;
+              wsrep file-key-management cracklib-password-check/;
 
   # And substitute the content some environment variables with their
   # names:

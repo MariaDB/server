@@ -2419,7 +2419,7 @@ err_exit:
 
 			dict_table_close(table, TRUE, FALSE);
 
-			row_drop_table_for_mysql(table->name, trx, FALSE);
+			row_drop_table_for_mysql(table->name, trx, FALSE, TRUE);
 
 			if (commit) {
 				trx_commit_for_mysql(trx);
@@ -2579,7 +2579,7 @@ error_handling:
 
 		trx_rollback_to_savepoint(trx, NULL);
 
-		row_drop_table_for_mysql(table_name, trx, FALSE);
+		row_drop_table_for_mysql(table_name, trx, FALSE, TRUE);
 
 		trx_commit_for_mysql(trx);
 
@@ -2656,7 +2656,7 @@ row_table_add_foreign_constraints(
 
 		trx_rollback_to_savepoint(trx, NULL);
 
-		row_drop_table_for_mysql(name, trx, FALSE);
+		row_drop_table_for_mysql(name, trx, FALSE, TRUE);
 
 		trx_commit_for_mysql(trx);
 
@@ -2697,7 +2697,7 @@ row_drop_table_for_mysql_in_background(
 
 	/* Try to drop the table in InnoDB */
 
-	error = row_drop_table_for_mysql(name, trx, FALSE);
+	error = row_drop_table_for_mysql(name, trx, FALSE, FALSE);
 
 	/* Flush the log to reduce probability that the .frm files and
 	the InnoDB data dictionary get out-of-sync if the user runs
@@ -3844,6 +3844,9 @@ row_drop_table_for_mysql(
 	const char*	name,	/*!< in: table name */
 	trx_t*		trx,	/*!< in: transaction handle */
 	bool		drop_db,/*!< in: true=dropping whole database */
+	ibool		create_failed,/*!<in: TRUE=create table failed
+				       because e.g. foreign key column
+				       type mismatch. */
 	bool		nonatomic)
 				/*!< in: whether it is permitted
 				to release and reacquire dict_operation_lock */
@@ -4049,7 +4052,12 @@ row_drop_table_for_mysql(
 					name,
 					foreign->foreign_table_name_lookup);
 
-			if (foreign->foreign_table != table && !ref_ok) {
+			/* We should allow dropping a referenced table if creating
+			that referenced table has failed for some reason. For example
+			if referenced table is created but it column types that are
+			referenced do not match. */
+			if (foreign->foreign_table != table &&
+			    !create_failed && !ref_ok) {
 
 				FILE*	ef	= dict_foreign_err_file;
 
@@ -4593,7 +4601,7 @@ row_mysql_drop_temp_tables(void)
 		table = dict_table_get_low(table_name);
 
 		if (table) {
-			row_drop_table_for_mysql(table_name, trx, FALSE);
+			row_drop_table_for_mysql(table_name, trx, FALSE, FALSE);
 			trx_commit_for_mysql(trx);
 		}
 
@@ -4762,7 +4770,7 @@ loop:
 			goto loop;
 		}
 
-		err = row_drop_table_for_mysql(table_name, trx, TRUE);
+		err = row_drop_table_for_mysql(table_name, trx, TRUE, FALSE);
 		trx_commit_for_mysql(trx);
 
 		if (err != DB_SUCCESS) {

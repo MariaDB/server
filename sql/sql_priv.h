@@ -224,7 +224,7 @@
 #define OPTIMIZER_SWITCH_TABLE_ELIMINATION         (1ULL << 26)
 #define OPTIMIZER_SWITCH_EXTENDED_KEYS             (1ULL << 27)
 #define OPTIMIZER_SWITCH_EXISTS_TO_IN              (1ULL << 28)
-#define OPTIMIZER_SWITCH_USE_CONDITION_SELECTIVITY (1ULL << 29)
+#define OPTIMIZER_SWITCH_ORDERBY_EQ_PROP           (1ULL << 29)
 
 #define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                     OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
@@ -320,10 +320,11 @@
 /* Used to check GROUP BY list in the MODE_ONLY_FULL_GROUP_BY mode */
 #define UNDEF_POS (-1)
 
+#endif /* !MYSQL_CLIENT */
+
 /* BINLOG_DUMP options */
 
 #define BINLOG_DUMP_NON_BLOCK   1
-#endif /* !MYSQL_CLIENT */
 
 #define BINLOG_SEND_ANNOTATE_ROWS_EVENT   2
 

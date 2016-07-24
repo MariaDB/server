@@ -191,6 +191,31 @@ id	msg
 35	thirty five
 81	big
 DROP TABLE t1;
+CREATE TABLE t1 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=MYSQL
+OPTION_LIST='connect=mysql://root@localhost/test/xt%s'
+PARTITION BY RANGE COLUMNS(id) (
+PARTITION `1` VALUES LESS THAN(10),
+PARTITION `2` VALUES LESS THAN(50),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+Warnings:
+Warning	1105	Data repartition in 1 is unchecked
+Warning	1105	Data repartition in 2 is unchecked
+Warning	1105	Data repartition in 3 is unchecked
+SELECT * FROM t1;
+id	msg
+4	four
+7	sept
+1	one
+8	eight
+40	forty
+10	ten
+11	eleven
+35	thirty five
+81	big
+DROP TABLE t1;
 DROP TABLE xt1;
 DROP TABLE xt2;
 DROP TABLE xt3;

@@ -119,7 +119,7 @@ void init_show_explain_psi_keys(void)
 
   @retval FALSE - Ok, the call has been made
   @retval TRUE  - Call wasnt made (either the target is in disabled state or
-                    timeout occured)
+                    timeout occurred)
 */
 
 bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call, 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2006, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2006, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -295,8 +295,10 @@ innobase_casedn_str(
 #ifdef WITH_WSREP
 UNIV_INTERN
 int
-wsrep_innobase_kill_one_trx(void *thd_ptr,
-                            const trx_t *bf_trx, trx_t *victim_trx, ibool signal);
+wsrep_innobase_kill_one_trx(void * const thd_ptr,
+                            const trx_t * const bf_trx,
+                            trx_t *victim_trx,
+                            ibool signal);
 int wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
 			      unsigned char* str, unsigned int str_length,
 			      unsigned int buf_length);
@@ -355,6 +357,15 @@ thd_supports_xa(
 /*============*/
 	THD*	thd);	/*!< in: thread handle, or NULL to query
 			the global innodb_supports_xa */
+
+/** Get status of innodb_tmpdir.
+@param[in]	thd	thread handle, or NULL to query
+			the global innodb_tmpdir.
+@retval NULL if innodb_tmpdir="" */
+UNIV_INTERN
+const char*
+thd_innodb_tmpdir(
+	THD*	thd);
 
 /******************************************************************//**
 Check the status of fake changes mode (innodb_fake_changes)

@@ -1663,3 +1663,17 @@ FROM mysql.column_stats;
 db_name	table_name	column_name	HEX(min_value)	HEX(max_value)	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
 test	t1	a	D879626AF872675F73E662F8	D879626AF872675F73E662F8	0.0000	1.0000	0	NULL	NULL
 drop table t1;
+#
+# MDEV-9590: Always print "Engine-independent statistic" warnings and
+# might be filtering columns unintentionally from engines
+#
+set use_stat_tables='NEVER';
+create table t1 (test blob);
+show variables like 'use_stat_tables';
+Variable_name	Value
+use_stat_tables	NEVER
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Table is already up to date
+drop table t1;
+set use_stat_tables=@save_use_stat_tables;

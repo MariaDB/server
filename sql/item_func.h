@@ -1,7 +1,7 @@
 #ifndef ITEM_FUNC_INCLUDED
 #define ITEM_FUNC_INCLUDED
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, MariaDB
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,6 +41,14 @@ protected:
   */
   uint allowed_arg_cols;
   String *val_str_from_val_str_ascii(String *str, String *str2);
+
+  void count_only_length(Item **item, uint nitems);
+  void count_real_length(Item **item, uint nitems);
+  void count_decimal_length(Item **item, uint nitems);
+  void count_datetime_length(enum_field_types field_type,
+                             Item **item, uint nitems);
+  bool count_string_result_length(enum_field_types field_type,
+                                  Item **item, uint nitems);
 public:
   table_map not_null_tables_cache;
 
@@ -148,16 +156,10 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   void print_op(String *str, enum_query_type query_type);
   void print_args(String *str, uint from, enum_query_type query_type);
-  void count_only_length(Item **item, uint nitems);
-  void count_real_length();
-  void count_decimal_length();
   inline bool get_arg0_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
     return (null_value=args[0]->get_date_with_conversion(ltime, fuzzy_date));
   }
-  void count_datetime_length(Item **item, uint nitems);
-  bool count_string_result_length(enum_field_types field_type,
-                                  Item **item, uint nitems);
   inline bool get_arg0_time(MYSQL_TIME *ltime)
   {
     null_value= args[0]->get_time(ltime);
@@ -171,12 +173,10 @@ public:
   }
   void signal_divide_by_null();
   friend class udf_handler;
-  Field *tmp_table_field() { return result_field; }
-  Field *tmp_table_field(TABLE *t_arg);
-  Field *create_field_for_create_select(THD *thd, TABLE *table)
+  Field *create_field_for_create_select(TABLE *table)
   {
     return result_type() != STRING_RESULT ?
-           tmp_table_field(table) :
+           create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS) :
            tmp_table_field_from_field_type(table, false, false);
   }
   Item *get_tmp_table_item(THD *thd);
@@ -208,7 +208,7 @@ public:
     char buf[256];
     String str(buf, sizeof(buf), system_charset_info);
     str.length(0);
-    print(&str, QT_ORDINARY);
+    print(&str, QT_NO_DATA_EXPANSION);
     my_error(ER_DATA_OUT_OF_RANGE, MYF(0), type_name, str.c_ptr_safe());
   }
   inline double raise_float_overflow()
@@ -387,6 +387,8 @@ public:
 class Item_hybrid_func: public Item_func,
                         public Type_handler_hybrid_field_type
 {
+protected:
+  void fix_attributes(Item **item, uint nitems);
 public:
   Item_hybrid_func(THD *thd): Item_func(thd) { }
   Item_hybrid_func(THD *thd, Item *a):  Item_func(thd, a) { }
@@ -448,7 +450,6 @@ class Item_func_hybrid_field_type: public Item_hybrid_func
   }
 protected:
   Item_result cached_result_type;
-
 public:
   Item_func_hybrid_field_type(THD *thd):
     Item_hybrid_func(thd)
@@ -946,13 +947,6 @@ public:
   Item_func_cot(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "cot"; }
-};
-
-class Item_func_integer :public Item_int_func
-{
-public:
-  inline Item_func_integer(THD *thd, Item *a): Item_int_func(thd, a) {}
-  void fix_length_and_dec();
 };
 
 
@@ -1759,10 +1753,10 @@ public:
   bool update();
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  Field *create_field_for_create_select(THD *thd, TABLE *table)
+  Field *create_field_for_create_select(TABLE *table)
   {
     return result_type() != STRING_RESULT ?
-           tmp_table_field(table) :
+           create_tmp_field(false, table, MY_INT32_NUM_DECIMAL_DIGITS) :
            tmp_table_field_from_field_type(table, false, true);
   }
   table_map used_tables() const
@@ -2103,8 +2097,12 @@ public:
 
   enum enum_field_types field_type() const;
 
-  Field *tmp_table_field(TABLE *t_arg);
-
+  Field *create_field_for_create_select(TABLE *table)
+  {
+    return result_type() != STRING_RESULT ?
+           sp_result_field :
+           tmp_table_field_from_field_type(table, false, false);
+  }
   void make_field(Send_field *tmp_field);
 
   Item_result result_type() const;

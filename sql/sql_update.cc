@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2015, MariaDB
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -567,7 +567,7 @@ int mysql_update(THD *thd,
       Filesort_tracker *fs_tracker= 
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
-      if (!(sortorder=make_unireg_sortorder(thd, order, &length, NULL)) ||
+      if (!(sortorder=make_unireg_sortorder(thd, NULL, 0, order, &length, NULL)) ||
           (table->sort.found_records= filesort(thd, table, sortorder, length,
                                                select, limit,
                                                true,
@@ -838,7 +838,7 @@ int mysql_update(THD *thd,
             error= 0;
 	}
  	else if (!ignore ||
-                 table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+                 table->file->is_fatal_error(error, HA_CHECK_ALL))
 	{
           /*
             If (ignore && error is ignorable) we don't have to
@@ -846,7 +846,7 @@ int mysql_update(THD *thd,
           */
           myf flags= 0;
 
-          if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+          if (table->file->is_fatal_error(error, HA_CHECK_ALL))
             flags|= ME_FATALERROR; /* Other handler errors are fatal */
 
           prepare_record_for_error_message(error, table);
@@ -1612,7 +1612,7 @@ bool mysql_multi_update(THD *thd,
     DBUG_RETURN(TRUE);
   }
 
-  thd->abort_on_warning= thd->is_strict_mode();
+  thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
 
   res= mysql_select(thd, &select_lex->ref_pointer_array,
@@ -2167,7 +2167,7 @@ int multi_update::send_data(List<Item> &not_used_values)
         {
           updated--;
           if (!ignore ||
-              table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+              table->file->is_fatal_error(error, HA_CHECK_ALL))
           {
             /*
               If (ignore && error == is ignorable) we don't have to
@@ -2175,7 +2175,7 @@ int multi_update::send_data(List<Item> &not_used_values)
             */
             myf flags= 0;
 
-            if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+            if (table->file->is_fatal_error(error, HA_CHECK_ALL))
               flags|= ME_FATALERROR; /* Other handler errors are fatal */
 
             prepare_record_for_error_message(error, table);
@@ -2452,7 +2452,7 @@ int multi_update::do_updates()
             local_error != HA_ERR_RECORD_IS_THE_SAME)
 	{
 	  if (!ignore ||
-              table->file->is_fatal_error(local_error, HA_CHECK_DUP_KEY))
+              table->file->is_fatal_error(local_error, HA_CHECK_ALL))
           {
             err_table= table;
 	    goto err;
@@ -2592,7 +2592,7 @@ bool multi_update::send_eof()
   if (local_error > 0) // if the above log write did not fail ...
   {
     /* Safety: If we haven't got an error before (can happen in do_updates) */
-    my_message(ER_UNKNOWN_ERROR, "An error occured in multi-table update",
+    my_message(ER_UNKNOWN_ERROR, "An error occurred in multi-table update",
 	       MYF(0));
     DBUG_RETURN(TRUE);
   }

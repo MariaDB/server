@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -632,7 +632,7 @@ void Log_to_csv_event_handler::cleanup()
   indicated in the return value. 
 
   @retval  FALSE   OK
-  @retval  TRUE    error occured
+  @retval  TRUE    error occurred
 */
 
 bool Log_to_csv_event_handler::
@@ -797,7 +797,7 @@ err:
 
   RETURN
     FALSE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool Log_to_csv_event_handler::
@@ -1108,7 +1108,7 @@ void Log_to_file_event_handler::flush()
 
   RETURN
     FALSE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool LOGGER::error_log_print(enum loglevel level, const char *format,
@@ -1266,7 +1266,7 @@ bool LOGGER::flush_general_log()
 
   RETURN
     FALSE   OK
-    TRUE    error occured
+    TRUE    error occurred
 */
 
 bool LOGGER::slow_log_print(THD *thd, const char *query, uint query_length,
@@ -2839,7 +2839,7 @@ void MYSQL_QUERY_LOG::reopen_file()
 
   RETURN
     FASE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool MYSQL_QUERY_LOG::write(time_t event_time, const char *user_host,
@@ -2941,7 +2941,7 @@ err:
 
   RETURN
     FALSE - OK
-    TRUE - error occured
+    TRUE - error occurred
 */
 
 bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
@@ -3690,7 +3690,10 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
     new_xid_list_entry->binlog_id= current_binlog_id;
     /* Remove any initial entries with no pending XIDs.  */
     while ((b= binlog_xid_count_list.head()) && b->xid_count == 0)
+    {
       my_free(binlog_xid_count_list.get());
+    }
+    mysql_cond_broadcast(&COND_xid_list);
     binlog_xid_count_list.push_back(new_xid_list_entry);
     mysql_mutex_unlock(&LOCK_xid_list);
 
@@ -4227,6 +4230,7 @@ err:
       DBUG_ASSERT(b->xid_count == 0);
       my_free(binlog_xid_count_list.get());
     }
+    mysql_cond_broadcast(&COND_xid_list);
     reset_master_pending--;
     mysql_mutex_unlock(&LOCK_xid_list);
   }
@@ -4234,6 +4238,26 @@ err:
   mysql_mutex_unlock(&LOCK_index);
   mysql_mutex_unlock(&LOCK_log);
   DBUG_RETURN(error);
+}
+
+
+void MYSQL_BIN_LOG::wait_for_last_checkpoint_event()
+{
+  mysql_mutex_lock(&LOCK_xid_list);
+  for (;;)
+  {
+    if (binlog_xid_count_list.is_last(binlog_xid_count_list.head()))
+      break;
+    mysql_cond_wait(&COND_xid_list, &LOCK_xid_list);
+  }
+  mysql_mutex_unlock(&LOCK_xid_list);
+
+  /*
+    LOCK_xid_list and LOCK_log are chained, so the LOCK_log will only be
+    obtained after mark_xid_done() has written the last checkpoint event.
+  */
+  mysql_mutex_lock(&LOCK_log);
+  mysql_mutex_unlock(&LOCK_log);
 }
 
 
@@ -6403,7 +6427,7 @@ binlog_checkpoint_callback(void *cookie)
   /*
     For every supporting engine, we increment the xid_count and issue a
     commit_checkpoint_request(). Then we can count when all
-    commit_checkpoint_notify() callbacks have occured, and then log a new
+    commit_checkpoint_notify() callbacks have occurred, and then log a new
     binlog checkpoint event.
   */
   mysql_bin_log.mark_xids_active(entry->binlog_id, 1);
@@ -9394,7 +9418,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
   */
   if (unlikely(reset_master_pending))
   {
-    mysql_cond_signal(&COND_xid_list);
+    mysql_cond_broadcast(&COND_xid_list);
     mysql_mutex_unlock(&LOCK_xid_list);
     DBUG_VOID_RETURN;
   }
@@ -9432,8 +9456,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
   mysql_mutex_lock(&LOCK_log);
   mysql_mutex_lock(&LOCK_xid_list);
   --mark_xid_done_waiting;
-  if (unlikely(reset_master_pending))
-    mysql_cond_signal(&COND_xid_list);
+  mysql_cond_broadcast(&COND_xid_list);
   /* We need to reload current_binlog_id due to release/re-take of lock. */
   current= current_binlog_id;
 
@@ -9597,9 +9620,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
 
   THD_STAGE_INFO(thd, stage_binlog_stopping_background_thread);
 
-  mysql_mutex_lock(&LOCK_thread_count);
   delete thd;
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   my_thread_end();
 

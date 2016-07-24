@@ -232,7 +232,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
     }
   }
   fix_length_and_dec();
-  if (thd->is_error()) // An error inside fix_length_and_dec occured
+  if (thd->is_error()) // An error inside fix_length_and_dec occurred
     return TRUE;
   fixed= 1;
   return FALSE;
@@ -509,43 +509,6 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
 }
 
 
-Field *Item_func::tmp_table_field(TABLE *table)
-{
-  Field *field= NULL;
-  MEM_ROOT *mem_root= table->in_use->mem_root;
-
-  switch (result_type()) {
-  case INT_RESULT:
-    if (max_char_length() > MY_INT32_NUM_DECIMAL_DIGITS)
-      field= new (mem_root)
-        Field_longlong(max_char_length(), maybe_null, name,
-                       unsigned_flag);
-    else
-      field= new (mem_root)
-        Field_long(max_char_length(), maybe_null, name,
-                   unsigned_flag);
-    break;
-  case REAL_RESULT:
-    field= new (mem_root)
-      Field_double(max_char_length(), maybe_null, name, decimals);
-    break;
-  case STRING_RESULT:
-    return make_string_field(table);
-  case DECIMAL_RESULT:
-    field= Field_new_decimal::create_from_item(mem_root, this);
-    break;
-  case ROW_RESULT:
-  case TIME_RESULT:
-    // This case should never be chosen
-    DBUG_ASSERT(0);
-    field= 0;
-    break;
-  }
-  if (field)
-    field->init(table);
-  return field;
-}
-
 /*
 bool Item_func::is_expensive_processor(uchar *arg)
 {
@@ -612,18 +575,19 @@ void Item_udf_func::fix_num_length_and_dec()
 
   @retval        False on success, true on error.
 */
-void Item_func::count_datetime_length(Item **item, uint nitems)
+void Item_func::count_datetime_length(enum_field_types field_type_arg,
+                                      Item **item, uint nitems)
 {
   unsigned_flag= 0;
   decimals= 0;
-  if (field_type() != MYSQL_TYPE_DATE)
+  if (field_type_arg != MYSQL_TYPE_DATE)
   {
     for (uint i= 0; i < nitems; i++)
       set_if_bigger(decimals, item[i]->decimals);
   }
   set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
   uint len= decimals ? (decimals + 1) : 0;
-  len+= mysql_temporal_int_part_length(field_type());
+  len+= mysql_temporal_int_part_length(field_type_arg);
   fix_char_length(len);
 }
 
@@ -632,16 +596,16 @@ void Item_func::count_datetime_length(Item **item, uint nitems)
   result length/precision depends on argument ones.
 */
 
-void Item_func::count_decimal_length()
+void Item_func::count_decimal_length(Item **item, uint nitems)
 {
   int max_int_part= 0;
   decimals= 0;
   unsigned_flag= 1;
-  for (uint i=0 ; i < arg_count ; i++)
+  for (uint i=0 ; i < nitems ; i++)
   {
-    set_if_bigger(decimals, args[i]->decimals);
-    set_if_bigger(max_int_part, args[i]->decimal_int_part());
-    set_if_smaller(unsigned_flag, args[i]->unsigned_flag);
+    set_if_bigger(decimals, item[i]->decimals);
+    set_if_bigger(max_int_part, item[i]->decimal_int_part());
+    set_if_smaller(unsigned_flag, item[i]->unsigned_flag);
   }
   int precision= MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
   fix_char_length(my_decimal_precision_to_length_no_truncation(precision,
@@ -672,19 +636,20 @@ void Item_func::count_only_length(Item **item, uint nitems)
   result length/precision depends on argument ones.
 */
 
-void Item_func::count_real_length()
+void Item_func::count_real_length(Item **items, uint nitems)
 {
   uint32 length= 0;
   decimals= 0;
   max_length= 0;
-  for (uint i=0 ; i < arg_count ; i++)
+  unsigned_flag= false;
+  for (uint i=0 ; i < nitems ; i++)
   {
     if (decimals != NOT_FIXED_DEC)
     {
-      set_if_bigger(decimals, args[i]->decimals);
-      set_if_bigger(length, (args[i]->max_length - args[i]->decimals));
+      set_if_bigger(decimals, items[i]->decimals);
+      set_if_bigger(length, (items[i]->max_length - items[i]->decimals));
     }
-    set_if_bigger(max_length, args[i]->max_length);
+    set_if_bigger(max_length, items[i]->max_length);
   }
   if (decimals != NOT_FIXED_DEC)
   {
@@ -713,11 +678,11 @@ bool Item_func::count_string_result_length(enum_field_types field_type_arg,
   if (agg_arg_charsets_for_string_result(collation, items, nitems, 1))
     return true;
   if (is_temporal_type(field_type_arg))
-    count_datetime_length(items, nitems);
+    count_datetime_length(field_type_arg, items, nitems);
   else
   {
-    decimals= NOT_FIXED_DEC;
     count_only_length(items, nitems);
+    decimals= max_length ? NOT_FIXED_DEC : 0;
   }
   return false;
 }
@@ -792,7 +757,7 @@ void Item_num_op::fix_length_and_dec(void)
   if (r0 == REAL_RESULT || r1 == REAL_RESULT ||
       r0 == STRING_RESULT || r1 ==STRING_RESULT)
   {
-    count_real_length();
+    count_real_length(args, arg_count);
     max_length= float_length(decimals);
     set_handler_by_result_type(REAL_RESULT);
   }
@@ -2348,15 +2313,6 @@ longlong Item_func_bit_neg::val_int()
 
 // Conversion functions
 
-void Item_func_integer::fix_length_and_dec()
-{
-  max_length=args[0]->max_length - args[0]->decimals+1;
-  uint tmp=float_length(decimals);
-  set_if_smaller(max_length,tmp);
-  decimals=0;
-}
-
-
 void Item_func_int_val::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
@@ -2908,10 +2864,10 @@ void Item_func_min_max::fix_length_and_dec()
     collation.set_numeric();
     fix_char_length(float_length(decimals));
     /*
-      Set type to DOUBLE, as Item_func::tmp_table_field() does not
+      Set type to DOUBLE, as Item_func::create_tmp_field() does not
       distinguish between DOUBLE and FLOAT and always creates Field_double.
       Perhaps we should eventually change this to use agg_field_type() here,
-      and fix Item_func::tmp_table_field() to create Field_float when possible.
+      and fix Item_func::create_tmp_field() to create Field_float when possible.
     */
     set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
     break;
@@ -5650,7 +5606,7 @@ void Item_func_get_user_var::fix_length_and_dec()
 
   /*
     If the variable didn't exist it has been created as a STRING-type.
-    'm_var_entry' is NULL only if there occured an error during the call to
+    'm_var_entry' is NULL only if there occurred an error during the call to
     get_var_with_binlog.
   */
   if (!error && m_var_entry)
@@ -6305,6 +6261,8 @@ bool Item_func_match::fix_index()
 
   for (i=1; i < arg_count; i++)
   {
+    if (args[i]->type() != FIELD_ITEM)
+      goto err;
     item=(Item_field*)args[i];
     for (keynr=0 ; keynr < fts ; keynr++)
     {
@@ -6798,16 +6756,6 @@ longlong Item_func_found_rows::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   return current_thd->found_rows();
-}
-
-
-Field *
-Item_func_sp::tmp_table_field(TABLE *t_arg)
-{
-  DBUG_ENTER("Item_func_sp::tmp_table_field");
-
-  DBUG_ASSERT(sp_result_field);
-  DBUG_RETURN(sp_result_field);
 }
 
 

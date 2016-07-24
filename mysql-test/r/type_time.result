@@ -989,7 +989,7 @@ SELECT * FROM t1 WHERE COALESCE(a)=TIME('00:00:00') AND COALESCE(a)=DATE('2015-0
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = <cache>(00:00:00))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = 00:00:00)
 # TIME cast + DATE literal
 SELECT * FROM t1 WHERE COALESCE(a)=TIME('00:00:00') AND COALESCE(a)=DATE'2015-09-11';
 a
@@ -999,7 +999,7 @@ SELECT * FROM t1 WHERE COALESCE(a)=TIME('00:00:00') AND COALESCE(a)=DATE'2015-09
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = <cache>(00:00:00))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = 00:00:00)
 # TIME literal + DATE cast
 SELECT * FROM t1 WHERE COALESCE(a)=TIME'00:00:00' AND COALESCE(a)=DATE('2015-09-11');
 a
@@ -1029,7 +1029,7 @@ SELECT * FROM t1 WHERE COALESCE(a)='00:00:00' AND COALESCE(a)=DATE('2015-09-11')
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((coalesce(`test`.`t1`.`a`) = '00:00:00') and (coalesce(`test`.`t1`.`a`) = <cache>(2015-09-11 00:00:00)))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((coalesce(`test`.`t1`.`a`) = '00:00:00') and (coalesce(`test`.`t1`.`a`) = 2015-09-11 00:00:00))
 # TIME-alike string literal + DATE literal
 SELECT * FROM t1 WHERE COALESCE(a)='00:00:00' AND COALESCE(a)=DATE'2015-09-11';
 a
@@ -1049,7 +1049,7 @@ SELECT * FROM t1 WHERE COALESCE(a)=0 AND COALESCE(a)=DATE('2015-09-11');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((coalesce(`test`.`t1`.`a`) = 0) and (coalesce(`test`.`t1`.`a`) = <cache>(2015-09-11 00:00:00)))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((coalesce(`test`.`t1`.`a`) = 0) and (coalesce(`test`.`t1`.`a`) = 2015-09-11 00:00:00))
 # TIME-alike integer literal + DATE literal
 SELECT * FROM t1 WHERE COALESCE(a)=0 AND COALESCE(a)=DATE'2015-09-11';
 a
@@ -1069,7 +1069,7 @@ SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=TIME('00:0
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = <cache>(2015-09-11 00:00:00))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = 2015-09-11 00:00:00)
 # DATE cast + TIME literal
 SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=TIME'00:00:00';
 a
@@ -1079,7 +1079,7 @@ SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=TIME'00:00
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = <cache>(2015-09-11 00:00:00))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (coalesce(`test`.`t1`.`a`) = 2015-09-11 00:00:00)
 # DATE cast + TIME-alike string literal
 SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)='00:00:00';
 a
@@ -1089,7 +1089,7 @@ SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)='00:00:00'
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((coalesce(`test`.`t1`.`a`) = <cache>(2015-09-11 00:00:00)) and (coalesce(`test`.`t1`.`a`) = '00:00:00'))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((coalesce(`test`.`t1`.`a`) = 2015-09-11 00:00:00) and (coalesce(`test`.`t1`.`a`) = '00:00:00'))
 # DATE cast + TIME-alike integer literal
 SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=0;
 a
@@ -1099,7 +1099,7 @@ SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((coalesce(`test`.`t1`.`a`) = <cache>(2015-09-11 00:00:00)) and (coalesce(`test`.`t1`.`a`) = 0))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((coalesce(`test`.`t1`.`a`) = 2015-09-11 00:00:00) and (coalesce(`test`.`t1`.`a`) = 0))
 # DATE literal + TIME cast
 SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)=TIME('00:00:00');
 a

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -116,5 +116,13 @@ void
 log_crypt_print_error(
 /*==================*/
 	log_crypt_err_t 	err_info); 	/*!< out: error info */
+
+/*********************************************************************//**
+Print checkpoint no from log block and all encryption keys from
+checkpoints if they are present. Used for problem analysis. */
+void
+log_crypt_print_checkpoint_keys(
+/*============================*/
+	const byte* log_block);
 
 #endif  // log0crypt.h

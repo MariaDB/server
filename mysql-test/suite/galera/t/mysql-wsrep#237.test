@@ -28,4 +28,7 @@ SET DEBUG_SYNC= 'now SIGNAL continue';
 --connection node_1
 --reap
 
+# Cleanup
 DROP TABLE t;
+--connection node_1a
+SET DEBUG_SYNC= 'RESET';

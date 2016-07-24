@@ -1500,7 +1500,7 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_STR(title_name, param_name) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (!share->param_name) \
     { \
       if ((share->param_name = spider_get_string_between_quote( \
@@ -1512,7 +1512,7 @@ static int spider_set_ll_value(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%s", share->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%s", share->param_name)); \
     } \
     break; \
   }
@@ -1521,7 +1521,7 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_STR_LIST(title_name, param_name) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (!share->param_name) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1547,7 +1547,7 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_HINT(title_name, param_name, check_length, max_size, append_method) \
   if (!strncasecmp(tmp_ptr, title_name, check_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     DBUG_PRINT("info",("spider max_size=%d", max_size)); \
     int hint_num = atoi(tmp_ptr + check_length); \
     DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
@@ -1566,7 +1566,7 @@ static int spider_set_ll_value(
       if ((error_num = \
         append_method(&share->param_name[hint_num], hint_str))) \
         goto error; \
-      DBUG_PRINT("info",("spider "title_name"[%d]=%s", hint_num, \
+      DBUG_PRINT("info",("spider " title_name "[%d]=%s", hint_num, \
         share->param_name[hint_num].ptr())); \
     } else { \
       error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
@@ -1579,7 +1579,7 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_NUMHINT(title_name, param_name, check_length, max_size, append_method) \
   if (!strncasecmp(tmp_ptr, title_name, check_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     DBUG_PRINT("info",("spider max_size=%d", max_size)); \
     int hint_num = atoi(tmp_ptr + check_length); \
     DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
@@ -1598,7 +1598,7 @@ static int spider_set_ll_value(
       if ((error_num = \
         append_method(&share->param_name[hint_num], hint_str))) \
         goto error; \
-      DBUG_PRINT("info",("spider "title_name"[%d]=%lld", hint_num, \
+      DBUG_PRINT("info",("spider " title_name "[%d]=%lld", hint_num, \
         share->param_name[hint_num])); \
     } else { \
       error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
@@ -1613,7 +1613,7 @@ static int spider_set_ll_value(
   min_val, max_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (!share->param_name) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1640,7 +1640,7 @@ static int spider_set_ll_value(
   min_val, max_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (!share->param_name) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1665,7 +1665,7 @@ static int spider_set_ll_value(
 #define SPIDER_PARAM_INT_WITH_MAX(title_name, param_name, min_val, max_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (share->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1682,14 +1682,14 @@ static int spider_set_ll_value(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%d", share->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%d", share->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_INT(title_name, param_name, min_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (share->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1704,14 +1704,14 @@ static int spider_set_ll_value(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%d", share->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%d", share->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_DOUBLE(title_name, param_name, min_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (share->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1726,14 +1726,14 @@ static int spider_set_ll_value(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%f", share->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%f", share->param_name)); \
     } \
     break; \
   }
 #define SPIDER_PARAM_LONGLONG(title_name, param_name, min_val) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
   { \
-    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider " title_name " start")); \
     if (share->param_name == -1) \
     { \
       if ((tmp_ptr2 = spider_get_string_between_quote( \
@@ -1748,7 +1748,7 @@ static int spider_set_ll_value(
           MYF(0), tmp_ptr); \
         goto error; \
       } \
-      DBUG_PRINT("info",("spider "title_name"=%lld", share->param_name)); \
+      DBUG_PRINT("info",("spider " title_name "=%lld", share->param_name)); \
     } \
     break; \
   }
@@ -3703,7 +3703,7 @@ int spider_create_conn_keys(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   char *tmp_hs_r_name, *tmp_hs_w_name;
 #endif
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
   uint *conn_keys_lengths;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   uint *hs_r_conn_keys_lengths;
@@ -3717,7 +3717,7 @@ int spider_create_conn_keys(
 #endif
 #endif
   DBUG_ENTER("spider_create_conn_keys");
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
   if (!(conn_keys_lengths =
     (uint *) spider_bulk_alloc_mem(spider_current_trx, 44,
       __func__, __FILE__, __LINE__, MYF(MY_WME),
@@ -3806,7 +3806,7 @@ int spider_create_conn_keys(
 #endif
       NullS))
   ) {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
     spider_free(spider_current_trx, conn_keys_lengths, MYF(MY_WME));
 #endif
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -3823,7 +3823,7 @@ int spider_create_conn_keys(
     sizeof(uint) * share->all_link_count);
 #endif
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
   spider_free(spider_current_trx, conn_keys_lengths, MYF(MY_WME));
 #endif
 
@@ -4676,7 +4676,7 @@ SPIDER_SHARE *spider_get_share(
       share->link_count, SPIDER_LINK_STATUS_OK);
     if (search_link_idx == -1)
     {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
       char *db, *table_name;
       if (!(db = (char *)
         spider_bulk_malloc(spider_current_trx, 48, MYF(MY_WME),
@@ -4702,7 +4702,7 @@ SPIDER_SHARE *spider_get_share(
       table_name[table_share->table_name.length] = '\0';
       my_printf_error(ER_SPIDER_ALL_LINKS_FAILED_NUM,
         ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
       spider_free(spider->trx, db, MYF(MY_WME));
 #endif
       *error_num = ER_SPIDER_ALL_LINKS_FAILED_NUM;
@@ -5100,7 +5100,7 @@ SPIDER_SHARE *spider_get_share(
       share->link_count, SPIDER_LINK_STATUS_OK);
     if (search_link_idx == -1)
     {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
       char *db, *table_name;
       if (!(db = (char *)
         spider_bulk_malloc(spider_current_trx, 50, MYF(MY_WME),
@@ -5123,7 +5123,7 @@ SPIDER_SHARE *spider_get_share(
       table_name[table_share->table_name.length] = '\0';
       my_printf_error(ER_SPIDER_ALL_LINKS_FAILED_NUM,
         ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
       spider_free(spider->trx, db, MYF(MY_WME));
 #endif
       *error_num = ER_SPIDER_ALL_LINKS_FAILED_NUM;

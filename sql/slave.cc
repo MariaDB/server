@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -311,9 +311,7 @@ handle_slave_init(void *arg __attribute__((unused)))
                       thd->get_stmt_da()->sql_errno(),
                       thd->get_stmt_da()->message());
 
-  mysql_mutex_lock(&LOCK_thread_count);
   delete thd;
-  mysql_mutex_unlock(&LOCK_thread_count);
   thread_safe_decrement32(&service_thread_count);
   signal_thd_deleted();
   my_thread_end();
@@ -1364,6 +1362,10 @@ bool is_network_error(uint errorno)
       errorno == ER_NET_READ_INTERRUPTED ||
       errorno == ER_SERVER_SHUTDOWN)
     return TRUE;
+#ifdef WITH_WSREP
+  if (errorno == ER_UNKNOWN_COM_ERROR)
+    return TRUE;
+#endif
 
   return FALSE;   
 }
@@ -4357,7 +4359,8 @@ int check_temp_dir(char* tmp_file)
   mysql_mutex_lock(&LOCK_thread_count);
   if (check_temp_dir_run)
   {
-    result= check_temp_dir_result;
+    if ((result= check_temp_dir_result))
+      my_message(result, tmp_file, MYF(0));
     goto end;
   }
   check_temp_dir_run= 1;
@@ -4392,7 +4395,6 @@ int check_temp_dir(char* tmp_file)
   mysql_file_delete(key_file_misc, tmp_file, MYF(0));
 
 end:
-  check_temp_dir_result= result;
   mysql_mutex_unlock(&LOCK_thread_count);
   DBUG_RETURN(result);
 }
@@ -4674,11 +4676,14 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   if (check_temp_dir(rli->slave_patternload_file))
   {
+    check_temp_dir_result= thd->get_stmt_da()->sql_errno();
     rli->report(ERROR_LEVEL, thd->get_stmt_da()->sql_errno(), NULL,
                 "Unable to use slave's temporary directory %s - %s", 
                 slave_load_tmpdir, thd->get_stmt_da()->message());
     goto err;
   }
+  else
+    check_temp_dir_result= 0;
 
   /* Load the set of seen GTIDs, if we did not already. */
   if (rpl_load_gtid_slave_state(thd))
@@ -4955,13 +4960,15 @@ err_during_init:
   */
   mysql_mutex_lock(&LOCK_active_mi);
   if (opt_slave_parallel_threads > 0 &&
+      master_info_index &&// master_info_index is set to NULL on server shutdown
       !master_info_index->any_slave_sql_running())
     rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   mysql_mutex_unlock(&LOCK_active_mi);
 
   mysql_mutex_lock(&LOCK_thread_count);
-  delete thd;
+  thd->unlink();
   mysql_mutex_unlock(&LOCK_thread_count);
+  delete thd;
   thread_safe_decrement32(&service_thread_count);
   signal_thd_deleted();
 

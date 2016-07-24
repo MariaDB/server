@@ -7,8 +7,7 @@
 connect (ssl_con,localhost,root,,,,,SSL read_timeout=5);
 
 --echo # Check ssl turned on
---replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA
-SHOW STATUS LIKE 'Ssl_cipher';
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 
 # --error CR_SERVER_LOST
 --error 2013

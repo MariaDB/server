@@ -11,8 +11,7 @@
 connect (ssl_con,localhost,root,,,,,SSL);
 
 # Check ssl turned on
---replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA
-SHOW STATUS LIKE 'Ssl_cipher';
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 
 # Check ssl expiration
 SHOW STATUS LIKE 'Ssl_server_not_before';
@@ -22,8 +21,7 @@ SHOW STATUS LIKE 'Ssl_server_not_after';
 -- source include/common-tests.inc
 
 # Check ssl turned on
---replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA
-SHOW STATUS LIKE 'Ssl_cipher';
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 
 #
 # MDEV-7697 Client reports ERROR 2006 (MySQL server has gone away) or ERROR 2013 (Lost connection to MySQL server during query) while executing AES* functions under SSL
@@ -33,6 +31,11 @@ select 'still connected?';
 
 connection default;
 disconnect ssl_con;
+
+create user mysqltest_1@localhost;
+grant usage on mysqltest.* to mysqltest_1@localhost require cipher "EDH-RSA-DES-CBC3-SHA";
+--exec $MYSQL -umysqltest_1 --ssl-cipher=EDH-RSA-DES-CBC3-SHA -e "show status like 'ssl_cipher'" 2>&1
+drop user mysqltest_1@localhost;
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc

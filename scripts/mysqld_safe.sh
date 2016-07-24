@@ -332,14 +332,21 @@ parse_arguments() {
       --timezone=*) TZ="$val"; export TZ; ;;
       --flush[-_]caches) flush_caches=1 ;;
       --numa[-_]interleave) numa_interleave=1 ;;
-      --wsrep[-_]on) wsrep_on=1 ;;
-      --skip[-_]wsrep[-_]on) wsrep_on=0 ;;
+      --wsrep[-_]on)
+        wsrep_on=1
+        append_arg_to_args "$arg"
+        ;;
+      --skip[-_]wsrep[-_]on)
+        wsrep_on=0
+        append_arg_to_args "$arg"
+        ;;
       --wsrep[-_]on=*)
         if echo $val | grep -iq '\(ON\|1\)'; then
           wsrep_on=1
         else
           wsrep_on=0
         fi
+        append_arg_to_args "$arg"
         ;;
       --wsrep[-_]urls=*) wsrep_urls="$val"; ;;
       --wsrep[-_]provider=*)

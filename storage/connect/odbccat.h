@@ -21,5 +21,5 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
                     char *colpat, int maxres, bool info, POPARM sop);
 PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src, POPARM sop); 
 PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
-                   int maxres, bool info, POPARM sop);
+                   char *tabtyp, int maxres, bool info, POPARM sop);
 PQRYRES ODBCDrivers(PGLOBAL g, int maxres, bool info);

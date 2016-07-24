@@ -767,7 +767,7 @@ bool JOUTSTR::Escape(const char *s)
 {
   WriteChr('"');
 
-  for (unsigned int i = 0; i < strlen(s); i++)
+  for (unsigned int i = 0; s[i]; i++)
     switch (s[i]) {
       case '"':  
       case '\\':
@@ -816,7 +816,7 @@ bool JOUTFILE::Escape(const char *s)
   // This is temporary
   fputc('"', Stream);
 
-  for (unsigned int i = 0; i < strlen(s); i++)
+  for (unsigned int i = 0; s[i]; i++)
     switch (s[i]) {
       case '"':  fputs("\\\"", Stream); break;
       case '\\': fputs("\\\\", Stream); break;

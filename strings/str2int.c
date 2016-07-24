@@ -45,7 +45,7 @@
   easy task.  Coping with integer overflow and the asymmetric range of
   twos complement machines is anything but easy.
 
-  So that users of atoi and atol can check whether an error occured,
+  So that users of atoi and atol can check whether an error occurred,
   I have taken a wholly unprecedented step: errno is CLEARED if this
   call has no problems.
 */
