@@ -154,9 +154,8 @@ readonly WSREP_SST_OPT_AUTH
 # Splitting AUTH into potential user:password pair
 if ! wsrep_auth_not_set
 then
-    readonly AUTH_VEC=(${WSREP_SST_OPT_AUTH//:/ })
-    WSREP_SST_OPT_USER="${AUTH_VEC[0]:-}"
-    WSREP_SST_OPT_PSWD="${AUTH_VEC[1]:-}"
+    WSREP_SST_OPT_USER="${WSREP_SST_OPT_AUTH%%:*}"
+    WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_AUTH##*:}"
 fi
 readonly WSREP_SST_OPT_USER
 readonly WSREP_SST_OPT_PSWD
