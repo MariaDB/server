@@ -1827,3 +1827,13 @@ alter table t1 alter a set default (2+3), alter b set default 4,
 alter table t1 alter a set default 1+2;
 show create table t1;
 drop table t1;
+
+#
+# CREATE ... SELECT
+#
+create table t1 (a int default 5 check (a>10), b int default (5+5), c int as (a+b));
+create table t2 as select a, b, c from t1;
+create table t3 as select max(a), max(b), max(c) from t1;
+show create table t2;
+show create table t3;
+drop table t1, t2, t3;

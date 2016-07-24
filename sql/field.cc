@@ -10482,8 +10482,8 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   comment=    old_field->comment;
   decimals=   old_field->decimals();
   vcol_info=  old_field->vcol_info;
-  default_value=    old_field->default_value;
-  check_constraint= old_field->check_constraint;
+  default_value= orig_field ? orig_field->default_value : 0;
+  check_constraint= orig_field ? orig_field->check_constraint : 0;
   option_list= old_field->option_list;
 
   switch (sql_type) {
