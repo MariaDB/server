@@ -1431,48 +1431,38 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   DBUG_PRINT("info",("i_count: %d  i_parts: %d  index: %d  n_length: %d  int_length: %d  com_length: %d  vcol_screen_length: %d", interval_count,interval_parts, keys,n_length,int_length, com_length, vcol_screen_length));
 
+  if (!multi_alloc_root(&share->mem_root,
+                        &share->field, (uint)(share->fields+1)*sizeof(Field*),
+                        &share->intervals, (uint)interval_count*sizeof(TYPELIB),
+                        &share->check_constraints, (uint) share->table_check_constraints * sizeof(Virtual_column_info*),
+                        &interval_array, (uint) (share->fields+interval_parts+ keys+3)*sizeof(char *),
+                        &names, (uint) (n_length+int_length),
+                        &comment_pos, (uint) com_length,
+                        &vcol_screen_pos, vcol_screen_length,
+                        NullS))
 
-  if (!(field_ptr = (Field **)
-	alloc_root(&share->mem_root,
-		   (uint) ((share->fields+1)*sizeof(Field*)+
-			   interval_count*sizeof(TYPELIB)+
-                           share->table_check_constraints *
-                           sizeof(Virtual_column_info*)+
-			   (share->fields+interval_parts+
-			    keys+3)*sizeof(char *)+
-			   (n_length+int_length+com_length+
-			       vcol_screen_length)))))
-    goto err;                           /* purecov: inspected */
+    goto err;
 
-  share->field= field_ptr;
+  field_ptr= share->field;
+  table_check_constraints= share->check_constraints;
   read_length=(uint) (share->fields * field_pack_length +
 		      pos+ (uint) (n_length+int_length+com_length+
 		                   vcol_screen_length));
   strpos= disk_buff+pos;
 
-  share->intervals= (TYPELIB*) (field_ptr+share->fields+1);
-  share->check_constraints= ((Virtual_column_info**)
-                             (share->intervals+interval_count));
-  table_check_constraints= share->check_constraints;
-  interval_array= (const char **) (table_check_constraints+
-                                   share->table_check_constraints);
-  names= (char*) (interval_array+share->fields+interval_parts+keys+3);
   if (!interval_count)
     share->intervals= 0;			// For better debugging
-  memcpy((char*) names, strpos+(share->fields*field_pack_length),
-	 (uint) (n_length+int_length));
-  comment_pos= names+(n_length+int_length);
+
+  memcpy(names, strpos+(share->fields*field_pack_length), n_length+int_length);
   memcpy(comment_pos, disk_buff+read_length-com_length-vcol_screen_length, 
          com_length);
-  vcol_screen_pos= (uchar*) (names+(n_length+int_length+com_length));
   memcpy(vcol_screen_pos, disk_buff+read_length-vcol_screen_length, 
          vcol_screen_length);
 
   fix_type_pointers(&interval_array, &share->fieldnames, 1, &names);
   if (share->fieldnames.count != share->fields)
     goto err;
-  fix_type_pointers(&interval_array, share->intervals, interval_count,
-		    &names);
+  fix_type_pointers(&interval_array, share->intervals, interval_count, &names);
 
   {
     /* Set ENUM and SET lengths */
