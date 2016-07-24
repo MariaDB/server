@@ -1039,7 +1039,10 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
                                 field->sql_type,
                                 field->charset,
                                 field->geom_type, field->srid,
-                                field->unireg_check,
+                          field->unireg_check == Field::TIMESTAMP_DNUN_FIELD
+                          ? Field::TIMESTAMP_UN_FIELD
+                          : field->unireg_check == Field::TIMESTAMP_DN_FIELD
+                          ? Field::NONE : field->unireg_check,
                                 field->save_interval ? field->save_interval :
                                 field->interval, 
                                 field->field_name);

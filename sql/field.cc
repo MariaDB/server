@@ -4920,12 +4920,12 @@ void Field_double::sql_type(String &res) const
     field has NOW() as default and is updated when row changes, else it is 
     field which has 0 as default value and is not automatically updated.
   TIMESTAMP_DN_FIELD - field with NOW() as default but not set on update
-    automatically (TIMESTAMP DEFAULT NOW())
+    automatically (TIMESTAMP DEFAULT NOW()), not used in Field since 10.2.2
   TIMESTAMP_UN_FIELD - field which is set on update automatically but has not 
     NOW() as default (but it may has 0 or some other const timestamp as 
     default) (TIMESTAMP ON UPDATE NOW()).
   TIMESTAMP_DNUN_FIELD - field which has now() as default and is auto-set on 
-    update. (TIMESTAMP DEFAULT NOW() ON UPDATE NOW())
+    update. (TIMESTAMP DEFAULT NOW() ON UPDATE NOW()), not used in Field since 10.2.2
   NONE - field which is not auto-set on update with some other than NOW() 
     default value (TIMESTAMP DEFAULT 0).
 
@@ -4956,8 +4956,8 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
       this field will be automaticly updated on insert.
     */
     flags|= TIMESTAMP_FLAG;
-    if (unireg_check != TIMESTAMP_DN_FIELD)
-      flags|= ON_UPDATE_NOW_FLAG;
+    flags|= ON_UPDATE_NOW_FLAG;
+    DBUG_ASSERT(unireg_check == TIMESTAMP_UN_FIELD);
   }
 }
 
@@ -10561,40 +10561,24 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     - The column didn't have a default expression
   */
   if (!(flags & (NO_DEFAULT_VALUE_FLAG | BLOB_FLAG)) &&
-      old_field->ptr != NULL &&
-      orig_field != NULL &&
-      !default_value)
+      old_field->ptr != NULL && orig_field != NULL)
   {
-    bool default_now= false;
-    if (real_type_with_now_as_default(sql_type))
-    {
-      // The SQL type of the new field allows a function default:
-      default_now= orig_field->has_insert_default_function();
-      bool update_now= orig_field->has_update_default_function();
+    if (orig_field->has_update_default_function())
+      unireg_check= Field::TIMESTAMP_UN_FIELD;
 
-      if (default_now && update_now)
-        unireg_check= Field::TIMESTAMP_DNUN_FIELD;
-      else if (default_now)
-        unireg_check= Field::TIMESTAMP_DN_FIELD;
-      else if (update_now)
-        unireg_check= Field::TIMESTAMP_UN_FIELD;
-    }
-    if (!default_now)                           // Give a constant default
+    /* Get the value from default_values */
+    const uchar *dv= orig_field->table->s->default_values;
+    if (!default_value && !orig_field->is_null_in_record(dv))
     {
-      /* Get the value from default_values */
-      const uchar *dv= orig_field->table->s->default_values;
-      if (!orig_field->is_null_in_record(dv))
-      {
-        StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
-        String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
-        char *pos= (char*) thd->strmake(res->ptr(), res->length());
-        default_value= new (thd->mem_root) Virtual_column_info();
-        default_value->expr_str.str= pos;
-        default_value->expr_str.length= res->length();
-        default_value->expr_item=
-          new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
-        default_value->utf8= 0;
-      }
+      StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
+      String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
+      char *pos= (char*) thd->strmake(res->ptr(), res->length());
+      default_value= new (thd->mem_root) Virtual_column_info();
+      default_value->expr_str.str= pos;
+      default_value->expr_str.length= res->length();
+      default_value->expr_item=
+        new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
+      default_value->utf8= 0;
     }
   }
 }

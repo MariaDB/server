@@ -2489,8 +2489,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
         (*field)->default_value= vcol;
         *dfield_ptr++= *field;
       }
-      if ((*field)->has_insert_default_function() ||
-          (*field)->has_update_default_function())
+      else
+      if ((*field)->has_update_default_function())
         *dfield_ptr++= *field;
     }
     if (vfield)

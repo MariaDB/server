@@ -685,7 +685,6 @@ struct TABLE_SHARE
   bool virtual_stored_fields;
   bool check_set_initialized;
   bool has_update_default_function;
-  bool has_insert_default_function;
   ulong table_map_id;                   /* for row-based replication */
 
   /*
@@ -1311,18 +1310,6 @@ public:
   void mark_columns_used_by_check_constraints(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
-  /**
-     Check if a table has a default function either for INSERT or UPDATE-like
-     operation
-     @retval true  there is a default function
-     @retval false there is no default function
-  */
-  inline bool has_default_function(bool is_update)
-  {
-    return (is_update ?
-            s->has_update_default_function :
-            s->has_insert_default_function);
-  }
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)
   {

@@ -66,7 +66,7 @@ LEX_STRING SLOW_LOG_NAME= {C_STRING_WITH_LEN("slow_log")};
   Keyword added as a prefix when parsing the defining expression for a
   virtual column read from the column definition saved in the frm file
 */
-LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
+static LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
 
 static int64 last_table_id;
 
@@ -1551,6 +1551,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     LEX_STRING comment;
     Virtual_column_info *vcol_info= 0;
     uint gis_length, gis_decimals, srid= 0;
+    Field::utype unireg_check;
 
     if (new_frm_ver >= 3)
     {
@@ -1766,21 +1767,35 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
     }
 
+    /* Convert pre-10.2.2 timestamps to use Field::default_value */
+    unireg_check= (Field::utype) MTYP_TYPENR(unireg_type);
+    if (unireg_check == Field::TIMESTAMP_DNUN_FIELD)
+      unireg_check= Field::TIMESTAMP_UN_FIELD;
+    if (unireg_check == Field::TIMESTAMP_DN_FIELD)
+      unireg_check= Field::NONE;
+
     *field_ptr= reg_field=
-      make_field(share, &share->mem_root, record+recpos,
-		 (uint32) field_length,
-		 null_pos, null_bit_pos,
-		 pack_flag,
-		 field_type,
-		 charset,
-		 geom_type, srid,
-		 (Field::utype) MTYP_TYPENR(unireg_type),
-		 (interval_nr ?
-		  share->intervals+interval_nr-1 :
-		  (TYPELIB*) 0),
+      make_field(share, &share->mem_root, record+recpos, (uint32) field_length,
+		 null_pos, null_bit_pos, pack_flag, field_type, charset,
+		 geom_type, srid, unireg_check,
+		 (interval_nr ? share->intervals+interval_nr-1 : NULL),
 		 share->fieldnames.type_names[i]);
     if (!reg_field)				// Not supported field type
       goto err;
+
+    if (unireg_check != (Field::utype) MTYP_TYPENR(unireg_type))
+    {
+      char buf[32];
+      if (reg_field->decimals())
+        my_snprintf(buf, sizeof(buf), "CURRENT_TIMESTAMP(%d)", reg_field->decimals());
+      else
+        strmov(buf, "CURRENT_TIMESTAMP");
+
+      reg_field->default_value= new (&share->mem_root) Virtual_column_info();
+      reg_field->default_value->stored_in_db= 1;
+      thd->make_lex_string(&reg_field->default_value->expr_str, buf, strlen(buf));
+      share->default_expressions++;
+    }
 
     reg_field->field_index= i;
     reg_field->comment=comment;
@@ -1821,13 +1836,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if (share->stored_rec_length>=recpos)
         share->stored_rec_length= recpos-1;
     }
-    if (reg_field->has_insert_default_function())
-      has_insert_default_function= 1;
     if (reg_field->has_update_default_function())
+    {
       has_update_default_function= 1;
-    if (reg_field->has_insert_default_function() ||
-        reg_field->has_update_default_function())
-      share->default_fields++;
+      if (!reg_field->default_value)
+        share->default_fields++;
+    }
   }
   *field_ptr=0;					// End marker
   /* Sanity checks: */
@@ -2213,16 +2227,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
       case 1:                                   // Generated stored field
         vcol_info->stored_in_db= 1;
+        DBUG_ASSERT(!reg_field->vcol_info);
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
         share->virtual_stored_fields++;         // For insert/load data
         break;
       case 2:                                   // Default expression
         vcol_info->stored_in_db= 1;
+        DBUG_ASSERT(!reg_field->default_value);
         reg_field->default_value=    vcol_info;
         share->default_expressions++;
         break;
       case 3:                                   // Field check constraint
+        DBUG_ASSERT(!reg_field->check_constraint);
         reg_field->check_constraint= vcol_info;
         share->field_check_constraints++;
         break;
@@ -2693,14 +2710,10 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
                                           vcol_expr->length + 
                                           parse_vcol_keyword.length + 3)))
     DBUG_RETURN(0);
-  memcpy(vcol_expr_str,
-         (char*) parse_vcol_keyword.str,
-         parse_vcol_keyword.length);
+  memcpy(vcol_expr_str, parse_vcol_keyword.str, parse_vcol_keyword.length);
   str_len= parse_vcol_keyword.length;
   vcol_expr_str[str_len++]= '(';
-  memcpy(vcol_expr_str + str_len, 
-         (char*) vcol_expr->str, 
-         vcol_expr->length);
+  memcpy(vcol_expr_str + str_len, vcol_expr->str, vcol_expr->length);
   str_len+= vcol_expr->length;
   vcol_expr_str[str_len++]= ')';
   vcol_expr_str[str_len++]= 0;
@@ -3045,8 +3058,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
         *(dfield_ptr++)= *field_ptr;
       }
       else
-        if ((field->has_insert_default_function() ||
-             field->has_update_default_function()))
+        if (field->has_update_default_function())
           *(dfield_ptr++)= *field_ptr;
 
     }
@@ -6275,7 +6287,7 @@ void TABLE::mark_columns_needed_for_update()
     to compare records and detect data change.
   */
   if ((file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) &&
-      default_field && has_default_function(true))
+      default_field && s->has_update_default_function)
     bitmap_union(read_set, write_set);
   DBUG_VOID_RETURN;
 }
@@ -6573,17 +6585,13 @@ void TABLE::mark_default_fields_for_write(bool is_insert)
   for (field_ptr= default_field; *field_ptr; field_ptr++)
   {
     field= (*field_ptr);
-    if (field->default_value)
+    if (is_insert && field->default_value)
     {
-      if (is_insert)
-      {
-        bitmap_set_bit(write_set, field->field_index);
-        field->default_value->expr_item->
-          walk(&Item::register_field_in_read_map, 1, 0);
-      }
+      bitmap_set_bit(write_set, field->field_index);
+      field->default_value->expr_item->
+        walk(&Item::register_field_in_read_map, 1, 0);
     }
-    else if ((is_insert && field->has_insert_default_function()) ||
-             (!is_insert && field->has_update_default_function()))
+    else if (!is_insert && field->has_update_default_function())
       bitmap_set_bit(write_set, field->field_index);
   }
   DBUG_VOID_RETURN;

@@ -1634,20 +1634,11 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
                                     bool quoted)
 {
   bool has_default;
-  bool has_now_default;
   enum enum_field_types field_type= field->type();
-
-  /*
-     We are using CURRENT_TIMESTAMP instead of NOW because it is
-     more standard
-  */
-  has_now_default= field->has_insert_default_function();
 
   has_default= (field->default_value ||
                 (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
-                 field->unireg_check != Field::NEXT_NUMBER &&
-                 !((thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
-                   && has_now_default)));
+                 field->unireg_check != Field::NEXT_NUMBER));
 
   def_value->length(0);
   if (has_default)
@@ -1662,16 +1653,13 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
                           field->default_value->expr_str.length);
         def_value->append(')');
       }
+      else if (field->unireg_check)
+        def_value->append(field->default_value->expr_str.str,
+                          field->default_value->expr_str.length);
       else
         def_value->set(field->default_value->expr_str.str,
                        field->default_value->expr_str.length,
                        &my_charset_utf8mb4_general_ci);
-    }
-    else if (has_now_default)
-    {
-      def_value->append(STRING_WITH_LEN("CURRENT_TIMESTAMP"));
-      if (field->decimals() > 0)
-        def_value->append_parenthesized(field->decimals());
     }
     else if (!field->is_null())
     {                                             // Not null by default
@@ -1704,13 +1692,13 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
         if (quoted)
           append_unescaped(def_value, def_val.ptr(), def_val.length());
         else
-          def_value->append(def_val.ptr(), def_val.length());
+          def_value->move(def_val);
       }
       else if (quoted)
-        def_value->append(STRING_WITH_LEN("''"));
+        def_value->set(STRING_WITH_LEN("''"), system_charset_info);
     }
     else if (field->maybe_null() && quoted)
-      def_value->append(STRING_WITH_LEN("NULL"));    // Null as default
+      def_value->set(STRING_WITH_LEN("NULL"), system_charset_info);    // Null as default
     else
       return 0;
 
@@ -1797,8 +1785,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   List<Item> field_list;
   char tmp[MAX_FIELD_WIDTH], *for_str, buff[128], def_value_buf[MAX_FIELD_WIDTH];
   const char *alias;
-  String type(tmp, sizeof(tmp), system_charset_info);
-  String def_value(def_value_buf, sizeof(def_value_buf), system_charset_info);
+  String type;
+  String def_value;
   Field **ptr,*field;
   uint primary_key;
   KEY *key_info;
@@ -1891,12 +1879,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     packet->append(STRING_WITH_LEN("  "));
     append_identifier(thd,packet,field->field_name, strlen(field->field_name));
     packet->append(' ');
-    // check for surprises from the previous call to Field::sql_type()
-    if (type.ptr() != tmp)
-      type.set(tmp, sizeof(tmp), system_charset_info);
-    else
-      type.set_charset(system_charset_info);
 
+    type.set(tmp, sizeof(tmp), system_charset_info);
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);
 
@@ -1943,6 +1927,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         packet->append(STRING_WITH_LEN(" NULL"));
       }
 
+      def_value.set(def_value_buf, sizeof(def_value_buf), system_charset_info);
       if (get_field_default_value(thd, field, &def_value, 1))
       {
         packet->append(STRING_WITH_LEN(" DEFAULT "));

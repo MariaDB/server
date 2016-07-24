@@ -9670,8 +9670,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         Old fields keep their current values, and therefore should not be
         present in the set of autoupdate fields.
       */
-      if ((*ptr)->default_value ||
-          ((*ptr)->has_insert_default_function()))
+      if ((*ptr)->default_value)
       {
         *(dfield_ptr++)= *ptr;
         ++to->s->default_fields;

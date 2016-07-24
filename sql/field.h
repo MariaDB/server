@@ -474,20 +474,6 @@ inline bool is_temporal_type_with_date(enum_field_types type)
 
 
 /**
-  Tests if a field real type can have "DEFAULT CURRENT_TIMESTAMP"
-
-  @param type    Field type, as returned by field->real_type().
-  @retval true   If field real type can have "DEFAULT CURRENT_TIMESTAMP".
-  @retval false  If field real type can not have "DEFAULT CURRENT_TIMESTAMP".
-*/
-inline bool real_type_with_now_as_default(enum_field_types type)
-{
-  return type == MYSQL_TYPE_TIMESTAMP || type == MYSQL_TYPE_TIMESTAMP2 ||
-    type == MYSQL_TYPE_DATETIME || type == MYSQL_TYPE_DATETIME2;
-}
-
-
-/**
    Recognizer for concrete data type (called real_type for some reason),
    returning true if it is one of the TIMESTAMP types.
 */
@@ -928,16 +914,9 @@ public:
   }
   virtual void set_default();
 
-  bool has_insert_default_function() const
-  {
-    return (unireg_check == TIMESTAMP_DN_FIELD ||
-            unireg_check == TIMESTAMP_DNUN_FIELD);
-  }
-
   bool has_update_default_function() const
   {
-    return (unireg_check == TIMESTAMP_UN_FIELD ||
-            unireg_check == TIMESTAMP_DNUN_FIELD);
+    return unireg_check == TIMESTAMP_UN_FIELD;
   }
 
   /*
@@ -2377,21 +2356,7 @@ public:
   void sql_type(String &str) const;
   bool zero_pack() const { return 0; }
   virtual int set_time();
-  virtual void set_default()
-  {
-    if (has_insert_default_function())
-      set_time();
-    else
-      Field::set_default();
-  }
   virtual void set_explicit_default(Item *value);
-  virtual int evaluate_insert_default_function()
-  {
-    int res= 0;
-    if (has_insert_default_function())
-      res= set_time();
-    return res;
-  }
   virtual int evaluate_update_default_function()
   {
     int res= 0;
@@ -2821,20 +2786,6 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_datetime::get_TIME(ltime, ptr, fuzzydate); }
   virtual int set_time();
-  virtual void set_default()
-  {
-    if (has_insert_default_function())
-      set_time();
-    else
-      Field::set_default();
-  }
-  virtual int evaluate_insert_default_function()
-  {
-    int res= 0;
-    if (has_insert_default_function())
-      res= set_time();
-    return res;
-  }
   virtual int evaluate_update_default_function()
   {
     int res= 0;
@@ -3813,9 +3764,7 @@ public:
 
   bool has_default_function() const
   {
-    return (unireg_check == Field::TIMESTAMP_DN_FIELD ||
-            unireg_check == Field::TIMESTAMP_DNUN_FIELD ||
-            unireg_check == Field::TIMESTAMP_UN_FIELD ||
+    return (unireg_check == Field::TIMESTAMP_UN_FIELD ||
             unireg_check == Field::NEXT_NUMBER);
   }
 

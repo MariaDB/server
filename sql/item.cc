@@ -956,8 +956,7 @@ bool Item_field::check_field_expression_processor(void *arg)
 {
   if (field->flags & NO_DEFAULT_VALUE_FLAG)
     return 0;
-  if ((field->default_value  && field->default_value->flags)
-      || field->has_insert_default_function() || field->vcol_info)
+  if ((field->default_value && field->default_value->flags) || field->vcol_info)
   {
     Field *org_field= (Field*) arg;
     if (field == org_field ||
@@ -8258,7 +8257,7 @@ void Item_default_value::print(String *str, enum_query_type query_type)
 
 void Item_default_value::calculate()
 {
-  if (field->default_value || field->has_insert_default_function())
+  if (field->default_value)
     field->set_default();
 }
 
