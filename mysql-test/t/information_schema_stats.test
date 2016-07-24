@@ -13,6 +13,7 @@ alter table just_a_test add key IND_just_a_test_first_name_last_name(first_name,
 alter table just_a_test add key IND_just_a_test_state(state);
 select count(*) from just_a_test where first_name='fc' and last_name='lc';
 select count(*) from just_a_test where state = 'California';
+--sorted_result
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
 alter table just_a_test drop key IND_just_a_test_first_name_last_name;
@@ -36,6 +37,7 @@ insert into just_a_test values(1,'fa','la','china_a',11111111,'fa_la@163.com','C
 select count(*) from just_a_test where first_name='fc' and last_name='lc';
 select count(*) from just_a_test where state = 'California';
 select count(*) from just_a_test where id between 2 and 4;
+--sorted_result
 select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
 select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
 drop table just_a_test;
