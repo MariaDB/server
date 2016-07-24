@@ -63,19 +63,29 @@ check_pid_and_port()
     local rsync_addr=$3
     local rsync_port=$4
 
-    if ! which lsof > /dev/null; then
-      wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
-      exit 2 # ENOENT
-    fi
+    case $OS in
+    FreeBSD)
+        local port_info=$(netstat -46lp ${rsync_port} 2>/dev/null | \
+        grep ":${rsync_port}")
+        local is_rsync=$(echo $port_info | \
+        grep -w '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)
+        ;;
+    *) 
+        if ! which lsof > /dev/null; then
+          wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
+          exit 2 # ENOENT
+        fi
 
-    local port_info=$(lsof -i :$rsync_port -Pn 2>/dev/null | \
-        grep "(LISTEN)")
-    local is_listening_all=$(echo $port_info | \
-        grep "*:$rsync_port" 2>/dev/null)
-    local is_listening_addr=$(echo $port_info | \
-        grep "$rsync_addr:$rsync_port" 2>/dev/null)
-    local is_rsync=$(echo $port_info | \
-        grep -w '^rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)
+        local port_info=$(lsof -i :$rsync_port -Pn 2>/dev/null | \
+            grep "(LISTEN)")
+        local is_listening_all=$(echo $port_info | \
+            grep "*:$rsync_port" 2>/dev/null)
+        local is_listening_addr=$(echo $port_info | \
+            grep "$rsync_addr:$rsync_port" 2>/dev/null)
+        local is_rsync=$(echo $port_info | \
+            grep -w '^rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)
+        ;;
+    esac
 
     if [ ! -z "$is_listening_all" -o ! -z "$is_listening_addr" ]; then
         if [ -z "$is_rsync" ]; then
