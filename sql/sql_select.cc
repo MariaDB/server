@@ -5182,12 +5182,13 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 	continue;    // ToDo: ft-keys in non-ft queries.   SerG
       KEY *keyinfo= form->key_info+key;
       uint key_parts= form->actual_n_key_parts(keyinfo);
-      if (keyinfo->flags & HA_UNIQUE_HASH)
+      /* in case of null we do not use any optimization */
+      if (keyinfo->flags & HA_UNIQUE_HASH )
       {
-        LEX_STRING *ls = &keyinfo->key_part->field->vcol_info->expr_str;
-        if (find_field_name_in_hash(ls->str,(char *)field->field_name,ls->length) != -1)
+        LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
+        if (find_field_name_in_hash(ls->str, (char *)field->field_name, ls->length) != -1)
         {
-          if (add_keyuse(keyuse_array, key_field, key,0))
+          if (add_keyuse(keyuse_array, key_field, key, 0))
             return TRUE;
         }
       }
@@ -18906,11 +18907,32 @@ join_read_const(JOIN_TAB *tab)
         cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
         uchar hash_key[9];
         hash_key[0]=0;
+        //for testing purpose
+        nr1= 12;
         int8store(hash_key+1,nr1);
-        error= table->file->ha_index_read_idx_map(table->record[0],tab->ref.key,
-                                                  hash_key,
-                                                  HA_WHOLE_KEY,
-                                                  HA_READ_KEY_EXACT);
+        error= table->file->ha_index_init(tab->ref.key, 0);
+        if (!error)
+        {
+          error= table->file->ha_index_read_map(table->record[0], hash_key,
+                                               HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+          /* Need to see whethere it is the same record as requested by user because
+             two different record can have same hash */
+          //first find the pointer in record
+            String other_str;
+            while (true)
+            {
+            field->val_str(&other_str);
+            if(my_strcasecmp(other_str.charset(),str->c_ptr(),other_str.c_ptr()))
+            {
+              /*here hash is same for different record we need to find the matching one*/
+              if ((error= table->file->ha_index_next(table->record[0])))
+                break;
+            }
+            else
+              break;
+            }
+        }
+        table->file->ha_index_end();
       }
       else
         error= table->file->ha_index_read_idx_map(table->record[0],tab->ref.key,
