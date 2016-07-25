@@ -5219,6 +5219,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   fixed= 1;
+  if (field->vcol_info)
+    fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
       thd->lex->current_select->cur_pos_in_select_list != UNDEF_POS &&
@@ -8231,6 +8233,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   set_field(def_field);
   if (field->default_value)
   {
+    fix_session_vcol_expr_for_read(thd, field, field->default_value);
     if (thd->mark_used_columns != MARK_COLUMNS_NONE)
       field->default_value->expr_item->walk(&Item::register_field_in_read_map, 1, 0);
     IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED

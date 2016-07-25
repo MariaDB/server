@@ -2543,7 +2543,11 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
   DBUG_RETURN(0);
 }
 
+/** rerun fix_fields for vcols that returns time- or session- dependent values
 
+    @note this is done for all vcols for INSERT/UPDATE/DELETE,
+    and only as needed for SELECTs.
+*/
 bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol)
 {
   DBUG_ENTER("fix_session_vcol_expr");
@@ -2553,6 +2557,27 @@ bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol)
   vcol->expr_item->cleanup();
   DBUG_ASSERT(!vcol->expr_item->fixed);
   DBUG_RETURN(fix_vcol_expr(thd, vcol));
+}
+
+
+/** invoke fix_session_vcol_expr for a vcol
+
+    @note this is called for generated column or a DEFAULT expression from
+    their corresponding fix_fields on SELECT.
+*/
+bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
+                                    Virtual_column_info *vcol)
+{
+  DBUG_ENTER("fix_session_vcol_expr_for_read");
+  TABLE_LIST *tl= field->table->pos_in_table_list;
+  if (!tl || tl->lock_type >= TL_WRITE_ALLOW_WRITE)
+    DBUG_RETURN(0);
+  Security_context *save_security_ctx= thd->security_ctx;
+  if (tl->security_ctx)
+    thd->security_ctx= tl->security_ctx;
+  bool res= fix_session_vcol_expr(thd, vcol);
+  thd->security_ctx= save_security_ctx;
+  DBUG_RETURN(res);
 }
 
 

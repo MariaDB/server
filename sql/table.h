@@ -2620,6 +2620,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        uint ha_open_flags, TABLE *outparam,
                        bool is_create_table);
 bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
+bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
+                                    Virtual_column_info *vcol);
 Virtual_column_info *unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
                                                TABLE *table,
                                                Field *field,

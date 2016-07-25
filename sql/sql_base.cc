@@ -4697,7 +4697,8 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
        table= table->next_global)
   {
     TABLE *t= table->table;
-    if (!table->placeholder() && t->s->vcols_need_refixing)
+    if (!table->placeholder() && t->s->vcols_need_refixing &&
+         table->lock_type >= TL_WRITE_ALLOW_WRITE)
     {
       if (table->security_ctx)
         thd->security_ctx= table->security_ctx;
@@ -4711,7 +4712,6 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
             fix_session_vcol_expr(thd, (*df)->default_value))
           goto err;
 
-      if (table->lock_type >= TL_WRITE_ALLOW_WRITE)
         for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
           if (fix_session_vcol_expr(thd, (*cc)))
             goto err;
