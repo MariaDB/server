@@ -47,6 +47,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 // See design documentation for nested transactions at
 // TokuWiki/Imp/TransactionsOverview.
 
+#include <my_global.h>
 #include "portability/toku_portability.h"
 
 #include "ft/ft-internal.h"
