@@ -2306,6 +2306,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   bitmap_count= 1;
   if (share->table_check_constraints)
   {
+    feature_check_constraint++;
     if (!(share->check_set= (MY_BITMAP*)
           alloc_root(&share->mem_root, sizeof(*share->check_set))))
       goto err;

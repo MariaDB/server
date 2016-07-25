@@ -823,8 +823,7 @@ typedef struct system_status_var
   Global status variables
 */
 
-extern ulong feature_files_opened_with_delayed_keys;
-
+extern ulong feature_files_opened_with_delayed_keys, feature_check_constraint;
 
 void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 
