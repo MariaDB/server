@@ -518,10 +518,18 @@ db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name, st_s
   bool saved_time_zone_used= thd->time_zone_used;
   ulonglong saved_mode= thd->variables.sql_mode;
   Open_tables_backup open_tables_state_backup;
+  sp_head *sp;
     
   DBUG_ENTER("db_get_aggregate_value");
   DBUG_PRINT("enter", ("type: %d name: %.*s",
            type, (int) name->m_name.length, name->m_name.str));
+
+  if(sp=sp_cache_lookup(&thd->sp_func_cache,name))
+  {
+    chistics->agg_type= sp->m_chistics->agg_type;
+    DBUG_RETURN(FALSE);
+  }
+
 
                                      // In case of errors
   if (!(table= open_proc_table_for_read(thd, &open_tables_state_backup)))

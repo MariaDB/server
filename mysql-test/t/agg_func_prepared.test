@@ -22,40 +22,40 @@ end|
 
 delimiter ;|
 
-create table t1 (sal int,id int,val int,counter int);
-INSERT INTO t1 (sal,id,val,counter) VALUES (1000,2,10,2);
-INSERT INTO t1 (sal,id,val,counter) VALUES (2000,1,16,5);
-INSERT INTO t1 (sal,id,val,counter) VALUES (6000,2,18,1);
-INSERT INTO t1 (sal,id,val,counter) VALUES (5000,3,15,3);
-INSERT INTO t1 (sal,id,val,counter) VALUES (3000,4,11,4);
+create table t1 (sal int, id int, val int, counter int);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 2, 10, 2);
+INSERT INTO t1 (sal, id, val, counter) VALUES (2000, 1, 16, 5);
+INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 2, 18, 1);
+INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 3, 15, 3);
+INSERT INTO t1 (sal, id, val, counter) VALUES (3000, 4, 11, 4);
 
-prepare test from "select agg_count() from t1 where id>=?";
-set @param=2;
+prepare test from "select agg_count() from t1 where id>= ?";
+set @param= 2;
 execute test using @param;
 execute test using @param;
 execute test using @param;
 execute test using @param;
-set @param=1;
+set @param= 1;
 execute test using @param;
-set @param=3;
+set @param= 3;
 execute test using @param;
-set @param=4;
+set @param= 4;
 execute test using @param;
 deallocate prepare test;
 
-prepare test from "select agg_sum(sal) from t1 where id>=?";
-set @param=2;
+prepare test from "select agg_sum(sal) from t1 where id>= ?";
+set @param= 2;
 execute test using @param;
 execute test using @param;
 execute test using @param;
 execute test using @param;
-set @param=1;
+set @param= 1;
 execute test using @param;
-set @param=3;
+set @param= 3;
 execute test using @param;
-set @param=4;
+set @param= 4;
 execute test using @param;
-set @param=5;
+set @param= 5;
 execute test using @param;
 deallocate prepare test;
 

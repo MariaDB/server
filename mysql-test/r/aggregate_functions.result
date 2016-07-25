@@ -1,33 +1,33 @@
 create aggregate function agg_and(x INT) returns INT
 begin
-declare  z double default 1000;
+declare z double default 1000;
 declare continue handler for not found return z;
 loop
 fetch group next row;
 set z= (z&x);
 end loop;
 end|
-create table t1 (sal int,id int,val int,counter int);
-INSERT INTO t1 (sal,id,val,counter) VALUES (1000,2,10,2);
-INSERT INTO t1 (sal,id,val,counter) VALUES (7000,1,16,5);
-INSERT INTO t1 (sal,id,val,counter) VALUES (6000,2,18,1);
-INSERT INTO t1 (sal,id,val,counter) VALUES (5000,3,15,3);
-INSERT INTO t1 (sal,id,val,counter) VALUES (3000,4,11,4);
-INSERT INTO t1 (sal,id,val,counter) VALUES (2000,5,10,7);
-INSERT INTO t1 (sal,id,val,counter) VALUES (5000,7,13,8);
-INSERT INTO t1 (sal,id,val,counter) VALUES (6000,6,19,9);
-INSERT INTO t1 (sal,id,val,counter) VALUES (7000,7,12,0);
-INSERT INTO t1 (sal,id,val,counter) VALUES (4000,6,14,1);
-INSERT INTO t1 (sal,id,val,counter) VALUES (8000,5,19,3);
-INSERT INTO t1 (sal,id,val,counter) VALUES (9000,4,11,4);
-INSERT INTO t1 (sal,id,val,counter) VALUES (1000,3,10,2);
+create table t1 (sal int, id int, val int, counter int);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 2, 10, 2);
+INSERT INTO t1 (sal, id, val, counter) VALUES (7000, 1, 16, 5);
+INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 2, 18, 1);
+INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 3, 15, 3);
+INSERT INTO t1 (sal, id, val, counter) VALUES (3000, 4, 11, 4);
+INSERT INTO t1 (sal, id, val, counter) VALUES (2000, 5, 10, 7);
+INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 7, 13, 8);
+INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 6, 19, 9);
+INSERT INTO t1 (sal, id, val, counter) VALUES (7000, 7, 12, 0);
+INSERT INTO t1 (sal, id, val, counter) VALUES (4000, 6, 14, 1);
+INSERT INTO t1 (sal, id, val, counter) VALUES (8000, 5, 19, 3);
+INSERT INTO t1 (sal, id, val, counter) VALUES (9000, 4, 11, 4);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 3, 10, 2);
 select agg_and(sal) from t1 where id>= 1;
 agg_and(sal)
 768
 create aggregate function agg_avg(x INT) returns double
 begin
-declare  z double default 0;
-declare  count double default 0;
+declare z double default 0;
+declare count double default 0;
 declare continue handler for not found return z/count;
 loop
 fetch group next row;
@@ -40,7 +40,7 @@ agg_avg(sal)
 4923.076923076923
 create aggregate function agg_max(x INT) returns INT
 begin
-declare  maxi INT default -1;
+declare maxi INT default -1;
 declare continue handler for not found return maxi;
 loop
 fetch group next row;
@@ -54,7 +54,7 @@ agg_max(sal)
 9000
 create aggregate function agg_min(x INT) returns double
 begin
-declare  mini INT default 100000;
+declare mini INT default 100000;
 declare continue handler for not found return mini;
 loop
 fetch group next row;
@@ -68,7 +68,7 @@ agg_min(sal)
 1000
 create aggregate function agg_xor(x INT) returns double
 begin
-declare  z double default 0;
+declare z double default 0;
 declare continue handler for not found return z;
 loop
 fetch group next row;
@@ -80,7 +80,7 @@ agg_xor(sal)
 16288
 create aggregate function agg_sum(x INT) returns INT
 begin
-declare  z int default 0;
+declare z int default 0;
 declare continue handler for not found return z;
 loop
 fetch group next row;
@@ -92,7 +92,7 @@ agg_sum(sal)
 64000
 create aggregate function agg_increm() returns INT
 begin
-declare  z double default 0;
+declare z double default 0;
 declare continue handler for not found return z;
 loop
 fetch group next row;
@@ -102,10 +102,10 @@ end|
 select agg_increm() from t1;
 agg_increm()
 13
-create table t2 (sal int,id int);
-INSERT INTO t2 (sal,id) VALUES (NULL,1);
-INSERT INTO t2 (sal,id) VALUES (2000,1);
-INSERT INTO t2 (sal,id) VALUES (3000,1);
+create table t2 (sal int, id int);
+INSERT INTO t2 (sal, id) VALUES (NULL, 1);
+INSERT INTO t2 (sal, id) VALUES (2000, 1);
+INSERT INTO t2 (sal, id) VALUES (3000, 1);
 select agg_sum(sal) from t2;
 agg_sum(sal)
 NULL
@@ -133,7 +133,7 @@ agg_reg_func()
 192000
 create aggregate function agg_agg_func(x INT) returns INT
 begin
-declare  z int default 0;
+declare z int default 0;
 declare continue handler for not found return z;
 loop
 fetch group next row;
@@ -145,7 +145,7 @@ end|
 select agg_agg_func(sal) from t2;
 agg_agg_func(sal)
 128000
-select agg_sum(sal) from t1 where id>=1 group by id;
+select agg_sum(sal) from t1 where id>= 1 group by id;
 agg_sum(sal)
 7000
 7000
@@ -154,7 +154,7 @@ agg_sum(sal)
 10000
 10000
 12000
-select agg_sum(sal) from t1 where id>=1 group by counter;
+select agg_sum(sal) from t1 where id>= 1 group by counter;
 agg_sum(sal)
 7000
 10000
@@ -165,7 +165,7 @@ agg_sum(sal)
 2000
 5000
 6000
-select agg_sum(sal) from t1 where id>=1 group by val;
+select agg_sum(sal) from t1 where id>= 1 group by val;
 agg_sum(sal)
 4000
 12000
@@ -176,7 +176,7 @@ agg_sum(sal)
 7000
 6000
 14000
-select counter,agg_sum(sal) from t1 where id>=1 group by id order by counter;
+select counter, agg_sum(sal) from t1 where id>= 1 group by id order by counter;
 counter	agg_sum(sal)
 0	12000
 2	7000
@@ -185,7 +185,7 @@ counter	agg_sum(sal)
 5	7000
 7	10000
 9	10000
-select counter,id,agg_sum(sal),agg_sum(sal) from t1 where id>=1 group by id order by counter;
+select counter, id, agg_sum(sal), agg_sum(sal) from t1 where id>= 1 group by id order by counter;
 counter	id	agg_sum(sal)	agg_sum(sal)
 0	7	12000	12000
 2	2	7000	7000
@@ -194,7 +194,7 @@ counter	id	agg_sum(sal)	agg_sum(sal)
 5	1	7000	7000
 7	5	10000	10000
 9	6	10000	10000
-select counter,id,agg_sum(sal),sum(distinct sal) from t1 where id>=1 group by id order by counter desc;
+select counter, id, agg_sum(sal), sum(distinct sal) from t1 where id>= 1 group by id order by counter desc;
 counter	id	agg_sum(sal)	sum(distinct sal)
 9	6	10000	10000
 7	5	10000	10000
@@ -203,7 +203,7 @@ counter	id	agg_sum(sal)	sum(distinct sal)
 2	2	7000	7000
 2	3	6000	6000
 0	7	12000	12000
-select val,counter,id,agg_sum(sal),sum(distinct sal),agg_min(sal),agg_max(sal),agg_avg(sal) from t1 where id>=1 group by id,val order by counter,val;
+select val, counter, id, agg_sum(sal), sum(distinct sal), agg_min(sal), agg_max(sal), agg_avg(sal) from t1 where id>= 1 group by id, val order by counter, val;
 val	counter	id	agg_sum(sal)	sum(distinct sal)	agg_min(sal)	agg_max(sal)	agg_avg(sal)
 12	0	7	7000	7000	7000	7000	7000
 14	1	6	4000	4000	4000	4000	4000
