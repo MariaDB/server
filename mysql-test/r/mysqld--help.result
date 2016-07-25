@@ -1458,8 +1458,8 @@ wsrep-drupal-282555-workaround FALSE
 wsrep-forced-binlog-format NONE
 wsrep-load-data-splitting TRUE
 wsrep-log-conflicts FALSE
-wsrep-max-ws-rows 131072
-wsrep-max-ws-size 1073741824
+wsrep-max-ws-rows 0
+wsrep-max-ws-size 2147483647
 wsrep-mysql-replication-bundle 0
 wsrep-new-cluster FALSE
 wsrep-node-address 
