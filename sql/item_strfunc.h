@@ -562,7 +562,10 @@ class Item_func_sysconst :public Item_str_func
 public:
   Item_func_sysconst(THD *thd): Item_str_func(thd)
   { collation.set(system_charset_info,DERIVATION_SYSCONST); }
-  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
+  Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(thd, tocs, true, fully_qualified_func_name());
+  }
   /*
     Used to create correct Item name in new converted item in
     safe_charset_converter, return string representation of this function
@@ -572,7 +575,7 @@ public:
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(fully_qualified_func_name(), arg,
-                                     VCOL_NON_DETERMINISTIC);
+                                     VCOL_SESSION_FUNC);
   }
 };
 
@@ -595,15 +598,19 @@ public:
 class Item_func_user :public Item_func_sysconst
 {
 protected:
-  query_id_t last_query_id;
-  String cached_value;
-  bool init(THD *thd, const char *user, const char *host);
+  bool init (const char *user, const char *host);
 
 public:
-  Item_func_user(THD *thd): Item_func_sysconst(thd), last_query_id(0)
-  {}
-
-  String *val_str(String *);
+  Item_func_user(THD *thd): Item_func_sysconst(thd)
+  {
+    str_value.set("", 0, system_charset_info);
+  }
+  String *val_str(String *)
+  {
+    DBUG_ASSERT(fixed == 1);
+    return (null_value ? 0 : &str_value);
+  }
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
   {
     max_length= (username_char_length +
@@ -611,6 +618,10 @@ public:
   }
   const char *func_name() const { return "user"; }
   const char *fully_qualified_func_name() const { return "user()"; }
+  int save_in_field(Field *field, bool no_conversions)
+  {
+    return save_str_value_in_field(field, &str_value);
+  }
 };
 
 
@@ -621,14 +632,14 @@ class Item_func_current_user :public Item_func_user
 public:
   Item_func_current_user(THD *thd, Name_resolution_context *context_arg):
     Item_func_user(thd), context(context_arg) {}
-  String *val_str(String *);
+  bool fix_fields(THD *thd, Item **ref);
   const char *func_name() const { return "current_user"; }
   const char *fully_qualified_func_name() const { return "current_user()"; }
-  /* This is because of the stored Name_resolution_context */
   bool check_vcol_func_processor(void *arg)
   {
+    context= 0;
     return mark_unsupported_function(fully_qualified_func_name(), arg,
-                                     VCOL_IMPOSSIBLE);
+                                     VCOL_SESSION_FUNC);
   }
 };
 
@@ -642,20 +653,21 @@ public:
     Item_func_sysconst(thd), context(context_arg) {}
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
-  {
-    max_length= username_char_length * SYSTEM_CHARSET_MBMAXLEN;
-    maybe_null=1;
-  }
-  bool init(THD *thd);
-  int save_in_field(Field *field, bool no_conversions);
+  { max_length= username_char_length * SYSTEM_CHARSET_MBMAXLEN; }
+  int save_in_field(Field *field, bool no_conversions)
+  { return save_str_value_in_field(field, &str_value); }
   const char *func_name() const { return "current_role"; }
   const char *fully_qualified_func_name() const { return "current_role()"; }
-  String *val_str(String *);
-  /* This is because of the stored Name_resolution_context */
+  String *val_str(String *)
+  {
+    DBUG_ASSERT(fixed == 1);
+    return (null_value ? 0 : &str_value);
+  }
   bool check_vcol_func_processor(void *arg)
   {
+    context= 0;
     return mark_unsupported_function(fully_qualified_func_name(), arg,
-                                     VCOL_IMPOSSIBLE);
+                                     VCOL_SESSION_FUNC);
   }
 };
 

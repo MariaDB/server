@@ -4687,6 +4687,45 @@ static void mark_real_tables_as_free_for_reuse(TABLE_LIST *table_list)
 }
 
 
+static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
+{
+  Security_context *save_security_ctx= thd->security_ctx;
+  TABLE_LIST *first_not_own= thd->lex->first_not_own_table();
+  DBUG_ENTER("fix_session_vcol_expr");
+
+  for (TABLE_LIST *table= tables; table && table != first_not_own;
+       table= table->next_global)
+  {
+    TABLE *t= table->table;
+    if (!table->placeholder() && t->s->vcols_need_refixing)
+    {
+      if (table->security_ctx)
+        thd->security_ctx= table->security_ctx;
+
+      for (Field **vf= t->vfield; vf && *vf; vf++)
+        if (fix_session_vcol_expr(thd, (*vf)->vcol_info))
+          goto err;
+
+      for (Field **df= t->default_field; df && *df; df++)
+        if ((*df)->default_value &&
+            fix_session_vcol_expr(thd, (*df)->default_value))
+          goto err;
+
+      if (table->lock_type >= TL_WRITE_ALLOW_WRITE)
+        for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
+          if (fix_session_vcol_expr(thd, (*cc)))
+            goto err;
+
+      thd->security_ctx= save_security_ctx;
+    }
+  }
+  DBUG_RETURN(0);
+err:
+  thd->security_ctx= save_security_ctx;
+  DBUG_RETURN(1);
+}
+
+
 /**
   Lock all tables in a list.
 
@@ -4848,7 +4887,11 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
     }
   }
 
-  DBUG_RETURN(thd->decide_logging_format(tables));
+  bool res= fix_all_session_vcol_exprs(thd, tables);
+  if (!res)
+    res= thd->decide_logging_format(tables);
+
+  DBUG_RETURN(res);
 }
 
 

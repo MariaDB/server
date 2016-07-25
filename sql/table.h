@@ -681,6 +681,7 @@ struct TABLE_SHARE
   bool can_cmp_whole_record;
   bool table_creation_was_logged;
   bool non_determinstic_insert;
+  bool vcols_need_refixing;
   bool virtual_stored_fields;
   bool check_set_initialized;
   bool has_update_default_function;
@@ -2631,6 +2632,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        const char *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
                        bool is_create_table);
+bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
 Virtual_column_info *unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
                                                TABLE *table,
                                                Field *field,

@@ -196,7 +196,7 @@ public:
   }
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
 };
 
@@ -411,7 +411,7 @@ class Item_func_dayname :public Item_func_weekday
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
 };
 
@@ -776,7 +776,7 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
 };
 

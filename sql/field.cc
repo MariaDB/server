@@ -9801,10 +9801,11 @@ bool check_expression(Virtual_column_info *vcol, const char *type,
   ret= vcol->expr_item->walk(&Item::check_vcol_func_processor, 0, &res);
   vcol->flags= res.errors;
 
-  if (ret ||
-      (res.errors &
-       (VCOL_IMPOSSIBLE |
-        (must_be_determinstic ? VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC: 0))))
+  uint filter= VCOL_IMPOSSIBLE;
+  if (must_be_determinstic)
+    filter|= VCOL_NOT_STRICTLY_DETERMINISTIC;
+
+  if (ret || (res.errors & filter))
   {
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
              type, name);

@@ -74,13 +74,6 @@ create or replace table t1 (a varchar(64), b varchar(64) as (collation(a)) PERSI
 create or replace table t1 (a int as (connection_id()));
 create or replace table t1 (a int as (connection_id()) PERSISTENT);
 ERROR HY000: Function or expression 'connection_id()' cannot be used in the GENERATED ALWAYS AS clause of `a`
-# CURRENT_USER(), CURRENT_USER
-create or replace table t1 (a varchar(32) as (current_user()));
-ERROR HY000: Function or expression 'current_user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
-create or replace table t1 (a varchar(32) as (current_user()) PERSISTENT);
-ERROR HY000: Function or expression 'current_user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
-create or replace table t1 (a varchar(32) as (current_user) PERSISTENT);
-ERROR HY000: Function or expression 'current_user()' cannot be used in the GENERATED ALWAYS AS clause of `a`
 # DATABASE()
 create or replace table t1 (a varchar(32) as (database()));
 create or replace table t1 (a varchar(1024), b varchar(1024) as (database()) PERSISTENT);
@@ -141,9 +134,6 @@ create or replace table t1 (a varchar(1024), b varchar(1024) as (version()) PERS
 ERROR HY000: Function or expression 'version()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # ENCRYPT()
 create or replace table t1 (a varchar(1024), b varchar(1024) as (encrypt(a)) PERSISTENT);
-# DATE_FORMAT()
-create or replace table t1 (a datetime, b varchar(64) as (date_format(a,'%W %M %D'));
-ERROR HY000: Function or expression 'date_format()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # Stored procedures
 create procedure p1()
 begin
@@ -217,15 +207,6 @@ ERROR HY000: Function or expression 'var_samp()' cannot be used in the GENERATED
 # VARIANCE()
 create or replace table t1 (a int, b int as (variance(a)));
 ERROR HY000: Function or expression 'variance()' cannot be used in the GENERATED ALWAYS AS clause of `b`
-# DAYNAME()
-create or replace table t1 (a int, b varchar(10) as (dayname(a)));
-ERROR HY000: Function or expression 'dayname()' cannot be used in the GENERATED ALWAYS AS clause of `b`
-create or replace table t1 (a int, b varchar(10) as (monthname(a)));
-ERROR HY000: Function or expression 'monthname()' cannot be used in the GENERATED ALWAYS AS clause of `b`
-create or replace table t1 (a int, b varchar(10) as (date_format("1963-01-01","%d.%m.%Y")));
-ERROR HY000: Function or expression 'date_format()' cannot be used in the GENERATED ALWAYS AS clause of `b`
-create or replace table t1 (a int, b varchar(10) as (time_format(now(),"%d.%m.%Y")));
-ERROR HY000: Function or expression 'time_format()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 #
 # XML FUNCTIONS
 #

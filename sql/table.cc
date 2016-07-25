@@ -2530,6 +2530,18 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
 }
 
 
+bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol)
+{
+  DBUG_ENTER("fix_session_vcol_expr");
+  if (!(vcol->flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC)))
+    DBUG_RETURN(0);
+
+  vcol->expr_item->cleanup();
+  DBUG_ASSERT(!vcol->expr_item->fixed);
+  DBUG_RETURN(fix_vcol_expr(thd, vcol));
+}
+
+
 /*
   @brief 
     Perform semantic analysis of the defining expression for a virtual column
@@ -2610,8 +2622,12 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table, Field *field,
   /*
     Mark what kind of default / virtual fields the table has
   */
-  if (vcol->stored_in_db && vcol->flags & VCOL_NON_DETERMINISTIC)
-    table->s->non_determinstic_insert= 1;
+  if (vcol->stored_in_db &&
+      vcol->flags & (VCOL_NON_DETERMINISTIC | VCOL_SESSION_FUNC))
+    table->s->non_determinstic_insert= true;
+
+  if (vcol->flags & VCOL_SESSION_FUNC)
+    table->s->vcols_need_refixing= true;
 
   DBUG_RETURN(0);
 }
@@ -3030,8 +3046,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
           goto err;
         }
         field->default_value= vcol;
-        if (is_create_table &&
-            !(vcol->flags & (VCOL_UNKNOWN | VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC)))
+        if (is_create_table && !vcol->flags)
         {
           enum_check_fields old_count_cuted_fields= thd->count_cuted_fields;
           thd->count_cuted_fields= CHECK_FIELD_WARN;    // To find wrong default values

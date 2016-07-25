@@ -1084,33 +1084,6 @@ a	b
 20010101102030	2001
 DROP TABLE t1;
 #
-# Miscelaneous SQL standard <default option> variants
-#
-CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_USER);
-ERROR HY000: Function or expression 'current_user()' cannot be used in the DEFAULT clause of `a`
-CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_ROLE);
-ERROR HY000: Function or expression 'current_role()' cannot be used in the DEFAULT clause of `a`
-#
-# Other Item_func_sysconst derived functions
-#
-CREATE TABLE t1 (a VARCHAR(30) DEFAULT DATABASE());
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` varchar(30) DEFAULT DATABASE()
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES ();
-USE INFORMATION_SCHEMA;
-INSERT INTO test.t1 VALUES ();
-USE test;
-INSERT INTO t1 VALUES ();
-SELECT * FROM t1;
-a
-test
-information_schema
-test
-DROP TABLE t1;
-#
 # Check DEFAULT() function
 #
 CREATE TABLE `t1` (`a` int(11) DEFAULT (3+3),`b` int(11) DEFAULT '1000');
@@ -1400,8 +1373,6 @@ SELECT * FROM t1;
 a	b	c
 01,5,2013	%d,%m,%Y	2013-05-01
 DROP TABLE t1;
-CREATE TABLE t1 (a VARCHAR(30), b VARCHAR(30) DEFAULT DATE_FORMAT(a,'%W %M %Y'));
-ERROR HY000: Function or expression 'date_format()' cannot be used in the DEFAULT clause of `b`
 # Item_datefunc
 SET time_zone='-10:00';
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 23:59:59');
@@ -1835,10 +1806,6 @@ SELECT * FROM t1;
 a	b
 2008-04-01	2
 DROP TABLE t1;
-CREATE TABLE t1 (a DATE, b VARCHAR(30) DEFAULT DAYNAME(a));
-ERROR HY000: Function or expression 'dayname()' cannot be used in the DEFAULT clause of `b`
-CREATE TABLE t1 (a DATE, b VARCHAR(30) DEFAULT MONTHNAME(a));
-ERROR HY000: Function or expression 'monthname()' cannot be used in the DEFAULT clause of `b`
 CREATE TABLE t1 (a DATE, b INT DEFAULT EXTRACT(YEAR FROM a));
 SHOW CREATE TABLE t1;
 Table	Create Table

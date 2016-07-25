@@ -5854,7 +5854,7 @@ void Item_func_get_system_var::print(String *str, enum_query_type query_type)
 
 bool Item_func_get_system_var::check_vcol_func_processor(void *arg)
 {
-  return mark_unsupported_function("@@", var->name.str, arg, VCOL_NON_DETERMINISTIC);
+  return mark_unsupported_function("@@", var->name.str, arg, VCOL_SESSION_FUNC);
 }
 
 enum Item_result Item_func_get_system_var::result_type() const

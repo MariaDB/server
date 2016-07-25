@@ -116,14 +116,6 @@ create or replace table t1 (a int as (connection_id()));
 -- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create or replace table t1 (a int as (connection_id()) PERSISTENT);
 
---echo # CURRENT_USER(), CURRENT_USER
--- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create or replace table t1 (a varchar(32) as (current_user()));
--- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create or replace table t1 (a varchar(32) as (current_user()) PERSISTENT);
--- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create or replace table t1 (a varchar(32) as (current_user) PERSISTENT);
-
 --echo # DATABASE()
 create or replace table t1 (a varchar(32) as (database()));
 -- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
@@ -203,10 +195,6 @@ create or replace table t1 (a varchar(1024), b varchar(1024) as (version()) PERS
 
 --echo # ENCRYPT()
 create or replace table t1 (a varchar(1024), b varchar(1024) as (encrypt(a)) PERSISTENT);
-
---echo # DATE_FORMAT()
--- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create or replace table t1 (a datetime, b varchar(64) as (date_format(a,'%W %M %D'));
 
 --echo # Stored procedures
 
@@ -307,19 +295,6 @@ create or replace table t1 (a int, b int as (var_samp(a)));
 --echo # VARIANCE()
 -- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create or replace table t1 (a int, b int as (variance(a)));
-
---echo # DAYNAME()
--- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create or replace table t1 (a int, b varchar(10) as (dayname(a)));
-
--- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create or replace table t1 (a int, b varchar(10) as (monthname(a)));
-
--- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create or replace table t1 (a int, b varchar(10) as (date_format("1963-01-01","%d.%m.%Y")));
-
--- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create or replace table t1 (a int, b varchar(10) as (time_format(now(),"%d.%m.%Y")));
 
 --echo #
 --echo # XML FUNCTIONS
