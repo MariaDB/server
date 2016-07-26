@@ -5900,7 +5900,7 @@ int check_duplicate_long_entries(TABLE *table, uchar *new_rec)
       uchar  ptr[9];
 
       if (hash_field->is_null())
-        return 0;
+        continue;
 
       key_copy(ptr, new_rec, &table->key_info[i], 9, false);
 
