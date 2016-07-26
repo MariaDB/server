@@ -1,7 +1,7 @@
 
 --source pam_init.inc
 
-show variables like 'pam%';
+show variables like 'pam_use_%';
 
 --error 1
 --exec echo FAIL | $MYSQL_TEST -u test_pam --plugin-dir=$plugindir
