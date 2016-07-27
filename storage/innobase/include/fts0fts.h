@@ -843,6 +843,15 @@ fts_init_doc_id(
 /*============*/
 	const dict_table_t*		table);	/*!< in: table */
 
+/* Get parent table name if it's a fts aux table
+@param[in]	aux_table_name	aux table name
+@param[in]	aux_table_len	aux table length
+@return parent table name, or NULL */
+char*
+fts_get_parent_table_name(
+	const char*	aux_table_name,
+	ulint		aux_table_len);
+
 /******************************************************************//**
 compare two character string according to their charset. */
 extern
