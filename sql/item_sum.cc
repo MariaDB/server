@@ -1438,6 +1438,19 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
   return FALSE;
 }
 
+/**
+  @brief Checks if requested access to function can be granted to user.
+    If function isn't found yet, it searches function first.
+    If function can't be found or user don't have requested access
+    error is raised.
+
+  @param thd thread handler
+
+  @return Indication if the access was granted or not.
+  @retval FALSE Access is granted.
+  @retval TRUE Requested access can't be granted or function doesn't exists.
+*/
+
 bool
 Item_sum_sp::sp_check_access(THD *thd)
 {
@@ -1450,14 +1463,27 @@ Item_sum_sp::sp_check_access(THD *thd)
   DBUG_RETURN(FALSE);
 }
 
+/**
+  @brief Execute function to store value in result field.
+      This is called when we need the value to be returned for the function.
+      Here we send a signal in form of the server status that all rows have been
+      fetched and now we have exit from the function with the return value.
+
+  @return Function returns error status.
+  @retval FALSE on success.
+  @retval TRUE if an error occurred.
+*/
+
 bool
 Item_sum_sp::execute()
 {
   THD *thd= current_thd;
 
-  /* Execute function and store the return value in the field. */
   bool res;
   uint old_server_status= thd->server_status;
+
+  /* Server Status set to SERVER_STATUS_LAST_ROW_SENT. */
+
   thd->server_status= SERVER_STATUS_LAST_ROW_SENT;
   res= execute_impl(thd);
   thd->server_status= old_server_status;
@@ -1476,6 +1502,16 @@ Item_sum_sp::execute()
 
   return null_value;
 }
+
+/**
+  @brief Execute function and store the return value in the field.
+      This is called from the add() function to aggregate the values and from
+      execute() to return the value in the field.
+
+  @return The error state.
+  @retval FALSE on success
+  @retval TRUE if an error occurred.
+*/
 
 bool
 Item_sum_sp::execute_impl(THD *thd)
@@ -1527,6 +1563,14 @@ error:
   DBUG_RETURN(err_status);
 }
 
+/**
+  @brief Handles the aggregation of the values.
+
+  @return The error state.
+  @retval FALSE on success.
+  @retval TRUE if an error occurred.
+*/
+
 bool
 Item_sum_sp::add()
 {
@@ -1538,6 +1582,7 @@ Item_sum_sp::add()
   }
   return FALSE;
 }
+
 
 void
 Item_sum_sp::clear()
@@ -1570,6 +1615,12 @@ Item_sum_sp::cleanup()
   dummy_table->alias.free();
   Item_sum::cleanup();
 }
+
+/**
+  @brief Initialize local members with values from the Field interface.
+
+  @note called from Item::fix_fields.
+*/
 
 void
 Item_sum_sp::fix_length_and_dec()

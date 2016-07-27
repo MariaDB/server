@@ -1477,6 +1477,28 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   DBUG_RETURN(err_status);
 }
 
+/**
+  Execute the aggregate routine. The main instruction jump loop is there.
+  The parameters are not already set for the first iteration but for subsequent
+  iterations the parameters will be set. After encountering the first FETCH GROUP
+  NEXT ROW instruction, the parameters are set for the first instruction.
+
+  @param thd                  Thread context.
+  @param merge_da_on_success  Flag specifying if Warning Info should be
+                              propagated to the caller on Completion
+                              Condition or not.
+
+  @todo
+    - Will write this SP statement into binlog separately
+    (TODO: consider changing the condition to "not inside event union")
+
+  @return Error status.
+  @retval
+    FALSE  on success
+  @retval
+    TRUE   on error
+*/
+
 
 bool
 sp_head::execute_agg(THD *thd, bool merge_da_on_success)
@@ -1487,7 +1509,11 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
   bool cur_db_changed= FALSE;
   sp_rcontext *ctx= thd->spcont;
-  uint ip= ctx->instr_ptr;
+  uint ip;
+  if(m_chistics->agg_type == GROUP_AGGREGATE)
+    ip= thd->spcont->instr_ptr;
+  else
+    ip=0;
   bool err_status= FALSE;
   ulonglong save_sql_mode;
   bool save_abort_on_warning;
@@ -1692,6 +1718,9 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
 
     err_status= i->execute(thd, &ip);
 
+    if(m_chistics->agg_type == NOT_AGGREGATE)
+      thd->spcont->pause_state= FALSE;
+
     thd->m_digest= parent_digest;
 
     if (i->free_list)
@@ -1745,7 +1774,8 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
       thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error*/
 
   /* Restore all saved */
-  thd->spcont->instr_ptr= ip;
+  if(m_chistics->agg_type == GROUP_AGGREGATE)
+    thd->spcont->instr_ptr= ip;
   thd->server_status= (thd->server_status & ~status_backup_mask) | old_server_status;
   old_packet.swap(thd->packet);
   DBUG_ASSERT(thd->change_list.is_empty());
@@ -2301,6 +2331,42 @@ err_with_cleanup:
   DBUG_RETURN(err_status);
 }
 
+/**
+  Execute an aggregagte function.
+
+   - evaluate parameters
+   - changes security context for SUID routines
+   - switch to new memroot
+   - call sp_head::execute_agg
+   - restore old memroot
+   - evaluate the return value
+   - restores security context
+
+  @param thd               Thread handle
+  @param args              Passed arguments (these are items from containing
+                           statement?)
+  @param argcount          Number of passed arguments. We need to check if
+                           this is correct.
+  @param return_value_fld  Save result here.
+  @param func_ctx          Pointer to the runtime context
+  @param call_mem_root     Memroot for the current aggregate function
+
+  @todo
+    We should create sp_rcontext once per command and reuse
+    it on subsequent executions of a function/trigger.
+
+  @todo
+    In future we should associate call arena/mem_root with
+    sp_rcontext and allocate all these objects (and sp_rcontext
+    itself) on it directly rather than juggle with arenas.
+
+  @retval
+    FALSE  on success
+  @retval
+    TRUE   on error
+*/
+
+
 
 
 bool
@@ -2344,9 +2410,8 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
     We can't use caller's arena/memroot for those objects because
     in this case some fixed amount of memory will be consumed for
     each function/trigger invocation and so statements which involve
-    lot of them will hog memory.
-    TODO: we should create sp_rcontext once per command and reuse
-    it on subsequent executions of a function/trigger.
+    lot of them will hog memory. The arena only needed to be created only if
+    the runtime context is not created.
   */
   if(!(*func_ctx))
   {
@@ -4502,7 +4567,6 @@ sp_instr_cclose::print(String *str)
 int
 sp_instr_cfetch::execute(THD *thd, uint *nextp)
 {
-  printf("EXECUTION ENTERS HERE");
   int res= 0;
   if(normal_cursor_fetch)
   {

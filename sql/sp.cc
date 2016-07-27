@@ -529,8 +529,6 @@ db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name, st_s
     chistics->agg_type= sp->m_chistics->agg_type;
     DBUG_RETURN(FALSE);
   }
-
-
                                      // In case of errors
   if (!(table= open_proc_table_for_read(thd, &open_tables_state_backup)))
     DBUG_RETURN(true);
