@@ -937,5 +937,45 @@ as
 )
 select * from ancestors;
 
+alter table folks add primary key (id);
+
+explain
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me'
+  union 
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me'
+  union 
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+
 drop table folks;
 

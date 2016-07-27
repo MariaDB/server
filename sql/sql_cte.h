@@ -6,15 +6,15 @@
 class select_union;
 struct st_unit_ctxt_elem;
 
-/**
-  @class With_clause
-  @brief Set of with_elements
 
-  It has a reference to the first with element from this with clause.
-  This reference allows to navigate through all the elements of the with clause.
-  It contains a reference to the unit to which this with clause is attached.
-  It also contains a flag saying whether this with clause was specified as recursive.
-*/ 
+/**
+  @class With_element
+  @brief Definition of a CTE table
+	
+  It contains a reference to the name of the table introduced by this with element,
+  and a reference to the unit that specificies this table. Also it contains
+  a reference to the with clause to which this element belongs to.	
+*/
 
 class With_element : public Sql_alloc
 {
@@ -184,18 +184,20 @@ public:
 
   void set_result_table(TABLE *tab) { result_table= tab; }
 
+  bool instantiate_tmp_tables();
+
   friend class With_clause;
 };
 
-
 /**
-  @class With_element
-  @brief Definition of a CTE table
-	
-  It contains a reference to the name of the table introduced by this with element,
-  and a reference to the unit that specificies this table. Also it contains
-  a reference to the with clause to which this element belongs to.	
-*/
+  @class With_clause
+  @brief Set of with_elements
+
+  It has a reference to the first with element from this with clause.
+  This reference allows to navigate through all the elements of the with clause.
+  It contains a reference to the unit to which this with clause is attached.
+  It also contains a flag saying whether this with clause was specified as recursive.
+*/ 
 
 class With_clause : public Sql_alloc
 {

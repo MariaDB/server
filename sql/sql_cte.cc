@@ -3,6 +3,7 @@
 #include "sql_cte.h"
 #include "sql_view.h"    // for make_valid_column_names
 #include "sql_parse.h"
+#include "sql_select.h"
 
 
 /**
@@ -955,4 +956,21 @@ void With_element::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
+
+bool With_element::instantiate_tmp_tables()
+{
+  List_iterator_fast<TABLE> li(rec_result->rec_tables);
+  TABLE *rec_table;
+  while ((rec_table= li++))
+  {
+    if (!rec_table->is_created() &&
+        instantiate_tmp_table(rec_table,
+                              rec_result->tmp_table_param.keyinfo,
+                              rec_result->tmp_table_param.start_recinfo,
+                              &rec_result->tmp_table_param.recinfo,
+                              0))
+      return true;
+  }
+  return false;
+}
 

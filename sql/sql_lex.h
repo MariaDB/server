@@ -611,6 +611,8 @@ public:
     executed, // already executed
     cleaned;
 
+  bool optimize_started;
+
   // list of fields which points to temporary table for union
   List<Item> item_list;
   /*

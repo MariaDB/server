@@ -2065,6 +2065,7 @@ void st_select_lex_unit::init_query()
   offset_limit_cnt= 0;
   union_distinct= 0;
   prepared= optimized= executed= 0;
+  optimize_started= 0;
   item= 0;
   union_result= 0;
   table= 0;
@@ -4393,6 +4394,19 @@ void SELECT_LEX::increase_derived_records(ha_rows records)
   SELECT_LEX_UNIT *unit= master_unit();
   DBUG_ASSERT(unit->derived);
 
+  if (unit->with_element && unit->with_element->is_recursive)
+  {
+    st_select_lex *first_recursive= unit->with_element->first_recursive;
+    st_select_lex *sl= unit->first_select();
+    for ( ; sl != first_recursive; sl= sl->next_select())
+    {
+      if (sl == this)
+        break;
+    }
+    if (sl == first_recursive)
+      return; 
+  }
+  
   select_union *result= (select_union*)unit->result;
   result->records+= records;
 }

@@ -165,10 +165,6 @@ static COND *optimize_cond(JOIN *join, COND *conds,
                            int flags= 0);
 bool const_expression_in_where(COND *conds,Item *item, Item **comp_item);
 static int do_select(JOIN *join, Procedure *procedure);
-static bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
-                                  MARIA_COLUMNDEF *start_recinfo,
-                                  MARIA_COLUMNDEF **recinfo, 
-                                  ulonglong options);
 
 static enum_nested_loop_state evaluate_join_record(JOIN *, JOIN_TAB *, int);
 static enum_nested_loop_state
@@ -17915,7 +17911,6 @@ int rr_sequential_and_unpack(READ_RECORD *info)
      TRUE  - Error
 */
 
-static
 bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
                            MARIA_COLUMNDEF *start_recinfo,
                            MARIA_COLUMNDEF **recinfo, 

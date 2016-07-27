@@ -7198,24 +7198,14 @@ bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
   DBUG_ENTER("handle_derived");
   DBUG_PRINT("enter", ("phases: 0x%x", phases));
 
-  if (is_with_table_recursive_reference())
+  if (unit)
   {
-    if (!(with->with_anchor || with->is_with_prepared_anchor()))
+    if (!is_with_table_recursive_reference())
     {
       for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
         if (sl->handle_derived(lex, phases))
           DBUG_RETURN(TRUE);
     }
-    else if (mysql_handle_single_derived(lex, this, phases))
-      DBUG_RETURN(TRUE);
-    DBUG_RETURN(FALSE);
-  }
-  
-  if (unit)
-  {
-    for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
-      if (sl->handle_derived(lex, phases))
-        DBUG_RETURN(TRUE);
     if (mysql_handle_single_derived(lex, this, phases))
       DBUG_RETURN(TRUE);
   }

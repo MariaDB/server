@@ -229,7 +229,7 @@ select_union_recursive::create_result_table(THD *thd_arg,
   if (! (rec_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                      (ORDER*) 0, false, 1,
                                      options, HA_POS_ERROR, alias,
-                                     !create_table, keep_row_order)))
+                                     true, keep_row_order)))
     return true;
 
   rec_table->keys_in_use_for_query.clear_all();
@@ -283,8 +283,11 @@ void select_union_recursive::cleanup()
   TABLE *tab;
   while ((tab= it++))
   {
-    tab->file->extra(HA_EXTRA_RESET_STATE);
-    tab->file->ha_delete_all_rows();
+    if (tab->is_created())
+    {
+      tab->file->extra(HA_EXTRA_RESET_STATE);
+      tab->file->ha_delete_all_rows();
+    }
     free_tmp_table(thd, tab);
   }
 }
@@ -840,6 +843,10 @@ bool st_select_lex_unit::optimize()
   if (optimized && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
 
+  if (with_element && with_element->is_recursive && optimize_started)
+    DBUG_RETURN(FALSE);
+  optimize_started= true;
+
   if (uncacheable || !item || !item->assigned() || describe)
   {
     if (item)
@@ -1315,6 +1322,7 @@ bool st_select_lex_unit::cleanup()
 void st_select_lex_unit::reinit_exec_mechanism()
 {
   prepared= optimized= executed= 0;
+  optimize_started= 0;
 #ifndef DBUG_OFF
   if (is_union())
   {

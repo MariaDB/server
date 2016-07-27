@@ -653,7 +653,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                     (first_select->options |
                                      thd->variables.option_bits |
                                      TMP_TABLE_ALL_COLUMNS),
-                                    derived->alias, FALSE, TRUE);
+                                    derived->alias, FALSE, FALSE);
     thd->create_tmp_table_for_derived= FALSE;
 
     if (!res && !derived->table)
@@ -681,7 +681,9 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   for (SELECT_LEX *sl= first_select; sl; sl= sl->next_select())
   {
     sl->context.outer_context= 0;
-    if (!derived->is_with_table_recursive_reference())
+    if (!derived->is_with_table_recursive_reference() ||
+        (!derived->with->with_anchor && 
+         !derived->with->is_with_prepared_anchor()))
     {
       // Prepare underlying views/DT first.
       if ((res= sl->handle_derived(lex, DT_PREPARE)))
@@ -928,7 +930,8 @@ bool TABLE_LIST::fill_recursive(THD *thd)
     rc= unit->exec_recursive(false);
   else
   {
-    while(!with->all_are_stabilized() && !rc)
+    rc= with->instantiate_tmp_tables();
+    while(!rc && !with->all_are_stabilized())
     {
       rc= unit->exec_recursive(true);
     }
