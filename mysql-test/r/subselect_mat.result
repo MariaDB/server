@@ -2261,6 +2261,19 @@ PREPARE stmt FROM '
 EXECUTE stmt;
 EXECUTE stmt;
 DROP TABLE t1,t2,t3;
+#
+# MDEV-10389: Query returns different results on a debug vs non-debug build of the same revision
+#
+CREATE TABLE t1 (i1 INT, i2 INT NOT NULL);
+INSERT INTO t1 VALUES (1,4),(2,6);
+SELECT * FROM t1 AS alias1
+WHERE alias1.i1 IN (
+SELECT i1 FROM t1 WHERE alias1.i2 IN ( SELECT i2 FROM t1 HAVING i2 <> 7 )
+);
+i1	i2
+1	4
+2	6
+DROP TABLE t1;
 set @subselect_mat_test_optimizer_switch_value=null;
 set @@optimizer_switch='materialization=on,in_to_exists=off,semijoin=off';
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
