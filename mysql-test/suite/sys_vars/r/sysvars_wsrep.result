@@ -162,7 +162,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	To use a workaround forbad autoincrement value
+VARIABLE_COMMENT	Enable a workaround to handle the cases where inserting a DEFAULT value into an auto-increment column could fail with duplicate key error
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

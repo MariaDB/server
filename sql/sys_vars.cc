@@ -4782,9 +4782,10 @@ static Sys_var_mybool Sys_wsrep_auto_increment_control(
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
 static Sys_var_mybool Sys_wsrep_drupal_282555_workaround(
-       "wsrep_drupal_282555_workaround", "To use a workaround for"
-       "bad autoincrement value", 
-       GLOBAL_VAR(wsrep_drupal_282555_workaround), 
+       "wsrep_drupal_282555_workaround", "Enable a workaround to handle the "
+       "cases where inserting a DEFAULT value into an auto-increment column "
+       "could fail with duplicate key error",
+       GLOBAL_VAR(wsrep_drupal_282555_workaround),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_charptr sys_wsrep_sst_method(
