@@ -22,8 +22,9 @@
 #include "sql_class.h"
 #include "sql_show.h"
 
+my_bool show_compatibility_56= FALSE;
+struct system_status_var global_status_var;
 struct sql_digest_storage;
-
 volatile bool ready_to_exit= false;
 
 uint lower_case_table_names= 0;
@@ -31,6 +32,10 @@ CHARSET_INFO *files_charset_info= NULL;
 CHARSET_INFO *system_charset_info= NULL;
 
 void compute_digest_md5(const sql_digest_storage *, unsigned char *)
+{
+}
+
+void reset_status_vars()
 {
 }
 

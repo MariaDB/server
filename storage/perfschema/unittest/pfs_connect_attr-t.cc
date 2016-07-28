@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
-#include <my_pthread.h>
+#include <my_thread.h>
 #include <pfs_server.h>
 #include <pfs_instr_class.h>
 #include <pfs_instr.h>
@@ -251,7 +251,7 @@ void test_utf8_parser_bad_encoding()
   ptr= packet;
   *ptr++= strlen(attr);
   memcpy(ptr, attr, strlen(attr));
-  ptr[0]= 0xFA; // invalid UTF-8 char
+  ptr[0]= (char)0xFA; // invalid UTF-8 char
   ptr+= strlen(attr);
   *ptr++= strlen(val);
   memcpy(ptr, val, strlen(val));

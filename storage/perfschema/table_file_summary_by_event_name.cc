@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -14,18 +14,19 @@
   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 /**
-  @file storage/perfschema/table_file_summary.cc
+  @file storage/perfschema/table_file_summary_by_event_name.cc
   Table FILE_SUMMARY_BY_EVENT_NAME(implementation).
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_file_summary_by_event_name.h"
 #include "pfs_global.h"
 #include "pfs_visitor.h"
+#include "field.h"
 
 THR_LOCK table_file_summary_by_event_name::m_table_lock;
 
@@ -163,15 +164,15 @@ table_file_summary_by_event_name::m_share=
 {
   { C_STRING_WITH_LEN("file_summary_by_event_name") },
   &pfs_truncatable_acl,
-  &table_file_summary_by_event_name::create,
+  table_file_summary_by_event_name::create,
   NULL, /* write_row */
   table_file_summary_by_event_name::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_file_summary_by_event_name::get_row_count,
   sizeof(PFS_simple_index),
   &m_table_lock,
   &m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_file_summary_by_event_name::create(void)
@@ -184,6 +185,12 @@ int table_file_summary_by_event_name::delete_all_rows(void)
   reset_file_instance_io();
   reset_file_class_io();
   return 0;
+}
+
+ha_rows
+table_file_summary_by_event_name::get_row_count(void)
+{
+  return file_class_max;
 }
 
 table_file_summary_by_event_name::table_file_summary_by_event_name()
@@ -232,7 +239,7 @@ int table_file_summary_by_event_name::rnd_pos(const void *pos)
 
 /**
   Build a row.
-  @param klass            the file class the cursor is reading
+  @param file_class            the file class the cursor is reading
 */
 void table_file_summary_by_event_name::make_row(PFS_file_class *file_class)
 {
@@ -242,7 +249,7 @@ void table_file_summary_by_event_name::make_row(PFS_file_class *file_class)
   PFS_instance_iterator::visit_file_instances(file_class, &visitor);
 
   time_normalizer *normalizer= time_normalizer::get(wait_timer);
-  
+
   /* Collect timer and byte count stats */
   m_row.m_io_stat.set(normalizer, &visitor.m_file_io_stat);
   m_row_exists= true;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,13 +19,15 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_tlws_by_table.h"
 #include "pfs_global.h"
 #include "pfs_visitor.h"
+#include "pfs_buffer_container.h"
+#include "field.h"
 
 THR_LOCK table_tlws_by_table::m_table_lock;
 
@@ -297,31 +299,6 @@ static const TABLE_FIELD_TYPE field_types[]=
     { NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("COUNT_WRITE_DELAYED") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_TIMER_WRITE_DELAYED") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MIN_TIMER_WRITE_DELAYED") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("AVG_TIMER_WRITE_DELAYED") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MAX_TIMER_WRITE_DELAYED") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
     { C_STRING_WITH_LEN("COUNT_WRITE_LOW_PRIORITY") },
     { C_STRING_WITH_LEN("bigint(20)") },
     { NULL, 0}
@@ -400,7 +377,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 
 TABLE_FIELD_DEF
 table_tlws_by_table::m_field_def=
-{ 73, field_types };
+{ sizeof(field_types) / sizeof(TABLE_FIELD_TYPE), field_types };
 
 PFS_engine_table_share
 table_tlws_by_table::m_share=
@@ -410,12 +387,12 @@ table_tlws_by_table::m_share=
   table_tlws_by_table::create,
   NULL, /* write_row */
   table_tlws_by_table::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_tlws_by_table::get_row_count,
   sizeof(PFS_simple_index),
   &m_table_lock,
   &m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 PFS_engine_table*
@@ -430,6 +407,12 @@ table_tlws_by_table::delete_all_rows(void)
   reset_table_lock_waits_by_table_handle();
   reset_table_lock_waits_by_table();
   return 0;
+}
+
+ha_rows
+table_tlws_by_table::get_row_count(void)
+{
+  return global_table_share_container.get_row_count();
 }
 
 table_tlws_by_table::table_tlws_by_table()
@@ -451,20 +434,23 @@ int table_tlws_by_table::rnd_init(bool scan)
 
 int table_tlws_by_table::rnd_next(void)
 {
-  PFS_table_share *table_share;
+  PFS_table_share *pfs;
 
-  for (m_pos.set_at(&m_next_pos);
-       m_pos.m_index < table_share_max;
-       m_pos.m_index++)
+  m_pos.set_at(&m_next_pos);
+  PFS_table_share_iterator it= global_table_share_container.iterate(m_pos.m_index);
+  do
   {
-    table_share= &table_share_array[m_pos.m_index];
-    if (table_share->m_lock.is_populated())
+    pfs= it.scan_next(& m_pos.m_index);
+    if (pfs != NULL)
     {
-      make_row(table_share);
-      m_next_pos.set_after(&m_pos);
-      return 0;
+      if (pfs->m_enabled)
+      {
+        make_row(pfs);
+        m_next_pos.set_after(&m_pos);
+        return 0;
+      }
     }
-  }
+  } while (pfs != NULL);
 
   return HA_ERR_END_OF_FILE;
 }
@@ -472,15 +458,18 @@ int table_tlws_by_table::rnd_next(void)
 int
 table_tlws_by_table::rnd_pos(const void *pos)
 {
-  PFS_table_share *table_share;
+  PFS_table_share *pfs;
 
   set_position(pos);
 
-  table_share= &table_share_array[m_pos.m_index];
-  if (table_share->m_lock.is_populated())
+  pfs= global_table_share_container.get(m_pos.m_index);
+  if (pfs != NULL)
   {
-    make_row(table_share);
-    return 0;
+    if (pfs->m_enabled)
+    {
+      make_row(pfs);
+      return 0;
+    }
   }
 
   return HA_ERR_RECORD_DELETED;
@@ -488,7 +477,7 @@ table_tlws_by_table::rnd_pos(const void *pos)
 
 void table_tlws_by_table::make_row(PFS_table_share *share)
 {
-  pfs_lock lock;
+  pfs_optimistic_state lock;
 
   m_row_exists= false;
 
@@ -690,67 +679,51 @@ int table_tlws_by_table::read_row_values(TABLE *table,
         set_field_ulonglong(f, m_row.m_stat.m_write_concurrent_insert.m_max);
         break;
 
-      case 53: /* COUNT_WRITE_DELAYED */
-        set_field_ulonglong(f, m_row.m_stat.m_write_delayed.m_count);
-        break;
-      case 54: /* SUM_TIMER_WRITE_DELAYED */
-        set_field_ulonglong(f, m_row.m_stat.m_write_delayed.m_sum);
-        break;
-      case 55: /* MIN_TIMER_WRITE_DELAYED */
-        set_field_ulonglong(f, m_row.m_stat.m_write_delayed.m_min);
-        break;
-      case 56: /* AVG_TIMER_WRITE_DELAYED */
-        set_field_ulonglong(f, m_row.m_stat.m_write_delayed.m_avg);
-        break;
-      case 57: /* MAX_TIMER_WRITE_DELAYED */
-        set_field_ulonglong(f, m_row.m_stat.m_write_delayed.m_max);
-        break;
-
-      case 58: /* COUNT_WRITE_LOW_PRIORITY */
+      case 53: /* COUNT_WRITE_LOW_PRIORITY */
         set_field_ulonglong(f, m_row.m_stat.m_write_low_priority.m_count);
         break;
-      case 59: /* SUM_TIMER_WRITE_LOW_PRIORITY */
+      case 54: /* SUM_TIMER_WRITE_LOW_PRIORITY */
         set_field_ulonglong(f, m_row.m_stat.m_write_low_priority.m_sum);
         break;
-      case 60: /* MIN_TIMER_WRITE_LOW_PRIORITY */
+      case 55: /* MIN_TIMER_WRITE_LOW_PRIORITY */
         set_field_ulonglong(f, m_row.m_stat.m_write_low_priority.m_min);
         break;
-      case 61: /* AVG_TIMER_WRITE_LOW_PRIORITY */
+      case 56: /* AVG_TIMER_WRITE_LOW_PRIORITY */
         set_field_ulonglong(f, m_row.m_stat.m_write_low_priority.m_avg);
         break;
-      case 62: /* MAX_TIMER_WRITE_LOW_PRIORITY */
+      case 57: /* MAX_TIMER_WRITE_LOW_PRIORITY */
         set_field_ulonglong(f, m_row.m_stat.m_write_low_priority.m_max);
         break;
 
-      case 63: /* COUNT_WRITE_NORMAL */
+      case 58: /* COUNT_WRITE_NORMAL */
         set_field_ulonglong(f, m_row.m_stat.m_write_normal.m_count);
         break;
-      case 64: /* SUM_TIMER_WRITE_NORMAL */
+      case 59: /* SUM_TIMER_WRITE_NORMAL */
         set_field_ulonglong(f, m_row.m_stat.m_write_normal.m_sum);
         break;
-      case 65: /* MIN_TIMER_WRITE_NORMAL */
+      case 60: /* MIN_TIMER_WRITE_NORMAL */
         set_field_ulonglong(f, m_row.m_stat.m_write_normal.m_min);
         break;
-      case 66: /* AVG_TIMER_WRITE_NORMAL */
+      case 61: /* AVG_TIMER_WRITE_NORMAL */
         set_field_ulonglong(f, m_row.m_stat.m_write_normal.m_avg);
         break;
-      case 67: /* MAX_TIMER_WRITE_NORMAL */
+      case 62: /* MAX_TIMER_WRITE_NORMAL */
         set_field_ulonglong(f, m_row.m_stat.m_write_normal.m_max);
         break;
 
-      case 68: /* COUNT_WRITE_EXTERNAL */
+      case 63: /* COUNT_WRITE_EXTERNAL */
         set_field_ulonglong(f, m_row.m_stat.m_write_external.m_count);
         break;
-      case 69: /* SUM_TIMER_WRITE_EXTERNAL */
+      case 64: /* SUM_TIMER_WRITE_EXTERNAL */
         set_field_ulonglong(f, m_row.m_stat.m_write_external.m_sum);
         break;
-      case 70: /* MIN_TIMER_WRITE_EXTERNAL */
+      case 65: /* MIN_TIMER_WRITE_EXTERNAL */
         set_field_ulonglong(f, m_row.m_stat.m_write_external.m_min);
         break;
-      case 71: /* AVG_TIMER_WRITE_EXTERNAL */
+      case 66: /* AVG_TIMER_WRITE_EXTERNAL */
         set_field_ulonglong(f, m_row.m_stat.m_write_external.m_avg);
         break;
-      case 72: /* MAX_TIMER_WRITE_EXTERNAL */
+      case 67: /* MAX_TIMER_WRITE_EXTERNAL */
         set_field_ulonglong(f, m_row.m_stat.m_write_external.m_max);
         break;
 

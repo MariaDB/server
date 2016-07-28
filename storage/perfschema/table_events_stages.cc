@@ -19,12 +19,14 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "table_events_stages.h"
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
 #include "pfs_events_stages.h"
 #include "pfs_timer.h"
+#include "pfs_buffer_container.h"
+#include "field.h"
 
 THR_LOCK table_events_stages_current::m_table_lock;
 
@@ -71,35 +73,45 @@ static const TABLE_FIELD_TYPE field_types[]=
     { NULL, 0}
   },
   {
+    { C_STRING_WITH_LEN("WORK_COMPLETED") },
+    { C_STRING_WITH_LEN("bigint(20)") },
+    { NULL, 0}
+  },
+  {
+    { C_STRING_WITH_LEN("WORK_ESTIMATED") },
+    { C_STRING_WITH_LEN("bigint(20)") },
+    { NULL, 0}
+  },
+  {
     { C_STRING_WITH_LEN("NESTING_EVENT_ID") },
     { C_STRING_WITH_LEN("bigint(20)") },
     { NULL, 0}
   },
   {
     { C_STRING_WITH_LEN("NESTING_EVENT_TYPE") },
-    { C_STRING_WITH_LEN("enum(\'STATEMENT\',\'STAGE\',\'WAIT\'") },
+    { C_STRING_WITH_LEN("enum(\'TRANSACTION\',\'STATEMENT\',\'STAGE\',\'WAIT\'") },
     { NULL, 0}
   }
 };
 
 TABLE_FIELD_DEF
 table_events_stages_current::m_field_def=
-{10 , field_types };
+{12 , field_types };
 
 PFS_engine_table_share
 table_events_stages_current::m_share=
 {
   { C_STRING_WITH_LEN("events_stages_current") },
   &pfs_truncatable_acl,
-  &table_events_stages_current::create,
+  table_events_stages_current::create,
   NULL, /* write_row */
-  &table_events_stages_current::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_events_stages_current::delete_all_rows,
+  table_events_stages_current::get_row_count,
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   &m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 THR_LOCK table_events_stages_history::m_table_lock;
@@ -109,15 +121,15 @@ table_events_stages_history::m_share=
 {
   { C_STRING_WITH_LEN("events_stages_history") },
   &pfs_truncatable_acl,
-  &table_events_stages_history::create,
+  table_events_stages_history::create,
   NULL, /* write_row */
-  &table_events_stages_history::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_events_stages_history::delete_all_rows,
+  table_events_stages_history::get_row_count,
   sizeof(pos_events_stages_history), /* ref length */
   &m_table_lock,
   &table_events_stages_current::m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 THR_LOCK table_events_stages_history_long::m_table_lock;
@@ -127,15 +139,15 @@ table_events_stages_history_long::m_share=
 {
   { C_STRING_WITH_LEN("events_stages_history_long") },
   &pfs_truncatable_acl,
-  &table_events_stages_history_long::create,
+  table_events_stages_history_long::create,
   NULL, /* write_row */
-  &table_events_stages_history_long::delete_all_rows,
-  NULL, /* get_row_count */
-  10000, /* records */
+  table_events_stages_history_long::delete_all_rows,
+  table_events_stages_history_long::get_row_count,
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   &table_events_stages_current::m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 table_events_stages_common::table_events_stages_common
@@ -192,6 +204,17 @@ void table_events_stages_common::make_row(PFS_events_stages *stage)
   if (m_row.m_source_length > sizeof(m_row.m_source))
     m_row.m_source_length= sizeof(m_row.m_source);
 
+  if (klass->is_progress())
+  {
+    m_row.m_progress= true;
+    m_row.m_work_completed= stage->m_progress.m_work_completed;
+    m_row.m_work_estimated= stage->m_progress.m_work_estimated;
+  }
+  else
+  {
+    m_row.m_progress= false;
+  }
+
   m_row_exists= true;
   return;
 }
@@ -207,8 +230,9 @@ int table_events_stages_common::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  DBUG_ASSERT(table->s->null_bytes == 2);
   buf[0]= 0;
+  buf[1]= 0;
 
   for (; (f= *fields) ; fields++)
   {
@@ -252,13 +276,25 @@ int table_events_stages_common::read_row_values(TABLE *table,
         else
           f->set_null();
         break;
-      case 8: /* NESTING_EVENT_ID */
+      case 8: /* WORK_COMPLETED */
+        if (m_row.m_progress)
+          set_field_ulonglong(f, m_row.m_work_completed);
+        else
+          f->set_null();
+        break;
+      case 9: /* WORK_ESTIMATED */
+        if (m_row.m_progress)
+          set_field_ulonglong(f, m_row.m_work_estimated);
+        else
+          f->set_null();
+        break;
+      case 10: /* NESTING_EVENT_ID */
         if (m_row.m_nesting_event_id != 0)
           set_field_ulonglong(f, m_row.m_nesting_event_id);
         else
           f->set_null();
         break;
-      case 9: /* NESTING_EVENT_TYPE */
+      case 11: /* NESTING_EVENT_TYPE */
         if (m_row.m_nesting_event_id != 0)
           set_field_enum(f, m_row.m_nesting_event_type);
         else
@@ -299,20 +335,12 @@ int table_events_stages_current::rnd_next(void)
   PFS_thread *pfs_thread;
   PFS_events_stages *stage;
 
-  for (m_pos.set_at(&m_next_pos);
-       m_pos.m_index < thread_max;
-       m_pos.next())
+  m_pos.set_at(&m_next_pos);
+  PFS_thread_iterator it= global_thread_container.iterate(m_pos.m_index);
+  pfs_thread= it.scan_next(& m_pos.m_index);
+  if (pfs_thread != NULL)
   {
-    pfs_thread= &thread_array[m_pos.m_index];
-
-    if (! pfs_thread->m_lock.is_populated())
-    {
-      /* This thread does not exist */
-      continue;
-    }
-
     stage= &pfs_thread->m_stage_current;
-
     make_row(stage);
     m_next_pos.set_after(&m_pos);
     return 0;
@@ -327,21 +355,28 @@ int table_events_stages_current::rnd_pos(const void *pos)
   PFS_events_stages *stage;
 
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index < thread_max);
-  pfs_thread= &thread_array[m_pos.m_index];
 
-  if (! pfs_thread->m_lock.is_populated())
-    return HA_ERR_RECORD_DELETED;
+  pfs_thread= global_thread_container.get(m_pos.m_index);
+  if (pfs_thread != NULL)
+  {
+    stage= &pfs_thread->m_stage_current;
+    make_row(stage);
+    return 0;
+  }
 
-  stage= &pfs_thread->m_stage_current;
-  make_row(stage);
-  return 0;
+  return HA_ERR_RECORD_DELETED;
 }
 
 int table_events_stages_current::delete_all_rows(void)
 {
   reset_events_stages_current();
   return 0;
+}
+
+ha_rows
+table_events_stages_current::get_row_count(void)
+{
+  return global_thread_container.get_row_count();
 }
 
 PFS_engine_table* table_events_stages_history::create(void)
@@ -370,43 +405,40 @@ int table_events_stages_history::rnd_next(void)
 {
   PFS_thread *pfs_thread;
   PFS_events_stages *stage;
+  bool has_more_thread= true;
 
   if (events_stages_history_per_thread == 0)
     return HA_ERR_END_OF_FILE;
 
   for (m_pos.set_at(&m_next_pos);
-       m_pos.m_index_1 < thread_max;
+       has_more_thread;
        m_pos.next_thread())
   {
-    pfs_thread= &thread_array[m_pos.m_index_1];
-
-    if (! pfs_thread->m_lock.is_populated())
+    pfs_thread= global_thread_container.get(m_pos.m_index_1, & has_more_thread);
+    if (pfs_thread != NULL)
     {
-      /* This thread does not exist */
-      continue;
-    }
+      if (m_pos.m_index_2 >= events_stages_history_per_thread)
+      {
+        /* This thread does not have more (full) history */
+        continue;
+      }
 
-    if (m_pos.m_index_2 >= events_stages_history_per_thread)
-    {
-      /* This thread does not have more (full) history */
-      continue;
-    }
+      if ( ! pfs_thread->m_stages_history_full &&
+          (m_pos.m_index_2 >= pfs_thread->m_stages_history_index))
+      {
+        /* This thread does not have more (not full) history */
+        continue;
+      }
 
-    if ( ! pfs_thread->m_stages_history_full &&
-        (m_pos.m_index_2 >= pfs_thread->m_stages_history_index))
-    {
-      /* This thread does not have more (not full) history */
-      continue;
-    }
+      stage= &pfs_thread->m_stages_history[m_pos.m_index_2];
 
-    stage= &pfs_thread->m_stages_history[m_pos.m_index_2];
-
-    if (stage->m_class != NULL)
-    {
-      make_row(stage);
-      /* Next iteration, look for the next history in this thread */
-      m_next_pos.set_after(&m_pos);
-      return 0;
+      if (stage->m_class != NULL)
+      {
+        make_row(stage);
+        /* Next iteration, look for the next history in this thread */
+        m_next_pos.set_after(&m_pos);
+        return 0;
+      }
     }
   }
 
@@ -420,31 +452,38 @@ int table_events_stages_history::rnd_pos(const void *pos)
 
   DBUG_ASSERT(events_stages_history_per_thread != 0);
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index_1 < thread_max);
-  pfs_thread= &thread_array[m_pos.m_index_1];
-
-  if (! pfs_thread->m_lock.is_populated())
-    return HA_ERR_RECORD_DELETED;
 
   DBUG_ASSERT(m_pos.m_index_2 < events_stages_history_per_thread);
 
-  if ( ! pfs_thread->m_stages_history_full &&
-      (m_pos.m_index_2 >= pfs_thread->m_stages_history_index))
-    return HA_ERR_RECORD_DELETED;
+  pfs_thread= global_thread_container.get(m_pos.m_index_1);
+  if (pfs_thread != NULL)
+  {
+    if ( ! pfs_thread->m_stages_history_full &&
+        (m_pos.m_index_2 >= pfs_thread->m_stages_history_index))
+      return HA_ERR_RECORD_DELETED;
 
-  stage= &pfs_thread->m_stages_history[m_pos.m_index_2];
+    stage= &pfs_thread->m_stages_history[m_pos.m_index_2];
 
-  if (stage->m_class == NULL)
-    return HA_ERR_RECORD_DELETED;
+    if (stage->m_class != NULL)
+    {
+      make_row(stage);
+      return 0;
+    }
+  }
 
-  make_row(stage);
-  return 0;
+  return HA_ERR_RECORD_DELETED;
 }
 
 int table_events_stages_history::delete_all_rows(void)
 {
   reset_events_stages_history();
   return 0;
+}
+
+ha_rows
+table_events_stages_history::get_row_count(void)
+{
+  return events_stages_history_per_thread * global_thread_container.get_row_count();
 }
 
 PFS_engine_table* table_events_stages_history_long::create(void)
@@ -480,7 +519,7 @@ int table_events_stages_history_long::rnd_next(void)
   if (events_stages_history_long_full)
     limit= events_stages_history_long_size;
   else
-    limit= events_stages_history_long_index % events_stages_history_long_size;
+    limit= events_stages_history_long_index.m_u32 % events_stages_history_long_size;
 
   for (m_pos.set_at(&m_next_pos); m_pos.m_index < limit; m_pos.next())
   {
@@ -511,7 +550,7 @@ int table_events_stages_history_long::rnd_pos(const void *pos)
   if (events_stages_history_long_full)
     limit= events_stages_history_long_size;
   else
-    limit= events_stages_history_long_index % events_stages_history_long_size;
+    limit= events_stages_history_long_index.m_u32 % events_stages_history_long_size;
 
   if (m_pos.m_index > limit)
     return HA_ERR_RECORD_DELETED;
@@ -529,5 +568,11 @@ int table_events_stages_history_long::delete_all_rows(void)
 {
   reset_events_stages_history_long();
   return 0;
+}
+
+ha_rows
+table_events_stages_history_long::get_row_count(void)
+{
+  return events_stages_history_long_size;
 }
 

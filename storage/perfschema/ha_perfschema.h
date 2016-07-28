@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2014, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -192,7 +192,7 @@ public:
   { return HA_CACHE_TBL_NOCACHE; }
 
   virtual my_bool register_query_cache_table
-    (THD *, char *, uint , qc_engine_callback *engine_callback, ulonglong *)
+    (THD *, char *, size_t , qc_engine_callback *engine_callback, ulonglong *)
   {
     *engine_callback= 0;
     return FALSE;

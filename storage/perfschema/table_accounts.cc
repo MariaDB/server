@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2011, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -14,12 +14,15 @@
   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "table_accounts.h"
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
 #include "pfs_account.h"
 #include "pfs_visitor.h"
+#include "pfs_memory.h"
+#include "pfs_status.h"
+#include "field.h"
 
 THR_LOCK table_accounts::m_table_lock;
 
@@ -27,7 +30,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 {
   {
     { C_STRING_WITH_LEN("USER") },
-    { C_STRING_WITH_LEN("char(16)") },
+    { C_STRING_WITH_LEN("char(" USERNAME_CHAR_LENGTH_STR ")") },
     { NULL, 0}
   },
   {
@@ -56,15 +59,15 @@ table_accounts::m_share=
 {
   { C_STRING_WITH_LEN("accounts") },
   &pfs_truncatable_acl,
-  &table_accounts::create,
+  table_accounts::create,
   NULL, /* write_row */
   table_accounts::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  cursor_by_account::get_row_count,
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   &m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_accounts::create()
@@ -81,6 +84,12 @@ table_accounts::delete_all_rows(void)
   reset_events_stages_by_account();
   reset_events_statements_by_thread();
   reset_events_statements_by_account();
+  reset_events_transactions_by_thread();
+  reset_events_transactions_by_account();
+  reset_memory_by_thread();
+  reset_memory_by_account();
+  reset_status_by_thread();
+  reset_status_by_account();
   purge_all_account();
   return 0;
 }
@@ -92,7 +101,7 @@ table_accounts::table_accounts()
 
 void table_accounts::make_row(PFS_account *pfs)
 {
-  pfs_lock lock;
+  pfs_optimistic_state lock;
 
   m_row_exists= false;
   pfs->m_lock.begin_optimistic_lock(&lock);
@@ -101,7 +110,10 @@ void table_accounts::make_row(PFS_account *pfs)
     return;
 
   PFS_connection_stat_visitor visitor;
-  PFS_connection_iterator::visit_account(pfs, true, & visitor);
+  PFS_connection_iterator::visit_account(pfs,
+                                         true,  /* threads */
+                                         false, /* THDs */
+                                         & visitor);
 
   if (! pfs->m_lock.end_optimistic_lock(& lock))
     return;

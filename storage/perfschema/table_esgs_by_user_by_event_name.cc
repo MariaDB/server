@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,14 +19,15 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_esgs_by_user_by_event_name.h"
 #include "pfs_global.h"
-#include "pfs_account.h"
 #include "pfs_visitor.h"
+#include "pfs_buffer_container.h"
+#include "field.h"
 
 THR_LOCK table_esgs_by_user_by_event_name::m_table_lock;
 
@@ -34,7 +35,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 {
   {
     { C_STRING_WITH_LEN("USER") },
-    { C_STRING_WITH_LEN("char(16)") },
+    { C_STRING_WITH_LEN("char(" USERNAME_CHAR_LENGTH_STR ")") },
     { NULL, 0}
   },
   {
@@ -81,12 +82,12 @@ table_esgs_by_user_by_event_name::m_share=
   table_esgs_by_user_by_event_name::create,
   NULL, /* write_row */
   table_esgs_by_user_by_event_name::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_esgs_by_user_by_event_name::get_row_count,
   sizeof(pos_esgs_by_user_by_event_name),
   &m_table_lock,
   &m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 PFS_engine_table*
@@ -102,6 +103,12 @@ table_esgs_by_user_by_event_name::delete_all_rows(void)
   reset_events_stages_by_account();
   reset_events_stages_by_user();
   return 0;
+}
+
+ha_rows
+table_esgs_by_user_by_event_name::get_row_count(void)
+{
+  return global_user_container.get_row_count() * stage_class_max;
 }
 
 table_esgs_by_user_by_event_name::table_esgs_by_user_by_event_name()
@@ -125,13 +132,14 @@ int table_esgs_by_user_by_event_name::rnd_next(void)
 {
   PFS_user *user;
   PFS_stage_class *stage_class;
+  bool has_more_user= true;
 
   for (m_pos.set_at(&m_next_pos);
-       m_pos.has_more_user();
+       has_more_user;
        m_pos.next_user())
   {
-    user= &user_array[m_pos.m_index_1];
-    if (user->m_lock.is_populated())
+    user= global_user_container.get(m_pos.m_index_1, & has_more_user);
+    if (user != NULL)
     {
       stage_class= find_stage_class(m_pos.m_index_2);
       if (stage_class)
@@ -153,17 +161,16 @@ table_esgs_by_user_by_event_name::rnd_pos(const void *pos)
   PFS_stage_class *stage_class;
 
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index_1 < user_max);
 
-  user= &user_array[m_pos.m_index_1];
-  if (! user->m_lock.is_populated())
-    return HA_ERR_RECORD_DELETED;
-
-  stage_class= find_stage_class(m_pos.m_index_2);
-  if (stage_class)
+  user= global_user_container.get(m_pos.m_index_1);
+  if (user != NULL)
   {
-    make_row(user, stage_class);
-    return 0;
+    stage_class= find_stage_class(m_pos.m_index_2);
+    if (stage_class)
+    {
+      make_row(user, stage_class);
+      return 0;
+    }
   }
 
   return HA_ERR_RECORD_DELETED;
@@ -172,7 +179,7 @@ table_esgs_by_user_by_event_name::rnd_pos(const void *pos)
 void table_esgs_by_user_by_event_name
 ::make_row(PFS_user *user, PFS_stage_class *klass)
 {
-  pfs_lock lock;
+  pfs_optimistic_state lock;
   m_row_exists= false;
 
   user->m_lock.begin_optimistic_lock(&lock);
@@ -183,7 +190,11 @@ void table_esgs_by_user_by_event_name
   m_row.m_event_name.make_row(klass);
 
   PFS_connection_stage_visitor visitor(klass);
-  PFS_connection_iterator::visit_user(user, true, true, & visitor);
+  PFS_connection_iterator::visit_user(user,
+                                      true,  /* accounts */
+                                      true,  /* threads */
+                                      false, /* THDs */
+                                      & visitor);
 
   if (! user->m_lock.end_optimistic_lock(&lock))
     return;

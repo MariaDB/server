@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
@@ -30,6 +30,7 @@
 #include "pfs_visitor.h"
 #include "table_esms_by_digest.h"
 #include "pfs_digest.h"
+#include "field.h"
 
 THR_LOCK table_esms_by_digest::m_table_lock;
 
@@ -194,12 +195,12 @@ table_esms_by_digest::m_share=
   table_esms_by_digest::create,
   NULL, /* write_row */
   table_esms_by_digest::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_esms_by_digest::get_row_count,
   sizeof(PFS_simple_index),
   &m_table_lock,
   &m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 PFS_engine_table*
@@ -213,6 +214,12 @@ table_esms_by_digest::delete_all_rows(void)
 {
   reset_esms_by_digest();
   return 0;
+}
+
+ha_rows
+table_esms_by_digest::get_row_count(void)
+{
+  return digest_max;
 }
 
 table_esms_by_digest::table_esms_by_digest()
@@ -295,7 +302,7 @@ int table_esms_by_digest
   if (unlikely(! m_row_exists))
     return HA_ERR_RECORD_DELETED;
 
-  /* 
+  /*
     Set the null bits. It indicates how many fields could be null
     in the table.
   */

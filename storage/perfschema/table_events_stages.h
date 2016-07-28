@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -59,6 +59,11 @@ struct row_events_stages
   char m_source[COL_SOURCE_SIZE];
   /** Length in bytes of @c m_source. */
   uint m_source_length;
+  bool m_progress;
+  /** Column WORK_COMPLETED. */
+  ulonglong m_work_completed;
+  /** Column WORK_ESTIMATED. */
+  ulonglong m_work_estimated;
 };
 
 /** Position of a cursor on PERFORMANCE_SCHEMA.EVENTS_STAGES_HISTORY. */
@@ -114,6 +119,7 @@ public:
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
   virtual int rnd_init(bool scan);
   virtual int rnd_next();
@@ -154,6 +160,7 @@ public:
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
   virtual int rnd_init(bool scan);
   virtual int rnd_next();
@@ -185,6 +192,7 @@ public:
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
   virtual int rnd_init(bool scan);
   virtual int rnd_next();

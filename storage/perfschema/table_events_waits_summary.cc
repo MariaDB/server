@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,12 +19,13 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_events_waits_summary.h"
 #include "pfs_global.h"
+#include "field.h"
 
 THR_LOCK table_events_waits_summary_by_instance::m_table_lock;
 
@@ -76,15 +77,15 @@ table_events_waits_summary_by_instance::m_share=
 {
   { C_STRING_WITH_LEN("events_waits_summary_by_instance") },
   &pfs_truncatable_acl,
-  &table_events_waits_summary_by_instance::create,
+  table_events_waits_summary_by_instance::create,
   NULL, /* write_row */
-  &table_events_waits_summary_by_instance::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_events_waits_summary_by_instance::delete_all_rows,
+  table_all_instr::get_row_count,
   sizeof(pos_all_instr),
   &m_table_lock,
   &m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_events_waits_summary_by_instance::create(void)
@@ -108,7 +109,7 @@ void table_events_waits_summary_by_instance
                  const void *object_instance_begin,
                  PFS_single_stat *pfs_stat)
 {
-  pfs_lock lock;
+  pfs_optimistic_state lock;
   m_row_exists= false;
 
   /*

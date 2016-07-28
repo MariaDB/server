@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -21,16 +21,16 @@ PFS_engine_table_share
 table_session_account_connect_attrs::m_share=
 {
   { C_STRING_WITH_LEN("session_account_connect_attrs") },
-  &pfs_readonly_acl,
-  &table_session_account_connect_attrs::create,
+  &pfs_readonly_world_acl,
+  table_session_account_connect_attrs::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  NULL, /* get_row_count */
-  1000, /* records */
+  cursor_by_thread_connect_attr::get_row_count,
   sizeof(pos_connect_attr_by_thread_by_attr), /* ref length */
   &m_table_lock,
   &m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_session_account_connect_attrs::create()

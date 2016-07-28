@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,12 +19,14 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_file_instances.h"
 #include "pfs_global.h"
+#include "pfs_buffer_container.h"
+#include "field.h"
 
 THR_LOCK table_file_instances::m_table_lock;
 
@@ -56,20 +58,26 @@ table_file_instances::m_share=
 {
   { C_STRING_WITH_LEN("file_instances") },
   &pfs_readonly_acl,
-  &table_file_instances::create,
+  table_file_instances::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_file_instances::get_row_count,
   sizeof(PFS_simple_index),
   &m_table_lock,
   &m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_file_instances::create(void)
 {
   return new table_file_instances();
+}
+
+ha_rows
+table_file_instances::get_row_count(void)
+{
+  return global_file_container.get_row_count();
 }
 
 table_file_instances::table_file_instances()
@@ -87,17 +95,14 @@ int table_file_instances::rnd_next(void)
 {
   PFS_file *pfs;
 
-  for (m_pos.set_at(&m_next_pos);
-       m_pos.m_index < file_max;
-       m_pos.next())
+  m_pos.set_at(&m_next_pos);
+  PFS_file_iterator it= global_file_container.iterate(m_pos.m_index);
+  pfs= it.scan_next(& m_pos.m_index);
+  if (pfs != NULL)
   {
-    pfs= &file_array[m_pos.m_index];
-    if (pfs->m_lock.is_populated())
-    {
-      make_row(pfs);
-      m_next_pos.set_after(&m_pos);
-      return 0;
-    }
+    make_row(pfs);
+    m_next_pos.set_after(&m_pos);
+    return 0;
   }
 
   return HA_ERR_END_OF_FILE;
@@ -108,19 +113,20 @@ int table_file_instances::rnd_pos(const void *pos)
   PFS_file *pfs;
 
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index < file_max);
-  pfs= &file_array[m_pos.m_index];
 
-  if (! pfs->m_lock.is_populated())
-    return HA_ERR_RECORD_DELETED;
+  pfs= global_file_container.get(m_pos.m_index);
+  if (pfs != NULL)
+  {
+    make_row(pfs);
+    return 0;
+  }
 
-  make_row(pfs);
-  return 0;
+  return HA_ERR_RECORD_DELETED;
 }
 
 void table_file_instances::make_row(PFS_file *pfs)
 {
-  pfs_lock lock;
+  pfs_optimistic_state lock;
   PFS_file_class *safe_class;
 
   m_row_exists= false;

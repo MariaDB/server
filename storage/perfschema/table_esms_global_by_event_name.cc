@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
@@ -28,6 +28,7 @@
 #include "pfs_instr.h"
 #include "pfs_timer.h"
 #include "pfs_visitor.h"
+#include "field.h"
 
 THR_LOCK table_esms_global_by_event_name::m_table_lock;
 
@@ -172,12 +173,12 @@ table_esms_global_by_event_name::m_share=
   table_esms_global_by_event_name::create,
   NULL, /* write_row */
   table_esms_global_by_event_name::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_esms_global_by_event_name::get_row_count,
   sizeof(PFS_simple_index),
   &m_table_lock,
   &m_field_def,
-  false /* checked */
+  false, /* checked */
+  false  /* perpetual */
 };
 
 PFS_engine_table*
@@ -195,6 +196,12 @@ table_esms_global_by_event_name::delete_all_rows(void)
   reset_events_statements_by_host();
   reset_events_statements_global();
   return 0;
+}
+
+ha_rows
+table_esms_global_by_event_name::get_row_count(void)
+{
+  return statement_class_max;
 }
 
 table_esms_global_by_event_name::table_esms_global_by_event_name()
@@ -266,9 +273,12 @@ void table_esms_global_by_event_name
   m_row.m_event_name.make_row(klass);
 
   PFS_connection_statement_visitor visitor(klass);
-  PFS_connection_iterator::visit_global(true, /* hosts */
+  PFS_connection_iterator::visit_global(true,  /* hosts */
                                         false, /* users */
-                                        true, true, & visitor);
+                                        true,  /* accounts */
+                                        true,  /* threads */
+                                        false, /* THDs */
+                                        & visitor);
 
   m_row.m_stat.set(m_normalizer, & visitor.m_stat);
   m_row_exists= true;
