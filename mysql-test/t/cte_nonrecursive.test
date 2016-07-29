@@ -471,3 +471,21 @@ SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT * FROM t2 NATURAL JOIN t3) AS
 
 DROP TABLE t1,t2,t3;
 
+--echo #
+--echo # Bug mdev-10344: the WITH clause of the query refers to a view that uses 
+--echo #     a base table with the same name as a  CTE table from the clause 
+--echo #
+
+
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+ 
+create table one_k(a int primary key);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+ 
+create view v1 as select * from ten;
+
+select * from v1;
+
+drop view v1;
+drop table ten, one_k;

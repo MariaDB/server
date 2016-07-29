@@ -780,3 +780,26 @@ a
 2
 3
 DROP TABLE t1,t2,t3;
+#
+# Bug mdev-10344: the WITH clause of the query refers to a view that uses 
+#     a base table with the same name as a  CTE table from the clause 
+#
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k(a int primary key);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+create view v1 as select * from ten;
+select * from v1;
+a
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+drop view v1;
+drop table ten, one_k;
