@@ -1482,7 +1482,7 @@ Item_sum_sp::execute()
   bool res;
   uint old_server_status= thd->server_status;
 
-  /* Server Status set to SERVER_STATUS_LAST_ROW_SENT. */
+  /* Server Status is set so we can exit from the loop execution. */
 
   thd->server_status= SERVER_STATUS_LAST_ROW_SENT;
   res= execute_impl(thd);
@@ -1565,6 +1565,8 @@ error:
 
 /**
   @brief Handles the aggregation of the values.
+
+  @note: See class description for more details on how and why this is done.
 
   @return The error state.
   @retval FALSE on success.

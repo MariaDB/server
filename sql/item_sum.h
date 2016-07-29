@@ -1078,16 +1078,16 @@ which allows user to execute aggregate functions.For executing the
 aggregate functions we have taken a cursor approach.
 
 @note: The cursor approach
-For this approach we created a new instruction FETCH GROUP NEXT ROW, which
-would pause and resume the function execution. During the pausing phase ,we
-save the instruction pointer that points to the current running instruction,
-exit from the execution and get the arguments of the function. After the
-values of arguments are passed, then we resume execution from that instruction
-to which the instruction pointer is pointing to. Then when we want the value of
-the function (that is when all the rows have been fetched) we send a signal that
-SERVER_STATUS_LAST_ROW_SENT and then we throw an error that ER_SP_FETCH_NO_DATA,
-and this error is handled by the handler (alreday defined) and we have the return
-statement with the handler.
+For this approach a new instruction FETCH GROUP NEXT ROW is created, which
+would pause and resume the function execution. During the pausing phase ,
+the instruction pointer that points to the current running instruction is saved,
+function is exited  and the arguments of the function are passed. After the
+values of arguments are passed, then function resumes execution from that instruction
+that was saved earlier. Then for the value of the function (that is when all
+the rows have been fetched) a signal is sent, the signal being SERVER_STATUS_LAST_ROW_SENT
+and then  an error ER_SP_FETCH_NO_DATA is thrown,and this error is handled by the handler
+(already defined) and the return statement is defined with the handler.
+
 Example:
 DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN ret_val;
 

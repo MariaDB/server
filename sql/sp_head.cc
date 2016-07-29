@@ -2332,7 +2332,7 @@ err_with_cleanup:
 }
 
 /**
-  Execute an aggregagte function.
+  Execute an aggregate function.
 
    - evaluate parameters
    - changes security context for SUID routines
@@ -2343,8 +2343,7 @@ err_with_cleanup:
    - restores security context
 
   @param thd               Thread handle
-  @param args              Passed arguments (these are items from containing
-                           statement?)
+  @param args              Passed arguments 
   @param argcount          Number of passed arguments. We need to check if
                            this is correct.
   @param return_value_fld  Save result here.
@@ -2410,7 +2409,7 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
     We can't use caller's arena/memroot for those objects because
     in this case some fixed amount of memory will be consumed for
     each function/trigger invocation and so statements which involve
-    lot of them will hog memory. The arena only needed to be created only if
+    lot of them will hog memory. The arena only needs to be created if
     the runtime context is not created.
   */
   if(!(*func_ctx))

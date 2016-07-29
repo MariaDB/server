@@ -3841,7 +3841,7 @@ sp_proc_stmt_fetch:
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;            
             sp_instr_cfetch *i;
-
+            Lex->sp_chistics.agg_type= GROUP_AGGREGATE;
             i= new (thd->mem_root)
               sp_instr_cfetch(sp->instructions(), lex->spcont, 0,FALSE);
             if (i == NULL ||
@@ -15999,7 +15999,14 @@ udf_tail2:
         ;
 sf_tail:
           AGGREGATE_SYM sf_tail2 { Lex->sp_chistics.agg_type= GROUP_AGGREGATE;}
-        | sf_tail2               { Lex->sp_chistics.agg_type= NOT_AGGREGATE;}
+        | sf_tail2               
+        {
+          if(Lex->sp_chistics.agg_type == GROUP_AGGREGATE)
+          {
+            my_parse_error(thd, ER_SYNTAX_ERROR);
+          }
+          Lex->sp_chistics.agg_type == NOT_AGGREGATE;
+        }
         ;
 
 sf_tail2:
