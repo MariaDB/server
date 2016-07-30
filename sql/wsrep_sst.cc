@@ -34,14 +34,8 @@ char wsrep_defaults_file[FN_REFLEN * 2 + 10 +
                          sizeof(WSREP_SST_OPT_CONF) +
                          sizeof(WSREP_SST_OPT_EXTRA_CONF)] = {0};
 
-const char* wsrep_sst_method          = WSREP_SST_DEFAULT;
-const char* wsrep_sst_receive_address = WSREP_SST_ADDRESS_AUTO;
-const char* wsrep_sst_donor           = "";
-      char* wsrep_sst_auth            = NULL;
-
 // container for real auth string
 static const char* sst_auth_real      = NULL;
-my_bool wsrep_sst_donor_rejects_queries = FALSE;
 
 bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
 {
