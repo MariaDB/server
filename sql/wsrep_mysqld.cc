@@ -1684,22 +1684,41 @@ void wsrep_to_isolation_end(THD *thd)
   @retval FALSE  Lock request cannot be granted
 */
 
-bool
-wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
-                          MDL_ticket *ticket,
-                          const MDL_key *key
-) {
+bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
+                               MDL_ticket *ticket,
+                               const MDL_key *key)
+{
   /* Fallback to the non-wsrep behaviour */
   if (!WSREP_ON) return FALSE;
 
-  THD *request_thd  = requestor_ctx->get_thd();
-  THD *granted_thd  = ticket->get_ctx()->get_thd();
-  bool ret          = FALSE;
+  THD *request_thd= requestor_ctx->get_thd();
+  THD *granted_thd= ticket->get_ctx()->get_thd();
+  bool ret= false;
 
   const char* schema= key->db_name();
   int schema_len= key->db_name_length();
 
   mysql_mutex_lock(&request_thd->LOCK_wsrep_thd);
+
+  /*
+    We consider granting MDL exceptions only for appliers (BF THD) and ones
+    executing under TOI mode.
+
+    Rules:
+    1. If granted/owner THD is also an applier (BF THD) or one executing
+       under TOI mode, then we grant the requested lock to the requester
+       THD.
+       @return true
+
+    2. If granted/owner THD is executing a FLUSH command or already has an
+       explicit lock, then do not grant the requested lock to the requester
+       THD and it has to wait.
+       @return false
+
+    3. In all other cases the granted/owner THD is aborted and the requested
+       lock is not granted to the requester THD, thus it has to wait.
+       @return false
+  */
   if (request_thd->wsrep_exec_mode == TOTAL_ORDER ||
       request_thd->wsrep_exec_mode == REPL_RECV)
   {
@@ -1716,7 +1735,7 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
                     request_thd, granted_thd);
       ticket->wsrep_report(true);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
-      ret = TRUE;
+      ret= true;
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH ||
              granted_thd->mdl_context.has_explicit_locks())
@@ -1724,38 +1743,39 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       WSREP_DEBUG("BF thread waiting for FLUSH");
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
-      ret = FALSE;
-    }
-    else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
-    {
-      WSREP_DEBUG("DROP caused BF abort");
-      ticket->wsrep_report(wsrep_debug);
-      mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
-      wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
-      ret = FALSE;
-    }
-    else if (granted_thd->wsrep_query_state == QUERY_COMMITTING)
-    {
-      WSREP_DEBUG("MDL granted, but committing thd abort scheduled");
-      ticket->wsrep_report(wsrep_debug);
-      mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
-      wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
-      ret = FALSE;
+      ret= false;
     }
     else
     {
-      WSREP_MDL_LOG(DEBUG, "MDL conflict-> BF abort", schema, schema_len,
-                    request_thd, granted_thd);
-      ticket->wsrep_report(wsrep_debug);
+      /* Print some debug information. */
+      if (wsrep_debug)
+      {
+        if ((request_thd->lex->sql_command == SQLCOM_DROP_TABLE))
+        {
+          WSREP_DEBUG("DROP caused BF abort");
+        }
+        else if ((granted_thd->wsrep_query_state == QUERY_COMMITTING))
+        {
+          WSREP_DEBUG("MDL granted, but committing thd abort scheduled");
+        }
+        else
+        {
+          WSREP_MDL_LOG(DEBUG, "MDL conflict-> BF abort", schema, schema_len,
+                        request_thd, granted_thd);
+        }
+        ticket->wsrep_report(true);
+      }
+
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
-      wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
-      ret = FALSE;
+      wsrep_abort_thd((void *) request_thd, (void *) granted_thd, 1);
+      ret= false;
     }
   }
   else
   {
     mysql_mutex_unlock(&request_thd->LOCK_wsrep_thd);
   }
+
   return ret;
 }
 
