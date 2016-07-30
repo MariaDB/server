@@ -5896,23 +5896,26 @@ int check_duplicate_long_entries(TABLE *table, uchar *new_rec)
     if (table->key_info[i].flags & HA_UNIQUE_HASH)
     {
       hash_field= table->key_info[i].key_part->field;
-      DBUG_ASSERT(table->key_info[i].key_length == 9);
+      DBUG_ASSERT(table->key_info[i].key_length == 8 ||
+                   table->key_info[i].key_length == 9 );
       uchar  ptr[9];
 
       if (hash_field->is_null())
         continue;
 
-      key_copy(ptr, new_rec, &table->key_info[i], 9, false);
+      key_copy(ptr, new_rec, &table->key_info[i],
+                      table->key_info[i].key_length, false);
 
       if (!table->check_unique_buf)
         table->check_unique_buf = (uchar *)alloc_root(&table->mem_root,
                                         table->s->reclength*sizeof(uchar));
 
-      result= table->file->ha_index_read_idx_map(table->check_unique_buf, i, ptr,
-          HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+      result= table->file->ha_index_read_idx_map(table->check_unique_buf,
+                                  i, ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
       if (!result)
       {
-        Item_func_or_sum * temp= static_cast<Item_func_or_sum *>(hash_field->vcol_info->expr_item);
+        Item_func_or_sum * temp= static_cast<Item_func_or_sum *>(hash_field->
+                                                        vcol_info->expr_item);
         Item_args * t_item= static_cast<Item_args *>(temp);
         int arg_count= t_item->argument_count();
         Item ** arguments= t_item->arguments();
@@ -5937,7 +5940,8 @@ int check_duplicate_long_entries(TABLE *table, uchar *new_rec)
           field_unpack(&str,t_field,new_rec,10,//since blob can be to long
                        false);
         }
-        my_printf_error(ER_DUP_ENTRY, ER_THD(table->in_use, ER_DUP_ENTRY_WITH_KEY_NAME)
+        my_printf_error(ER_DUP_ENTRY, ER_THD(table->in_use,
+                                            ER_DUP_ENTRY_WITH_KEY_NAME)
                          ,MYF(0), str.c_ptr_safe(),table->key_info[i].name);
         return HA_ERR_FOUND_DUPP_KEY_BLOB;
       }

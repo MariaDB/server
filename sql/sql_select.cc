@@ -4007,8 +4007,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             int num_of_fields= fields_in_hash_str(ls->str,ls->length);
             is_map_for_hash_key= eq_part.is_prefix(num_of_fields);
           }
-          if ((eq_part.is_prefix(key_parts) ||
-               is_map_for_hash_key) &&
+          if (((eq_part.is_prefix(key_parts) && !keyinfo->flags & HA_UNIQUE_HASH)
+               || is_map_for_hash_key) &&
               !table->fulltext_searched &&
               (!embedding || (embedding->sj_on_expr && !embedding->embedding)))
 	  {
@@ -9023,7 +9023,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   {
     uint i;
     ulong nr1= 1;
-    Item *item_hash, *item;
+    Item *item_hash= NULL, *item;
     if (keyinfo->flags & HA_UNIQUE_HASH)
     {
       key_buff[0]=0;
@@ -9033,9 +9033,20 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
       uint i;
       uint num_of_fields= fields_in_hash_str(ls->str,ls->length);
+      item_hash = new(thd->mem_root) Item_uint(thd,nr1);
       for (i=0 ; i < num_of_fields ; keyuse++,i++)
       {
+        if(!keyuse->val)
+        {
+          item_hash= NULL;
+          break;
+        }
         str= keyuse->val->val_str();
+        if(!str)
+        {
+          item_hash= NULL;
+          break;
+        }
         cs= str->charset();
         uchar l[4];
         int4store(l,str->length());
@@ -9045,7 +9056,6 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       //for testing purpose
       //nr1= 12;
       //int8store(key_buff+1,nr1);
-      item_hash = new(thd->mem_root) Item_uint(thd,nr1);
       keyuse=org_keyuse;
      }
 
@@ -9075,7 +9085,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         plans! Does the optimizer depend on the contents of
         table_ref->key_copy ? If yes, do we produce incorrect EXPLAINs? 
       */
-      if ( (keyinfo->flags & HA_UNIQUE_HASH))
+      if ( item_hash)
       {
         j->ref.key_parts= 1;
         keyparts= 1;

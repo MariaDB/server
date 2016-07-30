@@ -4,10 +4,8 @@ insert into t1 value(1);
 ERROR 23000: Duplicate entry '1' for key 'abc'
 select * from t1 where abc=1;
 abc
-1
 select * from t1 where abc=3;
 abc
-3
 select * from t1 where abc=7;
 abc
 select * from t1 where abc is  NULL;
@@ -21,15 +19,12 @@ insert into t1 value(1,NULL);
 ERROR 23000: Duplicate entry '1' for key 'abc'
 select * from t1 where abc=1;
 abc	xyz
-1	1
 select * from t1 where abc=23;
 abc	xyz
 select * from t1 where abc=1 and xyz=1;
 abc	xyz
-1	1
 select * from t1 where abc=3 and xyz=3;
 abc	xyz
-3	3
 select * from t1 where abc=7 and xyz =22;
 abc	xyz
 select * from t1 where abc is NULL and xyz=1;
@@ -47,21 +42,18 @@ insert into t1 value(1,NULL);
 ERROR 23000: Duplicate entry '1' for key 'abc'
 select * from t1 where abc=1;
 abc	xyz
-1	1
 select * from t1 where abc=23;
 abc	xyz
 select * from t1 where abc=1 and xyz=11;
 abc	xyz
 select * from t1 where abc=3 and xyz=31;
 abc	xyz
-3	31
 select * from t1 where abc=3 and xyz=1;
 abc	xyz
 select * from t1 where abc=7 and xyz =22;
 abc	xyz
 select * from t1 where abc is NULL and xyz=2;
 abc	xyz
-NULL	2
 select * from t1 where abc is NULL;
 abc	xyz
 NULL	2
