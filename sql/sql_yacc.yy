@@ -16003,7 +16003,7 @@ sf_tail:
         {
           if(Lex->sp_chistics.agg_type == GROUP_AGGREGATE)
           {
-            my_parse_error(thd, ER_SYNTAX_ERROR);
+            my_yyabort_error((ER_NOT_AGGREGATE_FUNCTION, MYF(0), ""));
           }
           Lex->sp_chistics.agg_type == NOT_AGGREGATE;
         }
