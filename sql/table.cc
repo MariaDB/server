@@ -2016,13 +2016,25 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
         field= key_part->field= share->field[key_part->fieldnr-1];
         key_part->type= field->key_type();
+        /*
+          Add HA_UNIQUE_HASH flag if keyinfo has only one field
+          and field has is_long_column_hash flag on
+        */
+        if (keyinfo->user_defined_key_parts == 1 &&
+             field->is_long_column_hash)
+          keyinfo->flags|= HA_UNIQUE_HASH;
+
         if (field->null_ptr)
         {
           key_part->null_offset=(uint) ((uchar*) field->null_ptr -
                                         share->default_values);
           key_part->null_bit= field->null_bit;
           key_part->store_length+=HA_KEY_NULL_LENGTH;
-          keyinfo->flags|=HA_NULL_PART_KEY;
+          if (keyinfo->flags & HA_UNIQUE_HASH &&
+              !(keyinfo->flags & HA_NULL_PART_KEY))
+          {}
+          else
+            keyinfo->flags|=HA_NULL_PART_KEY;
           keyinfo->key_length+= HA_KEY_NULL_LENGTH;
         }
         if (field->type() == MYSQL_TYPE_BLOB ||
@@ -2039,13 +2051,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         }
         if (field->type() == MYSQL_TYPE_BIT)
           key_part->key_part_flag|= HA_BIT_PART;
-        /*
-          Add HA_UNIQUE_HASH flag if keyinfo has only one field
-          and field has is_long_column_hash flag on
-        */
-        if (keyinfo->user_defined_key_parts == 1 &&
-             field->is_long_column_hash)
-          keyinfo->flags|= HA_UNIQUE_HASH;
         if (i == 0 && key != primary_key)
           field->flags |= (((keyinfo->flags & HA_NOSAME) &&
                            (keyinfo->user_defined_key_parts == 1)) ?
@@ -7837,16 +7842,16 @@ double KEY::actual_rec_per_key(uint i)
    return index of  hash_str  if found other wise returns
    -1
 */
-int find_field_name_in_hash(char * temp,char * field_name ,int hash_str_length)
+int find_field_name_in_hash(char * hash_str, char * field_name, int hash_str_length)
 {
-  int j=0,i=0;
-  for( i=0; i<hash_str_length; i++)
+  int j= 0, i= 0;
+  for (i= 0; i < hash_str_length; i++)
   {
-    while(*(temp+i)==*(field_name+j))
+    while (*(hash_str+i) == *(field_name+j))
     {
       i++;
       j++;
-      if(*(field_name+j)=='\0' &&*(temp+i)=='`')
+      if(*(field_name+j)=='\0' &&*(hash_str+i)=='`')
         goto done;
     }
     j=0;
@@ -7854,6 +7859,73 @@ int find_field_name_in_hash(char * temp,char * field_name ,int hash_str_length)
   return -1;
   done:
   return i;
+}
+
+/*
+   find out the field positoin in hash_str()
+   position starts from 0
+   else return -1;
+*/
+int find_field_index_in_hash(char * hash_str, char * field_name, int hash_str_length)
+{
+  int field_name_position= find_field_name_in_hash(hash_str, field_name, hash_str_length);
+  if (field_name_position == -1)
+    return -1;
+  int index= 0;
+  for (int i= 0; i < field_name_position; i++)
+  {
+    if (hash_str[i] == ',')
+      index++;
+  }
+  return index;
+}
+
+/*
+   find total number of field in hash_str
+*/
+int fields_in_hash_str(char * hash_str, int hash_str_length)
+{
+  int num_of_fields= 1;
+  for(int i= 0; i<hash_str_length; i++)
+  {
+    if (hash_str[i] == ',' && hash_str[i-1] == '`'
+         && hash_str[i+1] == '`' )
+      num_of_fields++;
+  }
+  return num_of_fields;
+}
+
+/*
+   return fields ptr given by hash_str index
+   for example
+   hash(`abc`,`xyz`)
+   index 1 will return pointer to xyz field
+*/
+Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index)
+{
+  char field_name[100]; // 100 is enough i think
+  int temp_index= 0;
+  char *str= hash_str->str;
+  int i= strlen("hash"), j;
+  Field **f, *field;
+  while (i<hash_str->length)
+  {
+    if (str[i] == ',')
+      temp_index++;
+    if (temp_index >= index)
+      break;
+    i++;
+  }
+  i+= 2;  // now i point to first character of field name
+  for (j= 0; str[i+j] !=  '`'; j++)
+    field_name[j]= str[i+j];
+  field_name[j]= '\0';
+  for (f= table->field; f && (field= *f); f++)
+  {
+    if(!my_strcasecmp(system_charset_info,field->field_name,field_name))
+      break;
+  }
+  return field;
 }
 
 /*

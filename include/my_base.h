@@ -243,7 +243,8 @@ enum ha_base_keytype {
 
 /* Add some constant related to unique long hash column like length hash string etc*/
 
-#define HA_HASH_KEY_LENGHT_WITHOUT_NULL 8
+#define HA_HASH_KEY_LENGTH_WITHOUT_NULL 8
+#define HA_HASH_FIELD_LENGTH            8
 #define HA_HASH_KEY_LENGTH_WITH_NULL    9
 #define HA_HASH_STR                     "hash(`"
 #define HA_HASH_STR_LEN                 strlen(HA_HASH_STR)

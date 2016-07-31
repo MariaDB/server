@@ -3999,7 +3999,16 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           */
           KEY *keyinfo= table->key_info + key;
           uint  key_parts= table->actual_n_key_parts(keyinfo);
-          if (eq_part.is_prefix(key_parts) &&
+          //TODO need a better name
+          bool  is_map_for_hash_key=false;
+          if (keyinfo->flags & HA_UNIQUE_HASH)
+          {
+            LEX_STRING * ls= &keyinfo->key_part->field->vcol_info->expr_str;
+            int num_of_fields= fields_in_hash_str(ls->str,ls->length);
+            is_map_for_hash_key= eq_part.is_prefix(num_of_fields);
+          }
+          if (((eq_part.is_prefix(key_parts) && !keyinfo->flags & HA_UNIQUE_HASH)
+               || is_map_for_hash_key) &&
               !table->fulltext_searched &&
               (!embedding || (embedding->sj_on_expr && !embedding->embedding)))
 	  {
@@ -4009,7 +4018,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             base_const_ref.intersect(base_part);
             base_eq_part= eq_part;
             base_eq_part.intersect(base_part);
-            if (table->actual_key_flags(keyinfo) & HA_NOSAME)
+            if ( (table->actual_key_flags(keyinfo) & HA_NOSAME) ||
+                   keyinfo->flags & HA_UNIQUE_HASH )
             {
               
 	      if (base_const_ref == base_eq_part &&
@@ -5181,6 +5191,19 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 	continue;    // ToDo: ft-keys in non-ft queries.   SerG
       KEY *keyinfo= form->key_info+key;
       uint key_parts= form->actual_n_key_parts(keyinfo);
+      /* in case of null we do not use any optimization */
+      if (keyinfo->flags & HA_UNIQUE_HASH )
+      {
+        LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
+        int index= find_field_index_in_hash(ls->str,
+                                     (char *)field->field_name, ls->length);
+        if (index != -1)
+        {
+          if (add_keyuse(keyuse_array, key_field, key, index))
+            return TRUE;
+        }
+        continue;
+      }
       for (uint part=0 ; part <  key_parts ; part++)
       {
         if (field->eq(form->key_info[key].key_part[part].field) &&
@@ -8999,6 +9022,43 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   else
   {
     uint i;
+    ulong nr1= 1;
+    Item *item_hash= NULL, *item;
+    if (keyinfo->flags & HA_UNIQUE_HASH)
+    {
+      key_buff[0]=0;
+      ulong nr2= 4;
+      CHARSET_INFO *cs;
+      String *str;
+      LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
+      uint i;
+      uint num_of_fields= fields_in_hash_str(ls->str,ls->length);
+      item_hash = new(thd->mem_root) Item_uint(thd,nr1);
+      for (i=0 ; i < num_of_fields ; keyuse++,i++)
+      {
+        if(!keyuse->val)
+        {
+          item_hash= NULL;
+          break;
+        }
+        str= keyuse->val->val_str();
+        if(!str)
+        {
+          item_hash= NULL;
+          break;
+        }
+        cs= str->charset();
+        uchar l[4];
+        int4store(l,str->length());
+        cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
+        cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
+      }
+      //for testing purpose
+      //nr1= 12;
+      //int8store(key_buff+1,nr1);
+      keyuse=org_keyuse;
+     }
+
     for (i=0 ; i < keyparts ; keyuse++,i++)
     {
       while (((~used_tables) & keyuse->used_tables) ||
@@ -9014,6 +9074,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       uint maybe_null= MY_TEST(keyinfo->key_part[i].null_bit);
       j->ref.items[i]=keyuse->val;		// Save for cond removal
       j->ref.cond_guards[i]= keyuse->cond_guard;
+      item= keyuse->val;
       if (keyuse->null_rejecting) 
         j->ref.null_rejecting|= (key_part_map)1 << i;
       keyuse_uses_no_tables= keyuse_uses_no_tables && !keyuse->used_tables;
@@ -9024,14 +9085,21 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         plans! Does the optimizer depend on the contents of
         table_ref->key_copy ? If yes, do we produce incorrect EXPLAINs? 
       */
-      if (!keyuse->val->used_tables() && !thd->lex->describe)
+      if ( item_hash)
+      {
+        j->ref.key_parts= 1;
+        keyparts= 1;
+        item= item_hash;
+      }
+
+      if (!keyuse->val->used_tables() && !thd->lex->describe )
       {					// Compare against constant
 	store_key_item tmp(thd, 
                            keyinfo->key_part[i].field,
                            key_buff + maybe_null,
                            maybe_null ?  key_buff : 0,
                            keyinfo->key_part[i].length,
-                           keyuse->val,
+                           item,
                            FALSE);
 	if (thd->is_fatal_error)
 	  DBUG_RETURN(TRUE);
@@ -9043,6 +9111,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
 				  keyuse,join->const_table_map,
 				  &keyinfo->key_part[i],
 				  key_buff, maybe_null);
+
       /*
 	Remember if we are going to use REF_OR_NULL
 	But only if field _really_ can be null i.e. we force JT_REF
@@ -9055,6 +9124,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       }
       key_buff+= keyinfo->key_part[i].store_length;
     }
+
   } /* not ftkey */
   *ref_key=0;				// end_marker
   if (j->type == JT_FT)
@@ -18852,6 +18922,81 @@ join_read_system(JOIN_TAB *tab)
   return table->status ? -1 : 0;
 }
 
+/**
+  Find record in case HA_UNIQUE_HASH
+*/
+
+int find_unique_hash_record(TABLE *table, JOIN_TAB *tab)
+{
+  int error;
+  Field *field;
+  LEX_STRING *ls= &table->key_info[tab->ref.key].key_part->field->
+                                             vcol_info->expr_str;
+  KEYUSE *keyuse= tab->keyuse;
+  ulong nr1= 1,nr2= 4;
+  CHARSET_INFO *cs;
+  String *str;
+
+//  while (keyuse && keyuse->table && keyuse->table == table)
+//  {
+//    if (keyuse->key != tab->ref.key)
+//    {
+//      keyuse++;
+//      continue;
+//    }
+//    str= keyuse->val->val_str();
+//    cs= str->charset();
+//    uchar l[4];
+//    int4store(l,str->length());
+//    cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
+//    cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
+//    keyuse++;
+//  }
+//  uchar hash_key[9];
+//  hash_key[0]=0;
+//  //for testing purpose
+//  //nr1= 12;
+//  int8store(hash_key+1,nr1);
+  error= table->file->ha_index_init(tab->ref.key, 0);
+  if (!error)
+  {
+    error= table->file->ha_index_read_map(table->record[0], (uchar*) tab->ref.key_buff,
+        HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+    /* Need to see whethere it is the same record as requested by user because
+       two different record can have same hash */
+    //first find the pointer in record
+    String other_str;
+    keyuse= tab->keyuse;
+    if (error)
+      return error;
+    while (keyuse && keyuse->table && keyuse->table == table)
+    {
+      if (keyuse->key != tab->ref.key)
+      {
+        keyuse++;
+        continue;
+      }
+      // need to find the corresponding field to which keyuse corrosponds in
+      // hash str
+      field= field_ptr_in_hash_str(ls, table, keyuse->keypart);
+      field->val_str(&other_str);
+      str= keyuse->val->val_str();
+      field->val_str(&other_str);
+      if ((str->length() != other_str.length()) ||
+          my_strnncoll(other_str.charset(), (const uchar *)str->c_ptr(),
+                       str->length(), (const uchar *)other_str.c_ptr(), other_str.length()))
+      {
+        /*here hash is same for different record we need to find the matching one*/
+        error= table->file->ha_index_next(table->record[0]);
+        if(error)
+          return error;
+      }
+      keyuse++;
+    }
+    table->file->ha_index_end();
+    return error;
+  }
+}
 
 /**
   Read a table when there is at most one matching row.
@@ -18875,7 +19020,12 @@ join_read_const(JOIN_TAB *tab)
       error=HA_ERR_KEY_NOT_FOUND;
     else
     {
-      error= table->file->ha_index_read_idx_map(table->record[0],tab->ref.key,
+      if (table->key_info[tab->ref.key].flags & HA_UNIQUE_HASH)
+      {
+        error= find_unique_hash_record(table, tab);
+      }
+      else
+        error= table->file->ha_index_read_idx_map(table->record[0],tab->ref.key,
                                                 (uchar*) tab->ref.key_buff,
                                                 make_prev_keypart_map(tab->ref.key_parts),
                                                 HA_READ_KEY_EXACT);

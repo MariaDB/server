@@ -3200,12 +3200,12 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
   List_iterator<Key> key_iter(alter_info->key_list);
   List_iterator<Key_part_spec> key_part_iter(current_key->columns);
   List_iterator<Create_field> it(alter_info->create_list);
-  Create_field *dup_field;
+  Create_field *dup_field, * sql_field;
   Key_part_spec *temp_colms;
 
   Create_field *cf= new (thd->mem_root) Create_field();
   cf->flags|= UNSIGNED_FLAG;
-  cf->length= cf->char_length= HA_HASH_KEY_LENGHT_WITHOUT_NULL;
+  cf->length= cf->char_length= HA_HASH_FIELD_LENGTH;
   cf->charset= NULL;
   cf->decimals= 0;
   char temp_name[30];
@@ -3228,31 +3228,6 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
     }
   }
   it.rewind();
-  /*
-    There should be only one key for db_row_hash_* column
-    we need to give user a error when the accidently query
-    like
-
-    create table t1(abc blob unique, unique(db_row_hash_1));
-    alter table t2 add column abc blob unique,add unique key(db_row_hash_1);
-
-    for this we will iterate through the key_list and
-    find if and key_part has the same name as of temp_name
-   */
-  Key * temp_key;
-  while ((temp_key= key_iter++))
-  {
-    Key_part_spec *flds;
-    List_iterator<Key_part_spec> key_part_iter_2(temp_key->columns);
-    while ((flds= key_part_iter_2++))
-    {
-      if(!my_strcasecmp(system_charset_info,flds->field_name.str,temp_name))
-      {
-        my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), temp_name);
-        return 1;
-      }
-    }
-  }
   char * name= (char *)thd->alloc(30);
   strcpy(name, temp_name);
   cf->field_name= name;
@@ -3269,7 +3244,29 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
   strcat(hash_exp, temp_colms->field_name.str);
   strcpy(key_name, temp_colms->field_name.str);
   strcat(hash_exp, "`");
-  while ((temp_colms= key_part_iter++)){
+  while ((temp_colms= key_part_iter++))
+  {
+    while ((sql_field= it++) &&
+           my_strcasecmp(system_charset_info,
+              temp_colms->field_name.str, sql_field->field_name))
+    {}
+    it.rewind();
+    /*
+      There should be only one key for db_row_hash_* column
+      we need to give user a error when the accidently query
+      like
+
+      create table t1(abc blob unique, unique(db_row_hash_1));
+      alter table t2 add column abc blob unique,add unique key(db_row_hash_1);
+
+      for this we will iterate through the key_list and
+      find if and key_part has the same name as of temp_name
+     */
+    if (!sql_field || sql_field->is_long_column_hash)
+    {
+      my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), temp_name);
+      return 1;
+    }
     /*
       This test for wrong query like
       create table t1(a blob ,unique(a,a));
@@ -3280,6 +3277,9 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
       my_error(ER_DUP_FIELDNAME, MYF(0), temp_colms->field_name.str);
       return 1;
     }
+    /* If any field can be null add flag */
+    if (!sql_field->flags & NOT_NULL_FLAG)
+      current_key_info->flags|= HA_NULL_PART_KEY;
     strcat(hash_exp, (const char * )",");
     strcat(key_name, "_");
     strcat(hash_exp, "`");
@@ -3297,6 +3297,11 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
   cf->create_length_to_internal_length();
   cf->length= cf->char_length= cf->pack_length;
   prepare_create_field(cf, NULL, 0);
+  if (!current_key_info->flags & HA_NULL_PART_KEY)
+  {
+    cf->pack_flag^= FIELDFLAG_MAYBE_NULL;
+    cf->flags^= NOT_NULL_FLAG;
+  }
   alter_info->create_list.push_front(cf,thd->mem_root);
   /* Update row offset because field is added in first position */
   int offset=0;
@@ -4077,7 +4082,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         key_part_info= key_info->key_part;
         key_part_info++;
         null_fields++;
-        key_length= HA_HASH_KEY_LENGHT_WITHOUT_NULL;
+        key_length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
         break;
       }
       else
@@ -4227,7 +4232,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 			key_part_info= key_info->key_part;
 			key_part_info++;
 			null_fields++;
-			key_length= HA_HASH_KEY_LENGHT_WITHOUT_NULL;
+			key_length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
 			break;
 		}
 		else
