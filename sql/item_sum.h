@@ -1078,18 +1078,19 @@ which allows user to execute aggregate functions.For executing the
 aggregate functions we have taken a cursor approach.
 
 @note: The cursor approach
-For the cuursor approach, a new instruction FETCH GROUP NEXT ROW is created. This
-execution of the function from the point where the function execution exited.
-If the instruction pointer points to the FETCH GROUP NEXT ROW instruction, there are 2 states:
+For the cursor approach, a new instruction FETCH GROUP NEXT ROW is created. The
+execution of the function resumes from the point where the function execution exited
+temporarily.If the instruction pointer points to the FETCH GROUP NEXT ROW instruction,
+there are 2 states:
 
 a) FUNCTION NOT in PAUSE STATE: In this case, the function enters the pause state. The
    instruction pointer continues to point to the FETCH GROUP NEXT ROW instruction, and the function
-   makes a temporary exit. As soon as the function exits temporarily, the values are passed to the
-   arguments of the function. After the values are passed to the arguments the function resumes
-   execution.
+   makes a temporary pause in its execution. The pausing is done so that next row values
+   can be set for the function's arguments. After the values are passed to the arguments the
+   function resumes execution.
 
 b) FUNCTION in PAUSE STATE: In this case, the function exits from the pause state and resumes
-   exexution. The instrunction pointer is then incremented and now it points to the next
+   execution. The instrunction pointer is then incremented and now it points to the next
    instruction to be executed.
 
 In the end to get the return value of the function, a signal is sent, the signal states the
