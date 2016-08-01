@@ -2820,8 +2820,6 @@ sp_a_chistics:
         | sp_a_chistics sp_a_chistic {}
         ;
 
-
-
 sp_c_chistics:
           /* Empty */ {}
         | sp_c_chistics sp_c_chistic {}
@@ -2852,8 +2850,8 @@ sp_c_chistic:
         ;
 sp_a_chistic:
          sp_chistic             {}
-        | AGGREGATE_SYM  GROUP_SYM { Lex->sp_chistics.agg_type= GROUP_AGGREGATE; }             
-        | AGGREGATE_SYM  NONE_SYM { Lex->sp_chistics.agg_type= NOT_AGGREGATE; }
+        | AGGREGATE_SYM  GROUP_SYM { Lex->sp_chistics.agg_type= GROUP_AGGREGATE; }
+        | AGGREGATE_SYM  NONE_SYM  { Lex->sp_chistics.agg_type= NOT_AGGREGATE; }
         ;
 
 sp_suid:
@@ -3836,10 +3834,10 @@ sp_proc_stmt_fetch:
           }
           sp_fetch_list
           {}
-          | FETCH_SYM GROUP_SYM NEXT_SYM ROW_SYM 
+          | FETCH_SYM GROUP_SYM NEXT_SYM ROW_SYM
           {
             LEX *lex= Lex;
-            sp_head *sp= lex->sphead;            
+            sp_head *sp= lex->sphead;
             sp_instr_cfetch *i;
             Lex->sp_chistics.agg_type= GROUP_AGGREGATE;
             i= new (thd->mem_root)
@@ -15999,7 +15997,7 @@ udf_tail2:
         ;
 sf_tail:
           AGGREGATE_SYM sf_tail2 { Lex->sp_chistics.agg_type= GROUP_AGGREGATE;}
-        | sf_tail2               
+        | sf_tail2
         {
           if(Lex->sp_chistics.agg_type == GROUP_AGGREGATE)
           {

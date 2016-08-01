@@ -1334,12 +1334,12 @@ Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
 }
 
 /**
-  @brief Initialize the result field by creating a temporary dummy table
+    Initialize the result field by creating a temporary dummy table
     and assign it to a newly created field object. Meta data used to
     create the field is fetched from the sp_head belonging to the stored
     proceedure found in the stored procedure functon cache.
- 
-  @note This function should be called from fix_fields to init the result
+
+    @note This function should be called from fix_fields to init the result
     field. It is some what related to Item_field.
 
   @see Item_field
@@ -1374,7 +1374,7 @@ Item_sum_sp::init_result_field(THD *thd)
      Below we "create" a dummy table by initializing
      the needed pointers.
    */
-  
+
   share= dummy_table->s;
   dummy_table->alias.set("", 0, table_alias_charset);
   dummy_table->maybe_null = maybe_null;
@@ -1388,7 +1388,7 @@ Item_sum_sp::init_result_field(THD *thd)
   {
    DBUG_RETURN(TRUE);
   }
- 
+
   if (sp_result_field->pack_length() > sizeof(result_buf))
   {
     void *tmp;

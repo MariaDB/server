@@ -158,7 +158,6 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     { C_STRING_WITH_LEN("body_utf8") },
     { C_STRING_WITH_LEN("longblob") },
     { NULL, 0 }
-
   },
   {
     { C_STRING_WITH_LEN("aggregate") },
@@ -513,18 +512,18 @@ bool
 db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name, st_sp_chistics *chistics)
 {
   TABLE *table;
-  bool ret=false;
+  bool ret= false;
   char *ptr;
   bool saved_time_zone_used= thd->time_zone_used;
   ulonglong saved_mode= thd->variables.sql_mode;
   Open_tables_backup open_tables_state_backup;
   sp_head *sp;
-    
+
   DBUG_ENTER("db_get_aggregate_value");
   DBUG_PRINT("enter", ("type: %d name: %.*s",
            type, (int) name->m_name.length, name->m_name.str));
 
-  if(sp=sp_cache_lookup(&thd->sp_func_cache,name))
+  if(sp= sp_cache_lookup(&thd->sp_func_cache,name))
   {
     chistics->agg_type= sp->m_chistics->agg_type;
     DBUG_RETURN(FALSE);
@@ -533,10 +532,9 @@ db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name, st_s
   if (!(table= open_proc_table_for_read(thd, &open_tables_state_backup)))
     DBUG_RETURN(true);
 
-  
   if (db_find_routine_aux(thd, type, name, table) != SP_OK)
   {
-    ret= true;  
+    ret= true;
     goto done;
   }
 
@@ -565,20 +563,18 @@ db_get_aggregate_value(THD *thd, stored_procedure_type type, sp_name *name, st_s
   default:
     chistics->agg_type= DEFAULT_AGGREGATE;
   }
-  
+
  done:
-  /* 
+  /*
     Restore the time zone flag as the timezone usage in proc table
     does not affect replication.
-  */  
+  */
   thd->time_zone_used= saved_time_zone_used;
   if (table)
     close_system_tables(thd, &open_tables_state_backup);
   thd->variables.sql_mode= saved_mode;
   DBUG_RETURN(ret);
 }
-
-
 
 
 /**
@@ -624,7 +620,7 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
   LEX_STRING definer_user_name= { definer_user_name_holder, USERNAME_LENGTH };
   char definer_host_name_holder[HOSTNAME_LENGTH + 1];
   LEX_STRING definer_host_name= { definer_host_name_holder, HOSTNAME_LENGTH };
-  
+
   DBUG_ENTER("db_find_routine");
   DBUG_PRINT("enter", ("type: %d name: %.*s",
 		       type, (int) name->m_name.length, name->m_name.str));
@@ -675,7 +671,7 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
     ret= SP_GET_FIELD_FAILED;
     goto done;
   }
-  chistics.detistic= (ptr[0] == 'N' ? FALSE : TRUE);    
+  chistics.detistic= (ptr[0] == 'N' ? FALSE : TRUE);
 
   if ((ptr= get_field(thd->mem_root,
 		      table->field[MYSQL_PROC_FIELD_SECURITY_TYPE])) == NULL)
@@ -734,8 +730,6 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
     goto done;
   }
 
-
-
   modified= table->field[MYSQL_PROC_FIELD_MODIFIED]->val_int();
   created= table->field[MYSQL_PROC_FIELD_CREATED]->val_int();
 
@@ -768,10 +762,10 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
                        &definer_user_name, &definer_host_name,
                        created, modified, creation_ctx);
  done:
-  /* 
+  /*
     Restore the time zone flag as the timezone usage in proc table
     does not affect replication.
-  */  
+  */
   thd->time_zone_used= saved_time_zone_used;
   if (table)
     close_system_tables(thd, &open_tables_state_backup);
@@ -1243,7 +1237,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
     store_failed= store_failed ||
       table->field[MYSQL_PROC_FIELD_AGGREGATE]->
         store((longlong)sp->m_chistics->agg_type,TRUE);
-    
+
     store_failed= store_failed ||
       table->field[MYSQL_PROC_MYSQL_TYPE]->
         store((longlong)type, TRUE);
@@ -2322,7 +2316,7 @@ show_create_sp(THD *thd, String *buf,
 {
   ulonglong old_sql_mode= thd->variables.sql_mode;
   ulong agglen= (chistics->agg_type == GROUP_AGGREGATE)? 10 : 0;
-  
+
   /* Make some room to begin with */
   if (buf->alloc(100 + dblen + 1 + namelen + paramslen + returnslen + bodylen +
 		 chistics->comment.length + 10 /* length of " DEFINER= "*/ + agglen +

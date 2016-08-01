@@ -1465,7 +1465,7 @@ class Item_sum_udf_float :public Item_sum_num
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
   void clear() {}
-  bool add() { return 0; } 
+  bool add() { return 0; }
   void update_field() {}
 };
 
@@ -1483,7 +1483,7 @@ public:
   longlong val_int() { DBUG_ASSERT(fixed == 1); return 0; }
   double val_real() { DBUG_ASSERT(fixed == 1); return 0; }
   void clear() {}
-  bool add() { return 0; }  
+  bool add() { return 0; }
   void update_field() {}
 };
 

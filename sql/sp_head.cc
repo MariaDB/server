@@ -609,7 +609,6 @@ sp_head::sp_head()
   m_first_instance= this;
   m_first_free_instance= this;
   m_last_cached_sp= this;
-  m_rcont = NULL;
   m_return_field_def.charset = NULL;
 
   /*
@@ -1352,7 +1351,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     /* Reset sp_rcontext::end_partial_result_set flag. */
     ctx->end_partial_result_set= FALSE;
 
-  } while (!err_status && !thd->killed && !thd->is_fatal_error );
+  } while (!err_status && !thd->killed && !thd->is_fatal_error);
 
 #if defined(ENABLED_PROFILING)
   thd->profiling.finish_current_query();
@@ -1881,11 +1880,6 @@ sp_head::execute_agg(THD *thd, bool merge_da_on_success)
   DBUG_RETURN(err_status);
 }
 
-
-
-
-
-
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 /**
   set_routine_security_ctx() changes routine security context, and
@@ -2177,10 +2171,10 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
 #endif
 
   /* Pass arguments. */
-  
+
   for (arg_no= 0; arg_no < argcount; arg_no++)
   {
-    // Arguments must be fixed in Item_func_sp::fix_fields 
+    // Arguments must be fixed in Item_func_sp::fix_fields
     DBUG_ASSERT(argp[arg_no]->fixed);
 
     if ((err_status= nctx->set_variable(thd, arg_no, &(argp[arg_no]))))
@@ -2252,7 +2246,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       as one select and not resetting THD::user_var_events before
       each invocation.
     */
-    
+
     q= get_query_id();
     mysql_bin_log.start_union_events(thd, q + 1);
     binlog_save_options= thd->variables.option_bits;
@@ -2270,7 +2264,6 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   err_status= execute(thd, TRUE);
-  
 
   thd->restore_active_arena(&call_arena, &backup_arena);
 
@@ -2313,7 +2306,6 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   m_security_ctx.restore_security_context(thd, save_security_ctx);
 #endif
 
-
 err_with_cleanup:
   delete nctx;
   call_arena.free_items();
@@ -2324,7 +2316,7 @@ err_with_cleanup:
     If not insided a procedure and a function printing warning
     messsages.
   */
-  if (need_binlog_call && 
+  if (need_binlog_call &&
       thd->spcont == NULL && !thd->binlog_evt_union.do_union)
     thd->issue_unsafe_warnings();
 
@@ -2343,7 +2335,7 @@ err_with_cleanup:
    - restores security context
 
   @param thd               Thread handle
-  @param args              Passed arguments 
+  @param args              Passed arguments
   @param argcount          Number of passed arguments. We need to check if
                            this is correct.
   @param return_value_fld  Save result here.
@@ -2365,9 +2357,6 @@ err_with_cleanup:
     TRUE   on error
 */
 
-
-
-
 bool
 sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
                                     Field *return_fld, sp_rcontext **func_ctx,
@@ -2376,7 +2365,7 @@ sp_head::execute_aggregate_function(THD *thd, Item **args, uint argcount,
   ulonglong UNINIT_VAR(binlog_save_options);
   sp_rcontext *octx= thd->spcont;
   bool need_binlog_call= FALSE;
-  bool argument_sent=TRUE;
+  bool argument_sent= TRUE;
   uint arg_no;
   char buf[STRING_BUFFER_USUAL_SIZE];
   String binlog_buf(buf, sizeof(buf), &my_charset_bin);
@@ -2592,7 +2581,7 @@ err_with_cleanup:
     If not insided a procedure and a function printing warning
     messsages.
   */
-  if (need_binlog_call && 
+  if (need_binlog_call &&
       thd->spcont == NULL && !thd->binlog_evt_union.do_union)
     thd->issue_unsafe_warnings();
   DBUG_RETURN(err_status);
@@ -4566,6 +4555,7 @@ sp_instr_cclose::print(String *str)
 int
 sp_instr_cfetch::execute(THD *thd, uint *nextp)
 {
+  DBUG_ENTER("sp_instr_cfetch::execute");
   int res= 0;
   if(normal_cursor_fetch)
   {
