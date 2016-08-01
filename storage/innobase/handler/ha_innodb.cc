@@ -15502,6 +15502,7 @@ ha_innobase::store_lock(
 		/* Use consistent read for checksum table */
 
 		if (sql_command == SQLCOM_CHECKSUM
+                    || (sql_command == SQLCOM_ANALYZE && lock_type == TL_READ)
 		    || ((srv_locks_unsafe_for_binlog
 			|| trx->isolation_level <= TRX_ISO_READ_COMMITTED)
 			&& trx->isolation_level != TRX_ISO_SERIALIZABLE
