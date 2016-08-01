@@ -6078,7 +6078,10 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
     DBUG_RETURN(0);
   }
 
-  THD_TRANS *trans= &victim_thd->transaction.all;
+  /* Try statement transaction if standard one is not set. */
+  THD_TRANS *trans= (victim_thd->transaction.all.ha_list) ?
+    &victim_thd->transaction.all : &victim_thd->transaction.stmt;
+
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
 
   for (; ha_info; ha_info= ha_info_next)
@@ -6086,8 +6089,8 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
     handlerton *hton= ha_info->ht();
     if (!hton->abort_transaction)
     {
-      /* Skip warning for binlog SE */
-      if (hton->db_type != DB_TYPE_BINLOG)
+      /* Skip warning for binlog & wsrep. */
+      if (hton->db_type != DB_TYPE_BINLOG && hton != wsrep_hton)
       {
         WSREP_WARN("Cannot abort transaction.");
       }
