@@ -1078,15 +1078,23 @@ which allows user to execute aggregate functions.For executing the
 aggregate functions we have taken a cursor approach.
 
 @note: The cursor approach
-For this approach a new instruction FETCH GROUP NEXT ROW is created, which
-would pause and resume the function execution. During the pausing phase ,
-the instruction pointer that points to the current running instruction is saved,
-function is exited  and the arguments of the function are passed. After the
-values of arguments are passed, then function resumes execution from that instruction
-that was saved earlier. Then for the value of the function (that is when all
-the rows have been fetched) a signal is sent, the signal being SERVER_STATUS_LAST_ROW_SENT
-and then  an error ER_SP_FETCH_NO_DATA is thrown,and this error is handled by the handler
-(already defined) and the return statement is defined with the handler.
+For the cuursor approach, a new instruction FETCH GROUP NEXT ROW is created. This
+execution of the function from the point where the function execution exited.
+If the instruction pointer points to the FETCH GROUP NEXT ROW instruction, there are 2 states:
+
+a) FUNCTION NOT in PAUSE STATE: In this case, the function enters the pause state. The
+   instruction pointer continues to point to the FETCH GROUP NEXT ROW instruction, and the function
+   makes a temporary exit. As soon as the function exits temporarily, the values are passed to the
+   arguments of the function. After the values are passed to the arguments the function resumes
+   execution.
+
+b) FUNCTION in PAUSE STATE: In this case, the function exits from the pause state and resumes
+   exexution. The instrunction pointer is then incremented and now it points to the next
+   instruction to be executed.
+
+In the end to get the return value of the function, a signal is sent, the signal states the
+all the rows have been fetched and an error should be thrown which is defined in the handler.
+The error is handled by the handler and then the value of the function is returned.
 
 Example:
 DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN ret_val;
