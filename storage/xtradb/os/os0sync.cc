@@ -320,7 +320,7 @@ os_event_t
 os_event_create(void)
 /*==================*/
 {
-	os_event_t event = static_cast<os_event_t>(ut_malloc(sizeof(*event)));;
+	os_event_t event = static_cast<os_event_t>(ut_malloc(sizeof(*event)));
 
 	os_event_create(event);
 
