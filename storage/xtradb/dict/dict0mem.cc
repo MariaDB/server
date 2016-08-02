@@ -756,9 +756,9 @@ dict_mem_init(void)
 	ib_uint32_t now = static_cast<ib_uint32_t>(ut_time());
 
 	const byte* buf = reinterpret_cast<const byte*>(&now);
-	ut_ad(ut_crc32 != NULL);
+	ut_ad(ut_crc32c != NULL);
 
-	dict_temp_file_num = ut_crc32(buf, sizeof(now));
+	dict_temp_file_num = ut_crc32c(buf, sizeof(now));
 
 	DBUG_PRINT("dict_mem_init",
 		   ("Starting Temporary file number is " UINT32PF,

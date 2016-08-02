@@ -19,7 +19,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /***************************************************************//**
 @file ut/ut0crc32.cc
-CRC32 implementation from Facebook, based on the zlib implementation.
+CRC32C implementation from Facebook, based on the zlib implementation.
 
 Created Aug 8, 2011, Vasil Dimov, based on mysys/my_crc32.c and
 mysys/my_perf.c, contributed by Facebook under the following license.
@@ -79,7 +79,6 @@ mysys/my_perf.c, contributed by Facebook under the following license.
  * factor of two increase in speed on a Power PC G4 (PPC7455) using gcc -O3.
  */
 
-#include "univ.i"
 #include "ut0crc32.h"
 
 #if defined(__linux__) && defined(__powerpc__)
@@ -90,49 +89,72 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 
 #include <string.h>
 
-ib_ut_crc32_t	ut_crc32;
+ib_ut_crc32_t		ut_crc32c;
+ib_ut_crc32_ex_t	ut_crc32c_ex;
+
+ib_ut_crc32_t		ut_crc32;
+ib_ut_crc32_ex_t	ut_crc32_ex;
 
 /* Precalculated table used to generate the CRC32 if the CPU does not
 have support for it */
-static ib_uint32_t	ut_crc32_slice8_table[8][256];
-static ibool		ut_crc32_slice8_table_initialized = FALSE;
+static uint32	ut_crc32c_slice8_table[8][256];
+static bool	ut_crc32c_slice8_table_initialized = FALSE;
+static uint32	ut_crc32_slice8_table[8][256];
+static bool	ut_crc32_slice8_table_initialized = FALSE;
 
-/* Flag that tells whether the CPU supports CRC32 or not */
-UNIV_INTERN bool	ut_crc32_sse2_enabled = false;
-UNIV_INTERN bool	ut_crc32_power8_enabled = false;
+/** Text description of CRC32 implementation */
+const char *ut_crc32_implementation = NULL;
 
 /********************************************************************//**
 Initializes the table that is used to generate the CRC32 if the CPU does
 not have support for it. */
 static
 void
-ut_crc32_slice8_table_init()
+ut_crc32_slice8_table_init(uint32 poly, uint32 slice8_table[8][256])
 /*========================*/
 {
-	/* bit-reversed poly 0x1EDC6F41 (from SSE42 crc32 instruction) */
-	static const ib_uint32_t	poly = 0x82f63b78;
-	ib_uint32_t			n;
-	ib_uint32_t			k;
-	ib_uint32_t			c;
+	uint32			n;
+	uint32			k;
+	uint32			c;
 
 	for (n = 0; n < 256; n++) {
 		c = n;
 		for (k = 0; k < 8; k++) {
 			c = (c & 1) ? (poly ^ (c >> 1)) : (c >> 1);
 		}
-		ut_crc32_slice8_table[0][n] = c;
+		slice8_table[0][n] = c;
 	}
 
 	for (n = 0; n < 256; n++) {
-		c = ut_crc32_slice8_table[0][n];
+		c = slice8_table[0][n];
 		for (k = 1; k < 8; k++) {
-			c = ut_crc32_slice8_table[0][c & 0xFF] ^ (c >> 8);
-			ut_crc32_slice8_table[k][n] = c;
+			c = slice8_table[0][c & 0xFF] ^ (c >> 8);
+			slice8_table[k][n] = c;
 		}
 	}
 
-	ut_crc32_slice8_table_initialized = TRUE;
 }
+
+static
+void
+ut_crc32c_slice8_table_init()
+{
+	/* bit-reversed poly 0x1EDC6F41 for CRC32C */
+	ut_crc32_slice8_table_init(0x82f63b78, ut_crc32c_slice8_table);
+
+	ut_crc32c_slice8_table_initialized = true;
+}
+
+static
+void
+ut_crc32_slice8_table_init()
+{
+	/* bit reversed poly 0x04C11DB7 for IEEE CRC */
+	ut_crc32_slice8_table_init(0xEDB88320, ut_crc32_slice8_table);
+
+	ut_crc32_slice8_table_initialized = true;
+}
+
 
 #if defined(__GNUC__) && defined(__x86_64__)
 /********************************************************************//**
@@ -141,14 +163,14 @@ static
 void
 ut_cpuid(
 /*=====*/
-	ib_uint32_t	vend[3],	/*!< out: CPU vendor */
-	ib_uint32_t*	model,		/*!< out: CPU model */
-	ib_uint32_t*	family,		/*!< out: CPU family */
-	ib_uint32_t*	stepping,	/*!< out: CPU stepping */
-	ib_uint32_t*	features_ecx,	/*!< out: CPU features ecx */
-	ib_uint32_t*	features_edx)	/*!< out: CPU features edx */
+	uint32	vend[3],	/*!< out: CPU vendor */
+	uint32*	model,		/*!< out: CPU model */
+	uint32*	family,		/*!< out: CPU family */
+	uint32*	stepping,	/*!< out: CPU stepping */
+	uint32*	features_ecx,	/*!< out: CPU features ecx */
+	uint32*	features_edx)	/*!< out: CPU features edx */
 {
-	ib_uint32_t	sig;
+	uint32	sig;
 	asm("cpuid" : "=b" (vend[0]), "=c" (vend[2]), "=d" (vend[1]) : "a" (0));
 	asm("cpuid" : "=a" (sig), "=c" (*features_ecx), "=d" (*features_edx)
 	    : "a" (1)
@@ -168,114 +190,105 @@ ut_cpuid(
 
 /* opcodes taken from objdump of "crc32b (%%rdx), %%rcx"
 for RHEL4 support (GCC 3 doesn't support this instruction) */
-#define ut_crc32_sse42_byte \
+#define ut_crc32c_sse42_byte \
 	asm(".byte 0xf2, 0x48, 0x0f, 0x38, 0xf0, 0x0a" \
 	    : "=c"(crc) : "c"(crc), "d"(buf)); \
 	len--, buf++
 
 /* opcodes taken from objdump of "crc32q (%%rdx), %%rcx"
 for RHEL4 support (GCC 3 doesn't support this instruction) */
-#define ut_crc32_sse42_quadword \
+#define ut_crc32c_sse42_quadword \
 	asm(".byte 0xf2, 0x48, 0x0f, 0x38, 0xf1, 0x0a" \
 	    : "=c"(crc) : "c"(crc), "d"(buf)); \
 	len -= 8, buf += 8
 #endif /* defined(__GNUC__) && defined(__x86_64__) */
 
-#if defined(__powerpc__)
-extern "C" {
-unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
-};
-#endif /* __powerpc__ */
 
-UNIV_INLINE
-ib_uint32_t
-ut_crc32_power8(
-/*===========*/
-		 const byte*		 buf,		 /*!< in: data over which to calculate CRC32 */
-		 ulint		 		 len)		 /*!< in: data length */
-{
-#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
-  return crc32_vpmsum(0, buf, len);
-#else
-		 ut_error;
-		 /* silence compiler warning about unused parameters */
-		 return((ib_uint32_t) buf[len]);
-#endif /* __powerpc__ */
-}
 
 /********************************************************************//**
 Calculates CRC32 using CPU instructions.
 @return CRC-32C (polynomial 0x11EDC6F41) */
-UNIV_INLINE
-ib_uint32_t
-ut_crc32_sse42(
+inline
+uint32
+ut_crc32c_ex_sse42(
 /*===========*/
-	const byte*	buf,	/*!< in: data over which to calculate CRC32 */
-	ulint		len)	/*!< in: data length */
+	uint32		crc_arg,
+	const uint8*	buf,	/*!< in: data over which to calculate CRC32 */
+	my_ulonglong	len)	/*!< in: data length */
 {
 #if defined(__GNUC__) && defined(__x86_64__)
-	ib_uint64_t	crc = (ib_uint32_t) (-1);
+	uint64 crc = crc_arg ^(uint32) (-1);
 
-	ut_a(ut_crc32_sse2_enabled);
-
-	while (len && ((ulint) buf & 7)) {
-		ut_crc32_sse42_byte;
+	while (len && ((my_ulonglong) buf & 7)) {
+		ut_crc32c_sse42_byte;
 	}
 
 	while (len >= 32) {
-		ut_crc32_sse42_quadword;
-		ut_crc32_sse42_quadword;
-		ut_crc32_sse42_quadword;
-		ut_crc32_sse42_quadword;
+		ut_crc32c_sse42_quadword;
+		ut_crc32c_sse42_quadword;
+		ut_crc32c_sse42_quadword;
+		ut_crc32c_sse42_quadword;
 	}
 
 	while (len >= 8) {
-		ut_crc32_sse42_quadword;
+		ut_crc32c_sse42_quadword;
 	}
 
 	while (len) {
-		ut_crc32_sse42_byte;
+		ut_crc32c_sse42_byte;
 	}
 
-	return((ib_uint32_t) ((~crc) & 0xFFFFFFFF));
+	return((uint32) ((~crc) & 0xFFFFFFFF));
 #else
-	ut_error;
+	MY_ASSERT_UNREACHABLE();
 	/* silence compiler warning about unused parameters */
-	return((ib_uint32_t) buf[len]);
+	return((uint32) buf[len]);
 #endif /* defined(__GNUC__) && defined(__x86_64__) */
 }
 
+inline
+uint32
+ut_crc32c_sse42(
+/*===========*/
+	const uint8*	buf,	/*!< in: data over which to calculate CRC32 */
+	my_ulonglong	len)	/*!< in: data length */
+{
+	return ut_crc32c_ex_sse42(0UL, buf, len);
+}
+
 #define ut_crc32_slice8_byte \
-	crc = (crc >> 8) ^ ut_crc32_slice8_table[0][(crc ^ *buf++) & 0xFF]; \
+	crc = (crc >> 8) ^ slice8_table[0][(crc ^ *buf++) & 0xFF]; \
 	len--
 
 #define ut_crc32_slice8_quadword \
-	crc ^= *(ib_uint64_t*) buf; \
-	crc = ut_crc32_slice8_table[7][(crc      ) & 0xFF] ^ \
-	      ut_crc32_slice8_table[6][(crc >>  8) & 0xFF] ^ \
-	      ut_crc32_slice8_table[5][(crc >> 16) & 0xFF] ^ \
-	      ut_crc32_slice8_table[4][(crc >> 24) & 0xFF] ^ \
-	      ut_crc32_slice8_table[3][(crc >> 32) & 0xFF] ^ \
-	      ut_crc32_slice8_table[2][(crc >> 40) & 0xFF] ^ \
-	      ut_crc32_slice8_table[1][(crc >> 48) & 0xFF] ^ \
-	      ut_crc32_slice8_table[0][(crc >> 56)]; \
+	crc ^= *(uint64*) buf; \
+	crc = slice8_table[7][(crc      ) & 0xFF] ^ \
+	      slice8_table[6][(crc >>  8) & 0xFF] ^ \
+	      slice8_table[5][(crc >> 16) & 0xFF] ^ \
+	      slice8_table[4][(crc >> 24) & 0xFF] ^ \
+	      slice8_table[3][(crc >> 32) & 0xFF] ^ \
+	      slice8_table[2][(crc >> 40) & 0xFF] ^ \
+	      slice8_table[1][(crc >> 48) & 0xFF] ^ \
+	      slice8_table[0][(crc >> 56)]; \
 	len -= 8, buf += 8
 
 /********************************************************************//**
 Calculates CRC32 manually.
 @return CRC-32C (polynomial 0x11EDC6F41) */
-UNIV_INLINE
-ib_uint32_t
-ut_crc32_slice8(
+
+inline
+static
+uint32
+ut_crc32_slice8_common(
 /*============*/
-	const byte*	buf,	/*!< in: data over which to calculate CRC32 */
-	ulint		len)	/*!< in: data length */
+        uint32 crc_arg,
+        const uint8*    buf,    /*!< in: data over which to calculate CRC32 */
+        my_ulonglong    len,    /*!< in: data length */
+	uint32		slice8_table[8][256])
 {
-	ib_uint64_t	crc = (ib_uint32_t) (-1);
+	uint64 crc = crc_arg ^ (uint32) (-1);
 
-	ut_a(ut_crc32_slice8_table_initialized);
-
-	while (len && ((ulint) buf & 7)) {
+	while (len && ((my_ulonglong) buf & 7)) {
 		ut_crc32_slice8_byte;
 	}
 
@@ -294,24 +307,149 @@ ut_crc32_slice8(
 		ut_crc32_slice8_byte;
 	}
 
-	return((ib_uint32_t) ((~crc) & 0xFFFFFFFF));
+	return((uint32) ((~crc) & 0xFFFFFFFF));
+}
+
+inline
+uint32
+ut_crc32c_ex_slice8(
+/*============*/
+        uint32 crc_arg,
+        const uint8*    buf,    /*!< in: data over which to calculate CRC32 */
+        my_ulonglong    len)    /*!< in: data length */
+{
+	DBUG_ASSERT(ut_crc32c_slice8_table_initialized);
+
+	return ut_crc32_slice8_common(crc_arg, buf, len, ut_crc32c_slice8_table);
+}
+
+inline
+uint32
+ut_crc32c_slice8(
+/*============*/
+        const uint8*    buf,    /*!< in: data over which to calculate CRC32 */
+        my_ulonglong    len)    /*!< in: data length */
+{
+	DBUG_ASSERT(ut_crc32c_slice8_table_initialized);
+
+	return ut_crc32_slice8_common(0UL, buf, len, ut_crc32c_slice8_table);
+}
+
+inline
+uint32
+ut_crc32_ex_slice8(
+/*============*/
+        uint32 crc_arg,
+        const uint8*    buf,    /*!< in: data over which to calculate CRC32 */
+        my_ulonglong    len)    /*!< in: data length */
+{
+	DBUG_ASSERT(ut_crc32_slice8_table_initialized);
+
+	return ut_crc32_slice8_common(crc_arg, buf, len, ut_crc32_slice8_table);
+}
+
+inline
+uint32
+ut_crc32_slice8(
+/*============*/
+        const uint8*    buf,    /*!< in: data over which to calculate CRC32 */
+        my_ulonglong    len)    /*!< in: data length */
+{
+	DBUG_ASSERT(ut_crc32_slice8_table_initialized);
+
+	return ut_crc32_slice8_common(0UL, buf, len, ut_crc32_slice8_table);
+}
+
+
+#if defined(__powerpc__)
+extern "C" {
+unsigned int crc32c_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
+unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
+};
+#endif /* __powerpc__ */
+
+inline
+uint32
+ut_crc32c_power8(
+/*===========*/
+		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
+		 my_ulonglong 		 len)		 /*!< in: data length */
+{
+#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
+		 return crc32c_vpmsum(0, buf, len);
+#else
+		 MY_ASSERT_UNREACHABLE();
+		 /* silence compiler warning about unused parameters */
+		 return((uint32) buf[len]);
+#endif /* __powerpc__ */
+}
+
+inline
+uint32
+ut_crc32c_ex_power8(
+/*===========*/
+		 uint32			 crc,
+		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
+		 my_ulonglong 		 len)		 /*!< in: data length */
+{
+#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
+		 return crc32c_vpmsum(crc, buf, len);
+#else
+		 MY_ASSERT_UNREACHABLE();
+		 /* silence compiler warning about unused parameters */
+		 return((uint32) buf[len]);
+#endif /* __powerpc__ */
+}
+
+inline
+uint32
+ut_crc32_power8(
+/*===========*/
+		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
+		 my_ulonglong 		 len)		 /*!< in: data length */
+{
+#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
+		 return crc32_vpmsum(0, buf, len);
+#else
+		 MY_ASSERT_UNREACHABLE();
+		 /* silence compiler warning about unused parameters */
+		 return((uint32) buf[len]);
+#endif /* __powerpc__ */
+}
+
+inline
+uint32
+ut_crc32_ex_power8(
+/*===========*/
+		 uint32			 crc,
+		 const uint8*		 buf,		 /*!< in: data over which to calculate CRC32 */
+		 my_ulonglong 		 len)		 /*!< in: data length */
+{
+#if defined(__powerpc__) && !defined(WORDS_BIGENDIAN)
+		 return crc32_vpmsum(crc, buf, len);
+#else
+		 MY_ASSERT_UNREACHABLE();
+		 /* silence compiler warning about unused parameters */
+		 return((uint32) buf[len]);
+#endif /* __powerpc__ */
 }
 
 /********************************************************************//**
 Initializes the data structures used by ut_crc32(). Does not do any
 allocations, would not hurt if called twice, but would be pointless. */
-UNIV_INTERN
 void
 ut_crc32_init()
 /*===========*/
 {
+	bool		ut_crc32_sse2_enabled = false;
+	bool		ut_crc32_power8_enabled = false;
 #if defined(__GNUC__) && defined(__x86_64__)
-	ib_uint32_t	vend[3];
-	ib_uint32_t	model;
-	ib_uint32_t	family;
-	ib_uint32_t	stepping;
-	ib_uint32_t	features_ecx;
-	ib_uint32_t	features_edx;
+	uint32	vend[3];
+	uint32	model;
+	uint32	family;
+	uint32	stepping;
+	uint32	features_ecx;
+	uint32	features_edx;
 
 	ut_cpuid(vend, &model, &family, &stepping,
 		 &features_ecx, &features_edx);
@@ -345,11 +483,27 @@ ut_crc32_init()
 #endif /* defined(__linux__) && defined(__powerpc__) */
 
 	if (ut_crc32_sse2_enabled) {
-		ut_crc32 = ut_crc32_sse42;
-	} else if (ut_crc32_power8_enabled) {
-		ut_crc32 = ut_crc32_power8;
-	} else {
+		ut_crc32c = ut_crc32c_sse42;
+		ut_crc32c_ex = ut_crc32c_ex_sse42;
+
 		ut_crc32_slice8_table_init();
 		ut_crc32 = ut_crc32_slice8;
+		ut_crc32_ex = ut_crc32_ex_slice8;
+		ut_crc32_implementation = "Using SSE2 crc32c instructions";
+	} else if (ut_crc32_power8_enabled) {
+		ut_crc32c = ut_crc32c_power8;
+		ut_crc32c_ex = ut_crc32c_ex_power8;
+		ut_crc32 = ut_crc32_power8;
+		ut_crc32_ex = ut_crc32_ex_power8;
+		ut_crc32_implementation = "Using POWER8 crc32c instructions";
+	} else {
+		ut_crc32c_slice8_table_init();
+		ut_crc32c = ut_crc32c_slice8;
+		ut_crc32c_ex = ut_crc32c_ex_slice8;
+
+		ut_crc32_slice8_table_init();
+		ut_crc32 = ut_crc32_slice8;
+		ut_crc32_ex = ut_crc32_ex_slice8;
+		ut_crc32_implementation = "Using generic crc32c instructions";
 	}
 }

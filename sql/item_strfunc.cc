@@ -53,8 +53,9 @@
 #include <m_ctype.h>
 #include <base64.h>
 #include <my_md5.h>
+#include <ut0crc32.h>
 #include "sha1.h"
-#include <zlib.h>
+
 C_MODE_START
 #include "../mysys/my_static.h"			// For soundex_map
 C_MODE_END
@@ -4120,7 +4121,7 @@ longlong Item_func_crc32::val_int()
     return 0; /* purecov: inspected */
   }
   null_value=0;
-  return (longlong) crc32(0L, (uchar*)res->ptr(), res->length());
+  return (longlong) ut_crc32((uchar*)res->ptr(), res->length());
 }
 
 #ifdef HAVE_COMPRESS

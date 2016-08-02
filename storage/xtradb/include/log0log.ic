@@ -250,7 +250,7 @@ log_block_calc_checksum_crc32(
 /*==========================*/
 	const byte*	block)	/*!< in: log block */
 {
-	return(ut_crc32(block, OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE));
+	return(ut_crc32c(block, OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE));
 }
 
 /************************************************************//**

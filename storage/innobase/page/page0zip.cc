@@ -4879,10 +4879,10 @@ page_zip_calc_checksum(
 
 		ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 
-		crc32 = ut_crc32(s + FIL_PAGE_OFFSET,
+		crc32 = ut_crc32c(s + FIL_PAGE_OFFSET,
 				 FIL_PAGE_LSN - FIL_PAGE_OFFSET)
-			^ ut_crc32(s + FIL_PAGE_TYPE, 2)
-			^ ut_crc32(s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+			^ ut_crc32c(s + FIL_PAGE_TYPE, 2)
+			^ ut_crc32c(s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
 				   size - FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 
 		return((ulint) crc32);

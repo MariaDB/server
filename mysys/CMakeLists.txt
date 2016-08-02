@@ -41,7 +41,18 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 				my_atomic.c my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c
 				my_rdtsc.c my_context.c psi_noop.c
-                                file_logger.c)
+                                file_logger.c ut0crc32.cc)
+
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le")
+    enable_language(ASM)
+    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/mysys/crc32_power8)
+    LIST(APPEND MYSYS_SOURCES
+       crc32_power8/crc32.S
+       crc32_power8/crc32c.S
+       crc32_power8/crc32_wrapper.c
+       crc32_power8/crc32c_wrapper.c
+       )
+ENDIF()
 
 IF (WIN32)
  SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_winthread.c my_wincond.c my_winerr.c my_winfile.c my_windac.c my_conio.c)

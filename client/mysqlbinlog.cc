@@ -49,6 +49,7 @@
 #include "rpl_filter.h"
 
 #include "mysqld.h"
+#include "ut0crc32.h"
 
 #include <algorithm>
 
@@ -2648,6 +2649,7 @@ int main(int argc, char** argv)
   DBUG_ENTER("main");
   DBUG_PROCESS(argv[0]);
 
+  ut_crc32_init();
   my_init_time(); // for time functions
   tzset(); // set tzname
 

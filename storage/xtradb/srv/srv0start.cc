@@ -1963,13 +1963,7 @@ innobase_start_or_create_for_mysql(void)
 
 	srv_boot();
 
-	if (ut_crc32_sse2_enabled) {
-		ib_logf(IB_LOG_LEVEL_INFO, "Using SSE crc32 instructions");
-	} else if (ut_crc32_power8_enabled) {
-		ib_logf(IB_LOG_LEVEL_INFO, "Using POWER8 crc32 instructions");
-	} else {
-		ib_logf(IB_LOG_LEVEL_INFO, "Using generic crc32 instructions");
-	}
+	ib_logf(IB_LOG_LEVEL_INFO, ut_crc32_implementation);
 
 	if (!srv_read_only_mode) {
 
