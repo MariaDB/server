@@ -21,8 +21,8 @@ id	agg_sum(sal)
 1	17000
 select id, agg_sum(sal) from t1 where id>= 1 group by counter;
 id	agg_sum(sal)
-3	6000
 1	3000
+3	6000
 4	5000
 5	3000
 select id, agg_sum(sal) from t1 where id>= 1 group by id;
@@ -35,14 +35,14 @@ id	agg_sum(sal)
 select id, agg_sum(sal) from t1 where id>= 1 group by val;
 id	agg_sum(sal)
 1	1000
-5	3000
-4	5000
 2	2000
 3	6000
+4	5000
+5	3000
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by counter;
 id	agg_sum(sal)
-3	6000
 1	3000
+3	6000
 4	5000
 5	3000
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by val;
@@ -93,8 +93,8 @@ id	agg_sum(sal)
 1	17000
 select id, agg_sum(sal) from t1 where id>= 1 group by counter;
 id	agg_sum(sal)
-3	6000
 1	3000
+3	6000
 4	5000
 5	3000
 select id, agg_sum(sal) from t1 where id>= 1 group by id;
@@ -106,11 +106,11 @@ id	agg_sum(sal)
 5	3000
 select id, agg_sum(sal) from t1 where id>= 1 group by val;
 id	agg_sum(sal)
-2	2000
 1	1000
-5	3000
-4	5000
+2	2000
 3	6000
+4	5000
+5	3000
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by counter;
 id	agg_sum(sal)
 3	6000
@@ -165,10 +165,10 @@ id	agg_sum(sal)
 1	17000
 select id, agg_sum(sal) from t1 where id>= 1 group by counter;
 id	agg_sum(sal)
-3	6000
 1	1000
-4	5000
 2	2000
+3	6000
+4	5000
 5	3000
 select id, agg_sum(sal) from t1 where id>= 1 group by id;
 id	agg_sum(sal)
@@ -180,8 +180,8 @@ id	agg_sum(sal)
 select id, agg_sum(sal) from t1 where id>= 1 group by val;
 id	agg_sum(sal)
 1	3000
-4	8000
 3	6000
+4	8000
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by counter;
 id	agg_sum(sal)
 3	6000

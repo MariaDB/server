@@ -82,20 +82,13 @@ agg_test2(sal)
 select agg_test(val) from t1;
 agg_test(val)
 0
-Warnings:
-Warning	1366	Incorrect integer value: 'ab' for column 'x' at row 1
-Warning	1366	Incorrect integer value: 'cd' for column 'x' at row 2
-Warning	1366	Incorrect integer value: 'ef' for column 'x' at row 3
-Warning	1366	Incorrect integer value: 'gh' for column 'x' at row 4
-Warning	1366	Incorrect integer value: 'ij' for column 'x' at row 5
-Warning	1366	Incorrect integer value: 'ij' for column 'x' at row 6
 select val, id, c from (select agg_sum(sal) as c from t2) as t1, t2;
 val	id	c
 10	2	17000
+11	4	17000
+15	3	17000
 16	1	17000
 18	2	17000
-15	3	17000
-11	4	17000
 select agg_sum(sal),agg_sum(val), agg_sum(id), agg_sum(sal) from t2;
 agg_sum(sal)	agg_sum(val)	agg_sum(id)	agg_sum(sal)
 17000	70	12	17000
@@ -143,15 +136,15 @@ agg_sum(sal)	agg_sum(sal)
 select agg_sum(sal), agg_sum(sal) from t1 where id>= 1 group by id ;
 agg_sum(sal)	agg_sum(sal)
 1000	1000
+1000	1000
+1000	1000
 2000	2000
-1000	1000
-1000	1000
 select agg_sum(sal) from t1 where id>= 1 group by id ;
 agg_sum(sal)
 1000
+1000
+1000
 2000
-1000
-1000
 select agg_sum(sal) from t1 where id>= 1 order by counter;
 agg_sum(sal)
 5000

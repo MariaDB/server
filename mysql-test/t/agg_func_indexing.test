@@ -21,11 +21,17 @@ INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 3, 18, 1);
 INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 4, 15, 3);
 INSERT INTO t1 (sal, id, val, counter) VALUES (3000, 5, 11, 5);
 
+--sorted_result
 select id, agg_sum(sal) from t1;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1 group by counter;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1 group by id;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1 group by val;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by counter;
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by val;
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by id;
@@ -44,10 +50,15 @@ INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 3, 18, 1);
 INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 4, 15, 3);
 INSERT INTO t1 (sal, id, val, counter) VALUES (3000, 5, 11, 5);
 
+--sorted_result
 select id, agg_sum(sal) from t1;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1 group by counter;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1 group by id;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1 group by val;
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by counter;
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by val;
@@ -65,10 +76,15 @@ INSERT INTO t1 (sal, id, val, counter) VALUES (2000, 2, 10, 4);
 INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 3, 18, 1);
 INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 4, 11, 3);
 INSERT INTO t1 (sal, id, val, counter) VALUES (3000, 5, 11, 5);
+--sorted_result
 select id, agg_sum(sal) from t1;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1 group by counter;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1 group by id;
+--sorted_result
 select id, agg_sum(sal) from t1 where id>= 1 group by val;
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by counter;
 select id, agg_sum(sal) from t1 where id>= 1 group by counter order by val;

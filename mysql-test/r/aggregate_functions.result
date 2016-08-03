@@ -145,37 +145,37 @@ end|
 select agg_agg_func(sal) from t2;
 agg_agg_func(sal)
 128000
-select agg_sum(sal) from t1 where id>= 1 group by id;
-agg_sum(sal)
-7000
-7000
-6000
-12000
-10000
-10000
-12000
-select agg_sum(sal) from t1 where id>= 1 group by counter;
-agg_sum(sal)
-7000
-10000
-2000
-13000
-12000
-7000
-2000
-5000
-6000
-select agg_sum(sal) from t1 where id>= 1 group by val;
-agg_sum(sal)
-4000
-12000
-7000
-5000
-4000
-5000
-7000
-6000
-14000
+select id, agg_sum(sal) from t1 where id>= 1 group by id;
+id	agg_sum(sal)
+1	7000
+2	7000
+3	6000
+4	12000
+5	10000
+6	10000
+7	12000
+select counter, agg_sum(sal) from t1 where id>= 1 group by counter;
+counter	agg_sum(sal)
+0	7000
+1	10000
+2	2000
+3	13000
+4	12000
+5	7000
+7	2000
+8	5000
+9	6000
+select val, agg_sum(sal) from t1 where id>= 1 group by val;
+val	agg_sum(sal)
+10	4000
+11	12000
+12	7000
+13	5000
+14	4000
+15	5000
+16	7000
+18	6000
+19	14000
 select counter, agg_sum(sal) from t1 where id>= 1 group by id order by counter;
 counter	agg_sum(sal)
 0	12000

@@ -68,6 +68,7 @@ end|
 delimiter ;|
 select agg_max(sal) from t1 where id>= 1;
 delimiter |;
+
 # aggregate MIN function
 
 create aggregate function agg_min(x INT) returns double
@@ -103,6 +104,7 @@ select agg_xor(sal) from t1 where id>= 1;
 delimiter |;
 
 # aggregate SUM function
+
 create aggregate function agg_sum(x INT) returns INT
 begin
   declare z int default 0;
@@ -130,6 +132,7 @@ begin
 end|
 
 delimiter ;|
+
 # no parameters
 select agg_increm() from t1;
 
@@ -137,6 +140,7 @@ create table t2 (sal int, id int);
 INSERT INTO t2 (sal, id) VALUES (NULL, 1);
 INSERT INTO t2 (sal, id) VALUES (2000, 1);
 INSERT INTO t2 (sal, id) VALUES (3000, 1);
+
 # null values
 select agg_sum(sal) from t2;
 
@@ -184,17 +188,16 @@ delimiter ;|
 select agg_agg_func(sal) from t2;
 
 # GROUP BY AND ORDER BY
-
-select agg_sum(sal) from t1 where id>= 1 group by id;
-select agg_sum(sal) from t1 where id>= 1 group by counter;
-select agg_sum(sal) from t1 where id>= 1 group by val;
+--sorted_result
+select id, agg_sum(sal) from t1 where id>= 1 group by id;
+--sorted_result
+select counter, agg_sum(sal) from t1 where id>= 1 group by counter;
+--sorted_result
+select val, agg_sum(sal) from t1 where id>= 1 group by val;
 select counter, agg_sum(sal) from t1 where id>= 1 group by id order by counter;
 select counter, id, agg_sum(sal), agg_sum(sal) from t1 where id>= 1 group by id order by counter;
 select counter, id, agg_sum(sal), sum(distinct sal) from t1 where id>= 1 group by id order by counter desc;
 select val, counter, id, agg_sum(sal), sum(distinct sal), agg_min(sal), agg_max(sal), agg_avg(sal) from t1 where id>= 1 group by id, val order by counter, val;
-
-# tables with compound indexing
-
 
 ##### insert aggregate function value into a table ######
 create table t3 (i int);
