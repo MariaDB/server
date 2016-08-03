@@ -1544,8 +1544,9 @@ sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
       table->field[MYSQL_PROC_FIELD_COMMENT]->store(chistics->comment.str,
 						    chistics->comment.length,
 						    system_charset_info);
+    if(chistics->agg_type != DEFAULT_AGGREGATE)
     table->field[MYSQL_PROC_FIELD_AGGREGATE]->
-        store((longlong)thd->lex->sp_chistics.agg_type, TRUE);
+        store((longlong)chistics->agg_type, TRUE);
     if ((ret= table->file->ha_update_row(table->record[1],table->record[0])) &&
         ret != HA_ERR_RECORD_IS_THE_SAME)
       ret= SP_WRITE_ROW_FAILED;
