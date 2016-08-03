@@ -1075,19 +1075,18 @@ STORED AGGREGATE FUNCTIONS
 
 This class mainly deals with the concept of making an interface
 which allows user to execute aggregate functions.For executing the
-aggregate functions we have taken a cursor approach.
+aggregate functions we have taken a special cursor approach.
 
 @note: The cursor approach
-For the cursor approach, a new instruction FETCH GROUP NEXT ROW is created. The
-execution of the function resumes from the point where the function execution exited
-temporarily.If the instruction pointer points to the FETCH GROUP NEXT ROW instruction,
+For the cursor approach, a new instruction FETCH GROUP NEXT ROW is created.
+If the instruction pointer points to the FETCH GROUP NEXT ROW instruction,
 there are 2 states:
 
-a) FUNCTION NOT in PAUSE STATE: In this case, the function enters the pause state. The
-   instruction pointer continues to point to the FETCH GROUP NEXT ROW instruction, and the function
-   makes a temporary pause in its execution. The pausing is done so that next row values
-   can be set for the function's arguments. After the values are passed to the arguments the
-   function resumes execution.
+a) FUNCTION NOT in PAUSE STATE: In this case, the function enters the pause state and we save the
+   state of the function. The instruction pointer continues to point to the FETCH GROUP NEXT ROW
+   instruction, and the function makes a temporary pause in its execution and that the state of the
+   function is saved. The function is paused so that next row values can be set for the function's
+   arguments. After the values are passed to the arguments the function resumes execution.
 
 b) FUNCTION in PAUSE STATE: In this case, the function exits from the pause state and resumes
    execution. The instrunction pointer is then incremented and now it points to the next
