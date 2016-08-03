@@ -1,4 +1,3 @@
-
 delimiter |;
 --error ER_NOT_AGGREGATE_FUNCTION
 create function increm(x INT) returns INT
