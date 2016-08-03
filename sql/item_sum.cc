@@ -1308,15 +1308,15 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
 ***********************************************************************/
 
 Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
-                           sp_name *name_arg, List<Item> &list)
-  :Item_sum(thd, list), context(context_arg), m_name(name_arg), m_sp(NULL),
+                           sp_name *name, List<Item> &list)
+  :Item_sum(thd, list), context(context_arg), m_name(name), m_sp(NULL),
    func_ctx(NULL), sp_result_field(NULL)
 {
   maybe_null= 1;
   quick_group= 0;
   m_name->init_qname(thd);
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
-  dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
+  dummy_table->s= (TABLE_SHARE*) (dummy_table + 1);
   init_sql_alloc(&caller_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 }
 
@@ -1329,18 +1329,18 @@ Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
   quick_group= 0;
   m_name->init_qname(thd);
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
-  dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
+  dummy_table->s= (TABLE_SHARE*) (dummy_table + 1);
   init_sql_alloc(&caller_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 }
 
 /**
-    Initialize the result field by creating a temporary dummy table
-    and assign it to a newly created field object. Meta data used to
-    create the field is fetched from the sp_head belonging to the stored
-    proceedure found in the stored procedure functon cache.
+  Initialize the result field by creating a temporary dummy table
+  and assign it to a newly created field object. Meta data used to
+  create the field is fetched from the sp_head belonging to the stored
+  procedure found in the stored procedure functon cache.
 
-    @note This function should be called from fix_fields to init the result
-    field. It is some what related to Item_field.
+  @note This function should be called from fix_fields to init the result
+  field. It is some what related to Item_field.
 
   @see Item_field
 
@@ -1370,18 +1370,18 @@ Item_sum_sp::init_result_field(THD *thd)
   }
 
   /*
-     A Field need to be attached to a Table.
-     Below we "create" a dummy table by initializing
-     the needed pointers.
+    A Field need to be attached to a Table.
+    Below we "create" a dummy table by initializing
+    the needed pointers.
    */
 
   share= dummy_table->s;
   dummy_table->alias.set("", 0, table_alias_charset);
-  dummy_table->maybe_null = maybe_null;
+  dummy_table->maybe_null= maybe_null;
   dummy_table->in_use= thd;
   dummy_table->copy_blobs= TRUE;
   share->table_cache_key = empty_name;
-  share->table_name = empty_name;
+  share->table_name= empty_name;
 
   if (!(sp_result_field= m_sp->create_result_field(max_length, name,
                                                    dummy_table)))
@@ -1407,12 +1407,12 @@ Item_sum_sp::init_result_field(THD *thd)
 bool
 Item_sum_sp::fix_fields(THD *thd, Item **ref)
 {
+  bool res;
   DBUG_ASSERT(fixed == 0);
   if (init_sum_func_check(thd))
     return TRUE;
   decimals= 0;
-  maybe_null= sum_func() != COUNT_FUNC;
-  bool res;
+
   res= init_result_field(thd);
 
   if(res)
@@ -1425,7 +1425,7 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     set_if_bigger(decimals, args[i]->decimals);
     with_subselect|= args[i]->with_subselect;
   }
-  result_field= 0;
+  result_field= NULL;
   max_length=float_length(decimals);
   null_value= 1;
   fix_length_and_dec();
@@ -1439,10 +1439,10 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
 }
 
 /**
-  @brief Checks if requested access to function can be granted to user.
-    If function isn't found yet, it searches function first.
-    If function can't be found or user don't have requested access
-    error is raised.
+  Checks if requested access to function can be granted to user.
+  If function isn't found yet, it searches function first.
+  If function can't be found or user don't have requested access
+  error is raised.
 
   @param thd thread handler
 
@@ -1464,10 +1464,10 @@ Item_sum_sp::sp_check_access(THD *thd)
 }
 
 /**
-  @brief Execute function to store value in result field.
-      This is called when we need the value to be returned for the function.
-      Here we send a signal in form of the server status that all rows have been
-      fetched and now we have exit from the function with the return value.
+  Execute function to store value in result field.
+  This is called when we need the value to be returned for the function.
+  Here we send a signal in form of the server status that all rows have been
+  fetched and now we have to exit from the function with the return value.
 
   @return Function returns error status.
   @retval FALSE on success.
@@ -1482,7 +1482,8 @@ Item_sum_sp::execute()
   bool res;
   uint old_server_status= thd->server_status;
 
-  /* Server Status is set so we can exit from the loop execution. */
+  /* Server Status is set, so we can send a signal to exit from the
+     function with the return value. */
 
   thd->server_status= SERVER_STATUS_LAST_ROW_SENT;
   res= execute_impl(thd);
@@ -1504,9 +1505,9 @@ Item_sum_sp::execute()
 }
 
 /**
-  @brief Execute function and store the return value in the field.
-      This is called from the add() function to aggregate the values and from
-      execute() to return the value in the field.
+  Execute function and store the return value in the field.
+  This is called from the add() function to aggregate the values and from
+  execute() to return the value in the field.
 
   @return The error state.
   @retval FALSE on success
@@ -1564,7 +1565,7 @@ error:
 }
 
 /**
-  @brief Handles the aggregation of the values.
+  Handles the aggregation of the values.
 
   @note: See class description for more details on how and why this is done.
 
@@ -1619,7 +1620,7 @@ Item_sum_sp::cleanup()
 }
 
 /**
-  @brief Initialize local members with values from the Field interface.
+  Initialize local members with values from the Field interface.
 
   @note called from Item::fix_fields.
 */
