@@ -1113,9 +1113,9 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   LEX_STRING saved_cur_db_name=
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
   bool cur_db_changed= FALSE;
-  uint ip =0;
   sp_rcontext *ctx= thd->spcont;
   bool err_status= FALSE;
+  uint ip= 0;
   ulonglong save_sql_mode;
   bool save_abort_on_warning;
   Query_arena *old_arena;
@@ -1203,6 +1203,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   thd->variables.sql_mode= m_sql_mode;
   save_abort_on_warning= thd->abort_on_warning;
   thd->abort_on_warning= 0;
+
   /**
     When inside a substatement (a stored function or trigger
     statement), clear the metadata observer in THD, if any.
@@ -1459,7 +1460,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     1) there are not free instances which means that this instance is last
     in the list of instances (pointer to the last instance point on it and
     ther are not other instances after this one in the list)
-
+    
     2) There are some free instances which mean that first free instance
     should go just after this one and recursion level of that free instance
     should be on 1 more then recursion level of this instance.
@@ -2263,7 +2264,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   */
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
-  err_status= execute(thd, TRUE);
+  err_status= execute_agg(thd, TRUE);
 
   thd->restore_active_arena(&call_arena, &backup_arena);
 
@@ -2326,10 +2327,10 @@ err_with_cleanup:
 /**
   Execute an aggregate function.
 
-   - evaluate parameters
    - changes security context for SUID routines
    - switch to new memroot
    - call sp_head::execute_agg
+   - evaluate parameters
    - restore old memroot
    - evaluate the return value
    - restores security context
@@ -2341,10 +2342,6 @@ err_with_cleanup:
   @param return_value_fld  Save result here.
   @param func_ctx          Pointer to the runtime context
   @param call_mem_root     Memroot for the current aggregate function
-
-  @todo
-    We should create sp_rcontext once per command and reuse
-    it on subsequent executions of a function/trigger.
 
   @todo
     In future we should associate call arena/mem_root with
