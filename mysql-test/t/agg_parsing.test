@@ -1,0 +1,23 @@
+
+delimiter |;
+--error ER_NOT_AGGREGATE_FUNCTION
+create function increm(x INT) returns INT
+begin
+set x=5;
+fetch group next row;
+return x+1;
+end |
+
+create aggregate function agg_increm() returns INT
+begin
+declare z int default 0;
+declare continue handler for not found return 0;
+loop
+fetch group next row;
+set z= z+1;
+end loop;
+end|
+
+delimiter ;|
+drop function agg_increm;
+
