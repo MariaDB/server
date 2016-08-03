@@ -5618,6 +5618,21 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
               (prev->keypart == use->keypart && found_eq_constant))
             continue;				/* remove */
         }
+        if (!(use+1)->table || (use->key != (use+1)->key && use->table
+                     == (use+1)->table))
+        {
+          if (use->table->key_info[use->key].flags & HA_UNIQUE_HASH)
+          {
+            LEX_STRING *ls = &use->table->key_info[use->key]
+                         .key_part->field->vcol_info->expr_str;
+            if (use->keypart+1 != fields_in_hash_str(ls->str,ls->length))
+            {
+              if (i==0)
+                continue;
+              save_pos-= use->keypart+1;
+            }
+          }
+        }
         else if (use->keypart != 0 && skip_unprefixed_keyparts)
           continue; /* remove - first found must be 0 */
       }
@@ -6139,6 +6154,12 @@ best_access_path(JOIN      *join,
           max_key_part= (uint) ~0;
           if ((key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
               MY_TEST(key_flags & HA_EXT_NOSAME))
+          {
+            tmp = prev_record_reads(join->positions, idx, found_ref);
+            records=1.0;
+          }
+          if ((key_flags & (HA_UNIQUE_HASH | HA_NULL_PART_KEY)) == HA_UNIQUE_HASH ||
+              MY_TEST(key_flags & HA_UNIQUE_HASH))
           {
             tmp = prev_record_reads(join->positions, idx, found_ref);
             records=1.0;
@@ -9023,9 +9044,12 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   {
     uint i;
     ulong nr1= 1;
-    Item *item_hash= NULL, *item;
-    if (keyinfo->flags & HA_UNIQUE_HASH)
+    Item *item;
+    bool is_key_hash_and_no_null = false;
+    if (keyinfo->flags & HA_UNIQUE_HASH &&
+        !keyuse->val->used_tables() && !thd->lex->describe )
     {
+      is_key_hash_and_no_null= true;
       key_buff[0]=0;
       ulong nr2= 4;
       CHARSET_INFO *cs;
@@ -9033,18 +9057,17 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
       uint i;
       uint num_of_fields= fields_in_hash_str(ls->str,ls->length);
-      item_hash = new(thd->mem_root) Item_uint(thd,nr1);
       for (i=0 ; i < num_of_fields ; keyuse++,i++)
       {
         if(!keyuse->val)
         {
-          item_hash= NULL;
+          is_key_hash_and_no_null = false;
           break;
         }
         str= keyuse->val->val_str();
-        if(!str)
+        if (keyuse->val->null_value)
         {
-          item_hash= NULL;
+          is_key_hash_and_no_null= false;
           break;
         }
         cs= str->charset();
@@ -9085,16 +9108,16 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         plans! Does the optimizer depend on the contents of
         table_ref->key_copy ? If yes, do we produce incorrect EXPLAINs? 
       */
-      if ( item_hash)
+      if ( is_key_hash_and_no_null)
       {
         j->ref.key_parts= 1;
         keyparts= 1;
-        item= item_hash;
+        item= new(thd->mem_root) Item_uint(thd,nr1);
       }
 
       if (!keyuse->val->used_tables() && !thd->lex->describe )
       {					// Compare against constant
-	store_key_item tmp(thd, 
+  store_key_item tmp(thd,
                            keyinfo->key_part[i].field,
                            key_buff + maybe_null,
                            maybe_null ?  key_buff : 0,
@@ -9192,7 +9215,7 @@ get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
 			       key_part->length,
 			       ((Item_field*) keyuse->val->real_item())->field,
 			       keyuse->val->real_item()->full_name());
-
+	DBUG_ASSERT(0);
   return new store_key_item(thd,
 			    key_part->field,
 			    key_buff + maybe_null,
@@ -18968,7 +18991,10 @@ int find_unique_hash_record(TABLE *table, JOIN_TAB *tab)
     String other_str;
     keyuse= tab->keyuse;
     if (error)
+    {
+      table->file->ha_index_end();
       return error;
+    }
     while (keyuse && keyuse->table && keyuse->table == table)
     {
       if (keyuse->key != tab->ref.key)
@@ -18989,7 +19015,10 @@ int find_unique_hash_record(TABLE *table, JOIN_TAB *tab)
         /*here hash is same for different record we need to find the matching one*/
         error= table->file->ha_index_next(table->record[0]);
         if(error)
+        {
+          table->file->ha_index_end();
           return error;
+        }
       }
       keyuse++;
     }

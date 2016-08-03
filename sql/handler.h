@@ -2747,6 +2747,8 @@ public:
   {
     DBUG_ASSERT(m_lock_type == F_UNLCK);
     DBUG_ASSERT(inited == NONE);
+//    if (!table->update_handler)
+//      delete table->update_handler;
   }
   virtual handler *clone(const char *name, MEM_ROOT *mem_root);
   /** This is called after create to allow us to set up cached variables */

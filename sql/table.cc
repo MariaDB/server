@@ -2022,8 +2022,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         */
         if (keyinfo->user_defined_key_parts == 1 &&
              field->is_long_column_hash)
+        {
           keyinfo->flags|= HA_UNIQUE_HASH;
-
+          keyinfo->ext_key_flags|= HA_UNIQUE_HASH;
+        }
         if (field->null_ptr)
         {
           key_part->null_offset=(uint) ((uchar*) field->null_ptr -

@@ -5884,20 +5884,32 @@ int handler::ha_reset()
 /** @brief
     check whether inserted/updated records breaks the
     unique constraint on long columns.
+    In the case of update we just need to check the specic key
+    reason for that is consider case
+    create table t1(a blob , b blob , x blob , y blob ,unique(a,b)
+                                                    ,unique(c,d))
+    and update statement like this
+    update t1 set a=23+a; in this case if we try to scan for
+    whole keys in table then index scan on c_d will return 0
+    because data is same so in the case of update we take
+    key as a parameter in normal insert key should be -1
    @returns 0 if no duplicate else returns error
   */
-int check_duplicate_long_entries(TABLE *table, uchar *new_rec)
+int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
+                                  uint key)
 {
   Field *hash_field;
   int result;
   /* First need to whether inserted record is unique or not */
   for (uint i= 0; i < table->s->keys; i++)
   {
+    if (key != -1)
+      i= key;
     if (table->key_info[i].flags & HA_UNIQUE_HASH)
     {
       hash_field= table->key_info[i].key_part->field;
       DBUG_ASSERT(table->key_info[i].key_length == HA_HASH_KEY_LENGTH_WITH_NULL);
-      uchar  ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
+      uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
 
       if (hash_field->is_null())
         continue;
@@ -5909,31 +5921,31 @@ int check_duplicate_long_entries(TABLE *table, uchar *new_rec)
         table->check_unique_buf = (uchar *)alloc_root(&table->mem_root,
                                         table->s->reclength*sizeof(uchar));
 
-      result= table->file->ha_index_read_idx_map(table->check_unique_buf,
+      result= h->ha_index_read_idx_map(table->check_unique_buf,
                                   i, ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
       if (!result)
       {
         Item_func_or_sum * temp= static_cast<Item_func_or_sum *>(hash_field->
                                                         vcol_info->expr_item);
         Item_args * t_item= static_cast<Item_args *>(temp);
-        int arg_count= t_item->argument_count();
+        uint arg_count= t_item->argument_count();
         Item ** arguments= t_item->arguments();
         int diff= table->check_unique_buf-new_rec;
         Field * t_field;
 
-        for (int i=0;i<arg_count;i++)
+        for (int i=0; i < arg_count; i++)
         {
           t_field= static_cast<Item_field *>(arguments[i])->field;
           if(t_field->cmp_binary_offset(diff))
-            return false;
+            continue;
         }
 
         char key_buff[MAX_KEY_LENGTH];
-        String str(key_buff,sizeof(key_buff),system_charset_info);
+        String str(key_buff, sizeof(key_buff), system_charset_info);
         str.length(0);
-        for(int i=0;i<arg_count;i++)
+        for(int i= 0; i < arg_count; i++)
         {
-          t_field = ((Item_field *)arguments[i])->field;
+          t_field= ((Item_field *)arguments[i])->field;
           if (str.length())
             str.append('-');
           field_unpack(&str,t_field,new_rec,10,//since blob can be to long
@@ -5945,10 +5957,52 @@ int check_duplicate_long_entries(TABLE *table, uchar *new_rec)
         return HA_ERR_FOUND_DUPP_KEY_BLOB;
       }
     }
+    if (key != -1)
+      break;
   }
   return 0;
 }
 
+/** @brief
+    check whether updated records breaks the
+    unique constraint on long columns.
+   @returns 0 if no duplicate else returns error
+  */
+int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec)
+{
+  Field **f, *field;
+  LEX_STRING *ls;
+  int error;
+  /* Here we are comparing whether new record and old record are same with respect to fields in hash_str*/
+  bool is_record_same= true;
+  long reclength= table->record[1]-table->record[0];
+  for (uint i= 0; i < table->s->keys; i++)
+  {
+    if (table->key_info[i].flags & HA_UNIQUE_HASH)
+    {
+      ls= &table->key_info[i].key_part->field->vcol_info->expr_str;
+      for (f= table->field; f && (field= *f); f++)
+      {
+        if (find_field_name_in_hash(ls->str, (char *)field->field_name, ls->length) != -1)
+        {
+          /* Compare fields if they are different then check for duplicates*/
+          if(field->cmp_binary_offset(reclength))
+          {
+            if(error= check_duplicate_long_entries(table, table->update_handler,
+                                                   new_rec, i))
+              return error;
+            /*
+              break beacuse check_duplicate_long_entries will
+              take care of remaning fields
+             */
+            break;
+          }
+        }
+      }
+    }
+  }
+  return 0;
+}
 
 int handler::ha_write_row(uchar *buf)
 {
@@ -5961,7 +6015,7 @@ int handler::ha_write_row(uchar *buf)
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
-  if ((error= check_duplicate_long_entries(table, buf)))
+  if ((error= check_duplicate_long_entries(table, table->file, buf, -1)))
     DBUG_RETURN(error);
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
                       { error= write_row(buf); })
@@ -5979,8 +6033,7 @@ int handler::ha_write_row(uchar *buf)
 
 int handler::ha_update_row(const uchar *old_data, uchar *new_data)
 {
-  int error,result;
-  Field *field_iter;
+  int error;
   Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type == F_WRLCK);
@@ -5991,14 +6044,11 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
    */
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
-
-  /* First need to whether inserted record is unique or not */
-  if ((error= check_duplicate_long_entries(table, new_data)))
-    return error;
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
-
+  if ((error= check_duplicate_long_entries_update(table, table->file, new_data)))
+    return error;
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})
 

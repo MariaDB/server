@@ -1051,6 +1051,7 @@ public:
 
   uchar *record[2];			/* Pointer to records */
   uchar *check_unique_buf;  /* Pointer to record with same hash */
+  handler *update_handler;  /* Handler used in case of update */
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */

@@ -196,7 +196,17 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 {
   TABLE *table= table_list->table;
   DBUG_ENTER("check_insert_fields");
-
+  List_iterator<Item> i_iter(values);
+  int num_of_hiddens_fields= 0;
+  if (!fields.elements)
+  {
+    Field ** f= table->field, *field;
+    for (; f && (field= *f); f++)
+    {
+      if (field->field_visibility != NOT_HIDDEN)
+        num_of_hiddens_fields++;
+    }
+   }
   if (!table_list->single_table_updatable())
   {
     my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias, "INSERT");
@@ -211,7 +221,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                table_list->view_db.str, table_list->view_name.str);
       DBUG_RETURN(-1);
     }
-    if(values.elements!=table->s->fields)
+    if (values.elements+num_of_hiddens_fields != table->s->fields)
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
@@ -721,35 +731,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   List_iterator_fast<List_item> its(values_list);
   context= &thd->lex->select_lex.context;
-  if(table_list->table!=NULL &&!fields.elements)
-  {
-    List<Item> * i_list;
-   while((i_list=its++))
-    {
-    List_iterator<Item> i_iter(*i_list);
-    Field ** f=table_list->table->field;
-    for(uint i=0;i<table_list->table->s->fields;i++)
-    {       //TODO a better logic for adding default
-      if((*f)->field_visibility!=NOT_HIDDEN)
-      {
-        if(i==0)
-        {
-          i_list->push_front(new (thd->mem_root)
-                             Item_default_value(thd,context),thd->mem_root);
-          i_iter.rewind();
-          i_iter++;
-        }
-        else
-         i_iter.after(new (thd->mem_root) Item_default_value(thd,context));
 
-      }
-      f++;
-    }
-   }
-   its.rewind();
-  }
-
-     
   lock_type= table_list->lock_type;
 
   THD_STAGE_INFO(thd, stage_init);

@@ -729,7 +729,10 @@ int mysql_update(THD *thd,
   */
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
-
+  if (!table->update_handler)
+    table->update_handler= table->file->clone(table->s->normalized_path.str,
+                                              &table->mem_root);
+  table->update_handler->ha_external_lock(current_thd, F_RDLCK);
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
     explain->tracker.on_record_read();
@@ -905,6 +908,10 @@ int mysql_update(THD *thd,
       break;
     }
   }
+  table->update_handler->ha_external_lock(current_thd, F_UNLCK);
+  table->update_handler->ha_close();
+  delete table->update_handler;
+  table->update_handler= NULL;
   ANALYZE_STOP_TRACKING(&explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
@@ -1912,6 +1919,10 @@ multi_update::initialize_tables(JOIN *join)
 
     if (ignore)
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
+    if (!table->update_handler)
+      table->update_handler= table->file->clone(table->s->normalized_path.str,
+                                                &table->mem_root);
+    table->update_handler->ha_external_lock(current_thd, F_RDLCK);
     if (table == main_table)			// First table in join
     {
       if (safe_update_on_fly(thd, join->join_tab, table_ref, all_tables))
@@ -2039,6 +2050,10 @@ multi_update::~multi_update()
   for (table= update_tables ; table; table= table->next_local)
   {
     table->table->no_keyread= table->table->no_cache= 0;
+    table->table->update_handler->ha_external_lock(current_thd, F_UNLCK);
+    table->table->update_handler->ha_close();
+    delete table->table->update_handler;
+    table->table->update_handler= NULL;
     if (ignore)
       table->table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   }
