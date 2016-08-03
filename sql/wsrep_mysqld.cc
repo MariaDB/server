@@ -577,7 +577,7 @@ int wsrep_init()
     return 1;
   }
 
-  wsrep_sst_auth_init(wsrep_sst_auth);
+  wsrep_sst_auth_init();
 
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);

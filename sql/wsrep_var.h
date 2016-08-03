@@ -81,7 +81,6 @@ extern bool wsrep_sst_receive_address_update UPDATE_ARGS;
 
 extern bool wsrep_sst_auth_check             CHECK_ARGS;
 extern bool wsrep_sst_auth_update            UPDATE_ARGS;
-extern void wsrep_sst_auth_init              INIT_ARGS;
 
 extern bool wsrep_sst_donor_check            CHECK_ARGS;
 extern bool wsrep_sst_donor_update           UPDATE_ARGS;
@@ -98,7 +97,6 @@ extern bool wsrep_desync_update              UPDATE_ARGS;
 #define wsrep_provider_init(X)
 #define wsrep_init_vars() (0)
 #define wsrep_start_position_init(X)
-#define wsrep_sst_auth_init(X)
 
 #endif /* WITH_WSREP */
 #endif /* WSREP_VAR_H */
