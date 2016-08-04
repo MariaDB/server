@@ -1,0 +1,48 @@
+create aggregate function increm(x INT) returns INT
+begin
+declare continue handler for not found return x;
+loop
+fetch group next row;
+end loop;
+end |
+select increm(1);
+increm(1)
+1
+alter function increm aggregate none;
+show create function increm;
+ERROR HY000: Failed to load routine test.increm. The table mysql.proc is missing, corrupt, or contains bad data (internal code -6)
+select increm(1);
+ERROR HY000: Failed to load routine test.increm. The table mysql.proc is missing, corrupt, or contains bad data (internal code -6)
+alter function increm aggregate group;
+show create function increm;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+increm	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` AGGREGATE FUNCTION `increm`(x INT) RETURNS int(11)
+begin
+declare continue handler for not found return x;
+loop
+fetch group next row;
+end loop;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci
+select increm(1);
+increm(1)
+1
+alter function increm comment 'not aggregate' aggregate none;
+show create function increm;
+ERROR HY000: Failed to load routine test.increm. The table mysql.proc is missing, corrupt, or contains bad data (internal code -6)
+select increm(1);
+ERROR HY000: Failed to load routine test.increm. The table mysql.proc is missing, corrupt, or contains bad data (internal code -6)
+alter function increm aggregate group comment 'aggregate';
+show create function increm;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+increm	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` AGGREGATE FUNCTION `increm`(x INT) RETURNS int(11)
+    COMMENT 'aggregate'
+begin
+declare continue handler for not found return x;
+loop
+fetch group next row;
+end loop;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci
+select increm(1);
+increm(1)
+1
+drop function increm;

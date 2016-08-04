@@ -1,26 +1,37 @@
 delimiter |;
 create aggregate function increm(x INT) returns INT
 begin
-set x=5;
-return x+1;
+declare continue handler for not found return x;
+loop
+fetch group next row;
+end loop;
 end |
 delimiter ;|
 
 # change from aggregate to non-aggregate
+select increm(1);
 alter function increm aggregate none;
+--error 1457
 show create function increm;
+--error 1457
+select increm(1);
 
 # change from non-aggregate to aggregate
 alter function increm aggregate group;
 show create function increm;
+select increm(1);
 
 # multiple field added to alter conditon
 
 # first field not aggregatre
 alter function increm comment 'not aggregate' aggregate none; 
+--error 1457
 show create function increm;
+--error 1457
+select increm(1);
 
 # first field aggregate
 alter function increm aggregate group comment 'aggregate'; 
 show create function increm;
+select increm(1);
 drop function increm;
