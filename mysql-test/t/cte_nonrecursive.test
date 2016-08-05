@@ -152,6 +152,28 @@ select * from (select * from t1 where b >= 'c') as r1,
 with t(c) as (select a from t1 where b >= 'c')
   select * from t r1, t r2 where r1.c=r2.c;
 
+--echo # t two references of t used in different parts of a union
+with t as (select a from t1 where b >= 'c')
+  select * from t where a < 2
+  union
+  select * from t where a >= 4;
+select * from (select a from t1 where b >= 'c') as t
+  where t.a < 2
+union
+select * from (select a from t1 where b >= 'c') as t
+  where t.a >= 4;
+explain
+with t as (select a from t1 where b >= 'c')
+  select * from t where a < 2
+  union
+  select * from t where a >= 4;
+explain
+select * from (select a from t1 where b >= 'c') as t
+  where t.a < 2
+union
+select * from (select a from t1 where b >= 'c') as t
+  where t.a >= 4;
+
 --echo # specification of t contains union
 with t as (select a from t1 where b >= 'f' 
            union
@@ -435,6 +457,16 @@ with t(f) as (select * from t1 where b >= 'c')
 --echo #erroneous definition of unreferenced with table t
 --ERROR ER_DUP_FIELDNAME
 with t(f1,f1) as (select * from t1 where b >= 'c') 
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+--echo # explain for query with unreferenced with table
+
+explain 
+with t as (select a from t1 where b >= 'c') 
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+explain 
+with t as (select a, count(*) from t1 where b >= 'c' group by a)
   select t1.b from t2,t1 where t1.a = t2.c;
 
 drop table t1,t2;
