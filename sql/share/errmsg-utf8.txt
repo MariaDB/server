@@ -7140,4 +7140,4 @@ ER_NO_EIS_FOR_FIELD
         eng "Engine-independent statistics are not collected for column '%s'"
         ukr "Незалежна від типу таблиці статистика не збирається для стовбця '%s'"
 ER_NOT_AGGREGATE_FUNCTION
-        eng "FETCH GROUP NEXT ROW instruction is only allowed in aggregate functions"
+        eng "Non-aggregate function contains aggregate specific instructions: (FETCH GROUP NEXT ROW)"
