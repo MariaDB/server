@@ -1,7 +1,6 @@
 create table t2 (sal int(10));
 delimiter |;
 
-
 create aggregate function agg_min(x INT) returns int
 begin
   declare continue handler for not found return 0;
@@ -11,7 +10,6 @@ begin
   insert into t2 (sal) values (x);
   end loop;
 end|
-
 delimiter ;|
 
 create table t1 (sal int(10),id int(10));
