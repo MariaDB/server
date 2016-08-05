@@ -1,0 +1,74 @@
+SET sql_mode=ORACLE;
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT) RETURNS CLOB
+BEGIN
+  <<label1>>
+  BEGIN
+    IF a = 1 THEN
+      LEAVE label1;
+    END IF;
+    RETURN 'IS NOT 1';
+  END label1;
+  RETURN 'IS 1';
+END;
+/
+DELIMITER ;/
+SELECT f1(1);
+SELECT f1(2);
+DROP FUNCTION f1;
+
+# LOOP WHILE REPEAT
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT) RETURNS INT
+BEGIN
+  <<label1>>
+  LOOP
+    IF a = 2 THEN
+      LEAVE label1;
+    END IF;
+    SET a= a-1;
+  END LOOP;
+  RETURN a;
+END;
+/
+DELIMITER ;/
+SELECT f1(4);
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT) RETURNS INT
+BEGIN
+  <<label1>>
+  WHILE a>0 DO
+    IF a = 2 THEN
+      LEAVE label1;
+    END IF;
+    SET a= a-1;
+  END WHILE label1;
+  RETURN a;
+END;
+/
+DELIMITER ;/
+SELECT f1(4);
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT) RETURNS INT
+BEGIN
+  <<label1>>
+  REPEAT
+    IF a = 2 THEN
+      LEAVE label1;
+    END IF;
+    SET a= a-1;
+  UNTIL a=0 END REPEAT;
+  RETURN a;
+END;
+/
+DELIMITER ;/
+SELECT f1(4);
+DROP FUNCTION f1;

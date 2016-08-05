@@ -1065,6 +1065,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         NCHAR_STRING opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
+        label_declaration_oracle
 
 %type <lex_str_ptr>
         opt_table_alias
@@ -3509,7 +3510,7 @@ sp_opt_label:
         ;
 
 sp_labeled_block:
-          label_ident ':' BEGIN_SYM
+          label_declaration_oracle BEGIN_SYM
           {
             LEX *lex= Lex;
             sp_pcontext *ctx= lex->spcont;
@@ -3521,10 +3522,10 @@ sp_labeled_block:
           }
           sp_block_content sp_opt_label
           {
-            if ($6.str)
+            if ($5.str)
             {
-              if (my_strcasecmp(system_charset_info, $6.str, $5->name.str) != 0)
-                my_yyabort_error((ER_SP_LABEL_MISMATCH, MYF(0), $6.str));
+              if (my_strcasecmp(system_charset_info, $5.str, $4->name.str) != 0)
+                my_yyabort_error((ER_SP_LABEL_MISMATCH, MYF(0), $5.str));
             }
           }
         ;
@@ -3677,14 +3678,14 @@ pop_sp_empty_label:
         ;
 
 sp_labeled_control:
-          label_ident ':' LOOP_SYM
+          label_declaration_oracle LOOP_SYM
           {
             if (push_sp_label(thd, $1))
               MYSQL_YYABORT;
           }
           loop_body pop_sp_label
           { }
-        | label_ident ':' WHILE_SYM
+        | label_declaration_oracle WHILE_SYM
           {
             if (push_sp_label(thd, $1))
               MYSQL_YYABORT;
@@ -3692,7 +3693,7 @@ sp_labeled_control:
           }
           while_body pop_sp_label
           { }
-        | label_ident ':' REPEAT_SYM
+        | label_declaration_oracle REPEAT_SYM
           {
             if (push_sp_label(thd, $1))
               MYSQL_YYABORT;
@@ -13787,6 +13788,10 @@ label_ident:
               MYSQL_YYABORT;
             $$.length= $1.length;
           }
+        ;
+
+label_declaration_oracle:
+          SHIFT_LEFT label_ident SHIFT_RIGHT { $$= $2; }
         ;
 
 ident_or_text:
