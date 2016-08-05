@@ -1964,7 +1964,7 @@ END_OF_INPUT
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
 %type <splabel> sp_block_content
-%type <spvar> sp_param_name_and_type
+%type <spvar> sp_param_name sp_param_name_and_type
 %type <spvar_mode> sp_opt_inout
 %type <index_hint> index_hint_type
 %type <num> index_hint_clause normal_join inner_join
@@ -2937,34 +2937,19 @@ sp_fdparams:
         | sp_param_name_and_type
         ;
 
-sp_param_name_and_type:
+sp_param_name:
           ident
           {
-            LEX *lex= Lex;
-            sp_pcontext *spc= lex->spcont;
-
-            if (spc->find_variable($1, TRUE))
-              my_yyabort_error((ER_SP_DUP_PARAM, MYF(0), $1.str));
-
-            sp_variable *spvar= spc->add_variable(thd, $1);
-
-            lex->init_last_field(&spvar->field_def, $1.str,
-                                 thd->variables.collation_database);
-            $<spvar>$= spvar;
-          }
-          type_with_opt_collate
-          {
-            LEX *lex= Lex;
-            sp_variable *spvar= $<spvar>2;
-
-            if (lex->sphead->fill_field_definition(thd, lex->last_field))
-            {
+            if (!($$= Lex->sp_param_init($1)))
               MYSQL_YYABORT;
-            }
-            spvar->field_def.field_name= spvar->name.str;
-            spvar->field_def.pack_flag |= FIELDFLAG_MAYBE_NULL;
+          }
+        ;
 
-            $$= spvar;
+sp_param_name_and_type:
+          sp_param_name type_with_opt_collate
+          {
+            if (Lex->sp_param_fill_definition($$= $1))
+              MYSQL_YYABORT;
           }
         ;
 

@@ -5065,6 +5065,31 @@ void LEX::check_automatic_up(enum sub_select_type type)
   }
 }
 
+
+sp_variable *LEX::sp_param_init(LEX_STRING name)
+{
+  if (spcont->find_variable(name, true))
+  {
+    my_error(ER_SP_DUP_PARAM, MYF(0), name.str);
+    return NULL;
+  }
+  sp_variable *spvar= spcont->add_variable(thd, name);
+  init_last_field(&spvar->field_def, name.str,
+                  thd->variables.collation_database);
+  return spvar;
+}
+
+
+bool LEX::sp_param_fill_definition(sp_variable *spvar)
+{
+  if (sphead->fill_field_definition(thd, last_field))
+    return true;
+  spvar->field_def.field_name= spvar->name.str;
+  spvar->field_def.pack_flag |= FIELDFLAG_MAYBE_NULL;
+  return false;
+}
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 
