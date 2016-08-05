@@ -727,7 +727,6 @@ FUNC_START(__F)
 
 .Lzero:
 		 mr		 r3,r10
-		 blr
 		 b	.Lout
 
 FUNC_END(__F)
