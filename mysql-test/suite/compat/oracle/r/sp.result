@@ -1,4 +1,5 @@
 SET sql_mode=ORACLE;
+# Testing labels
 CREATE FUNCTION f1 (a INT) RETURNS CLOB
 BEGIN
 <<label1>>
@@ -66,3 +67,16 @@ SELECT f1(4);
 f1(4)
 2
 DROP FUNCTION f1;
+# Testing IN/OUT/INOUT
+CREATE PROCEDURE p1 (p1 IN VARCHAR2(10), p2 OUT VARCHAR2(10))
+BEGIN
+SET p1='p1new';
+SET p2='p2new';
+END;
+/
+SET @p1='p1', @p2='p2';
+CALL p1(@p1, @p2);
+SELECT @p1, @p2;
+@p1	@p2
+p1	p2new
+DROP PROCEDURE p1;

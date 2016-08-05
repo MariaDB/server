@@ -3009,6 +3009,8 @@ public:
     }
     return false;
   }
+  sp_variable *sp_param_init(LEX_STRING name);
+  bool sp_param_fill_definition(sp_variable *spvar);
 
   int case_stmt_action_expr(Item* expr);
   int case_stmt_action_when(Item *when, bool simple);
