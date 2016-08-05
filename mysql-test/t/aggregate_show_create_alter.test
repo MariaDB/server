@@ -11,9 +11,9 @@ delimiter ;|
 # change from aggregate to non-aggregate
 select increm(1);
 alter function increm aggregate none;
---error 1457
+--error ER_SP_PROC_TABLE_CORRUPT
 show create function increm;
---error 1457
+--error ER_SP_PROC_TABLE_CORRUPT
 select increm(1);
 
 # change from non-aggregate to aggregate
@@ -25,9 +25,9 @@ select increm(1);
 
 # first field not aggregatre
 alter function increm comment 'not aggregate' aggregate none; 
---error 1457
+--error ER_SP_PROC_TABLE_CORRUPT
 show create function increm;
---error 1457
+--error ER_SP_PROC_TABLE_CORRUPT
 select increm(1);
 
 # first field aggregate
