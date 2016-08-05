@@ -3,7 +3,7 @@ delimiter |;
 create aggregate function agg_sum(x INT) returns INT
 begin
 insert into t1(sal) values (x);
-return x; 
+return x;
 end|
 delimiter ;|
 
