@@ -1,0 +1,26 @@
+create table t2 (sal int(10));
+create aggregate function agg_min(x INT) returns int
+begin
+declare continue handler for not found return 0;
+insert into t2 (sal) values (x);
+loop
+fetch group next row;
+insert into t2 (sal) values (x);
+end loop;
+end|
+create table t1 (sal int(10),id int(10));
+INSERT INTO t1 (sal,id) VALUES (5000,1);
+INSERT INTO t1 (sal,id) VALUES (2000,1);
+INSERT INTO t1 (sal,id) VALUES (1000,1);
+select agg_min(sal) from t1 where id>= 1;
+agg_min(sal)
+0
+select * from t2;
+sal
+NULL
+5000
+2000
+1000
+drop table t1;
+drop table t2;
+drop function agg_min;
