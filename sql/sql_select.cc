@@ -4007,7 +4007,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             int num_of_fields= fields_in_hash_str(ls->str,ls->length);
             is_map_for_hash_key= eq_part.is_prefix(num_of_fields);
           }
-          if (((eq_part.is_prefix(key_parts) && !keyinfo->flags & HA_UNIQUE_HASH)
+          if (((eq_part.is_prefix(key_parts) && !(keyinfo->flags & HA_UNIQUE_HASH))
                || is_map_for_hash_key) &&
               !table->fulltext_searched &&
               (!embedding || (embedding->sj_on_expr && !embedding->embedding)))
@@ -5192,7 +5192,8 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
       KEY *keyinfo= form->key_info+key;
       uint key_parts= form->actual_n_key_parts(keyinfo);
       /* in case of null we do not use any optimization */
-      if (keyinfo->flags & HA_UNIQUE_HASH )
+      if (keyinfo->flags & HA_UNIQUE_HASH &
+           key_field->val->type() != Item::NULL_ITEM)
       {
         LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
         int index= find_field_index_in_hash(ls->str,
@@ -5612,12 +5613,6 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
         use->table->const_key_parts[use->key]|= use->keypart_map;
       if (use->keypart != FT_KEYPART)
       {
-        if (use->key == prev->key && use->table == prev->table)
-        {
-          if ((prev->keypart+1 < use->keypart && skip_unprefixed_keyparts) ||
-              (prev->keypart == use->keypart && found_eq_constant))
-            continue;				/* remove */
-        }
         if (!(use+1)->table || (use->key != (use+1)->key && use->table
                      == (use+1)->table))
         {
@@ -5632,6 +5627,12 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
               save_pos-= use->keypart+1;
             }
           }
+        }
+        if (use->key == prev->key && use->table == prev->table)
+        {
+          if ((prev->keypart+1 < use->keypart && skip_unprefixed_keyparts) ||
+              (prev->keypart == use->keypart && found_eq_constant))
+            continue;				/* remove */
         }
         else if (use->keypart != 0 && skip_unprefixed_keyparts)
           continue; /* remove - first found must be 0 */
@@ -6152,14 +6153,15 @@ best_access_path(JOIN      *join,
             !ref_or_null_part)
         {                                         /* use eq key */
           max_key_part= (uint) ~0;
-          if ((key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
-              MY_TEST(key_flags & HA_EXT_NOSAME))
+          if ((key_flags & (HA_UNIQUE_HASH | HA_NULL_PART_KEY)) == HA_UNIQUE_HASH ||
+              MY_TEST(key_flags & HA_UNIQUE_HASH))
           {
             tmp = prev_record_reads(join->positions, idx, found_ref);
             records=1.0;
           }
-          if ((key_flags & (HA_UNIQUE_HASH | HA_NULL_PART_KEY)) == HA_UNIQUE_HASH ||
-              MY_TEST(key_flags & HA_UNIQUE_HASH))
+          else
+          if ((key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
+              MY_TEST(key_flags & HA_EXT_NOSAME))
           {
             tmp = prev_record_reads(join->positions, idx, found_ref);
             records=1.0;
@@ -8931,6 +8933,49 @@ static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables)
   return TRUE;
 }
 
+Item *
+get_keypart_hash (THD *thd, KEY *keyinfo, KEYUSE *keyuse, JOIN_TAB *j)
+{
+  bool is_null;
+  if (keyinfo->flags & HA_UNIQUE_HASH)
+  {
+    ulong nr1= 1, nr2= 4;
+    CHARSET_INFO *cs;
+    String *str;
+    LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
+    uint i;
+    uint num_of_fields= fields_in_hash_str(ls->str,ls->length);
+    for (i=0 ; i < num_of_fields ; keyuse++,i++)
+    {
+      if (!keyuse->val)
+      {
+        is_null= true;
+        break;
+      }
+      str= keyuse->val->val_str();
+      if (keyuse->val->null_value)
+      {
+        is_null= true;
+        break;
+      }
+      cs= str->charset();
+      uchar l[4];
+      int4store(l,str->length());
+      cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
+      cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
+    }
+    //for testing purpose
+    //nr1= 12;
+    //int8store(key_buff+1,nr1);
+    if(!is_null)
+    {
+      j->ref.key_parts= 1;
+      return new(thd->mem_root) Item_uint(thd,nr1);
+    }
+   }
+  return NULL;
+}
+
 static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                                KEYUSE *org_keyuse, bool allow_full_scan, 
                                table_map used_tables)
@@ -9043,45 +9088,6 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   else
   {
     uint i;
-    ulong nr1= 1;
-    Item *item;
-    bool is_key_hash_and_no_null = false;
-    if (keyinfo->flags & HA_UNIQUE_HASH &&
-        !keyuse->val->used_tables() && !thd->lex->describe )
-    {
-      is_key_hash_and_no_null= true;
-      key_buff[0]=0;
-      ulong nr2= 4;
-      CHARSET_INFO *cs;
-      String *str;
-      LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
-      uint i;
-      uint num_of_fields= fields_in_hash_str(ls->str,ls->length);
-      for (i=0 ; i < num_of_fields ; keyuse++,i++)
-      {
-        if(!keyuse->val)
-        {
-          is_key_hash_and_no_null = false;
-          break;
-        }
-        str= keyuse->val->val_str();
-        if (keyuse->val->null_value)
-        {
-          is_key_hash_and_no_null= false;
-          break;
-        }
-        cs= str->charset();
-        uchar l[4];
-        int4store(l,str->length());
-        cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
-        cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
-      }
-      //for testing purpose
-      //nr1= 12;
-      //int8store(key_buff+1,nr1);
-      keyuse=org_keyuse;
-     }
-
     for (i=0 ; i < keyparts ; keyuse++,i++)
     {
       while (((~used_tables) & keyuse->used_tables) ||
@@ -9097,7 +9103,6 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       uint maybe_null= MY_TEST(keyinfo->key_part[i].null_bit);
       j->ref.items[i]=keyuse->val;		// Save for cond removal
       j->ref.cond_guards[i]= keyuse->cond_guard;
-      item= keyuse->val;
       if (keyuse->null_rejecting) 
         j->ref.null_rejecting|= (key_part_map)1 << i;
       keyuse_uses_no_tables= keyuse_uses_no_tables && !keyuse->used_tables;
@@ -9108,15 +9113,16 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         plans! Does the optimizer depend on the contents of
         table_ref->key_copy ? If yes, do we produce incorrect EXPLAINs? 
       */
-      if ( is_key_hash_and_no_null)
-      {
-        j->ref.key_parts= 1;
-        keyparts= 1;
-        item= new(thd->mem_root) Item_uint(thd,nr1);
-      }
-
       if (!keyuse->val->used_tables() && !thd->lex->describe )
       {					// Compare against constant
+        bool is_null;
+        Item *item= get_keypart_hash(thd,keyinfo,keyuse,j);
+        if (item != NULL)
+        {
+          keyparts= 1;
+        }
+        else
+          item= keyuse->val;
   store_key_item tmp(thd,
                            keyinfo->key_part[i].field,
                            key_buff + maybe_null,
@@ -9130,11 +9136,39 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         j->ref.const_ref_part_map |= key_part_map(1) << i ;
       }
       else
-	*ref_key++= get_store_key(thd,
-				  keyuse,join->const_table_map,
-				  &keyinfo->key_part[i],
-				  key_buff, maybe_null);
-
+      {
+           KEY_PART_INFO *key_part= &keyinfo->key_part[i];
+            if (!((~join->const_table_map) & keyuse->used_tables))		// if const item
+            {
+               *ref_key++=new store_key_const_item(thd,
+                      key_part->field,
+                      key_buff + maybe_null,
+                      maybe_null ? key_buff : 0,
+                      key_part->length,
+                      keyuse->val);
+            }
+            else if (keyuse->val->type() == Item::FIELD_ITEM ||
+                     (keyuse->val->type() == Item::REF_ITEM &&
+                ((((Item_ref*)keyuse->val)->ref_type() == Item_ref::OUTER_REF &&
+                        (*(Item_ref**)((Item_ref*)keyuse->val)->ref)->ref_type() ==
+                        Item_ref::DIRECT_REF) ||
+                       ((Item_ref*)keyuse->val)->ref_type() == Item_ref::VIEW_REF) &&
+                      keyuse->val->real_item()->type() == Item::FIELD_ITEM))
+              *ref_key++= new store_key_field(thd,
+                       key_part->field,
+                       key_buff + maybe_null,
+                       maybe_null ? key_buff : 0,
+                       key_part->length,
+                       ((Item_field*) keyuse->val->real_item())->field,
+                       keyuse->val->real_item()->full_name());
+            else
+            *ref_key++= new store_key_item(thd,
+                    key_part->field,
+                    key_buff + maybe_null,
+                    maybe_null ? key_buff : 0,
+                    key_part->length,
+                    keyuse->val, FALSE);
+      }
       /*
 	Remember if we are going to use REF_OR_NULL
 	But only if field _really_ can be null i.e. we force JT_REF
@@ -9186,8 +9220,6 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   DBUG_RETURN(0);
 }
 
-
-
 static store_key *
 get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
 	      KEY_PART_INFO *key_part, uchar *key_buff, uint maybe_null)
@@ -9214,8 +9246,7 @@ get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
 			       maybe_null ? key_buff : 0,
 			       key_part->length,
 			       ((Item_field*) keyuse->val->real_item())->field,
-			       keyuse->val->real_item()->full_name());
-	DBUG_ASSERT(0);
+						 keyuse->val->real_item()->full_name());
   return new store_key_item(thd,
 			    key_part->field,
 			    key_buff + maybe_null,
