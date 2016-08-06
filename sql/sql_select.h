@@ -1728,6 +1728,12 @@ public:
   bool null_key; /* TRUE <=> the value of the key has a null part */
   enum store_key_result { STORE_KEY_OK, STORE_KEY_FATAL, STORE_KEY_CONV };
   enum Type { FIELD_STORE_KEY, ITEM_STORE_KEY, CONST_ITEM_STORE_KEY };
+  /* whether we should store the orignal field value of calculate the
+    hash and store it*/
+  bool is_hash;
+  /*hash function parameter*/
+  ulong nr1;
+  ulong nr2;
   store_key(THD *thd, Field *field_arg, uchar *ptr, uchar *null, uint length)
     :null_key(0), null_ptr(null), err(0)
   {
@@ -1818,6 +1824,24 @@ class store_key_field: public store_key
       When the implementation of this function will be replaced for a proper
       full version this statement probably should be removed.
     */  
+    if (is_hash)
+    {
+      Field *f= copy_field.from_field;
+      String str;
+      f->val_str(&str);
+      if (f->is_null())
+      {
+        *(copy_field.to_ptr-1)= 1; //set it null
+        null_key= true;
+      }
+      CHARSET_INFO* cs= str.charset();
+      uchar l[4];
+      int4store(l,str.length());
+      cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
+      cs->coll->hash_sort(cs, (uchar *)str.ptr(), str.length(), &nr1, &nr2);
+      int8store(copy_field.to_ptr,nr1);
+      return STORE_KEY_OK;
+    }
     bzero(copy_field.to_ptr,copy_field.to_length);
 
     copy_field.do_copy(&copy_field);
