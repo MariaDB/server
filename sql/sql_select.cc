@@ -19316,13 +19316,13 @@ join_read_always_key(JOIN_TAB *tab)
       same hash does not gurentee same physical key
       to need to compare each field in key
     */
-    for (store_key **copy=tab->ref.key_copy ; *copy ; copy++)
-    {
-      if ((store_key_field * tmp= dynamic_cast<store_key_field *>(*copy)))
-      {
+//    for (store_key **copy=tab->ref.key_copy ; *copy ; copy++)
+//    {
+//      if ((store_key_field * tmp= dynamic_cast<store_key_field *>(*copy)))
+//      {
 
-      }
-    }
+//      }
+//    }
   }
   return 0;
 }

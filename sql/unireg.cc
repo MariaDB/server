@@ -143,7 +143,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   DBUG_ENTER("build_frm_image");
   List_iterator<Create_field> it(create_fields);
   Create_field *field;
-  bool is_hidden_fields_present;
+  bool is_hidden_fields_present= false;
   /*
     Loop througt the iterator to find whether we have any field whose
     visibility_type != NOT_HIDDEN
