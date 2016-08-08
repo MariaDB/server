@@ -8735,8 +8735,13 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                 thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, 0L, 0L, alter_ctx.tmp_name);
 
-    if (write_bin_log(thd, true, thd->query(), thd->query_length()))
-      DBUG_RETURN(true);
+    /* We don't replicate alter table statement on temporary tables */
+    if (table->s->tmp_table == NO_TMP_TABLE ||
+        !thd->is_current_stmt_binlog_format_row())
+    {
+      if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+        DBUG_RETURN(true);
+    }
 
     DBUG_RETURN(false);
   }
