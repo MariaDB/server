@@ -3020,6 +3020,13 @@ public:
   bool set_trigger_new_row(LEX_STRING *name, Item *val);
   bool set_system_variable(struct sys_var_with_base *tmp,
                            enum enum_var_type var_type, Item *val);
+  void set_stmt_init();
+  bool init_internal_variable(struct sys_var_with_base *variable,
+                              LEX_STRING name);
+  bool init_internal_variable(struct sys_var_with_base *variable,
+                              LEX_STRING dbname, LEX_STRING name);
+  bool init_default_internal_variable(struct sys_var_with_base *variable,
+                                      LEX_STRING name);
   bool set_local_variable(sp_variable *spv, Item *val);
   Item_splocal *create_item_for_sp_var(LEX_STRING name, sp_variable *spvar,
                                        const char *start_in_q,
