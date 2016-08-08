@@ -335,17 +335,6 @@ int LEX::case_stmt_action_then()
   return sphead->push_backpatch(thd, i, spcont->last_label());
 }
 
-static bool
-find_sys_var_null_base(THD *thd, struct sys_var_with_base *tmp)
-{
-  tmp->var= find_sys_var(thd, tmp->base_name.str, tmp->base_name.length);
-
-  if (tmp->var != NULL)
-    tmp->base_name= null_lex_str;
-
-  return thd->is_error();
-}
-
 
 /**
   Helper action for a SET statement.
@@ -14880,22 +14869,15 @@ set:
           SET
           {
             LEX *lex=Lex;
-            lex->sql_command= SQLCOM_SET_OPTION;
-            mysql_init_select(lex);
-            lex->option_type=OPT_SESSION;
+            lex->set_stmt_init();
             lex->var_list.empty();
-            lex->autocommit= 0;
             sp_create_assignment_lex(thd, yychar == YYEMPTY);
           }
           start_option_value_list
           {}
         | SET STATEMENT_SYM
           {
-            LEX *lex= Lex;
-            mysql_init_select(lex);
-            lex->option_type= OPT_SESSION;
-            lex->sql_command= SQLCOM_SET_OPTION;
-            lex->autocommit= 0;
+            Lex->set_stmt_init();
           }
           set_stmt_option_value_following_option_type_list
           {
@@ -15193,77 +15175,18 @@ option_value_no_option_type:
 internal_variable_name:
           ident
           {
-            sp_pcontext *spc= thd->lex->spcont;
-            sp_variable *spv;
-
-            /* Best effort lookup for system variable. */
-            if (!spc || !(spv = spc->find_variable($1, false)))
-            {
-              struct sys_var_with_base tmp= {NULL, $1};
-
-              /* Not an SP local variable */
-              if (find_sys_var_null_base(thd, &tmp))
-                MYSQL_YYABORT;
-
-              $$= tmp;
-            }
-            else
-            {
-              /*
-                Possibly an SP local variable (or a shadowed sysvar).
-                Will depend on the context of the SET statement.
-              */
-              $$.var= NULL;
-              $$.base_name= $1;
-            }
+            if (Lex->init_internal_variable(&$$, $1))
+              MYSQL_YYABORT;
           }
         | ident '.' ident
           {
-            LEX *lex= Lex;
-            if (check_reserved_words(&$1))
-            {
-              thd->parse_error();
+            if (Lex->init_internal_variable(&$$, $1, $3))
               MYSQL_YYABORT;
-            }
-            if (lex->sphead && lex->sphead->m_type == TYPE_ENUM_TRIGGER &&
-                (!my_strcasecmp(system_charset_info, $1.str, "NEW") || 
-                 !my_strcasecmp(system_charset_info, $1.str, "OLD")))
-            {
-              if ($1.str[0]=='O' || $1.str[0]=='o')
-                my_yyabort_error((ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", ""));
-              if (lex->trg_chistics.event == TRG_EVENT_DELETE)
-              {
-                my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0),
-                         "NEW", "on DELETE");
-                MYSQL_YYABORT;
-              }
-              if (lex->trg_chistics.action_time == TRG_ACTION_AFTER)
-                my_yyabort_error((ER_TRG_CANT_CHANGE_ROW, MYF(0), "NEW", "after "));
-              /* This special combination will denote field of NEW row */
-              $$.var= trg_new_row_fake_var;
-              $$.base_name= $3;
-            }
-            else
-            {
-              sys_var *tmp=find_sys_var(thd, $3.str, $3.length);
-              if (!tmp)
-                MYSQL_YYABORT;
-              if (!tmp->is_struct())
-                my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), $3.str);
-              $$.var= tmp;
-              $$.base_name= $1;
-            }
           }
         | DEFAULT '.' ident
           {
-            sys_var *tmp=find_sys_var(thd, $3.str, $3.length);
-            if (!tmp)
+            if (Lex->init_default_internal_variable(&$$, $3))
               MYSQL_YYABORT;
-            if (!tmp->is_struct())
-              my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), $3.str);
-            $$.var= tmp;
-            $$.base_name.str=    (char*) "default";
-            $$.base_name.length= 7;
           }
         ;
 

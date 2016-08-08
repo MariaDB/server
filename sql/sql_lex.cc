@@ -5090,6 +5090,102 @@ bool LEX::sp_param_fill_definition(sp_variable *spvar)
 }
 
 
+void LEX::set_stmt_init()
+{
+  sql_command= SQLCOM_SET_OPTION;
+  mysql_init_select(this);
+  option_type= OPT_SESSION;
+  autocommit= 0;
+};
+
+
+bool LEX::init_internal_variable(struct sys_var_with_base *variable,
+                                 LEX_STRING name)
+{
+  sp_variable *spv;
+
+  /* Best effort lookup for system variable. */
+  if (!spcont || !(spv = spcont->find_variable(name, false)))
+  {
+    struct sys_var_with_base tmp= {NULL, name};
+
+    /* Not an SP local variable */
+    if (find_sys_var_null_base(thd, &tmp))
+      return true;
+
+    *variable= tmp;
+    return false;
+  }
+
+  /*
+    Possibly an SP local variable (or a shadowed sysvar).
+    Will depend on the context of the SET statement.
+  */
+  variable->var= NULL;
+  variable->base_name= name;
+  return false;
+}
+
+
+bool LEX::init_internal_variable(struct sys_var_with_base *variable,
+                                 LEX_STRING dbname, LEX_STRING name)
+{
+  if (check_reserved_words(&dbname))
+  {
+    thd->parse_error();
+    return true;
+  }
+  if (sphead && sphead->m_type == TYPE_ENUM_TRIGGER &&
+      (!my_strcasecmp(system_charset_info, dbname.str, "NEW") ||
+       !my_strcasecmp(system_charset_info, dbname.str, "OLD")))
+  {
+    if (dbname.str[0]=='O' || dbname.str[0]=='o')
+    {
+      my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", "");
+      return true;
+    }
+    if (trg_chistics.event == TRG_EVENT_DELETE)
+    {
+      my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
+      return true;
+    }
+    if (trg_chistics.action_time == TRG_ACTION_AFTER)
+    {
+      my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "NEW", "after ");
+      return true;
+    }
+    /* This special combination will denote field of NEW row */
+    variable->var= trg_new_row_fake_var;
+    variable->base_name= name;
+    return false;
+  }
+
+  sys_var *tmp= find_sys_var(thd, name.str, name.length);
+  if (!tmp)
+    return true;
+  if (!tmp->is_struct())
+    my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name.str);
+  variable->var= tmp;
+  variable->base_name= dbname;
+  return false;
+}
+
+
+bool LEX::init_default_internal_variable(struct sys_var_with_base *variable,
+                                         LEX_STRING name)
+{
+  sys_var *tmp= find_sys_var(thd, name.str, name.length);
+  if (!tmp)
+    return true;
+  if (!tmp->is_struct())
+    my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name.str);
+  variable->var= tmp;
+  variable->base_name.str=    (char*) "default";
+  variable->base_name.length= 7;
+  return false;
+}
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 

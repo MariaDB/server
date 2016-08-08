@@ -215,18 +215,6 @@ static bool push_sp_empty_label(THD *thd)
 }
 
 
-static bool
-find_sys_var_null_base(THD *thd, struct sys_var_with_base *tmp)
-{
-  tmp->var= find_sys_var(thd, tmp->base_name.str, tmp->base_name.length);
-
-  if (tmp->var != NULL)
-    tmp->base_name= null_lex_str;
-
-  return thd->is_error();
-}
-
-
 #define bincmp_collation(X,Y)           \
   do                                    \
   {                                     \
@@ -335,10 +323,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 102 shift/reduce conflicts.
+  Currently there are 104 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 102
+%expect 104
 
 /*
    Comments for TOKENS.
@@ -1059,7 +1047,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
-        label_declaration_oracle
+        label_declaration_oracle ident_directly_assignable
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1217,6 +1205,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <Lex_length_and_dec> precision opt_precision float_options
 
 %type <symbol> keyword keyword_sp
+               keyword_directly_assignable
+               keyword_directly_not_assignable
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
                  admin_option_for_role user_maybe_role
@@ -1234,6 +1224,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         UNDERSCORE_CHARSET
 
 %type <variable> internal_variable_name
+                 internal_variable_name_directly_assignable
 
 %type <select_lex> subselect
         get_select_lex get_select_lex_derived
@@ -1320,6 +1311,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         vcol_opt_attribute_list vcol_attribute
         opt_serial_attribute opt_serial_attribute_list serial_attribute
         explainable_command
+        set_assign
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -1507,6 +1499,7 @@ statement:
         | savepoint
         | select
         | set
+        | set_assign
         | signal_stmt
         | show
         | shutdown
@@ -13788,6 +13781,26 @@ ident:
           }
         ;
 
+
+ident_directly_assignable:
+          IDENT_sys    { $$=$1; }
+        | keyword_directly_assignable
+          {
+            $$.str= thd->strmake($1.str, $1.length);
+            if ($$.str == NULL)
+              MYSQL_YYABORT;
+            $$.length= $1.length;
+          }
+        | keyword_sp
+          {
+            $$.str= thd->strmake($1.str, $1.length);
+            if ($$.str == NULL)
+              MYSQL_YYABORT;
+            $$.length= $1.length;
+          }
+        ;
+
+
 label_ident:
           IDENT_sys    { $$=$1; }
         | keyword_sp
@@ -13876,27 +13889,30 @@ user: user_maybe_role
 /* Keyword that we allow for identifiers (except SP labels) */
 keyword:
           keyword_sp            {}
-        | ASCII_SYM             {}
+        | keyword_directly_assignable {}
+        | keyword_directly_not_assignable {}
+        ;
+
+
+/*
+  Keywords that we allow in Oracle-style direct assignments:
+    xxx := 10;
+*/
+keyword_directly_assignable:
+          ASCII_SYM             {}
         | BACKUP_SYM            {}
-        | BEGIN_SYM             {}
         | BINLOG_SYM            {}
         | BYTE_SYM              {}
         | CACHE_SYM             {}
-        | CHARSET               {}
         | CHECKSUM_SYM          {}
         | CHECKPOINT_SYM        {}
-        | CLOSE_SYM             {}
         | COLUMN_ADD_SYM        {}
         | COLUMN_CHECK_SYM      {}
         | COLUMN_CREATE_SYM     {}
         | COLUMN_DELETE_SYM     {}
         | COLUMN_GET_SYM        {}
-        | COMMENT_SYM           {}
         | COMMIT_SYM            {}
-        | CONTAINS_SYM          {}
         | DEALLOCATE_SYM        {}
-        | DO_SYM                {}
-        | END                   {}
         | EXAMINED_SYM          {}
         | EXCLUDE_SYM           {}
         | EXECUTE_SYM           {}
@@ -13905,13 +13921,9 @@ keyword:
         | FOLLOWING_SYM         {}
         | FORMAT_SYM            {}
         | GET_SYM               {}
-        | HANDLER_SYM           {}
         | HELP_SYM              {}
         | HOST_SYM              {}
         | INSTALL_SYM           {}
-        | LANGUAGE_SYM          {}
-        | NO_SYM                {}
-        | OPEN_SYM              {}
         | OPTION                {}
         | OPTIONS_SYM           {}
         | OTHERS_SYM            {}
@@ -13922,11 +13934,9 @@ keyword:
         | PRECEDING_SYM         {}
         | PREPARE_SYM           {}
         | REMOVE_SYM            {}
-        | REPAIR                {}
         | RESET_SYM             {}
         | RESTORE_SYM           {}
         | ROLLBACK_SYM          {}
-        | SAVEPOINT_SYM         {}
         | SECURITY_SYM          {}
         | SERVER_SYM            {}
         | SHUTDOWN              {}
@@ -13939,13 +13949,57 @@ keyword:
         | STOP_SYM              {}
         | STORED_SYM            {}
         | TIES_SYM              {}
-        | TRUNCATE_SYM          {}
         | UNICODE_SYM           {}
         | UNINSTALL_SYM         {}
         | UNBOUNDED_SYM         {}
         | WRAPPER_SYM           {}
         | XA_SYM                {}
         | UPGRADE_SYM           {}
+        ;
+
+/*
+  Keywords that are allowed as identifiers (e.g. table, column names),
+  but:
+  - not allowed as SP label names
+  - not allowed as variable names in Oracle-style assignments:
+    xxx := 10;
+
+  If we allowed these variables in assignments, there would be conflicts
+  with SP characteristics, or verb clauses, or compound statements, e.g.:
+    CREATE PROCEDURE p1 LANGUAGE ...
+  would be either:
+    CREATE PROCEDURE p1 LANGUAGE SQL BEGIN END;
+  or
+    CREATE PROCEDURE p1 LANGUAGE:=10;
+
+  Note, these variables can still be assigned using quoted identifiers:
+    `do`:= 10;
+    "do":= 10; (when ANSI_QUOTES)
+  or using a SET statement:
+    SET do= 10;
+
+  Note, some of these keywords are reserved keywords in Oracle.
+  In case if heavy grammar conflicts are found in the future,
+  we'll possibly need to make them reserved for sql_mode=ORACLE.
+
+  TODO: Allow these variables as SP lables when sql_mode=ORACLE.
+  TODO: Allow assigning of "SP characteristics" marked variables
+        inside compound blocks.
+*/
+keyword_directly_not_assignable:
+          CONTAINS_SYM          { /* SP characteristic               */ }
+        | LANGUAGE_SYM          { /* SP characteristic               */ }
+        | NO_SYM                { /* SP characteristic               */ }
+        | CHARSET               { /* SET CHARSET utf8;               */ }
+        | DO_SYM                { /* Verb clause                     */ }
+        | REPAIR                { /* Verb clause                     */ }
+        | HANDLER_SYM           { /* Verb clause                     */ }
+        | CLOSE_SYM             { /* Verb clause. Reserved in Oracle */ }
+        | OPEN_SYM              { /* Verb clause. Reserved in Oracle */ }
+        | SAVEPOINT_SYM         { /* Verb clause. Reserved in Oracle */ }
+        | TRUNCATE_SYM          { /* Verb clause. Reserved in Oracle */ }
+        | BEGIN_SYM             { /* Compound.    Reserved in Oracle */ }
+        | END                   { /* Compound.    Reserved in Oracle */ }
         ;
 
 /*
@@ -14271,7 +14325,7 @@ keyword_sp:
         | X509_SYM                 {}
         | XML_SYM                  {}
         | YEAR_SYM                 {}
-        | VIA_SYM               {}
+        | VIA_SYM                  {}
         ;
 
 /*
@@ -14285,22 +14339,15 @@ set:
           SET
           {
             LEX *lex=Lex;
-            lex->sql_command= SQLCOM_SET_OPTION;
-            mysql_init_select(lex);
-            lex->option_type=OPT_SESSION;
+            lex->set_stmt_init();
             lex->var_list.empty();
-            lex->autocommit= 0;
             sp_create_assignment_lex(thd, yychar == YYEMPTY);
           }
           start_option_value_list
           {}
         | SET STATEMENT_SYM
           {
-            LEX *lex= Lex;
-            mysql_init_select(lex);
-            lex->option_type= OPT_SESSION;
-            lex->sql_command= SQLCOM_SET_OPTION;
-            lex->autocommit= 0;
+            Lex->set_stmt_init();
           }
           set_stmt_option_value_following_option_type_list
           {
@@ -14312,6 +14359,28 @@ set:
           }
           FOR_SYM verb_clause
 	  {}
+        ;
+
+set_assign:
+          internal_variable_name_directly_assignable SET_VAR
+          {
+            LEX *lex=Lex;
+            lex->set_stmt_init();
+            lex->var_list.empty();
+            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+          }
+          set_expr_or_default
+          {
+            sp_pcontext *spc= Lex->spcont;
+            sp_variable *spv= spc->find_variable($1.base_name, false);
+
+            /* It is a local variable. */
+            if (Lex->set_local_variable(spv, $4))
+              MYSQL_YYABORT;
+
+            if (sp_create_assignment_instr(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
+          }
         ;
 
 set_stmt_option_value_following_option_type_list:
@@ -14598,77 +14667,37 @@ option_value_no_option_type:
 internal_variable_name:
           ident
           {
-            sp_pcontext *spc= thd->lex->spcont;
-            sp_variable *spv;
-
-            /* Best effort lookup for system variable. */
-            if (!spc || !(spv = spc->find_variable($1, false)))
-            {
-              struct sys_var_with_base tmp= {NULL, $1};
-
-              /* Not an SP local variable */
-              if (find_sys_var_null_base(thd, &tmp))
-                MYSQL_YYABORT;
-
-              $$= tmp;
-            }
-            else
-            {
-              /*
-                Possibly an SP local variable (or a shadowed sysvar).
-                Will depend on the context of the SET statement.
-              */
-              $$.var= NULL;
-              $$.base_name= $1;
-            }
+            if (Lex->init_internal_variable(&$$, $1))
+              MYSQL_YYABORT;
           }
         | ident '.' ident
           {
-            LEX *lex= Lex;
-            if (check_reserved_words(&$1))
-            {
-              thd->parse_error();
+            if (Lex->init_internal_variable(&$$, $1, $3))
               MYSQL_YYABORT;
-            }
-            if (lex->sphead && lex->sphead->m_type == TYPE_ENUM_TRIGGER &&
-                (!my_strcasecmp(system_charset_info, $1.str, "NEW") || 
-                 !my_strcasecmp(system_charset_info, $1.str, "OLD")))
-            {
-              if ($1.str[0]=='O' || $1.str[0]=='o')
-                my_yyabort_error((ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", ""));
-              if (lex->trg_chistics.event == TRG_EVENT_DELETE)
-              {
-                my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0),
-                         "NEW", "on DELETE");
-                MYSQL_YYABORT;
-              }
-              if (lex->trg_chistics.action_time == TRG_ACTION_AFTER)
-                my_yyabort_error((ER_TRG_CANT_CHANGE_ROW, MYF(0), "NEW", "after "));
-              /* This special combination will denote field of NEW row */
-              $$.var= trg_new_row_fake_var;
-              $$.base_name= $3;
-            }
-            else
-            {
-              sys_var *tmp=find_sys_var(thd, $3.str, $3.length);
-              if (!tmp)
-                MYSQL_YYABORT;
-              if (!tmp->is_struct())
-                my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), $3.str);
-              $$.var= tmp;
-              $$.base_name= $1;
-            }
           }
         | DEFAULT '.' ident
           {
-            sys_var *tmp=find_sys_var(thd, $3.str, $3.length);
-            if (!tmp)
+            if (Lex->init_default_internal_variable(&$$, $3))
               MYSQL_YYABORT;
-            if (!tmp->is_struct())
-              my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), $3.str);
-            $$.var= tmp;
-            $$.base_name.str=    (char*) "default";
-            $$.base_name.length= 7;
+          }
+        ;
+
+
+internal_variable_name_directly_assignable:
+          ident_directly_assignable
+          {
+            if (Lex->init_internal_variable(&$$, $1))
+              MYSQL_YYABORT;
+          }
+        | ident_directly_assignable '.' ident
+          {
+            if (Lex->init_internal_variable(&$$, $1, $3))
+              MYSQL_YYABORT;
+          }
+        | DEFAULT '.' ident
+          {
+            if (Lex->init_default_internal_variable(&$$, $3))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -15485,11 +15514,6 @@ opt_release:
         | NO_SYM RELEASE_SYM { $$= TVL_NO; }
 ;
 
-opt_savepoint:
-          /* empty */ {}
-        | SAVEPOINT_SYM {}
-        ;
-
 commit:
           COMMIT_SYM opt_work opt_chain opt_release
           {
@@ -15512,12 +15536,17 @@ rollback:
             lex->tx_chain= $3;
             lex->tx_release= $4;
           }
-        | ROLLBACK_SYM opt_work
-          TO_SYM opt_savepoint ident
+        | ROLLBACK_SYM opt_work TO_SYM SAVEPOINT_SYM ident
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_ROLLBACK_TO_SAVEPOINT;
             lex->ident= $5;
+          }
+        | ROLLBACK_SYM opt_work TO_SYM ident
+          {
+            LEX *lex=Lex;
+            lex->sql_command= SQLCOM_ROLLBACK_TO_SAVEPOINT;
+            lex->ident= $4;
           }
         ;
 
