@@ -1166,7 +1166,7 @@ err:
 }
 
 
-
+// One step of recursive execution
 bool st_select_lex_unit::exec_recursive(bool is_driving_recursive)
 {
   st_select_lex *lex_select_save= thd->lex->current_select;

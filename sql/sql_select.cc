@@ -24186,7 +24186,8 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
     In case this is a derived table, here we remember the number of 
     subselect that used to produce it.
   */
-  eta->derived_select_number= table->derived_select_number;
+  if (!(table_list && table_list->is_with_table_recursive_reference()))
+    eta->derived_select_number= table->derived_select_number;
 
   /* The same for non-merged semi-joins */
   eta->non_merged_sjm_number = get_non_merged_semijoin_select();

@@ -4368,7 +4368,26 @@ void st_select_lex::set_explain_type(bool on_the_fly)
         type= is_uncacheable ? "UNCACHEABLE UNION": "UNION";
         if (this == master_unit()->fake_select_lex)
           type= "UNION RESULT";
-
+        /*
+          join below may be =NULL when this functions is called at an early
+          stage. It will be later called again and we will set the correct
+          value.
+        */
+        if (join)
+        {
+          bool uses_cte= false;
+          for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
+               tab= next_explain_order_tab(join, tab))
+          {
+            if (tab->table->pos_in_table_list->with)
+            {
+              uses_cte= true;
+              break;
+            }
+          }
+          if (uses_cte)
+            type= "RECURSIVE UNION";
+        }
       }
     }
   }
@@ -4683,7 +4702,9 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
     new (output->mem_root) Explain_union(output->mem_root, 
                                          thd->lex->analyze_stmt);
 
-
+  if (with_element && with_element->is_recursive)
+    eu->is_recursive_cte= true;
+ 
   if (derived)
     eu->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
   /* 
