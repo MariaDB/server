@@ -164,5 +164,29 @@ SELECT COUNT(*)=4 FROM t6;
 COUNT(*)=4
 1
 DROP TABLE t5, t6;
+#
+# MDEV-10216: Assertion `strcmp(share->unique_file_name,filename) ||
+# share->last_version' failed in myisam/mi_open.c:67: test_if_reopen
+#
+CREATE TEMPORARY TABLE t7 (i INT) ENGINE=MYISAM;
+INSERT INTO t7 VALUES(1);
+ALTER TABLE t7 RENAME TO t;
+SELECT * FROM t a, t b;
+i	i
+1	1
+DROP TABLE t;
+CREATE TEMPORARY TABLE t7 (i INT) ENGINE=ARIA;
+INSERT INTO t7 VALUES(1);
+ALTER TABLE t7 RENAME TO t;
+SELECT * FROM t a, t b;
+i	i
+1	1
+DROP TABLE t;
+CREATE TEMPORARY TABLE t8 (i INT) ENGINE=ARIA;
+ALTER TABLE t8 rename to t;
+SELECT (SELECT 1 FROM t a1, t a2 ) AS f1, ( SELECT 2 FROM t a3 ) AS f2 FROM DUAL;
+f1	f2
+NULL	NULL
+DROP TABLE t;
 # Cleanup
 DROP DATABASE temp_db;

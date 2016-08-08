@@ -8254,6 +8254,72 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
   DBUG_RETURN(false);
 }
 
+/**
+  Rename temporary table and/or turn indexes on/off without touching .FRM.
+  Its a variant of simple_rename_or_index_change() to be used exclusively
+  for temporary tables.
+
+  @param thd            Thread handler
+  @param table_list     TABLE_LIST for the table to change
+  @param keys_onoff     ENABLE or DISABLE KEYS?
+  @param alter_ctx      ALTER TABLE runtime context.
+
+  @return Operation status
+    @retval false           Success
+    @retval true            Failure
+*/
+static bool
+simple_tmp_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
+                                  Alter_info::enum_enable_or_disable keys_onoff,
+                                  Alter_table_ctx *alter_ctx)
+{
+  DBUG_ENTER("simple_tmp_rename_or_index_change");
+
+  TABLE *table= table_list->table;
+  bool error= false;
+
+  DBUG_ASSERT(table->s->tmp_table);
+
+  if (keys_onoff != Alter_info::LEAVE_AS_IS)
+  {
+    THD_STAGE_INFO(thd, stage_manage_keys);
+    error= alter_table_manage_keys(table, table->file->indexes_are_disabled(),
+                                   keys_onoff);
+  }
+
+  if (!error && alter_ctx->is_table_renamed())
+  {
+    THD_STAGE_INFO(thd, stage_rename);
+
+    /*
+      If THD::rename_temporary_table() fails, there is no need to rename it
+      back to the original name (unlike the case for non-temporary tables),
+      as it was an allocation error and the table was not renamed.
+    */
+    error= thd->rename_temporary_table(table, alter_ctx->new_db,
+                                       alter_ctx->new_alias);
+  }
+
+  if (!error)
+  {
+    int res= 0;
+    /*
+      We do not replicate alter table statement on temporary tables under
+      ROW-based replication.
+    */
+    if (!thd->is_current_stmt_binlog_format_row())
+    {
+      res= write_bin_log(thd, true, thd->query(), thd->query_length());
+    }
+    if (res != 0)
+      error= true;
+    else
+      my_ok(thd);
+  }
+
+  DBUG_RETURN(error);
+}
+
 
 /**
   Rename table and/or turn indexes on/off without touching .FRM
@@ -8290,6 +8356,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     if (lock_tables(thd, table_list, alter_ctx->tables_opened, 0))
       DBUG_RETURN(true);
 
+    THD_STAGE_INFO(thd, stage_manage_keys);
     error= alter_table_manage_keys(table,
                                    table->file->indexes_are_disabled(),
                                    keys_onoff);
@@ -8674,23 +8741,37 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     DBUG_RETURN(false);
   }
 
+  /*
+     Test if we are only doing RENAME or KEYS ON/OFF. This works
+     as we are testing if flags == 0 above.
+  */
   if (!(alter_info->flags & ~(Alter_info::ALTER_RENAME |
                               Alter_info::ALTER_KEYS_ONOFF)) &&
       alter_info->requested_algorithm !=
-      Alter_info::ALTER_TABLE_ALGORITHM_COPY &&
-      !table->s->tmp_table) // no need to touch frm
+      Alter_info::ALTER_TABLE_ALGORITHM_COPY)   // No need to touch frm.
   {
-    // This requires X-lock, no other lock levels supported.
-    if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_DEFAULT &&
-        alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
+    bool res;
+
+    if (!table->s->tmp_table)
     {
-      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
-               "LOCK=NONE/SHARED", "LOCK=EXCLUSIVE");
-      DBUG_RETURN(true);
+      // This requires X-lock, no other lock levels supported.
+      if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_DEFAULT &&
+          alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
+      {
+        my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
+                 "LOCK=NONE/SHARED", "LOCK=EXCLUSIVE");
+        DBUG_RETURN(true);
+      }
+      res= simple_rename_or_index_change(thd, table_list,
+                                         alter_info->keys_onoff,
+                                         &alter_ctx);
     }
-    bool res= simple_rename_or_index_change(thd, table_list,
-                                            alter_info->keys_onoff,
-                                            &alter_ctx);
+    else
+    {
+      res= simple_tmp_rename_or_index_change(thd, table_list,
+                                             alter_info->keys_onoff,
+                                             &alter_ctx);
+    }
     DBUG_RETURN(res);
   }
 
@@ -9421,6 +9502,9 @@ err_new_table_cleanup:
 
 err_with_mdl_after_alter:
   /* the table was altered. binlog the operation */
+  DBUG_ASSERT(!(mysql_bin_log.is_open() &&
+                thd->is_current_stmt_binlog_format_row() &&
+                (create_info->tmp_table())));
   write_bin_log(thd, true, thd->query(), thd->query_length());
 
 err_with_mdl:
@@ -9737,7 +9821,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   THD_STAGE_INFO(thd, stage_enabling_keys);
   thd_progress_next_stage(thd);
 
-  if (error > 0)
+  if (error > 0 && !from->s->tmp_table)
   {
     /* We are going to drop the temporary table */
     to->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
@@ -9766,7 +9850,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   to->file->ha_release_auto_increment();
   if (to->file->ha_external_lock(thd,F_UNLCK))
     error=1;
-  if (error < 0 && to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))
+  if (error < 0 && !from->s->tmp_table &&
+      to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))
     error= 1;
   thd_progress_end(thd);
   DBUG_RETURN(error > 0 ? -1 : 0);
