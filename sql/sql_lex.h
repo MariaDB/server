@@ -2584,6 +2584,8 @@ private:
   Query_arena_memroot *arena_for_set_stmt;
   MEM_ROOT *mem_root_for_set_stmt;
   void parse_error();
+  bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
+                                   class sp_label **splabel);
 public:
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   bool set_arena_for_set_stmt(Query_arena *backup);
@@ -3040,6 +3042,20 @@ public:
                                        const char *start_in_q,
                                        const char *end_in_q);
 
+  void sp_block_init(THD *thd, const LEX_STRING label);
+  void sp_block_init(THD *thd)
+  {
+    // Unlabeled blocks get an empty label
+    sp_block_init(thd, empty_lex_str);
+  }
+public:
+  bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock)
+  {
+    class sp_label *tmp;
+    return sp_block_finalize(thd, spblock, &tmp);
+  }
+  bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
+                                   const LEX_STRING end_label);
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
   {

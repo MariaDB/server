@@ -211,7 +211,7 @@ sp_label *sp_pcontext::push_label(THD *thd, LEX_STRING name, uint ip)
 }
 
 
-sp_label *sp_pcontext::find_label(LEX_STRING name)
+sp_label *sp_pcontext::find_label(const LEX_STRING name)
 {
   List_iterator_fast<sp_label> li(m_labels);
   sp_label *lab;

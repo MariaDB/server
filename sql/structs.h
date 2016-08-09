@@ -627,5 +627,14 @@ public:
   int dyncol_type() const { return m_type; }
 };
 
+struct Lex_spblock_st
+{
+public:
+  int vars;
+  int conds;
+  int hndlrs;
+  int curs;
+};
+
 
 #endif /* STRUCTS_INCLUDED */
