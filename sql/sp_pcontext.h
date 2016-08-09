@@ -108,7 +108,8 @@ public:
   class sp_pcontext *ctx;
 
 public:
-  sp_label(LEX_STRING _name, uint _ip, enum_type _type, sp_pcontext *_ctx)
+  sp_label(const LEX_STRING _name,
+           uint _ip, enum_type _type, sp_pcontext *_ctx)
    :Sql_alloc(),
     name(_name),
     ip(_ip),
@@ -401,9 +402,9 @@ public:
   // Labels.
   /////////////////////////////////////////////////////////////////////////
 
-  sp_label *push_label(THD *thd, LEX_STRING name, uint ip);
+  sp_label *push_label(THD *thd, const LEX_STRING name, uint ip);
 
-  sp_label *find_label(LEX_STRING name);
+  sp_label *find_label(const LEX_STRING name);
 
   sp_label *last_label()
   {
@@ -417,6 +418,17 @@ public:
 
   sp_label *pop_label()
   { return m_labels.pop(); }
+
+  bool block_label_declare(LEX_STRING label)
+  {
+    sp_label *lab= find_label(label);
+    if (lab)
+    {
+      my_error(ER_SP_LABEL_REDEFINE, MYF(0), label.str);
+      return true;
+    }
+    return false;
+  }
 
   /////////////////////////////////////////////////////////////////////////
   // Conditions.

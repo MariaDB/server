@@ -859,7 +859,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   LEX_SYMBOL symbol;
   Lex_string_with_metadata_st lex_string_with_metadata;
   struct sys_var_with_base variable;
-  struct { int vars, conds, hndlrs, curs; } spblock;
+  Lex_spblock_st spblock;
   Lex_length_and_dec_st Lex_length_and_dec;
   Lex_cast_type_st Lex_cast_type;
   Lex_field_type_st Lex_field_type;
@@ -894,7 +894,6 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   class my_var *myvar;
   class sp_condition_value *spcondvalue;
   class sp_head *sphead;
-  class sp_label *splabel;
   class sp_name *spname;
   class sp_variable *spvar;
   class With_clause *with_clause;
@@ -1672,6 +1671,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
+        sp_block_label
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1952,7 +1952,6 @@ END_OF_INPUT
 %type <spblock> sp_decls sp_decl sp_decl_body
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
-%type <splabel> sp_block_content
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <spvar_mode> sp_opt_inout
 %type <index_hint> index_hint_type
@@ -3987,34 +3986,43 @@ sp_opt_label:
         | label_ident   { $$= $1; }
         ;
 
-sp_labeled_block:
-          label_ident ':' BEGIN_SYM
+sp_block_label:
+          label_ident ':'
           {
-            LEX *lex= Lex;
-            sp_pcontext *ctx= lex->spcont;
-            sp_label *lab= ctx->find_label($1);
-
-            if (lab)
-              my_yyabort_error((ER_SP_LABEL_REDEFINE, MYF(0), $1.str));
-            lex->name= $1;
+            if (Lex->spcont->block_label_declare($1))
+              MYSQL_YYABORT;
+            $$= $1;
           }
-          sp_block_content sp_opt_label
+        ;
+
+sp_labeled_block:
+          sp_block_label
+          BEGIN_SYM
           {
-            if ($6.str)
-            {
-              if (my_strcasecmp(system_charset_info, $6.str, $5->name.str) != 0)
-                my_yyabort_error((ER_SP_LABEL_MISMATCH, MYF(0), $6.str));
-            }
+            Lex->sp_block_init(thd, $1);
+          }
+          sp_decls
+          sp_proc_stmts
+          END
+          sp_opt_label
+          {
+            if (Lex->sp_block_finalize(thd, $4, $7))
+              MYSQL_YYABORT;
           }
         ;
 
 sp_unlabeled_block:
           BEGIN_SYM
           {
-            Lex->name= empty_lex_str; // Unlabeled blocks get an empty label
+            Lex->sp_block_init(thd);
           }
-          sp_block_content
-          { }
+          sp_decls
+          sp_proc_stmts
+          END
+          {
+            if (Lex->sp_block_finalize(thd, $3))
+              MYSQL_YYABORT;
+          }
         ;
 
 sp_unlabeled_block_not_atomic:
@@ -4022,49 +4030,14 @@ sp_unlabeled_block_not_atomic:
           {
             if (maybe_start_compound_statement(thd))
               MYSQL_YYABORT;
-            Lex->name= empty_lex_str; // Unlabeled blocks get an empty label
-          }
-          sp_block_content
-          { }
-        ;
-
-sp_block_content:
-          {
-            LEX *lex= Lex;
-            sp_label *lab= lex->spcont->push_label(thd, lex->name,
-                                                   lex->sphead->instructions());
-            lab->type= sp_label::BEGIN;
-            lex->spcont= lex->spcont->push_context(thd,
-                                                   sp_pcontext::REGULAR_SCOPE);
+            Lex->sp_block_init(thd);
           }
           sp_decls
           sp_proc_stmts
           END
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            sp_pcontext *ctx= lex->spcont;
-            sp_instr *i;
-
-            sp->backpatch(ctx->last_label()); /* We always have a label */
-            if ($2.hndlrs)
-            {
-              i= new (thd->mem_root)
-                sp_instr_hpop(sp->instructions(), ctx, $2.hndlrs);
-              if (i == NULL ||
-                  sp->add_instr(i))
-                MYSQL_YYABORT;
-            }
-            if ($2.curs)
-            {
-              i= new (thd->mem_root)
-                sp_instr_cpop(sp->instructions(), ctx, $2.curs);
-              if (i == NULL ||
-                  sp->add_instr(i))
-                MYSQL_YYABORT;
-            }
-            lex->spcont= ctx->pop_context();
-            $$ = lex->spcont->pop_label();
+            if (Lex->sp_block_finalize(thd, $5))
+              MYSQL_YYABORT;
           }
         ;
 

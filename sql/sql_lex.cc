@@ -5309,6 +5309,62 @@ bool LEX::sp_handler_declaration_finalize(THD *thd, int type)
   return false;
 }
 
+
+void LEX::sp_block_init(THD *thd, const LEX_STRING label)
+{
+  sp_label *lab= spcont->push_label(thd, label, sphead->instructions());
+  lab->type= sp_label::BEGIN;
+  spcont= spcont->push_context(thd, sp_pcontext::REGULAR_SCOPE);
+}
+
+
+bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
+                                      class sp_label **splabel)
+{
+  sp_head *sp= sphead;
+  sp_pcontext *ctx= spcont;
+  sp_instr *i;
+
+  sp->backpatch(ctx->last_label()); /* We always have a label */
+  if (spblock.hndlrs)
+  {
+    i= new (thd->mem_root)
+      sp_instr_hpop(sp->instructions(), ctx, spblock.hndlrs);
+    if (i == NULL ||
+        sp->add_instr(i))
+      return true;
+  }
+  if (spblock.curs)
+  {
+    i= new (thd->mem_root)
+      sp_instr_cpop(sp->instructions(), ctx, spblock.curs);
+    if (i == NULL ||
+        sp->add_instr(i))
+      return true;
+  }
+  spcont= ctx->pop_context();
+  *splabel= spcont->pop_label();
+  return false;
+}
+
+
+bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
+                            const LEX_STRING end_label)
+{
+  sp_label *splabel;
+  if (sp_block_finalize(thd, spblock, &splabel))
+    return true;
+  if (end_label.str &&
+      my_strcasecmp(system_charset_info,
+                    end_label.str, splabel->name.str) != 0)
+  {
+    my_error(ER_SP_LABEL_MISMATCH, MYF(0), end_label.str);
+    return true;
+  }
+  return false;
+}
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 
