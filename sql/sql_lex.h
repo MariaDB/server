@@ -3027,6 +3027,14 @@ public:
                               LEX_STRING dbname, LEX_STRING name);
   bool init_default_internal_variable(struct sys_var_with_base *variable,
                                       LEX_STRING name);
+  void sp_variable_declarations_init(THD *thd, int nvars);
+  bool sp_variable_declarations_finalize(THD *thd, int nvars,
+                                         const Lex_field_type_st &type,
+                                         Item *def);
+  bool sp_handler_declaration_init(THD *thd, int type);
+  bool sp_handler_declaration_finalize(THD *thd, int type);
+
+  bool sp_declare_cursor(THD *thd, const LEX_STRING name, LEX *cursor_stmt);
   bool set_local_variable(sp_variable *spv, Item *val);
   Item_splocal *create_item_for_sp_var(LEX_STRING name, sp_variable *spvar,
                                        const char *start_in_q,

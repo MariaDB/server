@@ -192,7 +192,7 @@ public:
   sp_condition_value *value;
 
 public:
-  sp_condition(LEX_STRING _name, sp_condition_value *_value)
+  sp_condition(const LEX_STRING _name, sp_condition_value *_value)
    :Sql_alloc(),
     name(_name),
     value(_value)
@@ -422,11 +422,22 @@ public:
   // Conditions.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_condition(THD *thd, LEX_STRING name, sp_condition_value *value);
+  bool add_condition(THD *thd, const LEX_STRING name,
+                               sp_condition_value *value);
 
   /// See comment for find_variable() above.
-  sp_condition_value *find_condition(LEX_STRING name,
+  sp_condition_value *find_condition(const LEX_STRING name,
                                      bool current_scope_only) const;
+  bool declare_condition(THD *thd, const LEX_STRING name,
+                                   sp_condition_value *val)
+  {
+    if (find_condition(name, true))
+    {
+      my_error(ER_SP_DUP_COND, MYF(0), name.str);
+      return true;
+    }
+    return add_condition(thd, name, val);
+  }
 
   /////////////////////////////////////////////////////////////////////////
   // Handlers.
@@ -467,10 +478,11 @@ public:
   // Cursors.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_cursor(LEX_STRING name);
+  bool add_cursor(const LEX_STRING name);
 
   /// See comment for find_variable() above.
-  bool find_cursor(LEX_STRING name, uint *poff, bool current_scope_only) const;
+  bool find_cursor(const LEX_STRING name,
+                   uint *poff, bool current_scope_only) const;
 
   /// Find cursor by offset (for debugging only).
   const LEX_STRING *find_cursor(uint offset) const;

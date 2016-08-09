@@ -249,7 +249,7 @@ bool sp_pcontext::add_condition(THD *thd,
 }
 
 
-sp_condition_value *sp_pcontext::find_condition(LEX_STRING name,
+sp_condition_value *sp_pcontext::find_condition(const LEX_STRING name,
                                                 bool current_scope_only) const
 {
   uint i= m_conditions.elements();
@@ -415,7 +415,7 @@ sp_pcontext::find_handler(const char *sql_state,
 }
 
 
-bool sp_pcontext::add_cursor(LEX_STRING name)
+bool sp_pcontext::add_cursor(const LEX_STRING name)
 {
   if (m_cursors.elements() == m_max_cursor_index)
     ++m_max_cursor_index;
@@ -424,7 +424,7 @@ bool sp_pcontext::add_cursor(LEX_STRING name)
 }
 
 
-bool sp_pcontext::find_cursor(LEX_STRING name,
+bool sp_pcontext::find_cursor(const LEX_STRING name,
                               uint *poff,
                               bool current_scope_only) const
 {
