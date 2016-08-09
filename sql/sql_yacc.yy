@@ -1949,7 +1949,7 @@ END_OF_INPUT
 
 %type <num>  sp_decl_idents sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
-%type <spblock> sp_decls sp_decl
+%type <spblock> sp_decls sp_decl sp_decl_body
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
 %type <splabel> sp_block_content
@@ -2997,161 +2997,44 @@ sp_decls:
         ;
 
 sp_decl:
-          DECLARE_SYM sp_decl_idents
+          DECLARE_SYM sp_decl_body { $$= $2; }
+        ;
+
+sp_decl_body:
+          sp_decl_idents
           {
-            LEX *lex= Lex;
-            sp_pcontext *pctx= lex->spcont;
-
-            // get the last variable:
-            uint num_vars= pctx->context_var_count();
-            uint var_idx= pctx->var_context2runtime(num_vars - 1);
-            sp_variable *spvar= pctx->find_variable(var_idx);
-
-            lex->sphead->reset_lex(thd);
-            pctx->declare_var_boundary($2);
-            thd->lex->init_last_field(&spvar->field_def, spvar->name.str,
-                                      thd->variables.collation_database);
+            Lex->sp_variable_declarations_init(thd, $1);
           }
           type_with_opt_collate
           sp_opt_default
           {
-            LEX *lex= Lex;
-            sp_pcontext *pctx= lex->spcont;
-            uint num_vars= pctx->context_var_count();
-            Item *dflt_value_item= $5;
-            
-            if (!dflt_value_item)
-            {
-              dflt_value_item= new (thd->mem_root) Item_null(thd);
-              if (dflt_value_item == NULL)
-                MYSQL_YYABORT;
-              /* QQ Set to the var_type with null_value? */
-            }
-            
-            for (uint i = num_vars-$2 ; i < num_vars ; i++)
-            {
-              uint var_idx= pctx->var_context2runtime(i);
-              sp_variable *spvar= pctx->find_variable(var_idx);
-              bool last= i == num_vars - 1;
-            
-              if (!spvar)
-                MYSQL_YYABORT;
-            
-              if (!last)
-                spvar->field_def= *lex->last_field;
-
-              spvar->default_value= dflt_value_item;
-              spvar->field_def.field_name= spvar->name.str;
-            
-              if (lex->sphead->fill_field_definition(thd, &spvar->field_def))
-              {
-                MYSQL_YYABORT;
-              }
-            
-              spvar->field_def.pack_flag |= FIELDFLAG_MAYBE_NULL;
-            
-              /* The last instruction is responsible for freeing LEX. */
-
-              sp_instr_set *is= new (lex->thd->mem_root)
-                                 sp_instr_set(lex->sphead->instructions(),
-                                               pctx, var_idx, dflt_value_item,
-                                               $4.field_type(), lex, last);
-              if (is == NULL || lex->sphead->add_instr(is))
-                MYSQL_YYABORT;
-            }
-
-            pctx->declare_var_boundary(0);
-            if (lex->sphead->restore_lex(thd))
+            if (Lex->sp_variable_declarations_finalize(thd, $1, $3, $4))
               MYSQL_YYABORT;
-            $$.vars= $2;
+            $$.vars= $1;
             $$.conds= $$.hndlrs= $$.curs= 0;
           }
-        | DECLARE_SYM ident CONDITION_SYM FOR_SYM sp_cond
+        | ident CONDITION_SYM FOR_SYM sp_cond
           {
-            LEX *lex= Lex;
-            sp_pcontext *spc= lex->spcont;
-
-            if (spc->find_condition($2, TRUE))
-              my_yyabort_error((ER_SP_DUP_COND, MYF(0), $2.str));
-            if(spc->add_condition(thd, $2, $5))
+            if (Lex->spcont->declare_condition(thd, $1, $4))
               MYSQL_YYABORT;
             $$.vars= $$.hndlrs= $$.curs= 0;
             $$.conds= 1;
           }
-        | DECLARE_SYM sp_handler_type HANDLER_SYM FOR_SYM
+        | sp_handler_type HANDLER_SYM FOR_SYM
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-
-            sp_handler *h= lex->spcont->add_handler(thd,
-                                                    (sp_handler::enum_type) $2);
-
-            lex->spcont= lex->spcont->push_context(thd,
-                                                   sp_pcontext::HANDLER_SCOPE);
-
-            sp_pcontext *ctx= lex->spcont;
-            sp_instr_hpush_jump *i=
-              new (thd->mem_root) sp_instr_hpush_jump(sp->instructions(),
-                   ctx, h);
-
-            if (i == NULL || sp->add_instr(i))
-              MYSQL_YYABORT;
-
-            /* For continue handlers, mark end of handler scope. */
-            if ($2 == sp_handler::CONTINUE &&
-                sp->push_backpatch(thd, i, ctx->last_label()))
-              MYSQL_YYABORT;
-
-            if (sp->push_backpatch(thd, i, ctx->push_label(thd, empty_lex_str, 0)))
+            if (Lex->sp_handler_declaration_init(thd, $1))
               MYSQL_YYABORT;
           }
           sp_hcond_list sp_proc_stmt
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            sp_pcontext *ctx= lex->spcont;
-            sp_label *hlab= lex->spcont->pop_label(); /* After this hdlr */
-            sp_instr_hreturn *i;
-
-            if ($2 == sp_handler::CONTINUE)
-            {
-              i= new (thd->mem_root)
-                 sp_instr_hreturn(sp->instructions(), ctx);
-              if (i == NULL ||
-                  sp->add_instr(i))
-                MYSQL_YYABORT;
-            }
-            else
-            {  /* EXIT or UNDO handler, just jump to the end of the block */
-              i= new (thd->mem_root)
-                 sp_instr_hreturn(sp->instructions(), ctx);
-              if (i == NULL ||
-                  sp->add_instr(i) ||
-                  sp->push_backpatch(thd, i, lex->spcont->last_label())) /* Block end */
-                MYSQL_YYABORT;
-            }
-            lex->sphead->backpatch(hlab);
-
-            lex->spcont= ctx->pop_context();
-
+            if (Lex->sp_handler_declaration_finalize(thd, $1))
+              MYSQL_YYABORT;
             $$.vars= $$.conds= $$.curs= 0;
             $$.hndlrs= 1;
           }
-        | DECLARE_SYM ident CURSOR_SYM FOR_SYM sp_cursor_stmt
+        | ident CURSOR_SYM FOR_SYM sp_cursor_stmt
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            sp_pcontext *ctx= lex->spcont;
-            uint offp;
-            sp_instr_cpush *i;
-
-            if (ctx->find_cursor($2, &offp, TRUE))
-              my_yyabort_error((ER_SP_DUP_CURS, MYF(0), $2.str));
-
-            i= new (thd->mem_root)
-                 sp_instr_cpush(sp->instructions(), ctx, $5,
-                                ctx->current_cursor_count());
-            if (i == NULL || sp->add_instr(i) || ctx->add_cursor($2))
+            if (Lex->sp_declare_cursor(thd, $1, $4))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;

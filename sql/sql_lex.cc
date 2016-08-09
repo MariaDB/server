@@ -5185,6 +5185,129 @@ bool LEX::init_default_internal_variable(struct sys_var_with_base *variable,
   return false;
 }
 
+void LEX::sp_variable_declarations_init(THD *thd, int nvars)
+{
+  // get the last variable:
+  uint num_vars= spcont->context_var_count();
+  uint var_idx= spcont->var_context2runtime(num_vars - 1);
+  sp_variable *spvar= spcont->find_variable(var_idx);
+
+  sphead->reset_lex(thd);
+  spcont->declare_var_boundary(nvars);
+  thd->lex->init_last_field(&spvar->field_def, spvar->name.str,
+                            thd->variables.collation_database);
+}
+
+bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
+                                            const Lex_field_type_st &type,
+                                            Item *dflt_value_item)
+{
+  uint num_vars= spcont->context_var_count();
+
+  if (!dflt_value_item &&
+      !(dflt_value_item= new (thd->mem_root) Item_null(thd)))
+    return true;
+  /* QQ Set to the var_type with null_value? */
+
+  for (uint i= num_vars - nvars ; i < num_vars ; i++)
+  {
+    uint var_idx= spcont->var_context2runtime(i);
+    sp_variable *spvar= spcont->find_variable(var_idx);
+    bool last= i == num_vars - 1;
+
+    if (!spvar)
+      return true;
+
+    if (!last)
+      spvar->field_def= *last_field;
+
+    spvar->default_value= dflt_value_item;
+    spvar->field_def.field_name= spvar->name.str;
+
+    if (sphead->fill_field_definition(thd, &spvar->field_def))
+      return true;
+
+    spvar->field_def.pack_flag |= FIELDFLAG_MAYBE_NULL;
+
+    /* The last instruction is responsible for freeing LEX. */
+    sp_instr_set *is= new (this->thd->mem_root)
+                       sp_instr_set(sphead->instructions(),
+                                    spcont, var_idx, dflt_value_item,
+                                    type.field_type(), this, last);
+    if (is == NULL || sphead->add_instr(is))
+      return true;
+  }
+
+  spcont->declare_var_boundary(0);
+  return sphead->restore_lex(thd);
+}
+
+
+bool LEX::sp_declare_cursor(THD *thd, const LEX_STRING name, LEX *cursor_stmt)
+{
+  uint offp;
+  sp_instr_cpush *i;
+
+  if (spcont->find_cursor(name, &offp, true))
+  {
+    my_error(ER_SP_DUP_CURS, MYF(0), name.str);
+    return true;
+  }
+  i= new (thd->mem_root)
+       sp_instr_cpush(sphead->instructions(), spcont, cursor_stmt,
+                      spcont->current_cursor_count());
+  return i == NULL || sphead->add_instr(i) || spcont->add_cursor(name);
+}
+
+
+bool LEX::sp_handler_declaration_init(THD *thd, int type)
+{
+  sp_handler *h= spcont->add_handler(thd, (sp_handler::enum_type) type);
+
+  spcont= spcont->push_context(thd, sp_pcontext::HANDLER_SCOPE);
+
+  sp_instr_hpush_jump *i=
+    new (thd->mem_root) sp_instr_hpush_jump(sphead->instructions(), spcont, h);
+
+  if (i == NULL || sphead->add_instr(i))
+    return true;
+
+  /* For continue handlers, mark end of handler scope. */
+  if (type == sp_handler::CONTINUE &&
+      sphead->push_backpatch(thd, i, spcont->last_label()))
+    return true;
+
+  if (sphead->push_backpatch(thd, i, spcont->push_label(thd, empty_lex_str, 0)))
+    return true;
+
+  return false;
+}
+
+
+bool LEX::sp_handler_declaration_finalize(THD *thd, int type)
+{
+  sp_label *hlab= spcont->pop_label(); /* After this hdlr */
+  sp_instr_hreturn *i;
+
+  if (type == sp_handler::CONTINUE)
+  {
+    i= new (thd->mem_root) sp_instr_hreturn(sphead->instructions(), spcont);
+    if (i == NULL ||
+        sphead->add_instr(i))
+      return true;
+  }
+  else
+  {  /* EXIT or UNDO handler, just jump to the end of the block */
+    i= new (thd->mem_root) sp_instr_hreturn(sphead->instructions(), spcont);
+    if (i == NULL ||
+        sphead->add_instr(i) ||
+        sphead->push_backpatch(thd, i, spcont->last_label())) /* Block end */
+      return true;
+  }
+  sphead->backpatch(hlab);
+  spcont= spcont->pop_context();
+  return false;
+}
 
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
