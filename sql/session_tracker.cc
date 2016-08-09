@@ -144,16 +144,18 @@ private:
       return res;
     }
 
-    uchar* operator[](ulong idx)
-    {
-      return my_hash_element(&m_registered_sysvars, idx);
-    }
     bool insert(sysvar_node_st *node, const sys_var *svar, myf mem_flag);
+    void reinit();
     void reset();
+    inline bool is_enabled()
+    {
+      return track_all || m_registered_sysvars.records;
+    }
     void copy(vars_list* from, THD *thd);
     bool parse_var_list(THD *thd, LEX_STRING var_list, bool throw_error,
-                        CHARSET_INFO *char_set, bool session_created);
+                        CHARSET_INFO *char_set, bool take_mutex);
     bool construct_var_list(char *buf, size_t buf_len);
+    bool store(THD *thd, String *buf);
   };
   /**
     Two objects of vars_list type are maintained to manage
@@ -217,9 +219,13 @@ public:
   static uchar *sysvars_get_key(const char *entry, size_t *length,
                                 my_bool not_used __attribute__((unused)));
 
+  // hash iterators
   static my_bool name_array_filler(void *ptr, void *data_ptr);
+  static my_bool store_variable(void *ptr, void *data_ptr);
+  static my_bool reset_variable(void *ptr, void *data_ptr);
+
   static bool check_var_list(THD *thd, LEX_STRING var_list, bool throw_error,
-                             CHARSET_INFO *char_set, bool session_created);
+                             CHARSET_INFO *char_set, bool take_mutex);
 };
 
 
@@ -284,7 +290,7 @@ public:
 static const unsigned int EXTRA_ALLOC= 1024;
 
 
-void Session_sysvars_tracker::vars_list::reset()
+void Session_sysvars_tracker::vars_list::reinit()
 {
   buffer_length= 0;
   track_all= 0;
@@ -304,7 +310,7 @@ void Session_sysvars_tracker::vars_list::reset()
 
 void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
 {
-  reset();
+  reinit();
   track_all= from->track_all;
   free_hash();
   buffer_length= from->buffer_length;
@@ -331,7 +337,7 @@ bool Session_sysvars_tracker::vars_list::insert(sysvar_node_st *node,
     if (!(node= (sysvar_node_st *) my_malloc(sizeof(sysvar_node_st),
                                              MYF(MY_WME | mem_flag))))
     {
-      reset();
+      reinit();
       return true;
     }
   }
@@ -345,7 +351,7 @@ bool Session_sysvars_tracker::vars_list::insert(sysvar_node_st *node,
     if (!search((sys_var *)svar))
     {
       //EOF (error is already reported)
-      reset();
+      reinit();
       return true;
     }
   }
@@ -367,9 +373,7 @@ bool Session_sysvars_tracker::vars_list::insert(sysvar_node_st *node,
                                  in case of invalid/duplicate values.
   @param char_set	 [IN]	 charecter set information used for string
 				 manipulations.
-  @param session_created [IN]    bool variable which says if the parse is
-                                 already executed once. The mutex on variables
-				 is not acquired if this variable is false.
+  @param take_mutex      [IN]    take LOCK_plugin
 
   @return
     true                    Error
@@ -379,11 +383,12 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
                                                         LEX_STRING var_list,
                                                         bool throw_error,
 							CHARSET_INFO *char_set,
-							bool session_created)
+							bool take_mutex)
 {
   const char separator= ',';
   char *token, *lasts= NULL;
   size_t rest= var_list.length;
+  reinit();
 
   if (!var_list.str || var_list.length == 0)
   {
@@ -408,7 +413,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     token value. Hence the mutex is handled here to avoid a performance
     overhead.
   */
-  if (!thd || session_created)
+  if (!thd || take_mutex)
     mysql_mutex_lock(&LOCK_plugin);
   for (;;)
   {
@@ -429,12 +434,17 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     /* Remove leading/trailing whitespace. */
     trim_whitespace(char_set, &var);
 
-    if ((svar= find_sys_var_ex(thd, var.str, var.length, throw_error, true)))
+    if(!strcmp(var.str,(const char *)"*"))
+    {
+      track_all= true;
+    }
+    else if ((svar=
+              find_sys_var_ex(thd, var.str, var.length, throw_error, true)))
     {
       if (insert(NULL, svar, m_mem_flag) == TRUE)
         goto error;
     }
-    else if (throw_error && session_created && thd)
+    else if (throw_error && thd)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WRONG_VALUE_FOR_VAR,
@@ -449,13 +459,13 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
     else
       break;
   }
-  if (!thd || session_created)
+  if (!thd || take_mutex)
     mysql_mutex_unlock(&LOCK_plugin);
 
   return false;
 
 error:
-  if (!thd || session_created)
+  if (!thd || take_mutex)
     mysql_mutex_unlock(&LOCK_plugin);
   return true;
 }
@@ -465,7 +475,7 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
                                              LEX_STRING var_list,
                                              bool throw_error,
                                              CHARSET_INFO *char_set,
-                                             bool session_created)
+                                             bool take_mutex)
 {
   const char separator= ',';
   char *token, *lasts= NULL;
@@ -485,11 +495,10 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
     token value. Hence the mutex is handled here to avoid a performance
     overhead.
   */
-  if (!thd || session_created)
+  if (!thd || take_mutex)
     mysql_mutex_lock(&LOCK_plugin);
   for (;;)
   {
-    sys_var *svar;
     LEX_STRING var;
 
     lasts= (char *) memchr(token, separator, rest);
@@ -506,9 +515,10 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
     /* Remove leading/trailing whitespace. */
     trim_whitespace(char_set, &var);
 
-    if (!(svar= find_sys_var_ex(thd, var.str, var.length, throw_error, true)))
+    if(!strcmp(var.str,(const char *)"*") &&
+       !find_sys_var_ex(thd, var.str, var.length, throw_error, true))
     {
-      if (throw_error && session_created && thd)
+      if (throw_error && take_mutex && thd)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_WRONG_VALUE_FOR_VAR,
@@ -517,7 +527,7 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
       }
       else
       {
-        if (!thd || session_created)
+        if (!thd || take_mutex)
           mysql_mutex_unlock(&LOCK_plugin);
         return true;
       }
@@ -528,7 +538,7 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
     else
       break;
   }
-  if (!thd || session_created)
+  if (!thd || take_mutex)
     mysql_mutex_unlock(&LOCK_plugin);
 
   return false;
@@ -605,7 +615,10 @@ bool Session_sysvars_tracker::vars_list::construct_var_list(char *buf,
   my_hash_iterate(&m_registered_sysvars, &name_array_filler, &data);
   DBUG_ASSERT(data.idx <= m_registered_sysvars.records);
 
-
+  /*
+    We check number of records again here because number of variables
+    could be reduced in case of plugin unload.
+  */
   if (m_registered_sysvars.records == 0)
   {
     mysql_mutex_unlock(&LOCK_plugin);
@@ -710,7 +723,7 @@ bool Session_sysvars_tracker::update(THD *thd, set_var *var)
     We are doing via tool list because there possible errors with memory
     in this case value will be unchanged.
   */
-  tool_list->reset();
+  tool_list->reinit();
   if (tool_list->parse_var_list(thd, var->save_result.string_value, true,
                                 thd->charset(), true))
     return true;
@@ -718,6 +731,83 @@ bool Session_sysvars_tracker::update(THD *thd, set_var *var)
   return false;
 }
 
+
+/*
+  Function and structure to support storing variables from hash to the buffer.
+*/
+
+struct st_store_variable_param
+{
+  THD *thd;
+  String *buf;
+};
+
+my_bool Session_sysvars_tracker::store_variable(void *ptr, void *data_ptr)
+{
+  Session_sysvars_tracker::sysvar_node_st *node=
+    (Session_sysvars_tracker::sysvar_node_st *)ptr;
+  if (node->m_changed)
+  {
+    THD *thd= ((st_store_variable_param *)data_ptr)->thd;
+    String *buf= ((st_store_variable_param *)data_ptr)->buf;
+    char val_buf[SHOW_VAR_FUNC_BUFF_SIZE];
+    SHOW_VAR show;
+    CHARSET_INFO *charset;
+    size_t val_length, length;
+    mysql_mutex_lock(&LOCK_plugin);
+    if (!*node->test_load)
+    {
+      mysql_mutex_unlock(&LOCK_plugin);
+      return false;
+    }
+    sys_var *svar= node->m_svar;
+    bool is_plugin= svar->cast_pluginvar();
+    if (!is_plugin)
+      mysql_mutex_unlock(&LOCK_plugin);
+
+    /* As its always system variable. */
+    show.type= SHOW_SYS;
+    show.name= svar->name.str;
+    show.value= (char *) svar;
+
+    const char *value= get_one_variable(thd, &show, OPT_SESSION, SHOW_SYS, NULL,
+                                        &charset, val_buf, &val_length);
+    if (is_plugin)
+      mysql_mutex_unlock(&LOCK_plugin);
+
+    length= net_length_size(svar->name.length) +
+      svar->name.length +
+      net_length_size(val_length) +
+      val_length;
+
+    compile_time_assert(SESSION_TRACK_SYSTEM_VARIABLES < 251);
+    if (unlikely((1 + net_length_size(length) + length + buf->length() >=
+                  MAX_PACKET_LENGTH) ||
+                 buf->reserve(1 + net_length_size(length) + length,
+                              EXTRA_ALLOC)))
+      return true;
+
+
+    /* Session state type (SESSION_TRACK_SYSTEM_VARIABLES) */
+    buf->q_append((char)SESSION_TRACK_SYSTEM_VARIABLES);
+
+    /* Length of the overall entity. */
+    buf->q_net_store_length((ulonglong)length);
+
+    /* System variable's name (length-encoded string). */
+    buf->q_net_store_data((const uchar*)svar->name.str, svar->name.length);
+
+    /* System variable's value (length-encoded string). */
+    buf->q_net_store_data((const uchar*)value, val_length);
+  }
+  return false;
+}
+
+bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
+{
+  st_store_variable_param data= {thd, buf};
+  return my_hash_iterate(&m_registered_sysvars, &store_variable, &data);
+}
 
 /**
   Store the data for changed system variables in the specified buffer.
@@ -733,62 +823,11 @@ bool Session_sysvars_tracker::update(THD *thd, set_var *var)
 
 bool Session_sysvars_tracker::store(THD *thd, String *buf)
 {
-  char val_buf[SHOW_VAR_FUNC_BUFF_SIZE];
-  SHOW_VAR show;
-  const char *value;
-  sysvar_node_st *node;
-  CHARSET_INFO *charset;
-  size_t val_length, length;
-  int idx= 0;
+  if (!orig_list->is_enabled())
+    return false;
 
-  /* As its always system variable. */
-  show.type= SHOW_SYS;
-
-  while ((node= (sysvar_node_st *) (*orig_list)[idx]))
-  {
-    if (node->m_changed)
-    {
-      mysql_mutex_lock(&LOCK_plugin);
-      if (!*node->test_load)
-      {
-        mysql_mutex_unlock(&LOCK_plugin);
-        continue;
-      }
-      sys_var *svar= node->m_svar;
-      show.name= svar->name.str;
-      show.value= (char *) svar;
-
-      value= get_one_variable(thd, &show, OPT_SESSION, SHOW_SYS, NULL,
-                              &charset, val_buf, &val_length);
-      mysql_mutex_unlock(&LOCK_plugin);
-
-      length= net_length_size(svar->name.length) +
-              svar->name.length +
-              net_length_size(val_length) +
-              val_length;
-
-      compile_time_assert(SESSION_TRACK_SYSTEM_VARIABLES < 251);
-      if (unlikely((1 + net_length_size(length) + length + buf->length() >=
-                   MAX_PACKET_LENGTH) ||
-                   buf->prep_alloc(1 + net_length_size(length) + length,
-                                   EXTRA_ALLOC)))
-        return true;
-
-
-      /* Session state type (SESSION_TRACK_SYSTEM_VARIABLES) */
-      buf->q_append((char)SESSION_TRACK_SYSTEM_VARIABLES);
-
-      /* Length of the overall entity. */
-      buf->q_net_store_length((ulonglong)length);
-
-      /* System variable's name (length-encoded string). */
-      buf->q_net_store_data((const uchar*)svar->name.str, svar->name.length);
-
-      /* System variable's value (length-encoded string). */
-      buf->q_net_store_data((const uchar*)value, val_length);
-    }
-    ++ idx;
-  }
+  if (orig_list->store(thd, buf))
+    return true;
 
   reset();
 
@@ -811,7 +850,8 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd,
     Check if the specified system variable is being tracked, if so
     mark it as changed and also set the class's m_changed flag.
   */
-  if ((node= (sysvar_node_st *) (orig_list->insert_or_search(node, svar))))
+  if (orig_list->is_enabled() &&
+      (node= (sysvar_node_st *) (orig_list->insert_or_search(node, svar))))
   {
     node->m_changed= true;
     State_tracker::mark_as_changed(thd, var);
@@ -838,20 +878,28 @@ uchar *Session_sysvars_tracker::sysvars_get_key(const char *entry,
 }
 
 
+/* Function to support resetting hash nodes for the variables */
+
+my_bool Session_sysvars_tracker::reset_variable(void *ptr,
+                                                   void *data_ptr)
+{
+  ((Session_sysvars_tracker::sysvar_node_st *)ptr)->m_changed= false;
+  return false;
+}
+
+void Session_sysvars_tracker::vars_list::reset()
+{
+  my_hash_iterate(&m_registered_sysvars, &reset_variable, NULL);
+}
+
 /**
   Prepare/reset the m_registered_sysvars hash for next statement.
 */
 
 void Session_sysvars_tracker::reset()
 {
-  sysvar_node_st *node;
-  int idx= 0;
 
-  while ((node= (sysvar_node_st *) (*orig_list)[idx]))
-  {
-    node->m_changed= false;
-    ++ idx;
-  }
+  orig_list->reset();
   m_changed= false;
 }
 
@@ -931,7 +979,7 @@ bool Current_schema_tracker::store(THD *thd, String *buf)
   compile_time_assert(NAME_LEN < 251);
   DBUG_ASSERT(length < 251);
   if (unlikely((1 + 1 + length + buf->length() >= MAX_PACKET_LENGTH) ||
-               buf->prep_alloc(1 + 1 + length, EXTRA_ALLOC)))
+               buf->reserve(1 + 1 + length, EXTRA_ALLOC)))
     return true;
 
   /* Session state type (SESSION_TRACK_SCHEMA) */
@@ -1034,26 +1082,25 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
   /* STATE */
   if (tx_changed & TX_CHG_STATE)
   {
-    uchar *to;
     if (unlikely((11 + buf->length() >= MAX_PACKET_LENGTH) ||
-                 ((to= (uchar *) buf->prep_append(11, EXTRA_ALLOC)) == NULL)))
+                 buf->reserve(11, EXTRA_ALLOC)))
       return true;
 
-    *(to++)= (char)SESSION_TRACK_TRANSACTION_STATE;
+    buf->q_append((char)SESSION_TRACK_TRANSACTION_STATE);
 
-    to= net_store_length((uchar *) to, (ulonglong) 9);
-    to= net_store_length((uchar *) to, (ulonglong) 8);
+    buf->q_append((char)9); // whole packet length
+    buf->q_append((char)8); // results length
 
-    *(to++)=  (tx_curr_state & TX_EXPLICIT)       ? 'T' :
-             ((tx_curr_state & TX_IMPLICIT)       ? 'I' : '_');
-    *(to++)=  (tx_curr_state & TX_READ_UNSAFE)    ? 'r' : '_';
-    *(to++)= ((tx_curr_state & TX_READ_TRX) ||
-              (tx_curr_state & TX_WITH_SNAPSHOT)) ? 'R' : '_';
-    *(to++)=  (tx_curr_state & TX_WRITE_UNSAFE)   ? 'w' : '_';
-    *(to++)=  (tx_curr_state & TX_WRITE_TRX)      ? 'W' : '_';
-    *(to++)=  (tx_curr_state & TX_STMT_UNSAFE)    ? 's' : '_';
-    *(to++)=  (tx_curr_state & TX_RESULT_SET)     ? 'S' : '_';
-    *(to++)=  (tx_curr_state & TX_LOCKED_TABLES)  ? 'L' : '_';
+    buf->q_append((char)((tx_curr_state & TX_EXPLICIT)        ? 'T' :
+                         ((tx_curr_state & TX_IMPLICIT)       ? 'I' : '_')));
+    buf->q_append((char)((tx_curr_state & TX_READ_UNSAFE)     ? 'r' : '_'));
+    buf->q_append((char)(((tx_curr_state & TX_READ_TRX) ||
+                          (tx_curr_state & TX_WITH_SNAPSHOT)) ? 'R' : '_'));
+    buf->q_append((char)((tx_curr_state & TX_WRITE_UNSAFE)   ? 'w' : '_'));
+    buf->q_append((char)((tx_curr_state & TX_WRITE_TRX)      ? 'W' : '_'));
+    buf->q_append((char)((tx_curr_state & TX_STMT_UNSAFE)    ? 's' : '_'));
+    buf->q_append((char)((tx_curr_state & TX_RESULT_SET)     ? 'S' : '_'));
+    buf->q_append((char)((tx_curr_state & TX_LOCKED_TABLES)  ? 'L' : '_'));
   }
 
   /* CHARACTERISTICS -- How to restart the transaction */
@@ -1066,7 +1113,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
 
     /* 2 length by 1 byte and code */
     if (unlikely((1 + 1 + 1 + 110 + buf->length() >= MAX_PACKET_LENGTH) ||
-                 buf->prep_alloc(1 + 1 + 1, EXTRA_ALLOC)))
+                 buf->reserve(1 + 1 + 1, EXTRA_ALLOC)))
       return true;
 
     compile_time_assert(SESSION_TRACK_TRANSACTION_CHARACTERISTICS < 251);
@@ -1503,7 +1550,7 @@ bool Session_state_change_tracker::update(THD *thd, set_var *)
 bool Session_state_change_tracker::store(THD *thd, String *buf)
 {
   if (unlikely((1 + 1 + 1 + buf->length() >= MAX_PACKET_LENGTH) ||
-               buf->prep_alloc(1 + 1 + 1, EXTRA_ALLOC)))
+               buf->reserve(1 + 1 + 1, EXTRA_ALLOC)))
     return true;
 
   compile_time_assert(SESSION_TRACK_STATE_CHANGE < 251);
@@ -1550,9 +1597,10 @@ bool Session_state_change_tracker::is_state_changed(THD *)
 Session_tracker::Session_tracker()
 {
   /* track data ID fit into one byte in net coding */
-  compile_time_assert(SESSION_TRACK_END < 251);
+  compile_time_assert(SESSION_TRACK_always_at_the_end < 251);
   /* one tracker could serv several tracking data */
-  compile_time_assert((uint)SESSION_TRACK_END >= (uint)SESSION_TRACKER_END);
+  compile_time_assert((uint)SESSION_TRACK_always_at_the_end >=
+                      (uint)SESSION_TRACKER_END);
 
   for (int i= 0; i < SESSION_TRACKER_END; i++)
     m_trackers[i]= NULL;
@@ -1648,7 +1696,7 @@ void Session_tracker::store(THD *thd, String *buf)
 
   if ((size= net_length_size(length)) != 1)
   {
-    if (buf->prep_alloc(size - 1, EXTRA_ALLOC))
+    if (buf->reserve(size - 1, EXTRA_ALLOC))
     {
       buf->length(start); // it is safer to have 0-length block in case of error
       return;

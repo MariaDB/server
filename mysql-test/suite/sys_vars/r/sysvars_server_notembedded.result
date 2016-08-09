@@ -3818,13 +3818,13 @@ ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	SESSION_TRACK_SYSTEM_VARIABLES
-SESSION_VALUE	autocommit,character_set_client,character_set_connection,character_set_results,time_zone
-GLOBAL_VALUE	autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+SESSION_VALUE	
+GLOBAL_VALUE	
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+DEFAULT_VALUE	
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Track changes in registered system variables.
+VARIABLE_COMMENT	Track changes in registered system variables. For compatibility with MySQL defaults this variable should be set to "autocommit, character_set_client, character_set_connection, character_set_results, time_zone"
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

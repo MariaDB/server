@@ -2981,8 +2981,10 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 
 #ifndef EMBEDDED_LIBRARY
   /*
-    if there was instruction which changed tracking state before, result
-    can go with this command OK packet, so better do not cache the result.
+    If there was instruction which changed tracking state,
+    the result of changed tracking state send to client in OK packed.
+    So it changes result sent to client and probably can be different
+    independent on query text. So we can't cache such results.
   */
   if ((thd->client_capabilities & CLIENT_SESSION_TRACK) &&
       (thd->server_status & SERVER_SESSION_STATE_CHANGED))

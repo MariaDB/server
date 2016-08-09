@@ -566,16 +566,6 @@ public:
     return Ptr+ old_length;			/* Area to use */
   }
 
-  inline bool prep_alloc(uint32 arg_length, uint32 step_alloc)
-  {
-    uint32 new_length= arg_length + str_length;
-    if (new_length > Alloced_length)
-    {
-      if (realloc(new_length + step_alloc))
-        return true;
-    }
-    return false;
-  }
 
   inline bool append(const char *s, uint32 arg_length, uint32 step_alloc)
   {

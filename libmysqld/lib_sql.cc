@@ -1172,8 +1172,7 @@ bool
 net_send_ok(THD *thd,
             uint server_status, uint statement_warn_count,
             ulonglong affected_rows, ulonglong id, const char *message,
-            bool unused1,
-            bool unused2)
+            bool, bool)
 {
   DBUG_ENTER("emb_net_send_ok");
   MYSQL_DATA *data;

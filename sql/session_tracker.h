@@ -62,8 +62,8 @@ protected:
   /**
     Is tracking enabled for a particular session state type ?
 
-    @note: It is cache to avoid virtual functions and checking thd
-    when we want mark tracker as changed.
+    @note: it is a cache of the corresponding thd->variables.session_track_xxx
+    variable
   */
   bool m_enabled;
 

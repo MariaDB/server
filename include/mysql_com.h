@@ -559,13 +559,13 @@ enum enum_session_state_type
   SESSION_TRACK_GTIDS,
   SESSION_TRACK_TRANSACTION_CHARACTERISTICS,  /* Transaction chistics */
   SESSION_TRACK_TRANSACTION_STATE,            /* Transaction state */
-  SESSION_TRACK_END                           /* must be last */
+  SESSION_TRACK_always_at_the_end             /* must be last */
 };
 
 #define SESSION_TRACK_BEGIN SESSION_TRACK_SYSTEM_VARIABLES
 
 #define IS_SESSION_STATE_TYPE(T) \
-  (((int)(T) >= SESSION_TRACK_BEGIN) && ((T) < SESSION_TRACK_END))
+  (((int)(T) >= SESSION_TRACK_BEGIN) && ((T) < SESSION_TRACK_always_at_the_end))
 
 #define net_new_transaction(net) ((net)->pkt_nr=0)
 

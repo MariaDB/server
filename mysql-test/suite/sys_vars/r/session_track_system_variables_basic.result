@@ -5,25 +5,25 @@
 # Global - default
 SELECT @@global.session_track_system_variables;
 @@global.session_track_system_variables
-autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
 # Session - default
 SELECT @@session.session_track_system_variables;
 @@session.session_track_system_variables
-autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
 
 # via INFORMATION_SCHEMA.GLOBAL_VARIABLES
 SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'session_track%' ORDER BY VARIABLE_NAME;
 VARIABLE_NAME	VARIABLE_VALUE
 SESSION_TRACK_SCHEMA	ON
 SESSION_TRACK_STATE_CHANGE	OFF
-SESSION_TRACK_SYSTEM_VARIABLES	autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+SESSION_TRACK_SYSTEM_VARIABLES	
 SESSION_TRACK_TRANSACTION_INFO	OFF
 # via INFORMATION_SCHEMA.SESSION_VARIABLES
 SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE 'session_track%' ORDER BY VARIABLE_NAME;
 VARIABLE_NAME	VARIABLE_VALUE
 SESSION_TRACK_SCHEMA	ON
 SESSION_TRACK_STATE_CHANGE	OFF
-SESSION_TRACK_SYSTEM_VARIABLES	autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+SESSION_TRACK_SYSTEM_VARIABLES	
 SESSION_TRACK_TRANSACTION_INFO	OFF
 SET @global_saved_tmp =  @@global.session_track_system_variables;
 
@@ -34,7 +34,7 @@ SELECT @@global.session_track_system_variables;
 autocommit
 SELECT @@session.session_track_system_variables;
 @@session.session_track_system_variables
-autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
 
 # Altering session variable's value
 SET @@session.session_track_system_variables='autocommit';
@@ -72,25 +72,25 @@ SET @@session.session_track_system_variables = DEFAULT;
 
 SELECT @@global.session_track_system_variables;
 @@global.session_track_system_variables
-autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
 SELECT @@session.session_track_system_variables;
 @@session.session_track_system_variables
-autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
 
 # Variables' values in a new session (con2).
 connect  con2,"127.0.0.1",root,,test,$MASTER_MYPORT,;
 SELECT @@global.session_track_system_variables;
 @@global.session_track_system_variables
-autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
 SELECT @@session.session_track_system_variables;
 @@session.session_track_system_variables
-autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
 
 # Altering session should not affect global.
 SET @@session.session_track_system_variables = 'sql_mode';
 SELECT @@global.session_track_system_variables;
 @@global.session_track_system_variables
-autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
 SELECT @@session.session_track_system_variables;
 @@session.session_track_system_variables
 sql_mode
@@ -104,7 +104,7 @@ SELECT @@global.session_track_system_variables;
 sql_mode
 SELECT @@session.session_track_system_variables;
 @@session.session_track_system_variables
-autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
 
 # Switching to the default connection.
 connection default;

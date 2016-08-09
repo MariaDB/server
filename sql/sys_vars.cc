@@ -5393,10 +5393,12 @@ static Sys_var_ulong Sys_log_tc_size(
 
 static Sys_var_sesvartrack Sys_track_session_sys_vars(
        "session_track_system_variables",
-       "Track changes in registered system variables.",
+       "Track changes in registered system variables. "
+       "For compatibility with MySQL defaults this variable should be set to "
+       "\"autocommit, character_set_client, character_set_connection, "
+       "character_set_results, time_zone\"",
        CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
-       DEFAULT("autocommit,character_set_client,character_set_connection,"
-               "character_set_results,time_zone"),
+       DEFAULT(""),
        NO_MUTEX_GUARD);
 
 static bool update_session_track_schema(sys_var *self, THD *thd,
