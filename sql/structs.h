@@ -634,6 +634,17 @@ public:
   int conds;
   int hndlrs;
   int curs;
+  void init()
+  {
+    vars= conds= hndlrs= curs= 0;
+  }
+  void join(const Lex_spblock_st &b1, const Lex_spblock_st &b2)
+  {
+    vars= b1.vars + b2.vars;
+    conds= b1.conds + b2.conds;
+    hndlrs= b1.hndlrs + b2.hndlrs;
+    curs= b1.curs + b2.curs;
+  }
 };
 
 

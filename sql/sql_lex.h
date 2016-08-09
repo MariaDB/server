@@ -3048,7 +3048,6 @@ public:
     // Unlabeled blocks get an empty label
     sp_block_init(thd, empty_lex_str);
   }
-public:
   bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock)
   {
     class sp_label *tmp;
@@ -3056,6 +3055,23 @@ public:
   }
   bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
                                    const LEX_STRING end_label);
+  bool sp_declarations_join(Lex_spblock_st *res,
+                            const Lex_spblock_st b1,
+                            const Lex_spblock_st b2) const
+  {
+    if ((b2.vars || b2.conds) && (b1.curs || b1.hndlrs))
+    {
+      my_error(ER_SP_VARCOND_AFTER_CURSHNDLR, MYF(0));
+      return true;
+    }
+    if (b2.curs && b1.hndlrs)
+    {
+      my_error(ER_SP_CURSOR_AFTER_HANDLER, MYF(0));
+      return true;
+    }
+    res->join(b1, b2);
+    return false;
+  }
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
   {
