@@ -2362,7 +2362,7 @@ sp_proc_stmts1:
 sp_decls:
           /* Empty */
           {
-            $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;
+            $$.init();
           }
         | sp_decls sp_decl ';'
           {
@@ -2370,14 +2370,8 @@ sp_decls:
               because letting the grammar rules reflect it caused tricky
                shift/reduce conflicts with the wrong result. (And we get
                better error handling this way.) */
-            if (($2.vars || $2.conds) && ($1.curs || $1.hndlrs))
-              my_yyabort_error((ER_SP_VARCOND_AFTER_CURSHNDLR, MYF(0)));
-            if ($2.curs && $1.hndlrs)
-              my_yyabort_error((ER_SP_CURSOR_AFTER_HANDLER, MYF(0)));
-            $$.vars= $1.vars + $2.vars;
-            $$.conds= $1.conds + $2.conds;
-            $$.hndlrs= $1.hndlrs + $2.hndlrs;
-            $$.curs= $1.curs + $2.curs;
+            if (Lex->sp_declarations_join(&$$, $1, $2))
+              MYSQL_YYABORT;
           }
         ;
 
