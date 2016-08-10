@@ -71,6 +71,7 @@ tables = [
 ]
 
 # Code generation stats here
+print "source include/have_tokudb.inc;"
 print "# Tokutek"
 print "# Test that bulk fetch works with various table types"
 print ""

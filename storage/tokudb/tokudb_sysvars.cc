@@ -74,9 +74,7 @@ char*       gdb_path = NULL;
 my_bool     gdb_on_fatal = FALSE;
 #endif
 
-#if TOKUDB_CHECK_JEMALLOC
-uint        check_jemalloc = 0;
-#endif
+my_bool        check_jemalloc = TRUE;
 
 static MYSQL_SYSVAR_ULONGLONG(
     cache_size,
@@ -416,19 +414,14 @@ static MYSQL_SYSVAR_BOOL(
     true);
 #endif
 
-#if TOKUDB_CHECK_JEMALLOC
-static MYSQL_SYSVAR_UINT(
+static MYSQL_SYSVAR_BOOL(
     check_jemalloc,
     check_jemalloc,
-    0,
-    "check if jemalloc is linked",
+    PLUGIN_VAR_READONLY|PLUGIN_VAR_RQCMDARG,
+    "check if jemalloc is linked and transparent huge pages are disabled",
     NULL,
     NULL,
-    1,
-    0,
-    1,
-    0);
-#endif
+    TRUE);
 
 
 //******************************************************************************
@@ -948,9 +941,7 @@ st_mysql_sys_var* system_variables[] = {
     MYSQL_SYSVAR(gdb_on_fatal),
 #endif
 
-#if TOKUDB_CHECK_JEMALLOC
     MYSQL_SYSVAR(check_jemalloc),
-#endif
 
     // session vars
     MYSQL_SYSVAR(alter_print_error),

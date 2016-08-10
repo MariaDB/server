@@ -88,9 +88,7 @@ extern char*        gdb_path;
 extern my_bool      gdb_on_fatal;
 #endif
 
-#if TOKUDB_CHECK_JEMALLOC
-extern uint         check_jemalloc;
-#endif
+extern my_bool         check_jemalloc;
 
 #if TOKUDB_DEBUG
 // used to control background job manager
