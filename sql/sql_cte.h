@@ -2,6 +2,7 @@
 #define SQL_CTE_INCLUDED
 #include "sql_list.h"
 #include "sql_lex.h"
+#include "sql_select.h"
 
 class select_union;
 struct st_unit_ctxt_elem;
@@ -186,6 +187,8 @@ public:
 
   bool instantiate_tmp_tables();
 
+  void prepare_for_next_iteration();
+
   friend class With_clause;
 };
 
@@ -353,6 +356,19 @@ inline
 bool With_element::all_are_stabilized()
 {
   return (owner->stabilized & mutually_recursive) == mutually_recursive;
+}
+
+
+inline
+void With_element::prepare_for_next_iteration()
+{
+  With_element *with_elem= this;
+  while ((with_elem= with_elem->get_next_mutually_recursive()) != this)
+  {
+    TABLE *rec_table= with_elem->first_rec_table_to_update;
+    if (rec_table)
+      rec_table->reginfo.join_tab->preread_init_done= false;        
+  }
 }
 
 

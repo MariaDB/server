@@ -450,7 +450,7 @@ The following options may be given as the first argument:
  max_allowed_packet instead.
  --max-prepared-stmt-count=# 
  Maximum number of prepared statements in the server
- --max-recursion-level[=#] 
+ --max-recursive-iterations[=#] 
  Maximum number of iterations when executing recursive
  queries
  --max-relay-log-size=# 
@@ -1273,7 +1273,7 @@ max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-long-data-size 4194304
 max-prepared-stmt-count 16382
-max-recursion-level 18446744073709551615
+max-recursive-iterations 18446744073709551615
 max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
 max-sort-length 1024

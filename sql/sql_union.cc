@@ -1167,7 +1167,7 @@ err:
 
 
 // One step of recursive execution
-bool st_select_lex_unit::exec_recursive(bool is_driving_recursive)
+bool st_select_lex_unit::exec_recursive()
 {
   st_select_lex *lex_select_save= thd->lex->current_select;
   st_select_lex *start= with_element->first_recursive;
@@ -1188,18 +1188,6 @@ bool st_select_lex_unit::exec_recursive(bool is_driving_recursive)
 
   if ((saved_error= incr_table->file->ha_delete_all_rows()))
     goto err;
-
-  if (is_driving_recursive)
-  {
-    With_element *with_elem= with_element;
-    while ((with_elem= with_elem->get_next_mutually_recursive()) !=
-            with_element)
-    {
-      rec_table= with_elem->first_rec_table_to_update;
-      if (rec_table)
-        rec_table->reginfo.join_tab->preread_init_done= false;        
-    }
-  }
 
   if (with_element->level == 0)
   {
@@ -1248,9 +1236,6 @@ bool st_select_lex_unit::exec_recursive(bool is_driving_recursive)
     if (with_element->level == 1)
       rec_table->reginfo.join_tab->preread_init_done= true;  
   }
-    
-  if (with_element->level == thd->variables.max_recursion_level)
-    with_element->set_as_stabilized();
 
   thd->lex->current_select= lex_select_save;
 err:

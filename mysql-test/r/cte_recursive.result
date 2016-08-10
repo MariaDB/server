@@ -1086,7 +1086,7 @@ generation	name
 1	Mom
 2	Grandpa Bill
 2	Grandma Ann
-set statement max_recursion_level=2 for
+set statement max_recursive_iterations=1 for
 with recursive
 ancestor_ids (id, generation)
 as
@@ -1463,8 +1463,8 @@ drop table folks;
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 explain format=json 
-with recursive T as (select a from t1 union select a+10 from T where a < 1000) 
-select  * from T;
+with recursive t as (select a from t1 union select a+10 from t where a < 1000) 
+select  * from t;
 EXPLAIN
 {
   "query_block": {
@@ -1499,7 +1499,7 @@ EXPLAIN
                     "access_type": "ALL",
                     "rows": 10,
                     "filtered": 100,
-                    "attached_condition": "(T.a < 1000)"
+                    "attached_condition": "(t.a < 1000)"
                   }
                 }
               }

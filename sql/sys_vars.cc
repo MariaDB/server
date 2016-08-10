@@ -2145,10 +2145,10 @@ static Sys_var_ulong Sys_max_prepared_stmt_count(
        VALID_RANGE(0, 1024*1024), DEFAULT(16382), BLOCK_SIZE(1),
        &PLock_prepared_stmt_count);
 
-static Sys_var_ulong Sys_max_recursion_level(
-       "max_recursion_level",
+static Sys_var_ulong Sys_max_recursive_iterations(
+       "max_recursive_iterations",
        "Maximum number of iterations when executing recursive queries",
-       SESSION_VAR(max_recursion_level), CMD_LINE(OPT_ARG),
+       SESSION_VAR(max_recursive_iterations), CMD_LINE(OPT_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(UINT_MAX), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_max_sort_length(

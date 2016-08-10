@@ -927,13 +927,18 @@ bool TABLE_LIST::fill_recursive(THD *thd)
   bool rc= false;
   st_select_lex_unit *unit= get_unit();
   if (is_with_table_recursive_reference())
-    rc= unit->exec_recursive(false);
+  {
+    rc= unit->exec_recursive();
+  }
   else
   {
     rc= with->instantiate_tmp_tables();
-    while(!rc && !with->all_are_stabilized())
+    while (!rc && !with->all_are_stabilized())
     {
-      rc= unit->exec_recursive(true);
+      if (with->level > thd->variables.max_recursive_iterations)
+        break;
+      with->prepare_for_next_iteration();
+      rc= unit->exec_recursive();
     }
     if (!rc)
     {
