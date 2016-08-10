@@ -641,40 +641,43 @@ public class JdbcInterface {
 	  return false;  
 	} // end of BooleanField
 	    
-    public Date DateField(int n, String name) {
+    public int DateField(int n, String name) {
 	  if (rs == null) {
 		System.out.println("No result set");
 	  } else try {
-	    return (n > 0) ? rs.getDate(n) : rs.getDate(name);
+	    Date d = (n > 0) ? rs.getDate(n) : rs.getDate(name);
+	    return (d != null) ? (int)(d.getTime() / 1000) : 0;
 	  } catch (SQLException se) {
 		SetErrmsg(se);
 	  } //end try/catch
 	    	  
-	  return null;  
+	  return 0;  
 	} // end of DateField
 	    
-    public Time TimeField(int n, String name) {
+    public int TimeField(int n, String name) {
 	  if (rs == null) {
 		System.out.println("No result set");
 	  } else try {
-	    return (n > 0) ? rs.getTime(n) : rs.getTime(name);
+	    Time t = (n > 0) ? rs.getTime(n) : rs.getTime(name);
+	    return (t != null) ? (int)(t.getTime() / 1000) : 0;
 	  } catch (SQLException se) {
 		SetErrmsg(se);
 	  } //end try/catch
 	    	  
-	  return null;  
+	  return 0;  
 	} // end of TimeField
 	    
-    public Timestamp TimestampField(int n, String name) {
+    public int TimestampField(int n, String name) {
 	  if (rs == null) {
 		System.out.println("No result set");
 	  } else try {
-	    return (n > 0) ? rs.getTimestamp(n) : rs.getTimestamp(name);
+	    Timestamp ts = (n > 0) ? rs.getTimestamp(n) : rs.getTimestamp(name);
+	    return (ts != null) ? (int)(ts.getTime() / 1000) : 0;
 	  } catch (SQLException se) {
 		SetErrmsg(se);
 	  } //end try/catch
 	    	  
-	  return null;  
+	  return 0;  
 	} // end of TimestampField
     
     public String ObjectField(int n, String name) {
