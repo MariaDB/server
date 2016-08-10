@@ -1,7 +1,7 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 3.0                                                        */
+/*  Version 3.1                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -96,7 +96,7 @@ bool ExactInfo(void);
 ODBCDEF::ODBCDEF(void)
   {
   Connect = Tabname = Tabschema = Username = Password = NULL;
-  Tabcat = Srcdef = Qchar = Qrystr = Sep = NULL;
+  Tabcat = Colpat = Srcdef = Qchar = Qrystr = Sep = NULL;
   Catver = Options = Cto = Qto = Quoted = Maxerr = Maxres = Memory = 0;
   Scrollable = Xsrc = UseCnc = false;
   }  // end of ODBCDEF constructor
@@ -120,7 +120,7 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Tabschema = GetStringCatInfo(g, "Schema", Tabschema);
   Tabcat = GetStringCatInfo(g, "Qualifier", NULL);
   Tabcat = GetStringCatInfo(g, "Catalog", Tabcat);
-  Username = GetStringCatInfo(g, "User", NULL);
+	Username = GetStringCatInfo(g, "User", NULL);
   Password = GetStringCatInfo(g, "Password", NULL);
 
   if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL)))
@@ -141,7 +141,13 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if ((Scrollable = GetBoolCatInfo("Scrollable", false)) && !Elemt)
     Elemt = 1;     // Cannot merge SQLFetch and SQLExtendedFetch
 
-  UseCnc = GetBoolCatInfo("UseDSN", false);
+	if (Catfunc == FNC_COL)
+		Colpat = GetStringCatInfo(g, "Colpat", NULL);
+
+	if (Catfunc == FNC_TABLE)
+		Tabtyp = GetStringCatInfo(g, "Tabtype", NULL);
+
+	UseCnc = GetBoolCatInfo("UseDSN", false);
 
   // Memory was Boolean, it is now integer
   if (!(Memory = GetIntCatInfo("Memory", 0)))
@@ -452,9 +458,14 @@ bool TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   if (Catalog && *Catalog)
     catp = Catalog;
 
-  if (tablep->GetSchema())
-    schmp = (char*)tablep->GetSchema();
-  else if (Schema && *Schema)
+	// Following lines are commented because of MSDEV-10520
+	// Indeed the schema in the tablep is the local table database and
+	// is normally not related to the remote table database.
+	// TODO: Try to remember why this was done and if it was useful in some case.
+  //if (tablep->GetSchema())
+  //  schmp = (char*)tablep->GetSchema();
+  //else
+	if (Schema && *Schema)
     schmp = Schema;
 
   if (catp) {
@@ -535,9 +546,10 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 	if (catp)
 		len += strlen(catp) + 1;
 
-	if (tablep->GetSchema())
-		schmp = (char*)tablep->GetSchema();
-	else if (Schema && *Schema)
+	//if (tablep->GetSchema())
+	//	schmp = (char*)tablep->GetSchema();
+	//else 
+	if (Schema && *Schema)
 		schmp = Schema;
 
 	if (schmp)
@@ -681,7 +693,7 @@ bool TDBODBC::MakeCommand(PGLOBAL g)
   } else {
     sprintf(g->Message, "Cannot use this %s command",
                  (Mode == MODE_UPDATE) ? "UPDATE" : "DELETE");
-    return NULL;
+    return false;
   } // endif p
 
 	Query = new(g) STRING(g, 0, stmt);
@@ -1768,6 +1780,7 @@ TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
   Dsn = tdp->GetConnect();
   Schema = tdp->GetTabschema();
   Tab = tdp->GetTabname();
+	Tabtyp = tdp->Tabtyp;
   Ops.User = tdp->Username;
   Ops.Pwd = tdp->Password;
   Ops.Cto = tdp->Cto;
@@ -1780,17 +1793,25 @@ TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
 /***********************************************************************/
 PQRYRES TDBOTB::GetResult(PGLOBAL g)
   {
-  return ODBCTables(g, Dsn, Schema, Tab, Maxres, false, &Ops);
+  return ODBCTables(g, Dsn, Schema, Tab, Tabtyp, Maxres, false, &Ops);
 	} // end of GetResult
 
 /* ---------------------------TDBOCL class --------------------------- */
+
+/***********************************************************************/
+/*  TDBOCL class constructor.                                          */
+/***********************************************************************/
+TDBOCL::TDBOCL(PODEF tdp) : TDBOTB(tdp)
+{
+	Colpat = tdp->Colpat;
+} // end of TDBOTB constructor
 
 /***********************************************************************/
 /*  GetResult: Get the list of ODBC table columns.                     */
 /***********************************************************************/
 PQRYRES TDBOCL::GetResult(PGLOBAL g)
   {
-  return ODBCColumns(g, Dsn, Schema, Tab, NULL, Maxres, false, &Ops);
+  return ODBCColumns(g, Dsn, Schema, Tab, Colpat, Maxres, false, &Ops);
 	} // end of GetResult
 
 /* ------------------------ End of Tabodbc --------------------------- */
