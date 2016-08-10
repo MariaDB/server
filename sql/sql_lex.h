@@ -3053,8 +3053,16 @@ public:
     class sp_label *tmp;
     return sp_block_finalize(thd, spblock, &tmp);
   }
+  bool sp_block_finalize(THD *thd)
+  {
+    return sp_block_finalize(thd, Lex_spblock());
+  }
   bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
                                    const LEX_STRING end_label);
+  bool sp_block_finalize(THD *thd, const LEX_STRING end_label)
+  {
+    return sp_block_finalize(thd, Lex_spblock(), end_label);
+  }
   bool sp_declarations_join(Lex_spblock_st *res,
                             const Lex_spblock_st b1,
                             const Lex_spblock_st b2) const

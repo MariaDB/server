@@ -272,3 +272,108 @@ CREATE TABLE begin (begin INT);
 DROP TABLE begin;
 CREATE TABLE end (end INT);
 DROP TABLE end;
+
+
+--echo # Testing top-level declarations
+DELIMITER /;
+CREATE PROCEDURE p1 (p1 OUT VARCHAR2(10))
+AS
+  p2 VARCHAR(10);
+BEGIN
+  p2:='p1new';
+  p1:=p2;
+END;
+/
+DELIMITER ;/
+SET @p1='p1';
+CALL p1(@p1);
+SELECT @p1;
+DROP PROCEDURE p1;
+
+DELIMITER /;
+CREATE FUNCTION f1 (p1 VARCHAR2(10)) RETURNS VARCHAR(20)
+AS
+  p2 VARCHAR(10);
+BEGIN
+  p2:='new';
+  RETURN CONCAT(p1, p2);
+END;
+/
+DELIMITER ;/
+SET @p1='p1';
+SELECT f1(@p1);
+DROP FUNCTION f1;
+
+--echo # Testing non-top declarations
+
+DELIMITER /;
+CREATE PROCEDURE p1 (p1 OUT VARCHAR2(10))
+AS
+BEGIN
+  DECLARE
+    p2 VARCHAR(10);
+  BEGIN
+    p2:='p1new';
+    p1:=p2;
+  END;
+  DECLARE
+    t1 VARCHAR(10);
+    t2 VARCHAR(10);
+  BEGIN
+  END;
+END;
+/
+DELIMITER ;/
+SET @p1='p1';
+CALL p1(@p1);
+SELECT @p1;
+DROP PROCEDURE p1;
+
+DELIMITER /;
+CREATE FUNCTION f1 (p1 VARCHAR2(10)) RETURNS VARCHAR(20)
+AS
+BEGIN
+  DECLARE
+    p2 VARCHAR(10);
+  BEGIN
+    p2:='new';
+    RETURN CONCAT(p1, p2);
+  END;
+  DECLARE
+    t1 VARCHAR(10);
+    t2 VARCHAR(10);
+  BEGIN
+  END;
+END;
+/
+DELIMITER ;/
+SET @p1='p1';
+SELECT f1(@p1);
+DROP FUNCTION f1;
+
+
+--echo # Testing BEGIN NOT ATOMIC with no declarations
+DELIMITER /;
+BEGIN NOT ATOMIC
+ SELECT 1 AS a;
+END
+/
+DELIMITER ;/
+
+--echo # Testing BEGIN NOT ATOMIC with declarations
+--echo # DECLARE starts a new block and thus must be followed by BEGIN .. END
+DELIMITER /;
+BEGIN NOT ATOMIC
+  DECLARE
+    i INT DEFAULT 5;
+    x INT DEFAULT 10;
+  BEGIN
+  <<label>>
+  WHILE i > 3 DO
+    i:= i - 1;
+    SELECT i;
+  END WHILE label;
+  END;
+END
+/
+DELIMITER ;/

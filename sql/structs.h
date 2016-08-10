@@ -648,4 +648,10 @@ public:
 };
 
 
+class Lex_spblock: public Lex_spblock_st
+{
+public:
+  Lex_spblock() { init(); }
+};
+
 #endif /* STRUCTS_INCLUDED */
