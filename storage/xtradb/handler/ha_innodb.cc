@@ -9834,7 +9834,8 @@ ha_innobase::delete_table(
 
 	error = row_drop_table_for_mysql(norm_name, trx,
 					 thd_sql_command(thd)
-					 == SQLCOM_DROP_DB);
+					 == SQLCOM_DROP_DB,
+					 FALSE);
 
 	/* Flush the log to reduce probability that the .frm files and
 	the InnoDB data dictionary get out-of-sync if the user runs
@@ -9919,6 +9920,7 @@ innobase_drop_database(
 		trx_free_for_mysql(trx);
 		return; /* ignore */
 	}
+
 	row_drop_database_for_mysql(namebuf, trx);
 	my_free(namebuf);
 

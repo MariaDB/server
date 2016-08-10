@@ -79,7 +79,6 @@ void Item_subselect::init(st_select_lex *select_lex,
   DBUG_PRINT("enter", ("select_lex: 0x%lx  this: 0x%lx",
                        (ulong) select_lex, (ulong) this));
   unit= select_lex->master_unit();
-  thd= unit->thd;
 
   if (unit->item)
   {
@@ -90,7 +89,7 @@ void Item_subselect::init(st_select_lex *select_lex,
     engine= unit->item->engine;
     own_engine= FALSE;
     parsing_place= unit->item->parsing_place;
-    thd->change_item_tree((Item**)&unit->item, this);
+    unit->thd->change_item_tree((Item**)&unit->item, this);
     engine->change_result(this, result, TRUE);
   }
   else
@@ -104,9 +103,9 @@ void Item_subselect::init(st_select_lex *select_lex,
                     NO_MATTER :
                     outer_select->parsing_place);
     if (unit->is_union())
-      engine= new subselect_union_engine(thd, unit, result, this);
+      engine= new subselect_union_engine(unit, result, this);
     else
-      engine= new subselect_single_select_engine(thd, select_lex, result, this);
+      engine= new subselect_single_select_engine(select_lex, result, this);
   }
   {
     SELECT_LEX *upper= unit->outer_select();
@@ -220,6 +219,10 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   uint8 uncacheable;
   bool res;
 
+  thd= thd_param;
+
+  DBUG_ASSERT(unit->thd == thd);
+
   status_var_increment(thd_param->status_var.feature_subquery);
 
   DBUG_ASSERT(fixed == 0);
@@ -242,7 +245,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
     return TRUE;
   
   
-  if (!(res= engine->prepare()))
+  if (!(res= engine->prepare(thd)))
   {
     // all transformation is done (used by prepared statements)
     changed= 1;
@@ -2651,7 +2654,10 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
 {
   uint outer_cols_num;
   List<Item> *inner_cols;
-  char const *save_where= thd->where;
+  char const *save_where= thd_arg->where;
+
+  thd= thd_arg;
+  DBUG_ASSERT(unit->thd == thd);
 
   if (test_strategy(SUBS_SEMI_JOIN))
     return !( (*ref)= new Item_int(1));
@@ -2769,7 +2775,8 @@ bool Item_in_subselect::setup_mat_engine()
   if (!(mat_engine= new subselect_hash_sj_engine(thd, this, select_engine)))
     DBUG_RETURN(TRUE);
 
-  if (mat_engine->init(&select_engine->join->fields_list,
+  if (mat_engine->prepare(thd) ||
+      mat_engine->init(&select_engine->join->fields_list,
                        engine->get_identifier()))
     DBUG_RETURN(TRUE);
 
@@ -2885,10 +2892,10 @@ void subselect_engine::set_thd(THD *thd_arg)
 
 
 subselect_single_select_engine::
-subselect_single_select_engine(THD *thd_arg, st_select_lex *select,
+subselect_single_select_engine(st_select_lex *select,
 			       select_result_interceptor *result_arg,
 			       Item_subselect *item_arg)
-  :subselect_engine(thd_arg, item_arg, result_arg),
+  :subselect_engine(item_arg, result_arg),
    prepared(0), executed(0),
    select_lex(select), join(0)
 {
@@ -2966,10 +2973,10 @@ void subselect_uniquesubquery_engine::cleanup()
 }
 
 
-subselect_union_engine::subselect_union_engine(THD *thd_arg, st_select_lex_unit *u,
+subselect_union_engine::subselect_union_engine(st_select_lex_unit *u,
 					       select_result_interceptor *result_arg,
 					       Item_subselect *item_arg)
-  :subselect_engine(thd_arg, item_arg, result_arg)
+  :subselect_engine(item_arg, result_arg)
 {
   unit= u;
   unit->item= item_arg;
@@ -3002,10 +3009,11 @@ subselect_union_engine::subselect_union_engine(THD *thd_arg, st_select_lex_unit 
   @retval 1  if error
 */
 
-int subselect_single_select_engine::prepare()
+int subselect_single_select_engine::prepare(THD *thd)
 {
   if (prepared)
     return 0;
+  set_thd(thd);
   if (select_lex->join)
   {
     select_lex->cleanup();
@@ -3034,12 +3042,13 @@ int subselect_single_select_engine::prepare()
   return 0;
 }
 
-int subselect_union_engine::prepare()
+int subselect_union_engine::prepare(THD *thd_arg)
 {
+  set_thd(thd_arg);
   return unit->prepare(thd, result, SELECT_NO_UNLOCK);
 }
 
-int subselect_uniquesubquery_engine::prepare()
+int subselect_uniquesubquery_engine::prepare(THD *)
 {
   /* Should never be called. */
   DBUG_ASSERT(FALSE);
@@ -3299,7 +3308,7 @@ int subselect_uniquesubquery_engine::scan_table()
   }
 
   table->file->extra_opt(HA_EXTRA_CACHE,
-                         current_thd->variables.read_buff_size);
+                         get_thd()->variables.read_buff_size);
   table->null_row= 0;
   for (;;)
   {
@@ -3737,7 +3746,7 @@ table_map subselect_union_engine::upper_select_const_tables()
 void subselect_single_select_engine::print(String *str,
                                            enum_query_type query_type)
 {
-  select_lex->print(thd, str, query_type);
+  select_lex->print(get_thd(), str, query_type);
 }
 
 
@@ -4267,6 +4276,7 @@ bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
 
 bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
 {
+  THD *thd= get_thd();
   select_union *result_sink;
   /* Options to create_tmp_table. */
   ulonglong tmp_create_options= thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS;
@@ -4499,13 +4509,14 @@ subselect_hash_sj_engine::~subselect_hash_sj_engine()
 }
 
 
-int subselect_hash_sj_engine::prepare()
+int subselect_hash_sj_engine::prepare(THD *thd_arg)
 {
   /*
     Create and optimize the JOIN that will be used to materialize
     the subquery if not yet created.
   */
-  return materialize_engine->prepare();
+  set_thd(thd_arg);
+  return materialize_engine->prepare(thd);
 }
 
 
@@ -4877,7 +4888,7 @@ int subselect_hash_sj_engine::exec()
     if (strategy == PARTIAL_MATCH_MERGE)
     {
       pm_engine=
-        new subselect_rowid_merge_engine(thd, (subselect_uniquesubquery_engine*)
+        new subselect_rowid_merge_engine((subselect_uniquesubquery_engine*)
                                          lookup_engine, tmp_table,
                                          count_pm_keys,
                                          has_covering_null_row,
@@ -4886,6 +4897,7 @@ int subselect_hash_sj_engine::exec()
                                          item, result,
                                          semi_join_conds->argument_list());
       if (!pm_engine ||
+          pm_engine->prepare(thd) ||
           ((subselect_rowid_merge_engine*) pm_engine)->
             init(nn_key_parts, &partial_match_key_parts))
       {
@@ -4903,13 +4915,14 @@ int subselect_hash_sj_engine::exec()
     if (strategy == PARTIAL_MATCH_SCAN)
     {
       if (!(pm_engine=
-            new subselect_table_scan_engine(thd, (subselect_uniquesubquery_engine*)
+            new subselect_table_scan_engine((subselect_uniquesubquery_engine*)
                                             lookup_engine, tmp_table,
                                             item, result,
                                             semi_join_conds->argument_list(),
                                             has_covering_null_row,
                                             has_covering_null_columns,
-                                            count_columns_with_nulls)))
+                                            count_columns_with_nulls)) ||
+          pm_engine->prepare(thd))
       {
         /* This is an irrecoverable error. */
         res= 1;
@@ -5356,14 +5369,14 @@ void Ordered_key::print(String *str)
 
 
 subselect_partial_match_engine::subselect_partial_match_engine(
-  THD *thd_arg, subselect_uniquesubquery_engine *engine_arg,
+  subselect_uniquesubquery_engine *engine_arg,
   TABLE *tmp_table_arg, Item_subselect *item_arg,
   select_result_interceptor *result_arg,
   List<Item> *equi_join_conds_arg,
   bool has_covering_null_row_arg,
   bool has_covering_null_columns_arg,
   uint count_columns_with_nulls_arg)
-  :subselect_engine(thd_arg, item_arg, result_arg),
+  :subselect_engine(item_arg, result_arg),
    tmp_table(tmp_table_arg), lookup_engine(engine_arg),
    equi_join_conds(equi_join_conds_arg),
    has_covering_null_row(has_covering_null_row_arg),
@@ -5488,6 +5501,7 @@ bool
 subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
                                    MY_BITMAP *partial_match_key_parts)
 {
+  THD *thd= get_thd();
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tmp_table->file->ref_length;
   ha_rows row_count= tmp_table->file->stats.records;
@@ -5976,7 +5990,7 @@ end:
 
 
 subselect_table_scan_engine::subselect_table_scan_engine(
-  THD *thd_arg, subselect_uniquesubquery_engine *engine_arg,
+  subselect_uniquesubquery_engine *engine_arg,
   TABLE *tmp_table_arg,
   Item_subselect *item_arg,
   select_result_interceptor *result_arg,
@@ -5984,7 +5998,7 @@ subselect_table_scan_engine::subselect_table_scan_engine(
   bool has_covering_null_row_arg,
   bool has_covering_null_columns_arg,
   uint count_columns_with_nulls_arg)
-  :subselect_partial_match_engine(thd_arg, engine_arg, tmp_table_arg, item_arg,
+  :subselect_partial_match_engine(engine_arg, tmp_table_arg, item_arg,
                                   result_arg, equi_join_conds_arg,
                                   has_covering_null_row_arg,
                                   has_covering_null_columns_arg,
@@ -6026,7 +6040,7 @@ bool subselect_table_scan_engine::partial_match()
   }
 
   tmp_table->file->extra_opt(HA_EXTRA_CACHE,
-                             current_thd->variables.read_buff_size);
+                             get_thd()->variables.read_buff_size);
   for (;;)
   {
     error= tmp_table->file->ha_rnd_next(tmp_table->record[0]);
