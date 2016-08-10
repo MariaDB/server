@@ -496,16 +496,16 @@ UNIV_INTERN ulint	srv_available_undo_logs         = 0;
 /* Ensure status variables are on separate cache lines */
 
 #define CACHE_LINE_SIZE 64
-#define CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE_SIZE)))
+#define CACHE_ALIGNED MY_ATTRIBUTE((aligned (CACHE_LINE_SIZE)))
 
 UNIV_INTERN byte
-counters_pad_start[CACHE_LINE_SIZE] __attribute__((unused)) = {0};
+counters_pad_start[CACHE_LINE_SIZE] MY_ATTRIBUTE((unused)) = {0};
 
 UNIV_INTERN ulint		srv_read_views_memory CACHE_ALIGNED	= 0;
 UNIV_INTERN ulint		srv_descriptors_memory CACHE_ALIGNED	= 0;
 
 UNIV_INTERN byte
-counters_pad_end[CACHE_LINE_SIZE] __attribute__((unused)) = {0};
+counters_pad_end[CACHE_LINE_SIZE] MY_ATTRIBUTE((unused)) = {0};
 
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
@@ -1889,7 +1889,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(srv_monitor_thread)(
 /*===============================*/
-	void*	arg __attribute__((unused)))
+	void*	arg MY_ATTRIBUTE((unused)))
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
@@ -2066,7 +2066,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(srv_error_monitor_thread)(
 /*=====================================*/
-	void*	arg __attribute__((unused)))
+	void*	arg MY_ATTRIBUTE((unused)))
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
@@ -2302,7 +2302,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(srv_redo_log_follow_thread)(
 /*=======================================*/
-	void*	arg __attribute__((unused)))	/*!< in: a dummy parameter
+	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						     required by
 						     os_thread_create */
 {
@@ -2749,7 +2749,7 @@ srv_master_do_active_tasks(void)
 	/* Do an ibuf merge */
 	srv_main_thread_op_info = "doing insert buffer merge";
 	counter_time = ut_time_us(NULL);
-	ibuf_contract_in_background(0, FALSE);
+	ibuf_merge_in_background(false);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
 
@@ -2841,7 +2841,7 @@ srv_master_do_idle_tasks(void)
 	/* Do an ibuf merge */
 	counter_time = ut_time_us(NULL);
 	srv_main_thread_op_info = "doing insert buffer merge";
-	ibuf_contract_in_background(0, TRUE);
+	ibuf_merge_in_background(true);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
 
@@ -2927,7 +2927,7 @@ srv_master_do_shutdown_tasks(
 
 	/* Do an ibuf merge */
 	srv_main_thread_op_info = "doing insert buffer merge";
-	n_bytes_merged = ibuf_contract_in_background(0, TRUE);
+	n_bytes_merged = ibuf_merge_in_background(true);
 
 	/* Flush logs if needed */
 	srv_sync_log_buffer_in_background();
@@ -2967,7 +2967,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(srv_master_thread)(
 /*==============================*/
-	void*	arg __attribute__((unused)))
+	void*	arg MY_ATTRIBUTE((unused)))
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
@@ -3127,7 +3127,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(srv_worker_thread)(
 /*==============================*/
-	void*	arg __attribute__((unused)))	/*!< in: a dummy parameter
+	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
 	srv_slot_t*	slot;
@@ -3395,7 +3395,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(srv_purge_coordinator_thread)(
 /*=========================================*/
-	void*	arg __attribute__((unused)))	/*!< in: a dummy parameter
+	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
 	srv_slot_t*	slot;

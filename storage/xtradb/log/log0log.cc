@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -2468,7 +2468,7 @@ log_archived_file_name_gen(
 /*=======================*/
 	char*	buf,	/*!< in: buffer where to write */
 	ulint	buf_len,/*!< in: buffer length */
-	ulint	id __attribute__((unused)),
+	ulint	id MY_ATTRIBUTE((unused)),
 			/*!< in: group id;
 			currently we only archive the first group */
 	lsn_t	file_no)/*!< in: file number */

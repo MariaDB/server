@@ -822,12 +822,19 @@ fil_node_open_file(
 			ut_error;
 		}
 
-		if (UNIV_UNLIKELY(space->flags != flags)) {
+		/* Validate the flags but do not compare the data directory
+		flag, in case this tablespace was relocated. */
+		const unsigned relevant_space_flags
+			= space->flags & ~FSP_FLAGS_MASK_DATA_DIR;
+		const unsigned relevant_flags
+			= flags & ~FSP_FLAGS_MASK_DATA_DIR;
+		if (UNIV_UNLIKELY(relevant_space_flags != relevant_flags)) {
 			fprintf(stderr,
-				"InnoDB: Error: table flags are 0x%lx"
+				"InnoDB: Error: table flags are 0x%x"
 				" in the data dictionary\n"
-				"InnoDB: but the flags in file %s are 0x%lx!\n",
-				space->flags, node->name, flags);
+				"InnoDB: but the flags in file %s are 0x%x!\n",
+				relevant_space_flags, node->name,
+				relevant_flags);
 
 			ut_error;
 		}
@@ -1919,7 +1926,7 @@ fil_set_max_space_id_if_bigger(
 Writes the flushed lsn and the latest archived log number to the page header
 of the first page of a data file of the system tablespace (space 0),
 which is uncompressed. */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 fil_write_lsn_and_arch_no_to_file(
 /*==============================*/
@@ -1927,7 +1934,7 @@ fil_write_lsn_and_arch_no_to_file(
 	ulint	sum_of_sizes,	/*!< in: combined size of previous files
 				in space, in database pages */
 	lsn_t	lsn,		/*!< in: lsn to write */
-	ulint	arch_log_no __attribute__((unused)))
+	ulint	arch_log_no MY_ATTRIBUTE((unused)))
 				/*!< in: archived log number to write */
 {
 	byte*	buf1;
@@ -2014,7 +2021,7 @@ Checks the consistency of the first data page of a tablespace
 at database startup.
 @retval NULL on success, or if innodb_force_recovery is set
 @return pointer to an error message string */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 const char*
 fil_check_first_page(
 /*=================*/
