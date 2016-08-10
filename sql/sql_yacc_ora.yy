@@ -1329,7 +1329,7 @@ END_OF_INPUT
 
 %type <num>  sp_decl_idents sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
-%type <spblock> sp_decls sp_decl sp_decl_body
+%type <spblock> sp_decl_body sp_decl_body_list opt_sp_decl_body_list
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
@@ -2359,24 +2359,21 @@ sp_proc_stmts1:
         | sp_proc_stmts1  sp_proc_stmt ';'
         ;
 
-sp_decls:
+opt_sp_decl_body_list:
           /* Empty */
           {
             $$.init();
           }
-        | sp_decls sp_decl ';'
+        | sp_decl_body_list { $$= $1; }
+        ;
+
+sp_decl_body_list:
+          sp_decl_body ';' { $$= $1; }
+        | sp_decl_body_list sp_decl_body ';'
           {
-            /* We check for declarations out of (standard) order this way
-              because letting the grammar rules reflect it caused tricky
-               shift/reduce conflicts with the wrong result. (And we get
-               better error handling this way.) */
             if (Lex->sp_declarations_join(&$$, $1, $2))
               MYSQL_YYABORT;
           }
-        ;
-
-sp_decl:
-          DECLARE_SYM sp_decl_body { $$= $2; }
         ;
 
 sp_decl_body:
@@ -2392,7 +2389,7 @@ sp_decl_body:
             $$.vars= $1;
             $$.conds= $$.hndlrs= $$.curs= 0;
           }
-        | ident CONDITION_SYM FOR_SYM sp_cond
+        | ident_directly_assignable CONDITION_SYM FOR_SYM sp_cond
           {
             if (Lex->spcont->declare_condition(thd, $1, $4))
               MYSQL_YYABORT;
@@ -2411,7 +2408,7 @@ sp_decl_body:
             $$.vars= $$.conds= $$.curs= 0;
             $$.hndlrs= 1;
           }
-        | ident CURSOR_SYM FOR_SYM sp_cursor_stmt
+        | ident_directly_assignable CURSOR_SYM FOR_SYM sp_cursor_stmt
           {
             if (Lex->sp_declare_cursor(thd, $1, $4))
               MYSQL_YYABORT;
@@ -2823,7 +2820,7 @@ condition_information_item_name:
         ;
 
 sp_decl_idents:
-          ident
+          ident_directly_assignable
           {
             /* NOTE: field definition is filled in sp_decl section. */
 
@@ -3381,12 +3378,25 @@ sp_labeled_block:
           {
             Lex->sp_block_init(thd, $1);
           }
-          sp_decls
           sp_proc_stmts
           END
           sp_opt_label
           {
-            if (Lex->sp_block_finalize(thd, $4, $7))
+            if (Lex->sp_block_finalize(thd, $6))
+              MYSQL_YYABORT;
+          }
+        | sp_block_label
+          DECLARE_SYM
+          {
+            Lex->sp_block_init(thd, $1);
+          }
+          sp_decl_body_list
+          BEGIN_SYM
+          sp_proc_stmts
+          END
+          sp_opt_label
+          {
+            if (Lex->sp_block_finalize(thd, $4, $8))
               MYSQL_YYABORT;
           }
         ;
@@ -3396,11 +3406,36 @@ sp_unlabeled_block:
           {
             Lex->sp_block_init(thd);
           }
-          sp_decls
+          sp_proc_stmts
+          END
+          {
+            if (Lex->sp_block_finalize(thd))
+              MYSQL_YYABORT;
+          }
+        | DECLARE_SYM
+          {
+            Lex->sp_block_init(thd);
+          }
+          sp_decl_body_list
+          BEGIN_SYM
           sp_proc_stmts
           END
           {
             if (Lex->sp_block_finalize(thd, $3))
+              MYSQL_YYABORT;
+          }
+        ;
+
+sp_body:
+          {
+            Lex->sp_block_init(thd);
+          }
+          opt_sp_decl_body_list
+          BEGIN_SYM
+          sp_proc_stmts
+          END
+          {
+            if (Lex->sp_block_finalize(thd, $2))
               MYSQL_YYABORT;
           }
         ;
@@ -3412,11 +3447,10 @@ sp_unlabeled_block_not_atomic:
               MYSQL_YYABORT;
             Lex->sp_block_init(thd);
           }
-          sp_decls
           sp_proc_stmts
           END
           {
-            if (Lex->sp_block_finalize(thd, $5))
+            if (Lex->sp_block_finalize(thd))
               MYSQL_YYABORT;
           }
         ;
@@ -15982,7 +16016,7 @@ sf_tail:
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
           sp_tail_is /* $15 */
-          sp_proc_stmt_in_returns_clause /* $16 */
+          sp_body /* $16 */
           {
             LEX *lex= thd->lex;
             sp_head *sp= lex->sphead;
@@ -16031,7 +16065,7 @@ sp_tail:
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_tail_is
-          sp_proc_stmt
+          sp_body
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
