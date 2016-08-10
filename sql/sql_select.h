@@ -1801,7 +1801,7 @@ class store_key_field: public store_key
       copy_field.set(to_field,from_field,0);
     }
   }  
-
+  Copy_field * get_copy_field() { return  &copy_field; }
   enum Type type() const { return FIELD_STORE_KEY; }
   const char *name() const { return field_name; }
 
@@ -1833,6 +1833,8 @@ class store_key_field: public store_key
       {
         *(copy_field.to_ptr-1)= 1; //set it null
         null_key= true;
+        dbug_tmp_restore_column_map(table->write_set, old_map);
+        return STORE_KEY_OK;
       }
       CHARSET_INFO* cs= str.charset();
       uchar l[4];
@@ -1840,6 +1842,7 @@ class store_key_field: public store_key
       cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
       cs->coll->hash_sort(cs, (uchar *)str.ptr(), str.length(), &nr1, &nr2);
       int8store(copy_field.to_ptr,nr1);
+      dbug_tmp_restore_column_map(table->write_set, old_map);
       return STORE_KEY_OK;
     }
     bzero(copy_field.to_ptr,copy_field.to_length);
@@ -1872,7 +1875,7 @@ public:
     :store_key(arg), item(new_item), use_value(val)
   {}
 
-
+  Item *get_item() {return item;}
   enum Type type() const { return ITEM_STORE_KEY; }
   const char *name() const { return "func"; }
 
@@ -1884,6 +1887,26 @@ public:
                                                      table->write_set);
     int res= FALSE;
 
+    if (is_hash)
+    {
+      String *str= item->val_str();
+      if (item->null_value)
+      {
+        *(to_field->ptr - 1)= 1;
+        null_key= true;
+        dbug_tmp_restore_column_map(table->write_set, old_map);
+        return STORE_KEY_OK;
+      }
+      CHARSET_INFO *cs= str->charset();
+      uchar l[4];
+      int4store(l,str->length());
+      cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
+      cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
+      int8store(to_field->ptr,nr1);
+      //no idea what it does
+      dbug_tmp_restore_column_map(table->write_set, old_map);
+      return STORE_KEY_OK;
+    }
     /* 
       It looks like the next statement is needed only for a simplified
       hash function over key values used now in BNLH join.
@@ -2295,4 +2318,11 @@ public:
 bool test_if_order_compatible(SQL_I_List<ORDER> &a, SQL_I_List<ORDER> &b);
 int test_if_group_changed(List<Cached_item> &list);
 int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
+/*
+ It compares the record with same hash to key if
+ record is equal then return 0 else fetches next
+ record with same hash and so on if some error
+ then returns error
+*/
+int compare_hash_and_fetch_next(JOIN_TAB *join);
 #endif /* SQL_SELECT_INCLUDED */

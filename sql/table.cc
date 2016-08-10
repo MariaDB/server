@@ -7844,8 +7844,10 @@ double KEY::actual_rec_per_key(uint i)
    return index of  hash_str  if found other wise returns
    -1
 */
-int find_field_name_in_hash(char * hash_str, char * field_name, int hash_str_length)
+int find_field_name_in_hash(char * hash_str, const  char * field_name,
+                            int hash_str_length)
 {
+
   int j= 0, i= 0;
   for (i= 0; i < hash_str_length; i++)
   {
@@ -7868,8 +7870,10 @@ int find_field_name_in_hash(char * hash_str, char * field_name, int hash_str_len
    position starts from 0
    else return -1;
 */
-int find_field_index_in_hash(char * hash_str, char * field_name, int hash_str_length)
+int find_field_index_in_hash(LEX_STRING *hash_lex, const char * field_name)
 {
+  char *hash_str= hash_lex->str;
+  int hash_str_length= hash_lex->length;
   int field_name_position= find_field_name_in_hash(hash_str, field_name, hash_str_length);
   if (field_name_position == -1)
     return -1;
@@ -7885,8 +7889,10 @@ int find_field_index_in_hash(char * hash_str, char * field_name, int hash_str_le
 /*
    find total number of field in hash_str
 */
-int fields_in_hash_str(char * hash_str, int hash_str_length)
+int fields_in_hash_str(LEX_STRING * hash_lex)
 {
+  int hash_str_length= hash_lex->length;
+  char *hash_str= hash_lex->str;
   int num_of_fields= 1;
   for(int i= 0; i<hash_str_length; i++)
   {
@@ -7946,12 +7952,12 @@ Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index)
   1 no change to hash_str and length
   TODO a better and less complex logic
 */
-int rem_field_from_hash_col_str(LEX_STRING * hash_str,char * field_name)
+int rem_field_from_hash_col_str(LEX_STRING * hash_lex, const char * field_name)
 {
    /* first of all find field_name in hash_str*/
-  char * temp= hash_str->str;
-  char * t_field= field_name;
-  int i = find_field_name_in_hash( temp,field_name,hash_str->length);
+  char * temp= hash_lex->str;
+  const char * t_field= field_name;
+  int i = find_field_name_in_hash( temp,field_name,hash_lex->length);
   if(i!=-1)
   {
    /*
@@ -7967,38 +7973,40 @@ int rem_field_from_hash_col_str(LEX_STRING * hash_str,char * field_name)
    int j=strlen(field_name);
     if(*(temp+i-j-2)==',')
     {
-      hash_str->length=hash_str->length-j-2-1;//-2 for two '`' and -1 for ','
-      memmove(temp+i-j-2,temp+i+1,hash_str->length);
+      hash_lex->length=hash_lex->length-j-2-1;//-2 for two '`' and -1 for ','
+      memmove(temp+i-j-2,temp+i+1,hash_lex->length);
       return 0;
     }
     if(*(temp+i+1)==',')
     {
-      hash_str->length=hash_str->length-j-2-1;//-2 for two '`' and -1 for ','
-      memmove(temp+i-j-1,temp+i+2,hash_str->length);
+      hash_lex->length=hash_lex->length-j-2-1;//-2 for two '`' and -1 for ','
+      memmove(temp+i-j-1,temp+i+2,hash_lex->length);
       return 0;
     }
     if(*(temp+i+1)==')')
     {
-      hash_str->length=0;
-      hash_str->str=NULL;
+      hash_lex->length=0;
+      hash_lex->str=NULL;
       return 0;
     }
   }
   return 1;
 }
-/*   returns 1 if old_name not found in hash_str 0 other wise*/
-int  change_field_from_hash_col_str(LEX_STRING * hash_str,char * old_name,char * new_name)
+/*   returns 1 if old_name not found in hash_lex 0 other wise*/
+int  change_field_from_hash_col_str(LEX_STRING * hash_lex, const char * old_name,
+                                    char * new_name)
 {
-  /* first of all find field_name in hash_str*/
-  char * temp= hash_str->str;
-  char * t_field= old_name;
-  int i = find_field_name_in_hash( temp,old_name,hash_str->length);
+  /* first of all find field_name in hash_lex*/
+  char * temp= hash_lex->str;
+  const char * t_field= old_name;
+  int i = find_field_name_in_hash( temp,old_name,hash_lex->length);
   if(i!=-1)
   {
-    int len= hash_str->length-strlen(old_name)+strlen(new_name);
+    int len= hash_lex->length-strlen(old_name)+strlen(new_name);
     int num=0;
     char  temp_arr[len];
-    int s_c_position = i-strlen(old_name);//here it represent the posotion of '`' before old f_name
+    int s_c_position = i-strlen(old_name);//here it represent the posotion of
+                                          //'`' before old f_name
     for(int index=0;index<len;index++)
     {
       if(index>=s_c_position&&index<s_c_position+strlen(new_name))
@@ -8014,8 +8022,8 @@ int  change_field_from_hash_col_str(LEX_STRING * hash_str,char * old_name,char *
       }
       temp_arr[index]=temp[index];
     }
-    strcpy(hash_str->str,temp_arr);
-    hash_str->length=len;
+    strcpy(hash_lex->str,temp_arr);
+    hash_lex->length=len;
     return 0;
   }
   return 1;

@@ -337,6 +337,78 @@ bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
 }
 #endif 
 
+int compare_hash_and_fetch_next(JOIN_TAB *tab)
+{
+  int error;
+  TABLE *table= tab->table;
+  if (table->key_info[tab->ref.key].flags & HA_UNIQUE_HASH)
+  {
+    /*
+      same hash does not gurentee same physical key
+      to need to compare each field in key
+    */
+    LEX_STRING * ls= &table->key_info[tab->ref.key].key_part->field
+        ->vcol_info->expr_str;
+    int counter= 0;
+    for (store_key **copy=tab->ref.key_copy ; *copy ; copy++, counter++)
+    {
+      store_key_field * tmp;
+      Copy_field *c;
+      Item *i;
+      if (( c= static_cast<store_key_field *>(*copy)->get_copy_field())
+            && c->from_field->table)
+      {
+        Field *fld,*table_fld;
+        fld= c->from_field;
+        table_fld= field_ptr_in_hash_str(ls,table,find_field_index_in_hash(
+                                           ls,fld->field_name));
+        while (true)
+        {
+          if(fld->cmp_binary(fld->ptr,table_fld->ptr))
+          {
+            error= table->file->ha_index_next_same(table->record[0],tab->ref.key_buff,
+                table->key_info[tab->ref.key].key_length);
+            if(error)
+            {
+              return error; /* purecov: inspected */
+            }
+          }
+          else
+            break;
+        }
+      }
+      else if (( i= static_cast<store_key_item*>(*copy)->get_item()))
+      {
+        Field *fld;
+        String field_data, *item_data;
+        fld= field_ptr_in_hash_str(ls,table,counter);
+        fld->val_str(&field_data);
+        item_data= i->val_str();
+        while (true)
+        {
+
+          if ((item_data->length() != field_data.length()) ||
+              my_strnncoll(item_data->charset(), (const uchar *)item_data->c_ptr(),
+                           item_data->length(), (const uchar *)field_data.c_ptr(),
+                           field_data.length()))
+          {
+            /*here hash is same for different record we need to find the matching one*/
+            error= table->file->ha_index_next_same(table->record[0],(uchar*) tab->ref.key_buff,
+                HA_HASH_KEY_LENGTH_WITH_NULL);
+            if(error)
+            {
+              return error; /* purecov: inspected */
+            }
+          }
+          else
+            break;
+        }
+
+      }
+    }
+  }
+  return 0;
+}
 
 /**
   This handles SELECT with and without UNION.
@@ -4004,7 +4076,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           if (keyinfo->flags & HA_UNIQUE_HASH)
           {
             LEX_STRING * ls= &keyinfo->key_part->field->vcol_info->expr_str;
-            int num_of_fields= fields_in_hash_str(ls->str,ls->length);
+            int num_of_fields= fields_in_hash_str(ls);
             is_map_for_hash_key= eq_part.is_prefix(num_of_fields);
           }
           if (((eq_part.is_prefix(key_parts) && !(keyinfo->flags & HA_UNIQUE_HASH))
@@ -5196,8 +5268,7 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
            key_field->val->type() != Item::NULL_ITEM)
       {
         LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
-        int index= find_field_index_in_hash(ls->str,
-                                     (char *)field->field_name, ls->length);
+        int index= find_field_index_in_hash(ls, (char *)field->field_name);
         if (index != -1)
         {
           if (add_keyuse(keyuse_array, key_field, key, index))
@@ -5620,7 +5691,7 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
           {
             LEX_STRING *ls = &use->table->key_info[use->key]
                          .key_part->field->vcol_info->expr_str;
-            if (use->keypart+1 != fields_in_hash_str(ls->str,ls->length))
+            if (use->keypart+1 != fields_in_hash_str(ls))
             {
               if (i==0)
                 continue;
@@ -8954,7 +9025,7 @@ get_keypart_hash (THD *thd, KEY *keyinfo, KEYUSE *keyuse, JOIN_TAB *j)
     String *str;
     LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
     uint i;
-    uint num_of_fields= fields_in_hash_str(ls->str,ls->length);
+    uint num_of_fields= fields_in_hash_str(ls);
     for (i=0 ; i < num_of_fields ; keyuse++,i++)
     {
       if (!keyuse->val)
@@ -9182,7 +9253,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
           if (is_unique_hash)
           {
             (*(ref_key-1))->is_hash= true;
-            (*(ref_key-1))->nr2= 1;
+            (*(ref_key-1))->nr1= 1;
             (*(ref_key-1))->nr2= 4;
           }
         }
@@ -9197,7 +9268,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
           if (is_unique_hash)
           {
             (*(ref_key-1))->is_hash= true;
-            (*(ref_key-1))->nr2= 1;
+            (*(ref_key-1))->nr1= 1;
             (*(ref_key-1))->nr2= 4;
           }
         }
@@ -18841,6 +18912,10 @@ int safe_index_read(JOIN_TAB *tab)
                                              make_prev_keypart_map(tab->ref.key_parts),
                                              HA_READ_KEY_EXACT)))
     return report_error(table, error);
+//  error= compare_hash_and_fetch_next(JOIN_TAB *join);
+//  if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+//    return report_error(table, error);
+//  return -1;
   return 0;
 }
 
@@ -19172,7 +19247,6 @@ join_read_key(JOIN_TAB *tab)
   return join_read_key2(tab->join->thd, tab, tab->table, &tab->ref);
 }
 
-
 /*
   eq_ref access handler but generalized a bit to support TABLE and TABLE_REF
   not from the join_tab. See join_read_key for detailed synopsis.
@@ -19225,7 +19299,9 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
                                   HA_READ_KEY_EXACT);
     if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       return report_error(table, error);
-
+    error= compare_hash_and_fetch_next(tab);
+    if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+      return report_error(table, error);
     if (! error)
     {
       table_ref->has_record= TRUE;
@@ -19310,20 +19386,9 @@ join_read_always_key(JOIN_TAB *tab)
       return report_error(table, error);
     return -1; /* purecov: inspected */
   }
-  if (table->key_info[tab->ref.key].flags & HA_UNIQUE_HASH)
-  {
-    /*
-      same hash does not gurentee same physical key
-      to need to compare each field in key
-    */
-//    for (store_key **copy=tab->ref.key_copy ; *copy ; copy++)
-//    {
-//      if ((store_key_field * tmp= dynamic_cast<store_key_field *>(*copy)))
-//      {
-
-//      }
-//    }
-  }
+  error= compare_hash_and_fetch_next(tab);
+  if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+    return report_error(table, error);
   return 0;
 }
 

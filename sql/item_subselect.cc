@@ -3899,6 +3899,25 @@ bool subselect_uniquesubquery_engine::copy_ref_key(bool skip_constants)
       */
       DBUG_RETURN(true);
     }
+    if ((*copy)->is_hash)
+    {
+      if (!(*copy)->null_key && *(copy+1))
+      {
+        (*(copy+1))->nr1= (*copy)->nr1;
+        (*(copy+1))->nr2= (*copy)->nr2;
+      }
+      else
+        break;
+    }
+  }
+  //reset nr1 and nr2
+  for (store_key **copy=tab->ref.key_copy ; *copy ; copy++)
+  {
+    if ((*copy)->is_hash)
+    {
+      (*copy)->nr1= 1;
+      (*copy)->nr2= 4;
+    }
   }
   DBUG_RETURN(false);
 }
@@ -4149,6 +4168,12 @@ int subselect_indexsubquery_engine::exec()
     error= report_error(table, error);
   else
   {
+    error= compare_hash_and_fetch_next(tab);
+    if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+    {
+      report_error(table, error);
+      DBUG_RETURN(error != 0);
+    }
     for (;;)
     {
       error= 0;

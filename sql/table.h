@@ -339,15 +339,17 @@ enum  field_visible_type{
 	FULL_HIDDEN
 };
 
-int  rem_field_from_hash_col_str(LEX_STRING * hash_str,char * field_name);
+int rem_field_from_hash_col_str(LEX_STRING *hash_lex, const char *field_name);
 
-int  change_field_from_hash_col_str(LEX_STRING * hash_str,char * old_name,char * new_name);
+int change_field_from_hash_col_str(LEX_STRING *hash_lex,
+																	 const char *old_name, char *new_name);
 
-int find_field_name_in_hash(char * hash_str,char * field_name,int hash_str_length);
+int find_field_name_in_hash(char * hash_str, const char *field_name,
+														int hash_str_length);
 
-int find_field_index_in_hash(char * hash_str,char * field_name ,int hash_str_length);
+int find_field_index_in_hash(LEX_STRING * hash_lex, const char * field_name);
 
-int fields_in_hash_str(char * hash_str, int hash_str_length);
+int fields_in_hash_str(LEX_STRING *hash_lex);
 
 Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index);
 /**
