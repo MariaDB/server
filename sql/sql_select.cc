@@ -5658,7 +5658,7 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
                                    bool skip_unprefixed_keyparts)
 {
   KEYUSE key_end, *prev, *save_pos, *use;
-  uint found_eq_constant, i;
+  uint found_eq_constant, i,counter= 0;
 
   DBUG_ASSERT(keyuse->elements);
 
@@ -5691,11 +5691,12 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
           {
             LEX_STRING *ls = &use->table->key_info[use->key]
                          .key_part->field->vcol_info->expr_str;
-            if (use->keypart+1 != fields_in_hash_str(ls))
+            if (counter+1 != fields_in_hash_str(ls))
             {
               if (i==0)
                 continue;
-              save_pos-= use->keypart+1;
+              save_pos-= counter;
+              counter= 0;
               use->table->reginfo.join_tab->checked_keys.clear_all();
             }
           }
@@ -5705,13 +5706,7 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
           if ((prev->keypart+1 < use->keypart && skip_unprefixed_keyparts) ||
               (prev->keypart == use->keypart && found_eq_constant))
           {
-            if (use->table->key_info[use->key].flags & HA_UNIQUE_HASH)
-            {
-              save_pos-= prev->keypart+1;
-              use->table->reginfo.join_tab->checked_keys.clear_all();
-            }
-            else
-              continue;				/* remove */
+            continue;				/* remove */
           }
 
         }
@@ -5735,6 +5730,7 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
     if (!use->table->reginfo.join_tab->keyuse)
       use->table->reginfo.join_tab->keyuse= save_pos;
     save_pos++;
+    counter++;
   }
   i= (uint) (save_pos-(KEYUSE*) keyuse->buffer);
   (void) set_dynamic(keyuse,(uchar*) &key_end,i);
@@ -9017,7 +9013,7 @@ static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables)
 Item *
 get_keypart_hash (THD *thd, KEY *keyinfo, KEYUSE *keyuse, JOIN_TAB *j)
 {
-  bool is_null;
+  bool is_null= false;
   if (keyinfo->flags & HA_UNIQUE_HASH)
   {
     ulong nr1= 1, nr2= 4;
@@ -9213,6 +9209,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                            FALSE);
 	if (thd->is_fatal_error)
 	  DBUG_RETURN(TRUE);
+	tmp.is_hash= false;
 	tmp.copy();
         j->ref.const_ref_part_map |= key_part_map(1) << i ;
       }
@@ -24374,6 +24371,8 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
   {
     key_info= get_keyinfo_by_key_no(ref.key);
     key_len= ref.key_length;
+    if (key_info->flags & HA_UNIQUE_HASH)
+      key_len= HA_HASH_KEY_LENGTH_WITH_NULL;
   }
   
   /*
