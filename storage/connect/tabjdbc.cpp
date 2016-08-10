@@ -522,9 +522,10 @@ bool TDBJDBC::MakeSQL(PGLOBAL g, bool cnt)
 	if (Catalog && *Catalog)
 		catp = Catalog;
 
-	if (tablep->GetSchema())
-		schmp = (char*)tablep->GetSchema();
-	else if (Schema && *Schema)
+	//if (tablep->GetSchema())
+	//	schmp = (char*)tablep->GetSchema();
+	//else 
+	if (Schema && *Schema)
 		schmp = Schema;
 
 	if (catp) {
@@ -606,9 +607,10 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 	if (catp)
 		len += strlen(catp) + 1;
 
-	if (tablep->GetSchema())
-		schmp = (char*)tablep->GetSchema();
-	else if (Schema && *Schema)
+	//if (tablep->GetSchema())
+	//	schmp = (char*)tablep->GetSchema();
+	//else
+	if (Schema && *Schema)
 		schmp = Schema;
 
 	if (schmp)

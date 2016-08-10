@@ -59,6 +59,7 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 #define nullptr 0
 #endif  // !__WIN__
 
+TYPCONV GetTypeConv();
 int GetConvSize();
 extern char *JvmPath;   // The connect_jvm_path global variable value
 extern char *ClassPath; // The connect_class_path global variable value
@@ -121,7 +122,10 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 
 	switch (stp) {
 	case -1:  // LONGVARCHAR
-		len = MY_MIN(abs(len), GetConvSize());
+		if (GetTypeConv() != TPC_YES)
+			return TYPE_ERROR;
+		else
+		  len = MY_MIN(abs(len), GetConvSize());
 	case 12:  // VARCHAR
 		v = 'V';
 	case 1:   // CHAR
