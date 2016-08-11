@@ -16515,6 +16515,10 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->merge_keys.init();
   table->intersect_keys.init();
   table->keys_in_use_for_query.init();
+  table->update_handler= NULL;
+  table->dupp_key= -1;
+  table->err_message= NULL;
+  table->check_unique_buf= NULL;
   table->no_rows_with_nulls= param->force_not_null_cols;
 
   table->s= share;

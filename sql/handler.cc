@@ -3278,6 +3278,11 @@ void handler::ha_release_auto_increment()
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
 {
   /* Write the duplicated key in the error message */
+  if (table->dupp_key != -1 && table->err_message)
+  {
+    my_printf_error(ER_DUP_ENTRY, msg, errflag, table->err_message, key->name);
+    return;
+  }
   char key_buff[MAX_KEY_LENGTH];
   String str(key_buff,sizeof(key_buff),system_charset_info);
 
@@ -3297,6 +3302,7 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
       str.length(max_length-4);
       str.append(STRING_WITH_LEN("..."));
     }
+
     my_printf_error(ER_DUP_ENTRY, msg, errflag, str.c_ptr_safe(), key->name);
   }
 }
@@ -3377,9 +3383,6 @@ void handler::print_error(int error, myf errflag)
     if (table)
     {
       uint key_nr=get_dup_key(error);
-      /* Because we already printed error */
-      if (table->dupp_key != -1)
-        DBUG_VOID_RETURN;
       if ((int) key_nr >= 0)
       {
         print_keydup_error(table,
@@ -5939,20 +5942,22 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
             continue;
         }
         table->dupp_key= i;
-        char key_buff[MAX_KEY_LENGTH];
-        String str(key_buff, sizeof(key_buff), system_charset_info);
+        if (!table->err_message)
+          table->err_message= (char *)current_thd->alloc(MAX_KEY_LENGTH);
+        String str(table->err_message, sizeof(table->err_message),
+                   system_charset_info);
         str.length(0);
-        for(int i= 0; i < arg_count; i++)
+        for(uint i= 0; i < arg_count; i++)
         {
           t_field= ((Item_field *)arguments[i])->field;
           if (str.length())
             str.append('-');
-          field_unpack(&str,t_field,new_rec,10,//since blob can be to long
+          field_unpack(&str,t_field,new_rec,15,//since blob can be to long
                        false);
         }
-        my_printf_error(ER_DUP_ENTRY, ER_THD(table->in_use,
-                                             ER_DUP_ENTRY_WITH_KEY_NAME)
-                        ,MYF(0), str.c_ptr_safe(),table->key_info[i].name);
+//        my_printf_error(ER_DUP_ENTRY, ER_THD(table->in_use,
+//                                             ER_DUP_ENTRY_WITH_KEY_NAME)
+//                        ,MYF(0), str.c_ptr_safe(),table->key_info[i].name);
         return HA_ERR_FOUND_DUPP_KEY;
       }
     }

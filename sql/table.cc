@@ -4424,6 +4424,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   cond_selectivity_sampling_explain= NULL;
   update_handler= NULL;
   dupp_key= -1;
+  err_message= NULL;
   check_unique_buf= NULL;
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
