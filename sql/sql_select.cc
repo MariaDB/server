@@ -9212,7 +9212,6 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                            FALSE);
         if (thd->is_fatal_error)
           DBUG_RETURN(TRUE);
-        tmp.is_hash= false;
         tmp.copy();
         j->ref.const_ref_part_map |= key_part_map(1) << i ;
       }
@@ -9256,8 +9255,6 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
             (*(ref_key-1))->nr1= 1;
             (*(ref_key-1))->nr2= 4;
           }
-          else
-            (*(ref_key-1))->is_hash= false;
         }
         else
         {
@@ -9273,8 +9270,6 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
             (*(ref_key-1))->nr1= 1;
             (*(ref_key-1))->nr2= 4;
           }
-          else
-            (*(ref_key-1))->is_hash= false;
         }
       }
 

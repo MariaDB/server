@@ -1735,14 +1735,14 @@ public:
   ulong nr1;
   ulong nr2;
   store_key(THD *thd, Field *field_arg, uchar *ptr, uchar *null, uint length)
-    :null_key(0), null_ptr(null), err(0)
+    :null_key(0),is_hash(false), null_ptr(null), err(0)
   {
     to_field=field_arg->new_key_field(thd->mem_root, field_arg->table,
                                       ptr, length, null, 1);
   }
   store_key(store_key &arg)
-    :Sql_alloc(), null_key(arg.null_key), to_field(arg.to_field),
-             null_ptr(arg.null_ptr), err(arg.err)
+    :Sql_alloc(), null_key(arg.null_key),is_hash(arg.is_hash),
+      to_field(arg.to_field),null_ptr(arg.null_ptr), err(arg.err)
 
   {}
   virtual ~store_key() {}			/** Not actually needed */
