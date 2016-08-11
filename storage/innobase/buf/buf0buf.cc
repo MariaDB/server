@@ -2808,10 +2808,25 @@ withdraw_retry:
 	to freshly allocated pages before any pointers to them are published.*/
 	for (ulint i = 0; i < srv_buf_pool_instances; ++i) {
 		mutex_enter(&(buf_pool_from_array(i)->LRU_list_mutex));
+	}
+
+	for (ulint i = 0; i < srv_buf_pool_instances; ++i) {
 		hash_lock_x_all(buf_pool_from_array(i)->page_hash);
+	}
+
+	for (ulint i = 0; i < srv_buf_pool_instances; ++i) {
 		mutex_enter(&(buf_pool_from_array(i)->zip_free_mutex));
+	}
+
+	for (ulint i = 0; i < srv_buf_pool_instances; ++i) {
 		mutex_enter(&(buf_pool_from_array(i)->free_list_mutex));
+	}
+
+	for (ulint i = 0; i < srv_buf_pool_instances; ++i) {
 		mutex_enter(&(buf_pool_from_array(i)->zip_hash_mutex));
+	}
+
+	for (ulint i = 0; i < srv_buf_pool_instances; ++i) {
 		mutex_enter(&(buf_pool_from_array(i)->flush_state_mutex));
 		mutex_enter(&(buf_pool_from_array(i)->tmp_arr_mutex));
 	}
