@@ -1125,6 +1125,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  EXAMINED_SYM
 %token  EXCLUDE_SYM                   /* SQL-2011-N */
 %token  EXECUTE_SYM                   /* SQL-2003-R */
+%token  EXCEPTION_SYM                 /* SQL-2003-N */
 %token  EXISTS                        /* SQL-2003-R */
 %token  EXIT_SYM
 %token  EXPANSION_SYM
@@ -14420,6 +14421,7 @@ keyword_sp:
         | EVENT_SYM                {}
         | EVENTS_SYM               {}
         | EVERY_SYM                {}
+        | EXCEPTION_SYM            {}
         | EXCHANGE_SYM             {}
         | EXPANSION_SYM            {}
         | EXPORT_SYM               {}
