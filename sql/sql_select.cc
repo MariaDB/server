@@ -9065,7 +9065,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   KEY *keyinfo;
   KEYUSE *keyuse= org_keyuse;
   bool ftkey= (keyuse->keypart == FT_KEYPART);
-  bool is_unique_hash;
+  bool is_unique_hash= false;
   THD *thd= join->thd;
   DBUG_ENTER("create_ref_for_key");
 
@@ -9080,7 +9080,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       DBUG_RETURN(TRUE);
     keyinfo= j->hj_key;
   }
-  is_unique_hash= keyinfo->flags & HA_UNIQUE_HASH;
+  is_unique_hash= (keyinfo->flags & HA_UNIQUE_HASH) == HA_UNIQUE_HASH;
   if (ftkey)
   {
     Item_func_match *ifm=(Item_func_match *)keyuse->val;
@@ -9195,7 +9195,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         table_ref->key_copy ? If yes, do we produce incorrect EXPLAINs? 
       */
       if (!keyuse->val->used_tables() && !thd->lex->describe )
-      {					// Compare against constant
+      {         // Compare against constant
         Item *item= get_keypart_hash(thd,keyinfo,keyuse,j);
         if (item != NULL)
         {
@@ -9203,23 +9203,23 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         }
         else
           item= keyuse->val;
-  store_key_item tmp(thd,
+        store_key_item tmp(thd,
                            keyinfo->key_part[i].field,
                            key_buff + maybe_null,
                            maybe_null ?  key_buff : 0,
                            keyinfo->key_part[i].length,
                            item,
                            FALSE);
-	if (thd->is_fatal_error)
-	  DBUG_RETURN(TRUE);
-	tmp.is_hash= false;
-	tmp.copy();
+        if (thd->is_fatal_error)
+          DBUG_RETURN(TRUE);
+        tmp.is_hash= false;
+        tmp.copy();
         j->ref.const_ref_part_map |= key_part_map(1) << i ;
       }
       else
       {
         KEY_PART_INFO *key_part= &keyinfo->key_part[i];
-        if (!((~join->const_table_map) & keyuse->used_tables))		// if const item
+        if (!((~join->const_table_map) & keyuse->used_tables))    // if const item
         {
           Item *item= get_keypart_hash(thd,keyinfo,keyuse,j);
           if (item != NULL)
@@ -9256,6 +9256,8 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
             (*(ref_key-1))->nr1= 1;
             (*(ref_key-1))->nr2= 4;
           }
+          else
+            (*(ref_key-1))->is_hash= false;
         }
         else
         {
@@ -9271,8 +9273,11 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
             (*(ref_key-1))->nr1= 1;
             (*(ref_key-1))->nr2= 4;
           }
+          else
+            (*(ref_key-1))->is_hash= false;
         }
       }
+
       /*
 	Remember if we are going to use REF_OR_NULL
 	But only if field _really_ can be null i.e. we force JT_REF
@@ -18912,7 +18917,7 @@ int safe_index_read(JOIN_TAB *tab)
                                              make_prev_keypart_map(tab->ref.key_parts),
                                              HA_READ_KEY_EXACT)))
     return report_error(table, error);
-//  error= compare_hash_and_fetch_next(JOIN_TAB *join);
+//  error= compare_hash_and_fetch_next(join);
 //  if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
 //    return report_error(table, error);
 //  return -1;
@@ -19299,9 +19304,9 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
                                   HA_READ_KEY_EXACT);
     if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       return report_error(table, error);
-    error= compare_hash_and_fetch_next(tab);
-    if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
-      return report_error(table, error);
+//    error= compare_hash_and_fetch_next(tab);
+//    if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+//      return report_error(table, error);
     if (! error)
     {
       table_ref->has_record= TRUE;
