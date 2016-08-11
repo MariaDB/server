@@ -377,3 +377,31 @@ BEGIN NOT ATOMIC
 END
 /
 DELIMITER ;/
+
+
+--echo # Testing exceptions
+
+CREATE TABLE t1 (c1 INT);
+
+DELIMITER /;
+
+CREATE PROCEDURE sp1 (p1 IN VARCHAR2(20), p2 OUT VARCHAR2(30))
+IS
+  v1 INT;
+BEGIN
+  EXCEPTION WHEN NOT FOUND THEN
+  BEGIN
+    p2 := 'def';
+  END;
+  SELECT c1 INTO v1 FROM t1;
+  p2 := p1;
+END;
+/
+
+DELIMITER ;/
+
+CALL sp1('abc', @a);
+SELECT @a;
+
+DROP PROCEDURE sp1;
+DROP TABLE t1;

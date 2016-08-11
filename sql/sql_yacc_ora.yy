@@ -525,6 +525,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  EXCEPT_SYM                    /* SQL-2003-R */
 %token  EXCLUDE_SYM                   /* SQL-2011-N */
 %token  EXECUTE_SYM                   /* SQL-2003-R */
+%token  EXCEPTION_SYM                 /* SQL-2003-N */
 %token  EXISTS                        /* SQL-2003-R */
 %token  EXIT_SYM
 %token  EXPANSION_SYM
@@ -1330,6 +1331,7 @@ END_OF_INPUT
 %type <num>  sp_decl_idents sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spblock> sp_decl_body sp_decl_body_list opt_sp_decl_body_list
+%type <num> opt_exception_clause exception_handlers
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
@@ -2523,7 +2525,7 @@ sp_hcond:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | SQLEXCEPTION_SYM /* All other SQLSTATEs */
+        | OTHERS_SYM /* All other SQLSTATEs */
           {
             $$= new (thd->mem_root) sp_condition_value(sp_condition_value::EXCEPTION);
             if ($$ == NULL)
@@ -3432,6 +3434,10 @@ sp_body:
           }
           opt_sp_decl_body_list
           BEGIN_SYM
+          opt_exception_clause
+          {
+            $2.hndlrs+= $4;
+          }
           sp_proc_stmts
           END
           {
@@ -3451,6 +3457,31 @@ sp_unlabeled_block_not_atomic:
           END
           {
             if (Lex->sp_block_finalize(thd))
+              MYSQL_YYABORT;
+          }
+        ;
+
+opt_exception_clause:
+          /* Empty */                      { $$= 0; }
+        | EXCEPTION_SYM exception_handlers { $$= $2; }
+        ;
+
+exception_handlers:
+           exception_handler ';'                    { $$= 1; }
+         | exception_handlers exception_handler ';' { $$= $1 + 1; }
+        ;
+
+exception_handler:
+          WHEN_SYM
+          {
+            if (Lex->sp_handler_declaration_init(thd, sp_handler::EXIT))
+              MYSQL_YYABORT;
+          }
+          sp_hcond_list
+          THEN_SYM
+          sp_proc_stmt
+          {
+            if (Lex->sp_handler_declaration_finalize(thd, sp_handler::EXIT))
               MYSQL_YYABORT;
           }
         ;
