@@ -5658,8 +5658,8 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
                                    bool skip_unprefixed_keyparts)
 {
   KEYUSE key_end, *prev, *save_pos, *use;
-  uint found_eq_constant, i,counter= 0;
-
+  uint found_eq_constant, i;
+  int counter= 0;
   DBUG_ASSERT(keyuse->elements);
 
   my_qsort(keyuse->buffer, keyuse->elements, sizeof(KEYUSE),
@@ -5698,7 +5698,10 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
               save_pos-= counter;
               counter= 0;
               use->table->reginfo.join_tab->checked_keys.clear_all();
+              continue;
             }
+            else
+              counter= -1;
           }
         }
         if (use->key == prev->key && use->table == prev->table)

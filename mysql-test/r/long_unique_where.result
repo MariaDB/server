@@ -12,12 +12,16 @@ select * from t1 where abc=31;
 abc
 31
 # in case of null we do not use any optimization
-explain select * from t1 where abc is  NULL
+explain select * from t1 where abc is  NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	36	Using where
 select * from t1 where abc is  NULL limit 1;
 abc
 NULL
 #range query
-explain select * from t1 where abc >1  limit 1
+explain select * from t1 where abc >1  limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	36	Using where
 select * from t1 where abc >1 limit 1;
 abc
 2
@@ -57,7 +61,9 @@ select * from t1 where abc= 15 and 61;
 abc	xyz
 15	61
 # now xyz has different value
-explain select * from t1 where abc=1000
+explain select * from t1 where abc=1000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 select * from t1 where abc= 1000;
 abc	xyz
 explain select * from t1 where abc=14 and xyz =56;
@@ -66,7 +72,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from t1 where abc=14 and xyz =56;
 abc	xyz
 #range query
-explain select * from t1 where abc >5 limit 1
+explain select * from t1 where abc >5 limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
 select * from t1 where abc >5 limit 1;
 abc	xyz
 11	11
@@ -111,22 +119,32 @@ abc	xyz
 1	1
 explain select * from t1 where abc=5 and xyz=63;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	xyz	xyz	9	const	1	
+1	SIMPLE	t1	const	abc	abc	9	const	1	
 select * from t1 where abc=5 and xyz=63;
 abc	xyz
 5	63
 explain select * from t1 where xyz=63 and abc=5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	xyz	xyz	9	const	1	
+1	SIMPLE	t1	const	abc	abc	9	const	1	
 select * from t1 where xyz=63 and abc=5;
 abc	xyz
 5	63
+explain select * from t1 where xyz=63 or abc=5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	12	Using where
+select * from t1 where xyz=63 or abc=5;
+abc	xyz
+5	63
 # now the first one does not exist 
-explain select * from t1 where abc=51 and xyz=63
+explain select * from t1 where abc=51 and xyz=63;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 select * from t1 where abc=51 and xyz=63;
 abc	xyz
 # now the second one does not exist 
-explain select * from t1 where abc=5 and xyz=613
+explain select * from t1 where abc=5 and xyz=613;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 select * from t1 where abc=5 and xyz=613;
 abc	xyz
 explain select * from t1 where abc is NULL;
@@ -143,7 +161,9 @@ select * from t1 where abc is NULL and xyz=2;
 abc	xyz
 NULL	2
 #range conditions
-explain select * from t1 where abc>11 limit 5
+explain select * from t1 where abc>11 limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	12	Using where
 select * from t1 where abc>11 limit 5;
 abc	xyz
 91	19
@@ -213,7 +233,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values(1,1,1,1),(2,1,2,1),(1,3,3,1),(4,1,4,1),(1,5,1,5),
 (6,1,6,1),(1,7,1,7),(8,1,1,8),(1,9,9,1),(2,2,2,2),(4,4,4,4),(5,5,5,5),(6,6,6,6),
-('a',6,'a',6),('b',6,'b','c'),('1a',6,'23',6),('sd',6,'45t',6),(34,6,55,6),
+(126,216,603,640),(603,460,660,706),(806,609,609,605),(62,62,22,33),(64,65,66,76),
 (16,26,63,64),(63,46,66,76),(86,69,69,65),(622,622,622,633),(644,655,666,776);
 select * from t1 limit 3;
 a	b	c	d
@@ -224,25 +244,15 @@ a	b	c	d
 #key (a,b,c)
 explain  select * from t1 where a=1 and b=1 and c=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	a_b_c,b_c_d	NULL	NULL	NULL	23	Using where
+1	SIMPLE	t1	const	a_b_c	a_b_c	9	const	1	
 select * from t1 where a=1 and b=1 and c=1;
 a	b	c	d
 1	1	1	1
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
-Warning	1292	Truncated incorrect DOUBLE value: '1a'
-Warning	1292	Truncated incorrect DOUBLE value: 'sd'
 explain  select * from t1 where a=1 and b=4444 and c=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	a_b_c,b_c_d	NULL	NULL	NULL	23	Using where
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 select * from t1 where a=1 and b=4444 and c=1;
 a	b	c	d
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
-Warning	1292	Truncated incorrect DOUBLE value: '1a'
-Warning	1292	Truncated incorrect DOUBLE value: 'sd'
 #incomplete key
 explain  select * from t1 where a=1 and c=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -252,19 +262,14 @@ a	b	c	d
 1	1	1	1
 1	5	1	5
 1	7	1	7
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'a'
-Warning	1292	Truncated incorrect DOUBLE value: 'b'
-Warning	1292	Truncated incorrect DOUBLE value: '1a'
-Warning	1292	Truncated incorrect DOUBLE value: 'sd'
 explain  select * from t1 where a=1 and b=4444 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	b_c_d	b_c_d	9	const	1	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	23	Using where
 select * from t1 where a=1 and b=4444 ;
 a	b	c	d
 explain  select * from t1 where b=1 and c=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	b_c_d	NULL	NULL	NULL	23	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	23	Using where
 select * from t1 where b=1 and c=1;
 a	b	c	d
 1	1	1	1
@@ -288,20 +293,48 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from t1 where d=1 and c=1;
 a	b	c	d
 1	1	1	1
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
 explain  select * from t1 where d=1 and b=4444 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	23	Using where
 select * from t1 where d=1 and b=4444 ;
 a	b	c	d
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'c'
 explain  select * from t1 where b=1 and c=1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	b_c_d	NULL	NULL	NULL	23	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	23	Using where
 select * from t1 where b=1 and c=1;
 a	b	c	d
 1	1	1	1
 8	1	1	8
+#key (a,b,c,d)
+explain  select * from t1 where a=1 and d=1 and b=1 and c=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	a_b_c_d	a_b_c_d	9	const	1	
+select * from t1 where a=1 and d=1 and b=1 and c=1;
+a	b	c	d
+1	1	1	1
+explain  select * from t1 where a=1 and d=1 and b=4444 and c=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+select * from t1 where a=1 and d=1 and b=4444 and c=1;
+a	b	c	d
+#incomplete key
+explain  select * from t1 where a=1 and d=1 and c=1 ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	23	Using where
+select * from t1 where a=1 and d=1 and c=1 ;
+a	b	c	d
+1	1	1	1
+explain  select * from t1 where d=1 and b=4444 and a=1 ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	23	Using where
+select * from t1 where d=1 and b=4444 and a=1 ;
+a	b	c	d
+explain  select * from t1 where a=1 and c=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	23	Using where
+select * from t1 where a=1 and c=1;
+a	b	c	d
+1	1	1	1
+1	5	1	5
+1	7	1	7
 drop table t1;
