@@ -2747,8 +2747,6 @@ public:
   {
     DBUG_ASSERT(m_lock_type == F_UNLCK);
     DBUG_ASSERT(inited == NONE);
-//    if (!table->update_handler)
-//      delete table->update_handler;
   }
   virtual handler *clone(const char *name, MEM_ROOT *mem_root);
   /** This is called after create to allow us to set up cached variables */
@@ -2971,7 +2969,6 @@ public:
     if (!error ||
         ((flags & HA_CHECK_DUP_KEY) &&
          (error == HA_ERR_FOUND_DUPP_KEY ||
-          error == HA_ERR_FOUND_DUPP_KEY_BLOB ||
           error == HA_ERR_FOUND_DUPP_UNIQUE)) ||
         error == HA_ERR_AUTOINC_ERANGE ||
         ((flags & HA_CHECK_FK_ERROR) &&

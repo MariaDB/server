@@ -3752,11 +3752,11 @@ public:
   Column_definition():
     comment(null_lex_str),
     on_update(0), sql_type(MYSQL_TYPE_NULL),
+    field_visibility(NOT_HIDDEN), is_long_column_hash(false),
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), srid(0), geom_type(Field::GEOM_GEOMETRY),
     option_list(NULL),
-    vcol_info(0), default_value(0), check_constraint(0),
-    field_visibility(NOT_HIDDEN), is_long_column_hash(false)
+    vcol_info(0), default_value(0), check_constraint(0)
   {
     interval_list.empty();
   }

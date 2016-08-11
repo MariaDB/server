@@ -431,8 +431,6 @@ enum ha_base_keytype {
 
 #define HA_ERR_KEY_NOT_FOUND	120	/* Didn't find key on read or update */
 #define HA_ERR_FOUND_DUPP_KEY	121	/* Dupplicate key on write */
-/*Not a real error wrapper around HA_ERR_FOUND_DUPP_KEY for unique blob  */
-#define HA_ERR_FOUND_DUPP_KEY_BLOB 223
 #define HA_ERR_INTERNAL_ERROR   122     /* Internal error */
 #define HA_ERR_RECORD_CHANGED	123	/* Uppdate with is recoverable */
 #define HA_ERR_WRONG_INDEX	124	/* Wrong index given to function */

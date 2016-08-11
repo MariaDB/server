@@ -3377,6 +3377,9 @@ void handler::print_error(int error, myf errflag)
     if (table)
     {
       uint key_nr=get_dup_key(error);
+      /* Because we already printed error */
+      if (table->dupp_key != -1)
+        DBUG_VOID_RETURN;
       if ((int) key_nr >= 0)
       {
         print_keydup_error(table,
@@ -3385,12 +3388,6 @@ void handler::print_error(int error, myf errflag)
         DBUG_VOID_RETURN;
       }
     }
-    textno=ER_DUP_KEY;
-    break;
-  }
-  case HA_ERR_FOUND_DUPP_KEY_BLOB:
-  {
-    /* ERROR is already printed and this error is just a*/
     textno=ER_DUP_KEY;
     break;
   }
@@ -3797,6 +3794,8 @@ uint handler::get_dup_key(int error)
               m_lock_type != F_UNLCK);
   DBUG_ENTER("handler::get_dup_key");
   table->file->errkey  = (uint) -1;
+  if (table->dupp_key != -1)
+    DBUG_RETURN(table->dupp_key);
   if (error == HA_ERR_FOUND_DUPP_KEY || error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
       error == HA_ERR_FOUND_DUPP_UNIQUE || error == HA_ERR_NULL_IN_SPATIAL ||
       error == HA_ERR_DROP_INDEX_FK)
@@ -5896,11 +5895,11 @@ int handler::ha_reset()
    @returns 0 if no duplicate else returns error
   */
 int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
-                                  uint key)
+                                  int key)
 {
   Field *hash_field;
   int result;
-  /* First need to whether inserted record is unique or not */
+  table->dupp_key= -1;
   for (uint i= 0; i < table->s->keys; i++)
   {
     if (key != -1)
@@ -5933,13 +5932,13 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
         int diff= table->check_unique_buf-new_rec;
         Field * t_field;
 
-        for (int i=0; i < arg_count; i++)
+        for (uint j=0; j < arg_count; j++)
         {
-          t_field= static_cast<Item_field *>(arguments[i])->field;
+          t_field= static_cast<Item_field *>(arguments[j])->field;
           if(t_field->cmp_binary_offset(diff))
             continue;
         }
-
+        table->dupp_key= i;
         char key_buff[MAX_KEY_LENGTH];
         String str(key_buff, sizeof(key_buff), system_charset_info);
         str.length(0);
@@ -5952,9 +5951,9 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
                        false);
         }
         my_printf_error(ER_DUP_ENTRY, ER_THD(table->in_use,
-                                            ER_DUP_ENTRY_WITH_KEY_NAME)
-                         ,MYF(0), str.c_ptr_safe(),table->key_info[i].name);
-        return HA_ERR_FOUND_DUPP_KEY_BLOB;
+                                             ER_DUP_ENTRY_WITH_KEY_NAME)
+                        ,MYF(0), str.c_ptr_safe(),table->key_info[i].name);
+        return HA_ERR_FOUND_DUPP_KEY;
       }
     }
     if (key != -1)
@@ -5973,8 +5972,10 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
   Field **f, *field;
   LEX_STRING *ls;
   int error;
-  /* Here we are comparing whether new record and old record are same with respect to fields in hash_str*/
-  bool is_record_same= true;
+  /*
+     Here we are comparing whether new record and old record are same
+     with respect to fields in hash_str
+   */
   long reclength= table->record[1]-table->record[0];
   for (uint i= 0; i < table->s->keys; i++)
   {
@@ -5988,8 +5989,8 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
           /* Compare fields if they are different then check for duplicates*/
           if(field->cmp_binary_offset(reclength))
           {
-            if(error= check_duplicate_long_entries(table, table->update_handler,
-                                                   new_rec, i))
+            if((error= check_duplicate_long_entries(table, table->update_handler,
+                                                   new_rec, i)))
               return error;
             /*
               break beacuse check_duplicate_long_entries will
