@@ -1,4 +1,19 @@
 SET sql_mode=ORACLE;
+# Testing ":=" to set the default value of a variable
+CREATE FUNCTION f1 () RETURNS NUMBER(10) AS
+a NUMBER(10) := 10;
+BEGIN
+DECLARE
+b NUMBER(10) DEFAULT 3;
+BEGIN
+RETURN a+b;
+END;
+END;
+/
+SELECT f1();
+f1()
+13
+DROP FUNCTION f1;
 # Testing labels
 CREATE FUNCTION f1 (a INT) RETURNS CLOB AS
 BEGIN

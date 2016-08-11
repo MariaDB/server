@@ -1,5 +1,21 @@
 SET sql_mode=ORACLE;
 
+--echo # Testing ":=" to set the default value of a variable
+DELIMITER /;
+CREATE FUNCTION f1 () RETURNS NUMBER(10) AS
+  a NUMBER(10) := 10;
+BEGIN
+  DECLARE
+    b NUMBER(10) DEFAULT 3;
+  BEGIN
+    RETURN a+b;
+  END;
+END;
+/
+DELIMITER ;/
+SELECT f1();
+DROP FUNCTION f1;
+
 --echo # Testing labels
 
 DELIMITER /;
