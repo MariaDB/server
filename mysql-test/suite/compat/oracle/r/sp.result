@@ -107,6 +107,20 @@ SELECT @p1;
 @p1
 p1new
 DROP PROCEDURE p1;
+# Testing that NULL is a valid statement
+CREATE PROCEDURE p1(a INT) AS
+BEGIN
+NULL;
+END;
+/
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(a INT) AS
+a INT:=10;
+BEGIN
+IF a=10 THEN NULL; ELSE NULL; END IF;
+END;
+/
+DROP PROCEDURE p1;
 # Testing that (some) keyword_sp are allowed in Oracle-style assignments
 CREATE PROCEDURE p1 (action OUT INT) AS BEGIN action:=10; END;/
 DROP PROCEDURE p1/
