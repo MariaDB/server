@@ -40,7 +40,7 @@ UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
 
 # Wait for both transactions to be blocked
 --connection node_1a
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'System lock';
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Update_rows_log_event::find_row%';
 --source include/wait_condition.inc
 
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'init' AND INFO = 'COMMIT';
