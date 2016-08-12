@@ -1,4 +1,28 @@
 SET sql_mode=ORACLE;
+# Testing routines with no parameters
+CREATE PROCEDURE p1
+AS
+BEGIN
+SET @a=10;
+END;
+/
+SHOW CREATE PROCEDURE p1;
+Procedure	p1
+sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER
+Create Procedure	CREATE DEFINER="root"@"localhost" PROCEDURE "p1"()
+AS
+BEGIN
+SET @a=10;
+END
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+SET @a=0;
+CALL p1();
+SELECT @a;
+@a
+10
+DROP PROCEDURE p1;
 # Testing ":=" to set the default value of a variable
 CREATE FUNCTION f1 () RETURNS NUMBER(10) AS
 a NUMBER(10) := 10;

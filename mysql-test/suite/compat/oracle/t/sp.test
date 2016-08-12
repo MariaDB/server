@@ -1,5 +1,22 @@
 SET sql_mode=ORACLE;
 
+--echo # Testing routines with no parameters
+DELIMITER /;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  SET @a=10;
+END;
+/
+DELIMITER ;/
+--vertical_results
+SHOW CREATE PROCEDURE p1;
+--horizontal_results
+SET @a=0;
+CALL p1();
+SELECT @a;
+DROP PROCEDURE p1;
+
 --echo # Testing ":=" to set the default value of a variable
 DELIMITER /;
 CREATE FUNCTION f1 () RETURNS NUMBER(10) AS
