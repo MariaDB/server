@@ -1062,9 +1062,9 @@ public:
      by default this should be initialized to -1
    */
   int dupp_key;
-  /* If dupp != -1 then this char buffer
+  /* If dupp != -1 then this string
      store message which should be printed */
-  char *err_message;
+  String *err_message;
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */

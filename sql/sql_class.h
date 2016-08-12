@@ -305,6 +305,7 @@ public:
   LEX_STRING name;
   engine_option_value *option_list;
   bool generated;
+
   Key(enum Keytype type_par, const LEX_STRING &name_arg,
       ha_key_alg algorithm_arg, bool generated_arg, DDL_options_st ddl_options)
     :DDL_options(ddl_options),
@@ -419,7 +420,6 @@ struct Query_cache_tls
 
   Query_cache_tls() :first_query_block(NULL) {}
 };
-
 
 /* SIGNAL / RESIGNAL / GET DIAGNOSTICS */
 

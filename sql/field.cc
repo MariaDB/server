@@ -7668,10 +7668,9 @@ void Field_varstring::sql_type(String &res) const
 }
 
 
-uint32 Field_varstring::data_length(int row_offset=0)
+uint32 Field_varstring::data_length()
 {
-  return length_bytes == 1 ? (uint32) *(ptr+row_offset) 
-          : uint2korr(ptr+row_offset);
+  return length_bytes == 1 ? (uint32) *ptr : uint2korr(ptr);
 }
 /*
   Functions to create a packed row.
@@ -10519,6 +10518,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   option_list= old_field->option_list;
   field_visibility= old_field->field_visibility;
   is_long_column_hash= old_field->is_long_column_hash;
+
   switch (sql_type) {
   case MYSQL_TYPE_BLOB:
     switch (pack_length - portable_sizeof_char_ptr) {

@@ -360,17 +360,17 @@ int compare_hash_and_fetch_next(JOIN_TAB *tab)
       {
         Field *fld,*table_fld;
         fld= c->from_field;
-        table_fld= field_ptr_in_hash_str(ls,table,find_field_index_in_hash(
-                                           ls,fld->field_name));
+        table_fld= field_ptr_in_hash_str(ls, table, find_field_index_in_hash(
+                                           ls, fld->field_name));
         while (true)
         {
-          if(fld->cmp_binary(fld->ptr,table_fld->ptr))
+          if(fld->cmp_binary(fld->ptr, table_fld->ptr))
           {
-            error= table->file->ha_index_next_same(table->record[0],tab->ref.key_buff,
+            error= table->file->ha_index_next_same(table->record[0], tab->ref.key_buff,
                 table->key_info[tab->ref.key].key_length);
             if(error)
             {
-              return error; /* purecov: inspected */
+              return error;
             }
           }
           else
@@ -381,7 +381,7 @@ int compare_hash_and_fetch_next(JOIN_TAB *tab)
       {
         Field *fld;
         String field_data, *item_data;
-        fld= field_ptr_in_hash_str(ls,table,counter);
+        fld= field_ptr_in_hash_str(ls, table, counter);
         fld->val_str(&field_data);
         item_data= i->val_str();
         while (true)
@@ -393,11 +393,11 @@ int compare_hash_and_fetch_next(JOIN_TAB *tab)
                            field_data.length()))
           {
             /*here hash is same for different record we need to find the matching one*/
-            error= table->file->ha_index_next_same(table->record[0],(uchar*) tab->ref.key_buff,
+            error= table->file->ha_index_next_same(table->record[0], (uchar*) tab->ref.key_buff,
                 HA_HASH_KEY_LENGTH_WITH_NULL);
             if(error)
             {
-              return error; /* purecov: inspected */
+              return error;
             }
           }
           else
@@ -4090,7 +4090,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             base_const_ref.intersect(base_part);
             base_eq_part= eq_part;
             base_eq_part.intersect(base_part);
-            if ( (table->actual_key_flags(keyinfo) & HA_NOSAME) ||
+            if ((table->actual_key_flags(keyinfo) & HA_NOSAME) ||
                    keyinfo->flags & HA_UNIQUE_HASH )
             {
               
@@ -5261,6 +5261,7 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 	continue;
       if (form->key_info[key].flags & (HA_FULLTEXT | HA_SPATIAL))
 	continue;    // ToDo: ft-keys in non-ft queries.   SerG
+
       KEY *keyinfo= form->key_info+key;
       uint key_parts= form->actual_n_key_parts(keyinfo);
       /* in case of null we do not use any optimization */
@@ -5568,7 +5569,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   sz= MY_MAX(sizeof(KEY_FIELD),sizeof(SARGABLE_PARAM))*
     ((sel->cond_count*2 + sel->between_count)*m+1);
   if (!(key_fields=(KEY_FIELD*)	thd->alloc(sz)))
-    DBUG_RETURN(TRUE); /*  purecov: inspected */
+    DBUG_RETURN(TRUE); /* purecov: inspected */
   and_level= 0;
   field= end= key_fields;
   *sargables= (SARGABLE_PARAM *) key_fields + 
@@ -5660,6 +5661,7 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
   KEYUSE key_end, *prev, *save_pos, *use;
   uint found_eq_constant, i;
   int counter= 0;
+
   DBUG_ASSERT(keyuse->elements);
 
   my_qsort(keyuse->buffer, keyuse->elements, sizeof(KEYUSE),
@@ -5708,10 +5710,7 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
         {
           if ((prev->keypart+1 < use->keypart && skip_unprefixed_keyparts) ||
               (prev->keypart == use->keypart && found_eq_constant))
-          {
             continue;				/* remove */
-          }
-
         }
         else if (use->keypart != 0 && skip_unprefixed_keyparts)
           continue; /* remove - first found must be 0 */
@@ -6236,8 +6235,8 @@ best_access_path(JOIN      *join,
           if ((key_flags & (HA_UNIQUE_HASH | HA_NULL_PART_KEY)) == HA_UNIQUE_HASH ||
               MY_TEST(key_flags & HA_UNIQUE_HASH))
           {
-            tmp = prev_record_reads(join->positions, idx, found_ref);
-            records=1.0;
+            tmp= prev_record_reads(join->positions, idx, found_ref);
+            records= 1.0;
           }
           else
           if ((key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
@@ -9025,7 +9024,7 @@ get_keypart_hash (THD *thd, KEY *keyinfo, KEYUSE *keyuse, JOIN_TAB *j)
     LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
     uint i;
     uint num_of_fields= fields_in_hash_str(ls);
-    for (i=0 ; i < num_of_fields ; keyuse++,i++)
+    for (i=0 ; i < num_of_fields; keyuse++,i++)
     {
       if (!keyuse->val)
       {
@@ -9040,17 +9039,17 @@ get_keypart_hash (THD *thd, KEY *keyinfo, KEYUSE *keyuse, JOIN_TAB *j)
       }
       cs= str->charset();
       uchar l[4];
-      int4store(l,str->length());
-      cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
+      int4store(l, str->length());
+      cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
       cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
     }
     //for testing purpose
     //nr1= 12;
     //int8store(key_buff+1,nr1);
-    if(!is_null)
+    if (!is_null)
     {
       j->ref.key_parts= 1;
-      return new(thd->mem_root) Item_uint(thd,nr1);
+      return new(thd->mem_root) Item_uint(thd, nr1);
     }
    }
   return NULL;
@@ -19103,27 +19102,6 @@ int find_unique_hash_record(TABLE *table, JOIN_TAB *tab)
   ulong nr1= 1,nr2= 4;
   CHARSET_INFO *cs;
   String *str;
-
-//  while (keyuse && keyuse->table && keyuse->table == table)
-//  {
-//    if (keyuse->key != tab->ref.key)
-//    {
-//      keyuse++;
-//      continue;
-//    }
-//    str= keyuse->val->val_str();
-//    cs= str->charset();
-//    uchar l[4];
-//    int4store(l,str->length());
-//    cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
-//    cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
-//    keyuse++;
-//  }
-//  uchar hash_key[9];
-//  hash_key[0]=0;
-//  //for testing purpose
-//  //nr1= 12;
-//  int8store(hash_key+1,nr1);
   error= table->file->ha_index_init(tab->ref.key, 0);
   if (!error)
   {
@@ -19157,7 +19135,7 @@ int find_unique_hash_record(TABLE *table, JOIN_TAB *tab)
                        str->length(), (const uchar *)other_str.c_ptr(), other_str.length()))
       {
         /*here hash is same for different record we need to find the matching one*/
-        error= table->file->ha_index_next_same(table->record[0],(uchar*) tab->ref.key_buff,
+        error= table->file->ha_index_next_same(table->record[0], (uchar*) tab->ref.key_buff,
                                                 HA_HASH_KEY_LENGTH_WITH_NULL);
         if(error)
         {
@@ -19250,6 +19228,7 @@ join_read_key(JOIN_TAB *tab)
 {
   return join_read_key2(tab->join->thd, tab, tab->table, &tab->ref);
 }
+
 
 /*
   eq_ref access handler but generalized a bit to support TABLE and TABLE_REF

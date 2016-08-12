@@ -267,9 +267,8 @@ enum ha_base_keytype {
 #define HA_NULL_ARE_EQUAL	2048	/* NULL in key are cmp as equal */
 #define HA_GENERATED_KEY	8192	/* Automaticly generated key */
 /*
-   Some more flags for keys these are stored in flags
-   these are note stored in frm it is calculated on the fly in
-   init_from_binary_frm_image
+   Some more flags for keys  these are not stored in
+   frm it is calculated on the fly in init_from_binary_frm_image
 */
 #define HA_UNIQUE_HASH            65536
         /* The combination of the above can be used for key type comparison. */
@@ -345,7 +344,6 @@ enum ha_base_keytype {
   is the global server default.
 */
 #define HA_OPTION_NO_STATS_PERSISTENT	8192
-
 
 /* .frm has extra create options in linked-list format */
 #define HA_OPTION_TEXT_CREATE_OPTIONS_legacy (1L << 14) /* 5.2 to 5.5, unused since 10.0 */

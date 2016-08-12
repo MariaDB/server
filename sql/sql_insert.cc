@@ -173,6 +173,7 @@ error:
   return TRUE;
 }
 
+
 /*
   Check if insert fields are correct.
 
@@ -196,6 +197,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 {
   TABLE *table= table_list->table;
   DBUG_ENTER("check_insert_fields");
+
   List_iterator<Item> i_iter(values);
   int num_of_hiddens_fields= 0;
   if (!fields.elements)
@@ -673,7 +675,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   ulonglong id;
   COPY_INFO info;
   TABLE *table= 0;
- 
+  List_iterator_fast<List_item> its(values_list);
   List_item *values;
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
@@ -729,9 +731,6 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       DBUG_RETURN(TRUE);
   }
 
-  List_iterator_fast<List_item> its(values_list);
-  context= &thd->lex->select_lex.context;
-
   lock_type= table_list->lock_type;
 
   THD_STAGE_INFO(thd, stage_init);
@@ -749,7 +748,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   /* mysql_prepare_insert set table_list->table if it was not set */
   table= table_list->table;
-
+  context= &thd->lex->select_lex.context;
   
   /*
     These three asserts test the hypothesis that the resetting of the name

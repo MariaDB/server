@@ -3280,7 +3280,8 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
   /* Write the duplicated key in the error message */
   if (table->dupp_key != -1 && table->err_message)
   {
-    my_printf_error(ER_DUP_ENTRY, msg, errflag, table->err_message, key->name);
+    my_printf_error(ER_DUP_ENTRY, msg, errflag,
+                    table->err_message->c_ptr_safe(), key->name);
     return;
   }
   char key_buff[MAX_KEY_LENGTH];
@@ -3302,7 +3303,6 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
       str.length(max_length-4);
       str.append(STRING_WITH_LEN("..."));
     }
-
     my_printf_error(ER_DUP_ENTRY, msg, errflag, str.c_ptr_safe(), key->name);
   }
 }
@@ -5920,7 +5920,7 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
                       table->key_info[i].key_length, false);
 
       if (!table->check_unique_buf)
-        table->check_unique_buf = (uchar *)alloc_root(&table->mem_root,
+        table->check_unique_buf= (uchar *)alloc_root(&table->mem_root,
                                         table->s->reclength*sizeof(uchar));
 
       result= h->ha_index_read_idx_map(table->check_unique_buf,
@@ -5942,17 +5942,22 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
             continue;
         }
         table->dupp_key= i;
+        String *str;
         if (!table->err_message)
-          table->err_message= (char *)current_thd->alloc(MAX_KEY_LENGTH);
-        String str(table->err_message, sizeof(table->err_message),
-                   system_charset_info);
-        str.length(0);
+        {
+          char *temp= (char *)current_thd->alloc(MAX_KEY_LENGTH);
+           str= table->err_message= new(current_thd->mem_root) String(
+                 temp, sizeof(temp),system_charset_info);
+        }
+        else
+          str= table->err_message;
+        str->length(0);
         for(uint i= 0; i < arg_count; i++)
         {
           t_field= ((Item_field *)arguments[i])->field;
-          if (str.length())
-            str.append('-');
-          field_unpack(&str,t_field,new_rec,15,//since blob can be to long
+          if (str->length())
+            str->append('-');
+          field_unpack(str, t_field, new_rec, 15,//since blob can be to long
                        false);
         }
 //        my_printf_error(ER_DUP_ENTRY, ER_THD(table->in_use,
@@ -6018,9 +6023,11 @@ int handler::ha_write_row(uchar *buf)
               m_lock_type == F_WRLCK);
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
+
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
+
   if ((error= check_duplicate_long_entries(table, table->file, buf, -1)))
     DBUG_RETURN(error);
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
@@ -6050,9 +6057,11 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
    */
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
+
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
+
   if ((error= check_duplicate_long_entries_update(table, table->file, new_data)))
     return error;
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,

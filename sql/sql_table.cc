@@ -3738,7 +3738,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   }
   if (is_all_hidden)
   { //todo correct add error
-    my_error(ER_TABLE_CANT_HANDLE_BLOB, MYF(0), file->table_type());
+    my_error(ER_TABLE_MUST_HAVE_COLUMNS, MYF(0));
     DBUG_RETURN(TRUE);
   }
   if (auto_increment > 1)

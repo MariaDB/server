@@ -6850,6 +6850,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   bool save_is_item_list_lookup;
   DBUG_ENTER("setup_fields");
   DBUG_PRINT("enter", ("ref_pointer_array: %p", ref_pointer_array.array()));
+
   thd->mark_used_columns= mark_used_columns;
   DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
   if (allow_sum_func)
@@ -7447,7 +7448,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
       else
         thd->lex->used_tables|= item->used_tables();
       thd->lex->current_select->cur_pos_in_select_list++;
-
+    }
     /*
       In case of stored tables, all fields are considered as used,
       while in the case of views, the fields considered as used are the
@@ -7456,8 +7457,6 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
     */
     if (table)
       table->used_fields= table->s->fields;
-   }
-
   }
   if (found)
     DBUG_RETURN(FALSE);
@@ -7997,7 +7996,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   Name_resolution_context *context= & thd->lex->select_lex.context;
   Field **f;
   for (f= ptr; f && (field= *f); f++)
-  {       //TODO a better logic for adding default
+  {
     if (field->field_visibility!=NOT_HIDDEN)
     {
       if (f == ptr)
@@ -8010,6 +8009,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
       else
         i_iter.after(new (thd->mem_root) Item_default_value(thd,context));
     }
+    else
+      i_iter++;
   }
   f= ptr;
   i_iter.rewind();
@@ -8017,6 +8018,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   {
     /* Ensure that all fields are from the same table */
     DBUG_ASSERT(field->table == table);
+
     value=v++;
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;

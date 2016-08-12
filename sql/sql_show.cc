@@ -1938,6 +1938,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         packet->append(STRING_WITH_LEN(" NULL"));
       }
 
+      if (field->field_visibility == USER_DEFINED_HIDDEN)
+      {
+        packet->append(STRING_WITH_LEN(" HIDDEN"));
+      }
+
       if (get_field_default_value(thd, field, &def_value, 1))
       {
         packet->append(STRING_WITH_LEN(" DEFAULT "));
