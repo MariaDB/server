@@ -2243,7 +2243,10 @@ show_create_sp(THD *thd, String *buf,
   buf->append(')');
   if (type == TYPE_ENUM_FUNCTION)
   {
-    buf->append(STRING_WITH_LEN(" RETURNS "));
+    if (sql_mode & MODE_ORACLE)
+      buf->append(STRING_WITH_LEN(" RETURN "));
+    else
+      buf->append(STRING_WITH_LEN(" RETURNS "));
     buf->append(returns, returnslen);
   }
   buf->append('\n');
