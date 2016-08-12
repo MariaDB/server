@@ -748,8 +748,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   /* mysql_prepare_insert set table_list->table if it was not set */
   table= table_list->table;
+
   context= &thd->lex->select_lex.context;
-  
   /*
     These three asserts test the hypothesis that the resetting of the name
     resolution context below is not necessary at all since the list of local

@@ -117,7 +117,6 @@ public:
   const char *func_name() const { return "sha"; }	
 };
 
-
 class Item_func_sha2 :public Item_str_ascii_func
 {
 public:

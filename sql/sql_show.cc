@@ -1986,7 +1986,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
             (*(ptr+i))->field_visibility==FULL_HIDDEN)
       {
         i++;
-        is_comma_needed=true;
         if(!*(ptr+i))
         {
           is_comma_needed =false;
@@ -2010,17 +2009,17 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   for (uint i=0 ; i < share->keys ; i++,key_info++)
   {
     KEY_PART_INFO *key_part= key_info->key_part;
-    if(key_info->flags&HA_UNIQUE_HASH)
+    if (key_info->flags & HA_UNIQUE_HASH)
     {
       char * column_names= key_part->field->vcol_info->
-                          expr_str.str+strlen("hash");
-      int length=key_part->field->vcol_info->expr_str.length;
-      length-=strlen("hash");
+                          expr_str.str + HA_HASH_STR_LEN;
+      int length= key_part->field->vcol_info->expr_str.length;
+      length-= HA_HASH_STR_LEN;
       packet->append(STRING_WITH_LEN(",\n"));
       packet->append(STRING_WITH_LEN("  UNIQUE KEY `"));
-      packet->append(key_info->name,strlen(key_info->name));
+      packet->append(key_info->name, strlen(key_info->name));
       packet->append(STRING_WITH_LEN("`"));
-      packet->append(column_names,length);
+      packet->append(column_names, length);
       continue;
     }
     bool found_primary=0;
@@ -5506,34 +5505,21 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     pos=(uchar*) ((field->flags & PRI_KEY_FLAG) ? "PRI" :
                  (field->flags & UNIQUE_KEY_FLAG) ? "UNI" :
                  (field->flags & MULTIPLE_KEY_FLAG) ? "MUL":"");
-    KEY *key=show_table->key_info;
-    for(int i=0;i<show_table->s->keys;i++,key++)
+    KEY *key= show_table->key_info;
+    for (int i=0; i<show_table->s->keys; i++, key++)
     {
-      if(key->flags &HA_UNIQUE_HASH)
+      if (key->flags & HA_UNIQUE_HASH)
       {
-        LEX_STRING * ls=&key->key_part->field->vcol_info->expr_str;
-        int position= find_field_name_in_hash(ls->str,
-                   (char *)field->field_name,ls->length);
-        int comma_position= find_field_name_in_hash(ls->str,
-                                                    ",",ls->length);
-        /* key will be of two type unique or multiple
-         for unique key there should no comma in hash_str
-         for multiple key vice versa, we will show multiple to
-         only first field column
-         for example hash(`abc`,`xyz`)
-         multiple will be shown to `abc` only
-         and position should be > 0
-       */
+        LEX_STRING * ls= &key->key_part->field->vcol_info->expr_str;
+        int position= find_field_index_in_hash(ls, field->field_name);
+        int fields= fields_in_hash_str(ls);
         //this is for single  hash(`abc`)
-        if(position!=-1&&comma_position==-1)
+        if (position == 0 && fields == 1)
         {
-          if(key->flags&HA_UNIQUE_HASH)
-            pos=(uchar *) "UNI";
-          else
-            pos=(uchar * )"MUL";
+            pos= (uchar *) "UNI";
         }
         //this is for   hash(`abc`,`xyzs`)
-        if(position!=-1&&position<comma_position)
+        if (position == 0 && fields > 1)
         {
           pos=(uchar *) "MUL";
         }
@@ -5541,34 +5527,26 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     }
     table->field[16]->store((const char*) pos,
                             strlen((const char*) pos), cs);
-
+    StringBuffer<256> buf;
     if (field->unireg_check == Field::NEXT_NUMBER)
-      table->field[17]->store(STRING_WITH_LEN("auto_increment"), cs);
+      buf.set(STRING_WITH_LEN("auto_increment"),cs);
     if (print_on_update_clause(field, &type, true))
-      table->field[17]->store(type.ptr(), type.length(), cs);
+      buf.set(type.ptr(), type.length(),cs);
     if (field->vcol_info)
     {
       if (field->vcol_info->stored_in_db)
-        table->field[17]->store(STRING_WITH_LEN("PERSISTENT"), cs);
+        buf.set(STRING_WITH_LEN("PERSISTENT"), cs);
       else
-        table->field[17]->store(STRING_WITH_LEN("VIRTUAL"), cs);
+        buf.set(STRING_WITH_LEN("VIRTUAL"), cs);
     }
     /*hidden can coexist with auto_increment and virtual */
     if(field->field_visibility==USER_DEFINED_HIDDEN)
     {
-      table->field[17]->store(STRING_WITH_LEN("HIDDEN"), cs);
-      if (field->unireg_check == Field::NEXT_NUMBER)
-        table->field[17]->store(STRING_WITH_LEN("auto_increment , HIDDEN"), cs);
-      if (print_on_update_clause(field, &type, true))
-        table->field[17]->store(type.ptr(), type.length(), cs);
-      if (field->vcol_info)
-      {
-        if (field->stored_in_db())
-          table->field[17]->store(STRING_WITH_LEN("PERSISTENT, HIDDEN"), cs);
-        else
-          table->field[17]->store(STRING_WITH_LEN("VIRTUAL, HIDDEN"), cs);
-      }
+      if (buf.length())
+        buf.append(STRING_WITH_LEN(", HIDDEN"));
+      buf.set(STRING_WITH_LEN("HIDDEN"),cs);
     }
+    table->field[17]->store(buf.ptr(), buf.length(), cs);
     table->field[19]->store(field->comment.str, field->comment.length, cs);
     if (schema_table_store_record(thd, table))
       DBUG_RETURN(1);

@@ -7898,7 +7898,7 @@ int fields_in_hash_str(LEX_STRING * hash_lex)
   int hash_str_length= hash_lex->length;
   char *hash_str= hash_lex->str;
   int num_of_fields= 1;
-  for(int i= 0; i<hash_str_length; i++)
+  for (int i= 0; i<hash_str_length; i++)
   {
     if (hash_str[i] == ',' && hash_str[i-1] == '`'
          && hash_str[i+1] == '`' )
@@ -7920,7 +7920,7 @@ Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index)
   char *str= hash_str->str;
   int i= strlen("hash"), j;
   Field **f, *field;
-  while (i<hash_str->length)
+  while (i < hash_str->length)
   {
     if (str[i] == ',')
       temp_index++;
@@ -7934,7 +7934,7 @@ Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index)
   field_name[j]= '\0';
   for (f= table->field; f && (field= *f); f++)
   {
-    if(!my_strcasecmp(system_charset_info,field->field_name,field_name))
+    if (!my_strcasecmp(system_charset_info, field->field_name, field_name))
       break;
   }
   return field;
@@ -7961,10 +7961,10 @@ int rem_field_from_hash_col_str(LEX_STRING * hash_lex, const char * field_name)
    /* first of all find field_name in hash_str*/
   char * temp= hash_lex->str;
   const char * t_field= field_name;
-  int i = find_field_name_in_hash( temp,field_name,hash_lex->length);
-  if(i!=-1)
+  int i= find_field_name_in_hash(temp, field_name, hash_lex->length);
+  if ( i != -1)
   {
-   /*
+    /*
       We found the field location
       First of all we need to find the
       , position and there can be three
@@ -7973,24 +7973,24 @@ int rem_field_from_hash_col_str(LEX_STRING * hash_lex, const char * field_name)
       2. one , remove this
       3  no , return
    */
-   // see if there is , before field name
-   int j=strlen(field_name);
-    if(*(temp+i-j-2)==',')
+    // see if there is , before field name
+    int j= strlen(field_name);
+    if (*(temp + i -j-2) == ',')
     {
-      hash_lex->length=hash_lex->length-j-2-1;//-2 for two '`' and -1 for ','
-      memmove(temp+i-j-2,temp+i+1,hash_lex->length);
+      hash_lex->length= hash_lex->length- j-2-1;//-2 for two '`' and -1 for ','
+      memmove(temp+i-j-2, temp+i+1, hash_lex->length);
       return 0;
     }
-    if(*(temp+i+1)==',')
+    if (*(temp+i+1) == ',')
     {
-      hash_lex->length=hash_lex->length-j-2-1;//-2 for two '`' and -1 for ','
-      memmove(temp+i-j-1,temp+i+2,hash_lex->length);
+      hash_lex->length= hash_lex->length-j-2-1;//-2 for two '`' and -1 for ','
+      memmove(temp+i-j-1, temp+i+2, hash_lex->length);
       return 0;
     }
-    if(*(temp+i+1)==')')
+    if (*(temp+i+1) == ')')
     {
-      hash_lex->length=0;
-      hash_lex->str=NULL;
+      hash_lex->length= 0;
+      hash_lex->str= NULL;
       return 0;
     }
   }
@@ -8003,31 +8003,31 @@ int  change_field_from_hash_col_str(LEX_STRING * hash_lex, const char * old_name
   /* first of all find field_name in hash_lex*/
   char * temp= hash_lex->str;
   const char * t_field= old_name;
-  int i = find_field_name_in_hash( temp,old_name,hash_lex->length);
-  if(i!=-1)
+  int i= find_field_name_in_hash(temp, old_name, hash_lex->length);
+  if (i != -1)
   {
-    int len= hash_lex->length-strlen(old_name)+strlen(new_name);
-    int num=0;
+    int len= hash_lex->length-strlen(old_name) + strlen(new_name);
+    int num= 0;
     char  temp_arr[len];
-    int s_c_position = i-strlen(old_name);//here it represent the posotion of
+    int s_c_position= i - strlen(old_name);//here it represent the posotion of
                                           //'`' before old f_name
-    for(int index=0;index<len;index++)
+    for (int index= 0; index < len; index++)
     {
-      if(index>=s_c_position&&index<s_c_position+strlen(new_name))
+      if (index >= s_c_position && index < s_c_position+strlen(new_name))
       {
         temp_arr[index]= new_name[index-s_c_position];
         continue;
       }
-      if(index>=s_c_position+strlen(new_name))
+      if (index >= s_c_position+strlen(new_name))
       {
         temp_arr[index]= temp[i+num];
         num++;
         continue;
       }
-      temp_arr[index]=temp[index];
+      temp_arr[index]= temp[index];
     }
-    strcpy(hash_lex->str,temp_arr);
-    hash_lex->length=len;
+    strcpy(hash_lex->str, temp_arr);
+    hash_lex->length= len;
     return 0;
   }
   return 1;
