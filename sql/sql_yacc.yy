@@ -15996,7 +15996,13 @@ udf_tail2:
           }
         ;
 sf_tail:
-          AGGREGATE_SYM sf_tail2 { Lex->sp_chistics.agg_type= GROUP_AGGREGATE;}
+          AGGREGATE_SYM sf_tail2
+          {
+           if(Lex->sp_chistics.agg_type != GROUP_AGGREGATE)
+           {
+            my_yyabort_error((ER_INVALID_AGGREGATE_FUNCTION, MYF(0), ""));
+           }
+          }
         | sf_tail2
         {
           if(Lex->sp_chistics.agg_type == GROUP_AGGREGATE)
