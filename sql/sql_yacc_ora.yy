@@ -2363,6 +2363,11 @@ sp_no_param:
           }
         ;
 
+opt_sp_parenthesized_fdparam_list:
+          sp_no_param
+        | sp_parenthesized_fdparam_list
+        ;
+
 opt_sp_parenthesized_pdparam_list:
           sp_no_param
         | sp_parenthesized_pdparam_list
@@ -16034,8 +16039,8 @@ sf_tail:
               MYSQL_YYABORT;
             Lex->spname= $3;
           }
-          sp_parenthesized_fdparam_list /* $5 */
-          RETURNS_SYM /* $6 */
+          opt_sp_parenthesized_fdparam_list /* $5 */
+          RETURN_SYM /* $6 */
           { /* $7 */
             LEX *lex= Lex;
             lex->init_last_field(&lex->sphead->m_return_field_def, NULL,
