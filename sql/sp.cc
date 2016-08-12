@@ -35,8 +35,7 @@
 #include <my_user.h>
 
 /* Used in error handling only */
-#define SP_TYPE_STRING(type) \
-    (type == TYPE_ENUM_FUNCTION ? "FUNCTION" : "PROCEDURE")
+#define SP_TYPE_STRING(type) stored_procedure_type_to_str(type)
      
 static int
 db_load_routine(THD *thd, stored_procedure_type type, sp_name *name,
@@ -1699,8 +1698,7 @@ sp_show_create_routine(THD *thd, stored_procedure_type type, sp_name *name)
       If we have insufficient privileges, pretend the routine
       does not exist.
     */
-    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-             type == TYPE_ENUM_FUNCTION ? "FUNCTION" : "PROCEDURE",
+    my_error(ER_SP_DOES_NOT_EXIST, MYF(0), stored_procedure_type_to_str(type),
              name->m_name.str);
     DBUG_RETURN(TRUE);
   }

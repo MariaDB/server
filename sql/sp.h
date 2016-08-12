@@ -48,6 +48,20 @@ enum stored_procedure_type
   TYPE_ENUM_PROXY=4
 };
 
+
+static inline const char *
+stored_procedure_type_to_str(enum stored_procedure_type type)
+{
+  switch (type) {
+  case TYPE_ENUM_PROCEDURE: return "PROCEDURE";
+  case TYPE_ENUM_FUNCTION:  return "FUNCTION";
+  case TYPE_ENUM_TRIGGER:   return "TRIGGER";
+  case TYPE_ENUM_PROXY:     return "PROXY";
+  }
+  DBUG_ASSERT(0);
+  return "UNKNOWN_STORED_"; 
+}
+
 /* Tells what SP_DEFAULT_ACCESS should be mapped to */
 #define SP_DEFAULT_ACCESS_MAPPING SP_CONTAINS_SQL
 

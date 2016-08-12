@@ -30,6 +30,8 @@
 #include "sql_alter.h"                // Alter_info
 #include "sql_window.h"
 #include "sql_trigger.h"
+#include "sp.h"                       // enum stored_procedure_type
+
 
 /* YACC and LEX Definitions */
 
@@ -3023,6 +3025,25 @@ public:
   bool set_system_variable(struct sys_var_with_base *tmp,
                            enum enum_var_type var_type, Item *val);
   void set_stmt_init();
+  sp_head *make_sp_head(THD *thd, sp_name *name,
+                        enum stored_procedure_type type);
+  sp_head *make_sp_head_no_recursive(THD *thd, sp_name *name,
+                                     enum stored_procedure_type type)
+  {
+    if (!sphead)
+      return make_sp_head(thd, name, type);
+    my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0),
+             stored_procedure_type_to_str(type));
+    return NULL;
+  }
+  sp_head *make_sp_head_no_recursive(THD *thd,
+                                     DDL_options_st options, sp_name *name,
+                                     enum stored_procedure_type type)
+  {
+    if (add_create_options_with_check(options))
+      return NULL;
+    return make_sp_head_no_recursive(thd, name, type);
+  }
   bool init_internal_variable(struct sys_var_with_base *variable,
                               LEX_STRING name);
   bool init_internal_variable(struct sys_var_with_base *variable,
