@@ -5365,6 +5365,29 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
 }
 
 
+sp_head *LEX::make_sp_head(THD *thd, sp_name *name,
+                           enum stored_procedure_type type)
+{
+  sp_head *sp;
+
+  /* Order is important here: new - reset - init */
+  if ((sp= new sp_head()))
+  {
+    sp->reset_thd_mem_root(thd);
+    sp->init(this);
+    sp->m_type= type;
+    if (name)
+      sp->init_sp_name(thd, name);
+    sp->m_chistics= &sp_chistics;
+    sphead= sp;
+  }
+  bzero(&sp_chistics, sizeof(sp_chistics));
+  return sp;
+}
+
+
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 

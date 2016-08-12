@@ -172,32 +172,11 @@ void turn_parser_debug_on()
 #endif
 
 
-static sp_head *make_sp_head(THD *thd, sp_name *name,
-                             enum stored_procedure_type type)
-{
-  LEX *lex= thd->lex;
-  sp_head *sp;
-
-  /* Order is important here: new - reset - init */
-  if ((sp= new sp_head()))
-  {
-    sp->reset_thd_mem_root(thd);
-    sp->init(lex);
-    sp->m_type= type;
-    if (name)
-      sp->init_sp_name(thd, name);
-    sp->m_chistics= &lex->sp_chistics;
-    lex->sphead= sp;
-  }
-  bzero(&lex->sp_chistics, sizeof(lex->sp_chistics));
-  return sp;
-}
-
 static bool maybe_start_compound_statement(THD *thd)
 {
   if (!thd->lex->sphead)
   {
-    if (!make_sp_head(thd, NULL, TYPE_ENUM_PROCEDURE))
+    if (!thd->lex->make_sp_head(thd, NULL, TYPE_ENUM_PROCEDURE))
       return 1;
 
     Lex->sp_chistics.suid= SP_IS_NOT_SUID;
@@ -2775,7 +2754,8 @@ ev_sql_stmt:
             if (lex->sphead)
               my_yyabort_error((ER_EVENT_RECURSION_FORBIDDEN, MYF(0)));
               
-            if (!make_sp_head(thd, lex->event_parse_data->identifier, TYPE_ENUM_PROCEDURE))
+            if (!lex->make_sp_head(thd, lex->event_parse_data->identifier,
+                                        TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
 
             lex->sp_chistics.suid= SP_IS_SUID;  //always the definer!
@@ -16367,7 +16347,7 @@ trigger_tail:
             (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($18);
             lex->trg_chistics.ordering_clause_end= lip->get_cpp_ptr();
 
-            if (!make_sp_head(thd, $5, TYPE_ENUM_TRIGGER))
+            if (!lex->make_sp_head(thd, $5, TYPE_ENUM_TRIGGER))
               MYSQL_YYABORT;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
@@ -16429,50 +16409,45 @@ sf_tail:
           FUNCTION_SYM /* $1 */
           opt_if_not_exists /* $2 */
           sp_name /* $3 */
-          '(' /* $4 */
-          { /* $5 */
+          {
+            if (!Lex->make_sp_head_no_recursive(thd, $2, $3, TYPE_ENUM_FUNCTION))
+              MYSQL_YYABORT;
+            Lex->spname= $3;
+          }
+          '(' /* $5 */
+          { /* $6 */
             LEX *lex= Lex;
             Lex_input_stream *lip= YYLIP;
             const char* tmp_param_begin;
-
-            if (lex->add_create_options_with_check($2))
-              MYSQL_YYABORT;
-            lex->spname= $3;
-
-            if (lex->sphead)
-              my_yyabort_error((ER_SP_NO_RECURSIVE_CREATE, MYF(0), "FUNCTION"));
-
-            if (!make_sp_head(thd, $3, TYPE_ENUM_FUNCTION))
-              MYSQL_YYABORT;
 
             tmp_param_begin= lip->get_cpp_tok_start();
             tmp_param_begin++;
             lex->sphead->m_param_begin= tmp_param_begin;
           }
-          sp_fdparam_list /* $6 */
-          ')' /* $7 */
-          { /* $8 */
+          sp_fdparam_list /* $7 */
+          ')' /* $8 */
+          { /* $9 */
             Lex->sphead->m_param_end= YYLIP->get_cpp_tok_start();
           }
-          RETURNS_SYM /* $9 */
-          { /* $10 */
+          RETURNS_SYM /* $10 */
+          { /* $11 */
             LEX *lex= Lex;
             lex->init_last_field(&lex->sphead->m_return_field_def, NULL,
                                  thd->variables.collation_database);
           }
-          type_with_opt_collate /* $11 */
-          { /* $12 */
+          type_with_opt_collate /* $12 */
+          { /* $13 */
             if (Lex->sphead->fill_field_definition(thd, Lex->last_field))
               MYSQL_YYABORT;
           }
-          sp_c_chistics /* $13 */
-          { /* $14 */
+          sp_c_chistics /* $14 */
+          { /* $15 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt_in_returns_clause /* $15 */
+          sp_proc_stmt_in_returns_clause /* $16 */
           {
             LEX *lex= thd->lex;
             sp_head *sp= lex->sphead;
@@ -16493,13 +16468,8 @@ sf_tail:
 sp_tail:
           PROCEDURE_SYM opt_if_not_exists sp_name
           {
-            if (Lex->add_create_options_with_check($2))
-              MYSQL_YYABORT;
-
-            if (Lex->sphead)
-              my_yyabort_error((ER_SP_NO_RECURSIVE_CREATE, MYF(0), "PROCEDURE"));
-
-            if (!make_sp_head(thd, $3, TYPE_ENUM_PROCEDURE))
+            if (!Lex->make_sp_head_no_recursive(thd, $2, $3,
+                                                TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
             Lex->spname= $3;
           }
