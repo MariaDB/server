@@ -4,7 +4,7 @@ set x=5;
 fetch group next row;
 return x+1;
 end |
-ERROR HY000: FETCH GROUP NEXT ROW instruction is only allowed in aggregate functions
+ERROR HY000: Non-aggregate function contains aggregate specific instructions: (FETCH GROUP NEXT ROW)
 create aggregate function agg_increm() returns INT
 begin
 declare z int default 0;
