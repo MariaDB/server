@@ -5543,8 +5543,8 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     if(field->field_visibility==USER_DEFINED_HIDDEN)
     {
       if (buf.length())
-        buf.append(STRING_WITH_LEN(", HIDDEN"));
-      buf.set(STRING_WITH_LEN("HIDDEN"),cs);
+        buf.append(STRING_WITH_LEN(" , "));
+      buf.append(STRING_WITH_LEN("HIDDEN"),cs);
     }
     table->field[17]->store(buf.ptr(), buf.length(), cs);
     table->field[19]->store(field->comment.str, field->comment.length, cs);
@@ -6098,7 +6098,7 @@ err:
   DBUG_RETURN(res);
 }
 
-static int print_get_schema_stat_record(THD *thd, TABLE_LIST *tables,
+static int print_get_schema_stat_keypart(THD *thd, TABLE_LIST *tables,
 																				 TABLE *table,TABLE *show_table,
 																				 LEX_STRING *db_name,
 																				 LEX_STRING *table_name,
@@ -6135,8 +6135,24 @@ static int print_get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       table->field[9]->store((longlong) records, TRUE);
       table->field[9]->set_notnull();
     }
-    str= show_table->file->index_type(i);
-    table->field[13]->store(str, strlen(str), cs);
+    /*
+      In the case of long unique hash as we try
+      to calc key->rec_per_key[j] it will give zero
+      so cardinality will be set to null we do not want
+      this so
+     */
+    if (key_info->flags & HA_UNIQUE_HASH)
+    {
+      table->field[9]->store(0, TRUE);
+      table->field[9]->set_notnull();
+    }
+    if (key_info->flags & HA_UNIQUE_HASH)
+      table->field[13]->store(HA_HASH_STR_INDEX,HA_HASH_STR_INDEX_LEN , cs);
+    else
+    {
+      str= show_table->file->index_type(i);
+      table->field[13]->store(str, strlen(str), cs);
+    }
   }
   if (!(key_info->flags & HA_FULLTEXT) &&
       (key_part->field &&
@@ -6201,48 +6217,34 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
                              HA_STATUS_TIME);
       set_statistics_for_table(thd, show_table);
     }
-    for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
+    for (uint i=0 ; i < show_table->s->keys ; i++, key_info++)
     {
       KEY_PART_INFO *key_part= key_info->key_part;
-      for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
+      for (uint j=0 ; j < key_info->user_defined_key_parts; j++, key_part++)
       {
 
-        if(key_info->flags&HA_UNIQUE_HASH && key_info->key_part->field)
+        if (key_info->flags & HA_UNIQUE_HASH && key_info->key_part->field)
         {
-          char * hash_str = key_info->key_part->field->vcol_info->expr_str.str;
-          /*increase the pointer to hash(`fd..
-                                         ^     */
-          hash_str+=4;
-          int length=0;
-          while(*hash_str!=')'&& hash_str++)
+          LEX_STRING *ls = &key_info->key_part->field->vcol_info->expr_str;
+          int total_fields= fields_in_hash_str(ls);
+          int counter= 0;
+          Field *fld;
+          while (counter < total_fields)
           {
-            if(*hash_str=='`')
-            {
-              hash_str++;
-              while(*hash_str!='`'){ hash_str++; length++; }
-              /*Currently we do no have my_strncasecmp so we will make a new var*/
-              char temp[length+1];
-              strncpy(temp,hash_str-length,length);
-              temp[length]='\0';
-              Field **fp,*f;
-
-              for (fp=show_table->field;*fp&&(f=*fp);fp++)
-              {
-                if(!my_strcasecmp(system_charset_info,temp,f->field_name))
-                {
-                  if(print_get_schema_stat_record( thd, tables,table,show_table,db_name,
-                                                       table_name,key_info,key_part,f,i,j))
-                    DBUG_RETURN(1);
-                }
-              }
-              hash_str++;
-              length=0;
-            }
+            fld= field_ptr_in_hash_str(ls, show_table, counter);
+            if(print_get_schema_stat_keypart(thd, tables, table,
+                                             show_table, db_name,
+                                             table_name, key_info,
+                                             key_part, fld, i, counter))
+              DBUG_RETURN(1);
+            counter++;
           }
+
           continue;
         }
-        if(print_get_schema_stat_record( thd, tables,table,show_table,db_name,
-                                             table_name,key_info,key_part,key_part->field,i,j))
+
+        if(print_get_schema_stat_keypart(thd, tables,table,show_table,db_name,
+                                         table_name,key_info,key_part,key_part->field,i,j))
           DBUG_RETURN(1);
       }
     }
@@ -6629,44 +6631,24 @@ static int get_schema_key_column_usage_record(THD *thd,
     {
       if(key_info->flags&HA_UNIQUE_HASH && key_info->key_part->field)
       {
-        char * hash_str = key_info->key_part->field->vcol_info->expr_str.str;
-        /*increase the pointer to hash(`fd..
-                                       ^     */
-        hash_str+=4;
-        int length=0;
-        char * fld_name;
-        uint f_idx= 0;
-        while(*hash_str!=')'&& hash_str++)
-        {
-          if(*hash_str=='`')
-          {
-            hash_str++;
-            while(*hash_str!='`'){ hash_str++; length++; }
-            /*Currently we do no have my_strncasecmp so we will make a new var*/
-            char temp[length+1];
-            strncpy(temp,hash_str-length,length);
-            temp[length]='\0';
-            Field **fp,*f;
+        LEX_STRING *ls = &key_info->key_part->field->vcol_info->expr_str;
+        int total_fields= fields_in_hash_str(ls);
+        int counter= 0;
+        Field *fld;
 
-            for (fp=show_table->field;*fp&&(f=*fp);fp++)
-            {
-              if(!my_strcasecmp(system_charset_info,temp,f->field_name))
-              {
-                f_idx++;
-                restore_record(table, s->default_values);
-                store_key_column_usage(table, db_name, table_name,
-                                       key_info->name,
-                                       strlen(key_info->name),
-                                       f->field_name,
-                                       strlen(f->field_name),
-                                       (longlong)f_idx );
-                if (schema_table_store_record(thd, table))
-                  DBUG_RETURN(1);
-              }
-            }
-            hash_str++;
-            length=0;
-          }
+        while (counter < total_fields)
+        {
+          fld= field_ptr_in_hash_str(ls, show_table, counter);
+          counter++;
+          restore_record(table, s->default_values);
+          store_key_column_usage(table, db_name, table_name,
+                                 key_info->name,
+                                 strlen(key_info->name),
+                                 fld->field_name,
+                                 strlen(fld->field_name),
+                                 (longlong)counter );
+          if (schema_table_store_record(thd, table))
+            DBUG_RETURN(1);
         }
         continue;
       }

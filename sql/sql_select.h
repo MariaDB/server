@@ -1801,6 +1801,7 @@ class store_key_field: public store_key
       copy_field.set(to_field,from_field,0);
     }
   }  
+
   Copy_field * get_copy_field() { return  &copy_field; }
   enum Type type() const { return FIELD_STORE_KEY; }
   const char *name() const { return field_name; }
@@ -1875,6 +1876,7 @@ public:
     :store_key(arg), item(new_item), use_value(val)
   {}
 
+
   Item *get_item() {return item;}
   enum Type type() const { return ITEM_STORE_KEY; }
   const char *name() const { return "func"; }
@@ -1902,7 +1904,7 @@ public:
       int4store(l,str->length());
       cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
       cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
-      int8store(to_field->ptr,nr1);
+      int8store(to_field->ptr, nr1);
       //no idea what it does
       dbug_tmp_restore_column_map(table->write_set, old_map);
       return STORE_KEY_OK;

@@ -336,7 +336,13 @@ bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
   return FALSE;
 }
 #endif 
-
+ /*
+   this function is used when we  do search for long unique column
+   as optimizer think HA_UNIQUE_HASH flag is similar to HA_NOSAME
+   but internally same hash does guarantee the same record we
+   scan for next record untill same record is found else error
+   is given
+    */
 int compare_hash_and_fetch_next(JOIN_TAB *tab)
 {
   int error;
@@ -9193,8 +9199,8 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         plans! Does the optimizer depend on the contents of
         table_ref->key_copy ? If yes, do we produce incorrect EXPLAINs? 
       */
-      if (!keyuse->val->used_tables() && !thd->lex->describe )
-      {         // Compare against constant
+      if (!keyuse->val->used_tables() && !thd->lex->describe)
+      {					// Compare against constant
         Item *item= get_keypart_hash(thd,keyinfo,keyuse,j);
         if (item != NULL)
         {
@@ -9209,9 +9215,9 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                            keyinfo->key_part[i].length,
                            item,
                            FALSE);
-        if (thd->is_fatal_error)
-          DBUG_RETURN(TRUE);
-        tmp.copy();
+  if (thd->is_fatal_error)
+    DBUG_RETURN(TRUE);
+  tmp.copy();
         j->ref.const_ref_part_map |= key_part_map(1) << i ;
       }
       else
@@ -9241,7 +9247,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                    ((Item_ref*)keyuse->val)->ref_type() == Item_ref::VIEW_REF) &&
                   keyuse->val->real_item()->type() == Item::FIELD_ITEM))
         {
-          *ref_key++= new store_key_field(thd,
+          *ref_key= new store_key_field(thd,
                                           key_part->field,
                                           key_buff + maybe_null,
                                           maybe_null ? key_buff : 0,
@@ -9250,14 +9256,15 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                                           keyuse->val->real_item()->full_name());
           if (is_unique_hash)
           {
-            (*(ref_key-1))->is_hash= true;
-            (*(ref_key-1))->nr1= 1;
-            (*(ref_key-1))->nr2= 4;
+            (*ref_key)->is_hash= true;
+            (*ref_key)->nr1= 1;
+            (*ref_key)->nr2= 4;
           }
+          ref_key++;
         }
         else
         {
-          *ref_key++= new store_key_item(thd,
+          *ref_key= new store_key_item(thd,
                                          key_part->field,
                                          key_buff + maybe_null,
                                          maybe_null ? key_buff : 0,
@@ -9265,10 +9272,11 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                                          keyuse->val, FALSE);
           if (is_unique_hash)
           {
-            (*(ref_key-1))->is_hash= true;
-            (*(ref_key-1))->nr1= 1;
-            (*(ref_key-1))->nr2= 4;
+            (*ref_key)->is_hash= true;
+            (*ref_key)->nr1= 1;
+            (*ref_key)->nr2= 4;
           }
+          ref_key++;
         }
       }
 
@@ -9324,6 +9332,8 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   DBUG_RETURN(0);
 }
 
+
+
 static store_key *
 get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
 	      KEY_PART_INFO *key_part, uchar *key_buff, uint maybe_null)
@@ -9349,8 +9359,9 @@ get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
 			       key_buff + maybe_null,
 			       maybe_null ? key_buff : 0,
 			       key_part->length,
-			       ((Item_field*) keyuse->val->real_item())->field,
+						 ((Item_field*) keyuse->val->real_item())->field,
 						 keyuse->val->real_item()->full_name());
+
   return new store_key_item(thd,
 			    key_part->field,
 			    key_buff + maybe_null,
@@ -19089,7 +19100,7 @@ join_read_system(JOIN_TAB *tab)
 }
 
 /**
-  Find record in case HA_UNIQUE_HASH
+  Find record in case HA_UNIQUE_HASH for join_read_const
 */
 
 int find_unique_hash_record(TABLE *table, JOIN_TAB *tab)
@@ -19282,9 +19293,7 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
                                   HA_READ_KEY_EXACT);
     if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       return report_error(table, error);
-//    error= compare_hash_and_fetch_next(tab);
-//    if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
-//      return report_error(table, error);
+
     if (! error)
     {
       table_ref->has_record= TRUE;

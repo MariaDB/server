@@ -3208,8 +3208,8 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
   cf->length= cf->char_length= HA_HASH_FIELD_LENGTH;
   cf->charset= NULL;
   cf->decimals= 0;
-  char temp_name[30];
-  strcpy(temp_name, "DB_ROW_HASH_");
+  char *temp_name= (char *)thd->alloc(30);
+  strcpy(temp_name, HA_DB_ROW_HASH_STR);
   char num_holder[10];    //10 is way more but i think it is ok
   sprintf(num_holder, "%d",num);
   strcat(temp_name, num_holder);
@@ -3228,18 +3228,16 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
     }
   }
   it.rewind();
-  char * name= (char *)thd->alloc(30);
-  strcpy(name, temp_name);
-  cf->field_name= name;
+  cf->field_name= temp_name;
   cf->sql_type= MYSQL_TYPE_LONGLONG;
   /* hash column should be atmost hidden */
   cf->field_visibility= FULL_HIDDEN;
   cf->is_long_column_hash= true;
   /* add the virtual colmn info */
   Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
-  char * hash_exp= (char *)thd->alloc(252);
+  char * hash_exp= (char *)thd->alloc(1024);
   char * key_name= (char *)thd->alloc(252);
-  strcpy(hash_exp, "hash(`");
+  strcpy(hash_exp, HA_HASH_STR_HEAD);
   temp_colms= key_part_iter++;
   strcat(hash_exp, temp_colms->field_name.str);
   strcpy(key_name, temp_colms->field_name.str);
@@ -7649,7 +7647,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List_iterator<Create_field> find_it(new_create_list);
   List_iterator<Create_field> field_it(new_create_list);
   List<Key_part_spec> key_parts;
-  Create_field *new_hash_field=NULL;
+  Create_field *new_hash_field= NULL;
   List<Virtual_column_info> new_constraint_list;
   uint db_create_options= (table->s->db_create_options
                            & ~(HA_OPTION_PACK_RECORD));
@@ -7725,7 +7723,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     while ((drop=drop_it++))
     {
       if (drop->type == Alter_drop::COLUMN &&
-    !my_strcasecmp(system_charset_info,field->field_name, drop->name)
+         !my_strcasecmp(system_charset_info,field->field_name, drop->name)
           /* we cant not drop system generated column */
           && !(field->field_visibility==MEDIUM_HIDDEN
                ||field->field_visibility==FULL_HIDDEN))
@@ -7749,8 +7747,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         db_row_hash_* vcol expr str if yes then remove it
         if expr str becomes empty then remove db_row_hash column
       */
-      KEY *t_key=table->key_info;
-      for (int i= 0; i < table->s->keys; i++,t_key++) {
+      KEY *t_key= table->key_info;
+      for (int i= 0; i < table->s->keys; i++, t_key++) {
         if (t_key->flags & HA_UNIQUE_HASH)
         {
           /*
@@ -7766,26 +7764,26 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           const char * name = t_key->key_part->field->field_name;
           Create_field *t_c_f;
           LEX_STRING * ls;
-          bool found=false;
+          bool found= false;
           find_it.rewind();
-          while((t_c_f=find_it++))
+          while ((t_c_f= find_it++))
           {
-            if(!my_strcasecmp(system_charset_info,t_c_f->field_name,
+            if (!my_strcasecmp(system_charset_info, t_c_f->field_name,
                               name))
             {
-              found=true;
+              found= true;
               break;
             }
           }
-          if(!found)
-            ls =&(t_key->key_part->field->vcol_info->expr_str);
+          if (!found)
+            ls= &(t_key->key_part->field->vcol_info->expr_str);
           else
-            ls=&t_c_f->vcol_info->expr_str;
-          LEX_STRING *new_ls = (LEX_STRING *)thd->alloc(sizeof(LEX_STRING));
-          new_ls->length=ls->length;
-          new_ls->str=(char *)thd->alloc(ls->length);
+            ls= &t_c_f->vcol_info->expr_str;
+          LEX_STRING *new_ls= (LEX_STRING *)thd->alloc(sizeof(LEX_STRING));
+          new_ls->length= ls->length;
+          new_ls->str= (char *)thd->alloc(ls->length);
           strncpy(new_ls->str,ls->str,new_ls->length);
-          int res=rem_field_from_hash_col_str(new_ls,(char *)drop->name);
+          int res= rem_field_from_hash_col_str(new_ls,(char *)drop->name);
 
           /*If rs ==1 that means we do not have this field name in expr_str*/
 
@@ -7801,16 +7799,16 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                with a new hash str only if new_ls->length is not zero
             */
 
-          if(new_ls->length)
+          if (new_ls->length)
           {
-            alter_info->flags|=Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
-            if(found)
+            alter_info->flags|= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+            if (found)
             {
                 find_it.remove();
-                Create_field * cf =  t_c_f->clone(thd->mem_root);
-                cf->vcol_info->expr_str.str=new_ls->str;
-                cf->vcol_info->expr_str.length=new_ls->length;
-                new_create_list.push_front(cf,thd->mem_root);
+                Create_field * cf=  t_c_f->clone(thd->mem_root);
+                cf->vcol_info->expr_str.str= new_ls->str;
+                cf->vcol_info->expr_str.length= new_ls->length;
+                new_create_list.push_front(cf, thd->mem_root);
             }
             else
             {
@@ -7819,14 +7817,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                  If this field is not in create list
                  then add it into drop_list.
                */
-              Alter_drop *dr= new(thd->mem_root)Alter_drop(Alter_drop::COLUMN,
+              Alter_drop *dr= new(thd->mem_root) Alter_drop(Alter_drop::COLUMN,
                                                            drop->name,false);
-              alter_info->drop_list.push_back(dr,thd->mem_root);
-              Create_field * cf =  new(thd->mem_root) Create_field(thd,
-                                    t_key->key_part->field,t_key->key_part->field);
-              cf->vcol_info->expr_str.str=new_ls->str;
-              cf->vcol_info->expr_str.length=new_ls->length;
-              new_create_list.push_front(cf,thd->mem_root);
+              alter_info->drop_list.push_back(dr, thd->mem_root);
+              Create_field * cf=  new(thd->mem_root) Create_field(thd,
+                                    t_key->key_part->field, t_key->key_part->field);
+              cf->vcol_info->expr_str.str= new_ls->str;
+              cf->vcol_info->expr_str.length= new_ls->length;
+              new_create_list.push_front(cf, thd->mem_root);
             }
           }
           else
@@ -7844,7 +7842,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     while ((def=def_it++))
     {
       if (def->change &&
-    !my_strcasecmp(system_charset_info,field->field_name, def->change)
+         !my_strcasecmp(system_charset_info,field->field_name, def->change)
           /* we cant change  system generated column */
           && !(field->field_visibility==MEDIUM_HIDDEN
                ||field->field_visibility==FULL_HIDDEN))
@@ -7860,48 +7858,48 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       */
       new_create_list.push_back(def, thd->mem_root);
 
-      if(def->sql_type==MYSQL_TYPE_BLOB || def->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
-         def->sql_type==MYSQL_TYPE_TINY_BLOB ||def->sql_type==MYSQL_TYPE_LONG_BLOB||
-         def->sql_type==MYSQL_TYPE_VARCHAR&&
-         def->length>table->file->max_key_part_length())
+      if (def->sql_type == MYSQL_TYPE_BLOB || def->sql_type == MYSQL_TYPE_MEDIUM_BLOB ||
+         def->sql_type == MYSQL_TYPE_TINY_BLOB || def->sql_type== MYSQL_TYPE_LONG_BLOB ||
+         def->sql_type == MYSQL_TYPE_VARCHAR &&
+         def->length > table->file->max_key_part_length())
       {
-        KEY *t_key=table->key_info;
-        for(int i =0;i<table->s->keys;i++,t_key++)
+        KEY *t_key= table->key_info;
+        for (int i= 0; i < table->s->keys; i++, t_key++)
         {
           if (t_key->flags & HA_UNIQUE_HASH)
           {
             Create_field *t_c_f;
-            LEX_STRING * ls=&t_key->key_part->field->vcol_info->expr_str;
-            bool found=false;
+            LEX_STRING * ls= &t_key->key_part->field->vcol_info->expr_str;
+            bool found= false;
             find_it.rewind();
-            LEX_STRING *new_ls = (LEX_STRING *)thd->alloc(sizeof(LEX_STRING));
-            new_ls->length=ls->length;
-            new_ls->str=(char *)thd->alloc(ls->length);
-            strncpy(new_ls->str,ls->str,new_ls->length);
-            int res=change_field_from_hash_col_str(new_ls,(char *)def->change,
+            LEX_STRING *new_ls= (LEX_STRING *)thd->alloc(sizeof(LEX_STRING));
+            new_ls->length= ls->length;
+            new_ls->str= (char *)thd->alloc(ls->length);
+            strncpy(new_ls->str, ls->str, new_ls->length);
+            int res= change_field_from_hash_col_str(new_ls, (char *)def->change,
                                                    (char *)def->field_name);
-            if(!res)
+            if (!res)
             {
               /*
               Find the old db_row_hash_ and
                */
-              const char * name = t_key->key_part->field->field_name;
-              while((t_c_f=find_it++))
+              const char * name= t_key->key_part->field->field_name;
+              while ((t_c_f= find_it++))
               {
-                if(!my_strcasecmp(system_charset_info,t_c_f->field_name,name))
+                if (!my_strcasecmp(system_charset_info, t_c_f->field_name, name))
                 {
-                  found=true;
+                  found= true;
                   break;
                 }
               }
-              alter_info->flags|=Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
-              if(found)
+              alter_info->flags |= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+              if (found)
               {
                 find_it.remove();
-                Create_field * cf =  t_c_f->clone(thd->mem_root);
-                cf->vcol_info->expr_str.str=new_ls->str;
-                cf->vcol_info->expr_str.length=new_ls->length;
-                new_create_list.push_front(cf,thd->mem_root);
+                Create_field * cf=  t_c_f->clone(thd->mem_root);
+                cf->vcol_info->expr_str.str= new_ls->str;
+                cf->vcol_info->expr_str.length= new_ls->length;
+                new_create_list.push_front(cf, thd->mem_root);
               }
               else
               {
@@ -7910,14 +7908,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                  If this field is not in create list
                  then add it into drop_list.
                */
-                Alter_drop *dr= new(thd->mem_root)Alter_drop(Alter_drop::COLUMN,
+                Alter_drop *dr= new(thd->mem_root) Alter_drop(Alter_drop::COLUMN,
                                                              drop->name,false);
-                alter_info->drop_list.push_back(dr,thd->mem_root);
-                Create_field * cf =  new(thd->mem_root) Create_field(thd,
-                                       t_key->key_part->field,t_key->key_part->field);
-                cf->vcol_info->expr_str.str=new_ls->str;
-                cf->vcol_info->expr_str.length=new_ls->length;
-                new_create_list.push_front(cf,thd->mem_root);
+                alter_info->drop_list.push_back(dr, thd->mem_root);
+                Create_field * cf=  new(thd->mem_root) Create_field(thd,
+                                       t_key->key_part->field, t_key->key_part->field);
+                cf->vcol_info->expr_str.str= new_ls->str;
+                cf->vcol_info->expr_str.length= new_ls->length;
+                new_create_list.push_front(cf, thd->mem_root);
               }
 
             }
