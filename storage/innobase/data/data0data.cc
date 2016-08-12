@@ -23,6 +23,8 @@ SQL data field and tuple
 Created 5/30/1994 Heikki Tuuri
 *************************************************************************/
 
+#include "ha_prototypes.h"
+
 #include "data0data.h"
 
 #ifdef UNIV_NONINL
@@ -36,36 +38,36 @@ Created 5/30/1994 Heikki Tuuri
 #include "page0zip.h"
 #include "dict0dict.h"
 #include "btr0cur.h"
+#include "row0upd.h"
 
-#include <ctype.h>
 #endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /** Dummy variable to catch access to uninitialized fields.  In the
 debug version, dtuple_create() will make all fields of dtuple_t point
 to data_error. */
-UNIV_INTERN byte	data_error;
+byte	data_error;
 
 # ifndef UNIV_DEBUG_VALGRIND
 /** this is used to fool the compiler in dtuple_validate */
-UNIV_INTERN ulint	data_dummy;
+ulint	data_dummy;
 # endif /* !UNIV_DEBUG_VALGRIND */
 #endif /* UNIV_DEBUG */
 
 #ifndef UNIV_HOTBACKUP
-/************************************************************//**
-Compare two data tuples, respecting the collation of character fields.
-@return 1, 0 , -1 if tuple1 is greater, equal, less, respectively,
-than tuple2 */
-UNIV_INTERN
+/** Compare two data tuples.
+@param[in] tuple1 first data tuple
+@param[in] tuple2 second data tuple
+@return positive, 0, negative if tuple1 is greater, equal, less, than tuple2,
+respectively */
 int
 dtuple_coll_cmp(
-/*============*/
-	const dtuple_t*	tuple1,	/*!< in: tuple 1 */
-	const dtuple_t*	tuple2)	/*!< in: tuple 2 */
+	const dtuple_t*	tuple1,
+	const dtuple_t*	tuple2)
 {
 	ulint	n_fields;
 	ulint	i;
+	int	cmp;
 
 	ut_ad(tuple1 != NULL);
 	ut_ad(tuple2 != NULL);
@@ -76,30 +78,20 @@ dtuple_coll_cmp(
 
 	n_fields = dtuple_get_n_fields(tuple1);
 
-	if (n_fields != dtuple_get_n_fields(tuple2)) {
+	cmp = (int) n_fields - (int) dtuple_get_n_fields(tuple2);
 
-		return(n_fields < dtuple_get_n_fields(tuple2) ? -1 : 1);
-	}
-
-	for (i = 0; i < n_fields; i++) {
-		int		cmp;
+	for (i = 0; cmp == 0 && i < n_fields; i++) {
 		const dfield_t*	field1	= dtuple_get_nth_field(tuple1, i);
 		const dfield_t*	field2	= dtuple_get_nth_field(tuple2, i);
-
 		cmp = cmp_dfield_dfield(field1, field2);
-
-		if (cmp) {
-			return(cmp);
-		}
 	}
 
-	return(0);
+	return(cmp);
 }
 
 /*********************************************************************//**
 Sets number of fields used in a tuple. Normally this is set in
 dtuple_create, but if you want later to set it smaller, you can use this. */
-UNIV_INTERN
 void
 dtuple_set_n_fields(
 /*================*/
@@ -114,20 +106,20 @@ dtuple_set_n_fields(
 
 /**********************************************************//**
 Checks that a data field is typed.
-@return	TRUE if ok */
+@return TRUE if ok */
 static
 ibool
 dfield_check_typed_no_assert(
 /*=========================*/
 	const dfield_t*	field)	/*!< in: data field */
 {
-	if (dfield_get_type(field)->mtype > DATA_MYSQL
-	    || dfield_get_type(field)->mtype < DATA_VARCHAR) {
+	if (dfield_get_type(field)->mtype > DATA_MTYPE_CURRENT_MAX
+	    || dfield_get_type(field)->mtype < DATA_MTYPE_CURRENT_MIN) {
 
-		fprintf(stderr,
-			"InnoDB: Error: data field type %lu, len %lu\n",
-			(ulong) dfield_get_type(field)->mtype,
-			(ulong) dfield_get_len(field));
+		ib::error() << "Data field type "
+			<< dfield_get_type(field)->mtype
+			<< ", len " << dfield_get_len(field);
+
 		return(FALSE);
 	}
 
@@ -136,8 +128,7 @@ dfield_check_typed_no_assert(
 
 /**********************************************************//**
 Checks that a data tuple is typed.
-@return	TRUE if ok */
-UNIV_INTERN
+@return TRUE if ok */
 ibool
 dtuple_check_typed_no_assert(
 /*=========================*/
@@ -147,9 +138,8 @@ dtuple_check_typed_no_assert(
 	ulint		i;
 
 	if (dtuple_get_n_fields(tuple) > REC_MAX_N_FIELDS) {
-		fprintf(stderr,
-			"InnoDB: Error: index entry has %lu fields\n",
-			(ulong) dtuple_get_n_fields(tuple));
+		ib::error() << "Index entry has "
+			<< dtuple_get_n_fields(tuple) << " fields";
 dump:
 		fputs("InnoDB: Tuple contents: ", stderr);
 		dtuple_print(stderr, tuple);
@@ -174,22 +164,18 @@ dump:
 #ifdef UNIV_DEBUG
 /**********************************************************//**
 Checks that a data field is typed. Asserts an error if not.
-@return	TRUE if ok */
-UNIV_INTERN
+@return TRUE if ok */
 ibool
 dfield_check_typed(
 /*===============*/
 	const dfield_t*	field)	/*!< in: data field */
 {
-	if (dfield_get_type(field)->mtype > DATA_MYSQL
-	    || dfield_get_type(field)->mtype < DATA_VARCHAR) {
+	if (dfield_get_type(field)->mtype > DATA_MTYPE_CURRENT_MAX
+	    || dfield_get_type(field)->mtype < DATA_MTYPE_CURRENT_MIN) {
 
-		fprintf(stderr,
-			"InnoDB: Error: data field type %lu, len %lu\n",
-			(ulong) dfield_get_type(field)->mtype,
-			(ulong) dfield_get_len(field));
-
-		ut_error;
+		ib::fatal() << "Data field type "
+			<< dfield_get_type(field)->mtype
+			<< ", len " << dfield_get_len(field);
 	}
 
 	return(TRUE);
@@ -197,8 +183,7 @@ dfield_check_typed(
 
 /**********************************************************//**
 Checks that a data tuple is typed. Asserts an error if not.
-@return	TRUE if ok */
-UNIV_INTERN
+@return TRUE if ok */
 ibool
 dtuple_check_typed(
 /*===============*/
@@ -220,8 +205,7 @@ dtuple_check_typed(
 /**********************************************************//**
 Validates the consistency of a tuple which must be complete, i.e,
 all fields must have been set.
-@return	TRUE if ok */
-UNIV_INTERN
+@return TRUE if ok */
 ibool
 dtuple_validate(
 /*============*/
@@ -274,7 +258,6 @@ dtuple_validate(
 #ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Pretty prints a dfield value according to its data type. */
-UNIV_INTERN
 void
 dfield_print(
 /*=========*/
@@ -317,7 +300,6 @@ dfield_print(
 /*************************************************************//**
 Pretty prints a dfield value according to its data type. Also the hex string
 is printed if a string contains non-printable characters. */
-UNIV_INTERN
 void
 dfield_print_also_hex(
 /*==================*/
@@ -391,16 +373,16 @@ dfield_print_also_hex(
 
 		case 6:
 			id = mach_read_from_6(data);
-			fprintf(stderr, "%llu", (ullint) id);
+			fprintf(stderr, IB_ID_FMT, id);
 			break;
 
 		case 7:
 			id = mach_read_from_7(data);
-			fprintf(stderr, "%llu", (ullint) id);
+			fprintf(stderr, IB_ID_FMT, id);
 			break;
 		case 8:
 			id = mach_read_from_8(data);
-			fprintf(stderr, "%llu", (ullint) id);
+			fprintf(stderr, IB_ID_FMT, id);
 			break;
 		default:
 			goto print_hex;
@@ -428,9 +410,7 @@ dfield_print_also_hex(
 			break;
 
 		default:
-			id = mach_ull_read_compressed(data);
-
-			fprintf(stderr, "mix_id " TRX_ID_FMT, id);
+			goto print_hex;
 		}
 		break;
 
@@ -487,7 +467,7 @@ dfield_print_raw(
 {
 	ulint	len	= dfield_get_len(dfield);
 	if (!dfield_is_null(dfield)) {
-		ulint	print_len = ut_min(len, 1000);
+		ulint	print_len = ut_min(len, static_cast<ulint>(1000));
 		ut_print_buf(f, dfield_get_data(dfield), print_len);
 		if (len != print_len) {
 			fprintf(f, "(total %lu bytes%s)",
@@ -501,7 +481,6 @@ dfield_print_raw(
 
 /**********************************************************//**
 The following function prints the contents of a tuple. */
-UNIV_INTERN
 void
 dtuple_print(
 /*=========*/
@@ -527,6 +506,62 @@ dtuple_print(
 	ut_ad(dtuple_validate(tuple));
 }
 
+/** Print the contents of a tuple.
+@param[out]	o	output stream
+@param[in]	field	array of data fields
+@param[in]	n	number of data fields */
+void
+dfield_print(
+	std::ostream&	o,
+	const dfield_t*	field,
+	ulint		n)
+{
+	for (ulint i = 0; i < n; i++, field++) {
+		const void*	data	= dfield_get_data(field);
+		const ulint	len	= dfield_get_len(field);
+
+		if (i) {
+			o << ',';
+		}
+
+		if (dfield_is_null(field)) {
+			o << "NULL";
+		} else if (dfield_is_ext(field)) {
+			ulint	local_len = len - BTR_EXTERN_FIELD_REF_SIZE;
+			ut_ad(len >= BTR_EXTERN_FIELD_REF_SIZE);
+
+			o << '['
+			  << local_len
+			  << '+' << BTR_EXTERN_FIELD_REF_SIZE << ']';
+			ut_print_buf(o, data, local_len);
+			ut_print_buf_hex(o, static_cast<const byte*>(data)
+					 + local_len,
+					 BTR_EXTERN_FIELD_REF_SIZE);
+		} else {
+			o << '[' << len << ']';
+			ut_print_buf(o, data, len);
+		}
+	}
+}
+
+/** Print the contents of a tuple.
+@param[out]	o	output stream
+@param[in]	tuple	data tuple */
+void
+dtuple_print(
+	std::ostream&	o,
+	const dtuple_t*	tuple)
+{
+	const ulint	n	= dtuple_get_n_fields(tuple);
+
+	o << "TUPLE (info_bits=" << dtuple_get_info_bits(tuple)
+	  << ", " << n << " fields): {";
+
+	dfield_print(o, tuple->fields, n);
+
+	o << "}";
+}
+
 /**************************************************************//**
 Moves parts of long fields in entry to the big record vector so that
 the size of tuple drops below the maximum record size allowed in the
@@ -535,11 +570,11 @@ to determine uniquely the insertion place of the tuple in the index.
 @return own: created big record vector, NULL if we are not able to
 shorten the entry enough, i.e., if there are too many fixed-length or
 short fields in entry or the index is clustered */
-UNIV_INTERN
 big_rec_t*
 dtuple_convert_big_rec(
 /*===================*/
 	dict_index_t*	index,	/*!< in: index */
+	upd_t*		upd,	/*!< in/out: update vector */
 	dtuple_t*	entry,	/*!< in/out: index entry */
 	ulint*		n_ext)	/*!< in/out: number of
 				externally stored columns */
@@ -571,9 +606,7 @@ dtuple_convert_big_rec(
 	size = rec_get_converted_size(index, entry, *n_ext);
 
 	if (UNIV_UNLIKELY(size > 1000000000)) {
-		fprintf(stderr,
-			"InnoDB: Warning: tuple size very big: %lu\n",
-			(ulong) size);
+		ib::warn() << "Tuple size is very big: " << size;
 		fputs("InnoDB: Tuple contents: ", stderr);
 		dtuple_print(stderr, entry);
 		putc('\n', stderr);
@@ -582,15 +615,7 @@ dtuple_convert_big_rec(
 	heap = mem_heap_create(size + dtuple_get_n_fields(entry)
 			       * sizeof(big_rec_field_t) + 1000);
 
-	vector = static_cast<big_rec_t*>(
-		mem_heap_alloc(heap, sizeof(big_rec_t)));
-
-	vector->heap = heap;
-
-	vector->fields = static_cast<big_rec_field_t*>(
-		mem_heap_alloc(
-			heap,
-			dtuple_get_n_fields(entry) * sizeof(big_rec_field_t)));
+	vector = big_rec_t::alloc(heap, dtuple_get_n_fields(entry));
 
 	/* Decide which fields to shorten: the algorithm is to look for
 	a variable-length field that yields the biggest savings when
@@ -602,12 +627,12 @@ dtuple_convert_big_rec(
 							     *n_ext),
 				      dict_table_is_comp(index->table),
 				      dict_index_get_n_fields(index),
-				      dict_table_zip_size(index->table))) {
+				      dict_table_page_size(index->table))) {
+
 		ulint			i;
 		ulint			longest		= 0;
 		ulint			longest_i	= ULINT_MAX;
 		byte*			data;
-		big_rec_field_t*	b;
 
 		for (i = dict_index_get_n_unique_in_tree(index);
 		     i < dtuple_get_n_fields(entry); i++) {
@@ -624,7 +649,7 @@ dtuple_convert_big_rec(
 			    || dfield_is_ext(dfield)
 			    || dfield_get_len(dfield) <= local_len
 			    || dfield_get_len(dfield)
-			    <= BTR_EXTERN_FIELD_REF_SIZE * 2) {
+			    <= BTR_EXTERN_LOCAL_STORED_MAX_SIZE) {
 				goto skip_field;
 			}
 
@@ -645,8 +670,7 @@ dtuple_convert_big_rec(
 			there we always store locally columns whose
 			length is up to local_len == 788 bytes.
 			@see rec_init_offsets_comp_ordinary */
-			if (ifield->col->mtype != DATA_BLOB
-			    && ifield->col->len < 256) {
+			if (!DATA_BIG_COL(ifield->col)) {
 				goto skip_field;
 			}
 
@@ -675,10 +699,12 @@ skip_field:
 		ifield = dict_index_get_nth_field(index, longest_i);
 		local_prefix_len = local_len - BTR_EXTERN_FIELD_REF_SIZE;
 
-		b = &vector->fields[n_fields];
-		b->field_no = longest_i;
-		b->len = dfield_get_len(dfield) - local_prefix_len;
-		b->data = (char*) dfield_get_data(dfield) + local_prefix_len;
+		vector->append(
+			big_rec_field_t(
+				longest_i,
+				dfield_get_len(dfield) - local_prefix_len,
+				static_cast<char*>(dfield_get_data(dfield))
+				+ local_prefix_len));
 
 		/* Allocate the locally stored part of the column. */
 		data = static_cast<byte*>(mem_heap_alloc(heap, local_len));
@@ -702,9 +728,30 @@ skip_field:
 		n_fields++;
 		(*n_ext)++;
 		ut_ad(n_fields < dtuple_get_n_fields(entry));
+
+		if (upd && !upd->is_modified(longest_i)) {
+
+			DEBUG_SYNC_C("ib_mv_nonupdated_column_offpage");
+
+			upd_field_t	upd_field;
+			upd_field.field_no = longest_i;
+			upd_field.orig_len = 0;
+			upd_field.exp = NULL;
+			upd_field.old_v_val = NULL;
+			dfield_copy(&upd_field.new_val,
+				    dfield->clone(upd->heap));
+			upd->append(upd_field);
+			ut_ad(upd->is_modified(longest_i));
+
+			ut_ad(upd_field.new_val.len
+			      >= BTR_EXTERN_FIELD_REF_SIZE);
+			ut_ad(upd_field.new_val.len == local_len);
+			ut_ad(upd_field.new_val.len == dfield_get_len(dfield));
+		}
 	}
 
-	vector->n_fields = n_fields;
+	ut_ad(n_fields == vector->n_fields);
+
 	return(vector);
 }
 
@@ -712,7 +759,6 @@ skip_field:
 Puts back to entry the data stored in vector. Note that to ensure the
 fields in entry can accommodate the data, vector must have been created
 from entry with dtuple_convert_big_rec. */
-UNIV_INTERN
 void
 dtuple_convert_back_big_rec(
 /*========================*/
@@ -747,5 +793,58 @@ dtuple_convert_back_big_rec(
 	}
 
 	mem_heap_free(vector->heap);
+}
+
+/** Allocate a big_rec_t object in the given memory heap, and for storing
+n_fld number of fields.
+@param[in]	heap	memory heap in which this object is allocated
+@param[in]	n_fld	maximum number of fields that can be stored in
+			this object
+
+@return the allocated object */
+big_rec_t*
+big_rec_t::alloc(
+	mem_heap_t*	heap,
+	ulint		n_fld)
+{
+	big_rec_t*	rec = static_cast<big_rec_t*>(
+		mem_heap_alloc(heap, sizeof(big_rec_t)));
+
+	new(rec) big_rec_t(n_fld);
+
+	rec->heap = heap;
+	rec->fields = static_cast<big_rec_field_t*>(
+		mem_heap_alloc(heap,
+			       n_fld * sizeof(big_rec_field_t)));
+
+	rec->n_fields = 0;
+	return(rec);
+}
+
+/** Create a deep copy of this object
+@param[in]	heap	the memory heap in which the clone will be
+			created.
+
+@return	the cloned object. */
+dfield_t*
+dfield_t::clone(
+	mem_heap_t*	heap)
+{
+	const ulint size = len == UNIV_SQL_NULL ? 0 : len;
+	dfield_t* obj = static_cast<dfield_t*>(
+		mem_heap_alloc(heap, sizeof(dfield_t) + size));
+
+	obj->ext  = ext;
+	obj->len  = len;
+	obj->type = type;
+
+	if (len != UNIV_SQL_NULL) {
+		obj->data = obj + 1;
+		memcpy(obj->data, data, len);
+	} else {
+		obj->data = 0;
+	}
+
+	return(obj);
 }
 #endif /* !UNIV_HOTBACKUP */

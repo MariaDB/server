@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS grad_degree (
   CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+SHOW CREATE TABLE grad_degree;
+
 CREATE INDEX grad_degree_wdraw_rsn_ndx ON grad_degree (wdraw_rsn);
 CREATE INDEX grad_degree_as_of_term_ndx ON grad_degree (deg_as_of_term);
 
@@ -136,6 +138,8 @@ CREATE TABLE IF NOT EXISTS grad_degree (
   deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
   CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+SHOW CREATE TABLE grad_degree;
 
 CREATE INDEX grad_degree_wdraw_rsn_ndx ON grad_degree (wdraw_rsn);
 CREATE INDEX grad_degree_as_of_term_ndx ON grad_degree (deg_as_of_term);
@@ -250,6 +254,8 @@ CREATE TABLE IF NOT EXISTS grad_degree (
   deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
   CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+SHOW CREATE TABLE grad_degree;
 
 CREATE INDEX grad_degree_wdraw_rsn_ndx ON grad_degree (wdraw_rsn);
 

@@ -42,6 +42,8 @@ SET @old_innodb_strict_mode = @@global.innodb_strict_mode;
 SET @@global.innodb_file_format = Barracuda,
 @@global.innodb_file_per_table = ON,
 @@global.innodb_strict_mode = ON;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 connect con1,localhost,root,,;
 CREATE TABLE t1 (id INT NOT NULL
 PRIMARY KEY,
@@ -104,6 +106,8 @@ disconnect con2;
 connection default;
 SET @@global.innodb_strict_mode = @old_innodb_strict_mode;
 SET @@global.innodb_file_format = @old_innodb_file_format;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
 SET NAMES utf8;
 CREATE TABLE `t``\""e` (a INT, PRIMARY KEY (a))
@@ -143,12 +147,12 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 # First table reported in 'SHOW ENGINE InnoDB STATUS'
 SHOW ENGINE InnoDB STATUS;
 Type	Name	Status
-InnoDB		index `PRIMARY` of table `test`.`t``\""e` /* Partition `p0``\""e`, Subpartition `sp0``\""e` */ 
+InnoDB		index PRIMARY of table `test`.`t``\""e` /* Partition `p0``\""e`, Subpartition `sp0``\""e` */
 set @old_sql_mode = @@sql_mode;
 set sql_mode = 'ANSI_QUOTES';
 SHOW ENGINE InnoDB STATUS;
 Type	Name	Status
-InnoDB		index `PRIMARY` of table `test`.`t``\""e` /* Partition `p0``\""e`, Subpartition `sp0``\""e` */ 
+InnoDB		index PRIMARY of table `test`.`t``\""e` /* Partition `p0``\""e`, Subpartition `sp0``\""e` */
 set @@sql_mode = @old_sql_mode;
 connection con1;
 ROLLBACK;

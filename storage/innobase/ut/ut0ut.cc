@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -23,39 +23,45 @@ Various utilities for Innobase.
 Created 5/11/1994 Heikki Tuuri
 ********************************************************************/
 
-#include "ut0ut.h"
+#include "ha_prototypes.h"
+
+#if HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
 
 #ifndef UNIV_INNOCHECKSUM
 
-#include "ut0sort.h"
-#include "os0thread.h" /* thread-ID */
+#ifndef UNIV_HOTBACKUP
+# include <mysql_com.h>
+#endif /* !UNIV_HOTBACKUP */
+
+#include "os0thread.h"
+#include "ut0ut.h"
 
 #ifdef UNIV_NONINL
 #include "ut0ut.ic"
 #endif
 
-#include <stdarg.h>
-#include <string.h>
-#include <ctype.h>
-
 #ifndef UNIV_HOTBACKUP
 # include "trx0trx.h"
-# include "ha_prototypes.h"
-# include "mysql_com.h" /* NAME_LEN */
-# include <string>
-#endif /* UNIV_HOTBACKUP */
+#endif /* !UNIV_HOTBACKUP */
 
-#ifdef __WIN__
+# include <string>
+#include "log.h"
+
+/** A constant to prevent the compiler from optimizing ut_delay() away. */
+ibool	ut_always_false	= FALSE;
+#ifdef _WIN32
 /*****************************************************************//**
 NOTE: The Windows epoch starts from 1601/01/01 whereas the Unix
 epoch starts from 1970/1/1. For selection of constant see:
 http://support.microsoft.com/kb/167296/ */
-#define WIN_TO_UNIX_DELTA_USEC  ((ib_int64_t) 11644473600000000ULL)
+#define WIN_TO_UNIX_DELTA_USEC	11644473600000000LL
 
 
 /*****************************************************************//**
 This is the Windows version of gettimeofday(2).
-@return	0 if all OK else -1 */
+@return 0 if all OK else -1 */
 static
 int
 ut_gettimeofday(
@@ -64,7 +70,7 @@ ut_gettimeofday(
 	void*		tz)	/*!< in: not used */
 {
 	FILETIME	ft;
-	ib_int64_t	tm;
+	int64_t		tm;
 
 	if (!tv) {
 		errno = EINVAL;
@@ -73,7 +79,7 @@ ut_gettimeofday(
 
 	GetSystemTimeAsFileTime(&ft);
 
-	tm = (ib_int64_t) ft.dwHighDateTime << 32;
+	tm = (int64_t) ft.dwHighDateTime << 32;
 	tm |= ft.dwLowDateTime;
 
 	ut_a(tm >= 0);	/* If tm wraps over to negative, the quotient / 10
@@ -99,8 +105,7 @@ reimplement this function. */
 /**********************************************************//**
 Returns system time. We do not specify the format of the time returned:
 the only way to manipulate it is to use the function ut_difftime.
-@return	system time */
-UNIV_INTERN
+@return system time */
 ib_time_t
 ut_time(void)
 /*=========*/
@@ -114,8 +119,7 @@ Returns system time.
 Upon successful completion, the value 0 is returned; otherwise the
 value -1 is returned and the global variable errno is set to indicate the
 error.
-@return	0 on success, -1 otherwise */
-UNIV_INTERN
+@return 0 on success, -1 otherwise */
 int
 ut_usectime(
 /*========*/
@@ -133,9 +137,8 @@ ut_usectime(
 
 		if (ret == -1) {
 			errno_gettimeofday = errno;
-			ut_print_timestamp(stderr);
-			fprintf(stderr, "  InnoDB: gettimeofday(): %s\n",
-				strerror(errno_gettimeofday));
+			ib::error() << "gettimeofday(): "
+				<< strerror(errno_gettimeofday);
 			os_thread_sleep(100000);  /* 0.1 sec */
 			errno = errno_gettimeofday;
 		} else {
@@ -155,19 +158,18 @@ ut_usectime(
 Returns the number of microseconds since epoch. Similar to
 time(3), the return value is also stored in *tloc, provided
 that tloc is non-NULL.
-@return	us since epoch */
-UNIV_INTERN
-ullint
+@return us since epoch */
+uintmax_t
 ut_time_us(
 /*=======*/
-	ullint*	tloc)	/*!< out: us since epoch, if non-NULL */
+	uintmax_t*	tloc)	/*!< out: us since epoch, if non-NULL */
 {
 	struct timeval	tv;
-	ullint		us;
+	uintmax_t	us;
 
 	ut_gettimeofday(&tv, NULL);
 
-	us = (ullint) tv.tv_sec * 1000000 + tv.tv_usec;
+	us = static_cast<uintmax_t>(tv.tv_sec) * 1000000 + tv.tv_usec;
 
 	if (tloc != NULL) {
 		*tloc = us;
@@ -180,8 +182,7 @@ ut_time_us(
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic
 purposes.
-@return	ms since epoch */
-UNIV_INTERN
+@return ms since epoch */
 ulint
 ut_time_ms(void)
 /*============*/
@@ -196,8 +197,7 @@ ut_time_ms(void)
 
 /**********************************************************//**
 Returns the difference of two times in seconds.
-@return	time2 - time1 expressed in seconds */
-UNIV_INTERN
+@return time2 - time1 expressed in seconds */
 double
 ut_difftime(
 /*========*/
@@ -211,7 +211,6 @@ ut_difftime(
 
 /**********************************************************//**
 Prints a timestamp to a file. */
-UNIV_INTERN
 void
 ut_print_timestamp(
 /*===============*/
@@ -221,14 +220,14 @@ ut_print_timestamp(
 
 #ifndef UNIV_INNOCHECKSUM
 	thread_id = os_thread_pf(os_thread_get_curr_id());
-#endif
+#endif /* !UNIV_INNOCHECKSUM */
 
-#ifdef __WIN__
+#ifdef _WIN32
 	SYSTEMTIME cal_tm;
 
 	GetLocalTime(&cal_tm);
 
-	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %lx",
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#lx",
 		(int) cal_tm.wYear,
 		(int) cal_tm.wMonth,
 		(int) cal_tm.wDay,
@@ -240,16 +239,11 @@ ut_print_timestamp(
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
 
-#ifdef HAVE_LOCALTIME_R
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
 	cal_tm_ptr = &cal_tm;
-#else
-	time(&tm);
-	cal_tm_ptr = localtime(&tm);
-#endif
-	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %lx",
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#lx",
 		cal_tm_ptr->tm_year + 1900,
 		cal_tm_ptr->tm_mon + 1,
 		cal_tm_ptr->tm_mday,
@@ -264,13 +258,12 @@ ut_print_timestamp(
 
 /**********************************************************//**
 Sprintfs a timestamp to a buffer, 13..14 chars plus terminating NUL. */
-UNIV_INTERN
 void
 ut_sprintf_timestamp(
 /*=================*/
 	char*	buf) /*!< in: buffer where to sprintf */
 {
-#ifdef __WIN__
+#ifdef _WIN32
 	SYSTEMTIME cal_tm;
 
 	GetLocalTime(&cal_tm);
@@ -286,15 +279,10 @@ ut_sprintf_timestamp(
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
 
-#ifdef HAVE_LOCALTIME_R
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
 	cal_tm_ptr = &cal_tm;
-#else
-	time(&tm);
-	cal_tm_ptr = localtime(&tm);
-#endif
 	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
 		cal_tm_ptr->tm_year % 100,
 		cal_tm_ptr->tm_mon + 1,
@@ -309,13 +297,12 @@ ut_sprintf_timestamp(
 /**********************************************************//**
 Sprintfs a timestamp to a buffer with no spaces and with ':' characters
 replaced by '_'. */
-UNIV_INTERN
 void
 ut_sprintf_timestamp_without_extra_chars(
 /*=====================================*/
 	char*	buf) /*!< in: buffer where to sprintf */
 {
-#ifdef __WIN__
+#ifdef _WIN32
 	SYSTEMTIME cal_tm;
 
 	GetLocalTime(&cal_tm);
@@ -331,15 +318,10 @@ ut_sprintf_timestamp_without_extra_chars(
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
 
-#ifdef HAVE_LOCALTIME_R
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
 	cal_tm_ptr = &cal_tm;
-#else
-	time(&tm);
-	cal_tm_ptr = localtime(&tm);
-#endif
 	sprintf(buf, "%02d%02d%02d_%2d_%02d_%02d",
 		cal_tm_ptr->tm_year % 100,
 		cal_tm_ptr->tm_mon + 1,
@@ -352,7 +334,6 @@ ut_sprintf_timestamp_without_extra_chars(
 
 /**********************************************************//**
 Returns current year, month, day. */
-UNIV_INTERN
 void
 ut_get_year_month_day(
 /*==================*/
@@ -360,7 +341,7 @@ ut_get_year_month_day(
 	ulint*	month,	/*!< out: month */
 	ulint*	day)	/*!< out: day */
 {
-#ifdef __WIN__
+#ifdef _WIN32
 	SYSTEMTIME cal_tm;
 
 	GetLocalTime(&cal_tm);
@@ -372,28 +353,22 @@ ut_get_year_month_day(
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
 
-#ifdef HAVE_LOCALTIME_R
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
 	cal_tm_ptr = &cal_tm;
-#else
-	time(&tm);
-	cal_tm_ptr = localtime(&tm);
-#endif
 	*year = (ulint) cal_tm_ptr->tm_year + 1900;
 	*month = (ulint) cal_tm_ptr->tm_mon + 1;
 	*day = (ulint) cal_tm_ptr->tm_mday;
 #endif
 }
-#endif /* UNIV_HOTBACKUP */
 
-#ifndef UNIV_HOTBACKUP
+#else /* UNIV_HOTBACKUP */
+
 /*************************************************************//**
 Runs an idle loop on CPU. The argument gives the desired delay
 in microseconds on 100 MHz Pentium + Visual C++.
-@return	dummy value */
-UNIV_INTERN
+@return dummy value */
 void
 ut_delay(
 /*=====*/
@@ -403,18 +378,20 @@ ut_delay(
 
 	UT_LOW_PRIORITY_CPU();
 
+
 	for (i = 0; i < delay * 50; i++) {
 		UT_RELAX_CPU();
 		UT_COMPILER_BARRIER();
 	}
 
 	UT_RESUME_PRIORITY_CPU();
+	UT_RESUME_PRIORITY_CPU();
+
 }
-#endif /* !UNIV_HOTBACKUP */
+#endif /* UNIV_HOTBACKUP */
 
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
-UNIV_INTERN
 void
 ut_print_buf(
 /*=========*/
@@ -445,25 +422,59 @@ ut_print_buf(
 	putc(';', file);
 }
 
-/**********************************************************************//**
-Sort function for ulint arrays. */
-UNIV_INTERN
+/*************************************************************//**
+Prints the contents of a memory buffer in hex. */
 void
-ut_ulint_sort(
-/*==========*/
-	ulint*	arr,		/*!< in/out: array to sort */
-	ulint*	aux_arr,	/*!< in/out: aux array to use in sort */
-	ulint	low,		/*!< in: lower bound */
-	ulint	high)		/*!< in: upper bound */
+ut_print_buf_hex(
+/*=============*/
+	std::ostream&	o,	/*!< in/out: output stream */
+	const void*	buf,	/*!< in: memory buffer */
+	ulint		len)	/*!< in: length of the buffer */
 {
-	UT_SORT_FUNCTION_BODY(ut_ulint_sort, arr, aux_arr, low, high,
-			      ut_ulint_cmp);
+	const byte*		data;
+	ulint			i;
+
+	static const char	hexdigit[16] = {
+		'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
+	};
+
+	UNIV_MEM_ASSERT_RW(buf, len);
+
+	o << "(0x";
+
+	for (data = static_cast<const byte*>(buf), i = 0; i < len; i++) {
+		byte	b = *data++;
+		o << hexdigit[(int) b >> 16] << hexdigit[b & 15];
+	}
+
+	o << ")";
+}
+
+/*************************************************************//**
+Prints the contents of a memory buffer in hex and ascii. */
+void
+ut_print_buf(
+/*=========*/
+	std::ostream&	o,	/*!< in/out: output stream */
+	const void*	buf,	/*!< in: memory buffer */
+	ulint		len)	/*!< in: length of the buffer */
+{
+	const byte*	data;
+	ulint		i;
+
+	UNIV_MEM_ASSERT_RW(buf, len);
+
+	for (data = static_cast<const byte*>(buf), i = 0; i < len; i++) {
+		int	c = static_cast<int>(*data++);
+		o << (isprint(c) ? static_cast<char>(c) : ' ');
+	}
+
+	ut_print_buf_hex(o, buf, len);
 }
 
 /*************************************************************//**
 Calculates fast the number rounded up to the nearest power of 2.
-@return	first power of 2 which is >= n */
-UNIV_INTERN
+@return first power of 2 which is >= n */
 ulint
 ut_2_power_up(
 /*==========*/
@@ -482,65 +493,43 @@ ut_2_power_up(
 	return(res);
 }
 
-/**********************************************************************//**
-Outputs a NUL-terminated file name, quoted with apostrophes. */
-UNIV_INTERN
-void
-ut_print_filename(
-/*==============*/
-	FILE*		f,	/*!< in: output stream */
-	const char*	name)	/*!< in: name to print */
-{
-	putc('\'', f);
-	for (;;) {
-		int	c = *name++;
-		switch (c) {
-		case 0:
-			goto done;
-		case '\'':
-			putc(c, f);
-			/* fall through */
-		default:
-			putc(c, f);
-		}
-	}
-done:
-	putc('\'', f);
-}
 #ifndef UNIV_HOTBACKUP
+/** Get a fixed-length string, quoted as an SQL identifier.
+If the string contains a slash '/', the string will be
+output as two identifiers separated by a period (.),
+as in SQL database_name.identifier.
+ @param		[in]	trx		transaction (NULL=no quotes).
+ @param		[in]	name		table name.
+ @retval	String quoted as an SQL identifier.
+*/
+std::string
+ut_get_name(
+	const trx_t*	trx,
+	const char*	name)
+{
+	/* 2 * NAME_LEN for database and table name,
+	and some slack for the #mysql50# prefix and quotes */
+	char		buf[3 * NAME_LEN];
+	const char*	bufend;
+
+	bufend = innobase_convert_name(buf, sizeof buf,
+				       name, strlen(name),
+				       trx ? trx->mysql_thd : NULL);
+	buf[bufend - buf] = '\0';
+	return(std::string(buf, 0, bufend - buf));
+}
+
 /**********************************************************************//**
 Outputs a fixed-length string, quoted as an SQL identifier.
 If the string contains a slash '/', the string will be
 output as two identifiers separated by a period (.),
 as in SQL database_name.identifier. */
-UNIV_INTERN
 void
 ut_print_name(
 /*==========*/
 	FILE*		f,	/*!< in: output stream */
 	const trx_t*	trx,	/*!< in: transaction */
-	ibool		table_id,/*!< in: TRUE=print a table name,
-				FALSE=print other identifier */
 	const char*	name)	/*!< in: name to print */
-{
-	ut_print_namel(f, trx, table_id, name, strlen(name));
-}
-
-/**********************************************************************//**
-Outputs a fixed-length string, quoted as an SQL identifier.
-If the string contains a slash '/', the string will be
-output as two identifiers separated by a period (.),
-as in SQL database_name.identifier. */
-UNIV_INTERN
-void
-ut_print_namel(
-/*===========*/
-	FILE*		f,	/*!< in: output stream */
-	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
-	ibool		table_id,/*!< in: TRUE=print a table name,
-				FALSE=print other identifier */
-	const char*	name,	/*!< in: name to print */
-	ulint		namelen)/*!< in: length of name */
 {
 	/* 2 * NAME_LEN for database and table name,
 	and some slack for the #mysql50# prefix and quotes */
@@ -548,59 +537,28 @@ ut_print_namel(
 	const char*	bufend;
 
 	bufend = innobase_convert_name(buf, sizeof buf,
-				       name, namelen,
-				       trx ? trx->mysql_thd : NULL,
-				       table_id);
+				       name, strlen(name),
+				       trx ? trx->mysql_thd : NULL);
 
-	fwrite(buf, 1, bufend - buf, f);
+	if (fwrite(buf, 1, bufend - buf, f) != (size_t) (bufend - buf)) {
+		perror("fwrite");
+	}
 }
 
-/**********************************************************************//**
-Outputs a fixed-length string, quoted as an SQL identifier.
-If the string contains a slash '/', the string will be
-output as two identifiers separated by a period (.),
-as in SQL database_name.identifier. */
-UNIV_INTERN
-std::string
-ut_get_name(
-/*=========*/
-	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
-	ibool		table_id,/*!< in: TRUE=print a table name,
-				FALSE=print other identifier */
-	const char*	name)	/*!< in: name to print */
-{
-	/* 2 * NAME_LEN for database and table name,
-	and some slack for the #mysql50# prefix and quotes */
-	char		buf[3 * NAME_LEN];
-	const char*	bufend;
-	ulint		namelen = strlen(name);
-
-	bufend = innobase_convert_name(buf, sizeof buf,
-				       name, namelen,
-				       trx ? trx->mysql_thd : NULL,
-				       table_id);
-	buf[bufend-buf]='\0';
-	std::string str(buf);
-	return str;
-}
-
-/**********************************************************************//**
-Formats a table or index name, quoted as an SQL identifier. If the name
-contains a slash '/', the result will contain two identifiers separated by
-a period (.), as in SQL database_name.identifier.
+/** Format a table name, quoted as an SQL identifier.
+If the name contains a slash '/', the result will contain two
+identifiers separated by a period (.), as in SQL
+database_name.table_name.
+@see table_name_t
+@param[in]	name		table or index name
+@param[out]	formatted	formatted result, will be NUL-terminated
+@param[in]	formatted_size	size of the buffer in bytes
 @return pointer to 'formatted' */
-UNIV_INTERN
 char*
 ut_format_name(
-/*===========*/
-	const char*	name,		/*!< in: table or index name, must be
-					'\0'-terminated */
-	ibool		is_table,	/*!< in: if TRUE then 'name' is a table
-					name */
-	char*		formatted,	/*!< out: formatted result, will be
-					'\0'-terminated */
-	ulint		formatted_size)	/*!< out: no more than this number of
-					bytes will be written to 'formatted' */
+	const char*	name,
+	char*		formatted,
+	ulint		formatted_size)
 {
 	switch (formatted_size) {
 	case 1:
@@ -613,7 +571,7 @@ ut_format_name(
 	char*	end;
 
 	end = innobase_convert_name(formatted, formatted_size,
-				    name, strlen(name), NULL, is_table);
+				    name, strlen(name), NULL);
 
 	/* If the space in 'formatted' was completely used, then sacrifice
 	the last character in order to write '\0' at the end. */
@@ -630,7 +588,6 @@ ut_format_name(
 
 /**********************************************************************//**
 Catenate files. */
-UNIV_INTERN
 void
 ut_copy_file(
 /*=========*/
@@ -646,7 +603,9 @@ ut_copy_file(
 			? (size_t) len
 			: sizeof buf;
 		size_t	size = fread(buf, 1, maxs, src);
-		fwrite(buf, 1, size, dest);
+		if (fwrite(buf, 1, size, dest) != size) {
+			perror("fwrite");
+		}
 		len -= (long) size;
 		if (size < maxs) {
 			break;
@@ -655,7 +614,7 @@ ut_copy_file(
 }
 #endif /* !UNIV_HOTBACKUP */
 
-#ifdef __WIN__
+#ifdef _WIN32
 # include <stdarg.h>
 /**********************************************************************//**
 A substitute for vsnprintf(3), formatted output conversion into
@@ -664,7 +623,6 @@ characters that would have been printed if the buffer was unlimited because
 VC's _vsnprintf() returns -1 in this case and we would need to call
 _vscprintf() in addition to estimate that but we would need another copy
 of "ap" for that and VC does not provide va_copy(). */
-UNIV_INTERN
 void
 ut_vsnprintf(
 /*=========*/
@@ -682,7 +640,6 @@ A substitute for snprintf(3), formatted output conversion into
 a limited buffer.
 @return number of characters that would have been printed if the size
 were unlimited, not including the terminating '\0'. */
-UNIV_INTERN
 int
 ut_snprintf(
 /*========*/
@@ -714,17 +671,43 @@ ut_snprintf(
 
 	return(res);
 }
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
-/*************************************************************//**
-Convert an error number to a human readable text message. The
-returned string is static and should not be freed or modified.
-@return	string, describing the error */
+/**********************************************************************//**
+Outputs a fixed-length string, quoted as an SQL identifier.
+If the string contains a slash '/', the string will be
+output as two identifiers separated by a period (.),
+as in SQL database_name.identifier. */
 UNIV_INTERN
+std::string
+ut_get_name(
+/*=========*/
+	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
+	ibool		table_id,/*!< in: TRUE=print a table name,
+				FALSE=print other identifier */
+	const char*	name)	/*!< in: name to print */
+{
+	/* 2 * NAME_LEN for database and table name,
+	and some slack for the #mysql50# prefix and quotes */
+	char		buf[3 * NAME_LEN];
+	const char*	bufend;
+	ulint		namelen = strlen(name);
+
+	bufend = innobase_convert_name(buf, sizeof buf,
+				       name, namelen,
+				       trx ? trx->mysql_thd : NULL);
+	buf[bufend-buf]='\0';
+	std::string str(buf);
+	return str;
+}
+
+/** Convert an error number to a human readable text message.
+The returned string is static and should not be freed or modified.
+@param[in]	num	InnoDB internal error number
+@return string, describing the error */
 const char*
 ut_strerr(
-/*======*/
-	dberr_t	num)	/*!< in: error number */
+	dberr_t	num)
 {
 	switch (num) {
 	case DB_SUCCESS:
@@ -783,6 +766,8 @@ ut_strerr(
 		return("Tablespace already exists");
 	case DB_TABLESPACE_DELETED:
 		return("Tablespace deleted or being deleted");
+	case DB_TABLESPACE_TRUNCATED:
+		return("Tablespace was truncated");
 	case DB_TABLESPACE_NOT_FOUND:
 		return("Tablespace not found");
 	case DB_LOCK_TABLE_FULL:
@@ -835,20 +820,40 @@ ut_strerr(
 		return("not found");
 	case DB_ONLINE_LOG_TOO_BIG:
 		return("Log size exceeded during online index creation");
-	case DB_DICT_CHANGED:
-		return("Table dictionary has changed");
 	case DB_IDENTIFIER_TOO_LONG:
 		return("Identifier name is too long");
 	case DB_FTS_EXCEED_RESULT_CACHE_LIMIT:
 		return("FTS query exceeds result cache limit");
-	case DB_TEMP_FILE_WRITE_FAILURE:
+	case DB_TEMP_FILE_WRITE_FAIL:
 		return("Temp file write failure");
+	case DB_CANT_CREATE_GEOMETRY_OBJECT:
+		return("Can't create specificed geometry data object");
+	case DB_CANNOT_OPEN_FILE:
+		return("Cannot open a file");
+	case DB_TABLE_CORRUPT:
+		return("Table is corrupted");
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return("Too many words in a FTS phrase or proximity search");
-	case DB_TOO_BIG_FOR_REDO:
-		return("BLOB record length is greater than 10%% of redo log");
+	case DB_IO_DECOMPRESS_FAIL:
+		return("Page decompress failed after reading from disk");
 	case DB_DECRYPTION_FAILED:
 		return("Table is encrypted but decrypt failed.");
+	case DB_IO_NO_PUNCH_HOLE:
+		return("No punch hole support");
+	case DB_IO_NO_PUNCH_HOLE_FS:
+		return("Punch hole not supported by the file system");
+	case DB_IO_NO_PUNCH_HOLE_TABLESPACE:
+		return("Punch hole not supported by the tablespace");
+	case DB_IO_PARTIAL_FAILED:
+		return("Partial IO failed");
+	case DB_FORCED_ABORT:
+		return("Transaction aborted by another higher priority "
+		       "transaction");
+	case DB_WRONG_FILE_NAME:
+		return("Invalid Filename");
+
+	case DB_COMPUTE_VALUE_FAILED:
+		return("Compute generated column failed");
 
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */
@@ -862,4 +867,96 @@ ut_strerr(
 	/* NOT REACHED */
 	return("Unknown error");
 }
+
+#ifdef UNIV_PFS_MEMORY
+
+/** Extract the basename of a file without its extension.
+For example, extract "foo0bar" out of "/path/to/foo0bar.cc".
+@param[in]	file		file path, e.g. "/path/to/foo0bar.cc"
+@param[out]	base		result, e.g. "foo0bar"
+@param[in]	base_size	size of the output buffer 'base', if there
+is not enough space, then the result will be truncated, but always
+'\0'-terminated
+@return number of characters that would have been printed if the size
+were unlimited (not including the final ‘\0’) */
+size_t
+ut_basename_noext(
+	const char*	file,
+	char*		base,
+	size_t		base_size)
+{
+	/* Assuming 'file' contains something like the following,
+	extract the file name without the extenstion out of it by
+	setting 'beg' and 'len'.
+	...mysql-trunk/storage/innobase/dict/dict0dict.cc:302
+                                             ^-- beg, len=9
+	*/
+
+	const char*	beg = strrchr(file, OS_PATH_SEPARATOR);
+
+	if (beg == NULL) {
+		beg = file;
+	} else {
+		beg++;
+	}
+
+	size_t		len = strlen(beg);
+
+	const char*	end = strrchr(beg, '.');
+
+	if (end != NULL) {
+		len = end - beg;
+	}
+
+	const size_t	copy_len = std::min(len, base_size - 1);
+
+	memcpy(base, beg, copy_len);
+
+	base[copy_len] = '\0';
+
+	return(len);
+}
+
+#endif /* UNIV_PFS_MEMORY */
+
+namespace ib {
+
+info::~info()
+{
+	sql_print_information("InnoDB: %s", m_oss.str().c_str());
+}
+
+warn::~warn()
+{
+	sql_print_warning("InnoDB: %s", m_oss.str().c_str());
+}
+
+error::~error()
+{
+	sql_print_error("InnoDB: %s", m_oss.str().c_str());
+}
+
+fatal::~fatal()
+{
+	sql_print_error("[FATAL] InnoDB: %s", m_oss.str().c_str());
+	ut_error;
+}
+
+error_or_warn::~error_or_warn()
+{
+	if (m_error) {
+		sql_print_error("InnoDB: %s", m_oss.str().c_str());
+	} else {
+		sql_print_warning("InnoDB: %s", m_oss.str().c_str());
+	}
+}
+
+fatal_or_error::~fatal_or_error()
+{
+	sql_print_error("InnoDB: %s", m_oss.str().c_str());
+	ut_a(!m_fatal);
+}
+
+} // namespace ib
+
 #endif /* !UNIV_INNOCHECKSUM */

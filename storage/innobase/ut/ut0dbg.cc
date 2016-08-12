@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2009, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -23,21 +23,12 @@ Debug utilities for Innobase.
 Created 1/30/1994 Heikki Tuuri
 **********************************************************************/
 
-#include "univ.i"
-#include "ut0dbg.h"
-#ifndef UNIV_HOTBACKUP
-# include "ha_prototypes.h"
-#endif /* !UNIV_HOTBACKUP */
+#include "ha_prototypes.h"
 
-#if defined(__GNUC__) && (__GNUC__ > 2)
-#else
-/** This is used to eliminate compiler warnings */
-UNIV_INTERN ulint	ut_dbg_zero	= 0;
-#endif
+#include "ut0dbg.h"
 
 /*************************************************************//**
 Report a failed assertion. */
-UNIV_INTERN
 void
 ut_dbg_assertion_failed(
 /*====================*/
@@ -70,70 +61,8 @@ ut_dbg_assertion_failed(
 	      "InnoDB: corruption in the InnoDB tablespace. Please refer to\n"
 	      "InnoDB: " REFMAN "forcing-innodb-recovery.html\n"
 	      "InnoDB: about forcing recovery.\n", stderr);
+
+	fflush(stderr);
+	fflush(stdout);
+	abort();
 }
-
-#ifdef UNIV_COMPILE_TEST_FUNCS
-
-#include <sys/types.h>
-#include <sys/time.h>
-#include <sys/resource.h>
-
-#include <unistd.h>
-
-#ifndef timersub
-#define timersub(a, b, r)						\
-	do {								\
-		(r)->tv_sec = (a)->tv_sec - (b)->tv_sec;		\
-		(r)->tv_usec = (a)->tv_usec - (b)->tv_usec;		\
-		if ((r)->tv_usec < 0) {					\
-			(r)->tv_sec--;					\
-			(r)->tv_usec += 1000000;			\
-		}							\
-	} while (0)
-#endif /* timersub */
-
-/*******************************************************************//**
-Resets a speedo (records the current time in it). */
-UNIV_INTERN
-void
-speedo_reset(
-/*=========*/
-	speedo_t*	speedo)	/*!< out: speedo */
-{
-	gettimeofday(&speedo->tv, NULL);
-
-	getrusage(RUSAGE_SELF, &speedo->ru);
-}
-
-/*******************************************************************//**
-Shows the time elapsed and usage statistics since the last reset of a
-speedo. */
-UNIV_INTERN
-void
-speedo_show(
-/*========*/
-	const speedo_t*	speedo)	/*!< in: speedo */
-{
-	struct rusage	ru_now;
-	struct timeval	tv_now;
-	struct timeval	tv_diff;
-
-	getrusage(RUSAGE_SELF, &ru_now);
-
-	gettimeofday(&tv_now, NULL);
-
-#define PRINT_TIMEVAL(prefix, tvp)		\
-	fprintf(stderr, "%s% 5ld.%06ld sec\n",	\
-		prefix, (tvp)->tv_sec, (tvp)->tv_usec)
-
-	timersub(&tv_now, &speedo->tv, &tv_diff);
-	PRINT_TIMEVAL("real", &tv_diff);
-
-	timersub(&ru_now.ru_utime, &speedo->ru.ru_utime, &tv_diff);
-	PRINT_TIMEVAL("user", &tv_diff);
-
-	timersub(&ru_now.ru_stime, &speedo->ru.ru_stime, &tv_diff);
-	PRINT_TIMEVAL("sys ", &tv_diff);
-}
-
-#endif /* UNIV_COMPILE_TEST_FUNCS */

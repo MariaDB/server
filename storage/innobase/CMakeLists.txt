@@ -336,7 +336,16 @@ IF(MSVC)
   ADD_DEFINITIONS(-DHAVE_WINDOWS_MM_FENCE)
 ENDIF()
 
+SET(MUTEXTYPE "event" CACHE STRING "Mutex type: event, sys or futex")
 
+IF(MUTEXTYPE MATCHES "event")
+  ADD_DEFINITIONS(-DMUTEX_EVENT)
+ELSEIF(MUTEXTYPE MATCHES "futex" AND DEFINED HAVE_IB_LINUX_FUTEX)
+  ADD_DEFINITIONS(-DMUTEX_FUTEX)
+ELSE()
+   ADD_DEFINITIONS(-DMUTEX_SYS)
+ENDIF()
+ 
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
 		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler)
@@ -371,6 +380,7 @@ SET(INNOBASE_SOURCES
 	api/api0api.cc
 	api/api0misc.cc
 	btr/btr0btr.cc
+	btr/btr0bulk.cc
 	btr/btr0cur.cc
 	btr/btr0pcur.cc
 	btr/btr0scrub.cc
@@ -394,13 +404,16 @@ SET(INNOBASE_SOURCES
 	dict/dict0mem.cc
 	dict/dict0stats.cc
 	dict/dict0stats_bg.cc
-	dyn/dyn0dyn.cc
+#	dyn/dyn0dyn.cc
 	eval/eval0eval.cc
 	eval/eval0proc.cc
 	fil/fil0fil.cc
 	fil/fil0pagecompress.cc
 	fil/fil0crypt.cc
 	fsp/fsp0fsp.cc
+	fsp/fsp0file.cc
+	fsp/fsp0space.cc
+	fsp/fsp0sysspace.cc
 	fut/fut0fut.cc
 	fut/fut0lst.cc
 	ha/ha0ha.cc
@@ -412,27 +425,34 @@ SET(INNOBASE_SOURCES
 	fts/fts0config.cc
 	fts/fts0opt.cc
 	fts/fts0pars.cc
+	fts/fts0plugin.cc
 	fts/fts0que.cc
 	fts/fts0sql.cc
 	fts/fts0tlex.cc
+	gis/gis0geo.cc
+	gis/gis0rtree.cc
+	gis/gis0sea.cc
 	handler/ha_innodb.cc
+#	handler/ha_innopart.cc
 	handler/handler0alter.cc
 	handler/i_s.cc
 	ibuf/ibuf0ibuf.cc
 	lock/lock0iter.cc
 	lock/lock0lock.cc
+	lock/lock0prdt.cc
 	lock/lock0wait.cc
 	log/log0log.cc
 	log/log0recv.cc
 	log/log0crypt.cc
 	mach/mach0data.cc
 	mem/mem0mem.cc
-	mem/mem0pool.cc
+#	mem/mem0pool.cc
 	mtr/mtr0log.cc
 	mtr/mtr0mtr.cc
+	os/os0event.cc
 	os/os0file.cc
 	os/os0proc.cc
-	os/os0sync.cc
+#	os/os0sync.cc
 	os/os0thread.cc
 	page/page0cur.cc
 	page/page0page.cc
@@ -456,6 +476,7 @@ SET(INNOBASE_SOURCES
 	row/row0purge.cc
 	row/row0row.cc
 	row/row0sel.cc
+	row/row0trunc.cc
 	row/row0uins.cc
 	row/row0umod.cc
 	row/row0undo.cc
@@ -467,6 +488,7 @@ SET(INNOBASE_SOURCES
 	srv/srv0srv.cc
 	srv/srv0start.cc
 	sync/sync0arr.cc
+	sync/sync0debug.cc
 	sync/sync0rw.cc
 	sync/sync0sync.cc
 	trx/trx0i_s.cc
@@ -478,12 +500,13 @@ SET(INNOBASE_SOURCES
 	trx/trx0trx.cc
 	trx/trx0undo.cc
 	usr/usr0sess.cc
-	ut/ut0bh.cc
+#	ut/ut0bh.cc
 	ut/ut0byte.cc
 	ut/ut0crc32.cc
 	ut/ut0dbg.cc
 	ut/ut0list.cc
 	ut/ut0mem.cc
+	ut/ut0new.cc
 	ut/ut0rbt.cc
 	ut/ut0rnd.cc
 	ut/ut0ut.cc
@@ -515,7 +538,8 @@ ELSE()
 ENDIF()
 
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
-  MODULE_ONLY
-  MODULE_OUTPUT_NAME ha_innodb
+#  MODULE_ONLY
+#  MODULE_OUTPUT_NAME ha_innodb
+  DEFAULT RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})
 

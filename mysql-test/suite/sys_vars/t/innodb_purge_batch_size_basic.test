@@ -72,7 +72,7 @@ SELECT @@global.innodb_purge_batch_size;
 
 SET @@global.innodb_purge_batch_size = 5000;
 SELECT @@global.innodb_purge_batch_size;
-SET @@global.innodb_purge_batch_size = 1000;
+SET @@global.innodb_purge_batch_size = 4294967295;
 SELECT @@global.innodb_purge_batch_size;
 
 --echo '#--------------------FN_DYNVARS_046_04-------------------------#'
@@ -90,8 +90,17 @@ SELECT @@global.innodb_purge_batch_size;
 --Error ER_WRONG_TYPE_FOR_VAR
 SET @@global.innodb_purge_batch_size = "Y";
 SELECT @@global.innodb_purge_batch_size;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_purge_batch_size = ' ';
+SELECT @@global.innodb_purge_batch_size;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_purge_batch_size = " ";
+SELECT @@global.innodb_purge_batch_size;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_purge_batch_size = 1.1;
+SELECT @@global.innodb_purge_batch_size;
 
-SET @@global.innodb_purge_batch_size = 5001;
+SET @@global.innodb_purge_batch_size = 4294967297;
 SELECT @@global.innodb_purge_batch_size;
 
 --echo '#----------------------FN_DYNVARS_046_05------------------------#'
@@ -99,12 +108,16 @@ SELECT @@global.innodb_purge_batch_size;
 #     Check if the value in GLOBAL Table matches value in variable      #
 #########################################################################
 
+--disable_warnings
 SELECT @@global.innodb_purge_batch_size =
  VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
   WHERE VARIABLE_NAME='innodb_purge_batch_size';
+--enable_warnings
 SELECT @@global.innodb_purge_batch_size;
+--disable_warnings
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
  WHERE VARIABLE_NAME='innodb_purge_batch_size';
+--enable_warnings
 
 --echo '#---------------------FN_DYNVARS_046_06-------------------------#'
 ################################################################### 

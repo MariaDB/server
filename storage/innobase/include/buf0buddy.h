@@ -39,7 +39,7 @@ Allocate a block.  The thread calling this function must hold
 buf_pool->mutex and must not hold buf_pool->zip_mutex or any
 block->mutex.  The buf_pool->mutex may be released and reacquired.
 This function should only be used for allocating compressed page frames.
-@return	allocated block, never NULL */
+@return allocated block, never NULL */
 UNIV_INLINE
 byte*
 buf_buddy_alloc(
@@ -69,6 +69,24 @@ buf_buddy_free(
 	ulint		size)		/*!< in: block size,
 					up to UNIV_PAGE_SIZE */
 	MY_ATTRIBUTE((nonnull));
+
+/** Reallocate a block.
+@param[in]	buf_pool	buffer pool instance
+@param[in]	buf		block to be reallocated, must be pointed
+to by the buffer pool
+@param[in]	size		block size, up to UNIV_PAGE_SIZE
+@retval false	if failed because of no free blocks. */
+bool
+buf_buddy_realloc(
+	buf_pool_t*	buf_pool,
+	void*		buf,
+	ulint		size);
+
+/** Combine all pairs of free buddies.
+@param[in]	buf_pool	buffer pool instance */
+void
+buf_buddy_condense_free(
+	buf_pool_t*	buf_pool);
 
 #ifndef UNIV_NONINL
 # include "buf0buddy.ic"

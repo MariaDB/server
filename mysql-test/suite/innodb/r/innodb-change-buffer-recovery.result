@@ -2,15 +2,14 @@
 # Bug#69122 - INNODB DOESN'T REDO-LOG INSERT BUFFER MERGE
 #             OPERATION IF IT IS DONE IN-PLACE
 #
-SET GLOBAL innodb_change_buffering_debug = 1;
 CREATE TABLE t1(
 a INT AUTO_INCREMENT PRIMARY KEY,
 b CHAR(1),
 c INT,
 INDEX(b))
-ENGINE=InnoDB;
+ENGINE=InnoDB STATS_PERSISTENT=0;
+SET GLOBAL innodb_change_buffering_debug = 1;
 INSERT INTO t1 VALUES(0,'x',1);
-INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
@@ -35,7 +34,9 @@ connection con1;
 BEGIN;
 DELETE FROM t1 WHERE a=1;
 INSERT INTO t1 VALUES(1,'X',1);
-SET DEBUG_DBUG='+d,crash_after_log_ibuf_upd_inplace';
+SET DEBUG='+d,crash_after_log_ibuf_upd_inplace';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 SELECT b FROM t1 LIMIT 3;
 ERROR HY000: Lost connection to MySQL server during query
 FOUND /Wrote log record for ibuf update in place operation/ in my_restart.err

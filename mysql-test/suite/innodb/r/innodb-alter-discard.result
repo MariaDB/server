@@ -1,5 +1,11 @@
 SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t(a INT)ENGINE=InnoDB;
+call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation.");
+call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified.");
+call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them.");
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: './test/t.ibd' OS error: .*");
+call mtr.add_suppression("InnoDB: Ignoring tablespace `test/t` because it could not be opened.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .*");
 call mtr.add_suppression("InnoDB: Error: trying to open a table, but could not$");
 call mtr.add_suppression("MySQL is trying to open a table handle but the \.ibd file for$");
 call mtr.add_suppression("InnoDB: Table 'test/t'$");
@@ -17,5 +23,5 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 ALTER TABLE t DISCARD TABLESPACE;
 Warnings:
 Warning	1812	Tablespace is missing for table 'test/t'
-Warning	1812	Tablespace is missing for table 't'
+Warning	1812	Tablespace is missing for table 'test/t'
 DROP TABLE t;

@@ -36,28 +36,31 @@ Created 6/2/1994 Heikki Tuuri
 					in btr_page_set_level and
 					btr_page_get_level_low */
 
-/**************************************************************//**
-Gets a buffer page and declares its latching order level. */
+/** Gets a buffer page and declares its latching order level.
+@param[in]	page_id	page id
+@param[in]	mode	latch mode
+@param[in]	file	file name
+@param[in]	line	line where called
+@param[in]	index	index tree, may be NULL if it is not an insert buffer
+tree
+@param[in,out]	mtr	mini-transaction
+@return block */
 UNIV_INLINE
 buf_block_t*
 btr_block_get_func(
-/*===============*/
-	ulint		space,		/*!< in: space id */
-	ulint		zip_size,	/*!< in: compressed page size in bytes
-					or 0 for uncompressed pages */
-	ulint		page_no,	/*!< in: page number */
-	ulint		mode,		/*!< in: latch mode */
-	const char*	file,		/*!< in: file name */
-	ulint		line,		/*!< in: line where called */
-	dict_index_t*	index,		/*!< in: index tree, may be NULL
-					if it is not an insert buffer tree */
-	mtr_t*		mtr)		/*!< in/out: mtr */
+	const page_id_t&	page_id,
+	const page_size_t&	page_size,
+	ulint			mode,
+	const char*		file,
+	ulint			line,
+	dict_index_t*		index,
+	mtr_t*			mtr)
 {
 	buf_block_t*	block;
-	dberr_t		err;
+	dberr_t		err=DB_SUCCESS;
 
-	block = buf_page_get_gen(space, zip_size, page_no, mode,
-		NULL, BUF_GET, file, line, mtr, &err);
+	block = buf_page_get_gen(
+		page_id, page_size, mode, NULL, BUF_GET, file, line, mtr, &err);
 
 	if (err == DB_DECRYPTION_FAILED) {
 		index->table->is_encrypted = true;
@@ -100,7 +103,7 @@ btr_page_set_index_id(
 
 /**************************************************************//**
 Gets the index id field of a page.
-@return	index id */
+@return index id */
 UNIV_INLINE
 index_id_t
 btr_page_get_index_id(
@@ -113,7 +116,7 @@ btr_page_get_index_id(
 #ifndef UNIV_HOTBACKUP
 /********************************************************//**
 Gets the node level field in an index page.
-@return	level, leaf level == 0 */
+@return level, leaf level == 0 */
 UNIV_INLINE
 ulint
 btr_page_get_level_low(
@@ -143,7 +146,8 @@ btr_page_set_level(
 	ulint		level,	/*!< in: level, leaf level == 0 */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle */
 {
-	ut_ad(page && mtr);
+	ut_ad(page != NULL);
+	ut_ad(mtr != NULL);
 	ut_ad(level <= BTR_MAX_NODE_LEVEL);
 
 	if (page_zip) {
@@ -159,7 +163,7 @@ btr_page_set_level(
 
 /********************************************************//**
 Gets the next index page number.
-@return	next page number */
+@return next page number */
 UNIV_INLINE
 ulint
 btr_page_get_next(
@@ -170,10 +174,7 @@ btr_page_get_next(
 {
 	ut_ad(page != NULL);
 	ut_ad(mtr != NULL);
-#ifndef UNIV_INNOCHECKSUM
-	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX)
-	      || mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_S_FIX));
-#endif /* UNIV_INNOCHECKSUM */
+
 	return(mach_read_from_4(page + FIL_PAGE_NEXT));
 }
 
@@ -202,7 +203,7 @@ btr_page_set_next(
 
 /********************************************************//**
 Gets the previous index page number.
-@return	prev page number */
+@return prev page number */
 UNIV_INLINE
 ulint
 btr_page_get_prev(
@@ -245,7 +246,7 @@ NOTE: the offsets array must contain all offsets for the record since
 we read the last field according to offsets and assume that it contains
 the child page number. In other words offsets must have been retrieved
 with rec_get_offsets(n_fields=ULINT_UNDEFINED).
-@return	child node address */
+@return child node address */
 UNIV_INLINE
 ulint
 btr_node_ptr_get_child_page_no(
@@ -266,15 +267,7 @@ btr_node_ptr_get_child_page_no(
 	ut_ad(len == 4);
 
 	page_no = mach_read_from_4(field);
-
-	if (page_no == 0) {
-		fprintf(stderr,
-			"InnoDB: a nonsensical page number 0"
-			" in a node ptr record at offset %lu\n",
-			(ulong) page_offset(rec));
-		buf_page_print(page_align(rec), 0, 0);
-		ut_ad(0);
-	}
+	ut_ad(page_no > 1);
 
 	return(page_no);
 }
@@ -290,12 +283,27 @@ btr_leaf_page_release(
 					BTR_MODIFY_LEAF */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
+	ut_ad(latch_mode == BTR_SEARCH_LEAF
+	      || latch_mode == BTR_MODIFY_LEAF
+	      || latch_mode == BTR_NO_LATCHES);
+
 	ut_ad(!mtr_memo_contains(mtr, block, MTR_MEMO_MODIFY));
 
-	mtr_memo_release(mtr, block,
-			 latch_mode == BTR_SEARCH_LEAF
-			 ? MTR_MEMO_PAGE_S_FIX
-			 : MTR_MEMO_PAGE_X_FIX);
+	ulint mode;
+	switch (latch_mode) {
+		case BTR_SEARCH_LEAF:
+			mode = MTR_MEMO_PAGE_S_FIX;
+			break;
+		case BTR_MODIFY_LEAF:
+			mode = MTR_MEMO_PAGE_X_FIX;
+			break;
+		case BTR_NO_LATCHES:
+			mode = MTR_MEMO_BUF_FIX;
+			break;
+		default:
+			ut_a(0);
+	}
+
+	mtr->memo_release(block, mode);
 }
 #endif /* !UNIV_HOTBACKUP */

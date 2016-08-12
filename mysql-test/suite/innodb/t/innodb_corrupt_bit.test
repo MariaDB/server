@@ -2,17 +2,15 @@
 # Test for persistent corrupt bit for corrupted index and table
 #
 -- source include/have_innodb.inc
-#-- source include/have_innodb_16k.inc
--- source include/not_embedded.inc
+--source include/not_embedded.inc
 # This test needs debug server
 -- source include/have_debug.inc
 
--- disable_query_log
-call mtr.add_suppression("Flagged corruption of idx.*in");
+--disable_query_log
+call mtr.add_suppression("Flagged corruption of.* in table .* in .*");
+--enable_query_log
 
 set names utf8;
-
-SET UNIQUE_CHECKS=0;
 
 CREATE TABLE corrupt_bit_test_ā(
        a INT AUTO_INCREMENT PRIMARY KEY,
@@ -20,14 +18,12 @@ CREATE TABLE corrupt_bit_test_ā(
        c INT,
        z INT,
        INDEX idx(b))
-ENGINE=InnoDB;
+ENGINE=InnoDB STATS_PERSISTENT=0;
 
 INSERT INTO corrupt_bit_test_ā VALUES(0,'x',1, 1);
 
-# This is the first unique index we intend to corrupt
 CREATE UNIQUE INDEX idxā ON corrupt_bit_test_ā(c, b);
 
-# This is the second unique index we intend to corrupt
 CREATE UNIQUE INDEX idxē ON corrupt_bit_test_ā(z, b);
 
 SELECT * FROM corrupt_bit_test_ā;
@@ -37,9 +33,9 @@ INSERT INTO corrupt_bit_test_ā SELECT 0,b,c+1,z+1 FROM corrupt_bit_test_ā;
 select count(*) from corrupt_bit_test_ā;
 
 # This will flag all secondary indexes corrupted
-SET SESSION debug_dbug="+d,dict_set_index_corrupted";
+SET SESSION debug="+d,dict_set_index_corrupted";
 check table corrupt_bit_test_ā;
-SET SESSION debug_dbug="";
+SET SESSION debug="-d,dict_set_index_corrupted";
 
 # Cannot create new indexes while corrupted indexes exist
 --error ER_INDEX_CORRUPT
@@ -79,8 +75,6 @@ set names utf8;
 -- error ER_INDEX_CORRUPT
 select z from corrupt_bit_test_ā;
 
-show create table corrupt_bit_test_ā;
-
 # Drop the corrupted index
 drop index idxē on corrupt_bit_test_ā;
 
@@ -90,12 +84,12 @@ CREATE INDEX idx3 ON corrupt_bit_test_ā(b, c);
 --error ER_INDEX_CORRUPT
 CREATE INDEX idx4 ON corrupt_bit_test_ā(b, z);
 
-show create table corrupt_bit_test_ā;
 drop index idx on corrupt_bit_test_ā;
 
 # Now that there exist no corrupted indexes, we can create new indexes.
 CREATE INDEX idx3 ON corrupt_bit_test_ā(b, c);
 CREATE INDEX idx4 ON corrupt_bit_test_ā(b, z);
+
 
 # Now select back to normal
 select z from corrupt_bit_test_ā limit 10;

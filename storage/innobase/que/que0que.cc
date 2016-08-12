@@ -23,6 +23,8 @@ Query graph
 Created 5/27/1996 Heikki Tuuri
 *******************************************************/
 
+#include "ha_prototypes.h"
+
 #include "que0que.h"
 
 #ifdef UNIV_NONINL
@@ -45,12 +47,6 @@ Created 5/27/1996 Heikki Tuuri
 #include "pars0types.h"
 
 #define QUE_MAX_LOOPS_WITHOUT_CHECK	16
-
-#ifdef UNIV_DEBUG
-/* If the following flag is set TRUE, the module will print trace info
-of SQL execution in the UNIV_SQL_DEBUG version */
-UNIV_INTERN ibool	que_trace_on		= FALSE;
-#endif /* UNIV_DEBUG */
 
 /* Short introduction to query graphs
    ==================================
@@ -123,8 +119,7 @@ que_thr_move_to_run_state(
 
 /***********************************************************************//**
 Creates a query graph fork node.
-@return	own: fork node */
-UNIV_INTERN
+@return own: fork node */
 que_fork_t*
 que_fork_create(
 /*============*/
@@ -153,13 +148,14 @@ que_fork_create(
 
 	fork->graph = (graph != NULL) ? graph : fork;
 
+	UT_LIST_INIT(fork->thrs, &que_thr_t::thrs);
+
 	return(fork);
 }
 
 /***********************************************************************//**
 Creates a query graph thread node.
-@return	own: query thread node */
-UNIV_INTERN
+@return own: query thread node */
 que_thr_t*
 que_thr_create(
 /*===========*/
@@ -168,7 +164,8 @@ que_thr_create(
 {
 	que_thr_t*	thr;
 
-	ut_ad(parent && heap);
+	ut_ad(parent != NULL);
+	ut_ad(heap != NULL);
 
 	thr = static_cast<que_thr_t*>(mem_heap_zalloc(heap, sizeof(*thr)));
 
@@ -184,7 +181,7 @@ que_thr_create(
 
 	thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-	UT_LIST_ADD_LAST(thrs, parent->thrs, thr);
+	UT_LIST_ADD_LAST(parent->thrs, thr);
 
 	return(thr);
 }
@@ -195,12 +192,11 @@ a worker thread to execute it. This function should be used to end
 the wait state of a query thread waiting for a lock or a stored procedure
 completion.
 @return the query thread that needs to be released. */
-UNIV_INTERN
 que_thr_t*
 que_thr_end_lock_wait(
 /*==================*/
 	trx_t*		trx)	/*!< in: transaction with que_state in
-		       		QUE_THR_LOCK_WAIT */
+				QUE_THR_LOCK_WAIT */
 {
 	que_thr_t*	thr;
 	ibool		was_active;
@@ -249,7 +245,6 @@ Round robin scheduler.
 @return a query thread of the graph moved to QUE_THR_RUNNING state, or
 NULL; the query thread should be executed by que_run_threads by the
 caller */
-UNIV_INTERN
 que_thr_t*
 que_fork_scheduler_round_robin(
 /*===========================*/
@@ -299,7 +294,6 @@ is returned.
 @return a query thread of the graph moved to QUE_THR_RUNNING state, or
 NULL; the query thread should be executed by que_run_threads by the
 caller */
-UNIV_INTERN
 que_thr_t*
 que_fork_start_command(
 /*===================*/
@@ -358,9 +352,10 @@ que_fork_start_command(
 
 			break;
 
+		case QUE_THR_RUNNING:
 		case QUE_THR_LOCK_WAIT:
+		case QUE_THR_PROCEDURE_WAIT:
 			ut_error;
-
 		}
 	}
 
@@ -398,7 +393,6 @@ que_graph_free_stat_list(
 /**********************************************************************//**
 Frees a query graph, but not the heap where it was created. Does not free
 explicit cursor declarations, they are freed in que_graph_free. */
-UNIV_INTERN
 void
 que_graph_free_recursive(
 /*=====================*/
@@ -414,10 +408,15 @@ que_graph_free_recursive(
 	ind_node_t*	cre_ind;
 	purge_node_t*	purge;
 
+	DBUG_ENTER("que_graph_free_recursive");
+
 	if (node == NULL) {
 
-		return;
+		DBUG_VOID_RETURN;
 	}
+
+	DBUG_PRINT("que_graph_free_recursive",
+		   ("node: %p, type: %lu", node, que_node_get_type(node)));
 
 	switch (que_node_get_type(node)) {
 
@@ -437,14 +436,7 @@ que_graph_free_recursive(
 
 		thr = static_cast<que_thr_t*>(node);
 
-		if (thr->magic_n != QUE_THR_MAGIC_N) {
-			fprintf(stderr,
-				"que_thr struct appears corrupt;"
-				" magic n %lu\n",
-				(unsigned long) thr->magic_n);
-			mem_analyze_corruption(thr);
-			ut_error;
-		}
+		ut_a(thr->magic_n == QUE_THR_MAGIC_N);
 
 		thr->magic_n = QUE_THR_MAGIC_FREED;
 
@@ -470,8 +462,12 @@ que_graph_free_recursive(
 		ins = static_cast<ins_node_t*>(node);
 
 		que_graph_free_recursive(ins->select);
+		ins->select = NULL;
 
-		mem_heap_free(ins->entry_sys_heap);
+		if (ins->entry_sys_heap != NULL) {
+			mem_heap_free(ins->entry_sys_heap);
+			ins->entry_sys_heap = NULL;
+		}
 
 		break;
 	case QUE_NODE_PURGE:
@@ -482,23 +478,31 @@ que_graph_free_recursive(
 		break;
 
 	case QUE_NODE_UPDATE:
-
 		upd = static_cast<upd_node_t*>(node);
+
+		DBUG_PRINT("que_graph_free_recursive",
+			   ("QUE_NODE_UPDATE: %p, processed_cascades: %p",
+			    upd, upd->processed_cascades));
 
 		if (upd->in_mysql_interface) {
 
 			btr_pcur_free_for_mysql(upd->pcur);
+			upd->in_mysql_interface = FALSE;
 		}
 
-		que_graph_free_recursive(upd->cascade_node);
-
-		if (upd->cascade_heap) {
+		if (upd->cascade_top) {
 			mem_heap_free(upd->cascade_heap);
+			upd->cascade_heap = NULL;
+			upd->cascade_top = false;
 		}
 
 		que_graph_free_recursive(upd->select);
+		upd->select = NULL;
 
-		mem_heap_free(upd->heap);
+		if (upd->heap != NULL) {
+			mem_heap_free(upd->heap);
+			upd->heap = NULL;
+		}
 
 		break;
 	case QUE_NODE_CREATE_TABLE:
@@ -506,7 +510,7 @@ que_graph_free_recursive(
 
 		que_graph_free_recursive(cre_tab->tab_def);
 		que_graph_free_recursive(cre_tab->col_def);
-		que_graph_free_recursive(cre_tab->commit_node);
+		que_graph_free_recursive(cre_tab->v_col_def);
 
 		mem_heap_free(cre_tab->heap);
 
@@ -516,7 +520,6 @@ que_graph_free_recursive(
 
 		que_graph_free_recursive(cre_ind->ind_def);
 		que_graph_free_recursive(cre_ind->field_def);
-		que_graph_free_recursive(cre_ind->commit_node);
 
 		mem_heap_free(cre_ind->heap);
 
@@ -559,17 +562,14 @@ que_graph_free_recursive(
 
 		break;
 	default:
-		fprintf(stderr,
-			"que_node struct appears corrupt; type %lu\n",
-			(unsigned long) que_node_get_type(node));
-		mem_analyze_corruption(node);
 		ut_error;
 	}
+
+	DBUG_VOID_RETURN;
 }
 
 /**********************************************************************//**
 Frees a query graph. */
-UNIV_INTERN
 void
 que_graph_free(
 /*===========*/
@@ -600,7 +600,7 @@ que_graph_free(
 
 /****************************************************************//**
 Performs an execution step on a thr node.
-@return	query thread to run next, or NULL if none */
+@return query thread to run next, or NULL if none */
 static
 que_thr_t*
 que_thr_node_step(
@@ -669,8 +669,7 @@ que_thr_move_to_run_state(
 /**********************************************************************//**
 Stops a query thread if graph or trx is in a state requiring it. The
 conditions are tested in the order (1) graph, (2) trx.
-@return	TRUE if stopped */
-UNIV_INTERN
+@return TRUE if stopped */
 ibool
 que_thr_stop(
 /*=========*/
@@ -691,6 +690,10 @@ que_thr_stop(
 
 		trx->lock.wait_thr = thr;
 		thr->state = QUE_THR_LOCK_WAIT;
+
+	} else if (trx->duplicates && trx->error_state == DB_DUPLICATE_KEY) {
+
+		return(FALSE);
 
 	} else if (trx->error_state != DB_SUCCESS
 		   && trx->error_state != DB_LOCK_WAIT) {
@@ -781,7 +784,6 @@ A patch for MySQL used to 'stop' a dummy query thread used in MySQL. The
 query thread is stopped and made inactive, except in the case where
 it was put to the lock wait state in lock0lock.cc, but the lock has already
 been granted or the transaction chosen as a victim in deadlock resolution. */
-UNIV_INTERN
 void
 que_thr_stop_for_mysql(
 /*===================*/
@@ -790,9 +792,6 @@ que_thr_stop_for_mysql(
 	trx_t*	trx;
 
 	trx = thr_get_trx(thr);
-
-	/* Can't be the purge transaction. */
-	ut_a(trx->id != 0);
 
 	trx_mutex_enter(trx);
 
@@ -830,22 +829,13 @@ que_thr_stop_for_mysql(
 Moves a thread from another state to the QUE_THR_RUNNING state. Increments
 the n_active_thrs counters of the query graph and transaction if thr was
 not active. */
-UNIV_INTERN
 void
 que_thr_move_to_run_state_for_mysql(
 /*================================*/
 	que_thr_t*	thr,	/*!< in: an query thread */
 	trx_t*		trx)	/*!< in: transaction */
 {
-	if (thr->magic_n != QUE_THR_MAGIC_N) {
-		fprintf(stderr,
-			"que_thr struct appears corrupt; magic n %lu\n",
-			(unsigned long) thr->magic_n);
-
-		mem_analyze_corruption(thr);
-
-		ut_error;
-	}
+	ut_a(thr->magic_n == QUE_THR_MAGIC_N);
 
 	if (!thr->is_active) {
 
@@ -862,7 +852,6 @@ que_thr_move_to_run_state_for_mysql(
 /**********************************************************************//**
 A patch for MySQL used to 'stop' a dummy query thread used in MySQL
 select, when there is no error or lock wait. */
-UNIV_INTERN
 void
 que_thr_stop_for_mysql_no_error(
 /*============================*/
@@ -870,20 +859,10 @@ que_thr_stop_for_mysql_no_error(
 	trx_t*		trx)	/*!< in: transaction */
 {
 	ut_ad(thr->state == QUE_THR_RUNNING);
-	ut_ad(thr_get_trx(thr)->id != 0);
 	ut_ad(thr->is_active == TRUE);
 	ut_ad(trx->lock.n_active_thrs == 1);
 	ut_ad(thr->graph->n_active_thrs == 1);
-
-	if (thr->magic_n != QUE_THR_MAGIC_N) {
-		fprintf(stderr,
-			"que_thr struct appears corrupt; magic n %lu\n",
-			(unsigned long) thr->magic_n);
-
-		mem_analyze_corruption(thr);
-
-		ut_error;
-	}
+	ut_a(thr->magic_n == QUE_THR_MAGIC_N);
 
 	thr->state = QUE_THR_COMPLETED;
 
@@ -896,8 +875,7 @@ que_thr_stop_for_mysql_no_error(
 /****************************************************************//**
 Get the first containing loop node (e.g. while_node_t or for_node_t) for the
 given node, or NULL if the node is not within a loop.
-@return	containing loop node, or NULL. */
-UNIV_INTERN
+@return containing loop node, or NULL. */
 que_node_t*
 que_node_get_containing_loop_node(
 /*==============================*/
@@ -924,68 +902,64 @@ que_node_get_containing_loop_node(
 	return(node);
 }
 
-/**********************************************************************//**
-Prints info of an SQL query graph node. */
-UNIV_INTERN
-void
-que_node_print_info(
-/*================*/
-	que_node_t*	node)	/*!< in: query graph node */
+#ifndef DBUG_OFF
+/** Gets information of an SQL query graph node.
+@return type description */
+static __attribute__((warn_unused_result, nonnull))
+const char*
+que_node_type_string(
+/*=================*/
+	const que_node_t*	node)	/*!< in: query graph node */
 {
-	ulint		type;
-	const char*	str;
-
-	type = que_node_get_type(node);
-
-	if (type == QUE_NODE_SELECT) {
-		str = "SELECT";
-	} else if (type == QUE_NODE_INSERT) {
-		str = "INSERT";
-	} else if (type == QUE_NODE_UPDATE) {
-		str = "UPDATE";
-	} else if (type == QUE_NODE_WHILE) {
-		str = "WHILE";
-	} else if (type == QUE_NODE_ASSIGNMENT) {
-		str = "ASSIGNMENT";
-	} else if (type == QUE_NODE_IF) {
-		str = "IF";
-	} else if (type == QUE_NODE_FETCH) {
-		str = "FETCH";
-	} else if (type == QUE_NODE_OPEN) {
-		str = "OPEN";
-	} else if (type == QUE_NODE_PROC) {
-		str = "STORED PROCEDURE";
-	} else if (type == QUE_NODE_FUNC) {
-		str = "FUNCTION";
-	} else if (type == QUE_NODE_LOCK) {
-		str = "LOCK";
-	} else if (type == QUE_NODE_THR) {
-		str = "QUERY THREAD";
-	} else if (type == QUE_NODE_COMMIT) {
-		str = "COMMIT";
-	} else if (type == QUE_NODE_UNDO) {
-		str = "UNDO ROW";
-	} else if (type == QUE_NODE_PURGE) {
-		str = "PURGE ROW";
-	} else if (type == QUE_NODE_ROLLBACK) {
-		str = "ROLLBACK";
-	} else if (type == QUE_NODE_CREATE_TABLE) {
-		str = "CREATE TABLE";
-	} else if (type == QUE_NODE_CREATE_INDEX) {
-		str = "CREATE INDEX";
-	} else if (type == QUE_NODE_FOR) {
-		str = "FOR LOOP";
-	} else if (type == QUE_NODE_RETURN) {
-		str = "RETURN";
-	} else if (type == QUE_NODE_EXIT) {
-		str = "EXIT";
-	} else {
-		str = "UNKNOWN NODE TYPE";
+	switch (que_node_get_type(node)) {
+	case QUE_NODE_SELECT:
+		return("SELECT");
+	case QUE_NODE_INSERT:
+		return("INSERT");
+	case QUE_NODE_UPDATE:
+		return("UPDATE");
+	case QUE_NODE_WHILE:
+		return("WHILE");
+	case QUE_NODE_ASSIGNMENT:
+		return("ASSIGNMENT");
+	case QUE_NODE_IF:
+		return("IF");
+	case QUE_NODE_FETCH:
+		return("FETCH");
+	case QUE_NODE_OPEN:
+		return("OPEN");
+	case QUE_NODE_PROC:
+		return("STORED PROCEDURE");
+	case QUE_NODE_FUNC:
+		return("FUNCTION");
+	case QUE_NODE_LOCK:
+		return("LOCK");
+	case QUE_NODE_THR:
+		return("QUERY THREAD");
+	case QUE_NODE_COMMIT:
+		return("COMMIT");
+	case QUE_NODE_UNDO:
+		return("UNDO ROW");
+	case QUE_NODE_PURGE:
+		return("PURGE ROW");
+	case QUE_NODE_ROLLBACK:
+		return("ROLLBACK");
+	case QUE_NODE_CREATE_TABLE:
+		return("CREATE TABLE");
+	case QUE_NODE_CREATE_INDEX:
+		return("CREATE INDEX");
+	case QUE_NODE_FOR:
+		return("FOR LOOP");
+	case QUE_NODE_RETURN:
+		return("RETURN");
+	case QUE_NODE_EXIT:
+		return("EXIT");
+	default:
+		ut_ad(0);
+		return("UNKNOWN NODE TYPE");
 	}
-
-	fprintf(stderr, "Node type %lu: %s, address %p\n",
-		(ulong) type, str, (void*) node);
 }
+#endif /* !DBUG_OFF */
 
 /**********************************************************************//**
 Performs an execution step on a query thread.
@@ -1014,12 +988,10 @@ que_thr_step(
 
 	old_thr = thr;
 
-#ifdef UNIV_DEBUG
-	if (que_trace_on) {
-		fputs("To execute: ", stderr);
-		que_node_print_info(node);
-	}
-#endif
+	DBUG_PRINT("ib_que", ("Execute %u (%s) at %p",
+			      unsigned(type), que_node_type_string(node),
+			      (const void*) node));
+
 	if (type & QUE_NODE_CONTROL_STAT) {
 		if ((thr->prev_node != que_node_get_parent(node))
 		    && que_node_get_next(thr->prev_node)) {
@@ -1168,7 +1140,6 @@ que_run_threads_low(
 
 /**********************************************************************//**
 Run a query thread. Handles lock waits. */
-UNIV_INTERN
 void
 que_run_threads(
 /*============*/
@@ -1220,8 +1191,7 @@ loop:
 
 /*********************************************************************//**
 Evaluate the given SQL.
-@return	error code or DB_SUCCESS */
-UNIV_INTERN
+@return error code or DB_SUCCESS */
 dberr_t
 que_eval_sql(
 /*=========*/
@@ -1235,6 +1205,9 @@ que_eval_sql(
 	que_thr_t*	thr;
 	que_t*		graph;
 
+	DBUG_ENTER("que_eval_sql");
+	DBUG_PRINT("que_eval_sql", ("query: %s", sql));
+
 	ut_a(trx->error_state == DB_SUCCESS);
 
 	if (reserve_dict_mutex) {
@@ -1246,8 +1219,6 @@ que_eval_sql(
 	if (reserve_dict_mutex) {
 		mutex_exit(&dict_sys->mutex);
 	}
-
-	ut_a(graph);
 
 	graph->trx = trx;
 	trx->graph = NULL;
@@ -1268,12 +1239,13 @@ que_eval_sql(
 		mutex_exit(&dict_sys->mutex);
 	}
 
-	return(trx->error_state);
+	ut_a(trx->error_state != 0);
+
+	DBUG_RETURN(trx->error_state);
 }
 
 /*********************************************************************//**
 Initialise the query sub-system. */
-UNIV_INTERN
 void
 que_init(void)
 /*==========*/
@@ -1283,7 +1255,6 @@ que_init(void)
 
 /*********************************************************************//**
 Close the query sub-system. */
-UNIV_INTERN
 void
 que_close(void)
 /*===========*/

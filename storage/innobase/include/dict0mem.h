@@ -41,12 +41,13 @@ Created 1/8/1996 Heikki Tuuri
 # include "sync0rw.h"
 #endif /* !UNIV_HOTBACKUP */
 #include "ut0mem.h"
-#include "ut0lst.h"
 #include "ut0rnd.h"
 #include "ut0byte.h"
 #include "hash0hash.h"
 #include "trx0types.h"
 #include "fts0fts.h"
+#include "buf0buf.h"
+#include "gis0type.h"
 #include "os0once.h"
 #include "fil0fil.h"
 #include <my_crypt.h>
@@ -62,17 +63,20 @@ struct ib_rbt_t;
 /** Type flags of an index: OR'ing of the flags is allowed to define a
 combination of types */
 /* @{ */
-#define DICT_CLUSTERED	1	/*!< clustered index */
+#define DICT_CLUSTERED	1	/*!< clustered index; for other than
+				auto-generated clustered indexes,
+				also DICT_UNIQUE will be set */
 #define DICT_UNIQUE	2	/*!< unique index */
-#define	DICT_UNIVERSAL	4	/*!< index which can contain records from any
-				other index */
 #define	DICT_IBUF	8	/*!< insert buffer tree */
 #define	DICT_CORRUPT	16	/*!< bit to store the corrupted flag
 				in SYS_INDEXES.TYPE */
 #define	DICT_FTS	32	/* FTS index; can't be combined with the
 				other flags */
+#define	DICT_SPATIAL	64	/* SPATIAL index; can't be combined with the
+				other flags */
+#define	DICT_VIRTUAL	128	/* Index on Virtual column */
 
-#define	DICT_IT_BITS	6	/*!< number of bits used for
+#define	DICT_IT_BITS	8	/*!< number of bits used for
 				SYS_INDEXES.TYPE */
 /* @} */
 
@@ -115,19 +119,30 @@ the Compact page format is used, i.e ROW_FORMAT != REDUNDANT */
 
 /** Width of the COMPACT flag */
 #define DICT_TF_WIDTH_COMPACT		1
+
 /** Width of the ZIP_SSIZE flag */
 #define DICT_TF_WIDTH_ZIP_SSIZE		4
+
 /** Width of the ATOMIC_BLOBS flag.  The Antelope file formats broke up
 BLOB and TEXT fields, storing the first 768 bytes in the clustered index.
-Brracuda row formats store the whole blob or text field off-page atomically.
+Barracuda row formats store the whole blob or text field off-page atomically.
 Secondary indexes are created from this external data using row_ext_t
 to cache the BLOB prefixes. */
 #define DICT_TF_WIDTH_ATOMIC_BLOBS	1
+
 /** If a table is created with the MYSQL option DATA DIRECTORY and
 innodb-file-per-table, an older engine will not be able to find that table.
 This flag prevents older engines from attempting to open the table and
 allows InnoDB to update_create_info() accordingly. */
 #define DICT_TF_WIDTH_DATA_DIR		1
+
+/** Width of the SHARED tablespace flag.
+It is used to identify tables that exist inside a shared general tablespace.
+If a table is created with the TABLESPACE=tsname option, an older engine will
+not be able to find that table. This flag prevents older engines from attempting
+to open the table and allows InnoDB to quickly find the tablespace. */
+
+#define DICT_TF_WIDTH_SHARED_SPACE	1
 
 /**
 Width of the page compression flag
@@ -148,14 +163,15 @@ DEFAULT=0, ON = 1, OFF = 2
 #define DICT_TF_WIDTH_ATOMIC_WRITES 2
 
 /** Width of all the currently known table flags */
-#define DICT_TF_BITS	(DICT_TF_WIDTH_COMPACT		\
-			+ DICT_TF_WIDTH_ZIP_SSIZE	\
-			+ DICT_TF_WIDTH_ATOMIC_BLOBS	\
-			+ DICT_TF_WIDTH_DATA_DIR        \
-			+ DICT_TF_WIDTH_PAGE_COMPRESSION \
-			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL \
-		        + DICT_TF_WIDTH_ATOMIC_WRITES \
-		        + DICT_TF_WIDTH_PAGE_ENCRYPTION \
+#define DICT_TF_BITS	(DICT_TF_WIDTH_COMPACT			\
+			+ DICT_TF_WIDTH_ZIP_SSIZE		\
+			+ DICT_TF_WIDTH_ATOMIC_BLOBS		\
+			+ DICT_TF_WIDTH_DATA_DIR		\
+			+ DICT_TF_WIDTH_SHARED_SPACE		\
+			+ DICT_TF_WIDTH_PAGE_COMPRESSION	\
+			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL	\
+		        + DICT_TF_WIDTH_ATOMIC_WRITES		\
+		        + DICT_TF_WIDTH_PAGE_ENCRYPTION		\
 		        + DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
 
 /** A mask of all the known/used bits in table flags */
@@ -172,9 +188,12 @@ DEFAULT=0, ON = 1, OFF = 2
 /** Zero relative shift position of the DATA_DIR field */
 #define DICT_TF_POS_DATA_DIR		(DICT_TF_POS_ATOMIC_BLOBS	\
 					+ DICT_TF_WIDTH_ATOMIC_BLOBS)
+/** Zero relative shift position of the SHARED TABLESPACE field */
+#define DICT_TF_POS_SHARED_SPACE	(DICT_TF_POS_DATA_DIR		\
+					+ DICT_TF_WIDTH_DATA_DIR)
 /** Zero relative shift position of the PAGE_COMPRESSION field */
-#define DICT_TF_POS_PAGE_COMPRESSION	(DICT_TF_POS_DATA_DIR	\
-		                        + DICT_TF_WIDTH_DATA_DIR)
+#define DICT_TF_POS_PAGE_COMPRESSION	(DICT_TF_POS_SHARED_SPACE	\
+					+ DICT_TF_WIDTH_SHARED_SPACE)
 /** Zero relative shift position of the PAGE_COMPRESSION_LEVEL field */
 #define DICT_TF_POS_PAGE_COMPRESSION_LEVEL	(DICT_TF_POS_PAGE_COMPRESSION	\
 					+ DICT_TF_WIDTH_PAGE_COMPRESSION)
@@ -183,12 +202,12 @@ DEFAULT=0, ON = 1, OFF = 2
 					+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)
 /** Zero relative shift position of the PAGE_ENCRYPTION field */
 #define DICT_TF_POS_PAGE_ENCRYPTION	(DICT_TF_POS_ATOMIC_WRITES	\
-		                        + DICT_TF_WIDTH_ATOMIC_WRITES)
+					+ DICT_TF_WIDTH_ATOMIC_WRITES)
 /** Zero relative shift position of the PAGE_ENCRYPTION_KEY field */
 #define DICT_TF_POS_PAGE_ENCRYPTION_KEY	(DICT_TF_POS_PAGE_ENCRYPTION	\
-		                        + DICT_TF_WIDTH_PAGE_ENCRYPTION)
+					+ DICT_TF_WIDTH_PAGE_ENCRYPTION)
 #define DICT_TF_POS_UNUSED		(DICT_TF_POS_PAGE_ENCRYPTION_KEY     \
-		                        + DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
+					+ DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
 
 /** Bit mask of the COMPACT field */
 #define DICT_TF_MASK_COMPACT				\
@@ -206,6 +225,10 @@ DEFAULT=0, ON = 1, OFF = 2
 #define DICT_TF_MASK_DATA_DIR				\
 		((~(~0U << DICT_TF_WIDTH_DATA_DIR))	\
 		<< DICT_TF_POS_DATA_DIR)
+/** Bit mask of the SHARED_SPACE field */
+#define DICT_TF_MASK_SHARED_SPACE			\
+		((~(~0U << DICT_TF_WIDTH_SHARED_SPACE))	\
+		<< DICT_TF_POS_SHARED_SPACE)
 /** Bit mask of the PAGE_COMPRESSION field */
 #define DICT_TF_MASK_PAGE_COMPRESSION			\
 		((~(~0 << DICT_TF_WIDTH_PAGE_COMPRESSION)) \
@@ -239,10 +262,14 @@ DEFAULT=0, ON = 1, OFF = 2
 #define DICT_TF_HAS_ATOMIC_BLOBS(flags)			\
 		((flags & DICT_TF_MASK_ATOMIC_BLOBS)	\
 		>> DICT_TF_POS_ATOMIC_BLOBS)
-/** Return the value of the ATOMIC_BLOBS field */
+/** Return the value of the DATA_DIR field */
 #define DICT_TF_HAS_DATA_DIR(flags)			\
 		((flags & DICT_TF_MASK_DATA_DIR)	\
 		>> DICT_TF_POS_DATA_DIR)
+/** Return the value of the SHARED_SPACE field */
+#define DICT_TF_HAS_SHARED_SPACE(flags)			\
+		((flags & DICT_TF_MASK_SHARED_SPACE)	\
+		>> DICT_TF_POS_SHARED_SPACE)
 /** Return the value of the PAGE_COMPRESSION field */
 #define DICT_TF_GET_PAGE_COMPRESSION(flags)	       \
 		((flags & DICT_TF_MASK_PAGE_COMPRESSION) \
@@ -278,21 +305,26 @@ ROW_FORMAT=REDUNDANT.  InnoDB engines do not check these flags
 for unknown bits in order to protect backward incompatibility. */
 /* @{ */
 /** Total number of bits in table->flags2. */
-#define DICT_TF2_BITS			7
-#define DICT_TF2_BIT_MASK		~(~0U << DICT_TF2_BITS)
+#define DICT_TF2_BITS			8
+#define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS)
+#define DICT_TF2_BIT_MASK		~DICT_TF2_UNUSED_BIT_MASK
 
 /** TEMPORARY; TRUE for tables from CREATE TEMPORARY TABLE. */
 #define DICT_TF2_TEMPORARY		1
+
 /** The table has an internal defined DOC ID column */
 #define DICT_TF2_FTS_HAS_DOC_ID		2
+
 /** The table has an FTS index */
 #define DICT_TF2_FTS			4
+
 /** Need to add Doc ID column for FTS index build.
 This is a transient bit for index build */
 #define DICT_TF2_FTS_ADD_DOC_ID		8
+
 /** This bit is used during table creation to indicate that it will
 use its own tablespace instead of the system tablespace. */
-#define DICT_TF2_USE_TABLESPACE		16
+#define DICT_TF2_USE_FILE_PER_TABLE	16
 
 /** Set when we discard/detach the tablespace */
 #define DICT_TF2_DISCARDED		32
@@ -300,15 +332,22 @@ use its own tablespace instead of the system tablespace. */
 /** This bit is set if all aux table names (both common tables and
 index tables) of a FTS table are in HEX format. */
 #define DICT_TF2_FTS_AUX_HEX_NAME	64
+
+/** Intrinsic table bit
+Intrinsic table is table created internally by MySQL modules viz. Optimizer,
+FTS, etc.... Intrinsic table has all the properties of the normal table except
+it is not created by user and so not visible to end-user. */
+#define DICT_TF2_INTRINSIC		128
+
 /* @} */
 
-#define DICT_TF2_FLAG_SET(table, flag)				\
+#define DICT_TF2_FLAG_SET(table, flag)		\
 	(table->flags2 |= (flag))
 
-#define DICT_TF2_FLAG_IS_SET(table, flag)			\
+#define DICT_TF2_FLAG_IS_SET(table, flag)	\
 	(table->flags2 & (flag))
 
-#define DICT_TF2_FLAG_UNSET(table, flag)			\
+#define DICT_TF2_FLAG_UNSET(table, flag)	\
 	(table->flags2 &= ~(flag))
 
 /** Tables could be chained together with Foreign key constraint. When
@@ -329,15 +368,17 @@ before proceeds. */
 
 /**********************************************************************//**
 Creates a table memory object.
-@return	own: table object */
-UNIV_INTERN
+@return own: table object */
 dict_table_t*
 dict_mem_table_create(
 /*==================*/
 	const char*	name,		/*!< in: table name */
 	ulint		space,		/*!< in: space where the clustered index
 					of the table is placed */
-	ulint		n_cols,		/*!< in: number of columns */
+	ulint		n_cols,		/*!< in: total number of columns
+					including virtual and non-virtual
+					columns */
+	ulint		n_v_cols,	/*!< in: number of virtual columns */
 	ulint		flags,		/*!< in: table flags */
 	ulint		flags2);	/*!< in: table flags2 */
 /**********************************************************************//**
@@ -350,14 +391,12 @@ dict_mem_table_is_system(
 	char	*name);		/*!< in: table name */
 /****************************************************************//**
 Free a table memory object. */
-UNIV_INTERN
 void
 dict_mem_table_free(
 /*================*/
 	dict_table_t*	table);		/*!< in: table */
 /**********************************************************************//**
 Adds a column definition to a table. */
-UNIV_INTERN
 void
 dict_mem_table_add_col(
 /*===================*/
@@ -368,21 +407,44 @@ dict_mem_table_add_col(
 	ulint		prtype,	/*!< in: precise type */
 	ulint		len)	/*!< in: precision */
 	MY_ATTRIBUTE((nonnull(1)));
+/** Adds a virtual column definition to a table.
+@param[in,out]	table		table
+@param[in]	heap		temporary memory heap, or NULL. It is
+				used to store name when we have not finished
+				adding all columns. When all columns are
+				added, the whole name will copy to memory from
+				table->heap
+@param[in]	name		column name
+@param[in]	mtype		main datatype
+@param[in]	prtype		precise type
+@param[in]	len		length
+@param[in]	pos		position in a table
+@param[in]	num_base	number of base columns
+@return the virtual column definition */
+dict_v_col_t*
+dict_mem_table_add_v_col(
+	dict_table_t*	table,
+	mem_heap_t*	heap,
+	const char*	name,
+	ulint		mtype,
+	ulint		prtype,
+	ulint		len,
+	ulint		pos,
+	ulint		num_base);
 /**********************************************************************//**
 Renames a column of a table in the data dictionary cache. */
-UNIV_INTERN
 void
 dict_mem_table_col_rename(
 /*======================*/
 	dict_table_t*	table,	/*!< in/out: table */
 	unsigned	nth_col,/*!< in: column index */
 	const char*	from,	/*!< in: old column name */
-	const char*	to)	/*!< in: new column name */
-	MY_ATTRIBUTE((nonnull));
+	const char*	to,	/*!< in: new column name */
+	bool		is_virtual);
+				/*!< in: if this is a virtual column */
 /**********************************************************************//**
 This function populates a dict_col_t memory structure with
 supplied information. */
-UNIV_INTERN
 void
 dict_mem_fill_column_struct(
 /*========================*/
@@ -411,8 +473,7 @@ dict_mem_fill_index_struct(
 	ulint		n_fields);	/*!< in: number of fields */
 /**********************************************************************//**
 Creates an index memory object.
-@return	own: index object */
-UNIV_INTERN
+@return own: index object */
 dict_index_t*
 dict_mem_index_create(
 /*==================*/
@@ -428,7 +489,6 @@ dict_mem_index_create(
 Adds a field definition to an index. NOTE: does not take a copy
 of the column name if the field is a column. The memory occupied
 by the column name may be released only after publishing the index. */
-UNIV_INTERN
 void
 dict_mem_index_add_field(
 /*=====================*/
@@ -439,15 +499,13 @@ dict_mem_index_add_field(
 					INDEX (textcol(25)) */
 /**********************************************************************//**
 Frees an index memory object. */
-UNIV_INTERN
 void
 dict_mem_index_free(
 /*================*/
 	dict_index_t*	index);	/*!< in: index */
 /**********************************************************************//**
 Creates and initializes a foreign constraint memory object.
-@return	own: foreign constraint struct */
-UNIV_INTERN
+@return own: foreign constraint struct */
 dict_foreign_t*
 dict_mem_foreign_create(void);
 /*=========================*/
@@ -457,7 +515,6 @@ Sets the foreign_table_name_lookup pointer based on the value of
 lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
 will point to foreign_table_name.  If 2, then another string is
 allocated from the heap and set to lower case. */
-UNIV_INTERN
 void
 dict_mem_foreign_table_name_lookup_set(
 /*===================================*/
@@ -469,7 +526,6 @@ Sets the referenced_table_name_lookup pointer based on the value of
 lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
 will point to referenced_table_name.  If 2, then another string is
 allocated from the heap and set to lower case. */
-UNIV_INTERN
 void
 dict_mem_referenced_table_name_lookup_set(
 /*======================================*/
@@ -488,7 +544,6 @@ reasonably unique temporary file name.
 @param[in]	dbtab	Table name in the form database/table name
 @param[in]	id	Table id
 @return A unique temporary tablename suitable for InnoDB use */
-UNIV_INTERN
 char*
 dict_mem_create_temporary_tablename(
 	mem_heap_t*	heap,
@@ -496,9 +551,58 @@ dict_mem_create_temporary_tablename(
 	table_id_t	id);
 
 /** Initialize dict memory variables */
-
 void
 dict_mem_init(void);
+
+/** SQL identifier name wrapper for pretty-printing */
+class id_name_t
+{
+public:
+	/** Default constructor */
+	id_name_t()
+		: m_name()
+	{}
+	/** Constructor
+	@param[in]	name	identifier to assign */
+	explicit id_name_t(
+		const char*	name)
+		: m_name(name)
+	{}
+
+	/** Assignment operator
+	@param[in]	name	identifier to assign */
+	id_name_t& operator=(
+		const char*	name)
+	{
+		m_name = name;
+		return(*this);
+	}
+
+	/** Implicit type conversion
+	@return the name */
+	operator const char*() const
+	{
+		return(m_name);
+	}
+
+	/** Explicit type conversion
+	@return the name */
+	const char* operator()() const
+	{
+		return(m_name);
+	}
+
+private:
+	/** The name in internal representation */
+	const char*	m_name;
+};
+
+/** Table name wrapper for pretty-printing */
+struct table_name_t
+{
+	/** The name in internal representation */
+	char*	m_name;
+};
 
 /** Data structure for a column in a table */
 struct dict_col_t{
@@ -545,6 +649,53 @@ struct dict_col_t{
 					3072 for Barracuda table */
 };
 
+/** Index information put in a list of virtual column structure. Index
+id and virtual column position in the index will be logged.
+There can be multiple entries for a given index, with a different position. */
+struct dict_v_idx_t {
+	/** active index on the column */
+	dict_index_t*	index;
+
+	/** position in this index */
+	ulint		nth_field;
+};
+
+/** Index list to put in dict_v_col_t */
+typedef	std::list<dict_v_idx_t, ut_allocator<dict_v_idx_t> >	dict_v_idx_list;
+
+/** Data structure for a virtual column in a table */
+struct dict_v_col_t{
+	/** column structure */
+	dict_col_t		m_col;
+
+	/** array of base column ptr */
+	dict_col_t**		base_col;
+
+	/** number of base column */
+	ulint			num_base;
+
+	/** column pos in table */
+	ulint			v_pos;
+
+	/** Virtual index list, and column position in the index,
+	the allocated memory is not from table->heap, nor it is
+	tracked by dict_sys->size */
+	dict_v_idx_list*	v_indexes;
+
+};
+
+/** Data structure for newly added virtual column in a table */
+struct dict_add_v_col_t{
+	/** number of new virtual column */
+	ulint			n_v_col;
+
+	/** column structures */
+	const dict_v_col_t*	v_col;
+
+	/** new col names */
+	const char**		v_col_name;
+};
+
 /** @brief DICT_ANTELOPE_MAX_INDEX_COL_LEN is measured in bytes and
 is the maximum indexed column length (or indexed prefix length) in
 ROW_FORMAT=REDUNDANT and ROW_FORMAT=COMPACT. Also, in any format,
@@ -582,7 +733,7 @@ be REC_VERSION_56_MAX_INDEX_COL_LEN (3072) bytes */
 /** Data structure for a field in an index */
 struct dict_field_t{
 	dict_col_t*	col;		/*!< pointer to the table column */
-	const char*	name;		/*!< name of the column */
+	id_name_t	name;		/*!< name of the column */
 	unsigned	prefix_len:12;	/*!< 0 or the length of the column
 					prefix in bytes in a MySQL index of
 					type, e.g., INDEX (textcol(25));
@@ -634,12 +785,11 @@ extern ulong	zip_failure_threshold_pct;
 compression failures */
 extern ulong	zip_pad_max;
 
-/** Data structure to hold information about how much space in
+/** Data structure to hold information about about how much space in
 an uncompressed page should be left as padding to avoid compression
 failures. This estimate is based on a self-adapting heuristic. */
 struct zip_pad_info_t {
-	os_fast_mutex_t*
-			mutex;	/*!< mutex protecting the info */
+	SysMutex*	mutex;	/*!< mutex protecting the info */
 	ulint		pad;	/*!< number of bytes used as pad */
 	ulint		success;/*!< successful compression ops during
 				current round */
@@ -656,22 +806,124 @@ struct zip_pad_info_t {
 a certain index.*/
 #define STAT_DEFRAG_DATA_SIZE_N_SAMPLE	10
 
+/** If key is fixed length key then cache the record offsets on first
+computation. This will help save computation cycle that generate same
+redundant data. */
+class rec_cache_t
+{
+public:
+	/** Constructor */
+	rec_cache_t()
+		:
+		rec_size(),
+		offsets(),
+		sz_of_offsets(),
+		fixed_len_key(),
+		offsets_cached(),
+		key_has_null_cols()
+	{
+		/* Do Nothing. */
+	}
+
+public:
+	/** Record size. (for fixed length key record size is constant) */
+	ulint		rec_size;
+
+	/** Holds reference to cached offsets for record. */
+	ulint*		offsets;
+
+	/** Size of offset array */
+	uint32_t	sz_of_offsets;
+
+	/** If true, then key is fixed length key. */
+	bool		fixed_len_key;
+
+	/** If true, then offset has been cached for re-use. */
+	bool		offsets_cached;
+
+	/** If true, then key part can have columns that can take
+	NULL values. */
+	bool		key_has_null_cols;
+};
+
+/** Cache position of last inserted or selected record by caching record
+and holding reference to the block where record resides.
+Note: We don't commit mtr and hold it beyond a transaction lifetime as this is
+a special case (intrinsic table) that are not shared accross connection. */
+class last_ops_cur_t
+{
+public:
+	/** Constructor */
+	last_ops_cur_t()
+		:
+		rec(),
+		block(),
+		mtr(),
+		disable_caching(),
+		invalid()
+	{
+		/* Do Nothing. */
+	}
+
+	/* Commit mtr and re-initialize cache record and block to NULL. */
+	void release()
+	{
+		if (mtr.is_active()) {
+			mtr_commit(&mtr);
+		}
+		rec = NULL;
+		block = NULL;
+		invalid = false;
+	}
+
+public:
+	/** last inserted/selected record. */
+	rec_t*		rec;
+
+	/** block where record reside. */
+	buf_block_t*	block;
+
+	/** active mtr that will be re-used for next insert/select. */
+	mtr_t		mtr;
+
+	/** disable caching. (disabled when table involves blob/text.) */
+	bool		disable_caching;
+
+	/** If index structure is undergoing structural change viz.
+	split then invalidate the cached position as it would be no more
+	remain valid. Will be re-cached on post-split insert. */
+	bool		invalid;
+};
+
+/** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
+system clustered index when there is no primary key. */
+const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
+
+/* Estimated number of offsets in records (based on columns)
+to start with. */
+#define OFFS_IN_REC_NORMAL_SIZE		100
+
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
 struct dict_index_t{
 	index_id_t	id;	/*!< id of the index */
 	mem_heap_t*	heap;	/*!< memory heap */
-	const char*	name;	/*!< index name */
+	id_name_t	name;	/*!< index name */
 	const char*	table_name;/*!< table name */
 	dict_table_t*	table;	/*!< back pointer to table */
 #ifndef UNIV_HOTBACKUP
 	unsigned	space:32;
 				/*!< space where the index tree is placed */
 	unsigned	page:32;/*!< index tree root page number */
+	unsigned	merge_threshold:6;
+				/*!< In the pessimistic delete, if the page
+				data size drops below this limit in percent,
+				merging it to a neighbor is tried */
+# define DICT_INDEX_MERGE_THRESHOLD_DEFAULT 50
 #endif /* !UNIV_HOTBACKUP */
 	unsigned	type:DICT_IT_BITS;
 				/*!< index type (DICT_CLUSTERED, DICT_UNIQUE,
-				DICT_UNIVERSAL, DICT_IBUF, DICT_CORRUPT) */
+				DICT_IBUF, DICT_CORRUPT) */
 #define MAX_KEY_LENGTH_BITS 12
 	unsigned	trx_id_offset:MAX_KEY_LENGTH_BITS;
 				/*!< position of the trx id column
@@ -685,6 +937,18 @@ struct dict_index_t{
 				/*!< number of columns the user defined to
 				be in the index: in the internal
 				representation we add more columns */
+	unsigned	allow_duplicates:1;
+				/*!< if true, allow duplicate values
+				even if index is created with unique
+				constraint */
+	unsigned	nulls_equal:1;
+				/*!< if true, SQL NULL == SQL NULL */
+	unsigned	disable_ahi:1;
+				/*!< in true, then disable AHI.
+				Currently limited to intrinsic
+				temporary table as index id is not
+				unqiue for such table which is one of the
+				validation criterion for ahi. */
 	unsigned	n_uniq:10;/*!< number of fields from the beginning
 				which are enough to determine an index
 				entry uniquely */
@@ -703,7 +967,21 @@ struct dict_index_t{
 				by dict_operation_lock and
 				dict_sys->mutex. Other changes are
 				protected by index->lock. */
+	unsigned	uncommitted:1;
+				/*!< a flag that is set for secondary indexes
+				that have not been committed to the
+				data dictionary yet */
+
+#ifdef UNIV_DEBUG
+	uint32_t	magic_n;/*!< magic number */
+/** Value of dict_index_t::magic_n */
+# define DICT_INDEX_MAGIC_N	76789786
+#endif
 	dict_field_t*	fields;	/*!< array of field descriptions */
+	st_mysql_ftparser*
+			parser;	/*!< fulltext parser plugin */
+	bool		is_ngram;
+				/*!< true if it's ngram parser */
 #ifndef UNIV_HOTBACKUP
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
@@ -764,26 +1042,48 @@ struct dict_index_t{
 				/* in which slot the next sample should be
 				saved. */
 	/* @} */
-	rw_lock_t	lock;	/*!< read-write lock protecting the
-				upper levels of the index tree */
+	last_ops_cur_t*	last_ins_cur;
+				/*!< cache the last insert position.
+				Currently limited to auto-generated
+				clustered index on intrinsic table only. */
+	last_ops_cur_t*	last_sel_cur;
+				/*!< cache the last selected position
+				Currently limited to intrinsic table only. */
+	rec_cache_t	rec_cache;
+				/*!< cache the field that needs to be
+				re-computed on each insert.
+				Limited to intrinsic table as this is common
+				share and can't be used without protection
+				if table is accessible to multiple-threads. */
+	rtr_ssn_t	rtr_ssn;/*!< Node sequence number for RTree */
+	rtr_info_track_t*
+			rtr_track;/*!< tracking all R-Tree search cursors */
 	trx_id_t	trx_id; /*!< id of the transaction that created this
 				index, or 0 if the index existed
 				when InnoDB was started up */
 	zip_pad_info_t	zip_pad;/*!< Information about state of
 				compression failures and successes */
+	rw_lock_t	lock;	/*!< read-write lock protecting the
+				upper levels of the index tree */
+
+	/** Determine if the index has been committed to the
+	data dictionary.
+	@return whether the index definition has been committed */
+	bool is_committed() const
+	{
+		ut_ad(!uncommitted || !(type & DICT_CLUSTERED));
+		return(UNIV_LIKELY(!uncommitted));
+	}
+
+	/** Flag an index committed or uncommitted.
+	@param[in]	committed	whether the index is committed */
+	void set_committed(bool committed)
+	{
+		ut_ad(!to_be_dropped);
+		ut_ad(committed || !(type & DICT_CLUSTERED));
+		uncommitted = !committed;
+	}
 #endif /* !UNIV_HOTBACKUP */
-#ifdef UNIV_BLOB_DEBUG
-	ib_mutex_t		blobs_mutex;
-				/*!< mutex protecting blobs */
-	ib_rbt_t*	blobs;	/*!< map of (page_no,heap_no,field_no)
-				to first_blob_page_no; protected by
-				blobs_mutex; @see btr_blob_dbg_t */
-#endif /* UNIV_BLOB_DEBUG */
-#ifdef UNIV_DEBUG
-	ulint		magic_n;/*!< magic number */
-/** Value of dict_index_t::magic_n */
-# define DICT_INDEX_MAGIC_N	76789786
-#endif
 };
 
 /** The status of online index creation */
@@ -926,7 +1226,10 @@ struct dict_foreign_matches_id {
 	const char*	m_id;
 };
 
-typedef std::set<dict_foreign_t*, dict_foreign_compare> dict_foreign_set;
+typedef std::set<
+	dict_foreign_t*,
+	dict_foreign_compare,
+	ut_allocator<dict_foreign_t*> >	dict_foreign_set;
 
 std::ostream&
 operator<< (std::ostream& out, const dict_foreign_set& fk_set);
@@ -1004,11 +1307,37 @@ a foreign key constraint is enforced, therefore RESTRICT just means no flag */
 #define DICT_FOREIGN_ON_UPDATE_NO_ACTION 32	/*!< ON UPDATE NO ACTION */
 /* @} */
 
+/** Display an identifier.
+@param[in,out]	s	output stream
+@param[in]	id_name	SQL identifier (other than table name)
+@return the output stream */
+std::ostream&
+operator<<(
+	std::ostream&		s,
+	const id_name_t&	id_name);
+
+/** Display a table name.
+@param[in,out]	s		output stream
+@param[in]	table_name	table name
+@return the output stream */
+std::ostream&
+operator<<(
+	std::ostream&		s,
+	const table_name_t&	table_name);
+
+/** List of locks that different transactions have acquired on a table. This
+list has a list node that is embedded in a nested union/structure. We have to
+generate a specific template for it. */
+
+typedef ut_list_base<lock_t, ut_list_node<lock_t> lock_table_t::*>
+	table_lock_list_t;
+
 /* This flag is for sync SQL DDL and memcached DML.
 if table->memcached_sync_count == DICT_TABLE_IN_DDL means there's DDL running on
 the table, DML from memcached will be blocked. */
 #define DICT_TABLE_IN_DDL -1
 
+struct innodb_col_templ_t;
 /** These are used when MySQL FRM and InnoDB data dictionary are
 in inconsistent state. */
 typedef enum {
@@ -1023,60 +1352,133 @@ typedef enum {
 
 /** Data structure for a database table.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_table_create(). */
-struct dict_table_t{
+struct dict_table_t {
 
+	/** Get reference count.
+	@return current value of n_ref_count */
+	inline ulint get_ref_count() const;
 
-	table_id_t	id;	/*!< id of the table */
-	mem_heap_t*	heap;	/*!< memory heap */
-	char*		name;	/*!< table name */
+	/** Acquire the table handle. */
+	inline void acquire();
+
 	void*		thd;		/*!< thd */
 	fil_space_crypt_t *crypt_data; /*!< crypt data if present */
-	const char*	dir_path_of_temp_table;/*!< NULL or the directory path
-				where a TEMPORARY table that was explicitly
-				created by a user should be placed if
-				innodb_file_per_table is defined in my.cnf;
-				in Unix this is usually /tmp/..., in Windows
-				temp\... */
-	char*		data_dir_path; /*!< NULL or the directory path
-				specified by DATA DIRECTORY */
-	unsigned	space:32;
-				/*!< space where the clustered index of the
-				table is placed */
-	unsigned	flags:DICT_TF_BITS;	/*!< DICT_TF_... */
-	unsigned	flags2:DICT_TF2_BITS;	/*!< DICT_TF2_... */
-	unsigned	ibd_file_missing:1;
-				/*!< TRUE if this is in a single-table
-				tablespace and the .ibd file is missing; then
-				we must return in ha_innodb.cc an error if the
-				user tries to query such an orphaned table */
-	unsigned	cached:1;/*!< TRUE if the table object has been added
-				to the dictionary cache */
-	unsigned	to_be_dropped:1;
-				/*!< TRUE if the table is to be dropped, but
-				not yet actually dropped (could in the bk
-				drop list); It is turned on at the beginning
-				of row_drop_table_for_mysql() and turned off
-				just before we start to update system tables
-				for the drop. It is protected by
-				dict_operation_lock */
-	unsigned	n_def:10;/*!< number of columns defined so far */
-	unsigned	n_cols:10;/*!< number of columns */
-	unsigned	can_be_evicted:1;
-				/*!< TRUE if it's not an InnoDB system table
-				or a table that has no FK relationships */
-	unsigned	corrupted:1;
-				/*!< TRUE if table is corrupted */
-	unsigned	drop_aborted:1;
-				/*!< TRUE if some indexes should be dropped
-				after ONLINE_INDEX_ABORTED
-				or ONLINE_INDEX_ABORTED_DROPPED */
-	dict_col_t*	cols;	/*!< array of column descriptions */
-	const char*	col_names;
-				/*!< Column names packed in a character string
-				"name1\0name2\0...nameN\0".  Until
-				the string contains n_cols, it will be
-				allocated from a temporary heap.  The final
-				string will be allocated from table->heap. */
+	/** Release the table handle. */
+	inline void release();
+
+	/** Id of the table. */
+	table_id_t				id;
+
+	/** Memory heap. If you allocate from this heap after the table has
+	been created then be sure to account the allocation into
+	dict_sys->size. When closing the table we do something like
+	dict_sys->size -= mem_heap_get_size(table->heap) and if that is going
+	to become negative then we would assert. Something like this should do:
+	old_size = mem_heap_get_size()
+	mem_heap_alloc()
+	new_size = mem_heap_get_size()
+	dict_sys->size += new_size - old_size. */
+	mem_heap_t*				heap;
+
+	/** Table name. */
+	table_name_t				name;
+
+	/** NULL or the directory path where a TEMPORARY table that was
+	explicitly created by a user should be placed if innodb_file_per_table
+	is defined in my.cnf. In Unix this is usually "/tmp/...",
+	in Windows "temp\...". */
+	const char*				dir_path_of_temp_table;
+
+	/** NULL or the directory path specified by DATA DIRECTORY. */
+	char*					data_dir_path;
+
+	/** NULL or the tablespace name that this table is assigned to,
+	specified by the TABLESPACE option.*/
+	id_name_t				tablespace;
+
+	/** Space where the clustered index of the table is placed. */
+	uint32_t				space;
+
+	/** Stores information about:
+	1 row format (redundant or compact),
+	2 compressed page size (zip shift size),
+	3 whether using atomic blobs,
+	4 whether the table has been created with the option DATA DIRECTORY.
+	Use DICT_TF_GET_COMPACT(), DICT_TF_GET_ZIP_SSIZE(),
+	DICT_TF_HAS_ATOMIC_BLOBS() and DICT_TF_HAS_DATA_DIR() to parse this
+	flag. */
+	unsigned				flags:DICT_TF_BITS;
+
+	/** Stores information about:
+	1 whether the table has been created using CREATE TEMPORARY TABLE,
+	2 whether the table has an internally defined DOC ID column,
+	3 whether the table has a FTS index,
+	4 whether DOC ID column need to be added to the FTS index,
+	5 whether the table is being created its own tablespace,
+	6 whether the table has been DISCARDed,
+	7 whether the aux FTS tables names are in hex.
+	Use DICT_TF2_FLAG_IS_SET() to parse this flag. */
+	unsigned				flags2:DICT_TF2_BITS;
+
+	/** TRUE if this is in a single-table tablespace and the .ibd file is
+	missing. Then we must return in ha_innodb.cc an error if the user
+	tries to query such an orphaned table. */
+	unsigned				ibd_file_missing:1;
+
+	/** TRUE if the table object has been added to the dictionary cache. */
+	unsigned				cached:1;
+
+	/** TRUE if the table is to be dropped, but not yet actually dropped
+	(could in the background drop list). It is turned on at the beginning
+	of row_drop_table_for_mysql() and turned off just before we start to
+	update system tables for the drop. It is protected by
+	dict_operation_lock. */
+	unsigned				to_be_dropped:1;
+
+	/** Number of non-virtual columns defined so far. */
+	unsigned				n_def:10;
+
+	/** Number of non-virtual columns. */
+	unsigned				n_cols:10;
+
+	/** Number of total columns (inlcude virtual and non-virtual) */
+	unsigned				n_t_cols:10;
+
+	/** Number of total columns defined so far. */
+	unsigned                                n_t_def:10;
+
+	/** Number of virtual columns defined so far. */
+	unsigned                                n_v_def:10;
+
+	/** Number of virtual columns. */
+	unsigned                                n_v_cols:10;
+
+	/** TRUE if it's not an InnoDB system table or a table that has no FK
+	relationships. */
+	unsigned				can_be_evicted:1;
+
+	/** TRUE if table is corrupted. */
+	unsigned				corrupted:1;
+
+	/** TRUE if some indexes should be dropped after ONLINE_INDEX_ABORTED
+	or ONLINE_INDEX_ABORTED_DROPPED. */
+	unsigned				drop_aborted:1;
+
+	/** Array of column descriptions. */
+	dict_col_t*				cols;
+
+	/** Array of virtual column descriptions. */
+	dict_v_col_t*				v_cols;
+
+	/** Column names packed in a character string
+	"name1\0name2\0...nameN\0". Until the string contains n_cols, it will
+	be allocated from a temporary heap. The final string will be allocated
+	from table->heap. */
+	const char*				col_names;
+
+	/** Virtual column names */
+	const char*				v_col_names;
+
 	bool		is_system_db;
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or
@@ -1086,177 +1488,168 @@ struct dict_table_t{
 				dictionary information and
 				MySQL FRM information mismatch. */
 #ifndef UNIV_HOTBACKUP
-	hash_node_t	name_hash; /*!< hash chain node */
-	hash_node_t	id_hash; /*!< hash chain node */
-	UT_LIST_BASE_NODE_T(dict_index_t)
-			indexes; /*!< list of indexes of the table */
+	/** Hash chain node. */
+	hash_node_t				name_hash;
 
-	dict_foreign_set	foreign_set;
-				/*!< set of foreign key constraints
-				in the table; these refer to columns
-				in other tables */
+	/** Hash chain node. */
+	hash_node_t				id_hash;
 
-	dict_foreign_set	referenced_set;
-				/*!< list of foreign key constraints
-				which refer to this table */
+	/** The FTS_DOC_ID_INDEX, or NULL if no fulltext indexes exist */
+	dict_index_t*				fts_doc_id_index;
 
-	UT_LIST_NODE_T(dict_table_t)
-			table_LRU; /*!< node of the LRU list of tables */
-	unsigned	fk_max_recusive_level:8;
-				/*!< maximum recursive level we support when
-				loading tables chained together with FK
-				constraints. If exceeds this level, we will
-				stop loading child table into memory along with
-				its parent table */
-	ulint		n_foreign_key_checks_running;
-				/*!< count of how many foreign key check
-				operations are currently being performed
-				on the table: we cannot drop the table while
-				there are foreign key checks running on
-				it! */
-	trx_id_t	def_trx_id;
-				/*!< transaction id that last touched
-				the table definition, either when
-				loading the definition or CREATE
-				TABLE, or ALTER TABLE (prepare,
-				commit, and rollback phases) */
-	trx_id_t	query_cache_inv_trx_id;
-				/*!< transactions whose trx id is
-				smaller than this number are not
-				allowed to store to the MySQL query
-				cache or retrieve from it; when a trx
-				with undo logs commits, it sets this
-				to the value of the trx id counter for
-				the tables it had an IX lock on */
+	/** List of indexes of the table. */
+	UT_LIST_BASE_NODE_T(dict_index_t)	indexes;
+
+	/** List of foreign key constraints in the table. These refer to
+	columns in other tables. */
+	UT_LIST_BASE_NODE_T(dict_foreign_t)	foreign_list;
+
+	/** List of foreign key constraints which refer to this table. */
+	UT_LIST_BASE_NODE_T(dict_foreign_t)	referenced_list;
+
+	/** Node of the LRU list of tables. */
+	UT_LIST_NODE_T(dict_table_t)		table_LRU;
+
+	/** Maximum recursive level we support when loading tables chained
+	together with FK constraints. If exceeds this level, we will stop
+	loading child table into memory along with its parent table. */
+	unsigned				fk_max_recusive_level:8;
+
+	/** Count of how many foreign key check operations are currently being
+	performed on the table. We cannot drop the table while there are
+	foreign key checks running on it. */
+	ulint					n_foreign_key_checks_running;
+
+	/** Transactions whose view low limit is greater than this number are
+	not allowed to store to the MySQL query cache or retrieve from it.
+	When a trx with undo logs commits, it sets this to the value of the
+	current time. */
+	trx_id_t				query_cache_inv_id;
+
+	/** Transaction id that last touched the table definition. Either when
+	loading the definition or CREATE TABLE, or ALTER TABLE (prepare,
+	commit, and rollback phases). */
+	trx_id_t				def_trx_id;
+
+	/*!< set of foreign key constraints in the table; these refer to
+	columns in other tables */
+	dict_foreign_set			foreign_set;
+
+	/*!< set of foreign key constraints which refer to this table */
+	dict_foreign_set			referenced_set;
+
 #ifdef UNIV_DEBUG
-	/*----------------------*/
-	ibool		does_not_fit_in_memory;
-				/*!< this field is used to specify in
-				simulations tables which are so big
-				that disk should be accessed: disk
-				access is simulated by putting the
-				thread to sleep for a while; NOTE that
-				this flag is not stored to the data
-				dictionary on disk, and the database
-				will forget about value TRUE if it has
-				to reload the table definition from
-				disk */
+	/** This field is used to specify in simulations tables which are so
+	big that disk should be accessed. Disk access is simulated by putting
+	the thread to sleep for a while. NOTE that this flag is not stored to
+	the data dictionary on disk, and the database will forget about value
+	TRUE if it has to reload the table definition from disk. */
+	ibool					does_not_fit_in_memory;
 #endif /* UNIV_DEBUG */
-	/*----------------------*/
-	unsigned	big_rows:1;
-				/*!< flag: TRUE if the maximum length of
-				a single row exceeds BIG_ROW_SIZE;
-				initialized in dict_table_add_to_cache() */
-				/** Statistics for query optimization */
-				/* @{ */
 
-	volatile os_once::state_t	stats_latch_created;
-				/*!< Creation state of 'stats_latch'. */
+	/** TRUE if the maximum length of a single row exceeds BIG_ROW_SIZE.
+	Initialized in dict_table_add_to_cache(). */
+	unsigned				big_rows:1;
 
-	rw_lock_t*	stats_latch; /*!< this latch protects:
-				dict_table_t::stat_initialized
-				dict_table_t::stat_n_rows (*)
-				dict_table_t::stat_clustered_index_size
-				dict_table_t::stat_sum_of_other_index_sizes
-				dict_table_t::stat_modified_counter (*)
-				dict_table_t::indexes*::stat_n_diff_key_vals[]
-				dict_table_t::indexes*::stat_index_size
-				dict_table_t::indexes*::stat_n_leaf_pages
-				(*) those are not always protected for
-				performance reasons */
-	unsigned	stat_initialized:1; /*!< TRUE if statistics have
-				been calculated the first time
-				after database startup or table creation */
-#define DICT_TABLE_IN_USED      -1
-	lint		memcached_sync_count;
-				/*!< count of how many handles are opened
-				to this table from memcached; DDL on the
-				table is NOT allowed until this count
-				goes to zero. If it's -1, means there's DDL
-		                on the table, DML from memcached will be
-				blocked. */
-	ib_time_t	stats_last_recalc;
-				/*!< Timestamp of last recalc of the stats */
-	ib_uint32_t	stat_persistent;
-				/*!< The two bits below are set in the
-				::stat_persistent member and have the following
-				meaning:
-				1. _ON=0, _OFF=0, no explicit persistent stats
-				setting for this table, the value of the global
-				srv_stats_persistent is used to determine
-				whether the table has persistent stats enabled
-				or not
-				2. _ON=0, _OFF=1, persistent stats are
-				explicitly disabled for this table, regardless
-				of the value of the global srv_stats_persistent
-				3. _ON=1, _OFF=0, persistent stats are
-				explicitly enabled for this table, regardless
-				of the value of the global srv_stats_persistent
-				4. _ON=1, _OFF=1, not allowed, we assert if
-				this ever happens. */
-#define DICT_STATS_PERSISTENT_ON	(1 << 1)
-#define DICT_STATS_PERSISTENT_OFF	(1 << 2)
-	ib_uint32_t	stats_auto_recalc;
-				/*!< The two bits below are set in the
-				::stats_auto_recalc member and have
-				the following meaning:
-				1. _ON=0, _OFF=0, no explicit auto recalc
-				setting for this table, the value of the global
-				srv_stats_persistent_auto_recalc is used to
-				determine whether the table has auto recalc
-				enabled or not
-				2. _ON=0, _OFF=1, auto recalc is explicitly
-				disabled for this table, regardless of the
-				value of the global
-				srv_stats_persistent_auto_recalc
-				3. _ON=1, _OFF=0, auto recalc is explicitly
-				enabled for this table, regardless of the
-				value of the global
-				srv_stats_persistent_auto_recalc
-				4. _ON=1, _OFF=1, not allowed, we assert if
-				this ever happens. */
-#define DICT_STATS_AUTO_RECALC_ON	(1 << 1)
-#define DICT_STATS_AUTO_RECALC_OFF	(1 << 2)
-	ulint		stats_sample_pages;
-				/*!< the number of pages to sample for this
-				table during persistent stats estimation;
-				if this is 0, then the value of the global
-				srv_stats_persistent_sample_pages will be
-				used instead. */
-	ib_uint64_t	stat_n_rows;
-				/*!< approximate number of rows in the table;
-				we periodically calculate new estimates */
-	ulint		stat_clustered_index_size;
-				/*!< approximate clustered index size in
-				database pages */
-	ulint		stat_sum_of_other_index_sizes;
-				/*!< other indexes in database pages */
-	ib_uint64_t	stat_modified_counter;
-				/*!< when a row is inserted, updated,
-				or deleted,
-				we add 1 to this number; we calculate new
-				estimates for the stat_... values for the
-				table and the indexes when about 1 / 16 of
-				table has been modified;
-				also when the estimate operation is
-				called for MySQL SHOW TABLE STATUS; the
-				counter is reset to zero at statistics
-				calculation; this counter is not protected by
-				any latch, because this is only used for
-				heuristics */
+	/** Statistics for query optimization. @{ */
 
-#define BG_STAT_IN_PROGRESS	((byte)(1 << 0))
-				/*!< BG_STAT_IN_PROGRESS is set in
-				stats_bg_flag when the background
-				stats code is working on this table. The DROP
-				TABLE code waits for this to be cleared
-				before proceeding. */
-#define BG_STAT_SHOULD_QUIT	((byte)(1 << 1))
-				/*!< BG_STAT_SHOULD_QUIT is set in
-				stats_bg_flag when DROP TABLE starts
-				waiting on BG_STAT_IN_PROGRESS to be cleared,
-				the background stats thread will detect this
-				and will eventually quit sooner */
+	/** Creation state of 'stats_latch'. */
+	volatile os_once::state_t		stats_latch_created;
+
+	/** This latch protects:
+	dict_table_t::stat_initialized,
+	dict_table_t::stat_n_rows (*),
+	dict_table_t::stat_clustered_index_size,
+	dict_table_t::stat_sum_of_other_index_sizes,
+	dict_table_t::stat_modified_counter (*),
+	dict_table_t::indexes*::stat_n_diff_key_vals[],
+	dict_table_t::indexes*::stat_index_size,
+	dict_table_t::indexes*::stat_n_leaf_pages.
+	(*) Those are not always protected for
+	performance reasons. */
+	rw_lock_t*				stats_latch;
+
+	/** TRUE if statistics have been calculated the first time after
+	database startup or table creation. */
+	unsigned				stat_initialized:1;
+
+	/** Timestamp of last recalc of the stats. */
+	ib_time_t				stats_last_recalc;
+
+	/** The two bits below are set in the 'stat_persistent' member. They
+	have the following meaning:
+	1. _ON=0, _OFF=0, no explicit persistent stats setting for this table,
+	the value of the global srv_stats_persistent is used to determine
+	whether the table has persistent stats enabled or not
+	2. _ON=0, _OFF=1, persistent stats are explicitly disabled for this
+	table, regardless of the value of the global srv_stats_persistent
+	3. _ON=1, _OFF=0, persistent stats are explicitly enabled for this
+	table, regardless of the value of the global srv_stats_persistent
+	4. _ON=1, _OFF=1, not allowed, we assert if this ever happens. */
+	#define DICT_STATS_PERSISTENT_ON	(1 << 1)
+	#define DICT_STATS_PERSISTENT_OFF	(1 << 2)
+
+	/** Indicates whether the table uses persistent stats or not. See
+	DICT_STATS_PERSISTENT_ON and DICT_STATS_PERSISTENT_OFF. */
+	ib_uint32_t				stat_persistent;
+
+	/** The two bits below are set in the 'stats_auto_recalc' member. They
+	have the following meaning:
+	1. _ON=0, _OFF=0, no explicit auto recalc setting for this table, the
+	value of the global srv_stats_persistent_auto_recalc is used to
+	determine whether the table has auto recalc enabled or not
+	2. _ON=0, _OFF=1, auto recalc is explicitly disabled for this table,
+	regardless of the value of the global srv_stats_persistent_auto_recalc
+	3. _ON=1, _OFF=0, auto recalc is explicitly enabled for this table,
+	regardless of the value of the global srv_stats_persistent_auto_recalc
+	4. _ON=1, _OFF=1, not allowed, we assert if this ever happens. */
+	#define DICT_STATS_AUTO_RECALC_ON	(1 << 1)
+	#define DICT_STATS_AUTO_RECALC_OFF	(1 << 2)
+
+	/** Indicates whether the table uses automatic recalc for persistent
+	stats or not. See DICT_STATS_AUTO_RECALC_ON and
+	DICT_STATS_AUTO_RECALC_OFF. */
+	ib_uint32_t				stats_auto_recalc;
+
+	/** The number of pages to sample for this table during persistent
+	stats estimation. If this is 0, then the value of the global
+	srv_stats_persistent_sample_pages will be used instead. */
+	ulint					stats_sample_pages;
+
+	/** Approximate number of rows in the table. We periodically calculate
+	new estimates. */
+	ib_uint64_t				stat_n_rows;
+
+	/** Approximate clustered index size in database pages. */
+	ulint					stat_clustered_index_size;
+
+	/** Approximate size of other indexes in database pages. */
+	ulint					stat_sum_of_other_index_sizes;
+
+	/** How many rows are modified since last stats recalc. When a row is
+	inserted, updated, or deleted, we add 1 to this number; we calculate
+	new estimates for the table and the indexes if the table has changed
+	too much, see row_update_statistics_if_needed(). The counter is reset
+	to zero at statistics calculation. This counter is not protected by
+	any latch, because this is only used for heuristics. */
+	ib_uint64_t				stat_modified_counter;
+
+	/** Background stats thread is not working on this table. */
+	#define BG_STAT_NONE			0
+
+	/** Set in 'stats_bg_flag' when the background stats code is working
+	on this table. The DROP TABLE code waits for this to be cleared before
+	proceeding. */
+	#define BG_STAT_IN_PROGRESS		(1 << 0)
+
+	/** Set in 'stats_bg_flag' when DROP TABLE starts waiting on
+	BG_STAT_IN_PROGRESS to be cleared. The background stats thread will
+	detect this and will eventually quit sooner. */
+	#define BG_STAT_SHOULD_QUIT		(1 << 1)
+
+	/** The state of the background stats thread wrt this table.
+	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
+	Writes are covered by dict_sys->mutex. Dirty reads are possible. */
 #define BG_SCRUB_IN_PROGRESS	((byte)(1 << 2))
 				/*!< BG_SCRUB_IN_PROGRESS is set in
 				stats_bg_flag when the background
@@ -1266,95 +1659,123 @@ struct dict_table_t{
 
 #define BG_IN_PROGRESS (BG_STAT_IN_PROGRESS | BG_SCRUB_IN_PROGRESS)
 
-	byte 		stats_bg_flag;
-				/*!< see BG_STAT_* above.
-				Writes are covered by dict_sys->mutex.
-				Dirty reads are possible. */
+	byte					stats_bg_flag;
+
 	bool		stats_error_printed;
 				/*!< Has persistent stats error beein
 				already printed for this table ? */
-				/* @} */
-	/*----------------------*/
-				/**!< The following fields are used by the
-				AUTOINC code.  The actual collection of
-				tables locked during AUTOINC read/write is
-				kept in trx_t. In order to quickly determine
-				whether a transaction has locked the AUTOINC
-				lock we keep a pointer to the transaction
-				here in the autoinc_trx variable. This is to
-				avoid acquiring the lock_sys_t::mutex and
-				scanning the vector in trx_t.
+	/* @} */
 
-				When an AUTOINC lock has to wait, the
-				corresponding lock instance is created on
-				the trx lock heap rather than use the
-				pre-allocated instance in autoinc_lock below.*/
-				/* @{ */
-	lock_t*		autoinc_lock;
-				/*!< a buffer for an AUTOINC lock
-				for this table: we allocate the memory here
-				so that individual transactions can get it
-				and release it without a need to allocate
-				space from the lock heap of the trx:
-				otherwise the lock heap would grow rapidly
-				if we do a large insert from a select */
-	ib_mutex_t*	autoinc_mutex;
-				/*!< mutex protecting the autoincrement
-				counter */
+	/** AUTOINC related members. @{ */
+
+	/* The actual collection of tables locked during AUTOINC read/write is
+	kept in trx_t. In order to quickly determine whether a transaction has
+	locked the AUTOINC lock we keep a pointer to the transaction here in
+	the 'autoinc_trx' member. This is to avoid acquiring the
+	lock_sys_t::mutex and scanning the vector in trx_t.
+	When an AUTOINC lock has to wait, the corresponding lock instance is
+	created on the trx lock heap rather than use the pre-allocated instance
+	in autoinc_lock below. */
+
+	/** A buffer for an AUTOINC lock for this table. We allocate the
+	memory here so that individual transactions can get it and release it
+	without a need to allocate space from the lock heap of the trx:
+	otherwise the lock heap would grow rapidly if we do a large insert
+	from a select. */
+	lock_t*					autoinc_lock;
 
 	/** Creation state of autoinc_mutex member */
-	volatile os_once::state_t
-			autoinc_mutex_created;
+	volatile os_once::state_t		autoinc_mutex_created;
 
-	ib_uint64_t	autoinc;/*!< autoinc counter value to give to the
-				next inserted row */
-	ulong		n_waiting_or_granted_auto_inc_locks;
-				/*!< This counter is used to track the number
-				of granted and pending autoinc locks on this
-				table. This value is set after acquiring the
-				lock_sys_t::mutex but we peek the contents to
-				determine whether other transactions have
-				acquired the AUTOINC lock or not. Of course
-				only one transaction can be granted the
-				lock but there can be multiple waiters. */
-	const trx_t*	autoinc_trx;
-				/*!< The transaction that currently holds the
-				the AUTOINC lock on this table.
-				Protected by lock_sys->mutex. */
-	fts_t*		fts;	/* FTS specific state variables */
-				/* @} */
-	/*----------------------*/
+	/** Mutex protecting the autoincrement counter. */
+	ib_mutex_t*				autoinc_mutex;
 
-	ib_quiesce_t	 quiesce;/*!< Quiescing states, protected by the
-				dict_index_t::lock. ie. we can only change
-				the state if we acquire all the latches
-				(dict_index_t::lock) in X mode of this table's
-				indexes. */
+	/** Autoinc counter value to give to the next inserted row. */
+	ib_uint64_t				autoinc;
 
-	/*----------------------*/
-	ulint		n_rec_locks;
-				/*!< Count of the number of record locks on
-				this table. We use this to determine whether
-				we can evict the table from the dictionary
-				cache. It is protected by lock_sys->mutex. */
-	ulint		n_ref_count;
-				/*!< count of how many handles are opened
-				to this table; dropping of the table is
-				NOT allowed until this count gets to zero;
-				MySQL does NOT itself check the number of
-				open handles at drop */
-	UT_LIST_BASE_NODE_T(lock_t)
-			locks;	/*!< list of locks on the table; protected
-				by lock_sys->mutex */
+	/** This counter is used to track the number of granted and pending
+	autoinc locks on this table. This value is set after acquiring the
+	lock_sys_t::mutex but we peek the contents to determine whether other
+	transactions have acquired the AUTOINC lock or not. Of course only one
+	transaction can be granted the lock but there can be multiple
+	waiters. */
+	ulong					n_waiting_or_granted_auto_inc_locks;
+
+	/** The transaction that currently holds the the AUTOINC lock on this
+	table. Protected by lock_sys->mutex. */
+	const trx_t*				autoinc_trx;
+
+	/* @} */
+
+	/** Count of how many handles are opened to this table from memcached.
+	DDL on the table is NOT allowed until this count goes to zero. If
+	it is -1, then there's DDL on the table, DML from memcached will be
+	blocked. */
+	lint					memcached_sync_count;
+
+	/** FTS specific state variables. */
+	fts_t*					fts;
+
+	/** Quiescing states, protected by the dict_index_t::lock. ie. we can
+	only change the state if we acquire all the latches (dict_index_t::lock)
+	in X mode of this table's indexes. */
+	ib_quiesce_t				quiesce;
+
+	/** Count of the number of record locks on this table. We use this to
+	determine whether we can evict the table from the dictionary cache.
+	It is protected by lock_sys->mutex. */
+	ulint					n_rec_locks;
+
+#ifndef UNIV_DEBUG
+private:
+#endif
+	/** Count of how many handles are opened to this table. Dropping of the
+	table is NOT allowed until this count gets to zero. MySQL does NOT
+	itself check the number of open handles at DROP. */
+	ulint					n_ref_count;
+
+public:
+	/** List of locks on the table. Protected by lock_sys->mutex. */
+	table_lock_list_t			locks;
+
+	/** Timestamp of the last modification of this table. */
+	time_t					update_time;
+
+	/** row-id counter for use by intrinsic table for getting row-id.
+	Given intrinsic table semantics, row-id can be locally maintained
+	instead of getting it from central generator which involves mutex
+	locking. */
+	ib_uint64_t				sess_row_id;
+
+	/** trx_id counter for use by intrinsic table for getting trx-id.
+	Intrinsic table are not shared so don't need a central trx-id
+	but just need a increased counter to track consistent view while
+	proceeding SELECT as part of UPDATE. */
+	ib_uint64_t				sess_trx_id;
 #endif /* !UNIV_HOTBACKUP */
 	ibool		is_encrypted;
 
 #ifdef UNIV_DEBUG
-	ulint		magic_n;/*!< magic number */
-/** Value of dict_table_t::magic_n */
-# define DICT_TABLE_MAGIC_N	76333786
+	/** Value of 'magic_n'. */
+	#define DICT_TABLE_MAGIC_N		76333786
+
+	/** Magic number. */
+	ulint					magic_n;
 #endif /* UNIV_DEBUG */
+	/** mysql_row_templ_t for base columns used for compute the virtual
+	columns */
+	innodb_col_templ_t*			vc_templ;
+
+	/** whether above vc_templ comes from purge allocation */
+	bool					vc_templ_purge;
 };
+
+/*******************************************************************//**
+Initialise the table lock list. */
+void
+lock_table_lock_list_init(
+/*======================*/
+	table_lock_list_t*	locks);		/*!< List to initialise */
 
 /** A function object to add the foreign key constraint to the referenced set
 of the referenced table, if it exists in the dictionary cache. */
@@ -1381,23 +1802,9 @@ dict_table_autoinc_destroy(
 	if (table->autoinc_mutex_created == os_once::DONE
 	    && table->autoinc_mutex != NULL) {
 		mutex_free(table->autoinc_mutex);
-		delete table->autoinc_mutex;
+		UT_DELETE(table->autoinc_mutex);
 	}
 }
-
-/** Allocate and init the autoinc latch of a given table.
-This function must not be called concurrently on the same table object.
-@param[in,out]	table_void	table whose autoinc latch to create */
-void
-dict_table_autoinc_alloc(
-	void*	table_void);
-
-/** Allocate and init the zip_pad_mutex of a given index.
-This function must not be called concurrently on the same index object.
-@param[in,out]	index_void	index whose zip_pad_mutex to create */
-void
-dict_index_zip_pad_alloc(
-	void*	index_void);
 
 /** Request for lazy creation of the autoinc latch of a given table.
 This function is only called from either single threaded environment
@@ -1408,13 +1815,8 @@ void
 dict_table_autoinc_create_lazy(
 	dict_table_t*	table)
 {
-#ifdef HAVE_ATOMIC_BUILTINS
 	table->autoinc_mutex = NULL;
 	table->autoinc_mutex_created = os_once::NEVER_DONE;
-#else /* HAVE_ATOMIC_BUILTINS */
-	dict_table_autoinc_alloc(table);
-	table->autoinc_mutex_created = os_once::DONE;
-#endif /* HAVE_ATOMIC_BUILTINS */
 }
 
 /** Request a lazy creation of dict_index_t::zip_pad::mutex.
@@ -1426,13 +1828,8 @@ void
 dict_index_zip_pad_mutex_create_lazy(
 	dict_index_t*	index)
 {
-#ifdef HAVE_ATOMIC_BUILTINS
 	index->zip_pad.mutex = NULL;
 	index->zip_pad.mutex_created = os_once::NEVER_DONE;
-#else /* HAVE_ATOMIC_BUILTINS */
-	dict_index_zip_pad_alloc(index);
-	index->zip_pad.mutex_created = os_once::DONE;
-#endif /* HAVE_ATOMIC_BUILTINS */
 }
 
 /** Destroy the zip_pad_mutex of the given index.
@@ -1446,8 +1843,8 @@ dict_index_zip_pad_mutex_destroy(
 {
 	if (index->zip_pad.mutex_created == os_once::DONE
 	    && index->zip_pad.mutex != NULL) {
-		os_fast_mutex_free(index->zip_pad.mutex);
-		delete index->zip_pad.mutex;
+		mutex_free(index->zip_pad.mutex);
+		UT_DELETE(index->zip_pad.mutex);
 	}
 }
 
@@ -1458,7 +1855,7 @@ void
 dict_index_zip_pad_unlock(
 	dict_index_t*	index)
 {
-	os_fast_mutex_unlock(index->zip_pad.mutex);
+	mutex_exit(index->zip_pad.mutex);
 }
 
 #ifdef UNIV_DEBUG
@@ -1474,8 +1871,45 @@ dict_table_autoinc_own(
 }
 #endif /* UNIV_DEBUG */
 
+/** whether a col is used in spatial index or regular index */
+enum col_spatial_status {
+	/** Not used in gis index. */
+	SPATIAL_NONE	= 0,
+
+	/** Used in both spatial index and regular index. */
+	SPATIAL_MIXED	= 1,
+
+	/** Only used in spatial index. */
+	SPATIAL_ONLY	= 2
+};
+
+/** Check whether the col is used in spatial index or regular index.
+@param[in]	col	column to check
+@return col_spatial_status */
+inline
+col_spatial_status
+dict_col_get_spatial_status(
+	const dict_col_t*	col)
+{
+	col_spatial_status	spatial_status = SPATIAL_NONE;
+
+	ut_ad(col->ord_part);
+
+	if (DATA_GEOMETRY_MTYPE(col->mtype)) {
+		if (col->max_prefix == 0) {
+			spatial_status = SPATIAL_ONLY;
+		} else {
+			/* Any regular index on a geometry column
+			should have a prefix. */
+			spatial_status = SPATIAL_MIXED;
+		}
+	}
+
+	return(spatial_status);
+}
+
 #ifndef UNIV_NONINL
 #include "dict0mem.ic"
 #endif
 
-#endif
+#endif /* dict0mem_h */

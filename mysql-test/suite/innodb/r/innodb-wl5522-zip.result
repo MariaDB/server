@@ -1,9 +1,12 @@
+call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT.");
 DROP TABLE IF EXISTS t1;
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
 @@innodb_file_per_table
 1
 SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SELECT @@innodb_file_format;
 @@innodb_file_format
 Barracuda
@@ -74,9 +77,6 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 t1.frm
 ALTER TABLE t1 IMPORT TABLESPACE;
 ALTER TABLE t1 ENGINE InnoDB;
-Warnings:
-Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelope.
-Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 640
@@ -112,6 +112,8 @@ SELECT @@innodb_file_per_table;
 @@innodb_file_per_table
 1
 SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SELECT @@innodb_file_format;
 @@innodb_file_format
 Barracuda
@@ -124,7 +126,7 @@ c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT) ENGINE=InnoDB  ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 INSERT INTO t1(c2) VALUES(1);
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Tablespace for table 't1' exists. Please DISCARD the tablespace before IMPORT.
+ERROR HY000: Tablespace for table 'test/t1' exists. Please DISCARD the tablespace before IMPORT.
 SELECT * FROM t1;
 c1	c2
 1	1
@@ -459,7 +461,7 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=44 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
 SELECT * FROM t1;
 c1	c2
 1	1
@@ -498,6 +500,8 @@ DROP TABLE t1;
 call mtr.add_suppression("Got error -1 when reading table '.*'");
 call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'.*");
 call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");
-SET GLOBAL INNODB_FILE_FORMAT=Antelope;
+SET GLOBAL INNODB_FILE_FORMAT=Barracuda;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET GLOBAL INNODB_FILE_PER_TABLE=1;
-SET SESSION innodb_strict_mode=0;
+SET SESSION innodb_strict_mode=1;

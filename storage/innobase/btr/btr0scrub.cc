@@ -77,6 +77,7 @@ static
 void
 log_scrub_failure(
 /*===============*/
+	dict_index_t* index,     /*!< in: index */
 	btr_scrub_t* scrub_data, /*!< in: data to store statistics on */
 	buf_block_t* block,	 /*!< in: block */
 	dberr_t err)             /*!< in: error */
@@ -100,10 +101,16 @@ log_scrub_failure(
 		reason = "unknown";
 		scrub_data->scrub_stat.page_split_failures_unknown++;
 	}
+
+	buf_frame_t* buf = buf_block_get_frame(block);
+	const ulint	space_id = mach_read_from_4(buf + FIL_PAGE_SPACE_ID);
+	const ulint	page_no = mach_read_from_4(buf + FIL_PAGE_OFFSET);
 	fprintf(stderr,
-		"InnoDB: Warning: Failed to scrub page %lu in space %lu : %s\n",
-		buf_block_get_page_no(block),
-		buf_block_get_space(block),
+		"InnoDB: Warning: Failed to scrub index %s table %s page %lu in space %lu : %s\n",
+		index->name(),
+		index->table->name.m_name,
+		page_no,
+		space_id,
 		reason);
 }
 
@@ -117,7 +124,7 @@ btr_scrub_lock_dict_func(ulint space, bool lock_to_close_table,
 	uint start = time(0);
 	uint last = start;
 
-	while (mutex_enter_nowait_func(&(dict_sys->mutex), file, line)) {
+	while (mutex_enter_nowait(&(dict_sys->mutex))) {
 		/* if we lock to close a table, we wait forever
 		* if we don't lock to close a table, we check if space
 		* is closing, and then instead give up
@@ -344,16 +351,7 @@ btr_optimistic_scrub(
 	    page_get_n_recs(buf_block_get_frame(block)) > 2 &&
 	    (rand() % 100) < test_pessimistic_scrub_pct) {
 
-		fprintf(stderr,
-			"scrub: simulate btr_page_reorganize failed %lu:%lu "
-			" table: %llu:%s index: %llu:%s get_n_recs(): %lu\n",
-			buf_block_get_space(block),
-			buf_block_get_page_no(block),
-			(ulonglong)scrub_data->current_table->id,
-			scrub_data->current_table->name,
-			(ulonglong)scrub_data->current_index->id,
-			scrub_data->current_index->name,
-			page_get_n_recs(buf_block_get_frame(block)));
+		log_scrub_failure(index, scrub_data, block, DB_OVERFLOW);
 		return DB_OVERFLOW;
 	}
 #endif
@@ -392,11 +390,12 @@ btr_pessimistic_scrub(
 	mtr_t* mtr)              /*!< in: mtr */
 {
 	page_t*	page = buf_block_get_frame(block);
+
 	if (page_get_n_recs(page) < 2) {
 		/**
 		* There is no way we can split a page with < 2 records
 		*/
-		log_scrub_failure(scrub_data, block, DB_UNDERFLOW);
+		log_scrub_failure(index, scrub_data, block, DB_UNDERFLOW);
 		return DB_UNDERFLOW;
 	}
 
@@ -407,17 +406,20 @@ btr_pessimistic_scrub(
 	ulint n_reserved = 0;
 	if (!fsp_reserve_free_extents(&n_reserved, index->space,
 				      n_extents, FSP_NORMAL, mtr)) {
-		log_scrub_failure(scrub_data, block,
+		log_scrub_failure(index, scrub_data, block,
 				  DB_OUT_OF_FILE_SPACE);
 		return DB_OUT_OF_FILE_SPACE;
 	}
 
 	/* read block variables */
-	ulint space = buf_block_get_space(block);
-	ulint page_no = buf_block_get_page_no(block);
-	ulint zip_size = buf_block_get_zip_size(block);
-	ulint left_page_no = btr_page_get_prev(page, mtr);
-	ulint right_page_no = btr_page_get_next(page, mtr);
+	const ulint space_id = mach_read_from_4(page + FIL_PAGE_SPACE_ID);
+	const ulint page_no =  mach_read_from_4(page + FIL_PAGE_OFFSET);
+	const page_id_t page_id(dict_index_get_space(index), page_no);
+	const ulint left_page_no = btr_page_get_prev(page, mtr);
+	const ulint right_page_no = btr_page_get_next(page, mtr);
+	const page_id_t lpage_id(dict_index_get_space(index), left_page_no);
+	const page_id_t rpage_id(dict_index_get_space(index), right_page_no);
+	const page_size_t page_size(dict_table_page_size(index->table));
 
 	/**
 	* When splitting page, we need X-latches on left/right brothers
@@ -430,19 +432,17 @@ btr_pessimistic_scrub(
 		* and re-lock. We still have x-lock on index
 		* so this should be safe
 		*/
-		mtr_release_buf_page_at_savepoint(mtr, scrub_data->savepoint,
-						  block);
+		mtr->release_block_at_savepoint(scrub_data->savepoint, block);
 
 		buf_block_t* get_block = btr_block_get(
-			space, zip_size, left_page_no,
+			lpage_id, page_size,
 			RW_X_LATCH, index, mtr);
-		get_block->check_index_page_at_flush = TRUE;
 
 		/**
 		* Refetch block and re-initialize page
 		*/
 		block = btr_block_get(
-			space, zip_size, page_no,
+			page_id, page_size,
 			RW_X_LATCH, index, mtr);
 
 		page = buf_block_get_frame(block);
@@ -456,9 +456,8 @@ btr_pessimistic_scrub(
 
 	if (right_page_no != FIL_NULL) {
 		buf_block_t* get_block = btr_block_get(
-			space, zip_size, right_page_no,
+			rpage_id, page_size,
 			RW_X_LATCH, index, mtr);
-		get_block->check_index_page_at_flush = TRUE;
 	}
 
 	/* arguments to btr_page_split_and_insert */
@@ -478,7 +477,7 @@ btr_pessimistic_scrub(
 	/**
 	* call split page with NULL as argument for entry to insert
 	*/
-	if (dict_index_get_page(index) == buf_block_get_page_no(block)) {
+	if (dict_index_get_page(index) == page_no) {
 		/* The page is the root page
 		* NOTE: ibuf_reset_free_bits is called inside
 		* btr_root_raise_and_insert */
@@ -659,8 +658,9 @@ btr_scrub_free_page(
 				FIL_PAGE_TYPE_ALLOCATED);
 	}
 
-	ulint compact = 1;
-	page_create(block, mtr, compact);
+	page_create(block, mtr,
+		    dict_table_is_comp(scrub_data->current_table),
+		    dict_index_is_spatial(scrub_data->current_index));
 
 	mtr_commit(mtr);
 
@@ -828,11 +828,13 @@ btr_scrub_start_space(
 	ulint space,             /*!< in: space */
 	btr_scrub_t* scrub_data) /*!< in/out: scrub data */
 {
+	bool found;
 	scrub_data->space = space;
 	scrub_data->current_table = NULL;
 	scrub_data->current_index = NULL;
+	const page_size_t page_size = fil_space_get_page_size(space, &found);
 
-	scrub_data->compressed = fil_space_get_zip_size(space) > 0;
+	scrub_data->compressed = page_size.is_compressed();
 	scrub_data->scrubbing = check_scrub_setting(scrub_data);
 	return scrub_data->scrubbing;
 }
@@ -891,8 +893,7 @@ UNIV_INTERN
 void
 btr_scrub_init()
 {
-	mutex_create(scrub_stat_mutex_key,
-		     &scrub_stat_mutex, SYNC_NO_ORDER_CHECK);
+	mutex_create(LATCH_ID_SCRUB_STAT_MUTEX, &scrub_stat_mutex);
 
 	memset(&scrub_stat, 0, sizeof(scrub_stat));
 }
@@ -905,3 +906,4 @@ btr_scrub_cleanup()
 {
 	mutex_free(&scrub_stat_mutex);
 }
+

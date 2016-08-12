@@ -6,5 +6,8 @@ SET storage_engine=innodb;
 #
 # Bug #15680 (SPATIAL key in innodb)
 #
---error ER_TABLE_CANT_HANDLE_SPKEYS
+# MySQL 5.7 Introduces SPATIAL keys for InnoDB
+#--error ER_TABLE_CANT_HANDLE_SPKEYS
 create table t1 (g geometry not null, spatial gk(g)) engine=innodb;
+drop table t1;
+

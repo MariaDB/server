@@ -30,7 +30,8 @@ Created 1/8/1996 Heikki Tuuri
 #include "rem0types.h"
 #include "fsp0fsp.h"
 #include "srv0srv.h"
-#include "sync0rw.h" /* RW_S_LATCH */
+#include "sync0rw.h"
+#include "fsp0sysspace.h"
 
 /*********************************************************************//**
 Gets the minimum number of bytes per character.
@@ -89,12 +90,23 @@ dict_col_copy_type(
 	type->len = col->len;
 	type->mbminmaxlen = col->mbminmaxlen;
 }
+/** Check if a column is a virtual column
+@param[in]      col     column
+@return true if it is a virtual column, false otherwise */
+UNIV_INLINE
+bool
+dict_col_is_virtual(
+	const dict_col_t*	col)
+{
+	return(col->prtype & DATA_VIRTUAL);
+}
+
 #endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
 Assert that a column and a data type match.
-@return	TRUE */
+@return TRUE */
 UNIV_INLINE
 ibool
 dict_col_type_assert_equal(
@@ -119,7 +131,7 @@ dict_col_type_assert_equal(
 #ifndef UNIV_HOTBACKUP
 /***********************************************************************//**
 Returns the minimum size of the column.
-@return	minimum size */
+@return minimum size */
 UNIV_INLINE
 ulint
 dict_col_get_min_size(
@@ -131,7 +143,7 @@ dict_col_get_min_size(
 }
 /***********************************************************************//**
 Returns the maximum size of the column.
-@return	maximum size */
+@return maximum size */
 UNIV_INLINE
 ulint
 dict_col_get_max_size(
@@ -143,7 +155,7 @@ dict_col_get_max_size(
 #endif /* !UNIV_HOTBACKUP */
 /***********************************************************************//**
 Returns the size of a fixed size column, 0 if not a fixed size column.
-@return	fixed size, or 0 */
+@return fixed size, or 0 */
 UNIV_INLINE
 ulint
 dict_col_get_fixed_size(
@@ -157,7 +169,7 @@ dict_col_get_fixed_size(
 /***********************************************************************//**
 Returns the ROW_FORMAT=REDUNDANT stored SQL NULL size of a column.
 For fixed length types it is the fixed length of the type, otherwise 0.
-@return	SQL null storage size in ROW_FORMAT=REDUNDANT */
+@return SQL null storage size in ROW_FORMAT=REDUNDANT */
 UNIV_INLINE
 ulint
 dict_col_get_sql_null_size(
@@ -170,7 +182,7 @@ dict_col_get_sql_null_size(
 
 /*********************************************************************//**
 Gets the column number.
-@return	col->ind, table column position (starting from 0) */
+@return col->ind, table column position (starting from 0) */
 UNIV_INLINE
 ulint
 dict_col_get_no(
@@ -208,11 +220,36 @@ dict_col_get_clust_pos(
 	return(ULINT_UNDEFINED);
 }
 
+/** Gets the column position in the given index.
+@param[in]	col	table column
+@param[in]	index	index to be searched for column
+@return position of column in the given index. */
+UNIV_INLINE
+ulint
+dict_col_get_index_pos(
+	const dict_col_t*	col,
+	const dict_index_t*	index)
+{
+	ulint	i;
+
+	ut_ad(col);
+
+	for (i = 0; i < index->n_def; i++) {
+		const dict_field_t*	field = &index->fields[i];
+
+		if (!field->prefix_len && field->col == col) {
+			return(i);
+		}
+	}
+
+	return(ULINT_UNDEFINED);
+}
+
 #ifndef UNIV_HOTBACKUP
 #ifdef UNIV_DEBUG
 /********************************************************************//**
 Gets the first index on the table (the clustered index).
-@return	index, NULL if none exists */
+@return index, NULL if none exists */
 UNIV_INLINE
 dict_index_t*
 dict_table_get_first_index(
@@ -227,7 +264,7 @@ dict_table_get_first_index(
 
 /********************************************************************//**
 Gets the last index on the table.
-@return	index, NULL if none exists */
+@return index, NULL if none exists */
 UNIV_INLINE
 dict_index_t*
 dict_table_get_last_index(
@@ -243,7 +280,7 @@ dict_table_get_last_index(
 
 /********************************************************************//**
 Gets the next index on the table.
-@return	index, NULL if none left */
+@return index, NULL if none left */
 UNIV_INLINE
 dict_index_t*
 dict_table_get_next_index(
@@ -260,7 +297,7 @@ dict_table_get_next_index(
 
 /********************************************************************//**
 Check whether the index is the clustered index.
-@return	nonzero for clustered index, zero for other indexes */
+@return nonzero for clustered index, zero for other indexes */
 UNIV_INLINE
 ulint
 dict_index_is_clust(
@@ -272,9 +309,22 @@ dict_index_is_clust(
 
 	return(index->type & DICT_CLUSTERED);
 }
+
+/** Check if index is auto-generated clustered index.
+@param[in]	index	index
+
+@return true if index is auto-generated clustered index. */
+UNIV_INLINE
+bool
+dict_index_is_auto_gen_clust(
+	const dict_index_t*	index)
+{
+	return(index->type == DICT_CLUSTERED);
+}
+
 /********************************************************************//**
 Check whether the index is unique.
-@return	nonzero for unique index, zero for other indexes */
+@return nonzero for unique index, zero for other indexes */
 UNIV_INLINE
 ulint
 dict_index_is_unique(
@@ -288,8 +338,37 @@ dict_index_is_unique(
 }
 
 /********************************************************************//**
+Check whether the index is a Spatial Index.
+@return	nonzero for Spatial Index, zero for other indexes */
+UNIV_INLINE
+ulint
+dict_index_is_spatial(
+/*==================*/
+	const dict_index_t*	index)	/*!< in: index */
+{
+	ut_ad(index);
+	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+
+	return(index->type & DICT_SPATIAL);
+}
+
+/** Check whether the index contains a virtual column
+@param[in]	index	index
+@return	nonzero for the index has virtual column, zero for other indexes */
+UNIV_INLINE
+ulint
+dict_index_has_virtual(
+	const dict_index_t*	index)
+{
+	ut_ad(index);
+	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+
+	return(index->type & DICT_VIRTUAL);
+}
+
+/********************************************************************//**
 Check whether the index is the insert buffer tree.
-@return	nonzero for insert buffer, zero for other indexes */
+@return nonzero for insert buffer, zero for other indexes */
 UNIV_INLINE
 ulint
 dict_index_is_ibuf(
@@ -303,23 +382,8 @@ dict_index_is_ibuf(
 }
 
 /********************************************************************//**
-Check whether the index is an universal index tree.
-@return	nonzero for universal tree, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_is_univ(
-/*===============*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_UNIVERSAL);
-}
-
-/********************************************************************//**
 Check whether the index is a secondary index or the insert buffer tree.
-@return	nonzero for insert buffer, zero for other indexes */
+@return nonzero for insert buffer, zero for other indexes */
 UNIV_INLINE
 ulint
 dict_index_is_sec_or_ibuf(
@@ -337,9 +401,10 @@ dict_index_is_sec_or_ibuf(
 }
 
 /********************************************************************//**
-Gets the number of user-defined columns in a table in the dictionary
-cache.
-@return	number of user-defined (e.g., not ROW_ID) columns of a table */
+Gets the number of user-defined non-virtual columns in a table in the
+dictionary cache.
+@return number of user-defined (e.g., not ROW_ID) non-virtual
+columns of a table */
 UNIV_INLINE
 ulint
 dict_table_get_n_user_cols(
@@ -349,12 +414,29 @@ dict_table_get_n_user_cols(
 	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
-	return(table->n_cols - DATA_N_SYS_COLS);
+	return(table->n_cols - dict_table_get_n_sys_cols(table));
 }
 
+/** Gets the number of user-defined virtual and non-virtual columns in a table
+in the dictionary cache.
+@param[in]	table	table
+@return number of user-defined (e.g., not ROW_ID) columns of a table */
+UNIV_INLINE
+ulint
+dict_table_get_n_tot_u_cols(
+	const dict_table_t*	table)
+{
+	ut_ad(table);
+	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+
+	return(dict_table_get_n_user_cols(table)
+	       + dict_table_get_n_v_cols(table));
+}
 /********************************************************************//**
-Gets the number of system columns in a table in the dictionary cache.
-@return	number of system (e.g., ROW_ID) columns of a table */
+Gets the number of system columns in a table.
+For intrinsic table on ROW_ID column is added for all other
+tables TRX_ID and ROLL_PTR are all also appeneded.
+@return number of system (e.g., ROW_ID) columns of a table */
 UNIV_INLINE
 ulint
 dict_table_get_n_sys_cols(
@@ -363,15 +445,15 @@ dict_table_get_n_sys_cols(
 {
 	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	ut_ad(table->cached);
 
-	return(DATA_N_SYS_COLS);
+	return(dict_table_is_intrinsic(table)
+	       ? DATA_ITT_N_SYS_COLS : DATA_N_SYS_COLS);
 }
 
 /********************************************************************//**
-Gets the number of all columns (also system) in a table in the dictionary
-cache.
-@return	number of columns of a table */
+Gets the number of all non-virtual columns (also system) in a table
+in the dictionary cache.
+@return number of non-virtual columns of a table */
 UNIV_INLINE
 ulint
 dict_table_get_n_cols(
@@ -384,9 +466,42 @@ dict_table_get_n_cols(
 	return(table->n_cols);
 }
 
+/** Gets the number of virtual columns in a table in the dictionary cache.
+@param[in]	table	the table to check
+@return number of virtual columns of a table */
+UNIV_INLINE
+ulint
+dict_table_get_n_v_cols(
+	const dict_table_t*	table)
+{
+	ut_ad(table);
+	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+
+	return(table->n_v_cols);
+}
+
+/** Check if a table has indexed virtual columns
+@param[in]	table	the table to check
+@return true is the table has indexed virtual columns */
+UNIV_INLINE
+bool
+dict_table_has_indexed_v_cols(
+	const dict_table_t*	table)
+{
+
+	for (ulint i = 0; i < table->n_v_cols; i++) {
+		const dict_v_col_t*     col = dict_table_get_nth_v_col(table, i);
+		if (col->m_col.ord_part) {
+			return(true);
+		}
+	}
+
+	return(false);
+}
+
 /********************************************************************//**
 Gets the approximately estimated number of rows in the table.
-@return	estimated number of rows */
+@return estimated number of rows */
 UNIV_INLINE
 ib_uint64_t
 dict_table_get_n_rows(
@@ -437,7 +552,7 @@ dict_table_n_rows_dec(
 #ifdef UNIV_DEBUG
 /********************************************************************//**
 Gets the nth column of a table.
-@return	pointer to column object */
+@return pointer to column object */
 UNIV_INLINE
 dict_col_t*
 dict_table_get_nth_col(
@@ -452,9 +567,26 @@ dict_table_get_nth_col(
 	return((dict_col_t*) (table->cols) + pos);
 }
 
+/** Gets the nth virtual column of a table.
+@param[in]	table	table
+@param[in]	pos	position of virtual column
+@return pointer to virtual column object */
+UNIV_INLINE
+dict_v_col_t*
+dict_table_get_nth_v_col(
+	const dict_table_t*	table,
+	ulint			pos)
+{
+	ut_ad(table);
+	ut_ad(pos < table->n_v_def);
+	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+
+	return(static_cast<dict_v_col_t*>(table->v_cols) + pos);
+}
+
 /********************************************************************//**
 Gets the given system column of a table.
-@return	pointer to column object */
+@return pointer to column object */
 UNIV_INLINE
 dict_col_t*
 dict_table_get_sys_col(
@@ -465,11 +597,12 @@ dict_table_get_sys_col(
 	dict_col_t*	col;
 
 	ut_ad(table);
-	ut_ad(sys < DATA_N_SYS_COLS);
+	ut_ad(sys < dict_table_get_n_sys_cols(table));
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	col = dict_table_get_nth_col(table, table->n_cols
-				     - DATA_N_SYS_COLS + sys);
+				     - dict_table_get_n_sys_cols(table)
+				     + sys);
 	ut_ad(col->mtype == DATA_SYS);
 	ut_ad(col->prtype == (sys | DATA_NOT_NULL));
 
@@ -479,7 +612,7 @@ dict_table_get_sys_col(
 
 /********************************************************************//**
 Gets the given system column number of a table.
-@return	column number */
+@return column number */
 UNIV_INLINE
 ulint
 dict_table_get_sys_col_no(
@@ -488,15 +621,15 @@ dict_table_get_sys_col_no(
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 {
 	ut_ad(table);
-	ut_ad(sys < DATA_N_SYS_COLS);
+	ut_ad(sys < dict_table_get_n_sys_cols(table));
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
-	return(table->n_cols - DATA_N_SYS_COLS + sys);
+	return(table->n_cols - dict_table_get_n_sys_cols(table) + sys);
 }
 
 /********************************************************************//**
 Check whether the table uses the compact page format.
-@return	TRUE if table uses the compact page format */
+@return TRUE if table uses the compact page format */
 UNIV_INLINE
 ibool
 dict_table_is_comp(
@@ -526,77 +659,44 @@ dict_table_has_fts_index(
 	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS));
 }
 
-/********************************************************************//**
-Validate the table flags.
-@return	true if valid. */
+/** Validate the table flags.
+@param[in]	flags	Table flags
+@return true if valid. */
 UNIV_INLINE
 bool
 dict_tf_is_valid(
-/*=============*/
-	ulint	flags)		/*!< in: table flags */
+	ulint	flags)
 {
-	ulint	compact = DICT_TF_GET_COMPACT(flags);
+	bool	compact = DICT_TF_GET_COMPACT(flags);
 	ulint	zip_ssize = DICT_TF_GET_ZIP_SSIZE(flags);
-	ulint	atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(flags);
+	bool	atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(flags);
+	bool	data_dir = DICT_TF_HAS_DATA_DIR(flags);
+	bool	shared_space = DICT_TF_HAS_SHARED_SPACE(flags);
 	ulint	unused = DICT_TF_GET_UNUSED(flags);
-	ulint	page_compression = DICT_TF_GET_PAGE_COMPRESSION(flags);
+	bool	page_compression = DICT_TF_GET_PAGE_COMPRESSION(flags);
 	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(flags);
-	ulint	data_dir = DICT_TF_HAS_DATA_DIR(flags);
 	ulint	atomic_writes = DICT_TF_GET_ATOMIC_WRITES(flags);
+	bool	flags_corrupt = false;
 
 	/* Make sure there are no bits that we do not know about. */
 	if (unused != 0) {
-		fprintf(stderr,
-			"InnoDB: Error: table unused flags are %ld"
-			" in the data dictionary and are corrupted\n"
-			"InnoDB: Error: data dictionary flags are\n"
-			"InnoDB: compact %ld atomic_blobs %ld\n"
-			"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-			"InnoDB: page_compression %ld page_compression_level %ld\n"
-			"InnoDB: atomic_writes %ld\n",
-			unused,
-			compact, atomic_blobs, unused, data_dir, zip_ssize,
-			page_compression, page_compression_level, atomic_writes
-		);
+		flags_corrupt = true;
+	}
 
-		return(false);
-
-	} else if (atomic_blobs) {
-		/* Barracuda row formats COMPRESSED and DYNAMIC build on
-		the page structure introduced for the COMPACT row format
-		by allowing keys in secondary indexes to be made from
-		data stored off-page in the clustered index. */
+	if (atomic_blobs) {
+		/* Barracuda row formats COMPRESSED and DYNAMIC both use
+		atomic_blobs, which build on the page structure introduced
+		for the COMPACT row format by allowing keys in secondary
+		indexes to be made from data stored off-page in the
+		clustered index. */
 
 		if (!compact) {
-			fprintf(stderr,
-				"InnoDB: Error: table compact flags are %ld"
-				" in the data dictionary and are corrupted\n"
-				"InnoDB: Error: data dictionary flags are\n"
-				"InnoDB: compact %ld atomic_blobs %ld\n"
-				"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-				"InnoDB: page_compression %ld page_compression_level %ld\n"
-				"InnoDB: atomic_writes %ld\n",
-				compact, compact, atomic_blobs, unused, data_dir, zip_ssize,
-				page_compression, page_compression_level, atomic_writes
-			);
-			return(false);
+			flags_corrupt = true;
 		}
 
 	} else if (zip_ssize) {
-
 		/* Antelope does not support COMPRESSED row format. */
-		fprintf(stderr,
-			"InnoDB: Error: table flags are %ld"
-			" in the data dictionary and are corrupted\n"
-			"InnoDB: Error: data dictionary flags are\n"
-			"InnoDB: compact %ld atomic_blobs %ld\n"
-			"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-			"InnoDB: page_compression %ld page_compression_level %ld\n"
-			"InnoDB: atomic_writes %ld\n",
-			flags, compact, atomic_blobs, unused, data_dir, zip_ssize,
-			page_compression, page_compression_level, atomic_writes
-		);
-		return(false);
+		flags_corrupt = true;
 	}
 
 	if (zip_ssize) {
@@ -607,20 +707,7 @@ dict_tf_is_valid(
 		if (!compact
 		    || !atomic_blobs
 		    || zip_ssize > PAGE_ZIP_SSIZE_MAX) {
-
-			fprintf(stderr,
-				"InnoDB: Error: table compact flags are %ld in the data dictionary and are corrupted\n"
-				"InnoDB: Error: data dictionary flags are\n"
-				"InnoDB: compact %ld atomic_blobs %ld\n"
-				"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-				"InnoDB: page_compression %ld page_compression_level %ld\n"
-				"InnoDB: atomic_writes %ld\n",
-				flags,
-				compact, atomic_blobs, unused, data_dir, zip_ssize,
-				page_compression, page_compression_level, atomic_writes
-
-			);
-			return(false);
+			flags_corrupt = true;
 		}
 	}
 
@@ -631,48 +718,72 @@ dict_tf_is_valid(
 		if (!compact
 			|| !page_compression
 			|| !atomic_blobs) {
-
-			fprintf(stderr,
-				"InnoDB: Error: table flags are %ld in the data dictionary and are corrupted\n"
-				"InnoDB: Error: data dictionary flags are\n"
-				"InnoDB: compact %ld atomic_blobs %ld\n"
-				"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-				"InnoDB: page_compression %ld page_compression_level %ld\n"
-				"InnoDB: atomic_writes %ld\n",
-				flags, compact, atomic_blobs, unused, data_dir, zip_ssize,
-				page_compression, page_compression_level, atomic_writes
-			);
-			return(false);
+			flags_corrupt = true;
 		}
 	}
 
 	if (atomic_writes) {
 
 		if(atomic_writes > ATOMIC_WRITES_OFF) {
-
-			fprintf(stderr,
-				"InnoDB: Error: table flags are %ld in the data dictionary and are corrupted\n"
-				"InnoDB: Error: data dictionary flags are\n"
-				"InnoDB: compact %ld atomic_blobs %ld\n"
-				"InnoDB: unused %ld data_dir %ld zip_ssize %ld\n"
-				"InnoDB: page_compression %ld page_compression_level %ld\n"
-				"InnoDB: atomic_writes %ld\n",
-				flags, compact, atomic_blobs, unused, data_dir, zip_ssize,
-				page_compression, page_compression_level, atomic_writes
-			);
-			return(false);
+			flags_corrupt = true;
 		}
 	}
 
-	/* CREATE TABLE ... DATA DIRECTORY is supported for any row format,
-	so the DATA_DIR flag is compatible with all other table flags. */
+	/* HAS_DATA_DIR and SHARED_SPACE are mutually exclusive. */
+	if (data_dir && shared_space) {
+		flags_corrupt = true;
+	}
+
+	if (flags_corrupt) {
+		ib::error()
+			<< "InnoDB: Error: table unused flags are:" << flags
+			<< " in the data dictionary and are corrupted:"
+			<< " compact:" << compact
+			<< " atomic_blobs:" << atomic_blobs
+			<< " unused:" << unused
+			<< " data_dir:" << data_dir
+			<< " zip_ssize:" << zip_ssize
+			<< " page_compression:" << page_compression
+			<< " page_compression_level:" << page_compression_level
+			<< " atomic_writes:" << atomic_writes
+			<< " shared_space:" << shared_space;
+		return (false);
+	} else {
+		return(true);
+	}
+}
+
+/** Validate both table flags and table flags2 and make sure they
+are compatible.
+@param[in]	flags	Table flags
+@param[in]	flags2	Table flags2
+@return true if valid. */
+UNIV_INLINE
+bool
+dict_tf2_is_valid(
+	ulint	flags,
+	ulint	flags2)
+{
+	if (!dict_tf_is_valid(flags)) {
+		return(false);
+	}
+
+	if ((flags2 & DICT_TF2_UNUSED_BIT_MASK) != 0) {
+		return(false);
+	}
+
+	bool	file_per_table = ((flags2 & DICT_TF2_USE_FILE_PER_TABLE) != 0);
+	bool	shared_space = DICT_TF_HAS_SHARED_SPACE(flags);
+	if (file_per_table && shared_space) {
+		return(false);
+	}
 
 	return(true);
 }
 
 /********************************************************************//**
 Validate a SYS_TABLES TYPE field and return it.
-@return	Same as input after validating it as a SYS_TABLES TYPE field.
+@return Same as input after validating it as a SYS_TABLES TYPE field.
 If there is an error, return ULINT_UNDEFINED. */
 UNIV_INLINE
 ulint
@@ -686,7 +797,7 @@ dict_sys_tables_type_validate(
 	ulint	zip_ssize = DICT_TF_GET_ZIP_SSIZE(type);
 	ulint	atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(type);
 	ulint	unused = DICT_TF_GET_UNUSED(type);
-	ulint	page_compression = DICT_TF_GET_PAGE_COMPRESSION(type);
+	bool	page_compression = DICT_TF_GET_PAGE_COMPRESSION(type);
 	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type);
 	ulint	atomic_writes = DICT_TF_GET_ATOMIC_WRITES(type);
 
@@ -701,16 +812,17 @@ dict_sys_tables_type_validate(
 
 	if (redundant) {
 		if (zip_ssize || atomic_blobs) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=Redundant, zip_ssize %lu atomic_blobs %lu\n",
-				zip_ssize, atomic_blobs);
+			ib::error()
+				<< "SYS_TABLES::TYPE=Redundant, zip_ssize:" << zip_ssize
+				<< " atomic_blobs:" << atomic_blobs;
 			return(ULINT_UNDEFINED);
 		}
 	}
 
 	/* Make sure there are no bits that we do not know about. */
 	if (unused) {
-		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, unused %lu\n",
-			type, unused);
+		ib::error()
+			<< "SYS_TABLES::TYPE=" << type << " unused:" << unused;
 		return(ULINT_UNDEFINED);
 	}
 
@@ -725,8 +837,9 @@ dict_sys_tables_type_validate(
 
 	} else if (zip_ssize) {
 		/* Antelope does not support COMPRESSED format. */
-		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, zip_ssize %lu\n",
-			type, zip_ssize);
+		ib::error()
+			<< "SYS_TABLES::TYPE=" << type << "zip_ssize:" << zip_ssize;
+
 		return(ULINT_UNDEFINED);
 	}
 
@@ -736,15 +849,17 @@ dict_sys_tables_type_validate(
 		should be in N_COLS, but we already know about the
 		low_order_bit and DICT_N_COLS_COMPACT flags. */
 		if (!atomic_blobs) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, zip_ssize %lu atomic_blobs %lu\n",
-				type, zip_ssize, atomic_blobs);
+			ib::error() << "SYS_TABLES::TYPE=" << type
+				<< " zip_ssize:" << zip_ssize
+				<< " atomic_blobs:" << atomic_blobs;
 			return(ULINT_UNDEFINED);
 		}
 
 		/* Validate that the number is within allowed range. */
 		if (zip_ssize > PAGE_ZIP_SSIZE_MAX) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, zip_ssize %lu max %d\n",
-				type, zip_ssize, PAGE_ZIP_SSIZE_MAX);
+			ib::error() << "SYS_TABLES::TYPE=" << type
+				<< " zip_ssize:" << zip_ssize
+				<< " max:" << PAGE_ZIP_SSIZE_MAX;
 			return(ULINT_UNDEFINED);
 		}
 	}
@@ -752,7 +867,7 @@ dict_sys_tables_type_validate(
 	/* There is nothing to validate for the data_dir field.
 	CREATE TABLE ... DATA DIRECTORY is supported for any row
 	format, so the DATA_DIR flag is compatible with any other
-	table flags. However, it is not used with TEMPORARY tables.*/
+	table flags. However, it is not used with TEMPORARY tables. */
 
         if (page_compression || page_compression_level) {
 		/* page compressed row format must have low_order_bit and
@@ -761,17 +876,19 @@ dict_sys_tables_type_validate(
 		low_order_bit and DICT_N_COLS_COMPACT flags. */
 
                 if (!atomic_blobs || !page_compression) {
-			fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, page_compression %lu page_compression_level %lu\n"
-				"InnoDB: Error: atomic_blobs %lu\n",
-				type, page_compression, page_compression_level, atomic_blobs);
+			ib::error() << "SYS_TABLES::TYPE=" << type
+				<< " page_compression:" << page_compression
+				<< " page_compression_level:" << page_compression_level
+				<< " atomic_blobs:" << atomic_blobs;
+
 			return(ULINT_UNDEFINED);
 		}
 	}
 
 	/* Validate that the atomic writes number is within allowed range. */
 	if (atomic_writes > ATOMIC_WRITES_OFF) {
-		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, atomic_writes %lu\n",
-				type, atomic_writes);
+		ib::error() << "SYS_TABLES::TYPE=" << type
+			    << " atomic_writes:" << atomic_writes;
 			return(ULINT_UNDEFINED);
 	}
 
@@ -783,7 +900,7 @@ dict_sys_tables_type_validate(
 Determine the file format from dict_table_t::flags
 The low order bit will be zero for REDUNDANT and 1 for COMPACT. For any
 other row_format, file_format is > 0 and DICT_TF_COMPACT will also be set.
-@return	file format version */
+@return file format version */
 UNIV_INLINE
 rec_format_t
 dict_tf_get_rec_format(
@@ -809,7 +926,7 @@ dict_tf_get_rec_format(
 
 /********************************************************************//**
 Determine the file format from a dict_table_t::flags.
-@return	file format version */
+@return file format version */
 UNIV_INLINE
 ulint
 dict_tf_get_format(
@@ -825,7 +942,7 @@ dict_tf_get_format(
 
 /********************************************************************//**
 Determine the file format of a table.
-@return	file format version */
+@return file format version */
 UNIV_INLINE
 ulint
 dict_table_get_format(
@@ -837,26 +954,29 @@ dict_table_get_format(
 	return(dict_tf_get_format(table->flags));
 }
 
-/********************************************************************//**
-Set the file format and zip size in a dict_table_t::flags.  If zip size
-is not needed, it should be 0. */
+/** Set the various values in a dict_table_t::flags pointer.
+@param[in,out]	flags,		Pointer to a 4 byte Table Flags
+@param[in]	format		File Format
+@param[in]	zip_ssize	Zip Shift Size
+@param[in]	use_data_dir	Table uses DATA DIRECTORY
+@param[in]	atomic_writes   Does table use atomic writes
+@param[in]	shared_space	Table uses a General Shared Tablespace
+@param[in]	page_compressed Table uses page compression
+@param[in]	page_compression_level Page compression level
+@param[in]	atomic_writes	Table uses atomic writes */
 UNIV_INLINE
 void
 dict_tf_set(
 /*========*/
-	ulint*		flags,		/*!< in/out: table flags */
-	rec_format_t	format,		/*!< in: file format */
-	ulint		zip_ssize,	/*!< in: zip shift size */
-	bool		use_data_dir,	/*!< in: table uses DATA DIRECTORY
-					*/
-	bool		page_compressed,/*!< in: table uses page compressed
-					pages */
-	ulint		page_compression_level, /*!< in: table page compression
-						 level */
-	ulint		atomic_writes)  /*!< in: table atomic writes setup */
+	ulint*		flags,
+	rec_format_t	format,
+	ulint		zip_ssize,
+	bool		use_data_dir,
+	bool		shared_space,
+	bool		page_compressed,
+	ulint		page_compression_level,
+	ulint		atomic_writes)
 {
-	atomic_writes_t awrites = (atomic_writes_t)atomic_writes;
-
 	switch (format) {
 	case REC_FORMAT_REDUNDANT:
 		*flags = 0;
@@ -878,6 +998,14 @@ dict_tf_set(
 		break;
 	}
 
+	if (use_data_dir) {
+		*flags |= (1 << DICT_TF_POS_DATA_DIR);
+	}
+
+	if (shared_space) {
+		*flags |= (1 << DICT_TF_POS_SHARED_SPACE);
+	}
+
 	if (page_compressed) {
 		*flags |= (1 << DICT_TF_POS_ATOMIC_BLOBS)
                        | (1 << DICT_TF_POS_PAGE_COMPRESSION)
@@ -888,69 +1016,71 @@ dict_tf_set(
 		ut_ad(dict_tf_get_page_compression_level(*flags) == page_compression_level);
 	}
 
-	*flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
-	ut_a(dict_tf_get_atomic_writes(*flags) == awrites);
-
-	if (use_data_dir) {
-		*flags |= (1 << DICT_TF_POS_DATA_DIR);
+	if (atomic_writes) {
+		*flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
+		ut_a(dict_tf_get_atomic_writes(*flags) == atomic_writes);
 	}
 }
 
-/********************************************************************//**
-Convert a 32 bit integer table flags to the 32 bit integer that is
-written into the tablespace header at the offset FSP_SPACE_FLAGS and is
-also stored in the fil_space_t::flags field.  The following chart shows
-the translation of the low order bit.  Other bits are the same.
-========================= Low order bit ==========================
-                    | REDUNDANT | COMPACT | COMPRESSED | DYNAMIC
-dict_table_t::flags |     0     |    1    |     1      |    1
-fil_space_t::flags  |     0     |    0    |     1      |    1
-==================================================================
-@return	tablespace flags (fil_space_t::flags) */
+/** Initialize a dict_table_t::flags pointer.
+@param[in]	compact,	Table uses Compact or greater
+@param[in]	zip_ssize	Zip Shift Size (log 2 minus 9)
+@param[in]	atomic_blobs	Table uses Compressed or Dynamic
+@param[in]	data_dir	Table uses DATA DIRECTORY
+@param[in]	shared_space	Table uses a General Shared Tablespace
+@param[in]	page_compression Table uses page compression
+@param[in]	page_compression_level used compression level
+@param[in]	atomic_writes	Table atomic writes option */
 UNIV_INLINE
 ulint
-dict_tf_to_fsp_flags(
-/*=================*/
-	ulint	table_flags)	/*!< in: dict_table_t::flags */
+dict_tf_init(
+	bool		compact,
+	ulint		zip_ssize,
+	bool		atomic_blobs,
+	bool		data_dir,
+	bool		shared_space,
+	bool		page_compressed,
+	ulint		page_compression_level,
+	ulint		atomic_writes)
 {
-	ulint fsp_flags;
-	ulint page_compression = DICT_TF_GET_PAGE_COMPRESSION(table_flags);
-	ulint page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(table_flags);
-	ulint atomic_writes = DICT_TF_GET_ATOMIC_WRITES(table_flags);
+	ulint	flags = 0;
 
-	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
-			return(ULINT_UNDEFINED););
+	if (compact) {
+		flags |= DICT_TF_COMPACT;
+	}
 
-	/* Adjust bit zero. */
-	fsp_flags = DICT_TF_HAS_ATOMIC_BLOBS(table_flags) ? 1 : 0;
+	if (zip_ssize) {
+		flags |= (zip_ssize << DICT_TF_POS_ZIP_SSIZE);
+	}
 
-	/* ZIP_SSIZE and ATOMIC_BLOBS are at the same position. */
-	fsp_flags |= table_flags & DICT_TF_MASK_ZIP_SSIZE;
-	fsp_flags |= table_flags & DICT_TF_MASK_ATOMIC_BLOBS;
+	if (atomic_blobs) {
+		flags |= (1 << DICT_TF_POS_ATOMIC_BLOBS);
+	}
 
-	/* In addition, tablespace flags also contain the page size. */
-	fsp_flags |= fsp_flags_set_page_size(fsp_flags, UNIV_PAGE_SIZE);
+	if (data_dir) {
+		flags |= (1 << DICT_TF_POS_DATA_DIR);
+	}
 
-	/* The DATA_DIR flag is in a different position in fsp_flag */
-	fsp_flags |= DICT_TF_HAS_DATA_DIR(table_flags)
-		     ? FSP_FLAGS_MASK_DATA_DIR : 0;
+	if (shared_space) {
+		flags |= (1 << DICT_TF_POS_SHARED_SPACE);
+	}
 
-	/* In addition, tablespace flags also contain if the page
-	compression is used for this table. */
-	fsp_flags |= FSP_FLAGS_SET_PAGE_COMPRESSION(fsp_flags, page_compression);
+	if (page_compressed) {
+		flags |= (1 << DICT_TF_POS_ATOMIC_BLOBS)
+                      | (1 << DICT_TF_POS_PAGE_COMPRESSION)
+		      | (page_compression_level << DICT_TF_POS_PAGE_COMPRESSION_LEVEL);
 
-	/* In addition, tablespace flags also contain page compression level
-	if page compression is used for this table. */
-	fsp_flags |= FSP_FLAGS_SET_PAGE_COMPRESSION_LEVEL(fsp_flags, page_compression_level);
+		ut_ad(zip_ssize == 0);
+		ut_ad(dict_tf_get_page_compression(flags) == TRUE);
+		ut_ad(dict_tf_get_page_compression_level(flags) == page_compression_level);
+	}
 
-	/* In addition, tablespace flags also contain flag if atomic writes
-	is used for this table */
-	fsp_flags |= FSP_FLAGS_SET_ATOMIC_WRITES(fsp_flags, atomic_writes);
+	if (atomic_writes) {
+		flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
+		ut_a(dict_tf_get_atomic_writes(flags) == atomic_writes);
+	}
 
-	ut_a(fsp_flags_is_valid(fsp_flags));
-	ut_a(dict_tf_verify_flags(table_flags, fsp_flags));
-
-	return(fsp_flags);
+	return(flags);
 }
 
 /********************************************************************//**
@@ -962,7 +1092,7 @@ Other bits are the same.
 SYS_TABLES.TYPE     |     1     |    1    |     1
 dict_table_t::flags |     0     |    1    |     1
 ==================================================================
-@return	ulint containing SYS_TABLES.TYPE */
+@return ulint containing SYS_TABLES.TYPE */
 UNIV_INLINE
 ulint
 dict_sys_tables_type_to_tf(
@@ -984,9 +1114,9 @@ dict_sys_tables_type_to_tf(
 			 | DICT_TF_MASK_PAGE_COMPRESSION
 			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL
 			 | DICT_TF_MASK_ATOMIC_WRITES
+			 | DICT_TF_MASK_SHARED_SPACE);
 
-	);
-
+	ut_ad(!DICT_TF_GET_ZIP_SSIZE(flags) || DICT_TF_HAS_ATOMIC_BLOBS(flags));
 	return(flags);
 }
 
@@ -999,7 +1129,7 @@ the low order bit.  Other bits are the same.
 dict_table_t::flags |     0     |    1    |     1
 SYS_TABLES.TYPE     |     1     |    1    |     1
 ==================================================================
-@return	ulint containing SYS_TABLES.TYPE */
+@return ulint containing SYS_TABLES.TYPE */
 UNIV_INLINE
 ulint
 dict_tf_to_sys_tables_type(
@@ -1020,43 +1150,46 @@ dict_tf_to_sys_tables_type(
 			 | DICT_TF_MASK_DATA_DIR
 			 | DICT_TF_MASK_PAGE_COMPRESSION
 			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL
-			 | DICT_TF_MASK_ATOMIC_WRITES);
+			 | DICT_TF_MASK_ATOMIC_WRITES
+			 | DICT_TF_MASK_SHARED_SPACE);
 
 	return(type);
 }
 
-/********************************************************************//**
-Extract the compressed page size from dict_table_t::flags.
-These flags are in memory, so assert that they are valid.
-@return	compressed page size, or 0 if not compressed */
+/** Extract the page size info from table flags.
+@param[in]	flags	flags
+@return a structure containing the compressed and uncompressed
+page sizes and a boolean indicating if the page is compressed. */
 UNIV_INLINE
-ulint
-dict_tf_get_zip_size(
-/*=================*/
-	ulint	flags)	/*!< in: flags */
+const page_size_t
+dict_tf_get_page_size(
+	ulint	flags)
 {
-	ulint zip_ssize = DICT_TF_GET_ZIP_SSIZE(flags);
-	ulint zip_size = (zip_ssize
-			  ? (UNIV_ZIP_SIZE_MIN >> 1) << zip_ssize
-			  : 0);
+	const ulint	zip_ssize = DICT_TF_GET_ZIP_SSIZE(flags);
+
+	if (zip_ssize == 0) {
+		return(univ_page_size);
+	}
+
+	const ulint	zip_size = (UNIV_ZIP_SIZE_MIN >> 1) << zip_ssize;
 
 	ut_ad(zip_size <= UNIV_ZIP_SIZE_MAX);
 
-	return(zip_size);
+	return(page_size_t(zip_size, univ_page_size.logical(), true));
 }
 
-/********************************************************************//**
-Check whether the table uses the compressed compact page format.
-@return	compressed page size, or 0 if not compressed */
+/** Get the table page size.
+@param[in]	table	table
+@return a structure containing the compressed and uncompressed
+page sizes and a boolean indicating if the page is compressed */
 UNIV_INLINE
-ulint
-dict_table_zip_size(
-/*================*/
-	const dict_table_t*	table)	/*!< in: table */
+const page_size_t
+dict_table_page_size(
+	const dict_table_t*	table)
 {
-	ut_ad(table);
+	ut_ad(table != NULL);
 
-	return(dict_tf_get_zip_size(table->flags));
+	return(dict_tf_get_page_size(table->flags));
 }
 
 #ifndef UNIV_HOTBACKUP
@@ -1073,7 +1206,7 @@ dict_table_x_lock_indexes(
 	dict_index_t*   index;
 
 	ut_a(table);
-	ut_ad(mutex_own(&(dict_sys->mutex)));
+	ut_ad(mutex_own(&dict_sys->mutex));
 
 	/* Loop through each index of the table and lock them */
 	for (index = dict_table_get_first_index(table);
@@ -1094,7 +1227,7 @@ dict_table_x_unlock_indexes(
 	dict_index_t*   index;
 
 	ut_a(table);
-	ut_ad(mutex_own(&(dict_sys->mutex)));
+	ut_ad(mutex_own(&dict_sys->mutex));
 
 	for (index = dict_table_get_first_index(table);
 	     index != NULL;
@@ -1107,7 +1240,7 @@ dict_table_x_unlock_indexes(
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.
-@return	number of fields */
+@return number of fields */
 UNIV_INLINE
 ulint
 dict_index_get_n_fields(
@@ -1127,7 +1260,7 @@ Gets the number of fields in the internal representation of an index
 that uniquely determine the position of an index entry in the index, if
 we do not take multiversioning into account: in the B-tree use the value
 returned by dict_index_get_n_unique_in_tree.
-@return	number of fields */
+@return number of fields */
 UNIV_INLINE
 ulint
 dict_index_get_n_unique(
@@ -1146,7 +1279,7 @@ dict_index_get_n_unique(
 Gets the number of fields in the internal representation of an index
 which uniquely determine the position of an index entry in the index, if
 we also take multiversioning into account.
-@return	number of fields */
+@return number of fields */
 UNIV_INLINE
 ulint
 dict_index_get_n_unique_in_tree(
@@ -1166,12 +1299,38 @@ dict_index_get_n_unique_in_tree(
 	return(dict_index_get_n_fields(index));
 }
 
+/**
+Gets the number of fields on nonleaf page level in the internal representation
+of an index which uniquely determine the position of an index entry in the
+index, if we also take multiversioning into account. Note, it doesn't
+include page no field.
+@param[in]	index	index
+@return number of fields */
+UNIV_INLINE
+ulint
+dict_index_get_n_unique_in_tree_nonleaf(
+	const dict_index_t*	index)
+{
+	ut_ad(index != NULL);
+	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+	ut_ad(index->cached);
+
+	if (dict_index_is_spatial(index)) {
+		/* For spatial index, on non-leaf page, we have only
+		2 fields(mbr+page_no). So, except page no field,
+		there's one field there. */
+		return(DICT_INDEX_SPATIAL_NODEPTR_SIZE);
+	} else {
+		return(dict_index_get_n_unique_in_tree(index));
+	}
+}
+
 /********************************************************************//**
 Gets the number of user-defined ordering fields in the index. In the internal
 representation of clustered indexes we add the row id to the ordering fields
 to make a clustered index unique, but this function returns the number of
 fields the user defined in the index as ordering fields.
-@return	number of fields */
+@return number of fields */
 UNIV_INLINE
 ulint
 dict_index_get_n_ordering_defined_by_user(
@@ -1185,7 +1344,7 @@ dict_index_get_n_ordering_defined_by_user(
 #ifdef UNIV_DEBUG
 /********************************************************************//**
 Gets the nth field of an index.
-@return	pointer to field object */
+@return pointer to field object */
 UNIV_INLINE
 dict_field_t*
 dict_index_get_nth_field(
@@ -1203,7 +1362,7 @@ dict_index_get_nth_field(
 
 /********************************************************************//**
 Returns the position of a system column in an index.
-@return	position, ULINT_UNDEFINED if not contained */
+@return position, ULINT_UNDEFINED if not contained */
 UNIV_INLINE
 ulint
 dict_index_get_sys_col_pos(
@@ -1213,7 +1372,7 @@ dict_index_get_sys_col_pos(
 {
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-	ut_ad(!dict_index_is_univ(index));
+	ut_ad(!dict_index_is_ibuf(index));
 
 	if (dict_index_is_clust(index)) {
 
@@ -1223,13 +1382,12 @@ dict_index_get_sys_col_pos(
 	}
 
 	return(dict_index_get_nth_col_pos(
-			index, dict_table_get_sys_col_no(index->table, type),
-			NULL));
+			index, dict_table_get_sys_col_no(index->table, type), NULL));
 }
 
 /*********************************************************************//**
 Gets the field column.
-@return	field->col, pointer to the table column */
+@return field->col, pointer to the table column */
 UNIV_INLINE
 const dict_col_t*
 dict_field_get_col(
@@ -1243,7 +1401,7 @@ dict_field_get_col(
 
 /********************************************************************//**
 Gets pointer to the nth column in an index.
-@return	column */
+@return column */
 UNIV_INLINE
 const dict_col_t*
 dict_index_get_nth_col(
@@ -1256,7 +1414,7 @@ dict_index_get_nth_col(
 
 /********************************************************************//**
 Gets the column number the nth field in an index.
-@return	column number */
+@return column number */
 UNIV_INLINE
 ulint
 dict_index_get_nth_col_no(
@@ -1279,14 +1437,14 @@ dict_index_get_nth_col_pos(
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos) /*!< out: col num if prefix */
 {
-	return(dict_index_get_nth_col_or_prefix_pos(index, n, FALSE,
+	return(dict_index_get_nth_col_or_prefix_pos(index, n, false, false,
 						    prefix_col_pos));
 }
 
 #ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Returns the minimum data size of an index record.
-@return	minimum data size in bytes */
+@return minimum data size in bytes */
 UNIV_INLINE
 ulint
 dict_index_get_min_size(
@@ -1306,7 +1464,7 @@ dict_index_get_min_size(
 
 /*********************************************************************//**
 Gets the space id of the root of the index tree.
-@return	space id */
+@return space id */
 UNIV_INLINE
 ulint
 dict_index_get_space(
@@ -1336,7 +1494,7 @@ dict_index_set_space(
 
 /*********************************************************************//**
 Gets the page number of the root of the index tree.
-@return	page number */
+@return page number */
 UNIV_INLINE
 ulint
 dict_index_get_page(
@@ -1351,7 +1509,7 @@ dict_index_get_page(
 
 /*********************************************************************//**
 Gets the read-write lock of the index tree.
-@return	read-write lock */
+@return read-write lock */
 UNIV_INLINE
 rw_lock_t*
 dict_index_get_lock(
@@ -1368,7 +1526,7 @@ dict_index_get_lock(
 Returns free space reserved for future updates of records. This is
 relevant only in the case of many consecutive inserts, as updates
 which make the records bigger might fragment the index.
-@return	number of free bytes on page, reserved for updates */
+@return number of free bytes on page, reserved for updates */
 UNIV_INLINE
 ulint
 dict_index_get_space_reserve(void)
@@ -1420,9 +1578,8 @@ dict_index_set_online_status(
 	enum online_index_status	status)	/*!< in: status */
 {
 	ut_ad(!(index->type & DICT_FTS));
-#ifdef UNIV_SYNC_DEBUG
-	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_EX));
-#endif /* UNIV_SYNC_DEBUG */
+	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
+
 #ifdef UNIV_DEBUG
 	switch (dict_index_get_online_status(index)) {
 	case ONLINE_INDEX_COMPLETE:
@@ -1482,7 +1639,8 @@ ulint
 dict_table_is_fts_column(
 /*=====================*/
 	ib_vector_t*	indexes,/*!< in: vector containing only FTS indexes */
-	ulint		col_no)	/*!< in: col number to search for */
+	ulint		col_no,	/*!< in: col number to search for */
+	bool		is_virtual) /*!< in: whether it is a virtual column */
 
 {
 	ulint		i;
@@ -1492,7 +1650,8 @@ dict_table_is_fts_column(
 
 		index = (dict_index_t*) ib_vector_getp(indexes, i);
 
-		if (dict_index_contains_col_or_prefix(index, col_no)) {
+		if (dict_index_contains_col_or_prefix(
+			index, col_no, is_virtual)) {
 
 			return(i);
 		}
@@ -1526,9 +1685,55 @@ dict_max_field_len_store_undo(
 	return(prefix_len);
 }
 
+/** Determine maximum bytes of a virtual column need to be stored
+in the undo log.
+@param[in]	table		dict_table_t for the table
+@param[in]	col_no		virtual column number
+@return maximum bytes of virtual column to be stored in the undo log */
+UNIV_INLINE
+ulint
+dict_max_v_field_len_store_undo(
+	dict_table_t*		table,
+	ulint			col_no)
+{
+	const dict_col_t*	col
+		= &dict_table_get_nth_v_col(table, col_no)->m_col;
+	ulint			max_log_len;
+
+	/* This calculation conforms to the non-virtual column
+	maximum log length calculation:
+	1) for UNIV_FORMAT_A, upto REC_ANTELOPE_MAX_INDEX_COL_LEN
+	for UNIV_FORMAT_B, upto col->max_prefix or
+	2) REC_VERSION_56_MAX_INDEX_COL_LEN, whichever is less */
+	if (dict_table_get_format(table) >= UNIV_FORMAT_B) {
+		max_log_len = (col->max_prefix > 0)
+			? col->max_prefix
+			: DICT_MAX_FIELD_LEN_BY_FORMAT(table);
+	} else {
+		max_log_len = REC_ANTELOPE_MAX_INDEX_COL_LEN;
+	}
+
+	return(max_log_len);
+}
+
+/**********************************************************************//**
+Prevent table eviction by moving a table to the non-LRU list from the
+LRU list if it is not already there. */
+UNIV_INLINE
+void
+dict_table_prevent_eviction(
+/*========================*/
+	dict_table_t*	table)	/*!< in: table to prevent eviction */
+{
+	ut_ad(mutex_own(&dict_sys->mutex));
+	if (table->can_be_evicted) {
+		dict_table_move_from_lru_to_non_lru(table);
+	}
+}
+
 /********************************************************************//**
 Check whether the table is corrupted.
-@return	nonzero for corrupted table, zero for valid tables */
+@return nonzero for corrupted table, zero for valid tables */
 UNIV_INLINE
 ulint
 dict_table_is_corrupted(
@@ -1543,7 +1748,7 @@ dict_table_is_corrupted(
 
 /********************************************************************//**
 Check whether the index is corrupted.
-@return	nonzero for corrupted index, zero for valid indexes */
+@return nonzero for corrupted index, zero for valid indexes */
 UNIV_INLINE
 ulint
 dict_index_is_corrupted(
@@ -1559,7 +1764,7 @@ dict_index_is_corrupted(
 
 /********************************************************************//**
 Check if the tablespace for the table has been discarded.
-@return	true if the tablespace has been discarded. */
+@return true if the tablespace has been discarded. */
 UNIV_INLINE
 bool
 dict_table_is_discarded(
@@ -1571,7 +1776,7 @@ dict_table_is_discarded(
 
 /********************************************************************//**
 Check if it is a temporary table.
-@return	true if temporary table flag is set. */
+@return true if temporary table flag is set. */
 UNIV_INLINE
 bool
 dict_table_is_temporary(
@@ -1579,6 +1784,88 @@ dict_table_is_temporary(
 	const dict_table_t*	table)	/*!< in: table to check */
 {
 	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY));
+}
+
+/** Check whether the table is intrinsic.
+An intrinsic table is a special kind of temporary table that
+is invisible to the end user.  It can be created internally by InnoDB, the MySQL
+server layer or other modules connected to InnoDB in order to gather and use
+data as part of a larger task.  Since access to it must be as fast as possible,
+it does not need UNDO semantics, system fields DB_TRX_ID & DB_ROLL_PTR,
+doublewrite, checksum, insert buffer, use of the shared data dictionary,
+locking, or even a transaction.  In short, these are not ACID tables at all,
+just temporary data stored and manipulated during a larger process.
+
+@param[in]	table	table to check
+@return true if intrinsic table flag is set. */
+UNIV_INLINE
+bool
+dict_table_is_intrinsic(
+	const dict_table_t*	table)
+{
+	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_INTRINSIC));
+}
+
+/** Check whether locking is disabled for this table.
+Currently this is done for intrinsic table as their visibility is limited
+to the connection only.
+
+@param[in]	table	table to check
+@return true if locking is disabled. */
+UNIV_INLINE
+bool
+dict_table_is_locking_disabled(
+	const dict_table_t*	table)
+{
+	return(dict_table_is_intrinsic(table));
+}
+
+/********************************************************************//**
+Turn-off redo-logging if temporary table. */
+UNIV_INLINE
+void
+dict_disable_redo_if_temporary(
+/*===========================*/
+	const dict_table_t*	table,	/*!< in: table to check */
+	mtr_t*			mtr)	/*!< out: mini-transaction */
+{
+	if (dict_table_is_temporary(table)) {
+		mtr_set_log_mode(mtr, MTR_LOG_NO_REDO);
+	}
+}
+
+/** Check if the table is found is a file_per_table tablespace.
+This test does not use table flags2 since some REDUNDANT tables in the
+system tablespace may have garbage in the MIX_LEN field where flags2 is
+stored. These garbage MIX_LEN fields were written before v3.23.52.
+A patch was added to v3.23.52 which initializes the MIX_LEN field to 0.
+Since file-per-table tablespaces were added in 4.1, any SYS_TABLES
+record with a non-zero space ID will have a reliable MIX_LEN field.
+However, this test does not use flags2 from SYS_TABLES.MIX_LEN.  Instead,
+assume that if the tablespace is not a predefined system tablespace and it
+is not a general shared tablespace, then it must be file-per-table.
+Also, during ALTER TABLE, the DICT_TF2_USE_FILE_PER_TABLE flag may not be
+set on one of the file-per-table tablespaces.
+This test cannot be done on a table in the process of being created
+because the space_id will be zero until the tablespace is created.
+@param[in]	table	An existing open table to check
+@return true if this table was created as a file-per-table tablespace. */
+UNIV_INLINE
+bool
+dict_table_is_file_per_table(
+	const dict_table_t*	table)	/*!< in: table to check */
+{
+	bool is_file_per_table =
+		!is_system_tablespace(table->space)
+		&& !DICT_TF_HAS_SHARED_SPACE(table->flags);
+
+	/* If the table is file-per-table and it is not redundant, then
+	it should have the flags2 bit for DICT_TF2_USE_FILE_PER_TABLE. */
+	ut_ad(!is_file_per_table
+	      || !DICT_TF_GET_COMPACT(table->flags)
+	      || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE));
+
+	return(is_file_per_table );
 }
 
 /**********************************************************************//**
@@ -1589,8 +1876,8 @@ UNIV_INLINE
 dict_index_t*
 dict_table_get_index_on_first_col(
 /*==============================*/
-	const dict_table_t*	table,		/*!< in: table */
-	ulint			col_index)	/*!< in: position of column
+        const dict_table_t*     table,		/*!< in: table */
+        ulint                   col_index)	/*!< in: position of column
 						in table */
 {
 	ut_ad(col_index < table->n_cols);
@@ -1606,6 +1893,114 @@ dict_table_get_index_on_first_col(
 	}
 	ut_error;
 	return(0);
+}
+
+/** Get table session row-id and increment the row-id counter for next use.
+@param[in,out]	table	table handler
+@return next table session row-id. */
+UNIV_INLINE
+row_id_t
+dict_table_get_next_table_sess_row_id(
+	dict_table_t*		table)
+{
+	return(++table->sess_row_id);
+}
+
+/** Get table session trx-id and increment the trx-id counter for next use.
+@param[in,out]	table	table handler
+@return next table session trx-id. */
+UNIV_INLINE
+trx_id_t
+dict_table_get_next_table_sess_trx_id(
+	dict_table_t*		table)
+{
+	return(++table->sess_trx_id);
+}
+
+/** Get current session trx-id.
+@param[in]	table	table handler
+@return table session trx-id. */
+UNIV_INLINE
+trx_id_t
+dict_table_get_curr_table_sess_trx_id(
+	const dict_table_t*	table)
+{
+	return(table->sess_trx_id);
+}
+
+/** Get reference count.
+@return current value of n_ref_count */
+inline
+ulint
+dict_table_t::get_ref_count() const
+{
+	ut_ad(mutex_own(&dict_sys->mutex) || dict_table_is_intrinsic(this));
+	return(n_ref_count);
+}
+
+/** Acquire the table handle. */
+inline
+void
+dict_table_t::acquire()
+{
+	ut_ad(mutex_own(&dict_sys->mutex) || dict_table_is_intrinsic(this));
+	++n_ref_count;
+}
+
+/** Release the table handle. */
+inline
+void
+dict_table_t::release()
+{
+	ut_ad(mutex_own(&dict_sys->mutex) || dict_table_is_intrinsic(this));
+	ut_ad(n_ref_count > 0);
+	--n_ref_count;
+}
+
+/** Check if tablespace name is "innodb_general".
+@param[in]	tablespace_name	tablespace name
+@retval		true		if name is "innodb_general"
+@retval		false		if name is not "innodb_general" */
+inline
+bool
+dict_table_has_temp_general_tablespace_name(
+	const char*	tablespace_name) {
+
+	return(tablespace_name != NULL
+	       && strncmp(tablespace_name, general_space_name,
+			  strlen(general_space_name)) == 0);
+}
+
+/** Encode the number of columns and number of virtual columns in a
+4 bytes value. We could do this because the number of columns in
+InnoDB is limited to 1017
+@param[in]      n_col   number of non-virtual column
+@param[in]      n_v_col number of virtual column
+@return encoded value */
+UNIV_INLINE
+ulint
+dict_table_encode_n_col(
+                ulint   n_col,
+                ulint   n_v_col)
+{
+	return(n_col + (n_v_col<<16));
+}
+
+/** decode number of virtual and non-virtual columns in one 4 bytes value.
+@param[in]      encoded encoded value
+@param[in,out]     n_col   number of non-virtual column
+@param[in,out]     n_v_col number of virtual column */
+UNIV_INLINE
+void
+dict_table_decode_n_col(
+                ulint   encoded,
+                ulint*  n_col,
+                ulint*  n_v_col)
+{
+
+	ulint	num = encoded & ~DICT_N_COLS_COMPACT;
+	*n_v_col = num >> 16;
+	*n_col = num & 0xFFFF;
 }
 
 #endif /* !UNIV_HOTBACKUP */

@@ -54,7 +54,7 @@ CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMIN
 BEGIN
 /*!*/;
 # at 809
-#<date> server id 1  end_log_pos 865 CRC32 XXX 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 865 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 865
 #<date> server id 1  end_log_pos 934 CRC32 XXX 	Write_rows: table id 30 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
@@ -79,7 +79,7 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1049
-#<date> server id 1  end_log_pos 1105 CRC32 XXX 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 1105 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1105
 #<date> server id 1  end_log_pos 1173 CRC32 XXX 	Write_rows: table id 30 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
@@ -104,7 +104,7 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1288
-#<date> server id 1  end_log_pos 1344 CRC32 XXX 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 1344 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1344
 #<date> server id 1  end_log_pos 1411 CRC32 XXX 	Write_rows: table id 30 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
@@ -129,7 +129,7 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1526
-#<date> server id 1  end_log_pos 1582 CRC32 XXX 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 1582 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1582
 #<date> server id 1  end_log_pos 1652 CRC32 XXX 	Write_rows: table id 30 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
@@ -154,7 +154,7 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1767
-#<date> server id 1  end_log_pos 1823 CRC32 XXX 	Table_map: `test`.`t2` mapped to number 31
+#<date> server id 1  end_log_pos 1823 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 1823
 #<date> server id 1  end_log_pos 1990 CRC32 XXX 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t2`
@@ -212,7 +212,7 @@ COMMIT
 BEGIN
 /*!*/;
 # at 2105
-#<date> server id 1  end_log_pos 2161 CRC32 XXX 	Table_map: `test`.`t2` mapped to number 31
+#<date> server id 1  end_log_pos 2161 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 2161
 #<date> server id 1  end_log_pos 2235 CRC32 XXX 	Update_rows: table id 31 flags: STMT_END_F
 ### UPDATE `test`.`t2`
@@ -244,7 +244,7 @@ COMMIT
 BEGIN
 /*!*/;
 # at 2350
-#<date> server id 1  end_log_pos 2406 CRC32 XXX 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 2406 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 2406
 #<date> server id 1  end_log_pos 2460 CRC32 XXX 	Delete_rows: table id 30 flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
@@ -270,7 +270,7 @@ COMMIT
 BEGIN
 /*!*/;
 # at 2575
-#<date> server id 1  end_log_pos 2631 CRC32 XXX 	Table_map: `test`.`t2` mapped to number 31
+#<date> server id 1  end_log_pos 2631 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 2631
 #<date> server id 1  end_log_pos 2685 CRC32 XXX 	Delete_rows: table id 31 flags: STMT_END_F
 ### DELETE FROM `test`.`t2`

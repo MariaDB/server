@@ -108,9 +108,6 @@ The following options may be given as the first argument:
  --bulk-insert-buffer-size=# 
  Size of tree cache used in bulk insert optimisation. Note
  that this is a limit per thread!
- --changed-page-bitmaps[=name] 
- Enable or disable CHANGED_PAGE_BITMAPS plugin. One of:
- ON, OFF, FORCE (don't start if the plugin fails to load).
  --character-set-client-handshake 
  Don't ignore client side character set value sent during
  handshake.
@@ -1153,7 +1150,6 @@ binlog-row-event-max-size 1024
 binlog-row-image FULL
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
-changed-page-bitmaps ON
 character-set-client-handshake TRUE
 character-set-filesystem binary
 character-sets-dir MYSQL_CHARSETSDIR/

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,8 +35,7 @@ Created 12/15/1997 Heikki Tuuri
 
 /******************************************************************//**
 Creates a symbol table for a single stored procedure or query.
-@return	own: symbol table */
-UNIV_INTERN
+@return own: symbol table */
 sym_tab_t*
 sym_tab_create(
 /*===========*/
@@ -45,15 +44,13 @@ sym_tab_create(
 Frees the memory allocated dynamically AFTER parsing phase for variables
 etc. in the symbol table. Does not free the mem heap where the table was
 originally created. Frees also SQL explicit cursor definitions. */
-UNIV_INTERN
 void
 sym_tab_free_private(
 /*=================*/
 	sym_tab_t*	sym_tab);	/*!< in, own: symbol table */
 /******************************************************************//**
 Adds an integer literal to a symbol table.
-@return	symbol table node */
-UNIV_INTERN
+@return symbol table node */
 sym_node_t*
 sym_tab_add_int_lit(
 /*================*/
@@ -61,8 +58,7 @@ sym_tab_add_int_lit(
 	ulint		val);		/*!< in: integer value */
 /******************************************************************//**
 Adds an string literal to a symbol table.
-@return	symbol table node */
-UNIV_INTERN
+@return symbol table node */
 sym_node_t*
 sym_tab_add_str_lit(
 /*================*/
@@ -72,8 +68,7 @@ sym_tab_add_str_lit(
 	ulint		len);		/*!< in: string length */
 /******************************************************************//**
 Add a bound literal to a symbol table.
-@return	symbol table node */
-UNIV_INTERN
+@return symbol table node */
 sym_node_t*
 sym_tab_add_bound_lit(
 /*==================*/
@@ -82,7 +77,6 @@ sym_tab_add_bound_lit(
 	ulint*		lit_type);	/*!< out: type of literal (PARS_*_LIT) */
 /**********************************************************************
 Rebind literal to a node in the symbol table. */
-
 sym_node_t*
 sym_tab_rebind_lit(
 /*===============*/
@@ -92,16 +86,14 @@ sym_tab_rebind_lit(
         ulint           length);        /* in: length of data */
 /******************************************************************//**
 Adds an SQL null literal to a symbol table.
-@return	symbol table node */
-UNIV_INTERN
+@return symbol table node */
 sym_node_t*
 sym_tab_add_null_lit(
 /*=================*/
 	sym_tab_t*	sym_tab);	/*!< in: symbol table */
 /******************************************************************//**
 Adds an identifier to a symbol table.
-@return	symbol table node */
-UNIV_INTERN
+@return symbol table node */
 sym_node_t*
 sym_tab_add_id(
 /*===========*/
@@ -111,8 +103,7 @@ sym_tab_add_id(
 
 /******************************************************************//**
 Add a bound identifier to a symbol table.
-@return	symbol table node */
-UNIV_INTERN
+@return symbol table node */
 sym_node_t*
 sym_tab_add_bound_id(
 /*===========*/

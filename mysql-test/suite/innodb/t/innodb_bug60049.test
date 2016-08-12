@@ -5,12 +5,11 @@
 -- source include/not_embedded.inc
 -- source include/have_innodb.inc
 -- source include/have_innodb_16k.inc
--- source include/not_encrypted.inc
-
-call mtr.add_suppression('InnoDB: Error: Table "mysql"."innodb_(table|index)_stats" not found');
-call mtr.add_suppression('InnoDB: Error: Fetch of persistent statistics requested');
 
 -- disable_query_log
+call mtr.add_suppression('\\[ERROR\\] InnoDB: Table `mysql`.`innodb_(table|index)_stats` not found');
+call mtr.add_suppression('\\[ERROR\\] InnoDB: Fetch of persistent statistics requested for table `mysql`.`gtid_executed`');
+
 let $create1 = query_get_value(SHOW CREATE TABLE mysql.innodb_table_stats, Create Table, 1);
 let $create2 = query_get_value(SHOW CREATE TABLE mysql.innodb_index_stats, Create Table, 1);
 DROP TABLE mysql.innodb_index_stats;
@@ -23,10 +22,7 @@ DROP TABLE u;
 SELECT @@innodb_fast_shutdown;
 let $MYSQLD_DATADIR=`select @@datadir`;
 
-# Shut down the server
--- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
--- shutdown_server 30
--- source include/wait_until_disconnected.inc
+--source include/shutdown_mysqld.inc
 
 # Check the tail of ID_IND (SYS_TABLES.ID)
 let IBDATA1=$MYSQLD_DATADIR/ibdata1;
@@ -45,10 +41,7 @@ close(FILE);
 print unpack("H*", $_), "\n";
 EOF
 
-# Restart the server.
--- exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
--- enable_reconnect
--- source include/wait_until_connected_again.inc
+--source include/start_mysqld.inc
 
 -- disable_query_log
 USE mysql;

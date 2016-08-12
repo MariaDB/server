@@ -23,6 +23,8 @@ General row routines
 Created 4/20/1996 Heikki Tuuri
 *******************************************************/
 
+#include "ha_prototypes.h"
+
 #include "row0row.h"
 
 #ifdef UNIV_NONINL
@@ -31,8 +33,8 @@ Created 4/20/1996 Heikki Tuuri
 
 #include "data0type.h"
 #include "dict0dict.h"
+#include "dict0boot.h"
 #include "btr0btr.h"
-#include "ha_prototypes.h"
 #include "mach0data.h"
 #include "trx0rseg.h"
 #include "trx0trx.h"
@@ -46,6 +48,8 @@ Created 4/20/1996 Heikki Tuuri
 #include "rem0cmp.h"
 #include "read0read.h"
 #include "ut0mem.h"
+#include "gis0geo.h"
+#include "row0mysql.h"
 
 /*****************************************************************//**
 When an insert or purge to a table is performed, this function builds
@@ -53,7 +57,6 @@ the entry to be inserted into or purged from an index on the table.
 @return index entry which should be inserted or purged
 @retval NULL if the externally stored columns in the clustered index record
 are unavailable and ext != NULL, or row is missing some needed columns. */
-UNIV_INTERN
 dtuple_t*
 row_build_index_entry_low(
 /*======================*/
@@ -62,18 +65,28 @@ row_build_index_entry_low(
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
 	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
+	mem_heap_t*		heap,	/*!< in: memory heap from which
 					the memory for the index entry
 					is allocated */
+	ulint			flag)	/*!< in: ROW_BUILD_NORMAL,
+					ROW_BUILD_FOR_PURGE
+                                        or ROW_BUILD_FOR_UNDO */
 {
 	dtuple_t*	entry;
 	ulint		entry_len;
 	ulint		i;
+	ulint		num_v = 0;
 
 	entry_len = dict_index_get_n_fields(index);
-	entry = dtuple_create(heap, entry_len);
 
-	if (dict_index_is_univ(index)) {
+	if (flag == ROW_BUILD_FOR_INSERT && dict_index_is_clust(index)) {
+		num_v = dict_table_get_n_v_cols(index->table);
+		entry = dtuple_create_with_vcol(heap, entry_len, num_v);
+	} else {
+		entry = dtuple_create(heap, entry_len);
+	}
+
+	if (dict_index_is_ibuf(index)) {
 		dtuple_set_n_fields_cmp(entry, entry_len);
 		/* There may only be externally stored columns
 		in a clustered index B-tree of a user table. */
@@ -83,27 +96,172 @@ row_build_index_entry_low(
 			entry, dict_index_get_n_unique_in_tree(index));
 	}
 
-	for (i = 0; i < entry_len; i++) {
-		const dict_field_t*	ind_field
-			= dict_index_get_nth_field(index, i);
-		const dict_col_t*	col
-			= ind_field->col;
-		ulint			col_no
-			= dict_col_get_no(col);
-		dfield_t*		dfield
-			= dtuple_get_nth_field(entry, i);
-		const dfield_t*		dfield2
-			= dtuple_get_nth_field(row, col_no);
+	for (i = 0; i < entry_len + num_v; i++) {
+		const dict_field_t*	ind_field = NULL;
+		const dict_col_t*	col;
+		ulint			col_no = 0;
+		dfield_t*		dfield;
+		dfield_t*		dfield2;
 		ulint			len;
 
+		if (i >= entry_len) {
+			/* This is to insert new rows to cluster index */
+			ut_ad(dict_index_is_clust(index)
+			      && flag == ROW_BUILD_FOR_INSERT);
+			dfield = dtuple_get_nth_v_field(entry, i - entry_len);
+			col = &dict_table_get_nth_v_col(
+				index->table, i - entry_len)->m_col;
+
+		} else {
+			ind_field = dict_index_get_nth_field(index, i);
+			col = ind_field->col;
+			col_no = dict_col_get_no(col);
+			dfield = dtuple_get_nth_field(entry, i);
+		}
 #if DATA_MISSING != 0
 # error "DATA_MISSING != 0"
 #endif
+
+		if (dict_col_is_virtual(col)) {
+			const dict_v_col_t*	v_col
+				= reinterpret_cast<const dict_v_col_t*>(col);
+
+			ut_ad(v_col->v_pos < dtuple_get_n_v_fields(row));
+			dfield2 = dtuple_get_nth_v_field(row, v_col->v_pos);
+
+			ut_ad(dfield_is_null(dfield2) || dfield2->data);
+		} else {
+			dfield2 = dtuple_get_nth_field(row, col_no);
+			ut_ad(dfield_get_type(dfield2)->mtype == DATA_MISSING
+			      || (!(dfield_get_type(dfield2)->prtype
+				    & DATA_VIRTUAL)));
+		}
+
 		if (UNIV_UNLIKELY(dfield_get_type(dfield2)->mtype
 				  == DATA_MISSING)) {
 			/* The field has not been initialized in the row.
 			This should be from trx_undo_rec_get_partial_row(). */
 			return(NULL);
+		}
+
+#ifdef UNIV_DEBUG
+		if (dfield_get_type(dfield2)->prtype & DATA_VIRTUAL
+		    && dict_index_is_clust(index)) {
+			ut_ad(flag == ROW_BUILD_FOR_INSERT);
+		}
+#endif /* UNIV_DEBUG */
+
+		/* Special handle spatial index, set the first field
+		which is for store MBR. */
+		if (dict_index_is_spatial(index) && i == 0) {
+			double*			mbr;
+			col_spatial_status	spatial_status;
+
+			spatial_status = dict_col_get_spatial_status(col);
+			ut_ad(spatial_status != SPATIAL_NONE);
+
+			dfield_copy(dfield, dfield2);
+			dfield->type.prtype |= DATA_GIS_MBR;
+
+			/* Allocate memory for mbr field */
+			ulint mbr_len = DATA_MBR_LEN;
+			mbr = static_cast<double*>(mem_heap_alloc(heap, mbr_len));
+
+			/* Set mbr field data. */
+			dfield_set_data(dfield, mbr, mbr_len);
+
+			if (dfield2->data) {
+				uchar*	dptr = NULL;
+				ulint	dlen = 0;
+				ulint	flen = 0;
+				double	tmp_mbr[SPDIMS * 2];
+				mem_heap_t*	temp_heap = NULL;
+
+				if (dfield_is_ext(dfield2)) {
+					if (flag == ROW_BUILD_FOR_PURGE) {
+						byte*	ptr = NULL;
+
+						switch (spatial_status) {
+						case SPATIAL_ONLY:
+						ptr = static_cast<byte*>(
+							dfield_get_data(
+								dfield2));
+						ut_ad(dfield_get_len(dfield2)
+						      == DATA_MBR_LEN);
+						break;
+
+						case SPATIAL_MIXED:
+						ptr = static_cast<byte*>(
+							dfield_get_data(
+								dfield2))
+							+ dfield_get_len(
+								dfield2);
+						break;
+
+						case SPATIAL_NONE:
+						ut_ad(0);
+						}
+
+						memcpy(mbr, ptr, DATA_MBR_LEN);
+						continue;
+					}
+
+					if (flag == ROW_BUILD_FOR_UNDO
+					    && dict_table_get_format(index->table)
+						>= UNIV_FORMAT_B) {
+						/* For build entry for undo, and
+						the table is Barrcuda, we need
+						to skip the prefix data. */
+						flen = BTR_EXTERN_FIELD_REF_SIZE;
+						ut_ad(dfield_get_len(dfield2) >=
+						      BTR_EXTERN_FIELD_REF_SIZE);
+						dptr = static_cast<byte*>(
+							dfield_get_data(dfield2))
+							+ dfield_get_len(dfield2)
+							- BTR_EXTERN_FIELD_REF_SIZE;
+					} else {
+						flen = dfield_get_len(dfield2);
+						dptr = static_cast<byte*>(
+							dfield_get_data(dfield2));
+					}
+
+					temp_heap = mem_heap_create(1000);
+
+					const page_size_t	page_size
+						= (ext != NULL)
+						? ext->page_size
+						: dict_table_page_size(
+							index->table);
+
+					dptr = btr_copy_externally_stored_field(
+						&dlen, dptr,
+						page_size,
+						flen,
+						temp_heap);
+				} else {
+					dptr = static_cast<uchar*>(
+						dfield_get_data(dfield2));
+					dlen = dfield_get_len(dfield2);
+
+				}
+
+				if (dlen <= GEO_DATA_HEADER_SIZE) {
+					for (uint i = 0; i < SPDIMS; ++i) {
+						tmp_mbr[i * 2] = DBL_MAX;
+						tmp_mbr[i * 2 + 1] = -DBL_MAX;
+					}
+				} else {
+					rtree_mbr_from_wkb(dptr + GEO_DATA_HEADER_SIZE,
+							   static_cast<uint>(dlen
+							   - GEO_DATA_HEADER_SIZE),
+							   SPDIMS, tmp_mbr);
+				}
+				dfield_write_mbr(dfield, tmp_mbr);
+				if (temp_heap) {
+					mem_heap_free(temp_heap);
+				}
+			}
+			continue;
 		}
 
 		len = dfield_get_len(dfield2);
@@ -114,13 +272,14 @@ row_build_index_entry_low(
 			continue;
 		}
 
-		if (ind_field->prefix_len == 0
+		if ((!ind_field || ind_field->prefix_len == 0)
 		    && (!dfield_is_ext(dfield)
 			|| dict_index_is_clust(index))) {
 			/* The dfield_copy() above suffices for
 			columns that are stored in-page, or for
 			clustered index record columns that are not
-			part of a column prefix in the PRIMARY KEY. */
+			part of a column prefix in the PRIMARY KEY,
+			or for virtaul columns in cluster index record. */
 			continue;
 		}
 
@@ -183,51 +342,42 @@ row_build_index_entry_low(
 	return(entry);
 }
 
-/*******************************************************************//**
-An inverse function to row_build_index_entry. Builds a row from a
-record in a clustered index.
-@return	own: row built; see the NOTE below! */
-UNIV_INTERN
+/** An inverse function to row_build_index_entry. Builds a row from a
+record in a clustered index, with possible indexing on ongoing
+addition of new virtual columns.
+@param[in]	type		ROW_COPY_POINTERS or ROW_COPY_DATA;
+@param[in]	index		clustered index
+@param[in]	rec		record in the clustered index
+@param[in]	offsets		rec_get_offsets(rec,index) or NULL
+@param[in]	col_table	table, to check which
+				externally stored columns
+				occur in the ordering columns
+				of an index, or NULL if
+				index->table should be
+				consulted instead
+@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	add_v		new virtual columns added
+				along with new indexes
+@param[in]	col_map		mapping of old column
+				numbers to new ones, or NULL
+@param[in]	ext		cache of externally stored column
+				prefixes, or NULL
+@param[in]	heap		memory heap from which
+				the memory needed is allocated
+@return own: row built; */
+static inline
 dtuple_t*
-row_build(
-/*======*/
-	ulint			type,	/*!< in: ROW_COPY_POINTERS or
-					ROW_COPY_DATA; the latter
-					copies also the data fields to
-					heap while the first only
-					places pointers to data fields
-					on the index page, and thus is
-					more efficient */
-	const dict_index_t*	index,	/*!< in: clustered index */
-	const rec_t*		rec,	/*!< in: record in the clustered
-					index; NOTE: in the case
-					ROW_COPY_POINTERS the data
-					fields in the row will point
-					directly into this record,
-					therefore, the buffer page of
-					this record must be at least
-					s-latched and the latch held
-					as long as the row dtuple is used! */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec,index)
-					or NULL, in which case this function
-					will invoke rec_get_offsets() */
+row_build_low(
+	ulint			type,
+	const dict_index_t*	index,
+	const rec_t*		rec,
+	const ulint*		offsets,
 	const dict_table_t*	col_table,
-					/*!< in: table, to check which
-					externally stored columns
-					occur in the ordering columns
-					of an index, or NULL if
-					index->table should be
-					consulted instead */
 	const dtuple_t*		add_cols,
-					/*!< in: default values of
-					added columns, or NULL */
-	const ulint*		col_map,/*!< in: mapping of old column
-					numbers to new ones, or NULL */
-	row_ext_t**		ext,	/*!< out, own: cache of
-					externally stored column
-					prefixes, or NULL */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
-					the memory needed is allocated */
+	const dict_add_v_col_t*	add_v,
+	const ulint*		col_map,
+	row_ext_t**		ext,
+	mem_heap_t*		heap)
 {
 	const byte*		copy;
 	dtuple_t*		row;
@@ -244,7 +394,7 @@ row_build(
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(dict_index_is_clust(index));
-	ut_ad(!mutex_own(&trx_sys->mutex));
+	ut_ad(!trx_sys_mutex_own());
 	ut_ad(!col_map || col_table);
 
 	if (!offsets) {
@@ -255,16 +405,16 @@ row_build(
 	}
 
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
-	if (rec_offs_any_null_extern(rec, offsets)) {
-		/* This condition can occur during crash recovery
-		before trx_rollback_active() has completed execution,
-		or when a concurrently executing
-		row_ins_index_entry_low() has committed the B-tree
-		mini-transaction but has not yet managed to restore
-		the cursor position for writing the big_rec. */
-		ut_a(trx_undo_roll_ptr_is_insert(
-			     row_get_rec_roll_ptr(rec, index, offsets)));
-	}
+	/* Some blob refs can be NULL during crash recovery before
+	trx_rollback_active() has completed execution, or when a concurrently
+	executing insert or update has committed the B-tree mini-transaction
+	but has not yet managed to restore the cursor position for writing
+	the big_rec. Note that the mini-transaction can be committed multiple
+	times, and the cursor restore can happen multiple times for single
+	insert or update statement.  */
+	ut_a(!rec_offs_any_null_extern(rec, offsets)
+	     || trx_rw_is_active(row_get_rec_trx_id(rec, index, offsets),
+						    NULL, false));
 #endif /* UNIV_DEBUG || UNIV_BLOB_LIGHT_DEBUG */
 
 	if (type != ROW_COPY_POINTERS) {
@@ -301,8 +451,22 @@ row_build(
 				dict_table_get_nth_col(col_table, i),
 				dfield_get_type(dtuple_get_nth_field(row, i)));
 		}
+	} else if (add_v != NULL) {
+		row = dtuple_create_with_vcol(
+			heap, dict_table_get_n_cols(col_table),
+			dict_table_get_n_v_cols(col_table) + add_v->n_v_col);
+		dict_table_copy_types(row, col_table);
+
+		for (ulint i = 0; i < add_v->n_v_col; i++) {
+			dict_col_copy_type(
+				&add_v->v_col[i].m_col,
+				dfield_get_type(dtuple_get_nth_v_field(
+					row, i + col_table->n_v_def)));
+		}
 	} else {
-		row = dtuple_create(heap, dict_table_get_n_cols(col_table));
+		row = dtuple_create_with_vcol(
+			heap, dict_table_get_n_cols(col_table),
+			dict_table_get_n_v_cols(col_table));
 		dict_table_copy_types(row, col_table);
 	}
 
@@ -388,11 +552,100 @@ row_build(
 	return(row);
 }
 
+
+/*******************************************************************//**
+An inverse function to row_build_index_entry. Builds a row from a
+record in a clustered index.
+@return own: row built; see the NOTE below! */
+dtuple_t*
+row_build(
+/*======*/
+	ulint			type,	/*!< in: ROW_COPY_POINTERS or
+					ROW_COPY_DATA; the latter
+					copies also the data fields to
+					heap while the first only
+					places pointers to data fields
+					on the index page, and thus is
+					more efficient */
+	const dict_index_t*	index,	/*!< in: clustered index */
+	const rec_t*		rec,	/*!< in: record in the clustered
+					index; NOTE: in the case
+					ROW_COPY_POINTERS the data
+					fields in the row will point
+					directly into this record,
+					therefore, the buffer page of
+					this record must be at least
+					s-latched and the latch held
+					as long as the row dtuple is used! */
+	const ulint*		offsets,/*!< in: rec_get_offsets(rec,index)
+					or NULL, in which case this function
+					will invoke rec_get_offsets() */
+	const dict_table_t*	col_table,
+					/*!< in: table, to check which
+					externally stored columns
+					occur in the ordering columns
+					of an index, or NULL if
+					index->table should be
+					consulted instead */
+	const dtuple_t*		add_cols,
+					/*!< in: default values of
+					added columns, or NULL */
+	const ulint*		col_map,/*!< in: mapping of old column
+					numbers to new ones, or NULL */
+	row_ext_t**		ext,	/*!< out, own: cache of
+					externally stored column
+					prefixes, or NULL */
+	mem_heap_t*		heap)	/*!< in: memory heap from which
+					 the memory needed is allocated */
+{
+	return(row_build_low(type, index, rec, offsets, col_table,
+			     add_cols, NULL, col_map, ext, heap));
+}
+
+/** An inverse function to row_build_index_entry. Builds a row from a
+record in a clustered index, with possible indexing on ongoing
+addition of new virtual columns.
+@param[in]	type		ROW_COPY_POINTERS or ROW_COPY_DATA;
+@param[in]	index		clustered index
+@param[in]	rec		record in the clustered index
+@param[in]	offsets		rec_get_offsets(rec,index) or NULL
+@param[in]	col_table	table, to check which
+				externally stored columns
+				occur in the ordering columns
+				of an index, or NULL if
+				index->table should be
+				consulted instead
+@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	add_v		new virtual columns added
+				along with new indexes
+@param[in]	col_map		mapping of old column
+				numbers to new ones, or NULL
+@param[in]	ext		cache of externally stored column
+				prefixes, or NULL
+@param[in]	heap		memory heap from which
+				the memory needed is allocated
+@return own: row built; */
+dtuple_t*
+row_build_w_add_vcol(
+	ulint			type,
+	const dict_index_t*	index,
+	const rec_t*		rec,
+	const ulint*		offsets,
+	const dict_table_t*	col_table,
+	const dtuple_t*		add_cols,
+	const dict_add_v_col_t*	add_v,
+	const ulint*		col_map,
+	row_ext_t**		ext,
+	mem_heap_t*		heap)
+{
+	return(row_build_low(type, index, rec, offsets, col_table,
+			     add_cols, add_v, col_map, ext, heap));
+}
+
 /*******************************************************************//**
 Converts an index record to a typed data tuple.
 @return index entry built; does not set info_bits, and the data fields
 in the entry will point directly to rec */
-UNIV_INTERN
 dtuple_t*
 row_rec_to_index_entry_low(
 /*=======================*/
@@ -414,6 +667,7 @@ row_rec_to_index_entry_low(
 	ut_ad(rec != NULL);
 	ut_ad(heap != NULL);
 	ut_ad(index != NULL);
+
 	/* Because this function may be invoked by row0merge.cc
 	on a record whose header is in different format, the check
 	rec_offs_validate(rec, index, offsets) must be avoided here. */
@@ -426,7 +680,11 @@ row_rec_to_index_entry_low(
 
 	dtuple_set_n_fields_cmp(entry,
 				dict_index_get_n_unique_in_tree(index));
-	ut_ad(rec_len == dict_index_get_n_fields(index));
+	ut_ad(rec_len == dict_index_get_n_fields(index)
+	      /* a record for older SYS_INDEXES table
+	      (missing merge_threshold column) is acceptable. */
+	      || (index->table->id == DICT_INDEXES_ID
+		  && rec_len == dict_index_get_n_fields(index) - 1));
 
 	dict_index_copy_types(entry, index, rec_len);
 
@@ -451,8 +709,7 @@ row_rec_to_index_entry_low(
 /*******************************************************************//**
 Converts an index record to a typed data tuple. NOTE that externally
 stored (often big) fields are NOT copied to heap.
-@return	own: index entry built */
-UNIV_INTERN
+@return own: index entry built */
 dtuple_t*
 row_rec_to_index_entry(
 /*===================*/
@@ -493,8 +750,7 @@ row_rec_to_index_entry(
 /*******************************************************************//**
 Builds from a secondary index record a row reference with which we can
 search the clustered index record.
-@return	own: row reference built; see the NOTE below! */
-UNIV_INTERN
+@return own: row reference built; see the NOTE below! */
 dtuple_t*
 row_build_row_ref(
 /*==============*/
@@ -606,7 +862,6 @@ row_build_row_ref(
 /*******************************************************************//**
 Builds from a secondary index record a row reference with which we can
 search the clustered index record. */
-UNIV_INTERN
 void
 row_build_row_ref_in_tuple(
 /*=======================*/
@@ -641,23 +896,10 @@ row_build_row_ref_in_tuple(
 	ut_a(index);
 	ut_a(rec);
 	ut_ad(!dict_index_is_clust(index));
-
-	if (UNIV_UNLIKELY(!index->table)) {
-		fputs("InnoDB: table ", stderr);
-notfound:
-		ut_print_name(stderr, trx, TRUE, index->table_name);
-		fputs(" for index ", stderr);
-		ut_print_name(stderr, trx, FALSE, index->name);
-		fputs(" not found\n", stderr);
-		ut_error;
-	}
+	ut_a(index->table);
 
 	clust_index = dict_table_get_first_index(index->table);
-
-	if (UNIV_UNLIKELY(!clust_index)) {
-		fputs("InnoDB: clust index for table ", stderr);
-		goto notfound;
-	}
+	ut_ad(clust_index);
 
 	if (!offsets) {
 		offsets = rec_get_offsets(rec, index, offsets_,
@@ -717,8 +959,7 @@ notfound:
 
 /***************************************************************//**
 Searches the clustered index record for a row, if we have the row reference.
-@return	TRUE if found */
-UNIV_INTERN
+@return TRUE if found */
 ibool
 row_search_on_row_ref(
 /*==================*/
@@ -761,8 +1002,7 @@ row_search_on_row_ref(
 /*********************************************************************//**
 Fetches the clustered index record for a secondary index record. The latches
 on the secondary index record are preserved.
-@return	record or NULL, if no record found */
-UNIV_INTERN
+@return record or NULL, if no record found */
 rec_t*
 row_get_clust_rec(
 /*==============*/
@@ -802,8 +1042,7 @@ row_get_clust_rec(
 
 /***************************************************************//**
 Searches an index record.
-@return	whether the record was found or buffered */
-UNIV_INTERN
+@return whether the record was found or buffered */
 enum row_search_result
 row_search_index_entry(
 /*===================*/
@@ -820,11 +1059,17 @@ row_search_index_entry(
 
 	ut_ad(dtuple_check_typed(entry));
 
-	btr_pcur_open(index, entry, PAGE_CUR_LE, mode, pcur, mtr);
+	if (dict_index_is_spatial(index)) {
+		ut_ad(mode & BTR_MODIFY_LEAF || mode & BTR_MODIFY_TREE);
+		rtr_pcur_open(index, entry, PAGE_CUR_RTREE_LOCATE,
+			      mode, pcur, mtr);
+	} else {
+		btr_pcur_open(index, entry, PAGE_CUR_LE, mode, pcur, mtr);
+	}
 
 	switch (btr_pcur_get_btr_cur(pcur)->flag) {
 	case BTR_CUR_DELETE_REF:
-		ut_a(mode & BTR_DELETE);
+		ut_a(mode & BTR_DELETE && !dict_index_is_spatial(index));
 		return(ROW_NOT_DELETED_REF);
 
 	case BTR_CUR_DEL_MARK_IBUF:
@@ -865,7 +1110,7 @@ Not more than "buf_size" bytes are written to "buf".
 The result is always '\0'-terminated (provided buf_size > 0) and the
 number of bytes that were written to "buf" is returned (including the
 terminating '\0').
-@return	number of bytes that were written */
+@return number of bytes that were written */
 static
 ulint
 row_raw_format_int(
@@ -892,7 +1137,7 @@ row_raw_format_int(
 
 		ret = ut_snprintf(
 			buf, buf_size,
-			unsigned_type ? UINT64PF : INT64PF, value) + 1;
+			unsigned_type ? UINT32PF : "%f", unsigned_type ? value : (double)value) + 1;
 	} else {
 
 		*format_in_hex = TRUE;
@@ -913,7 +1158,7 @@ Not more than "buf_size" bytes are written to "buf".
 The result is always '\0'-terminated (provided buf_size > 0) and the
 number of bytes that were written to "buf" is returned (including the
 terminating '\0').
-@return	number of bytes that were written */
+@return number of bytes that were written */
 static
 ulint
 row_raw_format_str(
@@ -963,8 +1208,7 @@ Not more than "buf_size" bytes are written to "buf".
 The result is always NUL-terminated (provided buf_size is positive) and the
 number of bytes that were written to "buf" is returned (including the
 terminating NUL).
-@return	number of bytes that were written */
-UNIV_INTERN
+@return number of bytes that were written */
 ulint
 row_raw_format(
 /*===========*/
@@ -1042,9 +1286,9 @@ row_raw_format(
 	return(ret);
 }
 
-#ifdef UNIV_COMPILE_TEST_FUNCS
+#ifdef UNIV_ENABLE_UNIT_TEST_ROW_RAW_FORMAT_INT
 
-#include "ut0dbg.h"
+#ifdef HAVE_UT_CHRONO_T
 
 void
 test_row_raw_format_int()
@@ -1052,7 +1296,6 @@ test_row_raw_format_int()
 	ulint	ret;
 	char	buf[128];
 	ibool	format_in_hex;
-	speedo_t speedo;
 	ulint	i;
 
 #define CALL_AND_TEST(data, data_len, prtype, buf, buf_size,\
@@ -1236,7 +1479,7 @@ test_row_raw_format_int()
 
 	/* speed test */
 
-	speedo_reset(&speedo);
+	ut_chrono_t	ch(__func__);
 
 	for (i = 0; i < 1000000; i++) {
 		row_raw_format_int("\x23", 1,
@@ -1253,8 +1496,8 @@ test_row_raw_format_int()
 				   DATA_UNSIGNED, buf, sizeof(buf),
 				   &format_in_hex);
 	}
-
-	speedo_show(&speedo);
 }
 
-#endif /* UNIV_COMPILE_TEST_FUNCS */
+#endif /* HAVE_UT_CHRONO_T */
+
+#endif /* UNIV_ENABLE_UNIT_TEST_ROW_RAW_FORMAT_INT */

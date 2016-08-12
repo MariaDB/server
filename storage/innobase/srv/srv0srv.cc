@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -39,45 +39,49 @@ The database server main program
 Created 10/8/1995 Heikki Tuuri
 *******************************************************/
 
-/* Dummy comment */
-#include "srv0srv.h"
+#include "my_global.h"
+// JAN: TODO: MySQL 5.7 missing header
+//#include "my_thread.h"
+//
+// #include "mysql/psi/mysql_stage.h"
+// #include "mysql/psi/psi.h"
+// JAN: TODO: MySQL 5.7 missing header
+//#include "sql_thd_internal_api.h"
 
-#include "ut0mem.h"
-#include "ut0ut.h"
-#include "os0proc.h"
-#include "mem0mem.h"
-#include "mem0pool.h"
-#include "sync0sync.h"
-#include "que0que.h"
-#include "log0recv.h"
-#include "pars0pars.h"
-#include "usr0sess.h"
-#include "lock0lock.h"
-#include "trx0purge.h"
-#include "ibuf0ibuf.h"
+#include "ha_prototypes.h"
+
+#include "btr0sea.h"
 #include "buf0flu.h"
 #include "buf0lru.h"
-#include "btr0sea.h"
-#include "dict0load.h"
 #include "dict0boot.h"
-#include "dict0stats_bg.h" /* dict_stats_event */
-#include "srv0start.h"
+#include "dict0load.h"
+#include "dict0stats_bg.h"
+#include "fsp0sysspace.h"
+#include "ibuf0ibuf.h"
+#include "lock0lock.h"
+#include "log0recv.h"
+#include "mem0mem.h"
+#include "os0proc.h"
+#include "pars0pars.h"
+#include "que0que.h"
 #include "row0mysql.h"
+#include "row0trunc.h"
 #include "row0log.h"
-#include "ha_prototypes.h"
-#include "trx0i_s.h"
-#include "os0sync.h" /* for HAVE_ATOMIC_BUILTINS */
 #include "srv0mon.h"
+#include "srv0srv.h"
+#include "srv0start.h"
+#include "sync0sync.h"
+#include "trx0i_s.h"
+#include "trx0purge.h"
+#include "usr0sess.h"
 #include "ut0crc32.h"
 #include "btr0defragment.h"
+#include "ut0mem.h"
 
-#include "mysql/plugin.h"
-#include "mysql/service_thd_wait.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
 #include "btr0scrub.h"
-
 #ifdef WITH_WSREP
 extern int wsrep_debug;
 extern int wsrep_trx_is_aborting(void *thd_ptr);
@@ -87,19 +91,21 @@ UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPH
 
 /* How much data manipulation language (DML) statements need to be delayed,
 in microseconds, in order to reduce the lagging of the purge thread. */
-UNIV_INTERN ulint	srv_dml_needed_delay = 0;
+ulint	srv_dml_needed_delay = 0;
 
-UNIV_INTERN ibool	srv_monitor_active = FALSE;
-UNIV_INTERN ibool	srv_error_monitor_active = FALSE;
+ibool	srv_monitor_active = FALSE;
+ibool	srv_error_monitor_active = FALSE;
 
-UNIV_INTERN ibool	srv_buf_dump_thread_active = FALSE;
+ibool	srv_buf_dump_thread_active = FALSE;
 
-UNIV_INTERN ibool	srv_dict_stats_thread_active = FALSE;
+bool	srv_buf_resize_thread_active = false;
 
 UNIV_INTERN ibool	srv_log_scrub_active = FALSE;
 UNIV_INTERN my_bool	srv_scrub_log = FALSE;
 
-UNIV_INTERN const char*	srv_main_thread_op_info = "";
+ibool	srv_dict_stats_thread_active = FALSE;
+
+const char*	srv_main_thread_op_info = "";
 
 /** Prefix used by MySQL to indicate pre-5.1 table name encoding */
 const char		srv_mysql50_table_name_prefix[10] = "#mysql50#";
@@ -109,40 +115,62 @@ const char		srv_mysql50_table_name_prefix[10] = "#mysql50#";
 /* The following three are dir paths which are catenated before file
 names, where the file name itself may also contain a path */
 
-UNIV_INTERN char*	srv_data_home	= NULL;
+char*	srv_data_home	= NULL;
 
 /** Rollback files directory, can be absolute. */
-UNIV_INTERN char*	srv_undo_dir = NULL;
+char*	srv_undo_dir = NULL;
 
 /** The number of tablespaces to use for rollback segments. */
-UNIV_INTERN ulong	srv_undo_tablespaces = 8;
+ulong	srv_undo_tablespaces = 0;
 
 /** The number of UNDO tablespaces that are open and ready to use. */
-UNIV_INTERN ulint	srv_undo_tablespaces_open = 8;
+ulint	srv_undo_tablespaces_open = 0;
+
+/** The number of UNDO tablespaces that are active (hosting some rollback
+segment). It is quite possible that some of the tablespaces doesn't host
+any of the rollback-segment based on configuration used. */
+ulint	srv_undo_tablespaces_active = 0;
 
 /* The number of rollback segments to use */
-UNIV_INTERN ulong	srv_undo_logs = 1;
+ulong	srv_undo_logs = 1;
 
-#ifdef UNIV_LOG_ARCHIVE
-UNIV_INTERN char*	srv_arch_dir	= NULL;
-#endif /* UNIV_LOG_ARCHIVE */
+/** Rate at which UNDO records should be purged. */
+ulong	srv_purge_rseg_truncate_frequency = 128;
+
+/** Enable or Disable Truncate of UNDO tablespace.
+Note: If enabled then UNDO tablespace will be selected for truncate.
+While Server waits for undo-tablespace to truncate if user disables
+it, truncate action is completed but no new tablespace is marked
+for truncate (action is never aborted). */
+my_bool	srv_undo_log_truncate = FALSE;
+
+/** Maximum size of undo tablespace. */
+unsigned long long	srv_max_undo_log_size;
+
+/** UNDO logs that are not redo logged.
+These logs reside in the temp tablespace.*/
+const ulong		srv_tmp_undo_logs = 32;
+
+/** Default undo tablespace size in UNIV_PAGEs count (10MB). */
+const ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES =
+	((1024 * 1024) * 10) / UNIV_PAGE_SIZE_DEF;
 
 /** Set if InnoDB must operate in read-only mode. We don't do any
 recovery and open all tables in RO mode instead of RW mode. We don't
 sync the max trx id to disk either. */
-UNIV_INTERN my_bool	srv_read_only_mode;
+my_bool	srv_read_only_mode;
 /** store to its own file each table created by an user; data
 dictionary tables are in the system tablespace 0 */
-UNIV_INTERN my_bool	srv_file_per_table;
+my_bool	srv_file_per_table;
 /** The file format to use on new *.ibd files. */
-UNIV_INTERN ulint	srv_file_format = 0;
+ulint	srv_file_format = 0;
 /** Whether to check file format during startup.  A value of
 UNIV_FORMAT_MAX + 1 means no checking ie. FALSE.  The default is to
 set it to the highest format we support. */
-UNIV_INTERN ulint	srv_max_file_format_at_startup = UNIV_FORMAT_MAX;
+ulint	srv_max_file_format_at_startup = UNIV_FORMAT_MAX;
 /** Set if InnoDB operates in read-only mode or innodb-force-recovery
 is greater than SRV_FORCE_NO_TRX_UNDO. */
-UNIV_INTERN my_bool	high_level_read_only;
+my_bool	high_level_read_only;
 
 #if UNIV_FORMAT_A
 # error "UNIV_FORMAT_A must be 0!"
@@ -150,19 +178,23 @@ UNIV_INTERN my_bool	high_level_read_only;
 
 /** Place locks to records only i.e. do not use next-key locking except
 on duplicate key checking and foreign key checking */
-UNIV_INTERN ibool	srv_locks_unsafe_for_binlog = FALSE;
+ibool	srv_locks_unsafe_for_binlog = FALSE;
 /** Sort buffer size in index creation */
-UNIV_INTERN ulong	srv_sort_buf_size = 1048576;
+ulong	srv_sort_buf_size = 1048576;
 /** Maximum modification log file size for online index creation */
-UNIV_INTERN unsigned long long	srv_online_max_size;
+unsigned long long	srv_online_max_size;
 
 /* If this flag is TRUE, then we will use the native aio of the
 OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
-UNIV_INTERN my_bool	srv_use_native_aio = TRUE;
-UNIV_INTERN my_bool	srv_numa_interleave = FALSE;
+my_bool	srv_use_native_aio = TRUE;
+my_bool	srv_numa_interleave = FALSE;
 
+#ifdef UNIV_DEBUG
+/** Force all user tables to use page compression. */
+ulong	srv_debug_compress;
+#endif /* UNIV_DEBUG */
 /* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
 to the pages */
 UNIV_INTERN my_bool	srv_use_trim = FALSE;
@@ -177,57 +209,38 @@ UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;
 /* If this flag is TRUE, then we will use multi threaded flush. */
 UNIV_INTERN my_bool	srv_use_mtflush                 = FALSE;
 
-#ifdef __WIN__
-/* Windows native condition variables. We use runtime loading / function
-pointers, because they are not available on Windows Server 2003 and
-Windows XP/2000.
 
-We use condition for events on Windows if possible, even if os_event
-resembles Windows kernel event object well API-wise. The reason is
-performance, kernel objects are heavyweights and WaitForSingleObject() is a
-performance killer causing calling thread to context switch. Besides, Innodb
-is preallocating large number (often millions) of os_events. With kernel event
-objects it takes a big chunk out of non-paged pool, which is better suited
-for tasks like IO than for storing idle event objects. */
-UNIV_INTERN ibool	srv_use_native_conditions = FALSE;
-#endif /* __WIN__ */
+/*------------------------- LOG FILES ------------------------ */
+char*	srv_log_group_home_dir	= NULL;
 
-UNIV_INTERN ulint	srv_n_data_files = 0;
-UNIV_INTERN char**	srv_data_file_names = NULL;
+ulong	srv_n_log_files		= SRV_N_LOG_FILES_MAX;
+/** At startup, this is the current redo log file size.
+During startup, if this is different from srv_log_file_size_requested
+(innodb_log_file_size), the redo log will be rebuilt and this size
+will be initialized to srv_log_file_size_requested.
+When upgrading from a previous redo log format, this will be set to 0,
+and writing to the redo log is not allowed.
+
+During startup, this is in bytes, and later converted to pages. */
+ib_uint64_t	srv_log_file_size;
+/** The value of the startup parameter innodb_log_file_size */
+ib_uint64_t	srv_log_file_size_requested;
 /* size in database pages */
-UNIV_INTERN ulint*	srv_data_file_sizes = NULL;
+ulint		srv_log_buffer_size = ULINT_MAX;
+ulong		srv_flush_log_at_trx_commit = 1;
+uint		srv_flush_log_at_timeout = 1;
+ulong		srv_page_size = UNIV_PAGE_SIZE_DEF;
+ulong		srv_page_size_shift = UNIV_PAGE_SIZE_SHIFT_DEF;
+ulong		srv_log_write_ahead_size = 0;
 
-/* if TRUE, then we auto-extend the last data file */
-UNIV_INTERN ibool	srv_auto_extend_last_data_file	= FALSE;
-/* if != 0, this tells the max size auto-extending may increase the
-last data file size */
-UNIV_INTERN ulint	srv_last_file_size_max	= 0;
-/* If the last data file is auto-extended, we add this
-many pages to it at a time */
-UNIV_INTERN ulong	srv_auto_extend_increment = 8;
-UNIV_INTERN ulint*	srv_data_file_is_raw_partition = NULL;
-
-/* If the following is TRUE we do not allow inserts etc. This protects
-the user from forgetting the 'newraw' keyword to my.cnf */
-
-UNIV_INTERN ibool	srv_created_new_raw	= FALSE;
-
-UNIV_INTERN char*	srv_log_group_home_dir	= NULL;
-
-UNIV_INTERN ulong	srv_n_log_files		= SRV_N_LOG_FILES_MAX;
-/* size in database pages */
-UNIV_INTERN ib_uint64_t	srv_log_file_size	= IB_UINT64_MAX;
-UNIV_INTERN ib_uint64_t	srv_log_file_size_requested;
-/* size in database pages */
-UNIV_INTERN ulint	srv_log_buffer_size	= ULINT_MAX;
-UNIV_INTERN ulong	srv_flush_log_at_trx_commit = 1;
-UNIV_INTERN uint	srv_flush_log_at_timeout = 1;
-UNIV_INTERN ulong	srv_page_size		= UNIV_PAGE_SIZE_DEF;
-UNIV_INTERN ulong	srv_page_size_shift	= UNIV_PAGE_SIZE_SHIFT_DEF;
+page_size_t	univ_page_size(0, 0, false);
 
 /* Try to flush dirty pages so as to avoid IO bursts at
 the checkpoints. */
-UNIV_INTERN char	srv_adaptive_flushing	= TRUE;
+char	srv_adaptive_flushing	= TRUE;
+
+/* Allow IO bursts at the checkpoints ignoring io_capacity setting. */
+my_bool	srv_flush_sync		= TRUE;
 
 /** Maximum number of times allowed to conditionally acquire
 mutex before switching to blocking wait on the mutex */
@@ -243,52 +256,53 @@ with mutex_enter(), which will wait until it gets the mutex. */
 UNIV_INTERN os_event_t	srv_allow_writes_event;
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
-/** The sort order table of the MySQL latin1_swedish_ci character set
-collation */
-UNIV_INTERN const byte*	srv_latin1_ordering;
-
-/* use os/external memory allocator */
-UNIV_INTERN my_bool	srv_use_sys_malloc	= TRUE;
-/* requested size in kilobytes */
-UNIV_INTERN ulint	srv_buf_pool_size	= ULINT_MAX;
-/* requested number of buffer pool instances */
-UNIV_INTERN ulint       srv_buf_pool_instances  = 1;
-/* number of locks to protect buf_pool->page_hash */
-UNIV_INTERN ulong	srv_n_page_hash_locks = 16;
+/** Requested size in bytes */
+ulint	srv_buf_pool_size	= ULINT_MAX;
+/** Minimum pool size in bytes */
+const ulint	srv_buf_pool_min_size	= 5 * 1024 * 1024;
+/** Default pool size in bytes */
+const ulint	srv_buf_pool_def_size	= 128 * 1024 * 1024;
+/** Requested buffer pool chunk size. Each buffer pool instance consists
+of one or more chunks. */
+ulong	srv_buf_pool_chunk_unit;
+/** Requested number of buffer pool instances */
+ulong	srv_buf_pool_instances;
+/** Default number of buffer pool instances */
+const ulong	srv_buf_pool_instances_default = 0;
+/** Number of locks to protect buf_pool->page_hash */
+ulong	srv_n_page_hash_locks = 16;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
-UNIV_INTERN ulong	srv_LRU_scan_depth	= 1024;
-/** whether or not to flush neighbors of a block */
-UNIV_INTERN ulong	srv_flush_neighbors	= 1;
-/* previously requested size */
-UNIV_INTERN ulint	srv_buf_pool_old_size;
-/* current size in kilobytes */
-UNIV_INTERN ulint	srv_buf_pool_curr_size	= 0;
-/* dump that may % of each buffer pool during BP dump */
-UNIV_INTERN ulong	srv_buf_pool_dump_pct;
-/* size in bytes */
-UNIV_INTERN ulint	srv_mem_pool_size	= ULINT_MAX;
-UNIV_INTERN ulint	srv_lock_table_size	= ULINT_MAX;
+ulong	srv_LRU_scan_depth	= 1024;
+/** Whether or not to flush neighbors of a block */
+ulong	srv_flush_neighbors	= 1;
+/** Previously requested size */
+ulint	srv_buf_pool_old_size	= 0;
+/** Current size as scaling factor for the other components */
+ulint	srv_buf_pool_base_size	= 0;
+/** Current size in bytes */
+ulint	srv_buf_pool_curr_size	= 0;
+/** Dump this % of each buffer pool during BP dump */
+ulong	srv_buf_pool_dump_pct;
+/** Lock table size in bytes */
+ulint	srv_lock_table_size	= ULINT_MAX;
 
 UNIV_INTERN ulong	srv_idle_flush_pct = 100;
 
 /* This parameter is deprecated. Use srv_n_io_[read|write]_threads
 instead. */
-UNIV_INTERN ulint	srv_n_file_io_threads	= ULINT_MAX;
-UNIV_INTERN ulint	srv_n_read_io_threads	= ULINT_MAX;
-UNIV_INTERN ulint	srv_n_write_io_threads	= ULINT_MAX;
+ulint	srv_n_read_io_threads	= ULINT_MAX;
+ulint	srv_n_write_io_threads	= ULINT_MAX;
 
 /* Switch to enable random read ahead. */
-UNIV_INTERN my_bool	srv_random_read_ahead	= FALSE;
+my_bool	srv_random_read_ahead	= FALSE;
 /* User settable value of the number of pages that must be present
 in the buffer cache and accessed sequentially for InnoDB to trigger a
 readahead request. */
-UNIV_INTERN ulong	srv_read_ahead_threshold	= 56;
+ulong	srv_read_ahead_threshold	= 56;
 
-#ifdef UNIV_LOG_ARCHIVE
-UNIV_INTERN ibool		srv_log_archive_on	= FALSE;
-UNIV_INTERN ibool		srv_archive_recovery	= 0;
-UNIV_INTERN ib_uint64_t	srv_archive_recovery_limit_lsn;
-#endif /* UNIV_LOG_ARCHIVE */
+/** Maximum on-disk size of change buffer in terms of percentage
+of the buffer pool. */
+uint	srv_change_buffer_max_size = CHANGE_BUFFER_DEFAULT_SIZE;
 
 /* This parameter is used to throttle the number of insert buffers that are
 merged in a batch. By increasing this parameter on a faster disk you can
@@ -298,17 +312,23 @@ background loop when the system is idle (low load), on a busy system
 the parameter is scaled down by a factor of 4, this is to avoid putting
 a heavier load on the I/O sub system. */
 
-UNIV_INTERN ulong	srv_insert_buffer_batch_size = 20;
+ulong	srv_insert_buffer_batch_size = 20;
 
-UNIV_INTERN char*	srv_file_flush_method_str = NULL;
-UNIV_INTERN ulint	srv_unix_file_flush_method = SRV_UNIX_FSYNC;
-UNIV_INTERN ulint	srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
+char*	srv_file_flush_method_str = NULL;
+#ifndef _WIN32
+enum srv_unix_flush_t	srv_unix_file_flush_method = SRV_UNIX_FSYNC;
+#else
+enum srv_win_flush_t	srv_win_file_flush_method = SRV_WIN_IO_UNBUFFERED;
+#endif /* _WIN32 */
 
-UNIV_INTERN ulint	srv_max_n_open_files	  = 300;
+ulint	srv_max_n_open_files	  = 300;
 
 /* Number of IO operations per second the server can do */
-UNIV_INTERN ulong	srv_io_capacity         = 200;
-UNIV_INTERN ulong	srv_max_io_capacity     = 400;
+ulong	srv_io_capacity         = 200;
+ulong	srv_max_io_capacity     = 400;
+
+/* The number of page cleaner threads to use.*/
+ulong	srv_n_page_cleaners = 4;
 
 /* The InnoDB main thread tries to keep the ratio of modified pages
 in the buffer pool to all database pages in the buffer pool smaller than
@@ -323,50 +343,50 @@ if enabled, will kick in. */
 UNIV_INTERN double	srv_adaptive_flushing_lwm	= 10.0;
 
 /* Number of iterations over which adaptive flushing is averaged. */
-UNIV_INTERN ulong	srv_flushing_avg_loops		= 30;
+ulong	srv_flushing_avg_loops		= 30;
 
 /* The number of purge threads to use.*/
-UNIV_INTERN ulong	srv_n_purge_threads = 1;
+ulong	srv_n_purge_threads = 4;
 
 /* the number of pages to purge in one batch */
-UNIV_INTERN ulong	srv_purge_batch_size = 20;
+ulong	srv_purge_batch_size = 20;
 
 /* Internal setting for "innodb_stats_method". Decides how InnoDB treats
 NULL value when collecting statistics. By default, it is set to
 SRV_STATS_NULLS_EQUAL(0), ie. all NULL value are treated equal */
-UNIV_INTERN ulong srv_innodb_stats_method = SRV_STATS_NULLS_EQUAL;
+ulong srv_innodb_stats_method = SRV_STATS_NULLS_EQUAL;
 
-UNIV_INTERN srv_stats_t	srv_stats;
+srv_stats_t	srv_stats;
 
 /* structure to pass status variables to MySQL */
-UNIV_INTERN export_var_t export_vars;
+export_var_t export_vars;
 
 /** Normally 0. When nonzero, skip some phases of crash recovery,
 starting from SRV_FORCE_IGNORE_CORRUPT, so that data can be recovered
 by SELECT or mysqldump. When this is nonzero, we do not allow any user
 modifications to the data. */
-UNIV_INTERN ulong	srv_force_recovery;
+ulong	srv_force_recovery;
 #ifndef DBUG_OFF
 /** Inject a crash at different steps of the recovery process.
 This is for testing and debugging only. */
-UNIV_INTERN ulong	srv_force_recovery_crash;
+ulong	srv_force_recovery_crash;
 #endif /* !DBUG_OFF */
 
 /** Print all user-level transactions deadlocks to mysqld stderr */
 
-UNIV_INTERN my_bool	srv_print_all_deadlocks = FALSE;
+my_bool	srv_print_all_deadlocks = FALSE;
 
 /** Enable INFORMATION_SCHEMA.innodb_cmp_per_index */
-UNIV_INTERN my_bool	srv_cmp_per_index_enabled = FALSE;
+my_bool	srv_cmp_per_index_enabled = FALSE;
 
 /* If the following is set to 1 then we do not run purge and insert buffer
 merge to completion before shutdown. If it is set to 2, do not even flush the
 buffer pool to data files at the shutdown: we effectively 'crash'
 InnoDB (but lose no committed transactions). */
-UNIV_INTERN ulint	srv_fast_shutdown	= 0;
+ulint	srv_fast_shutdown	= 0;
 
 /* Generate a innodb_status.<pid> file */
-UNIV_INTERN ibool	srv_innodb_status	= FALSE;
+ibool	srv_innodb_status	= FALSE;
 
 /* Optimize prefix index queries to skip cluster index lookup when possible */
 /* Enables or disables this prefix optimization.  Disabled by default. */
@@ -378,10 +398,10 @@ this many index pages, there are 2 ways to calculate statistics:
   in the innodb database.
 * quick transient stats, that are used if persistent stats for the given
   table/index are not found in the innodb database */
-UNIV_INTERN unsigned long long	srv_stats_transient_sample_pages = 8;
-UNIV_INTERN my_bool		srv_stats_persistent = TRUE;
-UNIV_INTERN unsigned long long	srv_stats_persistent_sample_pages = 20;
-UNIV_INTERN my_bool		srv_stats_auto_recalc = TRUE;
+unsigned long long	srv_stats_transient_sample_pages = 8;
+my_bool		srv_stats_persistent = TRUE;
+unsigned long long	srv_stats_persistent_sample_pages = 20;
+my_bool		srv_stats_auto_recalc = TRUE;
 
 /* The number of rows modified before we calculate new statistics (default 0
 = current limits) */
@@ -397,9 +417,9 @@ UNIV_INTERN ibool	srv_use_doublewrite_buf	= TRUE;
 The following parameter is the size of the buffer that is used for
 batch flushing i.e.: LRU flushing and flush_list flushing. The rest
 of the pages are used for single page flushing. */
-UNIV_INTERN ulong	srv_doublewrite_batch_size	= 120;
+ulong	srv_doublewrite_batch_size	= 120;
 
-UNIV_INTERN ulong	srv_replication_delay		= 0;
+ulong	srv_replication_delay		= 0;
 
 /*-------------------------------------------*/
 #ifdef HAVE_MEMORY_BARRIER
@@ -408,16 +428,9 @@ UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 15;
 #else
 UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 30;
 #endif
-UNIV_INTERN ulong	srv_spin_wait_delay	= 6;
-UNIV_INTERN ibool	srv_priority_boost	= TRUE;
 
-#ifdef UNIV_DEBUG
-UNIV_INTERN ibool	srv_print_thread_releases	= FALSE;
-UNIV_INTERN ibool	srv_print_lock_waits		= FALSE;
-UNIV_INTERN ibool	srv_print_buf_io		= FALSE;
-UNIV_INTERN ibool	srv_print_log_io		= FALSE;
-UNIV_INTERN ibool	srv_print_latch_waits		= FALSE;
-#endif /* UNIV_DEBUG */
+ulong	srv_spin_wait_delay	= 6;
+ibool	srv_priority_boost	= TRUE;
 
 static ulint		srv_n_rows_inserted_old		= 0;
 static ulint		srv_n_rows_updated_old		= 0;
@@ -428,8 +441,8 @@ static ulint		srv_n_system_rows_updated_old	= 0;
 static ulint		srv_n_system_rows_deleted_old	= 0;
 static ulint		srv_n_system_rows_read_old	= 0;
 
-UNIV_INTERN ulint	srv_truncated_status_writes	= 0;
-UNIV_INTERN ulint	srv_available_undo_logs         = 0;
+ulint	srv_truncated_status_writes	= 0;
+ulint	srv_available_undo_logs         = 0;
 
 UNIV_INTERN ib_uint64_t srv_page_compression_saved      = 0;
 UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512       = 0;
@@ -453,64 +466,47 @@ UNIV_INTERN ulonglong	srv_defragment_interval = 0;
 
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
-UNIV_INTERN ibool	srv_print_verbose_log		= TRUE;
-UNIV_INTERN my_bool	srv_print_innodb_monitor	= FALSE;
-UNIV_INTERN my_bool	srv_print_innodb_lock_monitor	= FALSE;
-UNIV_INTERN ibool	srv_print_innodb_tablespace_monitor = FALSE;
-UNIV_INTERN ibool	srv_print_innodb_table_monitor = FALSE;
-
+ibool	srv_print_verbose_log		= TRUE;
+my_bool	srv_print_innodb_monitor	= FALSE;
+my_bool	srv_print_innodb_lock_monitor	= FALSE;
+UNIV_INTERN my_bool        srv_print_innodb_tablespace_monitor = FALSE;
+UNIV_INTERN my_bool        srv_print_innodb_table_monitor = FALSE;
 /** If this flag is set tables without primary key are not allowed */
 UNIV_INTERN my_bool	srv_force_primary_key		= FALSE;
 
 /* Array of English strings describing the current state of an
 i/o handler thread */
 
-UNIV_INTERN const char* srv_io_thread_op_info[SRV_MAX_N_IO_THREADS];
-UNIV_INTERN const char* srv_io_thread_function[SRV_MAX_N_IO_THREADS];
+const char* srv_io_thread_op_info[SRV_MAX_N_IO_THREADS];
+const char* srv_io_thread_function[SRV_MAX_N_IO_THREADS];
 
-UNIV_INTERN time_t	srv_last_monitor_time;
+time_t	srv_last_monitor_time;
 
-UNIV_INTERN ib_mutex_t	srv_innodb_monitor_mutex;
+ib_mutex_t	srv_innodb_monitor_mutex;
+
+/** Mutex protecting page_zip_stat_per_index */
+ib_mutex_t	page_zip_stat_per_index_mutex;
 
 /* Mutex for locking srv_monitor_file. Not created if srv_read_only_mode */
-UNIV_INTERN ib_mutex_t	srv_monitor_file_mutex;
-
-#ifdef UNIV_PFS_MUTEX
-# ifndef HAVE_ATOMIC_BUILTINS
-/* Key to register server_mutex with performance schema */
-UNIV_INTERN mysql_pfs_key_t	server_mutex_key;
-# endif /* !HAVE_ATOMIC_BUILTINS */
-/** Key to register srv_innodb_monitor_mutex with performance schema */
-UNIV_INTERN mysql_pfs_key_t	srv_innodb_monitor_mutex_key;
-/** Key to register srv_monitor_file_mutex with performance schema */
-UNIV_INTERN mysql_pfs_key_t	srv_monitor_file_mutex_key;
-/** Key to register srv_dict_tmpfile_mutex with performance schema */
-UNIV_INTERN mysql_pfs_key_t	srv_dict_tmpfile_mutex_key;
-/** Key to register the mutex with performance schema */
-UNIV_INTERN mysql_pfs_key_t	srv_misc_tmpfile_mutex_key;
-/** Key to register srv_sys_t::mutex with performance schema */
-UNIV_INTERN mysql_pfs_key_t	srv_sys_mutex_key;
-/** Key to register srv_sys_t::tasks_mutex with performance schema */
-UNIV_INTERN mysql_pfs_key_t	srv_sys_tasks_mutex_key;
-#endif /* UNIV_PFS_MUTEX */
+ib_mutex_t	srv_monitor_file_mutex;
 
 /** Temporary file for innodb monitor output */
-UNIV_INTERN FILE*	srv_monitor_file;
+FILE*	srv_monitor_file;
 /** Mutex for locking srv_dict_tmpfile. Not created if srv_read_only_mode.
 This mutex has a very high rank; threads reserving it should not
 be holding any InnoDB latches. */
-UNIV_INTERN ib_mutex_t	srv_dict_tmpfile_mutex;
+ib_mutex_t	srv_dict_tmpfile_mutex;
 /** Temporary file for output from the data dictionary */
-UNIV_INTERN FILE*	srv_dict_tmpfile;
+FILE*	srv_dict_tmpfile;
 /** Mutex for locking srv_misc_tmpfile. Not created if srv_read_only_mode.
 This mutex has a very low rank; threads reserving it should not
 acquire any further latches or sleep before releasing this one. */
-UNIV_INTERN ib_mutex_t	srv_misc_tmpfile_mutex;
+ib_mutex_t	srv_misc_tmpfile_mutex;
 /** Temporary file for miscellanous diagnostic output */
-UNIV_INTERN FILE*	srv_misc_tmpfile;
+FILE*	srv_misc_tmpfile;
 
-UNIV_INTERN ulint	srv_main_thread_process_no	= 0;
-UNIV_INTERN ulint	srv_main_thread_id		= 0;
+ulint	srv_main_thread_process_no	= 0;
+ulint	srv_main_thread_id		= 0;
 
 /* The following counts are used by the srv_master_thread. */
 
@@ -542,9 +538,6 @@ current_time % 5 != 0. */
 
 # define	SRV_MASTER_CHECKPOINT_INTERVAL		(7)
 # define	SRV_MASTER_PURGE_INTERVAL		(10)
-#ifdef MEM_PERIODIC_CHECK
-# define	SRV_MASTER_MEM_VALIDATE_INTERVAL	(13)
-#endif /* MEM_PERIODIC_CHECK */
 # define	SRV_MASTER_DICT_LRU_INTERVAL		(47)
 
 /** Simulate compression failures. */
@@ -667,35 +660,74 @@ struct srv_sys_t{
 						activity */
 };
 
-#ifndef HAVE_ATOMIC_BUILTINS
-/** Mutex protecting some server global variables. */
-UNIV_INTERN ib_mutex_t	server_mutex;
-#endif /* !HAVE_ATOMIC_BUILTINS */
-
 static srv_sys_t*	srv_sys	= NULL;
 
 /** Event to signal the monitor thread. */
-UNIV_INTERN os_event_t	srv_monitor_event;
+os_event_t	srv_monitor_event;
 
 /** Event to signal the error thread */
-UNIV_INTERN os_event_t	srv_error_event;
+os_event_t	srv_error_event;
 
 /** Event to signal the buffer pool dump/load thread */
-UNIV_INTERN os_event_t	srv_buf_dump_event;
+os_event_t	srv_buf_dump_event;
+
+/** Event to signal the buffer pool resize thread */
+os_event_t	srv_buf_resize_event;
 
 /** The buffer pool dump/load file name */
-UNIV_INTERN char*	srv_buf_dump_filename;
+char*	srv_buf_dump_filename;
 
 /** Boolean config knobs that tell InnoDB to dump the buffer pool at shutdown
 and/or load it during startup. */
-UNIV_INTERN char	srv_buffer_pool_dump_at_shutdown = FALSE;
-UNIV_INTERN char	srv_buffer_pool_load_at_startup = FALSE;
+char	srv_buffer_pool_dump_at_shutdown = TRUE;
+char	srv_buffer_pool_load_at_startup = TRUE;
 
 /** Slot index in the srv_sys->sys_threads array for the purge thread. */
 static const ulint	SRV_PURGE_SLOT	= 1;
 
 /** Slot index in the srv_sys->sys_threads array for the master thread. */
 static const ulint	SRV_MASTER_SLOT = 0;
+
+#ifdef HAVE_PSI_STAGE_INTERFACE
+/** Performance schema stage event for monitoring ALTER TABLE progress
+everything after flush log_make_checkpoint_at(). */
+PSI_stage_info	srv_stage_alter_table_end
+	= {0, "alter table (end)", PSI_FLAG_STAGE_PROGRESS};
+
+/** Performance schema stage event for monitoring ALTER TABLE progress
+log_make_checkpoint_at(). */
+PSI_stage_info	srv_stage_alter_table_flush
+	= {0, "alter table (flush)", PSI_FLAG_STAGE_PROGRESS};
+
+/** Performance schema stage event for monitoring ALTER TABLE progress
+row_merge_insert_index_tuples(). */
+PSI_stage_info	srv_stage_alter_table_insert
+	= {0, "alter table (insert)", PSI_FLAG_STAGE_PROGRESS};
+
+/** Performance schema stage event for monitoring ALTER TABLE progress
+row_log_apply(). */
+PSI_stage_info	srv_stage_alter_table_log_index
+	= {0, "alter table (log apply index)", PSI_FLAG_STAGE_PROGRESS};
+
+/** Performance schema stage event for monitoring ALTER TABLE progress
+row_log_table_apply(). */
+PSI_stage_info	srv_stage_alter_table_log_table
+	= {0, "alter table (log apply table)", PSI_FLAG_STAGE_PROGRESS};
+
+/** Performance schema stage event for monitoring ALTER TABLE progress
+row_merge_sort(). */
+PSI_stage_info	srv_stage_alter_table_merge_sort
+	= {0, "alter table (merge sort)", PSI_FLAG_STAGE_PROGRESS};
+
+/** Performance schema stage event for monitoring ALTER TABLE progress
+row_merge_read_clustered_index(). */
+PSI_stage_info	srv_stage_alter_table_read_pk_internal_sort
+	= {0, "alter table (read PK and internal sort)", PSI_FLAG_STAGE_PROGRESS};
+
+/** Performance schema stage event for monitoring buffer pool load progress. */
+PSI_stage_info	srv_stage_buffer_pool_load
+	= {0, "buffer pool load", PSI_FLAG_STAGE_PROGRESS};
+#endif /* HAVE_PSI_STAGE_INTERFACE */
 
 /*********************************************************************//**
 Prints counters for work done by srv_master_thread. */
@@ -705,8 +737,8 @@ srv_print_master_thread_info(
 /*=========================*/
 	FILE  *file)    /* in: output stream */
 {
-	fprintf(file, "srv_master_thread loops: %lu srv_active, "
-		"%lu srv_shutdown, %lu srv_idle\n",
+	fprintf(file, "srv_master_thread loops: %lu srv_active,"
+		" %lu srv_shutdown, %lu srv_idle\n",
 		srv_main_active_loops,
 		srv_main_shutdown_loops,
 		srv_main_idle_loops);
@@ -716,7 +748,6 @@ srv_print_master_thread_info(
 
 /*********************************************************************//**
 Sets the info describing an i/o thread current state. */
-UNIV_INTERN
 void
 srv_set_io_thread_op_info(
 /*======================*/
@@ -731,7 +762,6 @@ srv_set_io_thread_op_info(
 
 /*********************************************************************//**
 Resets the info describing an i/o thread current state. */
-UNIV_INTERN
 void
 srv_reset_io_thread_op_info()
 /*=========================*/
@@ -780,7 +810,7 @@ srv_slot_get_type(
 
 /*********************************************************************//**
 Reserves a slot in the thread table for the current thread.
-@return	reserved slot */
+@return reserved slot */
 static
 srv_slot_t*
 srv_reserve_slot(
@@ -836,7 +866,7 @@ srv_reserve_slot(
 Suspends the calling thread to wait for the event in its thread slot.
 @return the current signal count of the event. */
 static
-ib_int64_t
+int64_t
 srv_suspend_thread_low(
 /*===================*/
 	srv_slot_t*	slot)	/*!< in/out: thread slot */
@@ -885,14 +915,14 @@ srv_suspend_thread_low(
 Suspends the calling thread to wait for the event in its thread slot.
 @return the current signal count of the event. */
 static
-ib_int64_t
+int64_t
 srv_suspend_thread(
 /*===============*/
 	srv_slot_t*	slot)	/*!< in/out: thread slot */
 {
 	srv_sys_mutex_enter();
 
-	ib_int64_t	sig_count = srv_suspend_thread_low(slot);
+	int64_t		sig_count = srv_suspend_thread_low(slot);
 
 	srv_sys_mutex_exit();
 
@@ -904,7 +934,6 @@ Releases threads of the type given from suspension in the thread table.
 NOTE! The server mutex has to be reserved by the caller!
 @return number of threads released: this may be less than n if not
         enough threads were suspended at the moment. */
-UNIV_INTERN
 ulint
 srv_release_threads(
 /*================*/
@@ -997,7 +1026,6 @@ srv_free_slot(
 
 /*********************************************************************//**
 Initializes the server. */
-UNIV_INTERN
 void
 srv_init(void)
 /*==========*/
@@ -1005,12 +1033,7 @@ srv_init(void)
 	ulint	n_sys_threads = 0;
 	ulint	srv_sys_sz = sizeof(*srv_sys);
 
-#ifndef HAVE_ATOMIC_BUILTINS
-	mutex_create(server_mutex_key, &server_mutex, SYNC_ANY_LATCH);
-#endif /* !HAVE_ATOMIC_BUILTINS */
-
-	mutex_create(srv_innodb_monitor_mutex_key,
-		     &srv_innodb_monitor_mutex, SYNC_NO_ORDER_CHECK);
+	mutex_create(LATCH_ID_SRV_INNODB_MONITOR, &srv_innodb_monitor_mutex);
 
 	if (!srv_read_only_mode) {
 
@@ -1020,35 +1043,40 @@ srv_init(void)
 		srv_sys_sz += n_sys_threads * sizeof(*srv_sys->sys_threads);
 	}
 
-	srv_sys = static_cast<srv_sys_t*>(mem_zalloc(srv_sys_sz));
+	srv_sys = static_cast<srv_sys_t*>(ut_zalloc_nokey(srv_sys_sz));
 
 	srv_sys->n_sys_threads = n_sys_threads;
 
-	if (!srv_read_only_mode) {
+	/* Even in read-only mode we flush pages related to intrinsic table
+	and so mutex creation is needed. */
+	{
 
-		mutex_create(srv_sys_mutex_key, &srv_sys->mutex, SYNC_THREADS);
+		mutex_create(LATCH_ID_SRV_SYS, &srv_sys->mutex);
 
-		mutex_create(srv_sys_tasks_mutex_key,
-			     &srv_sys->tasks_mutex, SYNC_ANY_LATCH);
+		mutex_create(LATCH_ID_SRV_SYS_TASKS, &srv_sys->tasks_mutex);
 
 		srv_sys->sys_threads = (srv_slot_t*) &srv_sys[1];
 
 		for (ulint i = 0; i < srv_sys->n_sys_threads; ++i) {
 			srv_slot_t*	slot = &srv_sys->sys_threads[i];
 
-			slot->event = os_event_create();
+			slot->event = os_event_create(0);
 
 			ut_a(slot->event);
 		}
 
-		srv_error_event = os_event_create();
+		srv_error_event = os_event_create(0);
 
-		srv_monitor_event = os_event_create();
+		srv_monitor_event = os_event_create(0);
 
-		srv_buf_dump_event = os_event_create();
+		srv_buf_dump_event = os_event_create(0);
 
-		UT_LIST_INIT(srv_sys->tasks);
+		buf_flush_event = os_event_create("buf_flush_event");
+
+		UT_LIST_INIT(srv_sys->tasks, &que_thr_t::queue);
 	}
+
+	srv_buf_resize_event = os_event_create(0);
 
 	/* page_zip_stat_per_index_mutex is acquired from:
 	1. page_zip_compress() (after SYNC_FSP)
@@ -1057,25 +1085,21 @@ srv_init(void)
 	4. innodb_cmp_per_index_update(), no other latches
 	since we do not acquire any other latches while holding this mutex,
 	it can have very low level. We pick SYNC_ANY_LATCH for it. */
-
-	mutex_create(
-		page_zip_stat_per_index_mutex_key,
-		&page_zip_stat_per_index_mutex, SYNC_ANY_LATCH);
+	mutex_create(LATCH_ID_PAGE_ZIP_STAT_PER_INDEX,
+		     &page_zip_stat_per_index_mutex);
 
 	/* Create dummy indexes for infimum and supremum records */
 
 	dict_ind_init();
 
-	srv_conc_init();
 #ifdef WITH_INNODB_DISALLOW_WRITES
 	/* Writes have to be enabled on init or else we hang. Thus, we
 	always set the event here regardless of innobase_disallow_writes.
 	That flag will always be 0 at this point because it isn't settable
 	via my.cnf or command line arg. */
-	srv_allow_writes_event = os_event_create();
+	srv_allow_writes_event = os_event_create(0);
 	os_event_set(srv_allow_writes_event);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
-
 	/* Initialize some INFORMATION SCHEMA internal structures */
 	trx_i_s_cache_init(trx_i_s_cache);
 
@@ -1086,40 +1110,50 @@ srv_init(void)
 
 /*********************************************************************//**
 Frees the data structures created in srv_init(). */
-UNIV_INTERN
 void
 srv_free(void)
 /*==========*/
 {
-	srv_conc_free();
+	mutex_free(&srv_innodb_monitor_mutex);
+	mutex_free(&page_zip_stat_per_index_mutex);
 
-	/* The mutexes srv_sys->mutex and srv_sys->tasks_mutex should have
-	been freed by sync_close() already. */
-	mem_free(srv_sys);
-	srv_sys = NULL;
+	{
+		mutex_free(&srv_sys->mutex);
+		mutex_free(&srv_sys->tasks_mutex);
+
+		for (ulint i = 0; i < srv_sys->n_sys_threads; ++i) {
+			srv_slot_t*	slot = &srv_sys->sys_threads[i];
+
+			os_event_destroy(slot->event);
+		}
+
+		os_event_destroy(srv_error_event);
+		os_event_destroy(srv_monitor_event);
+		os_event_destroy(srv_buf_dump_event);
+		os_event_destroy(buf_flush_event);
+	}
+
+	os_event_destroy(srv_buf_resize_event);
 
 	trx_i_s_cache_free(trx_i_s_cache);
 
-	if (!srv_read_only_mode) {
-		os_event_free(srv_buf_dump_event);
-		srv_buf_dump_event = NULL;
-	}
+	ut_free(srv_sys);
+
+	srv_sys = 0;
 }
 
 /*********************************************************************//**
 Initializes the synchronization primitives, memory system, and the thread
 local storage. */
-UNIV_INTERN
 void
 srv_general_init(void)
 /*==================*/
 {
-	ut_mem_init();
+	sync_check_init();
 	/* Reset the system variables in the recovery module. */
 	recv_sys_var_init();
-	os_sync_init();
-	sync_init();
-	mem_init(srv_mem_pool_size);
+	os_thread_init();
+	trx_pool_init();
 	que_init();
 	row_mysql_init();
 }
@@ -1131,29 +1165,19 @@ void
 srv_normalize_init_values(void)
 /*===========================*/
 {
-	ulint	n;
-	ulint	i;
+	srv_sys_space.normalize();
 
-	n = srv_n_data_files;
+	srv_tmp_space.normalize();
 
-	for (i = 0; i < n; i++) {
-		srv_data_file_sizes[i] = srv_data_file_sizes[i]
-			* ((1024 * 1024) / UNIV_PAGE_SIZE);
-	}
+	srv_log_file_size /= UNIV_PAGE_SIZE;
 
-	srv_last_file_size_max = srv_last_file_size_max
-		* ((1024 * 1024) / UNIV_PAGE_SIZE);
-
-	srv_log_file_size = srv_log_file_size / UNIV_PAGE_SIZE;
-
-	srv_log_buffer_size = srv_log_buffer_size / UNIV_PAGE_SIZE;
+	srv_log_buffer_size /= UNIV_PAGE_SIZE;
 
 	srv_lock_table_size = 5 * (srv_buf_pool_size / UNIV_PAGE_SIZE);
 }
 
 /*********************************************************************//**
 Boots the InnoDB server. */
-UNIV_INTERN
 void
 srv_boot(void)
 /*==========*/
@@ -1171,7 +1195,6 @@ srv_boot(void)
 	/* Initialize this module */
 
 	srv_init();
-	srv_mon_create();
 }
 
 /******************************************************************//**
@@ -1211,7 +1234,6 @@ srv_refresh_innodb_monitor_stats(void)
 Outputs to a file the output of the InnoDB Monitor.
 @return FALSE if not all information printed
 due to failure to obtain necessary mutex */
-UNIV_INTERN
 ibool
 srv_printf_innodb_monitor(
 /*======================*/
@@ -1258,6 +1280,7 @@ srv_printf_innodb_monitor(
 	fputs("----------\n"
 	      "SEMAPHORES\n"
 	      "----------\n", file);
+
 	sync_print(file);
 
 	/* Conceptually, srv_innodb_monitor_mutex has a very high latching
@@ -1318,7 +1341,11 @@ srv_printf_innodb_monitor(
 	      "-------------------------------------\n", file);
 	ibuf_print(file);
 
-	ha_print_info(file, btr_search_sys->hash_index);
+	for (ulint i = 0; i < btr_ahi_parts; ++i) {
+		rw_lock_s_lock(btr_search_latches[i]);
+		ha_print_info(file, btr_search_sys->hash_tables[i]);
+		rw_lock_s_unlock(btr_search_latches[i]);
+	}
 
 	fprintf(file,
 		"%.2f hash searches/s, %.2f non-hash searches/s\n",
@@ -1338,11 +1365,9 @@ srv_printf_innodb_monitor(
 	      "BUFFER POOL AND MEMORY\n"
 	      "----------------------\n", file);
 	fprintf(file,
-		"Total memory allocated " ULINTPF
-		"; in additional pool allocated " ULINTPF "\n",
-		ut_total_allocated_memory,
-		mem_pool_get_reserved(mem_comm_pool));
-	fprintf(file, "Dictionary memory allocated " ULINTPF "\n",
+		"Total large memory allocated " ULINTPF "\n"
+		"Dictionary memory allocated " ULINTPF "\n",
+		os_total_large_mem_allocated,
 		dict_sys->size);
 
 	buf_print_io(file);
@@ -1356,7 +1381,7 @@ srv_printf_innodb_monitor(
 
 	/* This is a dirty read, without holding trx_sys->mutex. */
 	fprintf(file, "%lu read views open inside InnoDB\n",
-		UT_LIST_GET_LEN(trx_sys->view_list));
+		trx_sys->mvcc->size());
 
 	n_reserved = fil_space_get_n_reserved_extents(0);
 	if (n_reserved > 0) {
@@ -1366,16 +1391,12 @@ srv_printf_innodb_monitor(
 			(ulong) n_reserved);
 	}
 
-#ifdef UNIV_LINUX
-	fprintf(file, "Main thread process no. %lu, id %lu, state: %s\n",
-		(ulong) srv_main_thread_process_no,
-		(ulong) srv_main_thread_id,
+	fprintf(file,
+		"Process ID=" ULINTPF
+		", Main thread ID=" ULINTPF ", state: %s\n",
+		srv_main_thread_process_no,
+		srv_main_thread_id,
 		srv_main_thread_op_info);
-#else
-	fprintf(file, "Main thread id %lu, state: %s\n",
-		(ulong) srv_main_thread_id,
-		srv_main_thread_op_info);
-#endif
 	fprintf(file,
 		"Number of rows inserted " ULINTPF
 		", updated " ULINTPF ", deleted " ULINTPF
@@ -1434,7 +1455,6 @@ srv_printf_innodb_monitor(
 
 /******************************************************************//**
 Function to pass InnoDB status variables to MySQL */
-UNIV_INTERN
 void
 srv_export_innodb_status(void)
 /*==========================*/
@@ -1519,11 +1539,13 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_pages_misc =
 		buf_pool_get_n_pages() - LRU_len - free_len;
 
+	/* JAN: TODO: MySQL 5.7
 #ifdef HAVE_ATOMIC_BUILTINS
 	export_vars.innodb_have_atomic_builtins = 1;
 #else
 	export_vars.innodb_have_atomic_builtins = 0;
 #endif
+	*/
 	export_vars.innodb_page_size = UNIV_PAGE_SIZE;
 
 	export_vars.innodb_log_waits = srv_stats.log_waits;
@@ -1621,10 +1643,12 @@ srv_export_innodb_status(void)
 
 #ifdef UNIV_DEBUG
 	rw_lock_s_lock(&purge_sys->latch);
+	trx_id_t	up_limit_id;
 	trx_id_t	done_trx_no	= purge_sys->done.trx_no;
-	trx_id_t	up_limit_id	= purge_sys->view
-		? purge_sys->view->up_limit_id
-		: 0;
+
+	up_limit_id	= purge_sys->view_active
+		? purge_sys->view.up_limit_id() : 0;
+
 	rw_lock_s_unlock(&purge_sys->latch);
 
 	mutex_enter(&trx_sys->mutex);
@@ -1681,8 +1705,8 @@ srv_export_innodb_status(void)
 
 /*********************************************************************//**
 A thread which prints the info output by various InnoDB monitors.
-@return	a dummy parameter */
-extern "C" UNIV_INTERN
+@return a dummy parameter */
+extern "C"
 os_thread_ret_t
 DECLARE_THREAD(srv_monitor_thread)(
 /*===============================*/
@@ -1690,7 +1714,7 @@ DECLARE_THREAD(srv_monitor_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
-	ib_int64_t	sig_count;
+	int64_t		sig_count;
 	double		time_elapsed;
 	time_t		current_time;
 	time_t		last_table_monitor_time;
@@ -1702,12 +1726,13 @@ DECLARE_THREAD(srv_monitor_thread)(
 	ut_ad(!srv_read_only_mode);
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
-	fprintf(stderr, "Lock timeout thread starts, id %lu\n",
-		os_thread_pf(os_thread_get_curr_id()));
+	ib::info() << "Lock timeout thread starts, id "
+		<< os_thread_pf(os_thread_get_curr_id());
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 #ifdef UNIV_PFS_THREAD
-	pfs_register_thread(srv_monitor_thread_key);
+	// JAN: TODO: MySQL 5.7
+	// pfs_register_thread(srv_monitor_thread_key);
 #endif /* UNIV_PFS_THREAD */
 	srv_monitor_active = TRUE;
 
@@ -1791,9 +1816,10 @@ loop:
 			      "========================\n",
 			      stderr);
 
-			fsp_print(0);
-			fputs("Validating tablespace\n", stderr);
-			fsp_validate(0);
+			// JAN: TODO: MySQL 5.7
+			//fsp_print(0);
+			//fputs("Validating tablespace\n", stderr);
+			//fsp_validate(0);
 			fputs("Validation ok\n"
 			      "---------------------------------------\n"
 			      "END OF INNODB TABLESPACE MONITOR OUTPUT\n"
@@ -1806,8 +1832,8 @@ loop:
 
 			last_table_monitor_time = ut_time();
 
-			fprintf(stderr, "Warning: %s\n",
-				DEPRECATED_MSG_INNODB_TABLE_MONITOR);
+			// fprintf(stderr, "Warning: %s\n",
+			//	DEPRECATED_MSG_INNODB_TABLE_MONITOR);
 
 			fputs("===========================================\n",
 			      stderr);
@@ -1817,15 +1843,15 @@ loop:
 			fputs(" INNODB TABLE MONITOR OUTPUT\n"
 			      "===========================================\n",
 			      stderr);
-			dict_print();
+			// dict_print();
 
 			fputs("-----------------------------------\n"
 			      "END OF INNODB TABLE MONITOR OUTPUT\n"
 			      "==================================\n",
 			      stderr);
 
-			fprintf(stderr, "Warning: %s\n",
-				DEPRECATED_MSG_INNODB_TABLE_MONITOR);
+			//fprintf(stderr, "Warning: %s\n",
+			//	DEPRECATED_MSG_INNODB_TABLE_MONITOR);
 		}
 	}
 
@@ -1858,8 +1884,8 @@ A thread which prints warnings about semaphore waits which have lasted
 too long. These can be used to track bugs which cause hangs.
 Note: In order to make sync_arr_wake_threads_if_sema_free work as expected,
 we should avoid waiting any mutexes in this function!
-@return	a dummy parameter */
-extern "C" UNIV_INTERN
+@return a dummy parameter */
+extern "C"
 os_thread_ret_t
 DECLARE_THREAD(srv_error_monitor_thread)(
 /*=====================================*/
@@ -1871,7 +1897,7 @@ DECLARE_THREAD(srv_error_monitor_thread)(
 	ulint		fatal_cnt	= 0;
 	lsn_t		old_lsn;
 	lsn_t		new_lsn;
-	ib_int64_t	sig_count;
+	int64_t		sig_count;
 	/* longest waiting thread for a semaphore */
 	os_thread_id_t	waiter		= os_thread_get_curr_id();
 	os_thread_id_t	old_waiter	= waiter;
@@ -1884,12 +1910,13 @@ DECLARE_THREAD(srv_error_monitor_thread)(
 	old_lsn = srv_start_lsn;
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
-	fprintf(stderr, "Error monitor thread starts, id %lu\n",
-		os_thread_pf(os_thread_get_curr_id()));
+	ib::info() << "Error monitor thread starts, id "
+		<< os_thread_pf(os_thread_get_curr_id());
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 #ifdef UNIV_PFS_THREAD
-	pfs_register_thread(srv_error_monitor_thread_key);
+	// JAN: TODO: MySQL 5.7
+	// pfs_register_thread(srv_error_monitor_thread_key);
 #endif /* UNIV_PFS_THREAD */
 	srv_error_monitor_active = TRUE;
 
@@ -1899,14 +1926,10 @@ loop:
 
 	if (log_peek_lsn(&new_lsn)) {
 		if (new_lsn < old_lsn) {
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				"  InnoDB: Error: old log sequence number " LSN_PF
-				" was greater\n"
-				"InnoDB: than the new log sequence number " LSN_PF "!\n"
-				"InnoDB: Please submit a bug report"
-				" to http://bugs.mysql.com\n",
-				old_lsn, new_lsn);
+		ib::error() << "Old log sequence number " << old_lsn << " was"
+			<< " greater than the new log sequence number "
+			<< new_lsn << ". Please submit a bug report to"
+			" http://bugs.mysql.com";
 			ut_ad(0);
 		}
 
@@ -1933,7 +1956,9 @@ loop:
 	if (sync_array_print_long_waits(&waiter, &sema)
 	    && sema == old_sema && os_thread_eq(waiter, old_waiter)) {
 #if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
-	  if (srv_allow_writes_event->is_set) {
+		if (true) {
+			// JAN: TODO: MySQL 5.7
+		//if (srv_allow_writes_event->is_set) {
 #endif /* WITH_WSREP */
 		fatal_cnt++;
 #if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
@@ -1947,15 +1972,10 @@ loop:
 	  }
 #endif /* WITH_WSREP */
 		if (fatal_cnt > 10) {
-
-			fprintf(stderr,
-				"InnoDB: Error: semaphore wait has lasted"
-				" > %lu seconds\n"
-				"InnoDB: We intentionally crash the server,"
-				" because it appears to be hung.\n",
-				(ulong) srv_fatal_semaphore_wait_threshold);
-
-			ut_error;
+			ib::fatal() << "Semaphore wait has lasted > "
+				<< srv_fatal_semaphore_wait_threshold
+				<< " seconds. We intentionally crash the"
+				" server because it appears to be hung.";
 		}
 	} else {
 		fatal_cnt = 0;
@@ -1989,7 +2009,6 @@ loop:
 
 /******************************************************************//**
 Increment the server activity count. */
-UNIV_INTERN
 void
 srv_inc_activity_count(void)
 /*========================*/
@@ -2002,7 +2021,6 @@ Check whether any background thread is active. If so return the thread
 type.
 @return SRV_NONE if all are suspended or have exited, thread
 type if any are still active. */
-UNIV_INTERN
 srv_thread_type
 srv_get_active_thread_type(void)
 /*============================*/
@@ -2040,7 +2058,6 @@ srv_get_active_thread_type(void)
 Check whether any background thread are active. If so print which thread
 is active. Send the threads wakeup signal.
 @return name of thread that is active or NULL */
-UNIV_INTERN
 const char*
 srv_any_background_threads_are_active(void)
 /*=======================================*/
@@ -2048,7 +2065,11 @@ srv_any_background_threads_are_active(void)
 	const char*	thread_active = NULL;
 
 	if (srv_read_only_mode) {
-		return(NULL);
+		if (srv_buf_resize_thread_active) {
+			thread_active = "buf_resize_thread";
+		}
+		os_event_set(srv_buf_resize_event);
+		return(thread_active);
 	} else if (srv_error_monitor_active) {
 		thread_active = "srv_error_monitor_thread";
 	} else if (lock_sys->timeout_thread_active) {
@@ -2057,6 +2078,8 @@ srv_any_background_threads_are_active(void)
 		thread_active = "srv_monitor_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_active = "buf_dump_thread";
+	} else if (srv_buf_resize_thread_active) {
+		thread_active = "buf_resize_thread";
 	} else if (srv_dict_stats_thread_active) {
 		thread_active = "dict_stats_thread";
 	} else if (srv_scrub_log && srv_log_scrub_thread_active) {
@@ -2068,6 +2091,7 @@ srv_any_background_threads_are_active(void)
 	os_event_set(srv_buf_dump_event);
 	os_event_set(lock_sys->timeout_event);
 	os_event_set(dict_stats_event);
+	os_event_set(srv_buf_resize_event);
 	if (srv_scrub_log)
 		os_event_set(log_scrub_event);
 
@@ -2080,15 +2104,11 @@ and wakes up the master thread if it is suspended (not sleeping). Used
 in the MySQL interface. Note that there is a small chance that the master
 thread stays suspended (we do not protect our operation with the
 srv_sys_t->mutex, for performance reasons). */
-UNIV_INTERN
 void
-srv_active_wake_master_thread(void)
+srv_active_wake_master_thread_low()
 /*===============================*/
 {
-	if (srv_read_only_mode) {
-		return;
-	}
-
+	ut_ad(!srv_read_only_mode);
 	ut_ad(!srv_sys_mutex_own());
 
 	srv_inc_activity_count();
@@ -2125,7 +2145,6 @@ and wakes up the purge thread if it is suspended (not sleeping).  Note
 that there is a small chance that the purge thread stays suspended
 (we do not protect our check with the srv_sys_t:mutex and the
 purge_sys->latch, for performance reasons). */
-UNIV_INTERN
 void
 srv_wake_purge_thread_if_not_active(void)
 /*=====================================*/
@@ -2141,7 +2160,6 @@ srv_wake_purge_thread_if_not_active(void)
 
 /*******************************************************************//**
 Wakes up the master thread if it is suspended or being suspended. */
-UNIV_INTERN
 void
 srv_wake_master_thread(void)
 /*========================*/
@@ -2157,7 +2175,6 @@ srv_wake_master_thread(void)
 Get current server activity count. We don't hold srv_sys::mutex while
 reading this value as it is only used in heuristics.
 @return activity count. */
-UNIV_INTERN
 ulint
 srv_get_activity_count(void)
 /*========================*/
@@ -2168,7 +2185,6 @@ srv_get_activity_count(void)
 /*******************************************************************//**
 Check if there has been any activity.
 @return FALSE if no change in activity counter. */
-UNIV_INTERN
 ibool
 srv_check_activity(
 /*===============*/
@@ -2192,7 +2208,7 @@ srv_sync_log_buffer_in_background(void)
 	srv_main_thread_op_info = "flushing log";
 	if (difftime(current_time, srv_last_log_flush_time)
 	    >= srv_flush_log_at_timeout) {
-		log_buffer_sync_in_background(TRUE);
+		log_buffer_sync_in_background(true);
 		srv_last_log_flush_time = current_time;
 		srv_log_writes_and_flush++;
 	}
@@ -2209,7 +2225,7 @@ srv_master_evict_from_table_cache(
 {
 	ulint	n_tables_evicted = 0;
 
-	rw_lock_x_lock(&dict_operation_lock);
+	rw_lock_x_lock(dict_operation_lock);
 
 	dict_mutex_enter_for_mysql();
 
@@ -2218,7 +2234,7 @@ srv_master_evict_from_table_cache(
 
 	dict_mutex_exit_for_mysql();
 
-	rw_lock_x_unlock(&dict_operation_lock);
+	rw_lock_x_unlock(dict_operation_lock);
 
 	return(n_tables_evicted);
 }
@@ -2247,21 +2263,16 @@ srv_shutdown_print_master_pending(
 		*last_print_time = ut_time();
 
 		if (n_tables_to_drop) {
-			ut_print_timestamp(stderr);
-			fprintf(stderr, "  InnoDB: Waiting for "
-				"%lu table(s) to be dropped\n",
-				(ulong) n_tables_to_drop);
+			ib::info() << "Waiting for " << n_tables_to_drop
+				<< " table(s) to be dropped";
 		}
 
 		/* Check change buffer merge, we only wait for change buffer
 		merge if it is a slow shutdown */
 		if (!srv_fast_shutdown && n_bytes_merged) {
-			ut_print_timestamp(stderr);
-			fprintf(stderr, "  InnoDB: Waiting for change "
-				"buffer merge to complete\n"
-				"  InnoDB: number of bytes of change buffer "
-				"just merged:  %lu\n",
-				n_bytes_merged);
+			ib::info() << "Waiting for change buffer merge to"
+				" complete number of bytes of change buffer"
+				" just merged: " << n_bytes_merged;
 		}
 	}
 }
@@ -2279,8 +2290,7 @@ srv_master_do_active_tasks(void)
 /*============================*/
 {
 	ib_time_t	cur_time = ut_time();
-	ullint		counter_time = ut_time_us(NULL);
-	ulint		n_evicted = 0;
+	uintmax_t	counter_time = ut_time_us(NULL);
 
 	/* First do the tasks that we are suppose to do at each
 	invocation of this function. */
@@ -2309,7 +2319,7 @@ srv_master_do_active_tasks(void)
 	/* Do an ibuf merge */
 	srv_main_thread_op_info = "doing insert buffer merge";
 	counter_time = ut_time_us(NULL);
-	ibuf_merge_in_background(false);
+	ibuf_merge_in_background(false, ULINT_UNDEFINED);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
 
@@ -2322,15 +2332,6 @@ srv_master_do_active_tasks(void)
 	/* Now see if various tasks that are performed at defined
 	intervals need to be performed. */
 
-#ifdef MEM_PERIODIC_CHECK
-	/* Check magic numbers of every allocated mem block once in
-	SRV_MASTER_MEM_VALIDATE_INTERVAL seconds */
-	if (cur_time % SRV_MASTER_MEM_VALIDATE_INTERVAL == 0) {
-		mem_validate_all_blocks();
-		MONITOR_INC_TIME_IN_MICRO_SECS(
-			MONITOR_SRV_MEM_VALIDATE_MICROSECOND, counter_time);
-	}
-#endif
 	if (srv_shutdown_state > 0) {
 		return;
 	}
@@ -2341,9 +2342,11 @@ srv_master_do_active_tasks(void)
 
 	if (cur_time % SRV_MASTER_DICT_LRU_INTERVAL == 0) {
 		srv_main_thread_op_info = "enforcing dict cache limit";
-		n_evicted = srv_master_evict_from_table_cache(50);
-		MONITOR_INC_VALUE(
-			MONITOR_SRV_DICT_LRU_EVICT_COUNT_ACTIVE, n_evicted);
+		ulint	n_evicted = srv_master_evict_from_table_cache(50);
+		if (n_evicted != 0) {
+			MONITOR_INC_VALUE(
+				MONITOR_SRV_DICT_LRU_EVICT_COUNT_ACTIVE, n_evicted);
+		}
 		MONITOR_INC_TIME_IN_MICRO_SECS(
 			MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 	}
@@ -2374,8 +2377,7 @@ void
 srv_master_do_idle_tasks(void)
 /*==========================*/
 {
-	ullint	counter_time;
-	ulint	n_evicted = 0;
+	uintmax_t	counter_time;
 
 	++srv_main_idle_loops;
 
@@ -2404,7 +2406,7 @@ srv_master_do_idle_tasks(void)
 	/* Do an ibuf merge */
 	counter_time = ut_time_us(NULL);
 	srv_main_thread_op_info = "doing insert buffer merge";
-	ibuf_merge_in_background(true);
+	ibuf_merge_in_background(true, ULINT_UNDEFINED);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
 
@@ -2413,9 +2415,11 @@ srv_master_do_idle_tasks(void)
 	}
 
 	srv_main_thread_op_info = "enforcing dict cache limit";
-	n_evicted = srv_master_evict_from_table_cache(100);
-        MONITOR_INC_VALUE(
-                MONITOR_SRV_DICT_LRU_EVICT_COUNT_IDLE, n_evicted);
+	ulint	n_evicted = srv_master_evict_from_table_cache(100);
+	if (n_evicted != 0) {
+		MONITOR_INC_VALUE(
+			MONITOR_SRV_DICT_LRU_EVICT_COUNT_IDLE, n_evicted);
+	}
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 
@@ -2482,7 +2486,7 @@ srv_master_do_shutdown_tasks(
 
 	/* Do an ibuf merge */
 	srv_main_thread_op_info = "doing insert buffer merge";
-	n_bytes_merged = ibuf_merge_in_background(true);
+	n_bytes_merged = ibuf_merge_in_background(true, ULINT_UNDEFINED);
 
 	/* Flush logs if needed */
 	srv_sync_log_buffer_in_background();
@@ -2517,8 +2521,8 @@ srv_master_sleep(void)
 
 /*********************************************************************//**
 The master thread controlling the server.
-@return	a dummy parameter */
-extern "C" UNIV_INTERN
+@return a dummy parameter */
+extern "C"
 os_thread_ret_t
 DECLARE_THREAD(srv_master_thread)(
 /*==============================*/
@@ -2526,6 +2530,9 @@ DECLARE_THREAD(srv_master_thread)(
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
+	DBUG_ENTER("srv_master_thread");
+
 	srv_slot_t*	slot;
 	ulint		old_activity_count = srv_get_activity_count();
 	ib_time_t	last_print_time;
@@ -2533,12 +2540,13 @@ DECLARE_THREAD(srv_master_thread)(
 	ut_ad(!srv_read_only_mode);
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
-	fprintf(stderr, "Master thread starts, id %lu\n",
-		os_thread_pf(os_thread_get_curr_id()));
+	ib::info() << "Master thread starts, id "
+		<< os_thread_pf(os_thread_get_curr_id());
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 #ifdef UNIV_PFS_THREAD
-	pfs_register_thread(srv_master_thread_key);
+	// JAN: TODO: MySQL 5.7 PSI
+	// pfs_register_thread(srv_master_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
 	srv_main_thread_process_no = os_proc_get_number();
@@ -2567,7 +2575,8 @@ loop:
 		}
 	}
 
-	while (srv_master_do_shutdown_tasks(&last_print_time)) {
+	while (srv_shutdown_state != SRV_SHUTDOWN_EXIT_THREADS
+	       && srv_master_do_shutdown_tasks(&last_print_time)) {
 
 		/* Shouldn't loop here in case of very fast shutdown */
 		ut_ad(srv_fast_shutdown < 2);
@@ -2586,22 +2595,21 @@ suspend_thread:
 
 	os_event_wait(slot->event);
 
-	if (srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS) {
-		os_thread_exit(NULL);
+	if (srv_shutdown_state != SRV_SHUTDOWN_EXIT_THREADS) {
+		goto loop;
 	}
 
-	goto loop;
-
-	OS_THREAD_DUMMY_RETURN;	/* Not reached, avoid compiler warning */
+	my_thread_end();
+	os_thread_exit(NULL);
+	DBUG_RETURN(0);
 }
 
-/*********************************************************************//**
+/**
 Check if purge should stop.
 @return true if it should shutdown. */
 static
 bool
 srv_purge_should_exit(
-/*==============*/
 	ulint		n_purged)	/*!< in: pages purged in last batch */
 {
 	switch (srv_shutdown_state) {
@@ -2624,7 +2632,7 @@ srv_purge_should_exit(
 
 /*********************************************************************//**
 Fetch and execute a task from the work queue.
-@return	true if a task was executed */
+@return true if a task was executed */
 static
 bool
 srv_task_execute(void)
@@ -2643,7 +2651,7 @@ srv_task_execute(void)
 
 		ut_a(que_node_get_type(thr->child) == QUE_NODE_PURGE);
 
-		UT_LIST_REMOVE(queue, srv_sys->tasks, thr);
+		UT_LIST_REMOVE(srv_sys->tasks, thr);
 	}
 
 	mutex_exit(&srv_sys->tasks_mutex);
@@ -2653,7 +2661,7 @@ srv_task_execute(void)
 		que_run_threads(thr);
 
 		os_atomic_inc_ulint(
-			&purge_sys->bh_mutex, &purge_sys->n_completed, 1);
+			&purge_sys->pq_mutex, &purge_sys->n_completed, 1);
 	}
 
 	return(thr != NULL);
@@ -2661,8 +2669,8 @@ srv_task_execute(void)
 
 /*********************************************************************//**
 Worker thread that reads tasks from the work queue and executes them.
-@return	a dummy parameter */
-extern "C" UNIV_INTERN
+@return a dummy parameter */
+extern "C"
 os_thread_ret_t
 DECLARE_THREAD(srv_worker_thread)(
 /*==============================*/
@@ -2673,11 +2681,13 @@ DECLARE_THREAD(srv_worker_thread)(
 
 	ut_ad(!srv_read_only_mode);
 	ut_a(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
+	my_thread_init();
+	// JAN: TODO: MySQL 5.7
+	// THD *thd= create_thd(false, true, true);
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
-	ut_print_timestamp(stderr);
-	fprintf(stderr, " InnoDB: worker thread starting, id %lu\n",
-		os_thread_pf(os_thread_get_curr_id()));
+	ib::info() << "Worker thread starting, id "
+		<< os_thread_pf(os_thread_get_curr_id());
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 	slot = srv_reserve_slot(SRV_WORKER);
@@ -2722,11 +2732,13 @@ DECLARE_THREAD(srv_worker_thread)(
 	rw_lock_x_unlock(&purge_sys->latch);
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
-	ut_print_timestamp(stderr);
-	fprintf(stderr, " InnoDB: Purge worker thread exiting, id %lu\n",
-		os_thread_pf(os_thread_get_curr_id()));
+	ib::info() << "Purge worker thread exiting, id "
+		<< os_thread_pf(os_thread_get_curr_id());
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
+	// JAN: TODO: MySQL 5.7
+	// destroy_thd(thd);
+        my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);
@@ -2798,9 +2810,16 @@ srv_do_purge(
 			break;
 		}
 
+		ulint	undo_trunc_freq =
+			purge_sys->undo_trunc.get_rseg_truncate_frequency();
+
+		ulint	rseg_truncate_frequency = ut_min(
+			static_cast<ulint>(srv_purge_rseg_truncate_frequency),
+			undo_trunc_freq);
+
 		n_pages_purged = trx_purge(
 			n_use_threads, srv_purge_batch_size,
-			(++count % TRX_SYS_N_RSEGS) == 0);
+			(++count % rseg_truncate_frequency) == 0);
 
 		*n_total_purged += n_pages_purged;
 
@@ -2830,7 +2849,7 @@ srv_purge_coordinator_suspend(
 	/** Maximum wait time on the purge event, in micro-seconds. */
 	static const ulint SRV_PURGE_MAX_TIMEOUT = 10000;
 
-	ib_int64_t	sig_count = srv_suspend_thread(slot);
+	int64_t		sig_count = srv_suspend_thread(slot);
 
 	do {
 		ulint		ret;
@@ -2919,14 +2938,17 @@ srv_purge_coordinator_suspend(
 
 /*********************************************************************//**
 Purge coordinator thread that schedules the purge tasks.
-@return	a dummy parameter */
-extern "C" UNIV_INTERN
+@return a dummy parameter */
+extern "C"
 os_thread_ret_t
 DECLARE_THREAD(srv_purge_coordinator_thread)(
 /*=========================================*/
 	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
+	my_thread_init();
+	// JAN: TODO: MySQL 5.7
+	// THD *thd= create_thd(false, true, true);
 	srv_slot_t*	slot;
 	ulint           n_total_purged = ULINT_UNDEFINED;
 
@@ -2943,13 +2965,13 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	rw_lock_x_unlock(&purge_sys->latch);
 
 #ifdef UNIV_PFS_THREAD
-	pfs_register_thread(srv_purge_thread_key);
+	// JAN: TODO: MYSQL 5.7
+	// pfs_register_thread(srv_purge_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
-	ut_print_timestamp(stderr);
-	fprintf(stderr, " InnoDB: Purge coordinator thread created, id %lu\n",
-		os_thread_pf(os_thread_get_curr_id()));
+	ib::info() << "Purge coordinator thread created, id "
+		<< os_thread_pf(os_thread_get_curr_id());
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 	slot = srv_reserve_slot(SRV_PURGE);
@@ -3017,14 +3039,17 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	purge_sys->state = PURGE_STATE_EXIT;
 
+	/* If there are any pending undo-tablespace truncate then clear
+	it off as we plan to shutdown the purge thread. */
+	purge_sys->undo_trunc.clear();
+
 	purge_sys->running = false;
 
 	rw_lock_x_unlock(&purge_sys->latch);
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
-	ut_print_timestamp(stderr);
-	fprintf(stderr, " InnoDB: Purge coordinator exiting, id %lu\n",
-		os_thread_pf(os_thread_get_curr_id()));
+	ib::info() << "Purge coordinator exiting, id "
+		<< os_thread_pf(os_thread_get_curr_id());
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 	/* Ensure that all the worker threads quit. */
@@ -3032,6 +3057,9 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		srv_release_threads(SRV_WORKER, srv_n_purge_threads - 1);
 	}
 
+	// JAN: TODO: MYSQL 5.7
+	// destroy_thd(thd);
+	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 	os_thread_exit(NULL);
@@ -3042,7 +3070,6 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 /**********************************************************************//**
 Enqueues a task to server task queue and releases a worker thread, if there
 is a suspended one. */
-UNIV_INTERN
 void
 srv_que_task_enqueue_low(
 /*=====================*/
@@ -3051,7 +3078,7 @@ srv_que_task_enqueue_low(
 	ut_ad(!srv_read_only_mode);
 	mutex_enter(&srv_sys->tasks_mutex);
 
-	UT_LIST_ADD_LAST(queue, srv_sys->tasks, thr);
+	UT_LIST_ADD_LAST(srv_sys->tasks, thr);
 
 	mutex_exit(&srv_sys->tasks_mutex);
 
@@ -3060,8 +3087,7 @@ srv_que_task_enqueue_low(
 
 /**********************************************************************//**
 Get count of tasks in the queue.
-@return number of tasks in queue  */
-UNIV_INTERN
+@return number of tasks in queue */
 ulint
 srv_get_task_queue_length(void)
 /*===========================*/
@@ -3081,7 +3107,6 @@ srv_get_task_queue_length(void)
 
 /**********************************************************************//**
 Wakeup the purge threads. */
-UNIV_INTERN
 void
 srv_purge_wakeup(void)
 /*==================*/
@@ -3100,3 +3125,51 @@ srv_purge_wakeup(void)
 	}
 }
 
+/** Check if tablespace is being truncated.
+(Ignore system-tablespace as we don't re-create the tablespace
+and so some of the action that are suppressed by this function
+for independent tablespace are not applicable to system-tablespace).
+@param	space_id	space_id to check for truncate action
+@return true		if being truncated, false if not being
+			truncated or tablespace is system-tablespace. */
+bool
+srv_is_tablespace_truncated(ulint space_id)
+{
+	if (is_system_tablespace(space_id)) {
+		return(false);
+	}
+
+	return(truncate_t::is_tablespace_truncated(space_id)
+	       || undo::Truncate::is_tablespace_truncated(space_id));
+
+}
+
+/** Check if tablespace was truncated.
+@param	space_id	space_id to check for truncate action
+@return true if tablespace was truncated and we still have an active
+MLOG_TRUNCATE REDO log record. */
+bool
+srv_was_tablespace_truncated(ulint space_id)
+{
+	if (is_system_tablespace(space_id)) {
+		return(false);
+	}
+
+	return(truncate_t::was_tablespace_truncated(space_id));
+}
+
+/** Call exit(3) */
+void
+srv_fatal_error()
+{
+
+	ib::error() << "Cannot continue operation.";
+
+	fflush(stderr);
+
+	ut_d(innodb_calling_exit = true);
+
+	srv_shutdown_all_bg_threads();
+
+	exit(3);
+}

@@ -5,6 +5,8 @@
 --echo # INNODB_STRICT_MODE = 1
 --echo #
 
+call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
+
 set innodb_strict_mode = 0;
 
 create table t1 (id int auto_increment primary key,

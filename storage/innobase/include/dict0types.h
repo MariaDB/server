@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -27,15 +27,19 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0types_h
 #define dict0types_h
 
+#include <ut0mutex.h>
+
 struct dict_sys_t;
 struct dict_col_t;
 struct dict_field_t;
 struct dict_index_t;
 struct dict_table_t;
 struct dict_foreign_t;
+struct dict_v_col_t;
 
 struct ind_node_t;
 struct tab_node_t;
+struct dict_add_v_col_t;
 
 /* Space id and page no where the dictionary header resides */
 #define	DICT_HDR_SPACE		0	/* the SYSTEM tablespace */
@@ -83,10 +87,14 @@ typedef enum {
 	ATOMIC_WRITES_OFF = 2
 } atomic_writes_t;
 
+#ifndef UNIV_INNOCHECKSUM
+typedef ib_mutex_t DictSysMutex;
+#endif /* !UNIV_INNOCHECKSUM */
+
 /** Prefix for tmp tables, adopted from sql/table.h */
-#define tmp_file_prefix		"#sql"
-#define tmp_file_prefix_length	4
-#define TEMP_FILE_PREFIX_INNODB	"#sql-ib"
+#define TEMP_FILE_PREFIX		"#sql"
+#define TEMP_FILE_PREFIX_LENGTH		4
+#define TEMP_FILE_PREFIX_INNODB		"#sql-ib"
 
 #define TEMP_TABLE_PREFIX                "#sql"
 #define TEMP_TABLE_PATH_PREFIX           "/" TEMP_TABLE_PREFIX

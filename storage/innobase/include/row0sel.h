@@ -31,17 +31,16 @@ Created 12/19/1997 Heikki Tuuri
 #include "que0types.h"
 #include "dict0types.h"
 #include "trx0types.h"
+#include "read0types.h"
 #include "row0types.h"
 #include "que0types.h"
 #include "pars0sym.h"
 #include "btr0pcur.h"
-#include "read0read.h"
 #include "row0mysql.h"
 
 /*********************************************************************//**
 Creates a select node struct.
-@return	own: select node struct */
-UNIV_INTERN
+@return own: select node struct */
 sel_node_t*
 sel_node_create(
 /*============*/
@@ -49,7 +48,6 @@ sel_node_create(
 /*********************************************************************//**
 Frees the memory private to a select node when a query graph is freed,
 does not free the heap where the node was originally created. */
-UNIV_INTERN
 void
 sel_node_free_private(
 /*==================*/
@@ -57,14 +55,13 @@ sel_node_free_private(
 /*********************************************************************//**
 Frees a prefetch buffer for a column, including the dynamically allocated
 memory for data stored there. */
-UNIV_INTERN
 void
 sel_col_prefetch_buf_free(
 /*======================*/
 	sel_buf_t*	prefetch_buf);	/*!< in, own: prefetch buffer */
 /*********************************************************************//**
 Gets the plan node for the nth table in a join.
-@return	plan node */
+@return plan node */
 UNIV_INLINE
 plan_t*
 sel_node_get_nth_plan(
@@ -74,15 +71,14 @@ sel_node_get_nth_plan(
 /**********************************************************************//**
 Performs a select step. This is a high-level function used in SQL execution
 graphs.
-@return	query thread to run next or NULL */
-UNIV_INTERN
+@return query thread to run next or NULL */
 que_thr_t*
 row_sel_step(
 /*=========*/
 	que_thr_t*	thr);	/*!< in: query thread */
 /**********************************************************************//**
 Performs an execution step of an open or close cursor statement node.
-@return	query thread to run next or NULL */
+@return query thread to run next or NULL */
 UNIV_INLINE
 que_thr_t*
 open_step(
@@ -90,16 +86,14 @@ open_step(
 	que_thr_t*	thr);	/*!< in: query thread */
 /**********************************************************************//**
 Performs a fetch for a cursor.
-@return	query thread to run next or NULL */
-UNIV_INTERN
+@return query thread to run next or NULL */
 que_thr_t*
 fetch_step(
 /*=======*/
 	que_thr_t*	thr);	/*!< in: query thread */
 /****************************************************************//**
 Sample callback function for fetch that prints each row.
-@return	always returns non-NULL */
-UNIV_INTERN
+@return always returns non-NULL */
 void*
 row_fetch_print(
 /*============*/
@@ -107,19 +101,30 @@ row_fetch_print(
 	void*	user_arg);	/*!< in:  not used */
 /***********************************************************//**
 Prints a row in a select result.
-@return	query thread to run next or NULL */
-UNIV_INTERN
+@return query thread to run next or NULL */
 que_thr_t*
 row_printf_step(
 /*============*/
 	que_thr_t*	thr);	/*!< in: query thread */
+
+/** Copy used fields from cached row.
+Copy cache record field by field, don't touch fields that
+are not covered by current key.
+@param[out]	buf		Where to copy the MySQL row.
+@param[in]	cached_rec	What to copy (in MySQL row format).
+@param[in]	prebuilt	prebuilt struct. */
+void
+row_sel_copy_cached_fields_for_mysql(
+	byte*		buf,
+	const byte*	cached_rec,
+	row_prebuilt_t*	prebuilt);
+
 /****************************************************************//**
 Converts a key value stored in MySQL format to an Innobase dtuple. The last
 field of the key value may be just a prefix of a fixed length field: hence
 the parameter key_len. But currently we do not allow search keys where the
 last field is only a prefix of the full key field len and print a warning if
 such appears. */
-UNIV_INTERN
 void
 row_sel_convert_mysql_key_to_innobase(
 /*==================================*/
@@ -139,21 +144,108 @@ row_sel_convert_mysql_key_to_innobase(
 	const byte*	key_ptr,	/*!< in: MySQL key value */
 	ulint		key_len,	/*!< in: MySQL key value length */
 	trx_t*		trx);		/*!< in: transaction */
-/********************************************************************//**
-Searches for rows in the database. This is used in the interface to
+
+
+/** Searches for rows in the database. This is used in the interface to
 MySQL. This function opens a cursor, and also implements fetch next
 and fetch prev. NOTE that if we do a search with a full key value
 from a unique index (ROW_SEL_EXACT), then we will not store the cursor
 position and fetch next or fetch prev must not be tried to the cursor!
+
+@param[out]	buf		buffer for the fetched row in MySQL format
+@param[in]	mode		search mode PAGE_CUR_L
+@param[in,out]	prebuilt	prebuilt struct for the table handler;
+				this contains the info to search_tuple,
+				index; if search tuple contains 0 field then
+				we position the cursor at start or the end of
+				index, depending on 'mode'
+@param[in]	match_mode	0 or ROW_SEL_EXACT or ROW_SEL_EXACT_PREFIX
+@param[in]	direction	0 or ROW_SEL_NEXT or ROW_SEL_PREV;
+				Note: if this is != 0, then prebuilt must has a
+				pcur with stored position! In opening of a
+				cursor 'direction' should be 0.
 @return DB_SUCCESS, DB_RECORD_NOT_FOUND, DB_END_OF_INDEX, DB_DEADLOCK,
-DB_LOCK_TABLE_FULL, or DB_TOO_BIG_RECORD */
-UNIV_INTERN
+DB_LOCK_TABLE_FULL, DB_CORRUPTION, or DB_TOO_BIG_RECORD */
+UNIV_INLINE
 dberr_t
 row_search_for_mysql(
+	byte*		buf,
+	page_cur_mode_t	mode,
+	row_prebuilt_t*	prebuilt,
+	ulint		match_mode,
+	ulint		direction)
+	__attribute__((warn_unused_result));
+
+/** Searches for rows in the database using cursor.
+function is meant for temporary table that are not shared accross connection
+and so lot of complexity is reduced especially locking and transaction related.
+The cursor is an iterator over the table/index.
+
+@param[out]	buf		buffer for the fetched row in MySQL format
+@param[in]	mode		search mode PAGE_CUR_L
+@param[in,out]	prebuilt	prebuilt struct for the table handler;
+				this contains the info to search_tuple,
+				index; if search tuple contains 0 field then
+				we position the cursor at start or the end of
+				index, depending on 'mode'
+@param[in]	match_mode	0 or ROW_SEL_EXACT or ROW_SEL_EXACT_PREFIX
+@param[in]	direction	0 or ROW_SEL_NEXT or ROW_SEL_PREV;
+				Note: if this is != 0, then prebuilt must has a
+				pcur with stored position! In opening of a
+				cursor 'direction' should be 0.
+@return DB_SUCCESS or error code */
+dberr_t
+row_search_no_mvcc(
+	byte*		buf,
+	page_cur_mode_t	mode,
+	row_prebuilt_t*	prebuilt,
+	ulint		match_mode,
+	ulint		direction)
+	__attribute__((warn_unused_result));
+
+/** Searches for rows in the database using cursor.
+Function is mainly used for tables that are shared accorss connection and
+so it employs technique that can help re-construct the rows that
+transaction is suppose to see.
+It also has optimization such as pre-caching the rows, using AHI, etc.
+
+@param[out]	buf		buffer for the fetched row in MySQL format
+@param[in]	mode		search mode PAGE_CUR_L
+@param[in,out]	prebuilt	prebuilt struct for the table handler;
+				this contains the info to search_tuple,
+				index; if search tuple contains 0 field then
+				we position the cursor at start or the end of
+				index, depending on 'mode'
+@param[in]	match_mode	0 or ROW_SEL_EXACT or ROW_SEL_EXACT_PREFIX
+@param[in]	direction	0 or ROW_SEL_NEXT or ROW_SEL_PREV;
+				Note: if this is != 0, then prebuilt must has a
+				pcur with stored position! In opening of a
+				cursor 'direction' should be 0.
+@param[in]	ins_sel_stmt	if true, then this statement is
+				insert .... select statement. For normal table
+				this can be detected by checking out locked
+				tables using trx->mysql_n_tables_locked > 0
+				condition. For intrinsic table
+				external_lock is not invoked and so condition
+				above will not stand valid instead this is
+				traced using alternative condition
+				at caller level.
+@return DB_SUCCESS or error code */
+dberr_t
+row_search_mvcc(
+	byte*		buf,
+	page_cur_mode_t	mode,
+	row_prebuilt_t*	prebuilt,
+	ulint		match_mode,
+	ulint		direction)
+	__attribute__((warn_unused_result));
+
+/********************************************************************//**
+Count rows in a R-Tree leaf level.
+@return DB_SUCCESS if successful */
+dberr_t
+row_count_rtree_recs(
 /*=================*/
-	byte*		buf,		/*!< in/out: buffer for the fetched
-					row in the MySQL format */
-	ulint		mode,		/*!< in: search mode PAGE_CUR_L, ... */
 	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct for the
 					table handle; this contains the info
 					of search_tuple, index; if search
@@ -161,19 +253,14 @@ row_search_for_mysql(
 					position the cursor at the start or
 					the end of the index, depending on
 					'mode' */
-	ulint		match_mode,	/*!< in: 0 or ROW_SEL_EXACT or
-					ROW_SEL_EXACT_PREFIX */
-	ulint		direction)	/*!< in: 0 or ROW_SEL_NEXT or
-					ROW_SEL_PREV; NOTE: if this is != 0,
-					then prebuilt must have a pcur
-					with stored position! In opening of a
-					cursor 'direction' should be 0. */
+	ulint*		n_rows)		/*!< out: number of entries
+					seen in the consistent read */
+
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*******************************************************************//**
 Checks if MySQL at the moment is allowed for this table to retrieve a
 consistent read result, or store it to the query cache.
-@return	TRUE if storing or retrieving from the query cache is permitted */
-UNIV_INTERN
+@return TRUE if storing or retrieving from the query cache is permitted */
 ibool
 row_search_check_if_query_cache_permitted(
 /*======================================*/
@@ -182,8 +269,7 @@ row_search_check_if_query_cache_permitted(
 					'/' char, table name */
 /*******************************************************************//**
 Read the max AUTOINC value from an index.
-@return	DB_SUCCESS if all OK else error code */
-UNIV_INTERN
+@return DB_SUCCESS if all OK else error code */
 dberr_t
 row_search_max_autoinc(
 /*===================*/
@@ -233,7 +319,7 @@ struct plan_t{
 					for each field in the search
 					tuple */
 	dtuple_t*	tuple;		/*!< search tuple */
-	ulint		mode;		/*!< search mode: PAGE_CUR_G, ... */
+	page_cur_mode_t	mode;		/*!< search mode: PAGE_CUR_G, ... */
 	ulint		n_exact_match;	/*!< number of first fields in
 					the search tuple which must be
 					exactly matched */
@@ -312,7 +398,7 @@ struct sel_node_t{
 					containing the search plan and the
 					search data structures */
 	que_node_t*	search_cond;	/*!< search condition */
-	read_view_t*	read_view;	/*!< if the query is a non-locking
+	ReadView*	read_view;	/*!< if the query is a non-locking
 					consistent read, its read view is
 					placed here, otherwise NULL */
 	ibool		consistent_read;/*!< TRUE if the select is a consistent,
@@ -401,6 +487,45 @@ enum row_sel_match_mode {
 				field in prefix may be just a prefix
 				of a fixed length column) */
 };
+
+#ifdef UNIV_DEBUG
+/** Convert a non-SQL-NULL field from Innobase format to MySQL format. */
+# define row_sel_field_store_in_mysql_format(dest,templ,idx,field,src,len) \
+        row_sel_field_store_in_mysql_format_func(dest,templ,idx,field,src,len)
+#else /* UNIV_DEBUG */
+/** Convert a non-SQL-NULL field from Innobase format to MySQL format. */
+# define row_sel_field_store_in_mysql_format(dest,templ,idx,field,src,len) \
+        row_sel_field_store_in_mysql_format_func(dest,templ,src,len)
+#endif /* UNIV_DEBUG */
+
+/**************************************************************//**
+Stores a non-SQL-NULL field in the MySQL format. The counterpart of this
+function is row_mysql_store_col_in_innobase_format() in row0mysql.cc. */
+
+void
+row_sel_field_store_in_mysql_format_func(
+/*=====================================*/
+        byte*           dest,   /*!< in/out: buffer where to store; NOTE
+                                that BLOBs are not in themselves
+                                stored here: the caller must allocate
+                                and copy the BLOB into buffer before,
+                                and pass the pointer to the BLOB in
+                                'data' */
+        const mysql_row_templ_t* templ,
+                                /*!< in: MySQL column template.
+                                Its following fields are referenced:
+                                type, is_unsigned, mysql_col_len,
+                                mbminlen, mbmaxlen */
+#ifdef UNIV_DEBUG
+        const dict_index_t* index,
+                                /*!< in: InnoDB index */
+        ulint           field_no,
+                                /*!< in: templ->rec_field_no or
+                                templ->clust_rec_field_no or
+                                templ->icp_rec_field_no */
+#endif /* UNIV_DEBUG */
+        const byte*     data,   /*!< in: data to store */
+        ulint           len);    /*!< in: length of the data */
 
 #ifndef UNIV_NONINL
 #include "row0sel.ic"

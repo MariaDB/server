@@ -33,6 +33,12 @@ Created 4/24/1996 Heikki Tuuri
 #include "ut0byte.h"
 #include "mem0mem.h"
 #include "btr0types.h"
+#include "ut0new.h"
+
+#include <deque>
+
+/** A stack of table names related through foreign key constraints */
+typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
 
 /** enum that defines all system table IDs. @see SYSTEM_TABLE_NAME[] */
 enum dict_system_id_t {
@@ -44,6 +50,7 @@ enum dict_system_id_t {
 	SYS_FOREIGN_COLS,
 	SYS_TABLESPACES,
 	SYS_DATAFILES,
+	SYS_VIRTUAL,
 
 	/* This must be last item. Defines the number of system tables. */
 	SYS_NUM_SYSTEM_TABLES
@@ -58,57 +65,37 @@ enum dict_table_info_t {
 					is in the cache, if so, return it */
 };
 
-/** Check type for dict_check_tablespaces_and_store_max_id() */
-enum dict_check_t {
-	/** No user tablespaces have been opened
-	(no crash recovery, no transactions recovered). */
-	DICT_CHECK_NONE_LOADED = 0,
-	/** Some user tablespaces may have been opened
-	(no crash recovery; recovered table locks for transactions). */
-	DICT_CHECK_SOME_LOADED,
-	/** All user tablespaces have been opened (crash recovery). */
-	DICT_CHECK_ALL_LOADED
-};
+/** Check each tablespace found in the data dictionary.
+Look at each table defined in SYS_TABLES that has a space_id > 0.
+If the tablespace is not yet in the fil_system cache, look up the
+tablespace in SYS_DATAFILES to ensure the correct path.
 
-/********************************************************************//**
-In a crash recovery we already have all the tablespace objects created.
-This function compares the space id information in the InnoDB data dictionary
-to what we already read with fil_load_single_table_tablespaces().
+In a crash recovery we already have some tablespace objects created from
+processing the REDO log.  Any other tablespace in SYS_TABLESPACES not
+previously used in recovery will be opened here.  We will compare the
+space_id information in the data dictionary to what we find in the
+tablespace file. In addition, more validation will be done if recovery
+was needed and force_recovery is not set.
 
-In a normal startup, we create the tablespace objects for every table in
-InnoDB's data dictionary, if the corresponding .ibd file exists.
-We also scan the biggest space id, and store it to fil_system. */
-UNIV_INTERN
+We also scan the biggest space id, and store it to fil_system.
+@param[in]	validate	true if recovery was needed */
 void
 dict_check_tablespaces_and_store_max_id(
-/*====================================*/
-	dict_check_t	dict_check);	/*!< in: how to check */
+	bool		validate);
+
 /********************************************************************//**
 Finds the first table name in the given database.
 @return own: table name, NULL if does not exist; the caller must free
 the memory in the string! */
-UNIV_INTERN
 char*
 dict_get_first_table_name_in_db(
 /*============================*/
 	const char*	name);	/*!< in: database name which ends to '/' */
 
 /********************************************************************//**
-Loads a table definition from a SYS_TABLES record to dict_table_t.
-Does not load any columns or indexes.
-@return error message, or NULL on success */
-UNIV_INTERN
-const char*
-dict_load_table_low(
-/*================*/
-	const char*	name,		/*!< in: table name */
-	const rec_t*	rec,		/*!< in: SYS_TABLES record */
-	dict_table_t**	table);		/*!< out,own: table, or NULL */
-/********************************************************************//**
 Loads a table column definition from a SYS_COLUMNS record to
 dict_table_t.
 @return error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_load_column_low(
 /*=================*/
@@ -122,14 +109,36 @@ dict_load_column_low(
 					or NULL if table != NULL */
 	table_id_t*	table_id,	/*!< out: table id */
 	const char**	col_name,	/*!< out: column name */
-	const rec_t*	rec);		/*!< in: SYS_COLUMNS record */
+	const rec_t*	rec,		/*!< in: SYS_COLUMNS record */
+	ulint*		nth_v_col);	/*!< out: if not NULL, this
+					records the "n" of "nth" virtual
+					column */
+
+/** Loads a virtual column "mapping" (to base columns) information
+from a SYS_VIRTUAL record
+@param[in,out]	table		table
+@param[in,out]	heap		memory heap
+@param[in,out]	column		mapped base column's dict_column_t
+@param[in,out]	table_id	table id
+@param[in,out]	pos		virtual column position
+@param[in,out]	base_pos	base column position
+@param[in]	rec		SYS_VIRTUAL record
+@return error message, or NULL on success */
+const char*
+dict_load_virtual_low(
+	dict_table_t*   table,
+	mem_heap_t*     heap,
+	dict_col_t**    column,
+	table_id_t*     table_id,
+	ulint*		pos,
+	ulint*		base_pos,
+	const rec_t*    rec);
 /********************************************************************//**
 Loads an index definition from a SYS_INDEXES record to dict_index_t.
 If allocate=TRUE, we will create a dict_index_t structure and fill it
 accordingly. If allocated=FALSE, the dict_index_t will be supplied by
 the caller and filled with information read from the record.  @return
 error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_load_index_low(
 /*================*/
@@ -147,7 +156,6 @@ dict_load_index_low(
 Loads an index field definition from a SYS_FIELDS record to
 dict_index_t.
 @return error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_load_field_low(
 /*================*/
@@ -170,44 +178,50 @@ Using the table->heap, copy the null-terminated filepath into
 table->data_dir_path and put a null byte before the extension.
 This allows SHOW CREATE TABLE to return the correct DATA DIRECTORY path.
 Make this data directory path only if it has not yet been saved. */
-UNIV_INTERN
 void
 dict_save_data_dir_path(
 /*====================*/
 	dict_table_t*	table,		/*!< in/out: table */
 	char*		filepath);	/*!< in: filepath of tablespace */
-/*****************************************************************//**
-Make sure the data_file_name is saved in dict_table_t if needed. Try to
-read it from the file dictionary first, then from SYS_DATAFILES. */
-UNIV_INTERN
+
+/** Make sure the data_file_name is saved in dict_table_t if needed.
+Try to read it from the fil_system first, then from SYS_DATAFILES.
+@param[in]	table		Table object
+@param[in]	dict_mutex_own	true if dict_sys->mutex is owned already */
 void
 dict_get_and_save_data_dir_path(
-/*============================*/
-	dict_table_t*	table,		/*!< in/out: table */
-	bool		dict_mutex_own);	/*!< in: true if dict_sys->mutex
-					is owned already */
-/********************************************************************//**
-Loads a table definition and also all its index definitions, and also
+	dict_table_t*	table,
+	bool		dict_mutex_own);
+
+/** Make sure the tablespace name is saved in dict_table_t if needed.
+Try to read it from the file dictionary first, then from SYS_TABLESPACES.
+@param[in]	table		Table object
+@param[in]	dict_mutex_own)	true if dict_sys->mutex is owned already */
+void
+dict_get_and_save_space_name(
+	dict_table_t*	table,
+	bool		dict_mutex_own);
+
+/** Loads a table definition and also all its index definitions, and also
 the cluster definition if the table is a member in a cluster. Also loads
 all foreign key constraints where the foreign key is in the table or where
 a foreign key references columns in this table.
+@param[in]	name		Table name in the dbname/tablename format
+@param[in]	cached		true=add to cache, false=do not
+@param[in]	ignore_err	Error to be ignored when loading
+				table and its index definition
 @return table, NULL if does not exist; if the table is stored in an
-.ibd file, but the file does not exist, then we set the
-ibd_file_missing flag TRUE in the table object we return */
-UNIV_INTERN
+.ibd file, but the file does not exist, then we set the ibd_file_missing
+flag in the table object we return. */
 dict_table_t*
 dict_load_table(
-/*============*/
-	const char*	name,	/*!< in: table name in the
-				databasename/tablename format */
-	ibool		cached,	/*!< in: TRUE=add to cache, FALSE=do not */
+	const char*	name,
+	bool		cached,
 	dict_err_ignore_t ignore_err);
-				/*!< in: error to be ignored when loading
-				table and its indexes' definition */
+
 /***********************************************************************//**
 Loads a table object based on the table id.
-@return	table; NULL if table does not exist */
-UNIV_INTERN
+@return table; NULL if table does not exist */
 dict_table_t*
 dict_load_table_on_id(
 /*==================*/
@@ -218,7 +232,6 @@ dict_load_table_on_id(
 This function is called when the database is booted.
 Loads system table index definitions except for the clustered index which
 is added to the dictionary cache at booting before calling this function. */
-UNIV_INTERN
 void
 dict_load_sys_table(
 /*================*/
@@ -226,11 +239,13 @@ dict_load_sys_table(
 /***********************************************************************//**
 Loads foreign key constraints where the table is either the foreign key
 holder or where the table is referenced by a foreign key. Adds these
-constraints to the data dictionary. Note that we know that the dictionary
-cache already contains all constraints where the other relevant table is
-already in the dictionary cache.
-@return	DB_SUCCESS or error code */
-UNIV_INTERN
+constraints to the data dictionary.
+
+The foreign key constraint is loaded only if the referenced table is also
+in the dictionary cache.  If the referenced table is not in dictionary
+cache, then it is added to the output parameter (fk_tables).
+
+@return DB_SUCCESS or error code */
 dberr_t
 dict_load_foreigns(
 /*===============*/
@@ -242,20 +257,16 @@ dict_load_foreigns(
 						chained by FK */
 	bool			check_charsets,	/*!< in: whether to check
 						charset compatibility */
-	dict_err_ignore_t	ignore_err)	/*!< in: error to be ignored */
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-/********************************************************************//**
-Prints to the standard output information on all tables found in the data
-dictionary system table. */
-UNIV_INTERN
-void
-dict_print(void);
-/*============*/
+	dict_err_ignore_t	ignore_err,	/*!< in: error to be ignored */
+	dict_names_t&		fk_tables)	/*!< out: stack of table names
+						which must be loaded
+						subsequently to load all the
+						foreign key constraints. */
+	__attribute__((nonnull(1), warn_unused_result));
 
 /********************************************************************//**
 This function opens a system table, and return the first record.
-@return	first record of the system table */
-UNIV_INTERN
+@return first record of the system table */
 const rec_t*
 dict_startscan_system(
 /*==================*/
@@ -265,8 +276,7 @@ dict_startscan_system(
 	dict_system_id_t system_id);	/*!< in: which system table to open */
 /********************************************************************//**
 This function get the next system table record as we scan the table.
-@return	the record if found, NULL if end of scan. */
-UNIV_INTERN
+@return the record if found, NULL if end of scan. */
 const rec_t*
 dict_getnext_system(
 /*================*/
@@ -278,7 +288,6 @@ This function processes one SYS_TABLES record and populate the dict_table_t
 struct for the table. Extracted out of dict_print() to be used by
 both monitor table output and information schema innodb_sys_tables output.
 @return error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_process_sys_tables_rec_and_mtr_commit(
 /*=======================================*/
@@ -296,7 +305,6 @@ This function parses a SYS_INDEXES record and populate a dict_index_t
 structure with the information from the record. For detail information
 about SYS_INDEXES fields, please refer to dict_boot() function.
 @return error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_process_sys_indexes_rec(
 /*=========================*/
@@ -309,7 +317,6 @@ dict_process_sys_indexes_rec(
 This function parses a SYS_COLUMNS record and populate a dict_column_t
 structure with the information from the record.
 @return error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_process_sys_columns_rec(
 /*=========================*/
@@ -317,12 +324,29 @@ dict_process_sys_columns_rec(
 	const rec_t*	rec,		/*!< in: current SYS_COLUMNS rec */
 	dict_col_t*	column,		/*!< out: dict_col_t to be filled */
 	table_id_t*	table_id,	/*!< out: table id */
-	const char**	col_name);	/*!< out: column name */
+	const char**	col_name,	/*!< out: column name */
+	ulint*		nth_v_col);	/*!< out: if virtual col, this is
+					records its sequence number */
+
+/** This function parses a SYS_VIRTUAL record and extract virtual column
+information
+@param[in,out]	heap		heap memory
+@param[in]	rec		current SYS_COLUMNS rec
+@param[in,out]	table_id	table id
+@param[in,out]	pos		virtual column position
+@param[in,out]	base_pos	base column position
+@return error message, or NULL on success */
+const char*
+dict_process_sys_virtual_rec(
+	mem_heap_t*	heap,
+	const rec_t*	rec,
+	table_id_t*	table_id,
+	ulint*		pos,
+	ulint*		base_pos);
 /********************************************************************//**
 This function parses a SYS_FIELDS record and populate a dict_field_t
 structure with the information from the record.
 @return error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_process_sys_fields_rec(
 /*========================*/
@@ -338,7 +362,6 @@ This function parses a SYS_FOREIGN record and populate a dict_foreign_t
 structure with the information from the record. For detail information
 about SYS_FOREIGN fields, please refer to dict_load_foreign() function
 @return error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_process_sys_foreign_rec(
 /*=========================*/
@@ -350,7 +373,6 @@ dict_process_sys_foreign_rec(
 This function parses a SYS_FOREIGN_COLS record and extract necessary
 information from the record and return to caller.
 @return error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_process_sys_foreign_col_rec(
 /*=============================*/
@@ -365,7 +387,6 @@ dict_process_sys_foreign_col_rec(
 This function parses a SYS_TABLESPACES record, extracts necessary
 information from the record and returns to caller.
 @return error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_process_sys_tablespaces(
 /*=========================*/
@@ -378,7 +399,6 @@ dict_process_sys_tablespaces(
 This function parses a SYS_DATAFILES record, extracts necessary
 information from the record and returns to caller.
 @return error message, or NULL on success */
-UNIV_INTERN
 const char*
 dict_process_sys_datafiles(
 /*=======================*/
@@ -386,40 +406,29 @@ dict_process_sys_datafiles(
 	const rec_t*	rec,		/*!< in: current SYS_DATAFILES rec */
 	ulint*		space,		/*!< out: pace id */
 	const char**	path);		/*!< out: datafile path */
-/********************************************************************//**
-Get the filepath for a spaceid from SYS_DATAFILES. This function provides
-a temporary heap which is used for the table lookup, but not for the path.
-The caller must free the memory for the path returned. This function can
-return NULL if the space ID is not found in SYS_DATAFILES, then the caller
-will assume that the ibd file is in the normal datadir.
-@return	own: A copy of the first datafile found in SYS_DATAFILES.PATH for
-the given space ID. NULL if space ID is zero or not found. */
-UNIV_INTERN
-char*
-dict_get_first_path(
-/*================*/
-	ulint		space,	/*!< in: space id */
-	const char*	name);	/*!< in: tablespace name */
-/********************************************************************//**
-Update the record for space_id in SYS_TABLESPACES to this filepath.
-@return	DB_SUCCESS if OK, dberr_t if the insert failed */
-UNIV_INTERN
+
+/** Update the record for space_id in SYS_TABLESPACES to this filepath.
+@param[in]	space_id	Tablespace ID
+@param[in]	filepath	Tablespace filepath
+@return DB_SUCCESS if OK, dberr_t if the insert failed */
 dberr_t
 dict_update_filepath(
-/*=================*/
-	ulint		space_id,	/*!< in: space id */
-	const char*	filepath);	/*!< in: filepath */
-/********************************************************************//**
-Insert records into SYS_TABLESPACES and SYS_DATAFILES.
-@return	DB_SUCCESS if OK, dberr_t if the insert failed */
-UNIV_INTERN
+	ulint		space_id,
+	const char*	filepath);
+
+/** Replace records in SYS_TABLESPACES and SYS_DATAFILES associated with
+the given space_id using an independent transaction.
+@param[in]	space_id	Tablespace ID
+@param[in]	name		Tablespace name
+@param[in]	filepath	First filepath
+@param[in]	fsp_flags	Tablespace flags
+@return DB_SUCCESS if OK, dberr_t if the insert failed */
 dberr_t
-dict_insert_tablespace_and_filepath(
-/*================================*/
-	ulint		space,		/*!< in: space id */
-	const char*	name,		/*!< in: talespace name */
-	const char*	filepath,	/*!< in: filepath */
-	ulint		fsp_flags);	/*!< in: tablespace flags */
+dict_replace_tablespace_and_filepath(
+	ulint		space_id,
+	const char*	name,
+	const char*	filepath,
+	ulint		fsp_flags);
 
 #ifndef UNIV_NONINL
 #include "dict0load.ic"

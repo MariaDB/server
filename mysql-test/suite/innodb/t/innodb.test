@@ -31,8 +31,15 @@ set optimizer_switch = 'mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 # the test to be run multiple times without restarting the mysqld server.
 # See Bug#43309 Test main.innodb can't be run twice
 -- disable_query_log
+call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: in ALTER TABLE `test`.`t1`");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: in RENAME TABLE table `test`.`t1`");
+
+SET @innodb_thread_sleep_delay_orig = @@innodb_thread_sleep_delay;
+
 SET @innodb_thread_concurrency_orig = @@innodb_thread_concurrency;
 
+--disable_warnings
 SET @innodb_rows_deleted_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_deleted');
 SET @innodb_rows_inserted_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_inserted');
 SET @innodb_rows_updated_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_updated');
@@ -41,6 +48,7 @@ SET @innodb_row_lock_current_waits_orig = (SELECT variable_value FROM informatio
 SET @innodb_row_lock_time_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_time');
 SET @innodb_row_lock_time_max_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_time_max');
 SET @innodb_row_lock_time_avg_orig = (SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_time_avg');
+--enable_warnings
 -- enable_query_log
 
 --disable_warnings
@@ -677,6 +685,8 @@ drop table t1;
 # Test of multi-table-delete
 #
 
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
+
 CREATE TABLE t1 (
   number bigint(20) NOT NULL default '0',
   cname char(15) NOT NULL default '',
@@ -720,6 +730,7 @@ select * from t1;
 select * from t2; 
 select * from t2;
 drop table t1,t2;
+SET sql_mode = default;
 
 #
 # A simple test with some isolation levels
@@ -1056,18 +1067,84 @@ UPDATE t1 SET c1 = 'other' WHERE c1 = 'old';
 DROP TABLE t2,t1;
 
 #
-# test for recursion depth limit
+# test for FK cascade depth limit
 #
+call mtr.add_suppression("Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 255. Please drop excessive foreign constraints and try again");
+
 create table t1(
 	id int primary key,
 	pid int,
 	index(pid),
 	foreign key(pid) references t1(id) on delete cascade) engine=innodb;
-insert into t1 values(0,0),(1,0),(2,1),(3,2),(4,3),(5,4),(6,5),(7,6),
-	(8,7),(9,8),(10,9),(11,10),(12,11),(13,12),(14,13),(15,14);
--- error 1451
+insert into t1 values
+(  0,   0), (  1,   0), (  2,   1), (  3,   2),
+(  4,   3), (  5,   4), (  6,   5), (  7,   6),
+(  8,   7), (  9,   8), ( 10,   9), ( 11,  10),
+( 12,  11), ( 13,  12), ( 14,  13), ( 15,  14),
+( 16,  15), ( 17,  16), ( 18,  17), ( 19,  18),
+( 20,  19), ( 21,  20), ( 22,  21), ( 23,  22),
+( 24,  23), ( 25,  24), ( 26,  25), ( 27,  26),
+( 28,  27), ( 29,  28), ( 30,  29), ( 31,  30),
+( 32,  31), ( 33,  32), ( 34,  33), ( 35,  34),
+( 36,  35), ( 37,  36), ( 38,  37), ( 39,  38),
+( 40,  39), ( 41,  40), ( 42,  41), ( 43,  42),
+( 44,  43), ( 45,  44), ( 46,  45), ( 47,  46),
+( 48,  47), ( 49,  48), ( 50,  49), ( 51,  50),
+( 52,  51), ( 53,  52), ( 54,  53), ( 55,  54),
+( 56,  55), ( 57,  56), ( 58,  57), ( 59,  58),
+( 60,  59), ( 61,  60), ( 62,  61), ( 63,  62),
+( 64,  63), ( 65,  64), ( 66,  65), ( 67,  66),
+( 68,  67), ( 69,  68), ( 70,  69), ( 71,  70),
+( 72,  71), ( 73,  72), ( 74,  73), ( 75,  74),
+( 76,  75), ( 77,  76), ( 78,  77), ( 79,  78),
+( 80,  79), ( 81,  80), ( 82,  81), ( 83,  82),
+( 84,  83), ( 85,  84), ( 86,  85), ( 87,  86),
+( 88,  87), ( 89,  88), ( 90,  89), ( 91,  90),
+( 92,  91), ( 93,  92), ( 94,  93), ( 95,  94),
+( 96,  95), ( 97,  96), ( 98,  97), ( 99,  98),
+(100,  99), (101, 100), (102, 101), (103, 102),
+(104, 103), (105, 104), (106, 105), (107, 106),
+(108, 107), (109, 108), (110, 109), (111, 110),
+(112, 111), (113, 112), (114, 113), (115, 114),
+(116, 115), (117, 116), (118, 117), (119, 118),
+(120, 119), (121, 120), (122, 121), (123, 122),
+(124, 123), (125, 124), (126, 125), (127, 126),
+(128, 127), (129, 128), (130, 129), (131, 130),
+(132, 131), (133, 132), (134, 133), (135, 134),
+(136, 135), (137, 136), (138, 137), (139, 138),
+(140, 139), (141, 140), (142, 141), (143, 142),
+(144, 143), (145, 144), (146, 145), (147, 146),
+(148, 147), (149, 148), (150, 149), (151, 150),
+(152, 151), (153, 152), (154, 153), (155, 154),
+(156, 155), (157, 156), (158, 157), (159, 158),
+(160, 159), (161, 160), (162, 161), (163, 162),
+(164, 163), (165, 164), (166, 165), (167, 166),
+(168, 167), (169, 168), (170, 169), (171, 170),
+(172, 171), (173, 172), (174, 173), (175, 174),
+(176, 175), (177, 176), (178, 177), (179, 178),
+(180, 179), (181, 180), (182, 181), (183, 182),
+(184, 183), (185, 184), (186, 185), (187, 186),
+(188, 187), (189, 188), (190, 189), (191, 190),
+(192, 191), (193, 192), (194, 193), (195, 194),
+(196, 195), (197, 196), (198, 197), (199, 198),
+(200, 199), (201, 200), (202, 201), (203, 202),
+(204, 203), (205, 204), (206, 205), (207, 206),
+(208, 207), (209, 208), (210, 209), (211, 210),
+(212, 211), (213, 212), (214, 213), (215, 214),
+(216, 215), (217, 216), (218, 217), (219, 218),
+(220, 219), (221, 220), (222, 221), (223, 222),
+(224, 223), (225, 224), (226, 225), (227, 226),
+(228, 227), (229, 228), (230, 229), (231, 230),
+(232, 231), (233, 232), (234, 233), (235, 234),
+(236, 235), (237, 236), (238, 237), (239, 238),
+(240, 239), (241, 240), (242, 241), (243, 242),
+(244, 243), (245, 244), (246, 245), (247, 246),
+(248, 247), (249, 248), (250, 249), (251, 250),
+(252, 251), (253, 252), (254, 253), (255, 254);
+--error 1296,1451
 delete from t1 where id=0;
-delete from t1 where id=15;
+delete from t1 where id=255;
+--error 0,1451
 delete from t1 where id=0;
 
 drop table t1;
@@ -1279,6 +1356,9 @@ drop table t1;
 
 create table t1 (a int not null, b int not null, c blob not null, d int not null, e int, primary key (a,b,c(255),d)) engine=innodb;
 insert into t1 values (2,2,"b",2,2),(1,1,"a",1,1),(3,3,"ab",3,3);
+-- disable_result_log
+analyze table t1;
+-- enable_result_log
 select * from t1 order by a,b,c,d;
 explain select * from t1 order by a,b,c,d;
 drop table t1;
@@ -1342,10 +1422,12 @@ source include/varchar.inc;
 #
 # Some errors/warnings on create
 #
-
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLTEST_VARDIR . master-data/ ''
+SET GLOBAL innodb_large_prefix=OFF;
 create table t1 (v varchar(65530), key(v));
+SET GLOBAL innodb_large_prefix=default;
 drop table t1;
 create table t1 (v varchar(65536));
 show create table t1;
@@ -1353,8 +1435,8 @@ drop table t1;
 create table t1 (v varchar(65530) character set utf8);
 show create table t1;
 drop table t1;
-
-eval set storage_engine=$default;
+SET sql_mode = default;
+eval set default_storage_engine=$default;
 
 # InnoDB specific varchar tests
 create table t1 (v varchar(16384)) engine=innodb;
@@ -1459,7 +1541,7 @@ CREATE TABLE t1
  id INT PRIMARY KEY
 ) ENGINE=InnoDB;
 
---error 1005,1005
+--error ER_CANNOT_ADD_FOREIGN,1005
 CREATE TEMPORARY TABLE t2
 (
  id INT NOT NULL PRIMARY KEY,
@@ -1500,6 +1582,8 @@ show create table t9;
 
 drop table t1, t2, t3, t4, t5, t6, t7, t8, t9;
 
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
+SET GLOBAL innodb_large_prefix=OFF;
 # these should have their index length trimmed
 create table t1 (col1 varchar(768), index(col1))
  character set = latin1 engine = innodb;
@@ -1509,25 +1593,28 @@ create table t3 (col1 text, index(col1(768)))
  character set = latin1 engine = innodb;
 create table t4 (col1 blob, index(col1(768)))
  character set = latin1 engine = innodb;
+SET GLOBAL innodb_large_prefix=default;
 
 show create table t1;
 
 drop table t1, t2, t3, t4;
 
 # these should be refused
---error 1071
+set global innodb_large_prefix=OFF;
+--error ER_TOO_LONG_KEY
 create table t1 (col1 varchar(768) primary key)
  character set = latin1 engine = innodb;
---error 1071
+--error ER_TOO_LONG_KEY
 create table t2 (col1 varbinary(768) primary key)
  character set = latin1 engine = innodb;
---error 1071
+--error ER_TOO_LONG_KEY
 create table t3 (col1 text, primary key(col1(768)))
  character set = latin1 engine = innodb;
---error 1071
+--error ER_TOO_LONG_KEY
 create table t4 (col1 blob, primary key(col1(768)))
  character set = latin1 engine = innodb;
-
+SET sql_mode = default;
+set global innodb_large_prefix=default;
 #
 # Test improved foreign key error messages (bug #3443)
 #
@@ -1552,7 +1639,7 @@ INSERT INTO t2 VALUES(1);
 --error 1451
 DELETE FROM t1 WHERE id = 1;
 
---error 1451
+--error 1451, 1217
 DROP TABLE t1;
 
 SET FOREIGN_KEY_CHECKS=0;
@@ -1719,7 +1806,7 @@ create table t1 (a varchar(255) character set utf8,
 
 
 # test the padding of BINARY types and collations (Bug #14189)
-
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 create table t1 (s1 varbinary(2),primary key (s1)) engine=innodb;
 create table t2 (s1 binary(2),primary key (s1)) engine=innodb;
 create table t3 (s1 varchar(2) binary,primary key (s1)) engine=innodb;
@@ -1803,7 +1890,7 @@ ALTER TABLE t2 ADD CONSTRAINT t2_ibfk_0 FOREIGN KEY (a) REFERENCES t1(a);
 ALTER TABLE t2 DROP FOREIGN KEY t2_ibfk_0;
 SHOW CREATE TABLE t2;
 DROP TABLE t2,t1;
-
+SET sql_mode = default;
 #
 # Test case for bug #16229: MySQL/InnoDB uses full explicit table locks in trigger processing
 #
@@ -2344,8 +2431,9 @@ DROP TABLE t1,t2;
 #
 # Bug #21101 (Prints wrong error message if max row size is too large)
 #
-set innodb_strict_mode=on;
---error 1118
+SET innodb_strict_mode=ON;
+--replace_result 8126 {checked_valid} 4030 {checked_valid} 1982 {checked_valid}
+--error ER_TOO_BIG_ROWSIZE
 CREATE TABLE t1 (
 	c01 CHAR(255), c02 CHAR(255), c03 CHAR(255), c04 CHAR(255),
 	c05 CHAR(255), c06 CHAR(255), c07 CHAR(255), c08 CHAR(255),
@@ -2356,6 +2444,7 @@ CREATE TABLE t1 (
 	c25 CHAR(255), c26 CHAR(255), c27 CHAR(255), c28 CHAR(255),
 	c29 CHAR(255), c30 CHAR(255), c31 CHAR(255), c32 CHAR(255)
 	) ENGINE = InnoDB;
+SET innodb_strict_mode=OFF;
 
 #
 # Bug #31860 InnoDB assumes AUTOINC values can only be positive.
@@ -2512,6 +2601,7 @@ DROP TABLE bug35537;
 DISCONNECT c1;
 CONNECTION default;
 
+SET GLOBAL innodb_thread_sleep_delay = @innodb_thread_sleep_delay_orig;
 SET GLOBAL innodb_thread_concurrency = @innodb_thread_concurrency_orig;
 
 -- enable_query_log

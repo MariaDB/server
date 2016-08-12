@@ -17,6 +17,9 @@
 # allow test to run only when innodb-page-size=16  
 --source include/have_innodb_16k.inc
 
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
+call mtr.add_suppression("InnoDB: Error: Tablespace flags .* corrupted unused .*");
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;

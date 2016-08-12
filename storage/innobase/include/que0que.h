@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,17 +37,12 @@ Created 5/27/1996 Heikki Tuuri
 #include "row0types.h"
 #include "pars0types.h"
 
-/* If the following flag is set TRUE, the module will print trace info
-of SQL execution in the UNIV_SQL_DEBUG version */
-extern ibool	que_trace_on;
-
 /** Mutex protecting the query threads. */
 extern ib_mutex_t	que_thr_mutex;
 
 /***********************************************************************//**
 Creates a query graph fork node.
-@return	own: fork node */
-UNIV_INTERN
+@return own: fork node */
 que_fork_t*
 que_fork_create(
 /*============*/
@@ -81,8 +76,7 @@ que_node_set_parent(
 	que_node_t*	parent);/*!< in: parent */
 /***********************************************************************//**
 Creates a query graph thread node.
-@return	own: query thread node */
-UNIV_INTERN
+@return own: query thread node */
 que_thr_t*
 que_thr_create(
 /*===========*/
@@ -91,14 +85,12 @@ que_thr_create(
 /**********************************************************************//**
 Frees a query graph, but not the heap where it was created. Does not free
 explicit cursor declarations, they are freed in que_graph_free. */
-UNIV_INTERN
 void
 que_graph_free_recursive(
 /*=====================*/
 	que_node_t*	node);	/*!< in: query graph node */
 /**********************************************************************//**
 Frees a query graph. */
-UNIV_INTERN
 void
 que_graph_free(
 /*===========*/
@@ -111,8 +103,7 @@ que_graph_free(
 Stops a query thread if graph or trx is in a state requiring it. The
 conditions are tested in the order (1) graph, (2) trx. The lock_sys_t::mutex
 has to be reserved.
-@return	TRUE if stopped */
-UNIV_INTERN
+@return TRUE if stopped */
 ibool
 que_thr_stop(
 /*=========*/
@@ -120,7 +111,6 @@ que_thr_stop(
 /**********************************************************************//**
 Moves a thread from another state to the QUE_THR_RUNNING state. Increments
 the n_active_thrs counters of the query graph and transaction. */
-UNIV_INTERN
 void
 que_thr_move_to_run_state_for_mysql(
 /*================================*/
@@ -129,7 +119,6 @@ que_thr_move_to_run_state_for_mysql(
 /**********************************************************************//**
 A patch for MySQL used to 'stop' a dummy query thread used in MySQL
 select, when there is no error or lock wait. */
-UNIV_INTERN
 void
 que_thr_stop_for_mysql_no_error(
 /*============================*/
@@ -140,14 +129,12 @@ A patch for MySQL used to 'stop' a dummy query thread used in MySQL. The
 query thread is stopped and made inactive, except in the case where
 it was put to the lock wait state in lock0lock.cc, but the lock has already
 been granted or the transaction chosen as a victim in deadlock resolution. */
-UNIV_INTERN
 void
 que_thr_stop_for_mysql(
 /*===================*/
 	que_thr_t*	thr);	/*!< in: query thread */
 /**********************************************************************//**
 Run a query thread. Handles lock waits. */
-UNIV_INTERN
 void
 que_run_threads(
 /*============*/
@@ -157,8 +144,7 @@ Moves a suspended query thread to the QUE_THR_RUNNING state and release
 a worker thread to execute it. This function should be used to end
 the wait state of a query thread waiting for a lock or a stored procedure
 completion.
-@return query thread instance of thread to wakeup or NULL  */
-UNIV_INTERN
+@return query thread instance of thread to wakeup or NULL */
 que_thr_t*
 que_thr_end_lock_wait(
 /*==================*/
@@ -172,7 +158,6 @@ is returned.
 @return a query thread of the graph moved to QUE_THR_RUNNING state, or
 NULL; the query thread should be executed by que_run_threads by the
 caller */
-UNIV_INTERN
 que_thr_t*
 que_fork_start_command(
 /*===================*/
@@ -200,7 +185,7 @@ UNIV_INLINE
 ulint
 que_node_get_type(
 /*==============*/
-	que_node_t*	node);	/*!< in: graph node */
+	const que_node_t*	node);	/*!< in: graph node */
 /***********************************************************************//**
 Gets pointer to the value data type field of a graph node. */
 UNIV_INLINE
@@ -217,7 +202,7 @@ que_node_get_val(
 	que_node_t*	node);	/*!< in: graph node */
 /***********************************************************************//**
 Gets the value buffer size of a graph node.
-@return	val buffer size, not defined if val.data == NULL in node */
+@return val buffer size, not defined if val.data == NULL in node */
 UNIV_INLINE
 ulint
 que_node_get_val_buf_size(
@@ -240,7 +225,7 @@ que_node_get_next(
 	que_node_t*	node);	/*!< in: node in a list */
 /*********************************************************************//**
 Gets the parent node of a query graph node.
-@return	parent node or NULL */
+@return parent node or NULL */
 UNIV_INLINE
 que_node_t*
 que_node_get_parent(
@@ -249,15 +234,14 @@ que_node_get_parent(
 /****************************************************************//**
 Get the first containing loop node (e.g. while_node_t or for_node_t) for the
 given node, or NULL if the node is not within a loop.
-@return	containing loop node, or NULL. */
-UNIV_INTERN
+@return containing loop node, or NULL. */
 que_node_t*
 que_node_get_containing_loop_node(
 /*==============================*/
 	que_node_t*	node);	/*!< in: node */
 /*********************************************************************//**
 Catenates a query graph node to a list of them, possible empty list.
-@return	one-way list of nodes */
+@return one-way list of nodes */
 UNIV_INLINE
 que_node_t*
 que_node_list_add_last(
@@ -274,7 +258,7 @@ que_node_list_get_last(
 	que_node_t*	node_list);	/* in: node list, or NULL */
 /*********************************************************************//**
 Gets a query graph node list length.
-@return	length, for NULL list 0 */
+@return length, for NULL list 0 */
 UNIV_INLINE
 ulint
 que_node_list_get_len(
@@ -293,7 +277,7 @@ que_thr_peek_stop(
 	que_thr_t*	thr);	/*!< in: query thread */
 /***********************************************************************//**
 Returns TRUE if the query graph is for a SELECT statement.
-@return	TRUE if a select */
+@return TRUE if a select */
 UNIV_INLINE
 ibool
 que_graph_is_select(
@@ -301,15 +285,13 @@ que_graph_is_select(
 	que_t*		graph);		/*!< in: graph */
 /**********************************************************************//**
 Prints info of an SQL query graph node. */
-UNIV_INTERN
 void
 que_node_print_info(
 /*================*/
 	que_node_t*	node);	/*!< in: query graph node */
 /*********************************************************************//**
 Evaluate the given SQL
-@return	error code or DB_SUCCESS */
-UNIV_INTERN
+@return error code or DB_SUCCESS */
 dberr_t
 que_eval_sql(
 /*=========*/
@@ -325,7 +307,6 @@ Round robin scheduler.
 @return a query thread of the graph moved to QUE_THR_RUNNING state, or
 NULL; the query thread should be executed by que_run_threads by the
 caller */
-UNIV_INTERN
 que_thr_t*
 que_fork_scheduler_round_robin(
 /*===========================*/
@@ -334,17 +315,42 @@ que_fork_scheduler_round_robin(
 
 /*********************************************************************//**
 Initialise the query sub-system. */
-UNIV_INTERN
 void
 que_init(void);
 /*==========*/
 
 /*********************************************************************//**
 Close the query sub-system. */
-UNIV_INTERN
 void
 que_close(void);
 /*===========*/
+
+/** Query thread states */
+enum que_thr_state_t {
+	QUE_THR_RUNNING,
+	QUE_THR_PROCEDURE_WAIT,
+	/** in selects this means that the thread is at the end of its
+	result set (or start, in case of a scroll cursor); in other
+	statements, this means the thread has done its task */
+	QUE_THR_COMPLETED,
+	QUE_THR_COMMAND_WAIT,
+	QUE_THR_LOCK_WAIT,
+	QUE_THR_SUSPENDED
+};
+
+/** Query thread lock states */
+enum que_thr_lock_t {
+	QUE_THR_LOCK_NOLOCK,
+	QUE_THR_LOCK_ROW,
+	QUE_THR_LOCK_TABLE
+};
+
+/** From where the cursor position is counted */
+enum que_cur_t {
+	QUE_CUR_NOT_DEFINED,
+	QUE_CUR_START,
+	QUE_CUR_END
+};
 
 /* Query graph query thread node: the fields are protected by the
 trx_t::mutex with the exceptions named below */
@@ -355,7 +361,7 @@ struct que_thr_t{
 					corruption */
 	que_node_t*	child;		/*!< graph child node */
 	que_t*		graph;		/*!< graph where this node belongs */
-	ulint		state;		/*!< state of the query thread */
+	que_thr_state_t	state;		/*!< state of the query thread */
 	ibool		is_active;	/*!< TRUE if the thread has been set
 					to the run state in
 					que_thr_move_to_run_state, but not
@@ -499,29 +505,6 @@ struct que_fork_t{
 #define QUE_NODE_ELSIF		30
 #define QUE_NODE_CALL		31
 #define QUE_NODE_EXIT		32
-
-/* Query thread states */
-#define QUE_THR_RUNNING		1
-#define QUE_THR_PROCEDURE_WAIT	2
-#define	QUE_THR_COMPLETED	3	/* in selects this means that the
-					thread is at the end of its result set
-					(or start, in case of a scroll cursor);
-					in other statements, this means the
-					thread has done its task */
-#define QUE_THR_COMMAND_WAIT	4
-#define QUE_THR_LOCK_WAIT	5
-#define QUE_THR_SUSPENDED	7
-#define QUE_THR_ERROR		8
-
-/* Query thread lock states */
-#define QUE_THR_LOCK_NOLOCK	0
-#define QUE_THR_LOCK_ROW	1
-#define QUE_THR_LOCK_TABLE	2
-
-/* From where the cursor position is counted */
-#define QUE_CUR_NOT_DEFINED	1
-#define QUE_CUR_START		2
-#define	QUE_CUR_END		3
 
 #ifndef UNIV_NONINL
 #include "que0que.ic"
