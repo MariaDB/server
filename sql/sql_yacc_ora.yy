@@ -2881,6 +2881,7 @@ sp_proc_stmt:
         | sp_proc_stmt_open
         | sp_proc_stmt_fetch
         | sp_proc_stmt_close
+        | NULL_SYM { }
         ;
 
 sp_proc_stmt_compound_ok:

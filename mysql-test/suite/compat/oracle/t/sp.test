@@ -118,6 +118,27 @@ CALL p1(@p1);
 SELECT @p1;
 DROP PROCEDURE p1;
 
+--echo # Testing that NULL is a valid statement
+DELIMITER /;
+CREATE PROCEDURE p1(a INT) AS
+BEGIN
+  NULL;
+END;
+/
+DELIMITER ;/
+DROP PROCEDURE p1;
+
+DELIMITER /;
+CREATE PROCEDURE p1(a INT) AS
+  a INT:=10;
+BEGIN
+  IF a=10 THEN NULL; ELSE NULL; END IF;
+END;
+/
+DELIMITER ;/
+DROP PROCEDURE p1;
+
+
 --echo # Testing that (some) keyword_sp are allowed in Oracle-style assignments
 DELIMITER /;
 CREATE PROCEDURE p1 (action OUT INT) AS BEGIN action:=10; END;/
