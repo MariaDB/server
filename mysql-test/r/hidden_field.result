@@ -1,5 +1,18 @@
 create table h_1(abc int primary key, xyz int hidden);
+desc h_1;
+Field	Type	Null	Key	Default	Extra
+abc	int(11)	NO	PRI	NULL	
+xyz	int(11)	YES		NULL	HIDDEN
+show create table h_1;
+Table	Create Table
+h_1	CREATE TABLE `h_1` (
+  `abc` int(11) NOT NULL,
+  `xyz` int(11) HIDDEN DEFAULT NULL,
+  PRIMARY KEY (`abc`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table h_1;
 create table h_2(a1 int hidden);
+ERROR 42000: A table must have at least 1 column
 create table h_3(a1 blob,hidden(a1));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'hidden(a1))' at line 1
 create table h_4(a1 int primary key hidden ,a2 int unique hidden , a3 blob,a4
@@ -7,58 +20,347 @@ int not null hidden unique);
 ERROR HY000: Hidden column 'a1' either allow null values or it must have default value
 create table h_5(abc int not null hidden);
 ERROR HY000: Hidden column 'abc' either allow null values or it must have default value
-create table t1(abc int hidden);
-insert into t1 values();
-insert into t1 values();
-insert into t1 values();
-insert into t1 values();
+create table t1(a int hidden, b int);
+insert into t1 values(1);
+insert into t1(a) values(1);
+insert into t1(b) values(1);
+insert into t1(a,b) values(5,5);
 select * from t1;
-ERROR HY000: No tables used
-select abc from t1;
-abc
+b
+1
+NULL
+1
+5
+select a,b from t1;
+a	b
+NULL	1
+1	NULL
+NULL	1
+5	5
+delete from t1;
+insert into t1 values(1),(2),(3),(4);
+select * from t1;
+b
+1
+2
+3
+4
+select a from t1;
+a
 NULL
 NULL
 NULL
 NULL
-create table t2(abc int primary key);
-insert into t2 values();
-Warnings:
-Warning	1364	Field 'abc' doesn't have a default value
-select * from t2;
-abc
-0
+drop table t1;
+create table t1(a int , b int hidden , c int hidden auto_increment unique, d blob , e int unique, f int);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	HIDDEN
+c	int(11)	NO	PRI	NULL	auto_increment , HIDDEN
+d	blob	YES		NULL	
+e	int(11)	YES	UNI	NULL	
+f	int(11)	YES		NULL	
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select * from t1;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+drop table t1;
 create table sdsdsd(a int , b int, hidden(a,b));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'hidden(a,b))' at line 1
-create table hid_4(a int,abc int as (a mod 3) virtual hidden);
-desc hid_4;
+create table t1(a int,abc int as (a mod 3) virtual hidden);
+desc t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
 abc	int(11)	YES		NULL	VIRTUAL, HIDDEN
-create table ht_5(abc int primary key hidden auto_increment, a int);
-desc ht_5;
+insert into t1 values(1,default);
+ERROR 21S01: Column count doesn't match value count at row 1
+insert into t1 values(1),(22),(233);
+select * from t1;
+a
+1
+22
+233
+select a,abc from t1;
+a	abc
+1	1
+22	1
+233	2
+drop table t1;
+create table t1(abc int primary key hidden auto_increment, a int);
+desc t1;
 Field	Type	Null	Key	Default	Extra
 abc	int(11)	NO	PRI	NULL	auto_increment , HIDDEN
 a	int(11)	YES		NULL	
-insert into ht_5 values(1);
-insert into ht_5 values(2);
-insert into ht_5 values(3);
-select * from ht_5;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `abc` int(11) NOT NULL HIDDEN AUTO_INCREMENT,
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`abc`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+select * from t1;
 a
 1
 2
 3
-select abc,a from ht_5;
+select abc,a from t1;
 abc	a
 1	1
 2	2
 3	3
-create table ht_6(abc int hidden);
-alter table ht_6 change abc ss int hidden;
-insert into ht_6 values();
-desc ht_6;
+delete  from t1;
+insert into t1 values(1),(2),(3),(4),(6);
+select abc,a from t1;
+abc	a
+4	1
+5	2
+6	3
+7	4
+8	6
+drop table t1;
+create table t1(abc int);
+alter table t1 change abc ss int hidden;
+ERROR 42000: A table must have at least 1 column
+alter table t1 add column xyz int;
+alter table t1 modify column abc  int ;
+desc t1;
 Field	Type	Null	Key	Default	Extra
-ss	int(11)	YES		NULL	HIDDEN
-alter table ht_6 modify column ss  int ;
-insert into ht_6 values(22);
-alter table ht_6 modify column ss  int hidden;
-insert into ht_6 values();
+abc	int(11)	YES		NULL	
+xyz	int(11)	YES		NULL	
+insert into t1 values(22);
+ERROR 21S01: Column count doesn't match value count at row 1
+alter table t1 modify column abc  int hidden;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+abc	int(11)	YES		NULL	HIDDEN
+xyz	int(11)	YES		NULL	
+insert into t1 values(12);
+drop table t1;
+some test on copy table structure with table data;
+table with hidden fields and unique keys;
+create table t1(a int , b int hidden , c int hidden auto_increment unique, d blob , e int unique, f int);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	HIDDEN
+c	int(11)	NO	PRI	NULL	auto_increment , HIDDEN
+d	blob	YES		NULL	
+e	int(11)	YES	UNI	NULL	
+f	int(11)	YES		NULL	
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select * from t1;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+select a,b,c,d,e,f from t1;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+this wont copy hidden fields and keys;
+create table t2 as select * from t1;
+desc t2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+d	blob	YES		NULL	
+e	int(11)	YES		NULL	
+f	int(11)	YES		NULL	
+select * from t2;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+select a,b,c,d,e,f from t2;
+ERROR 42S22: Unknown column 'b' in 'field list'
+drop table t2;
+now this will copy hidden fields 
+create table t2 as select a,b,c,d,e,f from t1;
+desc t2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	HIDDEN
+c	int(11)	NO		0	HIDDEN
+d	blob	YES		NULL	
+e	int(11)	YES		NULL	
+f	int(11)	YES		NULL	
+select * from t2;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+select a,b,c,d,e,f from t2;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+drop table t2,t1;
+some test related to copy of data from one table to another;
+create table t1(a int , b int hidden , c int hidden auto_increment unique, d blob , e int unique, f int);
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select a,b,c,d,e,f from t1;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+create table t2(a int , b int hidden , c int hidden , d blob , e int unique, f int);
+insert into t2 select * from t1;
+select a,b,c,d,e,f from t2;
+a	b	c	d	e	f
+1	NULL	NULL	d blob	1	1
+1	NULL	NULL	d blob	11	1
+1	NULL	NULL	d blob	2	1
+1	NULL	NULL	d blob	3	1
+1	NULL	NULL	d blob	41	1
+truncate t2;
+insert into t2 (a,b,c,d,e,f) select a,b,c,d,e,f from t1;
+select a,b,c,d,e,f from t2;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+truncate t2;
+drop table t1,t2;
+some test related to creating view on table with hidden column;
+create table t1(a int , b int hidden , c int hidden auto_increment unique, d blob , e int unique, f int);
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+create view v as select * from t1;
+desc v;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+d	blob	YES		NULL	
+e	int(11)	YES		NULL	
+f	int(11)	YES		NULL	
+select * from v;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+v does not have hidden column;
+select a,b,c,d,e,f from v;
+ERROR 42S22: Unknown column 'b' in 'field list'
+insert into v values(1,21,32,4);
+select * from v;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+1	21	32	4
+insert into v(a,b,c,d,e,f) values(1,12,3,4,5,6);
+ERROR 42S22: Unknown column 'b' in 'field list'
+drop view v;
+create view v as select a,b,c,d,e,f from t1;
+desc v;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	HIDDEN
+c	int(11)	NO		0	HIDDEN
+d	blob	YES		NULL	
+e	int(11)	YES		NULL	
+f	int(11)	YES		NULL	
+select * from v;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+1	NULL	6	21	32	4
+v does  have hidden column;
+select a,b,c,d,e,f from v;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+1	NULL	6	21	32	4
+insert into v values(1,26,33,4,45,66);
+select a,b,c,d,e,f from v;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+1	NULL	6	21	32	4
+1	26	33	4	45	66
+insert into v(a,b,c,d,e,f) values(1,32,31,41,5,6);
+select a,b,c,d,e,f from v;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+1	NULL	6	21	32	4
+1	26	33	4	45	66
+1	32	31	41	5	6
+drop view v;
+drop table t1;
+now hidden column in where and some join query i think no use of this test but anyway;
+create table t1 (a int unique , b int hidden unique, c int unique  hidden);
+insert into t1(a,b,c) values(1,1,1);
+insert into t1(a,b,c) values(2,2,2);
+insert into t1(a,b,c) values(3,3,3);
+insert into t1(a,b,c) values(4,4,4);
+insert into t1(a,b,c) values(21,21,26);
+insert into t1(a,b,c) values(31,31,35);
+insert into t1(a,b,c) values(41,41,45);
+insert into t1(a,b,c) values(22,22,24);
+insert into t1(a,b,c) values(32,32,33);
+insert into t1(a,b,c) values(42,42,43);
+explain select * from t1 where b=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	b	b	5	const	1	
+select * from t1 where b=3;
+a
+3
+explain select * from t1 where c=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	c	c	5	const	1	
+select * from t1 where c=3;
+a
+3
+create table t2 as select a,b,c from t1;
+desc t2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	HIDDEN
+c	int(11)	YES		NULL	HIDDEN
+explain select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t1	ALL	b,c	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
+a	a
+1	1
+2	2
+3	3
+4	4
