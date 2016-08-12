@@ -2331,6 +2331,43 @@ sp_opt_inout:
         | INOUT_SYM   { $$= sp_variable::MODE_INOUT; }
         ;
 
+sp_parenthesized_fdparam_list:
+          '('
+          {
+            Lex->sphead->m_param_begin= YYLIP->get_cpp_tok_start() + 1;
+          }
+          sp_fdparam_list
+          ')'
+          {
+            Lex->sphead->m_param_end= YYLIP->get_cpp_tok_start();
+          }
+        ;
+
+sp_parenthesized_pdparam_list:
+          '('
+          {
+            Lex->sphead->m_param_begin= YYLIP->get_cpp_tok_start() + 1;
+          }
+          sp_pdparam_list
+          ')'
+          {
+            Lex->sphead->m_param_end= YYLIP->get_cpp_tok_start();
+          }
+        ;
+
+sp_no_param:
+          /* Empty */
+          {
+            Lex->sphead->m_param_begin= Lex->sphead->m_param_end=
+              YYLIP->get_cpp_tok_start() + 1;
+          }
+        ;
+
+opt_sp_parenthesized_pdparam_list:
+          sp_no_param
+        | sp_parenthesized_pdparam_list
+        ;
+
 sp_proc_stmts:
           /* Empty */ {}
         | sp_proc_stmts  sp_proc_stmt ';'
@@ -15991,46 +16028,33 @@ sf_tail:
           FUNCTION_SYM /* $1 */
           opt_if_not_exists /* $2 */
           sp_name /* $3 */
-          {
-            if (!Lex->make_sp_head_no_recursive(thd, $2, $3, TYPE_ENUM_FUNCTION))
+          { /* $4 */
+            if (!Lex->make_sp_head_no_recursive(thd, $2, $3,
+                                                TYPE_ENUM_FUNCTION))
               MYSQL_YYABORT;
             Lex->spname= $3;
           }
-          '(' /* $5 */
-          { /* $6 */
-            LEX *lex= Lex;
-            Lex_input_stream *lip= YYLIP;
-            const char* tmp_param_begin;
-
-            tmp_param_begin= lip->get_cpp_tok_start();
-            tmp_param_begin++;
-            lex->sphead->m_param_begin= tmp_param_begin;
-          }
-          sp_fdparam_list /* $7 */
-          ')' /* $8 */
-          { /* $9 */
-            Lex->sphead->m_param_end= YYLIP->get_cpp_tok_start();
-          }
-          RETURNS_SYM /* $10 */
-          { /* $11 */
+          sp_parenthesized_fdparam_list /* $5 */
+          RETURNS_SYM /* $6 */
+          { /* $7 */
             LEX *lex= Lex;
             lex->init_last_field(&lex->sphead->m_return_field_def, NULL,
                                  thd->variables.collation_database);
           }
-          type_with_opt_collate /* $12 */
-          { /* $13 */
+          type_with_opt_collate /* $8 */
+          { /* $9 */
             if (Lex->sphead->fill_field_definition(thd, Lex->last_field))
               MYSQL_YYABORT;
           }
-          sp_c_chistics /* $14 */
-          { /* $15 */
+          sp_c_chistics /* $10 */
+          { /* $11 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_tail_is /* $16 */
-          sp_body /* $17 */
+          sp_tail_is /* $12 */
+          sp_body /* $13 */
           {
             LEX *lex= thd->lex;
             sp_head *sp= lex->sphead;
@@ -16056,19 +16080,7 @@ sp_tail:
               MYSQL_YYABORT;
             Lex->spname= $3;
           }
-          '('
-          {
-            const char* tmp_param_begin;
-
-            tmp_param_begin= YYLIP->get_cpp_tok_start();
-            tmp_param_begin++;
-            Lex->sphead->m_param_begin= tmp_param_begin;
-          }
-          sp_pdparam_list
-          ')'
-          {
-            Lex->sphead->m_param_end= YYLIP->get_cpp_tok_start();
-          }
+          opt_sp_parenthesized_pdparam_list
           sp_c_chistics
           {
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
