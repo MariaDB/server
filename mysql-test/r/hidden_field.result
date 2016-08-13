@@ -76,7 +76,7 @@ create table t1(a int,abc int as (a mod 3) virtual hidden);
 desc t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-abc	int(11)	YES		NULL	VIRTUAL, HIDDEN
+abc	int(11)	YES		NULL	VIRTUAL , HIDDEN
 insert into t1 values(1,default);
 ERROR 21S01: Column count doesn't match value count at row 1
 insert into t1 values(1),(22),(233);
@@ -364,3 +364,4 @@ a	a
 2	2
 3	3
 4	4
+drop table t1,t2;

@@ -149,3 +149,4 @@ create table t2 as select a,b,c from t1;
 desc t2;
 explain select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
 select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
+drop table t1,t2;
