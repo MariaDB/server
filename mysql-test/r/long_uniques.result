@@ -172,8 +172,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `a`(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 try to change the blob unique column name
-command does not work;
-wrong result;
+this will change index to b tree
 alter table t1 modify  column a  int ;
 show create table t1;
 Table	Create Table
@@ -184,12 +183,51 @@ t1	CREATE TABLE `t1` (
   `db_row_hash_3` int(11) DEFAULT NULL,
   `a` int(11) DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
-  UNIQUE KEY `a`(`a`)
+  UNIQUE KEY `a` (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
-t1	1	a	1	a	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+alter table t1 add column clm blob unique;
+try changing the name 
+alter table t1 change column clm clm_changed blob;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `db_row_hash_1` int(11) DEFAULT NULL,
+  `db_row_hash_2` int(11) DEFAULT NULL,
+  `db_row_hash_3` int(11) DEFAULT NULL,
+  `a` int(11) DEFAULT NULL,
+  `clm_changed` blob DEFAULT NULL,
+  UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
+  UNIQUE KEY `a` (`a`),
+  UNIQUE KEY `clm`(`clm_changed`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	clm	1	clm_changed	A	0	NULL	NULL	YES	HASH_INDEX		
+now drop the unique key
+alter table t1 drop key clm;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL,
+  `db_row_hash_1` int(11) DEFAULT NULL,
+  `db_row_hash_2` int(11) DEFAULT NULL,
+  `db_row_hash_3` int(11) DEFAULT NULL,
+  `a` int(11) DEFAULT NULL,
+  `clm_changed` blob DEFAULT NULL,
+  UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
+  UNIQUE KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
 drop table t1;
 create table t1 (a TEXT CHARSET latin1 COLLATE latin1_german2_ci unique);
 desc t1;
@@ -419,9 +457,7 @@ t1	0	db_row_hash_3	1	db_row_hash_3	A	NULL	NULL	NULL	YES	BTREE
 drop table t1;
 now the table with key on multiple columns; the ultimate test;
 create table t1(a blob, b int , c varchar(2000) , d text  , e varchar(3000) , f longblob , g int , h text ,
-unique(a,b,c), unique(c,d,e),unique(e,f,g,h),unique(a,b,c,d,e,f),unique(e,f,g,h),unique(a,b,c,d,e,f,g,h));
-Warnings:
-Note	1831	Duplicate index 'e_f_g_h' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release.
+unique(a,b,c), unique(c,d,e),unique(e,f,g,h),unique(a,b,c,d,e,f),unique(d,e,f,g,h),unique(a,b,c,d,e,f,g,h));
 insert into t1 values(1,1,1,1,1,1,1,1),(2,2,2,2,2,2,2,2),(3,3,3,3,3,3,3,3),(4,4,4,4,4,4,4,4),(5,5,5,5,5,5,5,5),
 ('maria',6,'maria','maria','maria','maria',6,'maria'),('mariadb',7,'mariadb','mariadb','mariadb','mariadb',8,'mariadb');
 table structure;
@@ -430,7 +466,7 @@ Field	Type	Null	Key	Default	Extra
 a	blob	YES	MUL	NULL	
 b	int(11)	YES		NULL	
 c	varchar(2000)	YES	MUL	NULL	
-d	text	YES		NULL	
+d	text	YES	MUL	NULL	
 e	varchar(3000)	YES	MUL	NULL	
 f	longblob	YES		NULL	
 g	int(11)	YES		NULL	
@@ -450,7 +486,7 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `c_d_e`(`c`,`d`,`e`),
   UNIQUE KEY `e_f_g_h`(`e`,`f`,`g`,`h`),
   UNIQUE KEY `a_b_c_d_e_f`(`a`,`b`,`c`,`d`,`e`,`f`),
-  UNIQUE KEY `e_f_g_h`(`e`,`f`,`g`,`h`),
+  UNIQUE KEY `d_e_f_g_h`(`d`,`e`,`f`,`g`,`h`),
   UNIQUE KEY `a_b_c_d_e_f_g_h`(`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
@@ -471,10 +507,11 @@ t1	1	a_b_c_d_e_f	3	c	A	0	NULL	NULL	YES	HASH_INDEX
 t1	1	a_b_c_d_e_f	4	d	A	0	NULL	NULL	YES	HASH_INDEX		
 t1	1	a_b_c_d_e_f	5	e	A	0	NULL	NULL	YES	HASH_INDEX		
 t1	1	a_b_c_d_e_f	6	f	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	1	e_f_g_h	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	1	e_f_g_h	2	f	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	1	e_f_g_h	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	1	e_f_g_h	4	h	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	1	d_e_f_g_h	1	d	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	1	d_e_f_g_h	2	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	1	d_e_f_g_h	3	f	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	1	d_e_f_g_h	4	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	1	d_e_f_g_h	5	h	A	0	NULL	NULL	YES	HASH_INDEX		
 t1	1	a_b_c_d_e_f_g_h	1	a	A	0	NULL	NULL	YES	HASH_INDEX		
 t1	1	a_b_c_d_e_f_g_h	2	b	A	0	NULL	NULL	YES	HASH_INDEX		
 t1	1	a_b_c_d_e_f_g_h	3	c	A	0	NULL	NULL	YES	HASH_INDEX		
@@ -488,7 +525,7 @@ TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAUL
 def	test	t1	a	1	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob	MUL		select,insert,update,references	
 def	test	t1	b	2	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references	
 def	test	t1	c	3	NULL	YES	varchar	2000	2000	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(2000)	MUL		select,insert,update,references	
-def	test	t1	d	4	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text			select,insert,update,references	
+def	test	t1	d	4	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text	MUL		select,insert,update,references	
 def	test	t1	e	5	NULL	YES	varchar	3000	3000	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(3000)	MUL		select,insert,update,references	
 def	test	t1	f	6	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob			select,insert,update,references	
 def	test	t1	g	7	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references	
@@ -511,10 +548,11 @@ def	test	t1	1	test	a_b_c_d_e_f	3	c	A	0	NULL	NULL	YES	HASH_INDEX
 def	test	t1	1	test	a_b_c_d_e_f	4	d	A	0	NULL	NULL	YES	HASH_INDEX		
 def	test	t1	1	test	a_b_c_d_e_f	5	e	A	0	NULL	NULL	YES	HASH_INDEX		
 def	test	t1	1	test	a_b_c_d_e_f	6	f	A	0	NULL	NULL	YES	HASH_INDEX		
-def	test	t1	1	test	e_f_g_h	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
-def	test	t1	1	test	e_f_g_h	2	f	A	0	NULL	NULL	YES	HASH_INDEX		
-def	test	t1	1	test	e_f_g_h	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
-def	test	t1	1	test	e_f_g_h	4	h	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	1	test	d_e_f_g_h	1	d	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	1	test	d_e_f_g_h	2	e	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	1	test	d_e_f_g_h	3	f	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	1	test	d_e_f_g_h	4	g	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	1	test	d_e_f_g_h	5	h	A	0	NULL	NULL	YES	HASH_INDEX		
 def	test	t1	1	test	a_b_c_d_e_f_g_h	1	a	A	0	NULL	NULL	YES	HASH_INDEX		
 def	test	t1	1	test	a_b_c_d_e_f_g_h	2	b	A	0	NULL	NULL	YES	HASH_INDEX		
 def	test	t1	1	test	a_b_c_d_e_f_g_h	3	c	A	0	NULL	NULL	YES	HASH_INDEX		
@@ -541,10 +579,11 @@ def	test	a_b_c_d_e_f	def	test	t1	c	3	NULL	NULL	NULL	NULL
 def	test	a_b_c_d_e_f	def	test	t1	d	4	NULL	NULL	NULL	NULL
 def	test	a_b_c_d_e_f	def	test	t1	e	5	NULL	NULL	NULL	NULL
 def	test	a_b_c_d_e_f	def	test	t1	f	6	NULL	NULL	NULL	NULL
-def	test	e_f_g_h	def	test	t1	e	1	NULL	NULL	NULL	NULL
-def	test	e_f_g_h	def	test	t1	f	2	NULL	NULL	NULL	NULL
-def	test	e_f_g_h	def	test	t1	g	3	NULL	NULL	NULL	NULL
-def	test	e_f_g_h	def	test	t1	h	4	NULL	NULL	NULL	NULL
+def	test	d_e_f_g_h	def	test	t1	d	1	NULL	NULL	NULL	NULL
+def	test	d_e_f_g_h	def	test	t1	e	2	NULL	NULL	NULL	NULL
+def	test	d_e_f_g_h	def	test	t1	f	3	NULL	NULL	NULL	NULL
+def	test	d_e_f_g_h	def	test	t1	g	4	NULL	NULL	NULL	NULL
+def	test	d_e_f_g_h	def	test	t1	h	5	NULL	NULL	NULL	NULL
 def	test	a_b_c_d_e_f_g_h	def	test	t1	a	1	NULL	NULL	NULL	NULL
 def	test	a_b_c_d_e_f_g_h	def	test	t1	b	2	NULL	NULL	NULL	NULL
 def	test	a_b_c_d_e_f_g_h	def	test	t1	c	3	NULL	NULL	NULL	NULL
@@ -585,4 +624,131 @@ insert into t1 values(1,1,1,1,1,1,1,1);
 ERROR 23000: Duplicate entry '1-1-1' for key 'a_b_c'
 select db_row_hash_1,db_row_hash_2,db_row_hash_3,db_row_hash_4,db_row_hash_5 from t1;
 ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
+alter table t1 drop column db_row_hash_1, drop column db_row_hash_2, drop column db_row_hash_3;
+ERROR 42000: Can't DROP COLUMN `db_row_hash_1`; check that it exists
+alter table t1 add column dg int , add column ef int , drop column db_row_hash_1;
+ERROR 42000: Can't DROP COLUMN `db_row_hash_1`; check that it exists
+alter table t1 modify column db_row_hash_1 int , modify column db_row_hash_2 int, modify column db_row_hash_3 int;
+ERROR 42S22: Unknown column 'db_row_hash_1' in 't1'
+alter table t1 add column ar int , add column rb int, modify column db_row_hash_1 int , modify column db_row_hash_3 int;
+ERROR 42S22: Unknown column 'db_row_hash_1' in 't1'
+alter table t1 change column db_row_hash_1 dsds int , change column  db_row_hash_2  dfdf int , change column db_row_hash_3 gdfg int ;
+ERROR 42S22: Unknown column 'db_row_hash_1' in 't1'
+alter table t1 add column asd int, drop column a, change column db_row_hash_1 dsds int, change db_row_hash_3 fdfdfd int;
+ERROR 42S22: Unknown column 'db_row_hash_1' in 't1'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` varchar(2000) DEFAULT NULL,
+  `d` text DEFAULT NULL,
+  `e` varchar(3000) DEFAULT NULL,
+  `f` longblob DEFAULT NULL,
+  `g` int(11) DEFAULT NULL,
+  `h` text DEFAULT NULL,
+  UNIQUE KEY `a_b_c`(`a`,`b`,`c`),
+  UNIQUE KEY `c_d_e`(`c`,`d`,`e`),
+  UNIQUE KEY `e_f_g_h`(`e`,`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f`(`a`,`b`,`c`,`d`,`e`,`f`),
+  UNIQUE KEY `d_e_f_g_h`(`d`,`e`,`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f_g_h`(`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+now add some column with name db_row_hash
+try to delete blob column in unique;
+alter table t1 drop column a;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL,
+  `c` varchar(2000) DEFAULT NULL,
+  `d` text DEFAULT NULL,
+  `e` varchar(3000) DEFAULT NULL,
+  `f` longblob DEFAULT NULL,
+  `g` int(11) DEFAULT NULL,
+  `h` text DEFAULT NULL,
+  UNIQUE KEY `a_b_c`(`b`,`c`),
+  UNIQUE KEY `c_d_e`(`c`,`d`,`e`),
+  UNIQUE KEY `e_f_g_h`(`e`,`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f`(`b`,`c`,`d`,`e`,`f`),
+  UNIQUE KEY `d_e_f_g_h`(`d`,`e`,`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f_g_h`(`b`,`c`,`d`,`e`,`f`,`g`,`h`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 drop column b;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` varchar(2000) DEFAULT NULL,
+  `d` text DEFAULT NULL,
+  `e` varchar(3000) DEFAULT NULL,
+  `f` longblob DEFAULT NULL,
+  `g` int(11) DEFAULT NULL,
+  `h` text DEFAULT NULL,
+  UNIQUE KEY `a_b_c`(`c`),
+  UNIQUE KEY `c_d_e`(`c`,`d`,`e`),
+  UNIQUE KEY `e_f_g_h`(`e`,`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f`(`c`,`d`,`e`,`f`),
+  UNIQUE KEY `d_e_f_g_h`(`d`,`e`,`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f_g_h`(`c`,`d`,`e`,`f`,`g`,`h`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 drop column c;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` text DEFAULT NULL,
+  `e` varchar(3000) DEFAULT NULL,
+  `f` longblob DEFAULT NULL,
+  `g` int(11) DEFAULT NULL,
+  `h` text DEFAULT NULL,
+  UNIQUE KEY `c_d_e`(`d`,`e`),
+  UNIQUE KEY `e_f_g_h`(`e`,`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f`(`d`,`e`,`f`),
+  UNIQUE KEY `d_e_f_g_h`(`d`,`e`,`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f_g_h`(`d`,`e`,`f`,`g`,`h`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 drop column d;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `e` varchar(3000) DEFAULT NULL,
+  `f` longblob DEFAULT NULL,
+  `g` int(11) DEFAULT NULL,
+  `h` text DEFAULT NULL,
+  UNIQUE KEY `c_d_e`(`e`),
+  UNIQUE KEY `e_f_g_h`(`e`,`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f`(`e`,`f`),
+  UNIQUE KEY `d_e_f_g_h`(`e`,`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f_g_h`(`e`,`f`,`g`,`h`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 drop column e;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` longblob DEFAULT NULL,
+  `g` int(11) DEFAULT NULL,
+  `h` text DEFAULT NULL,
+  UNIQUE KEY `e_f_g_h`(`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f`(`f`),
+  UNIQUE KEY `d_e_f_g_h`(`f`,`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f_g_h`(`f`,`g`,`h`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 drop column f;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `g` int(11) DEFAULT NULL,
+  `h` text DEFAULT NULL,
+  UNIQUE KEY `e_f_g_h`(`g`,`h`),
+  UNIQUE KEY `d_e_f_g_h`(`g`,`h`),
+  UNIQUE KEY `a_b_c_d_e_f_g_h`(`g`,`h`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 drop column g;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `h` text DEFAULT NULL,
+  UNIQUE KEY `e_f_g_h`(`h`),
+  UNIQUE KEY `d_e_f_g_h`(`h`),
+  UNIQUE KEY `a_b_c_d_e_f_g_h`(`h`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;

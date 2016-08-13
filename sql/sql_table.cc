@@ -7925,6 +7925,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                                                  TRUE);
     }
   }
+        if (key_info->flags & HA_UNIQUE_HASH)
+          alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
       }
       drop_it.remove();
       continue;
@@ -7950,8 +7952,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         k_parts->length= 0;
         k_parts->type= k_parts->field->key_type();
       }
-      alter_info->flags |= Alter_inplace_info::DROP_COLUMN;
-      alter_info->flags |= Alter_inplace_info::ADD_COLUMN;
+      alter_info->flags |= Alter_info::ALTER_DROP_COLUMN;
+      alter_info->flags |= Alter_info::ALTER_ADD_COLUMN;
     }
     for (uint j=0 ; j < num_of_keyparts ; j++,key_part++)
     {

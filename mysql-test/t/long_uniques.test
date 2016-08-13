@@ -77,10 +77,17 @@ show create table t1;
 alter table t1 add column a blob unique;
 show create table t1;
 --echo  try to change the blob unique column name
---echo  command does not work;
-#alter table t1 change  column a  fdfdf int ;
---echo wrong result;
+--echo this will change index to b tree
 alter table t1 modify  column a  int ;
+show create table t1;
+show keys from t1;
+alter table t1 add column clm blob unique;
+--echo try changing the name 
+alter table t1 change column clm clm_changed blob;
+show create table t1;
+show keys from t1;
+--echo now drop the unique key
+alter table t1 drop key clm;
 show create table t1;
 show keys from t1;
 drop table t1;
@@ -175,7 +182,7 @@ drop table t1;
 
 --echo  now the table with key on multiple columns; the ultimate test;
 create table t1(a blob, b int , c varchar(2000) , d text  , e varchar(3000) , f longblob , g int , h text ,
-  unique(a,b,c), unique(c,d,e),unique(e,f,g,h),unique(a,b,c,d,e,f),unique(e,f,g,h),unique(a,b,c,d,e,f,g,h));
+  unique(a,b,c), unique(c,d,e),unique(e,f,g,h),unique(a,b,c,d,e,f),unique(d,e,f,g,h),unique(a,b,c,d,e,f,g,h));
 
 insert into t1 values(1,1,1,1,1,1,1,1),(2,2,2,2,2,2,2,2),(3,3,3,3,3,3,3,3),(4,4,4,4,4,4,4,4),(5,5,5,5,5,5,5,5),
 ('maria',6,'maria','maria','maria','maria',6,'maria'),('mariadb',7,'mariadb','mariadb','mariadb','mariadb',8,'mariadb');
