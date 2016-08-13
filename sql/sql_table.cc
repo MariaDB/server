@@ -4024,8 +4024,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    sql_field->charset->mbminlen > 1 || // ucs2 doesn't work yet
 	    (ft_key_charset && sql_field->charset != ft_key_charset))
 	{
-					 my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
-					 DBUG_RETURN(-1);
+			my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
+			DBUG_RETURN(-1);
 	}
 	ft_key_charset=sql_field->charset;
 	/*
