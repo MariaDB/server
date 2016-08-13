@@ -6061,7 +6061,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 #ifndef DBUG_OFF
   mi->events_till_disconnect = disconnect_slave_event_count;
 #endif
-  ulong client_flag= 0;
+  ulong client_flag= CLIENT_REMEMBER_OPTIONS;
   if (opt_slave_compressed_protocol)
     client_flag=CLIENT_COMPRESS;                /* We will use compression */
 

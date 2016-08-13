@@ -3778,7 +3778,7 @@ private:
 
   /* Protect against add/delete of temporary tables in parallel replication */
   void rgi_lock_temporary_tables();
-  void rgi_unlock_temporary_tables();
+  void rgi_unlock_temporary_tables(bool clear);
   bool rgi_have_temporary_tables();
 public:
   /*
@@ -3802,15 +3802,15 @@ public:
     if (rgi_slave)
       rgi_lock_temporary_tables();
   }
-  inline void unlock_temporary_tables()
+  inline void unlock_temporary_tables(bool clear)
   {
     if (rgi_slave)
-      rgi_unlock_temporary_tables();
+      rgi_unlock_temporary_tables(clear);
   }    
   inline bool have_temporary_tables()
   {
     return (temporary_tables ||
-            (rgi_slave && rgi_have_temporary_tables()));
+            (rgi_slave && unlikely(rgi_have_temporary_tables())));
   }
 };
 
