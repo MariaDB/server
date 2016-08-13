@@ -7642,6 +7642,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List<Key> new_key_list;
   List_iterator<Alter_drop> drop_it(alter_info->drop_list);
   List_iterator<Create_field> def_it(alter_info->create_list);
+  List_iterator<Create_field> def_it_cpy(alter_info->create_list);
   List_iterator<Alter_column> alter_it(alter_info->alter_list);
   List_iterator<Key> key_it(alter_info->key_list);
   List_iterator<Create_field> find_it(new_create_list);
@@ -7979,28 +7980,47 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
        create table t1 (abc blob unique);
        alter table t1 add column db_row_hash_1;
      */
-    for (f_ptr=table->vfield ;f_ptr&&(field= *f_ptr) ; f_ptr++)
+    for (f_ptr= table->vfield; f_ptr && (field= *f_ptr); f_ptr++)
     {
-      if ((field->is_long_column_hash)&&!my_strcasecmp(system_charset_info,field->field_name,def->field_name))
+      if ((field->is_long_column_hash) && !my_strcasecmp(system_charset_info,
+                                                         field->field_name, def->field_name))
       {
         /* got a clash  find the highest number in db_row_hash_* */
         Field *temp_field;
         int max=0;
-        for (Field ** f_temp_ptr=table->vfield ; (temp_field= *f_temp_ptr); f_temp_ptr++)
+        for (Field ** f_temp_ptr=table->vfield; (temp_field= *f_temp_ptr); f_temp_ptr++)
         {
-          if(temp_field->is_long_column_hash)
+          if (temp_field->is_long_column_hash)
           {
-            int temp = atoi(temp_field->field_name+12);
-            if(temp>max)
-              max=temp;
+            int temp= atoi(temp_field->field_name+12);
+            if (temp > max)
+              max= temp;
           }
         }
         max++;
-
+        /*
+           there can be some qury like
+             alter  table t1 add column db_row_hash_2 int ,add column db_row_hash_1 int;
+         */
         Create_field * old_hash_field;
-        while((old_hash_field=field_it++))
+        char *name= (char *)thd->alloc(30);
+        strcpy(name, HA_DB_ROW_HASH_STR);
+        char num_holder[10];
+        sprintf(num_holder, "%d", max);
+        strcat(name, num_holder);
+        while ((old_hash_field= def_it_cpy++))
         {
-          if(!my_strcasecmp(system_charset_info,old_hash_field->field_name,
+          if (!my_strcasecmp(system_charset_info, name, def->field_name))
+          {
+            max++;
+          }
+        }
+        def_it_cpy.rewind();
+        sprintf(num_holder, "%d", max);
+        strcat(name, num_holder);
+        while ((old_hash_field= field_it++))
+        {
+          if(!my_strcasecmp(system_charset_info, old_hash_field->field_name,
                            field->field_name))
           {
             field_it.remove();
@@ -8008,16 +8028,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           }
         }
         /* Give field new name which does not clash with def->field_name */
-        new_hash_field = old_hash_field->clone(thd->mem_root);
-        char *name = (char *)thd->alloc(30);
-        strcpy(name,"DB_ROW_HASH_");
-        char num_holder[10];
-        sprintf(num_holder,"%d",max);
-        strcat(name,num_holder);
-        new_hash_field->field_name=name;
-        new_hash_field->field=field;
-        new_hash_field->change=old_hash_field->field_name;
-        new_create_list.push_front(new_hash_field,thd->mem_root);
+        new_hash_field= old_hash_field->clone(thd->mem_root);
+        new_hash_field->field_name= name;
+        new_hash_field->field= field;
+        new_hash_field->change= old_hash_field->field_name;
+        new_create_list.push_front(new_hash_field, thd->mem_root);
         field_it.rewind();
       }
     }
@@ -8337,16 +8352,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                 goto err;
               }
             }
-            /* Check whether we adding index for blob or
-               other long length column then add column flag*/
-            if(((sql_field->sql_type==MYSQL_TYPE_BLOB ||
-                sql_field->sql_type==MYSQL_TYPE_MEDIUM_BLOB||
-                sql_field->sql_type==MYSQL_TYPE_LONG_BLOB||
-                sql_field->sql_type==MYSQL_TYPE_TINY_BLOB)
-               &&(temp_colms->length==0))||(sql_field->sql_type==MYSQL_TYPE_VARCHAR)&&
-               (temp_colms->length>table->file->max_key_part_length()||
-             (temp_colms->length==0&&sql_field->length>table->file->max_key_part_length())))
-              alter_info->flags|=Alter_info::ALTER_ADD_COLUMN;
+        //      alter_info->flags|=Alter_info::ALTER_ADD_COLUMN;
           }
         }
       }

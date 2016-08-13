@@ -1,87 +1,250 @@
+--echo Structure of tests
+--echo First we will check all option for
+--echo table containing single unique column
+--echo then table containing 2 blob unique etc 
+
+--echo table with single long blob column; 
 create table t1(a blob unique);
-insert into t1 values(1);
+insert into t1 values(1),(2),(3),(56),('sachin'),('maria'),(123456789034567891),(null),(null),(123456789034567890);
+
+--echo table structure;
+desc t1;
+show create table t1;
+show keys from t1;
+select * from information_schema.columns where table_schema = 'test' and table_name = 't1';
+select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
+select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
+--echo  table select we should not be able to see db_row_hash_column;
+select * from t1;
+--error ER_BAD_FIELD_ERROR
+select db_row_hash_1 from t1;
+--echo duplicate entry test;
+--error ER_DUP_ENTRY
 insert into t1 values(2);
---error 1062
-insert into t1 values(2);
+--error ER_DUP_ENTRY
 insert into t1 values('sachin');
-insert into t1 values('maria');
---error 1062
-insert into t1 values('sachin');
-insert into t1 values(123456789034567890);
-insert into t1 values(123456789034567891);
---error 1062
+--error ER_DUP_ENTRY
 insert into t1 values(123456789034567891);
 select * from t1;
 insert into t1 values(11),(22),(33);
---error 1062
+--error ER_DUP_ENTRY
 insert into t1 values(12),(22);
 select * from t1;
-insert into t1 values(repeat('s',4000)),(repeat('s',4001));
---error 1062
-insert into t1 values(repeat('m',4000)),(repeat('m',4000));
+insert into t1 values(repeat('s',4000*10)),(repeat('s',4001*10));
+--error ER_DUP_ENTRY
+insert into t1 values(repeat('m',4000*10)),(repeat('m',4000*10));
 insert into t1 values(repeat('m',4001)),(repeat('m',4002));
-desc t1;
-show create table t1;
+truncate table t1;
+insert into t1 values(1),(2),(3),(4),(5),(8),(7);
+
+--echo now some alter commands;
 alter table t1 add column b int;
 desc t1;
 show create table t1;
---error 1062
-insert into t1 values('sachin',2);
---error 1062
-insert into t1 values(123456789034567890,2);
-insert into t1 values(1234567890345678,2),(1234567345678,2);
---error 1054
+--error ER_DUP_ENTRY
+insert into t1 values(1,2);
+--error ER_DUP_ENTRY
+insert into t1 values(2,2);
+--error ER_BAD_FIELD_ERROR
 select db_row_hash_1 from t1;
-alter table t1 add column c blob unique;
---error 1062
-insert into t1 values(123456789034567890,2,3);
-#adding column which have same name as of db_row_hash_
-alter table t1 add column db_row_hash_1 int;
-alter table t1 add column db_row_hash_2 int;
-alter table t1 add column db_row_hash_3 blob unique;
+--echo now try to change db_row_hash_1 column;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column db_row_hash_1;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 add column d int , add column e int , drop column db_row_hash_1;
+--error ER_BAD_FIELD_ERROR
+alter table t1 modify column db_row_hash_1 int ;
+--error ER_BAD_FIELD_ERROR
+alter table t1 add column a int , add column b int, modify column db_row_hash_1 int ;
+--error ER_BAD_FIELD_ERROR
+alter table t1 change column db_row_hash_1 dsds int;
+--error ER_BAD_FIELD_ERROR
+alter table t1 add column asd int, change column db_row_hash_1 dsds int;
+alter table t1 drop column b , add column c int;
 show create table t1;
-insert into t1 values(78,87,77,66,66,68);
---error 1062
-insert into t1 values(781,187,177,166,616,68);
-alter table t1 add column db_row_hash_4 blob unique;
+
+--echo now add some column with name db_row_hash
+alter table t1 add column db_row_hash_1 int unique;
+show create table t1;
+--error ER_DUP_ENTRY
+insert into t1 values(45,1,55),(46,1,55);
+alter table t1 add column db_row_hash_2 int, add column db_row_hash_3 int;
+desc t1;
+--echo this should also drop the unique index ;
+alter table t1 drop column a;
+show create table t1;
+--echo add column with unique index on blob 
+alter table t1 add column a blob unique;
+show create table t1;
+--echo  try to change the blob unique column name
+--echo  command does not work;
+#alter table t1 change  column a  fdfdf int ;
+--echo wrong result;
+alter table t1 modify  column a  int ;
+show create table t1;
+show keys from t1;
+drop table t1;
+
+create table t1 (a TEXT CHARSET latin1 COLLATE latin1_german2_ci unique);
+desc t1;
+show keys from t1;
+ insert into t1 values ('ae');
+--error ER_DUP_ENTRY
+ insert into t1 values ('AE');
+ insert  into t1 values ('Ä');
+drop table t1;
+--echo table with multiple  long blob column and varchar text column ; 
+create table t1(a blob unique, b int , c blob unique , d text unique , e varchar(3000) unique);
+insert into t1 values(1,2,3,4,5),(2,11,22,33,44),(3111,222,333,444,555),(5611,2222,3333,4444,5555),
+('sachin','ff','fdf','gfgfgfg','hghgr'),('maria','db','frter','dasd','utyuty'),
+(123456789034567891,3534534534534,53453453453456,64565464564564,45435345345345),
+(123456789034567890,435345345345,657567567567,78967657567567,657567567567567676);
+
+--echo table structure;
 desc t1;
 show create table t1;
---error 1060
-alter table t1 add column db_row_hash_4 blob unique;
-#now try to select db_row_hash_ columns which are full hidden
---error 1054
-select db_row_hash_5 from t1;
---error 1054
-select db_row_hash_6 from t1;
---error 1054
-select db_row_hash_7 from t1;
---error 1054
-select db_row_hash_8 from t1;
-#now try to delete them 
---error 1091
-alter table t1  drop db_row_hash_5;
---error 1091
-alter table t1  drop db_row_hash_6;
---error 1091
-alter table t1  drop db_row_hash_7;
---error 1091
-alter table t1  drop db_row_hash_8;
-#now try to change them  
---error 1054
-alter table t1 change db_row_hash_5 ffdf int;
---error 1054
-alter table t1 change db_row_hash_6 ffdf int;
---error 1054
-alter table t1 change db_row_hash_7 ffdf int;
---error 1054
-alter table t1 change db_row_hash_8 ffdf int;
-# now try to change them  but currently we can change only name 
-# if we try to change type it will  generate error
+show keys from t1;
+select * from information_schema.columns where table_schema = 'test' and table_name = 't1';
+select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
+select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
+--echo  table select we should not be able to see db_row_hash_column;
+select * from t1;
+--error ER_BAD_FIELD_ERROR
+select db_row_hash_1 from t1;
+--error ER_BAD_FIELD_ERROR
+select db_row_hash_2 from t1;
+--error ER_BAD_FIELD_ERROR
+select db_row_hash_3 from t1;
+--echo duplicate entry test;
+--error ER_DUP_ENTRY
+insert into t1 values(21,2,3,42,51);
+--error ER_DUP_ENTRY
+insert into t1 values('sachin',null,null,null,null);
+--error ER_DUP_ENTRY
+insert into t1 values(1234567890345671890,4353453453451,6575675675617,789676575675617,657567567567567676);
+select * from t1;
+insert into t1 values(repeat('s',4000*10),100,repeat('s',4000*10),repeat('s',4000*10),
+repeat('s',400)),(repeat('s',4001*10),1000,repeat('s',4001*10),repeat('s',4001*10),
+repeat('s',401));
+--error ER_DUP_ENTRY
+insert into t1 values(repeat('m',4000*11),10,repeat('s',4000*11),repeat('s',4000*11),repeat('s',400));
+truncate table t1;
+insert into t1 values(1,2,3,4,5),(2,11,22,33,44),(3111,222,333,444,555),(5611,2222,3333,4444,5555);
+
+--echo now some alter commands;
+alter table t1 add column f int;
+desc t1;
+show create table t1;
+--echo unique key should not break
+--error ER_DUP_ENTRY
+insert into t1 values(1,2,3,4,5,6);
+--error ER_BAD_FIELD_ERROR
+select db_row_hash_1 , db_row_hash_2, db_row_hash_3 from t1;
+--echo now try to change db_row_hash_1 column;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column db_row_hash_1, drop column db_row_hash_2, drop column db_row_hash_3;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 add column dg int , add column ef int , drop column db_row_hash_1;
+--error ER_BAD_FIELD_ERROR
+alter table t1 modify column db_row_hash_1 int , modify column db_row_hash_2 int, modify column db_row_hash_3 int;
+--error ER_BAD_FIELD_ERROR
+alter table t1 add column ar int , add column rb int, modify column db_row_hash_1 int , modify column db_row_hash_3 int;
+--error ER_BAD_FIELD_ERROR
+alter table t1 change column db_row_hash_1 dsds int , change column  db_row_hash_2  dfdf int , change column db_row_hash_3 gdfg int ;
+--error ER_BAD_FIELD_ERROR
+alter table t1 add column asd int, drop column a, change column db_row_hash_1 dsds int, change db_row_hash_3 fdfdfd int;
+alter table t1 drop column b , add column g int;
+show create table t1;
+
+--echo now add some column with name db_row_hash
+alter table t1 add column db_row_hash_1 int unique;
+alter table t1 add column db_row_hash_2 int unique;
+alter table t1 add column db_row_hash_3 int unique;
+show create table t1;
+
+--echo  this query does not works alter table t1 add column db_row_hash_2 int, add column db_row_hash_3 int , add column db_row_hash_4 int ;
+desc t1;
+--echo this show now break anything
+--error ER_DUP_ENTRY
+insert into t1 values(1,2,3,4,5,6,23,5,6);
+--echo try to drop unique index column
+alter table t1 drop column a, drop column e, drop column c, drop column d;
+show create table t1;
+show keys from t1;
 drop table t1;
-create table t1(a1 blob unique,a2 blob unique);
-insert into t1 values(1,2);
-insert into t1 values(2,3);
---error 1062
-insert into t1 values(2,3);
-alter table t1 change column a1 b1 blob;
-#now try to delete 
+
+--echo  now the table with key on multiple columns; the ultimate test;
+create table t1(a blob, b int , c varchar(2000) , d text  , e varchar(3000) , f longblob , g int , h text ,
+  unique(a,b,c), unique(c,d,e),unique(e,f,g,h),unique(a,b,c,d,e,f),unique(e,f,g,h),unique(a,b,c,d,e,f,g,h));
+
+insert into t1 values(1,1,1,1,1,1,1,1),(2,2,2,2,2,2,2,2),(3,3,3,3,3,3,3,3),(4,4,4,4,4,4,4,4),(5,5,5,5,5,5,5,5),
+('maria',6,'maria','maria','maria','maria',6,'maria'),('mariadb',7,'mariadb','mariadb','mariadb','mariadb',8,'mariadb');
+
+--echo table structure;
+desc t1;
+show create table t1;
+show keys from t1;
+select * from information_schema.columns where table_schema = 'test' and table_name = 't1';
+select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
+select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
+--echo  table select we should not be able to see db_row_hash_column;
+select * from t1;
+--error ER_BAD_FIELD_ERROR
+select db_row_hash_1 from t1;
+--error ER_BAD_FIELD_ERROR
+select db_row_hash_2 from t1;
+--error ER_BAD_FIELD_ERROR
+select db_row_hash_3 from t1;
+--echo duplicate entry test;
+--echo duplicate keys entry
+--error ER_DUP_ENTRY
+insert into t1 values(1,1,1,0,0,0,0,0);
+--error ER_DUP_ENTRY
+insert into t1 values(0,0,1,1,1,0,0,0);
+--error ER_DUP_ENTRY
+insert into t1 values(0,0,0,0,1,1,1,1);
+--error ER_DUP_ENTRY
+insert into t1 values(1,1,1,1,1,0,0,0);
+--error ER_DUP_ENTRY
+insert into t1 values(0,0,0,0,1,1,1,1);
+--error ER_DUP_ENTRY
+insert into t1 values(1,1,1,1,1,1,1,1);
+--error ER_BAD_FIELD_ERROR
+select db_row_hash_1,db_row_hash_2,db_row_hash_3,db_row_hash_4,db_row_hash_5 from t1;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column db_row_hash_1, drop column db_row_hash_2, drop column db_row_hash_3;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 add column dg int , add column ef int , drop column db_row_hash_1;
+--error ER_BAD_FIELD_ERROR
+alter table t1 modify column db_row_hash_1 int , modify column db_row_hash_2 int, modify column db_row_hash_3 int;
+--error ER_BAD_FIELD_ERROR
+alter table t1 add column ar int , add column rb int, modify column db_row_hash_1 int , modify column db_row_hash_3 int;
+--error ER_BAD_FIELD_ERROR
+alter table t1 change column db_row_hash_1 dsds int , change column  db_row_hash_2  dfdf int , change column db_row_hash_3 gdfg int ;
+--error ER_BAD_FIELD_ERROR
+alter table t1 add column asd int, drop column a, change column db_row_hash_1 dsds int, change db_row_hash_3 fdfdfd int;
+
+show create table t1;
+
+--echo now add some column with name db_row_hash
+#alter table t1 add column db_row_hash_1 int unique;
+#alter table t1 add column db_row_hash_2 int unique;
+#alter table t1 add column db_row_hash_3 int unique;
+#alter table t1 drop column db_row_hash_7,db_row_hash_6,db_row_hash_9;
+#show create table t1;
+--echo try to delete blob column in unique;
+alter table t1 drop column a;
+show create table t1;
+alter table t1 drop column b;
+show create table t1;
+alter table t1 drop column c;
+show create table t1;
+alter table t1 drop column d;
+show create table t1;
+alter table t1 drop column e;
+show create table t1;
+alter table t1 drop column f;
+show create table t1;
+alter table t1 drop column g;
+show create table t1;
+drop table t1;

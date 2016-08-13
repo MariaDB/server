@@ -1064,7 +1064,7 @@ public:
   int dupp_key;
   /* If dupp != -1 then this string
      store message which should be printed */
-  String *err_message;
+  char *err_message;
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */

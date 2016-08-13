@@ -3281,7 +3281,7 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
   if (table->dupp_key != -1 && table->err_message)
   {
     my_printf_error(ER_DUP_ENTRY, msg, errflag,
-                    table->err_message->c_ptr_safe(), key->name);
+                    table->err_message, key->name);
     return;
   }
   char key_buff[MAX_KEY_LENGTH];
@@ -5942,27 +5942,23 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
             continue;
         }
         table->dupp_key= i;
-        String *str;
         if (!table->err_message)
         {
-          char *temp= (char *)current_thd->alloc(MAX_KEY_LENGTH);
-           str= table->err_message= new(current_thd->mem_root) String(
-                 temp, sizeof(temp),system_charset_info);
+          table->err_message= (char *) alloc_root(&table->mem_root,
+                                                 MAX_KEY_LENGTH);
         }
-        else
-          str= table->err_message;
-        str->length(0);
+        String str(table->err_message, sizeof (table->err_message),
+                   system_charset_info);
+        str.length(0);
         for(uint i= 0; i < arg_count; i++)
         {
           t_field= ((Item_field *)arguments[i])->field;
-          if (str->length())
-            str->append('-');
-          field_unpack(str, t_field, new_rec, 15,//since blob can be to long
+          if (str.length())
+            str.append('-');
+          field_unpack(&str, t_field, new_rec, 5,//since blob can be to long
                        false);
         }
-//        my_printf_error(ER_DUP_ENTRY, ER_THD(table->in_use,
-//                                             ER_DUP_ENTRY_WITH_KEY_NAME)
-//                        ,MYF(0), str.c_ptr_safe(),table->key_info[i].name);
+        memmove(table->err_message,str.ptr(),str.length());
         return HA_ERR_FOUND_DUPP_KEY;
       }
     }
