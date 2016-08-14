@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2012, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -331,7 +331,7 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(dict_stats_thread)(
 /*==============================*/
-	void*	arg __attribute__((unused)))	/*!< in: a dummy parameter
+	void*	arg MY_ATTRIBUTE((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
 	ut_a(!srv_read_only_mode);
@@ -351,14 +351,6 @@ DECLARE_THREAD(dict_stats_thread)(
 		if (SHUTTING_DOWN()) {
 			break;
 		}
-
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-		if (srv_ibuf_disable_background_merge) {
-			usleep(100000);
-			os_event_reset(dict_stats_event);
-			continue;
-		}
-#endif
 
 		dict_stats_process_entry_from_recalc_pool();
 

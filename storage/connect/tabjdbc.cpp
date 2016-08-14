@@ -96,7 +96,7 @@ bool ExactInfo(void);
 /***********************************************************************/
 JDBCDEF::JDBCDEF(void)
 {
-	Driver = Url = Tabname = Tabschema = Username = NULL;
+	Driver = Url = Wrapname =Tabname = Tabschema = Username = Colpat = NULL;
 	Password = Tabcat = Tabtype = Srcdef = Qchar = Qrystr = Sep = NULL;
 	Options = Quoted = Maxerr = Maxres = Memory = 0;
 	Scrollable = Xsrc = false;
@@ -233,11 +233,18 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL)))
 		Read_Only = true;
 
+	Wrapname = GetStringCatInfo(g, "Wrapper", NULL);
 	Tabcat = GetStringCatInfo(g, "Qualifier", NULL);
 	Tabcat = GetStringCatInfo(g, "Catalog", Tabcat);
 	Tabschema = GetStringCatInfo(g, "Dbname", NULL);
 	Tabschema = GetStringCatInfo(g, "Schema", Tabschema);
-	Tabtype = GetStringCatInfo(g, "Tabtype", NULL);
+
+	if (Catfunc == FNC_COL)
+		Colpat = GetStringCatInfo(g, "Colpat", NULL);
+
+	if (Catfunc == FNC_TABLE)
+		Tabtype = GetStringCatInfo(g, "Tabtype", NULL);
+
 	Qrystr = GetStringCatInfo(g, "Query_String", "?");
 	Sep = GetStringCatInfo(g, "Separator", NULL);
 	Xsrc = GetBoolCatInfo("Execsrc", FALSE);
@@ -325,6 +332,7 @@ TDBJDBC::TDBJDBC(PJDBCDEF tdp) : TDBASE(tdp)
 	if (tdp) {
 		Ops.Driver = tdp->Driver;
 		Ops.Url = tdp->Url;
+		WrapName = tdp->Wrapname;
 		TableName = tdp->Tabname;
 		Schema = tdp->Tabschema;
 		Ops.User = tdp->Username;
@@ -341,6 +349,7 @@ TDBJDBC::TDBJDBC(PJDBCDEF tdp) : TDBASE(tdp)
 		Memory = tdp->Memory;
 		Ops.Scrollable = tdp->Scrollable;
 	} else {
+		WrapName = NULL;
 		TableName = NULL;
 		Schema = NULL;
 		Ops.Driver = NULL;
@@ -386,6 +395,7 @@ TDBJDBC::TDBJDBC(PTDBJDBC tdbp) : TDBASE(tdbp)
 {
 	Jcp = tdbp->Jcp;            // is that right ?
 	Cnp = tdbp->Cnp;
+	WrapName = tdbp->WrapName;
 	TableName = tdbp->TableName;
 	Schema = tdbp->Schema;
 	Ops = tdbp->Ops;
@@ -512,9 +522,10 @@ bool TDBJDBC::MakeSQL(PGLOBAL g, bool cnt)
 	if (Catalog && *Catalog)
 		catp = Catalog;
 
-	if (tablep->GetSchema())
-		schmp = (char*)tablep->GetSchema();
-	else if (Schema && *Schema)
+	//if (tablep->GetSchema())
+	//	schmp = (char*)tablep->GetSchema();
+	//else 
+	if (Schema && *Schema)
 		schmp = Schema;
 
 	if (catp) {
@@ -596,9 +607,10 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 	if (catp)
 		len += strlen(catp) + 1;
 
-	if (tablep->GetSchema())
-		schmp = (char*)tablep->GetSchema();
-	else if (Schema && *Schema)
+	//if (tablep->GetSchema())
+	//	schmp = (char*)tablep->GetSchema();
+	//else
+	if (Schema && *Schema)
 		schmp = Schema;
 
 	if (schmp)
@@ -1788,11 +1800,19 @@ PQRYRES TDBJTB::GetResult(PGLOBAL g)
 /* --------------------------TDBJDBCL class -------------------------- */
 
 /***********************************************************************/
+/*  TDBJDBCL class constructor.                                        */
+/***********************************************************************/
+TDBJDBCL::TDBJDBCL(PJDBCDEF tdp) : TDBJTB(tdp)
+{
+	Colpat = tdp->Colpat;
+} // end of TDBJDBCL constructor
+
+/***********************************************************************/
 /*  GetResult: Get the list of JDBC table columns.                     */
 /***********************************************************************/
 PQRYRES TDBJDBCL::GetResult(PGLOBAL g)
 {
-	return JDBCColumns(g, Schema, Tab, NULL, Maxres, false, &Ops);
+	return JDBCColumns(g, Schema, Tab, Colpat, Maxres, false, &Ops);
 } // end of GetResult
 
 #if 0
