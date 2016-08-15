@@ -207,6 +207,7 @@ static bool push_sp_empty_label(THD *thd)
   ulong ulong_num;
   ulonglong ulonglong_number;
   longlong longlong_number;
+  uint sp_instr_addr;
 
   /* structs */
   LEX_STRING lex_str;
@@ -1310,7 +1311,9 @@ END_OF_INPUT
 %type <num>  sp_decl_idents sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spblock> sp_decl_body sp_decl_body_list opt_sp_decl_body_list
+%type <sp_instr_addr> sp_instr_addr
 %type <num> opt_exception_clause exception_handlers
+%type <num> sp_block_statements_and_exceptions
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
@@ -2329,6 +2332,7 @@ sp_opt_inout:
         | IN_SYM      { $$= sp_variable::MODE_IN; }
         | OUT_SYM     { $$= sp_variable::MODE_OUT; }
         | INOUT_SYM   { $$= sp_variable::MODE_INOUT; }
+        | IN_SYM OUT_SYM { $$= sp_variable::MODE_INOUT; }
         ;
 
 sp_parenthesized_fdparam_list:
@@ -3452,21 +3456,42 @@ sp_unlabeled_block:
           }
         ;
 
+sp_instr_addr:
+          { $$= Lex->sphead->instructions(); }
+        ;
+
 sp_body:
           {
             Lex->sp_block_init(thd);
           }
           opt_sp_decl_body_list
-          BEGIN_SYM
-          opt_exception_clause
           {
-            $2.hndlrs+= $4;
+            if (Lex->sp_block_with_exceptions_finalize_declarations(thd))
+              MYSQL_YYABORT;
           }
-          sp_proc_stmts
-          END
+          BEGIN_SYM
+          sp_block_statements_and_exceptions
           {
+            $2.hndlrs+= $5;
             if (Lex->sp_block_finalize(thd, $2))
               MYSQL_YYABORT;
+          }
+          END
+        ;
+
+sp_block_statements_and_exceptions:
+          sp_instr_addr
+          sp_proc_stmts
+          {
+            if (Lex->sp_block_with_exceptions_finalize_executable_section(thd,
+                                                                          $1))
+              MYSQL_YYABORT;
+          }
+          opt_exception_clause
+          {
+            if (Lex->sp_block_with_exceptions_finalize_exceptions(thd, $1))
+              MYSQL_YYABORT;
+            $$= $4;
           }
         ;
 

@@ -5386,7 +5386,56 @@ sp_head *LEX::make_sp_head(THD *thd, sp_name *name,
 }
 
 
+bool LEX::sp_block_with_exceptions_finalize_declarations(THD *thd)
+{
+  /*
+    [ DECLARE declarations ]
+    BEGIN executable_section
+    [ EXCEPTION exceptions ]
+    END
 
+    We are now at the "BEGIN" keyword.
+    We have collected all declarations, including DECLARE HANDLER directives.
+    But there will be possibly more handlers in the EXCEPTION section.
+
+    Generate a forward jump from the end of the DECLARE section to the
+    beginning of the EXCEPTION section, over the executable section.
+  */
+  return sphead->add_instr_jump(thd, spcont);
+}
+
+
+bool
+LEX::sp_block_with_exceptions_finalize_executable_section(THD *thd,
+                                         uint executable_section_ip)
+{
+  /*
+    We're now at the end of "executable_section" of the block,
+    near the "EXCEPTION" or the "END" keyword.
+    Generate a jump to the END of the block over the EXCEPTION section.
+  */
+  if (sphead->add_instr_jump_forward_with_backpatch(thd, spcont))
+    return true;
+  /*
+    Set the destination for the jump that we added in
+    sp_block_with_exceptions_finalize_declarations().
+  */
+  sp_instr *instr= sphead->get_instr(executable_section_ip - 1);
+  instr->backpatch(sphead->instructions(), spcont);
+  return false;
+}
+
+
+bool
+LEX::sp_block_with_exceptions_finalize_exceptions(THD *thd,
+                                                  uint executable_section_ip)
+{
+  /*
+    Generate a jump from the end of the EXCEPTION code
+    to the executable section.
+  */
+  return sphead->add_instr_jump(thd, spcont, executable_section_ip);
+}
 
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
