@@ -2582,6 +2582,34 @@ bool sp_head::add_instr_jump_forward_with_backpatch(THD *thd,
 }
 
 
+/*
+  Replace an instruction at position to "no operation".
+
+  @param thd - use mem_root of this THD for "new".
+  @param ip  - position of the operation
+  @returns   - true on error, false on success
+
+  When we need to remove an instruction that during compilation
+  appeared to be useless (typically as useless jump), we replace
+  it to a jump to exactly the next instruction.
+  Such jumps are later removed during sp_head::optimize().
+
+  QQ: Perhaps we need a dedicated sp_instr_nop for this purpose.
+*/
+bool sp_head::replace_instr_to_nop(THD *thd, uint ip)
+{
+  sp_instr *instr= get_instr(ip);
+  sp_instr_jump *nop= new (thd->mem_root) sp_instr_jump(instr->m_ip,
+                                                        instr->m_ctx,
+                                                        instr->m_ip + 1);
+  if (!nop)
+    return true;
+  delete instr;
+  set_dynamic(&m_instr, (uchar *) &nop, ip);
+  return false;
+}
+
+
 /**
   Do some minimal optimization of the code:
     -# Mark used instructions

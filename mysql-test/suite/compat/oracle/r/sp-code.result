@@ -21,7 +21,7 @@ END;
 /
 SHOW PROCEDURE CODE p1;
 Pos	Instruction
-0	jump 3
+0	jump 2
 CALL p1;
 DROP PROCEDURE p1;
 # No HANDLER declarations, no code, some exceptions
@@ -133,10 +133,9 @@ SHOW PROCEDURE CODE p1;
 Pos	Instruction
 0	hpush_jump 3 1 EXIT
 1	set v@0 123
-2	hreturn 0 5
+2	hreturn 0 4
 3	set v@0 223
-4	jump 5
-5	hpop 1
+4	hpop 1
 set @v= 10;
 CALL p1(@v);
 SELECT @v;

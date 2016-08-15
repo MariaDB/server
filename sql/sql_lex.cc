@@ -5428,8 +5428,20 @@ LEX::sp_block_with_exceptions_finalize_executable_section(THD *thd,
 
 bool
 LEX::sp_block_with_exceptions_finalize_exceptions(THD *thd,
-                                                  uint executable_section_ip)
+                                                  uint executable_section_ip,
+                                                  uint exception_count)
 {
+  if (!exception_count)
+  {
+    /*
+      The jump from the end of DECLARE section to
+      the beginning of the EXCEPTION section that we added in
+      sp_block_with_exceptions_finalize_declarations() is useless
+      if there were no exceptions.
+      Replace it to "no operation".
+    */
+    return sphead->replace_instr_to_nop(thd, executable_section_ip - 1);
+  }
   /*
     Generate a jump from the end of the EXCEPTION code
     to the executable section.
