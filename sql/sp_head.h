@@ -346,6 +346,15 @@ public:
   int
   add_instr(sp_instr *instr);
 
+  bool
+  add_instr_jump(THD *thd, sp_pcontext *spcont);
+
+  bool
+  add_instr_jump(THD *thd, sp_pcontext *spcont, uint dest);
+
+  bool
+  add_instr_jump_forward_with_backpatch(THD *thd, sp_pcontext *spcont);
+
   /**
     Returns true if any substatement in the routine directly
     (not through another routine) modifies data/changes table.

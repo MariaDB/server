@@ -1,0 +1,178 @@
+SET sql_mode=ORACLE;
+# No HANDLER declarations, no exceptions
+CREATE FUNCTION f1 RETURN INT
+AS
+BEGIN
+RETURN 10;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	freturn 3 10
+SELECT f1();
+f1()
+10
+DROP FUNCTION f1;
+# No HANDLER declarations, no code, no exceptions
+CREATE PROCEDURE p1 ()
+IS
+BEGIN
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump 3
+CALL p1;
+DROP PROCEDURE p1;
+# No HANDLER declarations, no code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+EXCEPTION
+WHEN 1002 THEN v:=225;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump 1
+1	hpush_jump 4 1 EXIT
+2	set v@0 225
+3	hreturn 0 4
+4	hpop 1
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+10
+DROP PROCEDURE p1;
+# No HANDLER declarations, some code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+v:=224;
+EXCEPTION
+WHEN 1002 THEN v:=225;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump 3
+1	set v@0 224
+2	jump 6
+3	hpush_jump 1 1 EXIT
+4	set v@0 225
+5	hreturn 0 6
+6	hpop 1
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+224
+DROP PROCEDURE p1;
+# Some HANDLER declarations, no code, no exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+EXIT HANDLER FOR 1000
+BEGIN
+v:=123;
+END;
+BEGIN
+EXCEPTION
+WHEN 1002 THEN v:=225;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	hpush_jump 3 1 EXIT
+1	set v@0 123
+2	hreturn 0 6
+3	hpush_jump 6 1 EXIT
+4	set v@0 225
+5	hreturn 0 6
+6	hpop 2
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+10
+DROP PROCEDURE p1;
+# Some HANDLER declarations, no code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+EXIT HANDLER FOR 1000
+BEGIN
+v:=123;
+END;
+BEGIN
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	hpush_jump 3 1 EXIT
+1	set v@0 123
+2	hreturn 0 3
+3	hpop 1
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+10
+DROP PROCEDURE p1;
+# Some HANDLER declarations, some code, no exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+EXIT HANDLER FOR 1000
+BEGIN
+v:=123;
+END;
+BEGIN
+v:=223;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	hpush_jump 3 1 EXIT
+1	set v@0 123
+2	hreturn 0 5
+3	set v@0 223
+4	jump 5
+5	hpop 1
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+223
+DROP PROCEDURE p1;
+# Some HANDLER declarations, some code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT VARCHAR2(20))
+IS
+EXIT HANDLER FOR 1000
+BEGIN
+v:=123;
+END;
+CONTINUE HANDLER FOR 1001
+BEGIN
+SET v=223;
+END;
+BEGIN
+v:= 1;
+EXCEPTION
+WHEN 1002 THEN SET v=225;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	hpush_jump 3 1 EXIT
+1	set v@0 123
+2	hreturn 0 12
+3	hpush_jump 8 1 CONTINUE
+4	set v@0 223
+5	hreturn 1
+6	set v@0 1
+7	jump 12
+8	hpush_jump 6 1 EXIT
+9	set v@0 225
+10	hreturn 0 12
+11	jump 6
+12	hpop 3
+DROP PROCEDURE p1;
