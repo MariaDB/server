@@ -3491,7 +3491,7 @@ sp_block_statements_and_exceptions:
           }
           opt_exception_clause
           {
-            if (Lex->sp_block_with_exceptions_finalize_exceptions(thd, $1))
+            if (Lex->sp_block_with_exceptions_finalize_exceptions(thd, $1, $4))
               MYSQL_YYABORT;
             $$= $4;
           }

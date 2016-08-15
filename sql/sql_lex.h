@@ -3105,7 +3105,8 @@ public:
   bool sp_block_with_exceptions_finalize_executable_section(THD *thd,
                                                   uint executable_section_ip);
   bool sp_block_with_exceptions_finalize_exceptions(THD *thd,
-                                                  uint executable_section_ip);
+                                                  uint executable_section_ip,
+                                                  uint exception_count);
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
   {

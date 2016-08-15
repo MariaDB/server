@@ -376,6 +376,8 @@ public:
     return i;
   }
 
+  bool replace_instr_to_nop(THD *thd, uint ip);
+
   /*
     Resets lex in 'thd' and keeps a copy of the old one.
 
