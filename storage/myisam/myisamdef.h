@@ -97,7 +97,7 @@ typedef struct st_mi_state_info
 #define MI_STATE_KEYSEG_SIZE    4
 #define MI_STATE_EXTRA_SIZE ((MI_MAX_KEY+MI_MAX_KEY_BLOCK_SIZE)*MI_STATE_KEY_SIZE + MI_MAX_KEY*HA_MAX_KEY_SEG*MI_STATE_KEYSEG_SIZE)
 #define MI_KEYDEF_SIZE          (2+ 5*2)
-#define MI_UNIQUEDEF_SIZE       (2+1+1)
+#define MI_UNIQUEDEF_SIZE       (2+2+1+1)
 #define HA_KEYSEG_SIZE          (6+ 2*2 + 4*2)
 #define MI_COLUMNDEF_SIZE       (2*3+1)
 #define MI_BASE_INFO_SIZE       (5*8 + 8*4 + 4 + 4*2 + 16)

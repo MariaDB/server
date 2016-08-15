@@ -136,6 +136,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "dict0priv.h"
 #include "../storage/innobase/include/ut0byte.h"
 #include <mysql/service_md5.h>
+#include "row0mysql.h"
 
 class  binlog_trx_data;
 extern handlerton *binlog_hton;
@@ -2930,7 +2931,7 @@ ha_innobase::ha_innobase(
 		  HA_CAN_GEOMETRY | HA_PARTIAL_COLUMN_READ |
 		  HA_TABLE_SCAN_ON_INDEX | HA_CAN_FULLTEXT |
 		  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0 ) |
-		  HA_CAN_FULLTEXT_EXT | HA_CAN_EXPORT),
+		  HA_CAN_FULLTEXT_EXT | HA_CAN_EXPORT | HA_CAN_UNIQUE_HASH_INDEX),
 	start_of_scan(0),
 	num_write_row(0),
 	ha_partition_stats(NULL)
@@ -5284,7 +5285,8 @@ ha_innobase::index_flags(
 	uint,
 	bool) const
 {
-	return((table_share->key_info[key].algorithm == HA_KEY_ALG_FULLTEXT)
+	return((table_share->key_info[key].algorithm == HA_KEY_ALG_FULLTEXT ||
+		table_share->key_info[key].algorithm == HA_KEY_ALG_HASH)
 		 ? 0
 		 : (HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER
 		  | HA_READ_RANGE | HA_KEYREAD_ONLY
@@ -5666,8 +5668,14 @@ innobase_match_index_columns(
 
 	key_part = key_info->key_part;
 	key_end = key_part + key_info->user_defined_key_parts;
-	innodb_idx_fld = index_info->fields;
-	innodb_idx_fld_end = index_info->fields + index_info->n_fields;
+	if (dict_index_is_unique_hash(index_info)) {
+		ulint n_user_fields = dict_index_get_n_user_fields(index_info);
+		innodb_idx_fld = index_info->fields - n_user_fields;
+		innodb_idx_fld_end = index_info->fields;
+	} else {
+		innodb_idx_fld = index_info->fields;
+		innodb_idx_fld_end = index_info->fields + index_info->n_fields;
+	}
 
 	/* Check each index column's datatype. We do not check
 	column name because there exists case that index
@@ -8719,6 +8727,8 @@ calc_row_difference(
 	ibool		changes_fts_doc_col = FALSE;
 	trx_t*          trx = thd_to_trx(thd);
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
+	dtuple_t*	new_tuple;
+	dict_index_t*	index;
 
 	ut_ad(!srv_read_only_mode);
 
@@ -8950,6 +8960,35 @@ calc_row_difference(
 
 	uvect->n_fields = n_changed;
 	uvect->info_bits = 0;
+
+	new_tuple = dtuple_create(prebuilt->heap,
+				  dict_table_get_n_cols(prebuilt->table) +
+				  dict_table_get_n_hash_cols(prebuilt->table));
+	dict_table_copy_types(new_tuple, prebuilt->table);
+
+	if (!prebuilt->ins_upd_rec_buff) {
+		prebuilt->ins_upd_rec_buff = static_cast<byte*>(
+						mem_heap_alloc(
+						prebuilt->heap,
+						prebuilt->mysql_row_len));
+	}
+
+	row_mysql_convert_row_to_innobase(new_tuple, prebuilt, new_row);
+
+	index = dict_table_get_first_index(prebuilt->table);
+
+	/*checks if hash columns need to be updated*/
+	while (index) {
+		if (index->type & DICT_UNIQUE_HASH) {
+			row_mysql_unique_hash(prebuilt->heap, index, new_tuple, NULL);
+
+			if(row_update_check_unique_hash_index(index, uvect)){
+					row_add_hash_field_to_upd_vector(index, uvect, new_tuple);
+			}
+		}
+
+		index = dict_table_get_next_index(index);
+	}
 
 	ut_a(buf <= (byte*) original_upd_buff + buff_len);
 
@@ -11025,6 +11064,22 @@ create_table_check_doc_id_col(
 	return(false);
 }
 
+/*********************************************************************//*
+ creates a column name for hash index */
+UNIV_INTERN
+char*
+innobase_create_column_name_for_hash_index(
+	/*=====================================*/
+	mem_heap_t*		heap,	    /*!< in: memory heap */
+	const char*		index_name)	/*!< in: name of index */
+{
+	ulint len = strlen("HASH_COL_");
+	ulint len1 = strlen(index_name);
+	char* col_name = static_cast<char*>(mem_heap_alloc(heap, len + len1 + 1));
+	memcpy(col_name, "HASH_COL_", len);
+	memcpy(col_name + len, index_name, len1 + 1);
+	return col_name;
+}
 /*****************************************************************//**
 Creates a table definition to an InnoDB database. */
 static __attribute__((nonnull, warn_unused_result))
@@ -11064,6 +11119,8 @@ create_table_def(
 	ulint		doc_id_col = 0;
 	ibool		has_doc_id_col = FALSE;
 	mem_heap_t*	heap;
+	const KEY*	key;
+	ulint		n_hash_cols = 0;
 
 	DBUG_ENTER("create_table_def");
 	DBUG_PRINT("enter", ("table_name: %s", table_name));
@@ -11094,6 +11151,13 @@ create_table_def(
 	n_cols = form->s->fields;
 	s_cols = form->s->stored_fields;
 
+	for (i = 0; i < form->s->keys; i++) {
+		key = form->key_info + i;
+		if(key->algorithm == HA_KEY_ALG_HASH){
+			n_hash_cols += 1;
+		}
+	}
+
 	/* Check whether there already exists a FTS_DOC_ID column */
 	if (create_table_check_doc_id_col(trx, form, &doc_id_col)){
 
@@ -11114,18 +11178,18 @@ create_table_def(
 	if (flags2 & DICT_TF2_FTS) {
 		/* Adjust for the FTS hidden field */
 		if (!has_doc_id_col) {
-			table = dict_mem_table_create(table_name, 0, s_cols + 1,
+			table = dict_mem_table_create(table_name, 0, s_cols + 1 + n_hash_cols,
 						      flags, flags2);
 
 			/* Set the hidden doc_id column. */
 			table->fts->doc_col = s_cols;
 		} else {
-			table = dict_mem_table_create(table_name, 0, s_cols,
+			table = dict_mem_table_create(table_name, 0, s_cols + n_hash_cols,
 						      flags, flags2);
 			table->fts->doc_col = doc_id_col;
 		}
 	} else {
-		table = dict_mem_table_create(table_name, 0, s_cols,
+		table = dict_mem_table_create(table_name, 0, s_cols + n_hash_cols,
 					      flags, flags2);
 	}
 
@@ -11238,6 +11302,22 @@ err_col:
 		fts_add_doc_id_column(table, heap);
 	}
 
+	 for (i = 0; i < form->s->keys; i++) {
+		key = form->key_info + i;
+		if(key->algorithm == HA_KEY_ALG_HASH){
+			char* col_name = innobase_create_column_name_for_hash_index(heap, key->name);
+			/*creates an extra column for hash index*/
+			dict_mem_table_add_col(table, heap,
+						col_name,
+						DATA_INT,
+						DATA_NOT_NULL | DATA_HASH_COL_TYPE | DATA_UNSIGNED,
+						HASH_COL_LENGTH);
+		}
+	}
+
+	table->n_hash_cols = n_hash_cols;
+	table->n_cols -= n_hash_cols;
+
 	err = row_create_table_for_mysql(table, trx, false, mode, key_id);
 
 	mem_heap_free(heap);
@@ -11313,30 +11393,42 @@ create_index(
 
 	ind_type = 0;
 
-	if (key_num == form->s->primary_key) {
-		ind_type |= DICT_CLUSTERED;
-	}
+	if (key->algorithm == HA_KEY_ALG_HASH) {
+		ind_type |= DICT_UNIQUE_HASH;
 
-	if (key->flags & HA_NOSAME) {
-		ind_type |= DICT_UNIQUE;
-	}
-
-	field_lengths = (ulint*) my_malloc(
-		key->user_defined_key_parts * sizeof *
+		field_lengths = (ulint*) my_malloc(
+		(key->user_defined_key_parts + 1 )* sizeof *
 				field_lengths, MYF(MY_FAE));
+
+		/*one extra field for hash value*/
+		index = dict_mem_index_create(table_name, key->name, 0,
+				      ind_type, key->user_defined_key_parts + 1);
+
+	} else {
+		if (key_num == form->s->primary_key) {
+			ind_type |= DICT_CLUSTERED;
+		}
+
+		if (key->flags & HA_NOSAME) {
+			ind_type |= DICT_UNIQUE;
+		}
+
+		field_lengths = (ulint*) my_malloc(
+			key->user_defined_key_parts * sizeof *
+				field_lengths, MYF(MY_FAE));
+
+		index = dict_mem_index_create(table_name, key->name, 0,
+				      ind_type, key->user_defined_key_parts);
+	}
 
 	/* We pass 0 as the space id, and determine at a lower level the space
 	id where to store the table */
-
-	index = dict_mem_index_create(table_name, key->name, 0,
-				      ind_type, key->user_defined_key_parts);
 
 	for (ulint i = 0; i < key->user_defined_key_parts; i++) {
 		KEY_PART_INFO*	key_part = key->key_part + i;
 		ulint		prefix_len;
 		ulint		col_type;
 		ulint		is_unsigned;
-
 
 		/* (The flag HA_PART_KEY_SEG denotes in MySQL a
 		column prefix field in an index: we only store a
@@ -11401,6 +11493,15 @@ found:
 	}
 
 	ut_ad(key->flags & HA_FULLTEXT || !(index->type & DICT_FTS));
+
+	if(key->algorithm == HA_KEY_ALG_HASH){
+		char* col_name =
+			innobase_create_column_name_for_hash_index(index->heap, key->name);
+		/*adds the hash field*/
+		dict_mem_index_add_field(index, col_name, 0);
+
+		field_lengths[key->user_defined_key_parts] = HASH_COL_LENGTH;
+	}
 
 	/* Even though we've defined max_supported_key_part_length, we
 	still do our own checking using field_lengths to be absolutely
@@ -13322,6 +13423,11 @@ ha_innobase::records_in_range(
 
 	key = table->key_info + active_index;
 
+	if(key->algorithm == HA_KEY_ALG_HASH){
+		n_rows = HA_POS_ERROR;
+		goto func_exit;
+	}
+
 	index = innobase_get_index(keynr);
 
 	/* There exists possibility of not being able to find requested
@@ -13995,6 +14101,12 @@ ha_innobase::info_low(
 						"innodb-troubleshooting.html\n",
 						ib_table->name);
 				break;
+			}
+
+			if (dict_index_is_unique_hash(index)) {
+				/* The whole concept has no validity
+				for unique hash indexes. */
+				continue;
 			}
 
 			for (j = 0; j < table->key_info[i].ext_key_parts; j++) {

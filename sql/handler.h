@@ -248,6 +248,12 @@ enum enum_alter_inplace_result {
  */
 #define HA_CAN_EXPORT                 (1LL << 45)
 
+/*
+  Engine supports UNIQUE HASH INDEX used for long
+  unique constraints
+ */
+#define HA_CAN_UNIQUE_HASH_INDEX      (1LL << 47)
+
 
 /*
   Set of all binlog flags. Currently only contain the capabilities

@@ -574,7 +574,7 @@ row_purge_del_mark(
 
 		if (node->index->type != DICT_FTS) {
 			dtuple_t*	entry = row_build_index_entry_low(
-				node->row, NULL, node->index, heap);
+				node->row, NULL, node->index, heap, false);
 			row_purge_remove_sec_if_poss(node, node->index, entry);
 			mem_heap_empty(heap);
 		}
@@ -625,7 +625,7 @@ row_purge_upd_exist_or_extern_func(
 						     thr, NULL, NULL)) {
 			/* Build the older version of the index entry */
 			dtuple_t*	entry = row_build_index_entry_low(
-				node->row, NULL, node->index, heap);
+				node->row, NULL, node->index, heap, false);
 			row_purge_remove_sec_if_poss(node, node->index, entry);
 			mem_heap_empty(heap);
 		}

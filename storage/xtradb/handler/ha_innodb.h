@@ -696,3 +696,12 @@ innobase_copy_frm_flags_from_table_share(
 /*=====================================*/
 	dict_table_t*		innodb_table,	/*!< in/out: InnoDB table */
 	const TABLE_SHARE*	table_share);	/*!< in: table share */
+
+/*********************************************************************//*
+ creates a column name for hash index */
+UNIV_INTERN
+char*
+innobase_create_column_name_for_hash_index(
+	/*=====================================*/
+	mem_heap_t*		heap,		/*!< in: memory heap */
+	const char*		index_name);	/*!< in: name of the index */

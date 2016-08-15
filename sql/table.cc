@@ -1340,6 +1340,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   extra_rec_buf_length= uint2korr(frm_image+59);
   rec_buff_length= ALIGN_SIZE(share->reclength + 1 + extra_rec_buf_length);
   share->rec_buff_length= rec_buff_length;
+  for (i = 0; i < keys; i++)
+  {
+    if ((share->key_info + i)->algorithm == HA_KEY_ALG_HASH)
+    {
+      share->rec_buff_length+= MI_UNIQUE_HASH_LENGTH;
+    }
+  }
   if (!(record= (uchar *) alloc_root(&share->mem_root,
                                      rec_buff_length)))
     goto err;                          /* purecov: inspected */

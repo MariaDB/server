@@ -2481,7 +2481,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
       if (!keys_to_use.is_set(idx))
 	continue;
-      if (key_info->flags & HA_FULLTEXT)
+      if (key_info->flags & HA_FULLTEXT || key_info->algorithm == HA_KEY_ALG_HASH)
 	continue;    // ToDo: ft-keys in non-ft ranges, if possible   SerG
 
       param.key[param.keys]=key_parts;

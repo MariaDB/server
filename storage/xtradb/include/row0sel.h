@@ -192,6 +192,45 @@ row_search_max_autoinc(
 	ib_uint64_t*	value)		/*!< out: AUTOINC value read */
 	__attribute__((nonnull, warn_unused_result));
 
+/*********************************************************************//*
+Retrieves the clustered index record corresponding to a record in a
+ non-clustered index. Does the necessary locking.
+ @return	DB_SUCCESS, DB_SUCCESS_LOCKED_REC, or error code */
+dberr_t
+row_sel_get_clust_rec_for_cmp(
+	/*============================*/
+	dict_index_t*	sec_index,/*!< in: secondary index where rec resides */
+	const rec_t*	rec,	/*!< in: record in a non-clustered index; if
+						this is a locking read, then rec is not
+						allowed to be delete-marked, and that would
+						not make sense either */
+	que_thr_t*	thr,	/*!< in: query thread */
+	const rec_t**	out_rec,/*!< out: clustered record */
+	ulint**		offsets,/*!< in: offsets returned by
+					rec_get_offsets(rec, sec_index);
+					out: offsets returned by
+					rec_get_offsets(out_rec, clust_index) */
+	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
+								the offsets are allocated */
+	mtr_t*		mtr, /*!< in: mtr used to get access to the
+					 non-clustered record */
+	dtuple_t*	clust_ref,  /*!< in: row reference built */
+	btr_pcur_t*	clust_pcur);	/*!< in: persistent cursor */
+
+/*********************************************************************//*
+Sets the values of the dtuple fields in entry from the values of
+columns in a clustered row. */
+void
+row_sel_create_entry_from_clust_rec(
+	/*==================*/
+	dtuple_t*	entry,   /*!< out: row*/
+	dict_index_t*	clust_index,	/*!< in: record clustered index */
+	dict_index_t*	sec_index,   /*!< in: secondary index */
+	const rec_t*	rec,	/*!< in: record in a clustered or non-clustered
+							index; must be protected by a page latch */
+	mem_heap_t*	heap);	/*!< in: memory heap */
+
+
 /** A structure for caching column values for prefetched rows */
 struct sel_buf_t{
 	byte*		data;	/*!< data, or NULL; if not NULL, this field

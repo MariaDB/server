@@ -375,7 +375,7 @@ row_undo_ins_remove_sec_rec(
 		matter if any indexes were created afterwards; all
 		index entries can be reconstructed from the row. */
 		entry = row_build_index_entry(
-			node->row, node->ext, index, heap);
+			node->row, node->ext, index, heap, false);
 		if (UNIV_UNLIKELY(!entry)) {
 			/* The database must have crashed after
 			inserting a clustered index record but before

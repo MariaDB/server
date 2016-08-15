@@ -1391,7 +1391,7 @@ row_upd_replace(
 
 	n_cols = dtuple_get_n_fields(row);
 	table = index->table;
-	ut_ad(n_cols == dict_table_get_n_cols(table));
+	ut_ad(n_cols == dict_table_get_n_cols(table) + dict_table_get_n_hash_cols(table));
 
 	ext_cols = static_cast<ulint*>(
 		mem_heap_alloc(heap, n_cols * sizeof *ext_cols));
@@ -1794,7 +1794,7 @@ row_upd_store_row(
 	}
 
 	node->row = row_build(ROW_COPY_DATA, clust_index, rec, offsets,
-			      NULL, NULL, NULL, ext, node->heap);
+			      NULL, NULL, NULL, ext, node->heap, NULL);
 	if (node->is_delete) {
 		node->upd_row = NULL;
 		node->upd_ext = NULL;
@@ -1845,7 +1845,7 @@ row_upd_sec_index_entry(
 	heap = mem_heap_create(1024);
 
 	/* Build old index entry */
-	entry = row_build_index_entry(node->row, node->ext, index, heap);
+	entry = row_build_index_entry(node->row, node->ext, index, heap, false);
 	ut_a(entry);
 
 	log_free_check();
@@ -1882,7 +1882,7 @@ row_upd_sec_index_entry(
 				mem_heap_empty(heap);
 				entry = row_build_index_entry(
 					node->upd_row, node->upd_ext,
-					index, heap);
+					index, heap, false);
 				ut_a(entry);
 				row_log_online_op(index, entry, trx->id);
 			}
@@ -2038,11 +2038,11 @@ row_upd_sec_index_entry(
 
 	/* Build a new index entry */
 	entry = row_build_index_entry(node->upd_row, node->upd_ext,
-				      index, heap);
+				      index, heap, false);
 	ut_a(entry);
 
 	/* Insert new index entry */
-	err = row_ins_sec_index_entry(index, entry, thr);
+	err = row_ins_sec_index_entry(index, entry, thr, node->upd_row);
 
 func_exit:
 	mem_heap_free(heap);
@@ -2206,7 +2206,7 @@ row_upd_clust_rec_by_insert(
 	heap = mem_heap_create(1000);
 
 	entry = row_build_index_entry(node->upd_row, node->upd_ext,
-				      index, heap);
+				      index, heap, false);
 	ut_a(entry);
 
 	row_upd_index_entry_sys_field(entry, index, DATA_TRX_ID, trx->id);
@@ -3021,3 +3021,84 @@ error_handling:
 	return(thr);
 }
 #endif /* !UNIV_HOTBACKUP */
+
+/***********************************************************//**
+Checks if  HASH column needs an update.*/
+UNIV_INTERN
+ibool
+row_update_check_unique_hash_index(
+	/*==================================*/
+	dict_index_t*	index,	/*!< in: index of the record */
+	const upd_t*	update) /*!< in: update vector for the row; NOTE: the
+				field numbers in this MUST be clustered index
+				positions! */
+{
+	ulint			n_user_fields;
+	const dict_index_t*	clust_index;
+
+	ut_ad(index);
+	ut_ad(update);
+	n_user_fields = dict_index_get_n_user_fields(index);
+	clust_index = dict_table_get_first_index(index->table);
+
+	/*!< If one of the user defined columns in hash index
+	is updated then hash value is also updated */
+	for (ulint i = 0; i < n_user_fields; i++) {
+
+		const dict_field_t*	ind_field;
+		const dict_col_t*	col;
+		const upd_field_t*	upd_field;
+
+		ind_field = dict_index_get_nth_user_field(index, i);
+		col = dict_field_get_col(ind_field);
+
+		upd_field = upd_get_field_by_field_no(
+			update, dict_col_get_clust_pos(col, clust_index));
+
+		if (upd_field == NULL) {
+			continue;
+		}
+
+		return(TRUE);
+	}
+
+	return(FALSE);
+}
+
+/***********************************************************//**
+ adds a hash field to update vecor*/
+UNIV_INTERN
+void
+row_add_hash_field_to_upd_vector(
+	/*==================================*/
+	dict_index_t*	index,	/*!< in: index of the record */
+	upd_t*		uvect,		/*!< in: update vector for the row; NOTE: the
+						field numbers in this MUST be clustered index
+						positions! */
+	const dtuple_t* row) /*updated row*/
+
+{
+	ut_ad(index);
+	ut_ad(uvect);
+
+	const dict_index_t*	clust_index;
+	const dict_field_t*	hash_field;
+	const dict_col_t*	col;
+	const dfield_t*		dfield;
+	upd_field_t*		upd_field;
+	ulint			col_no;
+
+	/*hash field is the first column in hash index*/
+	hash_field = dict_index_get_nth_field(index, 0);
+	clust_index = dict_table_get_first_index(index->table);
+	col = dict_field_get_col(hash_field);
+	col_no = dict_col_get_no(col);
+	dfield = dtuple_get_nth_field(row, col_no);
+
+	upd_field = uvect->fields + uvect->n_fields;
+	dfield_copy(&upd_field->new_val, dfield);
+	upd_field->exp = NULL;
+	upd_field->orig_len = 0;
+	upd_field->field_no = dict_col_get_clust_pos(col, clust_index);
+	uvect->n_fields += 1;
+}

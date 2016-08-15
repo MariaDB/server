@@ -1645,6 +1645,12 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	error= HA_ERR_FOUND_DUPP_KEY;         /* Database can't find key */
 	goto err;
       }
+      if (table->key_info[key_nr].algorithm == HA_KEY_ALG_HASH &&
+          strcmp(table->file->table_type(), "InnoDB") == 0)
+      {
+        error = HA_ERR_FOUND_DUPP_KEY;         /* Database can't find key */
+        goto err;
+      }
       DEBUG_SYNC(thd, "write_row_replace");
 
       /* Read all columns for the row we are going to replace */
@@ -1682,7 +1688,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	}
 	key_copy((uchar*) key,table->record[0],table->key_info+key_nr,0);
         key_part_map keypart_map= (1 << table->key_info[key_nr].user_defined_key_parts) - 1;
-	if ((error= (table->file->ha_index_read_idx_map(table->record[1],
+       if ((error= (table->file->ha_index_read_idx_map(table->record[1],
                                                         key_nr, (uchar*) key,
                                                         keypart_map,
                                                         HA_READ_KEY_EXACT))))

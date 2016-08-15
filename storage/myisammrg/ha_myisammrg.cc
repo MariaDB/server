@@ -139,13 +139,15 @@ static const char *ha_myisammrg_exts[] = {
   NullS
 };
 extern int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
-                        MI_COLUMNDEF **recinfo_out, uint *records_out);
+                        MI_COLUMNDEF **recinfo_out,MI_UNIQUEDEF **uniquedef_out, uint *records_out);
 extern int check_definition(MI_KEYDEF *t1_keyinfo,
                             MI_COLUMNDEF *t1_recinfo,
-                            uint t1_keys, uint t1_recs,
+                            MI_UNIQUEDEF *t1_uniqueinfo,
+                            uint t1_keys, uint t1_recs,uint t1_uniques,
                             MI_KEYDEF *t2_keyinfo,
                             MI_COLUMNDEF *t2_recinfo,
-                            uint t2_keys, uint t2_recs, bool strict,
+                            MI_UNIQUEDEF *t2_uniqueinfo,
+                            uint t2_keys, uint t2_recs,uint t2_uniques, bool strict,
                             TABLE *table_arg);
 static void split_file_name(const char *file_name,
 			    LEX_STRING *db, LEX_STRING *name);
@@ -803,8 +805,10 @@ int ha_myisammrg::attach_children(void)
   MYRG_TABLE    *u_table;
   MI_COLUMNDEF  *recinfo;
   MI_KEYDEF     *keyinfo;
+  MI_UNIQUEDEF  *uniqueinfo;
   uint          recs;
   uint          keys= table->s->keys;
+  uint          uniques= table->s->uniques;
   TABLE_LIST   *parent_l= table->pos_in_table_list;
   int           error;
   Mrg_attach_children_callback_param param(parent_l, this->children_l, child_def_list);
@@ -879,7 +883,7 @@ int ha_myisammrg::attach_children(void)
       Both recinfo and keyinfo are allocated by my_multi_malloc(), thus
       only recinfo must be freed.
     */
-    if ((error= table2myisam(table, &keyinfo, &recinfo, &recs)))
+    if ((error= table2myisam(table, &keyinfo, &recinfo, &uniqueinfo, &recs)))
     {
       /* purecov: begin inspected */
       DBUG_PRINT("error", ("failed to convert TABLE object to MyISAM "
@@ -889,10 +893,12 @@ int ha_myisammrg::attach_children(void)
     }
     for (u_table= file->open_tables; u_table < file->end_table; u_table++)
     {
-      if (check_definition(keyinfo, recinfo, keys, recs,
+      if (check_definition(keyinfo, recinfo,uniqueinfo, keys, recs,uniques,
                            u_table->table->s->keyinfo, u_table->table->s->rec,
+                           u_table->table->s->uniqueinfo,
                            u_table->table->s->base.keys,
-                           u_table->table->s->base.fields, false, NULL))
+                           u_table->table->s->base.fields,
+                           u_table->table->s->state.header.uniques, false, NULL))
       {
         DBUG_PRINT("error", ("table definition mismatch: '%s'",
                              u_table->table->filename));

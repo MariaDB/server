@@ -284,7 +284,7 @@ dict_mem_table_add_col(
 	i = table->n_def++;
 
 	if (name) {
-		if (UNIV_UNLIKELY(table->n_def == table->n_cols)) {
+		if (UNIV_UNLIKELY(table->n_def == table->n_cols + table->n_hash_cols)) {
 			heap = table->heap;
 		}
 		if (UNIV_LIKELY(i != 0) && UNIV_UNLIKELY(table->col_names == NULL)) {
@@ -361,12 +361,24 @@ dict_mem_table_col_rename_low(
 		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
-			ulint	n_fields = dict_index_get_n_fields(index);
+			ulint	n_fields;
+
+			/*For hash index, index->n_fields doesn't include user
+			defined fields.*/
+			if (dict_index_is_unique_hash(index)) {
+				n_fields = dict_index_get_n_user_fields(index) +
+						dict_index_get_n_fields(index);
+			} else {
+				n_fields = dict_index_get_n_fields(index);
+			}
 
 			for (ulint i = 0; i < n_fields; i++) {
-				dict_field_t*	field
-					= dict_index_get_nth_field(
-						index, i);
+				dict_field_t*	field;
+				if (dict_index_is_unique_hash(index)) {
+					field = dict_index_get_nth_user_field(index, i);
+				} else {
+					field = dict_index_get_nth_field(index, i);
+				}
 				ulint		name_ofs
 					= field->name - table->col_names;
 				if (name_ofs <= prefix_len) {

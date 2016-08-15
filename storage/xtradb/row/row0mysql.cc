@@ -66,6 +66,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "m_string.h"
 #include "my_sys.h"
 #include <algorithm>
+#include <m_ctype.h>
 
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
 UNIV_INTERN ibool	row_rollback_on_timeout	= FALSE;
@@ -171,6 +172,124 @@ row_mysql_prebuilt_free_blob_heap(
 {
 	mem_heap_free(prebuilt->blob_heap);
 	prebuilt->blob_heap = NULL;
+}
+
+/*******************************************************************//**
+calculates hash value and store in a row. */
+UNIV_INTERN
+void
+row_mysql_unique_hash(
+/*==============================*/
+	mem_heap_t*		heap,	/*!< in: memory heap*/
+	dict_index_t*		index,  /*!< in: index */
+	dtuple_t*		row,	/*!< in: row */
+	dtuple_t*		ext_cols)/*!< in: external columns(used in alter table) */
+{
+	uint64		crc;
+	ulong		seed1;
+	ulong		seed2;
+	ulint		charset_id;
+	dfield_t*	field;
+	dfield_t*	row_field;
+	ulint		len, type ,col_len;
+	uchar*		pos, *end;
+	uint64*		data;
+	byte*		p, *q, *buf;
+	dtype_t*	dtype, *row_dtype;
+	ulint		n_user_fields;
+	const dict_field_t*		ind_field;
+	const dict_field_t*		hash_field;
+	const dict_col_t*		col;
+	CHARSET_INFO*			charset;
+
+	seed1 = 0;
+	seed2 = 4;
+	crc = 0;
+	n_user_fields = index->n_user_defined_cols;
+
+	hash_field = dict_index_get_nth_field(index, 0);
+	field = dtuple_get_nth_field(row, hash_field->col->ind);
+	col_len = sizeof(uint64);
+
+	data = static_cast<uint64*>(
+		mem_heap_zalloc(heap, col_len));
+	buf = static_cast<byte*>(
+		mem_heap_zalloc(heap, col_len));
+
+	for (ulint i = 0; i < n_user_fields ; i++)  {
+		ind_field = dict_index_get_nth_user_field(index, i);
+		row_field = dtuple_get_nth_field(row, ind_field->col->ind);
+
+		if (dfield_is_ext(row_field) && ext_cols) {
+			row_field = dtuple_get_nth_field(ext_cols, ind_field->col->ind);
+		}
+
+		len = dfield_get_len(row_field);
+		col	= dict_field_get_col(ind_field);
+		row_dtype = dfield_get_type(row_field);
+
+		if ( dfield_get_len(row_field) == UNIV_SQL_NULL) {
+			crc=((crc << 8) + 511 + (crc >> (8*sizeof(uint64)-8)));
+			continue;
+		} else {
+
+			if (ind_field->prefix_len > 0) {
+				len = dtype_get_at_most_n_mbchars(
+						col->prtype, col->mbminmaxlen,
+						ind_field->prefix_len,
+						len,
+						static_cast<const char*>(
+						dfield_get_data(row_field)));
+			}
+
+			pos = (uchar*)row_field->data;
+			end = pos + len;
+
+			if (row_dtype->mtype == DATA_VARCHAR || row_dtype->mtype == DATA_CHAR ||
+			    row_dtype->mtype == DATA_VARMYSQL || row_dtype->mtype == DATA_MYSQL ) {
+					charset_id = dtype_get_charset_coll(row_dtype->prtype);
+					charset = get_charset((uint) charset_id, MYF(MY_WME));
+					ut_ad(charset);
+					charset->coll->hash_sort(charset,
+								(const uchar*) pos,
+								len, &seed1, &seed2);
+					crc^= seed1;
+			} else {
+				while (pos != end)
+					crc=((crc << 8) +
+					(((uchar)  *(uchar*) pos++))) +
+					(crc >> (8*sizeof(uint64)-8));
+			}
+		}
+	}
+
+	*data = crc;
+	dtype = dfield_get_type(field);
+	q = (byte*) data;
+
+	type = dtype->mtype;
+
+	if (type == DATA_INT) {
+		/* Store integer data in Innobase in a big-endian format,
+		sign bit negated if the data is a signed integer. In MySQL,
+		integers are stored in a little-endian format. */
+
+		p = (byte*) buf + col_len;
+
+		for (;;) {
+			p--;
+			*p = *q;
+			if (p == buf) {
+				break;
+			}
+			q++;
+		}
+		if (!(dtype->prtype & DATA_UNSIGNED)) {
+			*buf ^= 128;
+		}
+	}
+
+	dfield_set_data(field,buf,col_len);
 }
 
 /*******************************************************************//**
@@ -515,7 +634,7 @@ row_mysql_store_col_in_innobase_format(
 Convert a row in the MySQL format to a row in the Innobase format. Note that
 the function to convert a MySQL format key value to an InnoDB dtuple is
 row_sel_convert_mysql_key_to_innobase() in row0sel.cc. */
-static
+UNIV_INTERN
 void
 row_mysql_convert_row_to_innobase(
 /*==============================*/
@@ -798,7 +917,8 @@ row_create_prebuilt(
 	/* We allocate enough space for the objects that are likely to
 	be created later in order to minimize the number of malloc()
 	calls */
-	heap = mem_heap_create(PREBUILT_HEAP_INITIAL_SIZE + 2 * srch_key_len);
+	heap = mem_heap_create(PREBUILT_HEAP_INITIAL_SIZE + 2 * srch_key_len +
+				((table->n_hash_cols*2) * HASH_COL_LENGTH));
 
 	prebuilt = static_cast<row_prebuilt_t*>(
 		mem_heap_zalloc(heap, sizeof(*prebuilt)));
@@ -1053,7 +1173,8 @@ row_get_prebuilt_insert_row(
 
 	dtuple_t*	row;
 
-	row = dtuple_create(prebuilt->heap, dict_table_get_n_cols(table));
+	row = dtuple_create(prebuilt->heap, dict_table_get_n_cols(table) +
+				dict_table_get_n_hash_cols(table));
 
 	dict_table_copy_types(row, table);
 
@@ -1298,6 +1419,7 @@ row_insert_for_mysql(
 	trx_t*		trx		= prebuilt->trx;
 	ins_node_t*	node		= prebuilt->ins_node;
 	dict_table_t*	table		= prebuilt->table;
+	dict_index_t*	dindex;
 
 	ut_ad(trx);
 
@@ -1354,6 +1476,16 @@ row_insert_for_mysql(
 	node = prebuilt->ins_node;
 
 	row_mysql_convert_row_to_innobase(node->row, prebuilt, mysql_rec);
+
+	dindex = dict_table_get_first_index(node->table);
+
+	while (dindex) {
+		if (dindex->type & DICT_UNIQUE_HASH) {
+			row_mysql_unique_hash(prebuilt->heap, dindex, node->row, NULL);
+		}
+
+		dindex = dict_table_get_next_index(dindex);
+	}
 
 	savept = trx_savept_take(trx);
 
@@ -1531,9 +1663,11 @@ row_create_update_node_for_mysql(
 	node->pcur = btr_pcur_create_for_mysql();
 	node->table = table;
 
-	node->update = upd_create(dict_table_get_n_cols(table), heap);
+	node->update = upd_create(dict_table_get_n_cols(table) +
+					dict_table_get_n_hash_cols(table), heap);
 
-	node->update_n_fields = dict_table_get_n_cols(table);
+	node->update_n_fields = dict_table_get_n_cols(table) +
+					dict_table_get_n_hash_cols(table);
 
 	UT_LIST_INIT(node->columns);
 	node->has_clust_rec_x_lock = TRUE;
@@ -2515,27 +2649,29 @@ row_create_index_for_mysql(
 
 	trx_start_if_not_started_xa(trx);
 
-	for (i = 0; i < index->n_def; i++) {
-		/* Check that prefix_len and actual length
-		< DICT_MAX_INDEX_COL_LEN */
+	if(!(index->type & DICT_UNIQUE_HASH)){
+		for (i = 0; i < index->n_def; i++) {
+			/* Check that prefix_len and actual length
+			< DICT_MAX_INDEX_COL_LEN */
 
-		len = dict_index_get_nth_field(index, i)->prefix_len;
+			len = dict_index_get_nth_field(index, i)->prefix_len;
 
-		if (field_lengths && field_lengths[i]) {
-			len = ut_max(len, field_lengths[i]);
-		}
+			if (field_lengths && field_lengths[i]) {
+				len = ut_max(len, field_lengths[i]);
+			}
 
-		DBUG_EXECUTE_IF(
-			"ib_create_table_fail_at_create_index",
-			len = DICT_MAX_FIELD_LEN_BY_FORMAT(table) + 1;
-		);
+			DBUG_EXECUTE_IF(
+				"ib_create_table_fail_at_create_index",
+				len = DICT_MAX_FIELD_LEN_BY_FORMAT(table) + 1;
+			);
 
-		/* Column or prefix length exceeds maximum column length */
-		if (len > (ulint) DICT_MAX_FIELD_LEN_BY_FORMAT(table)) {
-			err = DB_TOO_BIG_INDEX_COL;
+			/* Column or prefix length exceeds maximum column length */
+			if (len > (ulint)DICT_MAX_FIELD_LEN_BY_FORMAT(table)) {
+				err = DB_TOO_BIG_INDEX_COL;
 
-			dict_mem_index_free(index);
-			goto error_handling;
+				dict_mem_index_free(index);
+				goto error_handling;
+			}
 		}
 	}
 

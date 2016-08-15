@@ -33,6 +33,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "trx0types.h"
 #include "row0types.h"
 
+
 /***************************************************************//**
 Checks if foreign key constraint fails for an index entry. Sets shared locks
 which lock either the success or the failure of the constraint. NOTE that
@@ -122,7 +123,8 @@ row_ins_sec_index_entry_low(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	trx_id_t	trx_id,	/*!< in: PAGE_MAX_TRX_ID during
 				row_log_table_apply(), or 0 */
-	que_thr_t*	thr)	/*!< in: query thread */
+	que_thr_t*	thr,	/*!< in: query thread */
+	const dtuple_t* row)	/*!< in: row  */
 	__attribute__((nonnull, warn_unused_result));
 /***************************************************************//**
 Tries to insert the externally stored fields (off-page columns)
@@ -177,8 +179,22 @@ row_ins_sec_index_entry(
 /*====================*/
 	dict_index_t*	index,	/*!< in: secondary index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
-	que_thr_t*	thr)	/*!< in: query thread */
+	que_thr_t*	thr,	/*!< in: query thread */
+	dtuple_t* 	row)	/*!< in: row */
 	__attribute__((nonnull, warn_unused_result));
+/***********************************************************//**
+ Sets the values of the dtuple fields in entry from the values of appropriate
+columns in row. */
+UNIV_INTERN
+void
+row_ins_index_entry_set_vals(
+	/*=========================*/
+	dict_index_t*	index,	/*!< in: index */
+	dtuple_t*	entry,	/*!< in: index entry to make */
+	const dtuple_t*	row, /*!< in: row */
+	ibool		hash_index)/*in : true for hash index when creating an index entry
+						 with user defined columns */
+	__attribute__((nonnull));
 /***********************************************************//**
 Inserts a row to a table. This is a high-level function used in
 SQL execution graphs.

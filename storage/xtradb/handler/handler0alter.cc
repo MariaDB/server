@@ -201,18 +201,63 @@ innobase_fulltext_exist(
 
 	return(false);
 }
+/*******************************************************************//**
+Determine if ALTER TABLE needs to rebuild the table due to hash columns.
+@param ha_alter_info		the DDL operation
+@param old_table		old table
+@return whether it is necessary to rebuild the table */
+static __attribute__((nonnull, warn_unused_result))
+bool
+innobase_need_rebuild_for_hash_cols(
+/*==================*/
+    Alter_inplace_info*	ha_alter_info,
+    dict_table_t*		old_table)
+{
+	/*If one of the hash indexes is dropped then
+	hash column associated with it needs to be dropped*/
+	for (uint i = 0; i < ha_alter_info->index_drop_count; i++) {
+		const KEY*	key
+			= ha_alter_info->index_drop_buffer[i];
+		dict_index_t*	index
+			= dict_table_get_index_on_name_and_min_id(
+				old_table, key->name);
+
+		if (index && index->type & DICT_UNIQUE_HASH) {
+			ha_alter_info->handler_flags |= Alter_inplace_info::DROP_COLUMN;
+			return (true);
+		}
+	}
+
+	/*If  hash index is added then
+	hash column associated with it will be added.*/
+	if ((ha_alter_info->handler_flags
+		    & Alter_inplace_info::ADD_UNIQUE_INDEX)) {
+		for (ulint i = 0; i < ha_alter_info->index_add_count; i++) {
+			const KEY* key = &ha_alter_info->key_info_buffer[
+				ha_alter_info->index_add_buffer[i]];
+			if(key->algorithm == HA_KEY_ALG_HASH){
+				ha_alter_info->handler_flags |= Alter_inplace_info::ADD_COLUMN;
+				return (true);
+			}
+		}
+	}
+
+	return (false);
+}
 
 /*******************************************************************//**
 Determine if ALTER TABLE needs to rebuild the table.
 @param ha_alter_info		the DDL operation
 @param altered_table		MySQL original table
+@param old_table		InnoDB original table
 @return whether it is necessary to rebuild the table */
 static __attribute__((nonnull, warn_unused_result))
 bool
 innobase_need_rebuild(
 /*==================*/
-	const Alter_inplace_info*	ha_alter_info,
-	const TABLE*			altered_table)
+	Alter_inplace_info*		ha_alter_info,
+	const TABLE*			altered_table,
+	dict_table_t* 			old_table)
 {
 	if (ha_alter_info->handler_flags
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
@@ -251,7 +296,13 @@ innobase_need_rebuild(
 			}
 		}
 	}
-	
+
+	if (old_table) {
+		if (innobase_need_rebuild_for_hash_cols(ha_alter_info, old_table)) {
+			return (true);
+		}
+	}
+
 	return(!!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD));
 }
 
@@ -590,7 +641,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		operation is possible. */
 	} else if (((ha_alter_info->handler_flags
 		     & Alter_inplace_info::ADD_PK_INDEX)
-			|| innobase_need_rebuild(ha_alter_info, table))
+			|| innobase_need_rebuild(ha_alter_info, table, prebuilt->table))
 		   && (innobase_fulltext_exist(altered_table))) {
 		/* Refuse to rebuild the table online, if
 		fulltext indexes are to survive the rebuild. */
@@ -1306,7 +1357,8 @@ innobase_fields_to_mysql(
 /*=====================*/
 	struct TABLE*		table,	/*!< in/out: MySQL table */
 	const dict_index_t*	index,	/*!< in: InnoDB index */
-	const dfield_t*		fields)	/*!< in: InnoDB index fields */
+	const dfield_t*		fields,	/*!< in: InnoDB index fields */
+	bool		        logval)	/*!< in: true when called from row0log.cc*/
 {
 	uint	n_fields	= table->s->stored_fields;
         uint    sql_idx         = 0;
@@ -1319,13 +1371,15 @@ innobase_fields_to_mysql(
 		Field*		field;
 		ulint		ipos;
 
-                while (!((field= table->field[sql_idx])->stored_in_db))
+		 while (!((field= table->field[sql_idx])->stored_in_db))
                           sql_idx++;
 
 		field->reset();
-
-		ipos = dict_index_get_nth_col_or_prefix_pos(index, i, TRUE,
-							    NULL);
+		if (!logval) {
+			ipos = dict_index_get_nth_col_or_prefix_pos(index, i, TRUE, NULL);
+		} else {
+			ipos = ULINT_UNDEFINED;
+		}
 
 		if (ipos == ULINT_UNDEFINED
 		    || dfield_is_ext(&fields[ipos])
@@ -1337,12 +1391,22 @@ innobase_fields_to_mysql(
 
 			const dfield_t*	df	= &fields[ipos];
 
-			innobase_col_to_mysql(
-				dict_field_get_col(
+			if (dict_index_is_unique_hash(index)) {
+				innobase_col_to_mysql(
+					dict_field_get_col(
+					dict_index_get_nth_user_field(index, ipos)),
+					static_cast<const uchar*>(dfield_get_data(df)),
+					dfield_get_len(df), field);
+			} else {
+				innobase_col_to_mysql(
+					dict_field_get_col(
 					dict_index_get_nth_field(index, ipos)),
-				static_cast<const uchar*>(dfield_get_data(df)),
-				dfield_get_len(df), field);
+					static_cast<const uchar*>(dfield_get_data(df)),
+					dfield_get_len(df), field);
+			}
+
 		}
+
 	}
 }
 
@@ -1360,7 +1424,7 @@ innobase_row_to_mysql(
         uint  sql_idx   = 0;
 
 	/* The InnoDB row may contain an extra FTS_DOC_ID column at the end. */
-	ut_ad(row->n_fields == dict_table_get_n_cols(itab));
+	ut_ad(row->n_fields == dict_table_get_n_cols(itab) + dict_table_get_n_hash_cols(itab));
 	ut_ad(n_fields == row->n_fields - DATA_N_SYS_COLS
 	      - !!(DICT_TF2_FLAG_IS_SET(itab, DICT_TF2_FTS_HAS_DOC_ID)));
 
@@ -1525,6 +1589,27 @@ name_ok:
 }
 
 /*******************************************************************//**
+Create index hash field definition for key part */
+static __attribute__((nonnull))
+void
+innobase_create_index_field_def_hash(
+/*============================*/
+	const KEY*		key,	/*!< in: key definition */
+	index_field_t*		index_field,	/*!< out: index field
+						definition for key_part */
+						/*!< in: MySQL table fields */
+	mem_heap_t*		heap )  /*memory heap*/
+{
+	DBUG_ENTER("innobase_create_index_field_def_hash");
+	ut_ad(index_field);
+
+	char* col_name = innobase_create_column_name_for_hash_index(heap, key->name);
+	index_field->col_name = col_name;
+	index_field->prefix_len = 0;
+	DBUG_VOID_RETURN;
+}
+
+/*******************************************************************//**
 Create index field definition for key part */
 static __attribute__((nonnull(2,3)))
 void
@@ -1603,48 +1688,65 @@ innobase_create_index_def(
 	DBUG_ENTER("innobase_create_index_def");
 	DBUG_ASSERT(!key_clustered || new_clustered);
 
-	index->fields = static_cast<index_field_t*>(
-		mem_heap_alloc(heap, n_fields * sizeof *index->fields));
-
-	memset(index->fields, 0, n_fields * sizeof *index->fields);
-
 	index->ind_type = 0;
 	index->key_number = key_number;
 	index->n_fields = n_fields;
 	len = strlen(key->name) + 1;
 	index->name = index_name = static_cast<char*>(
-		mem_heap_alloc(heap, len + !new_clustered));
-
+	mem_heap_alloc(heap, len + !new_clustered));
 	if (!new_clustered) {
 		*index_name++ = TEMP_INDEX_PREFIX;
 	}
-
 	memcpy(index_name, key->name, len);
 
-	if (key->flags & HA_NOSAME) {
-		index->ind_type |= DICT_UNIQUE;
-	}
+	if (key->algorithm == HA_KEY_ALG_HASH) {
+		index->ind_type |= DICT_UNIQUE_HASH;
+		/*one extra field for hash value*/
+		index->n_fields +=1;
+		n_fields +=1;
+	} else {
+		if (key->flags & HA_NOSAME) {
+			index->ind_type |= DICT_UNIQUE;
+		}
 
-	if (key_clustered) {
-		DBUG_ASSERT(!(key->flags & HA_FULLTEXT));
-		index->ind_type |= DICT_CLUSTERED;
-	} else if (key->flags & HA_FULLTEXT) {
-		DBUG_ASSERT(!(key->flags & HA_KEYFLAG_MASK
+		if (key_clustered) {
+			DBUG_ASSERT(!(key->flags & HA_FULLTEXT));
+			index->ind_type |= DICT_CLUSTERED;
+		} else if (key->flags & HA_FULLTEXT) {
+			DBUG_ASSERT(!(key->flags & HA_KEYFLAG_MASK
 			      & ~(HA_FULLTEXT
 				  | HA_PACK_KEY
 				  | HA_BINARY_PACK_KEY)));
-		DBUG_ASSERT(!(key->flags & HA_NOSAME));
-		DBUG_ASSERT(!index->ind_type);
-		index->ind_type |= DICT_FTS;
+			DBUG_ASSERT(!(key->flags & HA_NOSAME));
+			DBUG_ASSERT(!index->ind_type);
+			index->ind_type |= DICT_FTS;
+		}
 	}
+
+	index->fields = static_cast<index_field_t*>(
+		mem_heap_alloc(heap, n_fields * sizeof *index->fields));
+
+	memset(index->fields, 0, n_fields * sizeof *index->fields);
 
 	if (!new_clustered) {
 		altered_table = NULL;
 	}
+	if (index->ind_type & DICT_UNIQUE_HASH) {
+		for (i = 0; i < n_fields - 1 ; i++) {
+			innobase_create_index_field_def(altered_table,
+							&key->key_part[i],
+							&index->fields[i],
+							fields);
+		}
 
-	for (i = 0; i < n_fields; i++) {
-		innobase_create_index_field_def(
-			altered_table, &key->key_part[i], &index->fields[i], fields);
+		innobase_create_index_field_def_hash(key, &index->fields[i], heap);
+	} else {
+		for (i = 0; i < n_fields; i++) {
+			innobase_create_index_field_def(altered_table,
+							&key->key_part[i],
+							&index->fields[i],
+							fields);
+		}
 	}
 
 	DBUG_VOID_RETURN;
@@ -1851,6 +1953,7 @@ innobase_fts_check_doc_id_index_in_def(
 
 	return(FTS_NOT_EXIST_DOC_ID_INDEX);
 }
+
 /*******************************************************************//**
 Create an index table where indexes are ordered as follows:
 
@@ -1873,7 +1976,7 @@ innobase_create_key_defs(
 	mem_heap_t*			heap,
 			/*!< in/out: memory heap where space for key
 			definitions are allocated */
-	const Alter_inplace_info*	ha_alter_info,
+	Alter_inplace_info*		ha_alter_info,
 			/*!< in: alter operation */
 	const TABLE*			altered_table,
 			/*!< in: MySQL table that is being altered */
@@ -1891,8 +1994,10 @@ innobase_create_key_defs(
 	bool&				add_fts_doc_idx,
 			/*!< in: whether we need to add new DOC ID
 			index for FTS index */
-	const TABLE*			table)
+	const TABLE*			table,
 			/*!< in: MySQL table that is being altered */
+	dict_table_t*			old_table)
+			/*!< in: innodb table that is being altered*/
 {
 	index_def_t*		indexdef;
 	index_def_t*		indexdefs;
@@ -1942,7 +2047,7 @@ innobase_create_key_defs(
 	}
 
 	const bool rebuild = new_primary || add_fts_doc_id
-		|| innobase_need_rebuild(ha_alter_info, table);
+		|| innobase_need_rebuild(ha_alter_info, table, old_table);
 
 	/* Reserve one more space if new_primary is true, and we might
 	need to add the FTS_DOC_ID_INDEX */
@@ -2097,6 +2202,9 @@ innobase_check_column_length(
 	ulint		max_col_len,	/*!< in: maximum column length */
 	const KEY*	key_info)	/*!< in: Indexes to be created */
 {
+	if(key_info->algorithm == HA_KEY_ALG_HASH){
+		return(false);
+	}
 	for (ulint key_part = 0; key_part < key_info->user_defined_key_parts; key_part++) {
 		if (key_info->key_part[key_part].length > max_col_len) {
 			return(true);
@@ -2104,6 +2212,7 @@ innobase_check_column_length(
 	}
 	return(false);
 }
+
 
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 {
@@ -2526,12 +2635,14 @@ innobase_build_col_map(
 	DBUG_ASSERT(dict_table_get_n_cols(old_table)
 		    >= table->s->stored_fields + DATA_N_SYS_COLS);
 	DBUG_ASSERT(!!add_cols == !!(ha_alter_info->handler_flags
-				     & Alter_inplace_info::ADD_COLUMN));
+					& Alter_inplace_info::ADD_COLUMN));
 	DBUG_ASSERT(!add_cols || dtuple_get_n_fields(add_cols)
-		    == dict_table_get_n_cols(new_table));
+		    == dict_table_get_n_cols(new_table) +
+				dict_table_get_n_hash_cols(new_table));
 
 	ulint*	col_map = static_cast<ulint*>(
-		mem_heap_alloc(heap, old_table->n_cols * sizeof *col_map));
+		mem_heap_alloc(heap, (old_table->n_cols +
+				old_table->n_hash_cols) * sizeof *col_map));
 
 	List_iterator_fast<Create_field> cf_it(
 		ha_alter_info->alter_info->create_list);
@@ -2609,8 +2720,23 @@ found_col:
 				    DICT_TF2_FTS_HAS_DOC_ID));
 	}
 
-	for (; i < old_table->n_cols; i++) {
-		col_map[i] = i + new_table->n_cols - old_table->n_cols;
+	if (add_cols || ha_alter_info->handler_flags
+					& Alter_inplace_info::DROP_COLUMN) {
+		/*to map system columns*/
+		/*hash columns are not mapped here as we
+		are not sure about the order of hash columns
+		in a new table. They will be recalculated
+		in row_build() */
+		i +=  old_table->n_hash_cols;
+		for (; i < old_table->n_cols + old_table->n_hash_cols; i++) {
+			col_map[i] = i + (new_table->n_cols - old_table->n_cols) +
+				(new_table->n_hash_cols - old_table->n_hash_cols);
+		}
+	} else {
+		/*to map system columns and hash columns*/
+		for (; i < old_table->n_cols + old_table->n_hash_cols; i++) {
+			col_map[i] = i + new_table->n_cols - old_table->n_cols;
+		}
 	}
 
 	DBUG_RETURN(col_map);
@@ -2740,6 +2866,9 @@ prepare_inplace_alter_table_dict(
 	ulint			new_clustered	= 0;
 	dberr_t			error;
 	ulint			num_fts_index;
+	ulint 			n_hash_cols = 0;
+	index_def_t*		temp_def;
+	dtuple_t*		add_cols;
 	ha_innobase_inplace_ctx*ctx;
         uint                    sql_idx;
 
@@ -2782,7 +2911,7 @@ prepare_inplace_alter_table_dict(
 		num_fts_index,
 		row_table_got_default_clust_index(ctx->new_table),
 		fts_doc_id_col, add_fts_doc_id, add_fts_doc_id_idx,
-		old_table);
+		old_table, ctx->prebuilt->table);
 
 	new_clustered = DICT_CLUSTERED & index_defs[0].ind_type;
 
@@ -2795,7 +2924,7 @@ prepare_inplace_alter_table_dict(
 		/* This is not an online operation (LOCK=NONE). */
 	} else if (ctx->add_autoinc == ULINT_UNDEFINED
 		   && num_fts_index == 0
-		   && (!innobase_need_rebuild(ha_alter_info, old_table)
+		   && (!innobase_need_rebuild(ha_alter_info, old_table, ctx->prebuilt->table)
 		       || !innobase_fulltext_exist(altered_table))) {
 		/* InnoDB can perform an online operation (LOCK=NONE). */
 	} else {
@@ -2812,7 +2941,7 @@ prepare_inplace_alter_table_dict(
 	is just copied from old table and stored in indexdefs[0] */
 	DBUG_ASSERT(!add_fts_doc_id || new_clustered);
 	DBUG_ASSERT(!!new_clustered ==
-		    (innobase_need_rebuild(ha_alter_info, old_table)
+		    (innobase_need_rebuild(ha_alter_info, old_table, ctx->prebuilt->table)
 		     || add_fts_doc_id));
 
 	/* Allocate memory for dictionary index definitions */
@@ -2873,7 +3002,6 @@ prepare_inplace_alter_table_dict(
 				ctx->new_table->name,
 				ctx->new_table->id);
 		ulint		n_cols;
-		dtuple_t*	add_cols;
 		ulint		key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t mode = FIL_SPACE_ENCRYPTION_DEFAULT;
 
@@ -2912,9 +3040,17 @@ prepare_inplace_alter_table_dict(
 			goto new_clustered_failed;
 		}
 
+		temp_def = index_defs;
+		for (ulint i = 0; i < ctx->num_to_add_index; i++, temp_def++) {
+			if (temp_def->ind_type & DICT_UNIQUE_HASH) {
+				/*create an extra column for each hash index*/
+				n_hash_cols += 1;
+			}
+		}
+
 		/* The initial space id 0 may be overridden later. */
 		ctx->new_table = dict_mem_table_create(
-			new_table_name, 0, n_cols, flags, flags2);
+			new_table_name, 0, n_cols + n_hash_cols, flags, flags2);
 		/* The rebuilt indexed_table will use the renamed
 		column names. */
 		ctx->col_names = NULL;
@@ -3013,6 +3149,22 @@ prepare_inplace_alter_table_dict(
 			ctx->new_table->fts->doc_col = fts_doc_id_col;
 		}
 
+		temp_def = index_defs;
+		for (ulint i = 0; i < ctx->num_to_add_index; i++, temp_def++) {
+			if (temp_def->ind_type & DICT_UNIQUE_HASH) {
+				char* col_name =
+					innobase_create_column_name_for_hash_index(ctx->heap, temp_def->name);
+				/*creates an extra column for hash index*/
+				dict_mem_table_add_col(ctx->new_table, ctx->heap,
+							col_name,
+							DATA_INT,
+							DATA_NOT_NULL | DATA_HASH_COL_TYPE | DATA_UNSIGNED,
+							HASH_COL_LENGTH);
+			}
+		}
+		ctx->new_table->n_hash_cols = n_hash_cols;
+		ctx->new_table->n_cols -= n_hash_cols;
+
 		error = row_create_table_for_mysql(
 			ctx->new_table, ctx->trx, false, mode, key_id);
 
@@ -3059,7 +3211,8 @@ prepare_inplace_alter_table_dict(
 		    & Alter_inplace_info::ADD_COLUMN) {
 			add_cols = dtuple_create(
 				ctx->heap,
-				dict_table_get_n_cols(ctx->new_table));
+				dict_table_get_n_cols(ctx->new_table) +
+				dict_table_get_n_hash_cols(ctx->new_table));
 
 			dict_table_copy_types(add_cols, ctx->new_table);
 		} else {
@@ -3072,7 +3225,7 @@ prepare_inplace_alter_table_dict(
 			add_cols, ctx->heap);
 		ctx->add_cols = add_cols;
 	} else {
-		DBUG_ASSERT(!innobase_need_rebuild(ha_alter_info, old_table));
+		DBUG_ASSERT(!innobase_need_rebuild(ha_alter_info, old_table, ctx->prebuilt->table));
 
 		if (!ctx->new_table->fts
 		    && innobase_fulltext_exist(altered_table)) {
@@ -3140,7 +3293,6 @@ prepare_inplace_alter_table_dict(
 			}
 		}
 	}
-
 	ut_ad(new_clustered == ctx->need_rebuild());
 
 	DBUG_EXECUTE_IF("innodb_OOM_prepare_inplace_alter",
@@ -3712,6 +3864,11 @@ check_if_ok_to_rename:
 			continue;
 		}
 
+		if (index->type & DICT_UNIQUE_HASH) {
+			/*hash index supports long unique constarints*/
+			continue;
+		}
+
 		for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
 			const dict_field_t* field
 				= dict_index_get_nth_field(index, i);
@@ -3826,6 +3983,9 @@ found_fk:
 			} else {
 				ut_ad(!index->to_be_dropped);
 				if (!dict_index_is_clust(index)) {
+					if(dict_index_is_unique_hash(index)){
+						ha_alter_info->handler_flags |= Alter_inplace_info::DROP_COLUMN;
+					}
 					drop_index[n_drop_index++] = index;
 				} else {
 					drop_primary = index;
@@ -3963,7 +4123,7 @@ err_exit:
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || (ha_alter_info->handler_flags
 		== Alter_inplace_info::CHANGE_CREATE_OPTION
-		&& !innobase_need_rebuild(ha_alter_info, table))) {
+		&& !innobase_need_rebuild(ha_alter_info, table, indexed_table))) {
 
 		if (heap) {
 			ha_alter_info->handler_ctx
@@ -4120,6 +4280,7 @@ ha_innobase::inplace_alter_table(
 	dberr_t	error;
 
 	DBUG_ENTER("inplace_alter_table");
+
 	DBUG_ASSERT(!srv_read_only_mode);
 
 #ifdef UNIV_SYNC_DEBUG
@@ -4137,7 +4298,7 @@ ok_exit:
 
 	if (ha_alter_info->handler_flags
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
-	    && !innobase_need_rebuild(ha_alter_info, table)) {
+	    && !innobase_need_rebuild(ha_alter_info, table, prebuilt->table)) {
 		goto ok_exit;
 	}
 
@@ -4576,11 +4737,26 @@ err_exit:
 		     user_table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
+		 ulint n_fields;
+		 if (dict_index_is_unique_hash(index)) {
+			 n_fields = dict_index_get_n_user_fields(index) +
+					dict_index_get_n_fields(index);
 
-		for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
-			if (strcmp(dict_index_get_nth_field(index, i)->name,
-				   from)) {
-				continue;
+		 } else {
+			 n_fields = dict_index_get_n_fields(index);
+		 }
+
+		for (ulint i = 0; i < n_fields; i++) {
+			if (dict_index_is_unique_hash(index)) {
+				if (strcmp(dict_index_get_nth_user_field(index, i)->name,
+					from)) {
+					continue;
+				}
+			} else {
+				if (strcmp(dict_index_get_nth_field(index, i)->name,
+					from)) {
+					continue;
+				}
 			}
 
 			info = pars_info_create();
@@ -5304,11 +5480,20 @@ check_col_exists_in_indexes(
 		}
 
 		for (ulint col = 0; col < index->n_user_defined_cols; col++) {
-
-			ulint	index_col_no = dict_index_get_nth_col_no(
-						index, col);
-			if (col_no == index_col_no) {
-				return(true);
+			if (index->type & DICT_UNIQUE_HASH) {
+				const dict_field_t*	field
+						= dict_index_get_nth_user_field(index, col);
+				const	dict_col_t*	column
+						= dict_field_get_col(field);
+				ulint	index_col_no = dict_col_get_no(column);
+				if (col_no == index_col_no) {
+					return(true);
+				}
+			} else {
+				ulint	index_col_no = dict_index_get_nth_col_no(index, col);
+				if (col_no == index_col_no) {
+					return(true);
+				}
 			}
 		}
 	}

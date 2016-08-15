@@ -901,10 +901,21 @@ dict_index_get_nth_col_or_prefix_pos(
 		return(dict_col_get_clust_pos(col, index));
 	}
 
-	n_fields = dict_index_get_n_fields(index);
+	/*For hash index, index->n_fields doesn't include user
+	defined fields.*/
+	if (dict_index_is_unique_hash(index)) {
+		n_fields = dict_index_get_n_user_fields(index) +
+				dict_index_get_n_fields(index);
+	} else {
+		n_fields = dict_index_get_n_fields(index);
+	}
 
 	for (pos = 0; pos < n_fields; pos++) {
-		field = dict_index_get_nth_field(index, pos);
+		if (dict_index_is_unique_hash(index)) {
+			field = dict_index_get_nth_user_field(index, pos);
+		} else {
+			field = dict_index_get_nth_field(index, pos);
+		}
 
 		if (col == field->col) {
 			*prefix_col_pos = pos;
@@ -941,12 +952,20 @@ dict_index_contains_col_or_prefix(
 		return(TRUE);
 	}
 
+	if (dict_index_is_unique_hash(index)) {
+		n_fields = dict_index_get_n_user_fields(index);
+	} else {
+		n_fields = dict_index_get_n_fields(index);
+	}
+
 	col = dict_table_get_nth_col(index->table, n);
 
-	n_fields = dict_index_get_n_fields(index);
-
 	for (pos = 0; pos < n_fields; pos++) {
-		field = dict_index_get_nth_field(index, pos);
+		if (dict_index_is_unique_hash(index)) {
+			field = dict_index_get_nth_user_field(index, pos);
+		} else {
+			field = dict_index_get_nth_field(index, pos);
+		}
 
 		if (col == field->col) {
 
@@ -1257,7 +1276,7 @@ dict_table_add_system_columns(
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 {
 	ut_ad(table);
-	ut_ad(table->n_def == table->n_cols - DATA_N_SYS_COLS);
+	ut_ad(table->n_def == table->n_cols + table->n_hash_cols - DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(!table->cached);
 
@@ -2729,6 +2748,15 @@ undo_size_ok:
 
 	dict_sys->size += mem_heap_get_size(new_index->heap);
 
+	/*In hash index, index records contain only hash value and row_id
+	 or primary key.*/
+	if(new_index->type & DICT_UNIQUE_HASH){
+		/*new_index->fields should point to hash field*/
+		new_index->fields += new_index->n_user_defined_cols;
+		new_index->n_fields -= new_index->n_user_defined_cols;
+		new_index->n_uniq = 1;
+	}
+
 	dict_mem_index_free(index);
 
 	return(DB_SUCCESS);
@@ -2856,7 +2884,7 @@ dict_index_find_cols(
 		ulint		j;
 		dict_field_t*	field = dict_index_get_nth_field(index, i);
 
-		for (j = 0; j < table->n_cols; j++) {
+		for (j = 0; j < table->n_cols +  table->n_hash_cols; j++) {
 			if (!innobase_strcasecmp(dict_table_get_col_name(table, j),
 				    field->name)) {
 				field->col = dict_table_get_nth_col(table, j);
@@ -3062,7 +3090,7 @@ dict_index_build_internal_clust(
 	new_index = dict_mem_index_create(table->name,
 					  index->name, table->space,
 					  index->type,
-					  index->n_fields + table->n_cols);
+					  index->n_fields + table->n_cols + table->n_hash_cols);
 
 	/* Copy other relevant data from the old index struct to the new
 	struct: it inherits the values */
@@ -3163,7 +3191,7 @@ dict_index_build_internal_clust(
 
 	/* Remember the table columns already contained in new_index */
 	indexed = static_cast<ibool*>(
-		mem_zalloc(table->n_cols * sizeof *indexed));
+		mem_zalloc((table->n_cols + table->n_hash_cols)* sizeof *indexed));
 
 	/* Mark the table columns already contained in new_index */
 	for (i = 0; i < new_index->n_def; i++) {
@@ -3181,7 +3209,8 @@ dict_index_build_internal_clust(
 
 	/* Add to new_index non-system columns of table not yet included
 	there */
-	for (i = 0; i + DATA_N_SYS_COLS < (ulint) table->n_cols; i++) {
+	for (i = 0; i + DATA_N_SYS_COLS <
+			(ulint) (table->n_cols + table->n_hash_cols); i++) {
 
 		dict_col_t*	col = dict_table_get_nth_col(table, i);
 		ut_ad(col->mtype != DATA_SYS);
@@ -3236,11 +3265,17 @@ dict_index_build_internal_non_clust(
 		table->name, index->name, index->space, index->type,
 		index->n_fields + 1 + clust_index->n_uniq);
 
+	if (dict_index_is_unique_hash(index)) {
+		/* subtract one for hash field to get no of user
+		defined columns in hash index*/
+		new_index->n_user_defined_cols = index->n_fields - 1;
+	}
+	else {
+		new_index->n_user_defined_cols = index->n_fields;
+	}
+
 	/* Copy other relevant data from the old index
 	struct to the new struct: it inherits the values */
-
-	new_index->n_user_defined_cols = index->n_fields;
-
 	new_index->id = index->id;
 	btr_search_index_init(new_index);
 
@@ -3249,7 +3284,7 @@ dict_index_build_internal_non_clust(
 
 	/* Remember the table columns already contained in new_index */
 	indexed = static_cast<ibool*>(
-		mem_zalloc(table->n_cols * sizeof *indexed));
+		mem_zalloc((table->n_cols + table->n_hash_cols ) * sizeof *indexed));
 
 	/* Mark the table columns already contained in new_index */
 	for (i = 0; i < new_index->n_def; i++) {
@@ -3955,7 +3990,8 @@ dict_scan_col(
 		*success = TRUE;
 		*column = NULL;
 	} else {
-		for (i = 0; i < dict_table_get_n_cols(table); i++) {
+		for (i = 0; i < dict_table_get_n_cols(table) +
+				dict_table_get_n_hash_cols(table); i++) {
 
 			const char*	col_name = dict_table_get_col_name(
 				table, i);

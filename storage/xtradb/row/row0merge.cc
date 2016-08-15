@@ -389,6 +389,8 @@ row_merge_buf_redundant_convert(
 @param[in]	row		table row
 @param[in]	ext		cache of externally stored
 				column prefixes, or NULL
+@param[in]	ext_cols_for_hash_index		 externally stored
+				columns required for hash index on hash collision.
 @param[in,out]	doc_id		Doc ID if we are creating
 				FTS index
 @param[in,out]	conv_heap	memory heap where to allocate data when
@@ -397,6 +399,7 @@ row_merge_buf_redundant_convert(
 				row_merge_buf_redundant_convert()
 @param[in,out]	exceed_page	set if the record size exceeds the page size
 				when converting to ROW_FORMAT=REDUNDANT
+
 @return number of rows added, 0 if out of space */
 static
 ulint
@@ -410,7 +413,8 @@ row_merge_buf_add(
 	doc_id_t*		doc_id,
 	mem_heap_t*		conv_heap,
 	bool*			exceed_page,
-	trx_t*			trx)
+	trx_t*			trx,
+	dtuple_t*		ext_cols_for_hash_index)
 {
 	ulint			i;
 	const dict_index_t*	index;
@@ -440,16 +444,24 @@ row_merge_buf_add(
 	fts_index */
 	index = (buf->index->type & DICT_FTS) ? fts_index : buf->index;
 
-	n_fields = dict_index_get_n_fields(index);
+	if (index->type & DICT_UNIQUE_HASH) {
+		n_fields = dict_index_get_n_fields(index) +
+					 dict_index_get_n_user_fields(index);
+		ifield = dict_index_get_nth_user_field(index, 0);
+	} else {
+		n_fields = dict_index_get_n_fields(index);
+		ifield = dict_index_get_nth_field(index, 0);
+	}
 
 	entry = &buf->tuples[buf->n_tuples];
 	field = entry->fields = static_cast<dfield_t*>(
 		mem_heap_alloc(buf->heap, n_fields * sizeof *entry->fields));
+	if(index->type & DICT_UNIQUE_HASH){
+		entry->fields += dict_index_get_n_user_fields(index);
+	}
 
 	data_size = 0;
 	extra_size = UT_BITS_IN_BYTES(index->n_nullable);
-
-	ifield = dict_index_get_nth_field(index, 0);
 
 	for (i = 0; i < n_fields; i++, field++, ifield++) {
 		ulint			len;
@@ -606,6 +618,10 @@ row_merge_buf_add(
 				dfield_set_data(field, buf, len);
 			}
 		}
+		if (dfield_is_ext(row_field) && (index->type & DICT_UNIQUE_HASH)) {
+			 dfield_t*	ext_field = dtuple_get_nth_field(ext_cols_for_hash_index, col_no);
+			 dfield_copy(field, ext_field);
+		}
 
 		/* If a column prefix index, take only the prefix */
 
@@ -631,8 +647,9 @@ row_merge_buf_add(
 			sets. */
 			fixed_len = 0;
 		}
-
-		if (fixed_len) {
+		if (!(index->type & DICT_UNIQUE_HASH &&
+			i < dict_index_get_n_user_fields(index))) {
+			if (fixed_len) {
 #ifdef UNIV_DEBUG
 			ulint	mbminlen = DATA_MBMINLEN(col->mbminmaxlen);
 			ulint	mbmaxlen = DATA_MBMAXLEN(col->mbminmaxlen);
@@ -645,25 +662,29 @@ row_merge_buf_add(
 
 			ut_ad(!dfield_is_ext(field));
 #endif /* UNIV_DEBUG */
-		} else if (dfield_is_ext(field)) {
-			extra_size += 2;
-		} else if (len < 128
-			   || (col->len < 256 && col->mtype != DATA_BLOB)) {
-			extra_size++;
-		} else {
-			/* For variable-length columns, we look up the
+			} else if (dfield_is_ext(field)) {
+				extra_size += 2;
+			} else if (len < 128
+				   || (col->len < 256 && col->mtype != DATA_BLOB)) {
+				extra_size++;
+			} else {
+				/* For variable-length columns, we look up the
 			maximum length from the column itself.  If this
-			is a prefix index column shorter than 256 bytes,
-			this will waste one byte. */
-			extra_size += 2;
+				is a prefix index column shorter than 256 bytes,
+				this will waste one byte. */
+				extra_size += 2;
+			}
+			data_size += len;
 		}
-		data_size += len;
 	}
 
 	/* If this is FTS index, we already populated the sort buffer, return
 	here */
 	if (index->type & DICT_FTS) {
 		DBUG_RETURN(n_row_added);
+	}
+	if (index->type & DICT_UNIQUE_HASH) {
+		n_fields -= dict_index_get_n_user_fields(index);
 	}
 
 #ifdef UNIV_DEBUG
@@ -707,6 +728,10 @@ row_merge_buf_add(
 	field = entry->fields;
 
 	/* Copy the data fields. */
+	if (index->type & DICT_UNIQUE_HASH) {
+		n_fields += dict_index_get_n_user_fields(index);
+		field -= dict_index_get_n_user_fields(index);
+	}
 
 	do {
 		dfield_dup(field++, buf->heap);
@@ -726,12 +751,13 @@ void
 row_merge_dup_report(
 /*=================*/
 	row_merge_dup_t*	dup,	/*!< in/out: for reporting duplicates */
-	const dfield_t*		entry)	/*!< in: duplicate index entry */
+	const dfield_t*		entry,	/*!< in: duplicate index entry */
+	bool 			logval)	/*!< in: true when called from row0log.cc*/
 {
 	if (!dup->n_dup++) {
 		/* Only report the first duplicate record,
 		but count all duplicate records. */
-		innobase_fields_to_mysql(dup->table, dup->index, entry);
+		innobase_fields_to_mysql(dup->table, dup->index, entry, logval);
 	}
 }
 
@@ -750,9 +776,21 @@ row_merge_tuple_cmp(
 					NULL if non-unique index */
 {
 	int		cmp;
-	const dfield_t*	af	= a.fields;
-	const dfield_t*	bf	= b.fields;
-	ulint		n	= n_uniq;
+	const dfield_t*	af;
+	const dfield_t*	bf;
+	ulint		n;
+	ulint		n_user_fields;
+
+	if (dup && dict_index_is_unique_hash(dup->index)) {
+		n_user_fields = dict_index_get_n_user_fields(dup->index);
+		af = a.fields - n_user_fields;
+		bf = b.fields - n_user_fields;
+		n = n_uniq + n_user_fields;
+	} else {
+		af	= a.fields;
+		bf	= b.fields;
+		n	= n_uniq;
+	}
 
 	ut_ad(n_uniq > 0);
 	ut_ad(n_uniq <= n_field);
@@ -764,6 +802,18 @@ row_merge_tuple_cmp(
 		cmp = cmp_dfield_dfield(af++, bf++);
 	} while (!cmp && --n);
 
+	if (cmp && dup != NULL && dict_index_is_unique_hash(dup->index)) {
+		af = a.fields;
+		bf = b.fields;
+		n = n_uniq;
+		do {
+			cmp = cmp_dfield_dfield(af++, bf++);
+		} while (!cmp && --n);
+		if (cmp) {
+			return(cmp);
+		}
+	}
+
 	if (cmp) {
 		return(cmp);
 	}
@@ -773,13 +823,22 @@ row_merge_tuple_cmp(
 		logically equal.  NULL columns are logically inequal,
 		although they are equal in the sorting order.  Find
 		out if any of the fields are NULL. */
-		for (const dfield_t* df = a.fields; df != af; df++) {
-			if (dfield_is_null(df)) {
-				goto no_report;
+		if (dict_index_is_unique_hash(dup->index)) {
+			const dfield_t* df = a.fields - n_user_fields;
+			for (ulint i = 0; i< n_user_fields; df++, i++) {
+				if (dfield_is_null(df)) {
+					goto no_report;
+				}
 			}
+			row_merge_dup_report(dup, a.fields - n_user_fields, false);
+		} else {
+			for (const dfield_t* df = a.fields; df != af; df++) {
+				if (dfield_is_null(df)) {
+					goto no_report;
+				}
+			}
+			row_merge_dup_report(dup, a.fields, false);
 		}
-
-		row_merge_dup_report(dup, a.fields);
 	}
 
 no_report:
@@ -1455,6 +1514,9 @@ row_merge_read_clustered_index(
 	ibool			fts_pll_sort = FALSE;
 	ib_int64_t		sig_count = 0;
 	mem_heap_t*		conv_heap = NULL;
+	dtuple_t*		ext_cols_for_hash_index;
+	bool			hash_index = false;
+	dict_index_t*		new_index;
 
 	float 			curr_progress = 0.0;
 	ib_int64_t		read_rows = 0;
@@ -1772,9 +1834,28 @@ end_of_index:
 
 		/* Build a row based on the clustered index. */
 
-		row = row_build(ROW_COPY_POINTERS, clust_index,
+		new_index = dict_table_get_first_index(new_table);
+		new_index = dict_table_get_next_index(new_index);
+
+		while (new_index) {
+			if (new_index->type & DICT_UNIQUE_HASH) {
+				hash_index = true;
+				break;
+			}
+
+			new_index = dict_table_get_next_index(new_index);
+		}
+
+		if (hash_index) {
+			row = row_build(ROW_COPY_POINTERS, clust_index,
 				rec, offsets, new_table,
-				add_cols, col_map, &ext, row_heap);
+				add_cols, col_map, &ext, row_heap, &ext_cols_for_hash_index);
+		} else {
+			row = row_build(ROW_COPY_POINTERS, clust_index,
+				rec, offsets, new_table,
+				add_cols, col_map, &ext, row_heap, NULL);
+		}
+
 		ut_ad(row);
 
 		for (ulint i = 0; i < n_nonnull; i++) {
@@ -1863,7 +1944,8 @@ write_buffers:
 			    (row && (rows_added = row_merge_buf_add(
 					buf, fts_index, old_table,
 					psort_info, row, ext, &doc_id,
-					conv_heap, &exceed_page, trx)))) {
+					conv_heap, &exceed_page, trx,
+					ext_cols_for_hash_index)))) {
 
 				/* If we are creating FTS index,
 				a single row can generate more
@@ -1914,7 +1996,7 @@ write_buffers:
 			Sort them and write to disk. */
 
 			if (buf->n_tuples) {
-				if (dict_index_is_unique(buf->index)) {
+				if (dict_index_is_unique(buf->index) || dict_index_is_unique_hash(buf->index)) {
 					row_merge_dup_t	dup = {
 						buf->index, table, col_map, 0};
 
@@ -1977,7 +2059,7 @@ write_buffers:
 						buf, fts_index, old_table,
 						psort_info, row, ext,
 						&doc_id, conv_heap,
-						&exceed_page, trx)))) {
+						&exceed_page, trx, ext_cols_for_hash_index)))) {
 					/* An empty buffer should have enough
 					room for at least one record. */
 					ut_error;

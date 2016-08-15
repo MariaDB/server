@@ -3876,9 +3876,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             column->length= MAX_LEN_GEOM_POINT_FIELD;
 	  if (!column->length)
 	  {
-	    my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
-	    DBUG_RETURN(TRUE);
-	  }
+      if (key->type == Key::UNIQUE && file->ha_table_flags() & HA_CAN_UNIQUE_HASH_INDEX)
+      {
+        key_info->algorithm = HA_KEY_ALG_HASH;
+        sql_field->key_length = 0;
+      }
+      else
+      {
+        my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
+        DBUG_RETURN(TRUE);
+      }
+    }
 	}
 #ifdef HAVE_SPATIAL
 	if (key->type == Key::SPATIAL)
@@ -3948,27 +3956,35 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  key_part_length= MY_MIN(column->length,
                                blob_length_by_type(sql_field->sql_type)
                                * sql_field->charset->mbmaxlen);
+
 	  if (key_part_length > max_key_length ||
-	      key_part_length > file->max_key_part_length())
+             key_part_length > file->max_key_part_length())
 	  {
-	    key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
-	    if (key->type == Key::MULTIPLE)
-	    {
-	      /* not a critical problem */
-	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                                  ER_TOO_LONG_KEY,
-                                  ER_THD(thd, ER_TOO_LONG_KEY),
-                                  key_part_length);
-              /* Align key length to multibyte char boundary */
-              key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
-	    }
-	    else
-	    {
-	      my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
-	      DBUG_RETURN(TRUE);
-	    }
-	  }
-	}
+      if (key->type == Key::UNIQUE && file->ha_table_flags() & HA_CAN_UNIQUE_HASH_INDEX)
+      {
+        key_info->algorithm = HA_KEY_ALG_HASH;
+      }
+      else
+      {
+        key_part_length = MY_MIN(max_key_length, file->max_key_part_length());
+        if (key->type == Key::MULTIPLE)
+        {
+          /* not a critical problem */
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+          ER_TOO_LONG_KEY,
+          ER_THD(thd, ER_TOO_LONG_KEY),
+          key_part_length);
+          /* Align key length to multibyte char boundary */
+          key_part_length -= key_part_length % sql_field->charset->mbmaxlen;
+        }
+        else
+        {
+          my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
+          DBUG_RETURN(TRUE);
+        }
+      }
+    }
+  }
         // Catch invalid use of partial keys 
 	else if (!f_is_geom(sql_field->pack_flag) &&
                  // is the key partial? 
@@ -3999,21 +4015,25 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (key_part_length > file->max_key_part_length() &&
           key->type != Key::FULLTEXT)
       {
-        key_part_length= file->max_key_part_length();
-	if (key->type == Key::MULTIPLE)
-	{
-	  /* not a critical problem */
-	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
-                              key_part_length);
-          /* Align key length to multibyte char boundary */
-          key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
-	}
-	else
-	{
-	  my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
-	  DBUG_RETURN(TRUE);
-	}
+    if (key->type == Key::UNIQUE && file->ha_table_flags() & HA_CAN_UNIQUE_HASH_INDEX)
+    {
+      key_info->algorithm = HA_KEY_ALG_HASH;
+    }
+    else if (key->type == Key::MULTIPLE)
+      {
+        key_part_length = file->max_key_part_length();
+        /* not a critical problem */
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+        ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
+        key_part_length);
+      /* Align key length to multibyte char boundary */
+        key_part_length -= key_part_length % sql_field->charset->mbmaxlen;
+      }
+      else
+      {
+        my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
+        DBUG_RETURN(TRUE);
+      }
       }
       key_part_info->length= (uint16) key_part_length;
       /* Use packed keys for long strings on the first column */
@@ -4069,11 +4089,18 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
     if (key->type == Key::UNIQUE && !(key_info->flags & HA_NULL_PART_KEY))
       unique_key=1;
-    key_info->key_length=(uint16) key_length;
+    key_info->key_length= (uint16) key_length;
     if (key_length > max_key_length && key->type != Key::FULLTEXT)
     {
-      my_error(ER_TOO_LONG_KEY,MYF(0),max_key_length);
-      DBUG_RETURN(TRUE);
+      if (key->type == Key::UNIQUE && file->ha_table_flags() & HA_CAN_UNIQUE_HASH_INDEX)
+      {
+        key_info->algorithm = HA_KEY_ALG_HASH;
+      }
+      else
+      {
+        my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
+        DBUG_RETURN(TRUE);
+      }
     }
 
     if (validate_comment_length(thd, &key->key_create_info.comment,

@@ -203,6 +203,7 @@ typedef struct st_mi_keydef		/* Key definition with open & info */
 typedef struct st_unique_def		/* Segment definition of unique */
 {
   uint16 keysegs;			/* Number of key-segment */
+  uint16 sql_key_no;
   uchar key;				/* Mapped to which key */
   uint8 null_are_equal;
   HA_KEYSEG *seg,*end;

@@ -3203,6 +3203,119 @@ err_exit:
 	return(err);
 }
 
+/*********************************************************************//**
+Retrieves the clustered index record corresponding to a record in a
+non-clustered index. Does the necessary locking.
+@return	DB_SUCCESS, DB_SUCCESS_LOCKED_REC, or error code */
+dberr_t
+row_sel_get_clust_rec_for_cmp(
+/*============================*/
+	dict_index_t*	sec_index,/*!< in: secondary index where rec resides */
+	const rec_t*	rec,	/*!< in: record in a non-clustered index; if
+				this is a locking read, then rec is not
+				allowed to be delete-marked, and that would
+				not make sense either */
+	que_thr_t*	thr,	/*!< in: query thread */
+	const rec_t**	out_rec,/*!< out: clustered record */
+	ulint**		offsets,/*!< in: offsets returned by
+				rec_get_offsets(rec, sec_index);
+				out: offsets returned by
+				rec_get_offsets(out_rec, clust_index) */
+	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
+				the offsets are allocated */
+	mtr_t*		mtr, /*!< in: mtr used to get access to the
+				non-clustered record */
+	dtuple_t*   	clust_ref,  /*!< in: row reference built */
+	btr_pcur_t*	clust_pcur)	/*!< in: persistent cursor */
+{
+	dict_index_t*	clust_index;
+	const rec_t*	clust_rec;
+	rec_t*		old_vers;
+	dberr_t		err;
+	trx_t*		trx;
+	mtr_t 		clust_mtr;
+
+	srv_stats.n_sec_rec_cluster_reads.inc();
+
+	*out_rec = NULL;
+	trx = thr_get_trx(thr);
+	mtr_start_trx(&clust_mtr,thr_get_trx(thr));
+
+	row_build_row_ref_in_tuple(clust_ref, rec,
+				   sec_index, *offsets, trx);
+
+	clust_index = dict_table_get_first_index(sec_index->table);
+
+	btr_pcur_open_with_no_init(clust_index, clust_ref,
+				   PAGE_CUR_LE, BTR_SEARCH_LEAF,
+				   clust_pcur, 0, &clust_mtr);
+	clust_pcur->old_rec_buf = NULL;
+
+	clust_rec = btr_pcur_get_rec(clust_pcur);
+
+	clust_pcur->trx_if_known = trx;
+
+	if (!page_rec_is_user_rec(clust_rec)
+	    || btr_pcur_get_low_match(clust_pcur)
+	    < dict_index_get_n_unique(clust_index)) {
+
+		if (!rec_get_deleted_flag(rec,
+					  dict_table_is_comp(sec_index->table))) {
+			ut_print_timestamp(stderr);
+			fputs("  InnoDB: error clustered record"
+			      " for sec rec not found\n"
+			      "InnoDB: ", stderr);
+			dict_index_name_print(stderr, trx, sec_index);
+			fputs("\n"
+			      "InnoDB: sec index record ", stderr);
+			rec_print(stderr, rec, sec_index);
+			fputs("\n"
+			      "InnoDB: clust index record ", stderr);
+			rec_print(stderr, clust_rec, clust_index);
+			putc('\n', stderr);
+			trx_print(stderr, trx, 600);
+			fputs("\n"
+			      "InnoDB: Submit a detailed bug report"
+			      " to http://bugs.mysql.com\n", stderr);
+			ut_ad(0);
+		}
+
+		clust_rec = NULL;
+
+		err = DB_SUCCESS;
+		goto func_exit;
+	}
+
+	*offsets = rec_get_offsets(clust_rec, clust_index, *offsets,
+				   ULINT_UNDEFINED, offset_heap);
+
+		/* Try to place a lock on the index record; we are searching
+		the clust rec with a unique condition, hence
+		we set a LOCK_REC_NOT_GAP type lock */
+
+		err = lock_clust_rec_read_check_and_lock(
+			0, btr_pcur_get_block(clust_pcur),
+			clust_rec, clust_index, *offsets,
+			static_cast<enum lock_mode>(LOCK_S),
+			LOCK_REC_NOT_GAP,
+			thr);
+
+		switch (err) {
+		case DB_SUCCESS:
+		case DB_SUCCESS_LOCKED_REC:
+			break;
+		default:
+			goto err_exit;
+		}
+
+func_exit:
+	*out_rec = clust_rec;
+	mtr_commit(&clust_mtr);
+
+err_exit:
+	return(err);
+}
+
 /********************************************************************//**
 Restores cursor position after it has been stored. We have to take into
 account that the record cursor was positioned on may have been deleted.
@@ -5499,4 +5612,85 @@ row_search_max_autoinc(
 	}
 
 	return(error);
+}
+
+/*Sets the values of the dtuple fields in entry from the values of
+columns in a clustered row. */
+void
+row_sel_create_entry_from_clust_rec(
+	/*==================*/
+	dtuple_t*	entry,    /*!< out: row*/
+	dict_index_t*	clust_index,	/*!< in: record clustered index */
+	dict_index_t*	sec_index,     /*!< in: secondary index */
+	const rec_t*	rec,	/*!< in: record in a clustered  index,
+							must be protected by a page latch */
+	mem_heap_t* 	heap)	/*!< in: memory heap */
+{
+	ulint		i;
+	ulint		j;
+	ulint		entry_len;
+	ulint		n_clust_fields;
+	const byte*	data;
+	ulint		len;
+	ulint	offsets_[REC_OFFS_NORMAL_SIZE];
+	ulint*	offsets = offsets_;
+
+	rec_offs_init(offsets_);
+	entry_len = dtuple_get_n_fields(entry);
+	n_clust_fields = dict_index_get_n_fields(clust_index);
+	offsets = rec_get_offsets(rec,
+				  clust_index, offsets,
+				  n_clust_fields, &heap);
+
+	ut_ad(rec_offs_validate(rec, clust_index, offsets));
+	ut_ad(rec_validate(rec, offsets));
+	ut_ad(dtuple_check_typed(entry));
+
+	for (i = 0; i < entry_len; i++) {
+		dfield_t*	field = dtuple_get_nth_field(entry, i);
+		const dict_field_t*	 sec_ind_field
+			= dict_index_get_nth_user_field(sec_index, i);
+		const	dict_col_t*	col
+			= dict_field_get_col(sec_ind_field);
+
+		for (j = 0; j < n_clust_fields; j++) {
+			const dict_field_t*	 clust_ind_field
+				= dict_index_get_nth_field(clust_index, j);
+
+			if (0 == innobase_strcasecmp(
+				sec_ind_field->name,
+				clust_ind_field->name)) {
+				break;
+			}
+		}
+
+		if (UNIV_UNLIKELY(rec_offs_nth_extern(offsets,j))) {
+			data = btr_rec_copy_externally_stored_field(
+				rec, offsets,
+				dict_table_zip_size(clust_index->table),
+				j, &len, heap, NULL);
+
+			ut_a(data);
+			ut_a(len != UNIV_SQL_NULL);
+		} else {
+			data = rec_get_nth_field(rec, offsets, j, &len);
+
+			ut_ad(!rec_offs_nth_extern(offsets, j));
+		}
+
+		if (sec_ind_field->prefix_len > 0
+			&& len != UNIV_SQL_NULL) {
+			len = dtype_get_at_most_n_mbchars(
+				col->prtype, col->mbminmaxlen,
+				sec_ind_field->prefix_len,
+				len,
+				static_cast<const char*>((void*)data));
+		}
+
+		if (len != UNIV_SQL_NULL) {
+			dfield_set_data(field, mem_heap_dup(heap, data, len), len);
+		} else {
+			dfield_set_null(field);
+		}
+	}
 }

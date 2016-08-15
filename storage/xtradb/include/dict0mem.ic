@@ -59,7 +59,7 @@ dict_mem_fill_index_struct(
 
 	/* Assign a ulint to a 4-bit-mapped field.
 	Only the low-order 4 bits are assigned. */
-	index->type = type;
+	index->type = (unsigned int) type;
 #ifndef UNIV_HOTBACKUP
 	index->space = (unsigned int) space;
 	index->page = FIL_NULL;

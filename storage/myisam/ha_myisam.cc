@@ -192,6 +192,58 @@ static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
   return;
 }
 
+/*
+  SYNOPSIS
+    setup_keyparts()
+      key_info    in     Key definitions.
+      keyseg      in     key segment.
+      table_arg   in     TABLE object.
+      key_part_no in    index of key part.
+
+  DESCRIPTION
+    This function will  initialize key parts of key
+    definitions or unique definitions for further use in mi_create.
+ */
+void setup_keyparts(KEY* key_info, HA_KEYSEG *keyseg, TABLE *table_arg, uint key_part_no)
+{
+  enum ha_base_keytype type= HA_KEYTYPE_BINARY;
+  Field *field= key_info->key_part[key_part_no].field;
+  type = field->key_type();
+  keyseg->flag= key_info->key_part[key_part_no].key_part_flag;
+  keyseg->type= (int)type;
+  keyseg->start= key_info->key_part[key_part_no].offset;
+  keyseg->length= key_info->key_part[key_part_no].length;
+  keyseg->bit_start= keyseg->bit_end = keyseg->bit_length = 0;
+  keyseg->bit_pos= 0;
+  keyseg->language= field->charset_for_protocol()->number;
+
+  if (field->null_ptr)
+  {
+    keyseg->null_bit= field->null_bit;
+    keyseg->null_pos= (uint)(field->null_ptr -
+        (uchar*)table_arg->record[0]);
+  }
+  else
+  {
+    keyseg->null_bit= 0;
+    keyseg->null_pos= 0;
+  }
+  if (field->type()== MYSQL_TYPE_BLOB ||
+      field->type()== MYSQL_TYPE_GEOMETRY)
+  {
+    keyseg->flag |= HA_BLOB_PART;
+    /* save number of bytes used to pack length */
+    keyseg->bit_start= (uint)(field->pack_length() -
+			 portable_sizeof_char_ptr);
+  }
+  else if (field->type() == MYSQL_TYPE_BIT)
+  {
+    keyseg->bit_length= ((Field_bit *)field)->bit_len;
+    keyseg->bit_start= ((Field_bit *)field)->bit_ofs;
+    keyseg->bit_pos= (uint)(((Field_bit *)field)->bit_ptr -
+			 (uchar*)table_arg->record[0]);
+  }
+}
 
 /*
   Convert TABLE object to MyISAM key and column definition
@@ -216,102 +268,95 @@ static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
     0  OK
     !0 error code
 */
-
 int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
-                 MI_COLUMNDEF **recinfo_out, uint *records_out)
+                 MI_COLUMNDEF **recinfo_out,MI_UNIQUEDEF **uniquedef_out ,uint *records_out)
 {
-  uint i, j, recpos, minpos, fieldpos, temp_length, length;
+  uint i, j, recpos, minpos, fieldpos, temp_length, length, k, l, m;
   enum ha_base_keytype type= HA_KEYTYPE_BINARY;
   uchar *record;
   KEY *pos;
   MI_KEYDEF *keydef;
+  MI_UNIQUEDEF *uniquedef;
   MI_COLUMNDEF *recinfo, *recinfo_pos;
   HA_KEYSEG *keyseg;
   TABLE_SHARE *share= table_arg->s;
   uint options= share->db_options_in_use;
   DBUG_ENTER("table2myisam");
+  pos= table_arg->key_info;
+  share->uniques= 0;
+  k=0;
+  m=0;
+  for (i= 0; i < share->keys; i++,pos++)
+  {
+    if(pos->algorithm==HA_KEY_ALG_HASH)
+       share->uniques++ ;
+  }
   if (!(my_multi_malloc(MYF(MY_WME),
-          recinfo_out, (share->fields * 2 + 2) * sizeof(MI_COLUMNDEF),
-          keydef_out, share->keys * sizeof(MI_KEYDEF),
+          recinfo_out, (share->fields * 2 + 2 + share->uniques) * sizeof(MI_COLUMNDEF),
+          keydef_out, (share->keys - share->uniques) * sizeof(MI_KEYDEF),
+          uniquedef_out, share->uniques * sizeof(MI_UNIQUEDEF),
           &keyseg,
           (share->key_parts + share->keys) * sizeof(HA_KEYSEG),
           NullS)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
   keydef= *keydef_out;
   recinfo= *recinfo_out;
+  uniquedef= *uniquedef_out;
   pos= table_arg->key_info;
   for (i= 0; i < share->keys; i++, pos++)
   {
-    keydef[i].flag= ((uint16) pos->flags & (HA_NOSAME | HA_FULLTEXT | HA_SPATIAL));
-    keydef[i].key_alg= pos->algorithm == HA_KEY_ALG_UNDEF ?
-      (pos->flags & HA_SPATIAL ? HA_KEY_ALG_RTREE : HA_KEY_ALG_BTREE) :
-      pos->algorithm;
-    keydef[i].block_length= pos->block_size;
-    keydef[i].seg= keyseg;
-    keydef[i].keysegs= pos->user_defined_key_parts;
-    for (j= 0; j < pos->user_defined_key_parts; j++)
+    if(pos->algorithm!=HA_KEY_ALG_HASH)
     {
-      Field *field= pos->key_part[j].field;
-      type= field->key_type();
-      keydef[i].seg[j].flag= pos->key_part[j].key_part_flag;
-
-      if (options & HA_OPTION_PACK_KEYS ||
-          (pos->flags & (HA_PACK_KEY | HA_BINARY_PACK_KEY |
-                         HA_SPACE_PACK_USED)))
+      keydef[k].flag= ((uint16) pos->flags & (HA_NOSAME | HA_FULLTEXT | HA_SPATIAL));
+      keydef[k].key_alg= pos->algorithm == HA_KEY_ALG_UNDEF ?
+      (pos->flags & HA_SPATIAL ? HA_KEY_ALG_RTREE : HA_KEY_ALG_BTREE) :
+       pos->algorithm;
+      keydef[k].block_length= pos->block_size;
+      keydef[k].seg= keyseg;
+      keydef[k].keysegs= pos->user_defined_key_parts;
+      for (j= 0; j < pos->user_defined_key_parts; j++)
       {
-        if (pos->key_part[j].length > 8 &&
-            (type == HA_KEYTYPE_TEXT ||
-             type == HA_KEYTYPE_NUM ||
-             (type == HA_KEYTYPE_BINARY && !field->zero_pack())))
+        Field *field = pos->key_part[j].field;
+        type = field->key_type();
+        if (options & HA_OPTION_PACK_KEYS ||
+            (pos->flags & (HA_PACK_KEY | HA_BINARY_PACK_KEY |
+                          HA_SPACE_PACK_USED)))
         {
+          if (pos->key_part[j].length > 8 &&
+            (type == HA_KEYTYPE_TEXT ||
+              type == HA_KEYTYPE_NUM ||
+            (type == HA_KEYTYPE_BINARY && !field->zero_pack())))
+          {
           /* No blobs here */
-          if (j == 0)
-            keydef[i].flag|= HA_PACK_KEY;
-          if (!(field->flags & ZEROFILL_FLAG) &&
-              (field->type() == MYSQL_TYPE_STRING ||
-               field->type() == MYSQL_TYPE_VAR_STRING ||
-               ((int) (pos->key_part[j].length - field->decimals())) >= 4))
-            keydef[i].seg[j].flag|= HA_SPACE_PACK;
+            if (j == 0)
+              keydef[k].flag|= HA_PACK_KEY;
+            if (!(field->flags & ZEROFILL_FLAG) &&
+                (field->type() == MYSQL_TYPE_STRING ||
+                field->type() == MYSQL_TYPE_VAR_STRING ||
+                ((int) (pos->key_part[j].length - field->decimals())) >= 4))
+              keydef[k].seg[j].flag|= HA_SPACE_PACK;
+          }
+          else if (j == 0 && (!(pos->flags & HA_NOSAME) || pos->key_length > 16))
+            keydef[k].flag|= HA_BINARY_PACK_KEY;
         }
-        else if (j == 0 && (!(pos->flags & HA_NOSAME) || pos->key_length > 16))
-          keydef[i].flag|= HA_BINARY_PACK_KEY;
+        setup_keyparts(pos, &keydef[k].seg[j], table_arg, j);
       }
-      keydef[i].seg[j].type= (int) type;
-      keydef[i].seg[j].start= pos->key_part[j].offset;
-      keydef[i].seg[j].length= pos->key_part[j].length;
-      keydef[i].seg[j].bit_start= keydef[i].seg[j].bit_end=
-        keydef[i].seg[j].bit_length= 0;
-      keydef[i].seg[j].bit_pos= 0;
-      keydef[i].seg[j].language= field->charset_for_protocol()->number;
-
-      if (field->null_ptr)
-      {
-        keydef[i].seg[j].null_bit= field->null_bit;
-        keydef[i].seg[j].null_pos= (uint) (field->null_ptr-
-                                           (uchar*) table_arg->record[0]);
-      }
-      else
-      {
-        keydef[i].seg[j].null_bit= 0;
-        keydef[i].seg[j].null_pos= 0;
-      }
-      if (field->type() == MYSQL_TYPE_BLOB ||
-          field->type() == MYSQL_TYPE_GEOMETRY)
-      {
-        keydef[i].seg[j].flag|= HA_BLOB_PART;
-        /* save number of bytes used to pack length */
-        keydef[i].seg[j].bit_start= (uint) (field->pack_length() -
-                                            portable_sizeof_char_ptr);
-      }
-      else if (field->type() == MYSQL_TYPE_BIT)
-      {
-        keydef[i].seg[j].bit_length= ((Field_bit *) field)->bit_len;
-        keydef[i].seg[j].bit_start= ((Field_bit *) field)->bit_ofs;
-        keydef[i].seg[j].bit_pos= (uint) (((Field_bit *) field)->bit_ptr -
-                                          (uchar*) table_arg->record[0]);
-      }
+      keyseg+= pos->user_defined_key_parts;
+      k++;
     }
-    keyseg+= pos->user_defined_key_parts;
+    else
+    {
+      uniquedef[m].sql_key_no= i;
+      uniquedef[m].null_are_equal= 0;
+      uniquedef[m].seg= keyseg;
+      uniquedef[m].keysegs= pos->user_defined_key_parts;
+      for (l = 0; l < pos->user_defined_key_parts; l++)
+      {
+        setup_keyparts(pos, &uniquedef[m].seg[l], table_arg, l);
+      }
+      keyseg+= pos->user_defined_key_parts;
+      m++;
+    }
   }
   if (table_arg->found_next_number_field)
     keydef[share->next_number_index].flag|= HA_AUTO_KEY;
@@ -398,8 +443,77 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
     DBUG_PRINT("loop", ("length: %d  type: %d",
                         recinfo_pos[-1].length,recinfo_pos[-1].type));
   }
+  for(uint i=0;i<share->uniques;i++)
+  {
+    recinfo_pos->type= FIELD_CHECK;
+    recinfo_pos->length= MI_UNIQUE_HASH_LENGTH;
+    recinfo_pos->offset= share->reclength;
+    recinfo_pos->null_bit= 0;
+    recinfo_pos->null_pos= 0;
+    recinfo_pos++;
+    share->reclength+= MI_UNIQUE_HASH_LENGTH;
+    share->stored_rec_length+= MI_UNIQUE_HASH_LENGTH;
+  }
+
   *records_out= (uint) (recinfo_pos - recinfo);
   DBUG_RETURN(0);
+}
+
+/*
+compares key parts of key definitions or unique definitions.
+
+  SYNOPSIS
+    cmp_keysegs()
+      keyseg1   in     first key segment
+      keyseg2   in     second key segment.
+
+  RETURN VALUE
+    0 - Equal definitions.
+    1 - Different definitions.
+ */
+int cmp_keysegs(HA_KEYSEG *keyseg1, HA_KEYSEG *keyseg2,
+                 uint key_part_no, uint key_no, TABLE *table_arg)
+{
+  my_bool mysql_40_compat= table_arg && table_arg->s->frm_version < FRM_VER_TRUE_VARCHAR;
+  uint8 t1_keysegs_j__type= keyseg1->type;
+
+  /*
+    Table migration from 4.1 to 5.1. In 5.1 a *TEXT key part is
+    always HA_KEYTYPE_VARTEXT2. In 4.1 we had only the equivalent of
+    HA_KEYTYPE_VARTEXT1. Since we treat both the same on MyISAM
+    level, we can ignore a mismatch between these types.
+  */
+  if ((keyseg1->flag & HA_BLOB_PART) &&
+      (keyseg2->flag & HA_BLOB_PART))
+  {
+    if ((t1_keysegs_j__type == HA_KEYTYPE_VARTEXT2) &&
+        (keyseg2->type == HA_KEYTYPE_VARTEXT1))
+      t1_keysegs_j__type= HA_KEYTYPE_VARTEXT1; /* purecov: tested */
+    else if ((t1_keysegs_j__type == HA_KEYTYPE_VARBINARY2) &&
+              (keyseg2->type == HA_KEYTYPE_VARBINARY1))
+      t1_keysegs_j__type= HA_KEYTYPE_VARBINARY1; /* purecov: inspected */
+  }
+
+  if ((!mysql_40_compat &&
+      keyseg1->language != keyseg2->language) ||
+      t1_keysegs_j__type != keyseg2->type ||
+      keyseg1->null_bit != keyseg2->null_bit ||
+      keyseg1->length != keyseg2->length ||
+      keyseg1->start != keyseg2->start)
+  {
+    DBUG_PRINT("error", ("Key segment %d (key %d) has different "
+                         "definition", key_part_no, key_no));
+    DBUG_PRINT("error", ("t1_type=%d, t1_language=%d, t1_null_bit=%d, "
+                         "t1_length=%d",
+                         keyseg1->type, keyseg1->language,
+                         keyseg1->null_bit, keyseg1->length));
+    DBUG_PRINT("error", ("t2_type=%d, t2_language=%d, t2_null_bit=%d, "
+                           "t2_length=%d",
+                           keyseg2->type, keyseg2->language,
+                           keyseg2->null_bit, keyseg2->length));
+      return 1;
+    }
+  return 0;
 }
 
 
@@ -448,12 +562,12 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
       (should be corretly detected in table2myisam).
 */
 
-int check_definition(MI_KEYDEF *t1_keyinfo, MI_COLUMNDEF *t1_recinfo,
-                     uint t1_keys, uint t1_recs,
-                     MI_KEYDEF *t2_keyinfo, MI_COLUMNDEF *t2_recinfo,
-                     uint t2_keys, uint t2_recs, bool strict, TABLE *table_arg)
+int check_definition(MI_KEYDEF *t1_keyinfo, MI_COLUMNDEF *t1_recinfo,MI_UNIQUEDEF * t1_uniqueinfo,
+                     uint t1_keys, uint t1_recs, uint t1_uniques,
+                     MI_KEYDEF *t2_keyinfo, MI_COLUMNDEF *t2_recinfo,MI_UNIQUEDEF * t2_uniqueinfo,
+                     uint t2_keys, uint t2_recs,uint t2_uniques, bool strict, TABLE *table_arg)
 {
-  uint i, j;
+  uint i, j, k, ret;
   DBUG_ENTER("check_definition");
   my_bool mysql_40_compat= table_arg && table_arg->s->frm_version < FRM_VER_TRUE_VARCHAR;
   if ((strict ? t1_keys != t2_keys : t1_keys > t2_keys))
@@ -468,35 +582,44 @@ int check_definition(MI_KEYDEF *t1_keyinfo, MI_COLUMNDEF *t1_recinfo,
                          t1_recs, t2_recs));
     DBUG_RETURN(1);
   }
-  for (i= 0; i < t1_keys; i++)
+  if (t1_uniques != t2_uniques)
+  {
+    DBUG_PRINT("error", ("Number of uniques differs: t1_uniques=%u, t2_uniques=%u",
+                         t1_uniques, t2_uniques));
+    DBUG_RETURN(1);
+  }
+  for (i= 0,k=0; i < t1_keys; i++,k++)
   {
     HA_KEYSEG *t1_keysegs= t1_keyinfo[i].seg;
-    HA_KEYSEG *t2_keysegs= t2_keyinfo[i].seg;
+    while(t2_keyinfo[k].flag == HA_UNIQUE_CHECK)
+      k=k+1;
+
+    HA_KEYSEG *t2_keysegs= t2_keyinfo[k].seg;
     if (t1_keyinfo[i].flag & HA_FULLTEXT && t2_keyinfo[i].flag & HA_FULLTEXT)
       continue;
     else if (t1_keyinfo[i].flag & HA_FULLTEXT ||
-             t2_keyinfo[i].flag & HA_FULLTEXT)
+             t2_keyinfo[k].flag & HA_FULLTEXT)
     {
        DBUG_PRINT("error", ("Key %d has different definition", i));
        DBUG_PRINT("error", ("t1_fulltext= %d, t2_fulltext=%d",
                             MY_TEST(t1_keyinfo[i].flag & HA_FULLTEXT),
-                            MY_TEST(t2_keyinfo[i].flag & HA_FULLTEXT)));
+                            MY_TEST(t2_keyinfo[k].flag & HA_FULLTEXT)));
        DBUG_RETURN(1);
     }
-    if (t1_keyinfo[i].flag & HA_SPATIAL && t2_keyinfo[i].flag & HA_SPATIAL)
+    if (t1_keyinfo[i].flag & HA_SPATIAL && t2_keyinfo[k].flag & HA_SPATIAL)
       continue;
     else if (t1_keyinfo[i].flag & HA_SPATIAL ||
-             t2_keyinfo[i].flag & HA_SPATIAL)
+             t2_keyinfo[k].flag & HA_SPATIAL)
     {
        DBUG_PRINT("error", ("Key %d has different definition", i));
        DBUG_PRINT("error", ("t1_spatial= %d, t2_spatial=%d",
                             MY_TEST(t1_keyinfo[i].flag & HA_SPATIAL),
-                            MY_TEST(t2_keyinfo[i].flag & HA_SPATIAL)));
+                            MY_TEST(t2_keyinfo[k].flag & HA_SPATIAL)));
        DBUG_RETURN(1);
     }
     if ((!mysql_40_compat &&
-        t1_keyinfo[i].key_alg != t2_keyinfo[i].key_alg) ||
-        t1_keyinfo[i].keysegs != t2_keyinfo[i].keysegs)
+        t1_keyinfo[i].key_alg != t2_keyinfo[k].key_alg) ||
+        t1_keyinfo[i].keysegs != t2_keyinfo[k].keysegs)
     {
       DBUG_PRINT("error", ("Key %d has different definition", i));
       DBUG_PRINT("error", ("t1_keysegs=%d, t1_key_alg=%d",
@@ -507,45 +630,31 @@ int check_definition(MI_KEYDEF *t1_keyinfo, MI_COLUMNDEF *t1_recinfo,
     }
     for (j=  t1_keyinfo[i].keysegs; j--;)
     {
-      uint8 t1_keysegs_j__type= t1_keysegs[j].type;
-
-      /*
-        Table migration from 4.1 to 5.1. In 5.1 a *TEXT key part is
-        always HA_KEYTYPE_VARTEXT2. In 4.1 we had only the equivalent of
-        HA_KEYTYPE_VARTEXT1. Since we treat both the same on MyISAM
-        level, we can ignore a mismatch between these types.
-      */
-      if ((t1_keysegs[j].flag & HA_BLOB_PART) &&
-          (t2_keysegs[j].flag & HA_BLOB_PART))
-      {
-        if ((t1_keysegs_j__type == HA_KEYTYPE_VARTEXT2) &&
-            (t2_keysegs[j].type == HA_KEYTYPE_VARTEXT1))
-          t1_keysegs_j__type= HA_KEYTYPE_VARTEXT1; /* purecov: tested */
-        else if ((t1_keysegs_j__type == HA_KEYTYPE_VARBINARY2) &&
-                 (t2_keysegs[j].type == HA_KEYTYPE_VARBINARY1))
-          t1_keysegs_j__type= HA_KEYTYPE_VARBINARY1; /* purecov: inspected */
-      }
-
-      if ((!mysql_40_compat &&
-          t1_keysegs[j].language != t2_keysegs[j].language) ||
-          t1_keysegs_j__type != t2_keysegs[j].type ||
-          t1_keysegs[j].null_bit != t2_keysegs[j].null_bit ||
-          t1_keysegs[j].length != t2_keysegs[j].length ||
-          t1_keysegs[j].start != t2_keysegs[j].start)
-      {
-        DBUG_PRINT("error", ("Key segment %d (key %d) has different "
-                             "definition", j, i));
-        DBUG_PRINT("error", ("t1_type=%d, t1_language=%d, t1_null_bit=%d, "
-                             "t1_length=%d",
-                             t1_keysegs[j].type, t1_keysegs[j].language,
-                             t1_keysegs[j].null_bit, t1_keysegs[j].length));
-        DBUG_PRINT("error", ("t2_type=%d, t2_language=%d, t2_null_bit=%d, "
-                             "t2_length=%d",
-                             t2_keysegs[j].type, t2_keysegs[j].language,
-                             t2_keysegs[j].null_bit, t2_keysegs[j].length));
-
+      ret= cmp_keysegs(&t1_keysegs[j], &t2_keysegs[j], j, i, table_arg);
+      if (ret)
         DBUG_RETURN(1);
-      }
+    }
+  }
+  for (i= 0; i < t1_uniques; i++)
+  {
+    HA_KEYSEG *t1_keysegs= t1_uniqueinfo[i].seg;
+    HA_KEYSEG *t2_keysegs= t2_uniqueinfo[i].seg;
+
+    if (!mysql_40_compat &&
+       t1_uniqueinfo[i].keysegs != t2_uniqueinfo[i].keysegs)
+    {
+      DBUG_PRINT("error", ("unique %d has different definition", i));
+      DBUG_PRINT("error", ("t1_keysegs=%d",
+                           t1_uniqueinfo[i].keysegs));
+      DBUG_PRINT("error", ("t2_keysegs=%d",
+                           t2_uniqueinfo[i].keysegs));
+      DBUG_RETURN(1);
+    }
+    for (j=  t1_uniqueinfo[i].keysegs; j--;)
+    {
+      ret= cmp_keysegs(&t1_keysegs[j], &t2_keysegs[j], j, t1_uniqueinfo[i].sql_key_no, table_arg);
+      if (ret)
+        DBUG_RETURN(1);
     }
   }
   for (i= 0; i < t1_recs; i++)
@@ -671,7 +780,8 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
                   HA_DUPLICATE_POS | HA_CAN_INDEX_BLOBS | HA_AUTO_PART_KEY |
                   HA_FILE_BASED | HA_CAN_GEOMETRY | HA_NO_TRANSACTIONS |
                   HA_CAN_INSERT_DELAYED | HA_CAN_BIT_FIELD | HA_CAN_RTREEKEYS |
-                  HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT | HA_CAN_REPAIR),
+                  HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT | HA_CAN_REPAIR |
+                  HA_CAN_UNIQUE_HASH_INDEX),
    can_enable_indexes(1)
 {}
 
@@ -706,7 +816,8 @@ const char *ha_myisam::index_type(uint key_number)
 ulong ha_myisam::index_flags(uint inx, uint part, bool all_parts) const
 {
   ulong flags;
-  if (table_share->key_info[inx].algorithm == HA_KEY_ALG_FULLTEXT)
+  if (table_share->key_info[inx].algorithm == HA_KEY_ALG_FULLTEXT ||
+      table_share->key_info[inx].algorithm == HA_KEY_ALG_HASH)
     flags= 0;
   else 
   if ((table_share->key_info[inx].flags & HA_SPATIAL ||
@@ -730,6 +841,7 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
 {
   MI_KEYDEF *keyinfo;
   MI_COLUMNDEF *recinfo= 0;
+  MI_UNIQUEDEF *uniqueinfo;
   uint recs;
   uint i;
 
@@ -760,7 +872,7 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
 
   if (!table->s->tmp_table) /* No need to perform a check for tmp table */
   {
-    if ((my_errno= table2myisam(table, &keyinfo, &recinfo, &recs)))
+    if ((my_errno= table2myisam(table, &keyinfo, &recinfo, &uniqueinfo, &recs)))
     {
       /* purecov: begin inspected */
       DBUG_PRINT("error", ("Failed to convert TABLE object to MyISAM "
@@ -768,9 +880,9 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
       goto err;
       /* purecov: end */
     }
-    if (check_definition(keyinfo, recinfo, table->s->keys, recs,
-                         file->s->keyinfo, file->s->rec,
-                         file->s->base.keys, file->s->base.fields,
+    if (check_definition(keyinfo, recinfo,uniqueinfo, table->s->keys-table->s->uniques, recs,table->s->uniques,
+                         file->s->keyinfo, file->s->rec, file->s->uniqueinfo,
+                         file->s->base.keys-table->s->uniques, file->s->base.fields,file->s->state.header.uniques,
                          true, table))
     {
       /* purecov: begin inspected */
@@ -2005,6 +2117,7 @@ int ha_myisam::create(const char *name, register TABLE *table_arg,
   uint create_flags= 0, record_count, i;
   char buff[FN_REFLEN];
   MI_KEYDEF *keydef;
+  MI_UNIQUEDEF *uniquedef;
   MI_COLUMNDEF *recinfo;
   MI_CREATE_INFO create_info;
   TABLE_SHARE *share= table_arg->s;
@@ -2018,7 +2131,7 @@ int ha_myisam::create(const char *name, register TABLE *table_arg,
       break;
     }
   }
-  if ((error= table2myisam(table_arg, &keydef, &recinfo, &record_count)))
+  if ((error= table2myisam(table_arg, &keydef, &recinfo, &uniquedef, &record_count)))
     DBUG_RETURN(error); /* purecov: inspected */
   bzero((char*) &create_info, sizeof(create_info));
   create_info.max_rows= share->max_rows;
@@ -2067,11 +2180,12 @@ int ha_myisam::create(const char *name, register TABLE *table_arg,
   /* TODO: Check that the following fn_format is really needed */
   error= mi_create(fn_format(buff, name, "", "",
                              MY_UNPACK_FILENAME|MY_APPEND_EXT),
-                   share->keys, keydef,
+                   (share->keys - share->uniques), keydef,
                    record_count, recinfo,
-                   0, (MI_UNIQUEDEF*) 0,
+                   share->uniques, uniquedef,
                    &create_info, create_flags);
   my_free(recinfo);
+
   DBUG_RETURN(error);
 }
 
@@ -2158,6 +2272,14 @@ void ha_myisam::get_auto_increment(ulonglong offset, ulonglong increment,
 ha_rows ha_myisam::records_in_range(uint inx, key_range *min_key,
                                     key_range *max_key)
 {
+  ha_rows n_rows;
+  KEY*    key;
+  key= table->key_info + inx;
+  if(key->algorithm == HA_KEY_ALG_HASH)
+  {
+    n_rows= HA_POS_ERROR;
+    return n_rows;
+  }
   return (ha_rows) mi_records_in_range(file, (int) inx, min_key, max_key);
 }
 

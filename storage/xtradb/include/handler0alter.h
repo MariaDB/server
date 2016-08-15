@@ -42,7 +42,8 @@ innobase_fields_to_mysql(
 /*=====================*/
 	struct TABLE*		table,	/*!< in/out: MySQL table */
 	const dict_index_t*	index,	/*!< in: InnoDB index */
-	const dfield_t*		fields)	/*!< in: InnoDB index fields */
+	const dfield_t*		fields,	/*!< in: InnoDB index fields */
+	bool			logval)	/*!< in: true when called from row0log.cc*/
 	__attribute__((nonnull));
 
 /*************************************************************//**

@@ -885,7 +885,7 @@ dict_table_get_sys_col(
 #define dict_table_get_nth_col(table, pos) \
 ((table)->cols + (pos))
 #define dict_table_get_sys_col(table, sys) \
-((table)->cols + (table)->n_cols + (sys) - DATA_N_SYS_COLS)
+((table)->cols + (table)->n_cols + (table)->n_hash_cols + (sys) - DATA_N_SYS_COLS)
 #endif /* UNIV_DEBUG */
 /********************************************************************//**
 Gets the given system column number of a table.

@@ -1206,6 +1206,7 @@ uint mi_uniquedef_write(File file, MI_UNIQUEDEF *def)
   uchar *ptr=buff;
 
   mi_int2store(ptr,def->keysegs);		ptr+=2;
+  mi_int2store(ptr,def->sql_key_no);            ptr+=2;
   *ptr++=  (uchar) def->key;
   *ptr++ = (uchar) def->null_are_equal;
 
@@ -1214,7 +1215,8 @@ uint mi_uniquedef_write(File file, MI_UNIQUEDEF *def)
 
 uchar *mi_uniquedef_read(uchar *ptr, MI_UNIQUEDEF *def)
 {
-   def->keysegs = mi_uint2korr(ptr);
+   def->keysegs = mi_uint2korr(ptr);  ptr +=2;
+   def->sql_key_no = mi_uint2korr(ptr);
    def->key	= ptr[2];
    def->null_are_equal=ptr[3];
    return ptr+4;				/* 1 extra byte */

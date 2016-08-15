@@ -183,9 +183,9 @@ row_vers_impl_x_locked_low(
 
 		row = row_build(ROW_COPY_POINTERS, clust_index, prev_version,
 				clust_offsets,
-				NULL, NULL, NULL, &ext, heap);
+				NULL, NULL, NULL, &ext, heap, NULL);
 
-		entry = row_build_index_entry(row, ext, index, heap);
+		entry = row_build_index_entry(row, ext, index, heap, false);
 
 		/* entry may be NULL if a record was inserted in place
 		of a deleted record, and the BLOB pointers of the new
@@ -404,8 +404,8 @@ row_vers_old_has_index_entry(
 		externally stored columns. */
 		row = row_build(ROW_COPY_POINTERS, clust_index,
 				rec, clust_offsets,
-				NULL, NULL, NULL, &ext, heap);
-		entry = row_build_index_entry(row, ext, index, heap);
+				NULL, NULL, NULL, &ext, heap, NULL);
+		entry = row_build_index_entry(row, ext, index, heap, false);
 
 		/* If entry == NULL, the record contains unset BLOB
 		pointers.  This must be a freshly inserted record.  If
@@ -465,8 +465,8 @@ row_vers_old_has_index_entry(
 			externally stored columns. */
 			row = row_build(ROW_COPY_POINTERS, clust_index,
 					prev_version, clust_offsets,
-					NULL, NULL, NULL, &ext, heap);
-			entry = row_build_index_entry(row, ext, index, heap);
+					NULL, NULL, NULL, &ext, heap, NULL);
+			entry = row_build_index_entry(row, ext, index, heap, false);
 
 			/* If entry == NULL, the record contains unset
 			BLOB pointers.  This must be a freshly

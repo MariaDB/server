@@ -108,6 +108,19 @@ row_mysql_read_blob_ref(
 					(not BLOB length) */
 /**************************************************************//**
 Pad a column with spaces. */
+
+/*******************************************************************//**
+ calculates hash value and store in a row. */
+UNIV_INTERN
+void
+row_mysql_unique_hash(
+	/*==============================*/
+	mem_heap_t*		heap,	/*!< in: memory heap*/
+	dict_index_t*		index,  /*!< in: index */
+	dtuple_t*		row,	/*!< in: row */
+	dtuple_t*		ext_cols);	/*!< in: external columns(used in alter table) */
+
+/*******************************************************************/
 UNIV_INTERN
 void
 row_mysql_pad_col(
@@ -585,6 +598,24 @@ UNIV_INTERN
 void
 row_mysql_close(void);
 /*=================*/
+
+/**************************************************************//**
+Convert a row in the MySQL format to a row in the Innobase format. Note that
+the function to convert a MySQL format key value to an InnoDB dtuple is
+row_sel_convert_mysql_key_to_innobase() in row0sel.cc. */
+UNIV_INTERN
+void
+row_mysql_convert_row_to_innobase(
+/*==============================*/
+	dtuple_t*	row,		/*!< in/out: Innobase row where the
+					field type information is already
+					copied there! */
+	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct where template
+					must be of type ROW_MYSQL_WHOLE_ROW */
+	byte*		mysql_rec); /*!< in: row in the MySQL format;
+					NOTE: do not discard as long as
+					row is used, as row may contain
+					pointers to this record! */
 
 /*********************************************************************//**
 Reassigns the table identifier of a table.

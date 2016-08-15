@@ -119,14 +119,16 @@ row_build_index_entry(
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
 	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
+	mem_heap_t*		heap,	/*!< in: memory heap from which
 					the memory for the index entry
 					is allocated */
+	bool 			hash_index)	/*in : true for hash index when creating an index entry
+						 with user defined columns */
 {
 	dtuple_t*	entry;
 
 	ut_ad(dtuple_check_typed(row));
-	entry = row_build_index_entry_low(row, ext, index, heap);
+	entry = row_build_index_entry_low(row, ext, index, heap, hash_index);
 	ut_ad(!entry || dtuple_check_typed(entry));
 	return(entry);
 }

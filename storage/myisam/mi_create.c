@@ -35,7 +35,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
 	      uint uniques, MI_UNIQUEDEF *uniquedefs,
 	      MI_CREATE_INFO *ci,uint flags)
 {
-  register uint i,j;
+  register uint i,j,k,u;
   File UNINIT_VAR(dfile),UNINIT_VAR(file);
   int errpos,save_errno, create_mode= O_RDWR | O_TRUNC;
   myf create_flag;
@@ -478,7 +478,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   unique_key_parts=0;
   for (i=0, uniquedef=uniquedefs ; i < uniques ; i++ , uniquedef++)
   {
-    uniquedef->key=keys+i;
+    uniquedef->key=uniquedef->sql_key_no;
     unique_key_parts+=uniquedef->keysegs;
     share.state.key_root[keys+i]= HA_OFFSET_ERROR;
     tot_length+= (max_rows/(ulong) (((uint) myisam_block_size-5)/
@@ -710,16 +710,46 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   }
 #endif
 
+  k=0;
+  u=0;
+  offset= real_reclength - uniques * MI_UNIQUE_HASH_LENGTH;
+  bzero((char*) &tmp_keydef,sizeof(tmp_keydef));
+  bzero((char*) &tmp_keyseg,sizeof(tmp_keyseg));
   /* Write key and keyseg definitions */
   DBUG_PRINT("info", ("write key and keyseg definitions"));
-  for (i=0 ; i < share.base.keys - uniques; i++)
+  for (i=0 ; i < share.base.keys ; i++)
   {
-    uint sp_segs=(keydefs[i].flag & HA_SPATIAL) ? 2*SPDIMS : 0;
+    for (u=0, uniquedef=uniquedefs ; u < uniques ; u++ , uniquedef++)
+    {
+      if(uniquedef->sql_key_no == i)
+      {
+        tmp_keydef.keysegs=1;
+        tmp_keydef.flag=    HA_UNIQUE_CHECK;
+        tmp_keydef.block_length=  (uint16)myisam_block_size;
+        tmp_keydef.keylength= MI_UNIQUE_HASH_LENGTH + pointer;
+        tmp_keydef.minlength=tmp_keydef.maxlength=tmp_keydef.keylength;
+        tmp_keyseg.type=    MI_UNIQUE_HASH_TYPE;
+        tmp_keyseg.length=    MI_UNIQUE_HASH_LENGTH;
+        tmp_keyseg.start=   offset;
+        offset+=      MI_UNIQUE_HASH_LENGTH;
+        if (mi_keydef_write(file,&tmp_keydef) ||
+            mi_keyseg_write(file,(&tmp_keyseg)))
+          goto err;
+        break;
+      }
+    }
 
-    if (mi_keydef_write(file, &keydefs[i]))
+    if(uniques && uniquedef && uniquedef->sql_key_no == i)
+    {
+      continue;
+    }
+
+    uint sp_segs=(keydefs[k].flag & HA_SPATIAL) ? 2*SPDIMS : 0;
+
+    if (mi_keydef_write(file, &keydefs[k]))
       goto err;
-    for (j=0 ; j < keydefs[i].keysegs-sp_segs ; j++)
-      if (mi_keyseg_write(file, &keydefs[i].seg[j]))
+    for (j=0 ; j < keydefs[k].keysegs-sp_segs ; j++)
+      if (mi_keyseg_write(file, &keydefs[k].seg[j]))
        goto err;
 #ifdef HAVE_SPATIAL
     for (j=0 ; j < sp_segs ; j++)
@@ -740,25 +770,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
         goto err;
     }
 #endif
-  }
-  /* Create extra keys for unique definitions */
-  offset= real_reclength - uniques * MI_UNIQUE_HASH_LENGTH;
-  bzero((char*) &tmp_keydef,sizeof(tmp_keydef));
-  bzero((char*) &tmp_keyseg,sizeof(tmp_keyseg));
-  for (i=0; i < uniques ; i++)
-  {
-    tmp_keydef.keysegs=1;
-    tmp_keydef.flag=		HA_UNIQUE_CHECK;
-    tmp_keydef.block_length=	(uint16)myisam_block_size;
-    tmp_keydef.keylength=	MI_UNIQUE_HASH_LENGTH + pointer;
-    tmp_keydef.minlength=tmp_keydef.maxlength=tmp_keydef.keylength;
-    tmp_keyseg.type=		MI_UNIQUE_HASH_TYPE;
-    tmp_keyseg.length=		MI_UNIQUE_HASH_LENGTH;
-    tmp_keyseg.start=		offset;
-    offset+=			MI_UNIQUE_HASH_LENGTH;
-    if (mi_keydef_write(file,&tmp_keydef) ||
-	mi_keyseg_write(file,(&tmp_keyseg)))
-      goto err;
+    k++;
   }
 
   /* Save unique definition */

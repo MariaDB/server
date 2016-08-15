@@ -46,6 +46,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "rem0cmp.h"
 #include "read0read.h"
 #include "ut0mem.h"
+#include "row0mysql.h"
 
 /*****************************************************************//**
 When an insert or purge to a table is performed, this function builds
@@ -62,30 +63,44 @@ row_build_index_entry_low(
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
 	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
+	mem_heap_t*		heap,	/*!< in: memory heap from which
 					the memory for the index entry
 					is allocated */
+	bool 			hash_index)/*in : true for hash index when creating an index entry
+						 with user defined columns */
 {
 	dtuple_t*	entry;
 	ulint		entry_len;
 	ulint		i;
 
-	entry_len = dict_index_get_n_fields(index);
+	if (!hash_index) {
+		entry_len = dict_index_get_n_fields(index);
+	} else {
+		ut_ad(dict_index_is_unique_hash(index));
+		entry_len = dict_index_get_n_user_fields(index);
+	}
+
 	entry = dtuple_create(heap, entry_len);
 
-	if (dict_index_is_univ(index)) {
-		dtuple_set_n_fields_cmp(entry, entry_len);
-		/* There may only be externally stored columns
-		in a clustered index B-tree of a user table. */
-		ut_a(!ext);
-	} else {
-		dtuple_set_n_fields_cmp(
-			entry, dict_index_get_n_unique_in_tree(index));
+	if (!hash_index) {
+		if (dict_index_is_univ(index) ) {
+			dtuple_set_n_fields_cmp(entry, entry_len);
+			/* There may only be externally stored columns
+			in a clustered index B-tree of a user table. */
+			ut_a(!ext);
+		} else {
+			dtuple_set_n_fields_cmp(
+				entry, dict_index_get_n_unique_in_tree(index));
+		}
 	}
 
 	for (i = 0; i < entry_len; i++) {
-		const dict_field_t*	ind_field
-			= dict_index_get_nth_field(index, i);
+		const dict_field_t*	ind_field;
+		if (!hash_index) {
+			ind_field = dict_index_get_nth_field(index, i);
+		} else {
+			ind_field = dict_index_get_nth_user_field(index, i);
+		}
 		const dict_col_t*	col
 			= ind_field->col;
 		ulint			col_no
@@ -226,8 +241,10 @@ row_build(
 	row_ext_t**		ext,	/*!< out, own: cache of
 					externally stored column
 					prefixes, or NULL */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
+	mem_heap_t*		heap,  /*!< in: memory heap from which
 					the memory needed is allocated */
+	dtuple_t**		ext_cols_for_hash_index)/*!< out: external
+								columns for hash index */
 {
 	const byte*		copy;
 	dtuple_t*		row;
@@ -239,6 +256,7 @@ row_build(
 	mem_heap_t*		tmp_heap	= NULL;
 	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
+	dict_index_t*	new_index;
 
 	ut_ad(index && rec && heap);
 	ut_ad(dict_index_is_clust(index));
@@ -293,19 +311,52 @@ row_build(
 	if (add_cols) {
 		ut_ad(col_map);
 		row = dtuple_copy(add_cols, heap);
+
 		/* dict_table_copy_types() would set the fields to NULL */
-		for (ulint i = 0; i < dict_table_get_n_cols(col_table); i++) {
+		for (ulint i = 0; i < dict_table_get_n_cols(col_table) +
+					dict_table_get_n_hash_cols(col_table); i++) {
 			dict_col_copy_type(
 				dict_table_get_nth_col(col_table, i),
 				dfield_get_type(dtuple_get_nth_field(row, i)));
 		}
+
+		if (ext_cols_for_hash_index) {
+			*ext_cols_for_hash_index = dtuple_create(heap,
+						dict_table_get_n_cols(col_table) +
+						dict_table_get_n_hash_cols(col_table));
+
+			*ext_cols_for_hash_index = dtuple_copy(add_cols, heap);
+
+			for (ulint i = 0; i < dict_table_get_n_cols(col_table) +
+					dict_table_get_n_hash_cols(col_table); i++) {
+				dict_col_copy_type(
+					dict_table_get_nth_col(col_table, i),
+					dfield_get_type(dtuple_get_nth_field(*ext_cols_for_hash_index, i)));
+			}
+		}
+
 	} else {
-		row = dtuple_create(heap, dict_table_get_n_cols(col_table));
+		row = dtuple_create(heap, dict_table_get_n_cols(col_table) +
+					dict_table_get_n_hash_cols(col_table));
 		dict_table_copy_types(row, col_table);
+
+		if (ext_cols_for_hash_index) {
+			*ext_cols_for_hash_index = dtuple_create(heap,
+						dict_table_get_n_cols(col_table) +
+						dict_table_get_n_hash_cols(col_table));
+
+			dict_table_copy_types(*ext_cols_for_hash_index, col_table);
+		}
+
 	}
 
 	dtuple_set_info_bits(row, rec_get_info_bits(
 				     copy, rec_offs_comp(offsets)));
+
+	if (ext_cols_for_hash_index) {
+		dtuple_set_info_bits(*ext_cols_for_hash_index, rec_get_info_bits(
+					copy, rec_offs_comp(offsets)));
+	}
 
 	j = 0;
 
@@ -336,7 +387,9 @@ row_build(
 				continue;
 			}
 		}
-
+		if(col_table != index->table && (col->prtype & DATA_HASH_COL_TYPE)){
+			continue;
+		}
 		dfield_t*	dfield = dtuple_get_nth_field(row, col_no);
 
 		const byte*	field = rec_get_nth_field(
@@ -354,6 +407,44 @@ row_build(
 				externally stored columns that are
 				referenced by column prefixes. */
 				ext_cols[j++] = col_no;
+			}
+		}
+		if (ext_cols_for_hash_index) {
+			ibool need_ext_col = FALSE;
+			dfield_t*	dfield1 = dtuple_get_nth_field(*ext_cols_for_hash_index, col_no);
+			new_index = dict_table_get_first_index(col_table);
+
+			if (rec_offs_nth_extern(offsets, i)) {
+				while (new_index) {
+					if (new_index->type & DICT_UNIQUE_HASH) {
+						if (dict_index_contains_col_or_prefix(new_index, col_no)) {
+							/* If hash index contains external column, we need
+							to copy it. It is used in computation of hash value
+							and later in row_merge_tuple_cmp() to check unique
+							constraints for hash index */
+							need_ext_col = TRUE;
+							break;
+						}
+					}
+
+					new_index = dict_table_get_next_index(new_index);
+				}
+				if (need_ext_col) {
+					dfield_set_ext(dfield1);
+					const byte*	data;
+					ulint		ext_len;
+
+					data = btr_rec_copy_externally_stored_field(
+						copy, offsets,
+						dict_table_zip_size(col_table),
+						i, &ext_len, heap, NULL);
+
+					dfield_set_data(dfield1,
+						mem_heap_dup(heap, data, ext_len), ext_len);
+
+					ut_a(data);
+					ut_a(ext_len != UNIV_SQL_NULL);
+				}
 			}
 		}
 	}
@@ -377,6 +468,18 @@ row_build(
 				      heap);
 	} else {
 		*ext = NULL;
+	}
+
+	if(col_table != index->table){
+		new_index = dict_table_get_first_index(col_table);
+
+		while (new_index) {
+			if (new_index->type & DICT_UNIQUE_HASH) {
+				row_mysql_unique_hash(heap, new_index, row, *ext_cols_for_hash_index);
+			}
+
+			new_index = dict_table_get_next_index(new_index);
+		}
 	}
 
 	if (tmp_heap) {

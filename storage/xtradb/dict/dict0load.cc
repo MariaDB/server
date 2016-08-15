@@ -1362,6 +1362,7 @@ dict_load_columns(
 	byte*		buf;
 	ulint		i;
 	mtr_t		mtr;
+	table->n_hash_cols = 0;
 
 	ut_ad(mutex_own(&(dict_sys->mutex)));
 
@@ -1403,11 +1404,17 @@ dict_load_columns(
 			ut_error;
 		}
 
+		dict_col_t*	col = dict_table_get_nth_col(table, i);
+
+		if(col->prtype & DATA_HASH_COL_TYPE){
+			table->n_hash_cols += 1;
+		}
+
 		/* Note: Currently we have one DOC_ID column that is
 		shared by all FTS indexes on a table. */
 		if (innobase_strcasecmp(name,
 					FTS_DOC_ID_COL_NAME) == 0) {
-			dict_col_t*	col;
+
 			/* As part of normal loading of tables the
 			table->flag is not set for tables with FTS
 			till after the FTS indexes are loaded. So we
@@ -1423,7 +1430,6 @@ dict_load_columns(
 
 			ut_a(table->fts->doc_col == ULINT_UNDEFINED);
 
-			col = dict_table_get_nth_col(table, i);
 
 			ut_ad(col->len == sizeof(doc_id_t));
 
@@ -1439,7 +1445,7 @@ dict_load_columns(
 
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 	}
-
+	table->n_cols -= table->n_hash_cols;
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 }
@@ -1951,7 +1957,7 @@ dict_load_indexes(
 		/* We check for unsupported types first, so that the
 		subsequent checks are relevant for the supported types. */
 		if (index->type & ~(DICT_CLUSTERED | DICT_UNIQUE
-				    | DICT_CORRUPT | DICT_FTS)) {
+				    | DICT_CORRUPT | DICT_FTS | DICT_UNIQUE_HASH)) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
 				"Unknown type %lu of index %s of table %s",
 				(ulong) index->type, index->name, table->name);
@@ -2012,7 +2018,6 @@ corrupted:
 			dict_mem_index_free(index);
 		} else {
 			dict_load_fields(index, heap);
-
 			error = dict_index_add_to_cache(
 				table, index, index->page, FALSE);
 

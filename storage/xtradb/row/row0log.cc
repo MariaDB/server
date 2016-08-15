@@ -604,7 +604,7 @@ row_log_table_delete(
 		that are referenced by secondary indexes. It can be
 		that none of the off-page columns are needed. */
 		row_build(ROW_COPY_DATA, index, rec,
-			  offsets, NULL, NULL, NULL, &ext, heap);
+			  offsets, NULL, NULL, NULL, &ext, heap, NULL);
 		if (ext) {
 			/* Log the row_ext_t, ext->ext and ext->buf */
 			ext_size = ext->n_ext * ext->max_len
@@ -927,7 +927,7 @@ row_log_table_get_pk_old_col(
 	const ulint*		col_map,
 	ulint			col_no)
 {
-	for (ulint i = 0; i < table->n_cols; i++) {
+	for (ulint i = 0; i < table->n_cols + table->n_hash_cols; i++) {
 		if (col_no == col_map[i]) {
 			return(dict_table_get_nth_col(table, i));
 		}
@@ -1312,13 +1312,15 @@ row_log_table_apply_convert_mrec(
 	if (log->add_cols) {
 		row = dtuple_copy(log->add_cols, heap);
 		/* dict_table_copy_types() would set the fields to NULL */
-		for (ulint i = 0; i < dict_table_get_n_cols(log->table); i++) {
+		for (ulint i = 0; i < dict_table_get_n_cols(log->table) +
+							  dict_table_get_n_hash_cols(log->table); i++) {
 			dict_col_copy_type(
 				dict_table_get_nth_col(log->table, i),
 				dfield_get_type(dtuple_get_nth_field(row, i)));
 		}
 	} else {
-		row = dtuple_create(heap, dict_table_get_n_cols(log->table));
+		row = dtuple_create(heap, dict_table_get_n_cols(log->table)
+					+ dict_table_get_n_hash_cols(log->table));
 		dict_table_copy_types(row, log->table);
 	}
 
@@ -1343,6 +1345,10 @@ row_log_table_apply_convert_mrec(
 
 		if (col_no == ULINT_UNDEFINED) {
 			/* dropped column */
+			continue;
+		}
+
+		if (col->prtype & DATA_HASH_COL_TYPE) {
 			continue;
 		}
 
@@ -1438,6 +1444,16 @@ blob_done:
 						 dfield_get_type(dfield)));
 	}
 
+	dict_index_t*	new_index = dict_table_get_first_index(log->table);
+
+	while (new_index) {
+		if (new_index->type & DICT_UNIQUE_HASH) {
+			row_mysql_unique_hash(heap, new_index, row, NULL);
+		}
+
+		new_index = dict_table_get_next_index(new_index);
+	}
+
 	return(row);
 }
 
@@ -1482,7 +1498,7 @@ row_log_table_apply_insert_low(
 		   | BTR_NO_UNDO_LOG_FLAG
 		   | BTR_KEEP_SYS_FLAG);
 
-	entry = row_build_index_entry(row, NULL, index, heap);
+	entry = row_build_index_entry(row, NULL, index, heap, false);
 
 	error = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_TREE, index, index->n_uniq, entry, 0, thr);
@@ -1508,10 +1524,10 @@ row_log_table_apply_insert_low(
 			continue;
 		}
 
-		entry = row_build_index_entry(row, NULL, index, heap);
+		entry = row_build_index_entry(row, NULL, index, heap, false);
 		error = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE,
-			index, offsets_heap, heap, entry, trx_id, thr);
+			index, offsets_heap, heap, entry, trx_id, thr,row);
 
 		/* Report correct index name for duplicate key error. */
 		if (error == DB_DUPLICATE_KEY) {
@@ -1611,7 +1627,7 @@ row_log_table_apply_delete_low(
 		row = row_build(
 			ROW_COPY_DATA, index, btr_pcur_get_rec(pcur),
 			offsets, NULL, NULL, NULL,
-			save_ext ? NULL : &ext, heap);
+			save_ext ? NULL : &ext, heap, NULL);
 		if (!save_ext) {
 			save_ext = ext;
 		}
@@ -1633,7 +1649,7 @@ row_log_table_apply_delete_low(
 		}
 
 		const dtuple_t*	entry = row_build_index_entry(
-			row, save_ext, index, heap);
+			row, save_ext, index, heap, false);
 		mtr_start(mtr);
 		btr_pcur_open(index, entry, PAGE_CUR_LE,
 			      BTR_MODIFY_TREE, pcur, mtr);
@@ -2007,7 +2023,7 @@ func_exit_committed:
 	}
 
 	dtuple_t*	entry	= row_build_index_entry(
-		row, NULL, index, heap);
+		row, NULL, index, heap, false);
 	const upd_t*	update	= row_upd_build_difference_binary(
 		index, entry, btr_pcur_get_rec(&pcur), cur_offsets,
 		false, NULL, heap);
@@ -2059,7 +2075,7 @@ func_exit_committed:
 		the record. */
 		old_row = row_build(
 			ROW_COPY_DATA, index, btr_pcur_get_rec(&pcur),
-			cur_offsets, NULL, NULL, NULL, &old_ext, heap);
+			cur_offsets, NULL, NULL, NULL, &old_ext, heap, NULL);
 		ut_ad(old_row);
 #ifdef ROW_LOG_APPLY_PRINT
 		if (row_log_apply_print) {
@@ -2114,7 +2130,7 @@ func_exit_committed:
 
 		mtr_commit(&mtr);
 
-		entry = row_build_index_entry(old_row, old_ext, index, heap);
+		entry = row_build_index_entry(old_row, old_ext, index, heap, false);
 		if (!entry) {
 			ut_ad(0);
 			return(DB_CORRUPTION);
@@ -2139,12 +2155,12 @@ func_exit_committed:
 
 		mtr_commit(&mtr);
 
-		entry = row_build_index_entry(row, NULL, index, heap);
+		entry = row_build_index_entry(row, NULL, index, heap, false);
 		error = row_ins_sec_index_entry_low(
 			BTR_CREATE_FLAG | BTR_NO_LOCKING_FLAG
 			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG,
 			BTR_MODIFY_TREE, index, offsets_heap, heap,
-			entry, trx_id, thr);
+			entry, trx_id, thr, row);
 
 		/* Report correct index name for duplicate key error. */
 		if (error == DB_DUPLICATE_KEY) {
@@ -3006,7 +3022,8 @@ row_log_apply_op_low(
 		ut_ad(!rec_get_deleted_flag(rec, page_rec_is_comp(rec)));
 #endif /* UNIV_DEBUG */
 
-		ut_ad(exists || dict_index_is_unique(index));
+		ut_ad(exists || dict_index_is_unique(index) ||
+			dict_index_is_unique_hash(index));
 
 		switch (op) {
 		case ROW_OP_DELETE:
@@ -3102,7 +3119,8 @@ row_log_apply_op_low(
 			rolling back TRX_UNDO_INSERT_REC. */
 			goto func_exit;
 		case ROW_OP_INSERT:
-			if (dict_index_is_unique(index)
+			if ((dict_index_is_unique(index) ||
+				dict_index_is_unique_hash(index))
 			    && (cursor.up_match
 				>= dict_index_get_n_unique(index)
 				|| cursor.low_match
@@ -3111,8 +3129,14 @@ row_log_apply_op_low(
 				|| !dtuple_contains_null(entry))) {
 duplicate:
 				/* Duplicate key */
-				ut_ad(dict_index_is_unique(index));
-				row_merge_dup_report(dup, entry->fields);
+				ut_ad(dict_index_is_unique(index) ||
+						dict_index_is_unique_hash(index));
+				if (dict_index_is_unique_hash(index)) {
+					row_merge_dup_report(dup, entry->fields, true);
+				} else {
+					row_merge_dup_report(dup, entry->fields, false);
+				}
+
 				*error = DB_DUPLICATE_KEY;
 				goto func_exit;
 			}

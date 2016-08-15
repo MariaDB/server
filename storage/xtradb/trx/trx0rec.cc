@@ -765,8 +765,8 @@ trx_undo_page_report_modify(
 
 		ptr += 2;
 
-		for (col_no = 0; col_no < dict_table_get_n_cols(table);
-		     col_no++) {
+		for (col_no = 0; col_no < dict_table_get_n_cols(table) +
+			dict_table_get_n_hash_cols(table); col_no++) {
 
 			const dict_col_t*	col
 				= dict_table_get_nth_col(table, col_no);
@@ -1070,7 +1070,8 @@ trx_undo_rec_get_partial_row(
 	ut_ad(heap);
 	ut_ad(dict_index_is_clust(index));
 
-	row_len = dict_table_get_n_cols(index->table);
+	row_len = dict_table_get_n_cols(index->table) +
+		dict_table_get_n_hash_cols(index->table);
 
 	*row = dtuple_create(heap, row_len);
 

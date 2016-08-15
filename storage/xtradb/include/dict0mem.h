@@ -74,10 +74,13 @@ combination of types */
 				in SYS_INDEXES.TYPE */
 #define	DICT_FTS	32	/* FTS index; can't be combined with the
 				other flags */
+#define DICT_UNIQUE_HASH	64	/*!< non_unique hash index */
 
-#define	DICT_IT_BITS	6	/*!< number of bits used for
+
+#define	DICT_IT_BITS	7	/*!< number of bits used for
 				SYS_INDEXES.TYPE */
 /* @} */
+
 
 #if 0 /* not implemented, retained for history */
 /** Types for a table object */
@@ -1065,6 +1068,7 @@ struct dict_table_t{
 				dict_operation_lock */
 	unsigned	n_def:10;/*!< number of columns defined so far */
 	unsigned	n_cols:10;/*!< number of columns */
+	unsigned	n_hash_cols;/*!< number of hash columns for long unique constraints*/					
 	unsigned	can_be_evicted:1;
 				/*!< TRUE if it's not an InnoDB system table
 				or a table that has no FK relationships */

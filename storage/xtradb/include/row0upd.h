@@ -374,6 +374,27 @@ row_upd_parse_sys_vals(
 	ulint*		pos,	/*!< out: TRX_ID position in record */
 	trx_id_t*	trx_id,	/*!< out: trx id */
 	roll_ptr_t*	roll_ptr);/*!< out: roll ptr */
+ /***********************************************************//**
+Checks if  HASH column needs an update.*/
+UNIV_INTERN
+ibool
+row_update_check_unique_hash_index(
+	/*==================================*/
+	dict_index_t*	index,	/*!< in: index of the record */
+	const upd_t*	update); /*!< in: update vector for the row; NOTE: the
+							field numbers in this MUST be clustered index
+							positions! */
+/***********************************************************//**
+ adds hash field to update vecor*/
+UNIV_INTERN
+void
+row_add_hash_field_to_upd_vector(
+	/*==================================*/
+	dict_index_t*	index,	/*!< in: index of the record */
+	upd_t*		uvect,	/*!< in: update vector for the row; NOTE: the
+						field numbers in this MUST be clustered index
+						positions! */
+	const dtuple_t* row); /*updated row*/
 /*********************************************************************//**
 Updates the trx id and roll ptr field in a clustered index record in database
 recovery. */

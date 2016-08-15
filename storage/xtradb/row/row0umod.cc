@@ -816,7 +816,7 @@ row_undo_mod_upd_del_sec(
 		to roll back an undo log entry TRX_UNDO_DEL_MARK_REC,
 		it should always cover all affected indexes. */
 		entry = row_build_index_entry(
-			node->row, node->ext, index, heap);
+			node->row, node->ext, index, heap, false);
 
 		if (UNIV_UNLIKELY(!entry)) {
 			/* The database must have crashed after
@@ -882,7 +882,7 @@ row_undo_mod_del_mark_sec(
 		to roll back an undo log entry TRX_UNDO_DEL_MARK_REC,
 		it should always cover all affected indexes. */
 		entry = row_build_index_entry(
-			node->row, node->ext, index, heap);
+			node->row, node->ext, index, heap, false);
 
 		ut_a(entry);
 
@@ -951,7 +951,7 @@ row_undo_mod_upd_exist_sec(
 
 		/* Build the newest version of the index entry */
 		entry = row_build_index_entry(node->row, node->ext,
-					      index, heap);
+					      index, heap, false);
 		if (UNIV_UNLIKELY(!entry)) {
 			/* The server must have crashed in
 			row_upd_clust_rec_by_insert() before
@@ -1006,7 +1006,7 @@ row_undo_mod_upd_exist_sec(
 		'abc' -> 'aBc'. */
 		entry = row_build_index_entry(node->undo_row,
 					      node->undo_ext,
-					      index, heap);
+					      index, heap, false);
 		ut_a(entry);
 
 		err = row_undo_mod_del_unmark_sec_and_undo_update(

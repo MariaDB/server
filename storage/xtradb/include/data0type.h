@@ -166,6 +166,8 @@ be less than 256 */
 				In earlier versions this was set for some
 				BLOB columns.
 */
+#define	DATA_HASH_COL_TYPE  2048
+
 #define	DATA_LONG_TRUE_VARCHAR 4096	/* this is ORed to the precise data
 				type when the column is true VARCHAR where
 				MySQL uses 2 bytes to store the data len;
@@ -182,6 +184,8 @@ store the charset-collation number; one byte is left unused, though */
 
 /* Maximum multi-byte character length in bytes, plus 1 */
 #define DATA_MBMAX	5
+
+#define HASH_COL_LENGTH  8
 
 /* Pack mbminlen, mbmaxlen to mbminmaxlen. */
 #define DATA_MBMINMAXLEN(mbminlen, mbmaxlen)	\

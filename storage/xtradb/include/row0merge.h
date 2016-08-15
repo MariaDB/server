@@ -143,7 +143,8 @@ void
 row_merge_dup_report(
 /*=================*/
 	row_merge_dup_t*	dup,	/*!< in/out: for reporting duplicates */
-	const dfield_t*		entry)	/*!< in: duplicate index entry */
+	const dfield_t*		entry,/*!< in: duplicate index entry */
+	bool 			logval)	/*!< in: true when called from row0log.cc*/
 	__attribute__((nonnull));
 /*********************************************************************//**
 Sets an exclusive lock on a table, for the duration of creating indexes.

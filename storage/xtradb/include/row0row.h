@@ -85,9 +85,11 @@ row_build_index_entry_low(
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
 	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
+	mem_heap_t*		heap,	/*!< in: memory heap from which
 					the memory for the index entry
 					is allocated */
+	bool 			hash_index)	/*in : true for hash index when creating an index entry
+						 with user defined columns */
 	__attribute__((warn_unused_result, nonnull(1,3,4)));
 /*****************************************************************//**
 When an insert or purge to a table is performed, this function builds
@@ -153,8 +155,9 @@ row_build(
 	row_ext_t**		ext,	/*!< out, own: cache of
 					externally stored column
 					prefixes, or NULL */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
+	mem_heap_t*		heap,/*!< in: memory heap from which
 					the memory needed is allocated */
+	dtuple_t** ext_cols_for_hash_index) /*!< out: external columns for hash index */
 	__attribute__((nonnull(2,3,9)));
 /*******************************************************************//**
 Converts an index record to a typed data tuple.

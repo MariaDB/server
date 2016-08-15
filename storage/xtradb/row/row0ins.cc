@@ -42,6 +42,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "row0sel.h"
 #include "row0row.h"
 #include "row0log.h"
+#include "row0ins.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
 #include "log0log.h"
@@ -123,7 +124,7 @@ ins_node_create_entry_list(
 	     index = dict_table_get_next_index(index)) {
 
 		entry = row_build_index_entry(
-			node->row, NULL, index, node->entry_sys_heap);
+			node->row, NULL, index, node->entry_sys_heap, false);
 
 		UT_LIST_ADD_LAST(tuple_list, node->entry_list, entry);
 	}
@@ -149,7 +150,8 @@ row_ins_alloc_sys_fields(
 	heap = node->entry_sys_heap;
 
 	ut_ad(row && table && heap);
-	ut_ad(dtuple_get_n_fields(row) == dict_table_get_n_cols(table));
+	ut_ad(dtuple_get_n_fields(row) == dict_table_get_n_cols(table) +
+		dict_table_get_n_hash_cols(table));
 
 	/* allocate buffer to hold the needed system created hidden columns. */
 	uint len = DATA_ROW_ID_LEN + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
@@ -2080,6 +2082,180 @@ end_scan:
 	return(err);
 }
 
+/***************************************************************//**
+Scans a unique non-clustered index at a given index entry to determine
+whether a uniqueness violation has occurred for the key value of the entry.
+Set shared locks on possible duplicate records.
+@return	DB_SUCCESS, DB_DUPLICATE_KEY, or DB_LOCK_WAIT */
+static __attribute__((nonnull, warn_unused_result))
+dberr_t
+row_ins_scan_sec_hash_index_for_duplicate(
+/*=================================*/
+	ulint			flags,	/*!< in: undo logging and locking flags */
+	dict_index_t*		index,	/*!< in: non-clustered unique index */
+	dtuple_t*		entry,	/*!< in: index entry */
+	que_thr_t*		thr,	/*!< in: query thread */
+	bool			s_latch,/*!< in: whether index->lock is being held */
+	mtr_t*			mtr,	/*!< in/out: mini-transaction */
+	mem_heap_t*		offsets_heap,/*!< in/out: memory heap that can be emptied */
+	mem_heap_t*		heap,	/*!< in/out: memory heap */
+	const dtuple_t* 	row  /*!< in: row which should be
+							inserted or purged */
+	)
+{
+	ulint		n_unique;
+	int		cmp;
+	ulint		n_fields_cmp;
+	btr_pcur_t	pcur,clust_pcur;
+	dberr_t		err	= DB_SUCCESS;
+	ulint		allow_duplicates;
+	ulint*		offsets	= NULL;
+	const rec_t*	clust_rec;
+	dict_index_t*	clust_index;
+	dtuple_t* 	clust_ref;
+	dtuple_t*	entry1;
+	dtuple_t*	entry2;
+
+	clust_index = dict_table_get_first_index(index->table);
+	clust_ref = dtuple_create(heap, dict_index_get_n_unique(clust_index));
+
+	/*  entry1 is created from the row which
+	is to be inserted and entry2 is created from
+	the clustered record if there is hash collision.
+	entry1 and entry2 are compared to check unique key violation*/
+	entry1 = row_build_index_entry(row, NULL, index, heap, true);
+	entry2 = row_build_index_entry(row, NULL, index, heap, true);
+
+#ifdef UNIV_SYNC_DEBUG
+	ut_ad(s_latch == rw_lock_own(&index->lock, RW_LOCK_SHARED));
+#endif /* UNIV_SYNC_DEBUG */
+
+	n_unique = dict_index_get_n_unique(index);
+
+	/* If the secondary index is unique, but one of the fields in the
+	n_unique first fields is NULL, a unique key violation cannot occur,
+	since we define NULL != NULL in this case */
+
+	for (int i = 0; i < index->n_user_defined_cols; i++) {
+		dict_field_t*	ind_field;
+		const dfield_t*	row_field;
+		ulint		len;
+
+		ind_field = dict_index_get_nth_user_field(index, i);
+		row_field = dtuple_get_nth_field(row, ind_field->col->ind);
+		len = dfield_get_len(row_field);
+
+		if (dfield_get_len(row_field) == UNIV_SQL_NULL) {
+			return DB_SUCCESS;
+		}
+	}
+
+	row_ins_index_entry_set_vals(index, entry1, row, TRUE);
+
+	/* Store old value on n_fields_cmp */
+
+	n_fields_cmp = dtuple_get_n_fields_cmp(entry);
+
+	dtuple_set_n_fields_cmp(entry, n_unique);
+
+	btr_pcur_open(index, entry, PAGE_CUR_GE,
+		      s_latch
+		      ? BTR_SEARCH_LEAF | BTR_ALREADY_S_LATCHED
+		      : BTR_SEARCH_LEAF,
+		      &pcur, mtr);
+
+	allow_duplicates = thr_get_trx(thr)->duplicates;
+
+	/* Scan index records and check if there is a duplicate */
+
+	do {
+		const rec_t*		rec	= btr_pcur_get_rec(&pcur);
+		const buf_block_t*	block	= btr_pcur_get_block(&pcur);
+		const ulint		lock_type = LOCK_ORDINARY;
+
+		offsets = rec_get_offsets(rec, index, offsets,
+					  ULINT_UNDEFINED, &offsets_heap);
+
+		if (flags & BTR_NO_LOCKING_FLAG) {
+			/* Set no locks when applying log
+			in online table rebuild. */
+		} else if (allow_duplicates) {
+
+			/* If the SQL-query will update or replace
+			duplicate key we will take X-lock for
+			duplicates ( REPLACE, LOAD DATAFILE REPLACE,
+			INSERT ON DUPLICATE KEY UPDATE). */
+
+			err = row_ins_set_exclusive_rec_lock(
+				lock_type, block, rec, index, offsets, thr);
+		} else {
+			err = row_ins_set_shared_rec_lock(
+				lock_type, block, rec, index, offsets, thr);
+		}
+
+		switch (err) {
+		case DB_SUCCESS_LOCKED_REC:
+			err = DB_SUCCESS;
+		case DB_SUCCESS:
+			break;
+		default:
+			goto end_scan;
+		}
+
+		if (page_rec_is_supremum(rec)) {
+			continue;
+		}
+
+		cmp = cmp_dtuple_rec(entry, rec, offsets);
+
+		if (cmp == 0) {
+			if (row_ins_dupl_error_with_rec(rec, entry,
+							index, offsets)) {
+
+				/*Retrieves the clustered index record corresponding
+				to a record in a hash index*/
+				err = row_sel_get_clust_rec_for_cmp(index, rec,
+								    thr, &clust_rec,
+								    &offsets, &heap, mtr,
+								    clust_ref, &clust_pcur);
+				switch (err) {
+					case DB_SUCCESS_LOCKED_REC:
+						err = DB_SUCCESS;
+
+					case DB_SUCCESS:
+						ut_a(clust_rec != NULL);
+						/* sets the values of user defined columns in
+						hash index from the clustered record */
+						row_sel_create_entry_from_clust_rec(entry2,
+							clust_index, index, clust_rec, heap);
+
+						if (!(dtuple_coll_cmp(entry1,entry2))) {
+							err = DB_DUPLICATE_KEY;
+							thr_get_trx(thr)->error_info = index;
+							goto end_scan;
+						}
+
+						break;
+
+					default :
+						goto end_scan;
+				}
+
+				continue;
+			}
+		} else {
+			ut_a(cmp < 0);
+			goto end_scan;
+		}
+	} while (btr_pcur_move_to_next(&pcur, mtr));
+
+end_scan:
+	/* Restore old value */
+	dtuple_set_n_fields_cmp(entry, n_fields_cmp);
+
+	return(err);
+}
+
 /** Checks for a duplicate when the table is being rebuilt online.
 @retval DB_SUCCESS		when no duplicate is detected
 @retval DB_SUCCESS_LOCKED_REC	when rec is an exact match of entry or
@@ -2688,7 +2864,9 @@ row_ins_sec_index_entry_low(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	trx_id_t	trx_id,	/*!< in: PAGE_MAX_TRX_ID during
 				row_log_table_apply(), or 0 */
-	que_thr_t*	thr)	/*!< in: query thread */
+	que_thr_t*	thr,	/*!< in: query thread */
+	const dtuple_t*	row)	/*!< in: row which should be
+					inserted or purged */
 {
 	btr_cur_t	cursor;
 	ulint		search_mode;
@@ -2795,7 +2973,7 @@ row_ins_sec_index_entry_low(
 
 	n_unique = dict_index_get_n_unique(index);
 
-	if (dict_index_is_unique(index)
+	if ((dict_index_is_unique(index) | dict_index_is_unique_hash(index))
 	    && (cursor.low_match >= n_unique || cursor.up_match >= n_unique)) {
 		mtr_commit(&mtr);
 
@@ -2806,8 +2984,16 @@ row_ins_sec_index_entry_low(
 			goto func_exit;
 		}
 
-		err = row_ins_scan_sec_index_for_duplicate(
-			flags, index, entry, thr, check, &mtr, offsets_heap);
+		if(dict_index_is_unique_hash(index)){
+			err = row_ins_scan_sec_hash_index_for_duplicate(
+					flags, index, entry, thr, check, &mtr,
+					offsets_heap, heap ,row);
+
+		}else{
+			err = row_ins_scan_sec_index_for_duplicate(
+					flags, index, entry, thr, check, &mtr,
+					offsets_heap);
+		}
 
 		mtr_commit(&mtr);
 
@@ -3034,7 +3220,8 @@ row_ins_sec_index_entry(
 /*====================*/
 	dict_index_t*	index,	/*!< in: secondary index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
-	que_thr_t*	thr)	/*!< in: query thread */
+	que_thr_t*	thr,	/*!< in: query thread */
+	dtuple_t*	row)	/*!< in: row which is to be inserted */
 {
 	dberr_t		err;
 	mem_heap_t*	offsets_heap;
@@ -3059,7 +3246,7 @@ row_ins_sec_index_entry(
 	log_free_check();
 
 	err = row_ins_sec_index_entry_low(
-		0, BTR_MODIFY_LEAF, index, offsets_heap, heap, entry, 0, thr);
+		0, BTR_MODIFY_LEAF, index, offsets_heap, heap, entry, 0, thr, row);
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
 
@@ -3069,7 +3256,7 @@ row_ins_sec_index_entry(
 
 		err = row_ins_sec_index_entry_low(
 			0, BTR_MODIFY_TREE, index,
-			offsets_heap, heap, entry, 0, thr);
+			offsets_heap, heap, entry, 0, thr, row);
 	}
 
 	mem_heap_free(heap);
@@ -3089,7 +3276,8 @@ row_ins_index_entry(
 /*================*/
 	dict_index_t*	index,	/*!< in: index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
-	que_thr_t*	thr)	/*!< in: query thread */
+	que_thr_t*	thr,	/*!< in: query thread */
+	dtuple_t*	row)	/*!< in: row which should be inserted */
 {
 	DBUG_EXECUTE_IF("row_ins_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_index_entry_timeout");
@@ -3098,20 +3286,22 @@ row_ins_index_entry(
 	if (dict_index_is_clust(index)) {
 		return(row_ins_clust_index_entry(index, entry, thr, 0));
 	} else {
-		return(row_ins_sec_index_entry(index, entry, thr));
+		return(row_ins_sec_index_entry(index, entry, thr, row));
 	}
 }
 
 /***********************************************************//**
 Sets the values of the dtuple fields in entry from the values of appropriate
 columns in row. */
-static __attribute__((nonnull))
+UNIV_INTERN
 void
 row_ins_index_entry_set_vals(
 /*=========================*/
 	dict_index_t*	index,	/*!< in: index */
 	dtuple_t*	entry,	/*!< in: index entry to make */
-	const dtuple_t*	row)	/*!< in: row */
+	const dtuple_t*	row, 	/*!< in: row */
+	ibool 		hash_index)/*in : true for hash index when creating an index entry
+						 with user defined columns */
 {
 	ulint	n_fields;
 	ulint	i;
@@ -3125,13 +3315,17 @@ row_ins_index_entry_set_vals(
 		ulint		len;
 
 		field = dtuple_get_nth_field(entry, i);
-		ind_field = dict_index_get_nth_field(index, i);
+		if (hash_index) {
+			ind_field = dict_index_get_nth_user_field(index, i);
+		} else {
+			ind_field = dict_index_get_nth_field(index, i);
+		}
 		row_field = dtuple_get_nth_field(row, ind_field->col->ind);
 		len = dfield_get_len(row_field);
 
 		/* Check column prefix indexes */
 		if (ind_field->prefix_len > 0
-		    && dfield_get_len(row_field) != UNIV_SQL_NULL) {
+			&& dfield_get_len(row_field) != UNIV_SQL_NULL) {
 
 			const	dict_col_t*	col
 				= dict_field_get_col(ind_field);
@@ -3169,11 +3363,11 @@ row_ins_index_entry_step(
 
 	ut_ad(dtuple_check_typed(node->row));
 
-	row_ins_index_entry_set_vals(node->index, node->entry, node->row);
+	row_ins_index_entry_set_vals(node->index, node->entry, node->row, FALSE);
 
 	ut_ad(dtuple_check_typed(node->entry));
 
-	err = row_ins_index_entry(node->index, node->entry, thr);
+	err = row_ins_index_entry(node->index, node->entry, thr, node->row);
 
 #ifdef UNIV_DEBUG
 	/* Work around Bug#14626800 ASSERTION FAILURE IN DEBUG_SYNC().
