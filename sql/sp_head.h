@@ -353,7 +353,15 @@ public:
   add_instr_jump(THD *thd, sp_pcontext *spcont, uint dest);
 
   bool
-  add_instr_jump_forward_with_backpatch(THD *thd, sp_pcontext *spcont);
+  add_instr_jump_forward_with_backpatch(THD *thd, sp_pcontext *spcont,
+                                        sp_label *lab);
+  bool
+  add_instr_jump_forward_with_backpatch(THD *thd, sp_pcontext *spcont)
+  {
+    return add_instr_jump_forward_with_backpatch(thd, spcont,
+                                                 spcont->last_label());
+  }
+
 
   /**
     Returns true if any substatement in the routine directly

@@ -3107,6 +3107,10 @@ public:
   bool sp_block_with_exceptions_finalize_exceptions(THD *thd,
                                                   uint executable_section_ip,
                                                   uint exception_count);
+  bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
+  bool sp_leave_statement(THD *thd, const LEX_STRING label_name);
+  bool sp_iterate_statement(THD *thd, const LEX_STRING label_name);
+
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
   {
