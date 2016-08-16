@@ -3644,7 +3644,8 @@ error:
     /* Free alloced memory */
     end_server(mysql);
     mysql_close_free(mysql);
-    if (!(client_flag & CLIENT_REMEMBER_OPTIONS))
+    if (!(client_flag & CLIENT_REMEMBER_OPTIONS) &&
+        !mysql->options.extension->async_context)
       mysql_close_free_options(mysql);
   }
   DBUG_RETURN(0);

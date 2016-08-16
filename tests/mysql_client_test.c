@@ -18443,7 +18443,7 @@ static void test_bug58036()
 
   if (mysql_real_connect(conn, opt_host, opt_user,
                          opt_password,  opt_db ? opt_db : "test",
-                         opt_port, opt_unix_socket, CLIENT_REMEMBER_OPTIONS))
+                         opt_port, opt_unix_socket, 0))
   {
     if (!opt_silent)
       printf("mysql_real_connect() succeeded (failure expected)\n");
@@ -18469,7 +18469,7 @@ static void test_bug58036()
   mysql_options(conn, MYSQL_SET_CHARSET_NAME, "latin1");
   if (!mysql_real_connect(conn, opt_host, opt_user,
                          opt_password, opt_db ? opt_db : "test",
-                         opt_port, opt_unix_socket, CLIENT_REMEMBER_OPTIONS))
+                         opt_port, opt_unix_socket, 0))
   {
     if (!opt_silent)
       printf("mysql_real_connect() failed: %s (%d)\n",
@@ -19344,7 +19344,7 @@ static void test_big_packet()
 
   if (!(mysql_real_connect(mysql_local, opt_host, opt_user,
                            opt_password, current_db, opt_port,
-                           opt_unix_socket, CLIENT_REMEMBER_OPTIONS)))
+                           opt_unix_socket, 0)))
   {
     mysql_close(mysql_local);
     fprintf(stderr, "\n connection failed(%s)", mysql_error(mysql_local));
