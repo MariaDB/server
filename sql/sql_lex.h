@@ -3111,6 +3111,12 @@ public:
   bool sp_leave_statement(THD *thd, const LEX_STRING label_name);
   bool sp_iterate_statement(THD *thd, const LEX_STRING label_name);
 
+  bool maybe_start_compound_statement(THD *thd);
+  bool sp_push_loop_label(THD *thd, LEX_STRING label_name);
+  bool sp_push_loop_empty_label(THD *thd);
+  bool sp_pop_loop_label(THD *thd, const LEX_STRING label_name);
+  void sp_pop_loop_empty_label(THD *thd);
+
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
   {
