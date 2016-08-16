@@ -4735,6 +4735,7 @@ add_key_field(JOIN *join,
     {
       JOIN_TAB *stat=field->table->reginfo.join_tab;
       key_map possible_keys=field->get_possible_keys();
+     // possible_keys.merge(field->hash_key_map);
       possible_keys.intersect(field->table->keys_in_use_for_query);
       stat[0].keys.merge(possible_keys);             // Add possible keys
 
@@ -9043,10 +9044,11 @@ get_keypart_hash (THD *thd, KEY *keyinfo, KEYUSE *keyuse, JOIN_TAB *j)
         is_null= true;
         break;
       }
-      cs= str->charset();
       uchar l[4];
       int4store(l, str->length());
+      cs= &my_charset_utf8_bin;
       cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
+      cs= str->charset();
       cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
     }
     //for testing purpose

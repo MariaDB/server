@@ -5989,7 +5989,7 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
       ls= &table->key_info[i].key_part->field->vcol_info->expr_str;
       for (f= table->field; f && (field= *f); f++)
       {
-        if (find_field_name_in_hash(ls->str, (char *)field->field_name, ls->length) != -1)
+        if ( find_field_index_in_hash(ls, field->field_name) != -1)
         {
           /* Compare fields if they are different then check for duplicates*/
           if(field->cmp_binary_offset(reclength))

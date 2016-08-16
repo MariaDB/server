@@ -102,6 +102,15 @@ show keys from t1;
  insert into t1 values ('AE');
  insert  into t1 values ('Ä');
 drop table t1;
+create table t1 (a int primary key, b blob unique);
+desc t1;
+show keys from t1;
+insert into t1 values(1,1),(2,2),(3,3);
+--error ER_DUP_ENTRY
+insert into t1 values(1,1);
+--error ER_DUP_ENTRY
+insert into t1 values(7,1);
+drop table t1;
 
 --echo #table with multiple  long blob column and varchar text column ; 
 create table t1(a blob unique, b int , c blob unique , d text unique , e varchar(3000) unique);
@@ -207,7 +216,8 @@ create table t1(a blob, b int , c varchar(2000) , d text  , e varchar(3000) , f 
   unique(a,b,c), unique(c,d,e),unique(e,f,g,h),unique(a,b,c,d,e,f),unique(d,e,f,g,h),unique(a,b,c,d,e,f,g,h));
 
 insert into t1 values(1,1,1,1,1,1,1,1),(2,2,2,2,2,2,2,2),(3,3,3,3,3,3,3,3),(4,4,4,4,4,4,4,4),(5,5,5,5,5,5,5,5),
-('maria',6,'maria','maria','maria','maria',6,'maria'),('mariadb',7,'mariadb','mariadb','mariadb','mariadb',8,'mariadb');
+('maria',6,'maria','maria','maria','maria',6,'maria'),('mariadb',7,'mariadb','mariadb','mariadb','mariadb',8,'mariadb')
+,(null,null,null,null,null,null,null,null),(null,null,null,null,null,null,null,null);
 
 --echo #table structure;
 desc t1;
@@ -289,6 +299,46 @@ show create table t1;
 show keys from t1;
 --echo #now try to delete keys;
 alter table t1 drop key c_d_e, drop key e_f_g_h;
+show create table t1;
+show keys from t1;
+drop table t1;
+
+--echo #now alter table containing some data basically some tests with ignore; 
+create table t1 (a blob);
+insert into t1 values(1),(2),(3);
+--echo #normal alter table;
+alter table t1 add unique key(a);
+alter table t1 drop key a;
+truncate table t1;
+insert into t1 values(1),(1),(2),(2),(3);
+--error ER_DUP_ENTRY
+alter table t1 add unique key(a);
+alter ignore table t1 add unique key(a);
+select * from t1;
+--error ER_DUP_ENTRY
+insert into t1 values(1);
+show create table t1;
+show keys from t1;
+drop table t1;
+
+--echo #Now with multiple keys;
+create table t1(a blob , b blob, c blob , d blob , e int);
+insert into t1 values (1,1,1,1,1);
+insert into t1 values (1,1,1,1,1);
+insert into t1 values (2,1,1,1,1);
+insert into t1 values (2,2,2,2,2);
+insert into t1 values (3,3,4,4,4);
+insert into t1 values (4,4,4,4,4);
+--error ER_DUP_ENTRY
+alter table t1 add unique key(a,c), add unique key(b,d), add unique key(e);
+alter ignore  table t1 add unique key(a,c), add unique key(b,d), add unique key(e);
+select * from t1;
+--error ER_DUP_ENTRY
+insert into t1 values (1,12,1,13,14);
+--error ER_DUP_ENTRY
+insert into t1 values (12,1,14,1,14);
+--error ER_DUP_ENTRY
+insert into t1 values (13,12,13,14,4);
 show create table t1;
 show keys from t1;
 drop table t1;

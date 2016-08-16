@@ -2072,6 +2072,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           if (handler_file->index_flags(key, i, 1) & HA_READ_ORDER)
             field->part_of_sortkey.set_bit(key);
         }
+        if (keyinfo->flags & HA_UNIQUE_HASH)
+        {
+//          LEX_STRING *ls =  &keyinfo->key_part->field->vcol_info->expr_str;
+//          if (find_field_index_in_hash(ls,field->field_name))
+//            field->hash_key_map.set_bit(key);
+        }
         if (!(key_part->key_part_flag & HA_REVERSE_SORT) &&
             usable_parts == i)
           usable_parts++;			// For FILESORT

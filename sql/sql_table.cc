@@ -8083,6 +8083,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (key->type == Key::FOREIGN_KEY &&
           ((Foreign_key *)key)->validate(new_create_list))
         goto err;
+      /* Key can be on blob columns so */
+      if (key->type == Key::UNIQUE)
+        alter_info->flags |= Alter_info::ALTER_ADD_COLUMN;
       new_key_list.push_back(key, thd->mem_root);
       if (key->name.str &&
     !my_strcasecmp(system_charset_info, key->name.str, primary_key_name))

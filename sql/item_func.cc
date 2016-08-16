@@ -1852,10 +1852,11 @@ longlong  Item_func_hash::val_int()
       null_value= 1;
       return 0;
     }
-    cs= str->charset();
     uchar l[4];
     int4store(l, str->length());
+    cs= &my_charset_utf8_bin;
     cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
+    cs= str->charset();
     cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
   }
   null_value= 0;
