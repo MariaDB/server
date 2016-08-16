@@ -224,6 +224,7 @@ static bool push_sp_empty_label(THD *thd)
   LEX_SYMBOL symbol;
   struct sys_var_with_base variable;
   Lex_spblock_st spblock;
+  Lex_spblock_handlers_st spblock_handlers;
   Lex_length_and_dec_st Lex_length_and_dec;
   Lex_cast_type_st Lex_cast_type;
   Lex_field_type_st Lex_field_type;
@@ -1311,9 +1312,9 @@ END_OF_INPUT
 %type <num>  sp_decl_idents sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spblock> sp_decl_body sp_decl_body_list opt_sp_decl_body_list
+%type <spblock_handlers> sp_block_statements_and_exceptions
 %type <sp_instr_addr> sp_instr_addr
 %type <num> opt_exception_clause exception_handlers
-%type <num> sp_block_statements_and_exceptions
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
@@ -3409,12 +3410,14 @@ sp_labeled_block:
           BEGIN_SYM
           {
             Lex->sp_block_init(thd, $1);
+            if (Lex->sp_block_with_exceptions_finalize_declarations(thd))
+              MYSQL_YYABORT;
           }
-          sp_proc_stmts
+          sp_block_statements_and_exceptions
           END
           sp_opt_label
           {
-            if (Lex->sp_block_finalize(thd, $6))
+            if (Lex->sp_block_finalize(thd, Lex_spblock($4), $6))
               MYSQL_YYABORT;
           }
         | sp_block_label
@@ -3423,12 +3426,17 @@ sp_labeled_block:
             Lex->sp_block_init(thd, $1);
           }
           sp_decl_body_list
+          {
+            if (Lex->sp_block_with_exceptions_finalize_declarations(thd))
+              MYSQL_YYABORT;
+          }
           BEGIN_SYM
-          sp_proc_stmts
+          sp_block_statements_and_exceptions
           END
           sp_opt_label
           {
-            if (Lex->sp_block_finalize(thd, $4, $8))
+            $4.hndlrs+= $7.hndlrs;
+            if (Lex->sp_block_finalize(thd, $4, $9))
               MYSQL_YYABORT;
           }
         ;
@@ -3437,11 +3445,13 @@ sp_unlabeled_block:
           BEGIN_SYM
           {
             Lex->sp_block_init(thd);
+            if (Lex->sp_block_with_exceptions_finalize_declarations(thd))
+              MYSQL_YYABORT;
           }
-          sp_proc_stmts
+          sp_block_statements_and_exceptions
           END
           {
-            if (Lex->sp_block_finalize(thd))
+            if (Lex->sp_block_finalize(thd, Lex_spblock($3)))
               MYSQL_YYABORT;
           }
         | DECLARE_SYM
@@ -3449,10 +3459,15 @@ sp_unlabeled_block:
             Lex->sp_block_init(thd);
           }
           sp_decl_body_list
+          {
+            if (Lex->sp_block_with_exceptions_finalize_declarations(thd))
+              MYSQL_YYABORT;
+          }
           BEGIN_SYM
-          sp_proc_stmts
+          sp_block_statements_and_exceptions
           END
           {
+            $3.hndlrs+= $6.hndlrs;
             if (Lex->sp_block_finalize(thd, $3))
               MYSQL_YYABORT;
           }
@@ -3474,7 +3489,7 @@ sp_body:
           BEGIN_SYM
           sp_block_statements_and_exceptions
           {
-            $2.hndlrs+= $5;
+            $2.hndlrs+= $5.hndlrs;
             if (Lex->sp_block_finalize(thd, $2))
               MYSQL_YYABORT;
           }
@@ -3493,7 +3508,7 @@ sp_block_statements_and_exceptions:
           {
             if (Lex->sp_block_with_exceptions_finalize_exceptions(thd, $1, $4))
               MYSQL_YYABORT;
-            $$= $4;
+            $$.init($4);
           }
         ;
 

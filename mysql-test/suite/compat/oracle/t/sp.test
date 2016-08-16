@@ -497,3 +497,31 @@ CALL sp1(@v, 30001);
 CALL sp1(@v, 30002);
 SELECT @v;
 DROP PROCEDURE sp1;
+
+
+DELIMITER /;
+CREATE PROCEDURE sp1 (v IN OUT INT, error IN INT)
+IS
+BEGIN
+  BEGIN
+    BEGIN
+      SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=error, MESSAGE_TEXT='User defined error!';
+      v:= 223;
+    EXCEPTION
+      WHEN 30001 THEN
+      BEGIN
+        v:= 113;
+      END;
+    END;
+  END;
+END;
+/
+DELIMITER ;/
+SET @v=10;
+CALL sp1(@v, 30001);
+SELECT @v;
+SET @v=10;
+--error 30002
+CALL sp1(@v, 30002);
+SELECT @v;
+DROP PROCEDURE sp1;
