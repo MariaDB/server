@@ -7307,7 +7307,10 @@ static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
   var->value= buff;
   mysql_mutex_lock(&LOCK_active_mi);
 
-  *((longlong *)buff)= master_info_index->any_slave_sql_running();
+  if (master_info_index)
+    *((longlong *)buff)= master_info_index->any_slave_sql_running();
+  else
+    *((longlong *)buff)= 0;
 
   mysql_mutex_unlock(&LOCK_active_mi);
   return 0;

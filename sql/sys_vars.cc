@@ -1538,7 +1538,8 @@ Sys_var_gtid_slave_pos::do_check(THD *thd, set_var *var)
   }
 
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   if (running)
     return true;
@@ -1578,7 +1579,7 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  if (master_info_index->give_error_if_slave_running())
+  if (!master_info_index || master_info_index->give_error_if_slave_running())
     err= true;
   else
     err= rpl_gtid_pos_update(thd, var->save_result.string_value.str,
@@ -1767,7 +1768,8 @@ check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
   bool running;
 
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   if (running)
     return true;
@@ -1782,7 +1784,8 @@ fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  err= master_info_index->give_error_if_slave_running();
+  err= (!master_info_index ||
+        master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
@@ -1809,7 +1812,8 @@ check_slave_domain_parallel_threads(sys_var *self, THD *thd, set_var *var)
   bool running;
 
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   if (running)
     return true;
@@ -1824,7 +1828,8 @@ fix_slave_domain_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
@@ -1862,7 +1867,8 @@ check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)
   bool running;
 
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   if (running)
     return true;
@@ -1877,7 +1883,8 @@ fix_gtid_ignore_duplicates(sys_var *self, THD *thd, enum_var_type type)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
@@ -2830,7 +2837,7 @@ Sys_var_replicate_events_marked_for_skip::global_update(THD *thd, set_var *var)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  if (!master_info_index->give_error_if_slave_running())
+  if (master_info_index && !master_info_index->give_error_if_slave_running())
     result= Sys_var_enum::global_update(thd, var);
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);

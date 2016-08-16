@@ -649,6 +649,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
     mysql_mutex_unlock(log_lock);
   }
   if (opt_slave_parallel_threads > 0 &&
+      master_info_index &&// master_info_index is set to NULL on server shutdown
       !master_info_index->any_slave_sql_running())
     rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   if (thread_mask & (SLAVE_IO|SLAVE_FORCE_ALL))
