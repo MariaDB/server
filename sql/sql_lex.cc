@@ -5506,6 +5506,66 @@ bool LEX::sp_iterate_statement(THD *thd, const LEX_STRING label_name)
 }
 
 
+bool LEX::maybe_start_compound_statement(THD *thd)
+{
+  if (!sphead)
+  {
+    if (!make_sp_head(thd, NULL, TYPE_ENUM_PROCEDURE))
+      return true;
+    sp_chistics.suid= SP_IS_NOT_SUID;
+    sphead->set_body_start(thd, thd->m_parser_state->m_lip.get_cpp_ptr());
+  }
+  return false;
+}
+
+
+bool LEX::sp_push_loop_label(THD *thd, const LEX_STRING label_name)
+{
+  sp_label *lab= spcont->find_label(label_name);
+  if (lab)
+  {
+    my_error(ER_SP_LABEL_REDEFINE, MYF(0), label_name.str);
+    return true;
+  }
+  lab= spcont->push_label(thd, label_name, sphead->instructions());
+  lab->type= sp_label::ITERATION;
+  return false;
+}
+
+
+bool LEX::sp_push_loop_empty_label(THD *thd)
+{
+  if (maybe_start_compound_statement(thd))
+    return true;
+  /* Unlabeled controls get an empty label. */
+  spcont->push_label(thd, empty_lex_str, sphead->instructions());
+  return false;
+}
+
+
+bool LEX::sp_pop_loop_label(THD *thd, const LEX_STRING label_name)
+{
+  sp_label *lab= spcont->pop_label();
+  sphead->backpatch(lab);
+  if (label_name.str &&
+      my_strcasecmp(system_charset_info, label_name.str,
+                                         lab->name.str) != 0)
+  {
+    my_error(ER_SP_LABEL_MISMATCH, MYF(0), label_name.str);
+    return true;
+  }
+  return false;
+}
+
+
+void LEX::sp_pop_loop_empty_label(THD *thd)
+{
+  sp_label *lab= spcont->pop_label();
+  sphead->backpatch(lab);
+  DBUG_ASSERT(lab->name.length == 0);
+}
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 

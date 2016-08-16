@@ -151,49 +151,6 @@ void ORAerror(THD *thd, const char *s)
 
 
 
-static bool maybe_start_compound_statement(THD *thd)
-{
-  if (!thd->lex->sphead)
-  {
-    if (!thd->lex->make_sp_head(thd, NULL, TYPE_ENUM_PROCEDURE))
-      return 1;
-
-    Lex->sp_chistics.suid= SP_IS_NOT_SUID;
-    Lex->sphead->set_body_start(thd, YYLIP->get_cpp_ptr());
-  }
-  return 0;
-}
-
-static bool push_sp_label(THD *thd, LEX_STRING label)
-{
-  sp_pcontext *ctx= thd->lex->spcont;
-  sp_label *lab= ctx->find_label(label);
-
-  if (lab)
-  {
-    my_error(ER_SP_LABEL_REDEFINE, MYF(0), label.str);
-    return 1;
-  }
-  else
-  {
-    lab= thd->lex->spcont->push_label(thd, label,
-        thd->lex->sphead->instructions());
-    lab->type= sp_label::ITERATION;
-  }
-  return 0;
-}
-
-static bool push_sp_empty_label(THD *thd)
-{
-  if (maybe_start_compound_statement(thd))
-    return 1;
-  /* Unlabeled controls get an empty label. */
-  thd->lex->spcont->push_label(thd, empty_lex_str,
-      thd->lex->sphead->instructions());
-  return 0;
-}
-
-
 #define bincmp_collation(X,Y)           \
   do                                    \
   {                                     \
@@ -2919,7 +2876,7 @@ sp_proc_stmt_compound_ok:
 sp_proc_stmt_if:
           IF_SYM
           {
-            if (maybe_start_compound_statement(thd))
+            if (Lex->maybe_start_compound_statement(thd))
               MYSQL_YYABORT;
             Lex->sphead->new_cont_backpatch(NULL);
           }
@@ -3160,7 +3117,7 @@ sp_elseifs:
 case_stmt_specification:
           CASE_SYM
           {
-            if (maybe_start_compound_statement(thd))
+            if (Lex->maybe_start_compound_statement(thd))
               MYSQL_YYABORT;
 
             /**
@@ -3438,7 +3395,7 @@ sp_block_statements_and_exceptions:
 sp_unlabeled_block_not_atomic:
           BEGIN_SYM not ATOMIC_SYM /* TODO: BEGIN ATOMIC (not -> opt_not) */
           {
-            if (maybe_start_compound_statement(thd))
+            if (Lex->maybe_start_compound_statement(thd))
               MYSQL_YYABORT;
             Lex->sp_block_init(thd);
           }
@@ -3540,79 +3497,68 @@ repeat_body:
           }
         ;
 
-pop_sp_label:
+pop_sp_loop_label:
           sp_opt_label
           {
-            sp_label *lab;
-            Lex->sphead->backpatch(lab= Lex->spcont->pop_label());
-            if ($1.str)
-            {
-              if (my_strcasecmp(system_charset_info, $1.str,
-                                lab->name.str) != 0)
-                my_yyabort_error((ER_SP_LABEL_MISMATCH, MYF(0), $1.str));
-            }
-          }
-        ;
-
-pop_sp_empty_label:
-          {
-            sp_label *lab;
-            Lex->sphead->backpatch(lab= Lex->spcont->pop_label());
-            DBUG_ASSERT(lab->name.length == 0);
+            if (Lex->sp_pop_loop_label(thd, $1))
+              MYSQL_YYABORT;
           }
         ;
 
 sp_labeled_control:
           label_declaration_oracle LOOP_SYM
           {
-            if (push_sp_label(thd, $1))
+            if (Lex->sp_push_loop_label(thd, $1))
               MYSQL_YYABORT;
           }
-          loop_body pop_sp_label
+          loop_body pop_sp_loop_label
           { }
         | label_declaration_oracle WHILE_SYM
           {
-            if (push_sp_label(thd, $1))
+            if (Lex->sp_push_loop_label(thd, $1))
               MYSQL_YYABORT;
             Lex->sphead->reset_lex(thd);
           }
-          while_body pop_sp_label
+          while_body pop_sp_loop_label
           { }
         | label_declaration_oracle REPEAT_SYM
           {
-            if (push_sp_label(thd, $1))
+            if (Lex->sp_push_loop_label(thd, $1))
               MYSQL_YYABORT;
           }
-          repeat_body pop_sp_label
+          repeat_body pop_sp_loop_label
           { }
         ;
 
 sp_unlabeled_control:
           LOOP_SYM
           {
-            if (push_sp_empty_label(thd))
+            if (Lex->sp_push_loop_empty_label(thd))
               MYSQL_YYABORT;
           }
           loop_body
-          pop_sp_empty_label
-          { }
+          {
+            Lex->sp_pop_loop_empty_label(thd);
+          }
         | WHILE_SYM
           {
-            if (push_sp_empty_label(thd))
+            if (Lex->sp_push_loop_empty_label(thd))
               MYSQL_YYABORT;
             Lex->sphead->reset_lex(thd);
           }
           while_body
-          pop_sp_empty_label
-          { }
+          {
+            Lex->sp_pop_loop_empty_label(thd);
+          }
         | REPEAT_SYM
           {
-            if (push_sp_empty_label(thd))
+            if (Lex->sp_push_loop_empty_label(thd))
               MYSQL_YYABORT;
           }
           repeat_body
-          pop_sp_empty_label
-          { }
+          {
+            Lex->sp_pop_loop_empty_label(thd);
+          }
         ;
 
 trg_action_time:
