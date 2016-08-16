@@ -2571,12 +2571,12 @@ bool sp_head::add_instr_jump(THD *thd, sp_pcontext *spcont, uint dest)
 
 
 bool sp_head::add_instr_jump_forward_with_backpatch(THD *thd,
-                                                    sp_pcontext *spcont)
+                                                    sp_pcontext *spcont,
+                                                    sp_label *lab)
 {
   sp_instr_jump  *i= new (thd->mem_root) sp_instr_jump(instructions(), spcont);
   if (i == NULL || add_instr(i))
     return true;
-  sp_label *lab= spcont->last_label();
   push_backpatch(thd, i, lab);
   return false;
 }

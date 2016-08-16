@@ -3007,90 +3007,15 @@ sp_proc_stmt_return:
 sp_proc_stmt_leave:
           LEAVE_SYM label_ident
           {
-            LEX *lex= Lex;
-            sp_head *sp = lex->sphead;
-            sp_pcontext *ctx= lex->spcont;
-            sp_label *lab= ctx->find_label($2);
-
-            if (! lab)
-              my_yyabort_error((ER_SP_LILABEL_MISMATCH, MYF(0), "LEAVE", $2.str));
-
-            sp_instr_jump *i;
-            uint ip= sp->instructions();
-            uint n;
-            /*
-              When jumping to a BEGIN-END block end, the target jump
-              points to the block hpop/cpop cleanup instructions,
-              so we should exclude the block context here.
-              When jumping to something else (i.e., SP_LAB_ITER),
-              there are no hpop/cpop at the jump destination,
-              so we should include the block context here for cleanup.
-            */
-            bool exclusive= (lab->type == sp_label::BEGIN);
-
-            n= ctx->diff_handlers(lab->ctx, exclusive);
-            if (n)
-            {
-              sp_instr_hpop *hpop= new (thd->mem_root)
-                sp_instr_hpop(ip++, ctx, n);
-              if (hpop == NULL)
-                MYSQL_YYABORT;
-              sp->add_instr(hpop);
-            }
-            n= ctx->diff_cursors(lab->ctx, exclusive);
-            if (n)
-            {
-              sp_instr_cpop *cpop= new (thd->mem_root)
-                sp_instr_cpop(ip++, ctx, n);
-              if (cpop == NULL)
-                MYSQL_YYABORT;
-              sp->add_instr(cpop);
-            }
-            i= new (thd->mem_root) sp_instr_jump(ip, ctx);
-            if (i == NULL)
+            if (Lex->sp_leave_statement(thd, $2))
               MYSQL_YYABORT;
-            sp->push_backpatch(thd, i, lab);  /* Jumping forward */
-            sp->add_instr(i);
           }
         ;
 
 sp_proc_stmt_iterate:
           ITERATE_SYM label_ident
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            sp_pcontext *ctx= lex->spcont;
-            sp_label *lab= ctx->find_label($2);
-
-            if (! lab || lab->type != sp_label::ITERATION)
-              my_yyabort_error((ER_SP_LILABEL_MISMATCH, MYF(0), "ITERATE", $2.str));
-
-            sp_instr_jump *i;
-            uint ip= sp->instructions();
-            uint n;
-
-            n= ctx->diff_handlers(lab->ctx, FALSE);  /* Inclusive the dest. */
-            if (n)
-            {
-              sp_instr_hpop *hpop= new (thd->mem_root)
-                sp_instr_hpop(ip++, ctx, n);
-              if (hpop == NULL ||
-                  sp->add_instr(hpop))
-                MYSQL_YYABORT;
-            }
-            n= ctx->diff_cursors(lab->ctx, FALSE);  /* Inclusive the dest. */
-            if (n)
-            {
-              sp_instr_cpop *cpop= new (thd->mem_root)
-                sp_instr_cpop(ip++, ctx, n);
-              if (cpop == NULL ||
-                  sp->add_instr(cpop))
-                MYSQL_YYABORT;
-            }
-            i= new (thd->mem_root)
-              sp_instr_jump(ip, ctx, lab->ip); /* Jump back */
-            if (i == NULL ||
-                sp->add_instr(i))
+            if (Lex->sp_iterate_statement(thd, $2))
               MYSQL_YYABORT;
           }
         ;

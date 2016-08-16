@@ -5449,6 +5449,63 @@ LEX::sp_block_with_exceptions_finalize_exceptions(THD *thd,
   return sphead->add_instr_jump(thd, spcont, executable_section_ip);
 }
 
+
+bool LEX::sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive)
+{
+  uint n;
+  uint ip= sphead->instructions();
+  if ((n= spcont->diff_handlers(ctx, exclusive)))
+  {
+    sp_instr_hpop *hpop= new (thd->mem_root) sp_instr_hpop(ip++, spcont, n);
+    if (hpop == NULL || sphead->add_instr(hpop))
+      return true;
+  }
+  if ((n= spcont->diff_cursors(ctx, exclusive)))
+  {
+    sp_instr_cpop *cpop= new (thd->mem_root) sp_instr_cpop(ip++, spcont, n);
+    if (cpop == NULL || sphead->add_instr(cpop))
+      return true;
+  }
+  return false;
+}
+
+
+bool LEX::sp_leave_statement(THD *thd, const LEX_STRING label_name)
+{
+  sp_label *lab= spcont->find_label(label_name);
+  if (!lab)
+  {
+    my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "LEAVE", label_name.str);
+    return true;
+  }
+
+  /*
+    When jumping to a BEGIN-END block end, the target jump
+    points to the block hpop/cpop cleanup instructions,
+    so we should exclude the block context here.
+    When jumping to something else (i.e., SP_LAB_ITER),
+    there are no hpop/cpop at the jump destination,
+    so we should include the block context here for cleanup.
+  */
+  bool exclusive= (lab->type == sp_label::BEGIN);
+  return sp_change_context(thd, lab->ctx, exclusive) ||
+         sphead->add_instr_jump_forward_with_backpatch(thd, spcont, lab);
+}
+
+
+bool LEX::sp_iterate_statement(THD *thd, const LEX_STRING label_name)
+{
+  sp_label *lab= spcont->find_label(label_name);
+  if (!lab || lab->type != sp_label::ITERATION)
+  {
+    my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "ITERATE", label_name.str);
+    return true;
+  }
+  return sp_change_context(thd, lab->ctx, false) ||
+         sphead->add_instr_jump(thd, spcont, lab->ip); /* Jump back */
+}
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 
