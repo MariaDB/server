@@ -4735,7 +4735,8 @@ add_key_field(JOIN *join,
     {
       JOIN_TAB *stat=field->table->reginfo.join_tab;
       key_map possible_keys=field->get_possible_keys();
-     // possible_keys.merge(field->hash_key_map);
+      /* can olly be used in the case of equal conditions */
+      //possible_keys.merge(field->hash_key_map);
       possible_keys.intersect(field->table->keys_in_use_for_query);
       stat[0].keys.merge(possible_keys);             // Add possible keys
 

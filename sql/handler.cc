@@ -5976,7 +5976,8 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
 {
   Field **f, *field;
   LEX_STRING *ls;
-  int error;
+  int error= 0;
+  bool is_update_handler_null= false;
   /*
      Here we are comparing whether new record and old record are same
      with respect to fields in hash_str
@@ -5986,6 +5987,19 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
   {
     if (table->key_info[i].flags & HA_UNIQUE_HASH)
     {
+      /*
+         Currently mysql_update is pacthed so that it will automatically set the
+         Update handler and then free it but ha_update_row is used in many function (
+         like in case of reinsert) Instead of patching them all here we check is
+         update_handler is null then set it  And then set it null again
+       */
+      if (!table->update_handler)
+      {
+        table->update_handler= table->file->clone(table->s->normalized_path.str,
+                                                          &table->mem_root);
+        table->update_handler->ha_external_lock(current_thd, F_RDLCK);
+        is_update_handler_null= true;
+      }
       ls= &table->key_info[i].key_part->field->vcol_info->expr_str;
       for (f= table->field; f && (field= *f); f++)
       {
@@ -5996,7 +6010,7 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
           {
             if((error= check_duplicate_long_entries(table, table->update_handler,
                                                    new_rec, i)))
-              return error;
+              goto exit;
             /*
               break beacuse check_duplicate_long_entries will
               take care of remaning fields
@@ -6007,7 +6021,15 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
       }
     }
   }
-  return 0;
+  exit:
+  if (is_update_handler_null)
+  {
+    table->update_handler->ha_external_lock(current_thd, F_UNLCK);
+    table->update_handler->ha_close();
+    delete table->update_handler;
+    table->update_handler= NULL;
+  }
+  return error;
 }
 
 int handler::ha_write_row(uchar *buf)

@@ -2848,7 +2848,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   uint records, i, bitmap_size, bitmap_count;
   bool error_reported= FALSE;
   uchar *record, *bitmaps;
-  Field **field_ptr;
+  Field **field_ptr, *field;
+  KEY *key_info;
   uint8 save_context_analysis_only= thd->lex->context_analysis_only;
   DBUG_ENTER("open_table_from_share");
   DBUG_PRINT("enter",("name: '%s.%s'  form: 0x%lx", share->db.str,
@@ -3098,6 +3099,22 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
              field->has_update_default_function()))
           *(dfield_ptr++)= *field_ptr;
 
+    }
+    /* Set field hash map*/
+    key_info= outparam->key_info;
+    for ( int i=0; i < outparam->s->keys;i++,key_info++)
+    {
+      if (key_info->flags & HA_UNIQUE_HASH)
+      {
+        LEX_STRING *ls= &key_info->key_part->field->vcol_info->expr_str;
+        int num_of_fields= fields_in_hash_str(ls);
+        for (int j= 0; j < num_of_fields; j++)
+        {
+          field= field_ptr_in_hash_str(ls, outparam, j);
+          field->hash_key_map.init();
+          field->hash_key_map.set_bit(i);
+        }
+      }
     }
     *vfield_ptr= 0;                            // End marker
     *dfield_ptr= 0;                            // End marker

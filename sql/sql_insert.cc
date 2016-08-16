@@ -1575,7 +1575,7 @@ static int last_uniq_key(TABLE *table,uint keynr)
     return 0;
 
   while (++keynr < table->s->keys)
-    if (table->key_info[keynr].flags & HA_NOSAME)
+    if (table->key_info[keynr].flags & (HA_NOSAME | HA_UNIQUE_HASH))
       return 0;
   return 1;
 }
