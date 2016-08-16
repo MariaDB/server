@@ -832,6 +832,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   ulong ulong_num;
   ulonglong ulonglong_number;
   longlong longlong_number;
+  uint sp_instr_addr;
 
   /* structs */
   LEX_STRING lex_str;
@@ -839,6 +840,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   Lex_string_with_metadata_st lex_string_with_metadata;
   struct sys_var_with_base variable;
   Lex_spblock_st spblock;
+  Lex_spblock_handlers_st spblock_handlers;
   Lex_length_and_dec_st Lex_length_and_dec;
   Lex_cast_type_st Lex_cast_type;
   Lex_field_type_st Lex_field_type;

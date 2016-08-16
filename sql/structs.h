@@ -628,12 +628,20 @@ public:
   int dyncol_type() const { return m_type; }
 };
 
-struct Lex_spblock_st
+
+struct Lex_spblock_handlers_st
+{
+public:
+  int hndlrs;
+  void init(int count) { hndlrs= count; }
+};
+
+
+struct Lex_spblock_st: public Lex_spblock_handlers_st
 {
 public:
   int vars;
   int conds;
-  int hndlrs;
   int curs;
   void init()
   {
@@ -653,6 +661,11 @@ class Lex_spblock: public Lex_spblock_st
 {
 public:
   Lex_spblock() { init(); }
+  Lex_spblock(const Lex_spblock_handlers_st &other)
+  {
+    vars= conds= curs= 0;
+    hndlrs= other.hndlrs;
+  }
 };
 
 #endif /* STRUCTS_INCLUDED */
