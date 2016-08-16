@@ -7712,7 +7712,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       last= current->next == NULL;
       if (!current->error &&
           RUN_HOOK(binlog_storage, after_sync,
-                   (current->thd, log_file_name,
+                   (current->thd, current->cache_mngr->last_commit_pos_file,
                     current->cache_mngr->last_commit_pos_offset,
                     first, last)))
       {
