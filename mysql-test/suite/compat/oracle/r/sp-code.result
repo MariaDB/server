@@ -396,3 +396,113 @@ SELECT @v;
 @v
 324
 DROP PROCEDURE p1;
+#
+# Testing EXIT statement
+#
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+LOOP
+i:= i + 1;
+IF i >= 5 THEN
+EXIT;
+END IF;
+END LOOP;
+RETURN i;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set i@0 0
+1	set i@0 (i@0 + 1)
+2	jump_if_not 1(1) (i@0 >= 5)
+3	jump 4
+4	freturn 3 i@0
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+LOOP
+BEGIN
+i:= i + 1;
+IF i >= 5 THEN
+EXIT;
+END IF;
+EXCEPTION
+WHEN OTHERS THEN i:= 1000;
+END;
+END LOOP;
+RETURN i;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set i@0 0
+1	jump 5
+2	set i@0 (i@0 + 1)
+3	jump_if_not 8(8) (i@0 >= 5)
+4	jump 10
+5	hpush_jump 2 1 EXIT
+6	set i@0 1000
+7	hreturn 0 8
+8	hpop 1
+9	jump 5
+10	freturn 3 i@0
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
+CREATE PROCEDURE p1(a IN OUT INT)
+IS
+i INT := 0;
+BEGIN
+LOOP
+LOOP
+BEGIN
+i:= i + 1;
+IF i >=5 THEN
+EXIT;
+END IF;
+EXCEPTION
+WHEN OTHERS THEN a:=1000;
+END;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+a:= i;
+EXCEPTION
+WHEN OTHERS THEN a:=11;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set i@1 0
+1	jump 14
+2	set i@1 (i@1 + 1)
+3	jump_if_not 8(8) (i@1 >= 5)
+4	jump 10
+5	hpush_jump 2 2 EXIT
+6	set a@0 1000
+7	hreturn 0 8
+8	hpop 1
+9	jump 5
+10	set i@1 (i@1 + 100)
+11	jump 12
+12	set a@0 i@1
+13	jump 17
+14	hpush_jump 5 2 EXIT
+15	set a@0 11
+16	hreturn 0 17
+17	hpop 1
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+105
+DROP PROCEDURE p1;

@@ -402,9 +402,17 @@ public:
   // Labels.
   /////////////////////////////////////////////////////////////////////////
 
-  sp_label *push_label(THD *thd, const LEX_STRING name, uint ip);
+  sp_label *push_label(THD *thd, const LEX_STRING name, uint ip,
+                       sp_label::enum_type type);
+
+  sp_label *push_label(THD *thd, const LEX_STRING name, uint ip)
+  {
+    return push_label(thd, name, ip, sp_label::IMPLICIT);
+  }
 
   sp_label *find_label(const LEX_STRING name);
+
+  sp_label *find_label_current_loop_start();
 
   sp_label *last_label()
   {

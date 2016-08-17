@@ -319,3 +319,81 @@ SET @v=10;
 CALL p1(@v);
 SELECT @v;
 DROP PROCEDURE p1;
+
+--echo #
+--echo # Testing EXIT statement
+--echo #
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  LOOP
+    i:= i + 1;
+    IF i >= 5 THEN
+      EXIT;
+    END IF;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  LOOP
+    BEGIN
+      i:= i + 1;
+      IF i >= 5 THEN
+        EXIT;
+      END IF;
+    EXCEPTION
+      WHEN OTHERS THEN i:= 1000;
+    END;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1(a IN OUT INT)
+IS
+  i INT := 0;
+BEGIN
+  LOOP
+    LOOP
+      BEGIN
+        i:= i + 1;
+        IF i >=5 THEN
+          EXIT;
+        END IF;
+      EXCEPTION
+        WHEN OTHERS THEN a:=1000;
+      END;
+    END LOOP;
+    i:= i + 100;
+    EXIT;
+  END LOOP;
+  a:= i;
+EXCEPTION
+  WHEN OTHERS THEN a:=11;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;

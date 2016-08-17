@@ -525,3 +525,110 @@ SET @v=10;
 CALL sp1(@v, 30002);
 SELECT @v;
 DROP PROCEDURE sp1;
+
+
+--echo #
+--echo # Testing EXIT statement
+--echo #
+
+DELIMITER /;
+--error ER_SP_LILABEL_MISMATCH
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  EXIT;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+--error ER_SP_LILABEL_MISMATCH
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  <<lable1>>
+  BEGIN
+    <<label2>>
+    LOOP
+      EXIT label1;
+    END LOOP;
+  END;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  LOOP
+    LOOP
+      i:= i + 1;
+      IF i >= 5 THEN
+        EXIT;
+      END IF;
+    END LOOP;
+    i:= i + 100;
+    EXIT;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  <<label1>>
+  LOOP
+    <<label2>>
+    LOOP
+      i:= i + 1;
+      IF i >= 5 THEN
+        EXIT label2;
+      END IF;
+    END LOOP;
+    i:= i + 100;
+    EXIT;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  <<label1>>
+  LOOP
+    <<label2>>
+    LOOP
+      i:= i + 1;
+      IF i >= 5 THEN
+        EXIT label1;
+      END IF;
+    END LOOP;
+    i:= i + 100;
+    EXIT;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;

@@ -3108,6 +3108,9 @@ public:
                                                   uint executable_section_ip,
                                                   uint exception_count);
   bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
+  bool sp_exit_block(THD *thd, sp_label *lab);
+  bool sp_exit_statement(THD *thd);
+  bool sp_exit_statement(THD *thd, const LEX_STRING label_name);
   bool sp_leave_statement(THD *thd, const LEX_STRING label_name);
   bool sp_iterate_statement(THD *thd, const LEX_STRING label_name);
 
