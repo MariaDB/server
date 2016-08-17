@@ -1094,6 +1094,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         signal_allowed_expr
         simple_target_specification
         condition_number
+        opt_sp_proc_stmt_exit_when_clause
 
 %type <item_param> param_marker
 
@@ -2963,15 +2964,20 @@ sp_proc_stmt_return:
           }
         ;
 
+opt_sp_proc_stmt_exit_when_clause:
+          /* Empty */   { $$= NULL; }
+        | WHEN_SYM expr { $$= $2; }
+        ;
+
 sp_proc_stmt_exit:
-          EXIT_SYM
-          {
-            if (Lex->sp_exit_statement(thd))
-              MYSQL_YYABORT;
-          }
-        | EXIT_SYM label_ident
+          EXIT_SYM opt_sp_proc_stmt_exit_when_clause
           {
             if (Lex->sp_exit_statement(thd, $2))
+              MYSQL_YYABORT;
+          }
+        | EXIT_SYM label_ident opt_sp_proc_stmt_exit_when_clause
+          {
+            if (Lex->sp_exit_statement(thd, $2, $3))
               MYSQL_YYABORT;
           }
         ;
