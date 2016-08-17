@@ -48,7 +48,8 @@ CapabilityBoundingSet=CAP_IPC_LOCK
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
 
-NoNewPrivileges=true
+# Doesn't yet work properly with SELinux enabled
+# NoNewPrivileges=true
 
 PrivateDevices=true
 
