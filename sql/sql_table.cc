@@ -3236,7 +3236,7 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
   /* add the virtual colmn info */
   Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
   char * hash_exp= (char *)thd->alloc(1024);
-  char * key_name= (char *)thd->alloc(252);
+  char * key_name= (char *)thd->alloc(1024);
   strcpy(hash_exp, HA_HASH_STR_HEAD);
   temp_colms= key_part_iter++;
   strcat(hash_exp, temp_colms->field_name.str);

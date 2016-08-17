@@ -4735,8 +4735,6 @@ add_key_field(JOIN *join,
     {
       JOIN_TAB *stat=field->table->reginfo.join_tab;
       key_map possible_keys=field->get_possible_keys();
-      /* can olly be used in the case of equal conditions */
-      //possible_keys.merge(field->hash_key_map);
       possible_keys.intersect(field->table->keys_in_use_for_query);
       stat[0].keys.merge(possible_keys);             // Add possible keys
 
@@ -17603,15 +17601,15 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     if (keyinfo->key_length > table->file->max_key_length() ||
 	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
 	share->uniques)
-    {
-      /* Can't create a key; Make a unique constraint instead of a key */
-      share->keys=    0;
-      share->uniques= 1;
-      using_unique_constraint=1;
-      bzero((char*) &uniquedef,sizeof(uniquedef));
-      uniquedef.keysegs=keyinfo->user_defined_key_parts;
-      uniquedef.seg=seg;
-      uniquedef.null_are_equal=1;
+		{
+			/* Can't create a key; Make a unique constraint instead of a key */
+			share->keys=    0;
+			share->uniques= 1;
+			using_unique_constraint=1;
+			bzero((char*) &uniquedef,sizeof(uniquedef));
+			uniquedef.keysegs=keyinfo->user_defined_key_parts;
+			uniquedef.seg=seg;
+			uniquedef.null_are_equal=1;
 
       /* Create extra column for hash value */
       bzero((uchar*) *recinfo,sizeof(**recinfo));
