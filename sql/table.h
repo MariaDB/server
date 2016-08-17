@@ -921,6 +921,14 @@ struct TABLE_SHARE
   
   uint actual_n_key_parts(THD *thd);
 
+  /**
+     this function is similar to actual_key_parts but suppose there is
+     long unique key like unique(a,b,c) so instead of reporing 1 keypart
+     for this it will report 3 the last 2 are not actually present but
+     this is useful in cases like delete/update  table where a= and b= and c=;
+    */
+  uint total_key_parts_including_long_unique(THD *thd);
+
   LEX_CUSTRING *frm_image; ///< only during CREATE TABLE (@sa ha_create_table)
 
   /*
@@ -1464,6 +1472,7 @@ public:
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
 
   uint actual_n_key_parts(KEY *keyinfo);
+  uint actual_n_key_parts_including_long_unique(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields(bool update, bool ignore_errors);
   void reset_default_fields();

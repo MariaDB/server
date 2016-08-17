@@ -2472,7 +2472,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     if (!(param.key_parts=
            (KEY_PART*) alloc_root(&alloc,
                                   sizeof(KEY_PART) *
-	                          head->s->actual_n_key_parts(thd))) ||
+              head->s->total_key_parts_including_long_unique(thd))) ||
         fill_used_fields_bitmap(&param))
     {
       thd->no_errors=0;
@@ -2490,7 +2490,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     for (idx=0 ; idx < head->s->keys ; idx++, key_info++)
     {
       KEY_PART_INFO *key_part_info;
-      uint n_key_parts= head->actual_n_key_parts(key_info);
+      uint n_key_parts= head->actual_n_key_parts_including_long_unique(key_info);
 
       if (!keys_to_use.is_set(idx))
 	continue;
@@ -7586,6 +7586,7 @@ SEL_TREE *
 Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
 	                     Item_func::Functype type, Item *value)
 {
+  bool is_field_in_hash= false;
   DBUG_ENTER("get_mm_parts");
   if (field->table != param->table)
     DBUG_RETURN(0);
@@ -7600,7 +7601,15 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
     DBUG_RETURN(0);
   for (; key_part != end ; key_part++)
   {
-    if (field->eq(key_part->field))
+    if (param->table->s->keys < key_part->key &&
+        param->table->key_info[key_part->key].flags & HA_UNIQUE_HASH)
+    {
+      LEX_STRING *ls = & param->table->key_info[key_part->key].
+                                key_part->field->vcol_info->expr_str;
+      if (ls && find_field_index_in_hash(ls, field->field_name) != -1)
+        is_field_in_hash= true;
+    }
+    if (field->eq(key_part->field) || is_field_in_hash)
     {
       SEL_ARG *sel_arg=0;
       if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root,

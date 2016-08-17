@@ -3102,7 +3102,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     }
     /* Set field hash map*/
     key_info= outparam->key_info;
-    for ( int i=0; i < outparam->s->keys;i++,key_info++)
+    for ( uint i=0; i < outparam->s->keys; i++, key_info++)
     {
       if (key_info->flags & HA_UNIQUE_HASH)
       {
@@ -6927,6 +6927,28 @@ uint TABLE::actual_n_key_parts(KEY *keyinfo)
            keyinfo->ext_key_parts : keyinfo->user_defined_key_parts;
 }
 
+/**
+  @brief
+  Get virtual number of key components which including in hash_str
+
+  @param keyinfo
+
+  @details
+  The function calculates total virtual number of keyparts for example consider
+  a keyinfo which is HA_UNIQUE_HASH and its key_part hash_str is
+  hash(`a`,`b`,`c`) so instead of returning 1 it will return 3
+  @return total number of considered key components
+*/
+
+uint TABLE::actual_n_key_parts_including_long_unique(KEY *keyinfo)
+{
+  if (keyinfo->flags & HA_UNIQUE_HASH)
+  {
+    LEX_STRING *ls = & keyinfo->key_part->field->vcol_info->expr_str;
+    return fields_in_hash_str(ls);
+  }
+  return actual_n_key_parts(keyinfo);
+}
  
 /**
   @brief
@@ -7857,6 +7879,20 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
            ext_key_parts : key_parts;
 }  
 
+uint TABLE_SHARE::total_key_parts_including_long_unique(THD *thd)
+{
+  uint keyparts= actual_n_key_parts(thd);
+  for (uint i=0; i < keys; i++)
+  {
+    if (key_info[i].flags & HA_UNIQUE_HASH)
+    {
+      LEX_STRING * ls= &key_info[i].key_part->field->vcol_info->expr_str;
+      //-1 because i part is already included in form of hash
+      keyparts+= fields_in_hash_str(ls)- 1;
+    }
+  }
+  return keyparts;
+}
 
 double KEY::actual_rec_per_key(uint i)
 { 
