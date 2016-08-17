@@ -585,3 +585,60 @@ SELECT f1() FROM DUAL;
 f1()
 5
 DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+LOOP
+i:= i + 1;
+EXIT WHEN i >=5;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+<<label1>>
+LOOP
+<<label2>>
+LOOP
+i:= i + 1;
+EXIT label2 WHEN i >= 5;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+105
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+<<label1>>
+LOOP
+<<label2>>
+LOOP
+i:= i + 1;
+EXIT label1 WHEN i >= 5;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;

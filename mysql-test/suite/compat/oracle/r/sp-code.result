@@ -428,6 +428,28 @@ IS
 i INT := 0;
 BEGIN
 LOOP
+i:= i + 1;
+EXIT WHEN i >=5;
+END LOOP;
+RETURN i;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set i@0 0
+1	set i@0 (i@0 + 1)
+2	jump_if_not 1(0) (i@0 >= 5)
+3	jump 4
+4	freturn 3 i@0
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+LOOP
 BEGIN
 i:= i + 1;
 IF i >= 5 THEN

@@ -2588,6 +2588,9 @@ private:
   void parse_error();
   bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
                                    class sp_label **splabel);
+  bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
+  bool sp_exit_block(THD *thd, sp_label *lab);
+  bool sp_exit_block(THD *thd, sp_label *lab, Item *when);
 public:
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   bool set_arena_for_set_stmt(Query_arena *backup);
@@ -3107,10 +3110,8 @@ public:
   bool sp_block_with_exceptions_finalize_exceptions(THD *thd,
                                                   uint executable_section_ip,
                                                   uint exception_count);
-  bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
-  bool sp_exit_block(THD *thd, sp_label *lab);
-  bool sp_exit_statement(THD *thd);
-  bool sp_exit_statement(THD *thd, const LEX_STRING label_name);
+  bool sp_exit_statement(THD *thd, Item *when);
+  bool sp_exit_statement(THD *thd, const LEX_STRING label_name, Item *item);
   bool sp_leave_statement(THD *thd, const LEX_STRING label_name);
   bool sp_iterate_statement(THD *thd, const LEX_STRING label_name);
 
