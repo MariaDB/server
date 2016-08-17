@@ -197,10 +197,11 @@ sp_variable *sp_pcontext::add_variable(THD *thd, LEX_STRING name)
 }
 
 
-sp_label *sp_pcontext::push_label(THD *thd, LEX_STRING name, uint ip)
+sp_label *sp_pcontext::push_label(THD *thd, LEX_STRING name, uint ip,
+                                  sp_label::enum_type type)
 {
   sp_label *label=
-    new (thd->mem_root) sp_label(name, ip, sp_label::IMPLICIT, this);
+    new (thd->mem_root) sp_label(name, ip, type, this);
 
   if (!label)
     return NULL;
@@ -232,6 +233,23 @@ sp_label *sp_pcontext::find_label(const LEX_STRING name)
   */
   return (m_parent && (m_scope == REGULAR_SCOPE)) ?
          m_parent->find_label(name) :
+         NULL;
+}
+
+
+sp_label *sp_pcontext::find_label_current_loop_start()
+{
+  List_iterator_fast<sp_label> li(m_labels);
+  sp_label *lab;
+
+  while ((lab= li++))
+  {
+    if (lab->type == sp_label::ITERATION)
+      return lab;
+  }
+  // See a comment in sp_pcontext::find_label()
+  return (m_parent && (m_scope == REGULAR_SCOPE)) ?
+         m_parent->find_label_current_loop_start() :
          NULL;
 }
 

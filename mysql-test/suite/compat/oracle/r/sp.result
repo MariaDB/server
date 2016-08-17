@@ -493,3 +493,95 @@ SELECT @v;
 @v
 10
 DROP PROCEDURE sp1;
+#
+# Testing EXIT statement
+#
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+EXIT;
+END;
+/
+ERROR 42000: EXIT with no matching label: 
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+<<lable1>>
+BEGIN
+<<label2>>
+LOOP
+EXIT label1;
+END LOOP;
+END;
+END;
+/
+ERROR 42000: EXIT with no matching label: label1
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+LOOP
+LOOP
+i:= i + 1;
+IF i >= 5 THEN
+EXIT;
+END IF;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+105
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+<<label1>>
+LOOP
+<<label2>>
+LOOP
+i:= i + 1;
+IF i >= 5 THEN
+EXIT label2;
+END IF;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+105
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+<<label1>>
+LOOP
+<<label2>>
+LOOP
+i:= i + 1;
+IF i >= 5 THEN
+EXIT label1;
+END IF;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
