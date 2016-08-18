@@ -1844,9 +1844,10 @@ longlong  Item_func_hash::val_int()
   unsigned_flag= true;
   ulong nr1= 1,nr2= 4;
   CHARSET_INFO *cs;
+  String * str;
   for(uint i= 0;i<arg_count;i++)
   {
-    String * str = args[i]->val_str();
+    str = args[i]->val_str();
     if(args[i]->null_value)
     {
       null_value= 1;

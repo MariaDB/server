@@ -429,6 +429,8 @@ static int and_range_trees(RANGE_OPT_PARAM *param,
                            SEL_TREE *result);
 static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree);
 
+static bool generate_hash_key(RANGE_OPT_PARAM *param, SEL_TREE *tree);
+
 
 /*
   SEL_IMERGE is a list of possible ways to do index merge, i.e. it is
@@ -2596,6 +2598,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       
       remove_nonrange_trees(&param, tree);
 
+      generate_hash_key(&param, tree);
       /* Get best 'range' plan and prepare data for making other plans */
       if ((range_trp= get_key_scans_params(&param, tree, FALSE, TRUE,
                                            best_read_time)))
@@ -7586,7 +7589,6 @@ SEL_TREE *
 Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
 	                     Item_func::Functype type, Item *value)
 {
-  bool is_field_in_hash= false;
   DBUG_ENTER("get_mm_parts");
   if (field->table != param->table)
     DBUG_RETURN(0);
@@ -7601,15 +7603,15 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
     DBUG_RETURN(0);
   for (; key_part != end ; key_part++)
   {
-    if (param->table->s->keys < key_part->key &&
+    if (param->table->s->keys > key_part->key &&
         param->table->key_info[key_part->key].flags & HA_UNIQUE_HASH)
     {
       LEX_STRING *ls = & param->table->key_info[key_part->key].
                                 key_part->field->vcol_info->expr_str;
-      if (ls && find_field_index_in_hash(ls, field->field_name) != -1)
-        is_field_in_hash= true;
+      if (find_field_index_in_hash(ls, field->field_name) != -1)
+        key_part->field= field;
     }
-    if (field->eq(key_part->field) || is_field_in_hash)
+    if (field->eq(key_part->field))
     {
       SEL_ARG *sel_arg=0;
       if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root,
@@ -7805,8 +7807,16 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
       type != EQ_FUNC &&
       type != EQUAL_FUNC)
     goto end;                                   // Can't optimize this
-
-  if (!field->can_optimize_range(this, value,
+  if (key_part->key < field->table->s->keys &&
+        field->table->key_info[key_part->key].flags & HA_UNIQUE_HASH &&
+         (type == EQUAL_FUNC || type == EQ_FUNC))
+  {
+    LEX_STRING *ls = &field->table->key_info[key_part->key].
+                               key_part->field->vcol_info->expr_str;
+    if (find_field_index_in_hash(ls, field->field_name) == -1)
+      goto end;
+  }
+  else if (!field->can_optimize_range(this, value,
                                  type == EQUAL_FUNC || type == EQ_FUNC))
     goto end;
 
@@ -8456,6 +8466,35 @@ bool sel_trees_must_be_ored(RANGE_OPT_PARAM* param,
 static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree)
 {
   bool res= FALSE;
+  int total_fields;
+  /*
+     there can be hash keys but these keys only works when
+     all of keypart is present means if hash_str is like
+     hash(`a`,`b`) then this can be used only when both
+     a and b are present
+   */
+  for (uint i=0; i < param->keys; i++)
+  {
+    if (param->table->s->keys > i &&
+        param->table->key_info[i].flags & HA_UNIQUE_HASH)
+    {
+      LEX_STRING *ls= &param->table->key_info[i].key_part->
+                              field->vcol_info->expr_str;
+      total_fields= fields_in_hash_str(ls);
+      SEL_ARG * tmp= tree->keys[i];
+      while (tmp->next_key_part)
+      {
+        if (tmp->part == tmp->next->part - 1)
+          total_fields--;
+        tmp= tmp->next_key_part;
+      }
+      if (total_fields)
+      {
+        tree->keys[i]= NULL;
+        tree->keys_map.clear_bit(i);
+      }
+    }
+  }
   for (uint i=0; i < param->keys; i++)
   {
     if (tree->keys[i])
@@ -8469,9 +8508,56 @@ static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree)
         res= TRUE;
     }
   }
+
   return !res;
 }
 
+/*
+  Generate hash from tree
+
+  SYNOPSIS
+    generate_hash_key()
+      param  Context info for the function
+      tree   Tree to be processed, tree->type is KEY or KEY_SMALLER
+
+  DESCRIPTION
+  //TODO documentation !!!!!!!!!!!
+*/
+static bool generate_hash_key(RANGE_OPT_PARAM *param, SEL_TREE *tree)
+{
+  ulong nr1= 1, nr2= 4;
+  CHARSET_INFO *cs;
+  String str;
+  //we need to store the keys array because
+  // same hash does not guarennty same record
+  // we need to compare
+  for (uint i=0; i < param->keys; i++)
+  {
+    if (param->table->s->keys > i &&
+        param->table->key_info[i].flags & HA_UNIQUE_HASH)
+    {
+      LEX_STRING *ls= &param->table->key_info[i].key_part->
+                              field->vcol_info->expr_str;
+      SEL_ARG * tmp= tree->keys[i];
+      while (tmp->next_key_part)
+      {
+        tmp->field->val_str(&str);
+        uchar l[4];
+        int4store(l, str.length());
+        cs= &my_charset_utf8_bin;
+        cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
+        cs= str.charset();
+        cs->coll->hash_sort(cs, (uchar *)str.ptr(),
+                            str.length(), &nr1, &nr2);
+        tmp= tmp->next_key_part;
+      }
+      tree->keys[i]->field= param->table->key_info[i].
+                                   key_part->field;
+      //this will always be longlong
+      tree->keys[i]->field->store(nr1, true);
+    }
+  }
+}
 
 /*
   Build a SEL_TREE for a disjunction out of such trees for the disjuncts
