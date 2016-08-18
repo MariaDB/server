@@ -900,15 +900,7 @@ for synchronization */
 	} while (0);
 
 /** barrier definitions for memory ordering */
-#ifdef IB_STRONG_MEMORY_MODEL
-/* Performance regression was observed at some conditions for Intel
-architecture. Disable memory barrier for Intel architecture for now. */
-# define os_rmb do { } while(0)
-# define os_wmb do { } while(0)
-# define os_mb do { } while(0)
-# define IB_MEMORY_BARRIER_STARTUP_MSG \
-	"Memory barrier is not used"
-#elif defined(HAVE_IB_GCC_ATOMIC_THREAD_FENCE)
+#if defined(HAVE_IB_GCC_ATOMIC_THREAD_FENCE)
 # define HAVE_MEMORY_BARRIER
 # define os_rmb	__atomic_thread_fence(__ATOMIC_ACQUIRE)
 # define os_wmb	__atomic_thread_fence(__ATOMIC_RELEASE)
