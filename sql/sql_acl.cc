@@ -12283,6 +12283,7 @@ err:
   DBUG_RETURN(-1);
 }
 
+extern "C" void mpvio_info(Vio *vio, struct st_plugin_vio_info *info);
 /**
   fills MYSQL_PLUGIN_VIO_INFO structure with the information about the
   connection

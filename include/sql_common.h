@@ -77,9 +77,13 @@ typedef struct st_mysql_methods
 #endif
 } MYSQL_METHODS;
 
+#ifdef LIBMARIADB
+#define simple_command(mysql, command, arg, length, skip_check) ma_simple_command(mysql, command, (char *)arg, length, skip_check, NULL)
+#else
 #define simple_command(mysql, command, arg, length, skip_check) \
   (*(mysql)->methods->advanced_command)(mysql, command, 0,  \
                                         0, arg, length, skip_check, NULL)
+#endif
 #define stmt_command(mysql, command, arg, length, stmt) \
   (*(mysql)->methods->advanced_command)(mysql, command, 0,  \
                                         0, arg, length, 1, stmt)
@@ -110,7 +114,6 @@ void set_mysql_extended_error(MYSQL *mysql, int errcode, const char *sqlstate,
 
 /* client side of the pluggable authentication */
 struct st_plugin_vio_info;
-void mpvio_info(Vio *vio, struct st_plugin_vio_info *info);
 int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
                     const char *data_plugin, const char *db);
 int mysql_client_plugin_init();
