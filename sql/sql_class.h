@@ -45,6 +45,7 @@
 #include <mysql/psi/mysql_idle.h>
 #include <mysql/psi/mysql_table.h>
 #include <mysql_com_server.h>
+#include <mysql.h>
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -2013,7 +2014,7 @@ public:
   static const char * const DEFAULT_WHERE;
 
 #ifdef EMBEDDED_LIBRARY
-  struct st_mysql  *mysql;
+  MYSQL *emb_mysql;
   unsigned long	 client_stmt_id;
   unsigned long  client_param_count;
   struct st_mysql_bind *client_params;
@@ -2425,9 +2426,11 @@ public:
 #ifndef __WIN__
   sigset_t signals;
 #endif
-#ifdef SIGNAL_WITH_VIO_CLOSE
-  Vio* active_vio;
+
+#ifndef EMBEDDED_LIBRARY
+  MYSQL *active_mysql;
 #endif
+
   /*
     This is to track items changed during execution of a prepared
     statement/stored procedure. It's created by
@@ -3025,21 +3028,25 @@ public:
   void reset_for_reuse();
   bool store_globals();
   void reset_globals();
-#ifdef SIGNAL_WITH_VIO_CLOSE
-  inline void set_active_vio(Vio* vio)
+
+  inline void set_active_mysql(MYSQL *active_mysql)
   {
+#ifndef EMBEDDED_LIBRARY
     mysql_mutex_lock(&LOCK_thd_data);
-    active_vio = vio;
+    this->active_mysql= active_mysql;
     mysql_mutex_unlock(&LOCK_thd_data);
-  }
-  inline void clear_active_vio()
-  {
-    mysql_mutex_lock(&LOCK_thd_data);
-    active_vio = 0;
-    mysql_mutex_unlock(&LOCK_thd_data);
-  }
-  void close_active_vio();
 #endif
+  }
+  inline void clear_active_mysql()
+  {
+#ifndef EMBEDDED_LIBRARY
+    mysql_mutex_lock(&LOCK_thd_data);
+    active_mysql= 0;
+    mysql_mutex_unlock(&LOCK_thd_data);
+#endif
+  }
+  void close_active_mysql();
+
   void awake(killed_state state_to_set);
  
   /** Disconnect the associated communication endpoint. */

@@ -409,3 +409,10 @@ my_ulonglong find_set_from_flags(const TYPELIB *lib, uint default_name,
   return res;
 }
 
+/* Typelib by all clients */
+const char *sql_protocol_names_lib[] =
+{ "TCP", "SOCKET", "PIPE", "MEMORY", NullS };
+
+TYPELIB sql_protocol_typelib ={ array_elements(sql_protocol_names_lib) - 1, "",
+sql_protocol_names_lib, NULL };
+

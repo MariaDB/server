@@ -1250,4 +1250,13 @@ static inline double rint(double x)
   #endif
 #endif
 
+#define FLOATING_POINT_DECIMALS 31
+
+/* Keep client compatible with earlier versions */
+#ifdef MYSQL_SERVER
+#define NOT_FIXED_DEC           DECIMAL_NOT_SPECIFIED
+#else
+#define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
+#endif
+
 #endif /* my_global_h */

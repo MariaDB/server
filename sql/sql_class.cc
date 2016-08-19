@@ -984,8 +984,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
                                     &variables.wt_timeout_short,
                                     &variables.wt_deadlock_search_depth_long,
                                     &variables.wt_timeout_long);
-#ifdef SIGNAL_WITH_VIO_CLOSE
-  active_vio = 0;
+#ifndef EMBEDDED_LIBRARY
+  active_mysql= 0;
 #endif
   mysql_mutex_init(key_LOCK_thd_data, &LOCK_thd_data, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wakeup_ready, &LOCK_wakeup_ready, MY_MUTEX_INIT_FAST);
@@ -1687,8 +1687,8 @@ void THD::reset_for_reuse()
   free_connection_done= 0;
   m_command= COM_CONNECT;
   profiling.reset();
-#ifdef SIGNAL_WITH_VIO_CLOSE
-  active_vio = 0;
+#ifndef EMBEDDED_LIBRARY
+  active_mysql = 0;
 #endif
 }
 
@@ -1905,13 +1905,17 @@ void THD::awake(killed_state state_to_set)
 
   if (state_to_set >= KILL_CONNECTION || state_to_set == NOT_KILLED)
   {
-#ifdef SIGNAL_WITH_VIO_CLOSE
     if (this != current_thd)
     {
-      if(active_vio)
-        vio_shutdown(active_vio, SHUT_RDWR);
-    }
+#ifndef EMBEDDED_LIBRARY
+      if (active_mysql)
+        mysql_cancel(active_mysql);
+      else
 #endif
+      if(net.vio)
+        vio_shutdown(net.vio, SHUT_RDWR);
+     
+    }
 
     /* Mark the target thread's alarm request expired, and signal alarm. */
     thr_alarm_kill(thread_id);
@@ -2006,15 +2010,13 @@ void THD::disconnect()
 
   killed= KILL_CONNECTION;
 
-#ifdef SIGNAL_WITH_VIO_CLOSE
   /*
     Since a active vio might might have not been set yet, in
     any case save a reference to avoid closing a inexistent
     one or closing the vio twice if there is a active one.
   */
-  vio= active_vio;
-  close_active_vio();
-#endif
+  close_active_mysql();
+
 
   /* Disconnect even if a active vio is not associated. */
   if (net.vio != vio)
@@ -2677,21 +2679,19 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
 }
 
 
-#ifdef SIGNAL_WITH_VIO_CLOSE
-void THD::close_active_vio()
+void THD::close_active_mysql()
 {
-  DBUG_ENTER("close_active_vio");
+  DBUG_ENTER("close_active_mysql");
   mysql_mutex_assert_owner(&LOCK_thd_data);
 #ifndef EMBEDDED_LIBRARY
-  if (active_vio)
+  if (active_mysql)
   {
-    vio_close(active_vio);
-    active_vio = 0;
+    mysql_close(active_mysql);
+    active_mysql= 0;
   }
 #endif
   DBUG_VOID_RETURN;
 }
-#endif
 
 
 struct Item_change_record: public ilink

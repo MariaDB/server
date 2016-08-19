@@ -190,6 +190,8 @@ static char global_subst_from[200];
 static char global_subst_to[200];
 static char *global_subst= NULL;
 static MEM_ROOT require_file_root;
+static const my_bool my_true= 1;
+static const my_bool my_false= 0;
 
 /* Block stack */
 enum block_cmd {
@@ -5405,18 +5407,6 @@ static char *get_string(char **to_ptr, char **from_ptr,
 }
 
 
-void set_reconnect(MYSQL* mysql, my_bool val)
-{
-  my_bool reconnect= val;
-  DBUG_ENTER("set_reconnect");
-  DBUG_PRINT("info", ("val: %d", (int) val));
-#if MYSQL_VERSION_ID < 50000
-  mysql->reconnect= reconnect;
-#else
-  mysql_options(mysql, MYSQL_OPT_RECONNECT, (char *)&reconnect);
-#endif
-  DBUG_VOID_RETURN;
-}
 
 
 /**
@@ -5501,11 +5491,7 @@ void do_close_connection(struct st_command *command)
 #ifndef EMBEDDED_LIBRARY
   if (command->type == Q_DIRTY_CLOSE)
   {
-    if (con->mysql->net.vio)
-    {
-      vio_delete(con->mysql->net.vio);
-      con->mysql->net.vio = 0;
-    }
+    mariadb_cancel(con->mysql);
   }
 #endif /*!EMBEDDED_LIBRARY*/
   if (con->stmt)
@@ -8229,10 +8215,18 @@ end:
   revert_properties();
 
   /* Close the statement if reconnect, need new prepare */
-  if (mysql->reconnect)
   {
-    mysql_stmt_close(stmt);
-    cn->stmt= NULL;
+#ifndef EMBEDDED_LIBRARY
+    my_bool reconnect;
+    mysql_get_option(mysql, MYSQL_OPT_RECONNECT, &reconnect);
+    if (reconnect)
+#else
+    if (mysql->reconnect)
+#endif
+    {
+      mysql_stmt_close(stmt);
+      cn->stmt= NULL;
+    }
   }
 
   DBUG_VOID_RETURN;
@@ -8764,7 +8758,7 @@ static void dump_backtrace(void)
 #endif
   }
   fputs("Attempting backtrace...\n", stderr);
-  my_print_stacktrace(NULL, my_thread_stack_size);
+  my_print_stacktrace(NULL, (ulong)my_thread_stack_size);
 }
 
 #else
@@ -9407,10 +9401,10 @@ int main(int argc, char **argv)
         non_blocking_api_enabled= 1;
         break;
       case Q_DISABLE_RECONNECT:
-        set_reconnect(cur_con->mysql, 0);
+        mysql_options(cur_con->mysql, MYSQL_OPT_RECONNECT, &my_false);
         break;
       case Q_ENABLE_RECONNECT:
-        set_reconnect(cur_con->mysql, 1);
+        mysql_options(cur_con->mysql, MYSQL_OPT_RECONNECT, &my_true);
         /* Close any open statements - no reconnect, need new prepare */
         close_statements();
         break;

@@ -1143,6 +1143,9 @@ int main(int argc,char *argv[])
 
   outfile[0]=0;			// no (default) outfile
   strmov(pager, "stdout");	// the default, if --pager wasn't given
+
+  mysql_init(&mysql);
+
   {
     char *tmp=getenv("PAGER");
     if (tmp && strlen(tmp))
@@ -1203,7 +1206,6 @@ int main(int argc,char *argv[])
   glob_buffer.realloc(512);
   completion_hash_init(&ht, 128);
   init_alloc_root(&hash_mem_root, 16384, 0, MYF(0));
-  bzero((char*) &mysql, sizeof(mysql));
   if (sql_connect(current_host,current_db,current_user,opt_password,
 		  opt_silent))
   {
@@ -1365,6 +1367,8 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 		  opt_ssl_capath, opt_ssl_cipher);
     mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+    char enforce= 1;
+    mysql_options(mysql, MYSQL_OPT_SSL_ENFORCE, &enforce);
   }
   mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
@@ -4617,6 +4621,23 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     mysql_options(&mysql,MYSQL_OPT_COMPRESS,NullS);
   if (using_opt_local_infile)
     mysql_options(&mysql,MYSQL_OPT_LOCAL_INFILE, (char*) &opt_local_infile);
+#if !defined(EMBEDDED_LIBRARY)
+  if (opt_use_ssl)
+  {
+    mysql_ssl_set(&mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
+		  opt_ssl_capath, opt_ssl_cipher);
+    mysql_options(&mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
+    mysql_options(&mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+  }
+  mysql_options(&mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                (my_bool*)&opt_ssl_verify_server_cert);
+#endif
+  if (opt_protocol)
+    mysql_options(&mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
+#ifdef HAVE_SMEM
+  if (shared_memory_base_name)
+    mysql_options(&mysql,MYSQL_SHARED_MEMORY_BASE_NAME,shared_memory_base_name);
+#endif
   if (safe_updates)
   {
     char init_command[100];
@@ -4641,12 +4662,13 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     }
     return -1;					// Retryable
   }
-  
-  charset_info= mysql.charset;
+
+  charset_info= get_charset_by_name(mysql.charset->name, MYF(0));
+
   
   connected=1;
 #ifndef EMBEDDED_LIBRARY
-  mysql.reconnect= debug_info_flag; // We want to know if this happens
+  mysql_options(&mysql, MYSQL_OPT_RECONNECT, &debug_info_flag);
 
   /*
     CLIENT_PROGRESS_OBSOLETE is set only if we requested it in
@@ -4655,7 +4677,10 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   if (mysql.client_flag & CLIENT_PROGRESS_OBSOLETE)
     mysql_options(&mysql, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
 #else
-  mysql.reconnect= 1;
+  {
+    my_bool reconnect= 1;
+    mysql_options(&mysql, MYSQL_OPT_RECONNECT, &reconnect);
+  }
 #endif
 #ifdef HAVE_READLINE
   build_completion_hash(opt_rehash, 1);

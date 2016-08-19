@@ -419,6 +419,7 @@ static MYSQL *db_connect(char *host, char *database,
                          char *user, char *passwd)
 {
   MYSQL *mysql;
+  my_bool reconnect;
   if (verbose)
     fprintf(stdout, "Connecting to %s\n", host ? host : "localhost");
   if (!(mysql= mysql_init(NULL)))
@@ -463,7 +464,8 @@ static MYSQL *db_connect(char *host, char *database,
     ignore_errors=0;	  /* NO RETURN FROM db_error */
     db_error(mysql);
   }
-  mysql->reconnect= 0;
+  reconnect= 0;
+  mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
   if (verbose)
     fprintf(stdout, "Selecting database %s\n", database);
   if (mysql_select_db(mysql, database))

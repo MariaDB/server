@@ -3853,9 +3853,7 @@ static int try_to_reconnect(THD *thd, MYSQL *mysql, Master_info *mi,
 {
   mi->slave_running= MYSQL_SLAVE_RUN_NOT_CONNECT;
   thd->proc_info= messages[SLAVE_RECON_MSG_WAIT];
-#ifdef SIGNAL_WITH_VIO_CLOSE  
-  thd->clear_active_vio();
-#endif
+  thd->clear_active_mysql();
   end_server(mysql);
   if ((*retry_count)++)
   {
@@ -4267,16 +4265,14 @@ err:
   if (mysql)
   {
     /*
-      Here we need to clear the active VIO before closing the
+      Here we need to clear the active mysql before closing the
       connection with the master.  The reason is that THD::awake()
       might be called from terminate_slave_thread() because somebody
-      issued a STOP SLAVE.  If that happends, the close_active_vio()
+      issued a STOP SLAVE.  If that happends, the close_active_mysql()
       can be called in the middle of closing the VIO associated with
       the 'mysql' object, causing a crash.
     */
-#ifdef SIGNAL_WITH_VIO_CLOSE
-    thd->clear_active_vio();
-#endif
+    thd->clear_active_mysql();
     mysql_close(mysql);
     mi->mysql=0;
   }
@@ -6152,11 +6148,9 @@ void end_relay_log_info(Relay_log_info* rli)
 
 extern "C" void slave_io_thread_detach_vio()
 {
-#ifdef SIGNAL_WITH_VIO_CLOSE
   THD *thd= current_thd;
   if (thd && thd->slave_thread)
-    thd->clear_active_vio();
-#endif
+    thd->clear_active_mysql();
 }
 
 
@@ -6315,9 +6309,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
       general_log_print(thd, COM_CONNECT_OUT, "%s@%s:%d",
                         mi->user, mi->host, mi->port);
     }
-#ifdef SIGNAL_WITH_VIO_CLOSE
-    thd->set_active_vio(mysql->net.vio);
-#endif
+    thd->set_active_mysql(mysql);
   }
   mysql->reconnect= 1;
   DBUG_PRINT("exit",("slave_was_killed: %d", slave_was_killed));

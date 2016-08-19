@@ -12287,6 +12287,10 @@ err:
   fills MYSQL_PLUGIN_VIO_INFO structure with the information about the
   connection
 */
+
+extern "C" void mpvio_info(Vio *vio,
+  MYSQL_PLUGIN_VIO_INFO *info);
+
 static void server_mpvio_info(MYSQL_PLUGIN_VIO *vio,
                               MYSQL_PLUGIN_VIO_INFO *info)
 {

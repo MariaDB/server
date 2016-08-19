@@ -37,8 +37,8 @@ ${CMAKE_BINARY_DIR}/sql/lex_hash.h
 SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES} PROPERTIES GENERATED TRUE)
 
 SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc 
-           ../libmysql/libmysql.c ../libmysql/errmsg.c ../client/get_password.c
-           ../sql-common/client.c ../sql-common/my_time.c 
+           ../libmysql/libmysql.c ../libmysql/errmsg.c ../mysys/get_password.c
+           ../sql-common/client.c 
            ../sql-common/my_user.c ../sql-common/pack.c
            ../sql-common/client_plugin.c ../sql-common/mysql_async.c
            ../sql/password.c ../sql/discover.cc ../sql/derror.cc 
