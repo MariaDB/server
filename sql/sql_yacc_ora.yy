@@ -2397,9 +2397,9 @@ sp_decl_body:
             $$.vars= $$.conds= $$.curs= 0;
             $$.hndlrs= 1;
           }
-        | ident_directly_assignable CURSOR_SYM FOR_SYM sp_cursor_stmt
+        | CURSOR_SYM ident_directly_assignable IS sp_cursor_stmt
           {
-            if (Lex->sp_declare_cursor(thd, $1, $4))
+            if (Lex->sp_declare_cursor(thd, $2, $4))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
