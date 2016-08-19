@@ -23,10 +23,8 @@
 #include <sys/stat.h>
 #include <mysql.h>
 #include <sql_common.h>
-#include <mysql_version.h>
 #include <welcome_copyright_notice.h>
 #include <my_rnd.h>
-#include <password.h>
 
 #define ADMIN_VERSION "9.1"
 #define MAX_MYSQL_VAR 512
@@ -442,7 +440,7 @@ int main(int argc,char *argv[])
           didn't signal for us to die. Otherwise, signal failure.
         */
 
-	if (mysql.net.pvio == 0)
+	if (mysql.net.vio == 0)
 	{
 	  if (option_wait && !interrupted)
 	  {
@@ -523,8 +521,7 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
     if (mysql_real_connect(mysql,host,user,opt_password,NullS,tcp_port,
 			   unix_port, CLIENT_REMEMBER_OPTIONS))
     {
-      my_bool reconnect= 1;
-      mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
+      mysql->reconnect= 1;
       if (info)
       {
 	fputs("\n",stderr);
@@ -545,16 +542,16 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
 	{
 	  fprintf(stderr,
 		  "Check that mysqld is running and that the socket: '%s' exists!\n",
-		  unix_port ? unix_port : MYSQL_UNIX_ADDR);
+		  unix_port ? unix_port : mysql_unix_port);
 	}
 	else if (mysql_errno(mysql) == CR_CONN_HOST_ERROR ||
 		 mysql_errno(mysql) == CR_UNKNOWN_HOST)
 	{
 	  fprintf(stderr,"Check that mysqld is running on %s",host);
 	  fprintf(stderr," and that the port is %d.\n",
-		  tcp_port ? tcp_port: MYSQL_PORT);
+		  tcp_port ? tcp_port: mysql_port);
 	  fprintf(stderr,"You can check this by doing 'telnet %s %d'\n",
-		  host, tcp_port ? tcp_port: MYSQL_PORT);
+		  host, tcp_port ? tcp_port: mysql_port);
 	}
       }
       return 1;
@@ -1080,9 +1077,9 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
           }
         }
         if (old)
-          my_make_scrambled_password_323(crypted_pw, typed_password, sizeof(crypted_pw));
+          make_scrambled_password_323(crypted_pw, typed_password);
         else
-          my_make_scrambled_password(crypted_pw, typed_password, sizeof(crypted_pw));
+          make_scrambled_password(crypted_pw, typed_password);
       }
       else
 	crypted_pw[0]=0;			/* No password */
@@ -1190,9 +1187,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       break;
     }
     case ADMIN_PING:
-    {
-      my_bool reconnect= 0;
-      mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
+      mysql->reconnect=0;	/* We want to know of reconnects */
       if (!mysql_ping(mysql))
       {
 	if (option_silent < 2)
@@ -1202,8 +1197,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       {
 	if (mysql_errno(mysql) == CR_SERVER_GONE_ERROR)
 	{
-          reconnect= 1;
-          mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
+	  mysql->reconnect=1;
 	  if (!mysql_ping(mysql))
 	    puts("connection was down, but mysqld is now alive");
 	}
@@ -1214,10 +1208,8 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	  return -1;
 	}
       }
-      reconnect=1;	/* Automatic reconnect is default */
-      mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
+      mysql->reconnect=1;	/* Automatic reconnect is default */
       break;
-    }
     default:
       my_printf_error(0, "Unknown command: '%-.60s'", error_flags, argv[0]);
       return 1;

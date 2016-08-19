@@ -52,17 +52,13 @@
 
 #include <algorithm>
 
-#ifdef LIBMARIADB
-#define my_net_write ma_net_write
-#define net_flush ma_net_flush
-#define net_safe_read ma_net_safe_read
-#define my_net_read ma_net_read
-#endif
-
 Rpl_filter *binlog_filter= 0;
 
 #define BIN_LOG_HEADER_SIZE	4
 #define PROBE_HEADER_LEN	(EVENT_LEN_OFFSET+4)
+
+
+#define CLIENT_CAPABILITIES	(CLIENT_LONG_PASSWORD | CLIENT_LONG_FLAG | CLIENT_LOCAL_FILES)
 
 /* Needed for Rpl_filter */
 CHARSET_INFO* system_charset_info= &my_charset_utf8_general_ci;
@@ -89,11 +85,6 @@ static const char *load_groups[]=
 
 static void error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 static void warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-
-
-extern "C" ulong my_net_read(NET *net);
-extern "C" unsigned char *mysql_net_store_length(unsigned char *packet, size_t length);
-#define net_store_length mysql_net_store_length
 
 static bool one_database=0, to_last_remote_log= 0, disable_log_bin= 0;
 static bool opt_hexdump= 0, opt_version= 0;
@@ -1773,7 +1764,6 @@ static int parse_args(int *argc, char*** argv)
 */
 static Exit_status safe_connect()
 {
-  my_bool reconnect= 1;
   /* Close any old connections to MySQL */
   if (mysql)
     mysql_close(mysql);
@@ -1819,7 +1809,7 @@ static Exit_status safe_connect()
     error("Failed on connect: %s", mysql_error(mysql));
     return ERROR_STOP;
   }
-  mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
+  mysql->reconnect= 1;
   return OK_CONTINUE;
 }
 
@@ -2283,7 +2273,7 @@ static Exit_status dump_remote_log_entries(PRINT_EVENT_INFO *print_event_info,
 
   for (;;)
   {
-    len= net_safe_read(mysql);
+    len= cli_safe_read(mysql);
     if (len == packet_error)
     {
       error("Got error reading packet from server: %s", mysql_error(mysql));
@@ -2853,8 +2843,6 @@ struct encryption_service_st encryption_handler=
 #include "my_decimal.h"
 #include "decimal.c"
 #include "my_decimal.cc"
-#include "../sql-common/my_time.c"
-#include "password.c"
 #include "log_event.cc"
 #include "log_event_old.cc"
 #include "rpl_utility.cc"

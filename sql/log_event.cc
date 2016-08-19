@@ -1354,7 +1354,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   ulong data_len;
   char buf[LOG_EVENT_MINIMAL_HEADER_LEN];
   uchar ev_offset= packet->length();
-#if !defined(MYSQL_CLIENT)
+#ifndef max_allowed_packet
   THD *thd=current_thd;
   ulong max_allowed_packet= thd ? thd->slave_thread ? slave_max_allowed_packet
                                                     : thd->variables.max_allowed_packet

@@ -68,7 +68,6 @@ int main(int argc, char **argv)
   my_bool first_argument_uses_wildcards=0;
   char *wild;
   MYSQL mysql;
-  my_bool reconnect;
   static char **defaults_argv;
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
@@ -156,8 +155,7 @@ int main(int argc, char **argv)
     error= 1;
     goto error;
   }
-  reconnect= 1;
-  mysql_options(&mysql, MYSQL_OPT_RECONNECT, &reconnect);
+  mysql.reconnect= 1;
 
   switch (argc) {
   case 0:  error=list_dbs(&mysql,wild); break;

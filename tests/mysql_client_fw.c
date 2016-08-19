@@ -21,7 +21,6 @@
 #include <my_getopt.h>
 #include <m_string.h>
 #include <mysqld_error.h>
-#include <mysql_version.h>
 #include <sql_common.h>
 #include <mysql/client_plugin.h>
 
@@ -364,7 +363,7 @@ static MYSQL* client_connect(ulong flag, uint protocol, my_bool auto_reconnect)
     fprintf(stdout, "\n Check the connection options using --help or -?\n");
     exit(1);
   }
-  mysql_options(mysql, MYSQL_OPT_RECONNECT, &auto_reconnect);
+  mysql->reconnect= auto_reconnect;
 
   if (!opt_silent)
     fprintf(stdout, "OK");
@@ -1146,7 +1145,7 @@ static my_bool thread_query(const char *query)
 {
  MYSQL *l_mysql;
  my_bool error;
- my_bool reconnect= 1;
+
  error= 0;
  if (!opt_silent)
  fprintf(stdout, "\n in thread_query(%s)", query);
@@ -1163,7 +1162,7 @@ static my_bool thread_query(const char *query)
    error= 1;
    goto end;
  }
- mysql_options(l_mysql, MYSQL_OPT_RECONNECT, &reconnect);
+ l_mysql->reconnect= 1;
  if (mysql_query(l_mysql, query))
  {
    fprintf(stderr, "Query failed (%s)\n", mysql_error(l_mysql));

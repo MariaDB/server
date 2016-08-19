@@ -1019,7 +1019,6 @@ extern void add_compiled_collation(struct charset_info_st *cs);
 extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
-extern char *get_tty_password(const char *opt_message);
 #ifdef __WIN__
 #define BACKSLASH_MBTAIL
 /* File system character set */

@@ -20,7 +20,7 @@
 #include <m_ctype.h>
 /* Windows version of localtime_r() is declared in my_ptrhead.h */
 #include <my_pthread.h>
-
+#include <mysqld_error.h>
 
 ulonglong log_10_int[20]=
 {
@@ -777,9 +777,6 @@ long calc_daynr(uint year,uint month,uint day)
   DBUG_RETURN(delsum+(int) y/4-temp);
 } /* calc_daynr */
 
-/* Can't include mysqld_error.h, it needs mysys to build, thus hardcode 2 error values here. */
-#define ER_WARN_DATA_OUT_OF_RANGE 1264
-#define ER_WARN_INVALID_TIMESTAMP 1299
 
 /*
   Convert time in MYSQL_TIME representation in system time zone to its

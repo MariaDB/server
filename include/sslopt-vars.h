@@ -35,4 +35,3 @@ SSL_STATIC my_bool opt_ssl_verify_server_cert= 0;
 #endif
 #endif
 #endif /* SSLOPT_VARS_INCLUDED */
-

@@ -1643,7 +1643,6 @@ static void maybe_exit(int error)
 static int connect_to_db(char *host, char *user,char *passwd)
 {
   char buff[20+FN_REFLEN];
-  my_bool reconnect;
   DBUG_ENTER("connect_to_db");
 
   verbose_msg("-- Connecting to %s...\n", host ? host : "localhost");
@@ -1698,8 +1697,7 @@ static int connect_to_db(char *host, char *user,char *passwd)
     As we're going to set SQL_MODE, it would be lost on reconnect, so we
     cannot reconnect.
   */
-  reconnect= 0;
-  mysql_options(&mysql_connection, MYSQL_OPT_RECONNECT, &reconnect);
+  mysql->reconnect= 0;
   my_snprintf(buff, sizeof(buff), "/*!40100 SET @@SQL_MODE='%s' */",
               compatible_mode_normal_str);
   if (mysql_query_with_error_report(mysql, 0, buff))

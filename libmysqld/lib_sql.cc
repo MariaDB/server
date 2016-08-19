@@ -647,7 +647,7 @@ void end_embedded_server()
 void init_embedded_mysql(MYSQL *mysql, int client_flag)
 {
   THD *thd = (THD *)mysql->thd;
-  thd->emb_mysql= mysql;
+  thd->mysql= mysql;
   mysql->server_version= server_version;
   mysql->client_flag= client_flag;
   init_alloc_root(&mysql->field_alloc, 8192, 0, MYF(0));
@@ -929,7 +929,7 @@ static
 bool
 write_eof_packet(THD *thd, uint server_status, uint statement_warn_count)
 {
-  if (!thd->emb_mysql)            // bootstrap file handling
+  if (!thd->mysql)            // bootstrap file handling
     return FALSE;
   /*
     The following test should never be true, but it's better to do it
@@ -1013,7 +1013,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
   MYSQL_DATA               *data;
   DBUG_ENTER("send_result_set_metadata");
 
-  if (!thd->emb_mysql)            // bootstrap file handling
+  if (!thd->mysql)            // bootstrap file handling
     DBUG_RETURN(0);
 
   if (begin_dataset())
@@ -1118,7 +1118,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
 
 bool Protocol::write()
 {
-  if (!thd->emb_mysql)            // bootstrap file handling
+  if (!thd->mysql)            // bootstrap file handling
     return false;
 
   *next_field= 0;
@@ -1176,7 +1176,7 @@ net_send_ok(THD *thd,
 {
   DBUG_ENTER("emb_net_send_ok");
   MYSQL_DATA *data;
-  MYSQL *mysql= thd->emb_mysql;
+  MYSQL *mysql= thd->mysql;
 
   if (!mysql)            // bootstrap file handling
     DBUG_RETURN(FALSE);
@@ -1220,7 +1220,7 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   MYSQL_DATA *data= thd->cur_data;
   struct embedded_query_result *ei;
 
-  if (!thd->emb_mysql)            // bootstrap file handling
+  if (!thd->mysql)            // bootstrap file handling
   {
     fprintf(stderr, "ERROR: %d  %s\n", sql_errno, err);
     return TRUE;
@@ -1250,7 +1250,7 @@ void Protocol_text::prepare_for_resend()
   MYSQL_DATA *data= thd->cur_data;
   DBUG_ENTER("send_data");
 
-  if (!thd->emb_mysql)            // bootstrap file handling
+  if (!thd->mysql)            // bootstrap file handling
     DBUG_VOID_RETURN;
 
   data->rows++;
@@ -1283,7 +1283,7 @@ bool Protocol_text::store_null()
 bool Protocol::net_store_data(const uchar *from, size_t length)
 {
   char *field_buf;
-  if (!thd->emb_mysql)            // bootstrap file handling
+  if (!thd->mysql)            // bootstrap file handling
     return FALSE;
 
   if (!(field_buf= (char*) alloc_root(alloc, length + sizeof(uint) + 1)))
@@ -1306,7 +1306,7 @@ bool Protocol::net_store_data_cs(const uchar *from, size_t length,
   uint conv_length= to_cs->mbmaxlen * length / from_cs->mbminlen;
   uint dummy_error;
   char *field_buf;
-  if (!thd->emb_mysql)            // bootstrap file handling
+  if (!thd->mysql)            // bootstrap file handling
     return false;
 
   if (!(field_buf= (char*) alloc_root(alloc, conv_length + sizeof(uint) + 1)))

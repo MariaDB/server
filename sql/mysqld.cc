@@ -6324,7 +6324,7 @@ static void bootstrap(MYSQL_FILE *file)
     mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 #else
-  thd->emb_mysql= 0;
+  thd->mysql= 0;
   do_handle_bootstrap(thd);
 #endif
 

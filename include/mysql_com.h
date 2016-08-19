@@ -654,5 +654,12 @@ uchar *safe_net_store_length(uchar *pkg, size_t pkg_len, ulonglong length);
   decimals
 */
 
+#define FLOATING_POINT_DECIMALS 31
 
+/* Keep client compatible with earlier versions */
+#ifdef MYSQL_SERVER
+#define NOT_FIXED_DEC           DECIMAL_NOT_SPECIFIED
+#else
+#define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
+#endif
 #endif
