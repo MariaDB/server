@@ -356,6 +356,7 @@ my $source_dist=  -d "../sql";
 my $opt_max_save_core= env_or_val(MTR_MAX_SAVE_CORE => 5);
 my $opt_max_save_datadir= env_or_val(MTR_MAX_SAVE_DATADIR => 20);
 my $opt_max_test_fail= env_or_val(MTR_MAX_TEST_FAIL => 10);
+my $opt_core_on_failure= 0;
 
 my $opt_parallel= $ENV{MTR_PARALLEL} || 1;
 
@@ -1165,6 +1166,7 @@ sub command_line_setup {
              'max-save-core=i'          => \$opt_max_save_core,
              'max-save-datadir=i'       => \$opt_max_save_datadir,
              'max-test-fail=i'          => \$opt_max_test_fail,
+             'core-on-failure'          => \$opt_core_on_failure,
 
              # Coverage, profiling etc
              'gcov'                     => \$opt_gcov,
@@ -4565,7 +4567,7 @@ sub run_testcase ($$) {
     }
 
     # Try to dump core for mysqltest and all servers
-    foreach my $proc ($test, started(all_servers())) 
+    foreach my $proc ($test, started(all_servers()))
     {
       mtr_print("Trying to dump core for $proc");
       if ($proc->dump_core())
@@ -5231,7 +5233,9 @@ sub after_failure ($) {
 sub report_failure_and_restart ($) {
   my $tinfo= shift;
 
-  if ($opt_valgrind_mysqld && ($tinfo->{'warnings'} || $tinfo->{'timeout'})) {
+  if ($opt_valgrind_mysqld && ($tinfo->{'warnings'} || $tinfo->{'timeout'}) &&
+      $opt_core_on_failure == 0)
+  {
     # In these cases we may want valgrind report from normal termination
     $tinfo->{'dont_kill_server'}= 1;
   }
@@ -5891,6 +5895,13 @@ sub start_mysqltest ($) {
     mtr_add_arg($args, "--sleep=%d", $opt_sleep);
   }
 
+  if ( $opt_valgrind_mysqld )
+  {
+    # We are running server under valgrind, which causes some replication
+    # test to be much slower, notable rpl_mdev6020.  Increase timeout.
+    mtr_add_arg($args, "--wait-for-pos-timeout=1500");
+  }
+
   if ( $opt_ssl )
   {
     # Turn on SSL for _all_ test cases if option --ssl was used
@@ -6533,6 +6544,7 @@ Options for debugging the product
                         the current test run. Defaults to
                         $opt_max_test_fail, set to 0 for no limit. Set
                         it's default with MTR_MAX_TEST_FAIL
+  core-in-failure	Generate a core even if run server is run with valgrind
 
 Options for valgrind
 
