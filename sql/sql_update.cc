@@ -528,6 +528,9 @@ int mysql_update(THD *thd,
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
   
+  if (!(select && select->quick))
+    status_var_increment(thd->status_var.update_scan_count);
+
   if (query_plan.using_filesort || query_plan.using_io_buffer)
   {
     /*
@@ -594,6 +597,7 @@ int mysql_update(THD *thd,
         close_cached_file(&tempfile);
         goto err;
       }
+
       table->file->try_semi_consistent_read(1);
 
       /*
@@ -631,7 +635,7 @@ int mysql_update(THD *thd,
         thd->inc_examined_row_count(1);
 	if (!select || (error= select->skip_record(thd)) > 0)
 	{
-          if (table->file->was_semi_consistent_read())
+          if (table->file->ha_was_semi_consistent_read())
 	    continue;  /* repeat the read of the same row if it still exists */
 
 	  table->file->position(table->record[0]);
@@ -746,7 +750,7 @@ int mysql_update(THD *thd,
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
     {
-      if (table->file->was_semi_consistent_read())
+      if (table->file->ha_was_semi_consistent_read())
         continue;  /* repeat the read of the same row if it still exists */
 
       store_record(table,record[1]);

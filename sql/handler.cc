@@ -2757,6 +2757,15 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
   return result;
 }
 
+
+bool handler::ha_was_semi_consistent_read()
+{
+  bool result= was_semi_consistent_read();
+  if (result)
+    increment_statistics(&SSV::ha_read_retry_count);
+  return result;
+}
+
 /* Initialize handler for random reading, with error handling */
 
 int handler::ha_rnd_init_with_error(bool scan)
