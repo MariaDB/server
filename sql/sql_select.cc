@@ -9045,7 +9045,7 @@ get_keypart_hash (THD *thd, KEY *keyinfo, KEYUSE *keyuse, JOIN_TAB *j)
       }
       uchar l[4];
       int4store(l, str->length());
-      cs= &my_charset_utf8_bin;
+      cs= &my_charset_bin;
       cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
       cs= str->charset();
       cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);

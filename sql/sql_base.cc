@@ -5287,8 +5287,8 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, uint length,
 
   if (field_ptr && *field_ptr)
   {
-    if ((*field_ptr)->field_visibility == FULL_HIDDEN)
-       DBUG_RETURN((Field*) 0);
+//    if ((*field_ptr)->field_visibility == FULL_HIDDEN)
+//       DBUG_RETURN((Field*) 0);
     *cached_field_index_ptr= field_ptr - table->field;
     field= *field_ptr;
   }

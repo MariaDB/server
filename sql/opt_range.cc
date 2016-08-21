@@ -2598,7 +2598,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       
       remove_nonrange_trees(&param, tree);
 
-      generate_hash_key(&param, tree);
+      //generate_hash_key(&param, tree);
       /* Get best 'range' plan and prepare data for making other plans */
       if ((range_trp= get_key_scans_params(&param, tree, FALSE, TRUE,
                                            best_read_time)))
@@ -7608,8 +7608,11 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
     {
       LEX_STRING *ls = & param->table->key_info[key_part->key].
                                 key_part->field->vcol_info->expr_str;
-      if (find_field_index_in_hash(ls, field->field_name) != -1)
+      if (find_field_index_in_hash(ls, field->field_name) == key_part->part)
+      {
         key_part->field= field;
+        key_part->store_length= key_part->length= field->pack_length();
+      }
     }
     if (field->eq(key_part->field))
     {
@@ -7811,10 +7814,6 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
         field->table->key_info[key_part->key].flags & HA_UNIQUE_HASH &&
          (type == EQUAL_FUNC || type == EQ_FUNC))
   {
-    LEX_STRING *ls = &field->table->key_info[key_part->key].
-                               key_part->field->vcol_info->expr_str;
-    if (find_field_index_in_hash(ls, field->field_name) == -1)
-      goto end;
   }
   else if (!field->can_optimize_range(this, value,
                                  type == EQUAL_FUNC || type == EQ_FUNC))
@@ -7913,16 +7912,41 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
     goto end;
   }
   
-  str= (uchar*) alloc_root(alloc, key_part->store_length+1);
-  if (!str)
-    goto end;
+
+  /* There can be long unique index , so it is quite expensive to copy long blob
+     column.So instead of coping the whole blob data we will copy only field->ptr +
+     packlength and later on retrive data from ptr to calculate hash */
+  if (key_part->key < field->table->s->keys &&
+        field->table->key_info[key_part->key].flags & HA_UNIQUE_HASH
+        && field->flags & BLOB_FLAG)
+  {
+    key_part->store_length= key_part->length= field->pack_length()+1
+         + (!key_part->part ? HA_HASH_KEY_LENGTH_WITH_NULL : 0);
+    //we will store hash in 1st key part
+    //TODO atleast use some good logic
+    str= (uchar*) alloc_root(alloc, key_part->store_length);
+    str[0]= 0;
+    if (!str)
+      goto end;
+    if (!key_part->part)
+      str+= HA_HASH_KEY_LENGTH_WITH_NULL;
+    *str= (uchar) field->is_real_null();
+    memcpy(str+1, field->ptr, field->pack_length());
+    if (!key_part->part)
+      str-= HA_HASH_KEY_LENGTH_WITH_NULL;
+  }
+  else
+  {
+   str= (uchar*) alloc_root(alloc, key_part->store_length+1);
+   if (!str)
+      goto end;
   if (maybe_null)
     *str= (uchar) field->is_real_null();        // Set to 1 if null
   field->get_key_image(str+maybe_null, key_part->length,
                        key_part->image_type);
+  }
   if (!(tree= new (alloc) SEL_ARG(field, str, str)))
     goto end;                                   // out of memory
-
   /*
     Check if we are comparing an UNSIGNED integer with a negative constant.
     In this case we know that:
@@ -8466,35 +8490,35 @@ bool sel_trees_must_be_ored(RANGE_OPT_PARAM* param,
 static bool remove_nonrange_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree)
 {
   bool res= FALSE;
-  int total_fields;
-  /*
-     there can be hash keys but these keys only works when
-     all of keypart is present means if hash_str is like
-     hash(`a`,`b`) then this can be used only when both
-     a and b are present
-   */
-  for (uint i=0; i < param->keys; i++)
-  {
-    if (param->table->s->keys > i &&
-        param->table->key_info[i].flags & HA_UNIQUE_HASH)
-    {
-      LEX_STRING *ls= &param->table->key_info[i].key_part->
-                              field->vcol_info->expr_str;
-      total_fields= fields_in_hash_str(ls);
-      SEL_ARG * tmp= tree->keys[i];
-      while (tmp->next_key_part)
-      {
-        if (tmp->part == tmp->next->part - 1)
-          total_fields--;
-        tmp= tmp->next_key_part;
-      }
-      if (total_fields)
-      {
-        tree->keys[i]= NULL;
-        tree->keys_map.clear_bit(i);
-      }
-    }
-  }
+//  int total_fields;
+//  /*
+//     there can be hash keys but these keys only works when
+//     all of keypart is present means if hash_str is like
+//     hash(`a`,`b`) then this can be used only when both
+//     a and b are present
+//   */
+//  for (uint i=0; i < param->keys; i++)
+//  {
+//    if (param->table->s->keys > i &&
+//        param->table->key_info[i].flags & HA_UNIQUE_HASH)
+//    {
+//      LEX_STRING *ls= &param->table->key_info[i].key_part->
+//                              field->vcol_info->expr_str;
+//      total_fields= fields_in_hash_str(ls);
+//      SEL_ARG * tmp= tree->keys[i];
+//      while (tmp->next_key_part)
+//      {
+//        if (tmp->part == tmp->next_key_part->part - 1)
+//          total_fields--;
+//        tmp= tmp->next_key_part;
+//      }
+//      if (total_fields)
+//      {
+//        tree->keys[i]= NULL;
+//        tree->keys_map.clear_bit(i);
+//      }
+//    }
+//  }
   for (uint i=0; i < param->keys; i++)
   {
     if (tree->keys[i])
@@ -8544,7 +8568,7 @@ static bool generate_hash_key(RANGE_OPT_PARAM *param, SEL_TREE *tree)
         tmp->field->val_str(&str);
         uchar l[4];
         int4store(l, str.length());
-        cs= &my_charset_utf8_bin;
+        cs= &my_charset_bin;
         cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
         cs= str.charset();
         cs->coll->hash_sort(cs, (uchar *)str.ptr(),
@@ -10289,7 +10313,16 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
   
   for (KEY_PART_INFO *kp= table_key->key_part; kp < key_part; kp++)
   {
-    uint16 fieldnr= param->table->key_info[keynr].
+    uint16 fieldnr;
+    if (param->table->key_info[keynr].flags & HA_UNIQUE_HASH)
+    {
+      LEX_STRING *ls= & param->table->key_info[keynr].key_part->
+                                   field->vcol_info->expr_str;
+      fieldnr= (field_ptr_in_hash_str(ls,
+                param->table, kp - table_key->key_part))->field_index;
+    }
+    else
+      fieldnr= param->table->key_info[keynr].
                     key_part[kp - table_key->key_part].fieldnr - 1;
     if (param->table->field[fieldnr]->key_length() != kp->length)
       return FALSE;
@@ -10387,6 +10420,59 @@ get_quick_select(PARAM *param,uint idx,SEL_ARG *key_tree, uint mrr_flags,
   DBUG_RETURN(quick);
 }
 
+/**
+  TODO documentation
+  */
+void  set_hash(LEX_STRING *ls, TABLE *table, uchar *key)
+{
+  uint fields= fields_in_hash_str(ls);
+  uchar *temp= key;
+  //need to calculate the hash
+  ulong nr1= 1, nr2= 4;
+  bool is_null= false;
+  for (uint i=0; i < fields; i++)
+  {
+    if (!i)
+      key+= HA_HASH_KEY_LENGTH_WITH_NULL;
+    if (key[0])
+    {
+      is_null= true;
+      break;
+    }
+    Field *fld= field_ptr_in_hash_str(ls, table, i);
+    String str;
+    CHARSET_INFO *cs;
+    uchar l[4];
+    //treat it like blob
+    if (fld->flags & BLOB_FLAG)
+    {
+      Field_blob *fld_blob= static_cast<Field_blob *>(fld);
+      uint len= fld_blob->get_length(key + 1);
+
+      int4store(l, len);
+      cs= &my_charset_bin;
+      cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
+      cs= fld_blob->charset();
+      uchar *blob;
+      memcpy(&blob, key+1+fld_blob->pack_length_no_ptr(), sizeof(char*));
+      cs->coll->hash_sort(cs, (const uchar *)blob,
+                          len, &nr1, &nr2);
+    }
+    else
+    {
+      memcpy(fld->ptr, key+1, fld->pack_length());
+      fld->val_str(&str);
+      int4store(l, str.length());
+      cs= &my_charset_bin;
+      cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
+      cs= str.charset();
+      cs->coll->hash_sort(cs, (uchar *)str.ptr(), str.length(), &nr1, &nr2);
+    }
+    key+= fld->pack_length()+1;
+  }
+  temp[0]= is_null;
+  int8store(temp+1,nr1);
+}
 
 /*
 ** Fix this to get all possible sub_ranges
@@ -10481,6 +10567,16 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
           flag|= NULL_RANGE;
         else
           flag|= UNIQUE_RANGE;
+      }
+      /* check for ha_unique_hash. If yes then calc hash and set range flags */
+      if (table_key->flags & HA_UNIQUE_HASH)
+      {
+        LEX_STRING *ls= &table_key->key_part->field->vcol_info->expr_str;
+        if (key_tree->part == fields_in_hash_str(ls)-1)
+        {
+          //what is there is a null
+          flag|= UNIQUE_RANGE;
+        }
       }
     }
   }

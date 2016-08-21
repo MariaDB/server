@@ -2222,6 +2222,8 @@ int Field::store_time_dec(MYSQL_TIME *ltime, uint dec)
 
 bool Field::optimize_range(uint idx, uint part)
 {
+  if (table->key_info[idx].flags & HA_UNIQUE_HASH)
+    return false;        // Long unique index can not optimize range
   return MY_TEST(table->file->index_flags(idx, part, 1) & HA_READ_RANGE);
 }
 

@@ -18,6 +18,7 @@
 #include "sql_select.h"
 #include "key.h"
 
+
 /****************************************************************************
  * Default MRR implementation (MRR to non-MRR converter)
  ***************************************************************************/
@@ -91,7 +92,41 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
       rows= 1; /* there can be at most one row */
     else
     {
-      if (HA_POS_ERROR == (rows= this->records_in_range(keyno, min_endp, 
+      KEY *key= table->key_info+keyno;
+      if (key->flags & HA_UNIQUE_HASH)
+
+      {
+        LEX_STRING *ls= &table->key_info[keyno].key_part->field->
+                                               vcol_info->expr_str;
+        ulong fields= fields_in_hash_str(ls);
+        if (!min_endp || !max_endp ||
+             min_endp->keypart_map != max_endp->keypart_map ||
+             min_endp->length != max_endp->length ||
+             min_endp->keypart_map != (1UL << fields)-1||
+             min_endp->flag != HA_READ_KEY_EXACT ||
+             max_endp->flag != HA_READ_AFTER_KEY)
+        {
+          total_rows= HA_POS_ERROR;
+          break;
+        }
+        else
+        {
+          uint min_len= min_endp->length, max_len= max_endp->length;
+          set_hash(ls, table, (uchar *)min_endp->key);
+          min_endp->length= HA_HASH_KEY_LENGTH_WITH_NULL;
+          set_hash(ls, table, (uchar *)max_endp->key);
+          max_endp->length= HA_HASH_KEY_LENGTH_WITH_NULL;
+          if (HA_POS_ERROR == (rows= this->records_in_range(keyno, min_endp,
+                                                            max_endp)))
+          {
+            total_rows= HA_POS_ERROR;
+            break;
+          }
+          min_endp->length= min_len;
+          max_endp->length= max_len;
+        }
+      }
+      else if (HA_POS_ERROR == (rows= this->records_in_range(keyno, min_endp,
                                                         max_endp)))
       {
         /* Can't scan one range => can't do MRR scan at all */
@@ -281,6 +316,21 @@ start:
     /* Try the next range(s) until one matches a record. */
     while (!(range_res= mrr_funcs.next(mrr_iter, &mrr_cur_range)))
     {
+      if (mrr_cur_range.start_key.keypart_map)
+      {
+        if (table->key_info[active_index].flags & HA_UNIQUE_HASH)
+        {
+          LEX_STRING *ls= &table->key_info[active_index].key_part->
+                                            field->vcol_info->expr_str;
+          set_hash(ls, table, (uchar *)(mrr_cur_range.start_key.key));
+          mrr_cur_range.start_key.length= HA_HASH_KEY_LENGTH_WITH_NULL;
+          if (mrr_cur_range.end_key.keypart_map)
+          {
+            set_hash(ls, table, (uchar *)(mrr_cur_range.end_key.key));
+            mrr_cur_range.end_key.length= HA_HASH_KEY_LENGTH_WITH_NULL;
+          }
+        }
+      }
 scan_it_again:
       result= read_range_first(mrr_cur_range.start_key.keypart_map ?
                                  &mrr_cur_range.start_key : 0,
