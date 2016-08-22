@@ -416,3 +416,28 @@ set @v= 10;
 CALL p1(@v);
 SELECT @v;
 DROP PROCEDURE p1;
+
+
+--echo # Testing RETURN in procedures
+DELIMITER /;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+  IF a < 10 THEN
+    BEGIN
+      a:= a + 1;
+      RETURN;
+    END;
+  END IF;
+  a:= 200;
+EXCEPTION
+  WHEN OTHERS THEN
+  BEGIN
+    a:= 100;
+    RETURN;
+  END;
+END;
+/
+DELIMITER ;/
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;

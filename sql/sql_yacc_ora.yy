@@ -2963,6 +2963,22 @@ sp_proc_stmt_return:
             if (sp->restore_lex(thd))
               MYSQL_YYABORT;
           }
+        | RETURN_SYM
+          {
+            LEX *lex= Lex;
+            sp_head *sp= lex->sphead;
+
+            if (sp->m_type != TYPE_ENUM_PROCEDURE)
+            {
+              thd->parse_error();
+              MYSQL_YYABORT;
+            }
+            sp_instr_preturn *i;
+            i= new (thd->mem_root)
+                 sp_instr_preturn(sp->instructions(), lex->spcont);
+            if (i == NULL || sp->add_instr(i))
+              MYSQL_YYABORT;
+          }
         ;
 
 opt_sp_proc_stmt_exit_when_clause:
