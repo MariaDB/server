@@ -91,12 +91,12 @@ DELIMITER /;
 CREATE FUNCTION f1 (a INT) RETURN INT AS
 BEGIN
   <<label1>>
-  WHILE a>0 DO
+  WHILE a>0 LOOP
     IF a = 2 THEN
       LEAVE label1;
     END IF;
     SET a= a-1;
-  END WHILE label1;
+  END LOOP label1;
   RETURN a;
 END;
 /
@@ -454,10 +454,10 @@ BEGIN NOT ATOMIC
     x INT DEFAULT 10;
   BEGIN
   <<label>>
-  WHILE i > 3 DO
+  WHILE i > 3 LOOP
     i:= i - 1;
     SELECT i;
-  END WHILE label;
+  END LOOP label;
   END;
 END
 /
@@ -798,6 +798,48 @@ END;
 /
 DELIMITER ;/
 SET @v=10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+
+--echo # Testing WHILE loop
+
+DELIMITER /;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+  i INT:= 1;
+  j INT:= 3;
+BEGIN
+  WHILE i<=j
+  LOOP
+    a:= a + i;
+    i:= i + 1;
+  END LOOP;
+END;
+/
+DELIMITER ;/
+SET @v=0;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+DELIMITER /;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+  i INT:= 1;
+  j INT:= 3;
+BEGIN
+  <<label>>
+  WHILE i<=j
+  LOOP
+    a:= a + i;
+    i:= i + 1;
+  END LOOP label;
+END;
+/
+DELIMITER ;/
+SET @v=0;
 CALL p1(@v);
 SELECT @v;
 DROP PROCEDURE p1;
