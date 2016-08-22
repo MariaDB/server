@@ -3015,8 +3015,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     scan_time= read_time= DBL_MAX;
   if (limit < records)
     read_time= (double) records + scan_time + 1; // Force to use index
-  else if (read_time <= 2.0 && !force_quick_range)
-    DBUG_RETURN(0);				/* No need for quick select */
   
   possible_keys.clear_all();
 
@@ -3284,7 +3282,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     thd->mem_root= param.old_root;
     thd->no_errors=0;
   }
-
 
   DBUG_EXECUTE("info", print_quick(quick, &needed_reg););
 
