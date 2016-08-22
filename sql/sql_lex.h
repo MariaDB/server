@@ -3120,6 +3120,8 @@ public:
   bool sp_push_loop_empty_label(THD *thd);
   bool sp_pop_loop_label(THD *thd, const LEX_STRING label_name);
   void sp_pop_loop_empty_label(THD *thd);
+  bool sp_while_loop_expression(THD *thd, Item *expr);
+  bool sp_while_loop_finalize(THD *thd);
 
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
