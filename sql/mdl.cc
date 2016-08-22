@@ -443,7 +443,9 @@ public:
   virtual void notify_conflicting_locks(MDL_context *ctx) = 0;
 
   virtual bitmap_t hog_lock_types_bitmap() const = 0;
+#ifndef DBUG_OFF
   bool check_if_conflicting_replication_locks(MDL_context *ctx);
+#endif
 
   /** List of granted tickets for this lock. */
   Ticket_list m_granted;
@@ -2303,16 +2305,23 @@ void MDL_scoped_lock::notify_conflicting_locks(MDL_context *ctx)
   and trying to get an exclusive lock for the table.
 */
 
+#ifndef DBUG_OFF
 bool MDL_lock::check_if_conflicting_replication_locks(MDL_context *ctx)
 {
   Ticket_iterator it(m_granted);
   MDL_ticket *conflicting_ticket;
+  rpl_group_info *rgi_slave= ctx->get_thd()->rgi_slave;
+
+  if (!rgi_slave->gtid_sub_id)
+    return 0;
 
   while ((conflicting_ticket= it++))
   {
     if (conflicting_ticket->get_ctx() != ctx)
     {
       MDL_context *conflicting_ctx= conflicting_ticket->get_ctx();
+      rpl_group_info *conflicting_rgi_slave;
+      conflicting_rgi_slave= conflicting_ctx->get_thd()->rgi_slave;
 
       /*
         If the conflicting thread is another parallel replication
@@ -2320,15 +2329,18 @@ bool MDL_lock::check_if_conflicting_replication_locks(MDL_context *ctx)
         the current transaction has started too early and something is
         seriously wrong.
       */
-      if (conflicting_ctx->get_thd()->rgi_slave &&
-          conflicting_ctx->get_thd()->rgi_slave->rli ==
-          ctx->get_thd()->rgi_slave->rli &&
-          !conflicting_ctx->get_thd()->rgi_slave->did_mark_start_commit)
+      if (conflicting_rgi_slave &&
+          conflicting_rgi_slave->gtid_sub_id &&
+          conflicting_rgi_slave->rli == rgi_slave->rli &&
+          conflicting_rgi_slave->current_gtid.domain_id ==
+          rgi_slave->current_gtid.domain_id &&
+          !conflicting_rgi_slave->did_mark_start_commit)
         return 1;                               // Fatal error
     }
   }
   return 0;
 }
+#endif
 
 
 /**

@@ -5899,7 +5899,7 @@ sub start_mysqltest ($) {
   {
     # We are running server under valgrind, which causes some replication
     # test to be much slower, notable rpl_mdev6020.  Increase timeout.
-    mtr_add_arg($args, "--wait-for-pos-timeout=1500");
+    mtr_add_arg($args, "--wait-for-pos-timeout=0");
   }
 
   if ( $opt_ssl )
