@@ -1,6 +1,4 @@
-START SLAVE USER='root';
-Warnings:
-Note	1759	Sending passwords in plain text without SSL/TLS is extremely insecure.
+START SLAVE;
 SET SESSION binlog_format='STATEMENT';
 CREATE TABLE t1 (
 i int(11) NOT NULL AUTO_INCREMENT,

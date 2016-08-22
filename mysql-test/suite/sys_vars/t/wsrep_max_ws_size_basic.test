@@ -6,6 +6,7 @@
 
 --echo # save the initial value
 SET @wsrep_max_ws_size_global_saved = @@global.wsrep_max_ws_size;
+SET @wsrep_provider_options_saved = @@global.wsrep_provider_options;
 
 --echo # default
 SELECT @@global.wsrep_max_ws_size;
@@ -41,5 +42,6 @@ SELECT @global.wsrep_max_ws_size;
 --echo
 --echo # restore the initial value
 SET @@global.wsrep_max_ws_size = @wsrep_max_ws_size_global_saved;
+SET @@global.wsrep_provider_options = @wsrep_provider_options_saved;
 
 --echo # End of test

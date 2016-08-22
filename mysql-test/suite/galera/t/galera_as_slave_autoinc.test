@@ -5,7 +5,6 @@
 #
 
 --source include/have_innodb.inc
---source include/have_log_bin.inc
 
 # As node #1 is not a Galera node, we connect to node #2 in order to run include/galera_cluster.inc
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
@@ -13,9 +12,9 @@
 
 --connection node_2
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_1;
+--eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1;
 --enable_query_log
-START SLAVE USER='root';
+START SLAVE;
 
 --connection node_1
 

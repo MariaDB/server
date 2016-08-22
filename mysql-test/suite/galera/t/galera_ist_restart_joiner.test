@@ -9,6 +9,12 @@
 --source include/have_debug_sync.inc
 --source suite/galera/include/galera_have_debug_sync.inc
 
+# Save original auto_increment_offset values.
+--connection node_1
+let $auto_increment_offset_node_1 = `SELECT @@global.auto_increment_offset`;
+--connection node_2
+let $auto_increment_offset_node_2 = `SELECT @@global.auto_increment_offset`;
+
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
 INSERT INTO t1 VALUES (1, 'a'), (2, 'a'), (3, 'a'), (4, 'a'), (5, 'a'),(6, 'a');
 
@@ -106,3 +112,12 @@ SELECT COUNT(*) = 0 FROM t3;
 
 --connection node_1
 DROP TABLE t1, t2, t3;
+
+# Restore original auto_increment_offset values.
+--disable_query_log
+--connection node_1
+--eval SET @@global.auto_increment_offset = $auto_increment_offset_node_1;
+--connection node_2
+--eval SET @@global.auto_increment_offset = $auto_increment_offset_node_2;
+--enable_query_log
+

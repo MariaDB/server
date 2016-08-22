@@ -3,10 +3,11 @@
 #
 # save the initial value
 SET @wsrep_max_ws_size_global_saved = @@global.wsrep_max_ws_size;
+SET @wsrep_provider_options_saved = @@global.wsrep_provider_options;
 # default
 SELECT @@global.wsrep_max_ws_size;
 @@global.wsrep_max_ws_size
-1073741824
+2147483647
 
 # scope
 SELECT @@session.wsrep_max_ws_size;
@@ -55,4 +56,5 @@ NULL
 
 # restore the initial value
 SET @@global.wsrep_max_ws_size = @wsrep_max_ws_size_global_saved;
+SET @@global.wsrep_provider_options = @wsrep_provider_options_saved;
 # End of test
