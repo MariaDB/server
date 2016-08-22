@@ -677,3 +677,62 @@ f1()
 1
 DROP FUNCTION f1;
 DROP TABLE t1;
+# Testing RETURN in procedures
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+RETURN 10;
+END;
+/
+ERROR 42000: RETURN is only allowed in a FUNCTION
+CREATE FUNCTION f1 (a INT) RETURN INT
+AS
+BEGIN
+RETURN;
+END;
+/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ';
+END' at line 1
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+IF a < 10 THEN
+BEGIN
+a:= a - 1;
+RETURN;
+END;
+END IF;
+a:= a + 1;
+EXCEPTION
+WHEN OTHERS THEN RETURN;
+END;
+/
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+11
+SET @v=9;
+CALL p1(@v);
+SELECT @v;
+@v
+8
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+DROP TABLE t1_non_existent;
+EXCEPTION
+WHEN OTHERS THEN
+BEGIN
+a:= 100;
+RETURN;
+END;
+END;
+/
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+100
+DROP PROCEDURE p1;

@@ -1039,6 +1039,41 @@ private:
 }; // class sp_instr_jump_if_not : public sp_instr_jump
 
 
+class sp_instr_preturn : public sp_instr
+{
+  sp_instr_preturn(const sp_instr_preturn &);	/**< Prevent use of these */
+  void operator=(sp_instr_preturn &);
+
+public:
+
+  sp_instr_preturn(uint ip, sp_pcontext *ctx)
+    : sp_instr(ip, ctx)
+  {}
+
+  virtual ~sp_instr_preturn()
+  {}
+
+  virtual int execute(THD *thd, uint *nextp)
+  {
+    DBUG_ENTER("sp_instr_preturn::execute");
+    *nextp= UINT_MAX;
+    DBUG_RETURN(0);
+  }
+
+  virtual void print(String *str)
+  {
+    str->append(STRING_WITH_LEN("preturn"));
+  }
+
+  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
+  {
+    marked= 1;
+    return UINT_MAX;
+  }
+
+}; // class sp_instr_preturn : public sp_instr
+
+
 class sp_instr_freturn : public sp_instr
 {
   sp_instr_freturn(const sp_instr_freturn &);	/**< Prevent use of these */

@@ -528,3 +528,35 @@ SELECT @v;
 @v
 105
 DROP PROCEDURE p1;
+# Testing RETURN in procedures
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+IF a < 10 THEN
+BEGIN
+a:= a + 1;
+RETURN;
+END;
+END IF;
+a:= 200;
+EXCEPTION
+WHEN OTHERS THEN
+BEGIN
+a:= 100;
+RETURN;
+END;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump 6
+1	jump_if_not 4(4) (a@0 < 10)
+2	set a@0 (a@0 + 1)
+3	preturn
+4	set a@0 200
+5	jump 9
+6	hpush_jump 1 1 EXIT
+7	set a@0 100
+8	preturn
+9	hpop 1
+DROP PROCEDURE p1;
