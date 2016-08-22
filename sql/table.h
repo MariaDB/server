@@ -352,6 +352,9 @@ int find_field_index_in_hash(LEX_STRING * hash_lex, const char * field_name);
 int fields_in_hash_str(LEX_STRING *hash_lex);
 
 Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index);
+
+int get_key_part_length(KEY *keyinfo, int index);
+
 /**
   Category of table found in the table share.
 */

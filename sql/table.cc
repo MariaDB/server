@@ -7977,7 +7977,7 @@ Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index)
   char field_name[100]; // 100 is enough i think
   int temp_index= 0;
   char *str= hash_str->str;
-  int i= strlen("hash"), j;
+  int i= HA_HASH_STR_LEN, j;
   Field **f, *field;
   while (i < hash_str->length)
   {
@@ -7999,95 +7999,14 @@ Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index)
   return field;
 }
 
-/*
-  Remove field name from db_row_hash_* column vcol info str
-  For example
-
-  hash(`abc`,`xyz`)
-  remove "abc" will return
-  0 and hash_str will be set hash(`xyz`) and length will be set
-
-  hash(`xyz`)
-  remove "xyz" will return
-  0 and hash_str will be set NULL and length will be 0
-  hash(`xyz`)
-  remove "xyzff" will return
-  1 no change to hash_str and length
-  TODO a better and less complex logic
-*/
-int rem_field_from_hash_col_str(LEX_STRING * hash_lex, const char * field_name)
+//TODO documentation
+int get_key_part_length(KEY *keyinfo, int index)
 {
-   /* first of all find field_name in hash_str*/
-  char * temp= hash_lex->str;
-  const char * t_field= field_name;
-  int i= find_field_name_in_hash(temp, field_name, hash_lex->length);
-  if ( i != -1)
-  {
-    /*
-      We found the field location
-      First of all we need to find the
-      , position and there can be three
-      situations
-      1. two , not a problem remove any one
-      2. one , remove this
-      3  no , return
-   */
-    // see if there is , before field name
-    int j= strlen(field_name);
-    if (*(temp + i -j-2) == ',')
-    {
-      hash_lex->length= hash_lex->length- j-2-1;//-2 for two '`' and -1 for ','
-      memmove(temp+i-j-2, temp+i+1, hash_lex->length);
-      return 0;
-    }
-    if (*(temp+i+1) == ',')
-    {
-      hash_lex->length= hash_lex->length-j-2-1;//-2 for two '`' and -1 for ','
-      memmove(temp+i-j-1, temp+i+2, hash_lex->length);
-      return 0;
-    }
-    if (*(temp+i+1) == ')')
-    {
-      hash_lex->length= 0;
-      hash_lex->str= NULL;
-      return 0;
-    }
-  }
-  return 1;
-}
-/*   returns 1 if old_name not found in hash_lex 0 other wise*/
-int  change_field_from_hash_col_str(LEX_STRING * hash_lex, const char * old_name,
-                                    char * new_name)
-{
-  /* first of all find field_name in hash_lex*/
-  char * temp= hash_lex->str;
-  const char * t_field= old_name;
-  int i= find_field_name_in_hash(temp, old_name, hash_lex->length);
-  if (i != -1)
-  {
-    int len= hash_lex->length-strlen(old_name) + strlen(new_name);
-    int num= 0;
-    char  temp_arr[len];
-    int s_c_position= i - strlen(old_name);//here it represent the posotion of
-                                          //'`' before old f_name
-    for (int index= 0; index < len; index++)
-    {
-      if (index >= s_c_position && index < s_c_position+strlen(new_name))
-      {
-        temp_arr[index]= new_name[index-s_c_position];
-        continue;
-      }
-      if (index >= s_c_position+strlen(new_name))
-      {
-        temp_arr[index]= temp[i+num];
-        num++;
-        continue;
-      }
-      temp_arr[index]= temp[index];
-    }
-    strcpy(hash_lex->str, temp_arr);
-    hash_lex->length= len;
-    return 0;
-  }
-  return 1;
+  DBUG_ASSERT(keyinfo->flags & HA_UNIQUE_HASH);
+  TABLE *tbl= keyinfo->table;
+  LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
+      Field *fld= field_ptr_in_hash_str(ls, tbl, index);
+  if (!index)
+    return fld->pack_length()+HA_HASH_KEY_LENGTH_WITH_NULL+1;
+  return fld->pack_length()+1;
 }

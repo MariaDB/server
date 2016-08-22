@@ -2494,6 +2494,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
       KEY_PART_INFO *key_part_info;
       uint n_key_parts= head->actual_n_key_parts_including_long_unique(key_info);
 
+      bool is_hash_key= key_info->flags & HA_UNIQUE_HASH;
       if (!keys_to_use.is_set(idx))
 	continue;
       if (key_info->flags & HA_FULLTEXT)
@@ -2509,6 +2510,9 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 	key_parts->part=	 part;
 	key_parts->length=       key_part_info->length;
 	key_parts->store_length= key_part_info->store_length;
+	if (is_hash_key)
+		key_parts->length= key_parts->store_length=
+											 get_key_part_length(key_info, part);
         cur_key_len += key_part_info->store_length;
 	key_parts->field=	 key_part_info->field;
 	key_parts->null_bit=	 key_part_info->null_bit;
@@ -7611,7 +7615,6 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
       if (find_field_index_in_hash(ls, field->field_name) == key_part->part)
       {
         key_part->field= field;
-        key_part->store_length= key_part->length= field->pack_length();
       }
     }
     if (field->eq(key_part->field))
@@ -7920,16 +7923,16 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
         field->table->key_info[key_part->key].flags & HA_UNIQUE_HASH
         && field->flags & BLOB_FLAG)
   {
-    key_part->store_length= key_part->length= field->pack_length()+1
-         + (!key_part->part ? HA_HASH_KEY_LENGTH_WITH_NULL : 0);
-    //we will store hash in 1st key part
-    //TODO atleast use some good logic
+    String tt;
+    field->val_str(&tt);
     str= (uchar*) alloc_root(alloc, key_part->store_length);
-    str[0]= 0;
     if (!str)
       goto end;
     if (!key_part->part)
+    {
+      str[0]= 0;
       str+= HA_HASH_KEY_LENGTH_WITH_NULL;
+    }
     *str= (uchar) field->is_real_null();
     memcpy(str+1, field->ptr, field->pack_length());
     if (!key_part->part)
@@ -10575,7 +10578,7 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
         if (key_tree->part == fields_in_hash_str(ls)-1)
         {
           //what is there is a null
-          flag|= UNIQUE_RANGE;
+         // flag|= UNIQUE_RANGE;
         }
       }
     }
