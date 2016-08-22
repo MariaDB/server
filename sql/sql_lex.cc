@@ -5618,6 +5618,31 @@ void LEX::sp_pop_loop_empty_label(THD *thd)
 }
 
 
+bool LEX::sp_while_loop_expression(THD *thd, Item *expr)
+{
+  sp_instr_jump_if_not *i= new (thd->mem_root)
+    sp_instr_jump_if_not(sphead->instructions(), spcont, expr, this);
+  return i == NULL ||
+         /* Jumping forward */
+         sphead->push_backpatch(thd, i, spcont->last_label()) ||
+         sphead->new_cont_backpatch(i) ||
+         sphead->add_instr(i);
+}
+
+
+bool LEX::sp_while_loop_finalize(THD *thd)
+{
+  sp_label *lab= spcont->last_label();  /* Jumping back */
+  sp_instr_jump *i= new (thd->mem_root)
+    sp_instr_jump(sphead->instructions(), spcont, lab->ip);
+  if (i == NULL ||
+      sphead->add_instr(i))
+    return true;
+  sphead->do_cont_backpatch();
+  return false;
+}
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 

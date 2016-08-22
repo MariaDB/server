@@ -3488,30 +3488,15 @@ while_body:
           expr LOOP_SYM
           {
             LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            uint ip= sp->instructions();
-            sp_instr_jump_if_not *i= new (thd->mem_root)
-              sp_instr_jump_if_not(ip, lex->spcont, $1, lex);
-            if (i == NULL ||
-                /* Jumping forward */
-                sp->push_backpatch(thd, i, lex->spcont->last_label()) ||
-                sp->new_cont_backpatch(i) ||
-                sp->add_instr(i))
+            if (lex->sp_while_loop_expression(thd, $1))
               MYSQL_YYABORT;
-            if (sp->restore_lex(thd))
+            if (lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
           sp_proc_stmts1 END LOOP_SYM
           {
-            LEX *lex= Lex;
-            uint ip= lex->sphead->instructions();
-            sp_label *lab= lex->spcont->last_label();  /* Jumping back */
-            sp_instr_jump *i= new (thd->mem_root)
-              sp_instr_jump(ip, lex->spcont, lab->ip);
-            if (i == NULL ||
-                lex->sphead->add_instr(i))
+            if (Lex->sp_while_loop_finalize(thd))
               MYSQL_YYABORT;
-            lex->sphead->do_cont_backpatch();
           }
         ;
 
