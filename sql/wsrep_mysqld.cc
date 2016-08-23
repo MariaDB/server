@@ -169,7 +169,7 @@ static PSI_file_info wsrep_files[]=
 
 my_bool wsrep_inited                   = 0; // initialized ?
 
-static const wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
+static wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
 static char         cluster_uuid_str[40]= { 0, };
 static const char*  cluster_status_str[WSREP_VIEW_MAX] =
 {
