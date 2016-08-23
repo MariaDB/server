@@ -3055,7 +3055,7 @@ public:
                                       LEX_STRING name);
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
-                                         const Lex_field_type_st &type,
+                                         const Column_definition &cdef,
                                          Item *def);
   bool sp_handler_declaration_init(THD *thd, int type);
   bool sp_handler_declaration_finalize(THD *thd, int type);
