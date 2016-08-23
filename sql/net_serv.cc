@@ -831,7 +831,7 @@ my_real_read(NET *net, size_t *complen,
   size_t length;
   uint i,retry_count=0;
   ulong len=packet_error;
-  my_bool expect_error_packet __attribute((unused))= 0;
+  my_bool expect_error_packet __attribute__((unused))= 0;
   thr_alarm_t alarmed;
 #ifndef NO_ALARM
   ALARM alarm_buff;
