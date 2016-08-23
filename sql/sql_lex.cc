@@ -5199,7 +5199,7 @@ void LEX::sp_variable_declarations_init(THD *thd, int nvars)
 }
 
 bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
-                                            const Lex_field_type_st &type,
+                                            const Column_definition &cdef,
                                             Item *dflt_value_item)
 {
   uint num_vars= spcont->context_var_count();
@@ -5219,7 +5219,7 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
       return true;
 
     if (!last)
-      spvar->field_def= *last_field;
+      spvar->field_def= cdef;
 
     spvar->default_value= dflt_value_item;
     spvar->field_def.field_name= spvar->name.str;
@@ -5233,7 +5233,7 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
     sp_instr_set *is= new (this->thd->mem_root)
                        sp_instr_set(sphead->instructions(),
                                     spcont, var_idx, dflt_value_item,
-                                    type.field_type(), this, last);
+                                    spvar->field_def.sql_type, this, last);
     if (is == NULL || sphead->add_instr(is))
       return true;
   }

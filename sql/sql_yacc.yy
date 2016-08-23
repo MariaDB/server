@@ -2967,7 +2967,8 @@ sp_decl_body:
           type_with_opt_collate
           sp_opt_default
           {
-            if (Lex->sp_variable_declarations_finalize(thd, $1, $3, $4))
+            if (Lex->sp_variable_declarations_finalize(thd, $1,
+                                                       Lex->last_field[0], $4))
               MYSQL_YYABORT;
             $$.vars= $1;
             $$.conds= $$.hndlrs= $$.curs= 0;
