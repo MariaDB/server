@@ -477,7 +477,7 @@ static void* sst_joiner_thread (void* a)
       } else {
         // Scan state ID first followed by wsrep_gtid_domain_id.
         char uuid[512];
-        long int domain_id;
+        unsigned long int domain_id;
         size_t len= pos - out + 1;
 
         if (len > sizeof(uuid)) goto err;       // safety check
@@ -491,11 +491,11 @@ static void* sst_joiner_thread (void* a)
         else if (wsrep_gtid_mode)
         {
           errno= 0;                             /* Reset the errno */
-          domain_id= strtol(pos + 1, NULL, 10);
+          domain_id= strtoul(pos + 1, NULL, 10);
           err= errno;
 
           /* Check if we received a valid gtid_domain_id. */
-          if (err == EINVAL || err == ERANGE || domain_id < 0x0 || domain_id > 0xFFFF)
+          if (err == EINVAL || err == ERANGE)
           {
             WSREP_ERROR("Failed to get donor wsrep_gtid_domain_id.");
             err= EINVAL;
