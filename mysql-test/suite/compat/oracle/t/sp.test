@@ -963,3 +963,36 @@ SELECT f1(2, 1, 2, 2) FROM DUAL;
 SELECT f1(2, 2, 2, 2) FROM DUAL;
 SELECT f1(2, 3, 2, 3) FROM DUAL;
 DROP FUNCTION f1;
+
+
+--echo # Testing labeled ITERATE in a labeled FOR LOOP statement
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT, b INT, blim INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  <<la>>
+  FOR ia IN 1 .. a
+  LOOP
+    total:= total + 1000;
+    DECLARE
+      ib INT:= 1;
+    BEGIN
+      WHILE ib <= b
+      LOOP
+        IF ib > blim THEN
+          ITERATE la;
+        END IF;
+        ib:= ib + 1;
+        total:= total + 1;
+      END LOOP;
+    END;
+  END LOOP la;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1(3,3,0), f1(3,3,1), f1(3,3,2), f1(3,3,3), f1(3,3,4) FROM DUAL;
+DROP FUNCTION f1;

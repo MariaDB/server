@@ -674,6 +674,16 @@ public:
   class sp_variable *m_index;
   class sp_variable *m_upper_bound;
   int m_direction;
+  void init()
+  {
+    m_index= 0;
+    m_upper_bound= 0;
+    m_direction= 0;
+  }
+  void init(const Lex_for_loop_st &other)
+  {
+    *this= other;
+  }
 };
 
 

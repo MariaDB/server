@@ -677,3 +677,123 @@ SELECT f1(2, 3, 2, 3) FROM DUAL;
 f1(2, 3, 2, 3)
 2004
 DROP FUNCTION f1;
+# Testing labeled ITERATE in a labeled FOR LOOP
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+BEGIN
+<<li>>
+FOR i IN 1 .. a
+LOOP
+total:= total + 1000;
+IF i = 5 THEN
+ITERATE li;
+END IF;
+total:= total + 1;
+END LOOP;
+RETURN total;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@1 0
+1	set i@2 1
+2	set [upper_bound]@3 a@0
+3	jump_if_not 11(11) (i@2 <= [upper_bound]@3)
+4	set total@1 (total@1 + 1000)
+5	jump_if_not 8(8) (i@2 = 5)
+6	set i@2 (i@2 + 1)
+7	jump 3
+8	set total@1 (total@1 + 1)
+9	set i@2 (i@2 + 1)
+10	jump 3
+11	freturn 3 total@1
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+f1(3)	f1(4)	f1(5)	f1(6)
+3003	4004	5004	6005
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+BEGIN
+<<li>>
+FOR i IN 1 .. a
+LOOP
+FOR j IN 1 .. 2
+LOOP
+total:= total + 1000;
+IF i = 5 THEN
+ITERATE li;
+END IF;
+total:= total + 1;
+END LOOP;
+END LOOP;
+RETURN total;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@1 0
+1	set i@2 1
+2	set [upper_bound]@3 a@0
+3	jump_if_not 16(16) (i@2 <= [upper_bound]@3)
+4	set j@4 1
+5	set [upper_bound]@5 2
+6	jump_if_not 14(14) (j@4 <= [upper_bound]@5)
+7	set total@1 (total@1 + 1000)
+8	jump_if_not 11(11) (i@2 = 5)
+9	set i@2 (i@2 + 1)
+10	jump 3
+11	set total@1 (total@1 + 1)
+12	set j@4 (j@4 + 1)
+13	jump 6
+14	set i@2 (i@2 + 1)
+15	jump 3
+16	freturn 3 total@1
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+f1(3)	f1(4)	f1(5)	f1(6)
+6006	8008	9008	11010
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+BEGIN
+<<lj>>
+FOR j IN 1 .. 2
+LOOP
+<<li>>
+FOR i IN 1 .. a
+LOOP
+total:= total + 1000;
+IF i = 5 THEN
+ITERATE li;
+END IF;
+total:= total + 1;
+END LOOP;
+END LOOP;
+RETURN total;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@1 0
+1	set j@2 1
+2	set [upper_bound]@3 2
+3	jump_if_not 16(16) (j@2 <= [upper_bound]@3)
+4	set i@4 1
+5	set [upper_bound]@5 a@0
+6	jump_if_not 14(14) (i@4 <= [upper_bound]@5)
+7	set total@1 (total@1 + 1000)
+8	jump_if_not 11(11) (i@4 = 5)
+9	set i@4 (i@4 + 1)
+10	jump 6
+11	set total@1 (total@1 + 1)
+12	set i@4 (i@4 + 1)
+13	jump 6
+14	set j@2 (j@2 + 1)
+15	jump 3
+16	freturn 3 total@1
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+f1(3)	f1(4)	f1(5)	f1(6)
+6006	8008	10008	12010
+DROP FUNCTION f1;

@@ -268,6 +268,12 @@ public:
     HANDLER_SCOPE
   };
 
+  class Lex_for_loop: public Lex_for_loop_st
+  {
+  public:
+    Lex_for_loop() { init(); }
+  };
+
 public:
   sp_pcontext();
   ~sp_pcontext();
@@ -513,6 +519,15 @@ public:
   uint current_cursor_count() const
   { return m_cursor_offset + m_cursors.elements(); }
 
+  void set_for_loop(const Lex_for_loop_st &for_loop)
+  {
+    m_for_loop.init(for_loop);
+  }
+  const Lex_for_loop_st &for_loop()
+  {
+    return m_for_loop;
+  }
+
 private:
   /// Constructor for a tree node.
   /// @param prev the parent parsing context
@@ -583,6 +598,9 @@ private:
 
   /// Scope of this parsing context.
   enum_scope m_scope;
+
+  /// FOR LOOP characteristics
+  Lex_for_loop m_for_loop;
 }; // class sp_pcontext : public Sql_alloc
 
 
