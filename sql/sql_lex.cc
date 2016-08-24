@@ -5317,6 +5317,7 @@ bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
 */
 bool LEX::sp_for_loop_index_and_bounds(THD *thd, const Lex_for_loop_st &loop)
 {
+  spcont->set_for_loop(loop);
   sphead->reset_lex(thd);
   if (thd->lex->sp_for_loop_condition(thd, loop))
     return true;
@@ -5673,6 +5674,15 @@ bool LEX::sp_iterate_statement(THD *thd, const LEX_STRING label_name)
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "ITERATE", label_name.str);
     return true;
+  }
+  if (lab->ctx->for_loop().m_index)
+  {
+    // We're in a FOR loop, increment the index variable before backward jump
+    sphead->reset_lex(thd);
+    DBUG_ASSERT(this != thd->lex);
+    if (thd->lex->sp_for_loop_increment(thd, lab->ctx->for_loop()) ||
+        thd->lex->sphead->restore_lex(thd))
+      return true;
   }
   return sp_change_context(thd, lab->ctx, false) ||
          sphead->add_instr_jump(thd, spcont, lab->ip); /* Jump back */
