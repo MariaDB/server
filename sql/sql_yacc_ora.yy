@@ -3575,6 +3575,30 @@ sp_labeled_control:
           }
           while_body pop_sp_loop_label
           { }
+        | label_declaration_oracle FOR_SYM
+          {
+            // See "The FOR LOOP statement" comments in sql_lex.cc
+            Lex->sp_block_init(thd); // The outer DECLARE..BEGIN..END block
+          }
+          sp_for_loop_index_and_bounds
+          {
+            if (Lex->sp_push_loop_label(thd, $1)) // The inner WHILE block
+              MYSQL_YYABORT;
+            if (Lex->sp_for_loop_index_and_bounds(thd, $4))
+              MYSQL_YYABORT;
+          }
+          LOOP_SYM
+          sp_proc_stmts1
+          END LOOP_SYM
+          {
+            if (Lex->sp_for_loop_finalize(thd, $4))
+              MYSQL_YYABORT;
+          }
+          pop_sp_loop_label                    // The inner WHILE block
+          {
+            if (Lex->sp_block_finalize(thd))   // The outer DECLARE..BEGIN..END
+              MYSQL_YYABORT;
+          }
         | label_declaration_oracle REPEAT_SYM
           {
             if (Lex->sp_push_loop_label(thd, $1))

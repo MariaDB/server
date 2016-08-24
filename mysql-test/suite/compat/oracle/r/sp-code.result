@@ -627,3 +627,53 @@ SELECT f1(3, 2) FROM DUAL;
 f1(3, 2)
 5
 DROP FUNCTION f1;
+# Testing labeled FOR LOOP statement
+CREATE FUNCTION f1 (a INT, limita INT, b INT, limitb INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+<<la>>
+FOR ia IN 1 .. a
+LOOP
+total:= total + 1000;
+<<lb>>
+FOR ib IN 1 .. b
+LOOP
+total:= total + 1;
+EXIT lb WHEN ib = limitb;
+EXIT la WHEN ia = limita;
+END LOOP lb;
+END LOOP la;
+RETURN total;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@4 0
+1	set ia@5 1
+2	set [upper_bound]@6 a@0
+3	jump_if_not 17(17) (ia@5 <= [upper_bound]@6)
+4	set total@4 (total@4 + 1000)
+5	set ib@7 1
+6	set [upper_bound]@8 b@2
+7	jump_if_not 15(15) (ib@7 <= [upper_bound]@8)
+8	set total@4 (total@4 + 1)
+9	jump_if_not 11(0) (ib@7 = limitb@3)
+10	jump 15
+11	jump_if_not 13(0) (ia@5 = limita@1)
+12	jump 17
+13	set ib@7 (ib@7 + 1)
+14	jump 7
+15	set ia@5 (ia@5 + 1)
+16	jump 3
+17	freturn 3 total@4
+SELECT f1(2, 1, 2, 2) FROM DUAL;
+f1(2, 1, 2, 2)
+1001
+SELECT f1(2, 2, 2, 2) FROM DUAL;
+f1(2, 2, 2, 2)
+2003
+SELECT f1(2, 3, 2, 3) FROM DUAL;
+f1(2, 3, 2, 3)
+2004
+DROP FUNCTION f1;
