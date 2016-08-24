@@ -66,6 +66,8 @@ sub skip_combinations {
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
        and $1 ge "1.0.1d";
 
+  use Data::Dumper;
+  print "Skip combinations:", Dumper(\%skip);
   %skip;
 }
 
