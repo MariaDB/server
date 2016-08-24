@@ -366,7 +366,7 @@ int compare_hash_and_fetch_next(JOIN_TAB *tab)
       {
         Field *fld,*table_fld;
         fld= c->from_field;
-        table_fld= field_ptr_in_hash_str(ls, table, find_field_index_in_hash(
+        table_fld= field_ptr_in_hash_str(ls, table->s, find_field_index_in_hash(
                                            ls, fld->field_name));
         while (true)
         {
@@ -387,7 +387,7 @@ int compare_hash_and_fetch_next(JOIN_TAB *tab)
       {
         Field *fld;
         String field_data, *item_data;
-        fld= field_ptr_in_hash_str(ls, table, counter);
+        fld= field_ptr_in_hash_str(ls, table->s, counter);
         fld->val_str(&field_data);
         item_data= i->val_str();
         while (true)
@@ -19138,7 +19138,7 @@ int find_unique_hash_record(TABLE *table, JOIN_TAB *tab)
       }
       // need to find the corresponding field to which keyuse corrosponds in
       // hash str
-      field= field_ptr_in_hash_str(ls, table, keyuse->keypart);
+      field= field_ptr_in_hash_str(ls, table->s, keyuse->keypart);
       field->val_str(&other_str);
       str= keyuse->val->val_str();
       field->val_str(&other_str);

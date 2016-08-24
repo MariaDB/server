@@ -4309,6 +4309,61 @@ handler::ha_drop_table(const char *name)
   return drop_table(name);
 }
 
+//TODO documentation
+void setup_table_hash(TABLE *table)
+{
+  uint extra_key_part_hash= 0;
+  KEY *s_keyinfo= table->s->key_info;
+  KEY *keyinfo= table->key_info;
+  for (uint i= 0; i < table->s->keys; i++, s_keyinfo++, keyinfo++)
+  {
+    if (s_keyinfo->flags & HA_UNIQUE_HASH)
+    {
+      extra_key_part_hash+= s_keyinfo->ext_key_parts;
+      keyinfo->key_part= keyinfo->key_part+ s_keyinfo->ext_key_parts;
+      s_keyinfo->key_part= s_keyinfo->key_part + s_keyinfo->ext_key_parts;
+      s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
+          s_keyinfo->ext_key_parts= 1;
+      s_keyinfo->key_length= HA_HASH_KEY_LENGTH_WITH_NULL;     
+      keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
+          keyinfo->ext_key_parts= 1;
+      keyinfo->key_length= HA_HASH_KEY_LENGTH_WITH_NULL;
+    }
+  }
+  table->s->key_parts-= extra_key_part_hash;
+  table->s->ext_key_parts-= extra_key_part_hash;
+}
+
+//TODO documentation
+
+void re_setup_table(TABLE *table)
+{
+  uint extra_key_part_hash= 0, key_length= 0;
+  KEY *s_keyinfo= table->s->key_info;
+  KEY *keyinfo= table->key_info;
+  for (uint i= 0; i < table->s->keys; i++, s_keyinfo++, keyinfo++)
+  {
+    if (s_keyinfo->flags & HA_UNIQUE_HASH)
+    {
+      LEX_STRING *ls= &s_keyinfo->key_part->field->vcol_info->expr_str;
+      uint hash_parts= fields_in_hash_str(ls);
+      s_keyinfo->key_part= s_keyinfo->key_part- hash_parts;
+      s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
+          s_keyinfo->ext_key_parts= hash_parts;
+      keyinfo->key_part= keyinfo->key_part- hash_parts;
+      keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
+          keyinfo->ext_key_parts= hash_parts;
+      extra_key_part_hash+= hash_parts;
+      for (uint i= 0; i < hash_parts; i++)
+      {
+        key_length+= keyinfo->key_part[i].field->pack_length();
+      }
+      s_keyinfo->key_length= keyinfo->key_length= key_length;
+    }
+  }
+  table->s->key_parts+= extra_key_part_hash;
+  table->s->ext_key_parts+= extra_key_part_hash;
+}
 
 /**
   Create a table in the engine: public interface.
@@ -4321,7 +4376,9 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
 {
   DBUG_ASSERT(m_lock_type == F_UNLCK);
   mark_trx_read_write();
+  setup_table_hash(form);
   int error= create(name, form, info_arg);
+  re_setup_table(form);
   if (!error &&
       !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)))
     mysql_audit_create_table(form);
@@ -5910,14 +5967,13 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
     if (table->key_info[i].flags & HA_UNIQUE_HASH)
     {
       hash_field= table->key_info[i].key_part->field;
-      DBUG_ASSERT(table->key_info[i].key_length == HA_HASH_KEY_LENGTH_WITH_NULL);
       uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
 
       if (hash_field->is_null())
         continue;
 
       key_copy(ptr, new_rec, &table->key_info[i],
-                      table->key_info[i].key_length, false);
+                      HA_HASH_KEY_LENGTH_WITH_NULL, false);
 
       if (!table->check_unique_buf)
         table->check_unique_buf= (uchar *)alloc_root(&table->mem_root,
@@ -6040,7 +6096,7 @@ int handler::ha_write_row(uchar *buf)
               m_lock_type == F_WRLCK);
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
-
+  setup_table_hash(table);
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
@@ -6051,6 +6107,7 @@ int handler::ha_write_row(uchar *buf)
                       { error= write_row(buf); })
 
   MYSQL_INSERT_ROW_DONE(error);
+  re_setup_table(table);
   if (likely(!error))
   {
     rows_changed++;

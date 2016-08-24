@@ -10322,7 +10322,7 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
       LEX_STRING *ls= & param->table->key_info[keynr].key_part->
                                    field->vcol_info->expr_str;
       fieldnr= (field_ptr_in_hash_str(ls,
-                param->table, kp - table_key->key_part))->field_index;
+                param->table->s, kp - table_key->key_part))->field_index;
     }
     else
       fieldnr= param->table->key_info[keynr].
@@ -10442,7 +10442,7 @@ void  set_hash(LEX_STRING *ls, TABLE *table, uchar *key)
       is_null= true;
       break;
     }
-    Field *fld= field_ptr_in_hash_str(ls, table, i);
+    Field *fld= field_ptr_in_hash_str(ls, table->s, i);
     String str;
     CHARSET_INFO *cs;
     uchar l[4];

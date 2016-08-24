@@ -665,7 +665,6 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   share->init_from_binary_frm_image(thd, false, buf, frmlen);
   error_given= true; // init_from_binary_frm_image has already called my_error()
   my_free(buf);
-
   goto err_not_open;
 
 err:
@@ -1863,10 +1862,187 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
     DBUG_ASSERT((null_pos + (null_bit_pos + 7) / 8) <= share->field[0]->ptr);
   }
+  /* Handle virtual expressions */
+  if (vcol_screen_length && share->frm_version >= FRM_VER_EXPRESSSIONS)
+  {
+    uchar *vcol_screen_end= vcol_screen_pos + vcol_screen_length;
 
+    /* Skip header */
+    vcol_screen_pos+= FRM_VCOL_NEW_BASE_SIZE;
+
+    /*
+      Read virtual columns, default values and check constraints
+      See pack_expression() for how data is stored
+    */
+    while (vcol_screen_pos < vcol_screen_end)
+    {
+      Virtual_column_info *vcol_info;
+      uint type=         (uint) vcol_screen_pos[0];
+      uint field_nr=     uint2korr(vcol_screen_pos+1);
+      uint expr_length=  uint2korr(vcol_screen_pos+3);
+      uint name_length=  (uint) vcol_screen_pos[5];
+      LEX_STRING name;
+      char *expr;
+
+      vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
+
+      name.str= 0;
+      if ((name.length= name_length))
+      {
+        if (!(name.str= strmake_root(&share->mem_root,
+                                     (char*) vcol_screen_pos,
+                                     name_length)))
+          goto err;
+      }
+      vcol_screen_pos+= name_length;
+      if (!(vcol_info=   new (&share->mem_root) Virtual_column_info()) ||
+          !(expr= (char *) strmake_root(&share->mem_root,
+                                        (char*) vcol_screen_pos,
+                                        expr_length)))
+        goto err;
+      vcol_info->name= name;
+
+      /* The following can only be true for check_constraints */
+      if (field_nr != UINT_MAX16)
+      {
+        DBUG_ASSERT(field_nr < share->fields);
+        reg_field= share->field[field_nr];
+      }
+
+      vcol_info->expr_str.str=    expr;
+      vcol_info->expr_str.length= expr_length;
+      vcol_screen_pos+=           expr_length;
+
+      switch (type) {
+      case 0:                                   // Generated virtual field
+      {
+        uint recpos;
+        reg_field->vcol_info= vcol_info;
+        share->virtual_fields++;
+        share->stored_fields--;
+        /* Correct stored_rec_length as non stored fields are last */
+        recpos= (uint) (reg_field->ptr - record);
+        if (share->stored_rec_length >= recpos)
+          share->stored_rec_length= recpos-1;
+        break;
+      }
+      case 1:                                   // Generated stored field
+        vcol_info->stored_in_db= 1;
+        reg_field->vcol_info= vcol_info;
+        share->virtual_fields++;
+        share->virtual_stored_fields++;         // For insert/load data
+        break;
+      case 2:                                   // Default expression
+        vcol_info->stored_in_db= 1;
+        reg_field->default_value=    vcol_info;
+        share->default_expressions++;
+        break;
+      case 3:                                   // Field check constraint
+        reg_field->check_constraint= vcol_info;
+        share->field_check_constraints++;
+        break;
+      case 4:                                   // Table check constraint
+        *(table_check_constraints++)= vcol_info;
+        break;
+      }
+    }
+  }
   /* Fix key->name and key_part->field */
   if (key_parts)
   {
+    /*
+      Here we will create pseduo keyparts for key_info of long
+      unique columns
+      Suppose a create table def
+        create table t1 (a blob , b blob , c blob, unique(a,b,c));
+      then for storage level there will be only one key_part which
+      will store hash , but for server level there will be 4 key_parts
+      first 3 for a,b,c and last one for DB_ROW_HASH_ but key_info->
+      user_defined_keyparts will be just 3 , if we want to access
+      DB_ROW_HASH_ then we can simple use
+      key_info->key_part[key_info->user_define_keyparts]
+      Please note we require continues buffer , so we had to free previous
+      key_info and key_part  buffer and make a new one
+     */
+    if (field_properties && share->keys) //if long columns are index then this must be true
+    {
+      KEY *temp_key= share->key_info;
+      KEY *new_key_info;
+      KEY *new_temp_key_info;
+      uint extra_key_parts_hash= 0;
+      // first crea
+      for (uint i=0; i < share->keys; i++,temp_key++)
+      {
+        if (temp_key->user_defined_key_parts == 1 &&
+             share->field[temp_key->key_part->fieldnr-1]->is_long_column_hash)
+        {
+          LEX_STRING *ls= &share->field[temp_key->key_part->fieldnr-1]->
+                                          vcol_info->expr_str;
+          uint hash_parts= fields_in_hash_str(ls);
+          extra_key_parts_hash+= hash_parts;
+        }
+      }
+      if (extra_key_parts_hash != ext_key_parts)
+      {
+        key_parts+= extra_key_parts_hash;
+        share->key_parts= key_parts;
+        ext_key_parts+= extra_key_parts_hash;
+        share->ext_key_parts= ext_key_parts;
+        new_key_info= new_temp_key_info=  (KEY *)alloc_root(&share->mem_root, keys *
+                         sizeof(KEY) + ext_key_parts * sizeof(KEY_PART_INFO));
+        KEY_PART_INFO *h_part, *t_part;
+        h_part= t_part= reinterpret_cast<KEY_PART_INFO *>(new_key_info + keys);
+        temp_key= share->key_info;
+        uint key_length= 0;
+        memcpy(new_key_info, share->key_info, keys * sizeof(KEY));
+        for (uint i=0; i < share->keys; i++, temp_key++, new_temp_key_info++)
+        {
+          if (temp_key->user_defined_key_parts == 1 &&
+              share->field[temp_key->key_part->fieldnr-1]->is_long_column_hash)
+          {
+            LEX_STRING *ls= &share->field[temp_key->key_part->fieldnr-1]->
+                vcol_info->expr_str;
+            uint hash_parts= fields_in_hash_str(ls);
+            uint offset= temp_key->key_part->offset;
+            for (uint j=0; j<hash_parts; j++, t_part++)
+            {
+              t_part->field= field_ptr_in_hash_str(ls, share, j);
+              Field *fld, **f;
+              uint16 fieldnr= 1;
+              for (f= share->field; f && (fld= *f); f++, fieldnr++)
+                if (fld->eq(t_part->field))
+                  break;
+              t_part->fieldnr= fieldnr;
+              t_part->key_type= 0;
+              t_part->key_part_flag=0;
+              t_part->store_length= t_part->length= fld->pack_length();
+              key_length+= t_part->length;
+              t_part->offset= offset;
+              offset+= fld->pack_length();
+            }
+            memcpy(t_part, temp_key->key_part, sizeof(KEY_PART_INFO));
+            t_part->field= share->field[temp_key->key_part->fieldnr-1];
+            t_part++;
+            new_temp_key_info->key_part= h_part;
+            new_temp_key_info->key_length= key_length;
+            new_temp_key_info->flags|= HA_UNIQUE_HASH;
+            new_temp_key_info->user_defined_key_parts= new_temp_key_info->
+                usable_key_parts= new_temp_key_info->ext_key_parts= hash_parts;
+            h_part= t_part;
+          }
+          else
+          {
+            // simply copy the  key_part into new buffer
+            memcpy(h_part, temp_key->key_part,
+                     temp_key->ext_key_parts * sizeof(KEY_PART_INFO));
+            new_temp_key_info->key_part= h_part;
+            h_part+= temp_key->ext_key_parts;
+          }
+        }
+        //my_free(share->key_info);
+        share->key_info= new_key_info;
+      }
+    }
     uint add_first_key_parts= 0;
     longlong ha_option= handler_file->ha_table_flags();
     keyinfo= share->key_info;
@@ -2003,6 +2179,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       key_part= keyinfo->key_part;
       uint key_parts= share->use_ext_keys ? keyinfo->ext_key_parts :
 	                                    keyinfo->user_defined_key_parts;
+			if (key_info->flags & HA_UNIQUE_HASH)
+				key_parts++;
       for (i=0; i < key_parts; key_part++, i++)
       {
         Field *field;
@@ -2016,16 +2194,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
         field= key_part->field= share->field[key_part->fieldnr-1];
         key_part->type= field->key_type();
-        /*
-          Add HA_UNIQUE_HASH flag if keyinfo has only one field
-          and field has is_long_column_hash flag on
-        */
-        if (keyinfo->user_defined_key_parts == 1 &&
-             field->is_long_column_hash)
-        {
-          keyinfo->flags|= HA_UNIQUE_HASH;
-          keyinfo->ext_key_flags|= HA_UNIQUE_HASH;
-        }
         if (field->null_ptr)
         {
           key_part->null_offset=(uint) ((uchar*) field->null_ptr -
@@ -2071,12 +2239,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           }
           if (handler_file->index_flags(key, i, 1) & HA_READ_ORDER)
             field->part_of_sortkey.set_bit(key);
-        }
-        if (keyinfo->flags & HA_UNIQUE_HASH)
-        {
-//          LEX_STRING *ls =  &keyinfo->key_part->field->vcol_info->expr_str;
-//          if (find_field_index_in_hash(ls,field->field_name))
-//            field->hash_key_map.set_bit(key);
         }
         if (!(key_part->key_part_flag & HA_REVERSE_SORT) &&
             usable_parts == i)
@@ -2157,7 +2319,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         set_if_bigger(share->max_unique_length,keyinfo->key_length);
       if (keyinfo->flags & HA_UNIQUE_HASH)
       {
-        keyinfo->ext_key_parts= 1;
+        keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
         keyinfo->ext_key_part_map= 0;
       }
     }
@@ -2193,91 +2355,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           null_length, 255);
   }
 
-  /* Handle virtual expressions */
-  if (vcol_screen_length && share->frm_version >= FRM_VER_EXPRESSSIONS)
-  {
-    uchar *vcol_screen_end= vcol_screen_pos + vcol_screen_length;
 
-    /* Skip header */
-    vcol_screen_pos+= FRM_VCOL_NEW_BASE_SIZE;
-
-    /*
-      Read virtual columns, default values and check constraints
-      See pack_expression() for how data is stored
-    */
-    while (vcol_screen_pos < vcol_screen_end)
-    {
-      Virtual_column_info *vcol_info;
-      uint type=         (uint) vcol_screen_pos[0];
-      uint field_nr=     uint2korr(vcol_screen_pos+1);
-      uint expr_length=  uint2korr(vcol_screen_pos+3);
-      uint name_length=  (uint) vcol_screen_pos[5];
-      LEX_STRING name;
-      char *expr;
-
-      vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
-
-      name.str= 0;
-      if ((name.length= name_length))
-      {
-        if (!(name.str= strmake_root(&share->mem_root,
-                                     (char*) vcol_screen_pos,
-                                     name_length)))
-          goto err;
-      }
-      vcol_screen_pos+= name_length;
-      if (!(vcol_info=   new (&share->mem_root) Virtual_column_info()) ||
-          !(expr= (char *) strmake_root(&share->mem_root,
-                                        (char*) vcol_screen_pos,
-                                        expr_length)))
-        goto err;
-      vcol_info->name= name;
-
-      /* The following can only be true for check_constraints */
-      if (field_nr != UINT_MAX16)
-      {
-        DBUG_ASSERT(field_nr < share->fields);
-        reg_field= share->field[field_nr];
-      }
-
-      vcol_info->expr_str.str=    expr;
-      vcol_info->expr_str.length= expr_length;
-      vcol_screen_pos+=           expr_length;
-
-      switch (type) {
-      case 0:                                   // Generated virtual field
-      {
-        uint recpos;
-        reg_field->vcol_info= vcol_info;
-        share->virtual_fields++;
-        share->stored_fields--;
-        /* Correct stored_rec_length as non stored fields are last */
-        recpos= (uint) (reg_field->ptr - record);
-        if (share->stored_rec_length >= recpos)
-          share->stored_rec_length= recpos-1;
-        break;
-      }
-      case 1:                                   // Generated stored field
-        vcol_info->stored_in_db= 1;
-        reg_field->vcol_info= vcol_info;
-        share->virtual_fields++;
-        share->virtual_stored_fields++;         // For insert/load data
-        break;
-      case 2:                                   // Default expression
-        vcol_info->stored_in_db= 1;
-        reg_field->default_value=    vcol_info;
-        share->default_expressions++;
-        break;
-      case 3:                                   // Field check constraint
-        reg_field->check_constraint= vcol_info;
-        share->field_check_constraints++;
-        break;
-      case 4:                                   // Table check constraint
-        *(table_check_constraints++)= vcol_info;
-        break;
-      }
-    }
-  }
   DBUG_ASSERT((table_check_constraints - share->check_constraints) ==
               share->table_check_constraints - share->field_check_constraints);
 
@@ -3099,22 +3177,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
              field->has_update_default_function()))
           *(dfield_ptr++)= *field_ptr;
 
-    }
-    /* Set field hash map*/
-    key_info= outparam->key_info;
-    for ( uint i=0; i < outparam->s->keys; i++, key_info++)
-    {
-      if (key_info->flags & HA_UNIQUE_HASH)
-      {
-        LEX_STRING *ls= &key_info->key_part->field->vcol_info->expr_str;
-        int num_of_fields= fields_in_hash_str(ls);
-        for (int j= 0; j < num_of_fields; j++)
-        {
-          field= field_ptr_in_hash_str(ls, outparam, j);
-          field->hash_key_map.init();
-          field->hash_key_map.set_bit(i);
-        }
-      }
     }
     *vfield_ptr= 0;                            // End marker
     *dfield_ptr= 0;                            // End marker
@@ -7972,7 +8034,7 @@ int fields_in_hash_str(LEX_STRING * hash_lex)
    hash(`abc`,`xyz`)
    index 1 will return pointer to xyz field
 */
-Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index)
+Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE_SHARE *s, int index)
 {
   char field_name[100]; // 100 is enough i think
   int temp_index= 0;
@@ -7991,7 +8053,7 @@ Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index)
   for (j= 0; str[i+j] !=  '`'; j++)
     field_name[j]= str[i+j];
   field_name[j]= '\0';
-  for (f= table->field; f && (field= *f); f++)
+  for (f= s->field; f && (field= *f); f++)
   {
     if (!my_strcasecmp(system_charset_info, field->field_name, field_name))
       break;
@@ -8005,7 +8067,7 @@ int get_key_part_length(KEY *keyinfo, int index)
   DBUG_ASSERT(keyinfo->flags & HA_UNIQUE_HASH);
   TABLE *tbl= keyinfo->table;
   LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
-      Field *fld= field_ptr_in_hash_str(ls, tbl, index);
+      Field *fld= field_ptr_in_hash_str(ls, tbl->s, index);
   if (!index)
     return fld->pack_length()+HA_HASH_KEY_LENGTH_WITH_NULL+1;
   return fld->pack_length()+1;

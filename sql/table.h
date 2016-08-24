@@ -351,7 +351,7 @@ int find_field_index_in_hash(LEX_STRING * hash_lex, const char * field_name);
 
 int fields_in_hash_str(LEX_STRING *hash_lex);
 
-Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE *table, int index);
+Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE_SHARE *s, int index);
 
 int get_key_part_length(KEY *keyinfo, int index);
 
@@ -674,6 +674,9 @@ struct TABLE_SHARE
   uint rec_buff_length;                 /* Size of table->record[] buffer */
   uint keys, key_parts;
   uint ext_key_parts;       /* Total number of key parts in extended keys */
+  /* these are pseduo keyparts created for long unique columns
+     these does not exist at storage engine level*/
+  uint extra_key_parts;
   uint max_key_length, max_unique_length, total_key_length;
   uint uniques;                         /* Number of UNIQUE index */
   uint null_fields;			/* number of null fields */

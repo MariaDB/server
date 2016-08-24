@@ -3249,6 +3249,12 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
               temp_colms->field_name.str, sql_field->field_name))
     {}
     it.rewind();
+    if (!sql_field)
+    {
+      my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0),
+                      temp_colms->field_name.str);
+      return 1;
+    }
     /*
       There should be only one key for db_row_hash_* column
       we need to give user a error when the accidently query
@@ -3260,7 +3266,7 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
       for this we will iterate through the key_list and
       find if and key_part has the same name as of temp_name
      */
-    if (!sql_field || sql_field->is_long_column_hash)
+    if (sql_field->is_long_column_hash)
     {
       my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), temp_name);
       return 1;
@@ -7948,7 +7954,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       for (uint j= 0; j < num_of_keyparts; j++, k_parts++)
       {
         //we only need field length and type
-        k_parts->field= field_ptr_in_hash_str(ls, table, j);
+        k_parts->field= field_ptr_in_hash_str(ls, table->s, j);
         k_parts->length= 0;
         k_parts->type= k_parts->field->key_type();
       }

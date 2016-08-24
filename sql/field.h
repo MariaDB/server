@@ -683,10 +683,6 @@ public:
     For example, INDEX (col(prefix_n)) is not present in col.part_of_sortkey.
   */
   key_map       part_of_sortkey;
-  // temp key_map can be removed later basically for hash keys
-  // we do not need map like key_start because hash_key can only be used when all
-  // keyparts are present
-  key_map       hash_key_map;
   /*
     We use three additional unireg types for TIMESTAMP to overcome limitation
     of current binary format of .frm file. We'd like to be able to support

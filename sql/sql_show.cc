@@ -6231,7 +6231,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           Field *fld;
           while (counter < total_fields)
           {
-            fld= field_ptr_in_hash_str(ls, show_table, counter);
+            fld= field_ptr_in_hash_str(ls, show_table->s, counter);
             if(print_get_schema_stat_keypart(thd, tables, table,
                                              show_table, db_name,
                                              table_name, key_info,
@@ -6638,7 +6638,7 @@ static int get_schema_key_column_usage_record(THD *thd,
 
         while (counter < total_fields)
         {
-          fld= field_ptr_in_hash_str(ls, show_table, counter);
+          fld= field_ptr_in_hash_str(ls, show_table->s, counter);
           counter++;
           restore_record(table, s->default_values);
           store_key_column_usage(table, db_name, table_name,
