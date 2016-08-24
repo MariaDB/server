@@ -4318,9 +4318,9 @@ void setup_table_hash(TABLE *table)
   KEY *s_keyinfo= table->s->key_info;
   KEY *keyinfo= table->key_info;
   /*
-     Sometime s_keyinfo can be null so
+     Sometime s_keyinfo and key_info can be null. So
      two different loop for keyinfo and s_keyinfo
-     ref test case:- main.subselect_sj2
+     reference test case:- main.subselect_sj2
    */
 
   if (keyinfo)
@@ -4345,14 +4345,19 @@ void setup_table_hash(TABLE *table)
     {
       if (s_keyinfo->flags & HA_UNIQUE_HASH)
       {
+        extra_key_part_hash+= s_keyinfo->ext_key_parts;
         s_keyinfo->key_part= s_keyinfo->key_part+ s_keyinfo->ext_key_parts;
         s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
             s_keyinfo->ext_key_parts= 1;
         s_keyinfo->key_length= HA_HASH_KEY_LENGTH_WITH_NULL;
       }
     }
+    if (!keyinfo)
+    {
+      table->s->key_parts-= extra_key_part_hash;
+      table->s->ext_key_parts-= extra_key_part_hash;
+    }
   }
-
 }
 
 //TODO documentation
@@ -4400,12 +4405,18 @@ void re_setup_table(TABLE *table)
         s_keyinfo->key_part= s_keyinfo->key_part- hash_parts;
         s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
             s_keyinfo->ext_key_parts= hash_parts;
+        extra_key_part_hash+= hash_parts;
         for (uint i= 0; i < hash_parts; i++)
         {
           key_length+= s_keyinfo->key_part[i].field->pack_length();
         }
         s_keyinfo->key_length= key_length;
       }
+    }
+    if (!keyinfo)
+    {
+      table->s->key_parts+= extra_key_part_hash;
+      table->s->ext_key_parts+= extra_key_part_hash;
     }
   }
 }
@@ -6147,7 +6158,10 @@ int handler::ha_write_row(uchar *buf)
   increment_statistics(&SSV::ha_write_count);
 
   if ((error= check_duplicate_long_entries(table, table->file, buf, -1)))
+  {
+    re_setup_table(table);
     DBUG_RETURN(error);
+  }
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
                       { error= write_row(buf); })
 
@@ -6182,7 +6196,10 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   increment_statistics(&SSV::ha_update_count);
 
   if ((error= check_duplicate_long_entries_update(table, table->file, new_data)))
+  {
+    re_setup_table(table);
     return error;
+  }
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})
 
