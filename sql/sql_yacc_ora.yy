@@ -177,6 +177,7 @@ void ORAerror(THD *thd, const char *s)
   Lex_cast_type_st Lex_cast_type;
   Lex_field_type_st Lex_field_type;
   Lex_dyncol_type_st Lex_dyncol_type;
+  Lex_for_loop_st for_loop;
 
   /* pointers */
   Create_field *create_field;
@@ -260,10 +261,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 102 shift/reduce conflicts.
+  Currently there are 103 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 102
+%expect 103
 
 /*
    Comments for TOKENS.
@@ -434,6 +435,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  DOUBLE_SYM                    /* SQL-2003-R */
 %token  DO_DOMAIN_IDS_SYM
 %token  DO_SYM
+%token  DOT_DOT_SYM
 %token  DROP                          /* SQL-2003-R */
 %token  DUAL_SYM
 %token  DUMPFILE
@@ -1278,6 +1280,8 @@ END_OF_INPUT
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
+%type <for_loop> sp_for_loop_index_and_bounds
+%type <num> opt_sp_for_loop_direction
 %type <spvar_mode> sp_opt_inout
 %type <index_hint> index_hint_type
 %type <num> index_hint_clause normal_join inner_join
@@ -3471,6 +3475,32 @@ exception_handler:
           }
         ;
 
+/* This adds one shift/reduce conflict */
+opt_sp_for_loop_direction:
+            /* Empty */ { $$= 1; }
+          | REVERSE_SYM { $$= -1; }
+        ;
+
+sp_for_loop_index_and_bounds:
+          ident_directly_assignable
+          {
+            Lex->sphead->reset_lex(thd);
+          }
+          IN_SYM opt_sp_for_loop_direction expr
+          {
+            if (!($<spvar>$= Lex->sp_add_for_loop_variable(thd, $1, $5)))
+              MYSQL_YYABORT;
+            Lex->sphead->reset_lex(thd);
+          }
+          DOT_DOT_SYM expr
+          {
+            $$.m_index= $<spvar>6;
+            if (!($$.m_upper_bound= Lex->sp_add_for_loop_upper_bound(thd, $8)))
+              MYSQL_YYABORT;
+            $$.m_direction= $4;
+          }
+        ;
+
 loop_body:
           sp_proc_stmts1 END LOOP_SYM
           {
@@ -3573,6 +3603,28 @@ sp_unlabeled_control:
           while_body
           {
             Lex->sp_pop_loop_empty_label(thd);
+          }
+        | FOR_SYM
+          {
+            // See "The FOR LOOP statement" comments in sql_lex.cc
+            Lex->sp_block_init(thd); // The outer DECLARE..BEGIN..END block
+          }
+          sp_for_loop_index_and_bounds
+          {
+            if (Lex->sp_push_loop_empty_label(thd)) // The inner WHILE block
+              MYSQL_YYABORT;
+            if (Lex->sp_for_loop_index_and_bounds(thd, $3))
+              MYSQL_YYABORT;
+          }
+          LOOP_SYM
+          sp_proc_stmts1
+          END LOOP_SYM
+          {
+            if (Lex->sp_for_loop_finalize(thd, $3))
+              MYSQL_YYABORT;
+            Lex->sp_pop_loop_empty_label(thd); // The inner WHILE block
+            if (Lex->sp_block_finalize(thd))   // The outer DECLARE..BEGIN..END
+              MYSQL_YYABORT;
           }
         | REPEAT_SYM
           {

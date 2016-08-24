@@ -3850,6 +3850,19 @@ public:
     interval_list.empty();
   }
 
+  Column_definition(const char *name, enum_field_types type):
+    field_name(name),
+    comment(null_lex_str),
+    on_update(0), sql_type(type), length(0), decimals(0),
+    flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
+    interval(0), charset(&my_charset_bin),
+    srid(0), geom_type(Field::GEOM_GEOMETRY),
+    option_list(NULL),
+    vcol_info(0), default_value(0), check_constraint(0)
+  {
+    interval_list.empty();
+  }
+
   Column_definition(THD *thd, Field *field, Field *orig_field);
   void set_attributes(const Lex_field_type_st &type, CHARSET_INFO *cs);
   void create_length_to_internal_length(void);

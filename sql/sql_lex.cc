@@ -2007,8 +2007,13 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 
       /* Actually real shouldn't start with . but allow them anyhow */
     case MY_LEX_REAL_OR_POINT:
-      if (my_isdigit(cs,lip->yyPeek()))
+      if (my_isdigit(cs,(c= lip->yyPeek())))
 	state = MY_LEX_REAL;		// Real
+      else if (c == '.')
+      {
+        lip->yySkip();
+        return DOT_DOT_SYM;
+      }
       else
       {
 	state= MY_LEX_IDENT_SEP;	// return '.'
@@ -5242,6 +5247,123 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
   return sphead->restore_lex(thd);
 }
 
+
+/**********************************************************************
+  The FOR LOOP statement
+
+  This syntax:
+    FOR i IN lower_bound .. upper_bound
+    LOOP
+      statements;
+    END LOOP;
+
+  is translated into:
+
+    DECLARE
+      i INT := lower_bound;
+      j INT := upper_bound;
+    BEGIN
+      WHILE i <= j
+      LOOP
+        statements;
+        i:= i + 1;
+      END LOOP;
+    END;
+*/
+
+
+sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_STRING name,
+                                           Item *value)
+{
+  sp_variable *spvar= spcont->add_variable(thd, name);
+  spcont->declare_var_boundary(1);
+  spvar->field_def= Column_definition(spvar->name.str, MYSQL_TYPE_LONGLONG);
+  if (sp_variable_declarations_finalize(thd, 1, spvar->field_def, value))
+    return NULL;
+  return spvar;
+}
+
+
+/**
+  Generate a code for a FOR loop condition:
+  - Make Item_splocal for the FOR loop index variable
+  - Make Item_splocal for the FOR loop upper bound variable
+  - Make a comparison function item on top of these two variables
+*/
+bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
+{
+  Item_splocal *args[2];
+  for (uint i= 0 ; i < 2; i++)
+  {
+    sp_variable *src= i == 0 ? loop.m_index : loop.m_upper_bound;
+    args[i]= new (thd->mem_root)
+              Item_splocal(thd, src->name, src->offset, src->sql_type());
+    if (args[i] == NULL)
+      return true;
+#ifndef DBUG_OFF
+    args[i]->m_sp= sphead;
+#endif
+  }
+
+  Item *expr= loop.m_direction > 0 ?
+    (Item *) new (thd->mem_root) Item_func_le(thd, args[0], args[1]) :
+    (Item *) new (thd->mem_root) Item_func_ge(thd, args[0], args[1]);
+  return !expr || sp_while_loop_expression(thd, expr);
+}
+
+
+/**
+  Generate the FOR LOOP condition code in its own lex
+*/
+bool LEX::sp_for_loop_index_and_bounds(THD *thd, const Lex_for_loop_st &loop)
+{
+  sphead->reset_lex(thd);
+  if (thd->lex->sp_for_loop_condition(thd, loop))
+    return true;
+  return thd->lex->sphead->restore_lex(thd);
+}
+
+
+/**
+  Generate a code for a FOR loop index increment
+*/
+bool LEX::sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop)
+{
+  Item_splocal *splocal= new (thd->mem_root)
+    Item_splocal(thd, loop.m_index->name, loop.m_index->offset,
+                      loop.m_index->sql_type());
+  if (splocal == NULL)
+    return true;
+#ifndef DBUG_OFF
+  splocal->m_sp= sphead;
+#endif
+  Item_int *inc= new (thd->mem_root) Item_int(thd, loop.m_direction);
+  if (!inc)
+    return true;
+  Item *expr= new (thd->mem_root) Item_func_plus(thd, splocal, inc);
+  if (!expr || set_local_variable(loop.m_index, expr))
+    return true;
+  return false;
+}
+
+
+bool LEX::sp_for_loop_finalize(THD *thd, const Lex_for_loop_st &loop)
+{
+  sphead->reset_lex(thd);
+
+  // Generate FOR LOOP index increment in its own lex
+  DBUG_ASSERT(this != thd->lex);
+  if (thd->lex->sp_for_loop_increment(thd, loop) ||
+      thd->lex->sphead->restore_lex(thd))
+    return true;
+
+  // Generate a jump to the beginning of the loop
+  DBUG_ASSERT(this == thd->lex);
+  return sp_while_loop_finalize(thd);
+}
+
+
+/***************************************************************************/
 
 bool LEX::sp_declare_cursor(THD *thd, const LEX_STRING name, LEX *cursor_stmt)
 {

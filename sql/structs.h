@@ -668,4 +668,14 @@ public:
   }
 };
 
+
+struct Lex_for_loop_st
+{
+public:
+  class sp_variable *m_index;
+  class sp_variable *m_upper_bound;
+  int m_direction;
+};
+
+
 #endif /* STRUCTS_INCLUDED */
