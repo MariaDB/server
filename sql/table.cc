@@ -1969,7 +1969,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       KEY *temp_key= share->key_info;
       KEY *new_key_info;
       KEY *new_temp_key_info;
-      uint extra_key_parts_hash= 0;
+      uint extra_key_parts_hash= ext_key_parts;
       // first crea
       for (uint i=0; i < share->keys; i++,temp_key++)
       {
@@ -2026,6 +2026,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             new_temp_key_info->key_part= h_part;
             new_temp_key_info->key_length= key_length;
             new_temp_key_info->flags|= HA_UNIQUE_HASH;
+            new_temp_key_info->ext_key_flags|= HA_UNIQUE_HASH;
             new_temp_key_info->user_defined_key_parts= new_temp_key_info->
                 usable_key_parts= new_temp_key_info->ext_key_parts= hash_parts;
             h_part= t_part;
@@ -2207,9 +2208,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             keyinfo->flags|=HA_NULL_PART_KEY;
           keyinfo->key_length+= HA_KEY_NULL_LENGTH;
         }
-        if (field->type() == MYSQL_TYPE_BLOB ||
+        if ((field->type() == MYSQL_TYPE_BLOB ||
             field->real_type() == MYSQL_TYPE_VARCHAR ||
-            field->type() == MYSQL_TYPE_GEOMETRY)
+            field->type() == MYSQL_TYPE_GEOMETRY) &&
+             !(keyinfo->flags & HA_UNIQUE_HASH))
         {
           if (field->type() == MYSQL_TYPE_BLOB ||
               field->type() == MYSQL_TYPE_GEOMETRY)
@@ -2260,7 +2262,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
               field->part_of_sortkey= share->keys_in_use;
           }
         }
-        if (field->key_length() != key_part->length)
+        if (field->key_length() != key_part->length &&
+            !(keyinfo->flags & HA_UNIQUE_HASH))
         {
 #ifndef TO_BE_DELETED_ON_PRODUCTION
           if (field->type() == MYSQL_TYPE_NEWDECIMAL)
@@ -2302,7 +2305,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (!(key_part->key_part_flag & (HA_BLOB_PART | HA_VAR_LENGTH_PART |
                                          HA_BIT_PART)) &&
             key_part->type != HA_KEYTYPE_FLOAT &&
-            key_part->type == HA_KEYTYPE_DOUBLE)
+            key_part->type == HA_KEYTYPE_DOUBLE &&
+            !(keyinfo->flags & HA_UNIQUE_HASH))
           key_part->key_part_flag|= HA_CAN_MEMCMP;
       }
       keyinfo->usable_key_parts= usable_parts; // Filesort
@@ -3054,6 +3058,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 
       key_part_end= key_part + (share->use_ext_keys ? key_info->ext_key_parts :
 			                              key_info->user_defined_key_parts) ;
+			if (key_info->flags & HA_UNIQUE_HASH)
+				key_part_end++;
       for ( ; key_part < key_part_end; key_part++)
       {
         Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];

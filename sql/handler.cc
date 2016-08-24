@@ -100,7 +100,8 @@ uint known_extensions_id= 0;
 static int commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans,
                               bool is_real_trans);
 
-
+void setup_table_hash(TABLE *table);
+void re_setup_table(TABLE *table);
 static plugin_ref ha_default_plugin(THD *thd)
 {
   if (thd->variables.table_plugin)
@@ -2487,7 +2488,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
              ("name: %s  db_type: %d  db_stat: %d  mode: %d  lock_test: %d",
               name, ht->db_type, table_arg->db_stat, mode,
               test_if_locked));
-
+  setup_table_hash(table_arg);
   table= table_arg;
   DBUG_ASSERT(table->s == table_share);
   DBUG_ASSERT(m_lock_type == F_UNLCK);
@@ -2503,6 +2504,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
       error=open(name,O_RDONLY,test_if_locked);
     }
   }
+  re_setup_table(table_arg);
   if (error)
   {
     my_errno= error;                            /* Safeguard */
@@ -4315,23 +4317,42 @@ void setup_table_hash(TABLE *table)
   uint extra_key_part_hash= 0;
   KEY *s_keyinfo= table->s->key_info;
   KEY *keyinfo= table->key_info;
-  for (uint i= 0; i < table->s->keys; i++, s_keyinfo++, keyinfo++)
+  /*
+     Sometime s_keyinfo can be null so
+     two different loop for keyinfo and s_keyinfo
+     ref test case:- main.subselect_sj2
+   */
+
+  if (keyinfo)
   {
-    if (s_keyinfo->flags & HA_UNIQUE_HASH)
+    for (uint i= 0; i < table->s->keys; i++, keyinfo++)
     {
-      extra_key_part_hash+= s_keyinfo->ext_key_parts;
-      keyinfo->key_part= keyinfo->key_part+ s_keyinfo->ext_key_parts;
-      s_keyinfo->key_part= s_keyinfo->key_part + s_keyinfo->ext_key_parts;
-      s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
-          s_keyinfo->ext_key_parts= 1;
-      s_keyinfo->key_length= HA_HASH_KEY_LENGTH_WITH_NULL;     
-      keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
-          keyinfo->ext_key_parts= 1;
-      keyinfo->key_length= HA_HASH_KEY_LENGTH_WITH_NULL;
+      if (keyinfo->flags & HA_UNIQUE_HASH)
+      {
+        extra_key_part_hash+= keyinfo->ext_key_parts;
+        keyinfo->key_part= keyinfo->key_part+ keyinfo->ext_key_parts;
+        keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
+            keyinfo->ext_key_parts= 1;
+        keyinfo->key_length= HA_HASH_KEY_LENGTH_WITH_NULL;
+      }
     }
   }
   table->s->key_parts-= extra_key_part_hash;
   table->s->ext_key_parts-= extra_key_part_hash;
+  if (s_keyinfo)
+  {
+    for (uint i= 0; i < table->s->keys; i++, s_keyinfo++)
+    {
+      if (s_keyinfo->flags & HA_UNIQUE_HASH)
+      {
+        s_keyinfo->key_part= s_keyinfo->key_part+ s_keyinfo->ext_key_parts;
+        s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
+            s_keyinfo->ext_key_parts= 1;
+        s_keyinfo->key_length= HA_HASH_KEY_LENGTH_WITH_NULL;
+      }
+    }
+  }
+
 }
 
 //TODO documentation
@@ -4341,28 +4362,52 @@ void re_setup_table(TABLE *table)
   uint extra_key_part_hash= 0, key_length= 0;
   KEY *s_keyinfo= table->s->key_info;
   KEY *keyinfo= table->key_info;
-  for (uint i= 0; i < table->s->keys; i++, s_keyinfo++, keyinfo++)
+  /*
+     Sometime s_keyinfo can be null so
+     two different loop for keyinfo and s_keyinfo
+     ref test case:- main.subselect_sj2
+   */
+  if (keyinfo)
   {
-    if (s_keyinfo->flags & HA_UNIQUE_HASH)
+    for (uint i= 0; i < table->s->keys; i++, keyinfo++)
     {
-      LEX_STRING *ls= &s_keyinfo->key_part->field->vcol_info->expr_str;
-      uint hash_parts= fields_in_hash_str(ls);
-      s_keyinfo->key_part= s_keyinfo->key_part- hash_parts;
-      s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
-          s_keyinfo->ext_key_parts= hash_parts;
-      keyinfo->key_part= keyinfo->key_part- hash_parts;
-      keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
-          keyinfo->ext_key_parts= hash_parts;
-      extra_key_part_hash+= hash_parts;
-      for (uint i= 0; i < hash_parts; i++)
+      if (keyinfo->flags & HA_UNIQUE_HASH)
       {
-        key_length+= keyinfo->key_part[i].field->pack_length();
+        LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
+        uint hash_parts= fields_in_hash_str(ls);
+        keyinfo->key_part= keyinfo->key_part- hash_parts;
+        keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
+            keyinfo->ext_key_parts= hash_parts;
+        extra_key_part_hash+= hash_parts;
+        for (uint i= 0; i < hash_parts; i++)
+        {
+          key_length+= keyinfo->key_part[i].field->pack_length();
+        }
+        keyinfo->key_length= key_length;
       }
-      s_keyinfo->key_length= keyinfo->key_length= key_length;
     }
   }
   table->s->key_parts+= extra_key_part_hash;
   table->s->ext_key_parts+= extra_key_part_hash;
+  if (s_keyinfo)
+  {
+    for (uint i= 0; i < table->s->keys; i++, s_keyinfo++)
+    {
+      if (s_keyinfo->flags & HA_UNIQUE_HASH)
+      {
+        LEX_STRING *ls= &s_keyinfo->key_part->field->vcol_info->expr_str;
+        uint hash_parts= fields_in_hash_str(ls);
+        s_keyinfo->key_part= s_keyinfo->key_part- hash_parts;
+        s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
+            s_keyinfo->ext_key_parts= hash_parts;
+        for (uint i= 0; i < hash_parts; i++)
+        {
+          key_length+= s_keyinfo->key_part[i].field->pack_length();
+        }
+        s_keyinfo->key_length= key_length;
+      }
+    }
+  }
 }
 
 /**
