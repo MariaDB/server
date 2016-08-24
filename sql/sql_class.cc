@@ -5249,7 +5249,11 @@ void THD::get_definer(LEX_USER *definer, bool role)
 {
   binlog_invoker(role);
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+#ifdef WITH_WSREP
+  if ((wsrep_applier || slave_thread) && has_invoker())
+#else
   if (slave_thread && has_invoker())
+#endif
   {
     definer->user = invoker_user;
     definer->host= invoker_host;

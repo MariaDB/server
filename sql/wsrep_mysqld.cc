@@ -1236,6 +1236,12 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
   case SQLCOM_ALTER_EVENT:
     buf_err= wsrep_alter_event_query(thd, &buf, &buf_len);
     break;
+  case SQLCOM_CREATE_ROLE:
+    if (sp_process_definer(thd))
+    {
+      WSREP_WARN("Failed to set CREATE ROLE definer for TOI.");
+    }
+    /* fallthrough */
   default:
     buf_err= wsrep_to_buf_helper(thd, thd->query(), thd->query_length(), &buf,
                                  &buf_len);
