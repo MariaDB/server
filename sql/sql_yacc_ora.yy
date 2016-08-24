@@ -1264,6 +1264,7 @@ END_OF_INPUT
 %type <NONE> sp_proc_stmt_if
 %type <NONE> sp_labeled_control sp_unlabeled_control
 %type <NONE> sp_labeled_block sp_unlabeled_block sp_unlabeled_block_not_atomic
+%type <NONE> sp_proc_stmt_continue
 %type <NONE> sp_proc_stmt_exit
 %type <NONE> sp_proc_stmt_leave
 %type <NONE> sp_proc_stmt_iterate
@@ -2866,6 +2867,7 @@ sp_proc_stmt_in_returns_clause:
 sp_proc_stmt:
           sp_proc_stmt_in_returns_clause
         | sp_proc_stmt_statement
+        | sp_proc_stmt_continue
         | sp_proc_stmt_exit
         | sp_proc_stmt_leave
         | sp_proc_stmt_iterate
@@ -3003,6 +3005,20 @@ sp_proc_stmt_exit:
               MYSQL_YYABORT;
           }
         ;
+
+sp_proc_stmt_continue:
+          CONTINUE_SYM opt_sp_proc_stmt_exit_when_clause
+          {
+            if (Lex->sp_continue_statement(thd, $2))
+              MYSQL_YYABORT;
+          }
+        | CONTINUE_SYM label_ident opt_sp_proc_stmt_exit_when_clause
+          {
+            if (Lex->sp_continue_statement(thd, $2, $3))
+              MYSQL_YYABORT;
+          }
+        ;
+
 
 sp_proc_stmt_leave:
           LEAVE_SYM label_ident

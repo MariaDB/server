@@ -5675,6 +5675,12 @@ bool LEX::sp_iterate_statement(THD *thd, const LEX_STRING label_name)
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "ITERATE", label_name.str);
     return true;
   }
+  return sp_continue_loop(thd, lab);
+}
+
+
+bool LEX::sp_continue_loop(THD *thd, sp_label *lab)
+{
   if (lab->ctx->for_loop().m_index)
   {
     // We're in a FOR loop, increment the index variable before backward jump
@@ -5686,6 +5692,53 @@ bool LEX::sp_iterate_statement(THD *thd, const LEX_STRING label_name)
   }
   return sp_change_context(thd, lab->ctx, false) ||
          sphead->add_instr_jump(thd, spcont, lab->ip); /* Jump back */
+}
+
+
+bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
+{
+  if (!when)
+    return sp_continue_loop(thd, lab);
+
+  sphead->reset_lex(thd); // This changes thd->lex
+  DBUG_ASSERT(sphead == thd->lex->sphead);
+  DBUG_ASSERT(spcont == thd->lex->spcont);
+  sp_instr_jump_if_not *i= new (thd->mem_root)
+                           sp_instr_jump_if_not(sphead->instructions(),
+                                                spcont,
+                                                when, thd->lex);
+  if (i == NULL ||
+      sphead->add_instr(i) ||
+      sphead->restore_lex(thd) ||
+      sp_continue_loop(thd, lab))
+    return true;
+  i->backpatch(sphead->instructions(), spcont);
+  return false;
+}
+
+
+bool LEX::sp_continue_statement(THD *thd, Item *when)
+{
+  sp_label *lab= spcont->find_label_current_loop_start();
+  if (!lab)
+  {
+    my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", "");
+    return true;
+  }
+  DBUG_ASSERT(lab->type == sp_label::ITERATION);
+  return sp_continue_loop(thd, lab, when);
+}
+
+
+bool LEX::sp_continue_statement(THD *thd, const LEX_STRING label_name, Item *when)
+{
+  sp_label *lab= spcont->find_label(label_name);
+  if (!lab || lab->type != sp_label::ITERATION)
+  {
+    my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", label_name);
+    return true;
+  }
+  return sp_continue_loop(thd, lab, when);
 }
 
 
