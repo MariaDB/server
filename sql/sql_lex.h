@@ -2592,6 +2592,9 @@ private:
   bool sp_exit_block(THD *thd, sp_label *lab);
   bool sp_exit_block(THD *thd, sp_label *lab, Item *when);
 
+  bool sp_continue_loop(THD *thd, sp_label *lab);
+  bool sp_continue_loop(THD *thd, sp_label *lab, Item *when);
+
   bool sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop);
   bool sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop);
 
@@ -3117,6 +3120,9 @@ public:
   bool sp_exit_statement(THD *thd, Item *when);
   bool sp_exit_statement(THD *thd, const LEX_STRING label_name, Item *item);
   bool sp_leave_statement(THD *thd, const LEX_STRING label_name);
+
+  bool sp_continue_statement(THD *thd, Item *when);
+  bool sp_continue_statement(THD *thd, const LEX_STRING label_name, Item *when);
   bool sp_iterate_statement(THD *thd, const LEX_STRING label_name);
 
   bool maybe_start_compound_statement(THD *thd);
