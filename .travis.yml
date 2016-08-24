@@ -44,6 +44,9 @@ addons:
 script:
   - ${CC} --version ; ${CXX} --version
   - cd "${TRAVIS_BUILD_DIR}"
+  - ./ipv6_test.pl ;echo $?
+  - ip addr show
+  - sysctl -a | grep ipv6
   - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
 
 notifications:
