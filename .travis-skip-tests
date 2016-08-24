@@ -1,0 +1,5 @@
+# https://github.com/travis-ci/travis-ci/issues/4964
+# https://github.com/travis-ci/travis-ci/issues/5200
+# https://code.google.com/p/google-compute-engine/issues/detail?id=8
+main.ipv4_and_ipv6  : lack of ipv6 support in travis
+main.ipv6 : lack of ipv6 support in travis
