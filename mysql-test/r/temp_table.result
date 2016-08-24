@@ -291,3 +291,6 @@ test.t1	repair	status	OK
 test.t2	repair	status	OK
 test.t3	repair	status	OK
 DROP TABLES t1, t2, t3;
+CREATE TEMPORARY TABLE t1 (a int);
+RENAME TABLE t1 TO t2;
+DROP TABLE t2;

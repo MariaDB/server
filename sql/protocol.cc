@@ -373,7 +373,8 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   uint error;
   char converted_err[MYSQL_ERRMSG_SIZE];
   char buff[2+1+SQLSTATE_LENGTH+MYSQL_ERRMSG_SIZE], *pos;
-
+  my_bool ret;
+  uint8 save_compress;
   DBUG_ENTER("send_error_packet");
 
   if (net->vio == 0)
@@ -401,8 +402,16 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   /* Converted error message is always null-terminated. */
   length= (uint) (strmake(pos, converted_err, MYSQL_ERRMSG_SIZE - 1) - buff);
 
-  DBUG_RETURN(net_write_command(net,(uchar) 255, (uchar*) "", 0, (uchar*) buff,
-                                length));
+  /*
+    Ensure that errors are not compressed. This is to ensure we can
+    detect out of bands error messages in the client
+  */
+  if ((save_compress= net->compress))
+    net->compress= 2;
+  ret= net_write_command(net,(uchar) 255, (uchar*) "", 0, (uchar*) buff,
+                         length);
+  net->compress= save_compress;
+  DBUG_RETURN(ret);
 }
 
 #endif /* EMBEDDED_LIBRARY */

@@ -65,7 +65,8 @@ class TDBDOX: public TDBDOS {
   friend int   CntIndexRange(PGLOBAL, PTDB, const uchar**, uint*,
                              bool*, key_part_map*);
   friend class ha_connect;
-  }; // end of class TDBDOX
+	TDBDOX() : TDBDOS((PGLOBAL)0, (PTDBDOS)0) {}     /* Never called */
+}; // end of class TDBDOX
 
 class XKPDEF: public KPARTDEF {
   friend class TDBDOX;

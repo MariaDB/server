@@ -74,7 +74,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -533,7 +533,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -1003,7 +1003,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -1474,7 +1474,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -1939,7 +1939,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -2410,7 +2410,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -2886,7 +2886,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -3360,7 +3360,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -3824,7 +3824,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -4283,7 +4283,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -4753,7 +4753,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -5224,7 +5224,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -5689,7 +5689,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -6160,7 +6160,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -6636,7 +6636,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -7110,7 +7110,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -7560,8 +7560,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -7575,7 +7574,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -8020,8 +8019,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -8035,7 +8033,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -8491,8 +8489,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -8506,7 +8503,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -8963,8 +8960,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -8978,7 +8974,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -9429,8 +9425,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -9444,7 +9439,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -9901,8 +9896,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -9916,7 +9910,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -10378,8 +10372,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -10393,7 +10386,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -10853,8 +10846,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -10868,7 +10860,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -11318,8 +11310,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -11333,7 +11324,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -11778,8 +11769,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -11793,7 +11783,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -12249,8 +12239,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -12264,7 +12253,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -12721,8 +12710,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -12736,7 +12724,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -13187,8 +13175,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -13202,7 +13189,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -13659,8 +13646,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -13674,7 +13660,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -14136,8 +14122,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -14151,7 +14136,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -14611,8 +14596,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	Error	Error in list of partitions to test.t1
-test.t1	analyze	status	Operation failed
+test.t1	analyze	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -14626,7 +14610,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -15090,7 +15074,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -15549,7 +15533,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -16019,7 +16003,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -16490,7 +16474,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -16955,7 +16939,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -17426,7 +17410,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -17902,7 +17886,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -18376,7 +18360,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -18843,7 +18827,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -19302,7 +19286,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -19772,7 +19756,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -20243,7 +20227,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -20708,7 +20692,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -21179,7 +21163,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -21655,7 +21639,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -22129,7 +22113,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -22593,7 +22577,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -23052,7 +23036,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -23522,7 +23506,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -23993,7 +23977,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -24458,7 +24442,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -24929,7 +24913,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -25405,7 +25389,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -25879,7 +25863,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -26329,8 +26313,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -26344,7 +26327,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -26789,8 +26772,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -26804,7 +26786,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -27260,8 +27242,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -27275,7 +27256,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -27732,8 +27713,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -27747,7 +27727,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -28198,8 +28178,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -28213,7 +28192,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -28670,8 +28649,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -28685,7 +28663,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -29147,8 +29125,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -29162,7 +29139,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -29622,8 +29599,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -29637,7 +29613,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -30087,8 +30063,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -30102,7 +30077,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -30547,8 +30522,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -30562,7 +30536,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -31018,8 +30992,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -31033,7 +31006,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -31490,8 +31463,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -31505,7 +31477,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -31956,8 +31928,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -31971,7 +31942,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -32428,8 +32399,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -32443,7 +32413,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -32905,8 +32875,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -32920,7 +32889,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -33380,8 +33349,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Error	Error in list of partitions to test.t1
-test.t1	check	status	Operation failed
+test.t1	check	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -33395,7 +33363,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -33859,7 +33827,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -34318,7 +34286,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -34788,7 +34756,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -35259,7 +35227,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -35724,7 +35692,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -36195,7 +36163,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -36671,7 +36639,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -37145,7 +37113,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -37613,7 +37581,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -38073,7 +38041,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -38544,7 +38512,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -39016,7 +38984,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -39482,7 +39450,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -39954,7 +39922,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -40431,7 +40399,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -40906,7 +40874,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -41371,7 +41339,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -41831,7 +41799,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -42302,7 +42270,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -42774,7 +42742,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -43240,7 +43208,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -43712,7 +43680,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -44189,7 +44157,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -44664,7 +44632,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -45114,8 +45082,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -45129,7 +45096,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -45574,8 +45541,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -45589,7 +45555,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -46045,8 +46011,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -46060,7 +46025,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -46517,8 +46482,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -46532,7 +46496,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -46983,8 +46947,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -46998,7 +46961,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -47455,8 +47418,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -47470,7 +47432,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -47932,8 +47894,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -47947,7 +47908,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -48407,8 +48368,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -48422,7 +48382,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -48872,8 +48832,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -48887,7 +48846,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -49332,8 +49291,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -49347,7 +49305,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -49803,8 +49761,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -49818,7 +49775,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -50275,8 +50232,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -50290,7 +50246,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -50741,8 +50697,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -50756,7 +50711,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -51213,8 +51168,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -51228,7 +51182,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -51690,8 +51644,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -51705,7 +51658,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -52165,8 +52118,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	Error	Error in list of partitions to test.t1
-test.t1	optimize	status	Operation failed
+test.t1	optimize	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -52180,7 +52132,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -52645,7 +52597,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -53105,7 +53057,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -53576,7 +53528,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -54048,7 +54000,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -54514,7 +54466,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -54986,7 +54938,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -55463,7 +55415,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -55938,7 +55890,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -56403,7 +56355,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -56860,7 +56812,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -57328,7 +57280,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -57797,7 +57749,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -58260,7 +58212,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -58729,7 +58681,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -59203,7 +59155,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -59675,7 +59627,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -60137,7 +60089,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -60594,7 +60546,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -61062,7 +61014,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -61531,7 +61483,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -61994,7 +61946,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -62463,7 +62415,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -62937,7 +62889,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -63409,7 +63361,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -64191,7 +64143,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -64648,7 +64600,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -65116,7 +65068,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -65585,7 +65537,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -66048,7 +66000,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -66517,7 +66469,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -66991,7 +66943,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -67463,7 +67415,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -67930,7 +67882,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -68389,7 +68341,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -68859,7 +68811,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -69330,7 +69282,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -69795,7 +69747,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -70266,7 +70218,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -70742,7 +70694,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -71216,7 +71168,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -71680,7 +71632,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -72139,7 +72091,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -72609,7 +72561,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -73080,7 +73032,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -73545,7 +73497,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -74016,7 +73968,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -74492,7 +74444,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -74966,7 +74918,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -75416,8 +75368,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -75431,7 +75382,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -75876,8 +75827,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -75891,7 +75841,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -76347,8 +76297,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -76362,7 +76311,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -76819,8 +76768,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -76834,7 +76782,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -77285,8 +77233,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -77300,7 +77247,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -77757,8 +77704,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -77772,7 +77718,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -78234,8 +78180,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -78249,7 +78194,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -78709,8 +78654,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -78724,7 +78668,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -79174,8 +79118,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -79189,7 +79132,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -79634,8 +79577,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -79649,7 +79591,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -80105,8 +80047,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -80120,7 +80061,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -80577,8 +80518,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -80592,7 +80532,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -81043,8 +80983,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -81058,7 +80997,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -81515,8 +81454,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -81530,7 +81468,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -81992,8 +81930,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -82007,7 +81944,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -82467,8 +82404,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	Error	Error in list of partitions to test.t1
-test.t1	repair	status	Operation failed
+test.t1	repair	error	Error in list of partitions to test.t1
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -82482,7 +82418,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -82946,7 +82882,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY HASH (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB) */
@@ -83405,7 +83341,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (f_int1)
 (PARTITION part_1 ENGINE = TokuDB,
  PARTITION part_2 ENGINE = TokuDB,
@@ -83875,7 +83811,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (MOD(f_int1,4))
 (PARTITION part_3 VALUES IN (-3) ENGINE = TokuDB,
  PARTITION part_2 VALUES IN (-2) ENGINE = TokuDB,
@@ -84346,7 +84282,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 (PARTITION parta VALUES LESS THAN (0) ENGINE = TokuDB,
  PARTITION part_1 VALUES LESS THAN (5) ENGINE = TokuDB,
@@ -84811,7 +84747,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1 DIV 2)
 SUBPARTITION BY HASH (f_int1)
 SUBPARTITIONS 2
@@ -85282,7 +85218,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY RANGE (f_int1)
 SUBPARTITION BY KEY (f_int1)
 (PARTITION part_1 VALUES LESS THAN (0)
@@ -85758,7 +85694,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,3)))
 SUBPARTITION BY HASH (f_int1 + 1)
 (PARTITION part_1 VALUES IN (0)
@@ -86232,7 +86168,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY LIST (ABS(MOD(f_int1,2)))
 SUBPARTITION BY KEY (f_int1)
 SUBPARTITIONS 3
@@ -86697,7 +86633,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -87151,7 +87087,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -87613,7 +87549,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -88073,7 +88009,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -88531,7 +88467,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -88993,7 +88929,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -89455,7 +89391,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -89913,7 +89849,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1

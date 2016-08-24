@@ -924,7 +924,6 @@ private:
    */
   MDL_wait_for_subgraph *m_waiting_for;
 private:
-  THD *get_thd() const { return m_owner->get_thd(); }
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
   void release_locks_stored_before(enum_mdl_duration duration, MDL_ticket *sentinel);
@@ -937,6 +936,7 @@ public:
   THD *wsrep_get_thd() const { return get_thd(); }
   bool wsrep_has_explicit_locks();
 #endif /* WITH_WSREP */
+  THD *get_thd() const { return m_owner->get_thd(); }
   void find_deadlock();
 
   ulong get_thread_id() const { return thd_get_thread_id(get_thd()); }

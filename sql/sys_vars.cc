@@ -1559,7 +1559,8 @@ Sys_var_gtid_slave_pos::do_check(THD *thd, set_var *var)
   }
 
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   if (running)
     return true;
@@ -1599,7 +1600,7 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  if (master_info_index->give_error_if_slave_running())
+  if (!master_info_index || master_info_index->give_error_if_slave_running())
     err= true;
   else
     err= rpl_gtid_pos_update(thd, var->save_result.string_value.str,
@@ -1788,7 +1789,8 @@ check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
   bool running;
 
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   if (running)
     return true;
@@ -1803,7 +1805,8 @@ fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  err= master_info_index->give_error_if_slave_running();
+  err= (!master_info_index ||
+        master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
@@ -1830,7 +1833,8 @@ check_slave_domain_parallel_threads(sys_var *self, THD *thd, set_var *var)
   bool running;
 
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   if (running)
     return true;
@@ -1845,7 +1849,8 @@ fix_slave_domain_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
@@ -1883,7 +1888,8 @@ check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)
   bool running;
 
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   if (running)
     return true;
@@ -1898,7 +1904,8 @@ fix_gtid_ignore_duplicates(sys_var *self, THD *thd, enum_var_type type)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  running= master_info_index->give_error_if_slave_running();
+  running= (!master_info_index ||
+            master_info_index->give_error_if_slave_running());
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
@@ -2851,7 +2858,7 @@ Sys_var_replicate_events_marked_for_skip::global_update(THD *thd, set_var *var)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  if (!master_info_index->give_error_if_slave_running())
+  if (master_info_index && !master_info_index->give_error_if_slave_running())
     result= Sys_var_enum::global_update(thd, var);
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
@@ -3857,14 +3864,16 @@ static bool check_log_path(sys_var *self, THD *thd, set_var *var)
   if (!var->save_result.string_value.str)
     return true;
 
-  if (var->save_result.string_value.length > FN_REFLEN)
+  LEX_STRING *val= &var->save_result.string_value;
+
+  if (val->length > FN_REFLEN)
   { // path is too long
     my_error(ER_PATH_LENGTH, MYF(0), self->name.str);
     return true;
   }
 
   char path[FN_REFLEN];
-  size_t path_length= unpack_filename(path, var->save_result.string_value.str);
+  size_t path_length= unpack_filename(path, val->str);
 
   if (!path_length)
     return true;
@@ -3877,6 +3886,17 @@ static bool check_log_path(sys_var *self, THD *thd, set_var *var)
      return true;
   }
 
+  static const LEX_CSTRING my_cnf= { STRING_WITH_LEN("my.cnf") };
+  static const LEX_CSTRING my_ini= { STRING_WITH_LEN("my.ini") };
+  if (path_length >= my_cnf.length)
+  {
+    if (strcasecmp(path + path_length - my_cnf.length, my_cnf.str) == 0)
+      return true; // log file name ends with "my.cnf"
+    DBUG_ASSERT(my_cnf.length == my_ini.length);
+    if (strcasecmp(path + path_length - my_ini.length, my_ini.str) == 0)
+      return true; // log file name ends with "my.ini"
+  }
+
   MY_STAT f_stat;
 
   if (my_stat(path, &f_stat, MYF(0)))
@@ -3886,9 +3906,9 @@ static bool check_log_path(sys_var *self, THD *thd, set_var *var)
     return false;
   }
 
-  (void) dirname_part(path, var->save_result.string_value.str, &path_length);
+  (void) dirname_part(path, val->str, &path_length);
 
-  if (var->save_result.string_value.length - path_length >= FN_LEN)
+  if (val->length - path_length >= FN_LEN)
   { // filename is too long
       my_error(ER_PATH_LENGTH, MYF(0), self->name.str);
       return true;

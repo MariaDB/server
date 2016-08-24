@@ -69,10 +69,6 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #pragma interface               /* gcc class implementation */
 #endif
 
-#if !defined(TOKUDB_CHECK_JEMALLOC)
-#define TOKUDB_CHECK_JEMALLOC 1
-#endif
-
 #if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
 // mariadb 10.0
 #define TOKU_USE_DB_TYPE_TOKUDB 1

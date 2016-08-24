@@ -25,7 +25,8 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   friend class TDBXDBC;
   friend class TDBDRV;
   friend class TDBOTB;
- public:
+	friend class TDBOCL;
+public:
   // Constructor
   ODBCDEF(void);
 
@@ -54,7 +55,9 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Username;           /* User connect name                     */
   PSZ     Password;           /* Password connect info                 */
   PSZ     Tabcat;             /* External table catalog                */
-  PSZ     Srcdef;             /* The source table SQL definition       */
+	PSZ     Tabtyp;             /* Catalog table type                    */
+	PSZ     Colpat;             /* Catalog column pattern                */
+	PSZ     Srcdef;             /* The source table SQL definition       */
   PSZ     Qchar;              /* Identifier quoting character          */
   PSZ     Qrystr;             /* The original query                    */
   PSZ     Sep;                /* Decimal separator                     */
@@ -326,7 +329,8 @@ class TDBOTB : public TDBDRV {
   char    *Dsn;               // Points to connection string
   char    *Schema;            // Points to schema name or NULL
   char    *Tab;               // Points to ODBC table name or pattern
-  ODBCPARM Ops;               // Additional parameters
+	char    *Tabtyp;            // Points to ODBC table type
+	ODBCPARM Ops;               // Additional parameters
   }; // end of class TDBOTB
 
 /***********************************************************************/
@@ -335,13 +339,14 @@ class TDBOTB : public TDBDRV {
 class TDBOCL : public TDBOTB {
  public:
   // Constructor
-   TDBOCL(PODEF tdp) : TDBOTB(tdp) {}
+	 TDBOCL(PODEF tdp);
 
  protected:
 	// Specific routines
 	virtual PQRYRES GetResult(PGLOBAL g);
 
-  // No additional Members
+  // Members
+	char    *Colpat;						// Points to column pattern
   }; // end of class TDBOCL
 
 #endif  // !NODBC
