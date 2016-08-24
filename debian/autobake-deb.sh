@@ -16,8 +16,12 @@ set -e
 # On Travis-CI we want to simulate the full build, including tests.
 # Also on Travis-CI it is useful not to override the DEB_BUILD_OPTIONS
 # at this stage at all.
-if [[ ! $TRAVIS ]]
+if [[ $TRAVIS ]]
 then
+  export DEB_MTR_OPTIONS="--skip-test-list=${TRAVIS_BUILD_DIR}/.travis-skip-tests"
+  export DEB_BUILD_OPTIONS="parallel=4"
+else
+  export DEB_MTR_OPTIONS=
   export DEB_BUILD_OPTIONS="nocheck"
 fi
 
