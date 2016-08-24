@@ -53,3 +53,7 @@ The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server
 
 ***************************************************************************
+
+TEST STATUS:
+
+https://travis-ci.org/mariadb/server.svg?branch=10.2
