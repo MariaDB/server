@@ -441,3 +441,47 @@ END;
 DELIMITER ;/
 SHOW PROCEDURE CODE p1;
 DROP PROCEDURE p1;
+
+
+--echo # Testing FOR loop statement
+DELIMITER /;
+CREATE FUNCTION f1 (a INT, b INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  FOR i IN 1 .. a
+  LOOP
+    total:= total + i;
+    IF i = b THEN
+      EXIT;
+    END IF;
+  END LOOP;
+  RETURN total;
+END
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1(3, 100) FROM DUAL;
+SELECT f1(3, 2) FROM DUAL;
+DROP FUNCTION f1;
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT, b INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  FOR i IN REVERSE a..1
+  LOOP
+    total:= total + i;
+    IF i = b THEN
+      EXIT;
+    END IF;
+  END LOOP;
+  RETURN total;
+END
+/
+DELIMITER ;/
+SHOW FUNCTION CODE f1;
+SELECT f1(3, 100) FROM DUAL;
+SELECT f1(3, 2) FROM DUAL;
+DROP FUNCTION f1;

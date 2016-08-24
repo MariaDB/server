@@ -2591,6 +2591,10 @@ private:
   bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
   bool sp_exit_block(THD *thd, sp_label *lab);
   bool sp_exit_block(THD *thd, sp_label *lab, Item *when);
+
+  bool sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop);
+  bool sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop);
+
 public:
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   bool set_arena_for_set_stmt(Query_arena *backup);
@@ -3122,6 +3126,16 @@ public:
   void sp_pop_loop_empty_label(THD *thd);
   bool sp_while_loop_expression(THD *thd, Item *expr);
   bool sp_while_loop_finalize(THD *thd);
+
+  sp_variable *sp_add_for_loop_variable(THD *thd, const LEX_STRING name,
+                                        Item *value);
+  sp_variable *sp_add_for_loop_upper_bound(THD *thd, Item *value)
+  {
+    LEX_STRING name= { C_STRING_WITH_LEN("[upper_bound]") };
+    return sp_add_for_loop_variable(thd, name, value);
+  }
+  bool sp_for_loop_index_and_bounds(THD *thd, const Lex_for_loop_st &loop);
+  bool sp_for_loop_finalize(THD *thd, const Lex_for_loop_st &loop);
 
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)

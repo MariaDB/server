@@ -774,3 +774,89 @@ SELECT @v;
 @v
 6
 DROP PROCEDURE p1;
+# Testing the FOR loop statement
+CREATE FUNCTION f1 (lower_bound INT, upper_bound INT, lim INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+FOR i IN lower_bound . . upper_bound
+LOOP
+NULL
+END LOOP;
+RETURN total;
+END;
+/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '. upper_bound
+LOOP
+NULL
+END LOOP;
+RETURN total;
+END' at line 2
+CREATE FUNCTION f1 (lower_bound INT, upper_bound INT, lim INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+FOR i IN lower_bound .. upper_bound
+LOOP
+total:= total + i;
+IF i = lim THEN
+EXIT;
+END IF;
+-- Bounds are calculated only once.
+-- The below assignments have no effect on the loop condition
+lower_bound:= 900;
+upper_bound:= 1000;
+END LOOP;
+RETURN total;
+END;
+/
+SELECT f1(1, 3, 100) FROM DUAL;
+f1(1, 3, 100)
+6
+SELECT f1(1, 3, 2) FROM DUAL;
+f1(1, 3, 2)
+3
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+AS
+total INT := 0;
+BEGIN
+FOR i IN 1 .. 5
+LOOP
+total:= total + 1000;
+FOR j IN 1 .. 5
+LOOP
+total:= total + 1;
+IF j = 3 THEN
+EXIT; -- End the internal loop
+END IF;
+END LOOP;
+END LOOP;
+RETURN total;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+5015
+DROP FUNCTION f1;
+CREATE FUNCTION f1 (a INT, b INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+FOR i IN REVERSE a..1
+LOOP
+total:= total + i;
+IF i = b THEN
+EXIT;
+END IF;
+END LOOP;
+RETURN total;
+END
+/
+SELECT f1(3, 100) FROM DUAL;
+f1(3, 100)
+6
+SELECT f1(3, 2) FROM DUAL;
+f1(3, 2)
+5
+DROP FUNCTION f1;
