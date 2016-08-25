@@ -924,24 +924,6 @@ END LOOP la;
 RETURN total;
 END;
 /
-SHOW FUNCTION CODE f1;
-Pos	Instruction
-0	set total@3 0
-1	set ia@4 1
-2	set [upper_bound]@5 a@0
-3	jump_if_not 15(15) (ia@4 <= [upper_bound]@5)
-4	set total@3 (total@3 + 1000)
-5	set ib@6 1
-6	jump_if_not 13(13) (ib@6 <= b@1)
-7	jump_if_not 10(10) (ib@6 > blim@2)
-8	set ia@4 (ia@4 + 1)
-9	jump 3
-10	set ib@6 (ib@6 + 1)
-11	set total@3 (total@3 + 1)
-12	jump 6
-13	set ia@4 (ia@4 + 1)
-14	jump 3
-15	freturn 3 total@3
 SELECT f1(3,3,0), f1(3,3,1), f1(3,3,2), f1(3,3,3), f1(3,3,4) FROM DUAL;
 f1(3,3,0)	f1(3,3,1)	f1(3,3,2)	f1(3,3,3)	f1(3,3,4)
 3000	3003	3006	3009	3009
