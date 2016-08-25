@@ -16,7 +16,7 @@ socket(my $sock, PF_INET6, SOCK_STREAM, 0)
 
 my $addr = sockaddr_in6(1715, Socket::IN6ADDR_LOOPBACK) or die "sockaddr_in6: $!";
 
-bind $sock, $addr;
+bind $sock, $addr or die "bind: $!";
 #my $err = $!;
 #print $err;
 
