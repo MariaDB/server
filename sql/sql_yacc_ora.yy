@@ -13482,45 +13482,13 @@ simple_ident_q:
               we can't meet simple_ident_nospvar in trigger now. But it
               should be changed in future.
             */
-            if (lex->sphead && lex->sphead->m_type == TYPE_ENUM_TRIGGER &&
-                (!my_strcasecmp(system_charset_info, $1.str, "NEW") ||
-                 !my_strcasecmp(system_charset_info, $1.str, "OLD")))
+            if (lex->is_trigger_new_or_old_reference($1))
             {
-              Item_trigger_field *trg_fld;
               bool new_row= ($1.str[0]=='N' || $1.str[0]=='n');
 
-              if (lex->trg_chistics.event == TRG_EVENT_INSERT &&
-                  !new_row)
-                my_yyabort_error((ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "OLD", "on INSERT"));
-
-              if (lex->trg_chistics.event == TRG_EVENT_DELETE &&
-                  new_row)
-                my_yyabort_error((ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE"));
-
-              DBUG_ASSERT(!new_row ||
-                          (lex->trg_chistics.event == TRG_EVENT_INSERT ||
-                           lex->trg_chistics.event == TRG_EVENT_UPDATE));
-              const bool tmp_read_only=
-                !(new_row && lex->trg_chistics.action_time == TRG_ACTION_BEFORE);
-              trg_fld= new (thd->mem_root)
-                         Item_trigger_field(thd, Lex->current_context(),
-                                            new_row ?
-                                              Item_trigger_field::NEW_ROW:
-                                              Item_trigger_field::OLD_ROW,
-                                            $3.str,
-                                            SELECT_ACL,
-                                            tmp_read_only);
-              if (trg_fld == NULL)
+              if (!($$= lex->create_and_link_Item_trigger_field(thd, $3.str,
+                                                                new_row)))
                 MYSQL_YYABORT;
-
-              /*
-                Let us add this item to list of all Item_trigger_field objects
-                in trigger.
-              */
-              lex->trg_table_fields.link_in_list(trg_fld,
-                                                 &trg_fld->next_trg_field);
-
-              $$= trg_fld;
             }
             else
             {
@@ -13543,6 +13511,23 @@ simple_ident_q:
               }
               if ($$ == NULL)
                 MYSQL_YYABORT;
+            }
+          }
+        | ':' ident '.' ident
+          {
+            LEX *lex= Lex;
+            if (lex->is_trigger_new_or_old_reference($2))
+            {
+              bool new_row= ($2.str[0]=='N' || $2.str[0]=='n');
+              if (!($$= Lex->create_and_link_Item_trigger_field(thd,
+                                                               $4.str,
+                                                               new_row)))
+                MYSQL_YYABORT;
+            }
+            else
+            {
+              thd->parse_error();
+              MYSQL_YYABORT;
             }
           }
         | '.' ident '.' ident
@@ -14343,15 +14328,25 @@ set_assign:
           }
           set_expr_or_default
           {
-            sp_pcontext *spc= Lex->spcont;
-            sp_variable *spv= spc->find_variable($1.base_name, false);
+            if ($1.var == trg_new_row_fake_var)
+            {
+              /* We are in trigger and assigning value to field of new row */
+              if (Lex->set_trigger_new_row(&$1.base_name, $4) ||
+                  Lex->sphead->restore_lex(thd))
+                MYSQL_YYABORT;
+            }
+            else
+            {
+              sp_pcontext *spc= Lex->spcont;
+              sp_variable *spv= spc->find_variable($1.base_name, false);
 
-            /* It is a local variable. */
-            if (Lex->set_local_variable(spv, $4))
-              MYSQL_YYABORT;
+              /* It is a local variable. */
+              if (Lex->set_local_variable(spv, $4))
+                MYSQL_YYABORT;
 
-            if (sp_create_assignment_instr(thd, yychar == YYEMPTY))
-              MYSQL_YYABORT;
+              if (sp_create_assignment_instr(thd, yychar == YYEMPTY))
+                MYSQL_YYABORT;
+            }
           }
         ;
 
@@ -14669,6 +14664,16 @@ internal_variable_name_directly_assignable:
         | DEFAULT '.' ident
           {
             if (Lex->init_default_internal_variable(&$$, $3))
+              MYSQL_YYABORT;
+          }
+        | ':' ident_directly_assignable '.' ident
+          {
+            if (!Lex->is_trigger_new_or_old_reference($2))
+            {
+              thd->parse_error();
+              MYSQL_YYABORT;
+            }
+            if (Lex->init_internal_variable(&$$, $2, $4))
               MYSQL_YYABORT;
           }
         ;

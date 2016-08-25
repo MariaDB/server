@@ -5132,6 +5132,15 @@ bool LEX::init_internal_variable(struct sys_var_with_base *variable,
 }
 
 
+bool LEX::is_trigger_new_or_old_reference(const LEX_STRING name)
+{
+  return sphead && sphead->m_type == TYPE_ENUM_TRIGGER &&
+         name.length == 3 &&
+         (!my_strcasecmp(system_charset_info, name.str, "NEW") ||
+          !my_strcasecmp(system_charset_info, name.str, "OLD"));
+}
+
+
 bool LEX::init_internal_variable(struct sys_var_with_base *variable,
                                  LEX_STRING dbname, LEX_STRING name)
 {
@@ -5140,9 +5149,7 @@ bool LEX::init_internal_variable(struct sys_var_with_base *variable,
     thd->parse_error();
     return true;
   }
-  if (sphead && sphead->m_type == TYPE_ENUM_TRIGGER &&
-      (!my_strcasecmp(system_charset_info, dbname.str, "NEW") ||
-       !my_strcasecmp(system_charset_info, dbname.str, "OLD")))
+  if (is_trigger_new_or_old_reference(dbname))
   {
     if (dbname.str[0]=='O' || dbname.str[0]=='o')
     {
@@ -5825,6 +5832,46 @@ bool LEX::sp_while_loop_finalize(THD *thd)
     return true;
   sphead->do_cont_backpatch();
   return false;
+}
+
+
+Item *LEX::create_and_link_Item_trigger_field(THD *thd, const char *name,
+                                                        bool new_row)
+{
+  Item_trigger_field *trg_fld;
+
+  if (trg_chistics.event == TRG_EVENT_INSERT && !new_row)
+  {
+    my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "OLD", "on INSERT");
+    return NULL;
+  }
+
+  if (trg_chistics.event == TRG_EVENT_DELETE && new_row)
+  {
+    my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
+    return NULL;
+  }
+
+  DBUG_ASSERT(!new_row ||
+              (trg_chistics.event == TRG_EVENT_INSERT ||
+               trg_chistics.event == TRG_EVENT_UPDATE));
+
+  const bool tmp_read_only=
+    !(new_row && trg_chistics.action_time == TRG_ACTION_BEFORE);
+  trg_fld= new (thd->mem_root)
+             Item_trigger_field(thd, current_context(),
+                                new_row ?
+                                  Item_trigger_field::NEW_ROW:
+                                  Item_trigger_field::OLD_ROW,
+                                name, SELECT_ACL, tmp_read_only);
+  /*
+    Let us add this item to list of all Item_trigger_field objects
+    in trigger.
+  */
+  if (trg_fld)
+      trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
+
+  return trg_fld;
 }
 
 

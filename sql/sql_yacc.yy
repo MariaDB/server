@@ -13829,45 +13829,13 @@ simple_ident_q:
               we can't meet simple_ident_nospvar in trigger now. But it
               should be changed in future.
             */
-            if (lex->sphead && lex->sphead->m_type == TYPE_ENUM_TRIGGER &&
-                (!my_strcasecmp(system_charset_info, $1.str, "NEW") ||
-                 !my_strcasecmp(system_charset_info, $1.str, "OLD")))
+            if (lex->is_trigger_new_or_old_reference($1))
             {
-              Item_trigger_field *trg_fld;
               bool new_row= ($1.str[0]=='N' || $1.str[0]=='n');
 
-              if (lex->trg_chistics.event == TRG_EVENT_INSERT &&
-                  !new_row)
-                my_yyabort_error((ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "OLD", "on INSERT"));
-
-              if (lex->trg_chistics.event == TRG_EVENT_DELETE &&
-                  new_row)
-                my_yyabort_error((ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE"));
-
-              DBUG_ASSERT(!new_row ||
-                          (lex->trg_chistics.event == TRG_EVENT_INSERT ||
-                           lex->trg_chistics.event == TRG_EVENT_UPDATE));
-              const bool tmp_read_only=
-                !(new_row && lex->trg_chistics.action_time == TRG_ACTION_BEFORE);
-              trg_fld= new (thd->mem_root)
-                         Item_trigger_field(thd, Lex->current_context(),
-                                            new_row ?
-                                              Item_trigger_field::NEW_ROW:
-                                              Item_trigger_field::OLD_ROW,
-                                            $3.str,
-                                            SELECT_ACL,
-                                            tmp_read_only);
-              if (trg_fld == NULL)
+              if (!($$= lex->create_and_link_Item_trigger_field(thd, $3.str,
+                                                                new_row)))
                 MYSQL_YYABORT;
-
-              /*
-                Let us add this item to list of all Item_trigger_field objects
-                in trigger.
-              */
-              lex->trg_table_fields.link_in_list(trg_fld,
-                                                 &trg_fld->next_trg_field);
-
-              $$= trg_fld;
             }
             else
             {
