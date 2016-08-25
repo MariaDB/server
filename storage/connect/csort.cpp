@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier Bertrand 1995-2012             */
+/*  (C) Copyright to the author Olivier Bertrand 1995-2016             */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -721,8 +721,8 @@ int CSORT::Qsortc(void)
 void CSORT::Qstc(int *base, int *max)
   {
   register int *i, *j, *jj, *lt, *eq, *gt, *mid;
-  int           c, lo, hi, rc;
-  size_t         zlo, zhi, cnm;
+  int           c = 0, lo, hi, rc;
+  size_t        zlo, zhi, cnm;
 
   zlo = zhi = cnm = 0;                  // Avoid warning message
 
@@ -774,8 +774,11 @@ void CSORT::Qstc(int *base, int *max)
       /*****************************************************************/
       /*  Small group. Do special quicker processing.                  */
       /*****************************************************************/
-      if ((rc = Qcompare(base, (i = base + 1))) > 0)
-        c = *base, *base = *i, *i = c;
+			if ((rc = Qcompare(base, (i = base + 1))) > 0) {
+				c = *base;
+				*base = *i;
+				*i = c;
+			}	// endif rc
 
       if (Pof)
         Pof[base - Pex] = Pof[i - Pex] = (rc) ? 1 : 2;

@@ -190,6 +190,12 @@ size_t vio_read(Vio *vio, uchar *buf, size_t size)
   {
     DBUG_PRINT("vio_error", ("Got error %d during read", errno));
   }
+#ifndef DEBUG_DATA_PACKETS
+  else
+  {
+    DBUG_DUMP("read_data", buf, ret);
+  }
+#endif /* DEBUG_DATA_PACKETS */
 #endif /* DBUG_OFF */
   DBUG_PRINT("exit", ("%d", (int) ret));
   DBUG_RETURN(ret);
@@ -416,6 +422,13 @@ int vio_blocking(Vio *vio, my_bool set_blocking_mode, my_bool *old_mode)
   DBUG_RETURN(r);
 }
 
+/*
+  Check if vio is blocking
+
+  @retval 0  is not blocking
+  @retval 1  is blocking
+*/
+
 my_bool
 vio_is_blocking(Vio * vio)
 {
@@ -570,7 +583,9 @@ int vio_keepalive(Vio* vio, my_bool set_keep_alive)
 my_bool
 vio_should_retry(Vio *vio)
 {
-  return (vio_errno(vio) == SOCKET_EINTR);
+  DBUG_ENTER("vio_should_retry");
+  DBUG_PRINT("info", ("vio_errno: %d", vio_errno(vio)));
+  DBUG_RETURN(vio_errno(vio) == SOCKET_EINTR);
 }
 
 
@@ -595,8 +610,9 @@ int vio_close(Vio *vio)
 {
   int r=0;
   DBUG_ENTER("vio_close");
+  DBUG_PRINT("enter", ("sd: %d", mysql_socket_getfd(vio->mysql_socket)));
 
- if (vio->type != VIO_CLOSED)
+  if (vio->type != VIO_CLOSED)
   {
     DBUG_ASSERT(vio->type ==  VIO_TYPE_TCPIP ||
       vio->type == VIO_TYPE_SOCKET ||
@@ -927,6 +943,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   my_socket sd= mysql_socket_getfd(vio->mysql_socket);
   MYSQL_SOCKET_WAIT_VARIABLES(locker, state) /* no ';' */
   DBUG_ENTER("vio_io_wait");
+  DBUG_PRINT("enter", ("timeout: %d", timeout));
 
   /*
     Note that if zero timeout, then we will not block, so we do not need to
@@ -938,7 +955,10 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
                             PSI_SOCKET_SELECT, timeout);
     ret= my_io_wait_async(vio->async_context, event, timeout);
     if (ret == 0)
+    {
+      DBUG_PRINT("info", ("timeout"));
       errno= SOCKET_ETIMEDOUT;
+    }
     END_SOCKET_WAIT(locker,timeout);
     DBUG_RETURN(ret);
   }
@@ -972,6 +992,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   switch ((ret= poll(&pfd, 1, timeout)))
   {
   case -1:
+    DBUG_PRINT("error", ("poll returned -1"));
     /* On error, -1 is returned. */
     break;
   case 0:
@@ -979,6 +1000,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
       Set errno to indicate a timeout error.
       (This is not compiled in on WIN32.)
     */
+    DBUG_PRINT("info", ("poll timeout"));
     errno= SOCKET_ETIMEDOUT;
     break;
   default:

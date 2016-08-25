@@ -3643,6 +3643,9 @@ error:
     /* Free alloced memory */
     end_server(mysql);
     mysql_close_free(mysql);
+    if (!(client_flag & CLIENT_REMEMBER_OPTIONS) &&
+        !mysql->options.extension->async_context)
+      mysql_close_free_options(mysql);
   }
   DBUG_RETURN(0);
 }
@@ -3713,7 +3716,7 @@ my_bool mysql_reconnect(MYSQL *mysql)
   }
   if (!mysql_real_connect(&tmp_mysql,mysql->host,mysql->user,mysql->passwd,
 			  mysql->db, mysql->port, mysql->unix_socket,
-			  mysql->client_flag))
+			  mysql->client_flag | CLIENT_REMEMBER_OPTIONS))
   {
     if (ctxt)
       my_context_install_suspend_resume_hook(ctxt, NULL, NULL);

@@ -6942,10 +6942,18 @@ void THD::rgi_lock_temporary_tables()
   temporary_tables= rgi_slave->rli->save_temporary_tables;
 }
 
-void THD::rgi_unlock_temporary_tables()
+void THD::rgi_unlock_temporary_tables(bool clear)
 {
   rgi_slave->rli->save_temporary_tables= temporary_tables;
   mysql_mutex_unlock(&rgi_slave->rli->data_lock);
+  if (clear)
+  {
+    /*
+      Temporary tables are shared with other by sql execution threads.
+      As a safety messure, clear the pointer to the common area.
+    */
+    temporary_tables= 0;
+  }
 }
 
 bool THD::rgi_have_temporary_tables()

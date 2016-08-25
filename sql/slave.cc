@@ -651,6 +651,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
     mysql_mutex_unlock(log_lock);
   }
   if (opt_slave_parallel_threads > 0 &&
+      master_info_index &&// master_info_index is set to NULL on server shutdown
       !master_info_index->any_slave_sql_running())
     rpl_parallel_inactivate_pool(&global_rpl_thread_pool);
   if (thread_mask & (SLAVE_IO|SLAVE_FORCE_ALL))
@@ -6218,9 +6219,9 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 #ifndef DBUG_OFF
   mi->events_till_disconnect = disconnect_slave_event_count;
 #endif
-  ulong client_flag= 0;
+  ulong client_flag= CLIENT_REMEMBER_OPTIONS;
   if (opt_slave_compressed_protocol)
-    client_flag=CLIENT_COMPRESS;                /* We will use compression */
+    client_flag|= CLIENT_COMPRESS;                /* We will use compression */
 
   mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &slave_net_timeout);
   mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &slave_net_timeout);

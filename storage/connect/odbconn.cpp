@@ -53,6 +53,7 @@
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif // __WIN__
 
+TYPCONV GetTypeConv();
 int GetConvSize();
 
 /***********************************************************************/
@@ -135,9 +136,13 @@ int TranslateSQLType(int stp, int prec, int& len, char& v, bool& w)
     case SQL_WLONGVARCHAR:                  // (-10)
       w = true;
     case SQL_LONGVARCHAR:                   //  (-1)
-      v = 'V';
-      type = TYPE_STRING;
-      len = MY_MIN(abs(len), GetConvSize());
+			if (GetTypeConv() == TPC_YES) {
+				v = 'V';
+				type = TYPE_STRING;
+				len = MY_MIN(abs(len), GetConvSize());
+			} else
+				type = TYPE_ERROR;
+
       break;
     case SQL_NUMERIC:                       //    2
     case SQL_DECIMAL:                       //    3
@@ -1752,7 +1757,7 @@ bool ODBConn::BindParam(ODBCCOL *colp)
   void        *buf;
   int          buftype = colp->GetResultType();
   SQLUSMALLINT n = colp->GetRank();
-  SQLSMALLINT  ct, sqlt, dec, nul;
+	SQLSMALLINT  ct, sqlt, dec, nul __attribute__((unused));
   SQLULEN      colsize;
   SQLLEN       len;
   SQLLEN      *strlen = colp->GetStrLen();

@@ -121,7 +121,7 @@ static my_bool tty_password= 0;
 static my_bool opt_mark_progress= 0;
 static my_bool ps_protocol= 0, ps_protocol_enabled= 0;
 static my_bool sp_protocol= 0, sp_protocol_enabled= 0;
-static my_bool view_protocol= 0, view_protocol_enabled= 0, wait_longer= 0;
+static my_bool view_protocol= 0, view_protocol_enabled= 0;
 static my_bool cursor_protocol= 0, cursor_protocol_enabled= 0;
 static my_bool parsing_disabled= 0;
 static my_bool display_result_vertically= FALSE, display_result_lower= FALSE,
@@ -181,6 +181,7 @@ static uint my_end_arg= 0;
 static uint opt_tail_lines= 0;
 
 static uint opt_connect_timeout= 0;
+static uint opt_wait_for_pos_timeout= 0;
 
 static char delimiter[MAX_DELIMITER_LENGTH]= ";";
 static uint delimiter_length= 1;
@@ -4657,7 +4658,7 @@ void do_sync_with_master2(struct st_command *command, long offset,
   MYSQL_ROW row;
   MYSQL *mysql= cur_con->mysql;
   char query_buf[FN_REFLEN+128];
-  int timeout= wait_longer ? 1500 : 300; /* seconds */
+  int timeout= opt_wait_for_pos_timeout;
 
   if (!master_pos.file[0])
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
@@ -5012,7 +5013,7 @@ static int my_kill(int pid, int sig)
 
 void do_shutdown_server(struct st_command *command)
 {
-  long timeout= wait_longer ? 60*5 : 60;
+  long timeout= opt_wait_for_pos_timeout ? opt_wait_for_pos_timeout / 5 : 300;
   int pid;
   DYNAMIC_STRING ds_pidfile_name;
   MYSQL* mysql = cur_con->mysql;
@@ -6953,9 +6954,10 @@ static struct my_option my_long_options[] =
    "Number of seconds before connection timeout.",
    &opt_connect_timeout, &opt_connect_timeout, 0, GET_UINT, REQUIRED_ARG,
    120, 0, 3600 * 12, 0, 0, 0},
-  {"wait-longer-for-timeouts", 0,
-   "Wait longer for timeouts. Useful when running under valgrind",
-   &wait_longer, &wait_longer, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"wait_for_pos_timeout", 0,
+   "Number of seconds to wait for master_pos_wait",
+   &opt_wait_for_pos_timeout, &opt_wait_for_pos_timeout, 0, GET_UINT,
+   REQUIRED_ARG, 300, 0, 3600 * 12, 0, 0, 0},
   {"plugin_dir", 0, "Directory for client-side plugins.",
     &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2014, 2015, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
@@ -429,7 +429,7 @@ ibool
 lock_rec_validate_page(
 /*===================*/
 	const buf_block_t*	block)	/*!< in: buffer block */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #endif /* UNIV_DEBUG */
 
 /* The lock system */
@@ -513,7 +513,7 @@ Checks that a transaction id is sensible, i.e., not in the future.
 #ifdef UNIV_DEBUG
 UNIV_INTERN
 #else
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 #endif
 bool
 lock_check_trx_id_sanity(
@@ -1641,7 +1641,7 @@ lock_rec_discard(lock_t*	in_lock);
 /*********************************************************************//**
 Checks if some other transaction has a lock request in the queue.
 @return	lock or NULL */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 const lock_t*
 lock_rec_other_has_expl_req(
 /*========================*/
@@ -4055,7 +4055,7 @@ lock_get_next_lock(
 			ut_ad(heap_no == ULINT_UNDEFINED);
 			ut_ad(lock_get_type_low(lock) == LOCK_TABLE);
 
-			lock = UT_LIST_GET_PREV(un_member.tab_lock.locks, lock);
+			lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock);
 		}
 	} while (lock != NULL
 		 && lock->trx->lock.deadlock_mark > ctx->mark_start);
@@ -4105,7 +4105,8 @@ lock_get_first_lock(
 	} else {
 		*heap_no = ULINT_UNDEFINED;
 		ut_ad(lock_get_type_low(lock) == LOCK_TABLE);
-		lock = UT_LIST_GET_PREV(un_member.tab_lock.locks, lock);
+		dict_table_t*   table = lock->un_member.tab_lock.table;
+		lock = UT_LIST_GET_FIRST(table->locks);
 	}
 
 	ut_a(lock != NULL);
@@ -4577,8 +4578,6 @@ lock_deadlock_check_and_resolve(
 			}
 #endif /* WITH_WSREP */
 
-			MONITOR_INC(MONITOR_DEADLOCK);
-
 		} else if (victim_trx_id != 0 && victim_trx_id != trx->id) {
 
 			ut_ad(victim_trx_id == ctx.wait_lock->trx->id);
@@ -4587,14 +4586,15 @@ lock_deadlock_check_and_resolve(
 			lock_deadlock_found = TRUE;
 
 			MONITOR_INC(MONITOR_DEADLOCK);
+			srv_stats.lock_deadlock_count.inc();
 		}
-
 	} while (victim_trx_id != 0 && victim_trx_id != trx->id);
 
 	/* If the joining transaction was selected as the victim. */
 	if (victim_trx_id != 0) {
 		ut_a(victim_trx_id == trx->id);
 
+		MONITOR_INC(MONITOR_DEADLOCK);
 		srv_stats.lock_deadlock_count.inc();
 
 		lock_deadlock_fputs("*** WE ROLL BACK TRANSACTION (2)\n");
@@ -5047,7 +5047,8 @@ lock_table(
 	dberr_t		err;
 	const lock_t*	wait_for;
 
-	ut_ad(table && thr);
+	ut_ad(table != NULL);
+	ut_ad(thr != NULL);
 
 	if (flags & BTR_NO_LOCKING_FLAG) {
 
@@ -6495,7 +6496,7 @@ lock_validate_table_locks(
 /*********************************************************************//**
 Validate record locks up to a limit.
 @return lock at limit or NULL if no more locks in the hash bucket */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 const lock_t*
 lock_rec_validate(
 /*==============*/

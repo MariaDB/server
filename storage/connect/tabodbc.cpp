@@ -458,9 +458,14 @@ bool TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   if (Catalog && *Catalog)
     catp = Catalog;
 
-  if (tablep->GetSchema())
-    schmp = (char*)tablep->GetSchema();
-  else if (Schema && *Schema)
+	// Following lines are commented because of MSDEV-10520
+	// Indeed the schema in the tablep is the local table database and
+	// is normally not related to the remote table database.
+	// TODO: Try to remember why this was done and if it was useful in some case.
+  //if (tablep->GetSchema())
+  //  schmp = (char*)tablep->GetSchema();
+  //else
+	if (Schema && *Schema)
     schmp = Schema;
 
   if (catp) {
@@ -541,9 +546,10 @@ bool TDBODBC::MakeInsert(PGLOBAL g)
 	if (catp)
 		len += strlen(catp) + 1;
 
-	if (tablep->GetSchema())
-		schmp = (char*)tablep->GetSchema();
-	else if (Schema && *Schema)
+	//if (tablep->GetSchema())
+	//	schmp = (char*)tablep->GetSchema();
+	//else 
+	if (Schema && *Schema)
 		schmp = Schema;
 
 	if (schmp)
@@ -687,7 +693,7 @@ bool TDBODBC::MakeCommand(PGLOBAL g)
   } else {
     sprintf(g->Message, "Cannot use this %s command",
                  (Mode == MODE_UPDATE) ? "UPDATE" : "DELETE");
-    return NULL;
+    return false;
   } // endif p
 
 	Query = new(g) STRING(g, 0, stmt);

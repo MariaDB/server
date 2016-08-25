@@ -3214,6 +3214,7 @@ public:
     If this method returns nonzero, it will also signal the storage
     engine that the next read will be a locking re-read of the row.
   */
+  bool ha_was_semi_consistent_read();
   virtual bool was_semi_consistent_read() { return 0; }
   /**
     Tell the engine whether it should avoid unnecessary lock waits.

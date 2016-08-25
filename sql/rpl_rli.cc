@@ -1906,8 +1906,8 @@ rpl_group_info::mark_start_commit_no_lock()
 {
   if (did_mark_start_commit)
     return;
-  mark_start_commit_inner(parallel_entry, gco, this);
   did_mark_start_commit= true;
+  mark_start_commit_inner(parallel_entry, gco, this);
 }
 
 
@@ -1918,12 +1918,12 @@ rpl_group_info::mark_start_commit()
 
   if (did_mark_start_commit)
     return;
+  did_mark_start_commit= true;
 
   e= this->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);
   mark_start_commit_inner(e, gco, this);
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
-  did_mark_start_commit= true;
 }
 
 
@@ -1966,12 +1966,12 @@ rpl_group_info::unmark_start_commit()
 
   if (!did_mark_start_commit)
     return;
+  did_mark_start_commit= false;
 
   e= this->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);
   --e->count_committing_event_groups;
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
-  did_mark_start_commit= false;
 }
 
 

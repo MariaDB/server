@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -691,7 +691,6 @@ bool close_cached_connection_tables(THD *thd, LEX_STRING *connection)
 
 static void mark_temp_tables_as_free_for_reuse(THD *thd)
 {
-  rpl_group_info *rgi_slave;
   DBUG_ENTER("mark_temp_tables_as_free_for_reuse");
 
   if (thd->query_id == 0)
@@ -700,9 +699,7 @@ static void mark_temp_tables_as_free_for_reuse(THD *thd)
     DBUG_VOID_RETURN;
   }
   
-  rgi_slave=thd->rgi_slave;
-  if ((!rgi_slave && thd->temporary_tables) ||
-      (rgi_slave && unlikely(rgi_slave->rli->save_temporary_tables)))
+  if (thd->have_temporary_tables())
   {
     thd->lock_temporary_tables();
     for (TABLE *table= thd->temporary_tables ; table ; table= table->next)
@@ -710,15 +707,7 @@ static void mark_temp_tables_as_free_for_reuse(THD *thd)
       if ((table->query_id == thd->query_id) && ! table->open_by_handler)
         mark_tmp_table_for_reuse(table);
     }
-    thd->unlock_temporary_tables();
-    if (rgi_slave)
-    {
-      /*
-        Temporary tables are shared with other by sql execution threads.
-        As a safety messure, clear the pointer to the common area.
-      */
-      thd->temporary_tables= 0;
-    }
+    thd->unlock_temporary_tables(1);
   }
   DBUG_VOID_RETURN;
 }
@@ -1686,7 +1675,7 @@ TABLE *find_temporary_table(THD *thd,
       break;
     }
   }
-  thd->unlock_temporary_tables();
+  thd->unlock_temporary_tables(0);
   return result;
 }
 
@@ -1789,7 +1778,7 @@ void close_temporary_table(THD *thd, TABLE *table,
     thread_safe_decrement32(&slave_open_temp_tables);
     table->in_use= 0;                           // No statistics
   }
-  thd->unlock_temporary_tables();
+  thd->unlock_temporary_tables(0);
   close_temporary(table, free_share, delete_table);
   DBUG_VOID_RETURN;
 }
@@ -4888,6 +4877,15 @@ handle_view(THD *thd, Query_tables_list *prelocking_ctx,
                                  &table_list->view->sroutines_list,
                                  table_list->top_table());
   }
+
+  /*
+    If a trigger was defined on one of the associated tables then assign the
+    'trg_event_map' value of the view to the next table in table_list. When a
+    Stored function is invoked, all the associated tables including the tables
+    associated with the trigger are prelocked.
+  */
+  if (table_list->trg_event_map && table_list->next_global)
+    table_list->next_global->trg_event_map= table_list->trg_event_map;
   return FALSE;
 }
 
@@ -5746,7 +5744,7 @@ TABLE *open_table_uncached(THD *thd, handlerton *hton,
     {
       thread_safe_increment32(&slave_open_temp_tables);
     }
-    thd->unlock_temporary_tables();
+    thd->unlock_temporary_tables(0);
   }
   tmp_table->pos_in_table_list= 0;
   DBUG_PRINT("tmptable", ("opened table: '%s'.'%s' 0x%lx", tmp_table->s->db.str,
