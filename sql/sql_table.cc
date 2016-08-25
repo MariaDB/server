@@ -3230,7 +3230,7 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
   it.rewind();
   cf->field_name= temp_name;
   cf->sql_type= MYSQL_TYPE_LONGLONG;
-  /* hash column should be atmost hidden */
+  /* hash column should be fully hidden */
   cf->field_visibility= FULL_HIDDEN;
   cf->is_long_column_hash= true;
   /* add the virtual colmn info */
@@ -7944,20 +7944,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     uint num_of_keyparts= key_info->user_defined_key_parts;
     if (key_info->flags & HA_UNIQUE_HASH)
     {
-      /* here we need to add keyparts as specified in hash_str */
-      LEX_STRING *ls= &key_info->key_part->field->vcol_info->expr_str;
-      num_of_keyparts= fields_in_hash_str(ls);
-      //should i free this ?
-      KEY_PART_INFO* k_parts= (KEY_PART_INFO*) thd->calloc(sizeof
-                                   (KEY_PART_INFO)*num_of_keyparts);
-      key_part= k_parts;
-      for (uint j= 0; j < num_of_keyparts; j++, k_parts++)
-      {
-        //we only need field length and type
-        k_parts->field= field_ptr_in_hash_str(ls, table->s, j);
-        k_parts->length= 0;
-        k_parts->type= k_parts->field->key_type();
-      }
       alter_info->flags |= Alter_info::ALTER_DROP_COLUMN;
       alter_info->flags |= Alter_info::ALTER_ADD_COLUMN;
     }

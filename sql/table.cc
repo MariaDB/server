@@ -798,8 +798,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->ext_key_flags= keyinfo->flags;
     keyinfo->ext_key_part_map= 0;
-    if (share->use_ext_keys && i && !(keyinfo->flags & HA_NOSAME)
-  )
+    if (share->use_ext_keys && i && !(keyinfo->flags &HA_NOSAME))
     {
       for (j= 0; 
            j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
@@ -1969,8 +1968,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       KEY *temp_key= share->key_info;
       KEY *new_key_info;
       KEY *new_temp_key_info;
-      uint extra_key_parts_hash= ext_key_parts;
-      // first crea
+      int extra_key_parts_hash= 0;
+      /*
+         MariaDB adds primary key columns at the end of each
+         index which is not unique. We do not want thus in case
+         of HA_UNIQUE_HASH but we cant detect this earlier because
+         HA_UNIQUE_HASH flag is a generated flag it is not present
+         in frm
+       */
+      int extra_wrong_ext_parts= 0;
       for (uint i=0; i < share->keys; i++,temp_key++)
       {
         if (temp_key->user_defined_key_parts == 1 &&
@@ -1980,18 +1986,20 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                           vcol_info->expr_str;
           uint hash_parts= fields_in_hash_str(ls);
           extra_key_parts_hash+= hash_parts;
+          extra_wrong_ext_parts+= temp_key->ext_key_parts -
+               temp_key->user_defined_key_parts;
         }
       }
-      if (extra_key_parts_hash != ext_key_parts)
+      if (extra_key_parts_hash != 0)
       {
         key_parts+= extra_key_parts_hash;
         share->key_parts= key_parts;
-        ext_key_parts+= extra_key_parts_hash;
+        ext_key_parts+= extra_key_parts_hash - extra_wrong_ext_parts;
         share->ext_key_parts= ext_key_parts;
         new_key_info= new_temp_key_info=  (KEY *)alloc_root(&share->mem_root, keys *
                          sizeof(KEY) + ext_key_parts * sizeof(KEY_PART_INFO));
-        KEY_PART_INFO *h_part, *t_part;
-        h_part= t_part= reinterpret_cast<KEY_PART_INFO *>(new_key_info + keys);
+        KEY_PART_INFO *h_part;
+        h_part= reinterpret_cast<KEY_PART_INFO *>(new_key_info + keys);
         temp_key= share->key_info;
         uint key_length= 0;
         memcpy(new_key_info, share->key_info, keys * sizeof(KEY));
@@ -2004,32 +2012,32 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                 vcol_info->expr_str;
             uint hash_parts= fields_in_hash_str(ls);
             uint offset= temp_key->key_part->offset;
-            for (uint j=0; j<hash_parts; j++, t_part++)
+            new_temp_key_info->key_part= h_part;
+            for (uint j=0; j<hash_parts; j++, h_part++)
             {
-              t_part->field= field_ptr_in_hash_str(ls, share, j);
+              h_part->field= field_ptr_in_hash_str(ls, share, j);
               Field *fld, **f;
               uint16 fieldnr= 1;
               for (f= share->field; f && (fld= *f); f++, fieldnr++)
-                if (fld->eq(t_part->field))
+                if (fld->eq(h_part->field))
                   break;
-              t_part->fieldnr= fieldnr;
-              t_part->key_type= 0;
-              t_part->key_part_flag=0;
-              t_part->store_length= t_part->length= fld->pack_length();
-              key_length+= t_part->length;
-              t_part->offset= offset;
+              DBUG_ASSERT(fld);
+              h_part->fieldnr= fieldnr;
+              h_part->key_type= 0;
+              h_part->key_part_flag=0;
+              h_part->store_length= h_part->length= fld->pack_length();
+              key_length+= h_part->length;
+              h_part->offset= offset;
               offset+= fld->pack_length();
             }
-            memcpy(t_part, temp_key->key_part, sizeof(KEY_PART_INFO));
-            t_part->field= share->field[temp_key->key_part->fieldnr-1];
-            t_part++;
-            new_temp_key_info->key_part= h_part;
+            memcpy(h_part, temp_key->key_part, sizeof(KEY_PART_INFO));
+            h_part->field= share->field[temp_key->key_part->fieldnr-1];
+            h_part++;
             new_temp_key_info->key_length= key_length;
             new_temp_key_info->flags|= HA_UNIQUE_HASH;
             new_temp_key_info->ext_key_flags|= HA_UNIQUE_HASH;
             new_temp_key_info->user_defined_key_parts= new_temp_key_info->
                 usable_key_parts= new_temp_key_info->ext_key_parts= hash_parts;
-            h_part= t_part;
           }
           else
           {
@@ -2040,6 +2048,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             h_part+= temp_key->ext_key_parts;
           }
         }
+        //TODO need to free memory but this code give segmentation fault
         //my_free(share->key_info);
         share->key_info= new_key_info;
       }
@@ -2180,7 +2189,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       key_part= keyinfo->key_part;
       uint key_parts= share->use_ext_keys ? keyinfo->ext_key_parts :
 	                                    keyinfo->user_defined_key_parts;
-			if (key_info->flags & HA_UNIQUE_HASH)
+			if (keyinfo->flags & HA_UNIQUE_HASH)
 				key_parts++;
       for (i=0; i < key_parts; key_part++, i++)
       {
