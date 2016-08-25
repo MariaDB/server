@@ -3073,6 +3073,11 @@ public:
                                        const char *start_in_q,
                                        const char *end_in_q);
 
+  bool is_trigger_new_or_old_reference(const LEX_STRING name);
+
+  Item *create_and_link_Item_trigger_field(THD *thd, const char *name,
+                                                     bool new_row);
+
   void sp_block_init(THD *thd, const LEX_STRING label);
   void sp_block_init(THD *thd)
   {
