@@ -689,6 +689,7 @@ then
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
+        usrst=0
         if [[ -z $sst_ver ]];then 
             wsrep_log_error "Upgrade joiner to 5.6.21 or higher for backup locks support"
             wsrep_log_error "The joiner is not supported for this version of donor"
@@ -704,13 +705,14 @@ then
         itmpdir=$(mktemp -d)
         wsrep_log_info "Using $itmpdir as innobackupex temporary directory"
 
-        if [ "$WSREP_SST_OPT_USER" != "(null)" ]; then
+        if [[ -n "${WSREP_SST_OPT_USER:-}" && "$WSREP_SST_OPT_USER" != "(null)" ]]; then
            INNOEXTRA+=" --user=$WSREP_SST_OPT_USER"
+           usrst=1
         fi
 
         if [ -n "${WSREP_SST_OPT_PSWD:-}" ]; then
            INNOEXTRA+=" --password=$WSREP_SST_OPT_PSWD"
-        else
+        elif [[ $usrst -eq 1 ]];then
            # Empty password, used for testing, debugging etc.
            INNOEXTRA+=" --password="
         fi

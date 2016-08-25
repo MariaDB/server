@@ -4029,6 +4029,7 @@ public:
   */
   bool                      wsrep_ignore_table;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
+  ulong                     wsrep_affected_rows;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */

@@ -34,11 +34,14 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd);
 */
 void wsrep_cleanup_transaction(THD *thd)
 {
+  if (!WSREP(thd)) return;
+
   if (wsrep_emulate_bin_log) thd_binlog_trx_reset(thd);
   thd->wsrep_ws_handle.trx_id= WSREP_UNDEFINED_TRX_ID;
   thd->wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
   thd->wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
   thd->wsrep_exec_mode= LOCAL_STATE;
+  thd->wsrep_affected_rows= 0;
   return;
 }
 
@@ -109,13 +112,7 @@ void wsrep_register_hton(THD* thd, bool all)
  */
 void wsrep_post_commit(THD* thd, bool all)
 {
-  /*
-    TODO: It can perhaps be fixed in a more elegant fashion by turning off
-    wsrep_emulate_binlog if wsrep_on=0 on server start.
-    https://github.com/codership/mysql-wsrep/issues/112
-  */
-  if (!WSREP_ON)
-    return;
+  if (!WSREP(thd)) return;
 
   switch (thd->wsrep_exec_mode)
   {

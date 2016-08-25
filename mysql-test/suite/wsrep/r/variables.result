@@ -36,6 +36,7 @@ wsrep_commit_oooe	#
 wsrep_commit_oool	#
 wsrep_commit_window	#
 wsrep_connected	#
+wsrep_debug_sync_waiters	#
 wsrep_flow_control_paused	#
 wsrep_flow_control_paused_ns	#
 wsrep_flow_control_recv	#
@@ -91,6 +92,7 @@ wsrep_commit_oooe	#
 wsrep_commit_oool	#
 wsrep_commit_window	#
 wsrep_connected	#
+wsrep_debug_sync_waiters	#
 wsrep_flow_control_paused	#
 wsrep_flow_control_paused_ns	#
 wsrep_flow_control_recv	#

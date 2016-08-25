@@ -1036,10 +1036,21 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
     thd->mdl_context.release_lock(m_mdl_blocks_commits_lock);
     m_mdl_blocks_commits_lock= NULL;
 #ifdef WITH_WSREP
-    if (WSREP_ON)
+    if (WSREP(thd) || wsrep_node_is_donor())
     {
       wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
       wsrep->resume(wsrep);
+      /* resync here only if we did implicit desync earlier */
+      if (!wsrep_desync && wsrep_node_is_synced())
+      {
+        int ret = wsrep->resync(wsrep);
+        if (ret != WSREP_OK)
+        {
+          WSREP_WARN("resync failed %d for FTWRL: db: %s, query: %s", ret,
+                     (thd->db ? thd->db : "(null)"), thd->query());
+          DBUG_VOID_RETURN;
+        }
+      }
     }
 #endif /* WITH_WSREP */
   }
@@ -1079,14 +1090,11 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     DBUG_RETURN(0);
 
 #ifdef WITH_WSREP
-  if (WSREP_ON && m_mdl_blocks_commits_lock)
+  if (WSREP(thd) && m_mdl_blocks_commits_lock)
   {
     WSREP_DEBUG("GRL was in block commit mode when entering "
 		"make_global_read_lock_block_commit");
-    thd->mdl_context.release_lock(m_mdl_blocks_commits_lock);
-    m_mdl_blocks_commits_lock= NULL;
-    wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
-    wsrep->resume(wsrep);
+    DBUG_RETURN(FALSE);
   }
 #endif /* WITH_WSREP */
 
@@ -1100,7 +1108,43 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   m_state= GRL_ACQUIRED_AND_BLOCKS_COMMIT;
 
 #ifdef WITH_WSREP
-  if (WSREP_ON)
+  /* Native threads should bail out before wsrep oprations to follow.
+     Donor servicing thread is an exception, it should pause provider but not desync,
+     as it is already desynced in donor state
+  */
+  if (!WSREP(thd) && !wsrep_node_is_donor())
+  {
+    DBUG_RETURN(FALSE);
+  }
+
+  /* if already desynced or donor, avoid double desyncing 
+     if not in PC and synced, desyncing is not possible either
+  */
+  if (wsrep_desync || !wsrep_node_is_synced())
+  {
+    WSREP_DEBUG("desync set upfont, skipping implicit desync for FTWRL: %d",
+                wsrep_desync);
+  }
+  else
+  {
+    int rcode;
+    WSREP_DEBUG("running implicit desync for node");
+    rcode = wsrep->desync(wsrep);
+    if (rcode != WSREP_OK)
+    {
+      WSREP_WARN("FTWRL desync failed %d for schema: %s, query: %s",
+                 rcode, (thd->db ? thd->db : "(null)"), thd->query());
+      my_message(ER_LOCK_DEADLOCK, "wsrep desync failed for FTWRL", MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+  }
+
+  long long ret = wsrep->pause(wsrep);
+  if (ret >= 0)
+  {
+    wsrep_locked_seqno= ret;
+  }
+  else if (ret != -ENOSYS) /* -ENOSYS - no provider */
   {
     long long ret = wsrep->pause(wsrep);
     if (ret >= 0)

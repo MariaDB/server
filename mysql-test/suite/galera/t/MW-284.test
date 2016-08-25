@@ -55,3 +55,4 @@ STOP SLAVE;
 RESET SLAVE ALL;
 
 CALL mtr.add_suppression('failed registering on master');
+CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');
