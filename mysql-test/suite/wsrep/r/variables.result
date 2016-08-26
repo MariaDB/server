@@ -60,7 +60,6 @@ wsrep_cert_index_size	#
 wsrep_causal_reads	#
 wsrep_cert_interval	#
 wsrep_incoming_addresses	#
-wsrep_debug_sync_waiters	#
 wsrep_cluster_conf_id	#
 wsrep_cluster_size	#
 wsrep_cluster_state_uuid	#
@@ -116,7 +115,6 @@ wsrep_cert_index_size	#
 wsrep_causal_reads	#
 wsrep_cert_interval	#
 wsrep_incoming_addresses	#
-wsrep_debug_sync_waiters	#
 wsrep_cluster_conf_id	#
 wsrep_cluster_size	#
 wsrep_cluster_state_uuid	#
