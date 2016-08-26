@@ -774,7 +774,7 @@ inline void dec_thread_running()
   thread_safe_decrement32(&thread_running);
 }
 
-extern void set_server_version(void);
+extern void set_server_version(char *buf, size_t size);
 
 #if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)
 extern "C" THD *_current_thd_noinline();

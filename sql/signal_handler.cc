@@ -107,6 +107,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     "diagnose the problem, but since we have already crashed, \n"
     "something is definitely wrong and this may fail.\n\n");
 
+  set_server_version(server_version, sizeof(server_version));
   my_safe_printf_stderr("Server version: %s\n", server_version);
 
   if (dflt_key_cache)
