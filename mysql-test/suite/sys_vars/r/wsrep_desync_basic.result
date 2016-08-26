@@ -24,8 +24,6 @@ SELECT @@global.wsrep_desync;
 
 # valid values
 SET @@global.wsrep_desync='OFF';
-Warnings:
-Warning	1231	'wsrep_desync' is already OFF.
 SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
 0
@@ -35,8 +33,6 @@ SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
 0
 SET @@global.wsrep_desync=default;
-Warnings:
-Warning	1231	'wsrep_desync' is already OFF.
 SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
 0

@@ -195,6 +195,8 @@ end:
 
 static bool refresh_provider_options()
 {
+  DBUG_ASSERT(wsrep);
+
   WSREP_DEBUG("refresh_provider_options: %s", 
               (wsrep_provider_options) ? wsrep_provider_options : "null");
   char* opts= wsrep->options_get(wsrep);
@@ -319,17 +321,17 @@ void wsrep_provider_init (const char* value)
 
 bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
 {
-  return 0;
-}
-
-bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
-{
   if (wsrep == NULL)
   {
     my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
     return true;
   }
+  return false;
+}
 
+bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
+{
+  DBUG_ASSERT(wsrep);
   wsrep_status_t ret= wsrep->options_set(wsrep, wsrep_provider_options);
   if (ret != WSREP_OK)
   {
@@ -522,6 +524,12 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
 
 bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
 {
+  if (wsrep == NULL)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+
   bool new_wsrep_desync= (bool) var->save_result.ulonglong_value;
   if (wsrep_desync == new_wsrep_desync) {
     if (new_wsrep_desync) {
@@ -560,6 +568,12 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
 {
+  DBUG_ASSERT(wsrep);
+  return false;
+}
+
+bool wsrep_max_ws_size_check(sys_var *self, THD* thd, set_var* var)
+{
   if (wsrep == NULL)
   {
     my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
@@ -570,6 +584,8 @@ bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
 
 bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
 {
+  DBUG_ASSERT(wsrep);
+
   char max_ws_size_opt[128];
   my_snprintf(max_ws_size_opt, sizeof(max_ws_size_opt),
               "repl.max_ws_size=%d", wsrep_max_ws_size);

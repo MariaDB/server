@@ -170,10 +170,10 @@ localhost	foo	role3	Y
 localhost	root	role1	Y
 localhost	root	role2	Y
 SELECT * FROM INFORMATION_SCHEMA.APPLICABLE_ROLES;
-GRANTEE	ROLE_NAME	IS_GRANTABLE
-role1	role4	YES
-root@localhost	role1	YES
-root@localhost	role2	YES
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+role1	role4	YES	NULL
+root@localhost	role1	YES	NO
+root@localhost	role2	YES	NO
 
 # On node_2
 SELECT * FROM mysql.roles_mapping;
@@ -183,10 +183,10 @@ localhost	foo	role3	Y
 localhost	root	role1	Y
 localhost	root	role2	Y
 SELECT * FROM INFORMATION_SCHEMA.APPLICABLE_ROLES;
-GRANTEE	ROLE_NAME	IS_GRANTABLE
-role1	role4	YES
-root@localhost	role1	YES
-root@localhost	role2	YES
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+role1	role4	YES	NULL
+root@localhost	role1	YES	NO
+root@localhost	role2	YES	NO
 DROP ROLE role1;
 DROP ROLE role2;
 DROP ROLE role3;

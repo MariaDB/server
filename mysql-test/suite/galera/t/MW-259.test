@@ -24,7 +24,7 @@ SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
 
 --connection node_1b
 --sleep 2
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'exit open_tables()' and INFO = 'SET GLOBAL wsrep_desync=1'
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'SET GLOBAL wsrep_desync=1'
 --source include/wait_condition.inc
 
 SET DEBUG_SYNC= 'now SIGNAL continue';
