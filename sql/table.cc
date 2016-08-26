@@ -1861,91 +1861,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
     DBUG_ASSERT((null_pos + (null_bit_pos + 7) / 8) <= share->field[0]->ptr);
   }
-  /* Handle virtual expressions */
-  if (vcol_screen_length && share->frm_version >= FRM_VER_EXPRESSSIONS)
-  {
-    uchar *vcol_screen_end= vcol_screen_pos + vcol_screen_length;
 
-    /* Skip header */
-    vcol_screen_pos+= FRM_VCOL_NEW_BASE_SIZE;
-
-    /*
-      Read virtual columns, default values and check constraints
-      See pack_expression() for how data is stored
-    */
-    while (vcol_screen_pos < vcol_screen_end)
-    {
-      Virtual_column_info *vcol_info;
-      uint type=         (uint) vcol_screen_pos[0];
-      uint field_nr=     uint2korr(vcol_screen_pos+1);
-      uint expr_length=  uint2korr(vcol_screen_pos+3);
-      uint name_length=  (uint) vcol_screen_pos[5];
-      LEX_STRING name;
-      char *expr;
-
-      vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
-
-      name.str= 0;
-      if ((name.length= name_length))
-      {
-        if (!(name.str= strmake_root(&share->mem_root,
-                                     (char*) vcol_screen_pos,
-                                     name_length)))
-          goto err;
-      }
-      vcol_screen_pos+= name_length;
-      if (!(vcol_info=   new (&share->mem_root) Virtual_column_info()) ||
-          !(expr= (char *) strmake_root(&share->mem_root,
-                                        (char*) vcol_screen_pos,
-                                        expr_length)))
-        goto err;
-      vcol_info->name= name;
-
-      /* The following can only be true for check_constraints */
-      if (field_nr != UINT_MAX16)
-      {
-        DBUG_ASSERT(field_nr < share->fields);
-        reg_field= share->field[field_nr];
-      }
-
-      vcol_info->expr_str.str=    expr;
-      vcol_info->expr_str.length= expr_length;
-      vcol_screen_pos+=           expr_length;
-
-      switch (type) {
-      case 0:                                   // Generated virtual field
-      {
-        uint recpos;
-        reg_field->vcol_info= vcol_info;
-        share->virtual_fields++;
-        share->stored_fields--;
-        /* Correct stored_rec_length as non stored fields are last */
-        recpos= (uint) (reg_field->ptr - record);
-        if (share->stored_rec_length >= recpos)
-          share->stored_rec_length= recpos-1;
-        break;
-      }
-      case 1:                                   // Generated stored field
-        vcol_info->stored_in_db= 1;
-        reg_field->vcol_info= vcol_info;
-        share->virtual_fields++;
-        share->virtual_stored_fields++;         // For insert/load data
-        break;
-      case 2:                                   // Default expression
-        vcol_info->stored_in_db= 1;
-        reg_field->default_value=    vcol_info;
-        share->default_expressions++;
-        break;
-      case 3:                                   // Field check constraint
-        reg_field->check_constraint= vcol_info;
-        share->field_check_constraints++;
-        break;
-      case 4:                                   // Table check constraint
-        *(table_check_constraints++)= vcol_info;
-        break;
-      }
-    }
-  }
   /* Fix key->name and key_part->field */
   if (key_parts)
   {
@@ -2368,7 +2284,91 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           null_length, 255);
   }
 
+  /* Handle virtual expressions */
+  if (vcol_screen_length && share->frm_version >= FRM_VER_EXPRESSSIONS)
+  {
+    uchar *vcol_screen_end= vcol_screen_pos + vcol_screen_length;
 
+    /* Skip header */
+    vcol_screen_pos+= FRM_VCOL_NEW_BASE_SIZE;
+
+    /*
+      Read virtual columns, default values and check constraints
+      See pack_expression() for how data is stored
+    */
+    while (vcol_screen_pos < vcol_screen_end)
+    {
+      Virtual_column_info *vcol_info;
+      uint type=         (uint) vcol_screen_pos[0];
+      uint field_nr=     uint2korr(vcol_screen_pos+1);
+      uint expr_length=  uint2korr(vcol_screen_pos+3);
+      uint name_length=  (uint) vcol_screen_pos[5];
+      LEX_STRING name;
+      char *expr;
+
+      vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
+
+      name.str= 0;
+      if ((name.length= name_length))
+      {
+        if (!(name.str= strmake_root(&share->mem_root,
+                                     (char*) vcol_screen_pos,
+                                     name_length)))
+          goto err;
+      }
+      vcol_screen_pos+= name_length;
+      if (!(vcol_info=   new (&share->mem_root) Virtual_column_info()) ||
+          !(expr= (char *) strmake_root(&share->mem_root,
+                                        (char*) vcol_screen_pos,
+                                        expr_length)))
+        goto err;
+      vcol_info->name= name;
+
+      /* The following can only be true for check_constraints */
+      if (field_nr != UINT_MAX16)
+      {
+        DBUG_ASSERT(field_nr < share->fields);
+        reg_field= share->field[field_nr];
+      }
+
+      vcol_info->expr_str.str=    expr;
+      vcol_info->expr_str.length= expr_length;
+      vcol_screen_pos+=           expr_length;
+
+      switch (type) {
+      case 0:                                   // Generated virtual field
+      {
+        uint recpos;
+        reg_field->vcol_info= vcol_info;
+        share->virtual_fields++;
+        share->stored_fields--;
+        /* Correct stored_rec_length as non stored fields are last */
+        recpos= (uint) (reg_field->ptr - record);
+        if (share->stored_rec_length >= recpos)
+          share->stored_rec_length= recpos-1;
+        break;
+      }
+      case 1:                                   // Generated stored field
+        vcol_info->stored_in_db= 1;
+        reg_field->vcol_info= vcol_info;
+        share->virtual_fields++;
+        share->virtual_stored_fields++;         // For insert/load data
+        break;
+      case 2:                                   // Default expression
+        vcol_info->stored_in_db= 1;
+        reg_field->default_value=    vcol_info;
+        share->default_expressions++;
+        break;
+      case 3:                                   // Field check constraint
+        reg_field->check_constraint= vcol_info;
+        share->field_check_constraints++;
+        break;
+      case 4:                                   // Table check constraint
+        *(table_check_constraints++)= vcol_info;
+        break;
+      }
+    }
+  }
   DBUG_ASSERT((table_check_constraints - share->check_constraints) ==
               share->table_check_constraints - share->field_check_constraints);
 

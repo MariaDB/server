@@ -3186,33 +3186,27 @@ static void check_duplicate_key(THD *thd,
   }
 }
 
-/*
+/**
   Add hidden level 3 hash field to table in case of long
   unique column
-  Returns 0 on success
-  else 1
+  @param  thd           Thread Context.
+  @param  create_list   List of table fields.
+  @param  cs            Field Charset
 */
 
-int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
-                KEY *current_key_info, KEY *key_info, CHARSET_INFO *cs)
+static void add_hash_field(THD * thd, List<Create_field> *create_list,
+                           CHARSET_INFO *cs)
 {
-  int num= 1;
-  List_iterator<Key> key_iter(alter_info->key_list);
-  List_iterator<Key_part_spec> key_part_iter(current_key->columns);
-  List_iterator<Create_field> it(alter_info->create_list);
-  Create_field *dup_field, * sql_field;
-  Key_part_spec *temp_colms;
-
+  List_iterator<Create_field> it(*create_list);
+  Create_field *dup_field;
   Create_field *cf= new (thd->mem_root) Create_field();
   cf->flags|= UNSIGNED_FLAG;
   cf->length= cf->char_length= HA_HASH_FIELD_LENGTH;
-  cf->charset= NULL;
+  cf->charset= cs;
   cf->decimals= 0;
+  uint num= 1;
   char *temp_name= (char *)thd->alloc(30);
-  strcpy(temp_name, HA_DB_ROW_HASH_STR);
-  char num_holder[10];    //10 is way more but i think it is ok
-  sprintf(num_holder, "%d",num);
-  strcat(temp_name, num_holder);
+  my_snprintf(temp_name, sizeof(temp_name), "DB_ROW_HASH_%u", num);
   /*
     Check for collusions
    */
@@ -3220,10 +3214,8 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
   {
     if (!my_strcasecmp(system_charset_info, temp_name, dup_field->field_name))
     {
-      temp_name[12]= '\0'; //now temp_name='DB_ROW_HASH_'
       num++;
-      sprintf(num_holder, "%d",num);
-      strcat(temp_name, num_holder);
+      my_snprintf(temp_name, sizeof(temp_name), "DB_ROW_HASH_%u", num);
       it.rewind();
     }
   }
@@ -3233,135 +3225,10 @@ int add_hash_field(THD * thd, Alter_info *alter_info, Key *current_key,
   /* hash column should be fully hidden */
   cf->field_visibility= FULL_HIDDEN;
   cf->is_long_column_hash= true;
-  /* add the virtual colmn info */
-  Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
-  char * hash_exp= (char *)thd->alloc(1024);
-  char * key_name= (char *)thd->alloc(1024);
-  strcpy(hash_exp, HA_HASH_STR_HEAD);
-  temp_colms= key_part_iter++;
-  strcat(hash_exp, temp_colms->field_name.str);
-  strcpy(key_name, temp_colms->field_name.str);
-  strcat(hash_exp, "`");
-  while ((temp_colms= key_part_iter++))
-  {
-    while ((sql_field= it++) &&
-           my_strcasecmp(system_charset_info,
-              temp_colms->field_name.str, sql_field->field_name))
-    {}
-    it.rewind();
-    if (!sql_field)
-    {
-      my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0),
-                      temp_colms->field_name.str);
-      return 1;
-    }
-    /*
-      There should be only one key for db_row_hash_* column
-      we need to give user a error when the accidently query
-      like
-
-      create table t1(abc blob unique, unique(db_row_hash_1));
-      alter table t2 add column abc blob unique,add unique key(db_row_hash_1);
-
-      for this we will iterate through the key_list and
-      find if and key_part has the same name as of temp_name
-     */
-    if (sql_field->is_long_column_hash)
-    {
-      my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), temp_name);
-      return 1;
-    }
-    /*
-      This test for wrong query like
-      create table t1(a blob ,unique(a,a));
-    */
-    if (find_field_name_in_hash(hash_exp,
-                 temp_colms->field_name.str, strlen(hash_exp))!=-1)
-    {
-      my_error(ER_DUP_FIELDNAME, MYF(0), temp_colms->field_name.str);
-      return 1;
-    }
-    /* If any field can be null add flag */
-    if (!sql_field->flags & NOT_NULL_FLAG)
-      current_key_info->flags|= HA_NULL_PART_KEY;
-    strcat(hash_exp, (const char * )",");
-    strcat(key_name, "_");
-    strcat(hash_exp, "`");
-    strcat(hash_exp, temp_colms->field_name.str);
-    strcat(key_name, temp_colms->field_name.str);
-    strcat(hash_exp, "`");
-  }
-  strcat(hash_exp, (const char * )")");
-  v->expr_str.str= hash_exp;
-  v->expr_str.length= strlen(hash_exp);
-  v->expr_item= NULL;
-  v->set_stored_in_db_flag(true);
-  cf->vcol_info= v;
-  cf->charset= cs;
   cf->create_length_to_internal_length();
   cf->length= cf->char_length= cf->pack_length;
   prepare_create_field(cf, NULL, 0);
-  if (!current_key_info->flags & HA_NULL_PART_KEY)
-  {
-    cf->pack_flag^= FIELDFLAG_MAYBE_NULL;
-    cf->flags^= NOT_NULL_FLAG;
-  }
-  alter_info->create_list.push_front(cf,thd->mem_root);
-  /* Update row offset because field is added in first position */
-  int offset=0;
-  it.rewind();
-  while ((dup_field= it++))
-  {
-    dup_field->offset= offset;
-    if (dup_field->stored_in_db())
-      offset+= dup_field->pack_length;
-  }
-  it.rewind();
-  while ((dup_field= it++))
-  {
-    if (!dup_field->stored_in_db())
-    {
-      dup_field->offset= offset;
-      offset+= dup_field->pack_length;
-    }
-  }
-  if(current_key->name.length==0)
-  {
-    current_key_info->name= key_name;
-    current_key_info->name_length= strlen(key_name);
-    key_name= make_unique_key_name(thd, key_name,
-          key_info, current_key_info);
-  }
-  else
-    current_key_info->name= current_key->name.str;
-  if (check_if_keyname_exists(current_key_info->name, key_info,
-                              current_key_info))
-  {
-    my_error(ER_DUP_KEYNAME, MYF(0), key_name);
-    return 1;
-  }
-  current_key->type= Key::MULTIPLE;
-  current_key_info->key_length= cf->pack_length; //length of mysql long column
-  current_key_info->user_defined_key_parts= 1;
-  current_key_info->flags= 0;
-  current_key_info->key_part->fieldnr= 0;
-  current_key_info->key_part->offset= 0;
-  current_key_info->key_part->key_type= cf->pack_flag;
-  current_key_info->key_part->length= cf->pack_length;
-  /* As key is added in front so update update keyinfo field ref and offset*/
-  KEY * t_key = key_info;
-  KEY_PART_INFO *t_key_part;
-  while (t_key != current_key_info)
-  {
-    t_key_part= t_key->key_part;
-    for (int i= 0; i < t_key->user_defined_key_parts; i++,t_key_part++)
-    {
-      t_key_part->fieldnr+= 1;
-      t_key_part->offset+= cf->pack_length;
-    }
-    t_key++;
-  }
-  return 0;
+  create_list->push_front(cf,thd->mem_root);
 }
 
 /*
@@ -3399,6 +3266,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   const char	*key_name;
   Create_field	*sql_field,*dup_field;
   uint		field,null_fields,blob_columns,max_key_length;
+  uint    total_hash_fields_added= 0;
   ulong		record_offset= 0;
   KEY		*key_info;
   KEY_PART_INFO *key_part_info;
@@ -3409,6 +3277,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   uint total_uneven_bit_length= 0;
   int select_field_count= C_CREATE_SELECT(create_table_mode);
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
+  bool is_hash_field_added= false;
   DBUG_ENTER("mysql_prepare_create_table");
 
   select_field_pos= alter_info->create_list.elements - select_field_count;
@@ -3883,6 +3752,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     uint key_length=0;
     Key_part_spec *column;
 
+    is_hash_field_added= false;
     if (key->name.str == ignore_key)
     {
       /* ignore redundant keys */
@@ -4076,24 +3946,27 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           if (f_is_geom(sql_field->pack_flag) && sql_field->geom_type ==
               Field::GEOM_POINT)
             column->length= MAX_LEN_GEOM_POINT_FIELD;
-    if (!column->length)
+    if (!column->length && !is_hash_field_added)
     {
       if (key->type == Key::PRIMARY)
-      { //todo change error message
-        my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
-        DBUG_RETURN(TRUE);
-      }
-      if (!add_hash_field(thd, alter_info, key, key_info,
-                          *key_info_buffer, create_info->default_table_charset))
       {
-        key_part_info= key_info->key_part;
-        key_part_info++;
-        null_fields++;
-        key_length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
-        break;
-      }
-      else
+        my_error(ER_TOO_LONG_KEY, MYF(0), column->field_name.str);
         DBUG_RETURN(TRUE);
+      }
+      add_hash_field(thd, &alter_info->create_list,
+                      create_info->default_table_charset);
+      total_hash_fields_added++;
+      null_fields++;
+       /*
+          In init_from_binary_frm_image we need differentiate
+          between normal key and long unique key we can simply
+          increase the lenght of key by say 5000 which is way
+          more then max key length and in init_from_binary_frm
+          image we can check for this
+        */
+      key_length= HA_HASH_TEMP_KEY_LENGTH;
+      column->length= 10;  //Just a random number
+      is_hash_field_added= true;
 	  }
 	}
 #ifdef HAVE_SPATIAL
@@ -4232,18 +4105,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 			my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
 			DBUG_RETURN(TRUE);
 		}
-		//todo we does not respect length given by user in calculating hash
-		if(!add_hash_field(thd, alter_info, key, key_info,
-											 *key_info_buffer, create_info->default_table_charset))
-		{
-			key_part_info= key_info->key_part;
-			key_part_info++;
-			null_fields++;
-			key_length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
-			break;
-		}
-		else
-			DBUG_RETURN(TRUE);
+		//TODO we does not respect length given by user in calculating hash
+		add_hash_field(thd, &alter_info->create_list,
+									 create_info->default_table_charset);
+		total_hash_fields_added++;
+		null_fields++;
+		key_length= HA_HASH_TEMP_KEY_LENGTH;
+		column->length= 10;  //Just a random number
+		is_hash_field_added= true;
 	}
       }
       key_part_info->length= (uint16) key_part_length;
@@ -4301,7 +4170,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (key->type == Key::UNIQUE && !(key_info->flags & HA_NULL_PART_KEY))
       unique_key=1;
     key_info->key_length=(uint16) key_length;
-    if (key_length > max_key_length && key->type != Key::FULLTEXT)
+    if (key_length > max_key_length && key->type != Key::FULLTEXT
+         && !is_hash_field_added)
     {
       my_error(ER_TOO_LONG_KEY,MYF(0),max_key_length);
       DBUG_RETURN(TRUE);
@@ -4324,7 +4194,39 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
     key_info++;
   }
+  if (total_hash_fields_added)
+  {
+    it.rewind();
+    record_offset= 0;
+    while ((sql_field= it++))
+    {
+      sql_field->offset= record_offset;
+      if (sql_field->stored_in_db())
+        record_offset+= sql_field->pack_length;
+    }
+    it.rewind();
+    while ((sql_field= it++))
+    {
+      if (!sql_field->stored_in_db())
+      {
+        sql_field->offset= record_offset;
+        record_offset+= sql_field->pack_length;
+      }
+    }
+    /*
+      We have added db_row_hash fields in starting of
+      fields array , So we have to change key_part
+      field index
+     */
+    key_info= *key_info_buffer;
+    for (uint i= 0; i < *key_count; i++, key_info++)
+    {
+      KEY_PART_INFO *info= key_info->key_part;
+      for (uint j= 0; j <  key_info->user_defined_key_parts; j++, info++)
+        info->fieldnr+= total_hash_fields_added;
+    }
 
+  }
   if (!unique_key && !primary_key &&
       (file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY))
   {

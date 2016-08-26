@@ -253,6 +253,8 @@ enum ha_base_keytype {
 #define HA_HASH_STR_INDEX               "HASH_INDEX"
 #define HA_HASH_STR_INDEX_LEN           strlen(HA_HASH_STR_INDEX)
 #define HA_DB_ROW_HASH_STR              "DB_ROW_HASH_"
+/* temp length of long unique key set in mysql_prepare_create_table*/
+#define HA_HASH_TEMP_KEY_LENGTH         5000
 
 #define HA_MAX_KEYTYPE	31		/* Must be log2-1 */
 
