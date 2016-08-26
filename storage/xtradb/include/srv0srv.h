@@ -1,9 +1,9 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2016, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1035,7 +1035,7 @@ UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(srv_purge_coordinator_thread)(
 /*=========================================*/
-	void*	arg __attribute__((unused)));	/*!< in: a dummy parameter
+	void*	arg MY_ATTRIBUTE((unused)));	/*!< in: a dummy parameter
 						required by os_thread_create */
 
 /*********************************************************************//**
@@ -1045,7 +1045,7 @@ UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(srv_worker_thread)(
 /*==============================*/
-	void*	arg __attribute__((unused)));	/*!< in: a dummy parameter
+	void*	arg MY_ATTRIBUTE((unused)));	/*!< in: a dummy parameter
 						required by os_thread_create */
 } /* extern "C" */
 

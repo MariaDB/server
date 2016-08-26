@@ -2676,26 +2676,17 @@ static void network_init(void)
     saPipeSecurity.lpSecurityDescriptor = &sdPipeDescriptor;
     saPipeSecurity.bInheritHandle = FALSE;
     if ((hPipe= CreateNamedPipe(pipe_name,
-				PIPE_ACCESS_DUPLEX|FILE_FLAG_OVERLAPPED,
-				PIPE_TYPE_BYTE |
-				PIPE_READMODE_BYTE |
-				PIPE_WAIT,
-				PIPE_UNLIMITED_INSTANCES,
-				(int) global_system_variables.net_buffer_length,
-				(int) global_system_variables.net_buffer_length,
-				NMPWAIT_USE_DEFAULT_WAIT,
-				&saPipeSecurity)) == INVALID_HANDLE_VALUE)
-      {
-	LPVOID lpMsgBuf;
-	int error=GetLastError();
-	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-		      FORMAT_MESSAGE_FROM_SYSTEM,
-		      NULL, error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		      (LPTSTR) &lpMsgBuf, 0, NULL );
-	sql_perror((char *)lpMsgBuf);
-	LocalFree(lpMsgBuf);
-	unireg_abort(1);
-      }
+        PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
+        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+        PIPE_UNLIMITED_INSTANCES,
+        (int) global_system_variables.net_buffer_length,
+        (int) global_system_variables.net_buffer_length,
+        NMPWAIT_USE_DEFAULT_WAIT,
+        &saPipeSecurity)) == INVALID_HANDLE_VALUE)
+    {
+      sql_perror("Create named pipe failed");
+      unireg_abort(1);
+    }
   }
 #endif
 
@@ -7728,7 +7719,10 @@ static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
   var->value= buff;
   mysql_mutex_lock(&LOCK_active_mi);
 
-  *((longlong *)buff)= master_info_index->any_slave_sql_running();
+  if (master_info_index)
+    *((longlong *)buff)= master_info_index->any_slave_sql_running();
+  else
+    *((longlong *)buff)= 0;
 
   mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
@@ -8362,6 +8356,7 @@ SHOW_VAR status_vars[]= {
   {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_LONG},
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
   {"Delayed_writes",           (char*) &delayed_insert_writes,  SHOW_LONG},
+  {"Delete_scan",	       (char*) offsetof(STATUS_VAR, delete_scan_count), SHOW_LONG_STATUS},
   {"Empty_queries",            (char*) offsetof(STATUS_VAR, empty_queries), SHOW_LONG_STATUS},
   {"Executed_events",          (char*) &executed_events, SHOW_LONG_NOFLUSH },
   {"Executed_triggers",        (char*) offsetof(STATUS_VAR, executed_triggers), SHOW_LONG_STATUS},
@@ -8390,6 +8385,7 @@ SHOW_VAR status_vars[]= {
   {"Handler_read_last",        (char*) offsetof(STATUS_VAR, ha_read_last_count), SHOW_LONG_STATUS},
   {"Handler_read_next",        (char*) offsetof(STATUS_VAR, ha_read_next_count), SHOW_LONG_STATUS},
   {"Handler_read_prev",        (char*) offsetof(STATUS_VAR, ha_read_prev_count), SHOW_LONG_STATUS},
+  {"Handler_read_retry",       (char*) offsetof(STATUS_VAR, ha_read_retry_count), SHOW_LONG_STATUS},
   {"Handler_read_rnd",         (char*) offsetof(STATUS_VAR, ha_read_rnd_count), SHOW_LONG_STATUS},
   {"Handler_read_rnd_deleted", (char*) offsetof(STATUS_VAR, ha_read_rnd_deleted_count), SHOW_LONG_STATUS},
   {"Handler_read_rnd_next",    (char*) offsetof(STATUS_VAR, ha_read_rnd_next_count), SHOW_LONG_STATUS},
@@ -8511,6 +8507,7 @@ SHOW_VAR status_vars[]= {
   {"Threads_connected",        (char*) &connection_count,       SHOW_INT},
   {"Threads_created",	       (char*) &thread_created,		SHOW_LONG_NOFLUSH},
   {"Threads_running",          (char*) &thread_running,         SHOW_INT},
+  {"Update_scan",	       (char*) offsetof(STATUS_VAR, update_scan_count), SHOW_LONG_STATUS},
   {"Uptime",                   (char*) &show_starttime,         SHOW_SIMPLE_FUNC},
 #ifdef ENABLED_PROFILING
   {"Uptime_since_flush_status",(char*) &show_flushstatustime,   SHOW_SIMPLE_FUNC},
@@ -10120,11 +10117,6 @@ PSI_stage_info stage_waiting_for_the_next_event_in_relay_log= { 0, "Waiting for 
 PSI_stage_info stage_waiting_for_the_slave_thread_to_advance_position= { 0, "Waiting for the slave SQL thread to advance position", 0};
 PSI_stage_info stage_waiting_to_finalize_termination= { 0, "Waiting to finalize termination", 0};
 PSI_stage_info stage_waiting_to_get_readlock= { 0, "Waiting to get readlock", 0};
-PSI_stage_info stage_slave_waiting_workers_to_exit= { 0, "Waiting for workers to exit", 0};
-PSI_stage_info stage_slave_waiting_worker_to_release_partition= { 0, "Waiting for Slave Worker to release partition", 0};
-PSI_stage_info stage_slave_waiting_worker_to_free_events= { 0, "Waiting for Slave Workers to free pending events", 0};
-PSI_stage_info stage_slave_waiting_worker_queue= { 0, "Waiting for Slave Worker queue", 0};
-PSI_stage_info stage_slave_waiting_event_from_coordinator= { 0, "Waiting for an event from Coordinator", 0};
 PSI_stage_info stage_binlog_waiting_background_tasks= { 0, "Waiting for background binlog tasks", 0};
 PSI_stage_info stage_binlog_processing_checkpoint_notify= { 0, "Processing binlog checkpoint notification", 0};
 PSI_stage_info stage_binlog_stopping_background_thread= { 0, "Stopping binlog background thread", 0};
@@ -10220,11 +10212,6 @@ PSI_stage_info *all_server_stages[]=
   & stage_setup,
   & stage_show_explain,
   & stage_slave_has_read_all_relay_log,
-  & stage_slave_waiting_event_from_coordinator,
-  & stage_slave_waiting_worker_queue,
-  & stage_slave_waiting_worker_to_free_events,
-  & stage_slave_waiting_worker_to_release_partition,
-  & stage_slave_waiting_workers_to_exit,
   & stage_sorting,
   & stage_sorting_for_group,
   & stage_sorting_for_order,

@@ -187,6 +187,8 @@ typedef my_bool (plugin_foreach_func)(THD *thd,
 #define plugin_foreach(A,B,C,D) plugin_foreach_with_mask(A,B,C,PLUGIN_IS_READY,D)
 extern bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                                      int type, uint state_mask, void *arg);
+extern void sync_dynamic_session_variables(THD* thd, bool global_lock);
+
 extern bool plugin_dl_foreach(THD *thd, const LEX_STRING *dl,
                               plugin_foreach_func *func, void *arg);
 

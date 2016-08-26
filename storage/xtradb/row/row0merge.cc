@@ -164,7 +164,7 @@ row_merge_decrypt_buf(
 #ifdef UNIV_DEBUG
 /******************************************************//**
 Display a merge tuple. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 row_merge_tuple_print(
 /*==================*/
@@ -199,7 +199,7 @@ row_merge_tuple_print(
 
 /******************************************************//**
 Encode an index record. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 row_merge_buf_encode(
 /*=================*/
@@ -236,7 +236,7 @@ row_merge_buf_encode(
 /******************************************************//**
 Allocate a sort buffer.
 @return	own: sort buffer */
-static __attribute__((malloc, nonnull))
+static MY_ATTRIBUTE((malloc, nonnull))
 row_merge_buf_t*
 row_merge_buf_create_low(
 /*=====================*/
@@ -738,7 +738,7 @@ row_merge_dup_report(
 /*************************************************************//**
 Compare two tuples.
 @return	1, 0, -1 if a is greater, equal, less, respectively, than b */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 int
 row_merge_tuple_cmp(
 /*================*/
@@ -817,7 +817,7 @@ UT_SORT_FUNCTION_BODY().
 
 /**********************************************************************//**
 Merge sort the tuple buffer in main memory. */
-static __attribute__((nonnull(4,5)))
+static MY_ATTRIBUTE((nonnull(4,5)))
 void
 row_merge_tuple_sort(
 /*=================*/
@@ -1393,7 +1393,7 @@ row_merge_write_eof(
 @param[in,out]	tmpfd	temporary file handle
 @param[in]	path	path to create temporary file
 @return file descriptor, or -1 on failure */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 int
 row_merge_tmpfile_if_needed(
 	int*		tmpfd,
@@ -1412,7 +1412,7 @@ row_merge_tmpfile_if_needed(
 @param[in]	nrec	number of records in the file
 @param[in]	path	path to create temporary files
 @return file descriptor, or -1 on failure */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 int
 row_merge_file_create_if_needed(
 	merge_file_t*	file,
@@ -1458,7 +1458,7 @@ containing the index entries for the indexes to be built.
 @param[in,out] block		file buffer
 @param[in,out] tmpfd		temporary file handle
 return	DB_SUCCESS or error */
-static __attribute__((nonnull(1,2,3,4,6,9,10,16), warn_unused_result))
+static MY_ATTRIBUTE((nonnull(1,2,3,4,6,9,10,16), warn_unused_result))
 dberr_t
 row_merge_read_clustered_index(
 	trx_t*			trx,
@@ -2680,7 +2680,7 @@ row_merge_sort(
 
 /*************************************************************//**
 Copy externally stored columns to the data tuple. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 row_merge_copy_blobs(
 /*=================*/
@@ -3762,7 +3762,7 @@ row_merge_rename_tables_dict(
 /*********************************************************************//**
 Create and execute a query graph for creating an index.
 @return	DB_SUCCESS or error code */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_merge_create_index_graph(
 /*=========================*/

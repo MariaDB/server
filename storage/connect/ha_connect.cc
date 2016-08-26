@@ -171,9 +171,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0006 May 08, 2016";
+       char version[]= "Version 1.04.0008 August 10, 2016";
 #if defined(__WIN__)
-       char compver[]= "Version 1.04.0006 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.04.0008 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -195,7 +195,6 @@ extern "C" {
 #if defined(JDBC_SUPPORT)
 	     char *JvmPath;
 			 char *ClassPath;
-			 char *Wrapper;
 #endif   // JDBC_SUPPORT
 
 #if defined(__WIN__)
@@ -211,7 +210,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info);
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
-int     TranslateJDBCType(int stp, int prec, int& len, char& v);
+int     TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
@@ -220,6 +219,7 @@ USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
 uint    GetJsonGrpSize(void);
+char   *GetJavaWrapper(void);
 uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
@@ -332,6 +332,15 @@ static MYSQL_THDVAR_UINT(json_grp_size,
        "max number of rows for JSON aggregate functions.",
        NULL, NULL, JSONMAX, 1, INT_MAX, 1);
 
+#if defined(JDBC_SUPPORT)
+// Default java wrapper to use with JDBC tables
+static MYSQL_THDVAR_STR(java_wrapper,
+	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+	"Java wrapper class name",
+	//     check_class_path, update_class_path,
+	NULL, NULL, "wrappers/JdbcInterface");
+#endif   // JDBC_SUPPORT
+
 #if defined(XMSG) || defined(NEWMSG)
 const char *language_names[]=
 {
@@ -384,6 +393,12 @@ extern "C" const char *msglang(void)
   return language_names[THDVAR(current_thd, msg_lang)];
 } // end of msglang
 #else   // !XMSG && !NEWMSG
+
+#if defined(JDBC_SUPPORT)
+char *GetJavaWrapper(void)
+{return connect_hton ? THDVAR(current_thd, java_wrapper) : (char*)"wrappers/JdbcInterface";}
+#endif   // JDBC_SUPPORT
+
 extern "C" const char *msglang(void)
 {
 #if defined(FRENCH)
@@ -1123,7 +1138,7 @@ bool GetBooleanTableOption(PGLOBAL g, PTOS options, char *opname, bool bdef)
 /****************************************************************************/
 int GetIntegerTableOption(PGLOBAL g, PTOS options, char *opname, int idef)
 {
-  ulonglong opval= NO_IVAL;
+  ulonglong opval= (ulonglong) NO_IVAL;
 
   if (!options)
     return idef;
@@ -5633,6 +5648,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
     } else {
       char *schem= NULL;
+			char *tn= NULL;
 
       // Not a catalog table
       if (!qrp->Nblin) {
@@ -5649,7 +5665,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
         typ= len= prec= dec= 0;
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
-        dft= xtra= key= fmt= NULL;
+        dft= xtra= key= fmt= tn= NULL;
         v= ' ';
         rem= NULL;
 
@@ -5669,7 +5685,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
               typ= crp->Kdata->GetIntValue(i);
               v = (crp->Nulls) ? crp->Nulls[i] : 0;
               break;
-            case FLD_PREC:
+						case FLD_TYPENAME:
+							tn= crp->Kdata->GetCharValue(i);
+							break;
+						case FLD_PREC:
               // PREC must be always before LENGTH
               len= prec= crp->Kdata->GetIntValue(i);
               break;
@@ -5713,8 +5732,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
               break;
             case FLD_SCHEM:
-#if defined(ODBC_SUPPORT)
-              if (ttp == TAB_ODBC && crp->Kdata) {
+#if defined(ODBC_SUPPORT) || defined(JDBC_SUPPORT)
+              if ((ttp == TAB_ODBC || ttp == TAB_JDBC) && crp->Kdata) {
                 if (schem && stricmp(schem, crp->Kdata->GetCharValue(i))) {
                   sprintf(g->Message, 
                          "Several %s tables found, specify DBNAME", tab);
@@ -5724,7 +5743,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
                   schem= crp->Kdata->GetCharValue(i);
 
               } // endif ttp
-#endif   // ODBC_SUPPORT
+#endif   // ODBC_SUPPORT	||				 JDBC_SUPPORT
             default:
               break;                 // Ignore
             } // endswitch Fld
@@ -5777,7 +5796,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 						int  plgtyp;
 
 						// typ must be PLG type, not SQL type
-						if (!(plgtyp= TranslateJDBCType(typ, dec, prec, v))) {
+						if (!(plgtyp= TranslateJDBCType(typ, tn, dec, prec, v))) {
 							if (GetTypeConv() == TPC_SKIP) {
 								// Skip this column
 								sprintf(g->Message, "Column %s skipped (unsupported type %d)",
@@ -6875,12 +6894,6 @@ static MYSQL_SYSVAR_STR(class_path, ClassPath,
 	"Java class path",
 	//     check_class_path, update_class_path,
 	NULL, NULL, NULL);
-
-static MYSQL_SYSVAR_STR(java_wrapper, Wrapper,
-	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
-	"Java wrapper class",
-	//     check_class_path, update_class_path,
-	NULL, NULL, "JdbcInterface");
 #endif   // JDBC_SUPPORT
 
 
@@ -6922,7 +6935,7 @@ maria_declare_plugin(connect)
   0x0104,                                       /* version number (1.04) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.04.0006",                                  /* string version */
+  "1.04.0008",                                  /* string version */
   MariaDB_PLUGIN_MATURITY_GAMMA                 /* maturity */
 }
 maria_declare_plugin_end;

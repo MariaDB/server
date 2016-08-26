@@ -212,6 +212,28 @@ static TABLE_LIST *reverse_table_list(TABLE_LIST *table_list)
 }
 
 
+static bool
+do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table,
+                    bool skip_error)
+{
+  const char *new_alias;
+  DBUG_ENTER("do_rename_temporary");
+
+  new_alias= (lower_case_table_names == 2) ? new_table->alias :
+                                             new_table->table_name;
+
+  if (is_temporary_table(new_table))
+  {
+    my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias);
+    DBUG_RETURN(1);                     // This can't be skipped
+  }
+
+
+  DBUG_RETURN(rename_temporary_table(thd, ren_table->table,
+              new_table->db, new_alias));
+}
+
+
 /*
   Rename a single table or a view
 
@@ -317,6 +339,8 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
 
   DBUG_RETURN(0);
 }
+
+
 /*
   Rename all tables in list; Return pointer to wrong entry if something goes
   wrong.  Note that the table_list may be empty!
@@ -351,8 +375,11 @@ rename_tables(THD *thd, TABLE_LIST *table_list, bool skip_error)
   for (ren_table= table_list; ren_table; ren_table= new_table->next_local)
   {
     new_table= ren_table->next_local;
-    if (do_rename(thd, ren_table, new_table->db, new_table->table_name,
-                  new_table->alias, skip_error))
+
+    if (is_temporary_table(ren_table) ?
+          do_rename_temporary(thd, ren_table, new_table, skip_error) :
+          do_rename(thd, ren_table, new_table->db, new_table->table_name,
+                    new_table->alias, skip_error))
       DBUG_RETURN(ren_table);
   }
   DBUG_RETURN(0);

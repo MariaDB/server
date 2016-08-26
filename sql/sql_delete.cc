@@ -483,6 +483,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
                   dbug_serve_apcs(thd, 1););
 
+  if (!(select && select->quick))
+    status_var_increment(thd->status_var.delete_scan_count);
+
   if (query_plan.using_filesort)
   {
     ha_rows examined_rows;

@@ -167,16 +167,46 @@ void wsrep_start_position_init (const char* val)
   wsrep_set_local_position (val, false);
 }
 
+static int get_provider_option_value(const char* opts,
+                                     const char* opt_name,
+                                     ulong* opt_value)
+{
+  int ret= 1;
+  ulong opt_value_tmp;
+  char *opt_value_str, *s, *opts_copy= my_strdup(opts, MYF(MY_WME));
+
+  if ((opt_value_str= strstr(opts_copy, opt_name)) == NULL)
+    goto end;
+  opt_value_str= strtok_r(opt_value_str, "=", &s);
+  if (opt_value_str == NULL) goto end;
+  opt_value_str= strtok_r(NULL, ";", &s);
+  if (opt_value_str == NULL) goto end;
+
+  opt_value_tmp= strtoul(opt_value_str, NULL, 10);
+  if (errno == ERANGE) goto end;
+
+  *opt_value= opt_value_tmp;
+  ret= 0;
+
+end:
+  my_free(opts_copy);
+  return ret;
+}
+
 static bool refresh_provider_options()
 {
+  DBUG_ASSERT(wsrep);
+
   WSREP_DEBUG("refresh_provider_options: %s", 
               (wsrep_provider_options) ? wsrep_provider_options : "null");
   char* opts= wsrep->options_get(wsrep);
   if (opts)
   {
-    if (wsrep_provider_options) my_free((void *)wsrep_provider_options);
-    wsrep_provider_options = (char*)my_memdup(opts, strlen(opts) + 1, 
-                                              MYF(MY_WME));
+    wsrep_provider_options_init(opts);
+    get_provider_option_value(wsrep_provider_options,
+                              (char*)"repl.max_ws_size",
+                              &wsrep_max_ws_size);
+    free(opts);
   }
   else
   {
@@ -291,17 +321,17 @@ void wsrep_provider_init (const char* value)
 
 bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
 {
-  return 0;
-}
-
-bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
-{
   if (wsrep == NULL)
   {
     my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
     return true;
   }
+  return false;
+}
 
+bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
+{
+  DBUG_ASSERT(wsrep);
   wsrep_status_t ret= wsrep->options_set(wsrep, wsrep_provider_options);
   if (ret != WSREP_OK)
   {
@@ -494,6 +524,12 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
 
 bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
 {
+  if (wsrep == NULL)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+
   bool new_wsrep_desync= (bool) var->save_result.ulonglong_value;
   if (wsrep_desync == new_wsrep_desync) {
     if (new_wsrep_desync) {
@@ -505,20 +541,10 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
                    ER_WRONG_VALUE_FOR_VAR,
                    "'wsrep_desync' is already OFF.");
     }
+    return false;
   }
-  return 0;
-}
-
-bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
-{
-  if (wsrep == NULL)
-  {
-    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
-    return true;
-  }
-
   wsrep_status_t ret(WSREP_WARNING);
-  if (wsrep_desync) {
+  if (new_wsrep_desync) {
     ret = wsrep->desync (wsrep);
     if (ret != WSREP_OK) {
       WSREP_WARN ("SET desync failed %d for schema: %s, query: %s", ret,
@@ -538,6 +564,39 @@ bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
     }
   }
   return false;
+}
+
+bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
+{
+  DBUG_ASSERT(wsrep);
+  return false;
+}
+
+bool wsrep_max_ws_size_check(sys_var *self, THD* thd, set_var* var)
+{
+  if (wsrep == NULL)
+  {
+    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+  return false;
+}
+
+bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
+{
+  DBUG_ASSERT(wsrep);
+
+  char max_ws_size_opt[128];
+  my_snprintf(max_ws_size_opt, sizeof(max_ws_size_opt),
+              "repl.max_ws_size=%d", wsrep_max_ws_size);
+  wsrep_status_t ret= wsrep->options_set(wsrep, max_ws_size_opt);
+  if (ret != WSREP_OK)
+  {
+    WSREP_ERROR("Set options returned %d", ret);
+    refresh_provider_options();
+    return true;
+  }
+  return refresh_provider_options();
 }
 
 static SHOW_VAR wsrep_status_vars[]=

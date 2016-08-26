@@ -455,7 +455,11 @@ MK_ASYNC_START_BODY(
     parms.db= db;
     parms.port= port;
     parms.unix_socket= unix_socket;
-    parms.client_flags= client_flags;
+    /*
+      async wrapper enforce the CLIENT_REMEMBER_OPTIONS flag to be
+      functional (otherwise it can't operate)
+    */
+    parms.client_flags= client_flags | CLIENT_REMEMBER_OPTIONS;
   },
   NULL,
   r_ptr,

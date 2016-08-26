@@ -13,8 +13,8 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 SELECT COUNT(*) = 10 FROM t1;
 
 --exec rm -rf $MYSQL_TMP_DIR/innobackupex_backup
---exec innobackupex $MYSQL_TMP_DIR/innobackupex_backup --galera-info --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 --port=$NODE_MYPORT_2 --host=127.0.0.1 --no-timestamp > $MYSQL_TMP_DIR/innobackupex-backup.log
---exec innobackupex $MYSQL_TMP_DIR/innobackupex_backup --apply-log --galera-info --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 --port=$NODE_MYPORT_2 --host=127.0.0.1 --no-timestamp > $MYSQL_TMP_DIR/innobackupex-apply.log
+--exec innobackupex --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 $MYSQL_TMP_DIR/innobackupex_backup --galera-info --port=$NODE_MYPORT_2 --host=127.0.0.1 --no-timestamp > $MYSQL_TMP_DIR/innobackupex-backup.log
+--exec innobackupex --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 $MYSQL_TMP_DIR/innobackupex_backup --apply-log --galera-info --port=$NODE_MYPORT_2 --host=127.0.0.1 --no-timestamp > $MYSQL_TMP_DIR/innobackupex-apply.log
 
 --source include/kill_galera.inc
 --sleep 1
@@ -23,7 +23,7 @@ SELECT COUNT(*) = 10 FROM t1;
 INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
 
 --exec rm -rf $MYSQLTEST_VARDIR/mysqld.2/data/*
---exec innobackupex --copy-back $MYSQL_TMP_DIR/innobackupex_backup --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 --port=$NODE_MYPORT_2 --host=127.0.0.1 > $MYSQL_TMP_DIR/innobackupex-restore.log
+--exec innobackupex --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group=mysqld.2 --copy-back $MYSQL_TMP_DIR/innobackupex_backup --port=$NODE_MYPORT_2 --host=127.0.0.1 > $MYSQL_TMP_DIR/innobackupex-restore.log
 
 #
 # Convert the xtrabackup_galera_info into a grastate.dat file

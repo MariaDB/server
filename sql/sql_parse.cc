@@ -529,6 +529,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_INSERT_SELECT]|=   CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_DELETE]|=          CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_DELETE_MULTI]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_RENAME_TABLE]|=    CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_REPLACE_SELECT]|=  CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_SELECT]|=          CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_SET_OPTION]|=      CF_PREOPEN_TMP_TABLES;
@@ -6793,6 +6794,7 @@ bool check_stack_overrun(THD *thd, long margin,
   if ((stack_used=used_stack(thd->thread_stack,(char*) &stack_used)) >=
       (long) (my_thread_stack_size - margin))
   {
+    thd->is_fatal_error= 1;
     /*
       Do not use stack for the message buffer to ensure correct
       behaviour in cases we have close to no stack left.
@@ -6881,10 +6883,13 @@ void THD::reset_for_next_command()
   /*
     Autoinc variables should be adjusted only for locally executed
     transactions. Appliers and replayers are either processing ROW
-    events or get autoinc variable values from Query_log_event.
+    events or get autoinc variable values from Query_log_event and
+    mysql slave may be processing STATEMENT format events, but he should
+    use autoinc values passed in binlog events, not the values forced by
+    the cluster.
   */
   if (WSREP(thd) && thd->wsrep_exec_mode == LOCAL_STATE &&
-      wsrep_auto_increment_control)
+      !thd->slave_thread && wsrep_auto_increment_control)
   {
     thd->variables.auto_increment_offset=
       global_system_variables.auto_increment_offset;

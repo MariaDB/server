@@ -1029,6 +1029,7 @@ THD::THD(bool is_wsrep_applier)
   wsrep_TOI_pre_query_len = 0;
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
+  wsrep_affected_rows     = 0;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1444,6 +1445,7 @@ void THD::init(void)
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
+  wsrep_affected_rows     = 0;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -2233,6 +2235,8 @@ void THD::cleanup_after_query()
 
 #ifdef WITH_WSREP
   wsrep_sync_wait_gtid= WSREP_GTID_UNDEFINED;
+  if (!in_active_multi_stmt_transaction())
+    wsrep_affected_rows= 0;
 #endif /* WITH_WSREP */
 
   DBUG_VOID_RETURN;
@@ -5196,7 +5200,11 @@ void THD::get_definer(LEX_USER *definer, bool role)
 {
   binlog_invoker(role);
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+#ifdef WITH_WSREP
+  if ((wsrep_applier || slave_thread) && has_invoker())
+#else
   if (slave_thread && has_invoker())
+#endif
   {
     definer->user = invoker_user;
     definer->host= invoker_host;
@@ -6942,10 +6950,18 @@ void THD::rgi_lock_temporary_tables()
   temporary_tables= rgi_slave->rli->save_temporary_tables;
 }
 
-void THD::rgi_unlock_temporary_tables()
+void THD::rgi_unlock_temporary_tables(bool clear)
 {
   rgi_slave->rli->save_temporary_tables= temporary_tables;
   mysql_mutex_unlock(&rgi_slave->rli->data_lock);
+  if (clear)
+  {
+    /*
+      Temporary tables are shared with other by sql execution threads.
+      As a safety messure, clear the pointer to the common area.
+    */
+    temporary_tables= 0;
+  }
 }
 
 bool THD::rgi_have_temporary_tables()

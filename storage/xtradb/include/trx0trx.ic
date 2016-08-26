@@ -171,7 +171,7 @@ UNIV_INLINE
 void
 trx_search_latch_release_if_reserved(
 /*=================================*/
-	trx_t*	   trx __attribute__((unused))) /*!< in: transaction */
+	trx_t*	   trx MY_ATTRIBUTE((unused))) /*!< in: transaction */
 {
 	ut_ad(!trx->has_search_latch);
 }

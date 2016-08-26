@@ -26,4 +26,6 @@ INSERT INTO t1 VALUES (11);
 SELECT COUNT(*) = 11 FROM t1;
 COUNT(*) = 11
 1
+CALL mtr.add_suppression("Protocol violation");
 DROP TABLE t1;
+CALL mtr.add_suppression("Protocol violation");

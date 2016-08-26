@@ -36,17 +36,16 @@ struct show_table_contributors_st {
 */
 
 struct show_table_contributors_st show_table_contributors[]= {
-  /* MariaDB foundation members, in contribution, size , time order */
-  {"Booking.com", "http://www.booking.com", "Founding member of the MariaDB Foundation"},
-  {"MariaDB Corporation", "https://mariadb.com", "Founding member of the MariaDB Foundation"},
-  {"Auttomattic", "http://automattic.com", "Member of the MariaDB Foundation"},
-  {"Visma", "http://visma.com", "Member of the MariaDB Foundation"},
-  {"Nexedi", "http://www.nexedi.com", "Member of the MariaDB Foundation"},
-  {"Acronis", "http://www.acronis.com", "Member of the MariaDB Foundation"},
-
-  /* Smaller sponsors, newer per year */
-  {"Verkkokauppa.com", "Finland", "Sponsor of the MariaDB Foundation"},
-  {"Virtuozzo", "https://virtuozzo.com/", "Sponsor of the MariaDB Foundation"},
+  /* MariaDB foundation sponsors, in contribution, size , time order */
+  {"Booking.com", "http://www.booking.com", "Founding member, Platinum Sponsor of the MariaDB Foundation"},
+  {"MariaDB Corporation", "https://mariadb.com", "Founding member, Gold Sponsor of the MariaDB Foundation"},
+  {"Visma", "http://visma.com", "Gold Sponsor of the MariaDB Foundation"},
+  {"DBS", "http://dbs.com", "Gold Sponsor of the MariaDB Foundation"},
+  {"Nexedi", "https://www.nexedi.com", "Silver Sponsor of the MariaDB Foundation"},
+  {"Acronis", "http://www.acronis.com", "Silver Sponsor of the MariaDB Foundation"},
+  {"Auttomattic", "https://automattic.com", "Bronze Sponsor of the MariaDB Foundation"},
+  {"Verkkokauppa.com", "https://virtuozzo.com", "Bronze Sponsor of the MariaDB Foundation"},
+  {"Virtuozzo", "https://virtuozzo.com/", "Bronze Sponsor of the MariaDB Foundation"},
 
   /* Sponsors of important features */
   {"Google", "USA", "Sponsoring encryption, parallel replication and GTID"},

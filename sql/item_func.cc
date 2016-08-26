@@ -3916,7 +3916,7 @@ longlong Item_master_pos_wait::val_int()
   longlong timeout = (arg_count>=3) ? args[2]->val_int() : 0 ;
   String connection_name_buff;
   LEX_STRING connection_name;
-  Master_info *mi;
+  Master_info *mi= NULL;
   if (arg_count >= 4)
   {
     String *con;
@@ -3936,8 +3936,9 @@ longlong Item_master_pos_wait::val_int()
     connection_name= thd->variables.default_master_connection;
 
   mysql_mutex_lock(&LOCK_active_mi);
-  mi= master_info_index->get_master_info(&connection_name,
-                                         Sql_condition::WARN_LEVEL_WARN);
+  if (master_info_index)  // master_info_index is set to NULL on shutdown.
+    mi= master_info_index->get_master_info(&connection_name,
+                                           Sql_condition::WARN_LEVEL_WARN);
   mysql_mutex_unlock(&LOCK_active_mi);
   if (!mi)
     goto err;

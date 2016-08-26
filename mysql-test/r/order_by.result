@@ -2864,6 +2864,7 @@ Handler_read_key	250
 Handler_read_last	0
 Handler_read_next	249
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	249
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	250
@@ -2882,6 +2883,7 @@ Handler_read_key	250
 Handler_read_last	0
 Handler_read_next	249
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	1
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	250
