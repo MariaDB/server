@@ -128,6 +128,11 @@ public:
   /* TRUE <=> The underlying SELECT is correlated w.r.t some ancestor select */
   bool is_correlated;
 
+  /* 
+    TRUE <=> the subquery contains a recursive reference in the FROM list
+    of one of its selects. In this case some of subquery optimization
+    strategies cannot be applied for the subquery;
+  */
   bool with_recursive_reference; 
 
   enum subs_type {UNKNOWN_SUBS, SINGLEROW_SUBS,

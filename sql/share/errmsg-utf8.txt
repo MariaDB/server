@@ -7157,7 +7157,7 @@ ER_RECURSIVE_WITHOUT_ANCHORS
 ER_UNACCEPTABLE_MUTUAL_RECURSION
         eng "Unacceptable mutual recursion with anchored table '%s'"
 ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
-        eng "Reference to recursive WITH table '%s' in materiazed derived"
+        eng "Reference to recursive WITH table '%s' in materialized derived"
 ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
         eng "Restrictions imposed on recursive definitions are violated for table '%s'"
 #

@@ -1231,8 +1231,8 @@ bool st_select_lex_unit::exec_recursive()
   {
     saved_error=
       incr_table->insert_all_rows_into(thd, rec_table, !is_unrestricted);
-    if (!with_element->first_rec_table_to_update)
-      with_element->first_rec_table_to_update= rec_table;
+    if (!with_element->rec_result->first_rec_table_to_update)
+      with_element->rec_result->first_rec_table_to_update= rec_table;
     if (with_element->level == 1)
       rec_table->reginfo.join_tab->preread_init_done= true;  
   }
@@ -1257,14 +1257,7 @@ bool st_select_lex_unit::cleanup()
 
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
     error|= sl->cleanup();
-
-  if (union_result && with_element && with_element->is_recursive)
-  {
-    ((select_union_recursive *) union_result)->cleanup();
-    delete union_result;
-    union_result= 0;
-  }
-  
+     
   if (fake_select_lex)
   {
     error|= fake_select_lex->cleanup();
@@ -1289,15 +1282,25 @@ bool st_select_lex_unit::cleanup()
   }
 
   if (with_element && with_element->is_recursive)
-    with_element->mark_as_cleaned();
-
-  if (union_result && !(with_element &&with_element->is_recursive))
   {
-    delete union_result;
-    union_result=0; // Safety
-    if (table)
-      free_tmp_table(thd, table);
-    table= 0; // Safety
+    if (union_result )
+    {
+      ((select_union_recursive *) union_result)->cleanup();
+      delete union_result;
+      union_result= 0;
+    }
+    with_element->mark_as_cleaned();
+  }
+  else
+  {
+    if (union_result)
+    {
+      delete union_result;
+      union_result=0; // Safety
+      if (table)
+        free_tmp_table(thd, table);
+      table= 0; // Safety
+    }
   }
 
   DBUG_RETURN(error);
@@ -1325,7 +1328,7 @@ void st_select_lex_unit::reinit_exec_mechanism()
   }
 #endif
   if (with_element && with_element->is_recursive)
-    with_element->reset_for_exec();
+    with_element->reset_recursive_for_exec();
 }
 
 

@@ -14,21 +14,25 @@
     with_clauses_list  Pointer to the first clause in the list
 
   @details
-    The procedure just calls the method With_clause::check_dependencies
-    for each member of the given list.
+    For each with clause from the given list the procedure finds all
+    dependencies between tables defined in the clause by calling the
+    method With_clause::checked_dependencies.
+    Additionally, based on the info collected by this method the procedure
+    finds anchors for each recursive definition and moves them at the head
+    of the definition.
 
   @retval
     false   on success
     true    on failure
 */
 
-bool check_dependencies_in_with_clauses(THD *thd, With_clause *with_clauses_list)
+bool check_dependencies_in_with_clauses(With_clause *with_clauses_list)
 {
   for (With_clause *with_clause= with_clauses_list;
        with_clause;
        with_clause= with_clause->next_with_clause)
   {
-    if (with_clause->check_dependencies(thd))
+    if (with_clause->check_dependencies())
       return true;
     if (with_clause->check_anchors())
       return true;
@@ -43,43 +47,38 @@ bool check_dependencies_in_with_clauses(THD *thd, With_clause *with_clauses_list
     Check dependencies between tables defined in this with clause
 
  @details
-    The method performs the following actions for this with clause:
-
-    1. Test for definitions of the tables with the same name.
-    2. For each table T defined in this with clause look for tables
-       from the same with clause that are used in the query that
-       specifies T and set the dependencies of T on these tables
-       in dependency_map. 
-    3. Build the transitive closure of the above direct dependencies
-       to find out all recursive definitions.
-    4. If this with clause is not specified as recursive then
-       for each with table T defined in this with clause check whether
-       it is used in any definition that follows the definition of T.
+    The method performs the following for this with clause:
+    - checks that there are no definitions of the tables with the same name
+    - for each table T defined in this with clause looks for the tables
+      from the same with clause that are used in the query that specifies T
+      and set the dependencies of T on these tables in a bitmap. 
+    - builds the transitive closure of the above direct dependencies
+      to find out all recursive definitions.
 
   @retval
     true    if an error is reported 
     false   otherwise
 */
 
-bool With_clause::check_dependencies(THD *thd)
+bool With_clause::check_dependencies()
 {
   if (dependencies_are_checked)
     return false;
   /* 
     Look for for definitions with the same query name.
     When found report an error and return true immediately.
-    For each table T defined in this with clause look for all other tables from
-    the same with with clause that are used in the specification of T.
+    For each table T defined in this with clause look for all other tables
+    from the same with clause that are used in the specification of T.
     For each such table set the dependency bit in the dependency map of
-    with element for T.
+    the with element for T.
   */
-  for (With_element *with_elem= first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
+  for (With_element *with_elem= with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
   {
-    for (With_element *elem= first_elem;
+    for (With_element *elem= with_list.first;
          elem != with_elem;
-         elem= elem->next_elem)
+         elem= elem->next)
     {
       if (my_strcasecmp(system_charset_info, with_elem->query_name->str,
                         elem->query_name->str) == 0)
@@ -88,20 +87,20 @@ bool With_clause::check_dependencies(THD *thd)
 	return true;
       }
     }
-    if (with_elem->check_dependencies_in_spec(thd))
+    if (with_elem->check_dependencies_in_spec())
       return true;
   }
   /* Build the transitive closure of the direct dependencies found above */
-  for (With_element *with_elem= first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
+  for (With_element *with_elem= with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
     with_elem->derived_dep_map= with_elem->base_dep_map;
-  for (With_element *with_elem= first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
+  for (With_element *with_elem= with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
   {
     table_map with_elem_map=  with_elem->get_elem_map();
-    for (With_element *elem= first_elem; elem != NULL; elem= elem->next_elem)
+    for (With_element *elem= with_list.first; elem; elem= elem->next)
     {
       if (elem->derived_dep_map & with_elem_map)
         elem->derived_dep_map |= with_elem->derived_dep_map;
@@ -109,12 +108,12 @@ bool With_clause::check_dependencies(THD *thd)
   }
 
   /*
-    Mark those elements where tables are defined with direct or indirect recursion.
-    Report an error when recursion (direct or indirect) is used to define a table.
+    Mark those elements where tables are defined with direct or indirect
+   make recursion.
   */ 
-  for (With_element *with_elem= first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
+  for (With_element *with_elem= with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
   {
     if (with_elem->derived_dep_map & with_elem->get_elem_map())
       with_elem->is_recursive= true;
@@ -125,13 +124,35 @@ bool With_clause::check_dependencies(THD *thd)
 }
 
 
+/*
+  This structure describes an element of the stack of embedded units.
+  The stack is used when looking for a definition of a table in
+  with clauses. The definition can be found only in the scopes
+  of the with clauses attached to the units from the stack.
+  The with clauses are looked through from starting from the top
+  element of the stack. 
+*/
+
 struct st_unit_ctxt_elem
 {
-  st_unit_ctxt_elem *prev;
-  st_select_lex_unit *unit;
+  st_unit_ctxt_elem *prev;   // the previous element of the stack
+  st_select_lex_unit *unit;   
 };
 
-bool With_element::check_dependencies_in_spec(THD *thd)
+
+/**
+  @brief
+    Find the dependencies of this element on its siblings in its specification
+
+  @details
+    For each table reference ref(T) from the FROM list of every select sl 
+    immediately contained in the specification query of this element this
+    method searches for the definition of T in the the with clause which
+    this element belongs to. If such definition is found then the dependency
+    on it is set in sl->with_dep and in this->base_dep_map.  
+*/
+
+bool With_element::check_dependencies_in_spec()
 { 
   for (st_select_lex *sl=  spec->first_select(); sl; sl= sl->next_select())
   {
@@ -143,6 +164,62 @@ bool With_element::check_dependencies_in_spec(THD *thd)
   return false;
 }
 
+
+/**
+  @brief
+    Search for the definition of a table among the elements of this with clause
+ 
+  @param table    The reference to the table that is looked for
+  @param barrier  The barrier with element for the search
+
+  @details
+    The function looks through the elements of this with clause trying to find
+    the definition of the given table. When it encounters the element with
+    the same query name as the table's name it returns this element. If no
+    such definitions are found the function returns NULL.
+
+  @retval
+    found with element if the search succeeded
+    NULL - otherwise
+*/    
+
+With_element *With_clause::find_table_def(TABLE_LIST *table,
+                                          With_element *barrier)
+{
+  for (With_element *with_elem= with_list.first; 
+       with_elem != barrier;
+       with_elem= with_elem->next)
+  {
+    if (my_strcasecmp(system_charset_info, with_elem->query_name->str,
+		      table->table_name) == 0) 
+    {
+      table->set_derived();
+      return with_elem;
+    }
+  }
+  return NULL;
+}
+
+
+/**
+  @brief
+    Search for the definition of a table in with clauses
+ 
+  @param tbl     The reference to the table that is looked for
+  @param ctxt    The context describing in what with clauses of the upper
+                 levels the table has to be searched for.
+
+  @details
+    The function looks for the definition of the table tbl in the definitions
+    of the with clauses from the upper levels specified by the parameter ctxt.
+    When it encounters the element with the same query name as the table's name
+    it returns this element. If no such definitions are found the function
+    returns NULL.
+
+  @retval
+    found with element if the search succeeded
+    NULL - otherwise
+*/    
 
 With_element *find_table_def_in_with_clauses(TABLE_LIST *tbl,
                                              st_unit_ctxt_elem *ctxt)
@@ -159,11 +236,40 @@ With_element *find_table_def_in_with_clauses(TABLE_LIST *tbl,
       return tbl->with;
     barrier= NULL;
     if (unit->with_element && !unit->with_element->get_owner()->with_recursive)
+    {
+      /* 
+        This unit is the specification if the with element unit->with_element.
+        The with element belongs to a with clause without the specifier RECURSIVE.
+        So when searching for the matching definition of tbl this with clause must
+        be looked up to this with element
+      */
       barrier= unit->with_element;
+    }
   }
   return NULL;
 }
 
+
+/**
+  @brief
+    Find the dependencies of this element on its siblings in a select
+ 
+  @param  sl       The select where to look for the dependencies
+  @param  ctxt     The structure specifying the scope of the definitions
+                   of the with elements of the upper levels
+  @param  in_sbq   if true mark dependencies found in subqueries in 
+                   this->sq_dep_map
+  @param  dep_map  IN/OUT The bit where to mark the found dependencies
+
+  @details
+    For each table reference ref(T) from the FROM list of the select sl
+    the method searches in with clauses for the definition of the table T.
+    If the found definition belongs to the same with clause as this with
+    element then the method set dependency on T in the in/out parameter
+    dep_map, add if required - in this->sq_dep_map.
+    The parameter ctxt describes the proper context for the search 
+    of the definition of T.      
+*/
 
 void With_element::check_dependencies_in_select(st_select_lex *sl,
                                                 st_unit_ctxt_elem *ctxt,
@@ -176,36 +282,62 @@ void With_element::check_dependencies_in_select(st_select_lex *sl,
     if (tbl->derived || tbl->nested_join)
       continue;
     tbl->with_internal_reference_map= 0;
+    /*
+      If there is a with clause attached to the unit containing sl
+      look first for the definition of tbl in this with clause.
+      If such definition is not found there look in the with
+      clauses of the upper levels.
+      If the definition of tbl is found somewhere in with clauses
+       then tbl->with is set to point to this definition 
+    */
     if (with_clause && !tbl->with)
       tbl->with= with_clause->find_table_def(tbl, NULL);
     if (!tbl->with)
       tbl->with= find_table_def_in_with_clauses(tbl, ctxt);
+
     if (tbl->with && tbl->with->owner== this->owner)
-    {
+    {   
+      /* 
+        The found definition T of tbl belongs to the same
+        with clause as this with element. In this case:
+        - set the dependence on T in the bitmap dep_map
+        - set tbl->with_internal_reference_map with
+          the bitmap for this definition
+        - set the dependence on T in the bitmap this->sq_dep_map
+          if needed 
+      */     
       *dep_map|= tbl->with->get_elem_map();
       tbl->with_internal_reference_map= get_elem_map();
       if (in_subq)
         sq_dep_map|= tbl->with->get_elem_map();
     }
   }
+  /* Now look for the dependencies in the subqueries of sl */
   st_select_lex_unit *inner_unit= sl->first_inner_unit();
   for (; inner_unit; inner_unit= inner_unit->next_unit())
     check_dependencies_in_unit(inner_unit, ctxt, in_subq, dep_map);
 }
 
 
- /**
+/**
   @brief
-    Check dependencies on the sibling with tables used in the given unit
-
-  @param unit  The unit where the siblings are to be searched for
+    Find the dependencies of this element on its siblings in a unit
+ 
+  @param  unit     The unit where to look for the dependencies
+  @param  ctxt     The structure specifying the scope of the definitions
+                   of the with elements of the upper levels
+  @param  in_sbq   if true mark dependencies found in subqueries in 
+                   this->sq_dep_map
+  @param  dep_map  IN/OUT The bit where to mark the found dependencies
 
   @details
-    The method recursively looks through all from lists encountered
-    the given unit. If it finds a reference to a table that is
-    defined in the same with clause to which this element belongs
-    the method set the bit of dependency on this table in the
-    dependency_map of this element.
+    This method searches in the unit 'unit' for the the references in FROM
+    lists of all selects contained in this unit and in the with clause
+    attached to this unit that refer to definitions of tables from the
+    same with clause as this element.
+    If such definitions are found then the dependencies on them are
+    set in the in/out parameter dep_map and optionally in this->sq_dep_map.  
+    The parameter ctxt describes the proper context for the search.      
 */
 
 void With_element::check_dependencies_in_unit(st_select_lex_unit *unit,
@@ -224,39 +356,83 @@ void With_element::check_dependencies_in_unit(st_select_lex_unit *unit,
   }
 }
 
+
+/**
+  @brief
+    Find the dependencies of this element on its siblings in a with clause
+ 
+  @param  witt_clause  The with clause where to look for the dependencies
+  @param  ctxt         The structure specifying the scope of the definitions
+                       of the with elements of the upper levels
+  @param  in_sbq       if true mark dependencies found in subqueries in 
+                       this->sq_dep_map
+  @param  dep_map      IN/OUT The bit where to mark the found dependencies
+
+  @details
+    This method searches in the with_clause for the the references in FROM
+    lists of all selects contained in the specifications of the with elements
+    from this with_clause that refer to definitions of tables from the
+    same with clause as this element.
+    If such definitions are found then the dependencies on them are
+    set in the in/out parameter dep_map and optionally in this->sq_dep_map.  
+    The parameter ctxt describes the proper context for the search.      
+*/
+
 void 
 With_element::check_dependencies_in_with_clause(With_clause *with_clause,
                                                 st_unit_ctxt_elem *ctxt,
                                                 bool in_subq,
                                                 table_map *dep_map)
 {
-  for (With_element *with_elem= with_clause->first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
+  for (With_element *with_elem= with_clause->with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
   {
     check_dependencies_in_unit(with_elem->spec, ctxt, in_subq, dep_map);
   }
 }
 
 
+/**
+  @brief
+    Find mutually recursive with elements and check that they have ancors
+ 
+  @details
+    This method performs the following:
+    - for each recursive with element finds all mutually recursive with it
+    - links each group of mutually recursive with elements into a ring chain
+    - checks that every group of mutually recursive with elements contains
+      at least one anchor
+    - checks that after removing any with element with anchor the remaining
+      with elements mutually recursive with the removed one are not recursive
+      anymore
+
+  @retval
+    true    if an error is reported 
+    false   otherwise
+*/
+
 bool With_clause::check_anchors()
 {
-  /* Find mutually recursive with elements */
-  for (With_element *with_elem= first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
+  for (With_element *with_elem= with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
   {
     if (!with_elem->is_recursive)
       continue;
 
+  /* 
+    It with_elem is recursive with element find all elements mutually recursive
+    with it (any recursive element is mutually recursive with itself). Mark all
+    these elements in the bitmap->mutually_recursive. Also link all these 
+    elements into a ring chain.
+  */
     if (!with_elem->next_mutually_recursive)
     {
       With_element *last_mutually_recursive= with_elem;
       table_map with_elem_dep= with_elem->derived_dep_map;
       table_map with_elem_map= with_elem->get_elem_map();
-      for (With_element *elem= with_elem;
-           elem != NULL;
-	   elem= elem->next_elem)
+      for (With_element *elem= with_elem; elem; elem= elem->next)
       {
         if (!elem->is_recursive)
           continue;
@@ -277,11 +453,16 @@ bool With_clause::check_anchors()
 	elem->mutually_recursive= with_elem->mutually_recursive;
     }
  
+    /*
+      For each select from the specification of 'with_elem' check whether
+      it is an anchor i.e. does not depend on any with elements mutually
+      recursive with 'with_elem".
+    */
     for (st_select_lex *sl= with_elem->spec->first_select();
          sl;
          sl= sl->next_select())
     {
-      if (!(with_elem->mutually_recursive & sl->with_dep))
+      if (with_elem->is_anchor(sl))
       {
         with_elem->with_anchor= true;
         break;
@@ -289,15 +470,25 @@ bool With_clause::check_anchors()
     }
   }
 
-  for (With_element *with_elem= first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
+  /* 
+    Check that for any group of mutually recursive with elements
+    - there is at least one anchor
+    - after removing any with element with anchor the remaining with elements
+      mutually recursive with the removed one are not recursive anymore
+  */ 
+  for (With_element *with_elem= with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
   {
     if (!with_elem->is_recursive)
       continue;
     
     if (!with_elem->with_anchor)
     {
+      /* 
+        Check that the other with elements mutually recursive with 'with_elem' 
+        contain at least one anchor.
+      */
       With_element *elem= with_elem;
       while ((elem= elem->get_next_mutually_recursive()) != with_elem)
       {
@@ -313,7 +504,13 @@ bool With_clause::check_anchors()
     }
     else
     {
+      /* 'with_elem' is a with element with an anchor */
       With_element *elem= with_elem;
+      /* 
+        For the other with elements mutually recursive with 'with_elem'
+        set dependency bits between those elements in the field work_dep_map
+        and build transitive closure of these dependencies
+      */         
       while ((elem= elem->get_next_mutually_recursive()) != with_elem)
 	elem->work_dep_map= elem->base_dep_map & elem->mutually_recursive;
       elem= with_elem;
@@ -327,6 +524,7 @@ bool With_clause::check_anchors()
 	    el->work_dep_map|= elem->work_dep_map;          
         }
       }
+      /* If the transitive closure displays any cycle report an arror */
       elem= with_elem;
       while ((elem= elem->get_next_mutually_recursive()) != with_elem)
       {
@@ -346,36 +544,53 @@ bool With_clause::check_anchors()
 
 /**
   @brief
-    Search for the definition of a table among the elements of this with clause
+    Move anchors at the beginning of the specifications for with elements
  
-  @param table    The reference to the table that is looked for
-
   @details
-    The function looks through the elements of this with clause trying to find
-    the definition of the given table. When it encounters the element with
-    the same query name as the table's name it returns this element. If no
-    such definitions are found the function returns NULL.
+    This method moves anchors at the beginning of the specifications for
+    all recursive with elements.
+*/
 
-  @retval
-    found with element if the search succeeded
-    NULL - otherwise
-*/    
-
-With_element *With_clause::find_table_def(TABLE_LIST *table,
-                                          With_element *barrier)
+void With_clause::move_anchors_ahead()
 {
-  for (With_element *with_elem= first_elem; 
-       with_elem != barrier;
-       with_elem= with_elem->next_elem)
+  for (With_element *with_elem= with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
   {
-    if (my_strcasecmp(system_charset_info, with_elem->query_name->str,
-		      table->table_name) == 0) 
-    {
-      table->set_derived();
-      return with_elem;
-    }
+    if (with_elem->is_recursive)
+     with_elem->move_anchors_ahead();
   }
-  return NULL;
+}
+	
+
+/**
+  @brief
+    Move anchors at the beginning of the specification of this with element
+ 
+  @details
+    If the specification of this with element contains anchors the method
+    moves them at the very beginning of the specification.
+*/
+
+void With_element::move_anchors_ahead()
+{
+  st_select_lex *next_sl;
+  st_select_lex *new_pos= spec->first_select();
+  st_select_lex *last_sl;
+  new_pos->linkage= UNION_TYPE;
+  for (st_select_lex *sl= new_pos; sl; sl= next_sl)
+  {
+    next_sl= sl->next_select(); 
+    if (is_anchor(sl))
+    {
+      sl->move_node(new_pos);
+      new_pos= sl->next_select();
+    }
+    last_sl= sl;
+  }
+  if (spec->union_distinct)
+    spec->union_distinct= last_sl;
+  first_recursive= new_pos;
 }
 
 
@@ -397,9 +612,9 @@ With_element *With_clause::find_table_def(TABLE_LIST *table,
 
 bool With_clause::prepare_unreferenced_elements(THD *thd)
 {
-  for (With_element *with_elem= first_elem; 
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
+  for (With_element *with_elem= with_list.first; 
+       with_elem;
+       with_elem= with_elem->next)
   {
     if (!with_elem->is_referenced() && with_elem->prepare_unreferenced(thd))
       return true;
@@ -418,9 +633,9 @@ bool With_clause::prepare_unreferenced_elements(THD *thd)
   @param spec_end   The end of the specification in the input string
 
   @details
-    The method creates for a string copy of the specification used in this element.
-    The method is called when the element is parsed. The copy may be used to
-    create clones of the specification whenever they are needed.
+    The method creates for a string copy of the specification used in this
+    element. The method is called when the element is parsed. The copy may be
+    used to create clones of the specification whenever they are needed.
 
   @retval
     false   on success
@@ -646,41 +861,6 @@ bool With_element::prepare_unreferenced(THD *thd)
 }
 
 
-
-void With_clause::move_anchors_ahead()
-{
-  for (With_element *with_elem= first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
-  {
-    if (with_elem->is_recursive)
-     with_elem->move_anchors_ahead();
-  }
-}
-	
-
-void With_element::move_anchors_ahead()
-{
-  st_select_lex *next_sl;
-  st_select_lex *new_pos= spec->first_select();
-  st_select_lex *last_sl;
-  new_pos->linkage= UNION_TYPE;
-  for (st_select_lex *sl= new_pos; sl; sl= next_sl)
-  {
-    next_sl= sl->next_select(); 
-    if (is_anchor(sl))
-    {
-      sl->move_node(new_pos);
-      new_pos= sl->next_select();
-    }
-    last_sl= sl;
-  }
-  if (spec->union_distinct)
-    spec->union_distinct= last_sl;
-  first_recursive= new_pos;
-}
-
-
 bool With_element::is_anchor(st_select_lex *sel)
 {
   return !(mutually_recursive & sel->with_dep);
@@ -694,10 +874,10 @@ bool With_element::is_anchor(st_select_lex *sel)
   @param table  reference to the table whose definition is searched for
      
   @details  
-    The method looks for the definition the table whose reference is occurred
+    The method looks for the definition of the table whose reference is occurred
     in the FROM list of this select node. First it searches for it in the
     with clause attached to the unit this select node belongs to. If such a
-    definition is not found there the embedding units are looked through.
+    definition is not found then the embedding units are looked through.
 
   @retval
     pointer to the found definition if the search has been successful
@@ -770,6 +950,12 @@ bool TABLE_LIST::is_recursive_with_table()
 }
 
 
+/*
+  A reference to a with table T is recursive if it occurs somewhere
+  in the query specifying T or in the query specifying one of the tables
+  mutually recursive with T.
+*/
+
 bool TABLE_LIST::is_with_table_recursive_reference()
 {
   return (with_internal_reference_map &&
@@ -777,12 +963,67 @@ bool TABLE_LIST::is_with_table_recursive_reference()
 }
 
 
+/* 
+  Specifications of with tables with recursive table references
+  in non-mergeable derived tables are not allowed in this
+  implementation. 
+*/
+
+
+/*
+  We say that the specification of a with table T is restricted  
+  if all below is true.
+    1. Any immediate select of the specification contains at most one 
+     recursive table reference taking into account table references
+     from mergeable derived tables.
+    2. Any recursive table reference is not an inner operand of an
+     outer join operation used in an immediate select of the
+     specification.
+    3. Any immediate select from the specification of T does not
+     contain aggregate functions.
+    4. The specification of T does not contain recursive table references.
+
+  If the specification of T is not restricted we call the corresponding
+  with element unrestricted.
+
+  The SQL standards allows only with elements with restricted specification.
+  By default we comply with the standards here.  
+ 
+  Yet we allow unrestricted specification if the status variable
+  'standards_compliant_cte' set to 'off'(0).
+*/
+
+
+/**
+  @brief
+    Check if this select makes the including specification unrestricted
+ 
+  @param
+    only_standards_compliant  true if  the system variable
+                              'standards_compliant_cte' is set to 'on'
+  @details
+    This method checks whether the conditions 1-4 (see the comment above)
+    are satisfied for this select. If not then mark this element as
+    unrestricted and report an error if 'only_standards_compliant' is true.
+
+  @retval
+    true    if an error is reported 
+    false   otherwise
+*/
 
 bool st_select_lex::check_unrestricted_recursive(bool only_standards_compliant)
 {
   With_element *with_elem= get_with_element();
   if (!with_elem ||!with_elem->is_recursive)
+  {
+    /*
+      If this select is not from the specifiocation of a with elememt or
+      if this not a recursive with element then there is nothing to check.
+    */
     return false;
+  }
+
+  /* Check conditions 1-2 for restricted specification*/
   table_map unrestricted= 0;
   table_map encountered= 0;
   if (with_elem->check_unrestricted_recursive(this, 
@@ -790,10 +1031,15 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standards_compliant)
 					      encountered))
     return true;
   with_elem->get_owner()->add_unrestricted(unrestricted);
+
+
+  /* Check conditions 3-4 for restricted specification*/
   if (with_sum_func ||
       (with_elem->contains_sq_with_recursive_reference()))
     with_elem->get_owner()->add_unrestricted(
                               with_elem->get_mutually_recursive());
+
+  /* Report an error on unrestricted specification if this is required */
   if (only_standards_compliant && with_elem->is_unrestricted())
   {
     my_error(ER_NOT_STANDARDS_COMPLIANT_RECURSIVE,
@@ -805,10 +1051,30 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standards_compliant)
 }
 
 
+/**
+  @brief
+    Check if a select from the spec of this with element is partially restricted
+ 
+  @param
+    sel             select from the specification of this element where to check
+                    whether conditions 1-2 are satisfied
+    unrestricted    IN/OUT bitmap where to mark unrestricted specs
+    encountered     IN/OUT bitmap where to mark encountered recursive references
+  @details
+    This method checks whether the conditions 1-2 (see the comment above)
+    are satisfied for the select sel. 
+    This method is called recursively for derived tables.
+
+  @retval
+    true    if an error is reported 
+    false   otherwise
+*/
+
 bool With_element::check_unrestricted_recursive(st_select_lex *sel, 
 					        table_map &unrestricted, 
 						table_map &encountered)
 {
+  /* Check conditions 1-for restricted specification*/
   List_iterator<TABLE_LIST> ti(sel->leaf_tables);
   TABLE_LIST *tbl;
   while ((tbl= ti++))
@@ -843,9 +1109,9 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
         encountered|= with_elem->get_elem_map();
     }
   } 
-  for (With_element *with_elem= sel->get_with_element()->owner->first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
+  for (With_element *with_elem= sel->get_with_element()->owner->with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
   {
     if (!with_elem->is_recursive && (unrestricted & with_elem->get_elem_map()))
       continue;
@@ -870,6 +1136,9 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
       }
     }
   }
+
+  
+  /* Check conditions 2 for restricted specification*/
   ti.rewind();
   while ((tbl= ti++))
   {
@@ -886,7 +1155,25 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
 }
 
 
-void st_select_lex::check_subqueries_with_recursive_references()
+/**
+  @brief
+  Check subqueries with recursive table references from FROM list of this select
+ 
+ @details
+    For each recursive table reference from the FROM list of this select 
+    this method checks:
+    - whether this reference is within a materialized derived table and
+      if so it report an error
+    - whether this reference is within a subquery and if so it set a flag
+      in this subquery that disallows some optimization strategies for
+      this subquery.
+ 
+  @retval
+    true    if an error is reported 
+    false   otherwise
+*/
+
+bool st_select_lex::check_subqueries_with_recursive_references()
 {
   st_select_lex_unit *sl_master= master_unit();
   List_iterator<TABLE_LIST> ti(leaf_tables);
@@ -895,15 +1182,27 @@ void st_select_lex::check_subqueries_with_recursive_references()
   {
     if (!(tbl->is_with_table_recursive_reference() && sl_master->item))
       continue;
+    With_element *with_elem= tbl->with;
+    bool check_embedding_materialized_derived= true;
     for (st_select_lex *sl= this; sl; sl= sl_master->outer_select())
     { 
       sl_master= sl->master_unit();
+      if (with_elem->get_owner() == sl_master->with_clause)
+         check_embedding_materialized_derived= false;
+      if (check_embedding_materialized_derived && !sl_master->with_element && 
+          sl_master->derived && sl_master->derived->is_materialized_derived())
+      {
+	my_error(ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED,
+	  	     MYF(0), with_elem->query_name->str);
+	return true;
+      }
       if (!sl_master->item)
 	continue;
       Item_subselect *subq= (Item_subselect *) sl_master->item;
       subq->with_recursive_reference= true;
     }
   }
+  return false;
 }
 
 
@@ -924,12 +1223,12 @@ void With_clause::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN("with "));
   if (with_recursive)
     str->append(STRING_WITH_LEN("recursive "));
-  for (With_element *with_elem= first_elem;
-       with_elem != NULL;
-       with_elem= with_elem->next_elem)
+  for (With_element *with_elem= with_list.first;
+       with_elem;
+       with_elem= with_elem->next)
   {
     with_elem->print(str, query_type);
-    if (with_elem != first_elem)
+    if (with_elem != with_list.first)
       str->append(", ");
   }
 }

@@ -21,7 +21,7 @@ class With_element : public Sql_alloc
 {
 private:
   With_clause *owner;      // with clause this object belongs to
-  With_element *next_elem; // next element in the with clause
+  With_element *next;      // next element in the with clause
   uint number;  // number of the element in the with clause (starting from 0)
   table_map elem_map;  // The map where with only one 1 set in this->number   
   /* 
@@ -35,11 +35,23 @@ private:
     The map derived_dep_map has 1 in i-th position if this with element depends
     directly or indirectly from the i-th with element. 
   */
-  table_map derived_dep_map; 
+  table_map derived_dep_map;
+  /* 
+    The map sq_dep_map has 1 in i-th position if there is a reference to this
+    with element somewhere in subqueries of the specifications of the tables
+    defined in the with clause containing this element;
+  */   
   table_map sq_dep_map;
   table_map work_dep_map;  // dependency map used for work
   /* Dependency map of with elements mutually recursive with this with element */
-  table_map mutually_recursive; 
+  table_map mutually_recursive;
+  /* 
+    The next with element from the circular chain of the with elements
+    mutually recursive with this with element. 
+    (If This element is simply recursive than next_mutually_recursive contains
+    the pointer to itself. If it's not recursive than next_mutually_recursive
+    is set to NULL.) 
+  */  
   With_element *next_mutually_recursive;
   /* 
     Total number of references to this element in the FROM lists of
@@ -55,8 +67,6 @@ private:
 
   /* Return the map where 1 is set only in the position for this element */
   table_map get_elem_map() { return 1 << number; }
- 
-  TABLE *table;
  
 public:
   /*
@@ -79,34 +89,48 @@ public:
   */
   bool is_recursive;
 
+  /*
+    Any non-recursive select in the specification of a recursive
+    with element is a called anchor. In the case mutually recursive
+    elements the specification of some them may be without any anchor.
+    Yet at least one of them must contain an anchor.
+    All anchors of any recursivespecification are moved ahead before
+    the prepare stage.
+  */  
+  /* Set to true if this is a recursive element with an anchor */ 
   bool with_anchor;
-
+  /* 
+    Set to the first recursive select of the unit specifying the element
+    after all anchor have been moved to the head of the unit.
+  */
   st_select_lex *first_recursive;
   
-  /* The number of the last performed iteration for recursive table */
+  /* 
+    The number of the last performed iteration for recursive table
+    (the number of the initial non-recursive step is 0, the number
+     of the first iteration is 1).
+  */
   uint level;
 
+  /* 
+    The pointer to the object used to materialize this with element
+    if it's recursive. This object is built at the end of prepare 
+    stage and is used at the execution stage.
+  */
   select_union_recursive *rec_result;
-
-  TABLE *result_table;
- 
-  TABLE *first_rec_table_to_update;
-
 
   With_element(LEX_STRING *name,
                List <LEX_STRING> list,
                st_select_lex_unit *unit)
-    : next_elem(NULL), base_dep_map(0), derived_dep_map(0),
+    : next(NULL), base_dep_map(0), derived_dep_map(0),
       sq_dep_map(0), work_dep_map(0), mutually_recursive(0),
-      next_mutually_recursive(NULL), 
-      references(0), table(NULL),
+      next_mutually_recursive(NULL), references(0), 
       query_name(name), column_list(list), spec(unit),
       is_recursive(false), with_anchor(false),
-    level(0), rec_result(NULL), result_table(NULL),
-    first_rec_table_to_update(NULL)
+      level(0), rec_result(NULL)
   {}
 
-  bool check_dependencies_in_spec(THD *thd);
+  bool check_dependencies_in_spec();
   
   void check_dependencies_in_select(st_select_lex *sl, st_unit_ctxt_elem *ctxt,
                                     bool in_subq, table_map *dep_map);
@@ -155,10 +179,6 @@ public:
   With_element *get_next_mutually_recursive()
   { return next_mutually_recursive; }
 
-  void set_table(TABLE *tab) { table= tab; }
-
-  TABLE *get_table() { return table; }
-
   bool is_anchor(st_select_lex *sel);
 
   void move_anchors_ahead(); 
@@ -173,7 +193,7 @@ public:
 
   void mark_as_cleaned();
 
-  void reset_for_exec();
+  void reset_recursive_for_exec();
 
   void cleanup_stabilized();
 
@@ -182,8 +202,6 @@ public:
   bool is_stabilized();
 
   bool all_are_stabilized();
-
-  void set_result_table(TABLE *tab) { result_table= tab; }
 
   bool instantiate_tmp_tables();
 
@@ -206,9 +224,9 @@ class With_clause : public Sql_alloc
 {
 private:
   st_select_lex_unit *owner; // the unit this with clause attached to
-  With_element *first_elem; // the first definition in this with clause 
-  With_element **last_next; // here is set the link for the next added element
-  uint elements; // number of the elements/defintions in this with clauses 
+
+  /* The list of all with elements from this with clause */
+  SQL_I_List<With_element> with_list; 
   /*
     The with clause immediately containing this with clause if there is any,
     otherwise NULL. Now used  only at parsing.
@@ -222,9 +240,22 @@ private:
   /* Set to true if dependencies between with elements have been checked */
   bool dependencies_are_checked; 
 
+  /* 
+    The bitmap of all recursive with elements whose specifications
+    are not complied with restrictions imposed by the SQL standards
+    on recursive specifications.
+  */ 
   table_map unrestricted;
+  /* 
+    The bitmap of all recursive with elements whose anchors
+    has been already prepared.
+  */
   table_map with_prepared_anchor;
   table_map cleaned;
+  /* 
+    The bitmap of all recursive with elements that
+    has been already materialized
+  */
   table_map stabilized;
 
 public:
@@ -232,23 +263,20 @@ public:
   bool with_recursive;
 
   With_clause(bool recursive_fl, With_clause *emb_with_clause)
-    : owner(NULL), first_elem(NULL), elements(0),
+    : owner(NULL),
       embedding_with_clause(emb_with_clause), next_with_clause(NULL),
-      dependencies_are_checked(false),
-      unrestricted(0), with_prepared_anchor(0), cleaned(0),
-      stabilized(0),
+      dependencies_are_checked(false),  unrestricted(0),
+      with_prepared_anchor(0), cleaned(0), stabilized(0),
       with_recursive(recursive_fl)
-  { last_next= &first_elem; }
+  { }
 
   /* Add a new element to the current with clause */ 
   bool add_with_element(With_element *elem)
   { 
     elem->owner= this;
-    elem->number= elements;
+    elem->number= with_list.elements;
     elem->spec->with_element= elem;
-    *last_next= elem;
-    last_next= &elem->next_elem;
-    elements++;
+    with_list.link_in_list(elem, &elem->next);
     return false;
   }
 
@@ -263,7 +291,7 @@ public:
 
   With_clause *pop() { return embedding_with_clause; }
       
-  bool check_dependencies(THD *thd);
+  bool check_dependencies();
 
   bool check_anchors();
 
@@ -283,7 +311,7 @@ public:
 
   friend
   bool
-  check_dependencies_in_with_clauses(THD *thd, With_clause *with_clauses_list);
+  check_dependencies_in_with_clauses(With_clause *with_clauses_list);
 };
 
 inline
@@ -321,14 +349,16 @@ void With_element::mark_as_cleaned()
 
 
 inline
-void With_element::reset_for_exec()
+void With_element::reset_recursive_for_exec()
 {
+  DBUG_ASSERT(is_recursive);
   level= 0;
   owner->with_prepared_anchor&= ~mutually_recursive;
   owner->cleaned&= ~get_elem_map();
-  first_rec_table_to_update= NULL;
   cleanup_stabilized();
+  rec_result->first_rec_table_to_update= 0;
 }
+
 
 
 inline
@@ -365,7 +395,7 @@ void With_element::prepare_for_next_iteration()
   With_element *with_elem= this;
   while ((with_elem= with_elem->get_next_mutually_recursive()) != this)
   {
-    TABLE *rec_table= with_elem->first_rec_table_to_update;
+    TABLE *rec_table= with_elem->rec_result->first_rec_table_to_update;
     if (rec_table)
       rec_table->reginfo.join_tab->preread_init_done= false;        
   }

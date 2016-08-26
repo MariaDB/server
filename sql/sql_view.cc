@@ -430,7 +430,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
 
-  if (check_dependencies_in_with_clauses(thd, lex->with_clauses_list))
+  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
   {
     res= TRUE;
     goto err;
@@ -1390,7 +1390,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     TABLE_LIST *tbl;
     Security_context *security_ctx= 0;
 
-    if (check_dependencies_in_with_clauses(thd, thd->lex->with_clauses_list))
+    if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
       goto err;
 
     /*

@@ -1109,7 +1109,7 @@ public:
   }
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
   bool check_unrestricted_recursive(bool only_standards_compliant); 
-  void check_subqueries_with_recursive_references();
+  bool check_subqueries_with_recursive_references();
   
   List<Window_spec> window_specs;
   void prepare_add_window_spec(THD *thd);
@@ -2475,7 +2475,7 @@ struct LEX: public Query_tables_list
   SELECT_LEX *all_selects_list;
   /* current with clause in parsing if any, otherwise 0*/
   With_clause *curr_with_clause;  
-  /* pointer to the first with clause in the current statemant */
+  /* pointer to the first with clause in the current statement */
   With_clause *with_clauses_list;
   /*
     (*with_clauses_list_last_next) contains a pointer to the last

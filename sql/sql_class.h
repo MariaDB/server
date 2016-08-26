@@ -4682,10 +4682,12 @@ class select_union_recursive :public select_union
 {
  public:
   TABLE *incr_table;
+  TABLE *first_rec_table_to_update;
   List<TABLE> rec_tables;
 
   select_union_recursive(THD *thd_arg):
-    select_union(thd_arg), incr_table(0) {};
+    select_union(thd_arg),
+    incr_table(0), first_rec_table_to_update(0) {};
 
   int send_data(List<Item> &items);
   bool create_result_table(THD *thd, List<Item> *column_types,
