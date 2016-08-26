@@ -749,8 +749,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
         keys. Each HA_UNIQUE_HASH key require one extra key_part in which
         it stored hash. On safe side we will allocate memory for each key.
        */
-      ext_key_parts+= keys;
-      n_length=keys * sizeof(KEY) + ext_key_parts * sizeof(KEY_PART_INFO);
+      n_length=keys * sizeof(KEY) + (ext_key_parts +keys) * sizeof(KEY_PART_INFO);
       if (!(keyinfo= (KEY*) alloc_root(&share->mem_root,
 				       n_length + len)))
         return 1;
@@ -804,7 +803,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     {
       keyinfo->flags|= HA_UNIQUE_HASH | HA_NOSAME;
       keyinfo->key_length= 0;
-      share->ext_key_parts++;
+      share->extra_hash_parts++;
       // This empty key_part for storing Hash
       key_part++;
     }
@@ -1904,8 +1903,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         hash_keypart->store_length= hash_keypart->length;
         hash_keypart->type= HA_KEYTYPE_ULONGLONG;
         hash_keypart->key_part_flag= 0;
+        hash_keypart->key_type= 32834;
+        hash_keypart->offset= 1;
         hash_fld= share->field[hash_field_used_no];
-        temp_key_part= key_info->key_part;
+        temp_key_part= keyinfo->key_part;
         Virtual_column_info *v= new (&share->mem_root) Virtual_column_info();;
         String hash_str;
         hash_str.append(STRING_WITH_LEN(HA_HASH_STR_HEAD));
@@ -2015,7 +2016,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                keyinfo->name_length+1);
       }
 
-      if (ext_key_parts > share->key_parts && key)
+      if (ext_key_parts > share->key_parts && key &&
+                             !(keyinfo->flags & HA_UNIQUE_HASH))
       {
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
@@ -2113,6 +2115,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (i == 0)
           field->key_start.set_bit(key);
         if (field->key_length() == key_part->length &&
+            //TODO remove this condition for optimizer ?
             !(field->flags & BLOB_FLAG))
         {
           if (handler_file->index_flags(key, i, 0) & HA_KEYREAD_ONLY)
@@ -2204,11 +2207,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if ((keyinfo->flags & HA_NOSAME) ||
           (ha_option & HA_ANY_INDEX_MAY_BE_UNIQUE))
         set_if_bigger(share->max_unique_length,keyinfo->key_length);
-      if (keyinfo->flags & HA_UNIQUE_HASH)
-      {
-        keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
-        keyinfo->ext_key_part_map= 0;
-      }
     }
     if (primary_key < MAX_KEY &&
 	(share->keys_in_use.is_set(primary_key)))
@@ -3004,7 +3002,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     KEY	*key_info, *key_info_end;
     KEY_PART_INFO *key_part;
     uint n_length;
-    n_length= share->keys*sizeof(KEY) + share->ext_key_parts*sizeof(KEY_PART_INFO);
+    n_length= share->keys*sizeof(KEY) + (share->ext_key_parts +
+                                       share->extra_hash_parts)*sizeof(KEY_PART_INFO);
     if (!(key_info= (KEY*) alloc_root(&outparam->mem_root, n_length)))
       goto err;
     outparam->key_info= key_info;
@@ -3012,7 +3011,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 
     memcpy(key_info, share->key_info, sizeof(*key_info)*share->keys);
     memcpy(key_part, share->key_info[0].key_part, (sizeof(*key_part) *
-                                                   share->ext_key_parts));
+                                 (share->ext_key_parts + share->extra_hash_parts)));
 
     for (key_info_end= key_info + share->keys ;
          key_info < key_info_end ;

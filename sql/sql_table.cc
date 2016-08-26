@@ -3192,10 +3192,12 @@ static void check_duplicate_key(THD *thd,
   @param  thd           Thread Context.
   @param  create_list   List of table fields.
   @param  cs            Field Charset
+  @param  key_info      Whole Keys buffer
+  @param  key_index     Index of current key
 */
 
 static void add_hash_field(THD * thd, List<Create_field> *create_list,
-                           CHARSET_INFO *cs)
+                           CHARSET_INFO *cs, KEY *key_info, int key_index)
 {
   List_iterator<Create_field> it(*create_list);
   Create_field *dup_field;
@@ -3229,6 +3231,21 @@ static void add_hash_field(THD * thd, List<Create_field> *create_list,
   cf->length= cf->char_length= cf->pack_length;
   prepare_create_field(cf, NULL, 0);
   create_list->push_front(cf,thd->mem_root);
+  /*
+    We have added db_row_hash fields in starting of
+    fields array , So we have to change key_part
+    field index
+   */
+  for (uint i= 0; i <= key_index; i++, key_info++)
+  {
+    KEY_PART_INFO *info= key_info->key_part;
+    for (uint j= 0; j <  key_info->user_defined_key_parts; j++, info++)
+    {
+      info->fieldnr+= 1;
+      info->offset+= HA_HASH_FIELD_LENGTH;
+    }
+  }
+  /* Add HA_NOSAME to key so that */
 }
 
 /*
@@ -3934,6 +3951,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           }
         }
 
+        key_part_info->fieldnr= field;
+        key_part_info->offset=  (uint16) sql_field->offset;
 	if (f_is_blob(sql_field->pack_flag) ||
             (f_is_geom(sql_field->pack_flag) && key->type != Key::SPATIAL))
 	{
@@ -3954,7 +3973,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(TRUE);
       }
       add_hash_field(thd, &alter_info->create_list,
-                      create_info->default_table_charset);
+                      create_info->default_table_charset,
+                       *key_info_buffer, key_number);
       total_hash_fields_added++;
       null_fields++;
        /*
@@ -4024,9 +4044,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    auto_increment--;			// Field is used
 	}
       }
-
-      key_part_info->fieldnr= field;
-      key_part_info->offset=  (uint16) sql_field->offset;
       key_part_info->key_type=sql_field->pack_flag;
       uint key_part_length= sql_field->key_length;
 
@@ -4100,21 +4117,26 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
 	else
 	{
-		if(key->type != Key::UNIQUE)
+		if(key->type == Key::UNIQUE)
+		{
+			//TODO we does not respect length given by user in calculating hash
+			add_hash_field(thd, &alter_info->create_list,
+										 create_info->default_table_charset,
+											 *key_info_buffer, key_number);
+			total_hash_fields_added++;
+			null_fields++;
+			key_length= HA_HASH_TEMP_KEY_LENGTH;
+			column->length= sql_field->pack_length;
+			is_hash_field_added= true;
+		}
+		else
 		{
 			my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
 			DBUG_RETURN(TRUE);
 		}
-		//TODO we does not respect length given by user in calculating hash
-		add_hash_field(thd, &alter_info->create_list,
-									 create_info->default_table_charset);
-		total_hash_fields_added++;
-		null_fields++;
-		key_length= HA_HASH_TEMP_KEY_LENGTH;
-		column->length= sql_field->pack_length;
-		is_hash_field_added= true;
+
 	}
-      }
+			}
       key_part_info->length= (uint16) key_part_length;
       /* Use packed keys for long strings on the first column */
       if (!((*db_options) & HA_OPTION_NO_PACK_KEYS) &&
@@ -4213,19 +4235,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         record_offset+= sql_field->pack_length;
       }
     }
-    /*
-      We have added db_row_hash fields in starting of
-      fields array , So we have to change key_part
-      field index
-     */
-    key_info= *key_info_buffer;
-    for (uint i= 0; i < *key_count; i++, key_info++)
-    {
-      KEY_PART_INFO *info= key_info->key_part;
-      for (uint j= 0; j <  key_info->user_defined_key_parts; j++, info++)
-        info->fieldnr+= total_hash_fields_added;
-    }
-
   }
   if (!unique_key && !primary_key &&
       (file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY))

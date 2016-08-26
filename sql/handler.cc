@@ -4338,8 +4338,7 @@ void setup_table_hash(TABLE *table)
       }
     }
   }
-  table->s->key_parts-= extra_key_part_hash;
-  table->s->ext_key_parts-= extra_key_part_hash;
+  table->s->key_parts-= extra_key_part_hash - table->s->extra_hash_parts;
   if (s_keyinfo)
   {
     for (uint i= 0; i < table->s->keys; i++, s_keyinfo++)
@@ -4356,8 +4355,7 @@ void setup_table_hash(TABLE *table)
     }
     if (!keyinfo)
     {
-      table->s->key_parts-= extra_key_part_hash;
-      table->s->ext_key_parts-= extra_key_part_hash;
+      table->s->key_parts-= extra_key_part_hash - table->s->extra_hash_parts;
     }
   }
 }
@@ -4366,7 +4364,9 @@ void setup_table_hash(TABLE *table)
 
 void re_setup_table(TABLE *table)
 {
+  //TODO comment
   uint extra_key_part_hash= 0, key_length= 0;
+  uint extra_hash_parts= 0;
   KEY *s_keyinfo= table->s->key_info;
   KEY *keyinfo= table->key_info;
   /*
@@ -4387,6 +4387,7 @@ void re_setup_table(TABLE *table)
         keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
             keyinfo->ext_key_parts= hash_parts;
         extra_key_part_hash+= hash_parts;
+        extra_hash_parts++;
         for (uint i= 0; i < hash_parts; i++)
         {
           key_length+= keyinfo->key_part[i].field->pack_length();
@@ -4395,8 +4396,8 @@ void re_setup_table(TABLE *table)
       }
     }
   }
-  table->s->key_parts+= extra_key_part_hash;
-  table->s->ext_key_parts+= extra_key_part_hash;
+  table->s->key_parts+= extra_key_part_hash - extra_hash_parts;
+  table->s->extra_hash_parts= extra_hash_parts;
   if (s_keyinfo)
   {
     for (uint i= 0; i < table->s->keys; i++, s_keyinfo++)
@@ -4419,8 +4420,8 @@ void re_setup_table(TABLE *table)
     }
     if (!keyinfo)
     {
-      table->s->key_parts+= extra_key_part_hash;
-      table->s->ext_key_parts+= extra_key_part_hash;
+      table->s->key_parts+= extra_key_part_hash - extra_hash_parts;
+      table->s->extra_hash_parts= extra_hash_parts;
     }
   }
 }
