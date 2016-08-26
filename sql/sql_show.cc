@@ -1879,8 +1879,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
   for (ptr=table->field ; (field= *ptr); ptr++)
   {
-    if(field->field_visibility==MEDIUM_HIDDEN ||
-        field->field_visibility==FULL_HIDDEN)
+    if (field->field_visibility != NOT_HIDDEN)
        continue;
     uint flags = field->flags;
     packet->append(STRING_WITH_LEN("  "));

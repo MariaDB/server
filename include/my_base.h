@@ -246,7 +246,7 @@ enum ha_base_keytype {
 #define HA_HASH_KEY_LENGTH_WITHOUT_NULL 8
 #define HA_HASH_FIELD_LENGTH            8
 #define HA_HASH_KEY_LENGTH_WITH_NULL    9
-#define HA_HASH_STR_HEAD                "hash(`" //used in mysql_prepare_create_table
+#define HA_HASH_STR_HEAD                "hash(" //used in mysql_prepare_create_table
 #define HA_HASH_STR_HEAD_LEN            strlen(HA_HASH_STR_HEAD_LEN)
 #define HA_HASH_STR                     "hash"
 #define HA_HASH_STR_LEN                 strlen(HA_HASH_STR)

@@ -4329,6 +4329,7 @@ void setup_table_hash(TABLE *table)
     {
       if (keyinfo->flags & HA_UNIQUE_HASH)
       {
+        keyinfo->flags&= ~HA_NOSAME;
         extra_key_part_hash+= keyinfo->ext_key_parts;
         keyinfo->key_part= keyinfo->key_part+ keyinfo->ext_key_parts;
         keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
@@ -4345,6 +4346,7 @@ void setup_table_hash(TABLE *table)
     {
       if (s_keyinfo->flags & HA_UNIQUE_HASH)
       {
+        s_keyinfo->flags&= ~HA_NOSAME;
         extra_key_part_hash+= s_keyinfo->ext_key_parts;
         s_keyinfo->key_part= s_keyinfo->key_part+ s_keyinfo->ext_key_parts;
         s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
@@ -4378,6 +4380,7 @@ void re_setup_table(TABLE *table)
     {
       if (keyinfo->flags & HA_UNIQUE_HASH)
       {
+        keyinfo->flags|= HA_NOSAME;
         LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
         uint hash_parts= fields_in_hash_str(ls);
         keyinfo->key_part= keyinfo->key_part- hash_parts;
@@ -4400,6 +4403,7 @@ void re_setup_table(TABLE *table)
     {
       if (s_keyinfo->flags & HA_UNIQUE_HASH)
       {
+        s_keyinfo->flags|= HA_NOSAME;
         LEX_STRING *ls= &s_keyinfo->key_part->field->vcol_info->expr_str;
         uint hash_parts= fields_in_hash_str(ls);
         s_keyinfo->key_part= s_keyinfo->key_part- hash_parts;

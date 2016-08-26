@@ -3206,7 +3206,7 @@ static void add_hash_field(THD * thd, List<Create_field> *create_list,
   cf->decimals= 0;
   uint num= 1;
   char *temp_name= (char *)thd->alloc(30);
-  my_snprintf(temp_name, sizeof(temp_name), "DB_ROW_HASH_%u", num);
+  my_snprintf(temp_name, 30, "DB_ROW_HASH_%u", num);
   /*
     Check for collusions
    */
@@ -3215,7 +3215,7 @@ static void add_hash_field(THD * thd, List<Create_field> *create_list,
     if (!my_strcasecmp(system_charset_info, temp_name, dup_field->field_name))
     {
       num++;
-      my_snprintf(temp_name, sizeof(temp_name), "DB_ROW_HASH_%u", num);
+      my_snprintf(temp_name, 30, "DB_ROW_HASH_%u", num);
       it.rewind();
     }
   }
@@ -3965,7 +3965,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           image we can check for this
         */
       key_length= HA_HASH_TEMP_KEY_LENGTH;
-      column->length= 10;  //Just a random number
+      column->length= sql_field->pack_length;
       is_hash_field_added= true;
 	  }
 	}
@@ -4111,7 +4111,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 		total_hash_fields_added++;
 		null_fields++;
 		key_length= HA_HASH_TEMP_KEY_LENGTH;
-		column->length= 10;  //Just a random number
+		column->length= sql_field->pack_length;
 		is_hash_field_added= true;
 	}
       }

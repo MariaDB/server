@@ -41,6 +41,7 @@
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 #include "sql_view.h"
 #include "rpl_filter.h"
+#include "sql_show.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -699,7 +700,9 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     bzero((char*) keyinfo, len);
     key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo);
   }
+  /*
 
+   */
   /*
     If share->use_ext_keys is set to TRUE we assume that any key
     can be extended by the components of the primary key whose
@@ -740,6 +743,13 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     if (i == 0)
     {
       ext_key_parts+= (share->use_ext_keys ? first_keyinfo->user_defined_key_parts*(keys-1) : 0); 
+      /*
+        Some keys can be HA_UNIQUE_HASH , but we do not know at this point ,
+        how many ?, but will always be less than or equal to total num of
+        keys. Each HA_UNIQUE_HASH key require one extra key_part in which
+        it stored hash. On safe side we will allocate memory for each key.
+       */
+      ext_key_parts+= keys;
       n_length=keys * sizeof(KEY) + ext_key_parts * sizeof(KEY_PART_INFO);
       if (!(keyinfo= (KEY*) alloc_root(&share->mem_root,
 				       n_length + len)))
@@ -790,7 +800,14 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       }
       key_part->store_length=key_part->length;
     }
-
+    if (keyinfo->key_length > HA_HASH_TEMP_KEY_LENGTH)
+    {
+      keyinfo->flags|= HA_UNIQUE_HASH | HA_NOSAME;
+      keyinfo->key_length= 0;
+      share->ext_key_parts++;
+      // This empty key_part for storing Hash
+      key_part++;
+    }
     /*
       Add primary key to end of extended keys for non unique keys for
       storage engines that supports it.
@@ -1865,108 +1882,53 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   /* Fix key->name and key_part->field */
   if (key_parts)
   {
-    /*
-      Here we will create pseduo keyparts for key_info of long
-      unique columns
-      Suppose a create table def
-        create table t1 (a blob , b blob , c blob, unique(a,b,c));
-      then for storage level there will be only one key_part which
-      will store hash , but for server level there will be 4 key_parts
-      first 3 for a,b,c and last one for DB_ROW_HASH_ but key_info->
-      user_defined_keyparts will be just 3 , if we want to access
-      DB_ROW_HASH_ then we can simple use
-      key_info->key_part[key_info->user_define_keyparts]
-      Please note we require continues buffer , so we had to free previous
-      key_info and key_part  buffer and make a new one
-     */
-    if (field_properties && share->keys) //if long columns are index then this must be true
+    keyinfo= share->key_info;
+    uint hash_field_used_no= 0;
+    KEY_PART_INFO *hash_keypart, *temp_key_part;
+    Field *hash_fld, *temp_fld;
+    for (uint i= 0; i < share->keys; i++, keyinfo++)
     {
-      KEY *temp_key= share->key_info;
-      KEY *new_key_info;
-      KEY *new_temp_key_info;
-      int extra_key_parts_hash= 0;
-      /*
-         MariaDB adds primary key columns at the end of each
-         index which is not unique. We do not want thus in case
-         of HA_UNIQUE_HASH but we cant detect this earlier because
-         HA_UNIQUE_HASH flag is a generated flag it is not present
-         in frm
+       /*
+         1. We need set value in hash key_part
+         2. Set vcol_info in corresponding db_row_hash_ field
        */
-      int extra_wrong_ext_parts= 0;
-      for (uint i=0; i < share->keys; i++,temp_key++)
+      if (keyinfo->flags & HA_UNIQUE_HASH)
       {
-        if (temp_key->user_defined_key_parts == 1 &&
-             share->field[temp_key->key_part->fieldnr-1]->is_long_column_hash)
+        while (!share->field[hash_field_used_no]->is_long_column_hash)
         {
-          LEX_STRING *ls= &share->field[temp_key->key_part->fieldnr-1]->
-                                          vcol_info->expr_str;
-          uint hash_parts= fields_in_hash_str(ls);
-          extra_key_parts_hash+= hash_parts;
-          extra_wrong_ext_parts+= temp_key->ext_key_parts -
-               temp_key->user_defined_key_parts;
+          hash_field_used_no++;
         }
-      }
-      if (extra_key_parts_hash != 0)
-      {
-        key_parts+= extra_key_parts_hash;
-        share->key_parts= key_parts;
-        ext_key_parts+= extra_key_parts_hash - extra_wrong_ext_parts;
-        share->ext_key_parts= ext_key_parts;
-        new_key_info= new_temp_key_info=  (KEY *)alloc_root(&share->mem_root, keys *
-                         sizeof(KEY) + ext_key_parts * sizeof(KEY_PART_INFO));
-        KEY_PART_INFO *h_part;
-        h_part= reinterpret_cast<KEY_PART_INFO *>(new_key_info + keys);
-        temp_key= share->key_info;
-        uint key_length= 0;
-        memcpy(new_key_info, share->key_info, keys * sizeof(KEY));
-        for (uint i=0; i < share->keys; i++, temp_key++, new_temp_key_info++)
+        hash_keypart= keyinfo->key_part + keyinfo->user_defined_key_parts;
+        hash_keypart->fieldnr= hash_field_used_no + 1;
+        hash_keypart->length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
+        hash_keypart->store_length= hash_keypart->length;
+        hash_keypart->type= HA_KEYTYPE_ULONGLONG;
+        hash_keypart->key_part_flag= 0;
+        hash_fld= share->field[hash_field_used_no];
+        temp_key_part= key_info->key_part;
+        Virtual_column_info *v= new (&share->mem_root) Virtual_column_info();;
+        String hash_str;
+        hash_str.append(STRING_WITH_LEN(HA_HASH_STR_HEAD));
+        for (uint j= 0; j < keyinfo->user_defined_key_parts; j++,
+                 temp_key_part++)
         {
-          if (temp_key->user_defined_key_parts == 1 &&
-              share->field[temp_key->key_part->fieldnr-1]->is_long_column_hash)
-          {
-            LEX_STRING *ls= &share->field[temp_key->key_part->fieldnr-1]->
-                vcol_info->expr_str;
-            uint hash_parts= fields_in_hash_str(ls);
-            uint offset= temp_key->key_part->offset;
-            new_temp_key_info->key_part= h_part;
-            for (uint j=0; j<hash_parts; j++, h_part++)
-            {
-              h_part->field= field_ptr_in_hash_str(ls, share, j);
-              Field *fld, **f;
-              uint16 fieldnr= 1;
-              for (f= share->field; f && (fld= *f); f++, fieldnr++)
-                if (fld->eq(h_part->field))
-                  break;
-              DBUG_ASSERT(fld);
-              h_part->fieldnr= fieldnr;
-              h_part->key_type= 0;
-              h_part->key_part_flag=0;
-              h_part->store_length= h_part->length= fld->pack_length();
-              key_length+= h_part->length;
-              h_part->offset= offset;
-              offset+= fld->pack_length();
-            }
-            memcpy(h_part, temp_key->key_part, sizeof(KEY_PART_INFO));
-            h_part->field= share->field[temp_key->key_part->fieldnr-1];
-            h_part++;
-            new_temp_key_info->key_length= key_length;
-            new_temp_key_info->flags|= HA_UNIQUE_HASH;
-            new_temp_key_info->ext_key_flags|= HA_UNIQUE_HASH;
-            new_temp_key_info->user_defined_key_parts= new_temp_key_info->
-                usable_key_parts= new_temp_key_info->ext_key_parts= hash_parts;
-          }
-          else
-          {
-            // simply copy the  key_part into new buffer
-            memcpy(h_part, temp_key->key_part,
-                     temp_key->ext_key_parts * sizeof(KEY_PART_INFO));
-            new_temp_key_info->key_part= h_part;
-            h_part+= temp_key->ext_key_parts;
-          }
+          if (j)
+            hash_str.append(STRING_WITH_LEN(" , "));
+          temp_fld= share->field[temp_key_part->fieldnr-1];
+          DBUG_ASSERT(temp_fld);
+          append_identifier(thd, &hash_str, temp_fld->field_name,
+                            strlen(temp_fld->field_name));
         }
-        //TODO need to free memory but this code give segmentation fault
-        //my_free(share->key_info);
-        share->key_info= new_key_info;
+        hash_str.append(STRING_WITH_LEN(")"));
+        char * expr_str= (char *)alloc_root(&share->mem_root, hash_str.length()+1);
+        strncpy(expr_str, hash_str.ptr(), hash_str.length());
+        v->expr_str.str= expr_str;
+        v->expr_str.length= hash_str.length();
+        v->expr_item= NULL;
+        v->set_stored_in_db_flag(true);
+        hash_fld->vcol_info= v;
+        share->virtual_fields++;
+        hash_field_used_no++;
       }
     }
     uint add_first_key_parts= 0;
@@ -2126,11 +2088,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                         share->default_values);
           key_part->null_bit= field->null_bit;
           key_part->store_length+=HA_KEY_NULL_LENGTH;
-          if (keyinfo->flags & HA_UNIQUE_HASH &&
-              !(keyinfo->flags & HA_NULL_PART_KEY))
-          {}
-          else
-            keyinfo->flags|=HA_NULL_PART_KEY;
+          keyinfo->flags|=HA_NULL_PART_KEY;
           keyinfo->key_length+= HA_KEY_NULL_LENGTH;
         }
         if ((field->type() == MYSQL_TYPE_BLOB ||
