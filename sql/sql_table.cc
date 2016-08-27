@@ -3969,8 +3969,28 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             column->length= MAX_LEN_GEOM_POINT_FIELD;
 	  if (!column->length)
 	  {
+			if (key->type == Key::PRIMARY)
+			{
 	    my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
 	    DBUG_RETURN(TRUE);
+			}
+			else
+			{
+				add_hash_field(thd, &alter_info->create_list,
+											 create_info->default_table_charset,
+											 *key_info_buffer, key_number);
+				total_hash_fields_added++;
+				/*
+					In init_from_binary_frm_image we need differentiate
+					between normal key and long unique key we can simply
+					increase the lenght of key by say 5000 which is way
+					more then max key length and in init_from_binary_frm
+					image we can check for this
+					*/
+				key_length= HA_HASH_TEMP_KEY_LENGTH;
+				column->length= 0;
+				is_hash_field_added= true;
+			}
 	  }
 	}
 #ifdef HAVE_SPATIAL
@@ -4163,12 +4183,24 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (key->type == Key::UNIQUE && !(key_info->flags & HA_NULL_PART_KEY))
       unique_key=1;
     key_info->key_length=(uint16) key_length;
-    if (key_length > max_key_length && key->type != Key::FULLTEXT)
+    if (key_length > max_key_length && key->type != Key::FULLTEXT
+         && !is_hash_field_added)
     {
       my_error(ER_TOO_LONG_KEY,MYF(0),max_key_length);
       DBUG_RETURN(TRUE);
     }
-
+    if (is_hash_field_added)
+    {
+      if (key_info->flags & HA_NULL_PART_KEY)
+         null_fields++;
+      else
+      {
+        static_cast<Create_field *>(alter_info->create_list.head())->flags|=
+            NOT_NULL_FLAG;
+        static_cast<Create_field *>(alter_info->create_list.head())->pack_flag&=
+            ~FIELDFLAG_MAYBE_NULL;
+      }
+    }
     if (validate_comment_length(thd, &key->key_create_info.comment,
                                 INDEX_COMMENT_MAXLEN, ER_TOO_LONG_INDEX_COMMENT,
                                 key_info->name))
@@ -4187,6 +4219,26 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     key_info++;
   }
 
+  if (total_hash_fields_added)
+  {
+    it.rewind();
+    record_offset= 0;
+    while ((sql_field= it++))
+    {
+      sql_field->offset= record_offset;
+      if (sql_field->stored_in_db())
+        record_offset+= sql_field->pack_length;
+    }
+    it.rewind();
+    while ((sql_field= it++))
+    {
+      if (!sql_field->stored_in_db())
+      {
+        sql_field->offset= record_offset;
+        record_offset+= sql_field->pack_length;
+      }
+    }
+  }
   if (!unique_key && !primary_key &&
       (file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY))
   {
