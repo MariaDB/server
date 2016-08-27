@@ -3201,7 +3201,7 @@ static void add_hash_field(THD * thd, List<Create_field> *create_list,
                            CHARSET_INFO *cs, KEY *key_info, int key_index)
 {
   List_iterator<Create_field> it(*create_list);
-  Create_field *dup_field;
+  Create_field *dup_field, *sql_field;
   Create_field *cf= new (thd->mem_root) Create_field();
   cf->flags|= UNSIGNED_FLAG;
   cf->length= cf->char_length= HA_HASH_FIELD_LENGTH;
@@ -3246,8 +3246,24 @@ static void add_hash_field(THD * thd, List<Create_field> *create_list,
       info->offset+= HA_HASH_FIELD_LENGTH;
     }
   }
-  /* Add HA_NOSAME to key so that */
   key_info[-1].flags|= HA_NOSAME;
+  it.rewind();
+  uint record_offset= 0;
+  while ((sql_field= it++))
+  {
+    sql_field->offset= record_offset;
+    if (sql_field->stored_in_db())
+      record_offset+= sql_field->pack_length;
+  }
+  it.rewind();
+  while ((sql_field= it++))
+  {
+    if (!sql_field->stored_in_db())
+    {
+      sql_field->offset= record_offset;
+      record_offset+= sql_field->pack_length;
+    }
+  }
 }
 
 
@@ -3286,7 +3302,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   const char	*key_name;
   Create_field	*sql_field,*dup_field;
   uint		field,null_fields,blob_columns,max_key_length;
-  uint    total_hash_fields_added= 0;
   ulong		record_offset= 0;
   KEY		*key_info;
   KEY_PART_INFO *key_part_info;
@@ -3976,12 +3991,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
 	    DBUG_RETURN(TRUE);
 			}
-			else
+			else if (!is_hash_field_added)
 			{
 				add_hash_field(thd, &alter_info->create_list,
 											 create_info->default_table_charset,
 											 *key_info_buffer, key_number);
-				total_hash_fields_added++;
 				column->length= 0;
 				is_hash_field_added= true;
 			}
@@ -4076,7 +4090,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 					add_hash_field(thd, &alter_info->create_list,
 												 create_info->default_table_charset,
 												 *key_info_buffer, key_number);
-					total_hash_fields_added++;
 					is_hash_field_added= true;
 				}
 	    }
@@ -4132,7 +4145,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 				add_hash_field(thd, &alter_info->create_list,
 											 create_info->default_table_charset,
 											 *key_info_buffer, key_number);
-				total_hash_fields_added++;
 				is_hash_field_added= true;
 			}
 		}
@@ -4245,26 +4257,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     key_info++;
   }
 
-  if (total_hash_fields_added)
-  {
-    it.rewind();
-    record_offset= 0;
-    while ((sql_field= it++))
-    {
-      sql_field->offset= record_offset;
-      if (sql_field->stored_in_db())
-        record_offset+= sql_field->pack_length;
-    }
-    it.rewind();
-    while ((sql_field= it++))
-    {
-      if (!sql_field->stored_in_db())
-      {
-        sql_field->offset= record_offset;
-        record_offset+= sql_field->pack_length;
-      }
-    }
-  }
   if (!unique_key && !primary_key &&
       (file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY))
   {
@@ -8017,6 +8009,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (key->type == Key::FOREIGN_KEY &&
           ((Foreign_key *)key)->validate(new_create_list))
         goto err;
+      if (key->type == Key::UNIQUE)
+        alter_info->flags |= Alter_info::ALTER_ADD_COLUMN;
       new_key_list.push_back(key, thd->mem_root);
       if (key->name.str &&
 	  !my_strcasecmp(system_charset_info, key->name.str, primary_key_name))

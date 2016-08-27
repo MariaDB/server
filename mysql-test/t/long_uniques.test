@@ -284,7 +284,7 @@ show keys from t1;
 
 --echo #now we will change the data type to int and varchar limit so that we no longer  require hash_index;
 --echo #on key a_b_c;
-alter table t1 modify column a int , modify column b int , modify column c int;
+alter table t1 modify column a varchar(20) , modify column b varchar(20) , modify column c varchar(20);
 show create table t1;
 show keys from t1;
 --echo #change it back; 
@@ -298,7 +298,7 @@ alter table t1 drop column a, drop column b, drop  column c;
 show create table t1;
 show keys from t1;
 --echo #now try to delete keys;
-alter table t1 drop key c_d_e, drop key e_f_g_h;
+alter table t1 drop key c, drop key e;
 show create table t1;
 show keys from t1;
 drop table t1;
