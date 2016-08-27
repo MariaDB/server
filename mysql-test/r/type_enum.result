@@ -2151,7 +2151,7 @@ CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (9e100);
 ALTER TABLE t1 MODIFY a ENUM('9e200','9e100');
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '9e100'
+Warning	1916	Got overflow when converting '9e100' to INT. Value truncated.
 Warning	1265	Data truncated for column 'a' at row 1
 SELECT * FROM t1;
 a

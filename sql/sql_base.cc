@@ -638,6 +638,8 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                           ha_extra_function extra,
                           TABLE *skip_table)
 {
+  DBUG_ASSERT(!share->tmp_table);
+
   char key[MAX_DBKEY_LENGTH];
   uint key_length= share->table_cache_key.length;
   const char *db= key;
@@ -1173,6 +1175,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
                               enum ha_extra_function function)
 {
   DBUG_ENTER("wait_while_table_is_used");
+  DBUG_ASSERT(!table->s->tmp_table);
   DBUG_PRINT("enter", ("table: '%s'  share: 0x%lx  db_stat: %u  version: %lu",
                        table->s->table_name.str, (ulong) table->s,
                        table->db_stat, table->s->tdc->version));

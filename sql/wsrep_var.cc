@@ -26,14 +26,6 @@
 #include <cstdio>
 #include <cstdlib>
 
-const  char* wsrep_provider         = 0;
-const  char* wsrep_provider_options = 0;
-const  char* wsrep_cluster_address  = 0;
-const  char* wsrep_cluster_name     = 0;
-const  char* wsrep_node_name        = 0;
-const  char* wsrep_node_address     = 0;
-const  char* wsrep_node_incoming_address = 0;
-const  char* wsrep_start_position   = 0;
 
 int wsrep_init_vars()
 {
@@ -45,8 +37,6 @@ int wsrep_init_vars()
   wsrep_node_address    = my_strdup("", MYF(MY_WME));
   wsrep_node_incoming_address= my_strdup(WSREP_NODE_INCOMING_AUTO, MYF(MY_WME));
   wsrep_start_position  = my_strdup(WSREP_START_POSITION_ZERO, MYF(MY_WME));
-
-  global_system_variables.binlog_format=BINLOG_FORMAT_ROW;
   return 0;
 }
 

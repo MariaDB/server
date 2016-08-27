@@ -917,8 +917,8 @@ AaBbCcDdEeFfGgHhIiJjÄäÜüÖö	1.7976931348623e308	3
 	0	4
 	-1	5
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '-1.7976931348623e308'
-Warning	1292	Truncated incorrect INTEGER value: '1.7976931348623e308'
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select left('AaBbCcDdEeFfGgHhIiJjÄäÜüÖö',`t1_values`.`my_double`) AS `LEFT('AaBbCcDdEeFfGgHhIiJjÄäÜüÖö', my_double)`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -932,8 +932,8 @@ AaBbCcDdEeFfGgHhIiJjÄäÜüÖö	1.7976931348623e308	3
 	0	4
 	-1	5
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '-1.7976931348623e308'
-Warning	1292	Truncated incorrect INTEGER value: '1.7976931348623e308'
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
 DROP VIEW v1;
 
 
@@ -2587,9 +2587,9 @@ NULL	NULL	1
 0	0	4
 18446744073709551615	-1	5
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '-1.7976931348623e308'
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
-Warning	1292	Truncated incorrect INTEGER value: '1.7976931348623e308'
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -2604,9 +2604,9 @@ NULL	NULL	1
 0	0	4
 18446744073709551615	-1	5
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '-1.7976931348623e308'
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
-Warning	1292	Truncated incorrect INTEGER value: '1.7976931348623e308'
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 DROP VIEW v1;
 
@@ -2965,8 +2965,8 @@ NULL	NULL	1
 0	0	4
 -1	-1	5
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '-1.7976931348623e308'
-Warning	1292	Truncated incorrect INTEGER value: '1.7976931348623e308'
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select cast(`t1_values`.`my_double` as signed) AS `CAST(my_double AS SIGNED INTEGER)`,`t1_values`.`my_double` AS `my_double`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
@@ -2980,8 +2980,8 @@ NULL	NULL	1
 0	0	4
 -1	-1	5
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '-1.7976931348623e308'
-Warning	1292	Truncated incorrect INTEGER value: '1.7976931348623e308'
+Warning	1916	Got overflow when converting '-1.7976931348623e308' to INT. Value truncated.
+Warning	1916	Got overflow when converting '1.7976931348623e308' to INT. Value truncated.
 DROP VIEW v1;
 
 

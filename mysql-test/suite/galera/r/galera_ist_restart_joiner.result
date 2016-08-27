@@ -1,22 +1,31 @@
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
 INSERT INTO t1 VALUES (1, 'a'), (2, 'a'), (3, 'a'), (4, 'a'), (5, 'a'),(6, 'a');
+connection node_2;
 Unloading wsrep provider ...
 SET GLOBAL wsrep_provider = 'none';
+connection node_1;
 UPDATE t1 SET f2 = 'b' WHERE f1 > 1;
 UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
+connection node_2;
 SET GLOBAL wsrep_provider_options = 'dbug=d,recv_IST_after_apply_trx';
 SET SESSION wsrep_sync_wait = 0;
 Loading wsrep_provider ...
 SHOW STATUS LIKE 'wsrep_debug_sync_waiters';
 Variable_name	Value
 wsrep_debug_sync_waiters	recv_IST_after_apply_trx
+connection node_1;
+connection node_1;
 UPDATE t1 SET f2 = 'd' WHERE f1 > 3;
 CREATE TABLE t2 (f1 INTEGER);
+connection node_2;
+connection node_1;
 UPDATE t1 SET f2 = 'e' WHERE f1 > 4;
 CREATE TABLE t3 (f1 INTEGER);
+connection node_2;
 Performing --wsrep-recover ...
 Starting server ...
 Using --wsrep-start-position when starting mysqld ...
+connection node_1;
 UPDATE t1 SET f2 = 'f' WHERE f1 > 5;
 SELECT * FROM t1;
 f1	f2
@@ -26,6 +35,7 @@ f1	f2
 4	d
 5	e
 6	f
+connection node_2;
 SELECT * FROM t1;
 f1	f2
 1	a
@@ -40,4 +50,5 @@ COUNT(*) = 0
 SELECT COUNT(*) = 0 FROM t3;
 COUNT(*) = 0
 1
+connection node_1;
 DROP TABLE t1, t2, t3;

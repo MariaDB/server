@@ -105,6 +105,8 @@
 /* Libraries */
 #cmakedefine HAVE_LIBWRAP 1
 #cmakedefine HAVE_SYSTEMD 1
+#cmakedefine HAVE_CRC32_VPMSUM 1
+
 /* Does "struct timespec" have a "sec" and "nsec" field? */
 #cmakedefine HAVE_TIMESPEC_TS_SEC 1
 

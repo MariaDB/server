@@ -2929,34 +2929,54 @@ bool MDL_context::has_explicit_locks()
 }
 
 #ifdef WITH_WSREP
+static
+const char *wsrep_get_mdl_type_name(enum_mdl_type type)
+{
+  switch (type)
+  {
+  case MDL_INTENTION_EXCLUSIVE  : return "intention exclusive";
+  case MDL_SHARED               : return "shared";
+  case MDL_SHARED_HIGH_PRIO     : return "shared high prio";
+  case MDL_SHARED_READ          : return "shared read";
+  case MDL_SHARED_WRITE         : return "shared write";
+  case MDL_SHARED_UPGRADABLE    : return "shared upgradable";
+  case MDL_SHARED_NO_WRITE      : return "shared no write";
+  case MDL_SHARED_NO_READ_WRITE : return "shared no read write";
+  case MDL_EXCLUSIVE            : return "exclusive";
+  default: break;
+  }
+  return "UNKNOWN";
+}
+
+static
+const char *wsrep_get_mdl_namespace_name(MDL_key::enum_mdl_namespace ns)
+{
+  switch (ns)
+  {
+  case MDL_key::GLOBAL    : return "GLOBAL";
+  case MDL_key::SCHEMA    : return "SCHEMA";
+  case MDL_key::TABLE     : return "TABLE";
+  case MDL_key::FUNCTION  : return "FUNCTION";
+  case MDL_key::PROCEDURE : return "PROCEDURE";
+  case MDL_key::TRIGGER   : return "TRIGGER";
+  case MDL_key::EVENT     : return "EVENT";
+  case MDL_key::COMMIT    : return "COMMIT";
+  case MDL_key::USER_LOCK : return "USER_LOCK";
+  default: break;
+  }
+  return "UNKNOWN";
+}
+
 void MDL_ticket::wsrep_report(bool debug)
 {
-  if (debug)
-  {
-      const PSI_stage_info *psi_stage = m_lock->key.get_wait_state_name();
+  if (!debug) return;
 
-      WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s (%s)",
-       	 (get_type()  == MDL_INTENTION_EXCLUSIVE)  ? "intention exclusive"  :
-       	 ((get_type() == MDL_SHARED)               ? "shared"               :
-       	 ((get_type() == MDL_SHARED_HIGH_PRIO      ? "shared high prio"     :
-       	 ((get_type() == MDL_SHARED_READ)          ? "shared read"          :
-       	 ((get_type() == MDL_SHARED_WRITE)         ? "shared write"         :
-       	 ((get_type() == MDL_SHARED_NO_WRITE)      ? "shared no write"      :
-         ((get_type() == MDL_SHARED_NO_READ_WRITE) ? "shared no read write" :
-       	 ((get_type() == MDL_EXCLUSIVE)            ? "exclusive"            :
-          "UNKNOWN")))))))),
-         (m_lock->key.mdl_namespace()  == MDL_key::GLOBAL) ? "GLOBAL"       :
-         ((m_lock->key.mdl_namespace() == MDL_key::SCHEMA) ? "SCHEMA"       :
-         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "TABLE"        :
-         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "FUNCTION"     :
-         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "PROCEDURE"    :
-         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "TRIGGER"      :
-         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "EVENT"        :
-         ((m_lock->key.mdl_namespace() == MDL_key::COMMIT) ? "COMMIT"       :
-         (char *)"UNKNOWN"))))))),
-         m_lock->key.db_name(),
-       	 m_lock->key.name(),
-         psi_stage->m_name);
-    }
+  const PSI_stage_info *psi_stage= m_lock->key.get_wait_state_name();
+  WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s (%s)",
+              wsrep_get_mdl_type_name(get_type()),
+              wsrep_get_mdl_namespace_name(m_lock->key.mdl_namespace()),
+              m_lock->key.db_name(),
+              m_lock->key.name(),
+              psi_stage->m_name);
 }
 #endif /* WITH_WSREP */

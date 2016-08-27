@@ -496,17 +496,9 @@ SET(INNOBASE_SOURCES
 	ut/ut0wqueue.cc
 	ut/ut0timer.cc)
 
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le")
-    enable_language(ASM)
-    LIST(APPEND INNOBASE_SOURCES
-       ut/crc32_power8/crc32.S
-       ut/crc32_power8/crc32_wrapper.c
-       )
-ENDIF()
-
 MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
   DEFAULT RECOMPILE_FOR_EMBEDDED
-  LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})
+  LINK_LIBRARIES ${ZLIB_LIBRARY} ${CRC32_VPMSUM_LIBRARY} ${LINKER_SCRIPT})
 
 IF(TARGET xtradb AND NOT XTRADB_OK)
   MESSAGE(FATAL_ERROR "Percona XtraDB is not supported on this platform")

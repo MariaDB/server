@@ -600,3 +600,8 @@ SELECT STDDEV_POP(ROUND(0,@A:=2009)) FROM (SELECT 1 UNION SELECT 2) fake_table;
 --echo # Test zero
 select 0=0, 0=-0, 0.0= -0.0, 0.0 = -(0.0), 0.0E1=-0.0E1, 0.0E1=-(0.0E1);
 
+--echo #
+--echo # CRC32 tests
+--echo #
+
+select CRC32(NULL), CRC32(''), CRC32('MySQL'), CRC32('mysql'), CRC32('01234567'), CRC32('012345678');
