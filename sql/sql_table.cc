@@ -3982,14 +3982,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 											 create_info->default_table_charset,
 											 *key_info_buffer, key_number);
 				total_hash_fields_added++;
-				/*
-					In init_from_binary_frm_image we need differentiate
-					between normal key and long unique key we can simply
-					increase the lenght of key by say 5000 which is way
-					more then max key length and in init_from_binary_frm
-					image we can check for this
-					*/
-				key_length= HA_HASH_TEMP_KEY_LENGTH;
 				column->length= 0;
 				is_hash_field_added= true;
 			}
@@ -4065,9 +4057,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  if (key_part_length > max_key_length ||
 	      key_part_length > file->max_key_part_length())
 	  {
-	    key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
 	    if (key->type == Key::MULTIPLE)
 	    {
+				key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
 	      /* not a critical problem */
 	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_TOO_LONG_KEY,
@@ -4078,8 +4070,15 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    }
 	    else
 	    {
-	      my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
-	      DBUG_RETURN(TRUE);
+				if (!is_hash_field_added)
+				{
+					//TODO we does not respect length given by user in calculating hash
+					add_hash_field(thd, &alter_info->create_list,
+												 create_info->default_table_charset,
+												 *key_info_buffer, key_number);
+					total_hash_fields_added++;
+					is_hash_field_added= true;
+				}
 	    }
 	  }
 	}
@@ -4113,7 +4112,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (key_part_length > file->max_key_part_length() &&
           key->type != Key::FULLTEXT)
       {
-  key_part_length= file->max_key_part_length();
 	if (key->type == Key::MULTIPLE)
 	{
 		key_part_length= file->max_key_part_length();
@@ -4126,19 +4124,21 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
 	else
 	{
-		if(key->type == Key::UNIQUE && !is_hash_field_added)
+		if(key->type == Key::UNIQUE)
 		{
-			//TODO we does not respect length given by user in calculating hash
-			add_hash_field(thd, &alter_info->create_list,
-										 create_info->default_table_charset,
-										 *key_info_buffer, key_number);
-			total_hash_fields_added++;
-			//	key_part_length= column->length;
-			key_length= HA_HASH_TEMP_KEY_LENGTH;
-			is_hash_field_added= true;
+			if (!is_hash_field_added)
+			{
+				//TODO we does not respect length given by user in calculating hash
+				add_hash_field(thd, &alter_info->create_list,
+											 create_info->default_table_charset,
+											 *key_info_buffer, key_number);
+				total_hash_fields_added++;
+				is_hash_field_added= true;
+			}
 		}
 		else
 		{
+			key_part_length= file->max_key_part_length();
 			my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
 			DBUG_RETURN(TRUE);
 		}
@@ -4198,7 +4198,17 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
     if (key->type == Key::UNIQUE && !(key_info->flags & HA_NULL_PART_KEY))
       unique_key=1;
-    key_info->key_length=(uint16) key_length;
+    if (is_hash_field_added)
+      /*
+        In init_from_binary_frm_image we need differentiate
+        between normal key and long unique key we can simply
+        increase the lenght of key by say 5000 which is way
+        more then max key length and in init_from_binary_frm
+        image we can check for this
+        */
+      key_info->key_length= HA_HASH_TEMP_KEY_LENGTH;
+    else
+      key_info->key_length=(uint16) key_length;
     if (key_length > max_key_length && key->type != Key::FULLTEXT
          && !is_hash_field_added)
     {
@@ -7654,7 +7664,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
     if (field->field_visibility == FULL_HIDDEN)
+    {
+      alter_info->flags |= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
       continue;
+    }
     Alter_drop *drop;
     if (field->type() == MYSQL_TYPE_VARCHAR)
       create_info->varchar= TRUE;
@@ -7861,7 +7874,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                                                  TRUE);
 	  }
 	}
-      }  
+			}
+			if (key_info->flags & HA_UNIQUE_HASH)
+				alter_info->flags |= Alter_info::ALTER_DROP_COLUMN;
       drop_it.remove();
       continue;
     }
@@ -7869,6 +7884,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     KEY_PART_INFO *key_part= key_info->key_part;
     key_parts.empty();
     bool delete_index_stat= FALSE;
+    if (key_info->flags & HA_UNIQUE_HASH)
+    {
+      alter_info->flags |= Alter_info::ALTER_DROP_COLUMN;
+      alter_info->flags |= Alter_info::ALTER_ADD_COLUMN;
+    }
     for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
     {
       if (!key_part->field)
