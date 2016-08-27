@@ -799,14 +799,14 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       }
       key_part->store_length=key_part->length;
     }
-    if (keyinfo->key_length > HA_HASH_TEMP_KEY_LENGTH)
-    {
-      keyinfo->flags|= HA_UNIQUE_HASH | HA_NOSAME;
-      keyinfo->key_length= 0;
-      share->extra_hash_parts++;
-      // This empty key_part for storing Hash
-      key_part++;
-    }
+//    if (keyinfo->key_length >= HA_HASH_TEMP_KEY_LENGTH)
+//    {
+//      keyinfo->flags|= HA_UNIQUE_HASH | HA_NOSAME;
+//      keyinfo->key_length= 0;
+//      share->extra_hash_parts++;
+//      // This empty key_part for storing Hash
+//      key_part++;
+//    }
     /*
       Add primary key to end of extended keys for non unique keys for
       storage engines that supports it.
@@ -1882,56 +1882,54 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (key_parts)
   {
     keyinfo= share->key_info;
-    uint hash_field_used_no= 0;
-    KEY_PART_INFO *hash_keypart, *temp_key_part;
-    Field *hash_fld, *temp_fld;
-    for (uint i= 0; i < share->keys; i++, keyinfo++)
-    {
-       /*
-         1. We need set value in hash key_part
-         2. Set vcol_info in corresponding db_row_hash_ field
-       */
-      if (keyinfo->flags & HA_UNIQUE_HASH)
-      {
-        while (!share->field[hash_field_used_no]->is_long_column_hash)
-        {
-          hash_field_used_no++;
-        }
-        hash_keypart= keyinfo->key_part + keyinfo->user_defined_key_parts;
-        hash_keypart->fieldnr= hash_field_used_no + 1;
-        hash_keypart->length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
-        hash_keypart->store_length= hash_keypart->length;
-        hash_keypart->type= HA_KEYTYPE_ULONGLONG;
-        hash_keypart->key_part_flag= 0;
-        hash_keypart->key_type= 32834;
-        hash_keypart->offset= 1;
-        hash_fld= share->field[hash_field_used_no];
-        temp_key_part= keyinfo->key_part;
-        Virtual_column_info *v= new (&share->mem_root) Virtual_column_info();;
-        String hash_str;
-        hash_str.append(STRING_WITH_LEN(HA_HASH_STR_HEAD));
-        for (uint j= 0; j < keyinfo->user_defined_key_parts; j++,
-                 temp_key_part++)
-        {
-          if (j)
-            hash_str.append(STRING_WITH_LEN(" , "));
-          temp_fld= share->field[temp_key_part->fieldnr-1];
-          DBUG_ASSERT(temp_fld);
-          append_identifier(thd, &hash_str, temp_fld->field_name,
-                            strlen(temp_fld->field_name));
-        }
-        hash_str.append(STRING_WITH_LEN(")"));
-        char * expr_str= (char *)alloc_root(&share->mem_root, hash_str.length()+1);
-        strncpy(expr_str, hash_str.ptr(), hash_str.length());
-        v->expr_str.str= expr_str;
-        v->expr_str.length= hash_str.length();
-        v->expr_item= NULL;
-        v->set_stored_in_db_flag(true);
-        hash_fld->vcol_info= v;
-        share->virtual_fields++;
-        hash_field_used_no++;
-      }
-    }
+//    uint hash_field_used_no= 0;
+//    KEY_PART_INFO *hash_keypart, *temp_key_part;
+//    Field *hash_fld, *temp_fld;
+//    for (uint i= 0; i < share->keys; i++, keyinfo++)
+//    {
+//       /*
+//         1. We need set value in hash key_part
+//         2. Set vcol_info in corresponding db_row_hash_ field
+//       */
+//      if (keyinfo->flags & HA_UNIQUE_HASH)
+//      {
+//        DBUG_ASSERT(share->field[hash_field_used_no]->is_long_column_hash);
+//        hash_keypart= keyinfo->key_part + keyinfo->user_defined_key_parts;
+//        hash_keypart->fieldnr= hash_field_used_no + 1;
+//        hash_keypart->length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
+//        hash_keypart->store_length= hash_keypart->length;
+//        hash_keypart->type= HA_KEYTYPE_ULONGLONG;
+//        hash_keypart->key_part_flag= 0;
+//        hash_keypart->key_type= 32834;
+//        hash_keypart->offset= share->null_bytes +
+//                        HA_HASH_FIELD_LENGTH*(hash_field_used_no);
+//        hash_fld= share->field[hash_field_used_no];
+//        temp_key_part= keyinfo->key_part;
+//        Virtual_column_info *v= new (&share->mem_root) Virtual_column_info();;
+//        String hash_str;
+//        hash_str.append(STRING_WITH_LEN(HA_HASH_STR_HEAD));
+//        for (uint j= 0; j < keyinfo->user_defined_key_parts; j++,
+//                 temp_key_part++)
+//        {
+//          if (j)
+//            hash_str.append(STRING_WITH_LEN(" , "));
+//          temp_fld= share->field[temp_key_part->fieldnr-1];
+//          DBUG_ASSERT(temp_fld);
+//          append_identifier(thd, &hash_str, temp_fld->field_name,
+//                            strlen(temp_fld->field_name));
+//        }
+//        hash_str.append(STRING_WITH_LEN(")"));
+//        char * expr_str= (char *)alloc_root(&share->mem_root, hash_str.length()+1);
+//        strncpy(expr_str, hash_str.ptr(), hash_str.length());
+//        v->expr_str.str= expr_str;
+//        v->expr_str.length= hash_str.length();
+//        v->expr_item= NULL;
+//        v->set_stored_in_db_flag(true);
+//        hash_fld->vcol_info= v;
+//        share->virtual_fields++;
+//        hash_field_used_no++;
+//      }
+//    }
     uint add_first_key_parts= 0;
     longlong ha_option= handler_file->ha_table_flags();
     keyinfo= share->key_info;
@@ -2016,12 +2014,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                keyinfo->name_length+1);
       }
 
-      if (ext_key_parts > share->key_parts && key &&
-                             !(keyinfo->flags & HA_UNIQUE_HASH))
+      if (ext_key_parts > share->key_parts && key)
       {
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
-
+        //If previous key is HA_UNIQUE_HASH then we have added extra hash key_part
+        if ((keyinfo-1)->flags & HA_UNIQUE_HASH)
+          new_key_part++;
         /* 
           Do not extend the key that contains a component
           defined over the beginning of a field.

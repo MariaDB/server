@@ -3246,6 +3246,7 @@ static void add_hash_field(THD * thd, List<Create_field> *create_list,
     }
   }
   /* Add HA_NOSAME to key so that */
+  key_info[-1].flags|= HA_NOSAME;
 }
 
 /*
@@ -3279,7 +3280,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            Alter_info *alter_info, uint *db_options,
                            handler *file, KEY **key_info_buffer,
                            uint *key_count, int create_table_mode)
-{   
+{
   const char	*key_name;
   Create_field	*sql_field,*dup_field;
   uint		field,null_fields,blob_columns,max_key_length;
@@ -3315,7 +3316,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     /* Set field charset. */
     save_cs= sql_field->charset= get_sql_field_charset(sql_field, create_info);
     if ((sql_field->flags & BINCMP_FLAG) &&
-  !(sql_field->charset= find_bin_collation(sql_field->charset)))
+ !(sql_field->charset= find_bin_collation(sql_field->charset)))
       DBUG_RETURN(TRUE);
 
     /*
@@ -3346,6 +3347,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       /* Fix for prepare statement */
       thd->change_item_tree(&sql_field->default_value->expr_item, item);
     }
+
     if (sql_field->field_visibility == USER_DEFINED_HIDDEN &&
         sql_field->flags & NOT_NULL_FLAG &&
         sql_field->flags & NO_DEFAULT_VALUE_FLAG)
@@ -3894,8 +3896,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 			   column->field_name.str,
 			   sql_field->field_name))
 	field++;
-           if (!sql_field)
-           {
+			 if (!sql_field)
+			 {
 	my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
 	DBUG_RETURN(TRUE);
       }
@@ -3920,8 +3922,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    sql_field->charset->mbminlen > 1 || // ucs2 doesn't work yet
 	    (ft_key_charset && sql_field->charset != ft_key_charset))
 	{
-            my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
-            DBUG_RETURN(-1);
+			my_error(ER_BAD_FT_COLUMN, MYF(0), column->field_name.str);
+			DBUG_RETURN(-1);
 	}
 	ft_key_charset=sql_field->charset;
 	/*
@@ -3972,21 +3974,20 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         my_error(ER_TOO_LONG_KEY, MYF(0), column->field_name.str);
         DBUG_RETURN(TRUE);
       }
-      add_hash_field(thd, &alter_info->create_list,
-                      create_info->default_table_charset,
-                       *key_info_buffer, key_number);
-      total_hash_fields_added++;
-      null_fields++;
-       /*
-          In init_from_binary_frm_image we need differentiate
-          between normal key and long unique key we can simply
-          increase the lenght of key by say 5000 which is way
-          more then max key length and in init_from_binary_frm
-          image we can check for this
-        */
-      key_length= HA_HASH_TEMP_KEY_LENGTH;
-      column->length= sql_field->pack_length;
-      is_hash_field_added= true;
+//      add_hash_field(thd, &alter_info->create_list,
+//                      create_info->default_table_charset,
+//                       *key_info_buffer, key_number);
+//      total_hash_fields_added++;
+//       /*
+//          In init_from_binary_frm_image we need differentiate
+//          between normal key and long unique key we can simply
+//          increase the lenght of key by say 5000 which is way
+//          more then max key length and in init_from_binary_frm
+//          image we can check for this
+//        */
+//      key_length= HA_HASH_TEMP_KEY_LENGTH;
+//      column->length= 0;
+//      is_hash_field_added= true;
 	  }
 	}
 #ifdef HAVE_SPATIAL
@@ -4105,7 +4106,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (key_part_length > file->max_key_part_length() &&
           key->type != Key::FULLTEXT)
       {
-        key_part_length= file->max_key_part_length();
+            key_part_length= file->max_key_part_length();
 	if (key->type == Key::MULTIPLE)
 	{
 	  /* not a critical problem */
@@ -4117,23 +4118,22 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
 	else
 	{
-		if(key->type == Key::UNIQUE)
-		{
-			//TODO we does not respect length given by user in calculating hash
-			add_hash_field(thd, &alter_info->create_list,
-										 create_info->default_table_charset,
-											 *key_info_buffer, key_number);
-			total_hash_fields_added++;
-			null_fields++;
-			key_length= HA_HASH_TEMP_KEY_LENGTH;
-			column->length= sql_field->pack_length;
-			is_hash_field_added= true;
-		}
-		else
-		{
+//		if(key->type == Key::UNIQUE && !is_hash_field_added)
+//		{
+//			//TODO we does not respect length given by user in calculating hash
+//			add_hash_field(thd, &alter_info->create_list,
+//										 create_info->default_table_charset,
+//											 *key_info_buffer, key_number);
+//			total_hash_fields_added++;
+//		//	key_part_length= column->length;
+//			key_length= HA_HASH_TEMP_KEY_LENGTH;
+//			is_hash_field_added= true;
+//		}
+//		else
+//		{
 			my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
 			DBUG_RETURN(TRUE);
-		}
+//		}
 
 	}
 			}
@@ -4184,6 +4184,19 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	key_info->name=(char*) key_name;
       }
     }
+    if (is_hash_field_added)
+    {
+      if (key_info->flags & HA_NULL_PART_KEY)
+         null_fields++;
+      else
+      {
+        static_cast<Create_field *>(alter_info->create_list.head())->flags|=
+            NOT_NULL_FLAG;
+        static_cast<Create_field *>(alter_info->create_list.head())->pack_flag&=
+            ~FIELDFLAG_MAYBE_NULL;
+      }
+    }
+
     if (!key_info->name || check_column_name(key_info->name))
     {
       my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key_info->name);
@@ -7634,7 +7647,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   */
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
-    if (field->field_visibility == FULL_HIDDEN)
+    if (field->is_long_column_hash)
       continue;
     Alter_drop *drop;
     if (field->type() == MYSQL_TYPE_VARCHAR)
@@ -7960,7 +7973,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
       if (key_info->flags & HA_SPATIAL)
         key_type= Key::SPATIAL;
-      else if (key_info->flags & HA_NOSAME || key_info->flags & HA_UNIQUE_HASH)
+      else if (key_info->flags & HA_NOSAME || key_info->flags & HA_UNIQUE_HASH)//TODO wrong
       {
         if (! my_strcasecmp(system_charset_info, key_name, primary_key_name))
           key_type= Key::PRIMARY;
