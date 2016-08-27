@@ -1661,7 +1661,9 @@ void THD::free_connection()
   /* close all prepared statements, to save memory */
   stmt_map.reset();
   free_connection_done= 1;
+#if defined(ENABLED_PROFILING)
   profiling.restart();                          // Reset profiling
+#endif
 }
 
 /*
@@ -1686,7 +1688,9 @@ void THD::reset_for_reuse()
   abort_on_warning= 0;
   free_connection_done= 0;
   m_command= COM_CONNECT;
+#if defined(ENABLED_PROFILING)
   profiling.reset();
+#endif
 #ifdef SIGNAL_WITH_VIO_CLOSE
   active_vio = 0;
 #endif
