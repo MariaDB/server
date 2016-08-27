@@ -3915,6 +3915,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
       }
       cols2.rewind();
+      key_part_info->fieldnr= field;
+      key_part_info->offset=  (uint16) sql_field->offset;
       if (key->type == Key::FULLTEXT)
       {
 	if ((sql_field->sql_type != MYSQL_TYPE_STRING &&
@@ -4049,8 +4051,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
       }
 
-      key_part_info->fieldnr= field;
-      key_part_info->offset=  (uint16) sql_field->offset;
+
       key_part_info->key_type=sql_field->pack_flag;
       uint key_part_length= sql_field->key_length;
 
@@ -4112,9 +4113,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (key_part_length > file->max_key_part_length() &&
           key->type != Key::FULLTEXT)
       {
-        key_part_length= file->max_key_part_length();
+  key_part_length= file->max_key_part_length();
 	if (key->type == Key::MULTIPLE)
 	{
+		key_part_length= file->max_key_part_length();
 	  /* not a critical problem */
 	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
@@ -4124,8 +4126,22 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
 	else
 	{
-	  my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
-	  DBUG_RETURN(TRUE);
+		if(key->type == Key::UNIQUE && !is_hash_field_added)
+		{
+			//TODO we does not respect length given by user in calculating hash
+			add_hash_field(thd, &alter_info->create_list,
+										 create_info->default_table_charset,
+										 *key_info_buffer, key_number);
+			total_hash_fields_added++;
+			//	key_part_length= column->length;
+			key_length= HA_HASH_TEMP_KEY_LENGTH;
+			is_hash_field_added= true;
+		}
+		else
+		{
+			my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
+			DBUG_RETURN(TRUE);
+		}
 	}
       }
       key_part_info->length= (uint16) key_part_length;
@@ -7637,6 +7653,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   */
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
+    if (field->field_visibility == FULL_HIDDEN)
+      continue;
     Alter_drop *drop;
     if (field->type() == MYSQL_TYPE_VARCHAR)
       create_info->varchar= TRUE;
