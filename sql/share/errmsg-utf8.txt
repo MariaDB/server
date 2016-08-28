@@ -7214,5 +7214,5 @@ ER_CALCULATING_DEFAULT_VALUE
         eng "Got an error when calculating default value for %`s"
 ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
         eng "Expression for field %`-.64s is refering to uninitialized field %`s"
-ER_HIDDEN_NOT_NULL_WOUT_DEFAULT
-        eng "Hidden column '%s' either allow null values or it must have default value"
+ER_HIDDEN_NOT_NULL_WITHOUT_DEFAULT
+        eng "Hidden column '%s' should either allow null values or it must have default value"

@@ -353,8 +353,8 @@ int compare_hash_and_fetch_next(JOIN_TAB *tab)
       same hash does not gurentee same physical key
       to need to compare each field in key
     */
-    LEX_STRING * ls= &table->key_info[tab->ref.key].key_part->field
-        ->vcol_info->expr_str;
+    Item *h_item= table->key_info[tab->ref.key].key_part->field
+        ->vcol_info->expr_item;
     int counter= 0;
     for (store_key **copy=tab->ref.key_copy ; *copy ; copy++, counter++)
     {
@@ -366,8 +366,8 @@ int compare_hash_and_fetch_next(JOIN_TAB *tab)
       {
         Field *fld,*table_fld;
         fld= c->from_field;
-        table_fld= field_ptr_in_hash_str(ls, table->s, find_field_index_in_hash(
-                                           ls, fld->field_name));
+        table_fld= field_ptr_in_hash_str(h_item, find_field_pos_in_hash(
+                                           h_item, fld->field_name));
         while (true)
         {
           if(fld->cmp_binary(fld->ptr, table_fld->ptr))
@@ -387,7 +387,7 @@ int compare_hash_and_fetch_next(JOIN_TAB *tab)
       {
         Field *fld;
         String field_data, *item_data;
-        fld= field_ptr_in_hash_str(ls, table->s, counter);
+        fld= field_ptr_in_hash_str(h_item, counter);
         fld->val_str(&field_data);
         item_data= i->val_str();
         while (true)
@@ -4081,8 +4081,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           bool  is_map_for_hash_key=false;
           if (keyinfo->flags & HA_UNIQUE_HASH)
           {
-            LEX_STRING * ls= &keyinfo->key_part->field->vcol_info->expr_str;
-            int num_of_fields= fields_in_hash_str(ls);
+            Item *h_item= keyinfo->key_part->field->vcol_info->expr_item;
+            int num_of_fields= fields_in_hash_str(h_item);
             is_map_for_hash_key= eq_part.is_prefix(num_of_fields);
           }
           if (((eq_part.is_prefix(key_parts) && !(keyinfo->flags & HA_UNIQUE_HASH))
@@ -5274,8 +5274,8 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
       if (keyinfo->flags & HA_UNIQUE_HASH &&
            key_field->val->type() != Item::NULL_ITEM)
       {
-        LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
-        int index= find_field_index_in_hash(ls, (char *)field->field_name);
+        Item *h_item= keyinfo->key_part->field->vcol_info->expr_item;
+        int index= find_field_pos_in_hash(h_item, (char *)field->field_name);
         if (index != -1)
         {
           if (add_keyuse(keyuse_array, key_field, key, index))
@@ -5697,9 +5697,9 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
         {
           if (use->table->key_info[use->key].flags & HA_UNIQUE_HASH)
           {
-            LEX_STRING *ls = &use->table->key_info[use->key]
-                         .key_part->field->vcol_info->expr_str;
-            if (counter+1 != fields_in_hash_str(ls))
+            Item *h_item = use->table->key_info[use->key]
+                         .key_part->field->vcol_info->expr_item;
+            if (counter+1 != fields_in_hash_str(h_item))
             {
               if (i==0)
                 continue;
@@ -9027,9 +9027,9 @@ get_keypart_hash (THD *thd, KEY *keyinfo, KEYUSE *keyuse, JOIN_TAB *j)
     ulong nr1= 1, nr2= 4;
     CHARSET_INFO *cs;
     String *str;
-    LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
+    Item *h_item= keyinfo->key_part->field->vcol_info->expr_item;
     uint i;
-    uint num_of_fields= fields_in_hash_str(ls);
+    uint num_of_fields= fields_in_hash_str(h_item);
     for (i=0 ; i < num_of_fields; keyuse++,i++)
     {
       if (!keyuse->val)
@@ -19108,8 +19108,8 @@ int find_unique_hash_record(TABLE *table, JOIN_TAB *tab)
 {
   int error;
   Field *field;
-  LEX_STRING *ls= &table->key_info[tab->ref.key].key_part->field->
-                                             vcol_info->expr_str;
+  Item *h_item= table->key_info[tab->ref.key].key_part->field->
+                                             vcol_info->expr_item;
   KEYUSE *keyuse= tab->keyuse;
   ulong nr1= 1,nr2= 4;
   CHARSET_INFO *cs;
@@ -19138,7 +19138,7 @@ int find_unique_hash_record(TABLE *table, JOIN_TAB *tab)
       }
       // need to find the corresponding field to which keyuse corrosponds in
       // hash str
-      field= field_ptr_in_hash_str(ls, table->s, keyuse->keypart);
+      field= field_ptr_in_hash_str(h_item, keyuse->keypart);
       field->val_str(&other_str);
       str= keyuse->val->val_str();
       field->val_str(&other_str);

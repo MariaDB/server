@@ -4364,11 +4364,12 @@ void setup_table_hash(TABLE *table)
 
 void re_setup_table(TABLE *table)
 {
-  //TODO comment
-  uint extra_key_part_hash= 0, key_length= 0;
-  uint extra_hash_parts= 0;
+  //extra key parts excluding hash , which needs to be added in keyparts
+  uint extra_key_parts_ex_hash= 0, key_length= 0;
+  uint extra_hash_parts= 0; // this var for share->extra_hash_parts
   KEY *s_keyinfo= table->s->key_info;
   KEY *keyinfo= table->key_info;
+  KEY_PART_INFO *temp;
   /*
      Sometime s_keyinfo can be null so
      two different loop for keyinfo and s_keyinfo
@@ -4381,22 +4382,27 @@ void re_setup_table(TABLE *table)
       if (keyinfo->flags & HA_UNIQUE_HASH)
       {
         keyinfo->flags|= HA_NOSAME;
-        LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
-        uint hash_parts= fields_in_hash_str(ls);
+        Item *h_item= keyinfo->key_part->field->vcol_info->expr_item;
+        uint hash_parts= fields_in_hash_str(h_item);
         keyinfo->key_part= keyinfo->key_part- hash_parts;
         keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
             keyinfo->ext_key_parts= hash_parts;
-        extra_key_part_hash+= hash_parts;
+        /*
+           Actually extra_key_parts_ex_hash is added in share->keyparts.
+           But share->keypart already contains extra one keypart for hash
+           (setup in setup_table_hash). So that is why 1 minused.
+          */
+        extra_key_parts_ex_hash+= hash_parts - 1;
         extra_hash_parts++;
         for (uint i= 0; i < hash_parts; i++)
         {
-          key_length+= keyinfo->key_part[i].field->pack_length();
+          key_length+= keyinfo->key_part[i].length;
         }
         keyinfo->key_length= key_length;
       }
     }
   }
-  table->s->key_parts+= extra_key_part_hash - extra_hash_parts;
+  table->s->key_parts+= extra_key_parts_ex_hash;
   table->s->extra_hash_parts= extra_hash_parts;
   if (s_keyinfo)
   {
@@ -4405,22 +4411,34 @@ void re_setup_table(TABLE *table)
       if (s_keyinfo->flags & HA_UNIQUE_HASH)
       {
         s_keyinfo->flags|= HA_NOSAME;
-        LEX_STRING *ls= &s_keyinfo->key_part->field->vcol_info->expr_str;
-        uint hash_parts= fields_in_hash_str(ls);
-        s_keyinfo->key_part= s_keyinfo->key_part- hash_parts;
+        extra_hash_parts++;
+        /* Sometimes it can happen, that we does not parsed hash_str.
+           Like when this function is called in ha_create  */
+        temp= s_keyinfo->key_part;
+        uint hash_parts= 0;
+        if (!i)
+        {
+          while ((KEY *)temp > table->s->key_info + table->s->keys)
+          {
+            hash_parts++;
+            temp--;
+          }
+          s_keyinfo->key_part= temp;
+          extra_key_parts_ex_hash+= hash_parts - 1;
+        }
+        else
+        {
+          hash_parts= s_keyinfo->key_part - (s_keyinfo - 1)->key_part -1;
+          s_keyinfo->key_part= (s_keyinfo - 1)->key_part+1;
+          extra_key_parts_ex_hash+= hash_parts - 1;
+        }
         s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
             s_keyinfo->ext_key_parts= hash_parts;
-        extra_key_part_hash+= hash_parts;
-        for (uint i= 0; i < hash_parts; i++)
-        {
-          key_length+= s_keyinfo->key_part[i].field->pack_length();
-        }
-        s_keyinfo->key_length= key_length;
       }
     }
     if (!keyinfo)
     {
-      table->s->key_parts+= extra_key_part_hash - extra_hash_parts;
+      table->s->key_parts+= extra_key_parts_ex_hash - extra_hash_parts;
       table->s->extra_hash_parts= extra_hash_parts;
     }
   }
@@ -6055,6 +6073,9 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
 
         for (uint j=0; j < arg_count; j++)
         {
+          DBUG_ASSERT(arguments[j]->type() == Item::FIELD_ITEM ||
+                      // this one for later use left(fld_name,length)
+                      arguments[j]->type() == Item::STRING_ITEM);
           t_field= static_cast<Item_field *>(arguments[j])->field;
           if(t_field->cmp_binary_offset(diff))
             continue;
@@ -6093,7 +6114,7 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
 int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec)
 {
   Field **f, *field;
-  LEX_STRING *ls;
+  Item *h_item;
   int error= 0;
   bool is_update_handler_null= false;
   /*
@@ -6118,10 +6139,10 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
         table->update_handler->ha_external_lock(current_thd, F_RDLCK);
         is_update_handler_null= true;
       }
-      ls= &table->key_info[i].key_part->field->vcol_info->expr_str;
+      h_item= table->key_info[i].key_part->field->vcol_info->expr_item;
       for (f= table->field; f && (field= *f); f++)
       {
-        if ( find_field_index_in_hash(ls, field->field_name) != -1)
+        if ( find_field_pos_in_hash(h_item, field->field_name) != -1)
         {
           /* Compare fields if they are different then check for duplicates*/
           if(field->cmp_binary_offset(reclength))

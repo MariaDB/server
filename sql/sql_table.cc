@@ -3226,7 +3226,7 @@ static void add_hash_field(THD * thd, List<Create_field> *create_list,
   cf->field_name= temp_name;
   cf->sql_type= MYSQL_TYPE_LONGLONG;
   /* hash column should be fully hidden */
-  cf->field_visibility= FULL_HIDDEN;
+  cf->field_visibility= COMPLETELY_HIDDEN;
   cf->is_long_column_hash= true;
   cf->create_length_to_internal_length();
   cf->length= cf->char_length= cf->pack_length;
@@ -3369,7 +3369,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         sql_field->flags & NOT_NULL_FLAG &&
         sql_field->flags & NO_DEFAULT_VALUE_FLAG)
     {
-      my_error(ER_HIDDEN_NOT_NULL_WOUT_DEFAULT, MYF(0), sql_field->field_name);
+      my_error(ER_HIDDEN_NOT_NULL_WITHOUT_DEFAULT, MYF(0), sql_field->field_name);
       DBUG_RETURN(TRUE);
     }
     if (sql_field->sql_type == MYSQL_TYPE_SET ||
@@ -7655,7 +7655,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   */
   for (f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
-    if (field->field_visibility == FULL_HIDDEN)
+    if (field->field_visibility == COMPLETELY_HIDDEN)
     {
       alter_info->flags |= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
       continue;
@@ -7990,6 +7990,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         else
           key_type= Key::UNIQUE;
       }
+      else if (key_info->flags & HA_UNIQUE_HASH)
+        key_type= Key::UNIQUE;
       else if (key_info->flags & HA_FULLTEXT)
         key_type= Key::FULLTEXT;
       else

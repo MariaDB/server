@@ -96,9 +96,9 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
       if (key->flags & HA_UNIQUE_HASH)
 
       {
-        LEX_STRING *ls= &table->key_info[keyno].key_part->field->
-                                               vcol_info->expr_str;
-        ulong fields= fields_in_hash_str(ls);
+        Item *h_item= table->key_info[keyno].key_part->field->
+                                               vcol_info->expr_item;
+        ulong fields= fields_in_hash_str(h_item);
         if (!min_endp || !max_endp ||
              min_endp->keypart_map != max_endp->keypart_map ||
              min_endp->length != max_endp->length ||
@@ -112,9 +112,9 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
         else
         {
           uint min_len= min_endp->length, max_len= max_endp->length;
-          set_hash(ls, table, (uchar *)min_endp->key);
+          set_hash(h_item, table, (uchar *)min_endp->key);
           min_endp->length= HA_HASH_KEY_LENGTH_WITH_NULL;
-          set_hash(ls, table, (uchar *)max_endp->key);
+          set_hash(h_item, table, (uchar *)max_endp->key);
           max_endp->length= HA_HASH_KEY_LENGTH_WITH_NULL;
           if (HA_POS_ERROR == (rows= this->records_in_range(keyno, min_endp,
                                                             max_endp)))
@@ -320,13 +320,13 @@ start:
       {
         if (table->key_info[active_index].flags & HA_UNIQUE_HASH)
         {
-          LEX_STRING *ls= &table->key_info[active_index].key_part->
-                                            field->vcol_info->expr_str;
-          set_hash(ls, table, (uchar *)(mrr_cur_range.start_key.key));
+          Item *h_item= table->key_info[active_index].key_part->
+                                            field->vcol_info->expr_item;
+          set_hash(h_item, table, (uchar *)(mrr_cur_range.start_key.key));
           mrr_cur_range.start_key.length= HA_HASH_KEY_LENGTH_WITH_NULL;
           if (mrr_cur_range.end_key.keypart_map)
           {
-            set_hash(ls, table, (uchar *)(mrr_cur_range.end_key.key));
+            set_hash(h_item, table, (uchar *)(mrr_cur_range.end_key.key));
             mrr_cur_range.end_key.length= HA_HASH_KEY_LENGTH_WITH_NULL;
           }
         }

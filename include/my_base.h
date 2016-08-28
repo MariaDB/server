@@ -241,20 +241,6 @@ enum ha_base_keytype {
   HA_KEYTYPE_BIT=19
 };
 
-/* Add some constant related to unique long hash column like length hash string etc*/
-
-#define HA_HASH_KEY_LENGTH_WITHOUT_NULL 8
-#define HA_HASH_FIELD_LENGTH            8
-#define HA_HASH_KEY_LENGTH_WITH_NULL    9
-#define HA_HASH_STR_HEAD                "hash(" //used in mysql_prepare_create_table
-#define HA_HASH_STR_HEAD_LEN            strlen(HA_HASH_STR_HEAD_LEN)
-#define HA_HASH_STR                     "hash"
-#define HA_HASH_STR_LEN                 strlen(HA_HASH_STR)
-#define HA_HASH_STR_INDEX               "HASH_INDEX"
-#define HA_HASH_STR_INDEX_LEN           strlen(HA_HASH_STR_INDEX)
-#define HA_DB_ROW_HASH_STR              "DB_ROW_HASH_"
-/* temp length of long unique key set in mysql_prepare_create_table*/
-#define HA_HASH_TEMP_KEY_LENGTH         5000
 
 #define HA_MAX_KEYTYPE	31		/* Must be log2-1 */
 

@@ -1876,11 +1876,15 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     of row based replication.
   */
   old_map= tmp_use_all_columns(table, table->read_set);
-
+  bool not_the_first_field= false;
   for (ptr=table->field ; (field= *ptr); ptr++)
   {
-    if (field->field_visibility != NOT_HIDDEN)
+    if (field->field_visibility == PSEUDO_COLUMN_HIDDEN ||
+        field->field_visibility == COMPLETELY_HIDDEN )
        continue;
+    if (not_the_first_field)
+      packet->append(STRING_WITH_LEN(",\n"));
+    not_the_first_field= true;
     uint flags = field->flags;
     packet->append(STRING_WITH_LEN("  "));
     append_identifier(thd,packet,field->field_name, strlen(field->field_name));
@@ -1975,25 +1979,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
     append_create_options(thd, packet, field->option_list, check_options,
                           hton->field_options);
-    //TODO need a better logic to find wheter to put comma or not
-    int i=1;
-    bool is_comma_needed=false;
-    if (*(ptr+i)!=NULL)
-    {
-      is_comma_needed=true;
-      while((*(ptr+i))->field_visibility==MEDIUM_HIDDEN ||
-            (*(ptr+i))->field_visibility==FULL_HIDDEN)
-      {
-        i++;
-        if(!*(ptr+i))
-        {
-          is_comma_needed =false;
-          break;
-        }
-      }
-    }
-    if(is_comma_needed)
-     packet->append(STRING_WITH_LEN(",\n"));
   }
 
   key_info= table->key_info;
@@ -5433,8 +5418,8 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 
   for (; (field= *ptr) ; ptr++)
   {
-    if(field->field_visibility == FULL_HIDDEN ||
-           field->field_visibility == MEDIUM_HIDDEN)
+    if(field->field_visibility == COMPLETELY_HIDDEN ||
+           field->field_visibility == PSEUDO_COLUMN_HIDDEN)
       continue;
     /* For now we will only show UNI or MUL for TODO  */
     uchar *pos;
@@ -5528,7 +5513,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     if(field->field_visibility==USER_DEFINED_HIDDEN)
     {
       if (buf.length())
-        buf.append(STRING_WITH_LEN(" , "));
+        buf.append(STRING_WITH_LEN(", "));
       buf.append(STRING_WITH_LEN("HIDDEN"),cs);
     }
     table->field[17]->store(buf.ptr(), buf.length(), cs);

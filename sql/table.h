@@ -66,6 +66,7 @@ typedef ulonglong nested_join_map;
 #define tmp_file_prefix_length 4
 #define TMP_TABLE_KEY_EXTRA 8
 
+
 /**
   Enumerate possible types of a table from re-execution
   standpoint.
@@ -335,23 +336,31 @@ enum enum_vcol_update_mode
 enum  field_visible_type{
 	NOT_HIDDEN=0,
 	USER_DEFINED_HIDDEN,
-	MEDIUM_HIDDEN,
-	FULL_HIDDEN
+	// pseudo-columns (like ROWID). Can be queried explicitly in SELECT,
+	//otherwise hidden from anything
+	PSEUDO_COLUMN_HIDDEN,
+	COMPLETELY_HIDDEN
 };
+/* Add some constant related to unique long hash column like length hash string etc*/
 
-int rem_field_from_hash_col_str(LEX_STRING *hash_lex, const char *field_name);
+#define HA_HASH_KEY_LENGTH_WITHOUT_NULL 8
+#define HA_HASH_FIELD_LENGTH            8
+#define HA_HASH_KEY_LENGTH_WITH_NULL    9
+#define HA_HASH_STR_HEAD                "hash(" //used in mysql_prepare_create_table
+#define HA_HASH_STR_HEAD_LEN            strlen(HA_HASH_STR_HEAD_LEN)
+#define HA_HASH_STR                     "hash"
+#define HA_HASH_STR_LEN                 strlen(HA_HASH_STR)
+#define HA_HASH_STR_INDEX               "HASH_INDEX"
+#define HA_HASH_STR_INDEX_LEN           strlen(HA_HASH_STR_INDEX)
+#define HA_DB_ROW_HASH_STR              "DB_ROW_HASH_"
+/* temp length of long unique key set in mysql_prepare_create_table*/
+#define HA_HASH_TEMP_KEY_LENGTH         5000
 
-int change_field_from_hash_col_str(LEX_STRING *hash_lex,
-																	 const char *old_name, char *new_name);
+int find_field_pos_in_hash(Item *hash_item, const char * field_name);
 
-int find_field_name_in_hash(char * hash_str, const char *field_name,
-														int hash_str_length);
+int fields_in_hash_str(Item *hash_item);
 
-int find_field_index_in_hash(LEX_STRING * hash_lex, const char * field_name);
-
-int fields_in_hash_str(LEX_STRING *hash_lex);
-
-Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE_SHARE *s, int index);
+Field * field_ptr_in_hash_str(Item *hash_item, int index);
 
 int get_key_part_length(KEY *keyinfo, int index);
 

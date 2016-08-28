@@ -7610,9 +7610,9 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
     if (param->table->s->keys > key_part->key &&
         param->table->key_info[key_part->key].flags & HA_UNIQUE_HASH)
     {
-      LEX_STRING *ls = & param->table->key_info[key_part->key].
-                                key_part->field->vcol_info->expr_str;
-      if (find_field_index_in_hash(ls, field->field_name) == key_part->part)
+      Item *h_item= param->table->key_info[key_part->key].
+                                   key_part->field->vcol_info->expr_item;
+      if (find_field_pos_in_hash(h_item, field->field_name) == key_part->part)
       {
         key_part->field= field;
       }
@@ -7919,25 +7919,25 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
   /* There can be long unique index , so it is quite expensive to copy long blob
      column.So instead of coping the whole blob data we will copy only field->ptr +
      packlength and later on retrive data from ptr to calculate hash */
-  if (key_part->key < field->table->s->keys &&
-        field->table->key_info[key_part->key].flags & HA_UNIQUE_HASH
-        && field->flags & BLOB_FLAG)
-  {
-    String tt;
-    field->val_str(&tt);
-    str= (uchar*) alloc_root(alloc, key_part->store_length);
-    if (!str)
-      goto end;
-    if (!key_part->part)
-    {
-      str[0]= 0;
-      str+= HA_HASH_KEY_LENGTH_WITH_NULL;
-    }
-    *str= (uchar) field->is_real_null();
-    memcpy(str+1, field->ptr, field->pack_length());
-    if (!key_part->part)
-      str-= HA_HASH_KEY_LENGTH_WITH_NULL;
-  }
+//  if (key_part->key < field->table->s->keys &&
+//        field->table->key_info[key_part->key].flags & HA_UNIQUE_HASH
+//        && field->flags & BLOB_FLAG)
+//  {
+//    String tt;
+//    field->val_str(&tt);
+//    str= (uchar*) alloc_root(alloc, key_part->store_length);
+//    if (!str)
+//      goto end;
+//    if (!key_part->part)
+//    {
+//      str[0]= 0;
+//      str+= HA_HASH_KEY_LENGTH_WITH_NULL;
+//    }
+//    *str= (uchar) field->is_real_null();
+//    memcpy(str+1, field->ptr, field->pack_length());
+//    if (!key_part->part)
+//      str-= HA_HASH_KEY_LENGTH_WITH_NULL;
+//  }
   else
   {
    str= (uchar*) alloc_root(alloc, key_part->store_length+1);
@@ -10319,10 +10319,10 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
     uint16 fieldnr;
     if (param->table->key_info[keynr].flags & HA_UNIQUE_HASH)
     {
-      LEX_STRING *ls= & param->table->key_info[keynr].key_part->
-                                   field->vcol_info->expr_str;
-      fieldnr= (field_ptr_in_hash_str(ls,
-                param->table->s, kp - table_key->key_part))->field_index;
+      Item *h_item= param->table->key_info[keynr].key_part->
+                                            field->vcol_info->expr_item;
+      fieldnr= (field_ptr_in_hash_str(h_item,
+                                      kp - table_key->key_part))->field_index;
     }
     else
       fieldnr= param->table->key_info[keynr].
@@ -10426,9 +10426,9 @@ get_quick_select(PARAM *param,uint idx,SEL_ARG *key_tree, uint mrr_flags,
 /**
   TODO documentation
   */
-void  set_hash(LEX_STRING *ls, TABLE *table, uchar *key)
+void  set_hash(Item *h_item, TABLE *table, uchar *key)
 {
-  uint fields= fields_in_hash_str(ls);
+  uint fields= fields_in_hash_str(h_item);
   uchar *temp= key;
   //need to calculate the hash
   ulong nr1= 1, nr2= 4;
@@ -10442,7 +10442,7 @@ void  set_hash(LEX_STRING *ls, TABLE *table, uchar *key)
       is_null= true;
       break;
     }
-    Field *fld= field_ptr_in_hash_str(ls, table->s, i);
+    Field *fld= field_ptr_in_hash_str(h_item, i);
     String str;
     CHARSET_INFO *cs;
     uchar l[4];
@@ -10574,8 +10574,8 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
       /* check for ha_unique_hash. If yes then calc hash and set range flags */
       if (table_key->flags & HA_UNIQUE_HASH)
       {
-        LEX_STRING *ls= &table_key->key_part->field->vcol_info->expr_str;
-        if (key_tree->part == fields_in_hash_str(ls)-1)
+        Item *h_item= table_key->key_part->field->vcol_info->expr_item;
+        if (key_tree->part == fields_in_hash_str(h_item)-1)
         {
           //what is there is a null
          // flag|= UNIQUE_RANGE;

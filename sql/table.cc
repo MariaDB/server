@@ -685,7 +685,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                              uint keys, KEY *keyinfo,
                              uint new_frm_ver, uint &ext_key_parts,
                              TABLE_SHARE *share, uint len,
-                             KEY *first_keyinfo, char* &keynames,const uchar *key_ex_flags)
+                             KEY *first_keyinfo, char* &keynames)
 {
   uint i, j, n_length;
   KEY_PART_INFO *key_part= NULL;
@@ -1003,7 +1003,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   const uchar *frm_image_end = frm_image + frm_length;
   uchar *record, *null_flags, *null_pos, *mysql57_vcol_null_pos;
   const uchar *disk_buff, *strpos;
-  const uchar * field_properties=NULL,*key_ex_flags=NULL;
+  const uchar * field_properties=NULL;
   ulong pos, record_offset;
   ulong rec_buff_length;
   handler *handler_file= 0;
@@ -1314,7 +1314,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, ext_key_parts,
-                         share, len, &first_keyinfo, keynames,key_ex_flags))
+                         share, len, &first_keyinfo, keynames))
       goto err;
 
     if (next_chunk + 5 < buff_end)
@@ -1407,7 +1407,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   {
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, ext_key_parts,
-                         share, len, &first_keyinfo, keynames,key_ex_flags))
+                         share, len, &first_keyinfo, keynames))
       goto err;
   }
 
@@ -1817,11 +1817,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       reg_field->field_visibility=static_cast<field_visible_type>(*field_properties++);
       reg_field->is_long_column_hash=static_cast<bool>(*field_properties++);
     }
-    /*
-       We will add status variable only when we find a user defined hidden column
-    */
     if (reg_field->field_visibility == USER_DEFINED_HIDDEN)
-      status_var_increment(thd->status_var.feature_hidden_column);
+      status_var_increment(thd->status_var.feature_hidden_columns);
     if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
     {
       null_bits_are_used= 1;
@@ -6978,8 +6975,8 @@ uint TABLE::actual_n_key_parts_including_long_unique(KEY *keyinfo)
 {
   if (keyinfo->flags & HA_UNIQUE_HASH)
   {
-    LEX_STRING *ls = & keyinfo->key_part->field->vcol_info->expr_str;
-    return fields_in_hash_str(ls);
+    Item *h_item = keyinfo->key_part->field->vcol_info->expr_item;
+    return fields_in_hash_str(h_item);
   }
   return actual_n_key_parts(keyinfo);
 }
@@ -7920,9 +7917,9 @@ uint TABLE_SHARE::total_key_parts_including_long_unique(THD *thd)
   {
     if (key_info[i].flags & HA_UNIQUE_HASH)
     {
-      LEX_STRING * ls= &key_info[i].key_part->field->vcol_info->expr_str;
+      Item *h_item= key_info[i].key_part->field->vcol_info->expr_item;
       //-1 because i part is already included in form of hash
-      keyparts+= fields_in_hash_str(ls)- 1;
+      keyparts+= fields_in_hash_str(h_item)- 1;
     }
   }
   return keyparts;
@@ -7937,100 +7934,51 @@ double KEY::actual_rec_per_key(uint i)
 }
 
 /*
-   find out that whether field name exists in hash_str
-   return index of  hash_str  if found other wise returns
-   -1
-*/
-int find_field_name_in_hash(char * hash_str, const  char * field_name,
-                            int hash_str_length)
-{
-
-  int j= 0, i= 0;
-  for (i= 0; i < hash_str_length; i++)
-  {
-    while (*(hash_str+i) == *(field_name+j))
-    {
-      i++;
-      j++;
-      if(*(field_name+j)=='\0' &&*(hash_str+i)=='`')
-        goto done;
-    }
-    j=0;
-  }
-  return -1;
-  done:
-  return i;
-}
-
-/*
    find out the field positoin in hash_str()
    position starts from 0
    else return -1;
 */
-int find_field_index_in_hash(LEX_STRING *hash_lex, const char * field_name)
+int find_field_pos_in_hash(Item *hash_item, const  char * field_name)
 {
-  char *hash_str= hash_lex->str;
-  int hash_str_length= hash_lex->length;
-  int field_name_position= find_field_name_in_hash(hash_str, field_name, hash_str_length);
-  if (field_name_position == -1)
-    return -1;
-  int index= 0;
-  for (int i= 0; i < field_name_position; i++)
+  Item_func_or_sum * temp= static_cast<Item_func_or_sum *>(hash_item);
+  Item_args * t_item= static_cast<Item_args *>(temp);
+  uint arg_count= t_item->argument_count();
+  Item ** arguments= t_item->arguments();
+  Field * t_field;
+
+  for (uint j=0; j < arg_count; j++)
   {
-    if (hash_str[i] == ',')
-      index++;
+    DBUG_ASSERT(arguments[j]->type() == Item::FIELD_ITEM );
+                // this one for later use left(fld_name,length)
+              //  arguments[j]->type() == Item::STRING_ITEM);
+    t_field= static_cast<Item_field *>(arguments[j])->field;
+    if (!my_strcasecmp(system_charset_info, t_field->field_name, field_name))
+      return j;
   }
-  return index;
+  return -1;
 }
 
 /*
    find total number of field in hash_str
 */
-int fields_in_hash_str(LEX_STRING * hash_lex)
+int fields_in_hash_str(Item * hash_item)
 {
-  int hash_str_length= hash_lex->length;
-  char *hash_str= hash_lex->str;
-  int num_of_fields= 1;
-  for (int i= 0; i<hash_str_length; i++)
-  {
-    if (hash_str[i] == ',' && hash_str[i-1] == '`'
-         && hash_str[i+1] == '`' )
-      num_of_fields++;
-  }
-  return num_of_fields;
+  Item_func_or_sum * temp= static_cast<Item_func_or_sum *>(hash_item);
+  Item_args * t_item= static_cast<Item_args *>(temp);
+  return t_item->argument_count();
 }
 
 /*
-   return fields ptr given by hash_str index
+   Returns fields ptr given by hash_str index
    for example
    hash(`abc`,`xyz`)
    index 1 will return pointer to xyz field
 */
-Field * field_ptr_in_hash_str(LEX_STRING * hash_str, TABLE_SHARE *s, int index)
+Field * field_ptr_in_hash_str(Item *hash_item, int index)
 {
-  char field_name[100]; // 100 is enough i think
-  int temp_index= 0;
-  char *str= hash_str->str;
-  int i= HA_HASH_STR_LEN, j;
-  Field **f, *field;
-  while (i < hash_str->length)
-  {
-    if (str[i] == ',')
-      temp_index++;
-    if (temp_index >= index)
-      break;
-    i++;
-  }
-  i+= 2;  // now i point to first character of field name
-  for (j= 0; str[i+j] !=  '`'; j++)
-    field_name[j]= str[i+j];
-  field_name[j]= '\0';
-  for (f= s->field; f && (field= *f); f++)
-  {
-    if (!my_strcasecmp(system_charset_info, field->field_name, field_name))
-      break;
-  }
-  return field;
+  Item_func_or_sum * temp= static_cast<Item_func_or_sum *>(hash_item);
+  Item_args * t_item= static_cast<Item_args *>(temp);
+  return static_cast<Item_field *>(t_item->arguments()[index])->field;
 }
 
 //TODO documentation
@@ -8038,8 +7986,8 @@ int get_key_part_length(KEY *keyinfo, int index)
 {
   DBUG_ASSERT(keyinfo->flags & HA_UNIQUE_HASH);
   TABLE *tbl= keyinfo->table;
-  LEX_STRING *ls= &keyinfo->key_part->field->vcol_info->expr_str;
-      Field *fld= field_ptr_in_hash_str(ls, tbl->s, index);
+  Item *h_item= keyinfo->key_part->field->vcol_info->expr_item;
+  Field *fld= field_ptr_in_hash_str(h_item, index);
   if (!index)
     return fld->pack_length()+HA_HASH_KEY_LENGTH_WITH_NULL+1;
   return fld->pack_length()+1;

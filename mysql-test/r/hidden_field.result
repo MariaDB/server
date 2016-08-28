@@ -1,3 +1,4 @@
+FLUSH STATUS;
 create table h_1(abc int primary key, xyz int hidden);
 desc h_1;
 Field	Type	Null	Key	Default	Extra
@@ -10,6 +11,8 @@ h_1	CREATE TABLE `h_1` (
   `xyz` int(11) HIDDEN DEFAULT NULL,
   PRIMARY KEY (`abc`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW STATUS LIKE 'Feature_hidden_column';
+Variable_name	Value
 drop table h_1;
 create table h_2(a1 int hidden);
 ERROR 42000: A table must have at least 1 column
@@ -22,20 +25,20 @@ create table h_5(abc int not null hidden);
 ERROR HY000: Hidden column 'abc' either allow null values or it must have default value
 create table t1(a int hidden, b int);
 insert into t1 values(1);
-insert into t1(a) values(1);
-insert into t1(b) values(1);
+insert into t1(a) values(2);
+insert into t1(b) values(3);
 insert into t1(a,b) values(5,5);
 select * from t1;
 b
 1
 NULL
-1
+3
 5
 select a,b from t1;
 a	b
 NULL	1
-1	NULL
-NULL	1
+2	NULL
+NULL	3
 5	5
 delete from t1;
 insert into t1 values(1),(2),(3),(4);
@@ -52,12 +55,13 @@ NULL
 NULL
 NULL
 drop table t1;
+#more complex case of hidden 
 create table t1(a int , b int hidden , c int hidden auto_increment unique, d blob , e int unique, f int);
 desc t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
 b	int(11)	YES		NULL	HIDDEN
-c	int(11)	NO	PRI	NULL	auto_increment , HIDDEN
+c	int(11)	NO	PRI	NULL	auto_increment, HIDDEN
 d	blob	YES		NULL	
 e	int(11)	YES	UNI	NULL	
 f	int(11)	YES		NULL	
@@ -76,7 +80,7 @@ create table t1(a int,abc int as (a mod 3) virtual hidden);
 desc t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-abc	int(11)	YES		NULL	VIRTUAL , HIDDEN
+abc	int(11)	YES		NULL	VIRTUAL, HIDDEN
 insert into t1 values(1,default);
 ERROR 21S01: Column count doesn't match value count at row 1
 insert into t1 values(1),(22),(233);
@@ -94,7 +98,7 @@ drop table t1;
 create table t1(abc int primary key hidden auto_increment, a int);
 desc t1;
 Field	Type	Null	Key	Default	Extra
-abc	int(11)	NO	PRI	NULL	auto_increment , HIDDEN
+abc	int(11)	NO	PRI	NULL	auto_increment, HIDDEN
 a	int(11)	YES		NULL	
 show create table t1;
 Table	Create Table
@@ -144,14 +148,14 @@ abc	int(11)	YES		NULL	HIDDEN
 xyz	int(11)	YES		NULL	
 insert into t1 values(12);
 drop table t1;
-some test on copy table structure with table data;
-table with hidden fields and unique keys;
+#some test on copy table structure with table data;
+#table with hidden fields and unique keys;
 create table t1(a int , b int hidden , c int hidden auto_increment unique, d blob , e int unique, f int);
 desc t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
 b	int(11)	YES		NULL	HIDDEN
-c	int(11)	NO	PRI	NULL	auto_increment , HIDDEN
+c	int(11)	NO	PRI	NULL	auto_increment, HIDDEN
 d	blob	YES		NULL	
 e	int(11)	YES	UNI	NULL	
 f	int(11)	YES		NULL	
@@ -170,7 +174,7 @@ a	b	c	d	e	f
 1	NULL	3	d blob	2	1
 1	NULL	4	d blob	3	1
 1	NULL	5	d blob	41	1
-this wont copy hidden fields and keys;
+#this wont copy hidden fields and keys;
 create table t2 as select * from t1;
 desc t2;
 Field	Type	Null	Key	Default	Extra
@@ -188,7 +192,7 @@ a	d	e	f
 select a,b,c,d,e,f from t2;
 ERROR 42S22: Unknown column 'b' in 'field list'
 drop table t2;
-now this will copy hidden fields 
+#now this will copy hidden fields 
 create table t2 as select a,b,c,d,e,f from t1;
 desc t2;
 Field	Type	Null	Key	Default	Extra
@@ -213,7 +217,7 @@ a	b	c	d	e	f
 1	NULL	4	d blob	3	1
 1	NULL	5	d blob	41	1
 drop table t2,t1;
-some test related to copy of data from one table to another;
+#some test related to copy of data from one table to another;
 create table t1(a int , b int hidden , c int hidden auto_increment unique, d blob , e int unique, f int);
 insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
 select a,b,c,d,e,f from t1;
@@ -243,7 +247,7 @@ a	b	c	d	e	f
 1	NULL	5	d blob	41	1
 truncate t2;
 drop table t1,t2;
-some test related to creating view on table with hidden column;
+#some test related to creating view on table with hidden column;
 create table t1(a int , b int hidden , c int hidden auto_increment unique, d blob , e int unique, f int);
 insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
 create view v as select * from t1;
@@ -260,7 +264,7 @@ a	d	e	f
 1	d blob	2	1
 1	d blob	3	1
 1	d blob	41	1
-v does not have hidden column;
+#v does not have hidden column;
 select a,b,c,d,e,f from v;
 ERROR 42S22: Unknown column 'b' in 'field list'
 insert into v values(1,21,32,4);
@@ -292,7 +296,7 @@ a	b	c	d	e	f
 1	NULL	4	d blob	3	1
 1	NULL	5	d blob	41	1
 1	NULL	6	21	32	4
-v does  have hidden column;
+#v does  have hidden column;
 select a,b,c,d,e,f from v;
 a	b	c	d	e	f
 1	NULL	1	d blob	1	1
@@ -324,7 +328,7 @@ a	b	c	d	e	f
 1	32	31	41	5	6
 drop view v;
 drop table t1;
-now hidden column in where and some join query i think no use of this test but anyway;
+#now hidden column in where and some join query 
 create table t1 (a int unique , b int hidden unique, c int unique  hidden);
 insert into t1(a,b,c) values(1,1,1);
 insert into t1(a,b,c) values(2,2,2);
@@ -365,3 +369,32 @@ a	a
 3	3
 4	4
 drop table t1,t2;
+#Unhide hidden hidden columns
+create table t1 (a int primary key, b int hidden, c int hidden unique);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) HIDDEN DEFAULT NULL,
+  `c` int(11) HIDDEN DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  UNIQUE KEY `c` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	NO	PRI	NULL	
+b	int(11)	YES		NULL	HIDDEN
+c	int(11)	YES	UNI	NULL	HIDDEN
+alter table t1 modify column b int;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	NO	PRI	NULL	
+b	int(11)	YES		NULL	
+c	int(11)	YES	UNI	NULL	HIDDEN
+alter table t1 change column c d int;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	NO	PRI	NULL	
+b	int(11)	YES		NULL	
+d	int(11)	YES	UNI	NULL	
+drop table t1;
