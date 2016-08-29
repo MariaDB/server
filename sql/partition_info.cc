@@ -1472,6 +1472,8 @@ bool partition_info::check_list_constants(THD *thd)
   List_iterator<partition_element> list_func_it(partitions);
   DBUG_ENTER("partition_info::check_list_constants");
 
+  DBUG_ASSERT(part_type == LIST_PARTITION);
+
   num_list_values= 0;
   /*
     We begin by calculating the number of list values that have been
@@ -1503,21 +1505,15 @@ bool partition_info::check_list_constants(THD *thd)
       has_null_part_id= i;
       found_null= TRUE;
     }
-    List_iterator<part_elem_value> list_val_it1(part_def->list_val_list);
-    while (list_val_it1++)
-      num_list_values++;
+    num_list_values+= part_def->list_val_list.elements;
   } while (++i < num_parts);
   list_func_it.rewind();
   num_column_values= part_field_list.elements;
   size_entries= column_list ?
         (num_column_values * sizeof(part_column_list_val)) :
         sizeof(LIST_PART_ENTRY);
-  ptr= thd->calloc((num_list_values+1) * size_entries);
-  if (unlikely(ptr == NULL))
-  {
-    mem_alloc_error(num_list_values * size_entries);
+  if (unlikely(!(ptr= thd->calloc((num_list_values+1) * size_entries))))
     goto end;
-  }
   if (column_list)
   {
     part_column_list_val *loc_list_col_array;
@@ -1528,6 +1524,13 @@ bool partition_info::check_list_constants(THD *thd)
     do
     {
       part_def= list_func_it++;
+      if (part_def->max_value)
+      {
+        // DEFAULT is not a real value so let's exclude it from sorting.
+        DBUG_ASSERT(num_list_values);
+        num_list_values--;
+        continue;
+      }
       List_iterator<part_elem_value> list_val_it2(part_def->list_val_list);
       while ((list_value= list_val_it2++))
       {
@@ -1557,6 +1560,13 @@ bool partition_info::check_list_constants(THD *thd)
     do
     {
       part_def= list_func_it++;
+      if (part_def->max_value && part_type == LIST_PARTITION)
+      {
+        // DEFAULT is not a real value so let's exclude it from sorting.
+        DBUG_ASSERT(num_list_values);
+        num_list_values--;
+        continue;
+      }
       List_iterator<part_elem_value> list_val_it2(part_def->list_val_list);
       while ((list_value= list_val_it2++))
       {
@@ -2287,11 +2297,19 @@ int partition_info::add_max_value(THD *thd)
   DBUG_ENTER("partition_info::add_max_value");
 
   part_column_list_val *col_val;
-  if (!(col_val= add_column_value(thd)))
+  /*
+    Makes for LIST COLUMNS 'num_columns' DEFAULT tuples, 1 tuple for RANGEs
+  */
+  uint max_val= (num_columns && part_type == LIST_PARTITION) ?
+                 num_columns : 1;
+  for (uint i= 0; i < max_val; i++)
   {
-    DBUG_RETURN(TRUE);
+    if (!(col_val= add_column_value(thd)))
+    {
+      DBUG_RETURN(TRUE);
+    }
+    col_val->max_value= TRUE;
   }
-  col_val->max_value= TRUE;
   DBUG_RETURN(FALSE);
 }
 
@@ -2566,8 +2584,7 @@ int partition_info::reorganize_into_single_field_col_val(THD *thd)
 */
 int partition_info::fix_partition_values(THD *thd,
                                          part_elem_value *val,
-                                         partition_element *part_elem,
-                                         uint part_id)
+                                         partition_element *part_elem)
 {
   part_column_list_val *col_val= val->col_val_array;
   DBUG_ENTER("partition_info::fix_partition_values");
@@ -2576,59 +2593,31 @@ int partition_info::fix_partition_values(THD *thd,
   {
     DBUG_RETURN(FALSE);
   }
-  if (val->added_items != 1)
+
+  Item *item_expr= col_val->item_expression;
+  if ((val->null_value= item_expr->null_value))
   {
-    my_error(ER_PARTITION_COLUMN_LIST_ERROR, MYF(0));
+    if (part_elem->has_null_value)
+    {
+      my_error(ER_MULTIPLE_DEF_CONST_IN_LIST_PART_ERROR, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+    part_elem->has_null_value= TRUE;
+  }
+  else if (item_expr->result_type() != INT_RESULT)
+  {
+    my_error(ER_VALUES_IS_NOT_INT_TYPE_ERROR, MYF(0),
+             part_elem->partition_name);
     DBUG_RETURN(TRUE);
   }
-  if (col_val->max_value)
+  if (part_type == RANGE_PARTITION)
   {
-    /* The parser ensures we're not LIST partitioned here */
-    DBUG_ASSERT(part_type == RANGE_PARTITION);
-    if (defined_max_value)
+    if (part_elem->has_null_value)
     {
-      my_error(ER_PARTITION_MAXVALUE_ERROR, MYF(0));
+      my_error(ER_NULL_IN_VALUES_LESS_THAN, MYF(0));
       DBUG_RETURN(TRUE);
     }
-    if (part_id == (num_parts - 1))
-    {
-      defined_max_value= TRUE;
-      part_elem->max_value= TRUE;
-      part_elem->range_value= LONGLONG_MAX;
-    }
-    else
-    {
-      my_error(ER_PARTITION_MAXVALUE_ERROR, MYF(0));
-      DBUG_RETURN(TRUE);
-    }
-  }
-  else
-  {
-    Item *item_expr= col_val->item_expression;
-    if ((val->null_value= item_expr->null_value))
-    {
-      if (part_elem->has_null_value)
-      {
-         my_error(ER_MULTIPLE_DEF_CONST_IN_LIST_PART_ERROR, MYF(0));
-         DBUG_RETURN(TRUE);
-      }
-      part_elem->has_null_value= TRUE;
-    }
-    else if (item_expr->result_type() != INT_RESULT)
-    {
-      my_error(ER_VALUES_IS_NOT_INT_TYPE_ERROR, MYF(0),
-               part_elem->partition_name);
-      DBUG_RETURN(TRUE);
-    }
-    if (part_type == RANGE_PARTITION)
-    {
-      if (part_elem->has_null_value)
-      {
-        my_error(ER_NULL_IN_VALUES_LESS_THAN, MYF(0));
-        DBUG_RETURN(TRUE);
-      }
-      part_elem->range_value= val->value;
-    }
+    part_elem->range_value= val->value;
   }
   col_val->fixed= 2;
   DBUG_RETURN(FALSE);
@@ -2828,6 +2817,7 @@ bool partition_info::fix_parser_data(THD *thd)
         key_algorithm == KEY_ALGORITHM_NONE)
       key_algorithm= KEY_ALGORITHM_55;
   }
+  defined_max_value= FALSE; // in case it already set (CREATE TABLE LIKE)
   do
   {
     part_elem= it++;
@@ -2835,16 +2825,60 @@ bool partition_info::fix_parser_data(THD *thd)
     num_elements= part_elem->list_val_list.elements;
     DBUG_ASSERT(part_type == RANGE_PARTITION ?
                 num_elements == 1U : TRUE);
+
     for (j= 0; j < num_elements; j++)
     {
       part_elem_value *val= list_val_it++;
-      if (column_list)
+
+      if (val->added_items != (column_list ? num_columns : 1))
       {
-        if (val->added_items != num_columns)
+        my_error(ER_PARTITION_COLUMN_LIST_ERROR, MYF(0));
+        DBUG_RETURN(TRUE);
+      }
+
+      /*
+        Check the last MAX_VALUE for range partitions and DEFAULT value
+        for LIST partitions.
+        Both values are marked with defined_max_value and
+        default_partition_id.
+
+        This is a max_value/default is max_value is set and this is 
+        a normal RANGE (no column list) or if it's a LIST partition:
+
+        PARTITION p3 VALUES LESS THAN MAXVALUE
+        or
+        PARTITION p3 VALUES DEFAULT
+      */
+      if (val->added_items && val->col_val_array[0].max_value &&
+          (!column_list || part_type == LIST_PARTITION))
+      {
+        DBUG_ASSERT(part_type == RANGE_PARTITION ||
+                    part_type == LIST_PARTITION);
+        if (defined_max_value)
         {
-          my_error(ER_PARTITION_COLUMN_LIST_ERROR, MYF(0));
+          my_error((part_type == RANGE_PARTITION) ?
+                   ER_PARTITION_MAXVALUE_ERROR :
+                   ER_PARTITION_DEFAULT_ERROR, MYF(0));
           DBUG_RETURN(TRUE);
         }
+
+        /* For RANGE PARTITION MAX_VALUE must be last */
+        if (i != (num_parts - 1) &&
+            part_type != LIST_PARTITION)
+        {
+          my_error(ER_PARTITION_MAXVALUE_ERROR, MYF(0));
+          DBUG_RETURN(TRUE);
+        }
+
+        defined_max_value= TRUE;
+        default_partition_id= i;
+        part_elem->max_value= TRUE;
+        part_elem->range_value= LONGLONG_MAX;
+        continue;
+      }
+
+      if (column_list)
+      {
         for (k= 0; k < num_columns; k++)
         {
           part_column_list_val *col_val= &val->col_val_array[k];
@@ -2857,10 +2891,8 @@ bool partition_info::fix_parser_data(THD *thd)
       }
       else
       {
-        if (fix_partition_values(thd, val, part_elem, i))
-        {
+        if (fix_partition_values(thd, val, part_elem))
           DBUG_RETURN(TRUE);
-        }
         if (val->null_value)
         {
           /*

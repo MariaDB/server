@@ -5217,6 +5217,27 @@ opt_part_values:
               part_info->part_type= LIST_PARTITION;
           }
           part_values_in {}
+        | DEFAULT
+         {
+            LEX *lex= Lex;
+            partition_info *part_info= lex->part_info;
+            if (! lex->is_partition_management())
+            {
+              if (part_info->part_type != LIST_PARTITION)
+                my_yyabort_error((ER_PARTITION_WRONG_VALUES_ERROR, MYF(0),
+                                  "LIST", "DEFAULT"));
+            }
+            else
+              part_info->part_type= LIST_PARTITION;
+            if (part_info->init_column_part(thd))
+            {
+              MYSQL_YYABORT;
+            }
+            if (part_info->add_max_value(thd))
+            {
+              MYSQL_YYABORT;
+            }
+         }
         ;
 
 part_func_max:

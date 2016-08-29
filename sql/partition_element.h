@@ -65,7 +65,7 @@ typedef struct p_column_list_val
   Item* item_expression;
   partition_info *part_info;
   uint partition_id;
-  bool max_value;
+  bool max_value; // MAXVALUE for RANGE type or DEFAULT value for LIST type
   bool null_value;
   char fixed;
 } part_column_list_val;
