@@ -4111,6 +4111,7 @@ connected:
   }
 
   DBUG_PRINT("info",("Starting reading binary log from master"));
+  thd->set_command(COM_SLAVE_IO);
   while (!io_slave_killed(mi))
   {
     THD_STAGE_INFO(thd, stage_requesting_binlog_dump);
@@ -4733,6 +4734,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   /* Read queries from the IO/THREAD until this thread is killed */
 
+  thd->set_command(COM_SLAVE_SQL);
   while (!sql_slave_killed(serial_rgi))
   {
     THD_STAGE_INFO(thd, stage_reading_event_from_the_relay_log);

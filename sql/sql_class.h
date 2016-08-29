@@ -3193,6 +3193,12 @@ public:
   }
   ulonglong current_utime()  { return microsecond_interval_timer(); }
 
+  /* Tell SHOW PROCESSLIST to show time from this point */
+  inline void set_time_for_next_stage()
+  {
+    utime_after_query= current_utime();
+  }
+
   /**
    Update server status after execution of a top level statement.
    Currently only checks if a query was slow, and assigns
@@ -3202,7 +3208,7 @@ public:
   */
   void update_server_status()
   {
-    utime_after_query= current_utime();
+    set_time_for_next_stage();
     if (utime_after_query > utime_after_lock + variables.long_query_time)
       server_status|= SERVER_QUERY_WAS_SLOW;
   }

@@ -392,9 +392,9 @@ const LEX_STRING command_name[257]={
   { 0, 0 }, //248
   { 0, 0 }, //249
   { 0, 0 }, //250
-  { 0, 0 }, //251
-  { 0, 0 }, //252
-  { 0, 0 }, //253
+  { C_STRING_WITH_LEN("Slave_worker") }, //251
+  { C_STRING_WITH_LEN("Slave_IO") }, //252
+  { C_STRING_WITH_LEN("Slave_SQL") }, //253
   { C_STRING_WITH_LEN("Com_multi") }, //254
   { C_STRING_WITH_LEN("Error") }  // Last command number 255
 };
