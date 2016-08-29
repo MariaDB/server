@@ -4413,27 +4413,20 @@ void re_setup_table(TABLE *table)
         s_keyinfo->flags|= HA_NOSAME;
         extra_hash_parts++;
         /* Sometimes it can happen, that we does not parsed hash_str.
-           Like when this function is called in ha_create  */
-        temp= s_keyinfo->key_part;
-        uint hash_parts= 0;
-        if (!i)
-        {
-          while ((KEY *)temp > table->s->key_info + table->s->keys)
-          {
-            hash_parts++;
-            temp--;
-          }
-          s_keyinfo->key_part= temp;
-          extra_key_parts_ex_hash+= hash_parts - 1;
-        }
-        else
-        {
-          hash_parts= s_keyinfo->key_part - (s_keyinfo - 1)->key_part -1;
-          s_keyinfo->key_part= (s_keyinfo - 1)->key_part+1;
-          extra_key_parts_ex_hash+= hash_parts - 1;
-        }
+           Like when this function is called in ha_create. So we will
+           Use field from  table->field rather then share->field*/
+        Item *h_item= table->field[s_keyinfo->key_part->fieldnr - 1]->
+                                                   vcol_info->expr_item;
+        uint hash_parts= fields_in_hash_str(h_item);
+        s_keyinfo->key_part= s_keyinfo->key_part- hash_parts;
         s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
             s_keyinfo->ext_key_parts= hash_parts;
+        extra_key_parts_ex_hash+= hash_parts - 1;
+        for (uint i= 0; i < hash_parts; i++)
+        {
+          key_length+= s_keyinfo->key_part[i].length;
+        }
+        s_keyinfo->key_length= key_length;
       }
     }
     if (!keyinfo)

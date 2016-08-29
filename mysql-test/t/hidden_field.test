@@ -1,17 +1,17 @@
 FLUSH STATUS;
 create table h_1(abc int primary key, xyz int hidden);
+SHOW STATUS LIKE 'Feature_hidden_columns';
 desc h_1;
 show create table h_1;
-SHOW STATUS LIKE 'Feature_hidden_columns';
 drop table h_1;
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create table h_2(a1 int hidden);
 --error ER_PARSE_ERROR
 create table h_3(a1 blob,hidden(a1));
---error ER_HIDDEN_NOT_NULL_WOUT_DEFAULT 
+--error ER_HIDDEN_NOT_NULL_WITHOUT_DEFAULT 
 create table h_4(a1 int primary key hidden ,a2 int unique hidden , a3 blob,a4
 int not null hidden unique);
---error ER_HIDDEN_NOT_NULL_WOUT_DEFAULT
+--error ER_HIDDEN_NOT_NULL_WITHOUT_DEFAULT
 create table h_5(abc int not null hidden);
 create table t1(a int hidden, b int);
 #should automatically add null

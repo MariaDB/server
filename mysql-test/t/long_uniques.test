@@ -1,3 +1,4 @@
+let datadir=`select @@datadir`;
 --echo #Structure of tests
 --echo #First we will check all option for
 --echo #table containing single unique column
@@ -12,6 +13,8 @@ insert into t1 values(1),(2),(3),(56),('sachin'),('maria'),(123456789034567891),
 desc t1;
 show create table t1;
 query_vertical show keys from t1;
+replace_result $datadir DATADIR;
+exec $MYISAMCHK -d $datadir/test/t1;
 select * from information_schema.columns where table_schema = 'test' and table_name = 't1';
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
 select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
@@ -37,7 +40,8 @@ insert into t1 values(repeat('m',4000*10)),(repeat('m',4000*10));
 insert into t1 values(repeat('m',4001)),(repeat('m',4002));
 truncate table t1;
 insert into t1 values(1),(2),(3),(4),(5),(8),(7);
-
+replace_result $datadir DATADIR;
+exec $MYISAMCHK -d $datadir/test/t1;
 --echo #now some alter commands;
 alter table t1 add column b int;
 desc t1;
@@ -123,6 +127,8 @@ insert into t1 values(1,2,3,4,5),(2,11,22,33,44),(3111,222,333,444,555),(5611,22
 desc t1;
 show create table t1;
 show keys from t1;
+replace_result $datadir DATADIR;
+exec $MYISAMCHK -d $datadir/test/t1;
 select * from information_schema.columns where table_schema = 'test' and table_name = 't1';
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
 select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
@@ -223,6 +229,8 @@ insert into t1 values(1,1,1,1,1,1,1,1),(2,2,2,2,2,2,2,2),(3,3,3,3,3,3,3,3),(4,4,
 desc t1;
 show create table t1;
 show keys from t1;
+replace_result $datadir DATADIR;
+exec $MYISAMCHK -d $datadir/test/t1;
 select * from information_schema.columns where table_schema = 'test' and table_name = 't1';
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
 select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';

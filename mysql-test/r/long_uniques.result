@@ -30,6 +30,16 @@ Null	YES
 Index_type	HASH_INDEX
 Comment	
 Index_comment	
+
+MyISAM file:         DATADIR/test/t1
+Record format:       Packed
+Character set:       latin1_swedish_ci (8)
+Data records:                   10  Deleted blocks:                 0
+Recordlength:                   20
+
+table description:
+Key Start Len Index   Type
+1   2     8   multip. ulonglong NULL       
 select * from information_schema.columns where table_schema = 'test' and table_name = 't1';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT
 def	test	t1	a	1	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob	UNI		select,insert,update,references	
@@ -98,6 +108,16 @@ ERROR 23000: Duplicate entry 'mmmmm' for key 'a'
 insert into t1 values(repeat('m',4001)),(repeat('m',4002));
 truncate table t1;
 insert into t1 values(1),(2),(3),(4),(5),(8),(7);
+
+MyISAM file:         DATADIR/test/t1
+Record format:       Packed
+Character set:       latin1_swedish_ci (8)
+Data records:                    7  Deleted blocks:                 0
+Recordlength:                   20
+
+table description:
+Key Start Len Index   Type
+1   2     8   multip. ulonglong NULL       
 #now some alter commands;
 alter table t1 add column b int;
 desc t1;
@@ -301,9 +321,22 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	c	1	DB_ROW_HASH_4	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	d	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	e	1	DB_ROW_HASH_3	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH_INDEX		
+
+MyISAM file:         DATADIR/test/t1
+Record format:       Packed
+Character set:       latin1_swedish_ci (8)
+Data records:                    8  Deleted blocks:                 0
+Recordlength:                 3072
+
+table description:
+Key Start Len Index   Type
+1   3     8   multip. ulonglong NULL       
+2   11    8   multip. ulonglong NULL       
+3   19    8   multip. ulonglong NULL       
+4   27    8   multip. ulonglong prefix NULL
 select * from information_schema.columns where table_schema = 'test' and table_name = 't1';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT
 def	test	t1	a	1	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob	UNI		select,insert,update,references	
@@ -314,9 +347,9 @@ def	test	t1	e	5	NULL	YES	varchar	3000	3000	NULL	NULL	NULL	latin1	latin1_swedish_
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
 def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH_INDEX		
-def	test	t1	0	test	c	1	DB_ROW_HASH_4	A	NULL	NULL	NULL	YES	HASH_INDEX		
-def	test	t1	0	test	d	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
-def	test	t1	0	test	e	1	DB_ROW_HASH_3	A	NULL	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	c	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	d	1	d	A	NULL	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	e	1	e	A	NULL	NULL	NULL	YES	HASH_INDEX		
 select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
 def	test	a	def	test	t1	a	1	NULL	NULL	NULL	NULL
@@ -481,7 +514,7 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	d	1	d	A	NULL	65535	NULL	YES	HASH_INDEX		
-t1	0	e	1	DB_ROW_HASH_4	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH_INDEX		
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
 #add column with unique index on blob;
@@ -506,7 +539,7 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	d	1	d	A	NULL	65535	NULL	YES	HASH_INDEX		
-t1	0	e	1	DB_ROW_HASH_6	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH_INDEX		
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH_INDEX		
@@ -569,7 +602,7 @@ t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE
 t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	clm1	1	clm_changed1	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	clm2	1	DB_ROW_HASH_4	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	clm2	1	clm_changed2	A	NULL	NULL	NULL	YES	HASH_INDEX		
 #now drop the unique key;
 alter table t1 drop key clm1, drop key clm2;
 show create table t1;
@@ -635,25 +668,58 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	c	1	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	e	1	c	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	0	b	1	DB_ROW_HASH_4	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	2	d	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	3	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	2	f	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	4	h	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	1	b	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	2	d	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	4	h	A	0	NULL	NULL	YES	HASH_INDEX		
+
+MyISAM file:         DATADIR/test/t1
+Record format:       Packed
+Character set:       latin1_swedish_ci (8)
+Data records:                    9  Deleted blocks:                 0
+Recordlength:                 5092
+
+table description:
+Key Start Len Index   Type
+1   3     8   multip. ulonglong prefix NULL
+2   11    8   multip. ulonglong prefix NULL
+3   19    8   multip. ulonglong prefix NULL
+4   27    8   multip. ulonglong NULL       
 select * from information_schema.columns where table_schema = 'test' and table_name = 't1';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT
-def	test	t1	a	1	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob	UNI		select,insert,update,references	
+def	test	t1	a	1	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob	MUL		select,insert,update,references	
 def	test	t1	b	2	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)	MUL		select,insert,update,references	
-def	test	t1	c	3	NULL	YES	varchar	2000	2000	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(2000)	UNI		select,insert,update,references	
+def	test	t1	c	3	NULL	YES	varchar	2000	2000	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(2000)	MUL		select,insert,update,references	
 def	test	t1	d	4	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text			select,insert,update,references	
-def	test	t1	e	5	NULL	YES	varchar	3000	3000	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(3000)	UNI		select,insert,update,references	
+def	test	t1	e	5	NULL	YES	varchar	3000	3000	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(3000)	MUL		select,insert,update,references	
 def	test	t1	f	6	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	longblob			select,insert,update,references	
 def	test	t1	g	7	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references	
 def	test	t1	h	8	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text			select,insert,update,references	
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
 def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH_INDEX		
-def	test	t1	0	test	c	1	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
-def	test	t1	0	test	e	1	c	A	0	NULL	NULL	YES	HASH_INDEX		
-def	test	t1	0	test	b	1	DB_ROW_HASH_4	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	a	2	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	a	3	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	c	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	c	2	d	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	c	3	e	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	e	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	e	2	f	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	e	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	e	4	h	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	b	1	b	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	b	2	d	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	b	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+def	test	t1	0	test	b	4	h	A	0	NULL	NULL	YES	HASH_INDEX		
 select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
 def	test	a	def	test	t1	a	1	NULL	NULL	NULL	NULL
@@ -758,9 +824,19 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	a	1	a	A	NULL	65535	NULL	YES	HASH_INDEX		
-t1	0	c	1	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	e	1	c	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	0	b	1	DB_ROW_HASH_8	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	2	d	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	c	3	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	2	f	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	4	h	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	b	1	b	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	2	d	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	b	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	4	h	A	0	65535	NULL	YES	HASH_INDEX		
 alter table t1 drop column db_row_hash_7  , drop column db_row_hash_5 ,
 drop column db_row_hash_1, drop column db_row_hash_2 ;
 show create table t1;
@@ -782,9 +858,19 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	a	1	a	A	NULL	65535	NULL	YES	HASH_INDEX		
-t1	0	c	1	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	b	1	c	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	0	e	1	DB_ROW_HASH_4	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	2	d	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	c	3	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	1	b	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	2	d	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	b	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	4	h	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	2	f	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	4	h	A	0	65535	NULL	YES	HASH_INDEX		
 #try to change column names;
 alter table t1 change column a aa blob , change column b bb blob , change column d dd blob;
 show create table t1;
@@ -806,9 +892,19 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	a	1	aa	A	NULL	65535	NULL	YES	HASH_INDEX		
-t1	0	c	1	bb	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	b	1	c	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	0	e	1	DB_ROW_HASH_4	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	2	bb	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	2	dd	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	c	3	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	1	bb	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	2	dd	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	b	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	4	h	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	2	f	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	4	h	A	0	65535	NULL	YES	HASH_INDEX		
 alter table t1 change column aa a blob , change column bb b blob , change column dd d blob;
 show create table t1;
 Table	Create Table
@@ -829,9 +925,19 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	a	1	a	A	NULL	65535	NULL	YES	HASH_INDEX		
-t1	0	c	1	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	b	1	c	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	0	e	1	DB_ROW_HASH_4	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	2	d	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	c	3	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	1	b	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	2	d	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	b	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	4	h	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	2	f	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	4	h	A	0	65535	NULL	YES	HASH_INDEX		
 #now we will change the data type to int and varchar limit so that we no longer  require hash_index;
 #on key a_b_c;
 alter table t1 modify column a varchar(20) , modify column b varchar(20) , modify column c varchar(20);
@@ -856,9 +962,17 @@ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_par
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	a	2	b	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	a	3	c	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	c	1	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	b	1	c	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	0	e	1	c	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	2	d	A	NULL	65535	NULL	YES	HASH_INDEX		
+t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	1	b	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	2	d	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	b	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	4	h	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	2	f	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	4	h	A	0	65535	NULL	YES	HASH_INDEX		
 #change it back; 
 alter table t1 modify column a blob , modify column b blob , modify column c blob;
 show create table t1;
@@ -880,9 +994,19 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	c	1	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	b	1	c	A	0	NULL	NULL	YES	HASH_INDEX		
-t1	0	e	1	DB_ROW_HASH_4	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	2	d	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	c	3	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	1	b	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	2	d	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	b	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	4	h	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	2	f	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	4	h	A	0	65535	NULL	YES	HASH_INDEX		
 #try to delete blob column in unique;
 truncate table t1;
 alter table t1 drop column a, drop column b, drop  column c;
@@ -901,8 +1025,14 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	c	1	d	A	NULL	65535	NULL	YES	HASH_INDEX		
-t1	0	b	1	e	A	NULL	NULL	NULL	YES	HASH_INDEX		
-t1	0	e	1	DB_ROW_HASH_3	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	c	2	e	A	NULL	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	1	d	A	NULL	65535	NULL	YES	HASH_INDEX		
+t1	0	b	2	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	3	h	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	1	e	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	2	f	A	0	65535	NULL	YES	HASH_INDEX		
+t1	0	e	3	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	e	4	h	A	0	65535	NULL	YES	HASH_INDEX		
 #now try to delete keys;
 alter table t1 drop key c, drop key e;
 show create table t1;
@@ -918,6 +1048,8 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	b	1	d	A	NULL	65535	NULL	YES	HASH_INDEX		
+t1	0	b	2	g	A	0	NULL	NULL	YES	HASH_INDEX		
+t1	0	b	3	h	A	0	65535	NULL	YES	HASH_INDEX		
 drop table t1;
 #now alter table containing some data basically some tests with ignore; 
 create table t1 (a blob);
@@ -984,6 +1116,8 @@ t1	CREATE TABLE `t1` (
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	a	1	a	A	NULL	65535	NULL	YES	HASH_INDEX		
-t1	0	b	1	c	A	NULL	65535	NULL	YES	HASH_INDEX		
+t1	0	a	2	c	A	NULL	65535	NULL	YES	HASH_INDEX		
+t1	0	b	1	b	A	NULL	65535	NULL	YES	HASH_INDEX		
+t1	0	b	2	d	A	0	65535	NULL	YES	HASH_INDEX		
 t1	0	e	1	e	A	0	NULL	NULL	YES	BTREE		
 drop table t1;

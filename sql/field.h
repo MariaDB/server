@@ -1029,9 +1029,9 @@ public:
   virtual int cmp(const uchar *,const uchar *)=0;
   virtual int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L)
   { return memcmp(a,b,pack_length()); }
-  virtual int cmp_offset(long row_offset)
+  virtual int cmp_offset(my_ptrdiff_t row_offset)
   { return cmp(ptr,ptr+row_offset); }
-  virtual int cmp_binary_offset(long row_offset)
+  virtual int cmp_binary_offset(my_ptrdiff_t row_offset)
   { return cmp_binary(ptr, ptr+row_offset); };
   virtual int key_cmp(const uchar *a,const uchar *b)
   { return cmp(a, b); }
@@ -3615,13 +3615,13 @@ public:
     else
       return Field_bit::key_cmp(a, bytes_in_rec + MY_TEST(bit_len)) * -1;
   }
-  int cmp_binary_offset(long row_offset)
+  int cmp_binary_offset(my_ptrdiff_t row_offset)
   { return cmp_offset(row_offset); }
   int cmp_max(const uchar *a, const uchar *b, uint max_length);
   int key_cmp(const uchar *a, const uchar *b)
   { return cmp_binary((uchar *) a, (uchar *) b); }
   int key_cmp(const uchar *str, uint length);
-  int cmp_offset(long row_offset);
+  int cmp_offset(my_ptrdiff_t row_offset);
   bool update_min(Field *min_val, bool force_update)
   { 
     longlong val= val_int();

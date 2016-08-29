@@ -1158,6 +1158,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->db_options_in_use= share->db_create_options;
   share->mysql_version= uint4korr(frm_image+51);
   share->null_field_first= 0;
+  share->extra_hash_parts= 0;
   if (!frm_image[32])				// New frm file in 3.23
   {
     uint cs_org= (((uint) frm_image[41]) << 8) + (uint) frm_image[38];
@@ -1905,7 +1906,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         temp_key_part= keyinfo->key_part;
         Virtual_column_info *v= new (&share->mem_root) Virtual_column_info();;
         String hash_str;
-        hash_str.append(STRING_WITH_LEN(HA_HASH_STR_HEAD));
+        hash_str.append(ha_hash_str.str,ha_hash_str.length);
+        hash_str.append(STRING_WITH_LEN("("));
         for (uint j= 0; j < keyinfo->user_defined_key_parts; j++,
                  temp_key_part++)
         {

@@ -1,5 +1,8 @@
 FLUSH STATUS;
 create table h_1(abc int primary key, xyz int hidden);
+SHOW STATUS LIKE 'Feature_hidden_columns';
+Variable_name	Value
+Feature_hidden_columns	1
 desc h_1;
 Field	Type	Null	Key	Default	Extra
 abc	int(11)	NO	PRI	NULL	
@@ -11,8 +14,6 @@ h_1	CREATE TABLE `h_1` (
   `xyz` int(11) HIDDEN DEFAULT NULL,
   PRIMARY KEY (`abc`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SHOW STATUS LIKE 'Feature_hidden_column';
-Variable_name	Value
 drop table h_1;
 create table h_2(a1 int hidden);
 ERROR 42000: A table must have at least 1 column
@@ -20,9 +21,9 @@ create table h_3(a1 blob,hidden(a1));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'hidden(a1))' at line 1
 create table h_4(a1 int primary key hidden ,a2 int unique hidden , a3 blob,a4
 int not null hidden unique);
-ERROR HY000: Hidden column 'a1' either allow null values or it must have default value
+ERROR HY000: Hidden column 'a1' should either allow null values or it must have default value
 create table h_5(abc int not null hidden);
-ERROR HY000: Hidden column 'abc' either allow null values or it must have default value
+ERROR HY000: Hidden column 'abc' should either allow null values or it must have default value
 create table t1(a int hidden, b int);
 insert into t1 values(1);
 insert into t1(a) values(2);
@@ -369,7 +370,7 @@ a	a
 3	3
 4	4
 drop table t1,t2;
-#Unhide hidden hidden columns
+#Unhide  hidden columns
 create table t1 (a int primary key, b int hidden, c int hidden unique);
 show create table t1;
 Table	Create Table
@@ -398,3 +399,6 @@ a	int(11)	NO	PRI	NULL
 b	int(11)	YES		NULL	
 d	int(11)	YES	UNI	NULL	
 drop table t1;
+SHOW STATUS LIKE 'Feature_hidden_columns';
+Variable_name	Value
+Feature_hidden_columns	54

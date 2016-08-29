@@ -6139,10 +6139,12 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
             table->field[9]->set_notnull();
           }
           if (key->flags & HA_UNIQUE_HASH)
-            str= HA_HASH_STR_INDEX;
+            table->field[13]->store("HASH_INDEX", strlen("HASH_INDEX"), cs);
           else
+          {
             str= show_table->file->index_type(i);
-          table->field[13]->store(str, strlen(str), cs);
+            table->field[13]->store(str, strlen(str), cs);
+          }
         }
         if (!(key_info->flags & HA_FULLTEXT) &&
             (key_part->field &&
