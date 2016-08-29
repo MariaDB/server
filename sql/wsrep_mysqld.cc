@@ -805,7 +805,7 @@ void wsrep_init_startup (bool first)
      (wsrep_on_fun)wsrep_on);
 
   /* Skip replication start if no cluster address */
-  if (!wsrep_cluster_address || strlen(wsrep_cluster_address) == 0) return;
+  if (!wsrep_cluster_address || wsrep_cluster_address[0] == 0) return;
 
   if (first) wsrep_sst_grab(); // do it so we can wait for SST below
 
@@ -918,7 +918,7 @@ bool wsrep_start_replication()
     return true;
   }
 
-  if (!wsrep_cluster_address || strlen(wsrep_cluster_address)== 0)
+  if (!wsrep_cluster_address || wsrep_cluster_address[0]== 0)
   {
     // if provider is non-trivial, but no address is specified, wait for address
     wsrep_ready_set(FALSE);

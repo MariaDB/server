@@ -359,11 +359,11 @@ bool wsrep_cluster_address_check (sys_var *self, THD* thd, set_var* var)
       (var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
     goto err;
 
-  memcpy(addr_buf, var->save_result.string_value.str,
-         var->save_result.string_value.length);
-  addr_buf[var->save_result.string_value.length]= 0;
+  strmake(addr_buf, var->save_result.string_value.str,
+          sizeof(addr_buf)-1);
 
-  if (!wsrep_cluster_address_verify(addr_buf)) return 0;
+  if (!wsrep_cluster_address_verify(addr_buf))
+    return 0;
 
  err:
   my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
@@ -421,8 +421,8 @@ void wsrep_cluster_address_init (const char* value)
               (wsrep_cluster_address) ? wsrep_cluster_address : "null", 
               (value) ? value : "null");
 
-  if (wsrep_cluster_address) my_free ((void*)wsrep_cluster_address);
-  wsrep_cluster_address = (value) ? my_strdup(value, MYF(0)) : NULL;
+  my_free((void*) wsrep_cluster_address);
+  wsrep_cluster_address= my_strdup(value ? value : "", MYF(0));
 }
 
 /* wsrep_cluster_name cannot be NULL or an empty string. */
