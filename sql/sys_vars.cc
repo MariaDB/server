@@ -2850,7 +2850,6 @@ static bool fix_server_id(sys_var *self, THD *thd, enum_var_type type)
 {
   if (type == OPT_GLOBAL)
   {
-    server_id_supplied = 1;
     thd->variables.server_id= global_system_variables.server_id;
     /*
       Historically, server_id was a global variable that is exported to
@@ -2867,7 +2866,7 @@ static Sys_var_ulong Sys_server_id(
        "Uniquely identifies the server instance in the community of "
        "replication partners",
        SESSION_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       VALID_RANGE(1, UINT_MAX32), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_has_super), ON_UPDATE(fix_server_id));
 
 static Sys_var_mybool Sys_slave_compressed_protocol(

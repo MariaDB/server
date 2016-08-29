@@ -1466,15 +1466,17 @@ SELECT @@GLOBAL.server_id;
 @@GLOBAL.server_id
 4294967295
 SET GLOBAL server_id = 0;
+Warnings:
+Warning	1292	Truncated incorrect server_id value: '0'
 SELECT @@GLOBAL.server_id;
 @@GLOBAL.server_id
-0
+1
 SET GLOBAL server_id = -1;
 Warnings:
 Warning	1292	Truncated incorrect server_id value: '-1'
 SELECT @@GLOBAL.server_id;
 @@GLOBAL.server_id
-0
+1
 SET GLOBAL server_id = @old_server_id;
 #
 # BUG#10206 - InnoDB: Transaction requiring Max_BinLog_Cache_size > 4GB always rollsback

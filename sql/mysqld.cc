@@ -400,7 +400,6 @@ bool opt_error_log= IF_WIN(1,0);
 bool opt_disable_networking=0, opt_skip_show_db=0;
 bool opt_skip_name_resolve=0;
 my_bool opt_character_set_client_handshake= 1;
-bool server_id_supplied = 0;
 bool opt_endinfo, using_udf_functions;
 my_bool locked_in_memory;
 bool opt_using_transactions;
@@ -5831,17 +5830,6 @@ int mysqld_main(int argc, char **argv)
   if (WSREP_ON && wsrep_check_opts())
     global_system_variables.wsrep_on= 0;
 
-  if (opt_bin_log && !global_system_variables.server_id)
-  {
-    SYSVAR_AUTOSIZE(global_system_variables.server_id, ::server_id= 1);
-#ifdef EXTRA_DEBUG
-    sql_print_warning("You have enabled the binary log, but you haven't set "
-                      "server-id to a non-zero value: we force server id to 1; "
-                      "updates will be logged to the binary log, but "
-                      "connections from slaves will not be accepted.");
-#endif
-  }
-
   /* 
    The subsequent calls may take a long time : e.g. innodb log read.
    Thus set the long running service control manager timeout
@@ -8707,7 +8695,6 @@ static int mysql_init_variables(void)
   mqh_used= 0;
   kill_in_progress= 0;
   cleanup_done= 0;
-  server_id_supplied= 0;
   test_flags= select_errors= dropping_tables= ha_open_options=0;
   thread_count= thread_running= kill_cached_threads= wake_thread= 0;
   service_thread_count= 0;
@@ -9176,7 +9163,6 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     opt_noacl=opt_bootstrap=1;
     break;
   case OPT_SERVER_ID:
-    server_id_supplied = 1;
     ::server_id= global_system_variables.server_id;
     break;
   case OPT_LOWER_CASE_TABLE_NAMES:
