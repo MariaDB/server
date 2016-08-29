@@ -1658,5 +1658,27 @@ create table t12 as select * from t10;
 explain extended select a from t10 where c<3 or a in (select c from t12 union select max(t10.b) from t11 group by t11.c);
 drop table t10,t11,t12;
 --echo #
+--echo # MDEV-10017: Get unexpected `Empty Set` for correlated subquery
+--echo # with aggregate functions
+--echo #
+
+create table t1(c1 int, c2 int, c3 int);
+insert into t1 values(1,1,1),(2,2,2),(3,3,3);
+select * from t1;
+create table t2(c1 int, c2 int);
+insert into t2 values(2,2);
+select * from t2;
+--error ER_INVALID_GROUP_FUNC_USE
+explain extended
+select c1 from t1 having c1 >= (select t.c1 as c from t2 t order by (select min(t1.c1+c) from t2 tt));
+--error ER_INVALID_GROUP_FUNC_USE
+select c1 from t1 having c1 >= (select t.c1 as c from t2 t order by (select min(t1.c1+c) from t2 tt));
+
+explain extended
+select c1 from t1 having c1 >= (select t.c1 as c from t2 t order by (select min(t1.c1+tt.c1) from t2 tt));
+select c1 from t1 having c1 >= (select t.c1 as c from t2 t order by (select min(t1.c1+tt.c1) from t2 tt));
+drop table t1,t2;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
