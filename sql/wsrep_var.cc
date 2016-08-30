@@ -356,11 +356,11 @@ bool wsrep_cluster_address_check (sys_var *self, THD* thd, set_var* var)
   char addr_buf[FN_REFLEN];
 
   if ((! var->save_result.string_value.str) ||
-      (var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
+      (var->save_result.string_value.length >= sizeof(addr_buf))) // safety
     goto err;
 
   strmake(addr_buf, var->save_result.string_value.str,
-          sizeof(addr_buf)-1);
+          MY_MIN(sizeof(addr_buf)-1, var->save_result.string_value.length));
 
   if (!wsrep_cluster_address_verify(addr_buf))
     return 0;
