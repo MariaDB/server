@@ -156,7 +156,8 @@ insert into folks values
 (67, 'Cousin Eddie', '1992-02-28', 25, 27),
 (27, 'Auntie Melinda', '1971-03-29', null, null); 
 
-
+--echo # simple recursion with one anchor and one recursive select
+--echo # the anchor is the first select in the specification 
 with recursive 
 ancestors
 as
@@ -171,6 +172,8 @@ as
 )
 select * from ancestors;
 
+--echo # simple recursion with one anchor and one recursive select
+--echo # the anchor is the last select in the specification 
 with recursive 
 ancestors
 as
@@ -185,6 +188,8 @@ as
 )
 select * from ancestors;
 
+--echo # simple recursion with one anchor and one recursive select
+--echo # the anchor is the first select in the specification 
 with recursive
 ancestors
 as
@@ -199,20 +204,8 @@ as
 )
 select * from ancestors;
 
-with recursive
-ancestors
-as
-(
-  select *
-    from  folks
-      where name = 'Me' or name='Sister Amy'
-  union 
-  select  p.*
-    from folks as p, ancestors as a
-  where p.id = a.father or p.id = a.mother
-)
-select * from ancestors;
 
+--echo # two recursive definition, one uses another
 with recursive 
 prev_gen
 as
@@ -240,7 +233,45 @@ as
 )
 select ancestors.name, ancestors.dob from ancestors;
 
+--echo # recursive definition with two attached non-recursive
+with recursive 
+ancestors(id,name,dob)
+as
+(
+  with 
+  father(child_id,id,name,dob)
+  as
+  (
+    select folks.id, f.id, f.name, f.dob
+      from folks, folks f
+        where folks.father=f.id 
+        
+  ),
+  mother(child_id,id,name,dob)
+  as
+  (
+    select folks.id, m.id, m.name, m.dob
+      from folks, folks m
+        where folks.mother=m.id 
+        
+  )  
+  select folks.id, folks.name, folks.dob
+    from folks
+      where name='Me'
+  union 
+  select f.id, f.name, f.dob
+    from ancestors a, father f
+      where f.child_id=a.id
+  union 
+  select m.id, m.name, m.dob
+    from ancestors a, mother m
+      where m.child_id=a.id
+  
+)
+select ancestors.name, ancestors.dob from ancestors;
 
+--echo # simple recursion with one anchor and one recursive select
+--echo # the anchor is the first select in the specification 
 with recursive
 descendants
 as
@@ -255,6 +286,8 @@ as
 )
 select * from descendants;
 
+--echo # simple recursion with one anchor and one recursive select
+--echo # the anchor is the first select in the specification 
 with recursive
 descendants
 as
@@ -270,6 +303,7 @@ as
 select * from descendants;
 
 
+--echo # simple recursive table used three times in the main query
 with recursive
 ancestors
 as
@@ -287,6 +321,8 @@ select *
     where exists (select * from ancestors a 
                   where a.father=t1.id AND a.mother=t2.id);
 
+
+--echo # simple recursive table used three times in the main query
 with 
 ancestor_couples(husband, h_dob, wife, w_dob)
 as
@@ -310,6 +346,8 @@ select t1.name, t1.dob, t2.name, t2.dob
 )
 select * from ancestor_couples;
 
+
+--echo # simple recursion with two selects in recursive part
 with recursive
 ancestors
 as
@@ -328,6 +366,8 @@ as
 )
 select * from ancestors;
 
+
+--echo # mutual recursion with renaming
 with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
                  w_id, w_name, w_dob, w_father, w_mother)
@@ -355,6 +395,7 @@ select h_name, h_dob, w_name, w_dob
   from ancestor_couples;
 
 
+--echo # mutual recursion with union all
 with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
                  w_id, w_name, w_dob, w_father, w_mother)
@@ -382,6 +423,35 @@ select h_name, h_dob, w_name, w_dob
   from ancestor_couples;
 
 
+--echo # mutual recursion with renaming
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+  union
+  select h.*, w.*
+    from folks v, folks h, folks w
+      where v.name = 'Me' and
+            (v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+
+--echo # mutual recursion with union all
 with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
                  w_id, w_name, w_dob, w_father, w_mother)
@@ -407,7 +477,7 @@ as
 select h_name, h_dob, w_name, w_dob
   from ancestor_couples;
 
-
+--echo # mutual recursion with one select in the first definition
 with recursive
 ancestor_couple_ids(h_id, w_id)
 as
@@ -434,6 +504,8 @@ as
 select *
   from ancestor_couple_ids;
 
+
+--echo # join of a mutually recursive table with base tables
 with recursive
 ancestor_couple_ids(h_id, w_id)
 as
@@ -462,6 +534,7 @@ select h.name, h.dob, w.name, w.dob
     where c.h_id = h.id and c.w_id= w.id;
 
 
+--echo # join of two mutually recursive tables
 with recursive
 ancestor_couple_ids(h_id, w_id)
 as
@@ -517,6 +590,8 @@ select h.name, h.dob, w.name, w.dob
   from ancestor_couple_ids c, coupled_ancestors h, coupled_ancestors w
     where c.h_id = h.id and c.w_id= w.id;
 
+
+--echo # simple mutual recursion
 with recursive
 ancestor_couple_ids(h_id, w_id)
 as
@@ -543,6 +618,7 @@ select *
   from ancestor_couple_ids;
 
 
+--echo # join of two mutually recursive tables
 with recursive
 ancestor_couple_ids(h_id, w_id)
 as
@@ -570,6 +646,7 @@ select h.name, h.dob, w.name, w.dob
     where c.h_id = h.id and c.w_id= w.id;
 
 
+--echo # execution of prepared query using a recursive table
 prepare stmt1 from "
 with recursive 
 ancestors
@@ -592,6 +669,7 @@ execute stmt1;
 deallocate prepare stmt1;
 
 
+--echo # view using a recursive table
 create view v1 as
 with recursive 
 ancestors
@@ -636,6 +714,7 @@ select * from v2;
 
 drop view v1,v2;
 
+
 explain extended
 with recursive 
 ancestors
@@ -652,6 +731,7 @@ as
 select * from ancestors;
 
 
+--echo # recursive spec with two anchor selects and two recursive ones 
 with recursive
 ancestor_ids (id)
 as
@@ -672,6 +752,8 @@ as
 )
 select * from ancestors;
 
+
+--echo # recursive spec using union all 
 with recursive
 ancestors
 as
@@ -689,8 +771,6 @@ as
       where p.id = ma.mother
 )
 select * from ancestors;
-
-
 
 
 --ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
@@ -937,6 +1017,8 @@ as
 )
 select * from ancestors;
 
+--echo # query with recursive tables using key access
+
 alter table folks add primary key (id);
 
 explain
@@ -957,6 +1039,7 @@ as
       where p.id = ma.mother
 )
 select * from ancestors;
+
 
 with recursive
 ancestors

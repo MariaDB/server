@@ -210,6 +210,8 @@ public:
   friend class With_clause;
 };
 
+const uint max_number_of_elements_in_with_clause= sizeof(table_map)*8;
+
 /**
   @class With_clause
   @brief Set of with_elements
@@ -270,15 +272,7 @@ public:
       with_recursive(recursive_fl)
   { }
 
-  /* Add a new element to the current with clause */ 
-  bool add_with_element(With_element *elem)
-  { 
-    elem->owner= this;
-    elem->number= with_list.elements;
-    elem->spec->with_element= elem;
-    with_list.link_in_list(elem, &elem->next);
-    return false;
-  }
+  bool add_with_element(With_element *elem);
 
   /* Add this with clause to the list of with clauses used in the statement */
   void add_to_list(With_clause ** &last_next)

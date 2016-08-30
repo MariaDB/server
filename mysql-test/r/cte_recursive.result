@@ -160,6 +160,8 @@ insert into folks values
 (6, 'Grandgrandma Martha', '1923-05-17', null, null),
 (67, 'Cousin Eddie', '1992-02-28', 25, 27),
 (27, 'Auntie Melinda', '1971-03-29', null, null);
+# simple recursion with one anchor and one recursive select
+# the anchor is the first select in the specification 
 with recursive 
 ancestors
 as
@@ -182,6 +184,8 @@ id	name	dob	father	mother
 7	Grandma Sally	1943-08-23	NULL	6
 8	Grandpa Ben	1940-10-21	NULL	NULL
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
+# simple recursion with one anchor and one recursive select
+# the anchor is the last select in the specification 
 with recursive 
 ancestors
 as
@@ -204,6 +208,8 @@ id	name	dob	father	mother
 7	Grandma Sally	1943-08-23	NULL	6
 8	Grandpa Ben	1940-10-21	NULL	NULL
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
+# simple recursion with one anchor and one recursive select
+# the anchor is the first select in the specification 
 with recursive
 ancestors
 as
@@ -224,29 +230,7 @@ id	name	dob	father	mother
 7	Grandma Sally	1943-08-23	NULL	6
 8	Grandpa Ben	1940-10-21	NULL	NULL
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
-with recursive
-ancestors
-as
-(
-select *
-from  folks
-where name = 'Me' or name='Sister Amy'
-  union 
-select  p.*
-from folks as p, ancestors as a
-where p.id = a.father or p.id = a.mother
-)
-select * from ancestors;
-id	name	dob	father	mother
-100	Me	2000-01-01	20	30
-98	Sister Amy	2001-06-20	20	30
-20	Dad	1970-02-02	10	9
-30	Mom	1975-03-03	8	7
-10	Grandpa Bill	1940-04-05	NULL	NULL
-9	Grandma Ann	1941-10-15	NULL	NULL
-7	Grandma Sally	1943-08-23	NULL	6
-8	Grandpa Ben	1940-10-21	NULL	NULL
-6	Grandgrandma Martha	1923-05-17	NULL	NULL
+# two recursive definition, one uses another
 with recursive 
 prev_gen
 as
@@ -282,6 +266,50 @@ Grandma Ann	1941-10-15
 Grandma Sally	1943-08-23
 Grandpa Ben	1940-10-21
 Grandgrandma Martha	1923-05-17
+# recursive definition with two attached non-recursive
+with recursive 
+ancestors(id,name,dob)
+as
+(
+with 
+father(child_id,id,name,dob)
+as
+(
+select folks.id, f.id, f.name, f.dob
+from folks, folks f
+where folks.father=f.id 
+),
+mother(child_id,id,name,dob)
+as
+(
+select folks.id, m.id, m.name, m.dob
+from folks, folks m
+where folks.mother=m.id 
+)  
+select folks.id, folks.name, folks.dob
+from folks
+where name='Me'
+  union 
+select f.id, f.name, f.dob
+from ancestors a, father f
+where f.child_id=a.id
+union 
+select m.id, m.name, m.dob
+from ancestors a, mother m
+where m.child_id=a.id
+)
+select ancestors.name, ancestors.dob from ancestors;
+name	dob
+Me	2000-01-01
+Dad	1970-02-02
+Mom	1975-03-03
+Grandpa Bill	1940-04-05
+Grandpa Ben	1940-10-21
+Grandma Ann	1941-10-15
+Grandma Sally	1943-08-23
+Grandgrandma Martha	1923-05-17
+# simple recursion with one anchor and one recursive select
+# the anchor is the first select in the specification 
 with recursive
 descendants
 as
@@ -300,6 +328,8 @@ id	name	dob	father	mother
 20	Dad	1970-02-02	10	9
 100	Me	2000-01-01	20	30
 98	Sister Amy	2001-06-20	20	30
+# simple recursion with one anchor and one recursive select
+# the anchor is the first select in the specification 
 with recursive
 descendants
 as
@@ -320,6 +350,7 @@ id	name	dob	father	mother
 100	Me	2000-01-01	20	30
 98	Sister Amy	2001-06-20	20	30
 67	Cousin Eddie	1992-02-28	25	27
+# simple recursive table used three times in the main query
 with recursive
 ancestors
 as
@@ -340,6 +371,7 @@ id	name	dob	father	mother	id	name	dob	father	mother
 20	Dad	1970-02-02	10	9	30	Mom	1975-03-03	8	7
 10	Grandpa Bill	1940-04-05	NULL	NULL	9	Grandma Ann	1941-10-15	NULL	NULL
 8	Grandpa Ben	1940-10-21	NULL	NULL	7	Grandma Sally	1943-08-23	NULL	6
+# simple recursive table used three times in the main query
 with 
 ancestor_couples(husband, h_dob, wife, w_dob)
 as
@@ -366,6 +398,7 @@ husband	h_dob	wife	w_dob
 Dad	1970-02-02	Mom	1975-03-03
 Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
 Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+# simple recursion with two selects in recursive part
 with recursive
 ancestors
 as
@@ -392,6 +425,7 @@ id	name	dob	father	mother
 9	Grandma Ann	1941-10-15	NULL	NULL
 7	Grandma Sally	1943-08-23	NULL	6
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
+# mutual recursion with renaming
 with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
 w_id, w_name, w_dob, w_father, w_mother)
@@ -421,6 +455,7 @@ h_name	h_dob	w_name	w_dob
 Dad	1970-02-02	Mom	1975-03-03
 Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
 Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+# mutual recursion with union all
 with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
 w_id, w_name, w_dob, w_father, w_mother)
@@ -450,6 +485,37 @@ h_name	h_dob	w_name	w_dob
 Dad	1970-02-02	Mom	1975-03-03
 Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
 Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+# mutual recursion with renaming
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+union
+select h.*, w.*
+from folks v, folks h, folks w
+where v.name = 'Me' and
+(v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+# mutual recursion with union all
 with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
 w_id, w_name, w_dob, w_father, w_mother)
@@ -478,6 +544,7 @@ h_name	h_dob	w_name	w_dob
 Dad	1970-02-02	Mom	1975-03-03
 Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
 Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+# mutual recursion with one select in the first definition
 with recursive
 ancestor_couple_ids(h_id, w_id)
 as
@@ -507,6 +574,7 @@ h_id	w_id
 20	30
 10	9
 8	7
+# join of a mutually recursive table with base tables
 with recursive
 ancestor_couple_ids(h_id, w_id)
 as
@@ -537,6 +605,7 @@ name	dob	name	dob
 Dad	1970-02-02	Mom	1975-03-03
 Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
 Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+# join of two mutually recursive tables
 with recursive
 ancestor_couple_ids(h_id, w_id)
 as
@@ -607,6 +676,7 @@ NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 2	UNCACHEABLE SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
 Warnings:
 Note	1003	with recursive ancestor_couple_ids as (select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where ((`a`.`father` is not null) and (`a`.`mother` is not null)))coupled_ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where (`test`.`folks`.`name` = 'Me') union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where (`test`.`p`.`id` = `fa`.`h_id`) union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where (`test`.`p`.`id` = `ma`.`w_id`)), select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where ((`h`.`id` = `c`.`h_id`) and (`w`.`id` = `c`.`w_id`))
+# simple mutual recursion
 with recursive
 ancestor_couple_ids(h_id, w_id)
 as
@@ -640,6 +710,7 @@ NULL	NULL
 NULL	NULL
 NULL	6
 NULL	NULL
+# join of two mutually recursive tables
 with recursive
 ancestor_couple_ids(h_id, w_id)
 as
@@ -669,6 +740,7 @@ name	dob	name	dob
 Dad	1970-02-02	Mom	1975-03-03
 Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
 Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+# execution of prepared query using a recursive table
 prepare stmt1 from "
 with recursive 
 ancestors
@@ -705,6 +777,7 @@ id	name	dob	father	mother
 8	Grandpa Ben	1940-10-21	NULL	NULL
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
 deallocate prepare stmt1;
+# view using a recursive table
 create view v1 as
 with recursive 
 ancestors
@@ -786,6 +859,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	with recursive ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where ((`test`.`folks`.`name` = 'Me') and (`test`.`folks`.`dob` = DATE'2000-01-01')) union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestors` `a` where ((`a`.`father` = `p`.`id`) or (`a`.`mother` = `p`.`id`)))select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`
+# recursive spec with two anchor selects and two recursive ones 
 with recursive
 ancestor_ids (id)
 as
@@ -813,6 +887,7 @@ id	name	dob	father	mother
 7	Grandma Sally	1943-08-23	NULL	6
 8	Grandpa Ben	1940-10-21	NULL	NULL
 6	Grandgrandma Martha	1923-05-17	NULL	NULL
+# recursive spec using union all 
 with recursive
 ancestors
 as
@@ -1115,6 +1190,7 @@ generation	name
 2	Grandma Ann
 2	Grandma Sally
 2	Grandpa Ben
+# query with recursive tables using key access
 alter table folks add primary key (id);
 explain
 with recursive

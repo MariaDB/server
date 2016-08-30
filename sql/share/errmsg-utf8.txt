@@ -7150,6 +7150,8 @@ ER_BAD_COMMAND_IN_MULTI
         ukr "Команда '%s' не дозволена для COM_MULTI"
 ER_WITH_COL_WRONG_LIST
         eng "WITH column list and SELECT field list have different column counts"
+ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE
+        eng "Too many WITH elements in WITH clause"
 ER_DUP_QUERY_NAME
         eng "Duplicate query name in WITH clause"
 ER_RECURSIVE_WITHOUT_ANCHORS

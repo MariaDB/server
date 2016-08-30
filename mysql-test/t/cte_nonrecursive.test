@@ -469,6 +469,20 @@ explain
 with t as (select a, count(*) from t1 where b >= 'c' group by a)
   select t1.b from t2,t1 where t1.a = t2.c;
 
+--echo # too many with elements in with clause
+let $m= 65;
+let $i= $m;
+dec $i;
+let $q= with s$m as (select * from t1);
+while ($i)
+{
+  let $q= $q, s$i as (select * from t1) ;
+  dec $i;
+ }
+let $q= $q select * from s$m;
+--ERROR ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE
+eval $q;
+
 drop table t1,t2;
 
 --echo #

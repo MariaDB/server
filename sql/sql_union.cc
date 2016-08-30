@@ -100,6 +100,7 @@ int select_union::send_data(List<Item> &values)
   return 0;
 }
 
+
 int select_union_recursive::send_data(List<Item> &values)
 {
   int rc= select_union::send_data(values);
@@ -1166,7 +1167,29 @@ err:
 }
 
 
-// One step of recursive execution
+/**
+  @brief
+    Execute the union of the specification of a recursive with table 
+
+  @details
+    The method is performed only for the units that are specifications
+    if recursive with table T. If the specification contains an anchor
+    part then the first call of this method executes only this part
+    while the following calls execute the recursive part. If there are
+    no anchors each call executes the whole unit.
+    Before the excution the method cleans up the temporary table 
+    to where the new rows of the recursive table are sent.
+    After the execution the unit these rows are copied to the 
+    temporary tables created for recursive references of T. 
+    If the specification if T is restricted (standards compliant)
+    then these temporary tables are cleaned up before new rows
+    are copied into them.  
+
+  @retval
+    false   on success
+    true    on failure
+*/
+
 bool st_select_lex_unit::exec_recursive()
 {
   st_select_lex *lex_select_save= thd->lex->current_select;

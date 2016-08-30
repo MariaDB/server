@@ -8,6 +8,38 @@
 
 /**
   @brief
+    Add a new element to this with clause 
+
+  @param elem  The with element to add to this with clause
+
+  @details
+    The method adds the with element 'elem' to the elements
+    in this with clause. The method reports an error if
+    the number of the added element exceeds the value
+    of the constant max_number_of_elements_in_with_clause.
+
+  @retval
+    true    if an error is reported 
+    false   otherwise
+*/
+  
+bool With_clause::add_with_element(With_element *elem)
+{ 
+  if (with_list.elements == max_number_of_elements_in_with_clause)
+  {
+    my_error(ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE, MYF(0));
+    return true;
+  }
+  elem->owner= this;
+  elem->number= with_list.elements;
+  elem->spec->with_element= elem;
+  with_list.link_in_list(elem, &elem->next);
+  return false;
+}
+
+
+/**
+  @brief
     Check dependencies between tables defined in a list of with clauses
  
   @param 

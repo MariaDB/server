@@ -644,16 +644,21 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (unit->prepared && derived->is_recursive_with_table() &&
       !derived->table)
   {
+    /* 
+      Here 'derived' is either a non-recursive table reference to a recursive
+      with table or a recursive table reference to a recursvive table whose
+      specification has been already prepared (a secondary recursive table
+      reference.
+    */ 
     if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
       DBUG_RETURN(TRUE); // out of memory
     thd->create_tmp_table_for_derived= TRUE;
-    if (!derived->table)
-      res= derived->derived_result->create_result_table(
-                                    thd, &unit->types, FALSE,
-                                    (first_select->options |
-                                     thd->variables.option_bits |
-                                     TMP_TABLE_ALL_COLUMNS),
-                                    derived->alias, FALSE, FALSE);
+    res= derived->derived_result->create_result_table(
+                                  thd, &unit->types, FALSE,
+                                  (first_select->options |
+                                   thd->variables.option_bits |
+                                   TMP_TABLE_ALL_COLUMNS),
+                                  derived->alias, FALSE, FALSE);
     thd->create_tmp_table_for_derived= FALSE;
 
     if (!res && !derived->table)
@@ -662,6 +667,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       derived->table= derived->derived_result->table;
       if (derived->is_with_table_recursive_reference())
       {
+        /* Here 'derived" is a secondary recursive table reference */
         unit->with_element->rec_result->rec_tables.push_back(derived->table);
       }
     }
@@ -685,7 +691,12 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
         (!derived->with->with_anchor && 
          !derived->with->is_with_prepared_anchor()))
     {
-      // Prepare underlying views/DT first.
+      /* 
+        Prepare underlying views/DT first unless 'derived' is a recursive
+        table reference and either the anchors from the specification of
+        'derived' has been already prepared or there no anchor in this
+        specification
+      */  
       if ((res= sl->handle_derived(lex, DT_PREPARE)))
         goto exit;
     }
@@ -922,30 +933,41 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 }
 
 
+/**
+  @brief
+    Fill the recursive with table 
+
+  @param thd  The thread handle
+
+  @details
+    The method is called only for recursive with tables. 
+    The method executes the recursive part of the specification
+    of this with table until no more rows are added to the table
+    or the number of the performed iteration reaches the allowed
+    maximum. 
+
+  @retval
+    false   on success
+    true    on failure 
+*/
+
 bool TABLE_LIST::fill_recursive(THD *thd)
 {
   bool rc= false;
   st_select_lex_unit *unit= get_unit();
-  if (is_with_table_recursive_reference())
+  rc= with->instantiate_tmp_tables();
+  while (!rc && !with->all_are_stabilized())
   {
+    if (with->level > thd->variables.max_recursive_iterations)
+      break;
+    with->prepare_for_next_iteration();
     rc= unit->exec_recursive();
   }
-  else
+  if (!rc)
   {
-    rc= with->instantiate_tmp_tables();
-    while (!rc && !with->all_are_stabilized())
-    {
-      if (with->level > thd->variables.max_recursive_iterations)
-        break;
-      with->prepare_for_next_iteration();
-      rc= unit->exec_recursive();
-    }
-    if (!rc)
-    {
-      TABLE *src= with->rec_result->table;
-      rc =src->insert_all_rows_into(thd, table, true);
-    } 
-  }
+    TABLE *src= with->rec_result->table;
+    rc =src->insert_all_rows_into(thd, table, true);
+  } 
   return rc;
 }
 
@@ -960,9 +982,10 @@ bool TABLE_LIST::fill_recursive(THD *thd)
 
   @details
   Execute subquery of given 'derived' table/view and fill the result
-  table. After result table is filled, if this is not the EXPLAIN statement,
-  the entire unit / node is deleted. unit is deleted if UNION is used
-  for derived table and node is deleted is it is a simple SELECT.
+  table. After result table is filled, if this is not the EXPLAIN statement
+  and the table is not specified with a recursion the entire unit / node
+  is deleted. unit is deleted if UNION is used  for derived table and node
+  is deleted is it is a simple SELECT.
   'lex' is unused and 'thd' is passed as an argument to an underlying function.
 
   @note
@@ -986,13 +1009,21 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   /*check that table creation passed without problems. */
   DBUG_ASSERT(derived->table && derived->table->is_created());
-  SELECT_LEX *first_select= unit->first_select();
   select_union *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
   
   if (derived_is_recursive)
   {
-    res= derived->fill_recursive(thd);
+    if (derived->is_with_table_recursive_reference())
+    {
+      /* Here only one iteration step is performed */
+      res= unit->exec_recursive();
+    }
+    else
+    {
+      /* In this case all iteration are performed */
+      res= derived->fill_recursive(thd);
+    }
   }
   else if (unit->is_union())
   {
@@ -1001,6 +1032,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
   else
   {
+    SELECT_LEX *first_select= unit->first_select();
     unit->set_limit(unit->global_parameters());
     if (unit->select_limit_cnt == HA_POS_ERROR)
       first_select->options&= ~OPTION_FOUND_ROWS;
