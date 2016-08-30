@@ -204,6 +204,20 @@ as
 )
 select * from ancestors;
 
+--echo # simple recursion with or in anchor and or in recursive part 
+with recursive
+ancestors
+as
+(
+  select *
+    from  folks
+      where name = 'Me' or name='Sister Amy'
+   union 
+   select  p.*
+     from folks as p, ancestors as a
+       where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
 
 --echo # two recursive definition, one uses another
 with recursive 
