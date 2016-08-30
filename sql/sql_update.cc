@@ -729,17 +729,7 @@ int mysql_update(THD *thd,
   */
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
-  for (uint i= 0; i < table->s->keys; i++)
-  {
-    if (table->key_info[i].flags & HA_UNIQUE_HASH)
-    {
-      if (!table->update_handler)
-        table->update_handler= table->file->clone(table->s->normalized_path.str,
-                                                  &table->mem_root);
-      table->update_handler->ha_external_lock(current_thd, F_RDLCK);
-      break;
-    }
-  }
+  table->update_handler= create_update_handler(thd, table);
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
     explain->tracker.on_record_read();
@@ -915,13 +905,7 @@ int mysql_update(THD *thd,
       break;
     }
   }
-  if (table->update_handler)
-  {
-    table->update_handler->ha_external_lock(current_thd, F_UNLCK);
-    table->update_handler->ha_close();
-    delete table->update_handler;
-    table->update_handler= NULL;
-  }
+  delete_update_handler(thd, table);
   ANALYZE_STOP_TRACKING(&explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
@@ -1930,17 +1914,7 @@ multi_update::initialize_tables(JOIN *join)
     if (ignore)
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
 
-    for (uint i= 0; i < table->s->keys; i++)
-    {
-      if (table->key_info[i].flags & HA_UNIQUE_HASH)
-      {
-        if (!table->update_handler)
-          table->update_handler= table->file->clone(table->s->normalized_path.str,
-                                                    &table->mem_root);
-        table->update_handler->ha_external_lock(current_thd, F_RDLCK);
-        break;
-      }
-    }
+    create_update_handler(join->thd, table);
 
     if (table == main_table)			// First table in join
     {
@@ -2069,13 +2043,7 @@ multi_update::~multi_update()
   for (table= update_tables ; table; table= table->next_local)
   {
     table->table->no_keyread= table->table->no_cache= 0;
-    if (table->table->update_handler)
-    {
-      table->table->update_handler->ha_external_lock(current_thd, F_UNLCK);
-      table->table->update_handler->ha_close();
-      delete table->table->update_handler;
-      table->table->update_handler= NULL;
-    }
+    delete_update_handler(thd, table->table);
     if (ignore)
       table->table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   }

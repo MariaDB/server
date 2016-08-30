@@ -6127,9 +6127,7 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
        */
       if (!table->update_handler)
       {
-        table->update_handler= table->file->clone(table->s->normalized_path.str,
-                                                          &table->mem_root);
-        table->update_handler->ha_external_lock(current_thd, F_RDLCK);
+        create_update_handler(current_thd, table);
         is_update_handler_null= true;
       }
       h_item= table->key_info[i].key_part->field->vcol_info->expr_item;
@@ -6156,10 +6154,7 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
   exit:
   if (is_update_handler_null)
   {
-    table->update_handler->ha_external_lock(current_thd, F_UNLCK);
-    table->update_handler->ha_close();
-    delete table->update_handler;
-    table->update_handler= NULL;
+    delete_update_handler(current_thd, table);
   }
   return error;
 }

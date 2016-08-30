@@ -4214,11 +4214,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       /*
         In init_from_binary_frm_image we need differentiate
         between normal key and long unique key. We can simply
-        increase the length of key by say 5000 which is way
+        increase the length of key by say 10 which is
         more then max key length and in init_from_binary_frm
         image we can check for this
         */
-      key_info->key_length= HA_HASH_TEMP_KEY_LENGTH;
+      key_info->key_length= file->max_key_length() + 10;//10 is random
     else
       key_info->key_length=(uint16) key_length;
     if (key_length > max_key_length && key->type != Key::FULLTEXT
@@ -8013,9 +8013,40 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         goto err;
       if (key->type == Key::UNIQUE)
       {
-        /*Suppose we add key like "add column a blob unique"*/
-        alter_info->flags |= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
-        alter_info->flags |= Alter_info::ALTER_ADD_COLUMN;
+        List_iterator_fast<Key_part_spec> li(key->columns);
+        Key_part_spec *column;
+        uint total_length= 0;
+        Field **f, *field;
+        bool is_hash_key= false;
+        while ((column= li++))
+        {
+          if (column->length > table->file->max_key_part_length())
+          {
+            is_hash_key= true;
+            break;
+          }
+          else if (!column->length)
+          {
+            for (f= table->field; f && (field= *f); f++)
+            {
+              if (!my_strcasecmp(system_charset_info, field->field_name,
+                                column->field_name.str))
+              {
+                if (field->max_data_length() > table->file->max_key_part_length())
+                {
+                  is_hash_key= true;
+                  break;
+                }
+                total_length+= field->max_data_length();
+              }
+            }
+          }
+        }
+        if (is_hash_key || total_length > table->file->max_key_length())
+        {
+          alter_info->flags |= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+          alter_info->flags |= Alter_info::ALTER_ADD_COLUMN;
+        }
       }
       new_key_list.push_back(key, thd->mem_root);
       if (key->name.str &&

@@ -89,7 +89,7 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   return extra2_write(pos, type, reinterpret_cast<LEX_STRING *>(str));
 }
 
-static uchar *extra2_write_field_visibility_hash_info(uchar *pos,
+static uchar *extra2_write_additional_field_properties(uchar *pos,
                    int number_of_fields,List_iterator<Create_field> * it)
 {
   *pos++=EXTRA2_FIELD_FLAGS;
@@ -97,14 +97,16 @@ static uchar *extra2_write_field_visibility_hash_info(uchar *pos,
    always 2  first for field visibility
    second for is this column represent long unique hash
    */
-  size_t len = 2*number_of_fields;
-  pos= extra2_write_len(pos,len);
+  pos= extra2_write_len(pos, number_of_fields);
+  uint data= 0;
   Create_field *cf;
   while((cf=(*it)++))
   {
-    *pos++=cf->field_visibility;
-    *pos++=cf->is_long_column_hash;
+    data= cf->field_visibility;
+    data+= cf->is_long_column_hash << 2;
+    *pos++= data;
   }
+  it->rewind();
   return pos;
 }
 
@@ -143,16 +145,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   DBUG_ENTER("build_frm_image");
   List_iterator<Create_field> it(create_fields);
   Create_field *field;
-  bool is_hidden_fields_present= false;
-  /*
-    Loop througt the iterator to find whether we have any field whose
-    visibility_type != NOT_HIDDEN
-  */
+  bool have_additional_field_properties= false;
   while ((field=it++))
   {
     if (field->field_visibility != NOT_HIDDEN)
     {
-      is_hidden_fields_present= true;
+      have_additional_field_properties= true;
       break;
     }
   }
@@ -245,9 +243,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
-  if(is_hidden_fields_present)
-    extra2_size+=1 + (2*create_fields.elements > 255 ? 3 : 1) +
-        2*create_fields.elements;// first one for type(extra2_field_flags) next 1 or 3  for length
+  if(have_additional_field_properties)
+    extra2_size+=1 + (create_fields.elements > 255 ? 3 : 1) +
+        create_fields.elements;// first one for type(extra2_field_flags) next 1 or 3  for length
 
   key_buff_length= uint4korr(fileinfo+47);
 
@@ -303,9 +301,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     pos+= gis_field_options_image(pos, create_fields);
   }
 #endif /*HAVE_SPATIAL*/
-  if (is_hidden_fields_present)
-    pos=extra2_write_field_visibility_hash_info(pos,create_fields.elements,&it);
-  it.rewind();
+  if (have_additional_field_properties)
+    pos=extra2_write_additional_field_properties(pos,create_fields.elements,&it);
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;
 

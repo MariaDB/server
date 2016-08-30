@@ -289,4 +289,5 @@ extern mysql_mutex_t LOCK_gdl;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 
+
 #endif /* SQL_TABLE_INCLUDED */

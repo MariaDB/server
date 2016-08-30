@@ -347,8 +347,6 @@ enum  field_visible_type{
 #define HA_HASH_FIELD_LENGTH            8
 #define HA_HASH_KEY_LENGTH_WITH_NULL    9
 const LEX_CSTRING ha_hash_str           {STRING_WITH_LEN("HASH")};
-/* temp length of long unique key set in mysql_prepare_create_table*/
-#define HA_HASH_TEMP_KEY_LENGTH         5000
 
 int find_field_pos_in_hash(Item *hash_item, const char * field_name);
 
@@ -359,6 +357,10 @@ Field * field_ptr_in_hash_str(Item *hash_item, int index);
 int get_key_part_length(KEY *keyinfo, int index);
 
 void calc_hash_for_unique(ulong &nr1, ulong &nr2, String *str);
+
+handler *create_update_handler(THD *thd, TABLE *table);
+
+void delete_update_handler(THD *thd, TABLE *table);
 
 /**
   Category of table found in the table share.

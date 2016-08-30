@@ -685,7 +685,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                              uint keys, KEY *keyinfo,
                              uint new_frm_ver, uint &ext_key_parts,
                              TABLE_SHARE *share, uint len,
-                             KEY *first_keyinfo, char* &keynames)
+                             KEY *first_keyinfo, char* &keynames,
+                             handler *file)
 {
   uint i, j, n_length;
   KEY_PART_INFO *key_part= NULL;
@@ -799,7 +800,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       }
       key_part->store_length=key_part->length;
     }
-    if (keyinfo->key_length >= HA_HASH_TEMP_KEY_LENGTH &&
+    if (keyinfo->key_length > file->max_key_length() &&
          !(keyinfo->flags & HA_FULLTEXT))
     {
       keyinfo->flags|= HA_UNIQUE_HASH | HA_NOSAME;
@@ -997,6 +998,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint com_length, null_bit_pos, mysql57_vcol_null_bit_pos, bitmap_count;
   uint extra_rec_buf_length;
   uint i;
+  uint field_additional_property_length= 0;
   bool use_hash, mysql57_null_bits= 0;
   char *keynames, *names, *comment_pos;
   const uchar *forminfo, *extra2;
@@ -1118,6 +1120,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         break;
       case EXTRA2_FIELD_FLAGS:
          field_properties = extra2;
+         field_additional_property_length= length;
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -1312,10 +1315,16 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
 
     share->set_use_ext_keys_flag(plugin_hton(se_plugin)->flags & HTON_SUPPORTS_EXTENDED_KEYS);
+    /* Allocate handler */
+    if (!(handler_file= get_new_handler(share, thd->mem_root,
+                                        plugin_hton(se_plugin))))
+      goto err;
 
+    if (handler_file->set_ha_share_ref(&share->ha_share))
+      goto err;
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, ext_key_parts,
-                         share, len, &first_keyinfo, keynames))
+                         share, len, &first_keyinfo, keynames, handler_file))
       goto err;
 
     if (next_chunk + 5 < buff_end)
@@ -1406,9 +1415,16 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   else
   {
+    /* Allocate handler */
+    if (!(handler_file= get_new_handler(share, thd->mem_root,
+                                        plugin_hton(se_plugin))))
+      goto err;
+
+    if (handler_file->set_ha_share_ref(&share->ha_share))
+      goto err;
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, ext_key_parts,
-                         share, len, &first_keyinfo, keynames))
+                         share, len, &first_keyinfo, keynames, handler_file))
       goto err;
   }
 
@@ -1429,6 +1445,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   disk_buff= frm_image + pos + FRM_FORMINFO_SIZE;
 
   share->fields= uint2korr(forminfo+258);
+  if (field_additional_property_length != share->fields)
+    goto err;
   pos= uint2korr(forminfo+260);   /* Length of all screens */
   n_length= uint2korr(forminfo+268);
   interval_count= uint2korr(forminfo+270);
@@ -1514,14 +1532,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (keynames)
     fix_type_pointers(&interval_array, &share->keynames, 1, &keynames);
-
- /* Allocate handler */
-  if (!(handler_file= get_new_handler(share, thd->mem_root,
-                                      plugin_hton(se_plugin))))
-    goto err;
-
-  if (handler_file->set_ha_share_ref(&share->ha_share))
-    goto err;
 
   record= share->default_values-1;              /* Fieldstart = 1 */
   null_bits_are_used= share->null_fields != 0;
@@ -1815,8 +1825,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     reg_field->vcol_info= vcol_info;
     if(field_properties!=NULL)
     {
-      reg_field->field_visibility=static_cast<field_visible_type>(*field_properties++);
-      reg_field->is_long_column_hash=static_cast<bool>(*field_properties++);
+//      reg_field->field_visibility=static_cast<field_visible_type>(*field_properties++);
+//      reg_field->is_long_column_hash=static_cast<bool>(*field_properties++);
+      uint temp= *field_properties++;
+      reg_field->is_long_column_hash= temp >> 2;
+      reg_field->field_visibility= static_cast<field_visible_type> (temp & 3);
     }
     if (reg_field->field_visibility == USER_DEFINED_HIDDEN)
       status_var_increment(thd->status_var.feature_hidden_columns);
@@ -8014,3 +8027,43 @@ int get_key_part_length(KEY *keyinfo, int index)
     return fld->pack_length()+HA_HASH_KEY_LENGTH_WITH_NULL+1;
   return fld->pack_length()+1;
 }
+/**
+  @brief clone of current handler.
+  Creates a clone of handler used in update for
+  unique hash key.
+  @param thd            Thread Object
+  @param table          Table Object
+  @return    handler object
+*/
+handler *create_update_handler(THD *thd, TABLE *table)
+{
+  handler *update_handler= NULL;
+    for (uint i= 0; i < table->s->keys; i++)
+    {
+      if (table->key_info[i].flags & HA_UNIQUE_HASH)
+      {
+        update_handler= table->file->clone(table->s->normalized_path.str,
+                                           thd->mem_root);
+        update_handler->ha_external_lock(thd, F_RDLCK);
+        return update_handler;
+      }
+    }
+    return NULL;
+}
+
+/**
+ @brief Deletes update handler object
+ @param thd   Thread Object
+ @param table Table Object
+*/
+void delete_update_handler(THD *thd, TABLE *table)
+{
+  if (table->update_handler)
+  {
+    table->update_handler->ha_external_lock(thd, F_UNLCK);
+    table->update_handler->ha_close();
+    delete table->update_handler;
+    table->update_handler= NULL;
+  }
+}
+
