@@ -1907,7 +1907,6 @@ public:
       cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
       cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
       int8store(to_field->ptr, nr1);
-      //no idea what it does
       dbug_tmp_restore_column_map(table->write_set, old_map);
       return STORE_KEY_OK;
     }
@@ -2322,11 +2321,5 @@ public:
 bool test_if_order_compatible(SQL_I_List<ORDER> &a, SQL_I_List<ORDER> &b);
 int test_if_group_changed(List<Cached_item> &list);
 int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
-/*
- It compares the record with same hash to key if
- record is equal then return 0 else fetches next
- record with same hash and so on if some error
- then returns error
-*/
 int compare_hash_and_fetch_next(JOIN_TAB *join);
 #endif /* SQL_SELECT_INCLUDED */

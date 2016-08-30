@@ -9050,9 +9050,6 @@ get_keypart_hash (THD *thd, KEY *keyinfo, KEYUSE *keyuse, JOIN_TAB *j)
       cs= str->charset();
       cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
     }
-    //for testing purpose
-    //nr1= 12;
-    //int8store(key_buff+1,nr1);
     if (!is_null)
     {
       j->ref.key_parts= 1;

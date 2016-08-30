@@ -8012,7 +8012,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           ((Foreign_key *)key)->validate(new_create_list))
         goto err;
       if (key->type == Key::UNIQUE)
+      {
+        /*Suppose we add key like "add column a blob unique"*/
+        alter_info->flags |= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
         alter_info->flags |= Alter_info::ALTER_ADD_COLUMN;
+      }
       new_key_list.push_back(key, thd->mem_root);
       if (key->name.str &&
 	  !my_strcasecmp(system_charset_info, key->name.str, primary_key_name))

@@ -9476,12 +9476,6 @@ function_call_keyword:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        |HASH_SYM '(' expr_list ')'
-            {
-                $$= new (thd->mem_root)Item_func_hash(thd,*$3);
-                if($$==NULL)
-                    MYSQL_YYABORT;
-            }
         | INSERT '(' expr ',' expr ',' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_func_insert(thd, $3, $5, $7, $9);
@@ -9887,6 +9881,12 @@ function_call_conflict:
           {
             $$= new (thd->mem_root) Item_func_format(thd, $3, $5, $7);
             if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |HASH_SYM '(' expr_list ')'
+          {
+            $$= new (thd->mem_root)Item_func_hash(thd,*$3);
+            if($$==NULL)
               MYSQL_YYABORT;
           }
         | LAST_VALUE '(' expr_list ')'
@@ -14609,6 +14609,7 @@ keyword_sp:
         | GLOBAL_SYM               {}
         | HASH_SYM                 {}
         | HARD_SYM                 {}
+        | HIDDEN_SYM               {}
         | HOSTS_SYM                {}
         | HOUR_SYM                 {}
         | ID_SYM                   {}
