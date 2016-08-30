@@ -199,16 +199,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
   DBUG_ENTER("check_insert_fields");
 
   List_iterator<Item> i_iter(values);
-  int num_of_hiddens_fields= 0;
-  if (!fields.elements)
-  {
-    Field ** f= table->field, *field;
-    for (; f && (field= *f); f++)
-    {
-      if (field->field_visibility != NOT_HIDDEN)
-        num_of_hiddens_fields++;
-    }
-   }
+
   if (!table_list->single_table_updatable())
   {
     my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias, "INSERT");
@@ -223,7 +214,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                table_list->view_db.str, table_list->view_name.str);
       DBUG_RETURN(-1);
     }
-    if (values.elements+num_of_hiddens_fields != table->s->fields)
+    if (values.elements != table->total_visible_fields())
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);

@@ -1853,12 +1853,7 @@ longlong  Item_func_hash::val_int()
       null_value= 1;
       return 0;
     }
-    uchar l[4];
-    int4store(l, str->length());
-    cs= &my_charset_bin;
-    cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
-    cs= str->charset();
-    cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
+   calc_hash_for_unique(nr1, nr2, str);
   }
   null_value= 0;
   return   (longlong)nr1;

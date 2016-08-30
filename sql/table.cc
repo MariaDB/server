@@ -5116,6 +5116,15 @@ int TABLE::verify_constraints(bool ignore_failure)
   return VIEW_CHECK_OK;
 }
 
+uint TABLE::total_visible_fields()
+{
+  uint fields= 0;
+  Field **f, *field;
+  for (f= this->field; (f) && (field= *f); f++)
+    if (field->field_visibility == NOT_HIDDEN)
+      fields++;
+  return fields;
+}
 
 /*
   Find table in underlying tables by mask and check that only this
@@ -7983,7 +7992,18 @@ Field * field_ptr_in_hash_str(Item *hash_item, int index)
   return static_cast<Item_field *>(t_item->arguments()[index])->field;
 }
 
-//TODO documentation
+void calc_hash_for_unique(ulong &nr1, ulong &nr2, String *str)
+{
+  CHARSET_INFO *cs;
+  uchar l[4];
+  int4store(l, str->length());
+  cs= &my_charset_bin;
+  cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
+  cs= str->charset();
+  cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
+}
+
+//NO longer Needed
 int get_key_part_length(KEY *keyinfo, int index)
 {
   DBUG_ASSERT(keyinfo->flags & HA_UNIQUE_HASH);

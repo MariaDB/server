@@ -8569,13 +8569,7 @@ static bool generate_hash_key(RANGE_OPT_PARAM *param, SEL_TREE *tree)
       while (tmp->next_key_part)
       {
         tmp->field->val_str(&str);
-        uchar l[4];
-        int4store(l, str.length());
-        cs= &my_charset_bin;
-        cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
-        cs= str.charset();
-        cs->coll->hash_sort(cs, (uchar *)str.ptr(),
-                            str.length(), &nr1, &nr2);
+        calc_hash_for_unique(nr1, nr2, &str);
         tmp= tmp->next_key_part;
       }
       tree->keys[i]->field= param->table->key_info[i].
@@ -10424,7 +10418,7 @@ get_quick_select(PARAM *param,uint idx,SEL_ARG *key_tree, uint mrr_flags,
 }
 
 /**
-  TODO documentation
+  NEED TO BE REMOVED
   */
 void  set_hash(Item *h_item, TABLE *table, uchar *key)
 {

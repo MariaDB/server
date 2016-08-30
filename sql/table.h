@@ -358,6 +358,8 @@ Field * field_ptr_in_hash_str(Item *hash_item, int index);
 
 int get_key_part_length(KEY *keyinfo, int index);
 
+void calc_hash_for_unique(ulong &nr1, ulong &nr2, String *str);
+
 /**
   Category of table found in the table share.
 */
@@ -1359,6 +1361,8 @@ public:
   void mark_columns_used_by_check_constraints(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
+  uint total_visible_fields();
+
   /**
      Check if a table has a default function either for INSERT or UPDATE-like
      operation

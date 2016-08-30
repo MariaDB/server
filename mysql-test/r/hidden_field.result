@@ -18,7 +18,7 @@ drop table h_1;
 create table h_2(a1 int hidden);
 ERROR 42000: A table must have at least 1 column
 create table h_3(a1 blob,hidden(a1));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'hidden(a1))' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(a1))' at line 1
 create table h_4(a1 int primary key hidden ,a2 int unique hidden , a3 blob,a4
 int not null hidden unique);
 ERROR HY000: Hidden column 'a1' should either allow null values or it must have default value
@@ -76,7 +76,7 @@ a	d	e	f
 1	d blob	41	1
 drop table t1;
 create table sdsdsd(a int , b int, hidden(a,b));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'hidden(a,b))' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(a,b))' at line 1
 create table t1(a int,abc int as (a mod 3) virtual hidden);
 desc t1;
 Field	Type	Null	Key	Default	Extra
@@ -402,3 +402,17 @@ drop table t1;
 SHOW STATUS LIKE 'Feature_hidden_columns';
 Variable_name	Value
 Feature_hidden_columns	54
+#hidden is non reserved
+create table t1(a int unique , hidden int hidden, c int );
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES	UNI	NULL	
+hidden	int(11)	YES		NULL	HIDDEN
+c	int(11)	YES		NULL	
+alter table t1 change column hidden hid int hidden;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES	UNI	NULL	
+hid	int(11)	YES		NULL	HIDDEN
+c	int(11)	YES		NULL	
+drop table t1;

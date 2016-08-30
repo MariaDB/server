@@ -1825,7 +1825,7 @@ class store_key_field: public store_key
       When the implementation of this function will be replaced for a proper
       full version this statement probably should be removed.
     */  
-    if (is_hash)
+    if (is_hash) // NEED to be removed
     {
       Field *f= copy_field.from_field;
       String str;
@@ -1837,13 +1837,7 @@ class store_key_field: public store_key
         dbug_tmp_restore_column_map(table->write_set, old_map);
         return STORE_KEY_OK;
       }
-      CHARSET_INFO* cs;
-      uchar l[4];
-      int4store(l,str.length());
-      cs= &my_charset_bin;
-      cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
-      cs= str.charset();
-      cs->coll->hash_sort(cs, (uchar *)str.ptr(), str.length(), &nr1, &nr2);
+      calc_hash_for_unique(nr1, nr2, &str);
       int8store(copy_field.to_ptr, nr1);
       dbug_tmp_restore_column_map(table->write_set, old_map);
       return STORE_KEY_OK;

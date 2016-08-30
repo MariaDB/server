@@ -4213,8 +4213,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (is_hash_field_added)
       /*
         In init_from_binary_frm_image we need differentiate
-        between normal key and long unique key we can simply
-        increase the lenght of key by say 5000 which is way
+        between normal key and long unique key. We can simply
+        increase the length of key by say 5000 which is way
         more then max key length and in init_from_binary_frm
         image we can check for this
         */
