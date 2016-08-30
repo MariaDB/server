@@ -49,6 +49,7 @@ extern struct charset_info_st my_charset_ucs2_unicode_520_ci;
 extern struct charset_info_st my_charset_ucs2_vietnamese_ci;
 extern struct charset_info_st my_charset_ucs2_croatian_uca_ci;
 extern struct charset_info_st my_charset_ucs2_myanmar_uca_ci;
+extern struct charset_info_st my_charset_ucs2_thai_520_w2;
 #endif
 
 
@@ -78,6 +79,7 @@ extern struct charset_info_st my_charset_utf32_unicode_520_ci;
 extern struct charset_info_st my_charset_utf32_vietnamese_ci;
 extern struct charset_info_st my_charset_utf32_croatian_uca_ci;
 extern struct charset_info_st my_charset_utf32_myanmar_uca_ci;
+extern struct charset_info_st my_charset_utf32_thai_520_w2;
 #endif /* HAVE_CHARSET_utf32 */
 
 
@@ -107,6 +109,7 @@ extern struct charset_info_st my_charset_utf16_unicode_520_ci;
 extern struct charset_info_st my_charset_utf16_vietnamese_ci;
 extern struct charset_info_st my_charset_utf16_croatian_uca_ci;
 extern struct charset_info_st my_charset_utf16_myanmar_uca_ci;
+extern struct charset_info_st my_charset_utf16_thai_520_w2;
 #endif  /* HAVE_CHARSET_utf16 */
 
 
@@ -136,6 +139,7 @@ extern struct charset_info_st my_charset_utf8_unicode_520_ci;
 extern struct charset_info_st my_charset_utf8_vietnamese_ci;
 extern struct charset_info_st my_charset_utf8_croatian_uca_ci;
 extern struct charset_info_st my_charset_utf8_myanmar_uca_ci;
+extern struct charset_info_st my_charset_utf8_thai_520_w2;
 #ifdef HAVE_UTF8_GENERAL_CS
 extern struct charset_info_st my_charset_utf8_general_cs;
 #endif
@@ -167,6 +171,7 @@ extern struct charset_info_st my_charset_utf8mb4_unicode_520_ci;
 extern struct charset_info_st my_charset_utf8mb4_vietnamese_ci;
 extern struct charset_info_st my_charset_utf8mb4_croatian_uca_ci;
 extern struct charset_info_st my_charset_utf8mb4_myanmar_uca_ci;
+extern struct charset_info_st my_charset_utf8mb4_thai_520_w2;
 #endif /* HAVE_CHARSET_utf8mb4 */
 
 #endif /* HAVE_UCA_COLLATIONS */
@@ -261,6 +266,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_ucs2_vietnamese_ci);
   add_compiled_collation(&my_charset_ucs2_croatian_uca_ci);
   add_compiled_collation(&my_charset_ucs2_myanmar_uca_ci);
+  add_compiled_collation(&my_charset_ucs2_thai_520_w2);
 #endif
 #endif
 
@@ -303,6 +309,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_utf8_vietnamese_ci);
   add_compiled_collation(&my_charset_utf8_croatian_uca_ci);
   add_compiled_collation(&my_charset_utf8_myanmar_uca_ci);
+  add_compiled_collation(&my_charset_utf8_thai_520_w2);
 #endif
 #endif /* HAVE_CHARSET_utf8 */
 
@@ -337,6 +344,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_utf8mb4_vietnamese_ci);
   add_compiled_collation(&my_charset_utf8mb4_croatian_uca_ci);
   add_compiled_collation(&my_charset_utf8mb4_myanmar_uca_ci);
+  add_compiled_collation(&my_charset_utf8mb4_thai_520_w2);
 #endif /* HAVE_UCA_COLLATIONS  */
 #endif /* HAVE_CHARSET_utf8mb4 */
 
@@ -373,6 +381,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_utf16_vietnamese_ci);
   add_compiled_collation(&my_charset_utf16_croatian_uca_ci);
   add_compiled_collation(&my_charset_utf16_myanmar_uca_ci);
+  add_compiled_collation(&my_charset_utf16_thai_520_w2);
 #endif /* HAVE_UCA_COLLATIONS */
 #endif /* HAVE_CHARSET_utf16 */
 
@@ -407,6 +416,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
   add_compiled_collation(&my_charset_utf32_vietnamese_ci);
   add_compiled_collation(&my_charset_utf32_croatian_uca_ci);
   add_compiled_collation(&my_charset_utf32_myanmar_uca_ci);
+  add_compiled_collation(&my_charset_utf32_thai_520_w2);
 #endif /* HAVE_UCA_COLLATIONS */
 #endif /* HAVE_CHARSET_utf32 */
 

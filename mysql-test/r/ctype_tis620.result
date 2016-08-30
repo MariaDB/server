@@ -121,7 +121,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `recid` int(11) NOT NULL AUTO_INCREMENT,
-  `dyninfo` text,
+  `dyninfo` text DEFAULT NULL,
   PRIMARY KEY (`recid`)
 ) ENGINE=MyISAM DEFAULT CHARSET=tis620
 INSERT INTO t1 VALUES (1,'color=\"STB,NPG\"\r\nengine=\"J30A13\"\r\nframe=\"MRHCG1640YP4\"\r\ngrade=\"V6\"\r\nmodel=\"ACCORD\"\r\nmodelcode=\"CG164YEN\"\r\ntype=\"VT6\"\r\n');

@@ -63,7 +63,7 @@
 #ifdef VERBOSE_DEBUG
 #else
 #undef DBUG_PRINT
-#define DBUG_PRINT(x ...)
+#define DBUG_PRINT(x,y)
 #endif
 
 #ifdef RETAIN_INT_LATCH_COMPATIBILITY
@@ -663,7 +663,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     {
       fprint_error("Column '%s.%s' (origid) is not a not-null integer type",
           options->table_name, options->origid);
-      closefrm(edges, 0);
+      closefrm(edges);
       free_table_share(share);
       DBUG_RETURN(-1);
     }
@@ -673,7 +673,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   if (!origid) {
     fprint_error("Invalid OQGRAPH backing store ('%s.origid' attribute not set to a valid column of '%s')", p+1, options->table_name);
-    closefrm(edges, 0);
+    closefrm(edges);
     free_table_share(share);
     DBUG_RETURN(-1);
   }
@@ -688,7 +688,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     {
       fprint_error("Column '%s.%s' (destid) is not a not-null integer type or is a different type to origid attribute.",
           options->table_name, options->destid);
-      closefrm(edges, 0);
+      closefrm(edges);
       free_table_share(share);
       DBUG_RETURN(-1);
     }
@@ -698,7 +698,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   if (!destid) {
     fprint_error("Invalid OQGRAPH backing store ('%s.destid' attribute not set to a valid column of '%s')", p+1, options->table_name);
-    closefrm(edges, 0);
+    closefrm(edges);
     free_table_share(share);
     DBUG_RETURN(-1);
   }
@@ -706,7 +706,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   // Make sure origid column != destid column
   if (strcmp( origid->field_name, destid->field_name)==0) {
     fprint_error("Invalid OQGRAPH backing store ('%s.destid' attribute set to same column as origid attribute)", p+1, options->table_name);
-    closefrm(edges, 0);
+    closefrm(edges);
     free_table_share(share);
     DBUG_RETURN(-1);
   }
@@ -720,7 +720,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     {
       fprint_error("Column '%s.%s' (weight) is not a not-null real type",
           options->table_name, options->weight);
-      closefrm(edges, 0);
+      closefrm(edges);
       free_table_share(share);
       DBUG_RETURN(-1);
     }
@@ -730,7 +730,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   if (!weight && options->weight) {
     fprint_error("Invalid OQGRAPH backing store ('%s.weight' attribute not set to a valid column of '%s')", p+1, options->table_name);
-    closefrm(edges, 0);
+    closefrm(edges);
     free_table_share(share);
     DBUG_RETURN(-1);
   }
@@ -738,7 +738,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   if (!(graph_share = oqgraph::create(edges, origid, destid, weight)))
   {
     fprint_error("Unable to create graph instance.");
-    closefrm(edges, 0);
+    closefrm(edges);
     free_table_share(share);
     DBUG_RETURN(-1);
   }
@@ -763,7 +763,7 @@ int ha_oqgraph::close(void)
   if (have_table_share)
   {
     if (edges->file)
-      closefrm(edges, 0);
+      closefrm(edges);
     free_table_share(share);
     have_table_share = false;
   }
@@ -1136,6 +1136,10 @@ int ha_oqgraph::info(uint flag)
 
 int ha_oqgraph::extra(enum ha_extra_function operation)
 {
+  if (graph->get_thd() != ha_thd()) {
+    DBUG_PRINT( "oq-debug", ("rnd_pos g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    graph->set_thd(current_thd);
+  }
   return edges->file->extra(operation);
 }
 

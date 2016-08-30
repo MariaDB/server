@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -348,6 +348,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   {
     DBUG_RETURN(TRUE);
   }
+  thd_proc_info(thd, "executing");
   /*
     Let us emit an error if we are loading data to table which is used
     in subselect in SET clause like we do it for INSERT.
@@ -399,9 +400,6 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
                      set_fields, MARK_COLUMNS_WRITE, 0, 0) ||
         check_that_all_fields_are_given_values(thd, table, table_list))
       DBUG_RETURN(TRUE);
-    /* Add all fields with default functions to table->write_set. */
-    if (table->default_field)
-      table->mark_default_fields_for_write();
     /* Fix the expressions in SET clause */
     if (setup_fields(thd, Ref_ptr_array(), set_values, MARK_COLUMNS_READ, 0, 0))
       DBUG_RETURN(TRUE);
@@ -412,18 +410,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
 
   table->prepare_triggers_for_insert_stmt_or_event();
   table->mark_columns_needed_for_insert();
-
-  if (table->vfield)
-  {
-    for (Field **vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
-    {
-      if ((*vfield_ptr)->vcol_info->stored_in_db)
-      {
-        thd->lex->unit.insert_table_with_stored_vcol= table;
-        break;
-      }
-    }
-  }
+  if (table->s->virtual_stored_fields)
+    thd->lex->unit.insert_table_with_stored_vcol= table;
 
   uint tot_length=0;
   bool use_blobs= 0, use_vars= 0;
@@ -989,8 +977,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     if (thd->killed ||
         fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
                                              ignore_check_option_errors,
-                                             TRG_EVENT_INSERT) ||
-        (table->default_field && table->update_default_fields()))
+                                             TRG_EVENT_INSERT))
       DBUG_RETURN(1);
 
     switch (table_list->view_check_option(thd, ignore_check_option_errors)) {
@@ -1211,10 +1198,10 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
 
     if (thd->killed ||
-        fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
+        fill_record_n_invoke_before_triggers(thd, table, set_fields,
+                                             set_values,
                                              ignore_check_option_errors,
-                                             TRG_EVENT_INSERT) ||
-        (table->default_field && table->update_default_fields()))
+                                             TRG_EVENT_INSERT))
       DBUG_RETURN(1);
 
     switch (table_list->view_check_option(thd,
@@ -1393,8 +1380,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     if (thd->killed ||
         fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
                                              ignore_check_option_errors,
-                                             TRG_EVENT_INSERT) ||
-        (table->default_field && table->update_default_fields()))
+                                             TRG_EVENT_INSERT))
       DBUG_RETURN(1);
 
     switch (table_list->view_check_option(thd,

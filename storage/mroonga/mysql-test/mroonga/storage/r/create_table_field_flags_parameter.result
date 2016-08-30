@@ -6,7 +6,7 @@ SHOW CREATE TABLE bugs;
 Table	Create Table
 bugs	CREATE TABLE `bugs` (
   `id` int(10) unsigned NOT NULL,
-  `tags` text `FLAGS`='COLUMN_VECTOR',
+  `tags` text DEFAULT NULL `FLAGS`='COLUMN_VECTOR',
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 SELECT mroonga_command("dump --dump_plugins no");

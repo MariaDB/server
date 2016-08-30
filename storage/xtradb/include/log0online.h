@@ -73,20 +73,7 @@ UNIV_INTERN
 ibool
 log_online_purge_changed_page_bitmaps(
 /*==================================*/
-	ib_uint64_t lsn);	/*!<in: LSN to purge files up to */
-
-/************************************************************//**
-Delete all the bitmap files for data less than the specified LSN.
-If called with lsn == 0 (i.e. set by RESET request) or
-IB_ULONGLONG_MAX, restart the bitmap file sequence, otherwise
-continue it.
-
-@return FALSE to indicate success, TRUE for failure. */
-UNIV_INTERN
-ibool
-log_online_purge_changed_page_bitmaps(
-/*==================================*/
-	ib_uint64_t lsn);	/*!<in: LSN to purge files up to */
+	lsn_t lsn);	/*!<in: LSN to purge files up to */
 
 #define LOG_BITMAP_ITERATOR_START_LSN(i) \
 	((i).start_lsn)

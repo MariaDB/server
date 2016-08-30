@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2016, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,10 @@
                               // set_handler_table_locks,
                               // lock_global_read_lock,
                               // make_global_read_lock_block_commit
-#include "sql_base.h"         // find_temporary_table
+#include "sql_base.h"         // open_tables, open_and_lock_tables,
+                              // lock_tables, unique_table,
+                              // close_thread_tables, is_temporary_table
+                              // table_cache.h
 #include "sql_cache.h"        // QUERY_CACHE_FLAGS_SIZE, query_cache_*
 #include "sql_show.h"         // mysqld_list_*, mysqld_show_*,
                               // calc_sum_of_all_status
@@ -389,9 +392,9 @@ const LEX_STRING command_name[257]={
   { 0, 0 }, //248
   { 0, 0 }, //249
   { 0, 0 }, //250
-  { 0, 0 }, //251
-  { 0, 0 }, //252
-  { 0, 0 }, //253
+  { C_STRING_WITH_LEN("Slave_worker") }, //251
+  { C_STRING_WITH_LEN("Slave_IO") }, //252
+  { C_STRING_WITH_LEN("Slave_SQL") }, //253
   { C_STRING_WITH_LEN("Com_multi") }, //254
   { C_STRING_WITH_LEN("Error") }  // Last command number 255
 };
@@ -418,7 +421,7 @@ static bool some_non_temp_table_to_be_updated(THD *thd, TABLE_LIST *tables)
   for (TABLE_LIST *table= tables; table; table= table->next_global)
   {
     DBUG_ASSERT(table->db && table->table_name);
-    if (table->updating && !find_temporary_table(thd, table))
+    if (table->updating && !thd->find_tmp_table_share(table))
       return 1;
   }
   return 0;
@@ -1076,16 +1079,11 @@ void do_handle_bootstrap(THD *thd)
   handle_bootstrap_impl(thd);
 
 end:
+  in_bootstrap= FALSE;
   delete thd;
 
 #ifndef EMBEDDED_LIBRARY
-  DBUG_ASSERT(thread_count == 1);
-  in_bootstrap= FALSE;
-  /*
-    dec_thread_count will signal bootstrap() function that we have ended as
-    thread_count will become 0.
-  */
-  dec_thread_count();
+  DBUG_ASSERT(thread_count == 0);
   my_thread_end();
   pthread_exit(0);
 #endif
@@ -1712,10 +1710,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 	decrease_user_connections(thd->user_connect);
       thd->user_connect= save_user_connect;
       thd->reset_db(save_db, save_db_length);
-      thd->variables.character_set_client= save_character_set_client;
-      thd->variables.collation_connection= save_collation_connection;
-      thd->variables.character_set_results= save_character_set_results;
-      thd->update_charset();
+      thd->update_charset(save_character_set_client, save_collation_connection,
+                          save_character_set_results);
       thd->failed_com_change_user++;
       my_sleep(1000000);
     }
@@ -1796,6 +1792,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     while (!thd->killed && (parser_state.m_lip.found_semicolon != NULL) &&
            ! thd->is_error())
     {
+      thd->get_stmt_da()->set_skip_flush();
       /*
         Multiple queries exist, execute them individually
       */
@@ -1972,7 +1969,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     thd->set_query(fields, query_length);
     general_log_print(thd, command, "%s %s", table_list.table_name, fields);
 
-    if (open_temporary_tables(thd, &table_list))
+    if (thd->open_temporary_tables(&table_list))
       break;
 
     if (check_table_access(thd, SELECT_ACL, &table_list,
@@ -3269,7 +3266,7 @@ mysql_execute_command(THD *thd)
   */
   if (sql_command_flags[lex->sql_command] & CF_PREOPEN_TMP_TABLES)
   {
-    if (open_temporary_tables(thd, all_tables))
+    if (thd->open_temporary_tables(all_tables))
       goto error;
   }
 
@@ -4071,7 +4068,7 @@ end_with_restore_list:
           Temporary tables should be opened for SHOW CREATE TABLE, but not
           for SHOW CREATE VIEW.
         */
-        if (open_temporary_tables(thd, all_tables))
+        if (thd->open_temporary_tables(all_tables))
           goto error;
 
         /*
@@ -4279,7 +4276,8 @@ end_with_restore_list:
     */
     if (first_table->lock_type != TL_WRITE_DELAYED)
     {
-      if ((res= open_temporary_tables(thd, all_tables)))
+      res= (thd->open_temporary_tables(all_tables)) ? TRUE : FALSE;
+      if (res)
         break;
     }
 
@@ -4591,7 +4589,7 @@ end_with_restore_list:
      {
        if (!lex->tmp_table() &&
           (!thd->is_current_stmt_binlog_format_row() ||
-	   !find_temporary_table(thd, table)))
+	   !thd->find_temporary_table(table)))
        {
          WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
          break;
@@ -4744,7 +4742,7 @@ end_with_restore_list:
       CF_PREOPEN_TMP_TABLES was set and the tables would be pre-opened
       in a usual way, they would have been closed.
     */
-    if (open_temporary_tables(thd, all_tables))
+    if (thd->open_temporary_tables(all_tables))
       goto error;
 
     if (lock_tables_precheck(thd, all_tables))
@@ -5338,27 +5336,21 @@ end_with_restore_list:
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   case SQLCOM_SHOW_CREATE_USER:
-  case SQLCOM_SHOW_GRANTS:
   {
     LEX_USER *grant_user= lex->grant_user;
-    Security_context *sctx= thd->security_ctx;
     if (!grant_user)
       goto error;
 
-    if (grant_user->user.str && !strcmp(sctx->priv_user, grant_user->user.str) &&
-        grant_user->host.str && !strcmp(sctx->priv_host, grant_user->host.str))
-      grant_user->user= current_user;
+    res = mysql_show_create_user(thd, grant_user);
+    break;
+  }
+  case SQLCOM_SHOW_GRANTS:
+  {
+    LEX_USER *grant_user= lex->grant_user;
+    if (!grant_user)
+      goto error;
 
-    if (grant_user->user.str == current_user.str ||
-        grant_user->user.str == current_role.str ||
-        grant_user->user.str == current_user_and_current_role.str ||
-        !check_access(thd, SELECT_ACL, "mysql", NULL, NULL, 1, 0))
-    {
-      if (lex->sql_command == SQLCOM_SHOW_GRANTS)
-        res = mysql_show_grants(thd, grant_user);
-      else
-        res = mysql_show_create_user(thd, grant_user);
-    }
+    res = mysql_show_grants(thd, grant_user);
     break;
   }
 #endif
@@ -6785,7 +6777,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
     /*
       Open temporary tables to be able to detect them during privilege check.
     */
-    if (open_temporary_tables(thd, dst_table))
+    if (thd->open_temporary_tables(dst_table))
       return TRUE;
 
     if (check_access(thd, SELECT_ACL, dst_table->db,
@@ -7066,6 +7058,7 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors)
                                 temporary table flag)
   @param alter_info    [in]     Initial list of columns and indexes for the
                                 table to be created
+  @param create_db     [in]     Database of the created table
 
   @retval
    false  ok.
@@ -7074,7 +7067,8 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors)
 */
 bool check_fk_parent_table_access(THD *thd,
                                   HA_CREATE_INFO *create_info,
-                                  Alter_info *alter_info)
+                                  Alter_info *alter_info,
+                                  const char* create_db)
 {
   Key *key;
   List_iterator<Key> key_iterator(alter_info->key_list);
@@ -7114,10 +7108,28 @@ bool check_fk_parent_table_access(THD *thd,
           return true;
         }
       }
-      else if (thd->lex->copy_db_to(&db_name.str, &db_name.length))
-        return true;
       else
-        is_qualified_table_name= false;
+      {
+        if (!thd->db)
+        {
+          db_name.str= (char *) thd->memdup(create_db, strlen(create_db)+1);
+          db_name.length= strlen(create_db);
+          is_qualified_table_name= true;
+
+          if(create_db && check_db_name(&db_name))
+          {
+            my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
+            return true;
+          }
+        }
+        else
+        {
+          if (thd->lex->copy_db_to(&db_name.str, &db_name.length))
+            return true;
+          else
+           is_qualified_table_name= false;
+        }
+      }
 
       // if lower_case_table_names is set then convert tablename to lower case.
       if (lower_case_table_names)
@@ -9330,7 +9342,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
       goto err;
   }
 
-  if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info))
+  if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info, create_table->db))
     goto err;
 
   /*

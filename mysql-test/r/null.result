@@ -50,6 +50,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select inet_ntoa(NULL) AS `inet_ntoa(null)`,inet_aton(NULL) AS `inet_aton(null)`,inet_aton('122.256') AS `inet_aton("122.256")`,inet_aton('122.226.') AS `inet_aton("122.226.")`,inet_aton('') AS `inet_aton("")`
+select not null is true, not null or true, not null and false, not null <=> null;
+not null is true	not null or true	not null and false	not null <=> null
+1	1	0	0
 create table t1 (x int);
 insert into t1 values (null);
 select * from t1 where x != 0;
@@ -906,22 +909,22 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `NULLIF(c_text,  1)` longtext,
-  `NULLIF(c_text,  c_smallint)` longtext,
-  `NULLIF(c_text,  c_tinyint)` longtext,
-  `NULLIF(c_text,  c_int)` longtext,
-  `NULLIF(c_text,  c_bigint)` longtext,
-  `NULLIF(c_text,  c_float)` longtext,
-  `NULLIF(c_text,  c_double)` longtext,
-  `NULLIF(c_text,  c_decimal103)` longtext,
-  `NULLIF(c_text,  c_varchar10)` longtext,
-  `NULLIF(c_text,  c_text)` longtext,
-  `NULLIF(c_text,  c_blob)` longtext,
-  `NULLIF(c_text,  c_enum)` longtext,
-  `NULLIF(c_text,  c_datetime3)` longtext,
-  `NULLIF(c_text,  c_timestamp3)` longtext,
-  `NULLIF(c_text,  c_date)` longtext,
-  `NULLIF(c_text,  c_time)` longtext
+  `NULLIF(c_text,  1)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_smallint)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_tinyint)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_int)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_bigint)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_float)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_double)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_decimal103)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_varchar10)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_text)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_blob)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_enum)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_datetime3)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_timestamp3)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_date)` longtext DEFAULT NULL,
+  `NULLIF(c_text,  c_time)` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
@@ -945,22 +948,22 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `NULLIF(c_blob,  1)` longblob,
-  `NULLIF(c_blob,  c_smallint)` longblob,
-  `NULLIF(c_blob,  c_tinyint)` longblob,
-  `NULLIF(c_blob,  c_int)` longblob,
-  `NULLIF(c_blob,  c_bigint)` longblob,
-  `NULLIF(c_blob,  c_float)` longblob,
-  `NULLIF(c_blob,  c_double)` longblob,
-  `NULLIF(c_blob,  c_decimal103)` longblob,
-  `NULLIF(c_blob,  c_varchar10)` longblob,
-  `NULLIF(c_blob,  c_text)` longblob,
-  `NULLIF(c_blob,  c_blob)` longblob,
-  `NULLIF(c_blob,  c_enum)` longblob,
-  `NULLIF(c_blob,  c_datetime3)` longblob,
-  `NULLIF(c_blob,  c_timestamp3)` longblob,
-  `NULLIF(c_blob,  c_date)` longblob,
-  `NULLIF(c_blob,  c_time)` longblob
+  `NULLIF(c_blob,  1)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_smallint)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_tinyint)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_int)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_bigint)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_float)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_double)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_decimal103)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_varchar10)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_text)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_blob)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_enum)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_datetime3)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_timestamp3)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_date)` longblob DEFAULT NULL,
+  `NULLIF(c_blob,  c_time)` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 CREATE TABLE t2 AS SELECT
@@ -1556,7 +1559,7 @@ set names utf8;
 create table t1 (f1 varchar(10));
 insert into t1 values ('2015-12-31');
 select power( timestamp( nullif( '2002-09-08', f1 ) ), 24 ) from t1;
-ERROR 22003: DOUBLE value is out of range in 'pow(cast((case when '2002-09-08' = '2015-12-31' then NULL else '2002-09-08' end) as datetime(6)),24)'
+ERROR 22003: DOUBLE value is out of range in 'pow(cast((case when '2002-09-08' = `test`.`t1`.`f1` then NULL else '2002-09-08' end) as datetime(6)),24)'
 drop table t1;
 CREATE TABLE t1 (f1 INT);
 INSERT INTO t1 VALUES (1),(2);
@@ -1570,6 +1573,23 @@ CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (1),(2);
 SELECT * FROM t1 WHERE NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(NULLIF(i = ROUND(0), 14), 13), 12), 11), 10), 9), 8), 7), 6), 5), 4), 3), 2), 1);
 i
+DROP TABLE t1;
+#
+# MDEV-10236 Where expression with NOT function gives incorrect result
+#
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE ((c1 IS NOT NULL) >= (NOT TRUE)) IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where (((`test`.`t1`.`c1` is not null) >= <cache>((not(1)))) is not null)
+SELECT * FROM t1 WHERE ((c1 IS NOT NULL) >= (NOT TRUE)) IS NOT NULL;
+c1
+1
+2
+3
 DROP TABLE t1;
 #
 # End of 10.1 tests

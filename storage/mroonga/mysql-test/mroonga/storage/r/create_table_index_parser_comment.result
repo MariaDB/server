@@ -9,7 +9,7 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `body` text,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `body_index` (`body`) COMMENT 'parser "TokenBigramSplitSymbolAlphaDigit"'
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8

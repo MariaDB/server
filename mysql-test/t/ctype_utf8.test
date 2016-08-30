@@ -1679,6 +1679,29 @@ SELECT OCTET_LENGTH(a),a FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-8402 Bug#77473 Bug#21317406 TRUNCATED DATA WITH SUBQUERY & UTF8
+--echo #
+--echo #
+
+SET NAMES utf8;
+SELECT length(rpad(_utf8 0xD0B1, 65536, _utf8 0xD0B2)) AS data;
+SELECT length(data) AS len FROM (
+  SELECT rpad(_utf8 0xD0B1, 65536, _utf8 0xD0B2) AS data
+) AS sub;
+
+SELECT length(rpad(_utf8 0xD0B1, 65535, _utf8 0xD0B2)) AS data;
+SELECT length(data) AS len FROM (
+  SELECT rpad(_utf8 0xD0B1, 65535, _utf8 0xD0B2) AS data
+) AS sub;
+
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 36766) AS data) AS sub;
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 36767) AS data) AS sub;
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 36778) AS data) AS sub;
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 65535) AS data) AS sub;
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 65536) AS data) AS sub;
+SELECT length(data) AS len FROM (SELECT REPEAT('ä', 65537) AS data) AS sub;
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -1979,6 +2002,60 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 (a TEXT CHARACTER SET utf8);
 LOAD XML INFILE '../../std_data/loaddata/mdev9874.xml' INTO TABLE t1 CHARACTER SET utf8 ROWS IDENTIFIED BY '<row>';
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+# This test uses some magic codes:
+# _latin1 0xC39F is "A WITH TILDE + Y WITH DIAERESIS"
+# _utf8   0xC39F is "SHARP S"
+
+# "A WITH TILDE + Y WITH DIAERESIS" in DEFAULT.
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß'));
+SET NAMES utf8;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a),a  FROM t1;
+SET NAMES latin1;
+ALTER TABLE t1 ADD b VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß');
+SET NAMES utf8;
+ALTER TABLE t1 ADD c VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ÃŸ');
+SHOW CREATE TABLE t1;
+# Testing that DEFAULT is independent on the current "SET NAMES".
+DELETE FROM t1;
+INSERT INTO t1 VALUES();
+SELECT * FROM t1;
+SET NAMES latin1;
+DELETE FROM t1;
+INSERT INTO t1 VALUES();
+SET NAMES utf8;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET NAMES latin1;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
+SET NAMES utf8;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a), a FROM t1;
+DROP TABLE t1;
+
+# "SHARP S" in DEFAULT
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß'));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (DEFAULT);
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 

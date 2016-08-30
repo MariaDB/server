@@ -214,15 +214,18 @@ create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 --replace_column 1 #
+--sorted_result
 select * from information_schema.metadata_lock_info;
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create or replace table test.t1;
 show tables;
 --replace_column 1 #
+--sorted_result
 select * from information_schema.metadata_lock_info;
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create or replace table mysqltest2.t2;
 --replace_column 1 #
+--sorted_result
 select * from information_schema.metadata_lock_info;
 create table t1 (i int);
 drop table t1;
@@ -231,15 +234,18 @@ create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 --replace_column 1 #
+--sorted_result
 select * from information_schema.metadata_lock_info;
 --error ER_DUP_FIELDNAME
 create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 show tables;
 --replace_column 1 #
+--sorted_result
 select * from information_schema.metadata_lock_info;
 --error ER_DUP_FIELDNAME
 create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 --replace_column 1 #
+--sorted_result
 select * from information_schema.metadata_lock_info;
 create table t1 (i int);
 drop table t1;
@@ -317,15 +323,19 @@ drop view t1;
 create table t1 (a int);
 lock table t1 write, t2 read;
 --replace_column 1 #
+--sorted_result
 select * from information_schema.metadata_lock_info;
 create or replace table t1 (i int);
 --replace_column 1 #
+--sorted_result
 select * from information_schema.metadata_lock_info;
 create or replace table t1 like t2;
 --replace_column 1 #
+--sorted_result
 select * from information_schema.metadata_lock_info;
 create or replace table t1 select 1 as f1;
 --replace_column 1 #
+--sorted_result
 select * from information_schema.metadata_lock_info;
 drop table t1;
 unlock tables;

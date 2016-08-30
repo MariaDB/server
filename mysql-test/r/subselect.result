@@ -1232,24 +1232,24 @@ CREATE TABLE t1 SELECT * FROM (SELECT 1 as a,(SELECT 1)) a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(1) NOT NULL DEFAULT '0',
-  `(SELECT 1)` int(1) NOT NULL DEFAULT '0'
+  `a` int(1) NOT NULL DEFAULT 0,
+  `(SELECT 1)` int(1) NOT NULL DEFAULT 0
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 CREATE TABLE t1 SELECT * FROM (SELECT 1 as a,(SELECT a)) a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(1) NOT NULL DEFAULT '0',
-  `(SELECT a)` int(1) NOT NULL DEFAULT '0'
+  `a` int(1) NOT NULL DEFAULT 0,
+  `(SELECT a)` int(1) NOT NULL DEFAULT 0
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 CREATE TABLE t1 SELECT * FROM (SELECT 1 as a,(SELECT a+0)) a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(1) NOT NULL DEFAULT '0',
-  `(SELECT a+0)` int(3) NOT NULL DEFAULT '0'
+  `a` int(1) NOT NULL DEFAULT 0,
+  `(SELECT a+0)` int(3) NOT NULL DEFAULT 0
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 CREATE TABLE t1 SELECT (SELECT 1 as a UNION SELECT 1+1 limit 1,1) as a;
@@ -5001,7 +5001,7 @@ CREATE VIEW v2 (a,b) AS
 SELECT t2.id, t2.c AS c FROM t1, t2
 WHERE t1.id=t2.id AND 1 IN (SELECT id FROM t1) WITH CHECK OPTION;
 INSERT INTO v2(a,b) VALUES (2,2);
-ERROR HY000: CHECK OPTION failed 'test.v2'
+ERROR 44000: CHECK OPTION failed `test`.`v2`
 SELECT * FROM v1;
 c
 1
@@ -7151,3 +7151,15 @@ sq
 NULL
 drop view v2;
 drop table t1,t2;
+#
+# MDEV-9487: Server crashes in Time_and_counter_tracker::incr_loops
+# with UNION in ALL subquery
+#
+SET NAMES utf8;
+CREATE TABLE t1 (f VARCHAR(8)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo');
+SELECT f FROM t1 WHERE f > ALL ( SELECT 'bar' UNION SELECT 'baz' );
+f
+foo
+drop table t1;
+SET NAMES default;

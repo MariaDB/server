@@ -19,7 +19,7 @@
 /*  ---------------                                                     */
 /*    TABMYSQL.CPP   - Source code                                      */
 /*    PLGDBSEM.H     - DB application declaration file                  */
-/*    TABMYSQL.H     - TABODBC classes declaration file                 */
+/*    TABMYSQL.H     - TABMYSQL classes declaration file                */
 /*    GLOBAL.H       - Global declaration file                          */
 /*                                                                      */
 /*  REQUIRED LIBRARIES:                                                 */
@@ -857,7 +857,9 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open, just replace it at its beginning.          */
     /*******************************************************************/
-    Myc.Rewind();
+		if (Myc.Rewind(g, (Mode == MODE_READX) ? Query->GetStr() : NULL) != RC_OK)
+			return true;
+
     N = -1;
     return false;
     } // endif use

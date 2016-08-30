@@ -12,7 +12,7 @@ Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL,
   `title` varchar(255) DEFAULT NULL,
-  `content` text,
+  `content` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `title` (`title`),
   FULLTEXT KEY `content` (`content`)

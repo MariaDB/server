@@ -257,7 +257,7 @@ Item_func::quick_fix_field()
 
 
 bool
-Item_func::eval_not_null_tables(uchar *opt_arg)
+Item_func::eval_not_null_tables(void *opt_arg)
 {
   Item **arg,**arg_end;
   not_null_tables_cache= 0;
@@ -646,14 +646,15 @@ void Item_func::count_real_length(Item **items, uint nitems)
   unsigned_flag= false;
   for (uint i=0 ; i < nitems ; i++)
   {
-    if (decimals != NOT_FIXED_DEC)
+    if (decimals < FLOATING_POINT_DECIMALS)
     {
       set_if_bigger(decimals, items[i]->decimals);
+      /* Will be ignored if items[i]->decimals >= FLOATING_POINT_DECIMALS */
       set_if_bigger(length, (items[i]->max_length - items[i]->decimals));
     }
     set_if_bigger(max_length, items[i]->max_length);
   }
-  if (decimals != NOT_FIXED_DEC)
+  if (decimals < FLOATING_POINT_DECIMALS)
   {
     max_length= length;
     length+= decimals;
@@ -1072,7 +1073,7 @@ void Item_func_signed::print(String *str, enum_query_type query_type)
 }
 
 
-longlong Item_func_signed::val_int_from_str(int *error)
+longlong Item::val_int_from_str(int *error)
 {
   char buff[MAX_FIELD_WIDTH];
   String tmp(buff,sizeof(buff), &my_charset_bin), *res;
@@ -1082,13 +1083,11 @@ longlong Item_func_signed::val_int_from_str(int *error)
     to a longlong
   */
 
-  if (!(res= args[0]->val_str(&tmp)))
+  if (!(res= val_str(&tmp)))
   {
-    null_value= 1;
     *error= 0;
     return 0;
   }
-  null_value= 0;
   Converter_strtoll10_with_warn cnv(NULL, Warn_filter_all(),
                                     res->charset(), res->ptr(), res->length());
   *error= cnv.error();
@@ -1096,37 +1095,15 @@ longlong Item_func_signed::val_int_from_str(int *error)
 }
 
 
-longlong Item_func_signed::val_int()
+longlong Item::val_int_signed_typecast()
 {
-  longlong value;
+  if (cast_to_int_type() != STRING_RESULT)
+    return val_int();
+
   int error;
-
-  if (args[0]->cast_to_int_type() != STRING_RESULT)
-  {
-    value= args[0]->val_int();
-    null_value= args[0]->null_value; 
-    return value;
-  }
-  else if (args[0]->dynamic_result())
-  {
-    /* We come here when argument has an unknown type */
-    args[0]->unsigned_flag= 0;   // Mark that we want to have a signed value
-    value= args[0]->val_int();
-    null_value= args[0]->null_value; 
-    if (!null_value && args[0]->unsigned_flag && value < 0)
-      goto err;                                 // Warn about overflow
-    return value;
-  }
-
-  value= val_int_from_str(&error);
-  if (value < 0 && error == 0)
-    goto err;
-  return value;
-
-err:
-  push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
-               "Cast to signed converted positive out-of-range integer to "
-               "it's negative complement");
+  longlong value= val_int_from_str(&error);
+  if (!null_value && value < 0 && error == 0)
+    push_note_converted_to_negative_complement(current_thd);
   return value;
 }
 
@@ -1140,49 +1117,30 @@ void Item_func_unsigned::print(String *str, enum_query_type query_type)
 }
 
 
-longlong Item_func_unsigned::val_int()
+longlong Item::val_int_unsigned_typecast()
 {
-  longlong value;
-  int error;
-
-  if (args[0]->cast_to_int_type() == DECIMAL_RESULT)
+  if (cast_to_int_type() == DECIMAL_RESULT)
   {
-    my_decimal tmp, *dec= args[0]->val_decimal(&tmp);
-    if (!(null_value= args[0]->null_value))
+    longlong value;
+    my_decimal tmp, *dec= val_decimal(&tmp);
+    if (!null_value)
       my_decimal2int(E_DEC_FATAL_ERROR, dec, 1, &value);
     else
       value= 0;
     return value;
   }
-  else if (args[0]->dynamic_result())
+  else if (cast_to_int_type() != STRING_RESULT)
   {
-    /* We come here when argument has an unknown type */
-    args[0]->unsigned_flag= 1;   // Mark that we want to have an unsigned value
-    value= args[0]->val_int();
-    null_value= args[0]->null_value; 
-    if (!null_value && args[0]->unsigned_flag == 0 && value < 0)
-      goto err;                                 // Warn about overflow
-    return value;
-  }
-  else if (args[0]->cast_to_int_type() != STRING_RESULT)
-  {
-    value= args[0]->val_int();
-    null_value= args[0]->null_value; 
-    if (!null_value && args[0]->unsigned_flag == 0 && value < 0)
-      goto err;                                 // Warn about overflow
+    longlong value= val_int();
+    if (!null_value && unsigned_flag == 0 && value < 0)
+      push_note_converted_to_positive_complement(current_thd);
     return value;
   }
 
-  value= val_int_from_str(&error);
-  if (error < 0)
-    goto err;
-
-  return value;
-
-err:
-  push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
-               "Cast to unsigned converted negative integer to it's "
-               "positive complement");
+  int error;
+  longlong value= val_int_from_str(&error);
+  if (!null_value && error < 0)
+    push_note_converted_to_positive_complement(current_thd);
   return value;
 }
 
@@ -4629,6 +4587,11 @@ longlong Item_func_sleep::val_int()
 }
 
 
+bool Item_func_user_var::check_vcol_func_processor(void *arg)
+{
+  return mark_unsupported_function("@", name.str, arg, VCOL_IMPOSSIBLE);
+}
+
 #define extra_size sizeof(double)
 
 user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
@@ -4783,7 +4746,7 @@ Item_func_set_user_var::fix_length_and_dec()
     column read set or to register used fields in a view
 */
 
-bool Item_func_set_user_var::register_field_in_read_map(uchar *arg)
+bool Item_func_set_user_var::register_field_in_read_map(void *arg)
 {
   if (result_field)
   {
@@ -4802,7 +4765,7 @@ bool Item_func_set_user_var::register_field_in_read_map(uchar *arg)
 
 */
 
-bool Item_func_set_user_var::register_field_in_bitmap(uchar *arg)
+bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
 {
   MY_BITMAP *bitmap = (MY_BITMAP *) arg;
   DBUG_ASSERT(bitmap);
@@ -4903,7 +4866,7 @@ Item_func_set_user_var::update_hash(void *ptr, uint length,
                                     bool unsigned_arg)
 {
   /*
-    If we set a variable explicitely to NULL then keep the old
+    If we set a variable explicitly to NULL then keep the old
     result type of the variable
   */
   if (args[0]->type() == Item::FIELD_ITEM)
@@ -5889,6 +5852,10 @@ void Item_func_get_system_var::print(String *str, enum_query_type query_type)
   str->append(name, name_length);
 }
 
+bool Item_func_get_system_var::check_vcol_func_processor(void *arg)
+{
+  return mark_unsupported_function("@@", var->name.str, arg, VCOL_SESSION_FUNC);
+}
 
 enum Item_result Item_func_get_system_var::result_type() const
 {
@@ -6279,6 +6246,8 @@ bool Item_func_match::fix_index()
 
   for (i=1; i < arg_count; i++)
   {
+    if (args[i]->type() != FIELD_ITEM)
+      goto err;
     item=(Item_field*)args[i];
     for (keynr=0 ; keynr < fts ; keynr++)
     {
@@ -6892,6 +6861,10 @@ void Item_func_sp::update_used_tables()
   }
 }
 
+bool Item_func_sp::check_vcol_func_processor(void *arg)
+{
+  return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+}
 
 /*
   uuid_short handling.

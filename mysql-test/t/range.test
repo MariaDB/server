@@ -1817,5 +1817,14 @@ EXPLAIN SELECT * FROM t1 WHERE a<=>'😎';
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-10185: Assertion `tree1->keys[key_no] && tree2->keys[key_no]' failed in 
+--echo #             sel_trees_can_be_ored(RANGE_OPT_PARAM*, SEL_TREE*, SEL_TREE*, key_map*)
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE pk != 1000 OR pk IN ( 1000, 0, 1, 100, 2 ) OR pk >= 5;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

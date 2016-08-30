@@ -1769,7 +1769,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   TABLE *table;
   READ_RECORD read_record_info;
   int error;
-  THD *new_thd= new THD;
+  THD *new_thd= new THD(0);
   bool result;
   DBUG_ENTER("plugin_load");
 

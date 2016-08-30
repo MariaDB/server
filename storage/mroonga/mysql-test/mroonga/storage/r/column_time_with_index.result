@@ -10,7 +10,7 @@ SHOW CREATE TABLE running_records;
 Table	Create Table
 running_records	CREATE TABLE `running_records` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
+  `title` text DEFAULT NULL,
   `average` time DEFAULT NULL,
   `max` time DEFAULT NULL,
   PRIMARY KEY (`id`),

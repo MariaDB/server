@@ -51,7 +51,6 @@ enum enum_check_fields
   CHECK_FIELD_ERROR_FOR_NULL
 };
 
-
 /*
   Common declarations for Field and Item
 */
@@ -81,6 +80,35 @@ protected:
     Warn_filter_all() :Warn_filter(true, true) { }
   };
 
+  class Converter_double_to_longlong
+  {
+  protected:
+    bool m_error;
+    longlong m_result;
+  public:
+    Converter_double_to_longlong(double nr, bool unsigned_flag);
+    longlong result() const { return m_result; }
+    bool error() const { return m_error; }
+    void push_warning(THD *thd, double nr, bool unsigned_flag);
+  };
+  class Converter_double_to_longlong_with_warn:
+    public Converter_double_to_longlong
+  {
+  public:
+    Converter_double_to_longlong_with_warn(THD *thd, double nr,
+                                           bool unsigned_flag)
+      :Converter_double_to_longlong(nr, unsigned_flag)
+    {
+      if (m_error)
+        push_warning(thd, nr, unsigned_flag);
+    }
+    Converter_double_to_longlong_with_warn(double nr, bool unsigned_flag)
+      :Converter_double_to_longlong(nr, unsigned_flag)
+    {
+      if (m_error)
+        push_warning(current_thd, nr, unsigned_flag);
+    }
+  };
 
   // String-to-number converters
   class Converter_string_to_number
@@ -395,7 +423,9 @@ enum Derivation
 #define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
 
 /* The length of the header part for each virtual column in the .frm file */
-#define FRM_VCOL_HEADER_SIZE(b) (3 + MY_TEST(b))
+#define FRM_VCOL_OLD_HEADER_SIZE(b) (3 + MY_TEST(b))
+#define FRM_VCOL_NEW_BASE_SIZE 16
+#define FRM_VCOL_NEW_HEADER_SIZE 6
 
 class Count_distinct_field;
 
@@ -405,7 +435,6 @@ struct st_cache_field;
 int field_conv(Field *to,Field *from);
 int truncate_double(double *nr, uint field_length, uint dec,
                     bool unsigned_flag, double max_value);
-longlong double_to_longlong(double nr, bool unsigned_flag, bool *error);
 
 inline uint get_enum_pack_length(int elements)
 {
@@ -441,20 +470,6 @@ inline bool is_temporal_type_with_date(enum_field_types type)
   default:
     return false;
   }
-}
-
-
-/**
-  Tests if a field real type can have "DEFAULT CURRENT_TIMESTAMP"
-
-  @param type    Field type, as returned by field->real_type().
-  @retval true   If field real type can have "DEFAULT CURRENT_TIMESTAMP".
-  @retval false  If field real type can not have "DEFAULT CURRENT_TIMESTAMP".
-*/
-inline bool real_type_with_now_as_default(enum_field_types type)
-{
-  return type == MYSQL_TYPE_TIMESTAMP || type == MYSQL_TYPE_TIMESTAMP2 ||
-    type == MYSQL_TYPE_DATETIME || type == MYSQL_TYPE_DATETIME2;
 }
 
 
@@ -545,6 +560,19 @@ inline bool is_temporal_type_with_time(enum_field_types type)
   }
 }
 
+/*
+  Flags for Virtual_column_info. If none is set, the expression must be
+  a constant with no side-effects, so it's calculated at CREATE TABLE time,
+  stored in table->record[2], and not recalculated for every statement.
+*/
+#define VCOL_FIELD_REF         1
+#define VCOL_NON_DETERMINISTIC 2
+#define VCOL_SESSION_FUNC      4  /* uses session data, e.g. USER or DAYNAME */
+#define VCOL_TIME_FUNC         8
+#define VCOL_IMPOSSIBLE       16
+
+#define VCOL_NOT_STRICTLY_DETERMINISTIC                       \
+  (VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC | VCOL_SESSION_FUNC)
 
 /*
   Virtual_column_info is the class to contain additional
@@ -570,18 +598,21 @@ private:
 public:
   /* Flag indicating  that the field is physically stored in the database */
   bool stored_in_db;
+  bool utf8;                                    /* Already in utf8 */
   /* The expression to compute the value of the virtual column */
   Item *expr_item;
   /* Text representation of the defining expression */
   LEX_STRING expr_str;
+  LEX_STRING name;                              /* Name of constraint */
+  uint flags;
 
   Virtual_column_info()
   : field_type((enum enum_field_types)MYSQL_TYPE_VIRTUAL),
     in_partitioning_expr(FALSE), stored_in_db(FALSE),
-    expr_item(NULL)
+    utf8(TRUE), expr_item(NULL), flags(0)
   {
-    expr_str.str= NULL;
-    expr_str.length= 0;
+    expr_str.str= name.str= NULL;
+    name.length= 0;
   };
   ~Virtual_column_info() {}
   enum_field_types get_real_type()
@@ -736,11 +767,12 @@ public:
   Column_statistics_collected *collected_stats;
 
   /* 
-    This is additional data provided for any computed(virtual) field.
-    In particular it includes a pointer to the item by  which this field
+    This is additional data provided for any computed(virtual) field,
+    default function or check constraint.
+    In particular it includes a pointer to the item by which this field
     can be computed from other fields.
   */
-  Virtual_column_info *vcol_info;
+  Virtual_column_info *vcol_info, *check_constraint, *default_value;
 
   Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
         uchar null_bit_arg, utype unireg_check_arg,
@@ -880,26 +912,11 @@ public:
     my_ptrdiff_t l_offset= (my_ptrdiff_t) (record -  table->record[0]);
     return ptr + l_offset;
   }
-  virtual void set_default()
-  {
-    my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
-					  table->record[0]);
-    memcpy(ptr, ptr + l_offset, pack_length());
-    if (maybe_null_in_table())
-      *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
-		  (null_ptr[l_offset] & null_bit));
-  }
-
-  bool has_insert_default_function() const
-  {
-    return unireg_check == TIMESTAMP_DN_FIELD ||
-      unireg_check == TIMESTAMP_DNUN_FIELD;
-  }
+  virtual void set_default();
 
   bool has_update_default_function() const
   {
-    return unireg_check == TIMESTAMP_UN_FIELD ||
-      unireg_check == TIMESTAMP_DNUN_FIELD;
+    return unireg_check == TIMESTAMP_UN_FIELD;
   }
 
   /*
@@ -908,9 +925,15 @@ public:
   */
   void set_has_explicit_value()
   {
-    flags|= HAS_EXPLICIT_VALUE;
+    if (table->has_value_set)             /* If we have default functions */
+      bitmap_set_bit(table->has_value_set, field_index);
   }
-
+  bool has_explicit_value()
+  {
+    /* This function is only called when we have default functions */
+    DBUG_ASSERT(table->has_value_set);
+    return bitmap_is_set(table->has_value_set, field_index);
+  }
   virtual void set_explicit_default(Item *value);
 
   /**
@@ -1251,11 +1274,12 @@ public:
   { return binary() ? &my_charset_bin : charset(); }
   virtual CHARSET_INFO *sort_charset(void) const { return charset(); }
   virtual bool has_charset(void) const { return FALSE; }
-  virtual void set_charset(CHARSET_INFO *charset_arg) { }
   virtual enum Derivation derivation(void) const
   { return DERIVATION_IMPLICIT; }
   virtual uint repertoire(void) const { return MY_REPERTOIRE_UNICODE30; }
-  virtual void set_derivation(enum Derivation derivation_arg) { }
+  virtual void set_derivation(enum Derivation derivation_arg,
+                              uint repertoire_arg)
+  { }
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
                    int cuted_increment) const;
@@ -1508,6 +1532,10 @@ protected:
 
 class Field_num :public Field {
 protected:
+  int check_edom_and_important_data_truncation(const char *type, bool edom,
+                                               CHARSET_INFO *cs,
+                                               const char *str, uint length,
+                                               const char *end_of_num);
   int check_edom_and_truncation(const char *type, bool edom,
                                 CHARSET_INFO *cs,
                                 const char *str, uint length,
@@ -1585,8 +1613,10 @@ public:
 
 class Field_str :public Field {
 protected:
+  // TODO-10.2: Reuse DTCollation instead of these three members
   CHARSET_INFO *field_charset;
   enum Derivation field_derivation;
+  uint field_repertoire;
 public:
   bool can_be_substituted_to_equal_item(const Context &ctx,
                                         const Item_equal *item_equal);
@@ -1610,15 +1640,15 @@ public:
   {
     return store(str, length, &my_charset_bin);
   }
-  uint repertoire(void) const
-  {
-    return my_charset_repertoire(field_charset);
-  }
+  uint repertoire(void) const { return field_repertoire; }
   CHARSET_INFO *charset(void) const { return field_charset; }
-  void set_charset(CHARSET_INFO *charset_arg) { field_charset= charset_arg; }
   enum Derivation derivation(void) const { return field_derivation; }
-  virtual void set_derivation(enum Derivation derivation_arg)
-  { field_derivation= derivation_arg; }
+  void set_derivation(enum Derivation derivation_arg,
+                      uint repertoire_arg)
+  {
+    field_derivation= derivation_arg;
+    field_repertoire= repertoire_arg;
+  }
   bool binary() const { return field_charset == &my_charset_bin; }
   uint32 max_display_length() { return field_length; }
   friend class Create_field;
@@ -1699,7 +1729,7 @@ public:
              uint8 dec_arg, bool zero_arg, bool unsigned_arg)
     :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                field_name_arg, dec_arg, zero_arg, unsigned_arg),
-    not_fixed(dec_arg >= NOT_FIXED_DEC)
+    not_fixed(dec_arg >= FLOATING_POINT_DECIMALS)
     {}
   Item_result result_type () const { return REAL_RESULT; }
   Copy_func *get_copy_func(const Field *from) const
@@ -1806,6 +1836,7 @@ public:
   }
   int  reset(void);
   bool store_value(const my_decimal *decimal_value);
+  bool store_value(const my_decimal *decimal_value, int *native_error);
   void set_value_on_overflow(my_decimal *decimal_value, bool sign);
   int  store(const char *to, uint length, CHARSET_INFO *charset);
   int  store(double nr);
@@ -2062,12 +2093,18 @@ public:
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
-    {}
+    {
+      if (dec_arg >= FLOATING_POINT_DECIMALS)
+        dec_arg= NOT_FIXED_DEC;
+    }
   Field_float(uint32 len_arg, bool maybe_null_arg, const char *field_name_arg,
 	      uint8 dec_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, (uint) 0,
                 NONE, field_name_arg, dec_arg, 0, 0)
-    {}
+    {
+      if (dec_arg >= FLOATING_POINT_DECIMALS)
+        dec_arg= NOT_FIXED_DEC;
+    }
   enum_field_types type() const { return MYSQL_TYPE_FLOAT;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_FLOAT; }
   int store(const char *to,uint length,CHARSET_INFO *charset);
@@ -2097,17 +2134,27 @@ public:
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
-    {}
+    {
+      if (dec_arg >= FLOATING_POINT_DECIMALS)
+        dec_arg= NOT_FIXED_DEC;
+    }
   Field_double(uint32 len_arg, bool maybe_null_arg, const char *field_name_arg,
 	       uint8 dec_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
                 NONE, field_name_arg, dec_arg, 0, 0)
-    {}
+    {
+      if (dec_arg >= FLOATING_POINT_DECIMALS)
+        dec_arg= NOT_FIXED_DEC;
+    }
   Field_double(uint32 len_arg, bool maybe_null_arg, const char *field_name_arg,
 	       uint8 dec_arg, bool not_fixed_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
                 NONE, field_name_arg, dec_arg, 0, 0)
-    {not_fixed= not_fixed_arg; }
+    {
+      not_fixed= not_fixed_arg;
+      if (dec_arg >= FLOATING_POINT_DECIMALS)
+        dec_arg= NOT_FIXED_DEC;
+    }
   enum_field_types type() const { return MYSQL_TYPE_DOUBLE;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_DOUBLE; }
   int  store(const char *to,uint length,CHARSET_INFO *charset);
@@ -2115,7 +2162,13 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int reset(void) { bzero(ptr,sizeof(double)); return 0; }
   double val_real(void);
-  longlong val_int(void);
+  longlong val_int(void)
+  {
+    Converter_double_to_longlong conv(Field_double::val_real(), false);
+    if (conv.error())
+      conv.push_warning(get_thd(), Field_double::val_real(), false);
+    return conv.result();
+  }
   String *val_str(String*,String *);
   bool send_binary(Protocol *protocol);
   int cmp(const uchar *,const uchar *);
@@ -2303,21 +2356,7 @@ public:
   void sql_type(String &str) const;
   bool zero_pack() const { return 0; }
   virtual int set_time();
-  virtual void set_default()
-  {
-    if (has_insert_default_function())
-      set_time();
-    else
-      Field::set_default();
-  }
   virtual void set_explicit_default(Item *value);
-  virtual int evaluate_insert_default_function()
-  {
-    int res= 0;
-    if (has_insert_default_function())
-      res= set_time();
-    return res;
-  }
   virtual int evaluate_update_default_function()
   {
     int res= 0;
@@ -2747,20 +2786,6 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return Field_datetime::get_TIME(ltime, ptr, fuzzydate); }
   virtual int set_time();
-  virtual void set_default()
-  {
-    if (has_insert_default_function())
-      set_time();
-    else
-      Field::set_default();
-  }
-  virtual int evaluate_insert_default_function()
-  {
-    int res= 0;
-    if (has_insert_default_function())
-      res= set_time();
-    return res;
-  }
   virtual int evaluate_update_default_function()
   {
     int res= 0;
@@ -2898,7 +2923,7 @@ new_Field_timestamp(MEM_ROOT *root,uchar *ptr, uchar *null_ptr, uchar null_bit,
     return new (root)
       Field_timestamp(ptr, MAX_DATETIME_WIDTH, null_ptr,
                       null_bit, unireg_check, field_name, share);
-  if (dec == NOT_FIXED_DEC)
+  if (dec >= FLOATING_POINT_DECIMALS)
     dec= MAX_DATETIME_PRECISION;
   return new (root)
     Field_timestamp_hires(ptr, null_ptr, null_bit, unireg_check,
@@ -2914,7 +2939,7 @@ new_Field_time(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
     return new (root)
       Field_time(ptr, MIN_TIME_WIDTH, null_ptr, null_bit, unireg_check,
                  field_name);
-  if (dec == NOT_FIXED_DEC)
+  if (dec >= FLOATING_POINT_DECIMALS)
     dec= MAX_DATETIME_PRECISION;
   return new (root)
     Field_time_hires(ptr, null_ptr, null_bit, unireg_check, field_name, dec);
@@ -2929,7 +2954,7 @@ new_Field_datetime(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
     return new (root)
       Field_datetime(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
                      unireg_check, field_name);
-  if (dec == NOT_FIXED_DEC)
+  if (dec >= FLOATING_POINT_DECIMALS)
     dec= MAX_DATETIME_PRECISION;
   return new (root)
     Field_datetime_hires(ptr, null_ptr, null_bit,
@@ -3147,10 +3172,9 @@ public:
     packlength= 4;
     if (set_packlength)
     {
-      uint32 l_char_length= len_arg/cs->mbmaxlen;
-      packlength= l_char_length <= 255 ? 1 :
-                  l_char_length <= 65535 ? 2 :
-                  l_char_length <= 16777215 ? 3 : 4;
+      packlength= len_arg <= 255 ? 1 :
+                  len_arg <= 65535 ? 2 :
+                  len_arg <= 16777215 ? 3 : 4;
     }
   }
   Field_blob(uint32 packlength_arg)
@@ -3675,7 +3699,7 @@ class Column_definition: public Sql_alloc
 public:
   const char *field_name;
   LEX_STRING comment;			// Comment for field
-  Item *def, *on_update;                // Default value
+  Item *on_update;		        // ON UPDATE NOW()
   enum	enum_field_types sql_type;
   /*
     At various stages in execution this can be length of field in bytes or
@@ -3698,20 +3722,23 @@ public:
 
   uint pack_flag;
 
-  /* 
+  /*
     This is additinal data provided for any computed(virtual) field.
     In particular it includes a pointer to the item by  which this field
     can be computed from other fields.
   */
-  Virtual_column_info *vcol_info;
+  Virtual_column_info
+    *vcol_info,                      // Virtual field
+    *default_value,                  // Default value
+    *check_constraint;               // Check constraint
 
   Column_definition():
     comment(null_lex_str),
-    def(0), on_update(0), sql_type(MYSQL_TYPE_NULL),
-    flags(0), pack_length(0), key_length(0), interval(0),
-    srid(0), geom_type(Field::GEOM_GEOMETRY),
+    on_update(0), sql_type(MYSQL_TYPE_NULL),
+    flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
+    interval(0), srid(0), geom_type(Field::GEOM_GEOMETRY),
     option_list(NULL),
-    vcol_info(0)
+    vcol_info(0), default_value(0), check_constraint(0)
   {
     interval_list.empty();
   }
@@ -3735,16 +3762,9 @@ public:
       ((flags >> FIELD_FLAGS_COLUMN_FORMAT) & 3);
   }
 
-  uint virtual_col_expr_maxlen()
-  {
-    return 255 - FRM_VCOL_HEADER_SIZE(interval != NULL);
-  }
-
   bool has_default_function() const
   {
-    return (unireg_check == Field::TIMESTAMP_DN_FIELD ||
-            unireg_check == Field::TIMESTAMP_DNUN_FIELD ||
-            unireg_check == Field::TIMESTAMP_UN_FIELD ||
+    return (unireg_check == Field::TIMESTAMP_UN_FIELD ||
             unireg_check == Field::NEXT_NUMBER);
   }
 
@@ -3764,6 +3784,8 @@ public:
     return make_field(share, mem_root, (uchar *) 0, (uchar *) "", 0,
                       field_name_arg);
   }
+  /* Return true if default is an expression that must be saved explicitely */
+  bool has_default_expression();
 };
 
 
@@ -3860,6 +3882,8 @@ uint32 calc_pack_length(enum_field_types type,uint32 length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);
+bool check_expression(Virtual_column_info *vcol, const char *type,
+                      const char *name, bool must_be_deterministic);
 
 /*
   The following are for the interface with the .frm file
@@ -3886,7 +3910,7 @@ int convert_null_to_field_value_or_error(Field *field);
 #define FIELDFLAG_HEX_ESCAPE		((uint) 0x10000)
 #define FIELDFLAG_PACK_SHIFT		3
 #define FIELDFLAG_DEC_SHIFT		8
-#define FIELDFLAG_MAX_DEC		31
+#define FIELDFLAG_MAX_DEC		63
 #define FIELDFLAG_NUM_SCREEN_TYPE	0x7F01
 #define FIELDFLAG_ALFA_SCREEN_TYPE	0x7800
 

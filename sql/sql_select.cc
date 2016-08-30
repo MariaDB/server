@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2015 Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2016 Oracle and/or its affiliates.
    Copyright (c) 2009, 2016 MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -462,8 +462,7 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
   List_iterator_fast <Item_outer_ref> ref_it(select->inner_refs_list);
   for (ORDER *group= select->join->group_list; group;  group= group->next)
   {
-    (*group->item)->walk(&Item::check_inner_refs_processor,
-                         TRUE, (uchar *) &ref_it);
+    (*group->item)->walk(&Item::check_inner_refs_processor, TRUE, &ref_it);
   } 
     
   while ((ref= ref_it++))
@@ -1170,7 +1169,7 @@ JOIN::optimize_inner()
     conversion happened (which done in the same way.
   */
   if (select_lex->first_cond_optimization &&
-      conds && conds->walk(&Item::exists2in_processor, 0, (uchar *)thd))
+      conds && conds->walk(&Item::exists2in_processor, 0, thd))
     DBUG_RETURN(1);
   /*
     TODO
@@ -1178,7 +1177,7 @@ JOIN::optimize_inner()
   for (TABLE_LIST *tbl= tables_list; tbl; tbl= tbl->next_local)
   {
     if (tbl->on_expr &&
-        tbl->on_expr->walk(&Item::exists2in_processor, 0, (uchar *)thd))
+        tbl->on_expr->walk(&Item::exists2in_processor, 0, thd))
       DBUG_RETURN(1);
   }
   */
@@ -2036,7 +2035,7 @@ JOIN::optimize_inner()
         }
       }
     }
-    else if (order &&                      // ORDER BY wo/ preceeding GROUP BY
+    else if (order &&                      // ORDER BY wo/ preceding GROUP BY
              (simple_order || skip_sort_order)) // which is possibly skippable
     {
       if (test_if_skip_sort_order(tab, order, select_limit, false, 
@@ -5398,8 +5397,7 @@ void count_cond_for_nj(SELECT_LEX *sel, TABLE_LIST *nested_join_table)
       count_cond_for_nj(sel, table); 
   }
   if (nested_join_table->on_expr)
-    nested_join_table->on_expr->walk(&Item::count_sargable_conds, 
-                                     0, (uchar*) sel);
+    nested_join_table->on_expr->walk(&Item::count_sargable_conds, 0, sel);
     
 }
 
@@ -5440,12 +5438,11 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   sel->cond_count= 0;
   sel->between_count= 0; 
   if (cond)
-    cond->walk(&Item::count_sargable_conds, 0, (uchar*) sel);
+    cond->walk(&Item::count_sargable_conds, 0, sel);
   for (i=0 ; i < tables ; i++)
   {
     if (*join_tab[i].on_expr_ref)
-      (*join_tab[i].on_expr_ref)->walk(&Item::count_sargable_conds,
-                                       0, (uchar*) sel);
+      (*join_tab[i].on_expr_ref)->walk(&Item::count_sargable_conds, 0, sel);
   }
   {
     List_iterator<TABLE_LIST> li(*join_tab->join->join_list);
@@ -5810,7 +5807,7 @@ add_group_and_distinct_keys(JOIN *join, JOIN_TAB *join_tab)
   { /* Collect all query fields referenced in the GROUP clause. */
     for (cur_group= join->group_list; cur_group; cur_group= cur_group->next)
       (*cur_group->item)->walk(&Item::collect_item_field_processor, 0,
-                               (uchar*) &indexed_fields);
+                               &indexed_fields);
   }
   else if (join->select_distinct)
   { /* Collect all query fields referenced in the SELECT clause. */
@@ -5818,8 +5815,7 @@ add_group_and_distinct_keys(JOIN *join, JOIN_TAB *join_tab)
     List_iterator<Item> select_items_it(select_items);
     Item *item;
     while ((item= select_items_it++))
-      item->walk(&Item::collect_item_field_processor, 0,
-                 (uchar*) &indexed_fields);
+      item->walk(&Item::collect_item_field_processor, 0, &indexed_fields);
   }
   else if (join->tmp_table_param.sum_func_count &&
            is_indexed_agg_distinct(join, &indexed_fields))
@@ -12231,7 +12227,50 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
 	    DBUG_PRINT("info",("removing: %s", order->item[0]->full_name()));
 	    continue;
 	  }
-	  *simple_order=0;			// Must do a temp table to sort
+          /*
+            UseMultipleEqualitiesToRemoveTempTable:
+            Can use multiple-equalities here to check that ORDER BY columns
+            can be used without tmp. table.
+          */
+          bool can_subst_to_first_table= false;
+          if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP) &&
+              first_is_base_table &&
+              order->item[0]->real_item()->type() == Item::FIELD_ITEM &&
+              join->cond_equal)
+          {
+            table_map first_table_bit=
+              join->join_tab[join->const_tables].table->map;
+
+            Item *item= order->item[0];
+
+            /*
+              TODO: equality substitution in the context of ORDER BY is 
+              sometimes allowed when it is not allowed in the general case.
+              
+              We make the below call for its side effect: it will locate the
+              multiple equality the item belongs to and set item->item_equal
+              accordingly.
+            */
+            Item *res= item->propagate_equal_fields(join->thd,
+                                                    Value_source::
+                                                    Context_identity(),
+                                                    join->cond_equal);
+            Item_equal *item_eq;
+            if ((item_eq= res->get_item_equal()))
+            {
+              Item *first= item_eq->get_first(NO_PARTICULAR_TAB, NULL);
+              if (first->const_item() || first->used_tables() ==
+                                         first_table_bit)
+              {
+                can_subst_to_first_table= true;
+              }
+            }
+          }
+
+          if (!can_subst_to_first_table)
+          {
+            *simple_order=0;			// Must do a temp table to sort
+          }
 	}
       }
     }
@@ -14331,6 +14370,8 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       if (table->outer_join && !table->embedding && table->table)
         table->table->maybe_null= FALSE;
       table->outer_join= 0;
+      if (!(straight_join || table->straight))
+        table->dep_tables= table->embedding? table->embedding->dep_tables: 0;
       if (table->on_expr)
       {
         /* Add ON expression to the WHERE or upper-level ON condition. */
@@ -15741,7 +15782,7 @@ Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
       new_field= tmp_table_field_from_field_type(table, true, false);
     else
       new_field= make_string_field(table);
-    new_field->set_derivation(collation.derivation);
+    new_field->set_derivation(collation.derivation, collation.repertoire);
     break;
   case DECIMAL_RESULT:
     new_field= Field_new_decimal::create_from_item(mem_root, this);
@@ -16008,7 +16049,8 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                                        modify_item);
   case Item::TYPE_HOLDER:  
     result= ((Item_type_holder *)item)->make_field_by_type(table);
-    result->set_derivation(item->collation.derivation);
+    result->set_derivation(item->collation.derivation,
+                           item->collation.repertoire);
     return result;
   default:					// Dosen't have to be stored
     return 0;
@@ -16028,7 +16070,7 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
 {
   uint bitmap_size= bitmap_buffer_size(field_count);
 
-  DBUG_ASSERT(table->s->vfields == 0 && table->def_vcol_set == 0);
+  DBUG_ASSERT(table->s->virtual_fields == 0 && table->def_vcol_set == 0);
 
   my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count,
               FALSE);
@@ -20379,6 +20421,8 @@ part_of_refkey(TABLE *table,Field *field)
 /**
   Test if one can use the key to resolve ORDER BY.
 
+  @param join                  if not NULL, can use the join's top-level
+                               multiple-equalities.
   @param order                 Sort order
   @param table                 Table to sort
   @param idx                   Index to check
@@ -20401,7 +20445,8 @@ part_of_refkey(TABLE *table,Field *field)
     -1   Reverse key can be used
 */
 
-static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
+static int test_if_order_by_key(JOIN *join,
+                                ORDER *order, TABLE *table, uint idx,
 				uint *used_key_parts= NULL)
 {
   KEY_PART_INFO *key_part,*key_part_end;
@@ -20424,7 +20469,8 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
 
   for (; order ; order=order->next, const_key_parts>>=1)
   {
-    Field *field=((Item_field*) (*order->item)->real_item())->field;
+    Item_field *item_field= ((Item_field*) (*order->item)->real_item());
+    Field *field= item_field->field;
     int flag;
 
     /*
@@ -20466,6 +20512,17 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
       DBUG_RETURN(0);
     }
 
+    if (key_part->field != field)
+    {
+      /*
+        Check if there is a multiple equality that allows to infer that field
+        and key_part->field are equal 
+        (see also: compute_part_of_sort_key_for_equals)
+      */
+      if (item_field->item_equal && 
+          item_field->item_equal->contains(key_part->field))
+        field= key_part->field;
+    }
     if (key_part->field != field || !field->part_of_sortkey.is_set(idx))
       DBUG_RETURN(0);
 
@@ -20595,7 +20652,7 @@ test_if_subkey(ORDER *order, TABLE *table, uint ref, uint ref_key_parts,
 	table->key_info[nr].user_defined_key_parts >= ref_key_parts &&
 	is_subkey(table->key_info[nr].key_part, ref_key_part,
 		  ref_key_part_end) &&
-	test_if_order_by_key(order, table, nr))
+	test_if_order_by_key(NULL, order, table, nr))
     {
       min_length= table->key_info[nr].key_length;
       best= nr;
@@ -20734,6 +20791,71 @@ find_field_in_item_list (Field *field, void *data)
 }
 
 
+/*
+  Fill *col_keys with a union of Field::part_of_sortkey of all fields
+  that belong to 'table' and are equal to 'item_field'.
+*/
+
+void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
+                                         Item_field *item_field,
+                                         key_map *col_keys)
+{
+  col_keys->clear_all();
+  col_keys->merge(item_field->field->part_of_sortkey);
+  
+  if (!optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP))
+    return;
+
+  Item_equal *item_eq= NULL;
+
+  if (item_field->item_equal)
+  {
+    /* 
+      The item_field is from ORDER structure, but it already has an item_equal
+      pointer set (UseMultipleEqualitiesToRemoveTempTable code have set it)
+    */
+    item_eq= item_field->item_equal;
+  }
+  else
+  {
+    /* 
+      Walk through join's muliple equalities and find the one that contains
+      item_field.
+    */
+    if (!join->cond_equal)
+      return;
+    table_map needed_tbl_map= item_field->used_tables() | table->map;
+    List_iterator<Item_equal> li(join->cond_equal->current_level);
+    Item_equal *cur_item_eq;
+    while ((cur_item_eq= li++))
+    {
+      if ((cur_item_eq->used_tables() & needed_tbl_map) &&
+          cur_item_eq->contains(item_field->field))
+      {
+        item_eq= cur_item_eq;
+        item_field->item_equal= item_eq; // Save the pointer to our Item_equal.
+        break;
+      }
+    }
+  }
+  
+  if (item_eq)
+  {
+    Item_equal_fields_iterator it(*item_eq);
+    Item *item;
+    /* Loop through other members that belong to table table */
+    while ((item= it++))
+    {
+      if (item->type() == Item::FIELD_ITEM &&
+          ((Item_field*)item)->field->table == table)
+      {
+        col_keys->merge(((Item_field*)item)->field->part_of_sortkey);
+      }
+    }
+  }
+}
+
+
 /**
   Test if we can skip the ORDER BY by using an index.
 
@@ -20790,7 +20912,27 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       usable_keys.clear_all();
       DBUG_RETURN(0);
     }
-    usable_keys.intersect(((Item_field*) item)->field->part_of_sortkey);
+
+    /*
+      Take multiple-equalities into account. Suppose we have
+        ORDER BY col1, col10
+      and there are
+         multiple-equal(col1, col2, col3),
+         multiple-equal(col10, col11).
+
+      Then, 
+      - when item=col1, we find the set of indexes that cover one of {col1,
+        col2, col3}
+      - when item=col10, we find the set of indexes that cover one of {col10,
+        col11}
+
+      And we compute an intersection of these sets to find set of indexes that
+      cover all ORDER BY components.
+    */
+    key_map col_keys;
+    compute_part_of_sort_key_for_equals(tab->join, table, (Item_field*)item,
+                                        &col_keys);
+    usable_keys.intersect(col_keys);
     if (usable_keys.is_clear_all())
       goto use_filesort;                        // No usable keys
   }
@@ -20948,7 +21090,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     }
     /* Check if we get the rows in requested sorted order by using the key */
     if (usable_keys.is_set(ref_key) &&
-        (order_direction= test_if_order_by_key(order,table,ref_key,
+        (order_direction= test_if_order_by_key(tab->join, order,table,ref_key,
 					       &used_key_parts)))
       goto check_reverse_order;
   }
@@ -21294,7 +21436,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
 
   if (table->s->tmp_table)
     table->file->info(HA_STATUS_VARIABLE);	// Get record count
-  file_sort= filesort(thd, table, fsort, fsort->tracker);
+  file_sort= filesort(thd, table, fsort, fsort->tracker, join, tab->table->map);
   DBUG_ASSERT(tab->filesort_result == 0);
   tab->filesort_result= file_sort;
   tab->records= 0;
@@ -24556,7 +24698,8 @@ static void print_table_array(THD *thd,
       continue;
     }
 
-    if (curr->outer_join)
+    /* JOIN_TYPE_OUTER is just a marker unrelated to real join */
+    if (curr->outer_join & (JOIN_TYPE_LEFT|JOIN_TYPE_RIGHT))
     {
       /* MySQL converts right to left joins */
       str->append(STRING_WITH_LEN(" left join "));
@@ -24612,33 +24755,53 @@ static void print_join(THD *thd,
   /* List is reversed => we should reverse it before using */
   List_iterator_fast<TABLE_LIST> ti(*tables);
   TABLE_LIST **table;
-  uint non_const_tables= 0;
   DBUG_ENTER("print_join");
+
+  /*
+    If the QT_NO_DATA_EXPANSION flag is specified, we print the
+    original table list, including constant tables that have been
+    optimized away, as the constant tables may be referenced in the
+    expression printed by Item_field::print() when this flag is given.
+    Otherwise, only non-const tables are printed.
+
+    Example:
+
+    Original SQL:
+    select * from (select 1) t
+
+    Printed without QT_NO_DATA_EXPANSION:
+    select '1' AS `1` from dual
+
+    Printed with QT_NO_DATA_EXPANSION:
+    select `t`.`1` from (select 1 AS `1`) `t`
+  */
+  const bool print_const_tables= (query_type & QT_NO_DATA_EXPANSION);
+  size_t tables_to_print= 0;
 
   for (TABLE_LIST *t= ti++; t ; t= ti++)
   {
-    /* 
-      See comment in print_table_array() about the second part of the
-      condition 
-    */
-    if (!t->optimized_away && !is_eliminated_table(eliminated_tables, t))
-      non_const_tables++;
+    /* See comment in print_table_array() about the second condition */
+    if (print_const_tables || !t->optimized_away)
+      if (!is_eliminated_table(eliminated_tables, t))
+        tables_to_print++;
   }
-  if (!non_const_tables)
+  if (tables_to_print == 0)
   {
     str->append(STRING_WITH_LEN("dual"));
     DBUG_VOID_RETURN;                   // all tables were optimized away
   }
   ti.rewind();
 
-  if (!(table= (TABLE_LIST **)thd->alloc(sizeof(TABLE_LIST*) *
-                                                non_const_tables)))
+  if (!(table= static_cast<TABLE_LIST **>(thd->alloc(sizeof(TABLE_LIST*) *
+                                                     tables_to_print))))
     DBUG_VOID_RETURN;                   // out of memory
 
-  TABLE_LIST *tmp, **t= table + (non_const_tables - 1);
+  TABLE_LIST *tmp, **t= table + (tables_to_print - 1);
   while ((tmp= ti++))
   {
-    if (tmp->optimized_away || is_eliminated_table(eliminated_tables, tmp))
+    if (tmp->optimized_away && !print_const_tables)
+      continue;
+    if (is_eliminated_table(eliminated_tables, tmp))
       continue;
     *t--= tmp;
   }
@@ -24658,7 +24821,7 @@ static void print_join(THD *thd,
   */
   if ((*table)->sj_inner_tables)
   {
-    TABLE_LIST **end= table + non_const_tables;
+    TABLE_LIST **end= table + tables_to_print;
     for (TABLE_LIST **t2= table; t2!=end; t2++)
     {
       if (!(*t2)->sj_inner_tables)
@@ -24671,7 +24834,7 @@ static void print_join(THD *thd,
     }
   }
   print_table_array(thd, eliminated_tables, str, table, 
-                    table +  non_const_tables, query_type);
+                    table +  tables_to_print, query_type);
   DBUG_VOID_RETURN;
 }
 
@@ -25094,7 +25257,7 @@ void JOIN::save_query_plan(Join_plan_state *save_to)
   }
   memcpy((uchar*) save_to->best_positions, (uchar*) best_positions,
          sizeof(POSITION) * (table_count + 1));
-  memset(best_positions, 0, sizeof(POSITION) * (table_count + 1));
+  memset((uchar*) best_positions, 0, sizeof(POSITION) * (table_count + 1));
   
   /* Save SJM nests */
   List_iterator<TABLE_LIST> it(select_lex->sj_nests);
@@ -25522,7 +25685,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     uint used_key_parts= 0;
 
     if (keys.is_set(nr) &&
-        (direction= test_if_order_by_key(order, table, nr, &used_key_parts)))
+        (direction= test_if_order_by_key(join, order, table, nr,
+                                         &used_key_parts)))
     {
       /*
         At this point we are sure that ref_key is a non-ordering
@@ -25765,7 +25929,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     }
 
     uint used_key_parts;
-    switch (test_if_order_by_key(order, table, select->quick->index,
+    switch (test_if_order_by_key(NULL, order, table, select->quick->index,
                                  &used_key_parts)) {
     case 1: // desired order
       *need_sort= FALSE; 

@@ -1,5 +1,6 @@
 SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
 FLUSH TABLES WITH READ LOCK;
+--sorted_result
 SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
 UNLOCK TABLES;
 SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;

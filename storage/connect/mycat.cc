@@ -80,6 +80,10 @@
 #define NODBC
 #include "tabodbc.h"
 #endif   // ODBC_SUPPORT
+#if defined(JDBC_SUPPORT)
+#define NJDBC
+#include "tabjdbc.h"
+#endif   // ODBC_SUPPORT
 #if defined(PIVOT_SUPPORT)
 #include "tabpivot.h"
 #endif   // PIVOT_SUPPORT
@@ -105,19 +109,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 /***********************************************************************/
 char *GetPluginDir(void)
 {
-  char *plugin_dir;
-
-#if defined(_WIN64)
-  plugin_dir = (char *)GetProcAddress(GetModuleHandle(NULL),
-    "?opt_plugin_dir@@3PADEA");
-#elif defined(_WIN32)
-  plugin_dir = (char*)GetProcAddress(GetModuleHandle(NULL),
-    "?opt_plugin_dir@@3PADA");
-#else
-  plugin_dir = opt_plugin_dir;
-#endif
-
-  return plugin_dir;
+  return opt_plugin_dir;
 } // end of GetPluginDir
 
 /***********************************************************************/
@@ -140,7 +132,10 @@ TABTYPE GetTypeID(const char *type)
 #ifdef ODBC_SUPPORT
                  : (!stricmp(type, "ODBC"))  ? TAB_ODBC
 #endif
-                 : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
+#ifdef JDBC_SUPPORT
+								 : (!stricmp(type, "JDBC"))  ? TAB_JDBC
+#endif
+								 : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
                  : (!stricmp(type, "MYPRX")) ? TAB_MYSQL
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
 #ifdef __WIN__
@@ -301,12 +296,12 @@ int GetIndexType(TABTYPE type)
       break;
     case TAB_MYSQL:
     case TAB_ODBC:
-      xtyp= 2;
+		case TAB_JDBC:
+			xtyp= 2;
       break;
     case TAB_VIR:
       xtyp= 3;
       break;
-//  case TAB_ODBC:
     default:
       xtyp= 0;
       break;
@@ -558,6 +553,9 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
 #if defined(ODBC_SUPPORT)
     case TAB_ODBC: tdp= new(g) ODBCDEF; break;
 #endif   // ODBC_SUPPORT
+#if defined(JDBC_SUPPORT)
+		case TAB_JDBC: tdp= new(g)JDBCDEF; break;
+#endif   // JDBC_SUPPORT
 #if defined(__WIN__)
     case TAB_MAC: tdp= new(g) MACDEF;   break;
     case TAB_WMI: tdp= new(g) WMIDEF;   break;

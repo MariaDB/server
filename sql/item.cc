@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -69,6 +69,22 @@ void item_init(void)
 {
   item_func_sleep_init();
   uuid_short_init();
+}
+
+
+void Item::push_note_converted_to_negative_complement(THD *thd)
+{
+  push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+               "Cast to signed converted positive out-of-range integer to "
+               "it's negative complement");
+}
+
+
+void Item::push_note_converted_to_positive_complement(THD *thd)
+{
+  push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+               "Cast to unsigned converted negative integer to it's "
+               "positive complement");
 }
 
 
@@ -186,9 +202,6 @@ bool Item::get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
 */
 String *Item::val_str_ascii(String *str)
 {
-  if (!(collation.collation->state & MY_CS_NONASCII))
-    return val_str(str);
-  
   DBUG_ASSERT(str != &str_value);
   
   uint errors;
@@ -196,11 +209,15 @@ String *Item::val_str_ascii(String *str)
   if (!res)
     return 0;
   
-  if ((null_value= str->copy(res->ptr(), res->length(),
-                             collation.collation, &my_charset_latin1,
-                             &errors)))
-    return 0;
-  
+  if (!(res->charset()->state & MY_CS_NONASCII))
+    str= res;
+  else
+  {
+    if ((null_value= str->copy(res->ptr(), res->length(), collation.collation,
+                               &my_charset_latin1, &errors)))
+      return 0;
+  }
+
   return str;
 }
 
@@ -357,14 +374,6 @@ longlong Item::val_int_from_date()
 }
 
 
-longlong Item::val_int_from_real()
-{
-  DBUG_ASSERT(fixed == 1);
-  bool error;
-  return double_to_longlong(val_real(), false /*unsigned_flag*/, &error);
-}
-
-
 double Item::val_real_from_date()
 {
   DBUG_ASSERT(fixed == 1);
@@ -411,7 +420,7 @@ int Item::save_time_in_field(Field *field)
 int Item::save_date_in_field(Field *field)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, sql_mode_for_dates(current_thd)))
+  if (get_date(&ltime, sql_mode_for_dates(field->table->in_use)))
     return set_field_to_null_with_conversions(field, 0);
   field->set_notnull();
   return field->store_time_dec(&ltime, decimals);
@@ -605,7 +614,7 @@ void Item::cleanup()
   @param arg   a dummy parameter, is not used here
 */
 
-bool Item::cleanup_processor(uchar *arg)
+bool Item::cleanup_processor(void *arg)
 {
   if (fixed)
     cleanup();
@@ -766,7 +775,7 @@ void Item_ident::cleanup()
   DBUG_VOID_RETURN;
 }
 
-bool Item_ident::remove_dependence_processor(uchar * arg)
+bool Item_ident::remove_dependence_processor(void * arg)
 {
   DBUG_ENTER("Item_ident::remove_dependence_processor");
   if (get_depended_from() == (st_select_lex *) arg)
@@ -776,7 +785,7 @@ bool Item_ident::remove_dependence_processor(uchar * arg)
 }
 
 
-bool Item_ident::collect_outer_ref_processor(uchar *param)
+bool Item_ident::collect_outer_ref_processor(void *param)
 {
   Collect_deps_prm *prm= (Collect_deps_prm *)param;
   if (depended_from &&
@@ -810,7 +819,7 @@ bool Item_ident::collect_outer_ref_processor(uchar *param)
     for the subsequent items.
 */
 
-bool Item_field::collect_item_field_processor(uchar *arg)
+bool Item_field::collect_item_field_processor(void *arg)
 {
   DBUG_ENTER("Item_field::collect_item_field_processor");
   DBUG_PRINT("info", ("%s", field->field_name ? field->field_name : "noname"));
@@ -827,7 +836,7 @@ bool Item_field::collect_item_field_processor(uchar *arg)
 }
 
 
-bool Item_field::add_field_to_set_processor(uchar *arg)
+bool Item_field::add_field_to_set_processor(void *arg)
 {
   DBUG_ENTER("Item_field::add_field_to_set_processor");
   DBUG_PRINT("info", ("%s", field->field_name ? field->field_name : "noname"));
@@ -853,7 +862,7 @@ bool Item_field::add_field_to_set_processor(uchar *arg)
     FALSE otherwise
 */
 
-bool Item_field::find_item_in_field_list_processor(uchar *arg)
+bool Item_field::find_item_in_field_list_processor(void *arg)
 {
   KEY_PART_INFO *first_non_group_part= *((KEY_PART_INFO **) arg);
   KEY_PART_INFO *last_part= *(((KEY_PART_INFO **) arg) + 1);
@@ -873,17 +882,22 @@ bool Item_field::find_item_in_field_list_processor(uchar *arg)
 
   NOTES
     This is used by filesort to register used fields in a a temporary
-    column read set or to register used fields in a view
+    column read set or to register used fields in a view or check constraint
 */
 
-bool Item_field::register_field_in_read_map(uchar *arg)
+bool Item_field::register_field_in_read_map(void *arg)
 {
   TABLE *table= (TABLE *) arg;
   if (field->table == table || !table)
     bitmap_set_bit(field->table->read_set, field->field_index);
-  if (field->vcol_info && field->vcol_info->expr_item)
-    return field->vcol_info->expr_item->walk(&Item::register_field_in_read_map, 
+  if (field->vcol_info &&
+      !bitmap_is_set(field->table->vcol_set, field->field_index))
+  {
+    /* Ensure that the virtual fields is updated on read or write */
+    bitmap_set_bit(field->table->vcol_set, field->field_index);
+    return field->vcol_info->expr_item->walk(&Item::register_field_in_read_map,
                                              1, arg);
+  }
   return 0;
 }
 
@@ -892,7 +906,7 @@ bool Item_field::register_field_in_read_map(uchar *arg)
   Mark field in bitmap supplied as *arg
 */
 
-bool Item_field::register_field_in_bitmap(uchar *arg)
+bool Item_field::register_field_in_bitmap(void *arg)
 {
   MY_BITMAP *bitmap= (MY_BITMAP *) arg;
   DBUG_ASSERT(bitmap);
@@ -908,11 +922,55 @@ bool Item_field::register_field_in_bitmap(uchar *arg)
     This is used by UPDATE to register underlying fields of used view fields.
 */
 
-bool Item_field::register_field_in_write_map(uchar *arg)
+bool Item_field::register_field_in_write_map(void *arg)
 {
   TABLE *table= (TABLE *) arg;
   if (field->table == table || !table)
     bitmap_set_bit(field->table->write_set, field->field_index);
+  return 0;
+}
+
+/**
+  Check that we are not refering to any not yet initialized fields
+
+  Fields are initialized in this order:
+  - All fields that have default value as a constant are initialized first.
+  - Then user-specified values from the INSERT list
+  - Then all fields that has a default expression, in field_index order.
+  - Last all virtual fields, in field_index order.
+
+  This means:
+  - For default fields we can't access the same field or a field after
+    itself that doesn't have a non-constant default value.
+  - A virtual fields can't access itself or a virtual field after itself.
+  - user-specified values will not see virtual fields or default expressions,
+    as in INSERT t1 (a) VALUES (b);
+
+  This is used by fix_vcol_expr() when a table is opened
+
+  We don't have to check fields that are marked as NO_DEFAULT_VALUE
+  as the upper level will ensure that all these will be given a value.
+*/
+
+bool Item_field::check_field_expression_processor(void *arg)
+{
+  if (field->flags & NO_DEFAULT_VALUE_FLAG)
+    return 0;
+  if ((field->default_value && field->default_value->flags) || field->vcol_info)
+  {
+    Field *org_field= (Field*) arg;
+    if (field == org_field ||
+        (!org_field->vcol_info && field->vcol_info) ||
+        (((field->vcol_info && org_field->vcol_info) ||
+          (!field->vcol_info && !org_field->vcol_info)) &&
+         field->field_index >= org_field->field_index))
+    {
+      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
+               MYF(0),
+               org_field->field_name, field->field_name);
+      return 1;
+    }
+  }
   return 0;
 }
 
@@ -1065,6 +1123,7 @@ Item *Item::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   TODO: we should eventually check all other use cases of change_item_tree().
   Perhaps some more potentially dangerous substitution examples exist.
 */
+
 Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   if (!example)
@@ -1092,6 +1151,7 @@ Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   the latter returns a non-fixed Item, so val_str() crashes afterwards.
   Override Item_num method, to return a fixed item.
 */
+
 Item *Item_num::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   /*
@@ -1178,8 +1238,8 @@ Item *Item_param::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
     to it's possible that the converter will not be needed at all:
 
     PREPARE stmt FROM 'SELECT * FROM t1 WHERE field = ?';
-    SET @@arg= 1;
-    EXECUTE stms USING @arg;
+    SET @arg= 1;
+    EXECUTE stmt USING @arg;
 
     In the above example result_type is STRING_RESULT at prepare time,
     and INT_RESULT at execution time.
@@ -1329,6 +1389,43 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
   return res;
 }
 
+#ifndef DBUG_OFF
+static inline
+void mark_unsupported_func(const char *where, const char *processor_name)
+{
+  char buff[64];
+  sprintf(buff, "%s::%s", where ? where: "", processor_name);
+  DBUG_ENTER(buff);
+  sprintf(buff, "%s returns TRUE: unsupported function", processor_name);
+  DBUG_PRINT("info", ("%s", buff));
+  DBUG_VOID_RETURN;
+}
+#else
+#define mark_unsupported_func(X,Y) {}
+#endif
+
+bool mark_unsupported_function(const char *where, void *store, uint result)
+{
+  Item::vcol_func_processor_result *res=
+    (Item::vcol_func_processor_result*) store;
+  uint old_errors= res->errors;
+  mark_unsupported_func(where, "check_vcol_func_processor");
+  res->errors|= result;  /* Store type of expression */
+  /* Store the name to the highest violation (normally VCOL_IMPOSSIBLE) */
+  if (result > old_errors)
+    res->name= where ? where : "";
+  return false;
+}
+
+/* convenience helper for mark_unsupported_function() above */
+bool mark_unsupported_function(const char *w1, const char *w2,
+                               void *store, uint result)
+{
+  char *ptr= (char*)current_thd->alloc(strlen(w1) + strlen(w2) + 1);
+  if (ptr)
+    strxmov(ptr, w1, w2, NullS);
+  return mark_unsupported_function(ptr, store, result);
+}
 
 /*****************************************************************************
   Item_sp_variable methods
@@ -2360,14 +2457,14 @@ void Item_field::reset_field(Field *f)
 }
 
 
-bool Item_field::enumerate_field_refs_processor(uchar *arg)
+bool Item_field::enumerate_field_refs_processor(void *arg)
 {
   Field_enumerator *fe= (Field_enumerator*)arg;
   fe->visit_field(this);
   return FALSE;
 }
 
-bool Item_field::update_table_bitmaps_processor(uchar *arg)
+bool Item_field::update_table_bitmaps_processor(void *arg)
 {
   update_table_bitmaps();
   return FALSE;
@@ -2383,7 +2480,7 @@ static inline void set_field_to_new_field(Field **field, Field **new_field)
   }
 }
 
-bool Item_field::switch_to_nullable_fields_processor(uchar *arg)
+bool Item_field::switch_to_nullable_fields_processor(void *arg)
 {
   Field **new_fields= (Field **)arg;
   set_field_to_new_field(&field, new_fields);
@@ -3678,7 +3775,7 @@ Item_param::eq(const Item *item, bool binary_cmp) const
 
 void Item_param::print(String *str, enum_query_type query_type)
 {
-  if (state == NO_VALUE)
+  if (state == NO_VALUE || query_type & QT_NO_DATA_EXPANSION)
   {
     str->append('?');
   }
@@ -5122,6 +5219,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   fixed= 1;
+  if (field->vcol_info)
+    fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
       thd->lex->current_select->cur_pos_in_select_list != UNDEF_POS &&
@@ -5181,7 +5280,7 @@ error:
   Mark virtual columns as used in a partitioning expression 
 */
 
-bool Item_field::vcol_in_partition_func_processor(uchar *int_arg)
+bool Item_field::vcol_in_partition_func_processor(void *int_arg)
 {
   DBUG_ASSERT(fixed);
   if (field->vcol_info)
@@ -5982,9 +6081,64 @@ Item *Item_int_with_ref::clone_item(THD *thd)
 }
 
 
-Item_num *Item_uint::neg(THD *thd)
+Item *Item::neg(THD *thd)
 {
-  Item_decimal *item= new (thd->mem_root) Item_decimal(thd, value, 1);
+  return new (thd->mem_root) Item_func_neg(thd, this);
+}
+
+Item *Item_int::neg(THD *thd)
+{
+  /*
+    The following if should never be true with code generated by
+    our parser as LONGLONG_MIN values will be stored as decimal.
+    The code is here in case someone generates an int from inside
+    MariaDB
+  */
+  if (unlikely(value == LONGLONG_MIN))
+  {
+    /* Precision for int not big enough; Convert constant to decimal */
+    Item_decimal *item= new (thd->mem_root) Item_decimal(thd, value, 0);
+    return item ? item->neg(thd) : item;
+  }
+  if (value > 0)
+    max_length++;
+  else if (value < 0 && max_length)
+    max_length--;
+  value= -value;
+  name= 0;
+  return this;
+}
+
+Item *Item_decimal::neg(THD *thd)
+{
+  my_decimal_neg(&decimal_value);
+  unsigned_flag= 0;
+  name= 0;
+  max_length= my_decimal_precision_to_length_no_truncation(
+                      decimal_value.intg + decimals, decimals, unsigned_flag);
+  return this;
+}
+
+Item *Item_float::neg(THD *thd)
+{
+  if (value > 0)
+    max_length++;
+  else if (value < 0 && max_length)
+    max_length--;
+  value= -value;
+  name= presentation= 0 ;
+  return this;
+}
+
+Item *Item_uint::neg(THD *thd)
+{
+  Item_decimal *item;
+  if (((ulonglong)value) <= LONGLONG_MAX)
+    return new (thd->mem_root) Item_int(thd, -value, max_length+1);
+  if (value == LONGLONG_MIN)
+    return new (thd->mem_root) Item_int(thd, value, max_length+1);
+  if (!(item= new (thd->mem_root) Item_decimal(thd, value, 1)))
+    return 0;
   return item->neg(thd);
 }
 
@@ -6469,7 +6623,7 @@ Item* Item::cache_const_expr_transformer(THD *thd, uchar *arg)
 /**
   Find Item by reference in the expression
 */
-bool Item::find_item_processor(uchar *arg)
+bool Item::find_item_processor(void *arg)
 {
   return (this == ((Item *) arg));
 }
@@ -6556,7 +6710,8 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
 
 void Item_field::print(String *str, enum_query_type query_type)
 {
-  if (field && field->table->const_table)
+  if (field && field->table->const_table &&
+      !(query_type & QT_NO_DATA_EXPANSION))
   {
     print_value(str);
     return;
@@ -6904,8 +7059,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
     Dependency_marker dep_marker;
     dep_marker.current_select= current_sel;
     dep_marker.thd= thd;
-    (*ref)->walk(&Item::enumerate_field_refs_processor, FALSE,
-                 (uchar*)&dep_marker);
+    (*ref)->walk(&Item::enumerate_field_refs_processor, FALSE, &dep_marker);
   }
 
   DBUG_ASSERT(*ref);
@@ -7887,7 +8041,7 @@ void Item_ref::fix_after_pullout(st_select_lex *new_parent, Item **refptr)
     FALSE always
 */
 
-bool Item_outer_ref::check_inner_refs_processor(uchar *arg)
+bool Item_outer_ref::check_inner_refs_processor(void *arg)
 {
   List_iterator_fast<Item_outer_ref> *it=
     ((List_iterator_fast<Item_outer_ref> *) arg);
@@ -8064,7 +8218,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
 
   field_arg= (Item_field *)real_arg;
-  if (field_arg->field->flags & NO_DEFAULT_VALUE_FLAG)
+  if ((field_arg->field->flags & NO_DEFAULT_VALUE_FLAG))
   {
     my_error(ER_NO_DEFAULT_FOR_FIELD, MYF(0), field_arg->field->field_name);
     goto error;
@@ -8077,6 +8231,13 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
                                (def_field->table->s->default_values -
                                 def_field->table->record[0]));
   set_field(def_field);
+  if (field->default_value)
+  {
+    fix_session_vcol_expr_for_read(thd, field, field->default_value);
+    if (thd->mark_used_columns != MARK_COLUMNS_NONE)
+      field->default_value->expr_item->walk(&Item::register_field_in_read_map, 1, 0);
+    IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
+  }
   return FALSE;
 
 error:
@@ -8097,10 +8258,53 @@ void Item_default_value::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
+void Item_default_value::calculate()
+{
+  if (field->default_value)
+    field->set_default();
+}
+
+String *Item_default_value::val_str(String *str)
+{
+  calculate();
+  return Item_field::val_str(str);
+}
+
+double Item_default_value::val_real()
+{
+  calculate();
+  return Item_field::val_real();
+}
+
+longlong Item_default_value::val_int()
+{
+  calculate();
+  return Item_field::val_int();
+}
+
+my_decimal *Item_default_value::val_decimal(my_decimal *decimal_value)
+{
+  calculate();
+  return Item_field::val_decimal(decimal_value);
+}
+
+bool Item_default_value::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+{
+  calculate();
+  return Item_field::get_date(ltime, fuzzydate);
+}
+
+bool Item_default_value::send(Protocol *protocol, String *buffer)
+{
+  calculate();
+  return Item_field::send(protocol, buffer);
+}
 
 int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 {
-  if (!arg)
+  if (arg)
+    calculate();
+  else
   {
     TABLE *table= field_arg->table;
     THD *thd= table->in_use;
@@ -8385,6 +8589,13 @@ void Item_trigger_field::print(String *str, enum_query_type query_type)
   str->append((row_version == NEW_ROW) ? "NEW" : "OLD", 3);
   str->append('.');
   str->append(field_name);
+}
+
+
+bool Item_trigger_field::check_vcol_func_processor(void *arg)
+{
+  const char *ver= row_version == NEW_ROW ? "NEW." : "OLD.";
+  return mark_unsupported_function(ver, field_name, arg, VCOL_IMPOSSIBLE);
 }
 
 

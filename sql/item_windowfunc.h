@@ -117,7 +117,7 @@ public:
   }
   const char*func_name() const
   {
-    return "row_number";
+    return "row_number(";
   }
   
 };
@@ -433,7 +433,7 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
   double val_real()
   {
-    return val_int();
+    return (double) val_int();
   }
 
   longlong val_int()
@@ -534,7 +534,7 @@ public:
     have been computed. In that case, window function will need to read its
     temp.table field. In order to allow that, mark that field in the read_set.
   */
-  bool register_field_in_read_map(uchar *arg)
+  bool register_field_in_read_map(void *arg)
   {
     TABLE *table= (TABLE*) arg;
     if (result_field && (result_field->table == table || !table))

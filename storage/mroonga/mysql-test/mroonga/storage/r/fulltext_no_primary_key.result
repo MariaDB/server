@@ -9,7 +9,7 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `title` varchar(255) DEFAULT NULL,
-  `content` text,
+  `content` text DEFAULT NULL,
   FULLTEXT KEY `content` (`content`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries VALUES("Hello", "今日からはじめました。");

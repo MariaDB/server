@@ -1385,7 +1385,7 @@ sub command_line_setup {
 
   if ( @opt_cases )
   {
-    # Run big tests if explicitely specified on command line
+    # Run big tests if explicitly specified on command line
     $opt_big_test= 1;
   }
 
@@ -1783,9 +1783,12 @@ sub set_build_thread_ports($) {
   if ( lc($opt_build_thread) eq 'auto' ) {
     my $found_free = 0;
     $build_thread = 300;	# Start attempts from here
+    my $build_thread_upper = $build_thread + ($opt_parallel > 1500
+                                              ? 3000
+                                              : 2 * $opt_parallel) + 300;
     while (! $found_free)
     {
-      $build_thread= mtr_get_unique_id($build_thread, 349);
+      $build_thread= mtr_get_unique_id($build_thread, $build_thread_upper);
       if ( !defined $build_thread ) {
         mtr_error("Could not get a unique build thread id");
       }
@@ -1854,11 +1857,17 @@ sub collect_mysqld_features {
   $list =~ s/\n {22}(\S)/ $1/g;
 
   my @list= split '\n', $list;
+
+  $mysql_version_id= 0;
+  while (defined(my $line = shift @list)){
+     if ($line =~ /^\Q$exe_mysqld\E\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/ ) {
+      $mysql_version_id= $1*10000 + $2*100 + $3;
+      mtr_report("MariaDB Version $1.$2.$3$4");
+      last;
+    }
+  }
   mtr_error("Could not find version of MariaDB")
-     unless shift(@list) =~ /^\Q$exe_mysqld\E\s+Ver\s(\d+)\.(\d+)\.(\d+)(\S*)/;
-  $mysql_version_id= $1*10000 + $2*100 + $3;
-  $mysql_version_extra= $4;
-  mtr_report("MariaDB Version $1.$2.$3$4");
+     unless $mysql_version_id > 0;
 
   for (@list)
   {
@@ -3222,7 +3231,7 @@ sub mysql_install_db {
 
   # Create mtr database
   mtr_tofile($bootstrap_sql_file,
-	     "CREATE DATABASE mtr;\n");
+	     "CREATE DATABASE mtr CHARSET=latin1;\n");
 
   # Add help tables and data for warning detection and supression
   mtr_tofile($bootstrap_sql_file,
@@ -5841,7 +5850,7 @@ sub valgrind_arguments {
     }
   }
 
-  # Add valgrind options, can be overriden by user
+  # Add valgrind options, can be overridden by user
   mtr_add_arg($args, '%s', $_) for (@valgrind_args);
 
   mtr_add_arg($args, $$exe);
@@ -5868,7 +5877,7 @@ sub strace_arguments {
   mtr_add_arg($args, "-f");
   mtr_add_arg($args, "-o%s/var/log/%s.strace", $glob_mysql_test_dir, $mysqld_name);
 
-  # Add strace options, can be overriden by user
+  # Add strace options, can be overridden by user
   mtr_add_arg($args, '%s', $_) for (@strace_args);
 
   mtr_add_arg($args, $$exe);

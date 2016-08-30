@@ -32,27 +32,6 @@ C_MODE_START
 #include <ma_dyncol.h>
 C_MODE_END
 
-#ifndef DBUG_OFF
-static inline
-bool trace_unsupported_func(const char *where, const char *processor_name)
-{
-  char buff[64];                                                         
-  sprintf(buff, "%s::%s", where, processor_name);
-  DBUG_ENTER(buff);
-  sprintf(buff, "%s returns TRUE: unsupported function", processor_name);
-  DBUG_PRINT("info", ("%s", buff));
-  DBUG_RETURN(TRUE);
-}
-#else
-#define trace_unsupported_func(X,Y) TRUE
-#endif
-
-static inline
-bool trace_unsupported_by_check_vcol_func_processor(const char *where)
-{
-  return trace_unsupported_func(where, "check_vcol_func_processor");
-}
-
 class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
@@ -74,6 +53,11 @@ char_to_byte_length_safe(uint32 char_length_arg, uint32 mbmaxlen_arg)
    return (tmp > UINT_MAX32) ? (uint32) UINT_MAX32 : (uint32) tmp;
 }
 
+bool mark_unsupported_function(const char *where, void *store, uint result);
+
+/* convenience helper for mark_unsupported_function() above */
+bool mark_unsupported_function(const char *w1, const char *w2,
+                               void *store, uint result);
 
 /* Bits for the split_sum_func() function */
 #define SPLIT_SUM_SKIP_REGISTERED 1     /* Skip registered funcs */
@@ -516,7 +500,7 @@ struct st_dyncall_create_def
 typedef struct st_dyncall_create_def DYNCALL_CREATE_DEF;
 
 
-typedef bool (Item::*Item_processor) (uchar *arg);
+typedef bool (Item::*Item_processor) (void *arg);
 /*
   Analyzer function
     SYNOPSIS
@@ -665,6 +649,8 @@ protected:
                                          bool set_blob_packlength);
   Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
 
+  void push_note_converted_to_negative_complement(THD *thd);
+  void push_note_converted_to_positive_complement(THD *thd);
 public:
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
@@ -875,6 +861,20 @@ public:
       If value is not null null_value flag will be reset to FALSE.
   */
   virtual longlong val_int()=0;
+  /**
+    Get a value for CAST(x AS SIGNED).
+    Too large positive unsigned integer values are converted
+    to negative complements.
+    Values of non-integer data types are adjusted to the SIGNED range.
+  */
+  virtual longlong val_int_signed_typecast();
+  /**
+    Get a value for CAST(x AS UNSIGNED).
+    Negative signed integer values are converted
+    to positive complements.
+    Values of non-integer data types are adjusted to the UNSIGNED range.
+  */
+  virtual longlong val_int_unsigned_typecast();
   /*
     This is just a shortcut to avoid the cast. You should still use
     unsigned_flag to check the sign of the item.
@@ -1041,7 +1041,12 @@ public:
   my_decimal *val_decimal_from_time(my_decimal *decimal_value);
   longlong val_int_from_decimal();
   longlong val_int_from_date();
-  longlong val_int_from_real();
+  longlong val_int_from_real()
+  {
+    DBUG_ASSERT(fixed == 1);
+    return Converter_double_to_longlong_with_warn(val_real(), false).result();
+  }
+  longlong val_int_from_str(int *error);
   double val_real_from_decimal();
   double val_real_from_date();
 
@@ -1055,7 +1060,7 @@ public:
   int save_str_value_in_field(Field *field, String *result);
 
   virtual Field *get_tmp_table_field() { return 0; }
-  virtual Field *create_field_for_create_select(THD *thd, TABLE *table);
+  virtual Field *create_field_for_create_select(TABLE *table);
   virtual Field *create_field_for_schema(THD *thd, TABLE *table);
   virtual const char *full_name() const { return name ? name : "???"; }
   const char *field_name_or_null()
@@ -1107,7 +1112,7 @@ public:
   virtual Item *clone_item(THD *thd) { return 0; }
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
-  { return decimals != NOT_FIXED_DEC ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
+  { return decimals < FLOATING_POINT_DECIMALS ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
   /* Returns total number of decimal digits */
   virtual uint decimal_precision() const;
   /* Returns the number of integer part digits only */
@@ -1372,6 +1377,8 @@ public:
   virtual void set_result_field(Field *field) {}
   virtual bool is_result_field() { return 0; }
   virtual bool is_bool_type() { return false; }
+  /* This is to handle printing of default values */
+  virtual bool need_parentheses_in_default() { return false; }
   virtual void save_in_result_field(bool no_conversions) {}
   /*
     set value of aggregate function in case of no rows for grouping were found
@@ -1395,12 +1402,7 @@ public:
                                          &my_charset_bin;
   };
 
-  virtual bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
-  {
-    return (this->*processor)(arg);
-  }
-
-  virtual bool walk_top_and(Item_processor processor, uchar *arg)
+  virtual bool walk(Item_processor processor, bool walk_subquery, void *arg)
   {
     return (this->*processor)(arg);
   }
@@ -1444,34 +1446,34 @@ public:
     this function and set the int_arg to maximum of the input data
     and their own version info.
   */
-  virtual bool intro_version(uchar *int_arg) { return 0; }
+  virtual bool intro_version(void *int_arg) { return 0; }
 
-  virtual bool remove_dependence_processor(uchar * arg) { return 0; }
-  virtual bool cleanup_processor(uchar *arg);
-  virtual bool collect_item_field_processor(uchar * arg) { return 0; }
-  virtual bool add_field_to_set_processor(uchar * arg) { return 0; }
-  virtual bool find_item_in_field_list_processor(uchar *arg) { return 0; }
-  virtual bool find_item_processor(uchar *arg);
-  virtual bool change_context_processor(uchar *context) { return 0; }
-  virtual bool reset_query_id_processor(uchar *query_id_arg) { return 0; }
-  virtual bool is_expensive_processor(uchar *arg) { return 0; }
-  virtual bool register_field_in_read_map(uchar *arg) { return 0; }
-  virtual bool register_field_in_write_map(uchar *arg) { return 0; }
-  virtual bool enumerate_field_refs_processor(uchar *arg) { return 0; }
-  virtual bool mark_as_eliminated_processor(uchar *arg) { return 0; }
-  virtual bool eliminate_subselect_processor(uchar *arg) { return 0; }
-  virtual bool set_fake_select_as_master_processor(uchar *arg) { return 0; }
-  virtual bool update_table_bitmaps_processor(uchar *arg) { return 0; }
-  virtual bool view_used_tables_processor(uchar *arg) { return 0; }
-  virtual bool eval_not_null_tables(uchar *opt_arg) { return 0; }
-  virtual bool is_subquery_processor (uchar *opt_arg) { return 0; }
-  virtual bool count_sargable_conds(uchar *arg) { return 0; }
-  virtual bool limit_index_condition_pushdown_processor(uchar *opt_arg)
+  virtual bool remove_dependence_processor(void * arg) { return 0; }
+  virtual bool cleanup_processor(void *arg);
+  virtual bool collect_item_field_processor(void * arg) { return 0; }
+  virtual bool add_field_to_set_processor(void * arg) { return 0; }
+  virtual bool find_item_in_field_list_processor(void *arg) { return 0; }
+  virtual bool find_item_processor(void *arg);
+  virtual bool change_context_processor(void *context) { return 0; }
+  virtual bool reset_query_id_processor(void *query_id_arg) { return 0; }
+  virtual bool is_expensive_processor(void *arg) { return 0; }
+  virtual bool register_field_in_read_map(void *arg) { return 0; }
+  virtual bool register_field_in_write_map(void *arg) { return 0; }
+  virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
+  virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
+  virtual bool eliminate_subselect_processor(void *arg) { return 0; }
+  virtual bool set_fake_select_as_master_processor(void *arg) { return 0; }
+  virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
+  virtual bool view_used_tables_processor(void *arg) { return 0; }
+  virtual bool eval_not_null_tables(void *opt_arg) { return 0; }
+  virtual bool is_subquery_processor (void *opt_arg) { return 0; }
+  virtual bool count_sargable_conds(void *arg) { return 0; }
+  virtual bool limit_index_condition_pushdown_processor(void *opt_arg)
   {
     return FALSE;
   }
-  virtual bool exists2in_processor(uchar *opt_arg) { return 0; }
-  virtual bool find_selective_predicates_list_processor(uchar *opt_arg)
+  virtual bool exists2in_processor(void *opt_arg) { return 0; }
+  virtual bool find_selective_predicates_list_processor(void *opt_arg)
   { return 0; }
 
   /* To call bool function for all arguments */
@@ -1480,21 +1482,12 @@ public:
     Item *original_func_item;
     void (Item::*bool_function)();
   };
-  bool call_bool_func_processor(uchar *org_item)
-  {
-    bool_func_call_args *info= (bool_func_call_args*) org_item;
-    /* Avoid recursion, as walk also calls for original item */
-    if (info->original_func_item != this)
-      (this->*(info->bool_function))();
-    return FALSE;
-  }
-
 
   /*
     The next function differs from the previous one that a bitmap to be updated
     is passed as uchar *arg.
   */
-  virtual bool register_field_in_bitmap(uchar *arg) { return 0; }
+  virtual bool register_field_in_bitmap(void *arg) { return 0; }
 
   bool cache_const_expr_analyzer(uchar **arg);
   Item* cache_const_expr_transformer(THD *thd, uchar *arg);
@@ -1550,7 +1543,7 @@ public:
     assumes that there are no multi-byte collations amongst the partition
     fields.
   */
-  virtual bool check_partition_func_processor(uchar *bool_arg) { return TRUE;}
+  virtual bool check_partition_func_processor(void *bool_arg) { return TRUE;}
   /*
     @brief
     Processor used to mark virtual columns used in partitioning expression
@@ -1561,7 +1554,7 @@ public:
     @retval
       FALSE      always
   */
-  virtual bool vcol_in_partition_func_processor(uchar *arg)
+  virtual bool vcol_in_partition_func_processor(void *arg)
   {
     return FALSE;
   }
@@ -1589,10 +1582,17 @@ public:
     @retval 
       TRUE     otherwise
   */
-  virtual bool check_vcol_func_processor(uchar *arg)
+  struct vcol_func_processor_result
   {
-    return trace_unsupported_by_check_vcol_func_processor(full_name());
+    uint errors;                                /* Bits of possible errors */
+    const char *name;                           /* Not supported function */
+  };
+  virtual bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
+
+  virtual bool check_field_expression_processor(void *arg) { return FALSE; }
 
   /* arg points to REPLACE_EQUAL_FIELD_ARG object */
   virtual Item *replace_equal_field(THD *thd, uchar *arg) { return this; }
@@ -1601,7 +1601,7 @@ public:
     for date functions. Also used by partitioning code to reject
     timezone-dependent expressions in a (sub)partitioning function.
   */
-  virtual bool check_valid_arguments_processor(uchar *bool_arg)
+  virtual bool check_valid_arguments_processor(void *bool_arg)
   {
     return FALSE;
   }
@@ -1617,7 +1617,7 @@ public:
   /**
     Collect outer references
   */
-  virtual bool collect_outer_ref_processor(uchar *arg) {return FALSE; }
+  virtual bool collect_outer_ref_processor(void *arg) {return FALSE; }
 
   /**
     Find a function of a given type
@@ -1631,14 +1631,14 @@ public:
       This function can be used (together with Item::walk()) to find functions
       in an item tree fragment.
   */
-  virtual bool find_function_processor (uchar *arg)
+  virtual bool find_function_processor (void *arg)
   {
     return FALSE;
   }
 
-  virtual bool check_inner_refs_processor(uchar *arg) { return FALSE; }
+  virtual bool check_inner_refs_processor(void *arg) { return FALSE; }
 
-  virtual bool switch_to_nullable_fields_processor(uchar *arg) { return FALSE; }
+  virtual bool switch_to_nullable_fields_processor(void *arg) { return FALSE; }
 
   /*
     For SP local variable returns pointer to Item representing its
@@ -1760,7 +1760,7 @@ public:
   virtual bool is_expensive()
   {
     if (is_expensive_cache < 0)
-      is_expensive_cache= walk(&Item::is_expensive_processor, 0, (uchar*)0);
+      is_expensive_cache= walk(&Item::is_expensive_processor, 0, NULL);
     return MY_TEST(is_expensive_cache);
   }
   virtual Field::geometry_type get_geometry_type() const
@@ -1811,7 +1811,7 @@ public:
   table_map view_used_tables(TABLE_LIST *view)
   {
     view->view_used_tables= 0;
-    walk(&Item::view_used_tables_processor, 0, (uchar *) view);
+    walk(&Item::view_used_tables_processor, 0, view);
     return view->view_used_tables;
   }
 
@@ -1828,6 +1828,8 @@ public:
 
   /* how much position should be reserved for Exists2In transformation */
   virtual uint exists2in_reserved_items() { return 0; };
+
+  virtual Item *neg(THD *thd);
 
   /**
     Inform the item that it is located under a NOT, which is a top-level item.
@@ -1856,7 +1858,7 @@ bool cmp_items(Item *a, Item *b);
     }
 
     My_enumerator enumerator;
-    item->walk(Item::enumerate_field_refs_processor, ...,(uchar*)&enumerator);
+    item->walk(Item::enumerate_field_refs_processor, ...,&enumerator);
 
   This is similar to Visitor pattern.
 */
@@ -1968,6 +1970,7 @@ public:
   Item_basic_constant(THD *thd): Item_basic_value(thd), used_table_map(0) {};
   void set_used_tables(table_map map) { used_table_map= map; }
   table_map used_tables() const { return used_table_map; }
+  bool check_vcol_func_processor(void *arg) { return FALSE;}
   /* to prevent drop fixed flag (no need parent cleanup call) */
   void cleanup()
   {
@@ -2029,6 +2032,10 @@ public:
   
   inline int save_in_field(Field *field, bool no_conversions);
   inline bool send(Protocol *protocol, String *str);
+  bool check_vcol_func_processor(void *arg) 
+  {
+    return mark_unsupported_function(m_name.str, arg, VCOL_IMPOSSIBLE);
+  }
 }; 
 
 /*****************************************************************************
@@ -2234,9 +2241,9 @@ public:
   {
     return value_item->send(protocol, str);
   }
-  bool check_vcol_func_processor(uchar *arg) 
+  bool check_vcol_func_processor(void *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("name_const");
+    return mark_unsupported_function("name_const()", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -2244,10 +2251,8 @@ class Item_num: public Item_basic_constant
 {
 public:
   Item_num(THD *thd): Item_basic_constant(thd) { collation.set_numeric(); }
-  virtual Item_num *neg(THD *thd)= 0;
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
-  bool check_partition_func_processor(uchar *int_arg) { return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+  bool check_partition_func_processor(void *int_arg) { return FALSE;}
 };
 
 #define NO_CACHED_FIELD_INDEX ((uint)(-1))
@@ -2279,7 +2284,7 @@ public:
     save_in_field(result_field, no_conversions);
   }
   void cleanup();
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+  bool check_vcol_func_processor(void *arg) { return FALSE;}
 };
 
 
@@ -2336,14 +2341,14 @@ public:
   const char *full_name() const;
   void cleanup();
   st_select_lex *get_depended_from() const;
-  bool remove_dependence_processor(uchar * arg);
+  bool remove_dependence_processor(void * arg);
   virtual void print(String *str, enum_query_type query_type);
-  virtual bool change_context_processor(uchar *cntx)
+  virtual bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
   /**
     Collect outer references
   */
-  virtual bool collect_outer_ref_processor(uchar *arg);
+  virtual bool collect_outer_ref_processor(void *arg);
   friend bool insert_fields(THD *thd, Name_resolution_context *context,
                             const char *db_name,
                             const char *table_name, List_iterator<Item> *it,
@@ -2498,17 +2503,22 @@ public:
   void set_result_field(Field *field_arg) {}
   void save_in_result_field(bool no_conversions) { }
   Item *get_tmp_table_item(THD *thd);
-  bool collect_item_field_processor(uchar * arg);
-  bool add_field_to_set_processor(uchar * arg);
-  bool find_item_in_field_list_processor(uchar *arg);
-  bool register_field_in_read_map(uchar *arg);
-  bool register_field_in_write_map(uchar *arg);
-  bool register_field_in_bitmap(uchar *arg);
-  bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool vcol_in_partition_func_processor(uchar *bool_arg);
-  bool enumerate_field_refs_processor(uchar *arg);
-  bool update_table_bitmaps_processor(uchar *arg);
-  bool switch_to_nullable_fields_processor(uchar *arg);
+  bool collect_item_field_processor(void * arg);
+  bool add_field_to_set_processor(void * arg);
+  bool find_item_in_field_list_processor(void *arg);
+  bool register_field_in_read_map(void *arg);
+  bool register_field_in_write_map(void *arg);
+  bool register_field_in_bitmap(void *arg);
+  bool check_partition_func_processor(void *int_arg) {return FALSE;}
+  bool vcol_in_partition_func_processor(void *bool_arg);
+  bool check_field_expression_processor(void *arg);
+  bool enumerate_field_refs_processor(void *arg);
+  bool update_table_bitmaps_processor(void *arg);
+  bool switch_to_nullable_fields_processor(void *arg);
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(field_name, arg, VCOL_FIELD_REF);
+  }
   void cleanup();
   Item_equal *get_item_equal() { return item_equal; }
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
@@ -2588,7 +2598,7 @@ public:
     max_length= 0;
     name= name_par ? name_par : (char*) "NULL";
     fixed= 1;
-    collation.set(cs, DERIVATION_IGNORABLE);
+    collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_ASCII);
   }
   enum Type type() const { return NULL_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const { return null_eq(item); }
@@ -2611,8 +2621,7 @@ public:
   }
 
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
-  bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+  bool check_partition_func_processor(void *int_arg) {return FALSE;}
 };
 
 class Item_null_result :public Item_null
@@ -2625,10 +2634,10 @@ public:
   {
     save_in_field(result_field, no_conversions);
   }
-  bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_partition_func_processor(void *int_arg) {return TRUE;}
+  bool check_vcol_func_processor(void *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(full_name());
+    return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -2773,7 +2782,7 @@ public:
   { return this; }
 
   bool append_for_log(THD *thd, String *str);
-
+  bool check_vcol_func_processor(void *int_arg) {return FALSE;}
 private:
   virtual bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 
@@ -2817,13 +2826,11 @@ public:
   bool basic_const_item() const { return 1; }
   Item *clone_item(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
-  Item_num *neg(THD *thd) { value= -value; return this; }
+  Item *neg(THD *thd);
   uint decimal_precision() const
   { return (uint) (max_length - MY_TEST(value < 0)); }
   bool eq(const Item *item, bool binary_cmp) const
   { return int_eq(value, item); }
-  bool check_partition_func_processor(uchar *bool_arg) { return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 };
 
 
@@ -2838,7 +2845,7 @@ public:
   String *val_str(String*);
   Item *clone_item(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
-  Item_num *neg(THD *thd);
+  Item *neg(THD *thd);
   uint decimal_precision() const { return max_length; }
 };
 
@@ -2882,17 +2889,10 @@ public:
   bool basic_const_item() const { return 1; }
   Item *clone_item(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
-  Item_num *neg(THD *thd)
-  {
-    my_decimal_neg(&decimal_value);
-    unsigned_flag= !decimal_value.sign();
-    return this;
-  }
+  Item *neg(THD *thd);
   uint decimal_precision() const { return decimal_value.precision(); }
   bool eq(const Item *, bool binary_cmp) const;
   void set_decimal_value(my_decimal *value_par);
-  bool check_partition_func_processor(uchar *bool_arg) { return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 };
 
 
@@ -2937,7 +2937,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   bool basic_const_item() const { return 1; }
   Item *clone_item(THD *thd);
-  Item_num *neg(THD *thd) { value= -value; return this; }
+  Item *neg(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
   bool eq(const Item *item, bool binary_cmp) const
   { return real_eq(value, item); }
@@ -3073,8 +3073,7 @@ public:
     max_length= str_value.numchars() * collation.collation->mbmaxlen;
   }
   virtual void print(String *str, enum_query_type query_type);
-  bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+  bool check_partition_func_processor(void *int_arg) {return FALSE;}
 
   /**
     Return TRUE if character-set-introducer was explicitly specified in the
@@ -3205,10 +3204,10 @@ public:
     str->append(func_name);
   }
 
-  bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
-  bool check_vcol_func_processor(uchar *arg) 
+  bool check_partition_func_processor(void *int_arg) {return TRUE;}
+  bool check_vcol_func_processor(void *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor(func_name);
+    return mark_unsupported_function(func_name, arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -3221,9 +3220,9 @@ public:
                                   CHARSET_INFO *cs= NULL):
     Item_string(thd, name_arg, length, cs)
   {}
-  bool check_vcol_func_processor(uchar *arg) 
+  bool check_vcol_func_processor(void *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("safe_string");
+    return mark_unsupported_function("safe_string", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -3310,8 +3309,7 @@ public:
   {
     return const_charset_converter(thd, tocs, true);
   }
-  bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+  bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool basic_const_item() const { return 1; }
   bool eq(const Item *item, bool binary_cmp) const
   {
@@ -3439,8 +3437,7 @@ public:
   enum Item_result result_type () const { return STRING_RESULT; }
   Item_result cmp_type() const { return TIME_RESULT; }
 
-  bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(uchar *arg) { return FALSE;}
+  bool check_partition_func_processor(void *int_arg) {return FALSE;}
 
   bool is_null()
   { return is_null_from_temporal(); }
@@ -3591,7 +3588,7 @@ protected:
   Item **args, *tmp_arg[2];
   uint arg_count;
   void set_arguments(THD *thd, List<Item> &list);
-  bool walk_args(Item_processor processor, bool walk_subquery, uchar *arg)
+  bool walk_args(Item_processor processor, bool walk_subquery, void *arg)
   {
     for (uint i= 0; i < arg_count; i++)
     {
@@ -3856,7 +3853,7 @@ public:
     Used_tables_and_const_cache(item) { }
   Item_func_or_sum(THD *thd, List<Item> &list):
     Item_result_field(thd), Item_args(thd, list) { }
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg)
   {
     if (walk_args(processor, walk_subquery, arg))
       return true;
@@ -3992,7 +3989,7 @@ public:
   {
     return ref ? (*ref)->real_item() : this;
   }
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
     if (ref && *ref)
       return (*ref)->walk(processor, walk_subquery, arg) ||
@@ -4003,7 +4000,7 @@ public:
   Item* transform(THD *thd, Item_transformer, uchar *arg);
   Item* compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
-  bool enumerate_field_refs_processor(uchar *arg)
+  bool enumerate_field_refs_processor(void *arg)
   { return (*ref)->enumerate_field_refs_processor(arg); }
   void no_rows_in_result()
   {
@@ -4046,9 +4043,9 @@ public:
     if (ref && result_type() == ROW_RESULT)
       (*ref)->bring_value();
   }
-  bool check_vcol_func_processor(uchar *arg) 
+  bool check_vcol_func_processor(void *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("ref");
+    return mark_unsupported_function("ref", arg, VCOL_IMPOSSIBLE);
   }
   bool basic_const_item() const { return ref && (*ref)->basic_const_item(); }
   bool is_outer_field() const
@@ -4231,12 +4228,12 @@ public:
   }
   bool const_item() const { return orig_item->const_item(); }
   table_map not_null_tables() const { return orig_item->not_null_tables(); }
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg)
   {
     return orig_item->walk(processor, walk_subquery, arg) ||
       (this->*processor)(arg);
   }
-  bool enumerate_field_refs_processor(uchar *arg)
+  bool enumerate_field_refs_processor(void *arg)
   { return orig_item->enumerate_field_refs_processor(arg); }
   Item_field *field_for_view_update()
   { return orig_item->field_for_view_update(); }
@@ -4262,11 +4259,11 @@ public:
       orig_item->bring_value();
   }
   virtual bool is_expensive() { return orig_item->is_expensive(); }
-  bool is_expensive_processor(uchar *arg)
+  bool is_expensive_processor(void *arg)
   { return orig_item->is_expensive_processor(arg); }
-  bool check_vcol_func_processor(uchar *arg)
+  bool check_vcol_func_processor(void *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor("cache");
+    return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -4335,12 +4332,12 @@ public:
   void update_used_tables();
   table_map not_null_tables() const;
   bool const_item() const { return used_tables() == 0; }
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
     return (*ref)->walk(processor, walk_subquery, arg) ||
            (this->*processor)(arg);
   }
-   bool view_used_tables_processor(uchar *arg) 
+   bool view_used_tables_processor(void *arg) 
   {
     TABLE_LIST *view_arg= (TABLE_LIST *) arg;
     if (view_arg == view)
@@ -4484,7 +4481,7 @@ public:
   }
   table_map not_null_tables() const { return 0; }
   virtual Ref_Type ref_type() { return OUTER_REF; }
-  bool check_inner_refs_processor(uchar * arg); 
+  bool check_inner_refs_processor(void * arg); 
 };
 
 
@@ -4645,9 +4642,9 @@ public:
   table_map used_tables() const { return (table_map) 1L; }
   bool const_item() const { return 0; }
   bool is_null() { return null_value; }
-  bool check_vcol_func_processor(uchar *arg) 
+  bool check_vcol_func_processor(void *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("copy");
+    return mark_unsupported_function("copy", arg, VCOL_IMPOSSIBLE);
   }
 
   /*  
@@ -4874,6 +4871,7 @@ public:
 
 class Item_default_value : public Item_field
 {
+  void calculate();
 public:
   Item *arg;
   Item_default_value(THD *thd, Name_resolution_context *context_arg)
@@ -4887,11 +4885,18 @@ public:
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
   bool fix_fields(THD *, Item **);
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
+  String *val_str(String *str);
+  double val_real();
+  longlong val_int();
+  my_decimal *val_decimal(my_decimal *decimal_value);
+  bool get_date(MYSQL_TIME *ltime,ulonglong fuzzydate);
+  bool send(Protocol *protocol, String *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
   table_map used_tables() const { return (table_map)0L; }
+  Item_field *field_for_view_update() { return 0; }
 
-  bool walk(Item_processor processor, bool walk_subquery, uchar *args)
+  bool walk(Item_processor processor, bool walk_subquery, void *args)
   {
     return (arg && arg->walk(processor, walk_subquery, args)) ||
       (this->*processor)(args);
@@ -4932,15 +4937,15 @@ public:
   */
   table_map used_tables() const { return RAND_TABLE_BIT; }
 
-  bool walk(Item_processor processor, bool walk_subquery, uchar *args)
+  bool walk(Item_processor processor, bool walk_subquery, void *args)
   {
     return arg->walk(processor, walk_subquery, args) ||
 	    (this->*processor)(args);
   }
-  bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
-  bool check_vcol_func_processor(uchar *arg_arg)
+  bool check_partition_func_processor(void *int_arg) {return TRUE;}
+  bool check_vcol_func_processor(void *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor("values");
+    return mark_unsupported_function("values()", arg, VCOL_IMPOSSIBLE);
   }
 };
 
@@ -5027,10 +5032,7 @@ private:
   */
   bool read_only;
 public:
-  bool check_vcol_func_processor(uchar *arg)
-  {
-    return trace_unsupported_by_check_vcol_func_processor("trigger");
-  }
+  bool check_vcol_func_processor(void *arg);
 };
 
 
@@ -5114,9 +5116,9 @@ public:
   {
     return this == item;
   }
-  bool check_vcol_func_processor(uchar *arg) 
+  bool check_vcol_func_processor(void *arg) 
   {
-    return trace_unsupported_by_check_vcol_func_processor("cache");
+    return mark_unsupported_function("cache", arg, VCOL_IMPOSSIBLE);
   }
   /**
      Check if saved item has a non-NULL value.
@@ -5133,14 +5135,14 @@ public:
   bool basic_const_item() const
   { return MY_TEST(example && example->basic_const_item()); }
   virtual void clear() { null_value= TRUE; value_cached= FALSE; }
-  bool is_null() { return null_value; }
+  bool is_null() { return !has_value(); }
   virtual bool is_expensive()
   {
     if (value_cached)
       return false;
     return example->is_expensive();
   }
-  bool is_expensive_processor(uchar *arg)
+  bool is_expensive_processor(void *arg)
   {
     DBUG_ASSERT(example);
     if (value_cached)
@@ -5148,7 +5150,7 @@ public:
     return example->is_expensive_processor(arg);
   }
   virtual void set_null();
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg)
   {
     if (example && example->walk(processor, walk_subquery, arg))
       return TRUE;

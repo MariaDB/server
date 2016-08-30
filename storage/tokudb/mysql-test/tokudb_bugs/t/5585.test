@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_tokudb.inc
+--source include/big_test.inc
 
 --disable_warnings
 drop table if exists t1, t2;
@@ -18,12 +19,6 @@ insert into t1 select t1.file_id+40, t1.file_number+40 from t1;
 insert into t1 select t1.file_id+100, t1.file_number+100 from t1;
 insert into t1 select t1.file_id+200, t1.file_number+200 from t1;
 insert into t1 select t1.file_id+400, t1.file_number+400 from t1;
-insert into t1 select t1.file_id+1000, t1.file_number+1000 from t1;
-insert into t1 select t1.file_id+10000, t1.file_number+10000 from t1;
-insert into t1 select t1.file_id+100000, t1.file_number+100000 from t1;
-insert into t1 select t1.file_id+1000000, t1.file_number+1000000 from t1;
-insert into t1 select t1.file_id+10000000, t1.file_number+10000000 from t1;
-insert into t1 select t1.file_id+100000000, t1.file_number+100000000 from t1;
 
 create table t2 (
   file_id bigint unsigned not null,

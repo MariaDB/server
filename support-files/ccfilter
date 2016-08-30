@@ -7,14 +7,20 @@
 #
 # Use by setting CC="ccfilter gcc" CXX="ccfilter gcc" before ./configure.
 #
+# When testing from command line, you can run it as
+# perl ccfilter cat logfile > /dev/null
+# to see the errors that are not filtered
+#
 # By default, just filters the output for suppressed warnings. If the
 # FAILONWARNING environment variable is set, then instead will fail the
 # compile on encountering a non-suppressed warnings.
+
 
 use strict;
 use warnings;
 
 my $suppressions;
+my $filter_stderr= $ARGV[0] ne "cat";
 
 open STDOUT_COPY, ">&STDOUT"
     or die "Failed to dup stdout: $!]n";
@@ -27,11 +33,14 @@ if (!defined($pid)) {
   # Child.
   # actually want to send the STDERR to the parent, not the STDOUT.
   # So shuffle things around a bit.
-  open STDERR, ">&STDOUT"
-      or die "Child: Failed to dup pipe to parent: $!\n";
-  open STDOUT, ">&STDOUT_COPY"
-      or die "Child: Failed to dup parent stdout: $!\n";
-  close STDOUT_COPY;
+  if ($filter_stderr)
+  {
+    open STDERR, ">&STDOUT"
+        or die "Child: Failed to dup pipe to parent: $!\n";
+    open STDOUT, ">&STDOUT_COPY"
+        or die "Child: Failed to dup parent stdout: $!\n";
+    close STDOUT_COPY;
+  }
   exec { $ARGV[0] } @ARGV;
   die "Child: exec() failed: $!\n";
 } else {
@@ -41,9 +50,9 @@ if (!defined($pid)) {
   chomp($cwd);
   while (<PIPE>) {
     my $line= $_;
-    if (/^(.*?):([0-9]+): [Ww]arning: (.*)$/) {
+    if (/^(.*?):([0-9]+):(?:[0-9]+:)? [Ww]arning: (.*)$/) {
       my ($file, $lineno, $msg)= ($1, $2, $3);
-      $file= "$cwd/$file";
+      $file= "$cwd/$file" if (length($file) > 0 && substr($file,0,1) ne "/");
 
       next
           if check_if_suppressed($file, $lineno, $msg);
@@ -52,8 +61,14 @@ if (!defined($pid)) {
       print STDERR $line;
       next;
     }
-
-    print STDERR $line;
+    if ($filter_stderr)
+    {
+      print STDERR $line;
+    }
+    else
+    {
+      print STDOUT $line;
+    }
   }
   close(PIPE);
 }

@@ -544,9 +544,9 @@ t2	CREATE TABLE `t2` (
 delete from t1;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t4`, CONSTRAINT `dc` FOREIGN KEY (`a`) REFERENCES `t1` (`a`))
 drop index dc on t4;
-ERROR 42000: Can't DROP 'dc'; check that column/key exists
+ERROR 42000: Can't DROP INDEX `dc`; check that it exists
 alter table t3 drop foreign key dc;
-ERROR 42000: Can't DROP 'dc'; check that column/key exists
+ERROR 42000: Can't DROP FOREIGN KEY `dc`; check that it exists
 alter table t4 drop foreign key dc;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0

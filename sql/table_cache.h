@@ -1,3 +1,5 @@
+#ifndef TABLE_CACHE_H_INCLUDED
+#define TABLE_CACHE_H_INCLUDED
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
    Copyright (c) 2010, 2011 Monty Program Ab
    Copyright (C) 2013 Sergey Vojtovich and MariaDB Foundation
@@ -16,14 +18,8 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
-#ifdef HAVE_PSI_INTERFACE
-extern PSI_mutex_key key_TABLE_SHARE_LOCK_table_share;
-extern PSI_cond_key key_TABLE_SHARE_COND_release;
-#endif
-
-class TDC_element
+struct TDC_element
 {
-public:
   uchar m_key[NAME_LEN + 1 + NAME_LEN + 1];
   uint m_key_length;
   ulong version;
@@ -31,9 +27,6 @@ public:
   TABLE_SHARE *share;
 
   typedef I_P_List <TABLE, TABLE_share> TABLE_list;
-  typedef I_P_List <TABLE, I_P_List_adapter<TABLE, &TABLE::share_all_next,
-                                            &TABLE::share_all_prev> >
-          All_share_tables_list;
   /**
     Protects ref_count, m_flush_tickets, all_tables, free_tables, flushed,
     all_tables_refs.
@@ -53,138 +46,6 @@ public:
   */
   All_share_tables_list all_tables;
   TABLE_list free_tables;
-
-  TDC_element() {}
-
-  TDC_element(const char *key_arg, uint key_length) : m_key_length(key_length)
-  {
-    memcpy(m_key, key_arg, key_length);
-  }
-
-
-  void assert_clean_share()
-  {
-    DBUG_ASSERT(share == 0);
-    DBUG_ASSERT(ref_count == 0);
-    DBUG_ASSERT(m_flush_tickets.is_empty());
-    DBUG_ASSERT(all_tables.is_empty());
-    DBUG_ASSERT(free_tables.is_empty());
-    DBUG_ASSERT(all_tables_refs == 0);
-    DBUG_ASSERT(next == 0);
-    DBUG_ASSERT(prev == 0);
-  }
-
-
-  /**
-    Acquire TABLE object from table cache.
-
-    @pre share must be protected against removal.
-
-    Acquired object cannot be evicted or acquired again.
-
-    @return TABLE object, or NULL if no unused objects.
-  */
-
-  TABLE *acquire_table(THD *thd)
-  {
-    TABLE *table;
-
-    mysql_mutex_lock(&LOCK_table_share);
-    table= free_tables.pop_front();
-    if (table)
-    {
-      DBUG_ASSERT(!table->in_use);
-      table->in_use= thd;
-      /* The ex-unused table must be fully functional. */
-      DBUG_ASSERT(table->db_stat && table->file);
-      /* The children must be detached from the table. */
-      DBUG_ASSERT(!table->file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN));
-    }
-    mysql_mutex_unlock(&LOCK_table_share);
-    return table;
-  }
-
-
-  /**
-    Get last element of free_tables.
-  */
-
-  TABLE *free_tables_back()
-  {
-    TABLE_list::Iterator it(free_tables);
-    TABLE *entry, *last= 0;
-     while ((entry= it++))
-       last= entry;
-    return last;
-  }
-
-
-  /**
-    Wait for MDL deadlock detector to complete traversing tdc.all_tables.
-
-    Must be called before updating TABLE_SHARE::tdc.all_tables.
-  */
-
-  void wait_for_mdl_deadlock_detector()
-  {
-    while (all_tables_refs)
-      mysql_cond_wait(&COND_release, &LOCK_table_share);
-  }
-
-
-  /**
-    Prepeare table share for use with table definition cache.
-  */
-
-  static void lf_alloc_constructor(uchar *arg)
-  {
-    TDC_element *element= (TDC_element*) (arg + LF_HASH_OVERHEAD);
-    DBUG_ENTER("lf_alloc_constructor");
-    mysql_mutex_init(key_TABLE_SHARE_LOCK_table_share,
-                     &element->LOCK_table_share, MY_MUTEX_INIT_FAST);
-    mysql_cond_init(key_TABLE_SHARE_COND_release, &element->COND_release, 0);
-    element->m_flush_tickets.empty();
-    element->all_tables.empty();
-    element->free_tables.empty();
-    element->all_tables_refs= 0;
-    element->share= 0;
-    element->ref_count= 0;
-    element->next= 0;
-    element->prev= 0;
-    DBUG_VOID_RETURN;
-  }
-
-
-  /**
-    Release table definition cache specific resources of table share.
-  */
-
-  static void lf_alloc_destructor(uchar *arg)
-  {
-    TDC_element *element= (TDC_element*) (arg + LF_HASH_OVERHEAD);
-    DBUG_ENTER("lf_alloc_destructor");
-    element->assert_clean_share();
-    mysql_cond_destroy(&element->COND_release);
-    mysql_mutex_destroy(&element->LOCK_table_share);
-    DBUG_VOID_RETURN;
-  }
-
-
-  static void lf_hash_initializer(LF_HASH *hash __attribute__((unused)),
-                                  TDC_element *element, LEX_STRING *key)
-  {
-    memcpy(element->m_key, key->str, key->length);
-    element->m_key_length= key->length;
-    element->assert_clean_share();
-  }
-
-
-  static uchar *key(const TDC_element *element, size_t *length,
-                    my_bool not_used __attribute__((unused)))
-  {
-    *length= element->m_key_length;
-    return (uchar*) element->m_key;
-  }
 };
 
 
@@ -247,3 +108,4 @@ inline uint tdc_create_key(char *key, const char *db, const char *table_name)
   return (uint) (strmake(strmake(key, db, NAME_LEN) + 1, table_name,
                          NAME_LEN) - key + 1);
 }
+#endif /* TABLE_CACHE_H_INCLUDED */

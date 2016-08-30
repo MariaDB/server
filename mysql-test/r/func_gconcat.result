@@ -473,9 +473,9 @@ select collation(group_concat(a,_koi8r'test')) from t1;
 collation(group_concat(a,_koi8r'test'))
 cp1250_general_ci
 select collation(group_concat(a,_koi8r 0xC1C2)) from t1;
-ERROR HY000: Illegal mix of collations (cp1250_general_ci,IMPLICIT) and (koi8r_general_ci,COERCIBLE) for operation 'group_concat'
+ERROR HY000: Illegal mix of collations (cp1250_general_ci,IMPLICIT) and (koi8r_general_ci,COERCIBLE) for operation 'group_concat('
 select collation(group_concat(a,b)) from t1;
-ERROR HY000: Illegal mix of collations (cp1250_general_ci,IMPLICIT) and (koi8r_general_ci,IMPLICIT) for operation 'group_concat'
+ERROR HY000: Illegal mix of collations (cp1250_general_ci,IMPLICIT) and (koi8r_general_ci,IMPLICIT) for operation 'group_concat('
 drop table t1;
 drop table t2;
 CREATE TABLE t1 (a CHAR(10) CHARACTER SET cp850);
@@ -1154,14 +1154,14 @@ CREATE TABLE t2 SELECT GROUP_CONCAT(f1 order by f2) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `GROUP_CONCAT(f1 order by f2)` mediumtext
+  `GROUP_CONCAT(f1 order by f2)` mediumtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 CREATE TABLE t2 SELECT GROUP_CONCAT(UPPER(f1) ORDER BY f2) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `GROUP_CONCAT(UPPER(f1) ORDER BY f2)` mediumtext
+  `GROUP_CONCAT(UPPER(f1) ORDER BY f2)` mediumtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 SET group_concat_max_len= DEFAULT;
@@ -1200,3 +1200,57 @@ Warning	1260	Row 3 was cut by GROUP_CONCAT()
 Warning	1260	Row 5 was cut by GROUP_CONCAT()
 DROP TABLE t1;
 SET group_concat_max_len= DEFAULT;
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10124 Incorrect usage of CUBE/ROLLUP and ORDER BY with GROUP_CONCAT(a ORDER BY a)
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT a,GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP;
+a	GROUP_CONCAT(a ORDER BY a)
+10	10
+20	20
+30	30
+NULL	10,20,30
+CREATE VIEW v1 AS
+SELECT a,GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP;
+SELECT * FROM v1;
+a	GROUP_CONCAT(a ORDER BY a)
+10	10
+20	20
+30	30
+NULL	10,20,30
+DROP VIEW v1;
+SELECT a,GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP HAVING GROUP_CONCAT(a ORDER BY a)='10,20,30';
+a	GROUP_CONCAT(a ORDER BY a)
+NULL	10,20,30
+CREATE VIEW v1 AS
+SELECT a,GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP HAVING GROUP_CONCAT(a ORDER BY a)='10,20,30';
+SELECT * FROM v1;
+a	GROUP_CONCAT(a ORDER BY a)
+NULL	10,20,30
+DROP VIEW v1;
+SELECT * FROM (SELECT a,GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP HAVING GROUP_CONCAT(a ORDER BY a)='10,20,30') t1;
+a	GROUP_CONCAT(a ORDER BY a)
+NULL	10,20,30
+CREATE VIEW v1 AS
+SELECT * FROM (SELECT a,GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP HAVING GROUP_CONCAT(a ORDER BY a)='10,20,30') t1;
+SELECT * FROM v1;
+a	GROUP_CONCAT(a ORDER BY a)
+NULL	10,20,30
+DROP VIEW v1;
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP HAVING GROUP_CONCAT(a ORDER BY a)='10,20,30');
+(SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP HAVING GROUP_CONCAT(a ORDER BY a)='10,20,30')
+10,20,30
+CREATE VIEW v1 AS
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP HAVING GROUP_CONCAT(a ORDER BY a)='10,20,30');
+SELECT * FROM v1;
+Name_exp_1
+10,20,30
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#

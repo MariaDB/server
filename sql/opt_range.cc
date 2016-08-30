@@ -255,12 +255,19 @@ public:
        (type == SEL_TREE::IMPOSSIBLE)
   */
   enum Type { IMPOSSIBLE, ALWAYS, MAYBE, KEY, KEY_SMALLER } type;
-  SEL_TREE(enum Type type_arg) :type(type_arg) {}
-  SEL_TREE() :type(KEY)
+
+  SEL_TREE(enum Type type_arg, MEM_ROOT *root, size_t num_keys)
+    : type(type_arg), keys(root, num_keys), n_ror_scans(0)
   {
     keys_map.clear_all();
-    bzero((char*) keys,sizeof(keys));
   }
+
+  SEL_TREE(MEM_ROOT *root, size_t num_keys) :
+    type(KEY), keys(root, num_keys), n_ror_scans(0)
+  { 
+    keys_map.clear_all();
+  }
+   
   SEL_TREE(SEL_TREE *arg, bool without_merges, RANGE_OPT_PARAM *param);
   /*
     Note: there may exist SEL_TREE objects with sel_tree->type=KEY and
@@ -268,7 +275,8 @@ public:
     merit in range analyzer functions (e.g. get_mm_parts) returning a
     pointer to such SEL_TREE instead of NULL)
   */
-  SEL_ARG *keys[MAX_KEY];
+  Mem_root_array<SEL_ARG *, true> keys;
+
   key_map keys_map;        /* bitmask of non-NULL elements in keys */
 
   /*
@@ -578,7 +586,7 @@ int SEL_IMERGE::and_sel_tree(RANGE_OPT_PARAM *param, SEL_TREE *tree,
   {
     SEL_TREE *res_or_tree= 0;
     SEL_TREE *and_tree= 0;
-    if (!(res_or_tree= new SEL_TREE()) ||
+    if (!(res_or_tree= new SEL_TREE(param->mem_root, param->keys)) ||
         !(and_tree= new SEL_TREE(tree, TRUE, param)))
       return (-1);
     if (!and_range_trees(param, *or_tree, and_tree, res_or_tree))
@@ -787,7 +795,10 @@ int SEL_IMERGE::or_sel_imerge_with_checks(RANGE_OPT_PARAM *param,
 */ 
 
 SEL_TREE::SEL_TREE(SEL_TREE *arg, bool without_merges,
-                   RANGE_OPT_PARAM *param): Sql_alloc()
+                   RANGE_OPT_PARAM *param) 
+  : Sql_alloc(),
+    keys(param->mem_root, param->keys),
+    n_ror_scans(0)
 {
   keys_map= arg->keys_map;
   type= arg->type;
@@ -3022,9 +3033,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     PARAM param;
     MEM_ROOT alloc;
     SEL_TREE *tree;
-    SEL_ARG **key, **end;
     double rows;
-    uint idx= 0;
   
     init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
                    MYF(MY_THREAD_SPECIFIC));
@@ -3069,11 +3078,12 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
       goto free_alloc;
     }        
 
-    for (key= tree->keys, end= key + param.keys; key != end; key++, idx++)
+    for (uint idx= 0; idx < param.keys; idx++)
     {
-      if (*key)
+      SEL_ARG *key= tree->keys[idx];
+      if (key)
       {
-        if ((*key)->type == SEL_ARG::IMPOSSIBLE)
+        if (key->type == SEL_ARG::IMPOSSIBLE)
 	{
           rows= 0;
           table->reginfo.impossible_range= 1;
@@ -3081,10 +3091,10 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
         }          
         else
         {
-          rows= records_in_column_ranges(&param, idx, *key);
+          rows= records_in_column_ranges(&param, idx, key);
           if (rows != HA_POS_ERROR)
-            (*key)->field->cond_selectivity= rows/table_records;
-        } 
+            key->field->cond_selectivity= rows/table_records;
+        }
       }
     }
 
@@ -3122,8 +3132,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
       DBUG_RETURN(TRUE);
     dt->list.empty();
     dt->table= table;
-    if ((*cond)->walk(&Item::find_selective_predicates_list_processor, 0,
-                      (uchar*) dt))
+    if ((*cond)->walk(&Item::find_selective_predicates_list_processor, 0, dt))
       DBUG_RETURN(TRUE);
     if (dt->list.elements > 0)
     {
@@ -4949,8 +4958,8 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
     {
       SEL_TREE **changed_tree= imerge->trees+(*tree_idx_ptr-1);
       SEL_ARG *key= (*changed_tree)->keys[key_idx];
-      bzero((*changed_tree)->keys,
-            sizeof((*changed_tree)->keys[0])*param->keys);
+      for (uint i= 0; i < param->keys; i++)
+        (*changed_tree)->keys[i]= NULL;
       (*changed_tree)->keys_map.clear_all();
       if (key) 
         key->incr_refs(); 
@@ -6727,8 +6736,8 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool update_tbl_stats,
                                        double read_time)
 {
-  uint idx;
-  SEL_ARG **key,**end, **key_to_read= NULL;
+  uint idx, best_idx;
+  SEL_ARG *key_to_read= NULL;
   ha_rows UNINIT_VAR(best_records);              /* protected by key_to_read */
   uint    UNINIT_VAR(best_mrr_flags),            /* protected by key_to_read */
           UNINIT_VAR(best_buf_size);             /* protected by key_to_read */
@@ -6751,9 +6760,10 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                       sizeof(INDEX_SCAN_INFO *) * param->keys);
   }
   tree->index_scans_end= tree->index_scans;                                                  
-  for (idx= 0,key=tree->keys, end=key+param->keys; key != end; key++,idx++)
+  for (idx= 0; idx < param->keys; idx++)
   {
-    if (*key)
+    SEL_ARG *key= tree->keys[idx];
+    if (key)
     {
       ha_rows found_records;
       Cost_estimate cost;
@@ -6761,14 +6771,14 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
       uint mrr_flags, buf_size;
       INDEX_SCAN_INFO *index_scan;
       uint keynr= param->real_keynr[idx];
-      if ((*key)->type == SEL_ARG::MAYBE_KEY ||
-          (*key)->maybe_flag)
+      if (key->type == SEL_ARG::MAYBE_KEY ||
+          key->maybe_flag)
         param->needed_reg->set_bit(keynr);
 
       bool read_index_only= index_read_must_be_used ? TRUE :
                             (bool) param->table->covering_keys.is_set(keynr);
 
-      found_records= check_quick_select(param, idx, read_index_only, *key,
+      found_records= check_quick_select(param, idx, read_index_only, key,
                                         update_tbl_stats, &mrr_flags,
                                         &buf_size, &cost);
 
@@ -6782,7 +6792,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         index_scan->used_key_parts= param->max_key_part+1;
         index_scan->range_count= param->range_count;
         index_scan->records= found_records;
-        index_scan->sel_arg= *key;
+        index_scan->sel_arg= key;
         *tree->index_scans_end++= index_scan;
       }        
       if ((found_records != HA_POS_ERROR) && param->is_ror_scan)
@@ -6796,6 +6806,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         read_time=    found_read_time;
         best_records= found_records;
         key_to_read=  key;
+        best_idx= idx;
         best_mrr_flags= mrr_flags;
         best_buf_size=  buf_size;
       }
@@ -6806,17 +6817,16 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                       "ROR scans"););
   if (key_to_read)
   {
-    idx= key_to_read - tree->keys;
-    if ((read_plan= new (param->mem_root) TRP_RANGE(*key_to_read, idx,
+    if ((read_plan= new (param->mem_root) TRP_RANGE(key_to_read, best_idx,
                                                     best_mrr_flags)))
     {
       read_plan->records= best_records;
-      read_plan->is_ror= tree->ror_scans_map.is_set(idx);
+      read_plan->is_ror= tree->ror_scans_map.is_set(best_idx);
       read_plan->read_cost= read_time;
       read_plan->mrr_buf_size= best_buf_size;
       DBUG_PRINT("info",
                  ("Returning range plan for key %s, cost %g, records %lu",
-                  param->table->key_info[param->real_keynr[idx]].name,
+                  param->table->key_info[param->real_keynr[best_idx]].name,
                   read_plan->read_cost, (ulong) read_plan->records));
     }
   }
@@ -7105,7 +7115,7 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
         DBUG_RETURN(NULL);
       }
       SEL_TREE *tree2;
-      for (; i < array->count; i++)
+      for (; i < array->used_count; i++)
       {
         if (array->compare_elems(i, i-1))
         {
@@ -7444,9 +7454,11 @@ SEL_TREE *Item::get_mm_tree_for_const(RANGE_OPT_PARAM *param)
   MEM_ROOT *tmp_root= param->mem_root;
   param->thd->mem_root= param->old_root;
   SEL_TREE *tree;
-  tree= val_int() ? new(tmp_root) SEL_TREE(SEL_TREE::ALWAYS) :
-                    new(tmp_root) SEL_TREE(SEL_TREE::IMPOSSIBLE);
+
+  const SEL_TREE::Type type= val_int()? SEL_TREE::ALWAYS: SEL_TREE::IMPOSSIBLE;
   param->thd->mem_root= tmp_root;
+
+  tree= new (tmp_root) SEL_TREE(type, tmp_root, param->keys);
   DBUG_RETURN(tree);
 }
 
@@ -7472,7 +7484,8 @@ SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   if ((ref_tables & param->current_table) ||
       (ref_tables & ~(param->prev_tables | param->read_tables)))
     DBUG_RETURN(0);
-  DBUG_RETURN(new SEL_TREE(SEL_TREE::MAYBE));
+  DBUG_RETURN(new (param->mem_root) SEL_TREE(SEL_TREE::MAYBE, param->mem_root, 
+                                             param->keys));
 }
 
 
@@ -7590,7 +7603,8 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
     if (field->eq(key_part->field))
     {
       SEL_ARG *sel_arg=0;
-      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE()))
+      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root,
+                                                              param->keys)))
 	DBUG_RETURN(0);				// OOM
       if (!value || !(value_used_tables & ~param->read_tables))
       {
@@ -8553,14 +8567,31 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
     imerge[0]= new SEL_IMERGE(tree1->merges.head(), 0, param);
   }
   bool no_imerge_from_ranges= FALSE;
-  if (!(result= new SEL_TREE()))
-    DBUG_RETURN(result);
 
   /* Build the range part of the tree for the formula (1) */ 
   if (sel_trees_can_be_ored(param, tree1, tree2, &ored_keys))
   {
     bool must_be_ored= sel_trees_must_be_ored(param, tree1, tree2, ored_keys);
     no_imerge_from_ranges= must_be_ored;
+
+    if (no_imerge_from_ranges && no_merges1 && no_merges2)
+    {
+      /*
+        Reuse tree1 as the result in simple cases. This reduces memory usage
+        for e.g. "key IN (c1, ..., cN)" which produces a lot of ranges.
+      */
+      result= tree1;
+      result->keys_map.clear_all();
+    }
+    else
+    {
+      if (!(result= new (param->mem_root) SEL_TREE(param->mem_root,
+                                                   param->keys)))
+      {
+        DBUG_RETURN(result);
+      }
+    }
+
     key_map::Iterator it(ored_keys);
     int key_no;
     while ((key_no= it++) != key_map::Iterator::BITMAP_END)
@@ -8577,7 +8608,13 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
     }
     result->type= tree1->type;
   }
-      
+  else
+  {
+    if (!result && !(result= new (param->mem_root) SEL_TREE(param->mem_root,
+                                                            param->keys)))
+      DBUG_RETURN(result);
+  }
+
   if (no_imerge_from_ranges && no_merges1 && no_merges2)
   {
     if (result->keys_map.is_clear_all())
@@ -12400,7 +12437,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
 
         /* Check if cur_part is referenced in the WHERE clause. */
         if (join->conds->walk(&Item::find_item_in_field_list_processor, 0,
-                              (uchar*) key_part_range))
+                              key_part_range))
           goto next_index;
       }
     }
@@ -13914,7 +13951,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max()
     SELECT [SUM|COUNT|AVG](DISTINCT a,...) FROM t
   This method comes to replace the index scan + Unique class 
   (distinct selection) for loose index scan that visits all the rows of a 
-  covering index instead of jumping in the begining of each group.
+  covering index instead of jumping in the beginning of each group.
   TODO: Placeholder function. To be replaced by a handler API call
 
   @param is_index_scan     hint to use index scan instead of random index read 
@@ -14382,16 +14419,12 @@ void QUICK_GROUP_MIN_MAX_SELECT::add_keys_and_lengths(String *key_names,
 static void print_sel_tree(PARAM *param, SEL_TREE *tree, key_map *tree_map,
                            const char *msg)
 {
-  SEL_ARG **key,**end;
-  int idx;
   char buff[1024];
   DBUG_ENTER("print_sel_tree");
 
   String tmp(buff,sizeof(buff),&my_charset_bin);
   tmp.length(0);
-  for (idx= 0,key=tree->keys, end=key+param->keys ;
-       key != end ;
-       key++,idx++)
+  for (uint idx= 0; idx < param->keys; idx++)
   {
     if (tree_map->is_set(idx))
     {

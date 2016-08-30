@@ -3604,7 +3604,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` char(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` tinyblob,
+  `c4` tinyblob DEFAULT NULL,
   `c3` char(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -3632,7 +3632,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` tinyblob,
+  `c4` tinyblob DEFAULT NULL,
   `c3` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -3660,7 +3660,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` binary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` tinyblob,
+  `c4` tinyblob DEFAULT NULL,
   `c3` binary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -3688,7 +3688,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varbinary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` tinyblob,
+  `c4` tinyblob DEFAULT NULL,
   `c3` varbinary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -3828,7 +3828,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` char(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` blob,
+  `c4` blob DEFAULT NULL,
   `c3` char(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -3856,7 +3856,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` blob,
+  `c4` blob DEFAULT NULL,
   `c3` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -3884,7 +3884,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` binary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` blob,
+  `c4` blob DEFAULT NULL,
   `c3` binary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -3912,7 +3912,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varbinary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` blob,
+  `c4` blob DEFAULT NULL,
   `c3` varbinary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4052,7 +4052,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` char(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` mediumblob,
+  `c4` mediumblob DEFAULT NULL,
   `c3` char(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4080,7 +4080,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` mediumblob,
+  `c4` mediumblob DEFAULT NULL,
   `c3` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4108,7 +4108,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` binary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` mediumblob,
+  `c4` mediumblob DEFAULT NULL,
   `c3` binary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4136,7 +4136,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varbinary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` mediumblob,
+  `c4` mediumblob DEFAULT NULL,
   `c3` varbinary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4276,7 +4276,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` char(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` longblob,
+  `c4` longblob DEFAULT NULL,
   `c3` char(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4304,7 +4304,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` longblob,
+  `c4` longblob DEFAULT NULL,
   `c3` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4332,7 +4332,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` binary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` longblob,
+  `c4` longblob DEFAULT NULL,
   `c3` binary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4360,7 +4360,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varbinary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` longblob,
+  `c4` longblob DEFAULT NULL,
   `c3` varbinary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4500,7 +4500,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` char(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` tinytext,
+  `c4` tinytext DEFAULT NULL,
   `c3` char(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4528,7 +4528,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` tinytext,
+  `c4` tinytext DEFAULT NULL,
   `c3` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4556,7 +4556,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` binary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` tinytext,
+  `c4` tinytext DEFAULT NULL,
   `c3` binary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4584,7 +4584,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varbinary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` tinytext,
+  `c4` tinytext DEFAULT NULL,
   `c3` varbinary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4724,7 +4724,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` char(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` text,
+  `c4` text DEFAULT NULL,
   `c3` char(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4752,7 +4752,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` text,
+  `c4` text DEFAULT NULL,
   `c3` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4780,7 +4780,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` binary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` text,
+  `c4` text DEFAULT NULL,
   `c3` binary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4808,7 +4808,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varbinary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` text,
+  `c4` text DEFAULT NULL,
   `c3` varbinary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4948,7 +4948,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` char(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` mediumtext,
+  `c4` mediumtext DEFAULT NULL,
   `c3` char(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -4976,7 +4976,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` mediumtext,
+  `c4` mediumtext DEFAULT NULL,
   `c3` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -5004,7 +5004,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` binary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` mediumtext,
+  `c4` mediumtext DEFAULT NULL,
   `c3` binary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -5032,7 +5032,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varbinary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` mediumtext,
+  `c4` mediumtext DEFAULT NULL,
   `c3` varbinary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -5172,7 +5172,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` char(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` longtext,
+  `c4` longtext DEFAULT NULL,
   `c3` char(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -5200,7 +5200,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` longtext,
+  `c4` longtext DEFAULT NULL,
   `c3` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -5228,7 +5228,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` binary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` longtext,
+  `c4` longtext DEFAULT NULL,
   `c3` binary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
@@ -5256,7 +5256,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varbinary(15) NOT NULL,
   `c2` int(11) NOT NULL,
-  `c4` longtext,
+  `c4` longtext DEFAULT NULL,
   `c3` varbinary(20) DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1

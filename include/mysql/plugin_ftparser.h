@@ -18,6 +18,10 @@
 #define _my_plugin_ftparser_h
 #include "plugin.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*************************************************************************
   API for Full-text parser plugin. (MYSQL_FTPARSER_PLUGIN)
 */
@@ -207,6 +211,10 @@ struct st_mysql_ftparser
   int (*deinit)(MYSQL_FTPARSER_PARAM *param);
 };
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

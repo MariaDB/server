@@ -2071,29 +2071,27 @@ ER_CANT_REMOVE_ALL_FIELDS 42000
         swe "Man kan inte radera alla fält med ALTER TABLE. Använd DROP TABLE istället"
         ukr "Не можливо видалити всі стовбці за допомогою ALTER TABLE. Для цього скористайтеся DROP TABLE"
 ER_CANT_DROP_FIELD_OR_KEY 42000 
-        cze "Nemohu zrušit '%-.192s' (provést DROP). Zkontrolujte, zda neexistují záznamy/klíče"
-        dan "Kan ikke udføre DROP '%-.192s'. Undersøg om feltet/nøglen eksisterer."
-        nla "Kan '%-.192s' niet weggooien. Controleer of het veld of de zoeksleutel daadwerkelijk bestaat."
-        eng "Can't DROP '%-.192s'; check that column/key exists"
-        est "Ei suuda kustutada '%-.192s'. Kontrolli kas tulp/võti eksisteerib"
-        fre "Ne peut effacer (DROP) '%-.192s'. Vérifiez s'il existe"
-        ger "Kann '%-.192s' nicht löschen. Existiert die Spalte oder der Schlüssel?"
-        greek "Αδύνατη η διαγραφή (DROP) '%-.192s'. Παρακαλώ ελέγξτε αν το πεδίο/κλειδί υπάρχει"
-        hun "A DROP '%-.192s' nem lehetseges. Ellenorizze, hogy a mezo/kulcs letezik-e"
-        ita "Impossibile cancellare '%-.192s'. Controllare che il campo chiave esista"
-        jpn "'%-.192s' を削除できません。列／索引の存在を確認して下さい。"
-        kor "'%-.192s'를 DROP할 수 없습니다. 칼럼이나 키가 존재하는지 채크하세요."
-        nor "Kan ikke DROP '%-.192s'. Undersøk om felt/nøkkel eksisterer."
-        norwegian-ny "Kan ikkje DROP '%-.192s'. Undersøk om felt/nøkkel eksisterar."
-        pol "Nie można wykonać operacji DROP '%-.192s'. SprawdĽ, czy to pole/klucz istnieje"
-        por "Não se pode fazer DROP '%-.192s'. Confira se esta coluna/chave existe"
-        rum "Nu pot sa DROP '%-.192s'. Verifica daca coloana/cheia exista"
-        rus "Невозможно удалить (DROP) '%-.192s'. Убедитесь что столбец/ключ действительно существует"
-        serbian "Ne mogu da izvršim komandu drop 'DROP' na '%-.192s'. Proverite da li ta kolona (odnosno ključ) postoji"
-        slo "Nemôžem zrušiť (DROP) '%-.192s'. Skontrolujte, či neexistujú záznamy/kľúče"
-        spa "No puedo ELIMINAR '%-.192s'. compuebe que el campo/clave existe"
-        swe "Kan inte ta bort '%-.192s'. Kontrollera att fältet/nyckel finns"
-        ukr "Не можу DROP '%-.192s'. Перевірте, чи цей стовбець/ключ існує"
+        cze "Nemohu zrušit (DROP %s) %`-.192s. Zkontrolujte, zda neexistují záznamy/klíče"
+        dan "Kan ikke udføre DROP %s %`-.192s. Undersøg om feltet/nøglen eksisterer."
+        nla "DROP %s: Kan %`-.192s niet weggooien. Controleer of het veld of de zoeksleutel daadwerkelijk bestaat."
+        eng "Can't DROP %s %`-.192s; check that it exists"
+        est "Ei suuda kustutada (DROP %s) %`-.192s. Kontrolli kas tulp/võti eksisteerib"
+        fre "Ne peut effacer (DROP %s) %`-.192s. Vérifiez s'il existe"
+        ger "DROP %s: Kann %`-.192s nicht löschen. Existiert es?"
+        greek "Αδύνατη η διαγραφή (DROP %s) %`-.192s. Παρακαλώ ελέγξτε αν το πεδίο/κλειδί υπάρχει"
+        hun "A DROP %s %`-.192s nem lehetseges. Ellenorizze, hogy a mezo/kulcs letezik-e"
+        ita "Impossibile cancellare (DROP %s) %`-.192s. Controllare che il campo chiave esista"
+        nor "Kan ikke DROP %s %`-.192s. Undersøk om felt/nøkkel eksisterer."
+        norwegian-ny "Kan ikkje DROP %s %`-.192s. Undersøk om felt/nøkkel eksisterar."
+        pol "Nie można wykonać operacji DROP %s %`-.192s. SprawdĽ, czy to pole/klucz istnieje"
+        por "Não se pode fazer DROP %s %`-.192s. Confira se esta coluna/chave existe"
+        rum "Nu pot sa DROP %s %`-.192s. Verifica daca coloana/cheia exista"
+        rus "Невозможно удалить (DROP %s) %`-.192s. Убедитесь что он действительно существует"
+        serbian "Ne mogu da izvršim komandu drop 'DROP %s' na %`-.192s. Proverite da li ta kolona (odnosno ključ) postoji"
+        slo "Nemôžem zrušiť (DROP %s) %`-.192s. Skontrolujte, či neexistujú záznamy/kľúče"
+        spa "No puedo eliminar (DROP %s) %`-.192s. compuebe que el campo/clave existe"
+        swe "Kan inte ta bort (DROP %s) %`-.192s. Kontrollera att begränsningen/fältet/nyckel finns"
+        ukr "Не можу DROP %s %`-.192s. Перевірте, чи він існує"
 ER_INSERT_INFO  
         cze "Záznamů: %ld  Zdvojených: %ld  Varování: %ld"
         dan "Poster: %ld  Ens: %ld  Advarsler: %ld"
@@ -4846,7 +4844,7 @@ ER_WARN_USING_OTHER_HANDLER
         por "Usando engine de armazenamento %s para tabela '%s'"
         spa "Usando motor de almacenamiento %s para tabla '%s'"
         swe "Använder handler %s för tabell '%s'"
-ER_CANT_AGGREGATE_2COLLATIONS  
+ER_CANT_AGGREGATE_2COLLATIONS
         eng "Illegal mix of collations (%s,%s) and (%s,%s) for operation '%s'"
         ger "Unerlaubte Mischung von Sortierreihenfolgen (%s, %s) und (%s, %s) für Operation '%s'"
         jpn "照合順序 (%s,%s) と (%s,%s) の混在は操作 '%s' では不正です。"
@@ -5286,15 +5284,15 @@ ER_ILLEGAL_VALUE_FOR_TYPE 22007
         eng "Illegal %s '%-.192s' value found during parsing"
         ger "Nicht zulässiger %s-Wert '%-.192s' beim Parsen gefunden"
 ER_VIEW_NONUPD_CHECK  
-        eng "CHECK OPTION on non-updatable view '%-.192s.%-.192s'"
-        ger "CHECK OPTION auf nicht-aktualisierbarem View '%-.192s.%-.192s'"
-        rus "CHECK OPTION для необновляемого VIEW '%-.192s.%-.192s'"
-        ukr "CHECK OPTION для VIEW '%-.192s.%-.192s' що не може бути оновленним"
-ER_VIEW_CHECK_FAILED  
-        eng "CHECK OPTION failed '%-.192s.%-.192s'"
-        ger "CHECK OPTION fehlgeschlagen: '%-.192s.%-.192s'"
-        rus "проверка CHECK OPTION для VIEW '%-.192s.%-.192s' провалилась"
-        ukr "Перевірка CHECK OPTION для VIEW '%-.192s.%-.192s' не пройшла"
+        eng "CHECK OPTION on non-updatable view %`-.192s.%`-.192s"
+        ger "CHECK OPTION auf nicht-aktualisierbarem View %`-.192s.%`-.192s"
+        rus "CHECK OPTION для необновляемого VIEW %`-.192s.%`-.192s"
+        ukr "CHECK OPTION для VIEW %`-.192s.%`-.192s що не може бути оновленним"
+ER_VIEW_CHECK_FAILED 44000
+        eng "CHECK OPTION failed %`-.192s.%`-.192s"
+        ger "CHECK OPTION fehlgeschlagen: %`-.192s.%`-.192s"
+        rus "Проверка CHECK OPTION для VIEW %`-.192s.%`-.192s провалилась"
+        ukr "Перевірка CHECK OPTION для VIEW %`-.192s.%`-.192s не пройшла"
 ER_PROCACCESS_DENIED_ERROR 42000 
         eng "%-.32s command denied to user '%s'@'%s' for routine '%-.192s'"
         ger "Befehl %-.32s nicht zulässig für Benutzer '%s'@'%s' in Routine '%-.192s'"
@@ -6138,7 +6136,7 @@ ER_SLAVE_HEARTBEAT_FAILURE
   eng "Unexpected master's heartbeat data: %s"
   ger "Unerwartete Daten vom Heartbeat des Masters: %s"
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
-  eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%s seconds)."
+  eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%u seconds)."
 ER_UNUSED_14
   eng "You should never see it"
 ER_CONFLICT_FN_PARSE_ERROR
@@ -6508,8 +6506,8 @@ ER_PARTITION_EXCHANGE_FOREIGN_KEY
   swe "Tabellen att byta ut mot partition har foreign key referenser: '%-.64s'"
 ER_NO_SUCH_KEY_VALUE
   eng "Key value '%-.192s' was not found in table '%-.192s.%-.192s'"
-ER_RPL_INFO_DATA_TOO_LONG
-  eng "Data for column '%s' too long"
+ER_VALUE_TOO_LONG
+  eng "Too long value for '%s'"
 ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE
   eng "Replication event checksum verification failed while reading from network."
 ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE
@@ -6970,7 +6968,7 @@ start-error-number 1900
 ER_VCOL_BASED_ON_VCOL
   eng "A computed column cannot be based on a computed column"
 ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-  eng "Function or expression is not allowed for column '%s'"
+  eng "Function or expression '%s' cannot be used in the %s clause of %`s"
 ER_DATA_CONVERSION_ERROR_FOR_VIRTUAL_COLUMN
   eng "Generated value for computed column '%s' cannot be converted to type '%s'"
 ER_PRIMARY_KEY_BASED_ON_VIRTUAL_COLUMN
@@ -7141,6 +7139,21 @@ ER_KILL_QUERY_DENIED_ERROR
 ER_NO_EIS_FOR_FIELD
         eng "Engine-independent statistics are not collected for column '%s'"
         ukr "Незалежна від типу таблиці статистика не збирається для стовбця '%s'"
+
+#
+# Internal errors, not used
+#
+skip-to-error-number 2000
+
+# MySQL 5.7 error numbers starts here
+skip-to-error-number 3000
+
+ER_MYSQL_57_TEST
+        eng "5.7 test"
+
+# MariaDB extra error numbers starts from 4000
+skip-to-error-number 4000
+
 ER_COMMULTI_BADCONTEXT 0A000
         eng "COM_MULTI can't return a result set in the given context"
         ger "COM_MULTI kann im gegebenen Kontext keine Ergebnismenge zurückgeben"
@@ -7161,23 +7174,9 @@ ER_UNACCEPTABLE_MUTUAL_RECURSION
 ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
         eng "Reference to recursive WITH table '%s' in materialized derived"
 ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
-        eng "Restrictions imposed on recursive definitions are violated for table '%s'"
-#
-# Internal errors, not used
-#
-skip-to-error-number 2000
-
-# MySQL 5.7 error numbers starts here
-skip-to-error-number 3000
-
-ER_MYSQL_57_TEST
-        eng "5.7 test"
-
-# MariaDB extra error numbers starts from 4000
-skip-to-error-number 4000
-
+        eng "Restrictions imposed on recursive definitions are violated for table '%s'"R_WRONG_WINDOW_SPEC_NAME
 ER_WRONG_WINDOW_SPEC_NAME
-        eng "Window specification with name '%s' is not defined"
+       eng "Window specification with name '%s' is not defined"
 ER_DUP_WINDOW_NAME
         eng "Multiple window specifications with the same name '%s'"
 ER_PARTITION_LIST_IN_REFERENCING_WINDOW_SPEC
@@ -7208,3 +7207,16 @@ ER_WINDOW_FUNCTION_DONT_HAVE_FRAME
         eng "This window function may not have a window frame"
 ER_INVALID_NTILE_ARGUMENT
         eng "Argument of NTILE must be greater than 0"
+ER_CONSTRAINT_FAILED 23000
+        eng "CONSTRAINT %`s failed for %`-.192s.%`-.192s"
+        ger "CONSTRAINT %`s fehlgeschlagen: %`-.192s.%`-.192s"
+        rus "проверка CONSTRAINT %`s для %`-.192s.%`-.192s провалилась"
+        ukr "Перевірка CONSTRAINT %`s для %`-.192s.%`-.192s не пройшла"
+ER_EXPRESSION_IS_TOO_BIG
+        eng "%s expression in the %s clause is too big"
+ER_ERROR_EVALUATING_EXPRESSION
+        eng "Got an error evaluating stored expression %`s"
+ER_CALCULATING_DEFAULT_VALUE
+        eng "Got an error when calculating default value for %`s"
+ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
+        eng "Expression for field %`-.64s is refering to uninitialized field %`s"

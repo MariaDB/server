@@ -234,9 +234,9 @@ public:
     const_item_cache= false;
   }
   const char *func_name() const { return "nodeset"; }
-  bool check_vcol_func_processor(uchar *int_arg)
+  bool check_vcol_func_processor(void *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(func_name());
+    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
   }
 
 };
@@ -572,9 +572,9 @@ public:
     Item_bool_func(thd, nodeset, cmpfunc), pxml(p) {}
   enum Type type() const { return XPATH_NODESET_CMP; };
   const char *func_name() const { return "xpath_nodeset_to_const_comparator"; }
-  bool check_vcol_func_processor(uchar *int_arg) 
+  bool check_vcol_func_processor(void *arg)
   {
-    return trace_unsupported_by_check_vcol_func_processor(func_name());
+    return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
   }
 
   longlong val_int()

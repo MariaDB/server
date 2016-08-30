@@ -220,7 +220,7 @@ void STDCALL mysql_server_end()
   }
 #ifdef NOT_NEEDED
   /*
-    The following is not needed as if the program explicitely called
+    The following is not needed as if the program explicitly called
     my_init() then we can assume it will also call my_end().
     The reason to not also do it here is in that case we can't get
     statistics from my_end() to debug log.
@@ -1510,9 +1510,8 @@ my_bool cli_read_prepare_result(MYSQL *mysql, MYSQL_STMT *stmt)
 */
 
 #ifdef EMBEDDED_LIBRARY
-#define STMT_INIT_PREALLOC(S) 0
-#else
-#define STMT_INIT_PREALLOC(S) S
+#undef MY_THREAD_SPECIFIC
+#define MY_THREAD_SPECIFIC 0
 #endif /*EMBEDDED_LIBRARY*/
 
 MYSQL_STMT * STDCALL
@@ -1533,10 +1532,8 @@ mysql_stmt_init(MYSQL *mysql)
     DBUG_RETURN(NULL);
   }
 
-  init_alloc_root(&stmt->mem_root, 2048, STMT_INIT_PREALLOC(2048),
-                  MYF(MY_THREAD_SPECIFIC));
-  init_alloc_root(&stmt->result.alloc, 4096, STMT_INIT_PREALLOC(4096),
-                  MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&stmt->mem_root, 2048,2048, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&stmt->result.alloc, 4096, 4096, MYF(MY_THREAD_SPECIFIC));
   stmt->result.alloc.min_malloc= sizeof(MYSQL_ROWS);
   mysql->stmts= list_add(mysql->stmts, &stmt->list);
   stmt->list.data= stmt;
@@ -1552,8 +1549,6 @@ mysql_stmt_init(MYSQL *mysql)
 
   DBUG_RETURN(stmt);
 }
-
-#undef STMT_INIT_PREALLOC
 
 
 /*
@@ -3479,7 +3474,7 @@ static void fetch_float_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
     */
     char buff[FLOATING_POINT_BUFFER];
     size_t len;
-    if (field->decimals >= NOT_FIXED_DEC)
+    if (field->decimals >= FLOATING_POINT_DECIMALS)
       len= my_gcvt(value, type,
                    (int) MY_MIN(sizeof(buff)-1, param->buffer_length),
                    buff, NULL);

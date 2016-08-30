@@ -2665,3 +2665,33 @@ GRANT USAGE ON *.* TO 'mysqltest_u1'@'%'
 drop database mysqltest_db1;
 drop user mysqltest_u1;
 set GLOBAL sql_mode=default;
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT USER());
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(30) DEFAULT USER()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ();
+GRANT ALL PRIVILEGES ON test.* TO dummy@localhost IDENTIFIED BY 'pwd';
+connect  conn1,localhost,dummy,pwd,test;
+connection conn1;
+INSERT INTO t1 VALUES ();
+connection default;
+disconnect conn1;
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+a
+root@localhost
+dummy@localhost
+root@localhost
+DROP TABLE t1;
+DROP USER dummy@localhost;
+#
+# End of 10.2 tests
+#

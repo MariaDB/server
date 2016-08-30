@@ -1,0 +1,12 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-10492: Assertion failure on shutdown when wsrep_sst_auth set in config
+--echo #
+
+SELECT @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth='foo:bar';
+SELECT @@global.wsrep_sst_auth;
+
+--source include/galera_end.inc

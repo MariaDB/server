@@ -104,14 +104,14 @@ public:
   table_map not_null_tables() const { return not_null_tables_cache; }
   virtual void print(String *str, enum_query_type query_type);
 
-  bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
+  bool walk(Item_processor processor, bool walk_subquery, void *arg)
   {
     if (walk_args(processor, walk_subquery, arg))
       return true;
     return (this->*processor)(arg);
   }
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
-  bool eval_not_null_tables(uchar *opt_arg);
+  bool eval_not_null_tables(void *opt_arg);
 
   uint cols() { return arg_count; }
   Item* element_index(uint i) { return args[i]; }
@@ -119,7 +119,7 @@ public:
   bool check_cols(uint c);
   bool null_inside() { return with_null; };
   void bring_value();
-  bool check_vcol_func_processor(uchar *int_arg) {return FALSE; } 
+  bool check_vcol_func_processor(void *arg) {return FALSE; }
 };
 
 #endif /* ITEM_ROW_INCLUDED */

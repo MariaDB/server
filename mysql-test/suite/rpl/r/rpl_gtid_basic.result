@@ -555,3 +555,14 @@ a
 connection server_1;
 DROP TABLE t1;
 include/rpl_end.inc
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+CREATE TABLE t1 (a VARCHAR(100) DEFAULT BINLOG_GTID_POS("master-bin.000001", 600));
+ERROR HY000: Function or expression 'binlog_gtid_pos()' cannot be used in the DEFAULT clause of `a`
+#
+# End  of 10.2 tests
+#

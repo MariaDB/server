@@ -232,7 +232,6 @@ void
 st_parsing_options::reset()
 {
   allows_variable= TRUE;
-  allows_derived= TRUE;
 }
 
 
@@ -1245,11 +1244,11 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
     lip->lookahead_token= -1;
     *yylval= *(lip->lookahead_yylval);
     lip->lookahead_yylval= NULL;
-    lip->add_digest_token(token, yylval);
     return token;
   }
 
   token= lex_one_token(yylval, thd);
+  lip->add_digest_token(token, yylval);
 
   switch(token) {
   case WITH:
@@ -1261,12 +1260,11 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       which sql_yacc.yy can process.
     */
     token= lex_one_token(yylval, thd);
+    lip->add_digest_token(token, yylval);
     switch(token) {
     case CUBE_SYM:
-      lip->add_digest_token(WITH_CUBE_SYM, yylval);
       return WITH_CUBE_SYM;
     case ROLLUP_SYM:
-      lip->add_digest_token(WITH_ROLLUP_SYM, yylval);
       return WITH_ROLLUP_SYM;
     default:
       /*
@@ -1275,15 +1273,12 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       lip->lookahead_yylval= lip->yylval;
       lip->yylval= NULL;
       lip->lookahead_token= token;
-      lip->add_digest_token(WITH, yylval);
       return WITH;
     }
     break;
   default:
     break;
   }
-
-  lip->add_digest_token(token, yylval);
   return token;
 }
 
@@ -1696,32 +1691,35 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       return (BIN_NUM);
 
     case MY_LEX_CMP_OP:			// Incomplete comparison operator
+      lip->next_state= MY_LEX_START;	// Allow signed numbers
       if (state_map[(uchar) lip->yyPeek()] == MY_LEX_CMP_OP ||
           state_map[(uchar) lip->yyPeek()] == MY_LEX_LONG_CMP_OP)
-        lip->yySkip();
-      if ((tokval = find_keyword(lip, lip->yyLength() + 1, 0)))
       {
-	lip->next_state= MY_LEX_START;	// Allow signed numbers
-	return(tokval);
+        lip->yySkip();
+        if ((tokval= find_keyword(lip, 2, 0)))
+          return(tokval);
+        lip->yyUnget();
       }
-      state = MY_LEX_CHAR;		// Something fishy found
-      break;
+      return(c);
 
     case MY_LEX_LONG_CMP_OP:		// Incomplete comparison operator
+      lip->next_state= MY_LEX_START;
       if (state_map[(uchar) lip->yyPeek()] == MY_LEX_CMP_OP ||
           state_map[(uchar) lip->yyPeek()] == MY_LEX_LONG_CMP_OP)
       {
         lip->yySkip();
         if (state_map[(uchar) lip->yyPeek()] == MY_LEX_CMP_OP)
+        {
           lip->yySkip();
+          if ((tokval= find_keyword(lip, 3, 0)))
+            return(tokval);
+          lip->yyUnget();
+        }
+        if ((tokval= find_keyword(lip, 2, 0)))
+          return(tokval);
+        lip->yyUnget();
       }
-      if ((tokval = find_keyword(lip, lip->yyLength() + 1, 0)))
-      {
-	lip->next_state= MY_LEX_START;	// Found long op
-	return(tokval);
-      }
-      state = MY_LEX_CHAR;		// Something fishy found
-      break;
+      return(c);
 
     case MY_LEX_BOOL:
       if (c != lip->yyPeek())
@@ -2953,7 +2951,7 @@ bool LEX::can_be_merged()
          tmp_unit= tmp_unit->next_unit())
     {
       if (tmp_unit->first_select()->parent_lex == this &&
-          (tmp_unit->item == 0 ||
+          (tmp_unit->item != 0 &&
            (tmp_unit->item->place() != IN_WHERE &&
             tmp_unit->item->place() != IN_ON &&
             tmp_unit->item->place() != SELECT_LIST)))

@@ -73,16 +73,15 @@ print_where(COND *cond,const char *info, enum_query_type query_type)
   DBUG_UNLOCK_FILE;
 }
 
+#ifdef EXTRA_DEBUG
 	/* This is for debugging purposes */
-
-
 static my_bool print_cached_tables_callback(TDC_element *element,
                                             void *arg __attribute__((unused)))
 {
   TABLE *entry;
 
   mysql_mutex_lock(&element->LOCK_table_share);
-  TDC_element::All_share_tables_list::Iterator it(element->all_tables);
+  All_share_tables_list::Iterator it(element->all_tables);
   while ((entry= it++))
   {
     THD *in_use= entry->in_use;
@@ -112,6 +111,7 @@ static void print_cached_tables(void)
   /* purecov: end */
   return;
 }
+#endif
 
 
 void TEST_filesort(SORT_FIELD *sortorder,uint s_length)
@@ -559,7 +559,6 @@ C_MODE_END
 void mysql_print_status()
 {
   char current_dir[FN_REFLEN];
-  char llbuff[10][22];
   STATUS_VAR tmp;
   uint count;
 
@@ -616,6 +615,7 @@ Next alarm time: %lu\n",
   display_table_locks();
 #ifdef HAVE_MALLINFO
   struct mallinfo info= mallinfo();
+  char llbuff[10][22];
   printf("\nMemory status:\n\
 Non-mmapped space allocated from system: %s\n\
 Number of free chunks:                   %lu\n\

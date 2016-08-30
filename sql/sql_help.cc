@@ -672,7 +672,7 @@ SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, uint mlen,
     TRUE  Error and send_error already commited
 */
 
-bool mysqld_help(THD *thd, const char *mask)
+static bool mysqld_help_internal(THD *thd, const char *mask)
 {
   Protocol *protocol= thd->protocol;
   SQL_SELECT *select;
@@ -854,3 +854,12 @@ error2:
   DBUG_RETURN(TRUE);
 }
 
+
+bool mysqld_help(THD *thd, const char *mask)
+{
+  ulonglong sql_mode_backup= thd->variables.sql_mode;
+  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  bool rc= mysqld_help_internal(thd, mask);
+  thd->variables.sql_mode= sql_mode_backup;
+  return rc;
+}

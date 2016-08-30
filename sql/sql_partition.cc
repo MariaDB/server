@@ -104,46 +104,21 @@ static const char *end_paren_str= ")";
 static const char *begin_paren_str= "(";
 static const char *comma_str= ",";
 
-int get_partition_id_list_col(partition_info *part_info,
-                              uint32 *part_id,
-                              longlong *func_value);
-int get_partition_id_list(partition_info *part_info,
-                          uint32 *part_id,
-                          longlong *func_value);
-int get_partition_id_range_col(partition_info *part_info,
-                               uint32 *part_id,
-                               longlong *func_value);
-int get_partition_id_range(partition_info *part_info,
-                           uint32 *part_id,
-                           longlong *func_value);
-static int get_part_id_charset_func_part(partition_info *part_info,
-                                         uint32 *part_id,
-                                         longlong *func_value);
-static int get_part_id_charset_func_subpart(partition_info *part_info,
-                                            uint32 *part_id);
-int get_partition_id_hash_nosub(partition_info *part_info,
-                                uint32 *part_id,
-                                longlong *func_value);
-int get_partition_id_key_nosub(partition_info *part_info,
-                               uint32 *part_id,
-                               longlong *func_value);
-int get_partition_id_linear_hash_nosub(partition_info *part_info,
-                                       uint32 *part_id,
-                                       longlong *func_value);
-int get_partition_id_linear_key_nosub(partition_info *part_info,
-                                      uint32 *part_id,
-                                      longlong *func_value);
-int get_partition_id_with_sub(partition_info *part_info,
-                              uint32 *part_id,
-                              longlong *func_value);
-int get_partition_id_hash_sub(partition_info *part_info,
-                              uint32 *part_id); 
-int get_partition_id_key_sub(partition_info *part_info,
-                             uint32 *part_id); 
-int get_partition_id_linear_hash_sub(partition_info *part_info,
-                                     uint32 *part_id); 
-int get_partition_id_linear_key_sub(partition_info *part_info,
-                                    uint32 *part_id); 
+static int get_partition_id_list_col(partition_info *, uint32 *, longlong *);
+static int get_partition_id_list(partition_info *, uint32 *, longlong *);
+static int get_partition_id_range_col(partition_info *, uint32 *, longlong *);
+static int get_partition_id_range(partition_info *, uint32 *, longlong *);
+static int get_part_id_charset_func_part(partition_info *, uint32 *, longlong *);
+static int get_part_id_charset_func_subpart(partition_info *, uint32 *);
+static int get_partition_id_hash_nosub(partition_info *, uint32 *, longlong *);
+static int get_partition_id_key_nosub(partition_info *, uint32 *, longlong *);
+static int get_partition_id_linear_hash_nosub(partition_info *, uint32 *, longlong *);
+static int get_partition_id_linear_key_nosub(partition_info *, uint32 *, longlong *);
+static int get_partition_id_with_sub(partition_info *, uint32 *, longlong *);
+static int get_partition_id_hash_sub(partition_info *part_info, uint32 *part_id);
+static int get_partition_id_key_sub(partition_info *part_info, uint32 *part_id);
+static int get_partition_id_linear_hash_sub(partition_info *part_info, uint32 *part_id);
+static int get_partition_id_linear_key_sub(partition_info *part_info, uint32 *part_id);
 static uint32 get_next_partition_via_walking(PARTITION_ITERATOR*);
 static void set_up_range_analysis_info(partition_info *part_info);
 static uint32 get_next_subpartition_via_walking(PARTITION_ITERATOR*);
@@ -962,8 +937,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
   if (init_lex_with_single_table(thd, table, &lex))
     goto end;
 
-  func_expr->walk(&Item::change_context_processor, 0,
-                  (uchar*) &lex.select_lex.context);
+  func_expr->walk(&Item::change_context_processor, 0, &lex.select_lex.context);
   thd->where= "partition function";
   /*
     In execution we must avoid the use of thd->change_item_tree since
@@ -1018,8 +992,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     easier maintenance. This exception should be deprecated at some point
     in future so that we always throw an error.
   */
-  if (func_expr->walk(&Item::check_valid_arguments_processor,
-                      0, NULL))
+  if (func_expr->walk(&Item::check_valid_arguments_processor, 0, NULL))
   {
     if (is_create_table_ind)
     {
@@ -1038,8 +1011,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
 end:
   end_lex_with_single_table(thd, table, old_lex);
 #if !defined(DBUG_OFF)
-  func_expr->walk(&Item::change_context_processor, 0,
-                  (uchar*) 0);
+  func_expr->walk(&Item::change_context_processor, 0, 0);
 #endif
   DBUG_RETURN(result);
 }

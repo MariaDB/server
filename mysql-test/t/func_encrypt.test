@@ -1,4 +1,4 @@
--- source include/have_ssl_crypto_functs.inc
+-- source include/have_des.inc
 
 --disable_warnings
 drop table if exists t1;
@@ -120,4 +120,26 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+CREATE TABLE t1 (
+  a VARCHAR(30),
+  b BLOB DEFAULT DES_ENCRYPT(a, 'passwd'),
+  c TEXT DEFAULT DES_DECRYPT(b, 'passwd')
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('test');
+SELECT c FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
 --echo #

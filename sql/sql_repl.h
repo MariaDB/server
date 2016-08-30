@@ -36,7 +36,6 @@ struct slave_connection_state;
 
 extern my_bool opt_show_slave_auth_info;
 extern char *master_host, *master_info_file;
-extern bool server_id_supplied;
 
 extern int max_binlog_dump_events;
 extern my_bool opt_sporadic_binlog_dump_fail;

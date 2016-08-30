@@ -350,6 +350,11 @@ create table t1(a int);
 drop view v1;
 drop table t1;
 
+create table `#mysql50#t1``1` (a int) engine=myisam;
+--exec $MYSQL_CHECK --fix-table-names --databases test
+show tables;
+drop table `t1``1`;
+
 --echo #
 --echo #MDEV-7384 [PATCH] add PERSISENT FOR ALL option to mysqlanalyze/mysqlcheck
 --echo #

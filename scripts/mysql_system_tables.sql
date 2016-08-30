@@ -229,7 +229,7 @@ SET @cmd= "CREATE TABLE IF NOT EXISTS gtid_slave_pos (
   sub_id BIGINT UNSIGNED NOT NULL,
   server_id INT UNSIGNED NOT NULL,
   seq_no BIGINT UNSIGNED NOT NULL,
-  PRIMARY KEY (domain_id, sub_id))
+  PRIMARY KEY (domain_id, sub_id)) CHARSET=latin1
 COMMENT='Replication slave GTID position'";
 SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_myisam);
 PREPARE stmt FROM @str;

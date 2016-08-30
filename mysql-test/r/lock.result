@@ -380,12 +380,7 @@ alter table t1 add column j int;
 unlock tables;
 drop table t1;
 create temporary table t1 (i int);
-#
-# This is just for test coverage purposes, 
-# when this is allowed, remove the --error.
-#
 lock tables t1 write, t1 as a read, t1 as b read;
-ERROR HY000: Can't reopen table: 't1'
 alter table t1 add column j int;
 unlock tables;
 drop table t1;

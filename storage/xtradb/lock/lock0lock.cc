@@ -639,7 +639,7 @@ lock_sys_create(
 	lock_sys->rec_num = 0;
 
 	if (!srv_read_only_mode) {
-		lock_latest_err_file = os_file_create_tmpfile();
+		lock_latest_err_file = os_file_create_tmpfile(NULL);
 		ut_a(lock_latest_err_file);
 	}
 }
@@ -660,6 +660,17 @@ lock_sys_close(void)
 
 	mutex_free(&lock_sys->mutex);
 	mutex_free(&lock_sys->wait_mutex);
+
+	os_event_free(lock_sys->timeout_event);
+
+	for (srv_slot_t* slot = lock_sys->waiting_threads;
+	     slot < lock_sys->waiting_threads + OS_THREAD_MAX_N; slot++) {
+
+		ut_ad(!slot->in_use);
+		ut_ad(!slot->thr);
+		if (slot->event != NULL)
+			os_event_free(slot->event);
+	}
 
 	mem_free(lock_stack);
 	mem_free(lock_sys);
@@ -2409,7 +2420,7 @@ lock_rec_add_to_queue(
 				if (wsrep_debug) {
 					fprintf(stderr,
 						"BF skipping wait: %lu\n",
-						trx->id);
+						(ulong) trx->id);
 					lock_rec_print(stderr, lock);
 				}
 		  } else
@@ -4998,7 +5009,7 @@ lock_table_other_has_incompatible(
 #ifdef WITH_WSREP
 			if(wsrep_thd_is_wsrep(trx->mysql_thd)) {
 				if (wsrep_debug) {
-					fprintf(stderr, "WSREP: trx %ld table lock abort\n",
+					fprintf(stderr, "WSREP: trx " TRX_ID_FMT " table lock abort\n",
 						trx->id);
 				}
 				trx_mutex_enter(lock->trx);

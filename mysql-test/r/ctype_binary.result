@@ -658,7 +658,7 @@ create table t1 as select group_concat(1,2,3) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 as select 1 as c1 union select 'a';
@@ -914,7 +914,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varbinary(83) DEFAULT NULL,
-  `c2` decimal(65,30) DEFAULT NULL
+  `c2` decimal(65,38) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(@@ft_max_word_len));
@@ -1264,7 +1264,7 @@ create table t1 as select concat(AsText(GeomFromText('Point(1 2)'))) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(period_add(200902, 2)));
@@ -2621,7 +2621,7 @@ GROUP_CONCAT(CASE WHEN a THEN a ELSE '' END)
 1234567
 SELECT COALESCE(a,'') FROM t1 GROUP BY 1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					COALESCE(a,'')	253	9	7	Y	128	31	63
+def					COALESCE(a,'')	253	9	7	Y	128	39	63
 COALESCE(a,'')
 1234567
 # All columns must be VARCHAR(9) with the same length:
@@ -2886,6 +2886,15 @@ f1()
 00:00:01
 DROP FUNCTION f1;
 DROP TABLE t1;
+#
+# MDEV-9662 Assertion `precision || !scale' failed in my_decimal_precision_to_length_no_truncation(uint, uint8, bool)
+#
+SELECT @@collation_connection;
+@@collation_connection
+binary
+SELECT CASE 1 WHEN 2 THEN ( - '3' ) END;
+CASE 1 WHEN 2 THEN ( - '3' ) END
+NULL
 #
 # MDEV-5702 Incorrect results are returned with NULLIF()
 #

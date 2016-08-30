@@ -62,5 +62,5 @@ New features compared to NISAM:
 Interface changes compared to NISAM:
 
 - mi_create()
-  - keyinfo->seg must be allocated explicitely.
+  - keyinfo->seg must be allocated explicitly.
   - One must put number of key segments in keyinfo

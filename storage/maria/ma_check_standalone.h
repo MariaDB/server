@@ -23,7 +23,7 @@ void _mi_report_crashed(void *file __attribute__((unused)),
 {
 }
 
-static unsigned int no_key()
+static unsigned int no_key(unsigned int not_used __attribute__((unused)))
 {
   return ENCRYPTION_KEY_VERSION_INVALID;
 }

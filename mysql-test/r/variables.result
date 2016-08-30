@@ -731,8 +731,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) DEFAULT NULL,
-  `c2` decimal(65,30) DEFAULT NULL,
-  `c3` longtext,
+  `c2` decimal(65,38) DEFAULT NULL,
+  `c3` longtext DEFAULT NULL,
   `c4` double DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
@@ -1445,7 +1445,7 @@ Warnings:
 Warning	1292	Truncated incorrect auto_increment_offset value: '0'
 select @@default_storage_engine;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					@@default_storage_engine	253	6	6	Y	0	31	8
+def					@@default_storage_engine	253	6	6	Y	0	39	8
 @@default_storage_engine
 MyISAM
 SET @old_server_id = @@GLOBAL.server_id;
@@ -1466,15 +1466,17 @@ SELECT @@GLOBAL.server_id;
 @@GLOBAL.server_id
 4294967295
 SET GLOBAL server_id = 0;
+Warnings:
+Warning	1292	Truncated incorrect server_id value: '0'
 SELECT @@GLOBAL.server_id;
 @@GLOBAL.server_id
-0
+1
 SET GLOBAL server_id = -1;
 Warnings:
 Warning	1292	Truncated incorrect server_id value: '-1'
 SELECT @@GLOBAL.server_id;
 @@GLOBAL.server_id
-0
+1
 SET GLOBAL server_id = @old_server_id;
 #
 # BUG#10206 - InnoDB: Transaction requiring Max_BinLog_Cache_size > 4GB always rollsback

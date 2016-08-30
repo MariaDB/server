@@ -1,5 +1,6 @@
 /* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
    Copyright (c) 2014, SkySQL Ab.
+   Copyright (c) 2016, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -534,12 +535,9 @@ bool Sql_cmd_alter_table_exchange_partition::
 #ifdef WITH_WSREP
   if (WSREP_ON)
   {
-    /* Forward declaration */
-    TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
-
     if ((!thd->is_current_stmt_binlog_format_row() ||
          /* TODO: Do we really need to check for temp tables in this case? */
-         !find_temporary_table(thd, table_list)) &&
+         !thd->find_temporary_table(table_list)) &&
         wsrep_to_isolation_begin(thd, table_list->db, table_list->table_name,
                                  NULL))
     {
@@ -783,11 +781,9 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
     DBUG_RETURN(TRUE);
 
 #ifdef WITH_WSREP
-  /* Forward declaration */
-  TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
-
-  if (WSREP(thd) && (!thd->is_current_stmt_binlog_format_row() ||
-       !find_temporary_table(thd, first_table))  &&
+  if (WSREP(thd) &&
+      (!thd->is_current_stmt_binlog_format_row() ||
+       !thd->find_temporary_table(first_table))  &&
       wsrep_to_isolation_begin(
         thd, first_table->db, first_table->table_name, NULL)
       )

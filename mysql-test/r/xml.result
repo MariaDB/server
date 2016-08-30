@@ -1276,3 +1276,24 @@ DROP TABLE t1;
 #
 # End of 10.0 tests
 #
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+CREATE TABLE t1 (a TEXT, b TEXT DEFAULT ExtractValue(a, '/a/b'));
+INSERT INTO t1 (a) VALUES ('<a><b>bbb</b></a>');
+SELECT b FROM t1;
+b
+bbb
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, b TEXT DEFAULT UpdateXML(a, '/a/b','<b>xxx</b>'));
+INSERT INTO t1 (a) VALUES ('<a><b>bbb</b></a>');
+SELECT b FROM t1;
+b
+<a><b>xxx</b></a>
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#

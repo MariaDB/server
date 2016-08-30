@@ -31,7 +31,7 @@ Field	Type	Null	Key	Default	Extra
 TABLE_CATALOG	varchar(512)	NO			
 TABLE_SCHEMA	varchar(64)	NO			
 TABLE_NAME	varchar(64)	NO			
-VIEW_DEFINITION	longtext	NO		NULL	
+VIEW_DEFINITION	longtext	NO			
 CHECK_OPTION	varchar(8)	NO			
 IS_UPDATABLE	varchar(3)	NO			
 DEFINER	varchar(189)	NO			
@@ -45,7 +45,7 @@ VIEWS	CREATE TEMPORARY TABLE `VIEWS` (
   `TABLE_CATALOG` varchar(512) NOT NULL DEFAULT '',
   `TABLE_SCHEMA` varchar(64) NOT NULL DEFAULT '',
   `TABLE_NAME` varchar(64) NOT NULL DEFAULT '',
-  `VIEW_DEFINITION` longtext NOT NULL,
+  `VIEW_DEFINITION` longtext NOT NULL DEFAULT '',
   `CHECK_OPTION` varchar(8) NOT NULL DEFAULT '',
   `IS_UPDATABLE` varchar(3) NOT NULL DEFAULT '',
   `DEFINER` varchar(189) NOT NULL DEFAULT '',
@@ -59,7 +59,7 @@ Field	Type	Null	Key	Default	Extra
 TABLE_CATALOG	varchar(512)	NO			
 TABLE_SCHEMA	varchar(64)	NO			
 TABLE_NAME	varchar(64)	NO			
-VIEW_DEFINITION	longtext	NO		NULL	
+VIEW_DEFINITION	longtext	NO			
 CHECK_OPTION	varchar(8)	NO			
 IS_UPDATABLE	varchar(3)	NO			
 DEFINER	varchar(189)	NO			

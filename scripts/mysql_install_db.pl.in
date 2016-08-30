@@ -238,7 +238,7 @@ sub quote_options {
 ##############################################################################
 
 my $opt = {};
-parse_arguments($opt, 'PICK-ARGS-FROM-ARGV', @ARGV);
+parse_arguments($opt, @ARGV);
 
 # ----------------------------------------------------------------------
 # We can now find my_print_defaults.  This script supports:

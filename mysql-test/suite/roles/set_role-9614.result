@@ -1,0 +1,99 @@
+#
+# MDEV-9614 Roles and Users Longer than 6 characters
+#
+# This test case checks the edge case presented in the MDEV. The
+# real issue is actually apparent when the username is longer than the
+# rolename.
+#
+# We need a separate database not including test or test_% names. Due to
+# default privileges given on these databases.
+#
+DROP DATABASE IF EXISTS `bug_db`;
+Warnings:
+Note	1008	Can't drop database 'bug_db'; database doesn't exist
+#
+# The first user did not show the bug as john's length is smaller
+# than client. The bug is apparent most of the time for usertestjohn.
+#
+CREATE USER `john`@`%`;
+CREATE USER `usertestjohn`@`%`;
+CREATE ROLE `client`;
+#
+# Setup the required tables.
+#
+CREATE DATABASE `bug_db`;
+CREATE TABLE `bug_db`.`t0`(`c0` INT);
+#
+# Setup select privileges only on the role. Setting the role should give
+# select access to bug_db.t0.
+#
+GRANT SELECT ON `bug_db`.`t0` TO `client`;
+GRANT `client` TO `john`@`%`;
+GRANT `client` TO `usertestjohn`@`%`;
+#
+# Check to see grants are set.
+#
+SHOW GRANTS FOR `john`@`%`;
+Grants for john@%
+GRANT client TO 'john'@'%'
+GRANT USAGE ON *.* TO 'john'@'%'
+SHOW GRANTS FOR `usertestjohn`@`%`;
+Grants for usertestjohn@%
+GRANT client TO 'usertestjohn'@'%'
+GRANT USAGE ON *.* TO 'usertestjohn'@'%'
+SHOW GRANTS FOR `client`;
+Grants for client
+GRANT USAGE ON *.* TO 'client'
+GRANT SELECT ON `bug_db`.`t0` TO 'client'
+show databases;
+Database
+bug_db
+information_schema
+mtr
+mysql
+performance_schema
+test
+#
+# Try using the database as john.
+#
+connect  john, localhost, john,,information_schema;
+show databases;
+Database
+information_schema
+test
+set role client;
+show databases;
+Database
+bug_db
+information_schema
+test
+use bug_db;
+#
+# Try using the database as usertestjohn.
+#
+connect  usertestjohn, localhost, usertestjohn,,information_schema;
+show databases;
+Database
+information_schema
+test
+set role client;
+show databases;
+Database
+bug_db
+information_schema
+test
+show grants;
+Grants for usertestjohn@%
+GRANT client TO 'usertestjohn'@'%'
+GRANT USAGE ON *.* TO 'usertestjohn'@'%'
+GRANT USAGE ON *.* TO 'client'
+GRANT SELECT ON `bug_db`.`t0` TO 'client'
+use bug_db;
+#
+# Cleanup
+#
+connection default;
+drop user john;
+drop user usertestjohn;
+drop role client;
+drop database bug_db;

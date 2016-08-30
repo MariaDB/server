@@ -284,11 +284,7 @@ info text NOT NULL default '',
 ipnr varchar(30) NOT NULL default '',
 PRIMARY KEY  (member_id)
 ) ENGINE=MyISAM PACK_KEYS=1;
-Warnings:
-Warning	1101	BLOB/TEXT column 'info' can't have a default value
 insert into t1 (member_id) values (1),(2),(3);
-Warnings:
-Warning	1364	Field 'info' doesn't have a default value
 select member_id, nickname, voornaam FROM t1
 ORDER by lastchange_datum DESC LIMIT 2;
 member_id	nickname	voornaam
@@ -2987,3 +2983,148 @@ EXPLAIN SELECT id1 FROM t2 WHERE id2=1 AND id3=1 ORDER BY date DESC LIMIT 0,4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ref	id_23_date,id_234_date	id_23_date	2	const,const	3	Using where
 drop table t1,t2;
+#
+# MDEV-8989: ORDER BY optimizer ignores equality propagation
+#
+set @tmp_8989=@@optimizer_switch;
+set optimizer_switch='orderby_uses_equalities=on';
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+pk int primary key, 
+a int, b int, 
+filler char(200), 
+key(a)
+);
+insert into t2 select a, 1000-a, 1000-a, repeat('abc-',50) from t1 where a<200 limit 200;
+create table t3 (
+pk int primary key, 
+a int, b int, 
+filler char(200), 
+key(a)
+);
+insert into t3 select a,      1000-a, 1000-a, repeat('abc-',50) from t1;
+insert into t3 select a+1000, 1000+a, 1000+a, repeat('abc-',50) from t1;
+# The optimizer produces an order of 't2,t3' for this join
+#
+# Case #1 (from the bug report): 
+#  Q1 can take advantage of t2.a to resolve ORDER BY limit w/o sorting
+explain
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t2.a limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	a	a	5	NULL	5	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
+# 
+# This is Q2 which used to have "Using temporary; using filesort" but
+#   has the same query plan as Q1:
+# 
+explain
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t3.a limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	a	a	5	NULL	5	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t2.a limit 5;
+pk	a	b	pk	a	b
+199	801	801	199	801	801
+198	802	802	198	802	802
+197	803	803	197	803	803
+196	804	804	196	804	804
+195	805	805	195	805	805
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t3.a limit 5;
+pk	a	b	pk	a	b
+199	801	801	199	801	801
+198	802	802	198	802	802
+197	803	803	197	803	803
+196	804	804	196	804	804
+195	805	805	195	805	805
+# 
+# Case #2: here, only "Using temporary" is removed. "Using filesort" remains.
+# 
+explain
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t2.a limit 25;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
+explain
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t3.a limit 25;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t2.a limit 25;
+pk	a	b	pk	a	b
+199	801	801	199	801	801
+198	802	802	198	802	802
+197	803	803	197	803	803
+196	804	804	196	804	804
+195	805	805	195	805	805
+194	806	806	194	806	806
+193	807	807	193	807	807
+192	808	808	192	808	808
+191	809	809	191	809	809
+190	810	810	190	810	810
+189	811	811	189	811	811
+188	812	812	188	812	812
+187	813	813	187	813	813
+186	814	814	186	814	814
+185	815	815	185	815	815
+184	816	816	184	816	816
+183	817	817	183	817	817
+182	818	818	182	818	818
+181	819	819	181	819	819
+180	820	820	180	820	820
+179	821	821	179	821	821
+178	822	822	178	822	822
+177	823	823	177	823	823
+176	824	824	176	824	824
+175	825	825	175	825	825
+select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
+from t2, t3 where t2.a=t3.a order by t3.a limit 25;
+pk	a	b	pk	a	b
+199	801	801	199	801	801
+198	802	802	198	802	802
+197	803	803	197	803	803
+196	804	804	196	804	804
+195	805	805	195	805	805
+194	806	806	194	806	806
+193	807	807	193	807	807
+192	808	808	192	808	808
+191	809	809	191	809	809
+190	810	810	190	810	810
+189	811	811	189	811	811
+188	812	812	188	812	812
+187	813	813	187	813	813
+186	814	814	186	814	814
+185	815	815	185	815	815
+184	816	816	184	816	816
+183	817	817	183	817	817
+182	818	818	182	818	818
+181	819	819	181	819	819
+180	820	820	180	820	820
+179	821	821	179	821	821
+178	822	822	178	822	822
+177	823	823	177	823	823
+176	824	824	176	824	824
+175	825	825	175	825	825
+#
+# Case #3: single table access (the code that decides whether we need
+#          "Using temporary" is not invoked)
+#
+explain select * from t3 where b=a order by a limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	index	NULL	a	5	NULL	10	Using where
+# This must not use filesort. The query plan should be like the query above:
+explain select * from t3 where b=a order by b limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	index	NULL	a	5	NULL	10	Using where
+drop table t0,t1,t2,t3;
+set @@optimizer_switch=@tmp_8989;
+set optimizer_switch='orderby_uses_equalities=on';

@@ -486,6 +486,14 @@ SELECT -a FROM t1;
 --error ER_DATA_OUT_OF_RANGE
 SELECT -b FROM t1;
 
+# try with two rows now
+INSERT INTO t1 VALUES(0,0);
+
+--error ER_DATA_OUT_OF_RANGE
+SELECT -a FROM t1;
+--error ER_DATA_OUT_OF_RANGE
+SELECT -b FROM t1;
+
 DROP TABLE t1;
 
 # Decimal overflows
@@ -586,5 +594,14 @@ SELECT STDDEV_POP(ROUND(0,@A:=2009)) FROM (SELECT 1 UNION SELECT 2) fake_table;
 
 
 --echo #
---echo # End of 10.0 tests
+--echo # Start of 10.2 tests
 --echo #
+
+--echo # Test zero
+select 0=0, 0=-0, 0.0= -0.0, 0.0 = -(0.0), 0.0E1=-0.0E1, 0.0E1=-(0.0E1);
+
+--echo #
+--echo # CRC32 tests
+--echo #
+
+select CRC32(NULL), CRC32(''), CRC32('MySQL'), CRC32('mysql'), CRC32('01234567'), CRC32('012345678');

@@ -101,15 +101,6 @@ UNIV_INLINE
 ibool
 recv_recovery_is_on(void);
 /*=====================*/
-#ifdef UNIV_LOG_ARCHIVE
-/*******************************************************************//**
-Returns TRUE if recovery from backup is currently running.
-@return	recv_recovery_from_backup_on */
-UNIV_INLINE
-ibool
-recv_recovery_from_backup_is_on(void);
-/*=================================*/
-#endif /* UNIV_LOG_ARCHIVE */
 /************************************************************************//**
 Applies the hashed log records to the page, if the page lsn is less than the
 lsn of a log record. This can be called when a buffer page has just been
@@ -331,30 +322,6 @@ void
 recv_apply_log_recs_for_backup(void);
 /*================================*/
 #endif
-#ifdef UNIV_LOG_ARCHIVE
-/********************************************************//**
-Recovers from archived log files, and also from log files, if they exist.
-@return	error code or DB_SUCCESS */
-UNIV_INTERN
-dberr_t
-recv_recovery_from_archive_start(
-/*=============================*/
-	lsn_t		min_flushed_lsn,/*!< in: min flushed lsn field from the
-					data files */
-	lsn_t		limit_lsn,	/*!< in: recover up to this lsn if
-					possible */
-	lsn_t		first_log_no);	/*!< in: number of the first archived
-					log file to use in the recovery; the
-					file will be searched from
-					INNOBASE_LOG_ARCH_DIR specified in
-					server config file */
-/********************************************************//**
-Completes recovery from archive. */
-UNIV_INTERN
-void
-recv_recovery_from_archive_finish(void);
-/*===================================*/
-#endif /* UNIV_LOG_ARCHIVE */
 
 /** Block of log record data */
 struct recv_data_t{

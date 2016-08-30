@@ -1081,3 +1081,39 @@ select release_lock('test');
 --echo
 --echo # -- Done.
 --echo
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+CREATE TABLE t1 (
+  a VARCHAR(30),
+  b BIGINT DEFAULT INET_ATON(a),
+  a1 VARCHAR(30) DEFAULT INET_NTOA(b),
+  c INT DEFAULT IS_IPV4(a),
+  d INT DEFAULT IS_IPV6(a)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('192.168.001.001'),('::1'),('xxx');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  str VARCHAR(128),
+  addr VARBINARY(16) DEFAULT INET6_ATON(str),
+  str1 VARCHAR(128) DEFAULT INET6_NTOA(addr),
+  b INT DEFAULT IS_IPV4_COMPAT(addr),
+  c INT DEFAULT IS_IPV4_MAPPED(addr)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (str) VALUES ('::FFFF:192.168.0.1'),('::10.0.5.9');
+SELECT str, str1, b,c FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

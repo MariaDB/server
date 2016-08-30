@@ -244,6 +244,8 @@ storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
 *.exp
 *.dep
 *.idb
+*.res
+*.tlog
 
 # Precompiled Headers
 *.gch

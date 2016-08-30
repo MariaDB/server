@@ -53,17 +53,10 @@ UNIV_INTERN ulint		btr_search_index_num;
 /** A dummy variable to fool the compiler */
 UNIV_INTERN ulint		btr_search_this_is_zero = 0;
 
-#ifdef UNIV_SEARCH_PERF_STAT
-/** Number of successful adaptive hash index lookups */
-UNIV_INTERN ulint		btr_search_n_succ	= 0;
-/** Number of failed adaptive hash index lookups */
-UNIV_INTERN ulint		btr_search_n_hash_fail	= 0;
-#endif /* UNIV_SEARCH_PERF_STAT */
-
 /** padding to prevent other memory update
 hotspots from residing on the same memory
 cache line as btr_search_latch */
-UNIV_INTERN byte		btr_sea_pad1[64];
+UNIV_INTERN byte		btr_sea_pad1[CACHE_LINE_SIZE];
 
 /** Array of latches protecting individual AHI partitions. The latches
 protect: (1) positions of records on those pages where a hash index from the
@@ -76,7 +69,7 @@ UNIV_INTERN prio_rw_lock_t*	btr_search_latch_arr;
 
 /** padding to prevent other memory update hotspots from residing on
 the same memory cache line */
-UNIV_INTERN byte		btr_sea_pad2[64];
+UNIV_INTERN byte		btr_sea_pad2[CACHE_LINE_SIZE];
 
 /** The adaptive hash index */
 UNIV_INTERN btr_search_sys_t*	btr_search_sys;
@@ -698,10 +691,6 @@ btr_search_info_update_slow(
 	if (cursor->flag == BTR_CUR_HASH_FAIL) {
 		/* Update the hash node reference, if appropriate */
 
-#ifdef UNIV_SEARCH_PERF_STAT
-		btr_search_n_hash_fail++;
-#endif /* UNIV_SEARCH_PERF_STAT */
-
 		rw_lock_x_lock(btr_search_get_latch(cursor->index));
 
 		btr_search_update_hash_ref(info, block, cursor);
@@ -1059,7 +1048,6 @@ btr_search_guess_on_hash(
 	info->last_hash_succ = TRUE;
 
 #ifdef UNIV_SEARCH_PERF_STAT
-	btr_search_n_succ++;
 #endif
 	if (UNIV_LIKELY(!has_search_latch)
 	    && buf_page_peek_if_too_old(&block->page)) {

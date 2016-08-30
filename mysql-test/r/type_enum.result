@@ -1669,7 +1669,7 @@ b ENUM('value','๖ไü_value','สรี') character set latin1 NOT NULL
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT '1',
+  `a` int(11) DEFAULT 1,
   `b` enum('value','๖ไü_value','สรี') NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show columns from t1;
@@ -2151,7 +2151,7 @@ CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (9e100);
 ALTER TABLE t1 MODIFY a ENUM('9e200','9e100');
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: '9e100'
+Warning	1916	Got overflow when converting '9e100' to INT. Value truncated.
 Warning	1265	Data truncated for column 'a' at row 1
 SELECT * FROM t1;
 a

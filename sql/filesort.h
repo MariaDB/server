@@ -26,6 +26,7 @@ struct TABLE;
 class Filesort_tracker;
 struct SORT_FIELD;
 typedef struct st_order ORDER;
+class JOIN;
  
 
 /**
@@ -72,7 +73,7 @@ public:
 
   ~Filesort() { cleanup(); }
   /* Prepare ORDER BY list for sorting. */
-  uint make_sortorder(THD *thd);
+  uint make_sortorder(THD *thd, JOIN *join, table_map first_table_bit);
 
 private:
   void cleanup();
@@ -152,11 +153,13 @@ public:
   { return filesort_buffer.sort_buffer_size(); }
 
   friend SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
-                             Filesort_tracker* tracker);
+                             Filesort_tracker* tracker, JOIN *join,
+                             table_map first_table_bit);
 };
 
 SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
-                    Filesort_tracker* tracker);
+                    Filesort_tracker* tracker, JOIN *join=NULL,
+                    table_map first_table_bit=0);
 
 void change_double_for_sort(double nr,uchar *to);
 

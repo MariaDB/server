@@ -81,8 +81,10 @@ void normalize_path(char *path, size_t size)
   and services. We do not want to mess up with these installations. We will
   just ignore such services, pretending it is not MySQL.
 
-  ´@return 
-    TRUE,  if this service should be excluded from UI lists etc (OEM install)
+  We also exclude MySQL5.7+ since we cannot upgrade it (and it is not an upgrade anyway)
+
+  @return
+    TRUE,  if this service should be excluded from UI lists etc
     FALSE otherwise.
 */
 BOOL exclude_service(mysqld_service_properties *props)
@@ -104,7 +106,12 @@ BOOL exclude_service(mysqld_service_properties *props)
     if (strstr(buf, exclude_patterns[i]))
       return TRUE;
   }
-
+  if ((props->version_major == 0) ||
+     (props->version_major > 5 && props->version_major < 10) ||
+     (props->version_major == 5 && props->version_minor > 6))
+  {
+    return TRUE;
+  }
   return FALSE;
 }
 

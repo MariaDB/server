@@ -21,11 +21,14 @@ insert into t values (1);
 
 connect (conn_b,localhost,root,,);
 set autocommit=0;
-send insert into t values (1);
+set tokudb_prelock_empty=OFF;
+set tokudb_lock_timeout=60000; # set lock wait timeout to 1 minute
+
+send replace into t values (1);
 
 # should find the presence of a lock on 1st transaction
 connection default;
-let $wait_condition= select count(*)=1 from information_schema.processlist where info='insert into t values (1)' and state='update';
+let $wait_condition= select count(*)=1 from information_schema.processlist where info='replace into t values (1)' and state='update';
 source include/wait_condition.inc;
 real_sleep 1; # delay a little to shorten the update -> write row -> lock wait race
 
@@ -41,7 +44,9 @@ replace_column 1 TRX_ID 2 MYSQL_ID;
 select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
 
 connection conn_a;
-sleep 5; # sleep longer than the lock timer to force a lock timeout on txn_b
+real_sleep 45; # sleep till we get close to timeout since wait_condidion will timeout @ 30 seconds
+let $wait_condition= select count(*)=0 from information_schema.processlist where info='replace into t values (1)' and state='update';
+source include/wait_condition.inc;
 commit;
 
 # verify that the lock on the 1st transaction is released and replaced by the lock for the 2nd transaction

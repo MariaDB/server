@@ -8,8 +8,8 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
+  `title` text DEFAULT NULL,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (title, body) values ("groonga (1)", "starting groonga.");
@@ -20,9 +20,9 @@ ALTER TABLE diaries MODIFY body TEXT FIRST;
 SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
-  `body` text,
+  `body` text DEFAULT NULL,
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
+  `title` text DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga AUTO_INCREMENT=2 DEFAULT CHARSET=utf8
 INSERT INTO diaries (title, body) values ("groonga (2)", "started groonga.");

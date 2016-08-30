@@ -13,7 +13,7 @@ Table	Create Table
 memos	CREATE TABLE `memos` (
   `id` int(10) unsigned NOT NULL,
   `writing_time` time DEFAULT NULL,
-  `content` text,
+  `content` text DEFAULT NULL,
   KEY `writing_time` (`writing_time`),
   FULLTEXT KEY `content` (`content`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8

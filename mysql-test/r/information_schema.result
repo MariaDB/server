@@ -576,6 +576,7 @@ select s1 from t1 where s1 in (select version from
 information_schema.tables) union select version from
 information_schema.tables;
 s1
+11
 10
 drop table t1;
 SHOW CREATE TABLE INFORMATION_SCHEMA.character_sets;
@@ -584,7 +585,7 @@ CHARACTER_SETS	CREATE TEMPORARY TABLE `CHARACTER_SETS` (
   `CHARACTER_SET_NAME` varchar(32) NOT NULL DEFAULT '',
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL DEFAULT '',
   `DESCRIPTION` varchar(60) NOT NULL DEFAULT '',
-  `MAXLEN` bigint(3) NOT NULL DEFAULT '0'
+  `MAXLEN` bigint(3) NOT NULL DEFAULT 0
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8
 set names latin2;
 SHOW CREATE TABLE INFORMATION_SCHEMA.character_sets;
@@ -593,7 +594,7 @@ CHARACTER_SETS	CREATE TEMPORARY TABLE `CHARACTER_SETS` (
   `CHARACTER_SET_NAME` varchar(32) NOT NULL DEFAULT '',
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL DEFAULT '',
   `DESCRIPTION` varchar(60) NOT NULL DEFAULT '',
-  `MAXLEN` bigint(3) NOT NULL DEFAULT '0'
+  `MAXLEN` bigint(3) NOT NULL DEFAULT 0
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8
 set names latin1;
 create table t1 select * from information_schema.CHARACTER_SETS
@@ -608,7 +609,7 @@ t1	CREATE TABLE `t1` (
   `CHARACTER_SET_NAME` varchar(32) NOT NULL DEFAULT '',
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL DEFAULT '',
   `DESCRIPTION` varchar(60) NOT NULL DEFAULT '',
-  `MAXLEN` bigint(3) NOT NULL DEFAULT '0'
+  `MAXLEN` bigint(3) NOT NULL DEFAULT 0
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8
 drop table t1;
 create view v1 as select * from information_schema.TABLES;

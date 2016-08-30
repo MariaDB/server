@@ -66,7 +66,7 @@ private:
   LEX_STRING unparsed_spec;
 
   /* Return the map where 1 is set only in the position for this element */
-  table_map get_elem_map() { return 1 << number; }
+  table_map get_elem_map() { return (table_map) 1 << number; }
  
 public:
   /*

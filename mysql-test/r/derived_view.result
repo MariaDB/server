@@ -1101,7 +1101,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select 6 AS `a`,5 AS `b` from `test`.`t3` where (not(<expr_cache><6,5>(<in_optimizer>((6,5),<exists>(select 7,5 having (trigcond(((<cache>(6) = 7) or isnull(7))) and trigcond(((<cache>(5) = 5) or isnull(5))) and trigcond(<is_not_null_test>(7)) and trigcond(<is_not_null_test>(5))))))))
+Note	1003	select 6 AS `a`,5 AS `b` from `test`.`t3` where 1
 SELECT t.a,t.b FROM t3 RIGHT JOIN ((SELECT * FROM t1) AS t, t2) ON t2.b != 0 
 WHERE (t.a,t.b) NOT IN (SELECT 7, 5);
 a	b
@@ -1115,7 +1115,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
 3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select 6 AS `a`,5 AS `b` from `test`.`t3` where (not(<expr_cache><6,5>(<in_optimizer>((6,5),<exists>(select 7,5 having (trigcond(((<cache>(6) = 7) or isnull(7))) and trigcond(((<cache>(5) = 5) or isnull(5))) and trigcond(<is_not_null_test>(7)) and trigcond(<is_not_null_test>(5))))))))
+Note	1003	select 6 AS `a`,5 AS `b` from `test`.`t3` where 1
 SELECT t.a,t.b FROM t3 RIGHT JOIN (v1 AS t, t2) ON t2.b != 0 
 WHERE (t.a,t.b) NOT IN (SELECT 7, 5);
 a	b
@@ -1129,7 +1129,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select 6 AS `a`,5 AS `b` from `test`.`t3` where (not(<expr_cache><6,5>(<in_optimizer>((6,5),<exists>(select 7,5 having (trigcond(((<cache>(6) = 7) or isnull(7))) and trigcond(((<cache>(5) = 5) or isnull(5))) and trigcond(<is_not_null_test>(7)) and trigcond(<is_not_null_test>(5))))))))
+Note	1003	select 6 AS `a`,5 AS `b` from `test`.`t3` where 1
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
 #

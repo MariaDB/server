@@ -452,7 +452,7 @@ ha_innobase::check_if_supported_inplace_alter(
 			we must use "Copy" method. */
 			if (is_timestamp_type(def->sql_type)) {
 				if ((def->flags & NOT_NULL_FLAG) != 0 && // NOT NULL
-					(def->def != NULL || // constant default ?
+					(def->default_value != NULL || // constant default ?
 					 def->unireg_check != Field::NONE)) { // function default
 					ha_alter_info->unsupported_reason = innobase_get_err_msg(
 						ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
@@ -461,6 +461,20 @@ ha_innobase::check_if_supported_inplace_alter(
 				break;
 			}
 		}
+	}
+
+	ulint n_indexes = UT_LIST_GET_LEN((prebuilt->table)->indexes);
+
+	/* If InnoDB dictionary and MySQL frm file are not consistent
+	use "Copy" method. */
+	if (prebuilt->table->dict_frm_mismatch) {
+
+		ha_alter_info->unsupported_reason = innobase_get_err_msg(
+			ER_NO_SUCH_INDEX);
+		ib_push_frm_error(user_thd, prebuilt->table, altered_table,
+			n_indexes, true);
+
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
 	/* We should be able to do the operation in-place.
@@ -2777,6 +2791,10 @@ prepare_inplace_alter_table_dict(
 
 	ctx->num_to_add_index = ha_alter_info->index_add_count;
 
+	ut_ad(ctx->prebuilt->trx->mysql_thd != NULL);
+	const char*	path = thd_innodb_tmpdir(
+		ctx->prebuilt->trx->mysql_thd);
+
 	index_defs = innobase_create_key_defs(
 		ctx->heap, ha_alter_info, altered_table, ctx->num_to_add_index,
 		num_fts_index,
@@ -3130,8 +3148,10 @@ prepare_inplace_alter_table_dict(
 					error = DB_OUT_OF_MEMORY;
 					goto error_handling;);
 			rw_lock_x_lock(&ctx->add_index[a]->lock);
+
 			bool ok = row_log_allocate(ctx->add_index[a],
-						   NULL, true, NULL, NULL);
+						   NULL, true, NULL,
+						   NULL, path);
 			rw_lock_x_unlock(&ctx->add_index[a]->lock);
 
 			if (!ok) {
@@ -3157,7 +3177,7 @@ prepare_inplace_alter_table_dict(
 			clust_index, ctx->new_table,
 			!(ha_alter_info->handler_flags
 			  & Alter_inplace_info::ADD_PK_INDEX),
-			ctx->add_cols, ctx->col_map);
+			ctx->add_cols, ctx->col_map, path);
 		rw_lock_x_unlock(&clust_index->lock);
 
 		if (!ok) {
@@ -3783,7 +3803,7 @@ check_if_ok_to_rename:
 			}
 
 			my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0),
-				 drop->name);
+				 drop->type_name(), drop->name);
 			goto err_exit;
 found_fk:
 			continue;
@@ -3918,6 +3938,24 @@ check_if_can_drop_indexes:
 		row_mysql_unlock_data_dictionary(prebuilt->trx);
 	} else {
 		drop_index = NULL;
+	}
+
+	/* Check if any of the existing indexes are marked as corruption
+	and if they are, refuse adding more indexes. */
+	if (ha_alter_info->handler_flags & Alter_inplace_info::ADD_INDEX) {
+		for (dict_index_t* index = dict_table_get_first_index(indexed_table);
+		     index != NULL; index = dict_table_get_next_index(index)) {
+
+			if (!index->to_be_dropped && dict_index_is_corrupted(index)) {
+				char	index_name[MAX_FULL_NAME_LEN + 1];
+
+				innobase_format_name(index_name, sizeof index_name,
+					index->name, TRUE);
+
+				my_error(ER_INDEX_CORRUPT, MYF(0), index_name);
+				DBUG_RETURN(true);
+			}
+		}
 	}
 
 	n_add_fk = 0;
@@ -4159,6 +4197,7 @@ ok_exit:
 	files and merge sort. */
 	DBUG_EXECUTE_IF("innodb_OOM_inplace_alter",
 			error = DB_OUT_OF_MEMORY; goto oom;);
+
 	error = row_merge_build_indexes(
 		prebuilt->trx,
 		prebuilt->table, ctx->new_table,
@@ -6193,6 +6232,21 @@ foreign_fail:
 
 	row_mysql_unlock_data_dictionary(trx);
 	trx_free_for_mysql(trx);
+
+	/* Rebuild index translation table now for temporary tables if we are
+	restoring secondary keys, as ha_innobase::open will not be called for
+	the next access.  */
+	if (dict_table_is_temporary(ctx0->new_table)
+	    && ctx0->num_to_add_index > 0) {
+		ut_ad(!ctx0->num_to_drop_index);
+		ut_ad(!ctx0->num_to_drop_fk);
+		if (!innobase_build_index_translation(altered_table,
+						      ctx0->new_table,
+						      share)) {
+			MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
+			DBUG_RETURN(true);
+		}
+	}
 
 	/* TODO: The following code could be executed
 	while allowing concurrent access to the table

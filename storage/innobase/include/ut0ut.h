@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -241,7 +241,7 @@ ulint
 ut_2_power_up(
 /*==========*/
 	ulint	n)	/*!< in: number != 0 */
-	__attribute__((const));
+	MY_ATTRIBUTE((const));
 
 #endif /* !UNIV_INNOCHECKSUM */
 
@@ -324,7 +324,7 @@ void
 ut_print_timestamp(
 /*===============*/
 	FILE*	file)	/*!< in: file where to print */
-	UNIV_COLD __attribute__((nonnull));
+	UNIV_COLD MY_ATTRIBUTE((nonnull));
 
 #ifndef UNIV_INNOCHECKSUM
 
@@ -524,7 +524,7 @@ ut_ulint_sort(
 	ulint*	aux_arr,	/*!< in/out: aux array to use in sort */
 	ulint	low,		/*!< in: lower bound */
 	ulint	high)		/*!< in: upper bound */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 
 #ifndef UNIV_NONINL
 #include "ut0ut.ic"

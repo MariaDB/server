@@ -61,7 +61,7 @@ public:
   Aggregator (Item_sum *arg): item_sum(arg) {}
   virtual ~Aggregator () {}                   /* Keep gcc happy */
 
-  enum Aggregator_type { SIMPLE_AGGREGATOR, DISTINCT_AGGREGATOR }; 
+  enum Aggregator_type { SIMPLE_AGGREGATOR, DISTINCT_AGGREGATOR };
   virtual Aggregator_type Aggrtype() = 0;
 
   /**
@@ -411,8 +411,8 @@ public:
   */  
   inline bool reset_and_add() 
   { 
-    aggregator_clear(); 
-    return aggregator_add(); 
+    aggregator_clear();
+    return aggregator_add();
   };
 
   /*
@@ -458,7 +458,7 @@ public:
   */
   void make_const () 
   { 
-    used_tables_cache= 0; 
+    used_tables_cache= 0;
     const_item_cache= true;
   }
   virtual bool const_during_execution() const { return false; }
@@ -488,7 +488,7 @@ public:
   {
     return Item::create_tmp_field(group, table, MY_INT32_NUM_DECIMAL_DIGITS);
   }
-  virtual bool collect_outer_ref_processor(uchar *param);
+  virtual bool collect_outer_ref_processor(void *param);
   bool init_sum_func_check(THD *thd);
   bool check_sum_func(THD *thd, Item **ref);
   bool register_sum_func(THD *thd, Item **ref);
@@ -547,11 +547,7 @@ public:
   virtual void remove() { DBUG_ASSERT(0); }
 
   virtual void cleanup();
-  bool check_vcol_func_processor(uchar *int_arg) 
-  {
-    return trace_unsupported_by_check_vcol_func_processor(func_name()); 
-  }
-  
+  bool check_vcol_func_processor(void *arg);
   virtual void setup_window_func(THD *thd, Window_spec *window_spec) {}
 };
 
@@ -1159,6 +1155,10 @@ public:
   table_map used_tables() const { return (table_map) 1L; }
   void set_result_field(Field *) { DBUG_ASSERT(0); }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(name, arg, VCOL_IMPOSSIBLE);
+  }
 };
 
 
@@ -1172,10 +1172,6 @@ public:
   { }
   enum Type type() const { return FIELD_AVG_ITEM; }
   bool is_null() { update_null_value(); return null_value; }
-  bool check_vcol_func_processor(uchar *int_arg)
-  {
-    return trace_unsupported_by_check_vcol_func_processor("avg_field");
-  }
 };
 
 
@@ -1230,10 +1226,6 @@ public:
   bool is_null() { update_null_value(); return null_value; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   enum Item_result result_type () const { return REAL_RESULT; }
-  bool check_vcol_func_processor(uchar *int_arg)
-  {
-    return trace_unsupported_by_check_vcol_func_processor("var_field");
-  }
 };
 
 
@@ -1559,7 +1551,7 @@ public:
   void cleanup();
 
   enum Sumfunctype sum_func () const {return GROUP_CONCAT_FUNC;}
-  const char *func_name() const { return "group_concat"; }
+  const char *func_name() const { return "group_concat("; }
   virtual Item_result result_type () const { return STRING_RESULT; }
   virtual Item_result cmp_type () const { return STRING_RESULT; }
   enum_field_types field_type() const
@@ -1604,7 +1596,7 @@ public:
   Item *copy_or_same(THD* thd);
   void no_rows_in_result() {}
   virtual void print(String *str, enum_query_type query_type);
-  virtual bool change_context_processor(uchar *cntx)
+  virtual bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
 };
 

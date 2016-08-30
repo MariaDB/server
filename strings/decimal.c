@@ -457,7 +457,7 @@ static void digits_bounds(decimal_t *from, int *start_result, int *end_result)
   dec1 *end= from->buf + ROUND_UP(from->intg) + ROUND_UP(from->frac);
   dec1 *buf_end= end - 1;
 
-  /* find non-zero digit from number begining */
+  /* find non-zero digit from number beginning */
   while (buf_beg < end && *buf_beg == 0)
     buf_beg++;
 
@@ -468,7 +468,7 @@ static void digits_bounds(decimal_t *from, int *start_result, int *end_result)
     return;
   }
 
-  /* find non-zero decimal digit from number begining */
+  /* find non-zero decimal digit from number beginning */
   if (buf_beg == from->buf && from->intg)
   {
     start= DIG_PER_DEC1 - (i= ((from->intg-1) % DIG_PER_DEC1 + 1));
@@ -928,6 +928,8 @@ internal_str2dec(const char *from, decimal_t *to, char **end, my_bool fixed)
         error= decimal_shift(to, (int) exponent);
     }
   }
+  if (to->sign && decimal_is_zero(to))
+    to->sign= 0;
   return error;
 
 fatal_error:
@@ -1005,7 +1007,7 @@ static int ull2dec(ulonglong from, decimal_t *to)
     error=E_DEC_OVERFLOW;
   }
   to->frac=0;
-  to->intg=intg1*DIG_PER_DEC1;
+  for(to->intg= (intg1-1)*DIG_PER_DEC1; from; to->intg++, from/=10) {}
 
   for (buf=to->buf+intg1; intg1; intg1--)
   {

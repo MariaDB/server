@@ -264,6 +264,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     _mi_mark_file_changed(info);
     /* Fall trough */
   case HA_EXTRA_PREPARE_FOR_RENAME:
+    DBUG_ASSERT(!share->temporary);
     mysql_mutex_lock(&THR_LOCK_myisam);
     share->last_version= 0L;			/* Impossible version */
     mysql_mutex_lock(&share->intern_lock);

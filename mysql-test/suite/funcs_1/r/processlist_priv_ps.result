@@ -24,23 +24,23 @@ connection default;
 SHOW CREATE TABLE processlist;
 Table	Create Table
 PROCESSLIST	CREATE TEMPORARY TABLE `PROCESSLIST` (
-  `ID` bigint(4) NOT NULL DEFAULT '0',
+  `ID` bigint(4) NOT NULL DEFAULT 0,
   `USER` varchar(128) NOT NULL DEFAULT '',
   `HOST` varchar(64) NOT NULL DEFAULT '',
   `DB` varchar(64) DEFAULT NULL,
   `COMMAND` varchar(16) NOT NULL DEFAULT '',
-  `TIME` int(7) NOT NULL DEFAULT '0',
+  `TIME` int(7) NOT NULL DEFAULT 0,
   `STATE` varchar(64) DEFAULT NULL,
-  `INFO` longtext,
-  `TIME_MS` decimal(22,3) NOT NULL DEFAULT '0.000',
-  `STAGE` tinyint(2) NOT NULL DEFAULT '0',
-  `MAX_STAGE` tinyint(2) NOT NULL DEFAULT '0',
-  `PROGRESS` decimal(7,3) NOT NULL DEFAULT '0.000',
-  `MEMORY_USED` int(7) NOT NULL DEFAULT '0',
-  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0',
-  `QUERY_ID` bigint(4) NOT NULL DEFAULT '0',
-  `INFO_BINARY` blob,
-  `TID` bigint(4) NOT NULL DEFAULT '0'
+  `INFO` longtext DEFAULT NULL,
+  `TIME_MS` decimal(22,3) NOT NULL DEFAULT 0.000,
+  `STAGE` tinyint(2) NOT NULL DEFAULT 0,
+  `MAX_STAGE` tinyint(2) NOT NULL DEFAULT 0,
+  `PROGRESS` decimal(7,3) NOT NULL DEFAULT 0.000,
+  `MEMORY_USED` bigint(7) NOT NULL DEFAULT 0,
+  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT 0,
+  `QUERY_ID` bigint(4) NOT NULL DEFAULT 0,
+  `INFO_BINARY` blob DEFAULT NULL,
+  `TID` bigint(4) NOT NULL DEFAULT 0
 )  DEFAULT CHARSET=utf8
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
@@ -60,7 +60,7 @@ INSERT INTO processlist SELECT * FROM test.t_processlist;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 DROP TABLE test.t_processlist;
 CREATE VIEW test.v_processlist (ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY) AS SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY FROM processlist WITH CHECK OPTION;
-ERROR HY000: CHECK OPTION on non-updatable view 'test.v_processlist'
+ERROR HY000: CHECK OPTION on non-updatable view `test`.`v_processlist`
 CREATE VIEW test.v_processlist (ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY) AS SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY FROM processlist;
 DROP VIEW test.v_processlist;
 UPDATE processlist SET user='any_user'  WHERE id=1 ;
@@ -103,23 +103,23 @@ SHOW/SELECT shows only the processes (1) of the user.
 SHOW CREATE TABLE processlist;
 Table	Create Table
 PROCESSLIST	CREATE TEMPORARY TABLE `PROCESSLIST` (
-  `ID` bigint(4) NOT NULL DEFAULT '0',
+  `ID` bigint(4) NOT NULL DEFAULT 0,
   `USER` varchar(128) NOT NULL DEFAULT '',
   `HOST` varchar(64) NOT NULL DEFAULT '',
   `DB` varchar(64) DEFAULT NULL,
   `COMMAND` varchar(16) NOT NULL DEFAULT '',
-  `TIME` int(7) NOT NULL DEFAULT '0',
+  `TIME` int(7) NOT NULL DEFAULT 0,
   `STATE` varchar(64) DEFAULT NULL,
-  `INFO` longtext,
-  `TIME_MS` decimal(22,3) NOT NULL DEFAULT '0.000',
-  `STAGE` tinyint(2) NOT NULL DEFAULT '0',
-  `MAX_STAGE` tinyint(2) NOT NULL DEFAULT '0',
-  `PROGRESS` decimal(7,3) NOT NULL DEFAULT '0.000',
-  `MEMORY_USED` int(7) NOT NULL DEFAULT '0',
-  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0',
-  `QUERY_ID` bigint(4) NOT NULL DEFAULT '0',
-  `INFO_BINARY` blob,
-  `TID` bigint(4) NOT NULL DEFAULT '0'
+  `INFO` longtext DEFAULT NULL,
+  `TIME_MS` decimal(22,3) NOT NULL DEFAULT 0.000,
+  `STAGE` tinyint(2) NOT NULL DEFAULT 0,
+  `MAX_STAGE` tinyint(2) NOT NULL DEFAULT 0,
+  `PROGRESS` decimal(7,3) NOT NULL DEFAULT 0.000,
+  `MEMORY_USED` bigint(7) NOT NULL DEFAULT 0,
+  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT 0,
+  `QUERY_ID` bigint(4) NOT NULL DEFAULT 0,
+  `INFO_BINARY` blob DEFAULT NULL,
+  `TID` bigint(4) NOT NULL DEFAULT 0
 )  DEFAULT CHARSET=utf8
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
@@ -136,7 +136,7 @@ INSERT INTO processlist SELECT * FROM test.t_processlist;
 ERROR 42000: Access denied for user 'ddicttestuser1'@'localhost' to database 'information_schema'
 DROP TABLE test.t_processlist;
 CREATE VIEW test.v_processlist (ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY) AS SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY FROM processlist WITH CHECK OPTION;
-ERROR HY000: CHECK OPTION on non-updatable view 'test.v_processlist'
+ERROR HY000: CHECK OPTION on non-updatable view `test`.`v_processlist`
 CREATE VIEW test.v_processlist (ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY) AS SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, INFO, TIME_MS, STAGE, MAX_STAGE, PROGRESS, MEMORY_USED, EXAMINED_ROWS, QUERY_ID, INFO_BINARY FROM processlist;
 DROP VIEW test.v_processlist;
 UPDATE processlist SET user='any_user'  WHERE id=1 ;

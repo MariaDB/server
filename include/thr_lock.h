@@ -139,9 +139,10 @@ typedef struct st_thr_lock {
 
 extern LIST *thr_lock_thread_list;
 extern mysql_mutex_t THR_LOCK_lock;
+struct st_my_thread_var;
 
 my_bool init_thr_lock(void);		/* Must be called once/thread */
-void thr_lock_info_init(THR_LOCK_INFO *info);
+void thr_lock_info_init(THR_LOCK_INFO *info, struct st_my_thread_var *tmp);
 void thr_lock_init(THR_LOCK *lock);
 void thr_lock_delete(THR_LOCK *lock);
 void thr_lock_data_init(THR_LOCK *lock,THR_LOCK_DATA *data,

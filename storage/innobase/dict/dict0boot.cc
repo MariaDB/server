@@ -468,7 +468,7 @@ dict_boot(void)
 			} else {
 				ib_logf(IB_LOG_LEVEL_WARN,
 					"Change buffer not empty when --innodb-read-only "
-					"is set! but srv_force_recovery = %d, ignoring.",
+					"is set! but srv_force_recovery = %lu, ignoring.",
 					srv_force_recovery);
 			}
 		}

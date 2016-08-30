@@ -316,7 +316,7 @@ Description: MariaDB database regression test suite
 
 Package: mariadb-server-10.2
 Architecture: any
-Suggests: mailx, mariadb-test, netcat-openbsd, socat, tinyca
+Suggests: mailx, mariadb-test, netcat-openbsd, tinyca
 Recommends: libhtml-template-perl
 Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: bsdutils,
@@ -335,6 +335,7 @@ Depends: bsdutils,
          perl (>= 5.6),
          psmisc,
          rsync,
+         socat,
          tar,
          ${misc:Depends},
          ${shlibs:Depends}
@@ -415,10 +416,10 @@ Description: MariaDB database regression test suite (metapackage for the latest 
 
 Package: mariadb-connect-engine-10.2
 Architecture: any
-Depends: libxml2, mariadb-server-10.2, unixODBC
+Depends: libxml2, mariadb-server-10.2, unixodbc
 Build-Depends: libxml2-dev,
                mariadb-server-10.2,
-               unixODBC-dev,
+               unixodbc-dev,
                ${misc:Depends},
                ${shlibs:Depends}
 Description: Connect storage engine for MariaDB

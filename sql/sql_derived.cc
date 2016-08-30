@@ -568,7 +568,11 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (!unit || unit->prepared)
     DBUG_RETURN(FALSE);
 
-  DBUG_RETURN(derived->init_derived(thd, TRUE));
+  bool res= derived->init_derived(thd, TRUE);
+
+  derived->updatable= derived->updatable && derived->is_view();
+
+  DBUG_RETURN(res);
 }
 
 

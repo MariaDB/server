@@ -1670,7 +1670,7 @@ b ENUM('value','๖ไü_value','สรี') character set latin1 NOT NULL
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT '1',
+  `a` int(11) DEFAULT 1,
   `b` enum('value','๖ไü_value','สรี') NOT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 show columns from t1;

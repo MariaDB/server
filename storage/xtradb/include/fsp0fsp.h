@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -99,6 +99,9 @@ dictionary */
 /** Zero relative shift position of the start of the DATA DIR bits */
 #define FSP_FLAGS_POS_DATA_DIR		(FSP_FLAGS_POS_PAGE_SSIZE	\
 					+ FSP_FLAGS_WIDTH_PAGE_SSIZE)
+#define FSP_FLAGS_POS_DATA_DIR_ORACLE	(FSP_FLAGS_POS_ATOMIC_BLOBS	\
+					+ FSP_FLAGS_WIDTH_ATOMIC_BLOBS  \
+					+ FSP_FLAGS_WIDTH_PAGE_SSIZE)
 /** Zero relative shift position of the start of the UNUSED bits */
 #define FSP_FLAGS_POS_UNUSED		(FSP_FLAGS_POS_DATA_DIR\
                     + FSP_FLAGS_WIDTH_DATA_DIR)
@@ -123,6 +126,10 @@ dictionary */
 #define FSP_FLAGS_MASK_DATA_DIR					\
 		((~(~0 << FSP_FLAGS_WIDTH_DATA_DIR))		\
 		<< FSP_FLAGS_POS_DATA_DIR)
+/** Bit mask of the DATA_DIR field */
+#define FSP_FLAGS_MASK_DATA_DIR_ORACLE				\
+		((~(~0 << FSP_FLAGS_WIDTH_DATA_DIR))		\
+		<< FSP_FLAGS_POS_DATA_DIR_ORACLE)
 /** Bit mask of the PAGE_COMPRESSION field */
 #define FSP_FLAGS_MASK_PAGE_COMPRESSION				\
 		((~(~0 << FSP_FLAGS_WIDTH_PAGE_COMPRESSION))	\
@@ -156,6 +163,9 @@ dictionary */
 #define FSP_FLAGS_HAS_DATA_DIR(flags)				\
 		((flags & FSP_FLAGS_MASK_DATA_DIR)		\
 		>> FSP_FLAGS_POS_DATA_DIR)
+#define FSP_FLAGS_HAS_DATA_DIR_ORACLE(flags)			\
+		((flags & FSP_FLAGS_MASK_DATA_DIR_ORACLE)	\
+		>> FSP_FLAGS_POS_DATA_DIR_ORACLE)
 /** Return the contents of the UNUSED bits */
 #define FSP_FLAGS_GET_UNUSED(flags)				\
 		(flags >> FSP_FLAGS_POS_UNUSED)

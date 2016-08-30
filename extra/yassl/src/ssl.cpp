@@ -1351,15 +1351,13 @@ int ASN1_STRING_type(ASN1_STRING *x)
 int X509_NAME_get_index_by_NID(X509_NAME* name,int nid, int lastpos)
 {
     int idx = -1;  // not found
-    const char* start = &name->GetName()[lastpos + 1];
+    int cnPos = -1;
 
     switch (nid) {
     case NID_commonName:
-        const char* found = strstr(start, "/CN=");
-        if (found) {
-            found += 4;  // advance to str
-            idx = found - start + lastpos + 1;
-        }
+        cnPos = name->GetCnPosition();
+        if (lastpos < cnPos)
+            idx = cnPos;
         break;
     }
 
@@ -1471,10 +1469,6 @@ int SSL_peek(SSL* ssl, void* buffer, int sz)
 
 int SSL_pending(SSL* ssl)
 {
-    // Just in case there's pending data that hasn't been processed yet...
-    char c;
-    SSL_peek(ssl, &c, 1);
-    
     return ssl->bufferedData();
 }
 

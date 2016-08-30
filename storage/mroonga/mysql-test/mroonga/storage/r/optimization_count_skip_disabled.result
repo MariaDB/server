@@ -12,7 +12,7 @@ Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(10) unsigned NOT NULL,
   `title` varchar(255) DEFAULT NULL,
-  `content` text,
+  `content` text DEFAULT NULL,
   FULLTEXT KEY `content` (`content`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries VALUES(1, "Hello", "今日からはじめました。");

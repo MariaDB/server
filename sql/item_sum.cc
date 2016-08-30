@@ -385,7 +385,7 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
 }
 
 
-bool Item_sum::collect_outer_ref_processor(uchar *param)
+bool Item_sum::collect_outer_ref_processor(void *param)
 {
   Collect_deps_prm *prm= (Collect_deps_prm *)param;
   SELECT_LEX *ds;
@@ -578,6 +578,12 @@ Item *Item_sum::result_item(THD *thd, Field *field)
 {
   return new (thd->mem_root) Item_field(thd, field);
 }
+
+bool Item_sum::check_vcol_func_processor(void *arg)
+{
+  return mark_unsupported_function(func_name(), ")", arg, VCOL_IMPOSSIBLE);
+}
+
 
 /**
   Compare keys consisting of single field that cannot be compared as binary.
@@ -1624,7 +1630,8 @@ void Item_sum_avg::fix_length_and_dec()
   }
   else
   {
-    decimals= MY_MIN(args[0]->decimals + prec_increment, NOT_FIXED_DEC);
+    decimals= MY_MIN(args[0]->decimals + prec_increment,
+                     FLOATING_POINT_DECIMALS);
     max_length= MY_MIN(args[0]->max_length + prec_increment, float_length(decimals));
   }
 }
@@ -1839,13 +1846,14 @@ void Item_sum_variance::fix_length_and_dec()
   switch (args[0]->result_type()) {
   case REAL_RESULT:
   case STRING_RESULT:
-    decimals= MY_MIN(args[0]->decimals + 4, NOT_FIXED_DEC);
+    decimals= MY_MIN(args[0]->decimals + 4, FLOATING_POINT_DECIMALS);
     break;
   case INT_RESULT:
   case DECIMAL_RESULT:
   {
     int precision= args[0]->decimal_precision()*2 + prec_increment;
-    decimals= MY_MIN(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
+    decimals= MY_MIN(args[0]->decimals + prec_increment,
+                     FLOATING_POINT_DECIMALS-1);
     max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                              decimals,
                                                              unsigned_flag);

@@ -101,6 +101,8 @@
 #define DISK_BUFFER_SIZE	(uint) (IO_SIZE*16) /* Size of diskbuffer */
 
 #define FRM_VER_TRUE_VARCHAR (FRM_VER+4) /* 10 */
+#define FRM_VER_EXPRESSSIONS (FRM_VER+5) /* 11 */
+#define FRM_VER_CURRENT  FRM_VER_EXPRESSSIONS
 
 /***************************************************************************
   Configuration parameters

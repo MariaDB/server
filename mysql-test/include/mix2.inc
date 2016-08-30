@@ -54,7 +54,7 @@
 
 # Set the SESSION DEFAULT STORAGE ENGINE to a value <> storage engine
 # to be tested. This must not affect any CREATE TABLE statement, where
-# the storage engine is assigned explicitely,
+# the storage engine is assigned explicitly,
 eval SET SESSION STORAGE_ENGINE = $other_engine_type;
 
 #

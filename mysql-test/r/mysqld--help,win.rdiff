@@ -126,13 +126,13 @@
  table-definition-cache 400
 -table-open-cache 431
 +table-open-cache 2000
- tc-heuristic-recover COMMIT
+ tc-heuristic-recover OFF
  thread-cache-size 151
 -thread-pool-idle-timeout 60
  thread-pool-max-threads 1000
 -thread-pool-oversubscribe 3
 -thread-pool-stall-limit 500
 +thread-pool-min-threads 1
- thread-stack 296960
+ thread-stack 297984
  time-format %H:%i:%s
  timed-mutexes FALSE

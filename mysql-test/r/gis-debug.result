@@ -294,3 +294,14 @@ SRID(GEOMETRYFROMTEXT(' MULTIPOINT(8 4,5 0,7 8,6 9,3 4,7 3,5 5) '))));
 ASTEXT(ST_BUFFER(POLYGONFROMTEXT(' POLYGON((9 9,5 2,4 5,9 9))'),
 SRID(GEOMETRYFROMTEXT(' MULTIPOINT(8 4,5 0,7 8,6 9,3 4,7 3,5 5) '))))
 POLYGON((9 9,5 2,4 5,9 9))
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+CREATE TABLE t1 (a INT DEFAULT ST_GIS_DEBUG(1));
+ERROR HY000: Function or expression 'st_gis_debug()' cannot be used in the DEFAULT clause of `a`
+#
+# End of 10.2 tests
+#

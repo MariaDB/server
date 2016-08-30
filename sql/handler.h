@@ -1,8 +1,8 @@
 #ifndef HANDLER_INCLUDED
 #define HANDLER_INCLUDED
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, Monty Program Ab.
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -42,6 +42,7 @@
 #include <mysql/psi/mysql_table.h>
 
 class Alter_info;
+class Virtual_column_info;
 
 // the following is for checking tables
 
@@ -129,7 +130,7 @@ enum enum_alter_inplace_result {
 */ 
 #define HA_PRIMARY_KEY_REQUIRED_FOR_POSITION (1ULL << 16) 
 #define HA_CAN_RTREEKEYS       (1ULL << 17)
-#define HA_NOT_DELETE_WITH_CACHE (1ULL << 18)
+#define HA_NOT_DELETE_WITH_CACHE (1ULL << 18) /* unused */
 /*
   The following is we need to a primary key to delete (and update) a row.
   If there is no primary key, all columns needs to be read on update and delete
@@ -143,7 +144,7 @@ enum enum_alter_inplace_result {
 #define HA_HAS_OLD_CHECKSUM    (1ULL << 24)
 /* Table data are stored in separate files (for lower_case_table_names) */
 #define HA_FILE_BASED	       (1ULL << 26)
-#define HA_NO_VARCHAR	       (1ULL << 27)
+#define HA_NO_VARCHAR	       (1ULL << 27) /* unused */
 #define HA_CAN_BIT_FIELD       (1ULL << 28) /* supports bit fields */
 #define HA_NEED_READ_RANGE_BUFFER (1ULL << 29) /* for read_multi_range */
 #define HA_ANY_INDEX_MAY_BE_UNIQUE (1ULL << 30)
@@ -248,6 +249,15 @@ enum enum_alter_inplace_result {
  */
 #define HA_CAN_EXPORT                 (1LL << 45)
 
+/*
+  Storage engine does not require an exclusive metadata lock
+  on the table during optimize. (TODO and repair?).
+  It can allow other connections to open the table.
+  (it does not necessarily mean that other connections can
+  read or modify the table - this is defined by THR locks and the
+  ::store_lock() method).
+*/
+#define HA_CONCURRENT_OPTIMIZE          (1LL << 46)
 
 /*
   Set of all binlog flags. Currently only contain the capabilities
@@ -406,7 +416,9 @@ static const uint MYSQL_START_TRANS_OPT_READ_WRITE         = 4;
 /* Flags for method is_fatal_error */
 #define HA_CHECK_DUP_KEY 1
 #define HA_CHECK_DUP_UNIQUE 2
+#define HA_CHECK_FK_ERROR 4
 #define HA_CHECK_DUP (HA_CHECK_DUP_KEY + HA_CHECK_DUP_UNIQUE)
+#define HA_CHECK_ALL (~0U)
 
 enum legacy_db_type
 {
@@ -563,9 +575,9 @@ struct xid_t {
 
   xid_t() {}                                /* Remove gcc warning */  
   bool eq(struct xid_t *xid)
-  { return eq(xid->gtrid_length, xid->bqual_length, xid->data); }
+  { return !xid->is_null() && eq(xid->gtrid_length, xid->bqual_length, xid->data); }
   bool eq(long g, long b, const char *d)
-  { return g == gtrid_length && b == bqual_length && !memcmp(d, data, g+b); }
+  { return !is_null() && g == gtrid_length && b == bqual_length && !memcmp(d, data, g+b); }
   void set(struct xid_t *xid)
   { memcpy(this, xid, xid->length()); }
   void set(long f, const char *g, long gl, const char *b, long bl)
@@ -1632,6 +1644,7 @@ struct Schema_specification_st
      - LIKE another_table_name ... // Copy structure from another table
      - [AS] SELECT ...             // Copy structure from a subquery
 */
+
 struct Table_scope_and_contents_source_st
 {
   CHARSET_INFO *table_charset;
@@ -1647,6 +1660,8 @@ struct Table_scope_and_contents_source_st
   ulong avg_row_length;
   ulong used_fields;
   ulong key_block_size;
+  ulong expression_length;
+  ulong field_check_constraints;
   /*
     number of pages to sample during
     stats estimation, if used, otherwise 0.
@@ -1674,6 +1689,8 @@ struct Table_scope_and_contents_source_st
   engine_option_value *option_list;     ///< list of table create options
   enum_stats_auto_recalc stats_auto_recalc;
   bool varchar;                         ///< 1 if table has a VARCHAR
+
+  List<Virtual_column_info> *check_constraint_list;
 
   /* the following three are only for ALTER TABLE, check_if_incompatible_data() */
   ha_table_option_struct *option_struct;           ///< structure with parsed table options
@@ -1823,7 +1840,7 @@ public:
      attribute has really changed we might choose to set flag
      pessimistically, for example, relying on parser output only.
   */
-  typedef ulong HA_ALTER_FLAGS;
+  typedef ulonglong HA_ALTER_FLAGS;
 
   // Add non-unique, non-primary index
   static const HA_ALTER_FLAGS ADD_INDEX                  = 1L << 0;
@@ -1929,8 +1946,15 @@ public:
   // Virtual columns changed
   static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1L << 30;
 
-  // ALTER TABLE for a partitioned table
+  /**
+    ALTER TABLE for a partitioned table. The engine needs to commit
+    online alter of all partitions atomically (using group_commit_ctx)
+  */
   static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1L << 31;
+
+  static const HA_ALTER_FLAGS ALTER_ADD_CHECK_CONSTRAINT = 1LL << 32;
+
+  static const HA_ALTER_FLAGS ALTER_DROP_CHECK_CONSTRAINT= 1LL << 33;
 
   /**
     Create options (like MAX_ROWS) for the new version of table.
@@ -2943,7 +2967,10 @@ public:
         ((flags & HA_CHECK_DUP_KEY) &&
          (error == HA_ERR_FOUND_DUPP_KEY ||
           error == HA_ERR_FOUND_DUPP_UNIQUE)) ||
-        error == HA_ERR_AUTOINC_ERANGE)
+        error == HA_ERR_AUTOINC_ERANGE ||
+        ((flags & HA_CHECK_FK_ERROR) &&
+         (error == HA_ERR_ROW_IS_REFERENCED ||
+          error == HA_ERR_NO_REFERENCED_ROW)))
       return FALSE;
     return TRUE;
   }
@@ -4290,4 +4317,7 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
-#endif
+
+int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
+int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
+#endif /* HANDLER_INCLUDED */

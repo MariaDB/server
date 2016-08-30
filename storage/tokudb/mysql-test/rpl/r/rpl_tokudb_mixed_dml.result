@@ -1,3 +1,6 @@
+SET SESSION tokudb_pk_insert_mode = 2;
+Warnings:
+Warning	131	Using tokudb_pk_insert_mode is deprecated and the parameter may be removed in future releases.
 include/master-slave.inc
 [connection master]
 connection master;

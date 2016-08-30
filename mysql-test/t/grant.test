@@ -2172,3 +2172,30 @@ drop user mysqltest_u1;
 set GLOBAL sql_mode=default;
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+
+CREATE TABLE t1 (a VARCHAR(30) DEFAULT USER());
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ();
+GRANT ALL PRIVILEGES ON test.* TO dummy@localhost IDENTIFIED BY 'pwd';
+connect (conn1,localhost,dummy,pwd,test);
+connection conn1;
+INSERT INTO t1 VALUES ();
+connection default;
+disconnect conn1;
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP USER dummy@localhost;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

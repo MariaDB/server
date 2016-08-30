@@ -39,6 +39,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 extern const char *toku_patent_string;
 const char *toku_copyright_string = "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.";
 
+#include <my_global.h>
 #include <db.h>
 #include <errno.h>
 #include <string.h>
@@ -3146,6 +3147,10 @@ toku_test_get_latest_lsn(DB_ENV *env) {
         rval = toku_logger_last_lsn(env->i->logger);
     }
     return rval.lsn;
+}
+
+void toku_set_test_txn_sync_callback(void (* cb) (pthread_t, void *), void * extra) {
+    set_test_txn_sync_callback(cb, extra);
 }
 
 int 

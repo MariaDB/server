@@ -1069,7 +1069,7 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
     {
       /* Regular tbl.col=expr(tblX1.col1, tblY1.col2, ...) */
       eq_mod->expr->walk(&Item::enumerate_field_refs_processor, FALSE, 
-                               (uchar*)&deps_recorder);
+                               &deps_recorder);
     }
     else 
     {

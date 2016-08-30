@@ -47,12 +47,9 @@ SYM_GROUP sym_group_rtree= {"RTree keys", "HAVE_RTREE_KEYS"};
 
 static SYMBOL symbols[] = {
   { "&&",		SYM(AND_AND_SYM)},
-  { "<",		SYM(LT)},
   { "<=",		SYM(LE)},
   { "<>",		SYM(NE)},
   { "!=",		SYM(NE)},
-  { "=",		SYM(EQ)},
-  { ">",		SYM(GT_SYM)},
   { ">=",		SYM(GE)},
   { "<<",		SYM(SHIFT_LEFT)},
   { ">>",		SYM(SHIFT_RIGHT)},
@@ -552,7 +549,8 @@ static SYMBOL symbols[] = {
   { "SOME",             SYM(ANY_SYM)},
   { "SONAME",		SYM(SONAME_SYM)},
   { "SOUNDS",		SYM(SOUNDS_SYM)},
-  { "SOURCE",   SYM(SOURCE_SYM)},
+  { "SOURCE",           SYM(SOURCE_SYM)},
+  { "STORED",           SYM(STORED_SYM)},
   { "SPATIAL",		SYM(SPATIAL_SYM)},
   { "SPECIFIC",         SYM(SPECIFIC_SYM)},
   { "REF_SYSTEM_ID",    SYM(REF_SYSTEM_ID_SYM)},

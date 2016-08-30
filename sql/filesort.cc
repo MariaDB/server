@@ -137,7 +137,8 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
 */
 
 SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
-                    Filesort_tracker* tracker)
+                    Filesort_tracker* tracker, JOIN *join,
+                    table_map first_table_bit)
 {
   int error;
   size_t memory_available= thd->variables.sortbuff_size;
@@ -154,7 +155,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
 
   DBUG_ENTER("filesort");
 
-  if (!(s_length= filesort->make_sortorder(thd)))
+  if (!(s_length= filesort->make_sortorder(thd, join, first_table_bit)))
     DBUG_RETURN(NULL);  /* purecov: inspected */
 
   DBUG_EXECUTE("info",TEST_filesort(filesort->sortorder,s_length););
@@ -438,7 +439,7 @@ void Filesort::cleanup()
 }
 
 
-uint Filesort::make_sortorder(THD *thd)
+uint Filesort::make_sortorder(THD *thd, JOIN *join, table_map first_table_bit)
 {
   uint count;
   SORT_FIELD *sort,*pos;
@@ -458,7 +459,30 @@ uint Filesort::make_sortorder(THD *thd)
 
   for (ord= order; ord; ord= ord->next, pos++)
   {
-    Item *item= ord->item[0]->real_item();
+    Item *first= ord->item[0];
+    /*
+      It is possible that the query plan is to read table t1, while the
+      sort criteria actually has "ORDER BY t2.col" and the WHERE clause has
+      a multi-equality(t1.col, t2.col, ...).
+      The optimizer detects such cases (grep for
+      UseMultipleEqualitiesToRemoveTempTable to see where), but doesn't
+      perform equality substitution in the order->item. We need to do the
+      substitution here ourselves.
+    */
+    table_map item_map= first->used_tables();
+    if (join && (item_map & ~join->const_table_map) &&
+        !(item_map & first_table_bit) && join->cond_equal &&
+         first->get_item_equal())
+    {
+      /*
+        Ok, this is the case descibed just above. Get the first element of the
+        multi-equality.
+      */
+      Item_equal *item_eq= first->get_item_equal();
+      first= item_eq->get_first(NO_PARTICULAR_TAB, NULL);
+    }
+
+    Item *item= first->real_item();
     pos->field= 0; pos->item= 0;
     if (item->type() == Item::FIELD_ITEM)
       pos->field= ((Item_field*) item)->field;
@@ -474,7 +498,7 @@ uint Filesort::make_sortorder(THD *thd)
     DBUG_ASSERT(pos->field != NULL || pos->item != NULL);
   }
   DBUG_RETURN(count);
-  }
+}
 
 
 /** Read 'count' number of buffer pointers into memory. */
@@ -743,10 +767,9 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                      0 : !select->pre_idx_push_select_cond ? 
                            select->cond : select->pre_idx_push_select_cond;
   if (sort_cond)
-    sort_cond->walk(&Item::register_field_in_read_map, 1, (uchar*) sort_form);
+    sort_cond->walk(&Item::register_field_in_read_map, 1, sort_form);
   sort_form->column_bitmaps_set(&sort_form->tmp_set, &sort_form->tmp_set, 
                                 &sort_form->tmp_set);
-
 
   if (quick_select)
   {
@@ -1254,15 +1277,14 @@ static void register_used_fields(Sort_param *param)
         if (field->vcol_info)
 	{
           Item *vcol_item= field->vcol_info->expr_item;
-          vcol_item->walk(&Item::register_field_in_read_map, 1, (uchar *) 0);
+          vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
         }                   
         bitmap_set_bit(bitmap, field->field_index);
       }
     }
     else
     {						// Item
-      sort_field->item->walk(&Item::register_field_in_read_map, 1,
-                             (uchar *) table);
+      sort_field->item->walk(&Item::register_field_in_read_map, 1, table);
     }
   }
 

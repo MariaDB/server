@@ -72,7 +72,7 @@ Level	Code	Message
 SHOW CREATE TABLE `w_findispmon05u`;
 Table	Create Table
 w_findispmon05u	CREATE TABLE `w_findispmon05u` (
-  `f5atpkey` int(11) NOT NULL DEFAULT '0',
+  `f5atpkey` int(11) NOT NULL DEFAULT 0,
   `f5atzo05` int(11) DEFAULT NULL,
   `pos` bigint(21) DEFAULT NULL,
   `f5BnvB` int(9) DEFAULT NULL,

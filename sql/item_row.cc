@@ -72,7 +72,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
 
 
 bool
-Item_row::eval_not_null_tables(uchar *opt_arg)
+Item_row::eval_not_null_tables(void *opt_arg)
 {
   Item **arg,**arg_end;
   not_null_tables_cache= 0;

@@ -147,7 +147,7 @@ Table	Create Table
 articles	CREATE TABLE `articles` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `title` varchar(200) DEFAULT NULL,
-  `body` text,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`title`,`body`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -243,7 +243,7 @@ Table	Create Table
 articles	CREATE TABLE `articles` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `title` varchar(200) DEFAULT NULL,
-  `body` text,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=latin1
 ALTER TABLE articles ADD FULLTEXT INDEX idx (title,body);
@@ -437,7 +437,7 @@ Table	Create Table
 articles	CREATE TABLE `articles` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `title` varchar(200) DEFAULT NULL,
-  `body` text,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`title`,`body`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -548,7 +548,7 @@ Table	Create Table
 articles	CREATE TABLE `articles` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `title` varchar(200) DEFAULT NULL,
-  `body` text,
+  `body` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `idx` (`title`,`body`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1

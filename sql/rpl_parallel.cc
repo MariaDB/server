@@ -307,6 +307,7 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
                     &stage_waiting_for_prior_transaction_to_start_commit,
                     old_stage);
     *did_enter_cond= true;
+    thd->set_time_for_next_stage();
     do
     {
       if (thd->check_killed() && !rgi->worker_error)
@@ -369,6 +370,7 @@ do_ftwrl_wait(rpl_group_info *rgi,
     thd->ENTER_COND(&entry->COND_parallel_entry, &entry->LOCK_parallel_entry,
                     &stage_waiting_for_ftwrl, old_stage);
     *did_enter_cond= true;
+    thd->set_time_for_next_stage();
     do
     {
       if (entry->force_abort || rgi->worker_error)
@@ -417,8 +419,11 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
   */
   mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
   if (thd)
+  {
     thd->ENTER_COND(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool,
                     &stage_waiting_for_rpl_thread_pool, &old_stage);
+    thd->set_time_for_next_stage();
+  }
   while (pool->busy)
   {
     if (thd && thd->check_killed())
@@ -534,6 +539,7 @@ rpl_pause_for_ftwrl(THD *thd)
       e->pause_sub_id= e->largest_started_sub_id;
     thd->ENTER_COND(&e->COND_parallel_entry, &e->LOCK_parallel_entry,
                     &stage_waiting_for_ftwrl_threads_to_pause, &old_stage);
+    thd->set_time_for_next_stage();
     while (e->pause_sub_id < (uint64)ULONGLONG_MAX &&
            e->last_committed_sub_id < e->pause_sub_id &&
            !err)
@@ -967,9 +973,8 @@ handle_rpl_parallel_thread(void *arg)
   struct rpl_parallel_thread *rpt= (struct rpl_parallel_thread *)arg;
 
   my_thread_init();
-  thd = new THD;
+  thd = new THD(next_thread_id());
   thd->thread_stack = (char*)&thd;
-  thd->thread_id= thd->variables.pseudo_thread_id= next_thread_id();
   add_to_active_threads(thd);
   set_current_thd(thd);
   pthread_detach_this_thread();
@@ -996,7 +1001,6 @@ handle_rpl_parallel_thread(void *arg)
   */
   thd->variables.tx_isolation= ISO_REPEATABLE_READ;
 
-
   mysql_mutex_lock(&rpt->LOCK_rpl_thread);
   rpt->thd= thd;
 
@@ -1006,8 +1010,10 @@ handle_rpl_parallel_thread(void *arg)
   rpt->running= true;
   mysql_cond_signal(&rpt->COND_rpl_thread);
 
+  thd->set_command(COM_SLAVE_WORKER);
   while (!rpt->stop)
   {
+    uint wait_count= 0;
     rpl_parallel_thread::queued_event *qev, *next_qev;
 
     thd->ENTER_COND(&rpt->COND_rpl_thread, &rpt->LOCK_rpl_thread,
@@ -1026,7 +1032,11 @@ handle_rpl_parallel_thread(void *arg)
               (rpt->current_owner && !in_event_group) ||
               (rpt->current_owner && group_rgi->parallel_entry->force_abort) ||
               rpt->stop))
+    {
+      if (!wait_count++)
+        thd->set_time_for_next_stage();
       mysql_cond_wait(&rpt->COND_rpl_thread, &rpt->LOCK_rpl_thread);
+    }
     rpt->dequeue1(events);
     thd->EXIT_COND(&old_stage);
 

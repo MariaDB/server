@@ -167,3 +167,26 @@ set global max_allowed_packet=default;
 #
 # End of 5.5 tests
 #
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+CREATE TABLE t1 (a TEXT, b BLOB DEFAULT COMPRESS(a), bl INT DEFAULT UNCOMPRESSED_LENGTH(b), a1 TEXT DEFAULT UNCOMPRESS(b));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL,
+  `b` blob DEFAULT COMPRESS(a),
+  `bl` int(11) DEFAULT UNCOMPRESSED_LENGTH(b),
+  `a1` text DEFAULT UNCOMPRESS(b)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (a) VALUES (REPEAT('a',100));
+SELECT bl, a1 FROM t1;
+bl	a1
+100	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#

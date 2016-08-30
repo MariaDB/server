@@ -8,7 +8,7 @@ SHOW CREATE TABLE variables;
 Table	Create Table
 variables	CREATE TABLE `variables` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` text,
+  `name` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `name` (`name`) COMMENT 'tokenizer "off"'
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8

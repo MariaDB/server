@@ -758,7 +758,8 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
   /* Set external_ref, mainly for temporary tables */
   file->external_ref= (void*) table;            // For mi_killed()
 
-  if (!table->s->tmp_table) /* No need to perform a check for tmp table */
+  /* No need to perform a check for tmp table or if it's already checked */
+  if (!table->s->tmp_table && file->s->reopen == 1)
   {
     if ((my_errno= table2myisam(table, &keyinfo, &recinfo, &recs)))
     {

@@ -512,3 +512,19 @@ DROP TABLE t1;
 --echo #
 --echo End of 5.1 tests.
 
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
+SELECT METAPHON('Hello');
+CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(10) DEFAULT METAPHON(a));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('Hello');
+SELECT * FROM t1;
+DROP FUNCTION METAPHON;
+# QQ: this should return an error
+#INSERT INTO t1 (a) VALUES ('Hello');
+#SELECT * FROM t1;
+DROP TABLE t1;

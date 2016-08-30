@@ -47,7 +47,7 @@ show create view test.v1;
 set role none;
 
 # definer=role_name, privileges ok
-create definer=role2 view test.v2 as select a+b,c from t1;
+create definer=role2 view test.v2 as select a+b,c,current_role() from t1;
 show create view test.v2;
 
 # definer=non_existent_role

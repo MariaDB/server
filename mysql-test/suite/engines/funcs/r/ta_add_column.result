@@ -358,7 +358,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIT  NULL;
 SHOW TABLES;
@@ -367,7 +367,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` bit(1) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -380,7 +380,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIT  NULL;
 SHOW TABLES;
@@ -389,7 +389,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` bit(1) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -402,7 +402,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIT  NULL;
 SHOW TABLES;
@@ -411,7 +411,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` bit(1) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -424,7 +424,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIT  NULL;
 SHOW TABLES;
@@ -433,7 +433,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` bit(1) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -446,7 +446,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIT  NULL;
 SHOW TABLES;
@@ -455,7 +455,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` bit(1) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -468,7 +468,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIT  NULL;
 SHOW TABLES;
@@ -477,7 +477,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` bit(1) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -490,7 +490,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIT  NULL;
 SHOW TABLES;
@@ -499,7 +499,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` bit(1) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -512,7 +512,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIT  NULL;
 SHOW TABLES;
@@ -521,7 +521,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` bit(1) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -1414,7 +1414,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYINT  NULL;
 SHOW TABLES;
@@ -1423,7 +1423,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` tinyint(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -1436,7 +1436,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYINT  NULL;
 SHOW TABLES;
@@ -1445,7 +1445,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` tinyint(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -1458,7 +1458,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYINT  NULL;
 SHOW TABLES;
@@ -1467,7 +1467,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` tinyint(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -1480,7 +1480,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYINT  NULL;
 SHOW TABLES;
@@ -1489,7 +1489,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` tinyint(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -1502,7 +1502,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYINT  NULL;
 SHOW TABLES;
@@ -1511,7 +1511,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` tinyint(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -1524,7 +1524,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYINT  NULL;
 SHOW TABLES;
@@ -1533,7 +1533,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` tinyint(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -1546,7 +1546,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYINT  NULL;
 SHOW TABLES;
@@ -1555,7 +1555,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` tinyint(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -1568,7 +1568,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYINT  NULL;
 SHOW TABLES;
@@ -1577,7 +1577,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` tinyint(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -2470,7 +2470,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 SMALLINT  NULL;
 SHOW TABLES;
@@ -2479,7 +2479,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` smallint(6) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -2492,7 +2492,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 SMALLINT  NULL;
 SHOW TABLES;
@@ -2501,7 +2501,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` smallint(6) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -2514,7 +2514,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 SMALLINT  NULL;
 SHOW TABLES;
@@ -2523,7 +2523,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` smallint(6) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -2536,7 +2536,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 SMALLINT  NULL;
 SHOW TABLES;
@@ -2545,7 +2545,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` smallint(6) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -2558,7 +2558,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 SMALLINT  NULL;
 SHOW TABLES;
@@ -2567,7 +2567,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` smallint(6) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -2580,7 +2580,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 SMALLINT  NULL;
 SHOW TABLES;
@@ -2589,7 +2589,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` smallint(6) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -2602,7 +2602,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 SMALLINT  NULL;
 SHOW TABLES;
@@ -2611,7 +2611,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` smallint(6) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -2624,7 +2624,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 SMALLINT  NULL;
 SHOW TABLES;
@@ -2633,7 +2633,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` smallint(6) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -3526,7 +3526,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMINT  NULL;
 SHOW TABLES;
@@ -3535,7 +3535,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` mediumint(9) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -3548,7 +3548,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMINT  NULL;
 SHOW TABLES;
@@ -3557,7 +3557,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` mediumint(9) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -3570,7 +3570,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMINT  NULL;
 SHOW TABLES;
@@ -3579,7 +3579,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` mediumint(9) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -3592,7 +3592,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMINT  NULL;
 SHOW TABLES;
@@ -3601,7 +3601,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` mediumint(9) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -3614,7 +3614,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMINT  NULL;
 SHOW TABLES;
@@ -3623,7 +3623,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` mediumint(9) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -3636,7 +3636,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMINT  NULL;
 SHOW TABLES;
@@ -3645,7 +3645,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` mediumint(9) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -3658,7 +3658,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMINT  NULL;
 SHOW TABLES;
@@ -3667,7 +3667,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` mediumint(9) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -3680,7 +3680,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMINT  NULL;
 SHOW TABLES;
@@ -3689,7 +3689,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` mediumint(9) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -4582,7 +4582,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INT  NULL;
 SHOW TABLES;
@@ -4591,7 +4591,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -4604,7 +4604,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INT  NULL;
 SHOW TABLES;
@@ -4613,7 +4613,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -4626,7 +4626,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INT  NULL;
 SHOW TABLES;
@@ -4635,7 +4635,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -4648,7 +4648,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INT  NULL;
 SHOW TABLES;
@@ -4657,7 +4657,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -4670,7 +4670,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INT  NULL;
 SHOW TABLES;
@@ -4679,7 +4679,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -4692,7 +4692,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INT  NULL;
 SHOW TABLES;
@@ -4701,7 +4701,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -4714,7 +4714,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INT  NULL;
 SHOW TABLES;
@@ -4723,7 +4723,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -4736,7 +4736,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INT  NULL;
 SHOW TABLES;
@@ -4745,7 +4745,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -5638,7 +5638,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INTEGER  NULL;
 SHOW TABLES;
@@ -5647,7 +5647,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -5660,7 +5660,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INTEGER  NULL;
 SHOW TABLES;
@@ -5669,7 +5669,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -5682,7 +5682,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INTEGER  NULL;
 SHOW TABLES;
@@ -5691,7 +5691,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -5704,7 +5704,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INTEGER  NULL;
 SHOW TABLES;
@@ -5713,7 +5713,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -5726,7 +5726,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INTEGER  NULL;
 SHOW TABLES;
@@ -5735,7 +5735,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -5748,7 +5748,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INTEGER  NULL;
 SHOW TABLES;
@@ -5757,7 +5757,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -5770,7 +5770,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INTEGER  NULL;
 SHOW TABLES;
@@ -5779,7 +5779,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -5792,7 +5792,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 INTEGER  NULL;
 SHOW TABLES;
@@ -5801,7 +5801,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -6694,7 +6694,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIGINT  NULL;
 SHOW TABLES;
@@ -6703,7 +6703,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` bigint(20) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -6716,7 +6716,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIGINT  NULL;
 SHOW TABLES;
@@ -6725,7 +6725,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` bigint(20) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -6738,7 +6738,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIGINT  NULL;
 SHOW TABLES;
@@ -6747,7 +6747,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` bigint(20) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -6760,7 +6760,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIGINT  NULL;
 SHOW TABLES;
@@ -6769,7 +6769,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` bigint(20) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -6782,7 +6782,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIGINT  NULL;
 SHOW TABLES;
@@ -6791,7 +6791,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` bigint(20) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -6804,7 +6804,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIGINT  NULL;
 SHOW TABLES;
@@ -6813,7 +6813,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` bigint(20) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -6826,7 +6826,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIGINT  NULL;
 SHOW TABLES;
@@ -6835,7 +6835,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` bigint(20) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -6848,7 +6848,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BIGINT  NULL;
 SHOW TABLES;
@@ -6857,7 +6857,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` bigint(20) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -7750,7 +7750,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 REAL  NULL;
 SHOW TABLES;
@@ -7759,7 +7759,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -7772,7 +7772,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 REAL  NULL;
 SHOW TABLES;
@@ -7781,7 +7781,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -7794,7 +7794,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 REAL  NULL;
 SHOW TABLES;
@@ -7803,7 +7803,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -7816,7 +7816,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 REAL  NULL;
 SHOW TABLES;
@@ -7825,7 +7825,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -7838,7 +7838,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 REAL  NULL;
 SHOW TABLES;
@@ -7847,7 +7847,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -7860,7 +7860,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 REAL  NULL;
 SHOW TABLES;
@@ -7869,7 +7869,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -7882,7 +7882,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 REAL  NULL;
 SHOW TABLES;
@@ -7891,7 +7891,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -7904,7 +7904,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 REAL  NULL;
 SHOW TABLES;
@@ -7913,7 +7913,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -8806,7 +8806,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DOUBLE  NULL;
 SHOW TABLES;
@@ -8815,7 +8815,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -8828,7 +8828,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DOUBLE  NULL;
 SHOW TABLES;
@@ -8837,7 +8837,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -8850,7 +8850,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DOUBLE  NULL;
 SHOW TABLES;
@@ -8859,7 +8859,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -8872,7 +8872,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DOUBLE  NULL;
 SHOW TABLES;
@@ -8881,7 +8881,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -8894,7 +8894,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DOUBLE  NULL;
 SHOW TABLES;
@@ -8903,7 +8903,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -8916,7 +8916,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DOUBLE  NULL;
 SHOW TABLES;
@@ -8925,7 +8925,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -8938,7 +8938,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DOUBLE  NULL;
 SHOW TABLES;
@@ -8947,7 +8947,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -8960,7 +8960,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DOUBLE  NULL;
 SHOW TABLES;
@@ -8969,7 +8969,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` double DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -9862,7 +9862,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 FLOAT  NULL;
 SHOW TABLES;
@@ -9871,7 +9871,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` float DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -9884,7 +9884,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 FLOAT  NULL;
 SHOW TABLES;
@@ -9893,7 +9893,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` float DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -9906,7 +9906,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 FLOAT  NULL;
 SHOW TABLES;
@@ -9915,7 +9915,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` float DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -9928,7 +9928,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 FLOAT  NULL;
 SHOW TABLES;
@@ -9937,7 +9937,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` float DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -9950,7 +9950,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 FLOAT  NULL;
 SHOW TABLES;
@@ -9959,7 +9959,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` float DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -9972,7 +9972,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 FLOAT  NULL;
 SHOW TABLES;
@@ -9981,7 +9981,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` float DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -9994,7 +9994,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 FLOAT  NULL;
 SHOW TABLES;
@@ -10003,7 +10003,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` float DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -10016,7 +10016,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 FLOAT  NULL;
 SHOW TABLES;
@@ -10025,7 +10025,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` float DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -10918,7 +10918,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DECIMAL  NULL;
 SHOW TABLES;
@@ -10927,7 +10927,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -10940,7 +10940,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DECIMAL  NULL;
 SHOW TABLES;
@@ -10949,7 +10949,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -10962,7 +10962,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DECIMAL  NULL;
 SHOW TABLES;
@@ -10971,7 +10971,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -10984,7 +10984,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DECIMAL  NULL;
 SHOW TABLES;
@@ -10993,7 +10993,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -11006,7 +11006,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DECIMAL  NULL;
 SHOW TABLES;
@@ -11015,7 +11015,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -11028,7 +11028,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DECIMAL  NULL;
 SHOW TABLES;
@@ -11037,7 +11037,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -11050,7 +11050,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DECIMAL  NULL;
 SHOW TABLES;
@@ -11059,7 +11059,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -11072,7 +11072,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DECIMAL  NULL;
 SHOW TABLES;
@@ -11081,7 +11081,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -11974,7 +11974,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 NUMERIC  NULL;
 SHOW TABLES;
@@ -11983,7 +11983,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -11996,7 +11996,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 NUMERIC  NULL;
 SHOW TABLES;
@@ -12005,7 +12005,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -12018,7 +12018,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 NUMERIC  NULL;
 SHOW TABLES;
@@ -12027,7 +12027,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -12040,7 +12040,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 NUMERIC  NULL;
 SHOW TABLES;
@@ -12049,7 +12049,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -12062,7 +12062,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 NUMERIC  NULL;
 SHOW TABLES;
@@ -12071,7 +12071,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -12084,7 +12084,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 NUMERIC  NULL;
 SHOW TABLES;
@@ -12093,7 +12093,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -12106,7 +12106,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 NUMERIC  NULL;
 SHOW TABLES;
@@ -12115,7 +12115,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -12128,7 +12128,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 NUMERIC  NULL;
 SHOW TABLES;
@@ -12137,7 +12137,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` decimal(10,0) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -13030,7 +13030,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DATE  NULL;
 SHOW TABLES;
@@ -13039,7 +13039,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` date DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -13052,7 +13052,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DATE  NULL;
 SHOW TABLES;
@@ -13061,7 +13061,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` date DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -13074,7 +13074,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DATE  NULL;
 SHOW TABLES;
@@ -13083,7 +13083,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` date DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -13096,7 +13096,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DATE  NULL;
 SHOW TABLES;
@@ -13105,7 +13105,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` date DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -13118,7 +13118,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DATE  NULL;
 SHOW TABLES;
@@ -13127,7 +13127,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` date DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -13140,7 +13140,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DATE  NULL;
 SHOW TABLES;
@@ -13149,7 +13149,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` date DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -13162,7 +13162,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DATE  NULL;
 SHOW TABLES;
@@ -13171,7 +13171,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` date DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -13184,7 +13184,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 DATE  NULL;
 SHOW TABLES;
@@ -13193,7 +13193,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` date DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -14086,7 +14086,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIME  NULL;
 SHOW TABLES;
@@ -14095,7 +14095,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` time DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -14108,7 +14108,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIME  NULL;
 SHOW TABLES;
@@ -14117,7 +14117,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` time DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -14130,7 +14130,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIME  NULL;
 SHOW TABLES;
@@ -14139,7 +14139,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` time DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -14152,7 +14152,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIME  NULL;
 SHOW TABLES;
@@ -14161,7 +14161,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` time DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -14174,7 +14174,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIME  NULL;
 SHOW TABLES;
@@ -14183,7 +14183,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` time DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -14196,7 +14196,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIME  NULL;
 SHOW TABLES;
@@ -14205,7 +14205,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` time DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -14218,7 +14218,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIME  NULL;
 SHOW TABLES;
@@ -14227,7 +14227,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` time DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -14240,7 +14240,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIME  NULL;
 SHOW TABLES;
@@ -14249,7 +14249,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` time DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -15142,7 +15142,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIMESTAMP  NULL;
 SHOW TABLES;
@@ -15151,7 +15151,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` timestamp NULL DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -15164,7 +15164,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIMESTAMP  NULL;
 SHOW TABLES;
@@ -15173,7 +15173,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` timestamp NULL DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -15186,7 +15186,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIMESTAMP  NULL;
 SHOW TABLES;
@@ -15195,7 +15195,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` timestamp NULL DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -15208,7 +15208,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIMESTAMP  NULL;
 SHOW TABLES;
@@ -15217,7 +15217,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` timestamp NULL DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -15230,7 +15230,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIMESTAMP  NULL;
 SHOW TABLES;
@@ -15239,7 +15239,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` timestamp NULL DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -15252,7 +15252,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIMESTAMP  NULL;
 SHOW TABLES;
@@ -15261,7 +15261,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` timestamp NULL DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -15274,7 +15274,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIMESTAMP  NULL;
 SHOW TABLES;
@@ -15283,7 +15283,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` timestamp NULL DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -15296,7 +15296,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TIMESTAMP  NULL;
 SHOW TABLES;
@@ -15305,7 +15305,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` timestamp NULL DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -16198,7 +16198,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 YEAR  NULL;
 SHOW TABLES;
@@ -16207,7 +16207,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
+  `c1` tinyblob DEFAULT NULL,
   `c2` year(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -16220,7 +16220,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 YEAR  NULL;
 SHOW TABLES;
@@ -16229,7 +16229,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
+  `c1` blob DEFAULT NULL,
   `c2` year(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -16242,7 +16242,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 YEAR  NULL;
 SHOW TABLES;
@@ -16251,7 +16251,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
+  `c1` mediumblob DEFAULT NULL,
   `c2` year(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -16264,7 +16264,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 YEAR  NULL;
 SHOW TABLES;
@@ -16273,7 +16273,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
+  `c1` longblob DEFAULT NULL,
   `c2` year(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -16286,7 +16286,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 YEAR  NULL;
 SHOW TABLES;
@@ -16295,7 +16295,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
+  `c1` tinytext DEFAULT NULL,
   `c2` year(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -16308,7 +16308,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 YEAR  NULL;
 SHOW TABLES;
@@ -16317,7 +16317,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
+  `c1` text DEFAULT NULL,
   `c2` year(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -16330,7 +16330,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 YEAR  NULL;
 SHOW TABLES;
@@ -16339,7 +16339,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
+  `c1` mediumtext DEFAULT NULL,
   `c2` year(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -16352,7 +16352,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 YEAR  NULL;
 SHOW TABLES;
@@ -16361,7 +16361,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
+  `c1` longtext DEFAULT NULL,
   `c2` year(4) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -16912,7 +16912,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bit(1) DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -16934,7 +16934,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -16956,7 +16956,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -16978,7 +16978,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17000,7 +17000,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17022,7 +17022,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17044,7 +17044,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17066,7 +17066,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17088,7 +17088,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17110,7 +17110,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17132,7 +17132,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17154,7 +17154,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17176,7 +17176,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` date DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17198,7 +17198,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17220,7 +17220,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` timestamp NULL DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17242,7 +17242,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) DEFAULT NULL,
-  `c2` tinyblob
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17254,7 +17254,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYBLOB  NULL;
 SHOW TABLES;
@@ -17263,8 +17263,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
-  `c2` tinyblob
+  `c1` tinyblob DEFAULT NULL,
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17276,7 +17276,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYBLOB  NULL;
 SHOW TABLES;
@@ -17285,8 +17285,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
-  `c2` tinyblob
+  `c1` blob DEFAULT NULL,
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17298,7 +17298,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYBLOB  NULL;
 SHOW TABLES;
@@ -17307,8 +17307,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
-  `c2` tinyblob
+  `c1` mediumblob DEFAULT NULL,
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17320,7 +17320,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYBLOB  NULL;
 SHOW TABLES;
@@ -17329,8 +17329,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
-  `c2` tinyblob
+  `c1` longblob DEFAULT NULL,
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17342,7 +17342,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYBLOB  NULL;
 SHOW TABLES;
@@ -17351,8 +17351,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
-  `c2` tinyblob
+  `c1` tinytext DEFAULT NULL,
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17364,7 +17364,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYBLOB  NULL;
 SHOW TABLES;
@@ -17373,8 +17373,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
-  `c2` tinyblob
+  `c1` text DEFAULT NULL,
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17386,7 +17386,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYBLOB  NULL;
 SHOW TABLES;
@@ -17395,8 +17395,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
-  `c2` tinyblob
+  `c1` mediumtext DEFAULT NULL,
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17408,7 +17408,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYBLOB  NULL;
 SHOW TABLES;
@@ -17417,8 +17417,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
-  `c2` tinyblob
+  `c1` longtext DEFAULT NULL,
+  `c2` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17968,7 +17968,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bit(1) DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -17990,7 +17990,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18012,7 +18012,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18034,7 +18034,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18056,7 +18056,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18078,7 +18078,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18100,7 +18100,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18122,7 +18122,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18144,7 +18144,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18166,7 +18166,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18188,7 +18188,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18210,7 +18210,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18232,7 +18232,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` date DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18254,7 +18254,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18276,7 +18276,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` timestamp NULL DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18298,7 +18298,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) DEFAULT NULL,
-  `c2` blob
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18310,7 +18310,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BLOB  NULL;
 SHOW TABLES;
@@ -18319,8 +18319,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
-  `c2` blob
+  `c1` tinyblob DEFAULT NULL,
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18332,7 +18332,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BLOB  NULL;
 SHOW TABLES;
@@ -18341,8 +18341,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
-  `c2` blob
+  `c1` blob DEFAULT NULL,
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18354,7 +18354,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BLOB  NULL;
 SHOW TABLES;
@@ -18363,8 +18363,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
-  `c2` blob
+  `c1` mediumblob DEFAULT NULL,
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18376,7 +18376,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BLOB  NULL;
 SHOW TABLES;
@@ -18385,8 +18385,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
-  `c2` blob
+  `c1` longblob DEFAULT NULL,
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18398,7 +18398,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BLOB  NULL;
 SHOW TABLES;
@@ -18407,8 +18407,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
-  `c2` blob
+  `c1` tinytext DEFAULT NULL,
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18420,7 +18420,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BLOB  NULL;
 SHOW TABLES;
@@ -18429,8 +18429,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
-  `c2` blob
+  `c1` text DEFAULT NULL,
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18442,7 +18442,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BLOB  NULL;
 SHOW TABLES;
@@ -18451,8 +18451,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
-  `c2` blob
+  `c1` mediumtext DEFAULT NULL,
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -18464,7 +18464,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 BLOB  NULL;
 SHOW TABLES;
@@ -18473,8 +18473,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
-  `c2` blob
+  `c1` longtext DEFAULT NULL,
+  `c2` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19024,7 +19024,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bit(1) DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19046,7 +19046,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19068,7 +19068,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19090,7 +19090,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19112,7 +19112,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19134,7 +19134,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19156,7 +19156,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19178,7 +19178,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19200,7 +19200,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19222,7 +19222,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19244,7 +19244,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19266,7 +19266,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19288,7 +19288,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` date DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19310,7 +19310,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19332,7 +19332,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` timestamp NULL DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19354,7 +19354,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) DEFAULT NULL,
-  `c2` mediumblob
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19366,7 +19366,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMBLOB  NULL;
 SHOW TABLES;
@@ -19375,8 +19375,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
-  `c2` mediumblob
+  `c1` tinyblob DEFAULT NULL,
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19388,7 +19388,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMBLOB  NULL;
 SHOW TABLES;
@@ -19397,8 +19397,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
-  `c2` mediumblob
+  `c1` blob DEFAULT NULL,
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19410,7 +19410,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMBLOB  NULL;
 SHOW TABLES;
@@ -19419,8 +19419,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
-  `c2` mediumblob
+  `c1` mediumblob DEFAULT NULL,
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19432,7 +19432,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMBLOB  NULL;
 SHOW TABLES;
@@ -19441,8 +19441,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
-  `c2` mediumblob
+  `c1` longblob DEFAULT NULL,
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19454,7 +19454,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMBLOB  NULL;
 SHOW TABLES;
@@ -19463,8 +19463,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
-  `c2` mediumblob
+  `c1` tinytext DEFAULT NULL,
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19476,7 +19476,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMBLOB  NULL;
 SHOW TABLES;
@@ -19485,8 +19485,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
-  `c2` mediumblob
+  `c1` text DEFAULT NULL,
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19498,7 +19498,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMBLOB  NULL;
 SHOW TABLES;
@@ -19507,8 +19507,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
-  `c2` mediumblob
+  `c1` mediumtext DEFAULT NULL,
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -19520,7 +19520,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMBLOB  NULL;
 SHOW TABLES;
@@ -19529,8 +19529,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
-  `c2` mediumblob
+  `c1` longtext DEFAULT NULL,
+  `c2` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20080,7 +20080,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bit(1) DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20102,7 +20102,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20124,7 +20124,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20146,7 +20146,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20168,7 +20168,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20190,7 +20190,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20212,7 +20212,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20234,7 +20234,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20256,7 +20256,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20278,7 +20278,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20300,7 +20300,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20322,7 +20322,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20344,7 +20344,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` date DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20366,7 +20366,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20388,7 +20388,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` timestamp NULL DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20410,7 +20410,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) DEFAULT NULL,
-  `c2` longblob
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20422,7 +20422,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGBLOB  NULL;
 SHOW TABLES;
@@ -20431,8 +20431,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
-  `c2` longblob
+  `c1` tinyblob DEFAULT NULL,
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20444,7 +20444,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGBLOB  NULL;
 SHOW TABLES;
@@ -20453,8 +20453,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
-  `c2` longblob
+  `c1` blob DEFAULT NULL,
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20466,7 +20466,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGBLOB  NULL;
 SHOW TABLES;
@@ -20475,8 +20475,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
-  `c2` longblob
+  `c1` mediumblob DEFAULT NULL,
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20488,7 +20488,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGBLOB  NULL;
 SHOW TABLES;
@@ -20497,8 +20497,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
-  `c2` longblob
+  `c1` longblob DEFAULT NULL,
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20510,7 +20510,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGBLOB  NULL;
 SHOW TABLES;
@@ -20519,8 +20519,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
-  `c2` longblob
+  `c1` tinytext DEFAULT NULL,
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20532,7 +20532,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGBLOB  NULL;
 SHOW TABLES;
@@ -20541,8 +20541,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
-  `c2` longblob
+  `c1` text DEFAULT NULL,
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20554,7 +20554,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGBLOB  NULL;
 SHOW TABLES;
@@ -20563,8 +20563,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
-  `c2` longblob
+  `c1` mediumtext DEFAULT NULL,
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -20576,7 +20576,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGBLOB  NULL;
 SHOW TABLES;
@@ -20585,8 +20585,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
-  `c2` longblob
+  `c1` longtext DEFAULT NULL,
+  `c2` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21136,7 +21136,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bit(1) DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21158,7 +21158,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21180,7 +21180,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21202,7 +21202,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21224,7 +21224,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21246,7 +21246,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21268,7 +21268,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21290,7 +21290,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21312,7 +21312,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21334,7 +21334,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21356,7 +21356,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21378,7 +21378,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21400,7 +21400,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` date DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21422,7 +21422,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21444,7 +21444,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` timestamp NULL DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21466,7 +21466,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) DEFAULT NULL,
-  `c2` tinytext
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21478,7 +21478,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYTEXT  NULL;
 SHOW TABLES;
@@ -21487,8 +21487,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
-  `c2` tinytext
+  `c1` tinyblob DEFAULT NULL,
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21500,7 +21500,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYTEXT  NULL;
 SHOW TABLES;
@@ -21509,8 +21509,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
-  `c2` tinytext
+  `c1` blob DEFAULT NULL,
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21522,7 +21522,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYTEXT  NULL;
 SHOW TABLES;
@@ -21531,8 +21531,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
-  `c2` tinytext
+  `c1` mediumblob DEFAULT NULL,
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21544,7 +21544,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYTEXT  NULL;
 SHOW TABLES;
@@ -21553,8 +21553,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
-  `c2` tinytext
+  `c1` longblob DEFAULT NULL,
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21566,7 +21566,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYTEXT  NULL;
 SHOW TABLES;
@@ -21575,8 +21575,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
-  `c2` tinytext
+  `c1` tinytext DEFAULT NULL,
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21588,7 +21588,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYTEXT  NULL;
 SHOW TABLES;
@@ -21597,8 +21597,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
-  `c2` tinytext
+  `c1` text DEFAULT NULL,
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21610,7 +21610,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYTEXT  NULL;
 SHOW TABLES;
@@ -21619,8 +21619,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
-  `c2` tinytext
+  `c1` mediumtext DEFAULT NULL,
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -21632,7 +21632,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TINYTEXT  NULL;
 SHOW TABLES;
@@ -21641,8 +21641,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
-  `c2` tinytext
+  `c1` longtext DEFAULT NULL,
+  `c2` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22192,7 +22192,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bit(1) DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22214,7 +22214,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22236,7 +22236,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22258,7 +22258,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22280,7 +22280,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22302,7 +22302,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22324,7 +22324,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22346,7 +22346,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22368,7 +22368,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22390,7 +22390,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22412,7 +22412,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22434,7 +22434,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22456,7 +22456,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` date DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22478,7 +22478,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22500,7 +22500,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` timestamp NULL DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22522,7 +22522,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) DEFAULT NULL,
-  `c2` text
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22534,7 +22534,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TEXT  NULL;
 SHOW TABLES;
@@ -22543,8 +22543,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
-  `c2` text
+  `c1` tinyblob DEFAULT NULL,
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22556,7 +22556,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TEXT  NULL;
 SHOW TABLES;
@@ -22565,8 +22565,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
-  `c2` text
+  `c1` blob DEFAULT NULL,
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22578,7 +22578,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TEXT  NULL;
 SHOW TABLES;
@@ -22587,8 +22587,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
-  `c2` text
+  `c1` mediumblob DEFAULT NULL,
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22600,7 +22600,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TEXT  NULL;
 SHOW TABLES;
@@ -22609,8 +22609,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
-  `c2` text
+  `c1` longblob DEFAULT NULL,
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22622,7 +22622,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TEXT  NULL;
 SHOW TABLES;
@@ -22631,8 +22631,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
-  `c2` text
+  `c1` tinytext DEFAULT NULL,
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22644,7 +22644,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TEXT  NULL;
 SHOW TABLES;
@@ -22653,8 +22653,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
-  `c2` text
+  `c1` text DEFAULT NULL,
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22666,7 +22666,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TEXT  NULL;
 SHOW TABLES;
@@ -22675,8 +22675,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
-  `c2` text
+  `c1` mediumtext DEFAULT NULL,
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -22688,7 +22688,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 TEXT  NULL;
 SHOW TABLES;
@@ -22697,8 +22697,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
-  `c2` text
+  `c1` longtext DEFAULT NULL,
+  `c2` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23248,7 +23248,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bit(1) DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23270,7 +23270,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23292,7 +23292,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23314,7 +23314,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23336,7 +23336,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23358,7 +23358,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23380,7 +23380,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23402,7 +23402,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23424,7 +23424,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23446,7 +23446,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23468,7 +23468,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23490,7 +23490,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23512,7 +23512,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` date DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23534,7 +23534,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23556,7 +23556,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` timestamp NULL DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23578,7 +23578,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) DEFAULT NULL,
-  `c2` mediumtext
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23590,7 +23590,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMTEXT  NULL;
 SHOW TABLES;
@@ -23599,8 +23599,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
-  `c2` mediumtext
+  `c1` tinyblob DEFAULT NULL,
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23612,7 +23612,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMTEXT  NULL;
 SHOW TABLES;
@@ -23621,8 +23621,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
-  `c2` mediumtext
+  `c1` blob DEFAULT NULL,
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23634,7 +23634,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMTEXT  NULL;
 SHOW TABLES;
@@ -23643,8 +23643,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
-  `c2` mediumtext
+  `c1` mediumblob DEFAULT NULL,
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23656,7 +23656,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMTEXT  NULL;
 SHOW TABLES;
@@ -23665,8 +23665,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
-  `c2` mediumtext
+  `c1` longblob DEFAULT NULL,
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23678,7 +23678,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMTEXT  NULL;
 SHOW TABLES;
@@ -23687,8 +23687,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
-  `c2` mediumtext
+  `c1` tinytext DEFAULT NULL,
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23700,7 +23700,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMTEXT  NULL;
 SHOW TABLES;
@@ -23709,8 +23709,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
-  `c2` mediumtext
+  `c1` text DEFAULT NULL,
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23722,7 +23722,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMTEXT  NULL;
 SHOW TABLES;
@@ -23731,8 +23731,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
-  `c2` mediumtext
+  `c1` mediumtext DEFAULT NULL,
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -23744,7 +23744,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 MEDIUMTEXT  NULL;
 SHOW TABLES;
@@ -23753,8 +23753,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
-  `c2` mediumtext
+  `c1` longtext DEFAULT NULL,
+  `c2` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24304,7 +24304,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bit(1) DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24326,7 +24326,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` tinyint(4) DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24348,7 +24348,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` smallint(6) DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24370,7 +24370,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` mediumint(9) DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24392,7 +24392,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24414,7 +24414,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24436,7 +24436,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24458,7 +24458,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24480,7 +24480,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` double DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24502,7 +24502,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24524,7 +24524,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24546,7 +24546,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` decimal(10,0) DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24568,7 +24568,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` date DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24590,7 +24590,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` time DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24612,7 +24612,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` timestamp NULL DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24634,7 +24634,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` year(4) DEFAULT NULL,
-  `c2` longtext
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24646,7 +24646,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob
+  `c1` tinyblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGTEXT  NULL;
 SHOW TABLES;
@@ -24655,8 +24655,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinyblob,
-  `c2` longtext
+  `c1` tinyblob DEFAULT NULL,
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24668,7 +24668,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob
+  `c1` blob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGTEXT  NULL;
 SHOW TABLES;
@@ -24677,8 +24677,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` blob,
-  `c2` longtext
+  `c1` blob DEFAULT NULL,
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24690,7 +24690,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob
+  `c1` mediumblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGTEXT  NULL;
 SHOW TABLES;
@@ -24699,8 +24699,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumblob,
-  `c2` longtext
+  `c1` mediumblob DEFAULT NULL,
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24712,7 +24712,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob
+  `c1` longblob DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGTEXT  NULL;
 SHOW TABLES;
@@ -24721,8 +24721,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longblob,
-  `c2` longtext
+  `c1` longblob DEFAULT NULL,
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24734,7 +24734,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext
+  `c1` tinytext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGTEXT  NULL;
 SHOW TABLES;
@@ -24743,8 +24743,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` tinytext,
-  `c2` longtext
+  `c1` tinytext DEFAULT NULL,
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24756,7 +24756,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text
+  `c1` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGTEXT  NULL;
 SHOW TABLES;
@@ -24765,8 +24765,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text,
-  `c2` longtext
+  `c1` text DEFAULT NULL,
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24778,7 +24778,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext
+  `c1` mediumtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGTEXT  NULL;
 SHOW TABLES;
@@ -24787,8 +24787,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` mediumtext,
-  `c2` longtext
+  `c1` mediumtext DEFAULT NULL,
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;
@@ -24800,7 +24800,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext
+  `c1` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 ADD c2 LONGTEXT  NULL;
 SHOW TABLES;
@@ -24809,8 +24809,8 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext,
-  `c2` longtext
+  `c1` longtext DEFAULT NULL,
+  `c2` longtext DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SHOW TABLES;

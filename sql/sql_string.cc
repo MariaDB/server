@@ -136,7 +136,7 @@ bool String::set_real(double num,uint decimals, CHARSET_INFO *cs)
   size_t len;
 
   str_charset=cs;
-  if (decimals >= NOT_FIXED_DEC)
+  if (decimals >= FLOATING_POINT_DECIMALS)
   {
     len= my_gcvt(num, MY_GCVT_ARG_DOUBLE, sizeof(buff) - 1, buff, NULL);
     return copy(buff, len, &my_charset_latin1, cs, &dummy_errors);

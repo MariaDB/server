@@ -4,7 +4,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
-  `c2` text,
+  `c2` text DEFAULT NULL,
   PRIMARY KEY (`c1`),
   FULLTEXT KEY `ft` (`c2`)
 ) ENGINE=Mroonga DEFAULT CHARSET=latin1 COMMENT='engine "myisam"'

@@ -1,5 +1,11 @@
 --source include/have_tokudb.inc
 --source include/have_debug.inc
+# Valgrind would report memory leaks on the intentional crashes
+-- source include/not_valgrind.inc
+# Embedded server does not support crashing
+-- source include/not_embedded.inc
+# Avoid CrashReporter popup on Mac
+-- source include/not_crashrep.inc
 
 --disable_warnings
 drop table if exists t1;

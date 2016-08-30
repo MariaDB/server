@@ -7,7 +7,7 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `day` date NOT NULL,
-  `title` text,
+  `title` text DEFAULT NULL,
   PRIMARY KEY (`day`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (day, title)

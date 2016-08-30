@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2015, MariaDB
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -95,8 +95,8 @@ bool compare_record(const TABLE *table)
   
   /* 
      The storage engine has read all columns, so it's safe to compare all bits
-     including those not in the write_set. This is cheaper than the field-by-field
-     comparison done above.
+     including those not in the write_set. This is cheaper than the
+     field-by-field comparison done above.
   */ 
   if (table->s->can_cmp_whole_record)
     return cmp_record(table,record[1]);
@@ -353,8 +353,6 @@ int mysql_update(THD *thd,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
     DBUG_RETURN(1);
   }
-  if (table->default_field)
-    table->mark_default_fields_for_write();
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Check values */
@@ -373,7 +371,7 @@ int mysql_update(THD *thd,
   switch_to_nullable_trigger_fields(fields, table);
   switch_to_nullable_trigger_fields(values, table);
 
-  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
+  /* Apply the IN=>EXISTS transformation to all subqueries and optimize them */
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
 
@@ -394,14 +392,6 @@ int mysql_update(THD *thd,
     }
   }
 
-  /*
-    If a timestamp field settable on UPDATE is present then to avoid wrong
-    update force the table handler to retrieve write-only fields to be able
-    to compare records and detect data change.
-  */
-  if ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) &&
-      table->default_field && table->has_default_function(true))
-    bitmap_union(table->read_set, table->write_set);
   // Don't count on usage of 'only index' when calculating which key to use
   table->covering_keys.clear_all();
 
@@ -763,7 +753,7 @@ int mysql_update(THD *thd,
 
       if (!can_compare_record || compare_record(table))
       {
-        if (table->default_field && table->update_default_fields())
+        if (table->default_field && table->update_default_fields(1, ignore))
         {
           error= 1;
           break;
@@ -828,7 +818,7 @@ int mysql_update(THD *thd,
             error= 0;
 	}
  	else if (!ignore ||
-                 table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+                 table->file->is_fatal_error(error, HA_CHECK_ALL))
 	{
           /*
             If (ignore && error is ignorable) we don't have to
@@ -836,7 +826,7 @@ int mysql_update(THD *thd,
           */
           myf flags= 0;
 
-          if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+          if (table->file->is_fatal_error(error, HA_CHECK_ALL))
             flags|= ME_FATALERROR; /* Other handler errors are fatal */
 
           prepare_record_for_error_message(error, table);
@@ -1234,10 +1224,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
           {
             // Partitioned key is updated
             my_error(ER_MULTI_UPDATE_KEY_CONFLICT, MYF(0),
-                     tl->belong_to_view ? tl->belong_to_view->alias
-                                        : tl->alias,
-                     tl2->belong_to_view ? tl2->belong_to_view->alias
-                                         : tl2->alias);
+                     tl->top_table()->alias,
+                     tl2->top_table()->alias);
             return true;
           }
 
@@ -1255,10 +1243,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
               {
                 // Clustered primary key is updated
                 my_error(ER_MULTI_UPDATE_KEY_CONFLICT, MYF(0),
-                         tl->belong_to_view ? tl->belong_to_view->alias
-                         : tl->alias,
-                         tl2->belong_to_view ? tl2->belong_to_view->alias
-                         : tl2->alias);
+                         tl->top_table()->alias,
+                         tl2->top_table()->alias);
                 return true;
               }
             }
@@ -1459,11 +1445,13 @@ int mysql_multi_update_prepare(THD *thd)
     {
       if (!tl->single_table_updatable() || check_key_in_view(thd, tl))
       {
-        my_error(ER_NON_UPDATABLE_TABLE, MYF(0), tl->alias, "UPDATE");
+        my_error(ER_NON_UPDATABLE_TABLE, MYF(0),
+                 tl->top_table()->alias, "UPDATE");
         DBUG_RETURN(TRUE);
       }
 
-      DBUG_PRINT("info",("setting table `%s` for update", tl->alias));
+      DBUG_PRINT("info",("setting table `%s` for update",
+                         tl->top_table()->alias));
       /*
         If table will be updated we should not downgrade lock for it and
         leave it as is.
@@ -1605,7 +1593,7 @@ bool mysql_multi_update(THD *thd,
     DBUG_RETURN(TRUE);
   }
 
-  thd->abort_on_warning= thd->is_strict_mode();
+  thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
 
   res= mysql_select(thd,
@@ -1718,17 +1706,8 @@ int multi_update::prepare(List<Item> &not_used_values,
     {
       table->read_set= &table->def_read_set;
       bitmap_union(table->read_set, &table->tmp_set);
-      /*
-        If a timestamp field settable on UPDATE is present then to avoid wrong
-        update force the table handler to retrieve write-only fields to be able
-        to compare records and detect data change.
-        */
-      if ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) &&
-          table->default_field && table->has_default_function(true))
-        bitmap_union(table->read_set, table->write_set);
     }
   }
-  
   if (error)
     DBUG_RETURN(1);    
 
@@ -2119,11 +2098,11 @@ int multi_update::send_data(List<Item> &not_used_values)
 
       table->status|= STATUS_UPDATED;
       store_record(table,record[1]);
-      if (fill_record_n_invoke_before_triggers(thd, table, *fields_for_table[offset],
+      if (fill_record_n_invoke_before_triggers(thd, table,
+                                               *fields_for_table[offset],
                                                *values_for_table[offset], 0,
                                                TRG_EVENT_UPDATE))
 	DBUG_RETURN(1);
-
       /*
         Reset the table->auto_increment_field_not_null as it is valid for
         only one row.
@@ -2134,7 +2113,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       {
 	int error;
 
-        if (table->default_field && table->update_default_fields())
+        if (table->default_field && table->update_default_fields(1, ignore))
           DBUG_RETURN(1);
 
         if ((error= cur_table->view_check_option(thd, ignore)) !=
@@ -2161,7 +2140,7 @@ int multi_update::send_data(List<Item> &not_used_values)
         {
           updated--;
           if (!ignore ||
-              table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+              table->file->is_fatal_error(error, HA_CHECK_ALL))
           {
             /*
               If (ignore && error == is ignorable) we don't have to
@@ -2169,7 +2148,7 @@ int multi_update::send_data(List<Item> &not_used_values)
             */
             myf flags= 0;
 
-            if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+            if (table->file->is_fatal_error(error, HA_CHECK_ALL))
               flags|= ME_FATALERROR; /* Other handler errors are fatal */
 
             prepare_record_for_error_message(error, table);
@@ -2424,7 +2403,8 @@ int multi_update::do_updates()
       if (!can_compare_record || compare_record(table))
       {
         int error;
-        if (table->default_field && (error= table->update_default_fields()))
+        if (table->default_field &&
+            (error= table->update_default_fields(1, ignore)))
           goto err2;
         if (table->vfield &&
             update_virtual_fields(thd, table,
@@ -2446,7 +2426,7 @@ int multi_update::do_updates()
             local_error != HA_ERR_RECORD_IS_THE_SAME)
 	{
 	  if (!ignore ||
-              table->file->is_fatal_error(local_error, HA_CHECK_DUP_KEY))
+              table->file->is_fatal_error(local_error, HA_CHECK_ALL))
           {
             err_table= table;
 	    goto err;

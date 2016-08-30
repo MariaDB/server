@@ -465,9 +465,10 @@ void thr_lock_delete(THR_LOCK *lock)
 }
 
 
-void thr_lock_info_init(THR_LOCK_INFO *info)
+void thr_lock_info_init(THR_LOCK_INFO *info, struct st_my_thread_var *tmp)
 {
-  struct st_my_thread_var *tmp= my_thread_var;
+  if (tmp)
+    tmp= my_thread_var;
   info->thread=    tmp->pthread_self;
   info->thread_id= tmp->id;
 }
@@ -1816,7 +1817,7 @@ static void *test_thread(void *arg)
 
   printf("Thread %s (%d) started\n",my_thread_name(),param); fflush(stdout);
 
-  thr_lock_info_init(&lock_info);
+  thr_lock_info_init(&lock_info, 0);
   for (i=0; i < lock_counts[param] ; i++)
     thr_lock_data_init(locks+tests[param][i].lock_nr,data+i,NULL);
   for (j=1 ; j < 10 ; j++)		/* try locking 10 times */

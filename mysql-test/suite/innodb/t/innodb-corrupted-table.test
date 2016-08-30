@@ -1,0 +1,46 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+#
+# MDEV-9918: [ERROR] mysqld got signal 11 during ALTER TABLE `name` COLUMN ADD	
+#
+
+call mtr.add_suppression("Table .* has a primary key in InnoDB data dictionary, but not in MySQL.*");
+call mtr.add_suppression("InnoDB: Table .* contains .* indexes inside InnoDB, which is different from the number of indexes .* defined in the MySQL.*");
+
+create table t1 (pk int, i int, key(i)) engine=InnoDB;
+insert into t1 values (1,1),(2,2);
+
+--let $datadir= `select @@datadir`
+
+flush tables;
+
+--echo # Save the .frm file without the PK
+
+--copy_file $datadir/test/t1.frm $MYSQLTEST_VARDIR/tmp/t1.frm
+
+alter table t1 add primary key (pk);
+
+--echo # Stop the server, replace the frm with the old one and restart the server
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server 10
+--source include/wait_until_disconnected.inc
+
+--remove_file $datadir/test/t1.frm
+--copy_file $MYSQLTEST_VARDIR/tmp/t1.frm $datadir/test/t1.frm
+
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+show create table t1;
+select * from t1;
+alter table t1 add j int;
+show warnings;
+show create table t1;
+alter table t1 add primary key (pk);
+show warnings;
+show create table t1;
+# Cleanup
+drop table t1;

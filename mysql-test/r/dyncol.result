@@ -91,19 +91,19 @@ hex(COLUMN_CREATE(1, NULL AS decimal))
 000000
 select hex(COLUMN_CREATE(1, 1212 AS decimal));
 hex(COLUMN_CREATE(1, 1212 AS decimal))
-0001000100040900800004BC
+000100010004040084BC
 select hex(COLUMN_CREATE(1, 7 AS decimal));
 hex(COLUMN_CREATE(1, 7 AS decimal))
-000100010004090080000007
+000100010004010087
 select hex(COLUMN_CREATE(1, 8 AS decimal));
 hex(COLUMN_CREATE(1, 8 AS decimal))
-000100010004090080000008
+000100010004010088
 select hex(COLUMN_CREATE(1, 127 AS decimal));
 hex(COLUMN_CREATE(1, 127 AS decimal))
-00010001000409008000007F
+0001000100040300807F
 select hex(COLUMN_CREATE(1, 128 AS decimal));
 hex(COLUMN_CREATE(1, 128 AS decimal))
-000100010004090080000080
+00010001000403008080
 select hex(COLUMN_CREATE(1, 12.12 AS decimal));
 hex(COLUMN_CREATE(1, 12.12 AS decimal))
 00010001000402028C0C
@@ -236,7 +236,7 @@ select column_get(column_create(1, 99999999999999999999999999999 AS double), 1 a
 column_get(column_create(1, 99999999999999999999999999999 AS double), 1 as unsigned int)
 18446744073709551615
 Warnings:
-Warning	1916	Got overflow when converting '1e+29' to UNSIGNED INT. Value truncated.
+Warning	1916	Got overflow when converting '1e29' to UNSIGNED INT. Value truncated.
 select column_get(column_create(1, 999.9 AS double), 1 as unsigned int);
 column_get(column_create(1, 999.9 AS double), 1 as unsigned int)
 1000
@@ -330,7 +330,7 @@ select column_get(column_create(1, -99999999999999999999999999999 AS double), 1 
 column_get(column_create(1, -99999999999999999999999999999 AS double), 1 as int)
 -9223372036854775808
 Warnings:
-Warning	1916	Got overflow when converting '-1e+29' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-1e29' to INT. Value truncated.
 select column_get(column_create(1, "-1212III" AS char), 1 as int);
 column_get(column_create(1, "-1212III" AS char), 1 as int)
 -1212
@@ -1458,8 +1458,8 @@ Note	1105	Cast to signed converted positive out-of-range integer to it's negativ
 # MDEV-7505 - Too large scale in DECIMAL dynamic column getter crashes
 #             mysqld
 #
-SELECT COLUMN_GET(`x`, 'y' AS DECIMAL(5,34));
-ERROR 42000: Too big scale 34 specified for ''y''. Maximum is 30.
+SELECT COLUMN_GET(`x`, 'y' AS DECIMAL(5,50));
+ERROR 42000: Too big scale 50 specified for ''y''. Maximum is 38.
 #
 # test of symbolic names
 #
@@ -1874,4 +1874,57 @@ COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL))
 {"a":1,"b":1}
 #
 # end of 10.0 tests
+#
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+CREATE TABLE t1 (
+name VARCHAR(10),
+value VARCHAR(10),
+dyncol0 BLOB DEFAULT COLUMN_CREATE(name, value),
+value_dyncol0_name0 VARCHAR(10) DEFAULT COLUMN_GET(dyncol0, 'name0' AS CHAR),
+dyncol1 BLOB DEFAULT COLUMN_ADD(dyncol0, 'name1', 'value1'),
+value_dyncol1_name1 VARCHAR(10) DEFAULT COLUMN_GET(dyncol1, 'name1' AS CHAR),
+dyncol2 BLOB DEFAULT COLUMN_DELETE(dyncol1, 'name1'),
+dyncol2_exists_name0 INT DEFAULT COLUMN_EXISTS(dyncol2, 'name0'),
+dyncol2_exists_name1 INT DEFAULT COLUMN_EXISTS(dyncol2, 'name1'),
+dyncol2_check INT DEFAULT COLUMN_CHECK(dyncol2),
+dyncol1_list TEXT DEFAULT COLUMN_LIST(dyncol1),
+dyncol1_json TEXT DEFAULT COLUMN_JSON(dyncol1)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `name` varchar(10) DEFAULT NULL,
+  `value` varchar(10) DEFAULT NULL,
+  `dyncol0` blob DEFAULT COLUMN_CREATE(name, value),
+  `value_dyncol0_name0` varchar(10) DEFAULT (COLUMN_GET(dyncol0, 'name0' AS CHAR)),
+  `dyncol1` blob DEFAULT COLUMN_ADD(dyncol0, 'name1', 'value1'),
+  `value_dyncol1_name1` varchar(10) DEFAULT (COLUMN_GET(dyncol1, 'name1' AS CHAR)),
+  `dyncol2` blob DEFAULT COLUMN_DELETE(dyncol1, 'name1'),
+  `dyncol2_exists_name0` int(11) DEFAULT COLUMN_EXISTS(dyncol2, 'name0'),
+  `dyncol2_exists_name1` int(11) DEFAULT COLUMN_EXISTS(dyncol2, 'name1'),
+  `dyncol2_check` int(11) DEFAULT COLUMN_CHECK(dyncol2),
+  `dyncol1_list` text DEFAULT COLUMN_LIST(dyncol1),
+  `dyncol1_json` text DEFAULT COLUMN_JSON(dyncol1)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (name,value) VALUES ('name0', 'value0');
+SELECT value_dyncol0_name0, value_dyncol1_name1 FROM t1;
+value_dyncol0_name0	value_dyncol1_name1
+value0	value1
+SELECT dyncol2_check, dyncol2_exists_name0, dyncol2_exists_name1 FROM t1;
+dyncol2_check	dyncol2_exists_name0	dyncol2_exists_name1
+1	1	0
+SELECT dyncol1_list FROM t1;
+dyncol1_list
+`name0`,`name1`
+SELECT dyncol1_json FROM t1;
+dyncol1_json
+{"name0":"value0","name1":"value1"}
+DROP TABLE t1;
+#
+# End of 10.2 tests
 #

@@ -2387,8 +2387,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `clipid` int(11) NOT NULL,
-  `mos` tinyint(4) DEFAULT '0',
-  `Tape` tinytext,
+  `mos` tinyint(4) DEFAULT 0,
+  `Tape` tinytext DEFAULT NULL,
   PRIMARY KEY (`clipid`),
   KEY `tape` (`Tape`(250))
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4
@@ -2824,6 +2824,40 @@ SELECT OCTET_LENGTH(a),a FROM t1;
 OCTET_LENGTH(a)	a
 252	😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎😎
 DROP TABLE t1;
+#
+# MDEV-8402 Bug#77473 Bug#21317406 TRUNCATED DATA WITH SUBQUERY & UTF8
+#
+#
+SET NAMES utf8mb4;
+SELECT length(repeat(_utf8mb4 0xE29883, 21844)) AS data;
+data
+65532
+SELECT length(data) AS len
+FROM ( SELECT repeat(_utf8mb4 0xE29883, 21844) AS data ) AS sub;
+len
+65532
+SELECT length(repeat(_utf8mb4 0xE29883, 21846)) AS data;
+data
+65538
+SELECT length(data) AS len
+FROM ( SELECT repeat(_utf8mb4 0xE29883, 21846) AS data ) AS sub;
+len
+65538
+SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 21844) AS data ) AS sub;
+len
+65532
+SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 21845) AS data ) AS sub;
+len
+65535
+SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 21846) AS data ) AS sub;
+len
+65538
+SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 65535) AS data ) AS sub;
+len
+196605
+SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 65536) AS data ) AS sub;
+len
+196608
 #
 # End of 5.5 tests
 #

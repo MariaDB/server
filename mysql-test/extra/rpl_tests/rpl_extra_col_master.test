@@ -126,7 +126,7 @@ SELECT f1,f2,f3,f4,f5,f6,f7,f8,f9,
 
 --disable_query_log
 call mtr.add_suppression("Slave SQL.*Table definition on master and slave does not match: Column 2 type mismatch.* 1535");
-call mtr.add_suppression("Slave.*Can.t DROP .c7.; check that column.key exists.* error.* 1091");
+call mtr.add_suppression("Slave.*Can.t DROP COLUMN .c7.; check that .* exists.* error.* 1091");
 call mtr.add_suppression("Slave.*Unknown column .c7. in .t15.* error.* 1054");
 call mtr.add_suppression("Slave.*Key column .c6. doesn.t exist in table.* error.* 1072");
 call mtr.add_suppression("Slave SQL.*Column 2 of table .test.t1.. cannot be converted from type.* error.* 1677");
@@ -155,7 +155,7 @@ connection master;
                        f6 ENUM('a', 'b', 'c') default 'a',
 		       f7 DECIMAL(17,9) default '1000.00',
 		       f8 MEDIUMBLOB,
-		       f9 NUMERIC(6,4) default '2000.00',
+		       f9 NUMERIC(6,2) default '2000.00',
 		       f10 VARCHAR(1024),
 		       f11 BINARY(20) NOT NULL DEFAULT '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
 		       f12 SET('a', 'b', 'c') default 'b')
@@ -178,7 +178,7 @@ connection master;
                        f5 DOUBLE DEFAULT '2.00', 
 		       f6 DECIMAL(17,9) default '1000.00',
 		       f7 MEDIUMBLOB,
-		       f8 NUMERIC(6,4) default '2000.00',
+		       f8 NUMERIC(6,2) default '2000.00',
 		       f9 VARCHAR(1024),
 		       f10 BINARY(20) not null default '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
 		       f11 CHAR(255))

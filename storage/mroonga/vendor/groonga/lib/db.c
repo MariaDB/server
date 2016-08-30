@@ -4137,7 +4137,7 @@ grn_column_create(grn_ctx *ctx, grn_obj *table,
 {
   grn_db *s;
   uint32_t value_size;
-  grn_obj *db, *res = NULL;
+  grn_obj *db= NULL, *res = NULL;
   grn_id id = GRN_ID_NIL;
   grn_id range = GRN_ID_NIL;
   grn_id domain = GRN_ID_NIL;

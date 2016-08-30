@@ -638,7 +638,7 @@ sub command_line_setup () {
   if (! -f $glob_scriptname)
   {
     mtr_error("Can't find the location for the mysql-test-run script\n" .
-              "Go to to the mysql-test directory and execute the script " .
+              "Go to the mysql-test directory and execute the script " .
               "as follows:\n./$glob_scriptname");
   }
 
@@ -4133,7 +4133,7 @@ sub valgrind_arguments {
       if -f "$glob_mysql_test_dir/valgrind.supp";
   }
 
-  # Add valgrind options, can be overriden by user
+  # Add valgrind options, can be overridden by user
   mtr_add_arg($args, '%s', $_) for (@valgrind_args);
 
   mtr_add_arg($args, $$exe);

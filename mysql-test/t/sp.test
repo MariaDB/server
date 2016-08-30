@@ -1368,11 +1368,6 @@ select f10()|
 create table t4 as select 1 as id|
 select f10()|
 
-# Practical cases which we don't handle well (yet)
-#
-# Function which does not work because of well-known and documented
-# limitation of MySQL. We can't use the several instances of the
-# same temporary table in statement.
 create function f11() returns int
 begin
   drop temporary table if exists t3;
@@ -1380,9 +1375,7 @@ begin
   insert into t3 values (1), (2), (3);
   return (select count(*) from t3 as a, t3 as b);
 end|
---error ER_CANT_REOPEN_TABLE
 select f11()|
---error ER_CANT_REOPEN_TABLE
 select f11() from t1|
 # Test that using a single table instance at a time works
 create function f12_1() returns int
@@ -1397,6 +1390,7 @@ create function f12_2() returns int
 
 drop temporary table t3|
 select f12_1()|
+drop temporary table t3|
 select f12_1() from t1 limit 1|
 
 # Cleanup
@@ -8278,7 +8272,6 @@ delimiter |;
 CREATE PROCEDURE p1 () BEGIN SELECT f1 FROM t3 AS A WHERE A.f1 IN ( SELECT f1 FROM t3 ) ;
 END|
 delimiter ;|
---error ER_CANT_REOPEN_TABLE
 CALL p1;
 CREATE VIEW t3 AS SELECT f1 FROM t2 A WHERE A.f1 IN ( SELECT f1 FROM t2 );
 DROP TABLE t3;

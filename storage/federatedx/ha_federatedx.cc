@@ -1318,7 +1318,7 @@ bool ha_federatedx::create_where_from_key(String *to,
           break;
         }
         DBUG_PRINT("info", ("federatedx HA_READ_AFTER_KEY %d", i));
-        if (store_length >= length) /* end key */
+        if (store_length >= length || i > 0) /* end key */
         {
           if (emit_key_part_name(&tmp, key_part))
             goto err;

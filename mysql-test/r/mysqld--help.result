@@ -580,7 +580,7 @@ The following options may be given as the first argument:
  semijoin_with_cache, join_cache_incremental, 
  join_cache_hashed, join_cache_bka, 
  optimize_join_buffer_size, table_elimination, 
- extended_keys, exists_to_in
+ extended_keys, exists_to_in, orderby_uses_equalities
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial
@@ -1071,7 +1071,7 @@ The following options may be given as the first argument:
  --table-open-cache=# 
  The number of cached open tables
  --tc-heuristic-recover=name 
- Decision to use in heuristic recover process. One of: 
+ Decision to use in heuristic recover process. One of: OFF,
  COMMIT, ROLLBACK
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse.
@@ -1162,10 +1162,8 @@ bulk-insert-buffer-size 8388608
 changed-page-bitmaps ON
 character-set-client-handshake TRUE
 character-set-filesystem binary
-character-set-server latin1
 character-sets-dir MYSQL_CHARSETSDIR/
 chroot (No default value)
-collation-server latin1_swedish_ci
 completion-type NO_CHAIN
 concurrent-insert AUTO
 console FALSE
@@ -1348,7 +1346,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 181
+performance-schema-max-statement-classes 184
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
@@ -1393,7 +1391,7 @@ rowid-merge-buff-size 8388608
 safe-user-create FALSE
 secure-auth TRUE
 secure-file-priv (No default value)
-server-id 0
+server-id 1
 show-slave-auth-info FALSE
 silent-startup FALSE
 skip-grant-tables TRUE
@@ -1434,13 +1432,13 @@ sysdate-is-now FALSE
 table-cache 431
 table-definition-cache 400
 table-open-cache 431
-tc-heuristic-recover COMMIT
+tc-heuristic-recover OFF
 thread-cache-size 151
 thread-pool-idle-timeout 60
 thread-pool-max-threads 1000
 thread-pool-oversubscribe 3
 thread-pool-stall-limit 500
-thread-stack 296960
+thread-stack 297984
 time-format %H:%i:%s
 timed-mutexes FALSE
 tmp-table-size 16777216

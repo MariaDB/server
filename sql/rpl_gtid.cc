@@ -1015,8 +1015,8 @@ gtid_parser_helper(char **ptr, char *end, rpl_gtid *out_gtid)
   if (err != 0)
     return 1;
 
-  out_gtid->domain_id= v1;
-  out_gtid->server_id= v2;
+  out_gtid->domain_id= (uint32) v1;
+  out_gtid->server_id= (uint32) v2;
   out_gtid->seq_no= v3;
   *ptr= q;
   return 0;

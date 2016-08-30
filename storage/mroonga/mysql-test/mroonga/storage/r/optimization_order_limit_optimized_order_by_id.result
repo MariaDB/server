@@ -22,7 +22,7 @@ diaries	CREATE TABLE `diaries` (
   `month` int(10) unsigned DEFAULT NULL,
   `day` int(10) unsigned DEFAULT NULL,
   `title` varchar(255) DEFAULT NULL,
-  `content` text,
+  `content` text DEFAULT NULL,
   KEY `month` (`month`),
   KEY `day` (`day`),
   FULLTEXT KEY `content` (`content`)

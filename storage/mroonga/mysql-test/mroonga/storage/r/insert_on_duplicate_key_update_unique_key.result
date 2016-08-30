@@ -10,7 +10,7 @@ Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `day` date DEFAULT NULL,
-  `title` text,
+  `title` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `day` (`day`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8

@@ -38,9 +38,6 @@ KEY (ulong),
 KEY (ulonglong,ulong),
 KEY (options,flags)
 );
-Warnings:
-Warning	1101	BLOB/TEXT column 'mediumblob_col' can't have a default value
-Warning	1101	BLOB/TEXT column 'longblob_col' can't have a default value
 show full fields from t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 auto	int(5) unsigned	NULL	NO	PRI	NULL	auto_increment	#	
@@ -63,8 +60,8 @@ time_field	time	NULL	YES		NULL		#
 date_time	datetime	NULL	YES		NULL		#	
 blob_col	blob	NULL	YES		NULL		#	
 tinyblob_col	tinyblob	NULL	YES		NULL		#	
-mediumblob_col	mediumblob	NULL	NO		NULL		#	
-longblob_col	longblob	NULL	NO		NULL		#	
+mediumblob_col	mediumblob	NULL	NO		''		#	
+longblob_col	longblob	NULL	NO		''		#	
 options	enum('one','two','tree')	latin1_swedish_ci	NO	MUL	NULL		#	
 flags	set('one','two','tree')	latin1_swedish_ci	NO				#	
 show keys from t1;
@@ -129,9 +126,6 @@ Warning	1264	Out of range value for column 'ushort' at row 1
 Warning	1264	Out of range value for column 'umedium' at row 1
 Warning	1265	Data truncated for column 'options' at row 1
 insert into t1 (tiny) values (1);
-Warnings:
-Warning	1364	Field 'mediumblob_col' doesn't have a default value
-Warning	1364	Field 'longblob_col' doesn't have a default value
 select auto,string,tiny,short,medium,long_int,longlong,real_float,real_double,utiny,ushort,umedium,ulong,ulonglong,mod(floor(time_stamp/1000000),1000000)-mod(curdate(),1000000),date_field,time_field,date_time,blob_col,tinyblob_col,mediumblob_col,longblob_col from t1;
 auto	string	tiny	short	medium	long_int	longlong	real_float	real_double	utiny	ushort	umedium	ulong	ulonglong	mod(floor(time_stamp/1000000),1000000)-mod(curdate(),1000000)	date_field	time_field	date_time	blob_col	tinyblob_col	mediumblob_col	longblob_col
 10	1	1	1	1	1	1	1.0	1.0000	1	00001	1	1	1	0	0000-00-00	00:00:00	0000-00-00 00:00:00	1	1	1	1
@@ -238,7 +232,7 @@ time_field	time	NULL	YES		NULL		#
 date_time	datetime	NULL	YES		NULL		#	
 new_blob_col	varchar(20)	latin1_swedish_ci	YES		NULL		#	
 tinyblob_col	tinyblob	NULL	YES		NULL		#	
-mediumblob_col	mediumblob	NULL	NO		NULL		#	
+mediumblob_col	mediumblob	NULL	NO		''		#	
 options	enum('one','two','tree')	latin1_swedish_ci	NO	MUL	NULL		#	
 flags	set('one','two','tree')	latin1_swedish_ci	NO				#	
 new_field	char(10)	latin1_swedish_ci	NO		new		#	
@@ -264,7 +258,7 @@ time_field	time	NULL	YES		NULL		#
 date_time	datetime	NULL	YES		NULL		#	
 new_blob_col	varchar(20)	latin1_swedish_ci	YES		NULL		#	
 tinyblob_col	tinyblob	NULL	YES		NULL		#	
-mediumblob_col	mediumblob	NULL	NO		NULL		#	
+mediumblob_col	mediumblob	NULL	NO		''		#	
 options	enum('one','two','tree')	latin1_swedish_ci	NO		NULL		#	
 flags	set('one','two','tree')	latin1_swedish_ci	NO				#	
 new_field	char(10)	latin1_swedish_ci	NO		new		#	

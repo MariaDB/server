@@ -9,8 +9,8 @@ SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `tags` text,
+  `title` text DEFAULT NULL,
+  `tags` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `tags_index` (`tags`) COMMENT 'parser "TokenDelimit"'
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='ENGINE "InnoDB"'

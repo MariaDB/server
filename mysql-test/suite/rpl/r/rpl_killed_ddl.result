@@ -61,6 +61,13 @@ connection master;
 include/rpl_diff.inc
 connection master;
 connection master1;
+ALTER DATABASE d1
+DEFAULT CHARACTER SET = 'utf8';
+source include/kill_query.inc;
+connection master;
+include/rpl_diff.inc
+connection master;
+connection master1;
 DROP DATABASE d1;
 source include/kill_query.inc;
 connection master;
@@ -112,6 +119,12 @@ connection master;
 include/rpl_diff.inc
 connection master;
 connection master1;
+DROP FUNCTION IF EXISTS f2;
+source include/kill_query.inc;
+connection master;
+include/rpl_diff.inc
+connection master;
+connection master1;
 CREATE PROCEDURE p2 (OUT rows INT)
 BEGIN
 SELECT COUNT(*) INTO rows FROM t2;
@@ -129,6 +142,12 @@ include/rpl_diff.inc
 connection master;
 connection master1;
 DROP PROCEDURE p1;
+source include/kill_query.inc;
+connection master;
+include/rpl_diff.inc
+connection master;
+connection master1;
+DROP PROCEDURE IF EXISTS p2;
 source include/kill_query.inc;
 connection master;
 include/rpl_diff.inc

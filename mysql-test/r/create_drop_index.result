@@ -16,7 +16,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP INDEX IF EXISTS i1 ON t1;
 Warnings:
-Note	1091	Can't DROP 'i1'; check that column/key exists
+Note	1091	Can't DROP INDEX `i1`; check that it exists
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

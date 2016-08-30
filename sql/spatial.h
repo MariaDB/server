@@ -352,7 +352,7 @@ protected:
      Need to perform the calculation in logical units, since multiplication
      can overflow the size data type.
 
-     @arg data              pointer to the begining of the points array
+     @arg data              pointer to the beginning of the points array
      @arg expected_points   number of points expected
      @arg extra_point_space extra space for each point element in the array
      @return               true if there are not enough points

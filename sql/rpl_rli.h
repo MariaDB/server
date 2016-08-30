@@ -148,7 +148,7 @@ public:
 
     Protected by data_lock.
   */
-  TABLE *save_temporary_tables;
+  All_tmp_tables_list *save_temporary_tables;
 
   /*
     standard lock acquisition order to avoid deadlocks:

@@ -3702,7 +3702,7 @@ int spider_create_conn_keys(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   char *tmp_hs_r_name, *tmp_hs_w_name;
 #endif
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
   uint *conn_keys_lengths;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   uint *hs_r_conn_keys_lengths;
@@ -3716,7 +3716,7 @@ int spider_create_conn_keys(
 #endif
 #endif
   DBUG_ENTER("spider_create_conn_keys");
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
   if (!(conn_keys_lengths =
     (uint *) spider_bulk_alloc_mem(spider_current_trx, 44,
       __func__, __FILE__, __LINE__, MYF(MY_WME),
@@ -3805,7 +3805,7 @@ int spider_create_conn_keys(
 #endif
       NullS))
   ) {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
     spider_free(spider_current_trx, conn_keys_lengths, MYF(MY_WME));
 #endif
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -3822,7 +3822,7 @@ int spider_create_conn_keys(
     sizeof(uint) * share->all_link_count);
 #endif
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
   spider_free(spider_current_trx, conn_keys_lengths, MYF(MY_WME));
 #endif
 
@@ -4675,7 +4675,7 @@ SPIDER_SHARE *spider_get_share(
       share->link_count, SPIDER_LINK_STATUS_OK);
     if (search_link_idx == -1)
     {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
       char *db, *table_name;
       if (!(db = (char *)
         spider_bulk_malloc(spider_current_trx, 48, MYF(MY_WME),
@@ -4701,7 +4701,7 @@ SPIDER_SHARE *spider_get_share(
       table_name[table_share->table_name.length] = '\0';
       my_printf_error(ER_SPIDER_ALL_LINKS_FAILED_NUM,
         ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
       spider_free(spider->trx, db, MYF(MY_WME));
 #endif
       *error_num = ER_SPIDER_ALL_LINKS_FAILED_NUM;
@@ -5099,7 +5099,7 @@ SPIDER_SHARE *spider_get_share(
       share->link_count, SPIDER_LINK_STATUS_OK);
     if (search_link_idx == -1)
     {
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
       char *db, *table_name;
       if (!(db = (char *)
         spider_bulk_malloc(spider_current_trx, 50, MYF(MY_WME),
@@ -5122,7 +5122,7 @@ SPIDER_SHARE *spider_get_share(
       table_name[table_share->table_name.length] = '\0';
       my_printf_error(ER_SPIDER_ALL_LINKS_FAILED_NUM,
         ER_SPIDER_ALL_LINKS_FAILED_STR, MYF(0), db, table_name);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__SUNPRO_CC)
       spider_free(spider->trx, db, MYF(MY_WME));
 #endif
       *error_num = ER_SPIDER_ALL_LINKS_FAILED_NUM;

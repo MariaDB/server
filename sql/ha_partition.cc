@@ -3793,6 +3793,8 @@ int ha_partition::external_lock(THD *thd, int lock_type)
       (void) (*file)->ha_external_lock(thd, lock_type);
     } while (*(++file));
   }
+  if (lock_type == F_WRLCK && m_part_info->part_expr)
+    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
   DBUG_RETURN(0);
 
 err_handler:
@@ -3927,6 +3929,8 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
     /* Add partition to be called in reset(). */
     bitmap_set_bit(&m_partitions_to_reset, i);
   }
+  if (lock_type == F_WRLCK && m_part_info->part_expr)
+    m_part_info->part_expr->walk(&Item::register_field_in_read_map, 1, 0);
   DBUG_RETURN(error);
 }
 
@@ -8458,7 +8462,6 @@ uint ha_partition::min_record_length(uint options) const
       max= (*file)->min_record_length(options);
   return max;
 }
-
 
 /****************************************************************************
                 MODULE compare records

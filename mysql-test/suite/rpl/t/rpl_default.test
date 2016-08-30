@@ -1,0 +1,29 @@
+#
+# Test of replicating default values
+# As the table is using non deterministic functions, replication must
+# switch to binlog format.
+#
+
+-- source include/have_binlog_format_mixed_or_row.inc
+-- source include/master-slave.inc
+
+connection master;
+
+create table t1 (a int DEFAULT (1+1), b bigint default uuid_short(), u blob default user());
+insert into t1 (a) values(1);
+
+let $b=query_get_value(select * from t1, b, 1);
+let $u=query_get_value(select * from t1, u, 1); 
+
+sync_slave_with_master;
+connection slave;
+
+show create table t1;
+--disable_query_log
+eval select a,"$b"=b as uuid,"$u"=u as user from t1;
+--enable_query_log
+connection master;
+
+drop table t1;
+
+--source include/rpl_end.inc

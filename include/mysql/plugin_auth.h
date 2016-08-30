@@ -31,6 +31,10 @@
 
 #include <mysql/plugin_auth_common.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* defines for MYSQL_SERVER_AUTH_INFO.password_used */
 
 #define PASSWORD_USED_NO         0
@@ -122,5 +126,10 @@ struct st_mysql_auth
   */
   int (*authenticate_user)(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info);
 };
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
 

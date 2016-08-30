@@ -8,7 +8,7 @@ t1	CREATE TABLE `t1` (
   `v` varchar(30) DEFAULT NULL,
   `c` char(3) DEFAULT NULL,
   `e` enum('abc','def','ghi') DEFAULT NULL,
-  `t` text
+  `t` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 show create table vchar;
 Table	Create Table
@@ -16,7 +16,7 @@ vchar	CREATE TABLE `vchar` (
   `v` varchar(30) DEFAULT NULL,
   `c` char(3) DEFAULT NULL,
   `e` enum('abc','def','ghi') DEFAULT NULL,
-  `t` text
+  `t` text DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 insert into t1 values ('abc', 'de', 'ghi', 'jkl');
 insert into t1 values ('abc ', 'de ', 'ghi', 'jkl ');
@@ -41,7 +41,7 @@ vchar	CREATE TABLE `vchar` (
   `v` varchar(30) DEFAULT NULL,
   `c` char(3) DEFAULT NULL,
   `e` enum('abc','def','ghi') DEFAULT NULL,
-  `t` text,
+  `t` text DEFAULT NULL,
   `i` int(11) DEFAULT NULL
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 select length(v),length(c),length(e),length(t) from vchar;
@@ -412,7 +412,7 @@ alter table t1 modify f1 tinytext;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f1` tinytext,
+  `f1` tinytext DEFAULT NULL,
   KEY `index1` (`f1`(10))
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 drop table t1;

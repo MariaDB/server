@@ -1,0 +1,6 @@
+set global log_warnings=2;
+connect  foo,localhost,root;
+set @@wait_timeout=1;
+connection default;
+FOUND /Aborted.*Got timeout reading communication packets/ in mysqld.1.err
+set global log_warnings=@@log_warnings;

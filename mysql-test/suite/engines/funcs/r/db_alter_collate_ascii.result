@@ -84,6 +84,7 @@ utf8_vietnamese_ci	utf8	215		#	#
 utf8_general_mysql500_ci	utf8	223		#	#
 utf8_croatian_ci	utf8	576		#	#
 utf8_myanmar_ci	utf8	577		#	#
+utf8_thai_520_w2	utf8	578		#	#
 ucs2_general_ci	ucs2	35	Yes	#	#
 ucs2_bin	ucs2	90		#	#
 ucs2_unicode_ci	ucs2	128		#	#
@@ -113,6 +114,7 @@ ucs2_vietnamese_ci	ucs2	151		#	#
 ucs2_general_mysql500_ci	ucs2	159		#	#
 ucs2_croatian_ci	ucs2	640		#	#
 ucs2_myanmar_ci	ucs2	641		#	#
+ucs2_thai_520_w2	ucs2	642		#	#
 cp866_general_ci	cp866	36	Yes	#	#
 cp866_bin	cp866	68		#	#
 keybcs2_general_ci	keybcs2	37	Yes	#	#
@@ -155,6 +157,7 @@ utf8mb4_unicode_520_ci	utf8mb4	246		#	#
 utf8mb4_vietnamese_ci	utf8mb4	247		#	#
 utf8mb4_croatian_ci	utf8mb4	608		#	#
 utf8mb4_myanmar_ci	utf8mb4	609		#	#
+utf8mb4_thai_520_w2	utf8mb4	610		#	#
 cp1251_bulgarian_ci	cp1251	14		#	#
 cp1251_ukrainian_ci	cp1251	23		#	#
 cp1251_bin	cp1251	50		#	#
@@ -188,6 +191,7 @@ utf16_unicode_520_ci	utf16	123		#	#
 utf16_vietnamese_ci	utf16	124		#	#
 utf16_croatian_ci	utf16	672		#	#
 utf16_myanmar_ci	utf16	673		#	#
+utf16_thai_520_w2	utf16	674		#	#
 utf16le_general_ci	utf16le	56	Yes	#	#
 utf16le_bin	utf16le	62		#	#
 cp1256_general_ci	cp1256	57	Yes	#	#
@@ -223,6 +227,7 @@ utf32_unicode_520_ci	utf32	182		#	#
 utf32_vietnamese_ci	utf32	183		#	#
 utf32_croatian_ci	utf32	736		#	#
 utf32_myanmar_ci	utf32	737		#	#
+utf32_thai_520_w2	utf32	738		#	#
 binary	binary	63	Yes	#	#
 geostd8_general_ci	geostd8	92	Yes	#	#
 geostd8_bin	geostd8	93		#	#

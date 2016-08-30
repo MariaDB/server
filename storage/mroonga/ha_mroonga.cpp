@@ -4218,9 +4218,12 @@ int ha_mroonga::storage_open(const char *name, int mode, uint test_if_locked)
   if (!(ha_thd()->open_options & HA_OPEN_FOR_REPAIR)) {
     error = storage_open_indexes(name);
     if (error) {
-      // TODO: free grn_columns and set NULL;
       grn_obj_unlink(ctx, grn_table);
       grn_table = NULL;
+      // TODO: unlink elements
+      free(grn_columns);
+      // TODO: unlink elements
+      free(grn_column_ranges);
       DBUG_RETURN(error);
     }
 

@@ -124,6 +124,8 @@ public:
   // Set for ADD [COLUMN] FIRST | AFTER
   static const uint ALTER_COLUMN_ORDER          = 1L << 26;
 
+  static const uint ALTER_ADD_CHECK_CONSTRAINT  = 1L << 27;
+  static const uint ALTER_DROP_CHECK_CONSTRAINT = 1L << 28;
 
   enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };
 
@@ -172,6 +174,7 @@ public:
   List<Key>                     key_list;
   // List of columns, used by both CREATE and ALTER TABLE.
   List<Create_field>            create_list;
+  List<Virtual_column_info>     check_constraint_list;
   // Type of ALTER TABLE operation.
   uint                          flags;
   // Enable or disable keys.
@@ -200,6 +203,7 @@ public:
     alter_list.empty();
     key_list.empty();
     create_list.empty();
+    check_constraint_list.empty();
     flags= 0;
     keys_onoff= LEAVE_AS_IS;
     num_parts= 0;

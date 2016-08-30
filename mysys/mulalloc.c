@@ -80,7 +80,7 @@ void *my_multi_malloc_large(myf myFlags, ...)
 {
   va_list args;
   char **ptr,*start,*res;
-  size_t tot_length,length;
+  ulonglong tot_length,length;
   DBUG_ENTER("my_multi_malloc");
 
   va_start(args,myFlags);
@@ -92,7 +92,7 @@ void *my_multi_malloc_large(myf myFlags, ...)
   }
   va_end(args);
 
-  if (!(start=(char *) my_malloc(tot_length, myFlags)))
+  if (!(start=(char *) my_malloc((size_t) tot_length, myFlags)))
     DBUG_RETURN(0); /* purecov: inspected */
 
   va_start(args,myFlags);

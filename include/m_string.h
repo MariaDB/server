@@ -23,6 +23,7 @@
 #define _m_string_h
 
 #include "my_global.h"                          /* HAVE_* */
+#include "my_decimal_limits.h"
 
 #ifndef __USE_GNU
 #define __USE_GNU				/* We want to use stpcpy */
@@ -138,14 +139,13 @@ size_t my_fcvt(double x, int precision, char *to, my_bool *error);
 size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
                my_bool *error);
 
-#define NOT_FIXED_DEC 31
-
 /*
   The longest string my_fcvt can return is 311 + "precision" bytes.
-  Here we assume that we never cal my_fcvt() with precision >= NOT_FIXED_DEC
+  Here we assume that we never cal my_fcvt() with
+  precision >= DECIMAL_NOT_SPECIFIED
   (+ 1 byte for the terminating '\0').
 */
-#define FLOATING_POINT_BUFFER (311 + NOT_FIXED_DEC)
+#define FLOATING_POINT_BUFFER (311 + DECIMAL_NOT_SPECIFIED)
 
 /*
   We want to use the 'e' format in some cases even if we have enough space

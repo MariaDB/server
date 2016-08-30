@@ -1,4 +1,4 @@
-# Include file to to test failure with error injection.
+# Include file to test failure with error injection.
 # To be used with WL#4445: EXCHANGE PARTITION WITH TABLE.
 --eval $create_statement2
 --eval $insert_statement2

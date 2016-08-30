@@ -460,5 +460,12 @@ void mysql_audit_release(THD *thd)
 {
 }
 
+void mysql_audit_init_thd(THD *thd)
+{
+}
+
+void mysql_audit_free_thd(THD *thd)
+{
+}
 
 #endif /* EMBEDDED_LIBRARY */

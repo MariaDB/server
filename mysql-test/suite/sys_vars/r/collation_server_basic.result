@@ -373,6 +373,10 @@ SET @@session.collation_server = utf8_hungarian_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
 utf8_hungarian_ci
+SET @@session.collation_server = utf8_thai_520_w2;
+SELECT @@session.collation_server;
+@@session.collation_server
+utf8_thai_520_w2
 SET @@session.collation_server = ucs2_general_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
@@ -882,6 +886,10 @@ SET @@global.collation_server = utf8_hungarian_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
 utf8_hungarian_ci
+SET @@global.collation_server = utf8_thai_520_w2;
+SELECT @@global.collation_server;
+@@global.collation_server
+utf8_thai_520_w2
 SET @@global.collation_server = ucs2_general_ci;
 SELECT @@global.collation_server;
 @@global.collation_server

@@ -578,9 +578,8 @@ c	a
 explain
 select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	32	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	4	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # with claused in the specification of a materialized view
 create view v2 as 
 with t as (select a, count(*) from t1 where b >= 'c' group by a) 
@@ -595,9 +594,8 @@ c	a	count(*)
 explain
 select * from v2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DERIVED	<derived3>	ref	key0	key0	5	test.t2.c	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.c	2	
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # with clause in the specification of a view that whose definition
 # table alias for a with table
@@ -628,9 +626,8 @@ c	d
 explain
 select * from v4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	64	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 drop view v1,v2,v3,v4;
 # currently any views containing with clause are not updatable
 create view v1(a) as 

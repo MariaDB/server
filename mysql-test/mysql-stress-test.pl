@@ -1079,7 +1079,7 @@ sub log_session_errors
   {
     lock ($log_file_lock);
 
-    #header in the begining of log file
+    #header in the beginning of log file
     if (!-e $stress_log_file)
     {
       stress_log($stress_log_file, 

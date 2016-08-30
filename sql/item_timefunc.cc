@@ -939,9 +939,8 @@ void Item_func_monthname::fix_length_and_dec()
 {
   THD* thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
-  uint32 repertoire= my_charset_repertoire(cs);
   locale= thd->variables.lc_time_names;  
-  collation.set(cs, DERIVATION_COERCIBLE, repertoire);
+  collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_month_name_length * collation.collation->mbmaxlen;
   maybe_null=1; 
@@ -1086,9 +1085,8 @@ void Item_func_dayname::fix_length_and_dec()
 {
   THD* thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
-  uint32 repertoire= my_charset_repertoire(cs);
   locale= thd->variables.lc_time_names;  
-  collation.set(cs, DERIVATION_COERCIBLE, repertoire);
+  collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_day_name_length * collation.collation->mbmaxlen;
   maybe_null=1; 
@@ -1465,7 +1463,7 @@ void Item_temporal_func::fix_length_and_dec()
     We set maybe_null to 1 as default as any bad argument with date or
     time can get us to return NULL.
   */ 
-  maybe_null= 1;
+  maybe_null= (arg_count > 0);
   if (decimals)
   {
     if (decimals == NOT_FIXED_DEC)
@@ -1581,24 +1579,12 @@ bool Item_func_from_days::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 }
 
 
-void Item_func_curdate::fix_length_and_dec()
-{
-  store_now_in_TIME(&ltime);
-  
-  /* We don't need to set second_part and neg because they already 0 */
-  ltime.hour= ltime.minute= ltime.second= 0;
-  ltime.time_type= MYSQL_TIMESTAMP_DATE;
-  Item_datefunc::fix_length_and_dec();
-  maybe_null= false;
-}
-
 /**
     Converts current time in my_time_t to MYSQL_TIME represenatation for local
     time zone. Defines time zone (local) used for whole CURDATE function.
 */
-void Item_func_curdate_local::store_now_in_TIME(MYSQL_TIME *now_time)
+void Item_func_curdate_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
-  THD *thd= current_thd;
   thd->variables.time_zone->gmt_sec_to_TIME(now_time, thd->query_start());
   thd->time_zone_used= 1;
 }
@@ -1608,9 +1594,8 @@ void Item_func_curdate_local::store_now_in_TIME(MYSQL_TIME *now_time)
     Converts current time in my_time_t to MYSQL_TIME represenatation for UTC
     time zone. Defines time zone (UTC) used for whole UTC_DATE function.
 */
-void Item_func_curdate_utc::store_now_in_TIME(MYSQL_TIME *now_time)
+void Item_func_curdate_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
-  THD *thd= current_thd;
   my_tz_UTC->gmt_sec_to_TIME(now_time, thd->query_start());
   /* 
     We are not flagging this query as using time zone, since it uses fixed
@@ -1622,6 +1607,17 @@ void Item_func_curdate_utc::store_now_in_TIME(MYSQL_TIME *now_time)
 bool Item_func_curdate::get_date(MYSQL_TIME *res,
 				 ulonglong fuzzy_date __attribute__((unused)))
 {
+  THD *thd= current_thd;
+  query_id_t query_id= thd->query_id;
+  /* Cache value for this query */
+  if (last_query_id != query_id)
+  {
+    last_query_id= query_id;
+    store_now_in_TIME(thd, &ltime);
+    /* We don't need to set second_part and neg because they already 0 */
+    ltime.hour= ltime.minute= ltime.second= 0;
+    ltime.time_type= MYSQL_TIMESTAMP_DATE;
+  }
   *res=ltime;
   return 0;
 }
@@ -1641,6 +1637,14 @@ bool Item_func_curtime::fix_fields(THD *thd, Item **items)
 bool Item_func_curtime::get_date(MYSQL_TIME *res,
                                  ulonglong fuzzy_date __attribute__((unused)))
 {
+  THD *thd= current_thd;
+  query_id_t query_id= thd->query_id;
+  /* Cache value for this query */
+  if (last_query_id != query_id)
+  {
+    last_query_id= query_id;
+    store_now_in_TIME(thd, &ltime);
+  }
   *res= ltime;
   return 0;
 }
@@ -1661,9 +1665,8 @@ static void set_sec_part(ulong sec_part, MYSQL_TIME *ltime, Item *item)
     Converts current time in my_time_t to MYSQL_TIME represenatation for local
     time zone. Defines time zone (local) used for whole CURTIME function.
 */
-void Item_func_curtime_local::store_now_in_TIME(MYSQL_TIME *now_time)
+void Item_func_curtime_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
-  THD *thd= current_thd;
   thd->variables.time_zone->gmt_sec_to_TIME(now_time, thd->query_start());
   now_time->year= now_time->month= now_time->day= 0;
   now_time->time_type= MYSQL_TIMESTAMP_TIME;
@@ -1676,9 +1679,8 @@ void Item_func_curtime_local::store_now_in_TIME(MYSQL_TIME *now_time)
     Converts current time in my_time_t to MYSQL_TIME represenatation for UTC
     time zone. Defines time zone (UTC) used for whole UTC_TIME function.
 */
-void Item_func_curtime_utc::store_now_in_TIME(MYSQL_TIME *now_time)
+void Item_func_curtime_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
-  THD *thd= current_thd;
   my_tz_UTC->gmt_sec_to_TIME(now_time, thd->query_start());
   now_time->year= now_time->month= now_time->day= 0;
   now_time->time_type= MYSQL_TIMESTAMP_TIME;
@@ -1704,9 +1706,8 @@ bool Item_func_now::fix_fields(THD *thd, Item **items)
     Converts current time in my_time_t to MYSQL_TIME represenatation for local
     time zone. Defines time zone (local) used for whole NOW function.
 */
-void Item_func_now_local::store_now_in_TIME(MYSQL_TIME *now_time)
+void Item_func_now_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
-  THD *thd= current_thd;
   thd->variables.time_zone->gmt_sec_to_TIME(now_time, thd->query_start());
   set_sec_part(thd->query_start_sec_part(), now_time, this);
   thd->time_zone_used= 1;
@@ -1717,9 +1718,8 @@ void Item_func_now_local::store_now_in_TIME(MYSQL_TIME *now_time)
     Converts current time in my_time_t to MYSQL_TIME represenatation for UTC
     time zone. Defines time zone (UTC) used for whole UTC_TIMESTAMP function.
 */
-void Item_func_now_utc::store_now_in_TIME(MYSQL_TIME *now_time)
+void Item_func_now_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
-  THD *thd= current_thd;
   my_tz_UTC->gmt_sec_to_TIME(now_time, thd->query_start());
   set_sec_part(thd->query_start_sec_part(), now_time, this);
   /* 
@@ -1732,6 +1732,14 @@ void Item_func_now_utc::store_now_in_TIME(MYSQL_TIME *now_time)
 bool Item_func_now::get_date(MYSQL_TIME *res,
                              ulonglong fuzzy_date __attribute__((unused)))
 {
+  THD *thd= current_thd;
+  query_id_t query_id= thd->query_id;
+  /* Cache value for this query */
+  if (last_query_id != query_id)
+  {
+    last_query_id= query_id;
+    store_now_in_TIME(thd, &ltime);
+  }
   *res= ltime;
   return 0;
 }
@@ -1741,9 +1749,8 @@ bool Item_func_now::get_date(MYSQL_TIME *res,
     Converts current time in my_time_t to MYSQL_TIME represenatation for local
     time zone. Defines time zone (local) used for whole SYSDATE function.
 */
-void Item_func_sysdate_local::store_now_in_TIME(MYSQL_TIME *now_time)
+void Item_func_sysdate_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 {
-  THD *thd= current_thd;
   my_hrtime_t now= my_hrtime();
   thd->variables.time_zone->gmt_sec_to_TIME(now_time, hrtime_to_my_time(now));
   set_sec_part(hrtime_sec_part(now), now_time, this);
@@ -1754,7 +1761,7 @@ void Item_func_sysdate_local::store_now_in_TIME(MYSQL_TIME *now_time)
 bool Item_func_sysdate_local::get_date(MYSQL_TIME *res,
                                        ulonglong fuzzy_date __attribute__((unused)))
 {
-  store_now_in_TIME(res);
+  store_now_in_TIME(current_thd, res);
   return 0;
 }
 

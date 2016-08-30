@@ -21,6 +21,8 @@
 #ifndef _mysql_com_h
 #define _mysql_com_h
 
+#include "my_decimal_limits.h"
+
 #define HOSTNAME_LENGTH 60
 #define SYSTEM_CHARSET_MBMAXLEN 3
 #define NAME_CHAR_LEN	64              /* Field/table name length */
@@ -103,7 +105,10 @@ enum enum_server_command
   COM_STMT_RESET, COM_SET_OPTION, COM_STMT_FETCH, COM_DAEMON,
   /* don't forget to update const char *command_name[] in sql_parse.cc */
   COM_MDB_GAP_BEG,
-  COM_MDB_GAP_END=253,
+  COM_MDB_GAP_END=250,
+  COM_SLAVE_WORKER,
+  COM_SLAVE_IO,
+  COM_SLAVE_SQL,
   COM_MULTI,
   /* Must be last */
   COM_END
@@ -156,8 +161,6 @@ enum enum_server_command
 #define FIELD_FLAGS_COLUMN_FORMAT 24    /* Field column format, bit 24-25 */
 #define FIELD_FLAGS_COLUMN_FORMAT_MASK (3 << FIELD_FLAGS_COLUMN_FORMAT)
 #define FIELD_IS_DROPPED (1<< 26)       /* Intern: Field is being dropped */
-#define HAS_EXPLICIT_VALUE (1 << 27)    /* An INSERT/UPDATE operation supplied
-                                          an explicit default value */
 
 #define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
 #define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */
@@ -648,5 +651,18 @@ uchar *safe_net_store_length(uchar *pkg, size_t pkg_len, ulonglong length);
 #define MYSQL_STMT_HEADER       4
 #define MYSQL_LONG_DATA_HEADER  6
 
-#define NOT_FIXED_DEC           31
+/*
+  If a float or double field have more than this number of decimals,
+  it's regarded as floating point field without any specific number of
+  decimals
+*/
+
+#define FLOATING_POINT_DECIMALS 31
+
+/* Keep client compatible with earlier versions */
+#ifdef MYSQL_SERVER
+#define NOT_FIXED_DEC           DECIMAL_NOT_SPECIFIED
+#else
+#define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
+#endif
 #endif
