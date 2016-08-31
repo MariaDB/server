@@ -362,6 +362,10 @@ handler *create_update_handler(THD *thd, TABLE *table);
 
 void delete_update_handler(THD *thd, TABLE *table);
 
+void setup_table_hash(TABLE *table);
+
+void re_setup_table(TABLE *table);
+
 /**
   Category of table found in the table share.
 */
