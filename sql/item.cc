@@ -488,6 +488,7 @@ Item::Item(THD *thd):
   }
 }
 
+
 /**
   Constructor used by Item_field, Item_ref & aggregate (sum)
   functions.
@@ -2255,6 +2256,73 @@ bool Item_func_or_sum::agg_item_set_converter(const DTCollation &coll,
   if (arena)
     thd->restore_active_arena(arena, &backup);
   return res;
+}
+
+
+/**
+  @brief
+    Building clone for Item_func_or_sum
+    
+  @param thd        thread handle
+  @param mem_root   part of the memory for the clone   
+
+  @details
+    This method gets copy of the current item and also 
+    build clones for its referencies. For the referencies 
+    build_copy is called again.
+      
+   @retval
+     clone of the item
+     0 if an error occured
+*/ 
+
+Item* Item_func_or_sum::build_clone(THD *thd, MEM_ROOT *mem_root)
+{
+  Item_func_or_sum *copy= (Item_func_or_sum *) get_copy(thd, mem_root);
+  if (!copy)
+    return 0;
+  if (arg_count > 2)
+    copy->args= 
+      (Item**) alloc_root(mem_root, sizeof(Item*) * arg_count);
+  else if (arg_count > 0)
+    copy->args= copy->tmp_arg;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Item *arg_clone= args[i]->build_clone(thd, mem_root);
+    if (!arg_clone)
+      return 0;
+    copy->args[i]= arg_clone;
+  }
+  return copy;
+}
+
+
+/**
+  @brief
+    Building clone for Item_ref
+    
+  @param thd        thread handle
+  @param mem_root   part of the memory for the clone   
+
+  @details
+    This method gets copy of the current item and also 
+    builds clone for its reference. 
+      
+   @retval
+     clone of the item
+     0 if an error occured
+*/ 
+
+Item* Item_ref::build_clone(THD *thd, MEM_ROOT *mem_root)
+{
+  Item_ref *copy= (Item_ref *) get_copy(thd, mem_root);
+  if (!copy)
+    return 0;
+  Item *item_clone= (* ref)->build_clone(thd, mem_root);
+  if (!item_clone)
+    return 0;
+  *copy->ref= item_clone;
+  return copy;
 }
 
 
@@ -6708,6 +6776,85 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
 }
 
 
+Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
+{
+  st_select_lex *sl= (st_select_lex *)arg;
+  table_map map= sl->master_unit()->derived->table->map;
+  if (!((Item_field*)this)->item_equal)
+  {
+    if (used_tables() == map)
+    {
+      Item_ref *rf= 
+	new (thd->mem_root) Item_ref(thd, &sl->context, 
+	  	   	             NullS, NullS,
+				   ((Item_field*) this)->field_name);
+      if (!rf)
+	return 0;
+      return rf;
+    }
+  }
+  else
+  {
+    Item_equal *cond= (Item_equal *) ((Item_field*)this)->item_equal;
+    Item_equal_fields_iterator li(*cond);
+    Item *item;
+    while ((item=li++))
+    {
+      if (item->used_tables() == map && item->type() == FIELD_ITEM)
+      {
+	Item_ref *rf= 
+	  new (thd->mem_root) Item_ref(thd, &sl->context, 
+				       NullS, NullS,
+				     ((Item_field*) item)->field_name);
+	if (!rf)
+	  return 0;
+	return rf;
+      }
+    }
+  }
+  return this;
+}
+
+
+Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
+{
+  st_select_lex *sl= (st_select_lex *)arg;
+  List_iterator<Grouping_tmp_field> li(sl->grouping_tmp_fields);
+  Grouping_tmp_field *field;
+  table_map map= sl->master_unit()->derived->table->map;
+  if (used_tables() == map)
+  {
+    while ((field=li++))
+    {
+      if (((Item_field*) this)->field == field->tmp_field)
+	return field->producing_item->build_clone(thd, thd->mem_root);
+    }
+  }
+  else if (((Item_field*)this)->item_equal)
+  {
+    Item_equal *cond= (Item_equal *) ((Item_field*)this)->item_equal;
+    Item_equal_fields_iterator it(*cond);
+    Item *item;
+    while ((item=it++))
+    {
+      if (item->used_tables() == map && item->type() == FIELD_ITEM)
+      {   
+	Item_field *field_item= (Item_field *) item;
+	li.rewind();
+        while ((field=li++))
+        {
+	  if (field_item->field == field->tmp_field)
+	  {
+	    return field->producing_item->build_clone(thd, thd->mem_root);
+	  }
+        }  
+      }
+    }
+  }
+  return this;
+}
+
+
 void Item_field::print(String *str, enum_query_type query_type)
 {
   if (field && field->table->const_table &&
@@ -9933,5 +10080,62 @@ const char *dbug_print_item(Item *item)
     return "Couldn't fit into buffer";
 }
 
+
 #endif /*DBUG_OFF*/
 
+bool Item_field::exclusive_dependence_on_table_processor(uchar *map)
+{
+  table_map tab_map= *((table_map *) map);
+  return !((used_tables() == tab_map || 
+         (item_equal && item_equal->used_tables() & tab_map))); 
+}
+
+bool Item_field::exclusive_dependence_on_grouping_fields_processor(uchar *arg)
+{
+  st_select_lex *sl= (st_select_lex *)arg;
+  List_iterator<Grouping_tmp_field> li(sl->grouping_tmp_fields);
+  Grouping_tmp_field *field;
+  table_map map= sl->master_unit()->derived->table->map;
+  if (used_tables() == map)
+  {
+    while ((field=li++))
+    {
+      if (((Item_field*) this)->field == field->tmp_field)
+        return false;
+    }
+  }
+  else if (((Item_field*)this)->item_equal)
+  {
+    Item_equal *cond= (Item_equal *) ((Item_field*)this)->item_equal;
+    Item_equal_fields_iterator it(*cond);
+    Item *item;
+    while ((item=it++))
+    {
+      if (item->used_tables() == map && item->type() == FIELD_ITEM)
+      {
+	li.rewind();
+        while ((field=li++))
+        {
+	  if (((Item_field *)item)->field == field->tmp_field)
+	    return false;
+	}
+      }
+    }
+  }
+  return true;
+}
+
+
+/*Item *Item::get_copy(THD *thd, MEM_ROOT *mem_root)
+{
+  dbug_print_item(this); 
+  DBUG_ASSERT(0);  
+  return 0;
+}*/
+
+
+void Item::register_in(THD *thd)
+{
+  next= thd->free_list;
+  thd->free_list= this;
+}

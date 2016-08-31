@@ -1131,11 +1131,14 @@ int JOIN::optimize()
 int
 JOIN::optimize_inner()
 {
+/*
+    if (conds) { Item *it_clone= conds->build_clone(thd,thd->mem_root); }
+*/
   ulonglong select_opts_for_readinfo;
   uint no_jbuf_after;
   JOIN_TAB *tab;
   DBUG_ENTER("JOIN::optimize");
-
+  dbug_print_item(conds);
   do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
   // to prevent double initialization on EXPLAIN
   if (optimized)
@@ -1147,10 +1150,6 @@ JOIN::optimize_inner()
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
-
-  /* Run optimize phase for all derived tables/views used in this SELECT. */
-  if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
-    DBUG_RETURN(1);
 
   if (select_lex->first_cond_optimization)
   {
@@ -1263,9 +1262,32 @@ JOIN::optimize_inner()
   
   if (setup_jtbm_semi_joins(this, join_list, &conds))
     DBUG_RETURN(1);
-
+  
   conds= optimize_cond(this, conds, join_list, FALSE,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
+  
+  if (thd->lex->sql_command == SQLCOM_SELECT &&
+      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
+  {
+    TABLE_LIST *tbl;
+    List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
+    while ((tbl= li++))
+    {
+      if (tbl->is_materialized_derived())
+      {
+        if (pushdown_cond_for_derived(thd, conds, tbl))
+	  DBUG_RETURN(1);
+	if (mysql_handle_single_derived(thd->lex, tbl, DT_OPTIMIZE))
+	  DBUG_RETURN(1);
+      }
+    }
+  }
+  else
+  {
+    /* Run optimize phase for all derived tables/views used in this SELECT. */
+    if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
+      DBUG_RETURN(1);
+  }
      
   if (thd->is_error())
   {
@@ -26206,6 +26228,61 @@ AGGR_OP::end_send()
   return rc;
 }
 
+
+/**
+  @brief
+  Remove marked top conjuncts of a condition
+    
+  @param thd    The thread handle
+  @param cond   The condition which subformulas are to be removed    
+
+  @details
+    The function removes all top conjuncts marked with the flag
+    FULL_EXTRACTION_FL from the condition 'cond'. The resulting
+    formula is returned a the result of the function
+    If 'cond' s marked with such flag the function returns 0. 
+    The function clear the extraction flags for the removed
+    formulas
+
+   @retval
+     condition without removed subformulas
+     0 if the whole 'cond' is removed
+*/ 
+
+Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
+{
+  if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
+  {
+    cond->clear_extraction_flag();
+    return 0; 
+  }
+  if (cond->type() == Item::COND_ITEM)
+  {
+    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
+    {
+      List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+      Item *item;
+      while ((item= li++))
+      {
+	if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
+	{
+	  item->clear_extraction_flag();
+	  li.remove();
+	}
+      }
+      switch (((Item_cond*) cond)->argument_list()->elements) 
+      {
+      case 0:
+	return 0;			
+      case 1:
+	return ((Item_cond*) cond)->argument_list()->head();
+      default:
+	return cond;
+      }
+    }
+  }
+  return cond;
+}
 
 /**
   @} (end of group Query_Optimizer)

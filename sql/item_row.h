@@ -120,6 +120,9 @@ public:
   bool null_inside() { return with_null; };
   void bring_value();
   bool check_vcol_func_processor(void *arg) {return FALSE; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_row>(thd, mem_root, this); }
+  Item *build_clone(THD *thd, MEM_ROOT *mem_root);
 };
 
 #endif /* ITEM_ROW_INCLUDED */

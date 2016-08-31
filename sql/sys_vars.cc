@@ -2390,6 +2390,7 @@ export const char *optimizer_switch_names[]=
   "extended_keys",
   "exists_to_in",
   "orderby_uses_equalities",
+  "condition_pushdown_for_derived",
   "default", 
   NullS
 };

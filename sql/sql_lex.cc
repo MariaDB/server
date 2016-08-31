@@ -4915,3 +4915,191 @@ void binlog_unsafe_map_init()
 }
 #endif
 
+
+/**
+  @brief
+  Finding fiels that are used in the GROUP BY of this st_select_lex
+    
+  @param thd  The thread handle
+
+  @details
+    This method looks through the fields which are used in the GROUP BY of this 
+    st_select_lex and saves this fields. 
+*/
+
+void st_select_lex::collect_grouping_fields(THD *thd) 
+{
+  List_iterator<Item> li(join->fields_list);
+  Item *item= li++;
+  for (uint i= 0; i < master_unit()->derived->table->s->fields; i++, (item=li++))
+  {
+    for (ORDER *ord= join->group_list; ord; ord= ord->next)
+    {
+      if ((*ord->item)->eq((Item*)item, 0))
+      {
+	Grouping_tmp_field *grouping_tmp_field= 
+	  new Grouping_tmp_field(master_unit()->derived->table->field[i], item);
+	grouping_tmp_fields.push_back(grouping_tmp_field);
+      }
+    }
+  }
+}
+
+/**
+  @brief
+   For a condition check possibility of exraction a formula over grouping fields 
+  
+  @param cond  The condition whose subformulas are to be analyzed
+  
+  @details
+    This method traverses the AND-OR condition cond and for each subformula of
+    the condition it checks whether it can be usable for the extraction of a
+    condition over the grouping fields of this select. The method uses
+    the call-back parameter check_processor to ckeck whether a primary formula
+    depends only on grouping fields.
+    The subformulas that are not usable are marked with the flag NO_EXTRACTION_FL.
+    The subformulas that can be entierly extracted are marked with the flag 
+    FULL_EXTRACTION_FL.
+  @note
+    This method is called before any call of extract_cond_for_grouping_fields.
+    The flag NO_EXTRACTION_FL set in a subformula allows to avoid building clone
+    for the subformula when extracting the pushable condition.
+    The flag FULL_EXTRACTION_FL allows to delete later all top level conjuncts
+    from cond.
+*/ 
+
+void st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
+                                              Item_processor check_processor)
+{
+  cond->clear_extraction_flag();
+  if (cond->type() == Item::COND_ITEM)
+  {
+    bool and_cond= ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC;
+    List<Item> *arg_list=  ((Item_cond*) cond)->argument_list();
+    List_iterator<Item> li(*arg_list);
+    uint count= 0;         // to count items not containing NO_EXTRACTION_FL
+    uint count_full= 0;    // to count items with FULL_EXTRACTION_FL
+    Item *item;
+    while ((item=li++))
+    {
+      check_cond_extraction_for_grouping_fields(item, check_processor);
+      if (item->get_extraction_flag() !=  NO_EXTRACTION_FL)
+      {
+        count++;
+        if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
+          count_full++;
+      }
+      else if (!and_cond)
+        break;
+    }
+    if ((and_cond && count == 0) || item)
+      cond->set_extraction_flag(NO_EXTRACTION_FL);
+    if (count_full == arg_list->elements)
+      cond->set_extraction_flag(FULL_EXTRACTION_FL);
+    if (cond->get_extraction_flag() != 0)
+    {
+      li.rewind();
+      while ((item=li++))
+        item->clear_extraction_flag();
+    }
+  }
+  else 
+    cond->set_extraction_flag(cond->walk(check_processor, 
+				   0, (uchar *) this) ?
+     NO_EXTRACTION_FL : FULL_EXTRACTION_FL);
+}
+
+
+/**
+  @brief
+  Build condition extractable from the given one depended on grouping fields
+ 
+  @param thd           The thread handle
+  @param cond          The condition from which the condition depended 
+                       on grouping fields is to be extracted
+  @param no_top_clones If it's true then no clones for the top fully 
+                       extractable conjuncts are built
+
+  @details
+    For the given condition cond this method finds out what condition depended
+    only on the grouping fields can be extracted from cond. If such condition C
+    exists the method builds the item for it.
+    This method uses the flags NO_EXTRACTION_FL and FULL_EXTRACTION_FL set by the
+    preliminary call of st_select_lex::check_cond_extraction_for_grouping_fields
+    to figure out whether a subformula depends only on these fields or not.
+  @note
+    The built condition C is always implied by the condition cond
+    (cond => C). The method tries to build the most restictive such
+    condition (i.e. for any other condition C' such that cond => C'
+    we have C => C').
+  @note
+    The build item is not ready for usage: substitution for the field items
+    has to be done and it has to be re-fixed.
+  
+  @retval
+    the built condition depended only on grouping fields if such a condition exists
+    NULL if there is no such a condition
+*/ 
+
+Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
+						    bool no_top_clones)
+{
+  if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
+  {
+    if (no_top_clones)
+      return cond;
+    cond->clear_extraction_flag();
+    return cond->build_clone(thd, thd->mem_root);
+  }
+  if (cond->type() == Item::COND_ITEM)
+  {
+    bool cond_and= false;
+    Item_cond *new_cond;
+    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
+    {
+      cond_and= true;
+      new_cond=  new (thd->mem_root) Item_cond_and(thd);
+    }
+    else
+      new_cond= new (thd->mem_root) Item_cond_or(thd);
+    if (!new_cond)
+      return 0;		
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    Item *item;
+    while ((item=li++))
+    {
+      if (item->get_extraction_flag() == NO_EXTRACTION_FL)
+      {
+	DBUG_ASSERT(cond_and);
+	item->clear_extraction_flag();
+	continue;
+      }
+      Item *fix= build_cond_for_grouping_fields(thd, item,
+						no_top_clones & cond_and);
+      if (!fix)
+      {
+	if (cond_and)
+	  continue;
+	break;
+      }
+      new_cond->argument_list()->push_back(fix, thd->mem_root);
+    }
+    
+    if (!cond_and && item)
+    {
+      while((item= li++))
+	item->clear_extraction_flag();
+      return 0;
+    }
+    switch (new_cond->argument_list()->elements) 
+    {
+    case 0:
+      return 0;			
+    case 1:
+      return new_cond->argument_list()->head();
+    default:
+      return new_cond;
+    }
+  }
+  return 0;
+}
