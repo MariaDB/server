@@ -776,7 +776,7 @@ SELECT @v;
 DROP PROCEDURE p1;
 # Testing the FOR loop statement
 CREATE TABLE t1 (a INT);
-FOR i IN 1 .. 3
+FOR i IN 1..3
 LOOP
 INSERT INTO t1 VALUES (i);
 END LOOP;

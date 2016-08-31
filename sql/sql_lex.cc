@@ -1648,8 +1648,13 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       return(IDENT_QUOTED);
     }
     case MY_LEX_INT_OR_REAL:		// Complete int or incomplete real
-      if (c != '.')
-      {					// Found complete integer number.
+      if (c != '.' || lip->yyPeek() == '.')
+      {
+        /*
+          Found a complete integer number:
+          - the number is either not followed by a dot at all, or
+          - the number is followed by a double dot as in: FOR i IN 1..10
+        */
         yylval->lex_str=get_token(lip, 0, lip->yyLength());
 	return int_token(yylval->lex_str.str, (uint) yylval->lex_str.length);
       }
