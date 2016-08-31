@@ -1,3 +1,5 @@
+## MariaDB: drop-in replacement for MySQL
+
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
 features, new storage engines, fewer bugs, and better performance.
 
@@ -24,9 +26,16 @@ https://mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
 As MariaDB is a full replacement of MySQL, the MySQL manual at
 http://dev.mysql.com/doc is generally applicable.
 
+Help:
+-----
+
 More help is available from the Maria Discuss mailing list
 https://launchpad.net/~maria-discuss
 and the #maria IRC channel on Freenode.
+
+
+License:
+--------
 
 ***************************************************************************
 
@@ -42,7 +51,8 @@ and COPYING.thirdparty files.
 
 ***************************************************************************
 
-IMPORTANT:
+Bug Reports:
+------------
 
 Bug and/or error reports regarding MariaDB should be submitted at
 http://mariadb.org/jira
@@ -53,3 +63,8 @@ The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server
 
 ***************************************************************************
+
+Code status:
+------------
+
+* [![tests status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.2)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.2 branch)
