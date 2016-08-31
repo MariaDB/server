@@ -3647,6 +3647,8 @@ sp_unlabeled_control:
         | FOR_SYM
           {
             // See "The FOR LOOP statement" comments in sql_lex.cc
+            if (Lex->maybe_start_compound_statement(thd))
+              MYSQL_YYABORT;
             Lex->sp_block_init(thd); // The outer DECLARE..BEGIN..END block
           }
           sp_for_loop_index_and_bounds
