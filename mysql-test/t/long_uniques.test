@@ -17,7 +17,7 @@ replace_result $datadir DATADIR;
 exec $MYISAMCHK -d $datadir/test/t1;
 select * from information_schema.columns where table_schema = 'test' and table_name = 't1';
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
-select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
+query_vertical select   * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
 --echo # table select we should not be able to see db_row_hash_column;
 select * from t1;
 --error ER_BAD_FIELD_ERROR

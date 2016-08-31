@@ -1400,7 +1400,6 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   Name_resolution_context_state ctx_state;
   bool insert_into_view= (table_list->view != 0);
   bool res= 0;
-  bool is_field_specified_for_view= fields.elements > 0;
   table_map map= 0;
   DBUG_ENTER("mysql_prepare_insert");
   DBUG_PRINT("enter", ("table_list: 0x%lx  table: 0x%lx  view: %d",
@@ -1488,28 +1487,6 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                                update_values, false, &map);
       select_lex->no_wrap_view_item= FALSE;
     }
-    /*
-      Reason for this condition
-      suppose this
-        create table t1 (a int , b int , c int hidden , d int);
-        create view v as select a,b,c,d from t1;
-      now query like this fails
-        insert into v values(1,1,1)
-      because in insert_view_fields we copy all the fields
-      whether they are hidden or not we can not do the change
-      there because there we have only fields name so we need
-      to manually setup fields as insert_view_fields is called
-      by only mysql_prepare_insert_check_table function and
-      mysql_prepare_insert_check_table is called by only by this
-      function so it is safe to do here
-
-      NOT YET IMPLEMENTED
-    if (insert_into_view && !is_field_specified_for_view
-         && fields.elements)
-    {
-      Item *ii= fields.pop();
-    }
-    **/
     /* Restore the current context. */
     ctx_state.restore_state(context, table_list);
   }

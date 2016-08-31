@@ -46,9 +46,19 @@ def	test	t1	a	1	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob	UNI		sel
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
 def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH_INDEX		
-select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
-CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
-def	test	a	def	test	t1	a	1	NULL	NULL	NULL	NULL
+select   * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
+CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	test
+CONSTRAINT_NAME	a
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+COLUMN_NAME	a
+ORDINAL_POSITION	1
+POSITION_IN_UNIQUE_CONSTRAINT	NULL
+REFERENCED_TABLE_SCHEMA	NULL
+REFERENCED_TABLE_NAME	NULL
+REFERENCED_COLUMN_NAME	NULL
 # table select we should not be able to see db_row_hash_column;
 select * from t1;
 a
@@ -68,9 +78,9 @@ ERROR 42S22: Unknown column 'db_row_hash_1' in 'field list'
 insert into t1 values(2);
 ERROR 23000: Duplicate entry '2' for key 'a'
 insert into t1 values('sachin');
-ERROR 23000: Duplicate entry 'sachi' for key 'a'
+ERROR 23000: Duplicate entry 'sachin' for key 'a'
 insert into t1 values(123456789034567891);
-ERROR 23000: Duplicate entry '12345' for key 'a'
+ERROR 23000: Duplicate entry '123456789034567891' for key 'a'
 select * from t1;
 a
 1
@@ -104,7 +114,7 @@ NULL
 12
 insert into t1 values(repeat('s',4000*10)),(repeat('s',4001*10));
 insert into t1 values(repeat('m',4000*10)),(repeat('m',4000*10));
-ERROR 23000: Duplicate entry 'mmmmm' for key 'a'
+ERROR 23000: Duplicate entry 'mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm' for key 'a'
 insert into t1 values(repeat('m',4001)),(repeat('m',4002));
 truncate table t1;
 insert into t1 values(1),(2),(3),(4),(5),(8),(7);
@@ -377,9 +387,9 @@ ERROR 42S22: Unknown column 'db_row_hash_3' in 'field list'
 insert into t1 values(21,2,3,42,51);
 ERROR 23000: Duplicate entry '3' for key 'c'
 insert into t1 values('sachin',null,null,null,null);
-ERROR 23000: Duplicate entry 'sachi' for key 'a'
+ERROR 23000: Duplicate entry 'sachin' for key 'a'
 insert into t1 values(1234567890345671890,4353453453451,6575675675617,789676575675617,657567567567567676);
-ERROR 23000: Duplicate entry '65756' for key 'e'
+ERROR 23000: Duplicate entry '657567567567567676' for key 'e'
 select * from t1;
 a	b	c	d	e
 1	2	3	4	5
@@ -394,7 +404,7 @@ insert into t1 values(repeat('s',4000*10),100,repeat('s',4000*10),repeat('s',400
 repeat('s',400)),(repeat('s',4001*10),1000,repeat('s',4001*10),repeat('s',4001*10),
 repeat('s',2995));
 insert into t1 values(repeat('m',4000*11),10,repeat('s',4000*11),repeat('s',4000*11),repeat('s',2995));
-ERROR 23000: Duplicate entry 'sssss' for key 'e'
+ERROR 23000: Duplicate entry 'ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss' for key 'e'
 truncate table t1;
 insert into t1 values(1,2,3,4,5),(2,11,22,33,44),(3111,222,333,444,555),(5611,2222,3333,4444,5555);
 #now some alter commands;
@@ -1200,3 +1210,4 @@ DB_ROW_HASH_1	DB_ROW_HASH_2
 select DB_ROW_HASH_1 from t1,t2 where t1.DB_ROW_HASH_1 = t2.DB_ROW_HASH_2;
 ERROR 42S22: Unknown column 't1.DB_ROW_HASH_1' in 'where clause'
 #this statement crashes the server because of optimizer select DB_ROW_HASH_1 from t1 inner join t2 on t1.a = t2.DB_ROW_HASH_1;
+drop table t1,t2;

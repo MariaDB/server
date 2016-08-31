@@ -3279,13 +3279,6 @@ void handler::ha_release_auto_increment()
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
 {
-  /* Write the duplicated key in the error message */
-  if (table->dupp_key != -1 && table->err_message)
-  {
-    my_printf_error(ER_DUP_ENTRY, msg, errflag,
-                    table->err_message, key->name);
-    return;
-  }
   char key_buff[MAX_KEY_LENGTH];
   String str(key_buff,sizeof(key_buff),system_charset_info);
 
@@ -5949,22 +5942,6 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
             continue;
         }
         table->dupp_key= i;
-        if (!table->err_message)
-        {
-          table->err_message= (char *) alloc_root(&table->mem_root,
-                                                 MAX_KEY_LENGTH);
-        }
-        StringBuffer<MAX_KEY_LENGTH> str;
-        str.length(0);
-        for(uint i= 0; i < arg_count; i++)
-        {
-          t_field= ((Item_field *)arguments[i])->field;
-          if (str.length())
-            str.append('-');
-          field_unpack(&str, t_field, new_rec, 5,//since blob can be to long
-                       false);
-        }
-        memcpy(table->err_message,str.ptr(),str.length());
         return HA_ERR_FOUND_DUPP_KEY;
       }
     }
