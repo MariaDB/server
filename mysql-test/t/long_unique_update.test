@@ -11,7 +11,7 @@
 
 --echo #test 1
 create table t1 (a blob unique);
-query vertical show keys from t1;
+query_vertical show keys from t1;
 insert into t1 values(1),(2),(3),(4),(5);
 select * from t1;
 update t1 set a=11 where a=5;

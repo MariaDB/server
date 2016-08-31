@@ -1121,3 +1121,82 @@ t1	0	b	1	b	A	NULL	65535	NULL	YES	HASH_INDEX
 t1	0	b	2	d	A	0	65535	NULL	YES	HASH_INDEX		
 t1	0	e	1	e	A	0	NULL	NULL	YES	BTREE		
 drop table t1;
+#visibility of db_row_hash 
+create table t1 (a blob unique , b blob unique);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	blob	YES	UNI	NULL	
+b	blob	YES	UNI	NULL	
+insert into t1 values(1,19);
+insert into t1 values(2,29);
+insert into t1 values(3,39);
+insert into t1 values(4,49);
+create table t2 (DB_ROW_HASH_1 int, DB_ROW_HASH_2 int);
+insert into t2 values(11,1);
+insert into t2 values(22,2);
+insert into t2 values(33,3);
+insert into t2 values(44,4);
+select * from t1;
+a	b
+1	19
+2	29
+3	39
+4	49
+select * from t2;
+DB_ROW_HASH_1	DB_ROW_HASH_2
+11	1
+22	2
+33	3
+44	4
+select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1;
+ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'field list'
+#bug
+select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2;
+DB_ROW_HASH_1	DB_ROW_HASH_2
+11	1
+11	1
+11	1
+11	1
+22	2
+22	2
+22	2
+22	2
+33	3
+33	3
+33	3
+33	3
+44	4
+44	4
+44	4
+44	4
+select * from t1 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
+ERROR 42S22: Unknown column 'DB_ROW_HASH_1' in 'IN/ALL/ANY subquery'
+#this is a bug which need to be solved
+select DB_ROW_HASH_1, DB_ROW_HASH_2 from t1,t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t2);
+DB_ROW_HASH_1	DB_ROW_HASH_2
+11	1
+22	2
+33	3
+44	4
+11	1
+22	2
+33	3
+44	4
+11	1
+22	2
+33	3
+44	4
+11	1
+22	2
+33	3
+44	4
+#BUG
+select * from t2 where DB_ROW_HASH_1 in (select DB_ROW_HASH_1 from t1);
+DB_ROW_HASH_1	DB_ROW_HASH_2
+11	1
+22	2
+33	3
+44	4
+select DB_ROW_HASH_1 from t1,t2 where t1.DB_ROW_HASH_1 = t2.DB_ROW_HASH_2;
+ERROR 42S22: Unknown column 't1.DB_ROW_HASH_1' in 'where clause'
+#this statement crashes the server because of optimizer select DB_ROW_HASH_1 from t1 inner join t2 on t1.a = t2.DB_ROW_HASH_1;

@@ -1825,8 +1825,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     reg_field->vcol_info= vcol_info;
     if(field_properties!=NULL)
     {
-//      reg_field->field_visibility=static_cast<field_visible_type>(*field_properties++);
-//      reg_field->is_long_column_hash=static_cast<bool>(*field_properties++);
       uint temp= *field_properties++;
       reg_field->is_long_column_hash= temp >> 2;
       reg_field->field_visibility= static_cast<field_visible_type> (temp & 3);

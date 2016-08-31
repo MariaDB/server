@@ -7356,9 +7356,17 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
     for (; !field_iterator.end_of_fields(); field_iterator.next())
     {
-      /* Field can be null here details in test case*/
+      /* Field can be null here
+         test case
+         create table t1 (empnum smallint, grp int);
+         create table t2 (empnum int, name char(5));
+         insert into t1 values(1,1);
+         insert into t2 values(1,'bob');
+         create view v1 as select * from t2 inner join t1 using (empnum);
+         select * from v1;
+       */
       if ((field= field_iterator.field()) &&
-               field->field_visibility != NOT_HIDDEN)
+          field->field_visibility != NOT_HIDDEN)
         continue;
       Item *item;
 

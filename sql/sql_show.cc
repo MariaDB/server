@@ -5421,7 +5421,6 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     if(field->field_visibility == COMPLETELY_HIDDEN ||
            field->field_visibility == PSEUDO_COLUMN_HIDDEN)
       continue;
-    /* For now we will only show UNI or MUL for TODO  */
     uchar *pos;
     char tmp[MAX_FIELD_WIDTH];
     String type(tmp,sizeof(tmp), system_charset_info);
@@ -5476,25 +5475,6 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     pos=(uchar*) ((field->flags & PRI_KEY_FLAG) ? "PRI" :
                  (field->flags & UNIQUE_KEY_FLAG) ? "UNI" :
                  (field->flags & MULTIPLE_KEY_FLAG) ? "MUL":"");
-    KEY *key= show_table->key_info;
-    for (int i=0; i<show_table->s->keys; i++, key++)
-    {
-      if (key->flags & HA_UNIQUE_HASH)
-      {
-        //this is for   hash(`abc`)
-        if (key->user_defined_key_parts == 1 &&
-            key->key_part->field->eq(field))
-          pos= (uchar *) "UNI";
-
-        //this is for   hash(`abc`,`xyzs`)
-        if (key->user_defined_key_parts != 1 &&
-            key->key_part->field->eq(field))
-        {
-          pos=(uchar *) "MUL";
-        }
-      }
-    }
-
     table->field[16]->store((const char*) pos,
                             strlen((const char*) pos), cs);
     StringBuffer<256> buf;
@@ -5513,8 +5493,8 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     if(field->field_visibility==USER_DEFINED_HIDDEN)
     {
       if (buf.length())
-        buf.append(STRING_WITH_LEN(", "));
-      buf.append(STRING_WITH_LEN("HIDDEN"),cs);
+        buf.append(STRING_WITH_LEN(","));
+      buf.append(STRING_WITH_LEN(" HIDDEN"),cs);
     }
     table->field[17]->store(buf.ptr(), buf.length(), cs);
     table->field[19]->store(field->comment.str, field->comment.length, cs);
