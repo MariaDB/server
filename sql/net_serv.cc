@@ -117,7 +117,6 @@ extern my_bool thd_net_is_killed();
 #endif
 
 #define TEST_BLOCKING		8
-#define MAX_PACKET_LENGTH (256L*256L*256L-1)
 
 static my_bool net_write_buff(NET *, const uchar *, ulong);
 

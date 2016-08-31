@@ -23,9 +23,9 @@
 + --shared-memory     Enable the shared memory
 + --shared-memory-base-name=name 
 + Base name of shared memory
-  --show-slave-auth-info 
-  Show user and password in SHOW SLAVE HOSTS on this
-  master.
+  --session-track-schema 
+  Track changes to the default schema.
+  (Defaults to on; use --skip-session-track-schema to disable.)
 @@ -1015,6 +1018,10 @@
   Log slow queries to given log file. Defaults logging to
   'hostname'-slow.log. Must be enabled to activate other
@@ -103,12 +103,12 @@
 @@ -1387,6 +1381,8 @@
  secure-auth TRUE
  secure-file-priv (No default value)
- server-id 0
+ server-id 1
 +shared-memory FALSE
 +shared-memory-base-name MYSQL
- show-slave-auth-info FALSE
- silent-startup FALSE
- skip-grant-tables TRUE
+ session-track-schema TRUE
+ session-track-state-change FALSE
+ session-track-system-variables 
 @@ -1411,6 +1407,7 @@
  slave-type-conversions 
  slow-launch-time 2

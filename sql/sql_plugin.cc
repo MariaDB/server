@@ -269,6 +269,7 @@ struct st_bookmark
   uint name_len;
   int offset;
   uint version;
+  bool loaded;
   char key[1];
 };
 
@@ -1175,6 +1176,13 @@ err:
   DBUG_RETURN(errs > 0 || oks + dupes == 0);
 }
 
+static void plugin_variables_deinit(struct st_plugin_int *plugin)
+{
+
+  for (sys_var *var= plugin->system_vars; var; var= var->next)
+    (*var->test_load)= FALSE;
+  mysql_del_sys_var_chain(plugin->system_vars);
+}
 
 static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
 {
@@ -1226,8 +1234,7 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
   if (ref_check && plugin->ref_count)
     sql_print_error("Plugin '%s' has ref_count=%d after deinitialization.",
                     plugin->name.str, plugin->ref_count);
-
-  mysql_del_sys_var_chain(plugin->system_vars);
+  plugin_variables_deinit(plugin);
 }
 
 static void plugin_del(struct st_plugin_int *plugin)
@@ -1447,7 +1454,7 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
 
 err:
   if (ret)
-    mysql_del_sys_var_chain(plugin->system_vars);
+    plugin_variables_deinit(plugin);
 
   mysql_mutex_lock(&LOCK_plugin);
   plugin->state= state;
@@ -2780,15 +2787,17 @@ static void update_func_double(THD *thd, struct st_mysql_sys_var *var,
   System Variables support
 ****************************************************************************/
 
-
-sys_var *find_sys_var(THD *thd, const char *str, uint length)
+sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
+                         bool throw_error, bool locked)
 {
   sys_var *var;
   sys_var_pluginvar *pi= NULL;
   plugin_ref plugin;
-  DBUG_ENTER("find_sys_var");
+  DBUG_ENTER("find_sys_var_ex");
+  DBUG_PRINT("enter", ("var '%.*s'", (int)length, str));
 
-  mysql_mutex_lock(&LOCK_plugin);
+  if (!locked)
+    mysql_mutex_lock(&LOCK_plugin);
   mysql_rwlock_rdlock(&LOCK_system_variables_hash);
   if ((var= intern_find_sys_var(str, length)) &&
       (pi= var->cast_pluginvar()))
@@ -2807,13 +2816,19 @@ sys_var *find_sys_var(THD *thd, const char *str, uint length)
   }
   else
     mysql_rwlock_unlock(&LOCK_system_variables_hash);
-  mysql_mutex_unlock(&LOCK_plugin);
+  if (!locked)
+    mysql_mutex_unlock(&LOCK_plugin);
 
-  if (!var)
-    my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0), (char*) str);
+  if (!throw_error && !var)
+    my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0), (int)length, (char*) str);
   DBUG_RETURN(var);
 }
 
+
+sys_var *find_sys_var(THD *thd, const char *str, size_t length)
+{
+  return find_sys_var_ex(thd, str, length, false, false);
+}
 
 /*
   called by register_var, construct_options and test_plugin_options.
@@ -3941,6 +3956,14 @@ my_bool mark_changed(int, const struct my_option *opt, char *)
 }
 
 /**
+  It is always false to mark global plugin variable unloaded just to be
+  safe because we have no way now to know truth about them.
+
+  TODO: make correct mechanism for global plugin variables
+*/
+static bool static_unload= FALSE;
+
+/**
   Create and register system variables supplied from the plugin and
   assigns initial values from corresponding command line arguments.
 
@@ -4017,9 +4040,13 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
 
         tmp_backup[tmp->nbackups++].save(&o->name);
         if ((var= find_bookmark(tmp->name.str, o->name, o->flags)))
+        {
           varname= var->key + 1;
+          var->loaded= TRUE;
+        }
         else
         {
+          var= NULL;
           len= tmp->name.length + strlen(o->name) + 2;
           varname= (char*) alloc_root(mem_root, len);
           strxmov(varname, tmp->name.str, "-", o->name, NullS);
@@ -4027,6 +4054,9 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
           convert_dash_to_underscore(varname, len-1);
         }
         v= new (mem_root) sys_var_pluginvar(&chain, varname, tmp, o);
+        v->test_load= (var ? &var->loaded : &static_unload);
+        DBUG_ASSERT(static_unload == FALSE);
+
         if (!(o->flags & PLUGIN_VAR_NOCMDOPT))
         {
           // update app_type, used for I_S.SYSTEM_VARIABLES

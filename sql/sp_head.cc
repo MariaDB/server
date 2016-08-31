@@ -2048,6 +2048,8 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
           break;
         }
       }
+
+      TRANSACT_TRACKER(add_trx_state_from_thd(thd));
     }
 
     /*
@@ -2977,6 +2979,18 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 
   reinit_stmt_before_use(thd, m_lex);
 
+#ifndef EMBEDDED_LIBRARY
+  /*
+    If there was instruction which changed tracking state,
+    the result of changed tracking state send to client in OK packed.
+    So it changes result sent to client and probably can be different
+    independent on query text. So we can't cache such results.
+  */
+  if ((thd->client_capabilities & CLIENT_SESSION_TRACK) &&
+      (thd->server_status & SERVER_SESSION_STATE_CHANGED))
+    thd->lex->safe_to_cache_query= 0;
+#endif
+
   if (open_tables)
     res= instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
 
@@ -3053,6 +3067,9 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     what is needed from the substatement gained
   */
   thd->transaction.stmt.modified_non_trans_table |= parent_modified_non_trans_table;
+
+  TRANSACT_TRACKER(add_trx_state_from_thd(thd));
+
   /*
     Unlike for PS we should not call Item's destructors for newly created
     items after execution of each instruction in stored routine. This is

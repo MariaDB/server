@@ -90,6 +90,7 @@ extern HASH open_cache;
 static int lock_external(THD *thd, TABLE **table,uint count);
 static int unlock_external(THD *thd, TABLE **table,uint count);
 
+
 /* Map the return value of thr_lock to an error from errmsg.txt */
 static int thr_lock_errno_to_mysql[]=
 { 0, ER_LOCK_ABORTED, ER_LOCK_WAIT_TIMEOUT, ER_LOCK_DEADLOCK };
@@ -244,6 +245,39 @@ void reset_lock_data(MYSQL_LOCK *sql_lock, bool unlock)
 
 
 /**
+  Scan array of tables for access types; update transaction tracker
+  accordingly.
+
+   @param thd          The current thread.
+   @param tables       An array of pointers to the tables to lock.
+   @param count        The number of tables to lock.
+*/
+
+#ifndef EMBEDDED_LIBRARY
+static void track_table_access(THD *thd, TABLE **tables, size_t count)
+{
+  if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+  {
+    Transaction_state_tracker *tst= (Transaction_state_tracker *)
+      thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
+
+    while (count--)
+    {
+      TABLE *t= tables[count];
+
+      if (t)
+        tst->add_trx_state(thd,  t->reginfo.lock_type,
+                           t->file->has_transactions());
+    }
+  }
+}
+#else
+#define track_table_access(A,B,C)
+#endif //EMBEDDED_LIBRARY
+
+
+
+/**
    Lock tables.
 
    @param thd          The current thread.
@@ -280,6 +314,9 @@ MYSQL_LOCK *mysql_lock_tables(THD *thd, TABLE **tables, uint count, uint flags)
       my_free(sql_lock);
     sql_lock= 0;
   }
+
+  track_table_access(thd, tables, count);
+
   DBUG_RETURN(sql_lock);
 }
 

@@ -1476,13 +1476,16 @@ uint maria_multi_check(THD *thd, char *packet, uint packet_length)
   DBUG_ENTER("maria_multi_check");
   while (packet_length)
   {
+    char *packet_start= packet;
+    size_t subpacket_length= net_field_length((uchar **)&packet_start);
+    uint length_length= packet_start - packet;
     // length of command + 3 bytes where that length was stored
-    uint subpacket_length= (uint3korr(packet) + 3);
-    DBUG_PRINT("info", ("sub-packet length: %d  command: %x",
-                        subpacket_length, packet[3]));
+    DBUG_PRINT("info", ("sub-packet length: %ld + %d  command: %x",
+                        (ulong)subpacket_length, length_length,
+                        packet_start[3]));
 
-    if (subpacket_length == 3 ||
-        subpacket_length > packet_length)
+    if (subpacket_length == 0 ||
+        (subpacket_length + length_length) > packet_length)
     {
       my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                  MYF(0));
@@ -1490,8 +1493,8 @@ uint maria_multi_check(THD *thd, char *packet, uint packet_length)
     }
 
     counter++;
-    packet+= subpacket_length;
-    packet_length-= subpacket_length;
+    packet= packet_start + subpacket_length;
+    packet_length-= (subpacket_length + length_length);
   }
   DBUG_RETURN(counter);
 }
@@ -2231,8 +2234,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
 
     {
+      char *packet_start= packet;
       /* We have to store next length because it will be destroyed by '\0' */
-      uint next_subpacket_length= uint3korr(packet);
+      size_t next_subpacket_length= net_field_length((uchar **)&packet_start);
+      uint next_length_length= packet_start - packet;
       unsigned char *readbuff= net->buff;
 
       if (net_allocate_new_packet(net, thd, MYF(0)))
@@ -2246,13 +2251,19 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       while (packet_length)
       {
         current_com++;
-        uint subpacket_length= next_subpacket_length + 3;
+        size_t subpacket_length= next_subpacket_length + next_length_length;
+        uint length_length= next_length_length;
         if (subpacket_length < packet_length)
-          next_subpacket_length= uint3korr(packet + subpacket_length);
+        {
+          packet_start= packet + subpacket_length;
+          next_subpacket_length= net_field_length((uchar**)&packet_start);
+          next_length_length= packet_start - (packet + subpacket_length);
+        }
         /* safety like in do_command() */
         packet[subpacket_length]= '\0';
 
-        enum enum_server_command subcommand= fetch_command(thd, (packet + 3));
+        enum enum_server_command subcommand=
+          fetch_command(thd, (packet + length_length));
 
         if (server_command_flags[subcommand] & CF_NO_COM_MULTI)
         {
@@ -2260,8 +2271,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
           goto com_multi_end;
         }
 
-        if (dispatch_command(subcommand, thd, packet + (1 + 3),
-                             subpacket_length - (1 + 3), TRUE,
+        if (dispatch_command(subcommand, thd, packet + (1 + length_length),
+                             subpacket_length - (1 + length_length), TRUE,
                              (current_com != counter)))
         {
           DBUG_ASSERT(thd->is_error());
@@ -3852,6 +3863,12 @@ mysql_execute_command(THD *thd)
         /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
         if (create_info.tmp_table())
           thd->variables.option_bits|= OPTION_KEEP_LOG;
+        /* in case of create temp tables if @@session_track_state_change is
+           ON then send session state notification in OK packet */
+        if(create_info.options & HA_LEX_CREATE_TMP_TABLE)
+        {
+          SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+        }
         my_ok(thd);
       }
     }
@@ -4608,6 +4625,13 @@ end_with_restore_list:
     
     /* DDL and binlog write order are protected by metadata locks. */
     res= mysql_rm_table(thd, first_table, lex->if_exists(), lex->tmp_table());
+
+    /* when dropping temporary tables if @@session_track_state_change is ON then
+       send the boolean tracker in the OK packet */
+    if(!res && (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE))
+    {
+      SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+    }
     break;
   }
   case SQLCOM_SHOW_PROCESSLIST:
@@ -5419,8 +5443,7 @@ end_with_restore_list:
     else
     {
       /* Reset the isolation level and access mode if no chaining transaction.*/
-      thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
-      thd->tx_read_only= thd->variables.tx_read_only;
+      trans_reset_one_shot_chistics(thd);
     }
     /* Disconnect the current client connection. */
     if (tx_release)
@@ -5467,8 +5490,7 @@ end_with_restore_list:
     else
     {
       /* Reset the isolation level and access mode if no chaining transaction.*/
-      thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
-      thd->tx_read_only= thd->variables.tx_read_only;
+      trans_reset_one_shot_chistics(thd);
     }
     /* Disconnect the current client connection. */
     if (tx_release)
@@ -5953,8 +5975,7 @@ end_with_restore_list:
       We've just done a commit, reset transaction
       isolation level and access mode to the session default.
     */
-    thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
-    thd->tx_read_only= thd->variables.tx_read_only;
+    trans_reset_one_shot_chistics(thd);
     my_ok(thd);
     break;
   }
@@ -5972,8 +5993,7 @@ end_with_restore_list:
       We've just done a rollback, reset transaction
       isolation level and access mode to the session default.
     */
-    thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
-    thd->tx_read_only= thd->variables.tx_read_only;
+    trans_reset_one_shot_chistics(thd);
     my_ok(thd);
     break;
   }
@@ -6191,6 +6211,9 @@ finish:
   {
     thd->mdl_context.release_statement_locks();
   }
+
+  TRANSACT_TRACKER(add_trx_state_from_thd(thd));
+
   WSREP_TO_ISOLATION_END;
 
 #ifdef WITH_WSREP
