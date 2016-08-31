@@ -1445,7 +1445,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   disk_buff= frm_image + pos + FRM_FORMINFO_SIZE;
 
   share->fields= uint2korr(forminfo+258);
-  if (field_additional_property_length != share->fields)
+  if (field_properties && field_additional_property_length != share->fields)
     goto err;
   pos= uint2korr(forminfo+260);   /* Length of all screens */
   n_length= uint2korr(forminfo+268);
