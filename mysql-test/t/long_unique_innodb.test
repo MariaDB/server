@@ -51,6 +51,9 @@ start transaction;
 insert into t1 values ('S');
 commit;
 
+--connection con1
+commit;
+
 connection default;
 disconnect con1;
 disconnect con2;

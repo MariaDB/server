@@ -50,6 +50,8 @@ start transaction;
 insert into t1 values ('S');
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 commit;
+connection con1;
+commit;
 connection default;
 disconnect con1;
 disconnect con2;
@@ -60,4 +62,5 @@ RUC
 RC
 RC
 RR
+S
 drop table t1;
