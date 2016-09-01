@@ -1075,7 +1075,8 @@ public:
   Field **field;			/* Pointer to fields */
 
   uchar *record[2];			/* Pointer to records */
-  uchar *check_unique_buf;  /* Pointer to record with same hash */
+  /* record buf to resolve hash collisions for long UNIQUE constraints */
+  uchar *check_unique_buf;
   handler *update_handler;  /* Handler used in case of update */
   /*
      In the case of write row for long unique we are unable of find

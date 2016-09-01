@@ -8008,14 +8008,6 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   uint field_count= 0;
   for (f= ptr; f && (field= *f); f++)
     field_count++;
-  /*
-    This if is required in query like
-    suppose table
-      create table t1 (a int , b int hidden , c int , d int hidden );
-    and query is
-      create table t2 as select a,b,c,d from t1;
-    in this case field count will be equal to values.elements
-   */
   if (field_count != values.elements)
   {
     Name_resolution_context *context= & thd->lex->select_lex.context;

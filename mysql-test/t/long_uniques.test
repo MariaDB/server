@@ -103,8 +103,8 @@ desc t1;
 show keys from t1;
  insert into t1 values ('ae');
 --error ER_DUP_ENTRY
- insert into t1 values ('AE');
- insert  into t1 values ('Ä');
+insert into t1 values ('AE');
+insert  into t1 values ('Ä');
 drop table t1;
 create table t1 (a int primary key, b blob unique);
 desc t1;

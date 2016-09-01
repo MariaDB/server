@@ -5880,73 +5880,88 @@ int handler::ha_reset()
   DBUG_RETURN(reset());
 }
 
+int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_rec,
+                                   uint key_no)
+{
+  Field *hash_field;
+  int result;
+  if (!(table->key_info[key_no].flags & HA_UNIQUE_HASH))
+    return 0;
+  hash_field= table->key_info[key_no].key_part->field;
+  DBUG_ASSERT(table->key_info[key_no].key_length == HA_HASH_KEY_LENGTH_WITH_NULL);
+  uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
+
+  if (hash_field->is_null())
+    return 0;
+
+  key_copy(ptr, new_rec, &table->key_info[key_no],
+                  HA_HASH_KEY_LENGTH_WITH_NULL, false);
+
+  if (!table->check_unique_buf)
+    table->check_unique_buf= (uchar *)alloc_root(&table->mem_root,
+                                    table->s->reclength*sizeof(uchar));
+
+  result= h->ha_index_read_idx_map(table->check_unique_buf,
+                              key_no, ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
+  if (!result)
+  {
+    Item_func_or_sum * temp= static_cast<Item_func_or_sum *>(hash_field->
+                                                    vcol_info->expr_item);
+    Item_args * t_item= static_cast<Item_args *>(temp);
+    uint arg_count= t_item->argument_count();
+    Item ** arguments= t_item->arguments();
+    int diff= table->check_unique_buf-new_rec;
+    Field * t_field;
+    String item_data;
+    String field_data;
+    for (uint j=0; j < arg_count; j++)
+    {
+      DBUG_ASSERT(arguments[j]->type() == Item::FIELD_ITEM ||
+                  // this one for later use left(fld_name,length)
+                  arguments[j]->type() == Item::STRING_ITEM);
+      if (arguments[j]->type() == Item::FIELD_ITEM)
+      {
+        t_field= static_cast<Item_field *>(arguments[j])->field;
+        if (t_field->cmp_offset(diff))
+          return 0;
+      }
+      else
+      {
+        arguments[j]->val_str(&item_data);
+        t_field->val_str(&field_data);
+        if (field_data.length() != item_data.length())
+          return 0;
+        if (my_strcasecmp(item_data.charset(), item_data.ptr(),
+                           field_data.ptr()))
+          return 0;
+      }
+    }
+    table->dupp_key= key_no;
+    return HA_ERR_FOUND_DUPP_KEY;
+  }
+  return 0;
+}
 /** @brief
     check whether inserted/updated records breaks the
     unique constraint on long columns.
     In the case of update we just need to check the specic key
     reason for that is consider case
     create table t1(a blob , b blob , x blob , y blob ,unique(a,b)
-                                                    ,unique(c,d))
+                                                    ,unique(x,y))
     and update statement like this
     update t1 set a=23+a; in this case if we try to scan for
-    whole keys in table then index scan on c_d will return 0
+    whole keys in table then index scan on x_y will return 0
     because data is same so in the case of update we take
     key as a parameter in normal insert key should be -1
    @returns 0 if no duplicate else returns error
   */
-int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec,
-                                  int key)
+int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec)
 {
-  Field *hash_field;
   int result;
-  table->dupp_key= -1;
   for (uint i= 0; i < table->s->keys; i++)
   {
-    if (key != -1)
-      i= key;
-    if (table->key_info[i].flags & HA_UNIQUE_HASH)
-    {
-      hash_field= table->key_info[i].key_part->field;
-      DBUG_ASSERT(table->key_info[i].key_length == HA_HASH_KEY_LENGTH_WITH_NULL);
-      uchar ptr[HA_HASH_KEY_LENGTH_WITH_NULL];
-
-      if (hash_field->is_null())
-        continue;
-
-      key_copy(ptr, new_rec, &table->key_info[i],
-                      HA_HASH_KEY_LENGTH_WITH_NULL, false);
-
-      if (!table->check_unique_buf)
-        table->check_unique_buf= (uchar *)alloc_root(&table->mem_root,
-                                        table->s->reclength*sizeof(uchar));
-
-      result= h->ha_index_read_idx_map(table->check_unique_buf,
-                                  i, ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
-      if (!result)
-      {
-        Item_func_or_sum * temp= static_cast<Item_func_or_sum *>(hash_field->
-                                                        vcol_info->expr_item);
-        Item_args * t_item= static_cast<Item_args *>(temp);
-        uint arg_count= t_item->argument_count();
-        Item ** arguments= t_item->arguments();
-        int diff= table->check_unique_buf-new_rec;
-        Field * t_field;
-
-        for (uint j=0; j < arg_count; j++)
-        {
-          DBUG_ASSERT(arguments[j]->type() == Item::FIELD_ITEM ||
-                      // this one for later use left(fld_name,length)
-                      arguments[j]->type() == Item::STRING_ITEM);
-          t_field= static_cast<Item_field *>(arguments[j])->field;
-          if(t_field->cmp_binary_offset(diff))
-            continue;
-        }
-        table->dupp_key= i;
-        return HA_ERR_FOUND_DUPP_KEY;
-      }
-    }
-    if (key != -1)
-      break;
+    if ((result= check_duplicate_long_entry_key(table, h, new_rec, i)))
+      return result;
   }
   return 0;
 }
@@ -5990,11 +6005,11 @@ int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec
           /* Compare fields if they are different then check for duplicates*/
           if(field->cmp_binary_offset(reclength))
           {
-            if((error= check_duplicate_long_entries(table, table->update_handler,
+            if((error= check_duplicate_long_entry_key(table, table->update_handler,
                                                    new_rec, i)))
               goto exit;
             /*
-              break beacuse check_duplicate_long_entries will
+              break beacuse check_duplicate_long_entrie_key will
               take care of remaning fields
              */
             break;
@@ -6024,7 +6039,7 @@ int handler::ha_write_row(uchar *buf)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
 
-  if ((error= check_duplicate_long_entries(table, table->file, buf, -1)))
+  if ((error= check_duplicate_long_entries(table, table->file, buf)))
   {
     re_setup_table(table);
     DBUG_RETURN(error);

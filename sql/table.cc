@@ -1926,8 +1926,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             hash_str.append(STRING_WITH_LEN(" , "));
           temp_fld= share->field[temp_key_part->fieldnr-1];
           DBUG_ASSERT(temp_fld);
-          append_identifier(thd, &hash_str, temp_fld->field_name,
+          if (!temp_key_part->length ||
+              temp_key_part->length == temp_fld->max_display_length())
+            append_identifier(thd, &hash_str, temp_fld->field_name,
                             strlen(temp_fld->field_name));
+          else
+          {
+            hash_str.append(STRING_WITH_LEN(" LEFT("));
+            append_identifier(thd, &hash_str, temp_fld->field_name,
+                            strlen(temp_fld->field_name));
+            char temp[20];
+            my_snprintf((char *)temp, 20, ", %u )", temp_key_part->length);
+            hash_str.append((char *)temp);
+          }
         }
         hash_str.append(STRING_WITH_LEN(")"));
         char * expr_str= (char *)alloc_root(&share->mem_root, hash_str.length()+1);

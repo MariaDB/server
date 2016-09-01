@@ -3233,7 +3233,7 @@ static void add_hash_field(THD * thd, List<Create_field> *create_list,
   prepare_create_field(cf, NULL, 0);
   create_list->push_front(cf,thd->mem_root);
   /*
-    We have added db_row_hash fields in starting of
+    We have added db_row_hash field in starting of
     fields array , So we have to change key_part
     field index
    */
@@ -8032,12 +8032,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
               if (!my_strcasecmp(system_charset_info, field->field_name,
                                 column->field_name.str))
               {
-                if (field->max_data_length() > table->file->max_key_part_length())
+                if (field->max_display_length() > table->file->max_key_part_length())
                 {
                   is_hash_key= true;
                   break;
                 }
-                total_length+= field->max_data_length();
+                total_length+= field->max_display_length();
               }
             }
           }
