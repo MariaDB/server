@@ -5912,13 +5912,13 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_r
     Item ** arguments= t_item->arguments();
     int diff= table->check_unique_buf-new_rec;
     Field * t_field;
-    String item_data;
-    String field_data;
+    String *item_data;
+    String field_data, tmp;
     for (uint j=0; j < arg_count; j++)
     {
       DBUG_ASSERT(arguments[j]->type() == Item::FIELD_ITEM ||
                   // this one for later use left(fld_name,length)
-                  arguments[j]->type() == Item::STRING_ITEM);
+                  arguments[j]->type() == Item::FUNC_ITEM);
       if (arguments[j]->type() == Item::FIELD_ITEM)
       {
         t_field= static_cast<Item_field *>(arguments[j])->field;
@@ -5927,12 +5927,16 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_r
       }
       else
       {
-        arguments[j]->val_str(&item_data);
+        Item_func_left *fnc= static_cast<Item_func_left *>(arguments[j]);
+        DBUG_ASSERT(!my_strcasecmp(system_charset_info, "left", fnc->func_name()));
+        item_data= fnc->val_str(&tmp);
+        DBUG_ASSERT(fnc->arguments()[0]->type() == Item::FIELD_ITEM);
+        t_field= static_cast<Item_field *>(fnc->arguments()[0])->field;
         t_field->val_str(&field_data);
-        if (field_data.length() != item_data.length())
-          return 0;
-        if (my_strcasecmp(item_data.charset(), item_data.ptr(),
-                           field_data.ptr()))
+        if (my_strnncoll(t_field->charset(),(const uchar *)item_data->ptr(),
+                         item_data->length(),
+                         (const uchar *)field_data.ptr(),
+                         item_data->length()))
           return 0;
       }
     }

@@ -1085,7 +1085,7 @@ public:
      key 0 is voilated we store which key is voilated in this variable
      by default this should be initialized to -1
    */
-  uint dupp_key;
+  int dupp_key;
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */
