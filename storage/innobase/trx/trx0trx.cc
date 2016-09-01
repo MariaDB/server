@@ -1138,6 +1138,7 @@ trx_flush_log_if_needed_low(
 	lsn_t	lsn)	/*!< in: lsn up to which logs are to be
 			flushed. */
 {
+       DBUG_ENTER("trx_flush_log_if_needed_low");
 	switch (srv_flush_log_at_trx_commit) {
 	case 0:
 		/* Do nothing */
@@ -1156,6 +1157,7 @@ trx_flush_log_if_needed_low(
 	default:
 		ut_error;
 	}
+        DBUG_VOID_RETURN;
 }
 
 /**********************************************************************//**
@@ -1690,15 +1692,17 @@ trx_commit_complete_for_mysql(
 	trx_t*	trx)	/*!< in/out: transaction */
 {
 	ut_a(trx);
+        DBUG_ENTER("trx_commit_complete_for_mysql");
 
 	if (!trx->must_flush_log_later
 	    || (srv_flush_log_at_trx_commit == 1 && trx->active_commit_ordered)) {
-		return;
+		DBUG_VOID_RETURN;
 	}
 
 	trx_flush_log_if_needed(trx->commit_lsn, trx);
 
 	trx->must_flush_log_later = FALSE;
+	DBUG_VOID_RETURN;
 }
 
 /**********************************************************************//**

@@ -4340,11 +4340,23 @@ static int init_common_variables()
 
   if (get_options(&remaining_argc, &remaining_argv))
     return 1;
-  set_server_version();
+  if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
+    set_server_version(server_version, sizeof(server_version));
 
   if (!opt_abort)
-    sql_print_information("%s (mysqld %s) starting as process %lu ...",
-                          my_progname, server_version, (ulong) getpid());
+  {
+    if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
+      sql_print_information("%s (mysqld %s) starting as process %lu ...",
+                            my_progname, server_version, (ulong) getpid());
+    else
+    {
+      char real_server_version[SERVER_VERSION_LENGTH];
+      set_server_version(real_server_version, sizeof(real_server_version));
+      sql_print_information("%s (mysqld %s as %s) starting as process %lu ...",
+                            my_progname, real_server_version, server_version,
+                            (ulong) getpid());
+    }
+  }
 
 #ifndef EMBEDDED_LIBRARY
   if (opt_abort && !opt_verbose)
@@ -8571,7 +8583,8 @@ static bool add_many_options(DYNAMIC_ARRAY *options, my_option *list,
 #ifndef EMBEDDED_LIBRARY
 static void print_version(void)
 {
-  set_server_version();
+  if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
+    set_server_version(server_version, sizeof(server_version));
 
   printf("%s  Ver %s for %s on %s (%s)\n",my_progname,
 	 server_version,SYSTEM_TYPE,MACHINE_TYPE, MYSQL_COMPILATION_COMMENT);
@@ -9680,24 +9693,17 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   (MYSQL_SERVER_SUFFIX is set by the compilation environment)
 */
 
-void set_server_version(void)
+void set_server_version(char *buf, size_t size)
 {
-  if (!IS_SYSVAR_AUTOSIZE(&server_version_ptr))
-    return;
-  char *version_end= server_version+sizeof(server_version)-1;
-  char *end= strxnmov(server_version, sizeof(server_version)-1,
-                      MYSQL_SERVER_VERSION,
-                      MYSQL_SERVER_SUFFIX_STR, NullS);
-#ifdef EMBEDDED_LIBRARY
-  end= strnmov(end, "-embedded", (version_end-end));
-#endif
-#ifndef DBUG_OFF
-  if (!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"))
-    end= strnmov(end, "-debug", (version_end-end));
-#endif
-  if (opt_log || global_system_variables.sql_log_slow || opt_bin_log)
-    strnmov(end, "-log", (version_end-end)); // This may slow down system
-  *end= 0;
+  bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
+  bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
+  strxnmov(buf, size - 1,
+           MYSQL_SERVER_VERSION,
+           MYSQL_SERVER_SUFFIX_STR,
+           IF_EMBEDDED("-embedded", ""),
+           is_debug ? "-debug" : "",
+           is_log ? "-log" : "",
+           NullS);
 }
 
 
