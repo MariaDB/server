@@ -8017,6 +8017,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         Key_part_spec *column;
         uint total_length= 0;
         Field **f, *field;
+        Create_field *cf;
         bool is_hash_key= false;
         while ((column= li++))
         {
@@ -8038,6 +8039,38 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                   break;
                 }
                 total_length+= field->max_display_length();
+              }
+            }
+            /*
+              Suppose query is like
+                alter table t1 add column a blob unique;
+                alter table t2 add column a blob,add column c blob, add unique key(a,b);
+              In this case we have to add ALTER_ADD_CHECK_CONSTRAINT_FLAG
+              We cant simply add ALTER_ADD_CHECK_CONSTRAINT flag because it is expensive.
+              And there is no other way of doing this type of check.
+             */
+            field_it.rewind();
+            while((cf= field_it++))
+            {
+              if (!my_strcasecmp(system_charset_info, cf->field_name,
+                                 column->field_name.str))
+              {
+                if (cf->sql_type == MYSQL_TYPE_TINY_BLOB ||
+                    cf->sql_type == MYSQL_TYPE_MEDIUM_BLOB ||
+                    cf->sql_type == MYSQL_TYPE_LONG_BLOB ||
+                    cf->sql_type == MYSQL_TYPE_BLOB)
+                {
+                  is_hash_key= true;
+                  break;
+                }
+                if ((cf->sql_type == MYSQL_TYPE_VARCHAR ||
+                     cf->sql_type == MYSQL_TYPE_VAR_STRING) &&
+                    cf->length > table->file->max_key_part_length())
+                {
+                  is_hash_key= true;
+                  break;
+                }
+                total_length+= cf->length;
               }
             }
           }

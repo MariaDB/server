@@ -5880,7 +5880,7 @@ int handler::ha_reset()
   DBUG_RETURN(reset());
 }
 
-int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_rec,
+static int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_rec,
                                    uint key_no)
 {
   Field *hash_field;
@@ -5955,7 +5955,7 @@ int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_rec,
     key as a parameter in normal insert key should be -1
    @returns 0 if no duplicate else returns error
   */
-int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec)
+static int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec)
 {
   int result;
   for (uint i= 0; i < table->s->keys; i++)
@@ -5971,7 +5971,7 @@ int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec)
     unique constraint on long columns.
    @returns 0 if no duplicate else returns error
   */
-int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec)
+static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec)
 {
   Field **f, *field;
   Item *h_item;
