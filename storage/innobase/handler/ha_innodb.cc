@@ -4257,6 +4257,7 @@ innobase_commit(
 	trx_t*		trx;
 
 	DBUG_ENTER("innobase_commit");
+	DBUG_PRINT("enter", ("commit_trx: %d", commit_trx));
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 	DBUG_PRINT("trans", ("ending transaction"));
 

@@ -1268,6 +1268,10 @@ log_group_file_header_flush(
 	}
 #endif /* UNIV_DEBUG */
 	if (log_do_write) {
+ 	       DBUG_PRINT("ib_log", ("write " LSN_PF
+                                     " group " ULINTPF
+                                     " file " ULINTPF " header",
+                                     start_lsn, group->id, nth_file));
 		log_sys->n_log_ios++;
 
 		MONITOR_INC(MONITOR_LOG_IO);
@@ -1539,6 +1543,9 @@ loop:
 		return;
 	}
 
+	DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF,
+			      log_sys->written_to_all_lsn,
+			      log_sys->lsn));
 #ifdef UNIV_DEBUG
 	if (log_debug_writes) {
 		fprintf(stderr,
