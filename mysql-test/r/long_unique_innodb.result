@@ -15,6 +15,7 @@ insert into t1 values('aaaa1');
 connection con2;
 set  transaction isolation level READ UNCOMMITTED;
 start transaction;
+--error ER_LOCK_WAIT_TIMEOUT
 insert into t1 values ('aaaa1');
 connection con1;
 commit;
@@ -25,6 +26,7 @@ connection con2;
 commit;
 set  transaction isolation level READ COMMITTED;
 start transaction;
+--error ER_LOCK_WAIT_TIMEOUT
 insert into t1 values ('aaaa2');
 commit;
 connection con1;
