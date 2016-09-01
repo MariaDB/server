@@ -41,7 +41,6 @@
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 #include "sql_view.h"
 #include "rpl_filter.h"
-#include "sql_cte.h"
 #include "sql_show.h"
 
 /* For MySQL 5.7 virtual fields */
@@ -68,7 +67,7 @@ LEX_STRING SLOW_LOG_NAME= {C_STRING_WITH_LEN("slow_log")};
   Keyword added as a prefix when parsing the defining expression for a
   virtual column read from the column definition saved in the frm file
 */
-static LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
+LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
 
 static int64 last_table_id;
 
@@ -1480,8 +1479,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                            sizeof(Virtual_column_info*)+
 			   (share->fields+interval_parts+
 			    keys+3)*sizeof(char *)+
+			   (n_length+int_length+com_length+
 			       vcol_screen_length)))))
-						 vcol_screen_length)))))
     goto err;                           /* purecov: inspected */
 
   share->field= field_ptr;
@@ -1810,17 +1809,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     *field_ptr= reg_field=
       make_field(share, &share->mem_root, record+recpos,
-		(uint32) field_length,
-		null_pos, null_bit_pos,
-		pack_flag,
-		field_type,
-		charset,
-		geom_type, srid,
-		(Field::utype) MTYP_TYPENR(unireg_type),
-		(interval_nr ?
-		share->intervals+interval_nr-1 :
-		(TYPELIB*) 0),
-		share->fieldnames.type_names[i]);
+		 (uint32) field_length,
+		 null_pos, null_bit_pos,
+		 pack_flag,
+		 field_type,
+		 charset,
+		 geom_type, srid,
+		 (Field::utype) MTYP_TYPENR(unireg_type),
+		 (interval_nr ?
+		  share->intervals+interval_nr-1 :
+		  (TYPELIB*) 0),
+		 share->fieldnames.type_names[i]);
     if (!reg_field)				// Not supported field type
       goto err;
 
@@ -2047,64 +2046,64 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         //If previous key is HA_UNIQUE_HASH then we have added extra hash key_part
         if ((keyinfo-1)->flags & HA_UNIQUE_HASH)
           new_key_part++;
-        /*
+        /* 
           Do not extend the key that contains a component
           defined over the beginning of a field.
-	*/
+	*/ 
         for (i= 0; i < keyinfo->user_defined_key_parts; i++)
 	{
           uint fieldnr= keyinfo->key_part[i].fieldnr;
           if (share->field[fieldnr-1]->key_length() !=
               keyinfo->key_part[i].length)
-    {
+	  {
             add_first_key_parts= 0;
             break;
           }
         }
 
-				if (add_first_key_parts < keyinfo->ext_key_parts-keyinfo->user_defined_key_parts)
+        if (add_first_key_parts < keyinfo->ext_key_parts-keyinfo->user_defined_key_parts)
 	{
-					share->ext_key_parts-= keyinfo->ext_key_parts;
-					key_part_map ext_key_part_map= keyinfo->ext_key_part_map;
-					keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
-					keyinfo->ext_key_flags= keyinfo->flags;
-		keyinfo->ext_key_part_map= 0;
-					for (i= 0; i < add_first_key_parts; i++)
-		{
-						if (ext_key_part_map & 1<<i)
-			{
-							keyinfo->ext_key_part_map|= 1<<i;
-				keyinfo->ext_key_parts++;
-						}
-					}
-					share->ext_key_parts+= keyinfo->ext_key_parts;
-				}
-				if (new_key_part != keyinfo->key_part)
+          share->ext_key_parts-= keyinfo->ext_key_parts;
+          key_part_map ext_key_part_map= keyinfo->ext_key_part_map;
+          keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
+          keyinfo->ext_key_flags= keyinfo->flags;
+	  keyinfo->ext_key_part_map= 0; 
+          for (i= 0; i < add_first_key_parts; i++)
+	  {
+            if (ext_key_part_map & 1<<i)
+	    {
+              keyinfo->ext_key_part_map|= 1<<i;
+	      keyinfo->ext_key_parts++;
+            }
+          }
+          share->ext_key_parts+= keyinfo->ext_key_parts;
+        }
+        if (new_key_part != keyinfo->key_part)
 	{
-					memmove(new_key_part, keyinfo->key_part,
-									sizeof(KEY_PART_INFO) * keyinfo->ext_key_parts);
-					keyinfo->key_part= new_key_part;
-				}
-			}
-
+          memmove(new_key_part, keyinfo->key_part,
+                  sizeof(KEY_PART_INFO) * keyinfo->ext_key_parts);
+          keyinfo->key_part= new_key_part;
+        }
+      }
+ 
       /* Fix fulltext keys for old .frm files */
       if (share->key_info[key].flags & HA_FULLTEXT)
-  share->key_info[key].algorithm= HA_KEY_ALG_FULLTEXT;
+	share->key_info[key].algorithm= HA_KEY_ALG_FULLTEXT;
 
       key_part= keyinfo->key_part;
       uint key_parts= share->use_ext_keys ? keyinfo->ext_key_parts :
-                                      keyinfo->user_defined_key_parts;
+	                                    keyinfo->user_defined_key_parts;
       if (keyinfo->flags & HA_UNIQUE_HASH)
         key_parts++;
       for (i=0; i < key_parts; key_part++, i++)
       {
         Field *field;
-  if (new_field_pack_flag <= 1)
-    key_part->fieldnr= (uint16) find_field(share->field,
+	if (new_field_pack_flag <= 1)
+	  key_part->fieldnr= (uint16) find_field(share->field,
                                                  share->default_values,
                                                  (uint) key_part->offset,
                                                  (uint) key_part->length);
-  if (!key_part->fieldnr)
+	if (!key_part->fieldnr)
           goto err;
 
         field= key_part->field= share->field[key_part->fieldnr-1];
@@ -2234,20 +2233,20 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         set_if_bigger(share->max_unique_length,keyinfo->key_length);
     }
     if (primary_key < MAX_KEY &&
-  (share->keys_in_use.is_set(primary_key)))
+	(share->keys_in_use.is_set(primary_key)))
     {
       share->primary_key= primary_key;
       /*
-  If we are using an integer as the primary key then allow the user to
-  refer to it as '_rowid'
+	If we are using an integer as the primary key then allow the user to
+	refer to it as '_rowid'
       */
       if (share->key_info[primary_key].user_defined_key_parts == 1)
       {
-  Field *field= share->key_info[primary_key].key_part[0].field;
-  if (field && field->result_type() == INT_RESULT)
+	Field *field= share->key_info[primary_key].key_part[0].field;
+	if (field && field->result_type() == INT_RESULT)
         {
           /* note that fieldnr here (and rowid_field_offset) starts from 1 */
-    share->rowid_field_offset= (share->key_info[primary_key].key_part[0].
+	  share->rowid_field_offset= (share->key_info[primary_key].key_part[0].
                                       fieldnr);
         }
       }
@@ -2366,9 +2365,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   {
     reg_field= *share->found_next_number_field;
     if ((int) (share->next_number_index= (uint)
-         find_ref_key(share->key_info, keys,
+	       find_ref_key(share->key_info, keys,
                             share->default_values, reg_field,
-          &share->next_number_key_offset,
+			    &share->next_number_key_offset,
                             &share->next_number_keypart)) < 0)
       goto err; // Wrong field definition
     reg_field->flags |= AUTO_INCREMENT_FLAG;
@@ -2381,13 +2380,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     /* Store offsets to blob fields to find them fast */
     if (!(share->blob_field= save=
-    (uint*) alloc_root(&share->mem_root,
+	  (uint*) alloc_root(&share->mem_root,
                              (uint) (share->blob_fields* sizeof(uint)))))
       goto err;
     for (k=0, ptr= share->field ; *ptr ; ptr++, k++)
     {
       if ((*ptr)->flags & BLOB_FLAG)
-  (*save++)= k;
+	(*save++)= k;
     }
   }
 
@@ -2543,7 +2542,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   thd->reset_db(db.str, db.length);
   lex_start(thd);
 
-  if ((error= parse_sql(thd, & parser_state, NULL) ||
+  if ((error= parse_sql(thd, & parser_state, NULL) || 
               sql_unusable_for_discovery(thd, hton, sql_copy)))
     goto ret;
 
@@ -2621,7 +2620,7 @@ void TABLE_SHARE::free_frm_image(const uchar *frm)
 
 
 /*
-  @brief
+  @brief 
     Perform semantic analysis of the defining expression for a virtual column
 
   @param thd        The thread object
@@ -2724,7 +2723,7 @@ end:
 
   thd->mark_used_columns= save_mark_used_columns;
   table->map= 0; //Restore old value
-
+ 
  DBUG_RETURN(result);
 }
 
@@ -2754,7 +2753,7 @@ end:
   @note
     Before passing 'vcol_expr' to the parser the function wraps it in
     parentheses and prepends a special keyword.
-
+  
    @retval
      Virtual_column_info*   If a success
    @retval
@@ -2788,14 +2787,14 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
   save_collation= thd->variables.collation_connection;
   backup_stmt_arena_ptr= thd->stmt_arena;
 
-  /*
+  /* 
     Step 1: Construct the input string for the parser.
     The string to be parsed has to be of the following format:
     "PARSE_VCOL_EXPR (<expr_string_from_frm>)".
   */
-
+  
   if (!(vcol_expr_str= (char*) alloc_root(mem_root,
-                                          vcol_expr->length +
+                                          vcol_expr->length + 
                                           parse_vcol_keyword.length + 3)))
     DBUG_RETURN(0);
   memcpy(vcol_expr_str,
@@ -2803,8 +2802,8 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
          parse_vcol_keyword.length);
   str_len= parse_vcol_keyword.length;
   vcol_expr_str[str_len++]= '(';
-  memcpy(vcol_expr_str + str_len,
-         (char*) vcol_expr->str,
+  memcpy(vcol_expr_str + str_len, 
+         (char*) vcol_expr->str, 
          vcol_expr->length);
   str_len+= vcol_expr->length;
   vcol_expr_str[str_len++]= ')';
@@ -2813,7 +2812,7 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
   if (parser_state.init(thd, vcol_expr_str, str_len))
     goto err;
 
-  /*
+  /* 
     Step 2: Setup thd for parsing.
   */
   vcol_arena= table->expr_arena;
@@ -2840,7 +2839,7 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
   lex.parse_vcol_expr= TRUE;
   lex.last_field= &vcol_storage;
 
-  /*
+  /* 
     Step 3: Use the parser to build an Item object from vcol_expr_str.
   */
   if (vcol->utf8)
@@ -2895,7 +2894,7 @@ end:
     share		Table definition
     alias       	Alias for table
     db_stat		open flags (for example HA_OPEN_KEYFILE|
-          HA_OPEN_RNDFILE..) can be 0 (example in
+    			HA_OPEN_RNDFILE..) can be 0 (example in
                         ha_example_table)
     prgflag   		READ_ALL etc..
     ha_open_flags	HA_OPEN_ABORT_IF_LOCKED etc..
@@ -3036,7 +3035,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 
     memcpy(key_info, share->key_info, sizeof(*key_info)*share->keys);
     memcpy(key_part, share->key_info[0].key_part, (sizeof(*key_part) *
-                                 (share->ext_key_parts + share->extra_hash_parts)));
+                                 		(share->ext_key_parts + share->extra_hash_parts)));
 
     for (key_info_end= key_info + share->keys ;
          key_info < key_info_end ;
@@ -3047,13 +3046,13 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       key_info->table= outparam;
       key_info->key_part= key_part;
 
-			key_part_end= key_part + (share->use_ext_keys ? key_info->ext_key_parts :
-																		key_info->user_defined_key_parts) ;
-			if (key_info->flags & HA_UNIQUE_HASH)
-				key_part_end++;
-			for ( ; key_part < key_part_end; key_part++)
-			{
-				Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
+      key_part_end= key_part + (share->use_ext_keys ? key_info->ext_key_parts :
+			                              key_info->user_defined_key_parts) ;
+      if (key_info->flags & HA_UNIQUE_HASH)
+        key_part_end++;
+      for ( ; key_part < key_part_end; key_part++)
+      {
+        Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
 
         if (field->key_length() != key_part->length &&
             !(field->flags & BLOB_FLAG))
@@ -3068,7 +3067,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
         }
       }
       if (!share->use_ext_keys)
-  key_part+= key_info->ext_key_parts - key_info->user_defined_key_parts;
+	key_part+= key_info->ext_key_parts - key_info->user_defined_key_parts;
     }
   }
 
@@ -3240,7 +3239,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     }
     outparam->part_info->is_auto_partitioned= share->auto_partitioned;
     DBUG_PRINT("info", ("autopartitioned: %u", share->auto_partitioned));
-    /*
+    /* 
       We should perform the fix_partition_func in either local or
       caller's arena depending on work_part_info_used value.
     */
@@ -3273,7 +3272,7 @@ partititon_err:
 
   /* Check virtual columns against table's storage engine. */
   if (share->virtual_fields &&
-        (outparam->file &&
+        (outparam->file && 
           !(outparam->file->ha_table_flags() & HA_CAN_VIRTUAL_COLUMNS)))
   {
     my_error(ER_UNSUPPORTED_ENGINE_FOR_VIRTUAL_COLUMNS, MYF(0),
@@ -3490,12 +3489,12 @@ void free_blobs(register TABLE *table)
 
 
 /**
-  Reclaim temporary blob storage which is bigger than
+  Reclaim temporary blob storage which is bigger than 
   a threshold.
-
+ 
   @param table A handle to the TABLE object containing blob fields
   @param size The threshold value.
-
+ 
 */
 
 void free_field_buffers_larger_than(TABLE *table, uint32 size)
@@ -3578,7 +3577,7 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
 
 static void
 fix_type_pointers(const char ***array, TYPELIB *point_to_type, uint types,
-      char **names)
+		  char **names)
 {
   char *type_name, *ptr;
   char chr;
@@ -3593,9 +3592,9 @@ fix_type_pointers(const char ***array, TYPELIB *point_to_type, uint types,
     {
       while ((type_name=strchr(ptr+1,chr)) != NullS)
       {
-  *((*array)++) = ptr+1;
-  *type_name= '\0';		/* End string */
-  ptr=type_name;
+	*((*array)++) = ptr+1;
+	*type_name= '\0';		/* End string */
+	ptr=type_name;
       }
       ptr+=2;				/* Skip end mark and last 0 */
     }
@@ -3638,7 +3637,7 @@ TYPELIB *typelib(MEM_ROOT *mem_root, List<String> &strings)
  Search after a field with given start & length
  If an exact field isn't found, return longest field with starts
  at right position.
-
+ 
  NOTES
    This is needed because in some .frm fields 'fieldnr' was saved wrong
 
@@ -3658,10 +3657,10 @@ static uint find_field(Field **fields, uchar *record, uint start, uint length)
     if ((*field)->offset(record) == start)
     {
       if ((*field)->key_length() == length)
-  return (i);
+	return (i);
       if (!pos || fields[pos-1]->pack_length() <
-    (*field)->pack_length())
-  pos= i;
+	  (*field)->pack_length())
+	pos= i;
     }
   }
   return (pos);
@@ -3671,7 +3670,7 @@ static uint find_field(Field **fields, uchar *record, uint start, uint length)
 /*
   Store an SQL quoted string.
 
-  SYNOPSIS
+  SYNOPSIS  
     append_unescaped()
     res		result String
     pos		string to be quoted
@@ -4062,7 +4061,7 @@ bool check_column_name(const char *name)
     last_char_is_space= my_isspace(system_charset_info, *name);
     if (use_mb(system_charset_info))
     {
-      int len=my_ismbchar(system_charset_info, name,
+      int len=my_ismbchar(system_charset_info, name, 
                           name+system_charset_info->mbmaxlen);
       if (len)
       {
@@ -4535,8 +4534,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
     of only selected columns (like in keyread), all null markers are
     initialized.
   */
-  memset(record[0], 255, s->null_bytes);
-  memset(record[1], 255, s->null_bytes);
+  memset(record[0], 255, s->null_bytes); 
+  memset(record[1], 255, s->null_bytes); 
 
   /* Tables may be reused in a sub statement. */
   DBUG_ASSERT(!file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN));
@@ -4615,11 +4614,11 @@ void  TABLE_LIST::calc_md5(char *buffer)
   compute_md5_hash(digest, select_stmt.str,
                    select_stmt.length);
   sprintf((char *) buffer,
-      "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
-      digest[0], digest[1], digest[2], digest[3],
-      digest[4], digest[5], digest[6], digest[7],
-      digest[8], digest[9], digest[10], digest[11],
-      digest[12], digest[13], digest[14], digest[15]);
+	    "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+	    digest[0], digest[1], digest[2], digest[3],
+	    digest[4], digest[5], digest[6], digest[7],
+	    digest[8], digest[9], digest[10], digest[11],
+	    digest[12], digest[13], digest[14], digest[15]);
 }
 
 
@@ -4988,7 +4987,7 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
 
 
 /**
-  Hide errors which show view underlying table information.
+  Hide errors which show view underlying table information. 
   There are currently two mechanisms at work that handle errors for views,
   this one and a more general mechanism based on an Internal_error_handler,
   see Show_create_error_handler. The latter handles errors encountered during
@@ -5158,8 +5157,8 @@ uint TABLE::total_visible_fields()
   SYNOPSIS
     TABLE_LIST::check_single_table()
     table_arg	reference on variable where to store found table
-    (should be 0 on call, to find table, or point to table for
-    unique test)
+		(should be 0 on call, to find table, or point to table for
+		unique test)
     map         bit mask of tables
     view_arg    view for which we are looking table
 
@@ -5190,8 +5189,8 @@ bool TABLE_LIST::check_single_table(TABLE_LIST **table_arg,
     {
       if (tbl->table->map & map)
       {
-  if (*table_arg)
-    return TRUE;
+	if (*table_arg)
+	  return TRUE;
         *table_arg= tbl;
         tbl->check_option= view_arg->check_option;
       }
@@ -5433,8 +5432,8 @@ bool TABLE_LIST::prepare_view_security_context(THD *thd)
       if ((thd->lex->sql_command == SQLCOM_SHOW_CREATE) ||
           (thd->lex->sql_command == SQLCOM_SHOW_FIELDS))
       {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                            ER_NO_SUCH_USER,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, 
+                            ER_NO_SUCH_USER, 
                             ER_THD(thd, ER_NO_SUCH_USER),
                             definer.user.str, definer.host.str);
       }
@@ -6146,7 +6145,7 @@ void TABLE::clear_column_bitmaps()
 
 /*
   Tell handler we are going to call position() and rnd_pos() later.
-
+  
   NOTES:
   This is needed for handlers that uses the primary key to find the
   row. In this case we have to extend the read bitmap with the primary
@@ -6588,10 +6587,10 @@ bool TABLE::mark_virtual_col(Field *field)
 }
 
 
-/*
+/* 
   @brief Mark virtual columns for update/insert commands
 
-  @param insert_fl    <-> virtual columns are marked for insert command
+  @param insert_fl    <-> virtual columns are marked for insert command 
 
   @details
     The function marks virtual columns used in a update/insert commands
@@ -6601,12 +6600,12 @@ bool TABLE::mark_virtual_col(Field *field)
     If a virtual column is from write_set it is always marked in vcol_set.
     If a stored virtual column is not from write_set but it is computed
     through columns from write_set it is also marked in vcol_set, and,
-    besides, it is added to write_set.
+    besides, it is added to write_set. 
 
   @return       void
 
   @note
-    Let table t1 have columns a,b,c and let column c be a stored virtual
+    Let table t1 have columns a,b,c and let column c be a stored virtual 
     column computed through columns a and b. Then for the query
       UPDATE t1 SET a=1
     column c will be placed into vcol_set and into write_set while
@@ -6721,7 +6720,7 @@ void TABLE::mark_default_fields_for_write(bool is_insert)
   @param key_count  number of keys to allocate additionally
 
   @details
-  The function allocates memory  to fit additionally 'key_count' keys
+  The function allocates memory  to fit additionally 'key_count' keys 
   for this table.
 
   @return FALSE   space was successfully allocated
@@ -6786,7 +6785,7 @@ void TABLE::create_key_part_by_field(KEY_PART_INFO *key_part_info,
   {
     key_part_info->store_length+= HA_KEY_NULL_LENGTH;
   }
-  if (field->type() == MYSQL_TYPE_BLOB ||
+  if (field->type() == MYSQL_TYPE_BLOB || 
       field->type() == MYSQL_TYPE_GEOMETRY ||
       field->real_type() == MYSQL_TYPE_VARCHAR)
   {
@@ -6911,7 +6910,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
 
   for (i= 0; i < key_parts; i++)
   {
-    uint fld_idx= next_field_no(arg);
+    uint fld_idx= next_field_no(arg); 
     reg_field= field + fld_idx;
     if (key_start)
       (*reg_field)->key_start.set_bit(key);
@@ -6955,14 +6954,14 @@ void TABLE::use_index(int key_to_save)
 }
 
 /*
-  Return TRUE if the table is filled at execution phase
-
+  Return TRUE if the table is filled at execution phase 
+  
   (and so, the optimizer must not do anything that depends on the contents of
    the table, like range analysis or constant table detection)
 */
 
 bool TABLE::is_filled_at_execution()
-{
+{ 
   /*
     pos_in_table_list == NULL for internal temporary tables because they
     do not have a corresponding table reference. Such tables are filled
@@ -6986,7 +6985,7 @@ bool TABLE::is_filled_at_execution()
   key described by the parameter keyinfo.
 
   @return number of considered key components
-*/
+*/ 
 
 uint TABLE::actual_n_key_parts(KEY *keyinfo)
 {
@@ -6994,6 +6993,7 @@ uint TABLE::actual_n_key_parts(KEY *keyinfo)
            keyinfo->ext_key_parts : keyinfo->user_defined_key_parts;
 }
 
+ 
 /**
   @brief
   Get virtual number of key components which including in hash_str
@@ -7028,13 +7028,13 @@ uint TABLE::actual_n_key_parts_including_long_unique(KEY *keyinfo)
   optimizer for the key described by the parameter keyinfo.
 
   @return actual key flags
-*/
+*/ 
 
 ulong TABLE::actual_key_flags(KEY *keyinfo)
 {
   return optimizer_flag(in_use, OPTIMIZER_SWITCH_EXTENDED_KEYS) ?
            keyinfo->ext_key_flags : keyinfo->flags;
-}
+} 
 
 
 /*
@@ -7075,7 +7075,7 @@ void TABLE_LIST::reinit_before_use(THD *thd)
 
   SYNOPSIS
     TABLE_LIST::containing_subselect()
-
+ 
   RETURN
     Subselect item for the subquery that contains the FROM list
     this table is taken from if there is any
@@ -7096,7 +7096,7 @@ Item_subselect *TABLE_LIST::containing_subselect()
       table         the TABLE to operate on.
 
   DESCRIPTION
-    The parser collects the index hints for each table in a "tagged list"
+    The parser collects the index hints for each table in a "tagged list" 
     (TABLE_LIST::index_hints). Using the information in this tagged list
     this function sets the members TABLE::keys_in_use_for_query,
     TABLE::keys_in_use_for_group_by, TABLE::keys_in_use_for_order_by,
@@ -7104,10 +7104,10 @@ Item_subselect *TABLE_LIST::containing_subselect()
     TABLE::force_index_group and TABLE::covering_keys.
 
     Current implementation of the runtime does not allow mixing FORCE INDEX
-    and USE INDEX, so this is checked here. Then the FORCE INDEX list
+    and USE INDEX, so this is checked here. Then the FORCE INDEX list 
     (if non-empty) is appended to the USE INDEX list and a flag is set.
 
-    Multiple hints of the same kind are processed so that each clause
+    Multiple hints of the same kind are processed so that each clause 
     is applied to what is computed in the previous clause.
     For example:
         USE INDEX (i1) USE INDEX (i2)
@@ -7132,8 +7132,8 @@ Item_subselect *TABLE_LIST::containing_subselect()
     e.g. "USE INDEX i1, IGNORE INDEX i1, USE INDEX i1" will not use i1 at all
     as if we had "USE INDEX i1, USE INDEX i1, IGNORE INDEX i1".
 
-    As an optimization if there is a covering index, and we have
-    IGNORE INDEX FOR GROUP/ORDER, and this index is used for the JOIN part,
+    As an optimization if there is a covering index, and we have 
+    IGNORE INDEX FOR GROUP/ORDER, and this index is used for the JOIN part, 
     then we have to ignore the IGNORE INDEX FROM GROUP/ORDER.
 
   RETURN VALUE
@@ -7143,7 +7143,7 @@ Item_subselect *TABLE_LIST::containing_subselect()
 bool TABLE_LIST::process_index_hints(TABLE *tbl)
 {
   /* initialize the result variables */
-  tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by=
+  tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by= 
     tbl->keys_in_use_for_order_by= tbl->s->keys_in_use;
 
   /* index hint list processing */
@@ -7154,7 +7154,7 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
     key_map index_group[INDEX_HINT_FORCE + 1];
     Index_hint *hint;
     int type;
-    bool have_empty_use_join= FALSE, have_empty_use_order= FALSE,
+    bool have_empty_use_join= FALSE, have_empty_use_order= FALSE, 
          have_empty_use_group= FALSE;
     List_iterator <Index_hint> iter(*index_hints);
 
@@ -7192,9 +7192,9 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
         continue;
       }
 
-      /*
-        Check if an index with the given name exists and get his offset in
-        the keys bitmask for the table
+      /* 
+        Check if an index with the given name exists and get his offset in 
+        the keys bitmask for the table 
       */
       if (tbl->s->keynames.type_names == 0 ||
           (pos= find_type(&tbl->s->keynames, hint->key_name.str,
@@ -7332,7 +7332,7 @@ bool TABLE::update_const_key_parts(COND *conds)
     KEY_PART_INFO *keyinfo= key_info[index].key_part;
     KEY_PART_INFO *keyinfo_end= keyinfo + key_info[index].user_defined_key_parts;
 
-    for (key_part_map part_map= (key_part_map)1;
+    for (key_part_map part_map= (key_part_map)1; 
         keyinfo < keyinfo_end;
         keyinfo++, part_map<<= 1)
     {
@@ -7367,7 +7367,7 @@ bool is_simple_order(ORDER *order)
   @param  thd              Thread handle
   @param  table            The TABLE object
   @param  vcol_update_mode Specifies what virtual column are computed
-
+  
   @details
     The function computes the values of the virtual columns of the table and
     stores them in the table record buffer.
@@ -7499,7 +7499,7 @@ void TABLE::reset_default_fields()
 
   NOTE
     Prepare triggers for INSERT-like statement by marking fields
-    used by triggers and inform handlers that batching of UPDATE/DELETE
+    used by triggers and inform handlers that batching of UPDATE/DELETE 
     cannot be done if there are BEFORE UPDATE/DELETE triggers.
 */
 
@@ -7559,7 +7559,7 @@ bool TABLE::prepare_triggers_for_update_stmt_or_event()
       The table has AFTER UPDATE triggers that might access to subject
       table and therefore might need update to be done immediately.
       So we turn-off the batching.
-    */
+    */ 
     (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
     return TRUE;
   }
@@ -7792,7 +7792,7 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
   {
     if (is_view() ||
         (unit->prepared &&
-  !(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
+	!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
       create_field_translation(thd);
   }
 
@@ -7944,7 +7944,7 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
   return use_ext_keys &&
          optimizer_flag(thd, OPTIMIZER_SWITCH_EXTENDED_KEYS) ?
            ext_key_parts : key_parts;
-}
+}  
 
 uint TABLE_SHARE::total_key_parts_including_long_unique(THD *thd)
 {
@@ -7962,7 +7962,7 @@ uint TABLE_SHARE::total_key_parts_including_long_unique(THD *thd)
 }
 
 double KEY::actual_rec_per_key(uint i)
-{
+{ 
   if (rec_per_key == 0)
     return 0;
   return (is_statistics_from_stat_tables ?
