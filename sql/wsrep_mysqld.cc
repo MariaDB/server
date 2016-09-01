@@ -1520,8 +1520,8 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
   /* Fallback to the non-wsrep behaviour */
   if (!WSREP_ON) return FALSE;
 
-  THD *request_thd  = requestor_ctx->wsrep_get_thd();
-  THD *granted_thd  = ticket->get_ctx()->wsrep_get_thd();
+  THD *request_thd  = requestor_ctx->get_thd();
+  THD *granted_thd  = ticket->get_ctx()->get_thd();
   bool ret          = FALSE;
 
   const char* schema= key->db_name();

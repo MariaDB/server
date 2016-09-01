@@ -933,7 +933,6 @@ private:
 
 public:
 #ifdef WITH_WSREP
-  THD *wsrep_get_thd() const { return get_thd(); }
   bool wsrep_has_explicit_locks();
 #endif /* WITH_WSREP */
   THD *get_thd() const { return m_owner->get_thd(); }
