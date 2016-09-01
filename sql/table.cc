@@ -41,6 +41,7 @@
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 #include "sql_view.h"
 #include "rpl_filter.h"
+#include "sql_cte.h"
 #include "sql_show.h"
 
 /* For MySQL 5.7 virtual fields */
@@ -67,7 +68,7 @@ LEX_STRING SLOW_LOG_NAME= {C_STRING_WITH_LEN("slow_log")};
   Keyword added as a prefix when parsing the defining expression for a
   virtual column read from the column definition saved in the frm file
 */
-LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
+static LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
 
 static int64 last_table_id;
 
@@ -380,10 +381,10 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
 
   bzero((char*) share, sizeof(*share));
   /*
-    This can't be MY_THREAD_SPECIFIC for slaves as they are freed 
+    This can't be MY_THREAD_SPECIFIC for slaves as they are freed
     during cleanup() from Relay_log_info::close_temporary_tables()
   */
-  init_sql_alloc(&share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0,
+  init_sql_alloc(&share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, 
                  MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
   share->table_category=         TABLE_CATEGORY_TEMPORARY;
   share->tmp_table=              INTERNAL_TMP_TABLE;
@@ -702,9 +703,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     bzero((char*) keyinfo, len);
     key_part= reinterpret_cast<KEY_PART_INFO*> (keyinfo);
   }
-  /*
 
-   */
   /*
     If share->use_ext_keys is set to TRUE we assume that any key
     can be extended by the components of the primary key whose
@@ -800,7 +799,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
 	  key_part->key_part_flag=HA_REVERSE_SORT; /* purecov: inspected */
 	}
 	strpos+=7;
-	}
+      }
       key_part->store_length=key_part->length;
     }
 
@@ -820,7 +819,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->ext_key_flags= keyinfo->flags;
     keyinfo->ext_key_part_map= 0;
-    if (share->use_ext_keys && i && !(keyinfo->flags &HA_NOSAME))
+    if (share->use_ext_keys && i && !(keyinfo->flags & HA_NOSAME))
     {
       for (j= 0; 
            j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
@@ -1010,7 +1009,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uchar *record, *null_flags, *null_pos, *mysql57_vcol_null_pos;
   const uchar *disk_buff, *strpos;
   const uchar * field_properties=NULL;
-  ulong pos, record_offset;
+  ulong pos, record_offset; 
   ulong rec_buff_length;
   handler *handler_file= 0;
   KEY	*keyinfo;
@@ -1612,14 +1611,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #ifdef HAVE_SPATIAL
         uint gis_opt_read;
         Field_geom::storage_type st_type;
-  geom_type= (Field::geometry_type) strpos[14];
-  charset= &my_charset_bin;
+	geom_type= (Field::geometry_type) strpos[14];
+	charset= &my_charset_bin;
         gis_opt_read= gis_field_options_read(gis_options, gis_options_len,
             &st_type, &gis_length, &gis_decimals, &srid);
         gis_options+= gis_opt_read;
         gis_options_len-= gis_opt_read;
 #else
-  goto err;
+	goto err;
 #endif
       }
       else
