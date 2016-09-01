@@ -11,33 +11,53 @@ connect  'con2', localhost, root,,;
 connection con1;
 set  transaction isolation level READ UNCOMMITTED;
 start transaction;
-insert into t1 values('aaaa1');
+insert into t1 values('RUC');
 connection con2;
 set  transaction isolation level READ UNCOMMITTED;
 start transaction;
---error ER_LOCK_WAIT_TIMEOUT
-insert into t1 values ('aaaa1');
+insert into t1 values ('RUC');
 connection con1;
 commit;
 set  transaction isolation level READ COMMITTED;
 start transaction;
-insert into t1 values('aaaa2');
+insert into t1 values('RC');
 connection con2;
 commit;
 set  transaction isolation level READ COMMITTED;
 start transaction;
---error ER_LOCK_WAIT_TIMEOUT
-insert into t1 values ('aaaa2');
+insert into t1 values ('RC');
 commit;
 connection con1;
+commit;
+set  transaction isolation level REPEATABLE READ;
+start transaction;
+insert into t1 values('RR');
+connection con2;
+commit;
+set  transaction isolation level REPEATABLE READ;
+start transaction;
+insert into t1 values ('RR');
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+commit;
+set  transaction isolation level SERIALIZABLE;
+start transaction;
+insert into t1 values('S');
+connection con2;
+commit;
+set  transaction isolation level SERIALIZABLE;
+start transaction;
+insert into t1 values ('S');
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 commit;
 connection default;
 disconnect con1;
 disconnect con2;
 select * from t1;
 a
-aaaa1
-aaaa1
-aaaa2
-aaaa2
+RUC
+RUC
+RC
+RC
+RR
 drop table t1;
