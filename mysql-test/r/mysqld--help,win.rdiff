@@ -17,15 +17,15 @@
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
 @@ -903,6 +903,9 @@
-  files within specified directory
-  --server-id=#       Uniquely identifies the server instance in the community
-  of replication partners
+  characteristics (isolation level, read only/read
+  write,snapshot - but not any work done / data modified
+  within the transaction).
 + --shared-memory     Enable the shared memory
 + --shared-memory-base-name=name 
 + Base name of shared memory
-  --session-track-schema 
-  Track changes to the default schema.
-  (Defaults to on; use --skip-session-track-schema to disable.)
+  --show-slave-auth-info 
+  Show user and password in SHOW SLAVE HOSTS on this
+  master.
 @@ -1015,6 +1018,10 @@
   Log slow queries to given log file. Defaults logging to
   'hostname'-slow.log. Must be enabled to activate other
@@ -101,14 +101,14 @@
  net-read-timeout 30
  net-retry-count 10
 @@ -1387,6 +1381,8 @@
- secure-auth TRUE
- secure-file-priv (No default value)
- server-id 1
-+shared-memory FALSE
-+shared-memory-base-name MYSQL
- session-track-schema TRUE
  session-track-state-change FALSE
  session-track-system-variables 
+ session-track-transaction-info OFF
++shared-memory FALSE
++shared-memory-base-name MYSQL
+ show-slave-auth-info FALSE
+ silent-startup FALSE
+ skip-grant-tables TRUE
 @@ -1411,6 +1407,7 @@
  slave-type-conversions 
  slow-launch-time 2
