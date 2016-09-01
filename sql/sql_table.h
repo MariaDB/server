@@ -129,8 +129,6 @@ enum enum_explain_filename_mode
 #define WFRM_INSTALL_SHADOW 2
 #define WFRM_KEEP_SHARE 4
 
-
-
 /* Flags for conversion functions. */
 static const uint FN_FROM_IS_TMP=  1 << 0;
 static const uint FN_TO_IS_TMP=    1 << 1;
@@ -288,6 +286,5 @@ extern MYSQL_PLUGIN_IMPORT const char *primary_key_name;
 extern mysql_mutex_t LOCK_gdl;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
-
 
 #endif /* SQL_TABLE_INCLUDED */

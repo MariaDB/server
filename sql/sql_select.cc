@@ -9208,9 +9208,9 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                            keyinfo->key_part[i].length,
                            item,
                            FALSE);
-  if (thd->is_fatal_error)
-    DBUG_RETURN(TRUE);
-  tmp.copy();
+	if (thd->is_fatal_error)
+	  DBUG_RETURN(TRUE);
+	tmp.copy();
         j->ref.const_ref_part_map |= key_part_map(1) << i ;
       }
       else
@@ -9352,8 +9352,8 @@ get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
 			       key_buff + maybe_null,
 			       maybe_null ? key_buff : 0,
 			       key_part->length,
-						 ((Item_field*) keyuse->val->real_item())->field,
-						 keyuse->val->real_item()->full_name());
+			       ((Item_field*) keyuse->val->real_item())->field,
+			       keyuse->val->real_item()->full_name());
 
   return new store_key_item(thd,
 			    key_part->field,
@@ -17592,15 +17592,15 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     if (keyinfo->key_length > table->file->max_key_length() ||
 	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
 	share->uniques)
-		{
-			/* Can't create a key; Make a unique constraint instead of a key */
-			share->keys=    0;
-			share->uniques= 1;
-			using_unique_constraint=1;
-			bzero((char*) &uniquedef,sizeof(uniquedef));
-			uniquedef.keysegs=keyinfo->user_defined_key_parts;
-			uniquedef.seg=seg;
-			uniquedef.null_are_equal=1;
+    {
+      /* Can't create a key; Make a unique constraint instead of a key */
+      share->keys=    0;
+      share->uniques= 1;
+      using_unique_constraint=1;
+      bzero((char*) &uniquedef,sizeof(uniquedef));
+      uniquedef.keysegs=keyinfo->user_defined_key_parts;
+      uniquedef.seg=seg;
+      uniquedef.null_are_equal=1;
 
       /* Create extra column for hash value */
       bzero((uchar*) *recinfo,sizeof(**recinfo));

@@ -4057,7 +4057,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
       }
 
-
       key_part_info->key_type=sql_field->pack_flag;
       uint key_part_length= sql_field->key_length;
 
@@ -4073,7 +4072,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  {
 	    if (key->type == Key::MULTIPLE)
 	    {
-				key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
+        key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
 	      /* not a critical problem */
 	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_TOO_LONG_KEY,
@@ -4084,14 +4083,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    }
 	    else
 	    {
-				if (!is_hash_field_added)
-				{
-					//TODO we does not respect length given by user in calculating hash
-					add_hash_field(thd, &alter_info->create_list,
-												 create_info->default_table_charset,
-												 *key_info_buffer, key_number);
-					is_hash_field_added= true;
-				}
+        if (!is_hash_field_added)
+        {
+          add_hash_field(thd, &alter_info->create_list,
+                         create_info->default_table_charset,
+                         *key_info_buffer, key_number);
+          is_hash_field_added= true;
+        }
 	    }
 	  }
 	}
@@ -4127,7 +4125,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       {
 	if (key->type == Key::MULTIPLE)
 	{
-		key_part_length= file->max_key_part_length();
+    key_part_length= file->max_key_part_length();
 	  /* not a critical problem */
 	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
@@ -4137,23 +4135,23 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
 	else
 	{
-		if(key->type == Key::UNIQUE)
-		{
-			if (!is_hash_field_added)
-			{
-				//TODO we does not respect length given by user in calculating hash
-				add_hash_field(thd, &alter_info->create_list,
-											 create_info->default_table_charset,
-											 *key_info_buffer, key_number);
-				is_hash_field_added= true;
-			}
-		}
-		else
-		{
-			key_part_length= file->max_key_part_length();
-			my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
-			DBUG_RETURN(TRUE);
-		}
+    if(key->type == Key::UNIQUE)
+    {
+      if (!is_hash_field_added)
+      {
+        //TODO we does not respect length given by user in calculating hash
+        add_hash_field(thd, &alter_info->create_list,
+                       create_info->default_table_charset,
+                       *key_info_buffer, key_number);
+        is_hash_field_added= true;
+      }
+    }
+    else
+    {
+      key_part_length= file->max_key_part_length();
+      my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
+      DBUG_RETURN(TRUE);
+    }
 	}
       }
       key_part_info->length= (uint16) key_part_length;
@@ -4227,6 +4225,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       my_error(ER_TOO_LONG_KEY,MYF(0),max_key_length);
       DBUG_RETURN(TRUE);
     }
+
     if (is_hash_field_added)
     {
       if (key_info->flags & HA_NULL_PART_KEY)
@@ -7866,9 +7865,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                                                  TRUE);
 	  }
 	}
-			}
-			if (key_info->flags & HA_UNIQUE_HASH)
-				alter_info->flags |= Alter_info::ALTER_DROP_COLUMN;
+ }
+      if (key_info->flags & HA_UNIQUE_HASH)
+        alter_info->flags |= Alter_info::ALTER_DROP_COLUMN;
       drop_it.remove();
       continue;
     }
@@ -9585,7 +9584,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   close_all_tables_for_name(thd, table->s,
                             alter_ctx.is_table_renamed() ?
-                            HA_EXTRA_PREPARE_FOR_RENAME:
+                            HA_EXTRA_PREPARE_FOR_RENAME: 
                             HA_EXTRA_NOT_USED,
                             NULL);
   table_list->table= table= NULL;                  /* Safety */
@@ -9773,7 +9772,7 @@ bool mysql_trans_prepare_alter_copy_data(THD *thd)
   /*
     Turn off recovery logging since rollback of an alter table is to
     delete the new table so there is no need to log the changes to it.
-
+    
     This needs to be done before external_lock.
   */
   if (ha_enable_transaction(thd, FALSE))
@@ -9793,7 +9792,7 @@ bool mysql_trans_commit_alter_copy_data(THD *thd)
 
   if (ha_enable_transaction(thd, TRUE))
     DBUG_RETURN(TRUE);
-
+  
   /*
     Ensure that the new table is saved properly to disk before installing
     the new .frm.
@@ -9814,8 +9813,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 			 List<Create_field> &create, bool ignore,
 			 uint order_num, ORDER *order,
 			 ha_rows *copied, ha_rows *deleted,
-												 Alter_info::enum_enable_or_disable keys_onoff,
-												 Alter_table_ctx *alter_ctx)
+       Alter_info::enum_enable_or_disable keys_onoff,
+       Alter_table_ctx *alter_ctx)
 {
   int error= 1;
   Copy_field *copy= NULL, *copy_end;
@@ -9902,7 +9901,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         to->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX)
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
-      my_snprintf(warn_buff, sizeof(warn_buff),
+      my_snprintf(warn_buff, sizeof(warn_buff), 
                   "ORDER BY ignored as there is a user-defined clustered index"
                   " in the table '%-.192s'", from->s->table_name.str);
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
@@ -9980,7 +9979,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       else
         to->next_number_field->reset();
     }
-
+    
     for (Copy_field *copy_ptr=copy ; copy_ptr != copy_end ; copy_ptr++)
     {
       copy_ptr->do_copy(copy_ptr);
@@ -10006,9 +10005,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       if (to->file->is_fatal_error(error, HA_CHECK_DUP))
       {
         /* Not a duplicate key error. */
-  to->file->print_error(error, MYF(0));
+	to->file->print_error(error, MYF(0));
         error= 1;
-  break;
+	break;
       }
       else
       {
@@ -10253,9 +10252,9 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
           {
             if (thd->killed)
             {
-              /*
-                 we've been killed; let handler clean up, and remove the
-                 partial current row from the recordset (embedded lib)
+              /* 
+                 we've been killed; let handler clean up, and remove the 
+                 partial current row from the recordset (embedded lib) 
               */
               t->file->ha_rnd_end();
               thd->protocol->remove_last_row();

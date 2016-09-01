@@ -6049,9 +6049,9 @@ err:
 }
 
 static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
-					TABLE *table, bool res,
-					LEX_STRING *db_name,
-					LEX_STRING *table_name)
+				 TABLE *table, bool res,
+				 LEX_STRING *db_name,
+				 LEX_STRING *table_name)
 {
   CHARSET_INFO *cs= system_charset_info;
   DBUG_ENTER("get_schema_stat_record");
@@ -6146,7 +6146,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
         DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
                    (key_info->comment.length > 0));
         if (key_info->flags & HA_USES_COMMENT)
-          table->field[15]->store(key_info->comment.str,
+          table->field[15]->store(key_info->comment.str, 
                                   key_info->comment.length, cs);
         if (schema_table_store_record(thd, table))
           DBUG_RETURN(1);
@@ -6155,6 +6155,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
   }
   DBUG_RETURN(res);
 }
+
 
 static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
 				   TABLE *table, bool res,

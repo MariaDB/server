@@ -63,7 +63,7 @@ LEX_STRING GENERAL_LOG_NAME= {C_STRING_WITH_LEN("general_log")};
 /* SLOW_LOG name */
 LEX_STRING SLOW_LOG_NAME= {C_STRING_WITH_LEN("slow_log")};
 
-/*
+/* 
   Keyword added as a prefix when parsing the defining expression for a
   virtual column read from the column definition saved in the frm file
 */
@@ -74,7 +74,7 @@ static int64 last_table_id;
 	/* Functions defined in this file */
 
 static void fix_type_pointers(const char ***array, TYPELIB *point_to_type,
-						uint types, char **names);
+			      uint types, char **names);
 static uint find_field(Field **fields, uchar *record, uint start, uint length);
 
 inline bool is_system_table_name(const char *name, uint length);
@@ -218,7 +218,7 @@ static uchar *get_field_name(Field **buff, size_t *length,
 
   DESCRIPTION
     Checks file name part starting with the rightmost '.' character,
-    and returns it if it is equal to '.frm'.
+    and returns it if it is equal to '.frm'. 
 
   TODO
     It is a good idea to get rid of this function modifying the code
@@ -356,7 +356,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     thd         thread handle
     share	Share to fill
     key		Table_cache_key, as generated from tdc_create_key.
-    must start with db name.
+		must start with db name.
     key_length	Length of key
     table_name	Table name
     path	Path to file (possible in lower case) without .frm
@@ -380,7 +380,7 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
 
   bzero((char*) share, sizeof(*share));
   /*
-    This can't be MY_THREAD_SPECIFIC for slaves as they are freed
+    This can't be MY_THREAD_SPECIFIC for slaves as they are freed 
     during cleanup() from Relay_log_info::close_temporary_tables()
   */
   init_sql_alloc(&share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0,
@@ -509,7 +509,7 @@ inline bool is_system_table_name(const char *name, uint length)
   return (
           /* mysql.proc table */
           (length == 4 &&
-           my_tolower(ci, name[0]) == 'p' &&
+           my_tolower(ci, name[0]) == 'p' && 
            my_tolower(ci, name[1]) == 'r' &&
            my_tolower(ci, name[2]) == 'o' &&
            my_tolower(ci, name[3]) == 'c') ||
@@ -553,7 +553,7 @@ inline bool is_system_table_name(const char *name, uint length)
 
 /*
   Read table definition from a binary / text based .frm file
-
+  
   SYNOPSIS
   open_table_def()
   thd		Thread handler
@@ -666,6 +666,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   share->init_from_binary_frm_image(thd, false, buf, frmlen);
   error_given= true; // init_from_binary_frm_image has already called my_error()
   my_free(buf);
+
   goto err_not_open;
 
 err:
@@ -695,7 +696,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
   uint first_key_parts= 0;
 
   if (!keys)
-  {
+  {  
     if (!(keyinfo = (KEY*) alloc_root(&share->mem_root, len)))
       return 1;
     bzero((char*) keyinfo, len);
@@ -709,7 +710,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     can be extended by the components of the primary key whose
     definition is read first from the frm file.
     For each key only those fields of the assumed primary key are
-    added that are not included in the proper key definition.
+    added that are not included in the proper key definition. 
     If after all it turns out that there is no primary key the
     added components are removed from each key.
 
@@ -741,6 +742,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       keyinfo->algorithm= HA_KEY_ALG_UNDEF;
       strpos+=4;
     }
+
     if (i == 0)
     {
       ext_key_parts+= (share->use_ext_keys ? first_keyinfo->user_defined_key_parts*(keys-1) : 0);
@@ -752,7 +754,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
        */
       n_length=keys * sizeof(KEY) + (ext_key_parts +keys) * sizeof(KEY_PART_INFO);
       if (!(keyinfo= (KEY*) alloc_root(&share->mem_root,
-               n_length + len)))
+				       n_length + len)))
         return 1;
       bzero((char*) keyinfo,n_length);
       share->key_info= keyinfo;
@@ -770,6 +772,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       if (new_frm_ver >= 3)
         keyinfo->block_size= first_keyinfo->block_size;
     }
+
     keyinfo->key_part=	 key_part;
     keyinfo->rec_per_key= rec_per_key;
     for (j=keyinfo->user_defined_key_parts ; j-- ; key_part++)
@@ -783,23 +786,24 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       // key_part->field=	(Field*) 0;	// Will be fixed later
       if (new_frm_ver >= 1)
       {
-  key_part->key_part_flag= *(strpos+4);
-  key_part->length=	(uint) uint2korr(strpos+7);
-  strpos+=9;
+	key_part->key_part_flag= *(strpos+4);
+	key_part->length=	(uint) uint2korr(strpos+7);
+	strpos+=9;
       }
       else
       {
-  key_part->length=	*(strpos+4);
-  key_part->key_part_flag=0;
-  if (key_part->length > 128)
-  {
-    key_part->length&=127;		/* purecov: inspected */
-    key_part->key_part_flag=HA_REVERSE_SORT; /* purecov: inspected */
-  }
-  strpos+=7;
-      }
+	key_part->length=	*(strpos+4);
+	key_part->key_part_flag=0;
+	if (key_part->length > 128)
+	{
+	  key_part->length&=127;		/* purecov: inspected */
+	  key_part->key_part_flag=HA_REVERSE_SORT; /* purecov: inspected */
+	}
+	strpos+=7;
+	}
       key_part->store_length=key_part->length;
     }
+
     if (keyinfo->key_length > file->max_key_length() &&
          !(keyinfo->flags & HA_FULLTEXT))
     {
@@ -818,7 +822,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     keyinfo->ext_key_part_map= 0;
     if (share->use_ext_keys && i && !(keyinfo->flags &HA_NOSAME))
     {
-      for (j= 0;
+      for (j= 0; 
            j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
            j++)
       {
@@ -841,7 +845,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       if (j == first_key_parts)
         keyinfo->ext_key_flags= keyinfo->flags | HA_EXT_NOSAME;
     }
-    share->ext_key_parts+= keyinfo->ext_key_parts;
+    share->ext_key_parts+= keyinfo->ext_key_parts;  
   }
   keynames=(char*) key_part;
   strpos+= strnmov(keynames, (char *) strpos, frm_image_end - strpos) - keynames;
@@ -863,7 +867,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       keyinfo->comment.str= strmake_root(&share->mem_root, (char*) strpos,
                                          keyinfo->comment.length);
       strpos+= keyinfo->comment.length;
-    }
+    } 
     DBUG_ASSERT(MY_TEST(keyinfo->flags & HA_USES_COMMENT) ==
                 (keyinfo->comment.length > 0));
   }
@@ -1073,7 +1077,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (length < 256)
           goto err;
       }
-      if ( extra2 + length > e2end)
+      if (extra2 + length > e2end)
         goto err;
       switch (type) {
       case EXTRA2_TABLEDEF_VERSION:
@@ -1132,6 +1136,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (extra2 != e2end)
       goto err;
   }
+
   if (frm_length < FRM_HEADER_SIZE + len ||
       !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
     goto err;
@@ -1154,7 +1159,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if the storage engine is dynamic, no point in resolving it by its
     dynamically allocated legacy_db_type. We will resolve it later by name.
   */
-  if (legacy_db_type > DB_TYPE_UNKNOWN &&
+  if (legacy_db_type > DB_TYPE_UNKNOWN && 
       legacy_db_type < DB_TYPE_FIRST_DYNAMIC)
     se_plugin= ha_lock_engine(NULL, ha_checktype(thd, legacy_db_type));
   share->db_create_options= db_create_options= uint2korr(frm_image+30);
@@ -1235,7 +1240,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (record_offset + share->reclength >= frm_length)
     goto err;
-
+ 
   if ((n_length= uint4korr(frm_image+55)))
   {
     /* Read extra data segment */
@@ -1468,22 +1473,22 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   DBUG_PRINT("info",("i_count: %d  i_parts: %d  index: %d  n_length: %d  int_length: %d  com_length: %d  vcol_screen_length: %d", interval_count,interval_parts, keys,n_length,int_length, com_length, vcol_screen_length));
 
 
-	if (!(field_ptr = (Field **)
+  if (!(field_ptr = (Field **)
 	alloc_root(&share->mem_root,
-			 (uint) ((share->fields+1)*sizeof(Field*)+
-				 interval_count*sizeof(TYPELIB)+
-													 share->table_check_constraints *
-													 sizeof(Virtual_column_info*)+
-				 (share->fields+interval_parts+
-					keys+3)*sizeof(char *)+
-				 (n_length+int_length+com_length+
+		   (uint) ((share->fields+1)*sizeof(Field*)+
+			   interval_count*sizeof(TYPELIB)+
+                           share->table_check_constraints *
+                           sizeof(Virtual_column_info*)+
+			   (share->fields+interval_parts+
+			    keys+3)*sizeof(char *)+
+			       vcol_screen_length)))))
 						 vcol_screen_length)))))
-		goto err;                           /* purecov: inspected */
+    goto err;                           /* purecov: inspected */
 
   share->field= field_ptr;
   read_length=(uint) (share->fields * field_pack_length +
-          pos+ (uint) (n_length+int_length+com_length+
-                       vcol_screen_length));
+		      pos+ (uint) (n_length+int_length+com_length+
+		                   vcol_screen_length));
   strpos= disk_buff+pos;
 
   share->intervals= (TYPELIB*) (field_ptr+share->fields+1);
@@ -1496,19 +1501,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (!interval_count)
     share->intervals= 0;			// For better debugging
   memcpy((char*) names, strpos+(share->fields*field_pack_length),
-   (uint) (n_length+int_length));
+	 (uint) (n_length+int_length));
   comment_pos= names+(n_length+int_length);
-  memcpy(comment_pos, disk_buff+read_length-com_length-vcol_screen_length,
+  memcpy(comment_pos, disk_buff+read_length-com_length-vcol_screen_length, 
          com_length);
   vcol_screen_pos= (uchar*) (names+(n_length+int_length+com_length));
-  memcpy(vcol_screen_pos, disk_buff+read_length-vcol_screen_length,
+  memcpy(vcol_screen_pos, disk_buff+read_length-vcol_screen_length, 
          vcol_screen_length);
 
   fix_type_pointers(&interval_array, &share->fieldnames, 1, &names);
   if (share->fieldnames.count != share->fields)
     goto err;
   fix_type_pointers(&interval_array, share->intervals, interval_count,
-        &names);
+		    &names);
 
   {
     /* Set ENUM and SET lengths */
@@ -1635,7 +1640,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             csname= tmp;
           }
           my_printf_error(ER_UNKNOWN_COLLATION,
-                          "Unknown collation '%s' in table '%-.64s' definition",
+                          "Unknown collation '%s' in table '%-.64s' definition", 
                           MYF(0), csname, share->table_name.str);
           goto err;
         }
@@ -1655,14 +1660,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       if (!comment_length)
       {
-  comment.str= (char*) "";
-  comment.length=0;
+	comment.str= (char*) "";
+	comment.length=0;
       }
       else
       {
-  comment.str=    (char*) comment_pos;
-  comment.length= comment_length;
-  comment_pos+=   comment_length;
+	comment.str=    (char*) comment_pos;
+	comment.length= comment_length;
+	comment_pos+=   comment_length;
       }
 
       if (unireg_type & MYSQL57_GENERATED_FIELD)
@@ -1741,9 +1746,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         /*
           Try to choose the best 4.1 type:
-          - for 4.0 "CHAR(N) BINARY" or "VARCHAR(N) BINARY"
+          - for 4.0 "CHAR(N) BINARY" or "VARCHAR(N) BINARY" 
            try to find a binary collation for character set.
-          - for other types (e.g. BLOB) just use my_charset_bin.
+          - for other types (e.g. BLOB) just use my_charset_bin. 
         */
         if (!f_is_blob(pack_flag))
         {
@@ -1806,17 +1811,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     *field_ptr= reg_field=
       make_field(share, &share->mem_root, record+recpos,
-     (uint32) field_length,
-     null_pos, null_bit_pos,
-     pack_flag,
-     field_type,
-     charset,
-     geom_type, srid,
-     (Field::utype) MTYP_TYPENR(unireg_type),
-     (interval_nr ?
-      share->intervals+interval_nr-1 :
-      (TYPELIB*) 0),
-     share->fieldnames.type_names[i]);
+		(uint32) field_length,
+		null_pos, null_bit_pos,
+		pack_flag,
+		field_type,
+		charset,
+		geom_type, srid,
+		(Field::utype) MTYP_TYPENR(unireg_type),
+		(interval_nr ?
+		share->intervals+interval_nr-1 :
+		(TYPELIB*) 0),
+		share->fieldnames.type_names[i]);
     if (!reg_field)				// Not supported field type
       goto err;
 
@@ -1993,7 +1998,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
 
     if (share->use_ext_keys)
-    {
+    { 
       if (primary_key >= MAX_KEY)
       {
         add_first_key_parts= 0;
@@ -2002,21 +2007,21 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       else
       {
         add_first_key_parts= first_keyinfo.user_defined_key_parts;
-        /*
+        /* 
           Do not add components of the primary key starting from
           the major component defined over the beginning of a field.
-  */
-  for (i= 0; i < first_keyinfo.user_defined_key_parts; i++)
-  {
+	*/
+	for (i= 0; i < first_keyinfo.user_defined_key_parts; i++)
+	{
           uint fieldnr= keyinfo[0].key_part[i].fieldnr;
           if (share->field[fieldnr-1]->key_length() !=
               keyinfo[0].key_part[i].length)
-    {
+	  {
             add_first_key_parts= i;
             break;
           }
         }
-      }
+      }   
     }
 
     for (uint key=0 ; key < keys ; key++,keyinfo++)
@@ -2046,9 +2051,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         /*
           Do not extend the key that contains a component
           defined over the beginning of a field.
-  */
+	*/
         for (i= 0; i < keyinfo->user_defined_key_parts; i++)
-  {
+	{
           uint fieldnr= keyinfo->key_part[i].fieldnr;
           if (share->field[fieldnr-1]->key_length() !=
               keyinfo->key_part[i].length)
