@@ -1728,21 +1728,15 @@ public:
   bool null_key; /* TRUE <=> the value of the key has a null part */
   enum store_key_result { STORE_KEY_OK, STORE_KEY_FATAL, STORE_KEY_CONV };
   enum Type { FIELD_STORE_KEY, ITEM_STORE_KEY, CONST_ITEM_STORE_KEY };
-  /* whether we should store the orignal field value of calculate the
-    hash and store it*/
-  bool is_hash;
-  /*hash function parameter*/
-  ulong nr1;
-  ulong nr2;
   store_key(THD *thd, Field *field_arg, uchar *ptr, uchar *null, uint length)
-    :null_key(0),is_hash(false), null_ptr(null), err(0)
+    :null_key(0), null_ptr(null), err(0)
   {
     to_field=field_arg->new_key_field(thd->mem_root, field_arg->table,
                                       ptr, length, null, 1);
   }
   store_key(store_key &arg)
-    :Sql_alloc(), null_key(arg.null_key),is_hash(arg.is_hash),
-      to_field(arg.to_field),null_ptr(arg.null_ptr), err(arg.err)
+    :Sql_alloc(), null_key(arg.null_key), to_field(arg.to_field),
+             null_ptr(arg.null_ptr), err(arg.err)
 
   {}
   virtual ~store_key() {}			/** Not actually needed */
@@ -1802,7 +1796,6 @@ class store_key_field: public store_key
     }
   }  
 
-  Copy_field * get_copy_field() { return  &copy_field; }
   enum Type type() const { return FIELD_STORE_KEY; }
   const char *name() const { return field_name; }
 
@@ -1825,23 +1818,6 @@ class store_key_field: public store_key
       When the implementation of this function will be replaced for a proper
       full version this statement probably should be removed.
     */  
-    if (is_hash) // NEED to be removed
-    {
-      Field *f= copy_field.from_field;
-      String str;
-      f->val_str(&str);
-      if (f->is_null())
-      {
-        *(copy_field.to_ptr-1)= 1; //set it null
-        null_key= true;
-        dbug_tmp_restore_column_map(table->write_set, old_map);
-        return STORE_KEY_OK;
-      }
-      calc_hash_for_unique(nr1, nr2, &str);
-      int8store(copy_field.to_ptr, nr1);
-      dbug_tmp_restore_column_map(table->write_set, old_map);
-      return STORE_KEY_OK;
-    }
     bzero(copy_field.to_ptr,copy_field.to_length);
 
     copy_field.do_copy(&copy_field);
@@ -1873,7 +1849,6 @@ public:
   {}
 
 
-  Item *get_item() {return item;}
   enum Type type() const { return ITEM_STORE_KEY; }
   const char *name() const { return "func"; }
 
@@ -1885,25 +1860,6 @@ public:
                                                      table->write_set);
     int res= FALSE;
 
-    if (is_hash)
-    {
-      String *str= item->val_str();
-      if (item->null_value)
-      {
-        *(to_field->ptr - 1)= 1;
-        null_key= true;
-        dbug_tmp_restore_column_map(table->write_set, old_map);
-        return STORE_KEY_OK;
-      }
-      CHARSET_INFO *cs= str->charset();
-      uchar l[4];
-      int4store(l,str->length());
-      cs->coll->hash_sort(cs,l,sizeof(l), &nr1, &nr2);
-      cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
-      int8store(to_field->ptr, nr1);
-      dbug_tmp_restore_column_map(table->write_set, old_map);
-      return STORE_KEY_OK;
-    }
     /* 
       It looks like the next statement is needed only for a simplified
       hash function over key values used now in BNLH join.
@@ -2315,5 +2271,4 @@ public:
 bool test_if_order_compatible(SQL_I_List<ORDER> &a, SQL_I_List<ORDER> &b);
 int test_if_group_changed(List<Cached_item> &list);
 int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
-int compare_hash_and_fetch_next(JOIN_TAB *join);
 #endif /* SQL_SELECT_INCLUDED */

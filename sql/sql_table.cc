@@ -3986,19 +3986,19 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             column->length= MAX_LEN_GEOM_POINT_FIELD;
 	  if (!column->length)
 	  {
-			if (key->type == Key::PRIMARY)
-			{
+            if (key->type == Key::PRIMARY)
+            {
 	    my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
 	    DBUG_RETURN(TRUE);
-			}
-			else if (!is_hash_field_added)
-			{
-				add_hash_field(thd, &alter_info->create_list,
-											 create_info->default_table_charset,
-											 *key_info_buffer, key_number);
-				column->length= 0;
-				is_hash_field_added= true;
-			}
+            }
+            else if (!is_hash_field_added)
+            {
+              add_hash_field(thd, &alter_info->create_list,
+                             create_info->default_table_charset,
+                             *key_info_buffer, key_number);
+              column->length= 0;
+              is_hash_field_added= true;
+            }
 	  }
 	}
 #ifdef HAVE_SPATIAL
@@ -4135,23 +4135,22 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
 	else
 	{
-    if(key->type == Key::UNIQUE)
-    {
-      if (!is_hash_field_added)
-      {
-        //TODO we does not respect length given by user in calculating hash
-        add_hash_field(thd, &alter_info->create_list,
+         if(key->type == Key::UNIQUE)
+         {
+           if (!is_hash_field_added)
+           {
+              add_hash_field(thd, &alter_info->create_list,
                        create_info->default_table_charset,
                        *key_info_buffer, key_number);
-        is_hash_field_added= true;
-      }
-    }
-    else
-    {
-      key_part_length= file->max_key_part_length();
-      my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
-      DBUG_RETURN(TRUE);
-    }
+              is_hash_field_added= true;
+           }
+        }
+        else
+        {
+          key_part_length= file->max_key_part_length();
+	  my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
+	  DBUG_RETURN(TRUE);
+         }
 	}
       }
       key_part_info->length= (uint16) key_part_length;
@@ -7865,7 +7864,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                                                  TRUE);
 	  }
 	}
- }
+      }  
       if (key_info->flags & HA_UNIQUE_HASH)
         alter_info->flags |= Alter_info::ALTER_DROP_COLUMN;
       drop_it.remove();
@@ -9688,8 +9687,8 @@ end_inplace:
 end_temporary:
   my_snprintf(alter_ctx.tmp_name, sizeof(alter_ctx.tmp_name),
               ER_THD(thd, ER_INSERT_INFO),
-        (ulong) (copied + deleted), (ulong) deleted,
-        (ulong) thd->get_stmt_da()->current_statement_warn_count());
+	      (ulong) (copied + deleted), (ulong) deleted,
+	      (ulong) thd->get_stmt_da()->current_statement_warn_count());
   my_ok(thd, copied + deleted, 0L, alter_ctx.tmp_name);
   DBUG_RETURN(false);
 
@@ -9813,8 +9812,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 			 List<Create_field> &create, bool ignore,
 			 uint order_num, ORDER *order,
 			 ha_rows *copied, ha_rows *deleted,
-       Alter_info::enum_enable_or_disable keys_onoff,
-       Alter_table_ctx *alter_ctx)
+                         Alter_info::enum_enable_or_disable keys_onoff,
+                         Alter_table_ctx *alter_ctx)
 {
   int error= 1;
   Copy_field *copy= NULL, *copy_end;

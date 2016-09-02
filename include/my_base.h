@@ -241,7 +241,6 @@ enum ha_base_keytype {
   HA_KEYTYPE_BIT=19
 };
 
-
 #define HA_MAX_KEYTYPE	31		/* Must be log2-1 */
 
 /*

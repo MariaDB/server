@@ -1876,7 +1876,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     of row based replication.
   */
   old_map= tmp_use_all_columns(table, table->read_set);
-  bool not_the_first_field= false;
+
   for (ptr=table->field ; (field= *ptr); ptr++)
   {
     if (field->field_visibility == PSEUDO_COLUMN_HIDDEN ||
@@ -6048,10 +6048,11 @@ err:
   DBUG_RETURN(res);
 }
 
+
 static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
-				 TABLE *table, bool res,
-				 LEX_STRING *db_name,
-				 LEX_STRING *table_name)
+				  TABLE *table, bool res,
+				  LEX_STRING *db_name,
+				  LEX_STRING *table_name)
 {
   CHARSET_INFO *cs= system_charset_info;
   DBUG_ENTER("get_schema_stat_record");
@@ -6508,10 +6509,10 @@ void store_key_column_usage(TABLE *table, LEX_STRING *db_name,
 
 
 static int get_schema_key_column_usage_record(THD *thd,
-								TABLE_LIST *tables,
-								TABLE *table, bool res,
-								LEX_STRING *db_name,
-								LEX_STRING *table_name)
+					      TABLE_LIST *tables,
+					      TABLE *table, bool res,
+					      LEX_STRING *db_name,
+					      LEX_STRING *table_name)
 {
   DBUG_ENTER("get_schema_key_column_usage_record");
   if (res)

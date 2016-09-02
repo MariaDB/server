@@ -1027,7 +1027,7 @@ typedef struct st_quick_range_seq_ctx
 
 range_seq_t quick_range_seq_init(void *init_param, uint n_ranges, uint flags);
 bool quick_range_seq_next(range_seq_t rseq, KEY_MULTI_RANGE *range);
-void  set_hash(Item *h_item, TABLE *table, uchar *key);
+
 
 /*
   Quick select that does a range scan on a single key. The records are

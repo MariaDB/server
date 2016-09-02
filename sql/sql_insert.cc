@@ -198,8 +198,6 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
   TABLE *table= table_list->table;
   DBUG_ENTER("check_insert_fields");
 
-  List_iterator<Item> i_iter(values);
-
   if (!table_list->single_table_updatable())
   {
     my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias, "INSERT");
@@ -1487,6 +1485,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                                update_values, false, &map);
       select_lex->no_wrap_view_item= FALSE;
     }
+
     /* Restore the current context. */
     ctx_state.restore_state(context, table_list);
   }

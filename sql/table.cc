@@ -2043,6 +2043,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
+
         //If previous key is HA_UNIQUE_HASH then we have added extra hash key_part
         if ((keyinfo-1)->flags & HA_UNIQUE_HASH)
           new_key_part++;
@@ -6997,30 +6998,7 @@ uint TABLE::actual_n_key_parts(KEY *keyinfo)
  
 /**
   @brief
-  Get virtual number of key components which including in hash_str
-
-  @param keyinfo
-
-  @details
-  The function calculates total virtual number of keyparts for example consider
-  a keyinfo which is HA_UNIQUE_HASH and its key_part hash_str is
-  hash(`a`,`b`,`c`) so instead of returning 1 it will return 3
-  @return total number of considered key components
-*/
-
-uint TABLE::actual_n_key_parts_including_long_unique(KEY *keyinfo)
-{
-  if (keyinfo->flags & HA_UNIQUE_HASH)
-  {
-    Item *h_item = keyinfo->key_part->field->vcol_info->expr_item;
-    return fields_in_hash_str(h_item);
-  }
-  return actual_n_key_parts(keyinfo);
-}
-
-/**
-  @brief
-  Get actual key flags for a table key
+  Get actual key flags for a table key 
 
   @param keyinfo
 
@@ -7947,20 +7925,6 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
            ext_key_parts : key_parts;
 }  
 
-uint TABLE_SHARE::total_key_parts_including_long_unique(THD *thd)
-{
-  uint keyparts= actual_n_key_parts(thd);
-  for (uint i=0; i < keys; i++)
-  {
-    if (key_info[i].flags & HA_UNIQUE_HASH)
-    {
-      Item *h_item= key_info[i].key_part->field->vcol_info->expr_item;
-      //-1 because i part is already included in form of hash
-      keyparts+= fields_in_hash_str(h_item)- 1;
-    }
-  }
-  return keyparts;
-}
 
 double KEY::actual_rec_per_key(uint i)
 { 

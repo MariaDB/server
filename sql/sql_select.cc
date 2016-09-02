@@ -5565,7 +5565,6 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
 {
   KEYUSE key_end, *prev, *save_pos, *use;
   uint found_eq_constant, i;
-  int counter= 0;
 
   DBUG_ASSERT(keyuse->elements);
 
@@ -5591,26 +5590,6 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
         use->table->const_key_parts[use->key]|= use->keypart_map;
       if (use->keypart != FT_KEYPART)
       {
-        if (!(use+1)->table || (use->key != (use+1)->key && use->table
-                     == (use+1)->table))
-        {
-          if (use->table->key_info[use->key].flags & HA_UNIQUE_HASH)
-          {
-            Item *h_item = use->table->key_info[use->key]
-                         .key_part->field->vcol_info->expr_item;
-            if (counter+1 != fields_in_hash_str(h_item))
-            {
-              if (i==0)
-                continue;
-              save_pos-= counter;
-              counter= 0;
-              use->table->reginfo.join_tab->checked_keys.clear_all();
-              continue;
-            }
-            else
-              counter= -1;
-          }
-        }
         if (use->key == prev->key && use->table == prev->table)
         {
           if ((prev->keypart+1 < use->keypart && skip_unprefixed_keyparts) ||
@@ -5637,7 +5616,6 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
     if (!use->table->reginfo.join_tab->keyuse)
       use->table->reginfo.join_tab->keyuse= save_pos;
     save_pos++;
-    counter++;
   }
   i= (uint) (save_pos-(KEYUSE*) keyuse->buffer);
   (void) set_dynamic(keyuse,(uchar*) &key_end,i);
@@ -8910,42 +8888,6 @@ static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables)
   return TRUE;
 }
 
-Item *
-get_keypart_hash (THD *thd, KEY *keyinfo, KEYUSE *keyuse, JOIN_TAB *j)
-{
-  bool is_null= false;
-  if (keyinfo->flags & HA_UNIQUE_HASH)
-  {
-    ulong nr1= 1, nr2= 4;
-    CHARSET_INFO *cs;
-    String *str;
-    Item *h_item= keyinfo->key_part->field->vcol_info->expr_item;
-    uint i;
-    uint num_of_fields= fields_in_hash_str(h_item);
-    for (i=0 ; i < num_of_fields; keyuse++,i++)
-    {
-      if (!keyuse->val)
-      {
-        is_null= true;
-        break;
-      }
-      str= keyuse->val->val_str();
-      if (keyuse->val->null_value)
-      {
-        is_null= true;
-        break;
-      }
-      calc_hash_for_unique(nr1, nr2, str);
-    }
-    if (!is_null)
-    {
-      j->ref.key_parts= 1;
-      return new(thd->mem_root) Item_uint(thd, nr1);
-    }
-   }
-  return NULL;
-}
-
 static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                                KEYUSE *org_keyuse, bool allow_full_scan, 
                                table_map used_tables)
@@ -8955,7 +8897,6 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   KEY *keyinfo;
   KEYUSE *keyuse= org_keyuse;
   bool ftkey= (keyuse->keypart == FT_KEYPART);
-  bool is_unique_hash= false;
   THD *thd= join->thd;
   DBUG_ENTER("create_ref_for_key");
 
@@ -8970,7 +8911,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       DBUG_RETURN(TRUE);
     keyinfo= j->hj_key;
   }
-  is_unique_hash= (keyinfo->flags & HA_UNIQUE_HASH) == HA_UNIQUE_HASH;
+
   if (ftkey)
   {
     Item_func_match *ifm=(Item_func_match *)keyuse->val;
@@ -18915,67 +18856,6 @@ join_read_system(JOIN_TAB *tab)
   return table->status ? -1 : 0;
 }
 
-/**
-  Find record in case HA_UNIQUE_HASH for join_read_const
-*/
-
-int find_unique_hash_record(TABLE *table, JOIN_TAB *tab)
-{
-  int error;
-  Field *field;
-  Item *h_item= table->key_info[tab->ref.key].key_part->field->
-                                             vcol_info->expr_item;
-  KEYUSE *keyuse= tab->keyuse;
-  ulong nr1= 1,nr2= 4;
-  CHARSET_INFO *cs;
-  String *str;
-  error= table->file->ha_index_init(tab->ref.key, 0);
-  if (!error)
-  {
-    error= table->file->ha_index_read_map(table->record[0], (uchar*) tab->ref.key_buff,
-        HA_WHOLE_KEY, HA_READ_KEY_EXACT);
-    /* Need to see whethere it is the same record as requested by user because
-       two different record can have same hash */
-    //first find the pointer in record
-    String other_str;
-    keyuse= tab->keyuse;
-    if (error)
-    {
-      table->file->ha_index_end();
-      return error;
-    }
-    while (keyuse && keyuse->table && keyuse->table == table)
-    {
-      if (keyuse->key != tab->ref.key)
-      {
-        keyuse++;
-        continue;
-      }
-      // need to find the corresponding field to which keyuse corrosponds in
-      // hash str
-      field= field_ptr_in_hash_str(h_item, keyuse->keypart);
-      field->val_str(&other_str);
-      str= keyuse->val->val_str();
-      field->val_str(&other_str);
-      if ((str->length() != other_str.length()) ||
-          my_strnncoll(other_str.charset(), (const uchar *)str->c_ptr(),
-                       str->length(), (const uchar *)other_str.c_ptr(), other_str.length()))
-      {
-        /*here hash is same for different record we need to find the matching one*/
-        error= table->file->ha_index_next_same(table->record[0], (uchar*) tab->ref.key_buff,
-                                                HA_HASH_KEY_LENGTH_WITH_NULL);
-        if(error)
-        {
-          table->file->ha_index_end();
-          return error;
-        }
-      }
-      keyuse++;
-    }
-    table->file->ha_index_end();
-    return error;
-  }
-}
 
 /**
   Read a table when there is at most one matching row.
@@ -19189,9 +19069,6 @@ join_read_always_key(JOIN_TAB *tab)
       return report_error(table, error);
     return -1; /* purecov: inspected */
   }
-  //error= compare_hash_and_fetch_next(tab);
-  if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
-    return report_error(table, error);
   return 0;
 }
 
@@ -24158,8 +24035,6 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
   {
     key_info= get_keyinfo_by_key_no(ref.key);
     key_len= ref.key_length;
-    if (key_info->flags & HA_UNIQUE_HASH)
-      key_len= HA_HASH_KEY_LENGTH_WITH_NULL;
   }
   
   /*

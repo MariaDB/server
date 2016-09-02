@@ -243,6 +243,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
+
   if(have_additional_field_properties)
     extra2_size+=1 + (create_fields.elements > 255 ? 3 : 1) +
         create_fields.elements;// first one for type(extra2_field_flags) next 1 or 3  for length
@@ -380,7 +381,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
       Restore all UCS2 intervals.
       HEX representation of them is not needed anymore.
     */
-
+    List_iterator<Create_field> it(create_fields);
+    Create_field *field;
     while ((field=it++))
     {
       if (field->save_interval)

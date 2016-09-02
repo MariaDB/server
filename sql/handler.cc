@@ -100,6 +100,7 @@ uint known_extensions_id= 0;
 static int commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans,
                               bool is_real_trans);
 
+
 void setup_table_hash(TABLE *table);
 void re_setup_table(TABLE *table);
 static plugin_ref ha_default_plugin(THD *thd)
@@ -3279,6 +3280,7 @@ void handler::ha_release_auto_increment()
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
 {
+  /* Write the duplicated key in the error message */
   char key_buff[MAX_KEY_LENGTH];
   String str(key_buff,sizeof(key_buff),system_charset_info);
 
@@ -6039,6 +6041,7 @@ int handler::ha_write_row(uchar *buf)
               m_lock_type == F_WRLCK);
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
+
   setup_table_hash(table);
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
