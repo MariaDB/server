@@ -1129,6 +1129,11 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
 {
   if (!cond)
     return false;
+
+  /* Do not push conditions into recursive with tables */
+  if (derived->is_recursive_with_table())
+    return false;
+
   /*
     Build the most restrictive condition extractable from 'cond'
     that can be pushed into the derived table 'derived'.
