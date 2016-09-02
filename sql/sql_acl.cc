@@ -2797,7 +2797,7 @@ bool change_password(THD *thd, LEX_USER *user)
 
   if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
   {
-    thd->set_query_inner(buff, query_length, system_charset_info);
+    thd->set_query(buff, query_length, system_charset_info);
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
   }
 
@@ -2858,7 +2858,7 @@ error: // this label is used in WSREP_TO_ISOLATION_BEGIN
   {
     WSREP_TO_ISOLATION_END;
 
-    thd->set_query_inner(query_save);
+    thd->set_query(query_save);
     thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */
@@ -2913,7 +2913,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
 
   if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
   {
-    thd->set_query_inner(buff, query_length, system_charset_info);
+    thd->set_query(buff, query_length, system_charset_info);
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
   }
 
@@ -3009,7 +3009,7 @@ error: // this label is used in WSREP_TO_ISOLATION_END
   {
     WSREP_TO_ISOLATION_END;
 
-    thd->set_query_inner(query_save);
+    thd->set_query(query_save);
     thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */

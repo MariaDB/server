@@ -6022,7 +6022,6 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   new_db.str= (char *) rpl_filter->get_rewrite_db(db, &new_db.length);
   thd->set_db(new_db.str, new_db.length);
   DBUG_ASSERT(thd->query() == 0);
-  thd->reset_query_inner();                    // Should not be needed
   thd->is_slave_error= 0;
   clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
 
