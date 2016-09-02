@@ -10083,14 +10083,14 @@ const char *dbug_print_item(Item *item)
 
 #endif /*DBUG_OFF*/
 
-bool Item_field::exclusive_dependence_on_table_processor(uchar *map)
+bool Item_field::exclusive_dependence_on_table_processor(void *map)
 {
   table_map tab_map= *((table_map *) map);
   return !((used_tables() == tab_map || 
          (item_equal && item_equal->used_tables() & tab_map))); 
 }
 
-bool Item_field::exclusive_dependence_on_grouping_fields_processor(uchar *arg)
+bool Item_field::exclusive_dependence_on_grouping_fields_processor(void *arg)
 {
   st_select_lex *sl= (st_select_lex *)arg;
   List_iterator<Grouping_tmp_field> li(sl->grouping_tmp_fields);

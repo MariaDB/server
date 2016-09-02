@@ -7950,7 +7950,7 @@ void TABLE_LIST::check_pushable_cond_for_table(Item *cond)
     }
   }
   else if (cond->walk(&Item::exclusive_dependence_on_table_processor,
-                      0, (uchar *) &tab_map))
+                      0, (void *) &tab_map))
     cond->set_extraction_flag(NO_EXTRACTION_FL);
 }
 

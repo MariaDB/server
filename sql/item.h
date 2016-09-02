@@ -1481,12 +1481,10 @@ public:
   virtual bool exists2in_processor(void *opt_arg) { return 0; }
   virtual bool find_selective_predicates_list_processor(void *opt_arg)
   { return 0; }
-  virtual bool exclusive_dependence_on_table_processor(uchar *map)
+  virtual bool exclusive_dependence_on_table_processor(void *map)
   { return 0; }
-  virtual bool exclusive_dependence_on_grouping_fields_processor(uchar *arg)
+  virtual bool exclusive_dependence_on_grouping_fields_processor(void *arg)
  { return 0; }
-  //virtual Item *get_copy(THD *thd, MEM_ROOT *mem_root);
-  
 
   virtual Item *get_copy(THD *thd, MEM_ROOT *mem_root)=0;
 
@@ -2583,8 +2581,8 @@ public:
   virtual Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   virtual Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
-  bool exclusive_dependence_on_table_processor(uchar *map);
-  bool exclusive_dependence_on_grouping_fields_processor(uchar *arg);
+  bool exclusive_dependence_on_table_processor(void *map);
+  bool exclusive_dependence_on_grouping_fields_processor(void *arg);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_field>(thd, mem_root, this); }
   bool is_outer_field() const
