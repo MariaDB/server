@@ -336,85 +336,7 @@ bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
   return FALSE;
 }
 #endif 
- /*
-   this function is used when we  do search for long unique column
-   as optimizer think HA_UNIQUE_HASH flag is similar to HA_NOSAME
-   but internally same hash does guarantee the same record we
-   scan for next record untill same record is found else error
-   is given
-    */
-int compare_hash_and_fetch_next(JOIN_TAB *tab)
-{
-  int error;
-  TABLE *table= tab->table;
-  if (table->key_info[tab->ref.key].flags & HA_UNIQUE_HASH)
-  {
-    /*
-      same hash does not gurentee same physical key
-      to need to compare each field in key
-    */
-    Item *h_item= table->key_info[tab->ref.key].key_part->field
-        ->vcol_info->expr_item;
-    int counter= 0;
-    for (store_key **copy=tab->ref.key_copy ; *copy ; copy++, counter++)
-    {
-      store_key_field * tmp;
-      Copy_field *c;
-      Item *i;
-      if (( c= static_cast<store_key_field *>(*copy)->get_copy_field())
-            && c->from_field->table)
-      {
-        Field *fld,*table_fld;
-        fld= c->from_field;
-        table_fld= field_ptr_in_hash_str(h_item, find_field_pos_in_hash(
-                                           h_item, fld->field_name));
-        while (true)
-        {
-          if(fld->cmp_binary(fld->ptr, table_fld->ptr))
-          {
-            error= table->file->ha_index_next_same(table->record[0], tab->ref.key_buff,
-                table->key_info[tab->ref.key].key_length);
-            if(error)
-            {
-              return error;
-            }
-          }
-          else
-            break;
-        }
-      }
-      else if (( i= static_cast<store_key_item*>(*copy)->get_item()))
-      {
-        Field *fld;
-        String field_data, *item_data;
-        fld= field_ptr_in_hash_str(h_item, counter);
-        fld->val_str(&field_data);
-        item_data= i->val_str();
-        while (true)
-        {
 
-          if ((item_data->length() != field_data.length()) ||
-              my_strnncoll(item_data->charset(), (const uchar *)item_data->c_ptr(),
-                           item_data->length(), (const uchar *)field_data.c_ptr(),
-                           field_data.length()))
-          {
-            /*here hash is same for different record we need to find the matching one*/
-            error= table->file->ha_index_next_same(table->record[0], (uchar*) tab->ref.key_buff,
-                HA_HASH_KEY_LENGTH_WITH_NULL);
-            if(error)
-            {
-              return error;
-            }
-          }
-          else
-            break;
-        }
-
-      }
-    }
-  }
-  return 0;
-}
 
 /**
   This handles SELECT with and without UNION.
@@ -4077,17 +3999,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           */
           KEY *keyinfo= table->key_info + key;
           uint  key_parts= table->actual_n_key_parts(keyinfo);
-          //TODO need a better name
-          bool  is_map_for_hash_key=false;
-          if (keyinfo->flags & HA_UNIQUE_HASH)
-          {
-            Item *h_item= keyinfo->key_part->field->vcol_info->expr_item;
-            int num_of_fields= fields_in_hash_str(h_item);
-            is_map_for_hash_key= eq_part.is_prefix(num_of_fields);
-          }
-          if (((eq_part.is_prefix(key_parts) && !(keyinfo->flags & HA_UNIQUE_HASH))
-               || is_map_for_hash_key) &&
-              !table->fulltext_searched &&
+          if (eq_part.is_prefix(key_parts) &&
+              !table->fulltext_searched && 
               (!embedding || (embedding->sj_on_expr && !embedding->embedding)))
 	  {
             key_map base_part, base_const_ref, base_eq_part;
@@ -4096,8 +4009,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
             base_const_ref.intersect(base_part);
             base_eq_part= eq_part;
             base_eq_part.intersect(base_part);
-            if ((table->actual_key_flags(keyinfo) & HA_NOSAME) ||
-                   keyinfo->flags & HA_UNIQUE_HASH )
+            if (table->actual_key_flags(keyinfo) & HA_NOSAME)
             {
               
 	      if (base_const_ref == base_eq_part &&
@@ -5270,19 +5182,6 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 
       KEY *keyinfo= form->key_info+key;
       uint key_parts= form->actual_n_key_parts(keyinfo);
-      /* in case of null we do not use any optimization */
-      if (keyinfo->flags & HA_UNIQUE_HASH &&
-           key_field->val->type() != Item::NULL_ITEM)
-      {
-        Item *h_item= keyinfo->key_part->field->vcol_info->expr_item;
-        int index= find_field_pos_in_hash(h_item, (char *)field->field_name);
-        if (index != -1)
-        {
-          if (add_keyuse(keyuse_array, key_field, key, index))
-            return TRUE;
-        }
-        continue;
-      }
       for (uint part=0 ; part <  key_parts ; part++)
       {
         if (field->eq(form->key_info[key].key_part[part].field) &&
@@ -6238,13 +6137,6 @@ best_access_path(JOIN      *join,
             !ref_or_null_part)
         {                                         /* use eq key */
           max_key_part= (uint) ~0;
-          if ((key_flags & (HA_UNIQUE_HASH | HA_NULL_PART_KEY)) == HA_UNIQUE_HASH ||
-              MY_TEST(key_flags & HA_UNIQUE_HASH))
-          {
-            tmp= prev_record_reads(join->positions, idx, found_ref);
-            records= 1.0;
-          }
-          else
           if ((key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
               MY_TEST(key_flags & HA_EXT_NOSAME))
           {
@@ -9194,19 +9086,12 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       */
       if (!keyuse->val->used_tables() && !thd->lex->describe)
       {					// Compare against constant
-        Item *item= get_keypart_hash(thd,keyinfo,keyuse,j);
-        if (item != NULL)
-        {
-          keyparts= 1;
-        }
-        else
-          item= keyuse->val;
-        store_key_item tmp(thd,
+	store_key_item tmp(thd, 
                            keyinfo->key_part[i].field,
                            key_buff + maybe_null,
                            maybe_null ?  key_buff : 0,
                            keyinfo->key_part[i].length,
-                           item,
+                           keyuse->val,
                            FALSE);
 	if (thd->is_fatal_error)
 	  DBUG_RETURN(TRUE);
@@ -9214,65 +9099,10 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         j->ref.const_ref_part_map |= key_part_map(1) << i ;
       }
       else
-      {
-        KEY_PART_INFO *key_part= &keyinfo->key_part[i];
-        if (!((~join->const_table_map) & keyuse->used_tables))    // if const item
-        {
-          Item *item= get_keypart_hash(thd,keyinfo,keyuse,j);
-          if (item != NULL)
-          {
-            keyparts= 1;
-          }
-          else
-            item= keyuse->val;
-          *ref_key++=new store_key_const_item(thd,
-                                              key_part->field,
-                                              key_buff + maybe_null,
-                                              maybe_null ? key_buff : 0,
-                                              key_part->length,
-                                              item);
-        }
-        else if (keyuse->val->type() == Item::FIELD_ITEM ||
-                 (keyuse->val->type() == Item::REF_ITEM &&
-                  ((((Item_ref*)keyuse->val)->ref_type() == Item_ref::OUTER_REF &&
-                    (*(Item_ref**)((Item_ref*)keyuse->val)->ref)->ref_type() ==
-                    Item_ref::DIRECT_REF) ||
-                   ((Item_ref*)keyuse->val)->ref_type() == Item_ref::VIEW_REF) &&
-                  keyuse->val->real_item()->type() == Item::FIELD_ITEM))
-        {
-          *ref_key= new store_key_field(thd,
-                                          key_part->field,
-                                          key_buff + maybe_null,
-                                          maybe_null ? key_buff : 0,
-                                          key_part->length,
-                                          ((Item_field*) keyuse->val->real_item())->field,
-                                          keyuse->val->real_item()->full_name());
-          if (is_unique_hash)
-          {
-            (*ref_key)->is_hash= true;
-            (*ref_key)->nr1= 1;
-            (*ref_key)->nr2= 4;
-          }
-          ref_key++;
-        }
-        else
-        {
-          *ref_key= new store_key_item(thd,
-                                         key_part->field,
-                                         key_buff + maybe_null,
-                                         maybe_null ? key_buff : 0,
-                                         key_part->length,
-                                         keyuse->val, FALSE);
-          if (is_unique_hash)
-          {
-            (*ref_key)->is_hash= true;
-            (*ref_key)->nr1= 1;
-            (*ref_key)->nr2= 4;
-          }
-          ref_key++;
-        }
-      }
-
+	*ref_key++= get_store_key(thd,
+				  keyuse,join->const_table_map,
+				  &keyinfo->key_part[i],
+				  key_buff, maybe_null);
       /*
 	Remember if we are going to use REF_OR_NULL
 	But only if field _really_ can be null i.e. we force JT_REF
@@ -9283,10 +9113,8 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
 	null_ref_key= key_buff;
         null_ref_part= i;
       }
-      if (!is_unique_hash)
-        key_buff+= keyinfo->key_part[i].store_length;
+      key_buff+= keyinfo->key_part[i].store_length;
     }
-
   } /* not ftkey */
   *ref_key=0;				// end_marker
   if (j->type == JT_FT)
@@ -18918,10 +18746,6 @@ int safe_index_read(JOIN_TAB *tab)
                                              make_prev_keypart_map(tab->ref.key_parts),
                                              HA_READ_KEY_EXACT)))
     return report_error(table, error);
-//  error= compare_hash_and_fetch_next(join);
-//  if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
-//    return report_error(table, error);
-//  return -1;
   return 0;
 }
 
@@ -19175,12 +18999,7 @@ join_read_const(JOIN_TAB *tab)
       error=HA_ERR_KEY_NOT_FOUND;
     else
     {
-      if (table->key_info[tab->ref.key].flags & HA_UNIQUE_HASH)
-      {
-        error= find_unique_hash_record(table, tab);
-      }
-      else
-        error= table->file->ha_index_read_idx_map(table->record[0],tab->ref.key,
+      error= table->file->ha_index_read_idx_map(table->record[0],tab->ref.key,
                                                 (uchar*) tab->ref.key_buff,
                                                 make_prev_keypart_map(tab->ref.key_parts),
                                                 HA_READ_KEY_EXACT);
@@ -19370,7 +19189,7 @@ join_read_always_key(JOIN_TAB *tab)
       return report_error(table, error);
     return -1; /* purecov: inspected */
   }
-  error= compare_hash_and_fetch_next(tab);
+  //error= compare_hash_and_fetch_next(tab);
   if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
     return report_error(table, error);
   return 0;
@@ -22146,25 +21965,6 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
     {
       result= 1;
       break;
-    }
-    if ((*copy)->is_hash)
-    {
-      if (!(*copy)->null_key && *(copy+1))
-      {
-        (*(copy+1))->nr1= (*copy)->nr1;
-        (*(copy+1))->nr2= (*copy)->nr2;
-      }
-      else
-        break;
-    }
-  }
-  //reset nr1 and nr2
-  for (store_key **copy=ref->key_copy ; *copy ; copy++)
-  {
-    if ((*copy)->is_hash)
-    {
-      (*copy)->nr1= 1;
-      (*copy)->nr2= 4;
     }
   }
   thd->count_cuted_fields= save_count_cuted_fields;

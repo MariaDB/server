@@ -4168,7 +4168,7 @@ int subselect_indexsubquery_engine::exec()
     error= report_error(table, error);
   else
   {
-    error= compare_hash_and_fetch_next(tab);
+    //error= compare_hash_and_fetch_next(tab);
     if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
     {
       report_error(table, error);
