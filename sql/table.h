@@ -1080,12 +1080,12 @@ public:
   handler *update_handler;  /* Handler used in case of update */
   /*
      In the case of write row for long unique we are unable of find
-     Whick key is voilated because we in case of duplicate we never reach
-     handler write_row function so print_error will always print that
-     key 0 is voilated we store which key is voilated in this variable
+     Whick key is voilated. Because we in case of duplicate hash we never reach
+     handler write_row function. So print_error will always print that
+     key 0 is voilated. We store which key is voilated in this variable
      by default this should be initialized to -1
    */
-  int dupp_key;
+  int dupp_hash_key;
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */

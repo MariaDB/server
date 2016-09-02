@@ -2934,6 +2934,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->s= share;
   outparam->db_stat= db_stat;
   outparam->write_row_record= NULL;
+  outparam->dupp_hash_key= -1;
 
   if (share->incompatible_version &&
       !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR)))
@@ -4504,7 +4505,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;
   update_handler= NULL;
-  dupp_key= -1;
+  dupp_hash_key= -1;
   check_unique_buf= NULL;
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */

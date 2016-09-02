@@ -16519,7 +16519,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->intersect_keys.init();
   table->keys_in_use_for_query.init();
   table->update_handler= NULL;
-  table->dupp_key= -1;
+  table->dupp_hash_key= -1;
   table->check_unique_buf= NULL;
   table->no_rows_with_nulls= param->force_not_null_cols;
 

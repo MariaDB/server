@@ -3792,8 +3792,8 @@ uint handler::get_dup_key(int error)
               m_lock_type != F_UNLCK);
   DBUG_ENTER("handler::get_dup_key");
   table->file->errkey  = (uint) -1;
-  if (table->dupp_key != -1)
-    DBUG_RETURN(table->dupp_key);
+  if (table->dupp_hash_key != -1)
+    DBUG_RETURN(table->dupp_hash_key);
   if (error == HA_ERR_FOUND_DUPP_KEY || error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
       error == HA_ERR_FOUND_DUPP_UNIQUE || error == HA_ERR_NULL_IN_SPATIAL ||
       error == HA_ERR_DROP_INDEX_FK)
@@ -5940,7 +5940,7 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_r
           return 0;
       }
     }
-    table->dupp_key= key_no;
+    table->dupp_hash_key= key_no;
     return HA_ERR_FOUND_DUPP_KEY;
   }
   return 0;
@@ -5961,6 +5961,7 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h, uchar *new_r
   */
 static int check_duplicate_long_entries(TABLE *table, handler *h, uchar *new_rec)
 {
+  table->dupp_hash_key= -1;
   int result;
   for (uint i= 0; i < table->s->keys; i++)
   {
