@@ -5149,6 +5149,10 @@ i_s_innodb_buffer_page_get_info(
 			block = reinterpret_cast<const buf_block_t*>(bpage);
 			frame = block->frame;
 #ifdef BTR_CUR_HASH_ADAPT
+			/* Note: this may be a false positive, that
+			is, block->index will not always be set to
+			NULL when the last adaptive hash index
+			reference is dropped. */
 			page_info->hashed = (block->index != NULL);
 #endif /* BTR_CUR_HASH_ADAPT */
 		} else {

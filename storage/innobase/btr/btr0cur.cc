@@ -3683,6 +3683,8 @@ btr_cur_update_in_place(
 
 		btr_search_x_lock(index);
 	}
+
+	assert_block_ahi_valid(block);
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	row_upd_rec_in_place(rec, index, offsets, update, page_zip);

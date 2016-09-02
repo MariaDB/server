@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -189,6 +190,12 @@ ha_clear(
 }
 
 #ifdef BTR_CUR_HASH_ADAPT
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+/** Maximum number of records in a page */
+static const lint MAX_N_POINTERS
+	= UNIV_PAGE_SIZE_MAX / REC_N_NEW_EXTRA_BYTES;
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+
 /*************************************************************//**
 Inserts an entry into a hash table. If an entry with the same fold number
 is found, its node is updated to point to the new data, and no new node
@@ -235,9 +242,11 @@ ha_insert_for_fold_func(
 				buf_block_t* prev_block = prev_node->block;
 				ut_a(prev_block->frame
 				     == page_align(prev_node->data));
-				ut_a(prev_block->n_pointers > 0);
-				prev_block->n_pointers--;
-				block->n_pointers++;
+				ut_a(my_atomic_addlint(
+					     &prev_block->n_pointers, -1)
+				     < MAX_N_POINTERS);
+				ut_a(my_atomic_addlint(&block->n_pointers, 1)
+				     < MAX_N_POINTERS);
 			}
 
 			prev_node->block = block;
@@ -268,7 +277,8 @@ ha_insert_for_fold_func(
 
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	if (table->adaptive) {
-		block->n_pointers++;
+		ut_a(my_atomic_addlint(&block->n_pointers, 1)
+		     < MAX_N_POINTERS);
 	}
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 
@@ -329,8 +339,8 @@ ha_delete_hash_node(
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	if (table->adaptive) {
 		ut_a(del_node->block->frame = page_align(del_node->data));
-		ut_a(del_node->block->n_pointers > 0);
-		del_node->block->n_pointers--;
+		ut_a(my_atomic_addlint(&del_node->block->n_pointers, -1)
+		     < MAX_N_POINTERS);
 	}
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 
@@ -372,9 +382,10 @@ ha_search_and_update_if_found_func(
 	if (node) {
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 		if (table->adaptive) {
-			ut_a(node->block->n_pointers > 0);
-			node->block->n_pointers--;
-			new_block->n_pointers++;
+			ut_a(my_atomic_addlint(&node->block->n_pointers, -1)
+			     < MAX_N_POINTERS);
+			ut_a(my_atomic_addlint(&new_block->n_pointers, 1)
+			     < MAX_N_POINTERS);
 		}
 
 		node->block = new_block;

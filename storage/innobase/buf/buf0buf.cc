@@ -1496,6 +1496,10 @@ buf_block_init(
 {
 	UNIV_MEM_DESC(frame, UNIV_PAGE_SIZE);
 
+	/* This function should only be executed at database startup or by
+	buf_pool_resize(). Either way, adaptive hash index must not exist. */
+	assert_block_ahi_empty(block);
+
 	block->frame = frame;
 
 	block->page.buf_pool_index = buf_pool_index(buf_pool);
@@ -1526,11 +1530,6 @@ buf_block_init(
 	ut_d(block->in_unzip_LRU_list = FALSE);
 	ut_d(block->in_withdraw_list = FALSE);
 
-#ifdef BTR_CUR_HASH_ADAPT
-# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-	block->n_pointers = 0;
-# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-#endif /* BTR_CUR_HASH_ADAPT */
 	page_zip_des_init(&block->page.zip);
 
 	mutex_create(LATCH_ID_BUF_BLOCK_MUTEX, &block->mutex);
@@ -2244,6 +2243,10 @@ buf_page_realloc(
 		/* set other flags of buf_block_t */
 
 #ifdef BTR_CUR_HASH_ADAPT
+		/* This code should only be executed by buf_pool_resize(),
+		while the adaptive hash index is disabled. */
+		assert_block_ahi_empty(block);
+		assert_block_ahi_empty(new_block);
 		ut_ad(!block->index);
 		new_block->index	= NULL;
 		new_block->n_hash_helps	= 0;
@@ -3210,20 +3213,23 @@ buf_pool_clear_hash_index()
 
 			for (; i--; block++) {
 				dict_index_t*	index	= block->index;
+				assert_block_ahi_valid(block);
 
 				/* We can set block->index = NULL
-				when we have an x-latch on search latch;
-				see the comment in buf0buf.h */
+				and block->n_pointers = 0
+				when btr_search_own_all(RW_LOCK_X);
+				see the comments in buf0buf.h */
 
 				if (!index) {
-					/* Not hashed */
 					continue;
 				}
 
-				block->index = NULL;
+				ut_ad(buf_block_get_state(block)
+                                      == BUF_BLOCK_FILE_PAGE);
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 				block->n_pointers = 0;
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+				block->index = NULL;
 			}
 		}
 	}
@@ -3915,6 +3921,9 @@ buf_block_init_low(
 {
 	block->skip_flush_check = false;
 #ifdef BTR_CUR_HASH_ADAPT
+	/* No adaptive hash index entries may point to a previously
+	unused (and now freshly allocated) block. */
+	assert_block_ahi_empty(block);
 	block->index		= NULL;
 
 	block->n_hash_helps	= 0;
