@@ -22,7 +22,6 @@
 #include <my_pthread.h>				/* because of signal()	*/
 #include <sys/stat.h>
 #include <mysql.h>
-#include <sql_common.h>
 #include <mysql_version.h>
 #include <welcome_copyright_notice.h>
 #include <my_rnd.h>
@@ -545,16 +544,16 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
 	{
 	  fprintf(stderr,
 		  "Check that mysqld is running and that the socket: '%s' exists!\n",
-		  unix_port ? unix_port : MYSQL_UNIX_ADDR);
+		  unix_port ? unix_port : mysql_unix_port);
 	}
 	else if (mysql_errno(mysql) == CR_CONN_HOST_ERROR ||
 		 mysql_errno(mysql) == CR_UNKNOWN_HOST)
 	{
 	  fprintf(stderr,"Check that mysqld is running on %s",host);
 	  fprintf(stderr," and that the port is %d.\n",
-		  tcp_port ? tcp_port: MYSQL_PORT);
+		  tcp_port ? tcp_port: mysql_port);
 	  fprintf(stderr,"You can check this by doing 'telnet %s %d'\n",
-		  host, tcp_port ? tcp_port: MYSQL_PORT);
+		  host, tcp_port ? tcp_port: mysql_port);
 	}
       }
       return 1;
@@ -1080,9 +1079,9 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
           }
         }
         if (old)
-          my_make_scrambled_password_323(crypted_pw, typed_password, sizeof(crypted_pw));
+          my_make_scrambled_password_323(crypted_pw, typed_password, strlen(typed_password));
         else
-          my_make_scrambled_password(crypted_pw, typed_password, sizeof(crypted_pw));
+          my_make_scrambled_password(crypted_pw, typed_password, strlen(typed_password));
       }
       else
 	crypted_pw[0]=0;			/* No password */

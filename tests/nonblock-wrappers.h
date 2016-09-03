@@ -321,44 +321,6 @@ MK_WRAPPER(
   mysql,
   mysql)
 
-#ifdef HAVE_DEPRECATED_ASYNC_API
-MK_WRAPPER(
-  MYSQL_RES *,
-  mysql_list_dbs,
-  (MYSQL *mysql, const char *wild),
-  (&res, mysql, wild),
-  (mysql, wild),
-  mysql,
-  mysql)
-
-MK_WRAPPER(
-  MYSQL_RES *,
-  mysql_list_tables,
-  (MYSQL *mysql, const char *wild),
-  (&res, mysql, wild),
-  (mysql, wild),
-  mysql,
-  mysql)
-
-MK_WRAPPER(
-  MYSQL_RES *,
-  mysql_list_processes,
-  (MYSQL *mysql),
-  (&res, mysql),
-  (mysql),
-  mysql,
-  mysql)
-
-MK_WRAPPER(
-  MYSQL_RES *,
-  mysql_list_fields,
-  (MYSQL *mysql, const char *table, const char *wild),
-  (&res, mysql, table, wild),
-  (mysql, table, wild),
-  mysql,
-  mysql)
-#endif /* HAVE_DEPRECATED_ASYNC_API */
-
 MK_WRAPPER(
   my_bool,
   mysql_read_query_result,

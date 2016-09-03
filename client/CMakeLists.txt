@@ -25,8 +25,6 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-ADD_DEFINITIONS(-DHAVE_OPENSSL=1)
-
 INCLUDE_DIRECTORIES(BEFORE
   ${CMAKE_BINARY_DIR}/libmariadb/include
   ${CMAKE_SOURCE_DIR}/libmariadb/include)
@@ -34,8 +32,6 @@ INCLUDE_DIRECTORIES(BEFORE
 ## We will need libeay32.dll and ssleay32.dll when running client executables.
 COPY_OPENSSL_DLLS(copy_openssl_client)
 
-
-ADD_DEFINITIONS(-DHAVE_LIBMARIADB=1)
 SET(CLIENT_LIB mariadbclient mysys)
 
 ADD_DEFINITIONS(${SSL_DEFINES})

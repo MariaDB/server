@@ -6350,19 +6350,16 @@ static void test_pure_coverage()
   rc= mysql_stmt_execute(stmt);
   check_execute(stmt, rc);
 
-#if 0
-  /* MariaDB C/C converts geometry to string */
   my_bind[0].buffer_type= MYSQL_TYPE_GEOMETRY;
   rc= mysql_stmt_bind_result(stmt, my_bind);
-  check_execute_r(stmt, rc); /* unsupported buffer type */
+  check_execute(stmt, rc); /* MariaDB C/C converts geometry to string */
 
   rc= mysql_stmt_store_result(stmt);
-  DIE_UNLESS(rc);
+  DIE_IF(rc);
 
   rc= mysql_stmt_store_result(stmt);
   DIE_UNLESS(rc); /* Old error must be reset first */
 
-#endif
   mysql_stmt_close(stmt);
 
   mysql_query(mysql, "DROP TABLE test_pure");

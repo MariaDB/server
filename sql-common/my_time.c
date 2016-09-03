@@ -777,10 +777,6 @@ long calc_daynr(uint year,uint month,uint day)
   DBUG_RETURN(delsum+(int) y/4-temp);
 } /* calc_daynr */
 
-/* Can't include mysqld_error.h, it needs mysys to build, thus hardcode 2 error values here. */
-#define ER_WARN_DATA_OUT_OF_RANGE 1264
-#define ER_WARN_INVALID_TIMESTAMP 1299
-
 /*
   Convert time in MYSQL_TIME representation in system time zone to its
   my_time_t form (number of seconds in UTC since begginning of Unix Epoch).

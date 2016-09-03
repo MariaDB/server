@@ -1367,8 +1367,6 @@ static bool do_connect(MYSQL *mysql, const char *host, const char *user,
 		  opt_ssl_capath, opt_ssl_cipher);
     mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    char enforce= 1;
-    mysql_options(mysql, MYSQL_OPT_SSL_ENFORCE, &enforce);
   }
   mysql_options(mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                 (char*)&opt_ssl_verify_server_cert);
@@ -4621,23 +4619,6 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     mysql_options(&mysql,MYSQL_OPT_COMPRESS,NullS);
   if (using_opt_local_infile)
     mysql_options(&mysql,MYSQL_OPT_LOCAL_INFILE, (char*) &opt_local_infile);
-#if !defined(EMBEDDED_LIBRARY)
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(&mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(&mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(&mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-  }
-  mysql_options(&mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (my_bool*)&opt_ssl_verify_server_cert);
-#endif
-  if (opt_protocol)
-    mysql_options(&mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
-#ifdef HAVE_SMEM
-  if (shared_memory_base_name)
-    mysql_options(&mysql,MYSQL_SHARED_MEMORY_BASE_NAME,shared_memory_base_name);
-#endif
   if (safe_updates)
   {
     char init_command[100];
