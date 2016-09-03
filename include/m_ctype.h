@@ -865,7 +865,6 @@ void my_string_metadata_get(MY_STRING_METADATA *metadata,
                             CHARSET_INFO *cs, const char *str, size_t len);
 uint my_string_repertoire(CHARSET_INFO *cs, const char *str, ulong len);
 my_bool my_charset_is_ascii_based(CHARSET_INFO *cs);
-my_bool my_charset_is_8bit_pure_ascii(CHARSET_INFO *cs);
 uint my_charset_repertoire(CHARSET_INFO *cs);
 
 uint my_strxfrm_flag_normalize(uint flags, uint nlevels);
@@ -874,8 +873,6 @@ void my_strxfrm_desc_and_reverse(uchar *str, uchar *strend,
 size_t my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
                                        uchar *str, uchar *frmend, uchar *strend,
                                        uint nweights, uint flags, uint level);
-
-my_bool my_charset_is_ascii_compatible(CHARSET_INFO *cs);
 
 const MY_CONTRACTIONS *my_charset_get_contractions(CHARSET_INFO *cs,
                                                    int level);
