@@ -877,7 +877,7 @@ private:
 
 class Frame_range_n_top : public Frame_cursor
 {
-  Table_read_cursor cursor;
+  Partition_read_cursor cursor;
 
   Cached_item_item *range_expr;
 
@@ -885,6 +885,9 @@ class Frame_range_n_top : public Frame_cursor
   Item *item_add;
 
   const bool is_preceding;
+
+  bool end_of_partition;
+
   /*
      1  when order_list uses ASC ordering
     -1  when order_list uses DESC ordering
@@ -895,7 +898,8 @@ public:
                     SQL_I_List<ORDER> *partition_list,
                     SQL_I_List<ORDER> *order_list,
                     bool is_preceding_arg, Item *n_val_arg) :
-    n_val(n_val_arg), item_add(NULL), is_preceding(is_preceding_arg)
+    cursor(thd, partition_list), n_val(n_val_arg), item_add(NULL),
+    is_preceding(is_preceding_arg)
   {
     DBUG_ASSERT(order_list->elements == 1);
     Item *src_expr= order_list->first->item[0];
@@ -921,13 +925,15 @@ public:
   void init(READ_RECORD *info)
   {
     cursor.init(info);
-
   }
 
   void pre_next_partition(ha_rows rownum)
   {
     // Save the value of FUNC(current_row)
     range_expr->fetch_value_from(item_add);
+
+    cursor.on_next_partition(rownum);
+    end_of_partition= false;
   }
 
   void next_partition(ha_rows rownum)
@@ -938,11 +944,15 @@ public:
 
   void pre_next_row()
   {
+    if (end_of_partition)
+      return;
     range_expr->fetch_value_from(item_add);
   }
 
   void next_row()
   {
+    if (end_of_partition)
+      return;
     /*
       Ok, our cursor is at the first row R where
         (prev_row + n) >= R
@@ -960,12 +970,15 @@ public:
 private:
   void walk_till_non_peer()
   {
-    while (!cursor.get_next())
+    int res;
+    while (!(res= cursor.get_next()))
     {
       if (order_direction * range_expr->cmp_read_only() <= 0)
         break;
       remove_value_from_items();
     }
+    if (res)
+      end_of_partition= true;
   }
 };
 

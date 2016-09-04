@@ -1201,3 +1201,20 @@ create view v1 as select 1 as i;
 select rank() over (order by i) from v1;
 drop view v1;
 
+--echo #
+--echo # MDEV-10097: Assertion `count > 0' failed in Item_sum_sum::add_helper(bool)
+--echo #
+CREATE TABLE `orders` (
+        `o_orderkey` int(11) NOT NULL,
+        `o_custkey` int(11) DEFAULT NULL,
+        PRIMARY KEY (`o_orderkey`)
+        ) DEFAULT CHARSET=latin1; 
+
+INSERT INTO `orders` VALUES (59908,242);
+INSERT INTO `orders` VALUES (59940,238);
+
+SELECT o_custkey, avg(o_custkey) OVER (PARTITION BY abs(o_custkey)
+                                       ORDER BY o_custkey
+                                       RANGE BETWEEN 15 FOLLOWING
+                                                 AND 15 FOLLOWING) from orders;
+DROP table orders;
