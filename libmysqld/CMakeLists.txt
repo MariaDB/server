@@ -18,7 +18,6 @@ ADD_DEFINITIONS(-DMYSQL_SERVER -DEMBEDDED_LIBRARY
 
 INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include 
-${CMAKE_SOURCE_DIR}/libmysql
 ${CMAKE_SOURCE_DIR}/libmysqld
 ${CMAKE_SOURCE_DIR}/sql
 ${CMAKE_BINARY_DIR}/sql 
@@ -37,7 +36,7 @@ ${CMAKE_BINARY_DIR}/sql/lex_hash.h
 SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES} PROPERTIES GENERATED TRUE)
 
 SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc 
-           ../libmysql/libmysql.c ../libmysql/errmsg.c
+           libmysql.c ../sql-common/errmsg.c
            ../sql-common/client.c
            ../sql-common/my_user.c ../sql-common/pack.c
            ../sql-common/client_plugin.c ../sql-common/mysql_async.c
