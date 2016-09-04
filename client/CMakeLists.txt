@@ -19,7 +19,6 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/mysys_ssl
   ${ZLIB_INCLUDE_DIR}
   ${SSL_INCLUDE_DIRS}
-  ${CMAKE_SOURCE_DIR}/libmysql
   ${CMAKE_SOURCE_DIR}/sql
   ${CMAKE_SOURCE_DIR}/strings
   ${MY_READLINE_INCLUDE_DIR}
@@ -28,16 +27,16 @@ INCLUDE_DIRECTORIES(
 
 ADD_DEFINITIONS(-DHAVE_OPENSSL=1)
 
-INCLUDE_DIRECTORIES(
-BEFORE
-${CONNECTOR_C_INSTALLDIR}/include/mariadb)
+INCLUDE_DIRECTORIES(BEFORE
+  ${CMAKE_BINARY_DIR}/libmariadb/include
+  ${CMAKE_SOURCE_DIR}/libmariadb/include)
 
 ## We will need libeay32.dll and ssleay32.dll when running client executables.
 COPY_OPENSSL_DLLS(copy_openssl_client)
 
 
 ADD_DEFINITIONS(-DHAVE_LIBMARIADB=1)
-SET(CLIENT_LIB ${CONNECTOR_C_LIBS} mysys)
+SET(CLIENT_LIB mariadbclient mysys)
 
 ADD_DEFINITIONS(${SSL_DEFINES})
 MYSQL_ADD_EXECUTABLE(mysql completion_hash.cc mysql.cc readline.cc
@@ -100,7 +99,7 @@ PROPERTIES HAS_CXX TRUE)
 
 FOREACH(t mysql mysqltest mysqltest mysqlcheck mysqldump mysqlimport mysql_upgrade mysqlshow mysql_plugin mysqlbinlog
   mysqladmin mysqlslap async_example)
-  ADD_DEPENDENCIES(${t} GenError mariadb_connector_c)
+  ADD_DEPENDENCIES(${t} GenError ${CLIENT_LIB})
 ENDFOREACH()
 
 ADD_DEFINITIONS(-DHAVE_DLOPEN)
