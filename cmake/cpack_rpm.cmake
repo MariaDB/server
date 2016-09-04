@@ -48,6 +48,20 @@ MariaDB bug reports should be submitted through https://jira.mariadb.org
 
 ")
 
+SET(CPACK_RPM_shared_PACKAGE_VENDOR "MariaDB Corporation Ab")
+SET(CPACK_RPM_shared_PACKAGE_LICENSE "LGPLv2.1")
+SET(CPACK_RPM_shared_PACKAGE_SUMMARY "LGPL MariaDB client library")
+SET(CPACK_RPM_shared_PACKAGE_DESCRIPTION "
+This is LGPL MariaDB client library that can be used to connect to MySQL
+or MariaDB.
+
+This code is based on the LGPL libmysql client library from MySQL 3.23
+and PHP's mysqlnd extension.
+
+This product includes PHP software, freely available from
+<http://www.php.net/software/>
+")
+
 SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define mysql_vendor ${CPACK_PACKAGE_VENDOR}
 %define mysqlversion ${MYSQL_NO_DASH_VERSION}
