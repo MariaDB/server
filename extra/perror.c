@@ -222,7 +222,7 @@ static my_bool print_win_error_msg(DWORD error, my_bool verbose)
     will ignore calls to register already registered error numbers.
 */
 
-static const char **get_handler_error_messages()
+static const char **get_handler_error_messages(void)
 {
   return handler_error_messages;
 }

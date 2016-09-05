@@ -262,11 +262,11 @@ create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
-#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	mysqltest2	
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	mysqltest2	t2
+#	MDL_INTENTION_EXCLUSIVE	NULL	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
 create or replace table test.t1;
 ERROR 42000: A table must have at least 1 column
 show tables;
@@ -274,10 +274,10 @@ Tables_in_test
 t2
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	mysqltest2	
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	mysqltest2	t2
+#	MDL_INTENTION_EXCLUSIVE	NULL	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
 create or replace table mysqltest2.t2;
 ERROR 42000: A table must have at least 1 column
 select * from information_schema.metadata_lock_info;
@@ -289,11 +289,11 @@ create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
-#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	mysqltest2	
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	mysqltest2	t2
+#	MDL_INTENTION_EXCLUSIVE	NULL	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
 create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
 show tables;
@@ -301,10 +301,10 @@ Tables_in_test
 t2
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	mysqltest2	
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
-#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	mysqltest2	t2
+#	MDL_INTENTION_EXCLUSIVE	NULL	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	mysqltest2	
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	mysqltest2	t2
 create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
 select * from information_schema.metadata_lock_info;
@@ -398,31 +398,31 @@ create table t1 (a int);
 lock table t1 write, t2 read;
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
-#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
+#	MDL_INTENTION_EXCLUSIVE	NULL	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+#	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
 create or replace table t1 (i int);
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
-#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
+#	MDL_INTENTION_EXCLUSIVE	NULL	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+#	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
 create or replace table t1 like t2;
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
-#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
+#	MDL_INTENTION_EXCLUSIVE	NULL	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+#	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
 create or replace table t1 select 1 as f1;
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Global read lock		
-#	MDL_SHARED_NO_READ_WRITE	MDL_EXPLICIT	Table metadata lock	test	t1
-#	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
-#	MDL_INTENTION_EXCLUSIVE	MDL_EXPLICIT	Schema metadata lock	test	
+#	MDL_INTENTION_EXCLUSIVE	NULL	Global read lock		
+#	MDL_INTENTION_EXCLUSIVE	NULL	Schema metadata lock	test	
+#	MDL_SHARED_NO_READ_WRITE	NULL	Table metadata lock	test	t1
+#	MDL_SHARED_READ	NULL	Table metadata lock	test	t2
 drop table t1;
 unlock tables;
 #

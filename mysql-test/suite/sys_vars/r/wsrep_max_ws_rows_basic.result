@@ -6,7 +6,7 @@ SET @wsrep_max_ws_rows_global_saved = @@global.wsrep_max_ws_rows;
 # default
 SELECT @@global.wsrep_max_ws_rows;
 @@global.wsrep_max_ws_rows
-131072
+0
 
 # scope
 SELECT @@session.wsrep_max_ws_rows;
@@ -26,11 +26,9 @@ SELECT @@global.wsrep_max_ws_rows;
 @@global.wsrep_max_ws_rows
 131073
 SET @@global.wsrep_max_ws_rows=0;
-Warnings:
-Warning	1292	Truncated incorrect wsrep_max_ws_rows value: '0'
 SELECT @@global.wsrep_max_ws_rows;
 @@global.wsrep_max_ws_rows
-1
+0
 SET @@global.wsrep_max_ws_rows=default;
 SELECT @global.wsrep_max_ws_rows;
 @global.wsrep_max_ws_rows

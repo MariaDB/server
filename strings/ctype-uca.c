@@ -6539,7 +6539,8 @@ MY_UCA_INFO my_uca_v400=
         0,       /*   nitems          */
         NULL,    /*   item            */
         NULL     /*   flags           */
-      }
+      },
+      0         /* levelno            */
     },
   },
 
@@ -30084,7 +30085,8 @@ MY_UCA_INFO my_uca_v520_th=
           THAI_CONTRACTIONS, /*   nitems */
           thai_contractions, /*   item */
           NULL               /*   flags */
-      }
+      },
+      0              /* levelno */
     },
     {
       0x10FFFF,      /* maxchar */
@@ -30094,7 +30096,8 @@ MY_UCA_INFO my_uca_v520_th=
           THAI_CONTRACTIONS_W2, /*   nitems */
           thai_contractions_w2, /*   item */
           NULL                  /*   flags */
-      }
+      },
+      1              /* levelno */
     },
   },
 
@@ -30127,8 +30130,9 @@ MY_UCA_INFO my_uca_v520=
       {              /* Contractions:     */
 	0,           /*   nitems          */
 	NULL,        /*   item            */
-	NULL       /*   flags           */
-      }
+	NULL         /*   flags           */
+      },
+      0              /* levelno */
     },
   },
 
@@ -31529,36 +31533,107 @@ my_uca_previous_context_find(my_uca_scanner *scanner,
 
 /****************************************************************/
 
+/**
+  Implicit weights for a code CP are constructed as follows:
+    [.AAAA.0020.0002][.BBBB.0000.0000]
+
+  where:
+    AAAA= BASE + (CP >> 15);
+    BBBB= (CP & 0x7FFF) | 0x8000;
+
+  There are two weights in the primary level (AAAA followed by BBBB).
+  There is one weight on other levels:
+  - 0020 on the secondary level
+  - 0002 on the tertiary level
+*/
+
 
 /**
-  Return implicit UCA weight
+  Return BASE for an implicit weight on the primary level
+
+  According to UCA, BASE is calculated as follows:
+  - FB40 for Unified_Ideograph=True AND
+             ((Block=CJK_Unified_Ideograph) OR
+              (Block=CJK_Compatibility_Ideographs))
+  - FB80 for Unified_Ideograph=True AND NOT
+             ((Block=CJK_Unified_Ideograph) OR
+              (Block=CJK_Compatibility_Ideographs))
+  - FBC0 for any other code point
+  TODO: it seems we're not handling BASE correctly:
+  - check what are those blocks
+  - there are more Unified Ideograph blocks in the latest Unicode versions
+*/
+static inline uint16
+my_uca_implicit_weight_base(my_wc_t code)
+{
+  if (code >= 0x3400 && code <= 0x4DB5)
+    return 0xFB80;
+  if (code >= 0x4E00 && code <= 0x9FA5)
+    return 0xFB40;
+  return 0xFBC0;
+}
+
+
+static inline void
+my_uca_implicit_weight_put(uint16 *to, my_wc_t code, uint level)
+{
+  switch (level) {
+  case 1: to[0]= 0x0020; to[1]= 0; break; /* Secondary level */
+  case 2: to[0]= 0x0002; to[1]= 0; break; /* Tertiary level */
+  case 3: to[0]= 0x0001; to[1]= 0; break; /* Quaternary level */
+  default:
+    DBUG_ASSERT(0);
+  case 0:
+    break;
+  }
+  /* Primary level */
+  to[0]= (code >> 15) + my_uca_implicit_weight_base(code);
+  to[1]= (code & 0x7FFF) | 0x8000;
+  to[2]= 0;
+}
+
+/****************************************************************/
+
+/**
+  Return an implicit UCA weight for the primary level.
   Used for characters that do not have assigned UCA weights.
   
   @param scanner  UCA weight scanner
   
   @return   The leading implicit weight.
+
+  The second weight is stored in scanner->implicit[0]
+  and is later returned on the next my_uca_scanner_next_any() call.
 */
 
 static inline int
-my_uca_scanner_next_implicit(my_uca_scanner *scanner)
+my_uca_scanner_next_implicit_primary(my_uca_scanner *scanner)
 {
-  scanner->code= (scanner->page << 8) + scanner->code;
-  scanner->implicit[0]= (scanner->code & 0x7FFF) | 0x8000;
-  scanner->implicit[1]= 0;
+  my_wc_t wc= (scanner->page << 8) + scanner->code;
+  scanner->implicit[0]= (wc & 0x7FFF) | 0x8000; /* The second weight */
+  scanner->implicit[1]= 0;                      /* 0 terminator      */
   scanner->wbeg= scanner->implicit;
-  
-  scanner->page= scanner->page >> 7;
-  
-  if (scanner->code >= 0x3400 && scanner->code <= 0x4DB5)
-    scanner->page+= 0xFB80;
-  else if (scanner->code >= 0x4E00 && scanner->code <= 0x9FA5)
-    scanner->page+= 0xFB40;
-  else
-    scanner->page+= 0xFBC0;
-  
-  return scanner->page;
+  return my_uca_implicit_weight_base(wc) + (wc >> 15);
 }
 
+
+/**
+  Return an implicit weight for the current level
+  (according to scanner->level->levelno).
+
+*/
+static inline int
+my_uca_scanner_next_implicit(my_uca_scanner *scanner)
+{
+  switch (scanner->level->levelno) {
+  case 0: return my_uca_scanner_next_implicit_primary(scanner);/* Primary level*/
+  case 1: scanner->wbeg= nochar; return 0x0020; /* Secondary level */
+  case 2: scanner->wbeg= nochar; return 0x0002; /* Tertiary level  */
+  default: scanner->wbeg= nochar; break;
+  }
+  DBUG_ASSERT(0);
+  return 0;
+}
 
 /*
   The same two functions for any character set
@@ -33528,6 +33603,7 @@ my_char_weight_put(MY_UCA_WEIGHT_LEVEL *dst,
   {
     size_t chlen;
     const uint16 *from= NULL;
+    uint16 implicit_weights[3];
 
     for (chlen= len; chlen > 1; chlen--)
     {
@@ -33542,6 +33618,11 @@ my_char_weight_put(MY_UCA_WEIGHT_LEVEL *dst,
     if (!from)
     {
       from= my_char_weight_addr(dst, *str);
+      if (!from)
+      {
+        from= implicit_weights;
+        my_uca_implicit_weight_put(implicit_weights, *str, dst->levelno);
+      }
       str++;
       len--;
     }
@@ -33589,6 +33670,25 @@ my_uca_copy_page(MY_CHARSET_LOADER *loader,
     memcpy(dst->weights[page] + chc * dst->lengths[page],
            src->weights[page] + chc * src->lengths[page],
            src->lengths[page] * sizeof(uint16));
+  }
+  return FALSE;
+}
+
+
+static my_bool
+my_uca_generate_implicit_page(MY_CHARSET_LOADER *loader,
+                              MY_UCA_WEIGHT_LEVEL *dst,
+                              uint page)
+{
+  uint chc, size= 256 * dst->lengths[page] * sizeof(uint16);
+  if (!(dst->weights[page]= (uint16 *) (loader->once_alloc)(size)))
+    return TRUE;
+
+  memset(dst->weights[page], 0, size);
+  for (chc= 0 ; chc < 256; chc++)
+  {
+    uint16 *w= dst->weights[page] + chc * dst->lengths[page];
+    my_uca_implicit_weight_put(w, (page << 8) + chc, dst->levelno);
   }
   return FALSE;
 }
@@ -33711,7 +33811,7 @@ my_uca_init_one_contraction(MY_CONTRACTIONS *contractions,
 
 static my_bool
 apply_one_rule(MY_CHARSET_LOADER *loader,
-               MY_COLL_RULES *rules, MY_COLL_RULE *r, int level,
+               MY_COLL_RULES *rules, MY_COLL_RULE *r,
                MY_UCA_WEIGHT_LEVEL *dst)
 {
   size_t nweights;
@@ -33787,7 +33887,7 @@ apply_one_rule(MY_CHARSET_LOADER *loader,
   }
 
   /* Apply level difference. */
-  return apply_shift(loader, rules, r, level, to, nweights);
+  return apply_shift(loader, rules, r, dst->levelno, to, nweights);
 }
 
 
@@ -33820,8 +33920,92 @@ check_rules(MY_CHARSET_LOADER *loader,
 }
 
 
+/**
+  Calculates how many weights are needed on the given page.
+
+  In case of implicit weights, the functions returns 3:
+  two implicit weights plus trailing 0.
+
+  Implicit weights can appear if we do something like this:
+    <reset>\u3400</>
+    <i>a</i>
+  I.e. we reset to a character that does not have an explicit weight (U+3400),
+  and then reorder another character relatively to it.
+*/
+static uint my_weight_size_on_page(const MY_UCA_WEIGHT_LEVEL *src, uint page)
+{
+  return src->lengths[page] ? src->lengths[page] : 3;
+}
+
+
+/**
+  Generate default weights for a page:
+  - copy default weights from "src", or
+  - generate implicit weights algorithmically.
+  Note, some of these default weights will change later,
+  during a apply_one_rule() call.
+*/
 static my_bool
-init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules, int level,
+my_uca_generate_page(MY_CHARSET_LOADER *loader,
+                     MY_UCA_WEIGHT_LEVEL *dst, const MY_UCA_WEIGHT_LEVEL *src,
+                     uint pageno)
+{
+  DBUG_ASSERT(dst->levelno == src->levelno);
+  return src->lengths[pageno] ?
+    /*
+      A page with explicit weights and some special rules.
+      Copy all weights from the page in "src".
+    */
+    my_uca_copy_page(loader, src, dst, pageno) :
+    /*
+      A page with implicit weights and some special rules.
+      Generate default weights for all characters on this page
+      algorithmically now, at initialization time.
+    */
+    my_uca_generate_implicit_page(loader, dst, pageno);
+}
+
+
+/**
+  Find all pages that we have special rules on and
+  populate default (explicit or implicit) weights for these pages.
+*/
+static my_bool
+my_uca_generate_pages(MY_CHARSET_LOADER *loader,
+                      MY_UCA_WEIGHT_LEVEL *dst,
+                      const MY_UCA_WEIGHT_LEVEL *src,
+                      uint npages)
+{
+  uint page;
+  for (page= 0; page < npages; page++)
+  {
+    if (dst->weights[page])
+    {
+      /* A page with explicit weights with no special rules */
+      continue;
+    }
+
+    if (!dst->lengths[page])
+    {
+      /*
+        A page with implicit weights with no special rules.
+        Keep dst->weights[page]==NULL and dst->lengths[page]==0.
+        Weights for this page will be generated at run time algorithmically,
+        using my_uca_scanner_next_implicit().
+      */
+      continue;
+    }
+
+    /* Found a page with some special rules. */
+    if (my_uca_generate_page(loader, dst, src, page))
+      return TRUE;
+  }
+  return FALSE;
+}
+
+
+static my_bool
+init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
                   MY_UCA_WEIGHT_LEVEL *dst, const MY_UCA_WEIGHT_LEVEL *src)
 {
   MY_COLL_RULE *r, *rlast;
@@ -33829,6 +34013,7 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules, int level,
   size_t i, npages= (src->maxchar + 1) / 256;
 
   dst->maxchar= src->maxchar;
+  dst->levelno= src->levelno;
 
   if (check_rules(loader, rules, dst, src))
     return TRUE;
@@ -33860,9 +34045,15 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules, int level,
       }
       else
       {
-        uint pageb= (r->base[0] >> 8);
-        if (dst->lengths[pagec] < src->lengths[pageb])
-          dst->lengths[pagec]= src->lengths[pageb];
+        /*
+          Not an expansion and not a contraction.
+          The page correspoding to r->curr[0] in "dst"
+          will need at least the same amount of weights
+          that r->base[0] has in "src".
+        */
+        uint wsize= my_weight_size_on_page(src, r->base[0] >> 8);
+        if (dst->lengths[pagec] < wsize)
+          dst->lengths[pagec]= wsize;
       }
       dst->weights[pagec]= NULL; /* Mark that we'll overwrite this page */
     }
@@ -33872,18 +34063,8 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules, int level,
 
   ncontractions += src->contractions.nitems;
 
-  /* Allocate pages that we'll overwrite and copy default weights */
-  for (i= 0; i < npages; i++)
-  {
-    my_bool rc;
-    /*
-      Don't touch pages with lengths[i]==0, they have implicit weights
-      calculated algorithmically.
-    */
-    if (!dst->weights[i] && dst->lengths[i] &&
-        (rc= my_uca_copy_page(loader, src, dst, i)))
-      return rc;
-  }
+  if ((my_uca_generate_pages(loader, dst, src, npages)))
+    return TRUE;
 
   if (ncontractions)
   {
@@ -33901,7 +34082,7 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules, int level,
   */
   for (r= rules->rule; r < rlast;  r++)
   {
-    if (apply_one_rule(loader, rules, r, level, dst))
+    if (apply_one_rule(loader, rules, r, dst))
       return TRUE;
   }
 
@@ -33984,7 +34165,7 @@ create_tailoring(struct charset_info_st *cs,
       cs->caseinfo= &my_unicase_default;
   }
 
-  if ((rc= init_weight_level(loader, &rules, 0,
+  if ((rc= init_weight_level(loader, &rules,
                              &new_uca.level[0], &src_uca->level[0])))
     goto ex;
 
@@ -34047,7 +34228,7 @@ create_tailoring_multilevel(struct charset_info_st *cs,
 
   for (i= 0; i != num_level; i++)
   {
-    if ((rc= init_weight_level(loader, &rules, i,
+    if ((rc= init_weight_level(loader, &rules,
                                &new_uca.level[i], &src_uca->level[i])))
       goto ex;
   }

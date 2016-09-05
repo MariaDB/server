@@ -1,6 +1,8 @@
 SET GLOBAL wsrep_provider_options = 'pc.weight=3';
 Suspending node ...
 SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_on=ON;
 SHOW STATUS LIKE 'wsrep_cluster_size';
 Variable_name	Value
 wsrep_cluster_size	2

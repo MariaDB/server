@@ -40,7 +40,7 @@ UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
 
 # Wait for both transactions to be blocked
 --connection node_1a
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'System lock';
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Update_rows_log_event::find_row%';
 --source include/wait_condition.inc
 
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'init' AND INFO = 'COMMIT';
@@ -68,4 +68,57 @@ SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 
+DROP TABLE t1;
+
+#echo "# test for PS replaying"
+
+#
+# test replaying of prepared statements
+#
+--connection node_1
+CREATE TABLE t1 (i int primary key, j int) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1, 0), (3, 0);
+SELECT * FROM t1;
+
+PREPARE stmt1 FROM "UPDATE t1 SET j = 1 where i > 0";
+
+# block the commit of PS
+--connection node_1a
+--let $galera_sync_point = commit_monitor_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+--send EXECUTE stmt1;
+
+# Wait until commit is blocked
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--source include/galera_wait_sync_point.inc
+
+# Issue a conflicting update on node_2
+--connection node_2
+#UPDATE t1 SET j=2;
+INSERT INTO t1 VALUES(2,2);
+
+
+# Wait until applying begins in node_1
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Write_rows_log_event::write_row%';
+--source include/wait_condition.inc
+
+# Unblock the PS commit
+--connection node_1a
+--source include/galera_clear_sync_point.inc
+--source include/galera_signal_sync_point.inc
+
+# Commit succeeds
+--connection node_1
+--reap
+SELECT * FROM t1;
+
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+DEALLOCATE PREPARE stmt1;
 DROP TABLE t1;

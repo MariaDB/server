@@ -336,7 +336,8 @@ select * from t1;
 delete from t1;
 create trigger t1_bi before insert on t1 for each row begin end;
 insert t1 values (0);
-select * from t1;
+--error ER_DUP_ENTRY
+insert t1 (id) values (0);
 drop table t1;
 
 #

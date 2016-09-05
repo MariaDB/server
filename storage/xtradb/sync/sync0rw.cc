@@ -261,8 +261,8 @@ rw_lock_create_func(
 	lock->last_x_file_name = "not yet reserved";
 	lock->last_s_line = 0;
 	lock->last_x_line = 0;
-	lock->event = os_event_create();
-	lock->wait_ex_event = os_event_create();
+	os_event_create(&lock->event);
+	os_event_create(&lock->wait_ex_event);
 
 	mutex_enter(&rw_lock_list_mutex);
 
@@ -304,9 +304,9 @@ rw_lock_create_func(
 			    cline);
 
 	lock->high_priority_s_waiters = 0;
-	lock->high_priority_s_event = os_event_create();
+	os_event_create(&lock->high_priority_s_event);
 	lock->high_priority_x_waiters = 0;
-	lock->high_priority_x_event = os_event_create();
+	os_event_create(&lock->high_priority_x_event);
 	lock->high_priority_wait_ex_waiter = 0;
 }
 
@@ -334,9 +334,9 @@ rw_lock_free_func(
 	mutex = rw_lock_get_mutex(lock);
 #endif /* !INNODB_RW_LOCKS_USE_ATOMICS */
 
-	os_event_free(lock->event);
+	os_event_free(&lock->event, false);
 
-	os_event_free(lock->wait_ex_event);
+	os_event_free(&lock->wait_ex_event, false);
 
 	ut_ad(UT_LIST_GET_PREV(list, lock) == NULL
 	      || UT_LIST_GET_PREV(list, lock)->magic_n == RW_LOCK_MAGIC_N);
@@ -366,8 +366,8 @@ rw_lock_free_func(
 /*==============*/
 	prio_rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	os_event_free(lock->high_priority_s_event);
-	os_event_free(lock->high_priority_x_event);
+	os_event_free(&lock->high_priority_s_event, false);
+	os_event_free(&lock->high_priority_x_event, false);
 	rw_lock_free_func(&lock->base_lock);
 }
 

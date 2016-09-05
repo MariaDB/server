@@ -6009,5 +6009,22 @@ SET NAMES utf8;
 CREATE TABLE t1 (f VARCHAR(8)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('foo');
 SELECT f FROM t1 WHERE f > ALL ( SELECT 'bar' UNION SELECT 'baz' );
+SELECT f FROM t1 WHERE f > ALL ( SELECT 'bar');
 drop table t1;
 SET NAMES default;
+
+--echo #
+--echo # MDEV-10045: Server crashes in Time_and_counter_tracker::incr_loops
+--echo #
+SET NAMES utf8;
+
+CREATE TABLE t1 (f1 VARCHAR(3), f2 INT UNSIGNED) ENGINE=MyISAM;
+CREATE TABLE t2 (f3 INT) ENGINE=MyISAM;
+
+SELECT * FROM t1, t2 WHERE f3 = f2 AND f1 > ANY ( SELECT 'foo' UNION SELECT 'bar' );
+SELECT * FROM t1, t2 WHERE f3 = f2 AND f1 > ANY ( SELECT 'foo');
+
+DROP TABLE t1, t2;
+SET NAMES default;
+
+--echo End of 10.1 tests

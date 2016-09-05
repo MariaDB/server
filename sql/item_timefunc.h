@@ -500,7 +500,7 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date) { DBUG_ASSERT(0); return 1; }
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
-  Field *tmp_table_field(TABLE *table)
+  Field *create_field_for_create_select(TABLE *table)
   { return tmp_table_field_from_field_type(table, false, false); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field); }
@@ -835,10 +835,57 @@ public:
 class Item_extract :public Item_int_func
 {
   bool date_value;
+  void set_date_length(uint32 length)
+  {
+    /*
+      Although DATE components (e.g. YEAR, YEAR_MONTH, QUARTER, MONTH, WEEK)
+      cannot have a sign, we should probably still add +1,
+      because all around the code we assume that max_length is sign inclusive.
+      Another options is to set unsigned_flag to "true".
+    */
+    max_length= length; //QQ: see above
+    date_value= true;
+  }
+  void set_time_length(uint32 length)
+  {
+    max_length= length + 1/*sign*/;
+    date_value= false;
+  }
  public:
   const interval_type int_type; // keep it public
   Item_extract(THD *thd, interval_type type_arg, Item *a):
     Item_int_func(thd, a), int_type(type_arg) {}
+  enum_field_types field_type() const
+  {
+    switch (int_type) {
+    case INTERVAL_YEAR:
+    case INTERVAL_YEAR_MONTH:
+    case INTERVAL_QUARTER:
+    case INTERVAL_MONTH:
+    case INTERVAL_WEEK:
+    case INTERVAL_DAY:
+    case INTERVAL_DAY_HOUR:
+    case INTERVAL_DAY_MINUTE:
+    case INTERVAL_DAY_SECOND:
+    case INTERVAL_HOUR:
+    case INTERVAL_HOUR_MINUTE:
+    case INTERVAL_HOUR_SECOND:
+    case INTERVAL_MINUTE:
+    case INTERVAL_MINUTE_SECOND:
+    case INTERVAL_SECOND:
+    case INTERVAL_MICROSECOND:
+    case INTERVAL_SECOND_MICROSECOND:
+      return MYSQL_TYPE_LONG;
+    case INTERVAL_DAY_MICROSECOND:
+    case INTERVAL_HOUR_MICROSECOND:
+    case INTERVAL_MINUTE_MICROSECOND:
+      return MYSQL_TYPE_LONGLONG;
+    case INTERVAL_LAST:
+      break;
+    }
+    DBUG_ASSERT(0);
+    return MYSQL_TYPE_LONGLONG;
+  }
   longlong val_int();
   enum Functype functype() const { return EXTRACT_FUNC; }
   const char *func_name() const { return "extract"; }
@@ -883,6 +930,8 @@ class Item_extract :public Item_int_func
     }
     return true;
   }
+  Field *create_field_for_create_select(TABLE *table)
+  { return tmp_table_field_from_field_type(table, false, false); }
 };
 
 

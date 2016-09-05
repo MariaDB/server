@@ -43,6 +43,15 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include "ft/txn/txn.h"
 
+void set_test_txn_sync_callback(void (*) (pthread_t, void*), void*);
+#define toku_test_txn_sync_callback(a) ((test_txn_sync_callback)? test_txn_sync_callback( a,test_txn_sync_callback_extra) : (void) 0)
+
+#if TOKU_DEBUG_TXN_SYNC
+#define toku_debug_txn_sync(a) toku_test_txn_sync_callback(a) 
+#else
+#define toku_debug_txn_sync(a) ((void) 0)
+#endif
+
 typedef struct txn_manager *TXN_MANAGER;
 
 struct referenced_xid_tuple {

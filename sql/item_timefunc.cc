@@ -939,9 +939,8 @@ void Item_func_monthname::fix_length_and_dec()
 {
   THD* thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
-  uint32 repertoire= my_charset_repertoire(cs);
   locale= thd->variables.lc_time_names;  
-  collation.set(cs, DERIVATION_COERCIBLE, repertoire);
+  collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_month_name_length * collation.collation->mbmaxlen;
   maybe_null=1; 
@@ -1086,9 +1085,8 @@ void Item_func_dayname::fix_length_and_dec()
 {
   THD* thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
-  uint32 repertoire= my_charset_repertoire(cs);
   locale= thd->variables.lc_time_names;  
-  collation.set(cs, DERIVATION_COERCIBLE, repertoire);
+  collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_day_name_length * collation.collation->mbmaxlen;
   maybe_null=1; 
@@ -2194,26 +2192,26 @@ void Item_extract::fix_length_and_dec()
 {
   maybe_null=1;					// If wrong date
   switch (int_type) {
-  case INTERVAL_YEAR:		max_length=4; date_value=1; break;
-  case INTERVAL_YEAR_MONTH:	max_length=6; date_value=1; break;
-  case INTERVAL_QUARTER:        max_length=2; date_value=1; break;
-  case INTERVAL_MONTH:		max_length=2; date_value=1; break;
-  case INTERVAL_WEEK:		max_length=2; date_value=1; break;
-  case INTERVAL_DAY:		max_length=2; date_value=1; break;
-  case INTERVAL_DAY_HOUR:	max_length=9; date_value=0; break;
-  case INTERVAL_DAY_MINUTE:	max_length=11; date_value=0; break;
-  case INTERVAL_DAY_SECOND:	max_length=13; date_value=0; break;
-  case INTERVAL_HOUR:		max_length=2; date_value=0; break;
-  case INTERVAL_HOUR_MINUTE:	max_length=4; date_value=0; break;
-  case INTERVAL_HOUR_SECOND:	max_length=6; date_value=0; break;
-  case INTERVAL_MINUTE:		max_length=2; date_value=0; break;
-  case INTERVAL_MINUTE_SECOND:	max_length=4; date_value=0; break;
-  case INTERVAL_SECOND:		max_length=2; date_value=0; break;
-  case INTERVAL_MICROSECOND:	max_length=2; date_value=0; break;
-  case INTERVAL_DAY_MICROSECOND: max_length=20; date_value=0; break;
-  case INTERVAL_HOUR_MICROSECOND: max_length=13; date_value=0; break;
-  case INTERVAL_MINUTE_MICROSECOND: max_length=11; date_value=0; break;
-  case INTERVAL_SECOND_MICROSECOND: max_length=9; date_value=0; break;
+  case INTERVAL_YEAR:             set_date_length(4); break; // YYYY
+  case INTERVAL_YEAR_MONTH:       set_date_length(6); break; // YYYYMM
+  case INTERVAL_QUARTER:          set_date_length(2); break; // 1..4
+  case INTERVAL_MONTH:            set_date_length(2); break; // MM
+  case INTERVAL_WEEK:             set_date_length(2); break; // 0..52
+  case INTERVAL_DAY:              set_date_length(2); break; // DD
+  case INTERVAL_DAY_HOUR:         set_time_length(4); break; // DDhh
+  case INTERVAL_DAY_MINUTE:       set_time_length(6); break; // DDhhmm
+  case INTERVAL_DAY_SECOND:       set_time_length(8); break; // DDhhmmss
+  case INTERVAL_HOUR:             set_time_length(2); break; // hh
+  case INTERVAL_HOUR_MINUTE:      set_time_length(4); break; // hhmm
+  case INTERVAL_HOUR_SECOND:      set_time_length(6); break; // hhmmss
+  case INTERVAL_MINUTE:           set_time_length(2); break; // mm
+  case INTERVAL_MINUTE_SECOND:    set_time_length(4); break; // mmss
+  case INTERVAL_SECOND:           set_time_length(2); break; // ss
+  case INTERVAL_MICROSECOND:      set_time_length(6); break; // ffffff
+  case INTERVAL_DAY_MICROSECOND:  set_time_length(14); break; // DDhhmmssffffff
+  case INTERVAL_HOUR_MICROSECOND: set_time_length(12); break; // hhmmssffffff
+  case INTERVAL_MINUTE_MICROSECOND: set_time_length(10); break; // mmssffffff
+  case INTERVAL_SECOND_MICROSECOND: set_time_length(8); break; // ssffffff
   case INTERVAL_LAST: DBUG_ASSERT(0); break; /* purecov: deadcode */
   }
 }

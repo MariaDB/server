@@ -1,0 +1,50 @@
+--source include/have_tokudb.inc
+
+# Check the default value
+SET @orig_global = @@global.tokudb_analyze_time;
+SELECT @orig_global;
+
+SET @orig_session = @@session.tokudb_analyze_time;
+SELECT @orig_session;
+
+# Test global
+SET GLOBAL tokudb_analyze_time = 10;
+SELECT @@global.tokudb_analyze_time;
+
+SET GLOBAL tokudb_analyze_time = 0;
+SELECT @@global.tokudb_analyze_time;
+
+SET GLOBAL tokudb_analyze_time = DEFAULT;
+SELECT @@global.tokudb_analyze_time;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL tokudb_analyze_time = 'foobar';
+SELECT @@global.tokudb_analyze_time;
+
+# Test session
+SET SESSION tokudb_analyze_time = 10;
+SELECT @@session.tokudb_analyze_time;
+
+SET SESSION tokudb_analyze_time = 0;
+SELECT @@session.tokudb_analyze_time;
+
+SET SESSION tokudb_analyze_time = DEFAULT;
+SELECT @@session.tokudb_analyze_time;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET SESSION tokudb_analyze_time = 'foobar';
+SELECT @@session.tokudb_analyze_time;
+
+# both
+SET GLOBAL tokudb_analyze_time = 12;
+SET SESSION tokudb_analyze_time = 13;
+SELECT @@global.tokudb_analyze_time;
+SELECT @@session.tokudb_analyze_time;
+SHOW VARIABLES LIKE 'tokudb_analyze_time';
+
+# Clean up
+SET SESSION tokudb_analyze_time = @orig_session;
+SELECT @@session.tokudb_analyze_time;
+
+SET GLOBAL tokudb_analyze_time = @orig_global;
+SELECT @@global.tokudb_analyze_time;

@@ -167,75 +167,77 @@ relative_event_id	relative_end_event_id	event_name	comment	nesting_event_type	re
 57	58	stage/sql/cleaning up	(stage)	STATEMENT	40
 58	58	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	57
 59	59	idle	idle	NULL	NULL
-60	76	statement/sql/select	select "This is the first part of a multi query" as payload;
+60	77	statement/sql/select	select "This is the first part of a multi query" as payload;
 select "And this is the second part of a multi query" as payload;
 select "With a third part to make things complete" as payload	NULL	NULL
-61	64	stage/sql/init	(stage)	STATEMENT	60
+61	65	stage/sql/init	(stage)	STATEMENT	60
 62	62	wait/io/socket/sql/client_connection	recv	STAGE	61
 63	63	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	61
 64	64	wait/io/file/sql/query_log	write	STAGE	61
-65	65	stage/sql/checking permissions	(stage)	STATEMENT	60
-66	66	stage/sql/Opening tables	(stage)	STATEMENT	60
-67	67	stage/sql/After opening tables	(stage)	STATEMENT	60
-68	68	stage/sql/init	(stage)	STATEMENT	60
-69	69	stage/sql/optimizing	(stage)	STATEMENT	60
-70	70	stage/sql/executing	(stage)	STATEMENT	60
-71	71	stage/sql/end	(stage)	STATEMENT	60
-72	72	stage/sql/query end	(stage)	STATEMENT	60
-73	73	stage/sql/closing tables	(stage)	STATEMENT	60
-74	76	stage/sql/freeing items	(stage)	STATEMENT	60
-75	75	wait/io/socket/sql/client_connection	send	STAGE	74
-76	76	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	74
-77	91	statement/sql/select	select "And this is the second part of a multi query" as payload;
+65	65	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	61
+66	66	stage/sql/checking permissions	(stage)	STATEMENT	60
+67	67	stage/sql/Opening tables	(stage)	STATEMENT	60
+68	68	stage/sql/After opening tables	(stage)	STATEMENT	60
+69	69	stage/sql/init	(stage)	STATEMENT	60
+70	70	stage/sql/optimizing	(stage)	STATEMENT	60
+71	71	stage/sql/executing	(stage)	STATEMENT	60
+72	72	stage/sql/end	(stage)	STATEMENT	60
+73	73	stage/sql/query end	(stage)	STATEMENT	60
+74	74	stage/sql/closing tables	(stage)	STATEMENT	60
+75	77	stage/sql/freeing items	(stage)	STATEMENT	60
+76	76	wait/io/socket/sql/client_connection	send	STAGE	75
+77	77	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	75
+78	93	statement/sql/select	select "And this is the second part of a multi query" as payload;
 select "With a third part to make things complete" as payload	NULL	NULL
-78	79	stage/sql/init	(stage)	STATEMENT	77
-79	79	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	78
-80	80	stage/sql/checking permissions	(stage)	STATEMENT	77
-81	81	stage/sql/Opening tables	(stage)	STATEMENT	77
-82	82	stage/sql/After opening tables	(stage)	STATEMENT	77
-83	83	stage/sql/init	(stage)	STATEMENT	77
-84	84	stage/sql/optimizing	(stage)	STATEMENT	77
-85	85	stage/sql/executing	(stage)	STATEMENT	77
-86	86	stage/sql/end	(stage)	STATEMENT	77
-87	87	stage/sql/query end	(stage)	STATEMENT	77
-88	88	stage/sql/closing tables	(stage)	STATEMENT	77
-89	91	stage/sql/freeing items	(stage)	STATEMENT	77
-90	90	wait/io/socket/sql/client_connection	send	STAGE	89
-91	91	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	89
-92	108	statement/sql/select	select "With a third part to make things complete" as payload	NULL	NULL
-93	94	stage/sql/init	(stage)	STATEMENT	92
-94	94	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	93
-95	95	stage/sql/checking permissions	(stage)	STATEMENT	92
-96	96	stage/sql/Opening tables	(stage)	STATEMENT	92
-97	97	stage/sql/After opening tables	(stage)	STATEMENT	92
-98	98	stage/sql/init	(stage)	STATEMENT	92
-99	99	stage/sql/optimizing	(stage)	STATEMENT	92
-100	100	stage/sql/executing	(stage)	STATEMENT	92
-101	101	stage/sql/end	(stage)	STATEMENT	92
-102	102	stage/sql/query end	(stage)	STATEMENT	92
-103	103	stage/sql/closing tables	(stage)	STATEMENT	92
-104	104	stage/sql/freeing items	(stage)	STATEMENT	92
-105	105	wait/io/socket/sql/client_connection	send	STATEMENT	92
-106	106	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STATEMENT	92
-107	108	stage/sql/cleaning up	(stage)	STATEMENT	92
-108	108	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	107
-109	109	idle	idle	NULL	NULL
-110	128	statement/sql/select	select "MARKER_END" as marker	NULL	NULL
-111	114	stage/sql/init	(stage)	STATEMENT	110
-112	112	wait/io/socket/sql/client_connection	recv	STAGE	111
-113	113	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	111
-114	114	wait/io/file/sql/query_log	write	STAGE	111
-115	115	stage/sql/checking permissions	(stage)	STATEMENT	110
-116	116	stage/sql/Opening tables	(stage)	STATEMENT	110
-117	117	stage/sql/After opening tables	(stage)	STATEMENT	110
-118	118	stage/sql/init	(stage)	STATEMENT	110
-119	119	stage/sql/optimizing	(stage)	STATEMENT	110
-120	120	stage/sql/executing	(stage)	STATEMENT	110
-121	121	stage/sql/end	(stage)	STATEMENT	110
-122	122	stage/sql/query end	(stage)	STATEMENT	110
-123	123	stage/sql/closing tables	(stage)	STATEMENT	110
-124	124	stage/sql/freeing items	(stage)	STATEMENT	110
-125	125	wait/io/socket/sql/client_connection	send	STATEMENT	110
-126	126	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STATEMENT	110
-127	128	stage/sql/cleaning up	(stage)	STATEMENT	110
-128	128	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	127
+79	81	stage/sql/init	(stage)	STATEMENT	78
+80	80	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	79
+81	81	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	79
+82	82	stage/sql/checking permissions	(stage)	STATEMENT	78
+83	83	stage/sql/Opening tables	(stage)	STATEMENT	78
+84	84	stage/sql/After opening tables	(stage)	STATEMENT	78
+85	85	stage/sql/init	(stage)	STATEMENT	78
+86	86	stage/sql/optimizing	(stage)	STATEMENT	78
+87	87	stage/sql/executing	(stage)	STATEMENT	78
+88	88	stage/sql/end	(stage)	STATEMENT	78
+89	89	stage/sql/query end	(stage)	STATEMENT	78
+90	90	stage/sql/closing tables	(stage)	STATEMENT	78
+91	93	stage/sql/freeing items	(stage)	STATEMENT	78
+92	92	wait/io/socket/sql/client_connection	send	STAGE	91
+93	93	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	91
+94	110	statement/sql/select	select "With a third part to make things complete" as payload	NULL	NULL
+95	96	stage/sql/init	(stage)	STATEMENT	94
+96	96	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	95
+97	97	stage/sql/checking permissions	(stage)	STATEMENT	94
+98	98	stage/sql/Opening tables	(stage)	STATEMENT	94
+99	99	stage/sql/After opening tables	(stage)	STATEMENT	94
+100	100	stage/sql/init	(stage)	STATEMENT	94
+101	101	stage/sql/optimizing	(stage)	STATEMENT	94
+102	102	stage/sql/executing	(stage)	STATEMENT	94
+103	103	stage/sql/end	(stage)	STATEMENT	94
+104	104	stage/sql/query end	(stage)	STATEMENT	94
+105	105	stage/sql/closing tables	(stage)	STATEMENT	94
+106	106	stage/sql/freeing items	(stage)	STATEMENT	94
+107	107	wait/io/socket/sql/client_connection	send	STATEMENT	94
+108	108	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STATEMENT	94
+109	110	stage/sql/cleaning up	(stage)	STATEMENT	94
+110	110	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	109
+111	111	idle	idle	NULL	NULL
+112	130	statement/sql/select	select "MARKER_END" as marker	NULL	NULL
+113	116	stage/sql/init	(stage)	STATEMENT	112
+114	114	wait/io/socket/sql/client_connection	recv	STAGE	113
+115	115	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	113
+116	116	wait/io/file/sql/query_log	write	STAGE	113
+117	117	stage/sql/checking permissions	(stage)	STATEMENT	112
+118	118	stage/sql/Opening tables	(stage)	STATEMENT	112
+119	119	stage/sql/After opening tables	(stage)	STATEMENT	112
+120	120	stage/sql/init	(stage)	STATEMENT	112
+121	121	stage/sql/optimizing	(stage)	STATEMENT	112
+122	122	stage/sql/executing	(stage)	STATEMENT	112
+123	123	stage/sql/end	(stage)	STATEMENT	112
+124	124	stage/sql/query end	(stage)	STATEMENT	112
+125	125	stage/sql/closing tables	(stage)	STATEMENT	112
+126	126	stage/sql/freeing items	(stage)	STATEMENT	112
+127	127	wait/io/socket/sql/client_connection	send	STATEMENT	112
+128	128	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STATEMENT	112
+129	130	stage/sql/cleaning up	(stage)	STATEMENT	112
+130	130	wait/synch/mutex/sql/THD::LOCK_thd_data	lock	STAGE	129

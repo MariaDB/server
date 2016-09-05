@@ -311,6 +311,7 @@ sub combinations_from_file($$)
 }
 
 our %disabled;
+our %disabled_wildcards;
 sub parse_disabled {
   my ($filename, $suitename) = @_;
 
@@ -319,10 +320,18 @@ sub parse_disabled {
       chomp;
       next if /^\s*#/ or /^\s*$/;
       mtr_error("Syntax error in $filename line $.")
-        unless /^\s*(?:([-0-9A-Za-z_\/]+)\.)?([-0-9A-Za-z_#]+)\s*:\s*(.*?)\s*$/;
-      mtr_error("Wrong suite name in $filename line $.")
+        unless /^\s*(?:([-0-9A-Za-z_\/]+)\.)?([-0-9A-Za-z_#\*]+)\s*:\s*(.*?)\s*$/;
+      mtr_error("Wrong suite name in $filename line $.: suitename = $suitename but the file says $1")
         if defined $1 and defined $suitename and $1 ne $suitename;
-      $disabled{($1 || $suitename || '') . ".$2"} = $3;
+      my ($sname, $casename, $text)= (($1 || $suitename || ''), $2, $3);
+
+      if ($casename =~ /\*/) {
+        # Wildcard
+        $disabled_wildcards{$sname . ".$casename"}= $text;
+      }
+      else {
+        $disabled{$sname . ".$casename"}= $text;
+      }
     }
     close DISABLED;
   }
@@ -720,6 +729,14 @@ sub collect_one_test_case {
   # Check for disabled tests
   # ----------------------------------------------------------------------
   my $disable = $disabled{".$tname"} || $disabled{$name};
+  if (not $disable) {
+    foreach my $w (keys %disabled_wildcards) {
+      if ($name =~ /^$w/) {
+        $disable= $disabled_wildcards{$w};
+        last;
+      }
+    }
+  }
   if (not defined $disable and $suite->{parent}) {
     $disable = $disabled{$suite->{parent}->{name} . ".$tname"};
   }

@@ -68,4 +68,17 @@ CREATE TABLE `t2` (`c1` INT) ENGINE=INNODB SELECT * FROM t1;
 COMMIT;
 SET autocommit=1;
 DROP TABLE t1, t2;
+#
+# MDEV-10235: Deadlock in CREATE TABLE ... AS SELECT .. if result set
+# is empty in Galera
+#
+CREATE TABLE t1(c1 INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t2 AS SELECT * FROM t1 WHERE c1=2;
+SELECT * FROM t1;
+c1
+1
+SELECT * FROM t2;
+c1
+DROP TABLE t1, t2;
 # End of tests

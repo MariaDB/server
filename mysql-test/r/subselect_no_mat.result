@@ -6886,6 +6886,7 @@ Handler_read_key	8
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	22
@@ -6923,6 +6924,7 @@ Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	16
@@ -7150,8 +7152,24 @@ INSERT INTO t1 VALUES ('foo');
 SELECT f FROM t1 WHERE f > ALL ( SELECT 'bar' UNION SELECT 'baz' );
 f
 foo
+SELECT f FROM t1 WHERE f > ALL ( SELECT 'bar');
+f
+foo
 drop table t1;
 SET NAMES default;
+#
+# MDEV-10045: Server crashes in Time_and_counter_tracker::incr_loops
+#
+SET NAMES utf8;
+CREATE TABLE t1 (f1 VARCHAR(3), f2 INT UNSIGNED) ENGINE=MyISAM;
+CREATE TABLE t2 (f3 INT) ENGINE=MyISAM;
+SELECT * FROM t1, t2 WHERE f3 = f2 AND f1 > ANY ( SELECT 'foo' UNION SELECT 'bar' );
+f1	f2	f3
+SELECT * FROM t1, t2 WHERE f3 = f2 AND f1 > ANY ( SELECT 'foo');
+f1	f2	f3
+DROP TABLE t1, t2;
+SET NAMES default;
+End of 10.1 tests
 set optimizer_switch=default;
 select @@optimizer_switch like '%materialization=on%';
 @@optimizer_switch like '%materialization=on%'

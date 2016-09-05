@@ -143,6 +143,10 @@ struct ft_header {
     MSN msn_at_start_of_last_completed_optimize;
 
     STAT64INFO_S on_disk_stats;
+
+    // This represents the balance of inserts - deletes and should be
+    // closer to a logical representation of the number of records in an index
+    uint64_t on_disk_logical_rows;
 };
 typedef struct ft_header *FT_HEADER;
 
@@ -176,6 +180,7 @@ struct ft {
 
     // protected by atomic builtins
     STAT64INFO_S in_memory_stats;
+    uint64_t in_memory_logical_rows;
 
     // transient, not serialized to disk.  updated when we do write to
     // disk.  tells us whether we can do partial eviction (we can't if

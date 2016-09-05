@@ -2151,5 +2151,95 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	a	a	6	const	1	Using where; Using index; Using filesort
 DROP TABLE t1;
 #
+# MDEV-8502 DECIMAL accepts out of range DEFAULT values
+#
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 10000);
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 10000.0);
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 10000e0);
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '10000.0');
+ERROR 42000: Invalid default value for 'a'
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '10000.1');
+ERROR 42000: Invalid default value for 'a'
+#
+# MDEV-10277 Redundant NOTE when inserting '0.00001 ' into a DECIMAL(2,1) column
+#
+CREATE TABLE t1 (a DECIMAL(2,1));
+INSERT INTO t1 VALUES ('0.00001 ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+INSERT INTO t1 VALUES ('1e-10000 ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+INSERT INTO t1 VALUES ('0.1 ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+INSERT INTO t1 VALUES ('0.111 ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+a
+0.0
+0.0
+0.1
+0.1
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '1e-10000');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(2,1) DEFAULT '0.0'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.1 ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(2,1) DEFAULT '0.1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.10001 ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(2,1) DEFAULT '0.1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.10001');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(2,1) DEFAULT '0.1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 0.10001);
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(2,1) DEFAULT '0.1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 0.10001e0);
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(2,1) DEFAULT '0.1'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #

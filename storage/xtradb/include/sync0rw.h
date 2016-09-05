@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -367,7 +367,7 @@ ibool
 rw_lock_s_lock_low(
 /*===============*/
 	rw_lock_t*	lock,	/*!< in: pointer to rw-lock */
-	ulint		pass __attribute__((unused)),
+	ulint		pass MY_ATTRIBUTE((unused)),
 				/*!< in: pass value; != 0, if the lock will be
 				passed to another thread to unlock */
 	const char*	file_name, /*!< in: file name where lock requested */
@@ -630,7 +630,7 @@ rw_lock_own(
 	rw_lock_t*	lock,		/*!< in: rw-lock */
 	ulint		lock_type)	/*!< in: lock type: RW_LOCK_SHARED,
 					RW_LOCK_EX */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************************//**
 Checks if the thread has locked the priority rw-lock in the specified mode,
 with the pass value == 0. */
@@ -641,7 +641,7 @@ rw_lock_own(
 	prio_rw_lock_t*	lock,		/*!< in: rw-lock */
 	ulint		lock_type)	/*!< in: lock type: RW_LOCK_SHARED,
 					RW_LOCK_EX */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* UNIV_SYNC_DEBUG */
 /******************************************************************//**
 Checks if somebody has locked the rw-lock in the specified mode. */
@@ -734,8 +734,8 @@ struct rw_lock_t {
 				/*!< Thread id of writer thread. Is only
 				guaranteed to have sane and non-stale
 				value iff recursive flag is set. */
-	os_event_t	event;	/*!< Used by sync0arr.cc for thread queueing */
-	os_event_t	wait_ex_event;
+	struct os_event	event;	/*!< Used by sync0arr.cc for thread queueing */
+	struct os_event	wait_ex_event;
 				/*!< Event for next-writer to wait on. A thread
 				must decrement lock_word before waiting. */
 #ifndef INNODB_RW_LOCKS_USE_ATOMICS
@@ -788,12 +788,12 @@ struct prio_rw_lock_t {
 	volatile ulint		high_priority_s_waiters;
 						/* Number of high priority S
 						waiters */
-	os_event_t		high_priority_s_event; /* High priority wait
+	struct os_event		high_priority_s_event; /* High priority wait
 						array event for S waiters */
 	volatile ulint		high_priority_x_waiters;
 						/* Number of high priority X
 						waiters */
-	os_event_t		high_priority_x_event;
+	struct os_event		high_priority_x_event;
 						/* High priority wait arraay
 						event for X waiters */
 	volatile ulint		high_priority_wait_ex_waiter;

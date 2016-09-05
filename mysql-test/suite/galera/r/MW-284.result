@@ -1,0 +1,14 @@
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+SET SESSION wsrep_on = OFF;
+SET SESSION wsrep_on = ON;
+START SLAVE;
+include/wait_for_slave_param.inc [Slave_IO_Running]
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+include/wait_for_slave_to_start.inc
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+STOP SLAVE;
+RESET SLAVE ALL;
+CALL mtr.add_suppression('failed registering on master');
+CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');

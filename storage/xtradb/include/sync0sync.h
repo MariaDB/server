@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
 
@@ -569,7 +569,7 @@ ibool
 mutex_own(
 /*======*/
 	const ib_mutex_t*	mutex)	/*!< in: mutex */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************************//**
 Checks that the current thread owns the priority mutex. Works only
 in the debug version.
@@ -579,7 +579,7 @@ ibool
 mutex_own(
 /*======*/
 	const ib_prio_mutex_t*	mutex)	/*!< in: priority mutex */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* UNIV_DEBUG */
 #ifdef UNIV_SYNC_DEBUG
 /******************************************************************//**
@@ -594,7 +594,7 @@ sync_thread_add_level(
 	ulint	level,	/*!< in: level in the latching order; if
 			SYNC_LEVEL_VARYING, nothing is done */
 	ibool	relock)	/*!< in: TRUE if re-entering an x-lock */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 /******************************************************************//**
 Removes a latch from the thread level array if it is found there.
 @return TRUE if found in the array; it is no error if the latch is
@@ -624,7 +624,7 @@ sync_thread_levels_nonempty_gen(
 /*============================*/
 	ibool	dict_mutex_allowed)	/*!< in: TRUE if dictionary mutex is
 					allowed to be owned by the thread */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************************//**
 Checks if the level array for the current thread is empty,
 except for data dictionary latches. */
@@ -641,7 +641,7 @@ sync_thread_levels_nonempty_trx(
 	ibool	has_search_latch)
 				/*!< in: TRUE if and only if the thread
 				is supposed to hold btr_search_latch */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************************//**
 Gets the debug information for a reserved mutex. */
@@ -926,7 +926,7 @@ implementation of a mutual exclusion semaphore. */
 
 /** InnoDB mutex */
 struct ib_mutex_t {
-	os_event_t	event;	/*!< Used by sync0arr.cc for the wait queue */
+	struct os_event	event;	/*!< Used by sync0arr.cc for the wait queue */
 	volatile lock_word_t	lock_word;	/*!< lock_word is the target
 				of the atomic test-and-set instruction when
 				atomic operations are enabled. */
@@ -974,14 +974,13 @@ struct ib_mutex_t {
 struct ib_prio_mutex_t {
 	ib_mutex_t	base_mutex;	/* The regular mutex provides the lock
 					word etc. for the priority mutex  */
-	os_event_t	high_priority_event; /* High priority wait array
+	struct os_event	high_priority_event; /* High priority wait array
 					event */
 	volatile ulint	high_priority_waiters; /* Number of threads that asked
 					for this mutex to be acquired with high
 					priority in the global wait array
 					waiting for this mutex to be
 					released. */
-	UT_LIST_NODE_T(ib_prio_mutex_t)	list;
 };
 
 /** Constant determining how long spin wait is continued before suspending

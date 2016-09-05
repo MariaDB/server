@@ -7139,3 +7139,6 @@ ER_KILL_QUERY_DENIED_ERROR
 ER_NO_EIS_FOR_FIELD
         eng "Engine-independent statistics are not collected for column '%s'"
         ukr "Незалежна від типу таблиці статистика не збирається для стовбця '%s'"
+ER_WARN_AGGFUNC_DEPENDENCE
+        eng "Aggregate function '%-.192s)' of SELECT #%d belongs to SELECT #%d"
+        ukr "Агрегатна функція '%-.192s)' з SELECTу #%d належить до SELECTу #%d"

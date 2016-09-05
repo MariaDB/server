@@ -380,6 +380,16 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
       sl->master_unit()->item->with_sum_func= 1;
   }
   thd->lex->current_select->mark_as_dependent(thd, aggr_sel, NULL);
+
+  if ((thd->lex->describe & DESCRIBE_EXTENDED) && aggr_sel)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_WARN_AGGFUNC_DEPENDENCE,
+                        ER_THD(thd, ER_WARN_AGGFUNC_DEPENDENCE),
+                        func_name(),
+                        thd->lex->current_select->select_number,
+                        aggr_sel->select_number);
+  }
   return FALSE;
 }
 
@@ -1450,7 +1460,7 @@ my_decimal *Item_sum_sum::val_decimal(my_decimal *val)
   if (aggr)
     aggr->endup();
   if (hybrid_type == DECIMAL_RESULT)
-    return (dec_buffs + curr_dec_buff);
+    return null_value ? NULL : (dec_buffs + curr_dec_buff);
   return val_decimal_from_real(val);
 }
 
@@ -1753,6 +1763,8 @@ double Item_sum_std::val_real()
 {
   DBUG_ASSERT(fixed == 1);
   double nr= Item_sum_variance::val_real();
+  if (my_isinf(nr))
+    return DBL_MAX;
   DBUG_ASSERT(nr >= 0.0);
   return sqrt(nr);
 }

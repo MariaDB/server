@@ -261,7 +261,7 @@ int handler::multi_range_read_next(range_id_t *range_info)
     }
     else
     {
-      if (was_semi_consistent_read())
+      if (ha_was_semi_consistent_read())
       {
         /*
           The following assignment is redundant, but for extra safety and to

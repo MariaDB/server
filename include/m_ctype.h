@@ -131,6 +131,7 @@ typedef struct my_uca_level_info_st
   uchar   *lengths;
   uint16  **weights;
   MY_CONTRACTIONS contractions;
+  uint    levelno;
 } MY_UCA_WEIGHT_LEVEL;
 
 

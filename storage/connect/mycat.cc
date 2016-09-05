@@ -109,19 +109,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 /***********************************************************************/
 char *GetPluginDir(void)
 {
-  char *plugin_dir;
-
-#if defined(_WIN64)
-  plugin_dir = (char *)GetProcAddress(GetModuleHandle(NULL),
-    "?opt_plugin_dir@@3PADEA");
-#elif defined(_WIN32)
-  plugin_dir = (char*)GetProcAddress(GetModuleHandle(NULL),
-    "?opt_plugin_dir@@3PADA");
-#else
-  plugin_dir = opt_plugin_dir;
-#endif
-
-  return plugin_dir;
+  return opt_plugin_dir;
 } // end of GetPluginDir
 
 /***********************************************************************/

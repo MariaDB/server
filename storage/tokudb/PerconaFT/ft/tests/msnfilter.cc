@@ -82,49 +82,85 @@ append_leaf(FT_HANDLE ft, FTNODE leafnode, void *key, uint32_t keylen, void *val
     ft_msg msg(&thekey, &theval, FT_INSERT, msn, toku_xids_get_root_xids());
     txn_gc_info gc_info(nullptr, TXNID_NONE, TXNID_NONE, false);
 
-    toku_ft_leaf_apply_msg(ft->ft->cmp, ft->ft->update_fun, leafnode, -1, msg, &gc_info, nullptr, nullptr);
+    toku_ft_leaf_apply_msg(
+        ft->ft->cmp,
+        ft->ft->update_fun,
+        leafnode,
+        -1,
+        msg,
+        &gc_info,
+        nullptr,
+        nullptr,
+        nullptr);
     {
-	int r = toku_ft_lookup(ft, &thekey, lookup_checkf, &pair);
-	assert(r==0);
-	assert(pair.call_count==1);
+        int r = toku_ft_lookup(ft, &thekey, lookup_checkf, &pair);
+        assert(r==0);
+        assert(pair.call_count==1);
     }
 
     ft_msg badmsg(&thekey, &badval, FT_INSERT, msn, toku_xids_get_root_xids());
-    toku_ft_leaf_apply_msg(ft->ft->cmp, ft->ft->update_fun, leafnode, -1, badmsg, &gc_info, nullptr, nullptr);
+    toku_ft_leaf_apply_msg(
+        ft->ft->cmp,
+        ft->ft->update_fun,
+        leafnode,
+        -1,
+        badmsg,
+        &gc_info,
+        nullptr,
+        nullptr,
+        nullptr);
 
     // message should be rejected for duplicate msn, row should still have original val
     {
-	int r = toku_ft_lookup(ft, &thekey, lookup_checkf, &pair);
-	assert(r==0);
-	assert(pair.call_count==2);
+	      int r = toku_ft_lookup(ft, &thekey, lookup_checkf, &pair);
+	      assert(r==0);
+	      assert(pair.call_count==2);
     }
 
     // now verify that message with proper msn gets through
     msn = next_dummymsn();
     ft->ft->h->max_msn_in_ft = msn;
     ft_msg msg2(&thekey, &val2,  FT_INSERT, msn, toku_xids_get_root_xids());
-    toku_ft_leaf_apply_msg(ft->ft->cmp, ft->ft->update_fun, leafnode, -1, msg2, &gc_info, nullptr, nullptr);
+    toku_ft_leaf_apply_msg(
+        ft->ft->cmp,
+        ft->ft->update_fun,
+        leafnode,
+        -1,
+        msg2,
+        &gc_info,
+        nullptr,
+        nullptr,
+        nullptr);
 
     // message should be accepted, val should have new value
     {
-	int r = toku_ft_lookup(ft, &thekey, lookup_checkf, &pair2);
-	assert(r==0);
-	assert(pair2.call_count==1);
+	      int r = toku_ft_lookup(ft, &thekey, lookup_checkf, &pair2);
+	      assert(r==0);
+	      assert(pair2.call_count==1);
     }
 
     // now verify that message with lesser (older) msn is rejected
     msn.msn = msn.msn - 10;
     ft_msg msg3(&thekey, &badval, FT_INSERT, msn, toku_xids_get_root_xids());
-    toku_ft_leaf_apply_msg(ft->ft->cmp, ft->ft->update_fun, leafnode, -1, msg3, &gc_info, nullptr, nullptr);
+    toku_ft_leaf_apply_msg(
+        ft->ft->cmp,
+        ft->ft->update_fun,
+        leafnode,
+        -1,
+        msg3,
+        &gc_info,
+        nullptr,
+        nullptr,
+        nullptr);
 
     // message should be rejected, val should still have value in pair2
     {
-	int r = toku_ft_lookup(ft, &thekey, lookup_checkf, &pair2);
-	assert(r==0);
-	assert(pair2.call_count==2);
+	      int r = toku_ft_lookup(ft, &thekey, lookup_checkf, &pair2);
+	      assert(r==0);
+	      assert(pair2.call_count==2);
     }
 
-    // dont forget to dirty the node
+    // don't forget to dirty the node
     leafnode->dirty = 1;
 }
 

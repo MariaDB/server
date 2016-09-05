@@ -886,11 +886,11 @@ extern "C" UINT __stdcall CheckServiceUpgrades(MSIHANDLE hInstall)
       (QUERY_SERVICE_CONFIGW*)(void *)config_buffer;
     DWORD needed;
     BOOL ok= QueryServiceConfigW(service, config,sizeof(config_buffer),
-      &needed);
+      &needed) && (config->dwStartType != SERVICE_DISABLED);
     CloseServiceHandle(service);
     if (ok)
     {
-        mysqld_service_properties props;
+       mysqld_service_properties props;
        if (get_mysql_service_properties(config->lpBinaryPathName, &props))
                   continue;
         /* 

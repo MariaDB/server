@@ -2114,6 +2114,37 @@ a	b
 1	1
 drop table t2;
 #
+# MDEV-10228: Delete missing rows with OR conditions
+#  (The example uses UPDATE, because UPDATE allows to use index hints
+#   and so it's possible to make an example that works with any storage
+#   engine)
+#
+CREATE TABLE t1 (
+key1varchar varchar(14) NOT NULL,
+key2int int(11) NOT NULL DEFAULT '0',
+col1 int,
+PRIMARY KEY (key1varchar,key2int),
+KEY key1varchar (key1varchar),
+KEY key2int (key2int)
+) DEFAULT CHARSET=utf8;
+insert into t1 values 
+('value1',0, 0),
+('value1',1, 0),
+('value1',1000685, 0),
+('value1',1003560, 0),
+('value1',1004807, 0);
+update t1 force index (PRIMARY) set col1=12345
+where (key1varchar='value1' AND (key2int <=1 OR  key2int > 1));
+# The following must show col1=12345 for all rows:
+select * from t1;
+key1varchar	key2int	col1
+value1	0	12345
+value1	1	12345
+value1	1000685	12345
+value1	1003560	12345
+value1	1004807	12345
+drop table t1;
+#
 # BUG#13731380: RANGE OPTIMIZER CALLS RECORDS_IN_RANGE() FOR OPEN RANGE
 #
 CREATE TABLE t1 (pk INT PRIMARY KEY);
@@ -2286,6 +2317,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Warning	1366	Incorrect string value: '\xF0\x9F\x98\x8E' for column 'a' at row 1
+DROP TABLE t1;
+#
+# MDEV-10185: Assertion `tree1->keys[key_no] && tree2->keys[key_no]' failed in 
+#             sel_trees_can_be_ored(RANGE_OPT_PARAM*, SEL_TREE*, SEL_TREE*, key_map*)
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE pk != 1000 OR pk IN ( 1000, 0, 1, 100, 2 ) OR pk >= 5;
+pk
+1
+2
 DROP TABLE t1;
 #
 # End of 10.1 tests

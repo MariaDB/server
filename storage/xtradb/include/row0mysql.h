@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -168,7 +168,7 @@ row_mysql_handle_errors(
 	trx_t*		trx,	/*!< in: transaction */
 	que_thr_t*	thr,	/*!< in: query thread, or NULL */
 	trx_savept_t*	savept)	/*!< in: savepoint, or NULL */
-	__attribute__((nonnull(1,2)));
+	MY_ATTRIBUTE((nonnull(1,2)));
 /********************************************************************//**
 Create a prebuilt struct for a MySQL table handle.
 @return	own: a prebuilt struct */
@@ -210,7 +210,7 @@ row_lock_table_autoinc_for_mysql(
 /*=============================*/
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in the MySQL
 					table handle */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Sets a table lock on the table mentioned in prebuilt.
 @return	error code or DB_SUCCESS */
@@ -226,7 +226,7 @@ row_lock_table_for_mysql(
 					prebuilt->select_lock_type */
 	ulint		mode)		/*!< in: lock mode of table
 					(ignored if table==NULL) */
-	__attribute__((nonnull(1)));
+	MY_ATTRIBUTE((nonnull(1)));
 /*********************************************************************//**
 Does an insert for MySQL.
 @return	error code or DB_SUCCESS */
@@ -237,7 +237,7 @@ row_insert_for_mysql(
 	byte*		mysql_rec,	/*!< in: row in the MySQL format */
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL
 					handle */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Builds a dummy query graph used in selects. */
 UNIV_INTERN
@@ -277,7 +277,7 @@ row_update_for_mysql(
 					the MySQL format */
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL
 					handle */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
 session is using a READ COMMITTED or READ UNCOMMITTED isolation level.
@@ -298,7 +298,7 @@ row_unlock_for_mysql(
 					the records under pcur and
 					clust_pcur, and we do not need
 					to reposition the cursors. */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 /*********************************************************************//**
 Checks if a table name contains the string "/#sql" which denotes temporary
 tables in MySQL.
@@ -307,7 +307,7 @@ UNIV_INTERN
 bool
 row_is_mysql_tmp_table_name(
 /*========================*/
-	const char*	name) __attribute__((warn_unused_result));
+	const char*	name) MY_ATTRIBUTE((warn_unused_result));
 				/*!< in: table name in the form
 				'database/tablename' */
 
@@ -332,7 +332,7 @@ row_update_cascade_for_mysql(
 	upd_node_t*	node,	/*!< in: update node used in the cascade
 				or set null operation */
 	dict_table_t*	table)	/*!< in: table where we do the operation */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Locks the data dictionary exclusively for performing a table create or other
 data dictionary modification operation. */
@@ -409,7 +409,7 @@ row_create_index_for_mysql(
 					index columns, which are
 					then checked for not being too
 					large. */
-	__attribute__((nonnull(1,2), warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
 /*********************************************************************//**
 Scans a table create SQL string and adds to the data dictionary
 the foreign key constraints declared in the string. This function
@@ -435,7 +435,7 @@ row_table_add_foreign_constraints(
 	ibool		reject_fks)	/*!< in: if TRUE, fail with error
 					code DB_CANNOT_ADD_CONSTRAINT if
 					any foreign keys are found. */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 The master thread in srv0srv.cc calls this regularly to drop tables which
 we must drop in background after queries to them have ended. Such lazy
@@ -464,7 +464,7 @@ row_mysql_lock_table(
 	dict_table_t*	table,		/*!< in: table to lock */
 	enum lock_mode	mode,		/*!< in: LOCK_X or LOCK_S */
 	const char*	op_info)	/*!< in: string for trx->op_info */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
 Truncates a table for MySQL.
@@ -475,7 +475,7 @@ row_truncate_table_for_mysql(
 /*=========================*/
 	dict_table_t*	table,	/*!< in: table handle */
 	trx_t*		trx)	/*!< in: transaction handle */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Drops a table for MySQL.  If the name of the dropped table ends in
 one of "innodb_monitor", "innodb_lock_monitor", "innodb_tablespace_monitor",
@@ -491,10 +491,13 @@ row_drop_table_for_mysql(
 	const char*	name,	/*!< in: table name */
 	trx_t*		trx,	/*!< in: dictionary transaction handle */
 	bool		drop_db,/*!< in: true=dropping whole database */
+	ibool		create_failed,/*!<in: TRUE=create table failed
+				       because e.g. foreign key column
+				       type mismatch. */
 	bool		nonatomic = true)
 				/*!< in: whether it is permitted
 				to release and reacquire dict_operation_lock */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 /*********************************************************************//**
 Drop all temporary tables during crash recovery. */
 UNIV_INTERN
@@ -513,7 +516,7 @@ row_discard_tablespace_for_mysql(
 /*=============================*/
 	const char*	name,	/*!< in: table name */
 	trx_t*		trx)	/*!< in: transaction handle */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*****************************************************************//**
 Imports a tablespace. The space id in the .ibd file must match the space id
 of the table in the data dictionary.
@@ -524,7 +527,7 @@ row_import_tablespace_for_mysql(
 /*============================*/
 	dict_table_t*	table,		/*!< in/out: table */
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL */
-        __attribute__((nonnull, warn_unused_result));
+        MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Drops a database for MySQL.
 @return	error code or DB_SUCCESS */
@@ -534,7 +537,7 @@ row_drop_database_for_mysql(
 /*========================*/
 	const char*	name,	/*!< in: database name which ends to '/' */
 	trx_t*		trx)	/*!< in: transaction handle */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 /*********************************************************************//**
 Renames a table for MySQL.
 @return	error code or DB_SUCCESS */
@@ -546,7 +549,7 @@ row_rename_table_for_mysql(
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
 	bool		commit)		/*!< in: whether to commit trx */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Checks that the index contains entries in an ascending order, unique
 constraint is not broken, and calculates the number of index entries
@@ -561,7 +564,7 @@ row_check_index_for_mysql(
 	const dict_index_t*	index,		/*!< in: index */
 	ulint*			n_rows)		/*!< out: number of entries
 						seen in the consistent read */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Determines if a table is a magic monitor table.
 @return	true if monitor table */
@@ -571,7 +574,7 @@ row_is_magic_monitor_table(
 /*=======================*/
 	const char*	table_name)	/*!< in: name of the table, in the
 					form database/table_name */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Initialize this module */
 UNIV_INTERN
@@ -596,7 +599,7 @@ row_mysql_table_id_reassign(
 	dict_table_t*	table,	/*!< in/out: table */
 	trx_t*		trx,	/*!< in/out: transaction */
 	table_id_t*	new_id) /*!< out: new table id */
-        __attribute__((nonnull, warn_unused_result));
+        MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /* A struct describing a place for an individual column in the MySQL
 row format which is presented to the table handler in ha_innobase.

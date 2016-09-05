@@ -1,8 +1,10 @@
+# Running this with valgrind can take > 5000 seconds with xtradb
+--source include/not_valgrind.inc
+
 --source include/have_innodb.inc
 --source include/have_partition.inc
 --source include/have_binlog_format_mixed_or_row.inc
 --source include/master-slave.inc
-
 --connection slave
 --source include/stop_slave.inc
 

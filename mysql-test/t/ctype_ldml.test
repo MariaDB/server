@@ -397,3 +397,15 @@ perl;
   print "Occurances : $count_error\n";
   close(FILE);
 EOF
+
+
+--echo #
+--echo # MDEV-8686 A user defined collation utf8_confusables doesn't work
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_implicit_weights_ci);
+INSERT INTO t1 VALUES ('a'),('b'),('c');
+INSERT INTO t1 VALUES (_ucs2 0x1500),(_ucs2 0x1501);
+INSERT INTO t1 VALUES (_ucs2 0x3400),(_ucs2 0x3560),(_ucs2 0x3561),(_ucs2 0x3600);
+INSERT INTO t1 VALUES (_ucs2 0x3700),(_ucs2 0x3701);
+SELECT HEX(CONVERT(a USING ucs2)) AS ch, HEX(WEIGHT_STRING(a)) AS w, HEX(WEIGHT_STRING(a COLLATE utf8_unicode_ci)) AS ducet FROM t1 ORDER BY a,ch;
+DROP TABLE t1;

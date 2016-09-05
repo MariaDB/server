@@ -1558,7 +1558,12 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   {
     tl->set_tablenr(table_no);
     if (tl->is_jtbm())
+    {
       tl->jtbm_table_no= table_no;
+      Item *dummy= tl->jtbm_subselect;
+      tl->jtbm_subselect->fix_after_pullout(parent_lex, &dummy);
+      DBUG_ASSERT(dummy == tl->jtbm_subselect);
+    }
     SELECT_LEX *old_sl= tl->select_lex;
     tl->select_lex= parent_join->select_lex; 
     for (TABLE_LIST *emb= tl->embedding;

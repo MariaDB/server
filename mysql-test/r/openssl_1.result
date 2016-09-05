@@ -58,8 +58,8 @@ mysqltest: Could not open connection 'default': 2026 SSL connection error: Unabl
 SHOW STATUS LIKE 'Ssl_cipher';
 Variable_name	Value
 Ssl_cipher	DHE-RSA-AES256-SHA
-Variable_name	Value
-Ssl_cipher	DHE-RSA-AES256-SHA
+have_ssl
+1
 End of 5.0 tests
 DROP TABLE IF EXISTS thread_status;
 DROP EVENT IF EXISTS event_status;
@@ -204,9 +204,9 @@ result
 is still running; no cipher request crashed the server
 GRANT SELECT ON test.* TO bug42158@localhost REQUIRE X509;
 FLUSH PRIVILEGES;
-SHOW STATUS LIKE 'Ssl_cipher';
-Variable_name	Value
-Ssl_cipher	DHE-RSA-AES256-SHA
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+have_ssl
+1
 DROP USER bug42158@localhost;
 set global sql_mode=default;
 End of 5.1 tests

@@ -13,7 +13,7 @@ enable_warnings;
 
 connection slave;
 # show variables like 'read_only';
-# show variables like 'tokudb_rpl_%';
+show variables like 'tokudb_rpl_%';
 
 # insert some rows
 connection master;

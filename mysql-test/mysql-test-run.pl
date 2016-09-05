@@ -284,7 +284,6 @@ my $opt_port_base= $ENV{'MTR_PORT_BASE'} || "auto";
 my $build_thread= 0;
 
 my $opt_record;
-my $opt_report_features;
 
 our $opt_resfile= $ENV{'MTR_RESULT_FILE'} || 0;
 
@@ -317,7 +316,6 @@ our $opt_user = "root";
 our $opt_valgrind= 0;
 my $opt_valgrind_mysqld= 0;
 my $opt_valgrind_mysqltest= 0;
-my @default_valgrind_args= ("--show-reachable=yes");
 my @valgrind_args;
 my $opt_strace= 0;
 my $opt_strace_client;
@@ -352,6 +350,7 @@ my $source_dist=  -d "../sql";
 my $opt_max_save_core= env_or_val(MTR_MAX_SAVE_CORE => 5);
 my $opt_max_save_datadir= env_or_val(MTR_MAX_SAVE_DATADIR => 20);
 my $opt_max_test_fail= env_or_val(MTR_MAX_TEST_FAIL => 10);
+my $opt_core_on_failure= 0;
 
 my $opt_parallel= $ENV{MTR_PARALLEL} || 1;
 my $opt_port_group_size = $ENV{MTR_PORT_GROUP_SIZE} || 20;
@@ -427,21 +426,6 @@ sub main {
       print $_->fullname(), "\n";
     }
     exit 0;
-  }
-
-  if ( $opt_report_features ) {
-    # Put "report features" as the first test to run
-    my $tinfo = My::Test->new
-      (
-       name           => 'report_features',
-       # No result_file => Prints result
-       path           => 'include/report-features.test',
-       template_path  => "include/default_my.cnf",
-       master_opt     => [],
-       slave_opt      => [],
-       suite          => 'main',
-      );
-    unshift(@$tests, $tinfo);
   }
 
   #######################################################################
@@ -1157,6 +1141,7 @@ sub command_line_setup {
              'max-save-core=i'          => \$opt_max_save_core,
              'max-save-datadir=i'       => \$opt_max_save_datadir,
              'max-test-fail=i'          => \$opt_max_test_fail,
+             'core-on-failure'          => \$opt_core_on_failure,
 
              # Coverage, profiling etc
              'gcov'                     => \$opt_gcov,
@@ -1190,7 +1175,6 @@ sub command_line_setup {
              'client-libdir=s'          => \$path_client_libdir,
 
              # Misc
-             'report-features'          => \$opt_report_features,
              'comment=s'                => \$opt_comment,
              'fast'                     => \$opt_fast,
 	     'force-restart'            => \$opt_force_restart,
@@ -1722,16 +1706,26 @@ sub command_line_setup {
     # Set special valgrind options unless options passed on command line
     push(@valgrind_args, "--trace-children=yes")
       unless @valgrind_args;
+    unshift(@valgrind_args, "--tool=callgrind");
+  }
+
+  # default to --tool=memcheck
+  if ($opt_valgrind && ! grep(/^--tool=/i, @valgrind_args))
+  {
+    # Set valgrind_option unless already defined
+    push(@valgrind_args, ("--show-reachable=yes", "--leak-check=yes",
+                          "--num-callers=16"))
+      unless @valgrind_args;
+    unshift(@valgrind_args, "--tool=memcheck");
   }
 
   if ( $opt_valgrind )
   {
-    # Set valgrind_options to default unless already defined
-    push(@valgrind_args, @default_valgrind_args)
-      unless @valgrind_args;
-
     # Make valgrind run in quiet mode so it only print errors
     push(@valgrind_args, "--quiet" );
+
+    push(@valgrind_args, "--suppressions=${glob_mysql_test_dir}/valgrind.supp")
+      if -f "$glob_mysql_test_dir/valgrind.supp";
 
     mtr_report("Running valgrind with options \"",
 	       join(" ", @valgrind_args), "\"");
@@ -1783,9 +1777,12 @@ sub set_build_thread_ports($) {
   if ( lc($opt_build_thread) eq 'auto' ) {
     my $found_free = 0;
     $build_thread = 300;	# Start attempts from here
+    my $build_thread_upper = $build_thread + ($opt_parallel > 1500
+                                              ? 3000
+                                              : 2 * $opt_parallel) + 300;
     while (! $found_free)
     {
-      $build_thread= mtr_get_unique_id($build_thread, 349);
+      $build_thread= mtr_get_unique_id($build_thread, $build_thread_upper);
       if ( !defined $build_thread ) {
         mtr_error("Could not get a unique build thread id");
       }
@@ -3761,6 +3758,7 @@ sub run_testcase ($$) {
   my $print_freq=20;
 
   mtr_verbose("Running test:", $tinfo->{name});
+  $ENV{'MTR_TEST_NAME'} = $tinfo->{name};
   resfile_report_test($tinfo) if $opt_resfile;
 
   # Allow only alpanumerics pluss _ - + . in combination names,
@@ -4148,7 +4146,7 @@ sub run_testcase ($$) {
     }
 
     # Try to dump core for mysqltest and all servers
-    foreach my $proc ($test, started(all_servers())) 
+    foreach my $proc ($test, started(all_servers()))
     {
       mtr_print("Trying to dump core for $proc");
       if ($proc->dump_core())
@@ -4833,7 +4831,9 @@ sub after_failure ($) {
 sub report_failure_and_restart ($) {
   my $tinfo= shift;
 
-  if ($opt_valgrind_mysqld && ($tinfo->{'warnings'} || $tinfo->{'timeout'})) {
+  if ($opt_valgrind_mysqld && ($tinfo->{'warnings'} || $tinfo->{'timeout'}) &&
+      $opt_core_on_failure == 0)
+  {
     # In these cases we may want valgrind report from normal termination
     $tinfo->{'dont_kill_server'}= 1;
   }
@@ -5481,6 +5481,13 @@ sub start_mysqltest ($) {
     mtr_add_arg($args, "--sleep=%d", $opt_sleep);
   }
 
+  if ( $opt_valgrind )
+  {
+    # We are running server under valgrind, which causes some replication
+    # test to be much slower, notable rpl_mdev6020.  Increase timeout.
+    mtr_add_arg($args, "--wait-for-pos-timeout=1500");
+  }
+
   if ( $opt_ssl )
   {
     # Turn on SSL for _all_ test cases if option --ssl was used
@@ -5489,12 +5496,6 @@ sub start_mysqltest ($) {
 
   if ( $opt_max_connections ) {
     mtr_add_arg($args, "--max-connections=%d", $opt_max_connections);
-  }
-
-  if ( $opt_valgrind )
-  {
-    # Longer timeouts when running with valgrind
-    mtr_add_arg($args, "--wait-longer-for-timeouts");
   }
 
   if ( $opt_embedded_server )
@@ -5816,29 +5817,15 @@ sub valgrind_arguments {
   my $args= shift;
   my $exe=  shift;
 
-  if ( $opt_callgrind)
+  # Ensure the jemalloc works with mysqld
+  if ($$exe =~ /mysqld/)
   {
-    mtr_add_arg($args, "--tool=callgrind");
-    mtr_add_arg($args, "--base=$opt_vardir/log");
-  }
-  else
-  {
-    mtr_add_arg($args, "--tool=memcheck"); # From >= 2.1.2 needs this option
-    mtr_add_arg($args, "--leak-check=yes");
-    mtr_add_arg($args, "--num-callers=16");
-    mtr_add_arg($args, "--suppressions=%s/valgrind.supp", $glob_mysql_test_dir)
-      if -f "$glob_mysql_test_dir/valgrind.supp";
-
-    # Ensure the jemalloc works with mysqld
-    if ($$exe =~ /mysqld/)
-    {
-      my %somalloc=(
-        'system jemalloc' => 'libjemalloc*',
-        'bundled jemalloc' => 'NONE'
-      );
-      my ($syn) = $somalloc{$mysqld_variables{'version-malloc-library'}};
-      mtr_add_arg($args, '--soname-synonyms=somalloc=%s', $syn) if $syn;
-    }
+    my %somalloc=(
+      'system jemalloc' => 'libjemalloc*',
+      'bundled jemalloc' => 'NONE'
+    );
+    my ($syn) = $somalloc{$mysqld_variables{'version-malloc-library'}};
+    mtr_add_arg($args, '--soname-synonyms=somalloc=%s', $syn) if $syn;
   }
 
   # Add valgrind options, can be overriden by user
@@ -6130,6 +6117,7 @@ Options for debugging the product
                         the current test run. Defaults to
                         $opt_max_test_fail, set to 0 for no limit. Set
                         it's default with MTR_MAX_TEST_FAIL
+  core-in-failure	Generate a core even if run server is run with valgrind
 
 Options for valgrind
 
@@ -6213,7 +6201,6 @@ Misc options
   gprof                 Collect profiling information using gprof.
   experimental=<file>   Refer to list of tests considered experimental;
                         failures will be marked exp-fail instead of fail.
-  report-features       First run a "test" that reports mysql features
   timestamp             Print timestamp before each test report line
   timediff              With --timestamp, also print time passed since
                         *previous* test started

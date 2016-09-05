@@ -40,7 +40,7 @@ public:
   Item_geometry_func(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
   void fix_length_and_dec();
   enum_field_types field_type() const  { return MYSQL_TYPE_GEOMETRY; }
-  Field *tmp_table_field(TABLE *t_arg);
+  Field *create_field_for_create_select(TABLE *table);
 };
 
 class Item_func_geometry_from_text: public Item_geometry_func

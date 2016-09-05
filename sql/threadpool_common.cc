@@ -148,9 +148,8 @@ int threadpool_add_connection(THD *thd)
 
   if (!setup_connection_thread_globals(thd))
   {
-    if (!login_connection(thd))
+    if (!thd_prepare_connection(thd))
     {
-      prepare_new_connection_state(thd);
       
       /* 
         Check if THD is ok, as prepare_new_connection_state()
