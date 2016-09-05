@@ -320,12 +320,6 @@ IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
   ENDIF()
 ENDIF()
 
-FOREACH(tool gtar tar git)
- STRING(TOUPPER ${tool}  TOOL)
- FIND_PROGRAM(${TOOL}_EXECUTABLE ${tool} DOC "path to the executable")
- MARK_AS_ADVANCED(${TOOL}_EXECUTABLE)
-ENDFOREACH()
-
 CONFIGURE_FILE(
   ${CMAKE_SOURCE_DIR}/cmake/make_dist.cmake.in
   ${CMAKE_BINARY_DIR}/make_dist.cmake @ONLY)

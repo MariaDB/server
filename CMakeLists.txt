@@ -115,6 +115,11 @@ FOREACH(_base
   ENDIF()
 ENDFOREACH()
 
+FOREACH(tool gtar tar git)
+ STRING(TOUPPER ${tool}  TOOL)
+ FIND_PROGRAM(${TOOL}_EXECUTABLE ${tool} DOC "path to the executable")
+ MARK_AS_ADVANCED(${TOOL}_EXECUTABLE)
+ENDFOREACH()
 
 # Following autotools tradition, add preprocessor definitions
 # specified in environment variable CPPFLAGS
