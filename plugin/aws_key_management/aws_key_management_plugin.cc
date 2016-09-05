@@ -582,6 +582,6 @@ maria_declare_plugin(aws_key_management)
     NULL,
     settings,
     "1.0",
-    MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
+    MariaDB_PLUGIN_MATURITY_BETA
 }
 maria_declare_plugin_end;
