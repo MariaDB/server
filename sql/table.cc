@@ -2109,6 +2109,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
         field= key_part->field= share->field[key_part->fieldnr-1];
         key_part->type= field->key_type();
+        if (keyinfo->flags & HA_UNIQUE_HASH
+            //last key_part is for hash so we will not change length
+            && i+1 != key_parts)
+          key_part->store_length= 12;
         if (field->null_ptr)
         {
           key_part->null_offset=(uint) ((uchar*) field->null_ptr -
@@ -8067,7 +8071,7 @@ void setup_table_hash(TABLE *table)
     {
       if (keyinfo->flags & HA_UNIQUE_HASH)
       {
-        keyinfo->flags&= ~HA_NOSAME;
+        keyinfo->flags&= ~(HA_NOSAME | HA_UNIQUE_HASH);
         extra_key_part_hash+= keyinfo->ext_key_parts;
         keyinfo->key_part= keyinfo->key_part+ keyinfo->ext_key_parts;
         keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
@@ -8083,7 +8087,7 @@ void setup_table_hash(TABLE *table)
     {
       if (s_keyinfo->flags & HA_UNIQUE_HASH)
       {
-        s_keyinfo->flags&= ~HA_NOSAME;
+        s_keyinfo->flags&= ~(HA_NOSAME | HA_UNIQUE_HASH);
         extra_key_part_hash+= s_keyinfo->ext_key_parts;
         s_keyinfo->key_part= s_keyinfo->key_part+ s_keyinfo->ext_key_parts;
         s_keyinfo->user_defined_key_parts= s_keyinfo->usable_key_parts=
@@ -8119,15 +8123,17 @@ void re_setup_table(TABLE *table)
   {
     for (uint i= 0; i < table->s->keys; i++, keyinfo++)
     {
-      if (keyinfo->flags & HA_UNIQUE_HASH)
+      if (keyinfo->user_defined_key_parts == 1 &&
+          keyinfo->key_part->field->is_long_column_hash)
       {
-        keyinfo->flags|= HA_NOSAME;
+        keyinfo->flags|= (HA_NOSAME | HA_UNIQUE_HASH);
         Item *h_item= keyinfo->key_part->field->vcol_info->expr_item;
         uint hash_parts= fields_in_hash_str(h_item);
         keyinfo->key_part= keyinfo->key_part- hash_parts;
         keyinfo->user_defined_key_parts= keyinfo->usable_key_parts=
             keyinfo->ext_key_parts= hash_parts;
         /*
+         * todo good english
            Actually extra_key_parts_ex_hash is added in share->keyparts.
            But share->keypart already contains extra one keypart for hash
            (setup in setup_table_hash). So that is why 1 minused.
@@ -8148,9 +8154,10 @@ void re_setup_table(TABLE *table)
   {
     for (uint i= 0; i < table->s->keys; i++, s_keyinfo++)
     {
-      if (s_keyinfo->flags & HA_UNIQUE_HASH)
+      if (s_keyinfo->user_defined_key_parts == 1 &&
+          s_keyinfo->key_part->field->is_long_column_hash)
       {
-        s_keyinfo->flags|= HA_NOSAME;
+        s_keyinfo->flags|= (HA_NOSAME | HA_UNIQUE_HASH);
         extra_hash_parts++;
         /* Sometimes it can happen, that we does not parsed hash_str.
            Like when this function is called in ha_create. So we will
@@ -8177,3 +8184,110 @@ void re_setup_table(TABLE *table)
   }
 }
 
+/**
+ @brief set_hash
+ @param table
+ @param key_index
+ @param key_buff
+ */
+int get_hash_key(THD *thd,TABLE *table, handler *h,  uint key_index,
+                 uchar * rec_buff, uchar *key_buff)
+{
+  KEY *keyinfo= &table->key_info[key_index];
+  DBUG_ASSERT(keyinfo->flags & HA_UNIQUE_HASH);
+  KEY_PART_INFO *temp_key_part= table->key_info[key_index].key_part;
+  Field *fld[keyinfo->user_defined_key_parts];
+  Field *t_field;
+  uchar hash_buff[9];
+  ulong nr1= 1, nr2= 4;
+  String *str1, temp1;
+  String *str2, temp2;
+  bool is_null= false;
+  bool is_same= true;
+  /* difference between field->ptr and start of rec_buff */
+  long diff = rec_buff- table->record[0];
+  int result= 0;
+  for (uint i=0; i < keyinfo->user_defined_key_parts; i++, temp_key_part++)
+  {
+    uint maybe_null= MY_TEST(temp_key_part->null_bit);
+    fld[i]= temp_key_part->field->new_key_field(thd->mem_root, table,
+                                                key_buff + maybe_null, 12,
+                                                maybe_null?key_buff:0, 1,
+                                                true);
+    if (fld[i]->is_real_null())
+    {
+      is_null= true;
+      break;
+    }
+    str1= fld[i]->val_str(&temp1);
+    calc_hash_for_unique(nr1, nr2, str1);
+    key_buff+= temp_key_part->store_length;
+  }
+  if (is_null && !(keyinfo->flags & HA_NULL_PART_KEY))
+    return HA_ERR_KEY_NOT_FOUND;
+  if (keyinfo->flags & HA_NULL_PART_KEY)
+  {
+    hash_buff[0]= is_null;
+    int8store(hash_buff + 1, nr1);
+  }
+  else
+    int8store(hash_buff, nr1);
+
+  result= h->ha_index_init(key_index, 0);
+  if (result)
+    return result;
+
+  setup_table_hash(table);
+  result= h->ha_index_read_map(rec_buff, hash_buff, HA_WHOLE_KEY,
+                       HA_READ_KEY_EXACT);
+  re_setup_table(table);
+  if (!result)
+  {
+    for (uint i=0; i < keyinfo->user_defined_key_parts; i++)
+    {
+      t_field= keyinfo->key_part[i].field;
+      t_field->move_field(t_field->ptr+diff,
+                          t_field->null_ptr+diff, t_field->null_bit);
+    }
+    do
+    {
+      re_setup_table(table);
+      is_same= true;
+      for (uint i=0; i < keyinfo->user_defined_key_parts; i++)
+      {
+        t_field= keyinfo->key_part[i].field;
+        if (fld[i]->is_real_null() && t_field->is_real_null())
+          continue;
+        if (!fld[i]->is_real_null() && !t_field->is_real_null())
+        {
+          str1= t_field->val_str(&temp1);
+          str2= fld[i]->val_str(&temp2);
+          if (my_strcasecmp(str1->charset(), str1->c_ptr_safe(),
+                                 str2->c_ptr_safe()))
+          {
+            is_same= false;
+            break;
+          }
+        }
+        else
+        {
+          is_same= false;
+          break;
+        }
+      }
+      setup_table_hash(table);
+    }
+    while (!is_same && !(result= h->ha_index_next_same(rec_buff, hash_buff,
+                                          keyinfo->key_length)));
+    exit:
+    for (uint i=0; i < keyinfo->user_defined_key_parts; i++)
+    {
+      t_field= keyinfo->key_part[i].field;
+      t_field->move_field(t_field->ptr-diff,
+                          t_field->null_ptr-diff, t_field->null_bit);
+    }
+  }
+  h->ha_index_end();
+  re_setup_table(table);
+  return result;
+}

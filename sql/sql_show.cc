@@ -1877,6 +1877,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   */
   old_map= tmp_use_all_columns(table, table->read_set);
 
+  bool not_the_first_field= false;
   for (ptr=table->field ; (field= *ptr); ptr++)
   {
     if (field->field_visibility == PSEUDO_COLUMN_HIDDEN ||

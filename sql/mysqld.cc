@@ -6557,7 +6557,7 @@ void handle_connections_sockets()
   while (!abort_loop)
   {
 #ifdef HAVE_POLL
-    retval= poll(fds, socket_count, -1);
+      retval= poll(fds, socket_count, -1);
 #else
     readFDs=clientFDs;
     retval= select((int) 0,&readFDs,0,0,0);

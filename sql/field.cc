@@ -2255,7 +2255,8 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
 
 Field *Field::new_key_field(MEM_ROOT *root, TABLE *new_table,
                             uchar *new_ptr, uint32 length,
-                            uchar *new_null_ptr, uint new_null_bit)
+                            uchar *new_null_ptr, uint new_null_bit,
+                            bool is_hash_key)
 {
   Field *tmp;
   if ((tmp= make_new_field(root, new_table, table == new_table)))
@@ -5851,7 +5852,8 @@ void Field_time::set_curdays(THD *thd)
 
 Field *Field_time::new_key_field(MEM_ROOT *root, TABLE *new_table,
                                  uchar *new_ptr, uint32 length,
-                                 uchar *new_null_ptr, uint new_null_bit)
+                                 uchar *new_null_ptr, uint new_null_bit,
+                                 bool is_hash_key)
 {
   THD *thd= get_thd();
   Field_time *res=
@@ -7814,8 +7816,22 @@ Field *Field_varstring::make_new_field(MEM_ROOT *root, TABLE *new_table,
 
 Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
                                       uchar *new_ptr, uint32 length,
-                                      uchar *new_null_ptr, uint new_null_bit)
+                                      uchar *new_null_ptr, uint new_null_bit,
+                                      bool is_hash_key)
 {
+  if (is_hash_key)
+  {
+    Field_blob *res;
+    if ((res= (Field_blob*) Field::new_key_field(root, new_table,
+                                                      new_ptr, length,
+                                                      new_null_ptr, new_null_bit)))
+    {
+      res->set_packlength(4);
+      res->init(new_table);
+      res->flags|= BLOB_FLAG;
+    }
+    return res;
+  }
   Field_varstring *res;
   if ((res= (Field_varstring*) Field::new_key_field(root, new_table,
                                                     new_ptr, length,
@@ -8221,8 +8237,23 @@ int Field_blob::key_cmp(const uchar *a,const uchar *b)
 
 Field *Field_blob::new_key_field(MEM_ROOT *root, TABLE *new_table,
                                  uchar *new_ptr, uint32 length,
-                                 uchar *new_null_ptr, uint new_null_bit)
+                                 uchar *new_null_ptr, uint new_null_bit,
+                                 bool is_hash_key)
 {
+
+  if (is_hash_key)
+  {
+    Field_blob *res;
+    if ((res= (Field_blob*) Field::new_key_field(root, new_table,
+                                                      new_ptr, length,
+                                                      new_null_ptr, new_null_bit)))
+    {
+      res->set_packlength(4);
+      res->init(new_table);
+      res->flags|= BLOB_FLAG;
+    }
+    return res;
+  }
   Field_varstring *res= new (root) Field_varstring(new_ptr, length, 2,
                                       new_null_ptr, new_null_bit, Field::NONE,
                                       field_name, table->s, charset());
@@ -9231,7 +9262,8 @@ Field_bit::do_last_null_byte() const
 
 Field *Field_bit::new_key_field(MEM_ROOT *root, TABLE *new_table,
                                 uchar *new_ptr, uint32 length, 
-                                uchar *new_null_ptr, uint new_null_bit)
+                                uchar *new_null_ptr, uint new_null_bit,
+                                bool is_hash_key)
 {
   Field_bit *res;
   if ((res= (Field_bit*) Field::new_key_field(root, new_table, new_ptr, length,

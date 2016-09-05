@@ -365,6 +365,9 @@ void setup_table_hash(TABLE *table);
 
 void re_setup_table(TABLE *table);
 
+int get_hash_key(THD *thd, TABLE *table, handler *h, uint key_index, uchar *rec_buf,
+              uchar *key_buff);
+
 /**
   Category of table found in the table share.
 */

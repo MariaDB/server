@@ -1178,7 +1178,8 @@ public:
                                 bool keep_type);
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                                uchar *new_ptr, uint32 length,
-                               uchar *new_null_ptr, uint new_null_bit);
+                               uchar *new_null_ptr, uint new_null_bit,
+                               bool is_hash_key= false);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff,
                bool stat_flag= FALSE);
@@ -2688,7 +2689,8 @@ public:
   void set_curdays(THD *thd);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
-                       uchar *new_null_ptr, uint new_null_bit);
+                       uchar *new_null_ptr, uint new_null_bit,
+                       bool is_hash_key= false);
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
 
@@ -3173,7 +3175,8 @@ public:
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
-                       uchar *new_null_ptr, uint new_null_bit);
+                       uchar *new_null_ptr, uint new_null_bit,
+                       bool is_hash_key= false);
   uint is_equal(Create_field *new_field);
   void hash(ulong *nr, ulong *nr2);
   uint length_size() { return length_bytes; }
@@ -3335,7 +3338,8 @@ public:
   void set_key_image(const uchar *buff,uint length);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
-                       uchar *new_null_ptr, uint new_null_bit);
+                       uchar *new_null_ptr, uint new_null_bit,
+                       bool is_hash_key);
   void sql_type(String &str) const;
   inline bool copy()
   {
@@ -3363,6 +3367,12 @@ public:
   uint32 max_display_length();
   uint32 char_length();
   uint is_equal(Create_field *new_field);
+  void set_packlength(uint packlength)
+  {
+    DBUG_ASSERT(packlength <= 4);
+    this->packlength= packlength;
+  }
+
 private:
   int do_save_field_metadata(uchar *first_byte);
 };
@@ -3676,7 +3686,8 @@ public:
 
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
-                       uchar *new_null_ptr, uint new_null_bit);
+                       uchar *new_null_ptr, uint new_null_bit,
+                       bool is_hash_key= false);
   void set_bit_ptr(uchar *bit_ptr_arg, uchar bit_ofs_arg)
   {
     bit_ptr= bit_ptr_arg;
