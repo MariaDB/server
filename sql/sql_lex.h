@@ -941,6 +941,9 @@ public:
   table_map with_dep;
   List<Grouping_tmp_field> grouping_tmp_fields;
 
+  /* it is for correct printing SELECT options */
+  thr_lock_type lock_type;
+
   void init_query();
   void init_select();
   st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }

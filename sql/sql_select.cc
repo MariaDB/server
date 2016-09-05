@@ -25184,6 +25184,12 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   // limit
   print_limit(thd, str, query_type);
 
+  // lock type
+  if (lock_type == TL_READ_WITH_SHARED_LOCKS)
+    str->append(" lock in share mode");
+  else if (lock_type == TL_WRITE)
+    str->append(" for update");
+
   // PROCEDURE unsupported here
 }
 

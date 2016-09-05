@@ -409,3 +409,32 @@ INSERT INTO t1 VALUES (_ucs2 0x3400),(_ucs2 0x3560),(_ucs2 0x3561),(_ucs2 0x3600
 INSERT INTO t1 VALUES (_ucs2 0x3700),(_ucs2 0x3701);
 SELECT HEX(CONVERT(a USING ucs2)) AS ch, HEX(WEIGHT_STRING(a)) AS w, HEX(WEIGHT_STRING(a COLLATE utf8_unicode_ci)) AS ducet FROM t1 ORDER BY a,ch;
 DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that the MY_CS_PUREASCII flag is set properly
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii2, b VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a','a'),('b','b');
+# should not give "illegal collation" error
+SELECT * FROM t1 WHERE a=b;
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_bin;
+# should not give "illegal collation" error
+SELECT * FROM t1 WHERE a=b;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that the MY_CS_CSSORT flag is set properly
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_test);
+INSERT INTO t1 VALUES ('a'),('A');
+# should be case insensitive
+SELECT * FROM t1 WHERE a RLIKE 'a';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_test2_cs);
+INSERT INTO t1 VALUES ('a'),('A');
+ # should be case sensitive
+SELECT * FROM t1 WHERE a RLIKE 'a';
+DROP TABLE t1;

@@ -1340,9 +1340,80 @@ create_fromuni(struct charset_info_st *cs,
   return FALSE;
 }
 
+
+/*
+  Detect if a character set is 8bit,
+  and it is pure ascii, i.e. doesn't have
+  characters outside U+0000..U+007F
+  This functions is shared between "conf_to_src"
+  and dynamic charsets loader in "mysqld".
+*/
+static my_bool
+my_charset_is_8bit_pure_ascii(CHARSET_INFO *cs)
+{
+  size_t code;
+  if (!cs->tab_to_uni)
+    return 0;
+  for (code= 0; code < 256; code++)
+  {
+    if (cs->tab_to_uni[code] > 0x7F)
+      return 0;
+  }
+  return 1;
+}
+
+
+/*
+  Shared function between conf_to_src and mysys.
+  Check if a 8bit character set is compatible with
+  ascii on the range 0x00..0x7F.
+*/
+static my_bool
+my_charset_is_ascii_compatible(CHARSET_INFO *cs)
+{
+  uint i;
+  if (!cs->tab_to_uni)
+    return 1;
+  for (i= 0; i < 128; i++)
+  {
+    if (cs->tab_to_uni[i] != i)
+      return 0;
+  }
+  return 1;
+}
+
+
+uint my_8bit_charset_flags_from_data(CHARSET_INFO *cs)
+{
+  uint flags= 0;
+  if (my_charset_is_8bit_pure_ascii(cs))
+    flags|= MY_CS_PUREASCII;
+  if (!my_charset_is_ascii_compatible(cs))
+    flags|= MY_CS_NONASCII;
+  return flags;
+}
+
+
+/*
+  Check if case sensitive sort order: A < a < B.
+  We need MY_CS_FLAG for regex library, and for
+  case sensitivity flag for 5.0 client protocol,
+  to support isCaseSensitive() method in JDBC driver
+*/
+uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs)
+{
+  uint flags= 0;
+  if (cs->sort_order && cs->sort_order['A'] < cs->sort_order['a'] &&
+                        cs->sort_order['a'] < cs->sort_order['B'])
+    flags|= MY_CS_CSSORT;
+  return flags;
+}
+
+
 static my_bool
 my_cset_init_8bit(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
 {
+  cs->state|= my_8bit_charset_flags_from_data(cs);
   cs->caseup_multiply= 1;
   cs->casedn_multiply= 1;
   cs->pad_char= ' ';
@@ -1371,6 +1442,7 @@ static void set_max_sort_char(struct charset_info_st *cs)
 static my_bool my_coll_init_simple(struct charset_info_st *cs,
                                    MY_CHARSET_LOADER *loader __attribute__((unused)))
 {
+  cs->state|= my_8bit_collation_flags_from_data(cs);
   set_max_sort_char(cs);
   return FALSE;
 }

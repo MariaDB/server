@@ -974,48 +974,6 @@ my_charset_is_ascii_based(CHARSET_INFO *cs)
 
 
 /*
-  Detect if a character set is 8bit,
-  and it is pure ascii, i.e. doesn't have
-  characters outside U+0000..U+007F
-  This functions is shared between "conf_to_src"
-  and dynamic charsets loader in "mysqld".
-*/
-my_bool
-my_charset_is_8bit_pure_ascii(CHARSET_INFO *cs)
-{
-  size_t code;
-  if (!cs->tab_to_uni)
-    return 0;
-  for (code= 0; code < 256; code++)
-  {
-    if (cs->tab_to_uni[code] > 0x7F)
-      return 0;
-  }
-  return 1;
-}
-
-
-/*
-  Shared function between conf_to_src and mysys.
-  Check if a 8bit character set is compatible with
-  ascii on the range 0x00..0x7F.
-*/
-my_bool
-my_charset_is_ascii_compatible(CHARSET_INFO *cs)
-{
-  uint i;
-  if (!cs->tab_to_uni)
-    return 1;
-  for (i= 0; i < 128; i++)
-  {
-    if (cs->tab_to_uni[i] != i)
-      return 0;
-  }
-  return 1;
-}
-
-
-/*
   Convert a string between two character sets.
   'to' must be large enough to store (form_length * to_cs->mbmaxlen) bytes.
 

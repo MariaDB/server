@@ -8645,12 +8645,14 @@ opt_select_lock_type:
         | FOR_SYM UPDATE_SYM
           {
             LEX *lex=Lex;
+            lex->current_select->lock_type= TL_WRITE;
             lex->current_select->set_lock_for_tables(TL_WRITE);
             lex->safe_to_cache_query=0;
           }
         | LOCK_SYM IN_SYM SHARE_SYM MODE_SYM
           {
             LEX *lex=Lex;
+            lex->current_select->lock_type= TL_READ_WITH_SHARED_LOCKS;
             lex->current_select->
               set_lock_for_tables(TL_READ_WITH_SHARED_LOCKS);
             lex->safe_to_cache_query=0;

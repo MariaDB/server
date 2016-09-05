@@ -318,6 +318,11 @@
 
   </charset>
 
+  <charset name="ascii2">
+    <collation name="ascii2_general_ci"	id="320" flag="primary"/>
+    <collation name="ascii2_bin" id="321" flag="binary"/>
+  </charset>
+
   <charset name="latin1">
     <family>Western</family>
     <description>cp1252 West European</description>
@@ -330,6 +335,7 @@
     <alias>latin1</alias>
     <collation name="latin1_test" id="99" order="test"/>
     <collation name="latin1_test2" id="332" order="test"/>
+    <collation name="latin1_test2_cs" id="333"/>
   </charset>
 
   <charset name="utf8">

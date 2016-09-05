@@ -101,6 +101,11 @@ static inline const uchar *skip_trailing_space(const uchar *ptr,size_t len)
   return (end);
 }
 
+
+uint my_8bit_charset_flags_from_data(CHARSET_INFO *cs);
+uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs);
+
+
 /* Macros for hashing characters */
 
 #define MY_HASH_ADD(A, B, value) \
