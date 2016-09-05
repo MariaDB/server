@@ -2263,11 +2263,6 @@ uint Item_func_case_abbreviation2::decimal_precision2(Item **args) const
 }
 
 
-Field *Item_func_ifnull::tmp_table_field(TABLE *table)
-{
-  return tmp_table_field_from_field_type(table, false, false);
-}
-
 double
 Item_func_ifnull::real_op()
 {

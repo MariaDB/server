@@ -186,6 +186,7 @@ int toku_rollback_commit(TOKUTXN txn, LSN lsn) {
             // Append the list to the front of the parent.
             if (child_log->oldest_logentry) {
                 // There are some entries, so link them in.
+                parent_log->dirty = true;
                 child_log->oldest_logentry->prev = parent_log->newest_logentry;
                 if (!parent_log->oldest_logentry) {
                     parent_log->oldest_logentry = child_log->oldest_logentry;

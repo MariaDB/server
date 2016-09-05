@@ -377,7 +377,7 @@ typedef struct st_net {
   char save_char;
   char net_skip_rest_factor;
   my_bool thread_specific_malloc;
-  my_bool compress;
+  unsigned char compress;
   my_bool unused3; /* Please remove with the next incompatible ABI change. */
   /*
     Pointer to query object in query cache, do not equal NULL (0) for

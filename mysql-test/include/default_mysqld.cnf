@@ -45,6 +45,8 @@ loose-feedback-debug-startup-interval=20
 loose-feedback-debug-first-interval=60
 loose-feedback-debug-interval=60
 
+loose-pam-debug
+
 loose-innodb_data_file_path=      ibdata1:12M:autoextend
 loose-innodb_buffer_pool_size=    8M
 loose-innodb_lru_scan_depth=      100

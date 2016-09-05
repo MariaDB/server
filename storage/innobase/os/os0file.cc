@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2016, MariaDB Corporation.
 
@@ -1681,8 +1681,8 @@ os_file_set_nocache(
 					__attribute__((unused)),
 	const char*	file_name	/*!< in: used in the diagnostic
 					message */
-					__attribute__((unused)),
-	const char*	operation_name __attribute__((unused)))
+					MY_ATTRIBUTE((unused)),
+	const char*	operation_name MY_ATTRIBUTE((unused)))
 					/*!< in: "open" or "create"; used
 					in the diagnostic message */
 {
@@ -2615,7 +2615,7 @@ os_file_flush_func(
 /*******************************************************************//**
 Does a synchronous read operation in Posix.
 @return	number of bytes read, -1 if error */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 ssize_t
 os_file_pread(
 /*==========*/
@@ -2726,7 +2726,7 @@ os_file_pread(
 /*******************************************************************//**
 Does a synchronous write operation in Posix.
 @return	number of bytes written, -1 if error */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 ssize_t
 os_file_pwrite(
 /*===========*/

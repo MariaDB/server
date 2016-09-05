@@ -3214,6 +3214,7 @@ public:
     If this method returns nonzero, it will also signal the storage
     engine that the next read will be a locking re-read of the row.
   */
+  bool ha_was_semi_consistent_read();
   virtual bool was_semi_consistent_read() { return 0; }
   /**
     Tell the engine whether it should avoid unnecessary lock waits.
@@ -4286,4 +4287,7 @@ inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
+
+int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
+int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
 #endif /* HANDLER_INCLUDED */

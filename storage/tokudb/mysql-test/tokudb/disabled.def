@@ -26,9 +26,5 @@ type_temporal_fractional:
 type_temporal_upgrade:
 type_timestamp_explicit:
 cluster_key_part: engine options on partitioned tables
-#i_s_tokudb_lock_waits_released: unstable, race conditions
-#i_s_tokudb_locks_released: unstable, race conditions
-mvcc-19: tokutek
-mvcc-20: tokutek
-mvcc-27: tokutek
-storage_engine_default: tokudb is not the default storage engine
+i_s_tokudb_lock_waits_released: unstable, race conditions
+i_s_tokudb_locks_released: unstable, race conditions

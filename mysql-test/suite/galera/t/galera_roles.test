@@ -163,5 +163,37 @@ disconnect foo_node_2;
 DROP USER foo@localhost;
 DROP DATABASE test1;
 
+--echo #
+--echo # MDEV-10566: Create role statement replicated inconsistently in Galera Cluster
+--echo #
+--echo
+--echo # On node_1
+--connection node_1
+CREATE USER foo@localhost;
+CREATE ROLE role1;
+CREATE ROLE role2 WITH ADMIN CURRENT_USER;
+CREATE ROLE role3 WITH ADMIN foo@localhost;
+CREATE ROLE role4 WITH ADMIN role1;
+
+--sorted_result
+SELECT * FROM mysql.roles_mapping;
+--sorted_result
+SELECT * FROM INFORMATION_SCHEMA.APPLICABLE_ROLES;
+
+--echo
+--echo # On node_2
+--connection node_2
+--sorted_result
+SELECT * FROM mysql.roles_mapping;
+--sorted_result
+SELECT * FROM INFORMATION_SCHEMA.APPLICABLE_ROLES;
+
+# Cleanup
+DROP ROLE role1;
+DROP ROLE role2;
+DROP ROLE role3;
+DROP ROLE role4;
+DROP USER foo@localhost;
+
 --source include/galera_end.inc
 --echo # End of test

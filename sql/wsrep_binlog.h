@@ -19,7 +19,7 @@
 #include "sql_class.h" // THD, IO_CACHE
 
 #define HEAP_PAGE_SIZE 65536 /* 64K */
-#define WSREP_MAX_WS_SIZE (0xFFFFFFFFUL - HEAP_PAGE_SIZE)
+#define WSREP_MAX_WS_SIZE 2147483647 /* 2GB */
 
 /*
   Write the contents of a cache to a memory buffer.
@@ -38,10 +38,10 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len);
   @param len  total amount of data written
   @return     wsrep error status
  */
-int wsrep_write_cache (wsrep_t*  wsrep,
-                       THD*      thd,
-                       IO_CACHE* cache,
-                       size_t*   len);
+int wsrep_write_cache (wsrep_t*  const wsrep,
+                       THD*      const thd,
+                       IO_CACHE* const cache,
+                       size_t*   const len);
 
 /* Dump replication buffer to disk */
 void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len);

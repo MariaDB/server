@@ -694,7 +694,7 @@ JOIN::prepare(Item ***rref_pointer_array,
   DBUG_ENTER("JOIN::prepare");
 
   // to prevent double initialization on EXPLAIN
-  if (optimized)
+  if (optimization_state != JOIN::NOT_OPTIMIZED)
     DBUG_RETURN(0);
 
   conds= conds_init;
@@ -1032,24 +1032,13 @@ err:
 
 int JOIN::optimize()
 {
-  bool was_optimized= optimized;
+  // to prevent double initialization on EXPLAIN
+  if (optimization_state != JOIN::NOT_OPTIMIZED)
+    return FALSE;
+  optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+
   int res= optimize_inner();
-  /*
-    If we're inside a non-correlated subquery, this function may be 
-    called for the second time after the subquery has been executed
-    and deleted. The second call will not produce a valid query plan, it will
-    short-circuit because optimized==TRUE.
-
-    "was_optimized != optimized" is here to handle this case:
-      - first optimization starts, gets an error (from a const. cheap
-        subquery), returns 1
-      - another JOIN::optimize() call made, and now join->optimize() will
-        return 0, even though we never had a query plan.
-
-    Can have QEP_NOT_PRESENT_YET for degenerate queries (for example,
-    SELECT * FROM tbl LIMIT 0)
-  */
-  if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
+  if (!res && have_query_plan != QEP_DELETED)
   {
     create_explain_query_if_not_exists(thd->lex, thd->mem_root);
     have_query_plan= QEP_AVAILABLE;
@@ -1058,6 +1047,7 @@ int JOIN::optimize()
                       !skip_sort_order && !no_order && (order || group_list),
                       select_distinct);
   }
+  optimization_state= JOIN::OPTIMIZATION_DONE;
   return res;
 }
 
@@ -1083,10 +1073,7 @@ JOIN::optimize_inner()
   DBUG_ENTER("JOIN::optimize");
 
   do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
-  // to prevent double initialization on EXPLAIN
-  if (optimized)
-    DBUG_RETURN(0);
-  optimized= 1;
+
   DEBUG_SYNC(thd, "before_join_optimize");
 
   THD_STAGE_INFO(thd, stage_optimizing);
@@ -2060,7 +2047,7 @@ int JOIN::init_execution()
 {
   DBUG_ENTER("JOIN::init_execution");
 
-  DBUG_ASSERT(optimized);
+  DBUG_ASSERT(optimization_state == JOIN::OPTIMIZATION_DONE);
   DBUG_ASSERT(!(select_options & SELECT_DESCRIBE));
   initialized= true;
 
@@ -15837,6 +15824,60 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
   return new_field;
 }
 
+
+Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
+{
+  Field *UNINIT_VAR(new_field);
+  MEM_ROOT *mem_root= table->in_use->mem_root;
+
+  switch (cmp_type()) {
+  case REAL_RESULT:
+    new_field= new (mem_root)
+      Field_double(max_length, maybe_null, name, decimals, TRUE);
+    break;
+  case INT_RESULT:
+    /*
+      Select an integer type with the minimal fit precision.
+      convert_int_length is sign inclusive, don't consider the sign.
+    */
+    if (max_char_length() > convert_int_length)
+      new_field= new (mem_root)
+        Field_longlong(max_char_length(), maybe_null, name, unsigned_flag);
+    else
+      new_field= new (mem_root)
+        Field_long(max_char_length(), maybe_null, name, unsigned_flag);
+    break;
+  case TIME_RESULT:
+    new_field= tmp_table_field_from_field_type(table, true, false);
+    break;
+  case STRING_RESULT:
+    DBUG_ASSERT(collation.collation);
+    /*
+      GEOMETRY fields have STRING_RESULT result type.
+      To preserve type they needed to be handled separately.
+    */
+    if (field_type() == MYSQL_TYPE_GEOMETRY)
+      new_field= tmp_table_field_from_field_type(table, true, false);
+    else
+      new_field= make_string_field(table);
+    new_field->set_derivation(collation.derivation, collation.repertoire);
+    break;
+  case DECIMAL_RESULT:
+    new_field= Field_new_decimal::create_from_item(mem_root, this);
+    break;
+  case ROW_RESULT:
+    // This case should never be choosen
+    DBUG_ASSERT(0);
+    new_field= 0;
+    break;
+  }
+  if (new_field)
+    new_field->init(table);
+  return new_field;
+}
+
+
+
 /**
   Create field for temporary table using type of given item.
 
@@ -15862,57 +15903,9 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
 static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
                                          Item ***copy_func, bool modify_item)
 {
-  bool maybe_null= item->maybe_null;
   Field *UNINIT_VAR(new_field);
-  MEM_ROOT *mem_root= thd->mem_root;
-
-  /*
-    To preserve type or DATE/TIME and GEOMETRY fields,
-    they need to be handled separately.
-  */
-  if (item->cmp_type() == TIME_RESULT ||
-      item->field_type() == MYSQL_TYPE_GEOMETRY)
-    new_field= item->tmp_table_field_from_field_type(table, true, false);
-  else
-  switch (item->result_type()) {
-  case REAL_RESULT:
-    new_field= new (mem_root)
-      Field_double(item->max_length, maybe_null,
-                   item->name, item->decimals, TRUE);
-    break;
-  case INT_RESULT:
-    /* 
-      Select an integer type with the minimal fit precision.
-      MY_INT32_NUM_DECIMAL_DIGITS is sign inclusive, don't consider the sign.
-      Values with MY_INT32_NUM_DECIMAL_DIGITS digits may or may not fit into 
-      Field_long : make them Field_longlong.  
-    */
-    if (item->max_length >= (MY_INT32_NUM_DECIMAL_DIGITS - 1))
-      new_field=new (mem_root)
-        Field_longlong(item->max_length, maybe_null,
-                       item->name, item->unsigned_flag);
-    else
-      new_field=new (mem_root)
-        Field_long(item->max_length, maybe_null, item->name,
-                   item->unsigned_flag);
-    break;
-  case STRING_RESULT:
-    DBUG_ASSERT(item->collation.collation);
-    new_field= item->make_string_field(table);
-    new_field->set_derivation(item->collation.derivation);
-    break;
-  case DECIMAL_RESULT:
-    new_field= Field_new_decimal::create_from_item(mem_root, item);
-    break;
-  case ROW_RESULT:
-  default:
-    // This case should never be choosen
-    DBUG_ASSERT(0);
-    new_field= 0;
-    break;
-  }
-  if (new_field)
-    new_field->init(table);
+  DBUG_ASSERT(thd == table->in_use);
+  new_field= item->Item::create_tmp_field(false, table);
     
   if (copy_func && item->real_item()->is_result_field())
     *((*copy_func)++) = item;			// Save for copy_funcs
@@ -16004,8 +15997,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   switch (type) {
   case Item::SUM_FUNC_ITEM:
   {
-    Item_sum *item_sum=(Item_sum*) item;
-    result= item_sum->create_tmp_field(group, table);
+    result= item->create_tmp_field(group, table);
     if (!result)
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
     return result;
@@ -16132,7 +16124,8 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                                        modify_item);
   case Item::TYPE_HOLDER:  
     result= ((Item_type_holder *)item)->make_field_by_type(table);
-    result->set_derivation(item->collation.derivation);
+    result->set_derivation(item->collation.derivation,
+                           item->collation.repertoire);
     return result;
   default:					// Dosen't have to be stored
     return 0;

@@ -16,7 +16,7 @@ SELECT COUNT(*) = 1 FROM t1;
 SET GLOBAL wsrep_provider_options = 'gcs.fc_limit=1';
 
 # Block the slave applier thread
-FLUSH TABLES WITH READ LOCK;
+LOCK TABLE t1 WRITE;
 
 --connection node_1
 

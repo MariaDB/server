@@ -541,7 +541,7 @@ net_write_buff(NET *net, const uchar *packet, ulong len)
     left_length= (ulong) (net->buff_end - net->write_pos);
 
 #ifdef DEBUG_DATA_PACKETS
-  DBUG_DUMP("data", packet, len);
+  DBUG_DUMP("data_written", packet, len);
 #endif
   if (len > left_length)
   {
@@ -630,7 +630,8 @@ net_real_write(NET *net,const uchar *packet, size_t len)
     }
     memcpy(b+header_length,packet,len);
 
-    if (my_compress(b+header_length, &len, &complen))
+    /* Don't compress error packets (compress == 2) */
+    if (net->compress == 2 || my_compress(b+header_length, &len, &complen))
       complen=0;
     int3store(&b[NET_HEADER_SIZE],complen);
     int3store(b,len);
@@ -641,7 +642,7 @@ net_real_write(NET *net,const uchar *packet, size_t len)
 #endif /* HAVE_COMPRESS */
 
 #ifdef DEBUG_DATA_PACKETS
-  DBUG_DUMP("data", packet, len);
+  DBUG_DUMP("data_written", packet, len);
 #endif
 
 #ifndef NO_ALARM
@@ -831,6 +832,7 @@ my_real_read(NET *net, size_t *complen,
   size_t length;
   uint i,retry_count=0;
   ulong len=packet_error;
+  my_bool expect_error_packet __attribute__((unused))= 0;
   thr_alarm_t alarmed;
 #ifndef NO_ALARM
   ALARM alarm_buff;
@@ -879,6 +881,7 @@ my_real_read(NET *net, size_t *complen,
 
           if (i== 0 && thd_net_is_killed())
           {
+            DBUG_PRINT("info", ("thd is killed"));
             len= packet_error;
             net->error= 0;
             net->last_errno= ER_CONNECTION_KILLED;
@@ -948,39 +951,34 @@ my_real_read(NET *net, size_t *complen,
 	pos+= length;
 	update_statistics(thd_increment_bytes_received(net->thd, length));
       }
+
+#ifdef DEBUG_DATA_PACKETS
+      DBUG_DUMP("data_read", net->buff+net->where_b, length);
+#endif
       if (i == 0)
       {					/* First parts is packet length */
 	ulong helping;
+#ifndef DEBUG_DATA_PACKETS
         DBUG_DUMP("packet_header", net->buff+net->where_b,
                   NET_HEADER_SIZE);
-	if (net->buff[net->where_b + 3] != (uchar) net->pkt_nr)
-	{
-	  if (net->buff[net->where_b] != (uchar) 255)
-	  {
-	    DBUG_PRINT("error",
-		       ("Packets out of order (Found: %d, expected %u)",
-			(int) net->buff[net->where_b + 3],
-			net->pkt_nr));
-            /* 
-              We don't make noise server side, since the client is expected
-              to break the protocol for e.g. --send LOAD DATA .. LOCAL where
-              the server expects the client to send a file, but the client
-              may reply with a new command instead.
-            */
-#ifndef MYSQL_SERVER
-            EXTRA_DEBUG_fflush(stdout);
-	    EXTRA_DEBUG_fprintf(stderr,"Error: Packets out of order (Found: %d, expected %d)\n",
-		    (int) net->buff[net->where_b + 3],
-		    (uint) (uchar) net->pkt_nr);
-            EXTRA_DEBUG_fflush(stderr);
 #endif
-	  }
-	  len= packet_error;
-          /* Not a NET error on the client. XXX: why? */
-	  MYSQL_SERVER_my_error(ER_NET_PACKETS_OUT_OF_ORDER, MYF(0));
-	  goto end;
-	}
-	net->compress_pkt_nr= ++net->pkt_nr;
+	if (net->buff[net->where_b + 3] != (uchar) net->pkt_nr)
+        {
+#ifndef MYSQL_SERVER
+          if (net->buff[net->where_b + 3] == (uchar) (net->pkt_nr -1))
+          {
+            /*
+              If the server was killed then the server may have missed the
+              last sent client packet and the packet numbering may be one off.
+            */
+            DBUG_PRINT("warning", ("Found possible out of order packets"));
+            expect_error_packet= 1;
+          }
+          else
+#endif
+            goto packets_out_of_order;
+        }
+        net->compress_pkt_nr= ++net->pkt_nr;
 #ifdef HAVE_COMPRESS
 	if (net->compress)
 	{
@@ -1028,6 +1026,21 @@ my_real_read(NET *net, size_t *complen,
         }
 #endif
       }
+#ifndef MYSQL_SERVER
+      else if (expect_error_packet)
+      {
+        /*
+          This check is safe both for compressed and not compressed protocol
+          as for the compressed protocol errors are not compressed anymore.
+        */
+        if (net->buff[net->where_b] != (uchar) 255)
+        {
+          /* Restore pkt_nr to original value */
+          net->pkt_nr--;
+          goto packets_out_of_order;
+        }
+      }
+#endif
     }
 
 end:
@@ -1041,7 +1054,7 @@ end:
   net->reading_or_writing=0;
 #ifdef DEBUG_DATA_PACKETS
   if (len != packet_error)
-    DBUG_DUMP("data", net->buff+net->where_b, len);
+    DBUG_DUMP("data_read", net->buff+net->where_b, len);
 #endif
 #ifdef MYSQL_SERVER
   if (server_extension != NULL)
@@ -1052,7 +1065,33 @@ end:
   }
 #endif
   return(len);
+
+packets_out_of_order:
+  {
+    DBUG_PRINT("error",
+               ("Packets out of order (Found: %d, expected %u)",
+                (int) net->buff[net->where_b + 3],
+                net->pkt_nr));
+    DBUG_ASSERT(0);
+    /*
+       We don't make noise server side, since the client is expected
+       to break the protocol for e.g. --send LOAD DATA .. LOCAL where
+       the server expects the client to send a file, but the client
+       may reply with a new command instead.
+    */
+#ifndef MYSQL_SERVER
+    EXTRA_DEBUG_fflush(stdout);
+    EXTRA_DEBUG_fprintf(stderr,"Error: Packets out of order (Found: %d, expected %d)\n",
+                        (int) net->buff[net->where_b + 3],
+                        (uint) (uchar) net->pkt_nr);
+    EXTRA_DEBUG_fflush(stderr);
+#endif
+    len= packet_error;
+    MYSQL_SERVER_my_error(ER_NET_PACKETS_OUT_OF_ORDER, MYF(0));
+    goto end;
+  }
 }
+
 
 
 /* Old interface. See my_net_read_packet() for function description */

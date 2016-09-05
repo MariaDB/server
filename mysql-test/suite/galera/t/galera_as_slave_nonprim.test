@@ -87,7 +87,7 @@ RESET SLAVE ALL;
 
 CALL mtr.add_suppression("Slave SQL: Error 'Unknown command' on query");
 CALL mtr.add_suppression("Slave: Unknown command Error_code: 1047");
-CALL mtr.add_suppression("Send action {\\(nil\\), 328, TORDERED} returned -107 \\(Transport endpoint is not connected\\)");
+CALL mtr.add_suppression("Transport endpoint is not connected");
 CALL mtr.add_suppression("Slave SQL: Error in Xid_log_event: Commit could not be completed, 'Deadlock found when trying to get lock; try restarting transaction', Error_code: 1213");
 CALL mtr.add_suppression("Slave SQL: Node has dropped from cluster, Error_code: 1047");
 

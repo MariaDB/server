@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -42,7 +42,6 @@ Created 9/6/1995 Heikki Tuuri
     || defined _M_X64 || defined __WIN__
 
 #define IB_STRONG_MEMORY_MODEL
-#undef HAVE_IB_GCC_ATOMIC_TEST_AND_SET // Quick-and-dirty fix for bug 1519094
 
 #endif /* __i386__ || __x86_64__ || _M_IX86 || _M_X64 || __WIN__ */
 
@@ -94,16 +93,62 @@ struct os_event {
 #endif
 	os_fast_mutex_t	os_mutex;	/*!< this mutex protects the next
 					fields */
-	ibool		is_set;		/*!< this is TRUE when the event is
-					in the signaled state, i.e., a thread
-					does not stop if it tries to wait for
-					this event */
-	ib_int64_t	signal_count;	/*!< this is incremented each time
-					the event becomes signaled */
+private:
+	/** Masks for the event signal count and set flag in the count_and_set
+	field */
+	static const ib_uint64_t count_mask = 0x7fffffffffffffffULL;
+	static const ib_uint64_t set_mask   = 0x8000000000000000ULL;
+
+	/** The MSB is set whenever when the event is in the signaled state,
+	i.e. a thread does not stop if it tries to wait for this event. Lower
+	bits are incremented each time the event becomes signaled. */
+	ib_uint64_t	count_and_set;
+public:
 	os_cond_t	cond_var;	/*!< condition variable is used in
 					waiting for the event */
-	UT_LIST_NODE_T(os_event_t) os_event_list;
-					/*!< list of all created events */
+
+	/** Initialise count_and_set field */
+	void init_count_and_set(void)
+	{
+		/* We return this value in os_event_reset(), which can then be
+		be used to pass to the os_event_wait_low(). The value of zero
+		is reserved in os_event_wait_low() for the case when the
+		caller does not want to pass any signal_count value. To
+		distinguish between the two cases we initialize signal_count
+		to 1 here. */
+		count_and_set = 1;
+	}
+
+	/** Mark this event as set */
+	void set(void)
+	{
+		count_and_set |= set_mask;
+	}
+
+	/** Unmark this event as set */
+	void reset(void)
+	{
+		count_and_set &= count_mask;
+	}
+
+	/** Return true if this event is set */
+	bool is_set(void) const
+	{
+		return count_and_set & set_mask;
+	}
+
+	/** Bump signal count for this event */
+	void inc_signal_count(void)
+	{
+		ut_ad(static_cast<ib_uint64_t>(signal_count()) < count_mask);
+		count_and_set++;
+	}
+
+	/** Return how many times this event has been signalled */
+	ib_int64_t signal_count(void) const
+	{
+		return (count_and_set & count_mask);
+	}
 };
 
 /** Denotes an infinite delay for os_event_wait_time() */
@@ -115,8 +160,7 @@ struct os_event {
 /** Operating system mutex handle */
 typedef struct os_mutex_t*	os_ib_mutex_t;
 
-/** Mutex protecting counts and the event and OS 'slow' mutex lists */
-extern os_ib_mutex_t	os_sync_mutex;
+// All the os_*_count variables are accessed atomically
 
 /** This is incremented by 1 in os_thread_create and decremented by 1 in
 os_thread_exit */
@@ -132,12 +176,15 @@ UNIV_INTERN
 void
 os_sync_init(void);
 /*==============*/
-/*********************************************************//**
-Frees created events and OS 'slow' mutexes. */
+
+/** Create an event semaphore, i.e., a semaphore which may just have two
+states: signaled and nonsignaled. The created event is manual reset: it must be
+reset explicitly by calling sync_os_reset_event.
+@param[in,out]	event	memory block where to create the event */
 UNIV_INTERN
 void
-os_sync_free(void);
-/*==============*/
+os_event_create(os_event_t event);
+
 /*********************************************************//**
 Creates an event semaphore, i.e., a semaphore which may just have two states:
 signaled and nonsignaled. The created event is manual reset: it must be reset
@@ -173,7 +220,10 @@ UNIV_INTERN
 void
 os_event_free(
 /*==========*/
-	os_event_t	event);	/*!< in: event to free */
+	os_event_t	event,	/*!< in: event to free */
+	bool		free_memory = true);
+				/*!< in: if true, deallocate the event memory
+				block too */
 
 /**********************************************************//**
 Waits for an event object until it is in the signaled state.
@@ -467,7 +517,29 @@ amount to decrement. */
 # define os_atomic_decrement_uint64(ptr, amount) \
 	os_atomic_decrement(ptr, amount)
 
-# if defined(HAVE_IB_GCC_ATOMIC_TEST_AND_SET)
+# if defined(HAVE_ATOMIC_BUILTINS)
+
+/** Do an atomic test and set.
+@param[in,out]	ptr		Memory location to set to non-zero
+@return the previous value */
+inline
+lock_word_t
+os_atomic_test_and_set(volatile lock_word_t* ptr)
+{
+	return(__sync_lock_test_and_set(ptr, 1));
+}
+
+/** Do an atomic release.
+@param[in,out]	ptr		Memory location to write to
+@return the previous value */
+inline
+void
+os_atomic_clear(volatile lock_word_t* ptr)
+{
+	__sync_lock_release(ptr);
+}
+
+# elif defined(HAVE_IB_GCC_ATOMIC_TEST_AND_SET)
 
 /** Do an atomic test-and-set.
 @param[in,out]	ptr		Memory location to set to non-zero
@@ -486,35 +558,6 @@ void
 os_atomic_clear(volatile lock_word_t* ptr)
 {
 	__atomic_clear(ptr, __ATOMIC_RELEASE);
-}
-
-# elif defined(HAVE_ATOMIC_BUILTINS)
-
-/** Do an atomic test and set.
-@param[in,out]	ptr		Memory location to set to non-zero
-@return the previous value */
-inline
-lock_word_t
-os_atomic_test_and_set(volatile lock_word_t* ptr)
-{
-	return(__sync_lock_test_and_set(ptr, 1));
-}
-
-/** Do an atomic release.
-
-In theory __sync_lock_release should be used to release the lock.
-Unfortunately, it does not work properly alone. The workaround is
-that more conservative __sync_lock_test_and_set is used instead.
-
-Performance regression was observed at some conditions for Intel
-architecture. Disable release barrier on Intel architecture for now.
-@param[in,out]	ptr		Memory location to write to
-@return the previous value */
-inline
-lock_word_t
-os_atomic_clear(volatile lock_word_t* ptr)
-{
-	return(__sync_lock_test_and_set(ptr, 0));
 }
 
 # else
@@ -857,15 +900,7 @@ for synchronization */
 	} while (0);
 
 /** barrier definitions for memory ordering */
-#ifdef IB_STRONG_MEMORY_MODEL
-/* Performance regression was observed at some conditions for Intel
-architecture. Disable memory barrier for Intel architecture for now. */
-# define os_rmb do { } while(0)
-# define os_wmb do { } while(0)
-# define os_isync do { } while(0)
-# define IB_MEMORY_BARRIER_STARTUP_MSG \
-	"Memory barrier is not used"
-#elif defined(HAVE_IB_GCC_ATOMIC_THREAD_FENCE)
+#if defined(HAVE_IB_GCC_ATOMIC_THREAD_FENCE)
 # define HAVE_MEMORY_BARRIER
 # define os_rmb	__atomic_thread_fence(__ATOMIC_ACQUIRE)
 # define os_wmb	__atomic_thread_fence(__ATOMIC_RELEASE)

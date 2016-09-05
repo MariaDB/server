@@ -19,6 +19,11 @@ SET GLOBAL wsrep_provider_options = 'pc.weight=3';
 SET SESSION wsrep_sync_wait=0;
 --source include/wait_until_connected_again.inc
 
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+
 # We can not use SELECT queries here, as only SHOW is allowed to run.
 # For nodes #2 and #3, we expect a non-primary component of size 2
 
@@ -45,7 +50,7 @@ SHOW STATUS LIKE 'wsrep_local_state_comment';
 
 --connection node_1
 --source include/galera_resume.inc
---sleep 5
+--sleep 10
 --source include/wait_until_connected_again.inc
 
 # For Node #1, we expect a primary component of size 1

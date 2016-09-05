@@ -4,6 +4,10 @@
 # Temporary tablename will be unique. This makes sure that future
 # in-place ALTERs of the same table will not be blocked due to
 # temporary tablename.
+call mtr.add_suppression("InnoDB: Warning: database page corruption or a failed
+");
+call mtr.add_suppression("InnoDB: file read of space .* page .*");
+call mtr.add_suppression("InnoDB: Trying to recover it from the doublewrite buffer.");
 # Crash the server in ha_innobase::commit_inplace_alter_table()
 CREATE TABLE t1 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=innodb;
 SET debug='d,innodb_alter_commit_crash_before_commit';

@@ -693,5 +693,90 @@ drop table t1, t2;
 
 set optimizer_switch=@save_optimizer_switch;
 
+--echo # 
+--echo # MDEV-10325: Queries examines all rows of a tables when it should not
+--echo # 
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  pk int not null,
+  col1 varchar(32),
+  filler varchar(100),
+  key idx1(col1(10)),
+  primary key (pk)
+)engine=innodb;
+
+insert into t1 
+select
+  A.a + 10*B.a + 100*C.a,
+  concat('1234567890-', 1000+ A.a + 10*B.a + 100*C.a),
+  repeat('filler-data-', 4)
+from 
+  t0 A, t0 B, t0 C;
+
+let $q=explain select * from t1 where col1='1234567890-a';
+let $rows=query_get_value($q, rows, 1);
+if ($rows < 2)
+{
+  --echo The EXPLAIN should not produce a query plan with type=ref, rows=1
+  --die Fix for MDEV-10325 didnt work;
+}
+
+drop table t0,t1;
+
+--echo # 
+--echo # MDEV-10360: Extended keys: index properties depend on index order
+--echo # 
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  index_id bigint(20) unsigned NOT NULL,
+  index_class varchar(265) COLLATE latin1_general_ci DEFAULT NULL ,
+  index_object_id int(10) unsigned NOT NULL DEFAULT '0' ,
+  index_date_updated int(10) unsigned DEFAULT NULL ,
+ 
+  PRIMARY KEY (index_id),
+  KEY object (index_class(181),index_object_id),
+  KEY index_date_updated (index_date_updated)
+) engine=innodb;
+
+create table t2 (
+  index_id bigint(20) unsigned NOT NULL,
+  index_class varchar(265) COLLATE latin1_general_ci DEFAULT NULL ,
+  index_object_id int(10) unsigned NOT NULL DEFAULT '0' ,
+  index_date_updated int(10) unsigned DEFAULT NULL ,
+ 
+  PRIMARY KEY (index_id),
+  KEY index_date_updated (index_date_updated),
+  KEY object (index_class(181),index_object_id)
+) engine=innodb;
+
+insert into t1 select 
+  @a:=A.a + 10*B.a + 100*C.a,
+  concat('val-', @a),
+  123456,
+  A.a + 10*B.a
+from 
+  t0 A, t0 B, t0 C;
+
+insert into t2 select * from t1;
+
+--echo # This must have the same query plan as the query below it:
+--echo # type=range, key=index_date_updated, key_len=13
+--replace_column 9 #
+explain 
+select * from t1 force index(index_date_updated) 
+where index_date_updated= 10 and index_id < 800;
+
+--echo # This used to work from the start:
+--replace_column 9 #
+explain 
+select * from t2 force index(index_date_updated) 
+where index_date_updated= 10 and index_id < 800;
+
+drop table t0,t1,t2;
+
 set optimizer_switch=@save_ext_key_optimizer_switch;
 SET SESSION STORAGE_ENGINE=DEFAULT;

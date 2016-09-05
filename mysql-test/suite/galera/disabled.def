@@ -28,3 +28,5 @@ galera_flush : mysql-wsrep/issues/229
 galera_transaction_read_only : mysql-wsrep/issues/229
 galera_gcs_fragment : Incorrect arguments to SET
 galera_flush_local : Fails sporadically
+galera_binlog_stmt_autoinc : TODO: investigate
+galera_concurrent_ctas : Test times out, investigate

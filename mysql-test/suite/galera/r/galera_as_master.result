@@ -46,3 +46,4 @@ SET SQL_LOG_BIN=OFF;
 DROP TABLE t2, t3;
 STOP SLAVE;
 RESET SLAVE ALL;
+CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');

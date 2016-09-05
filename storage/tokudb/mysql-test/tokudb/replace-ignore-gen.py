@@ -23,6 +23,7 @@ def sqlgen_explain_and_do(query):
 def sqlgen_drop_table():
     print "drop table t;"
 
+print "source include/have_tokudb.inc;"
 print "# Tokutek"
 print "# Test that replace into and insert ignore insertions "
 print "# work under various index schemas. "

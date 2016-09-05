@@ -55,4 +55,8 @@ INSERT INTO t1 VALUES (11);
 # Replication continues normally
 SELECT COUNT(*) = 11 FROM t1;
 
+CALL mtr.add_suppression("Protocol violation");
 DROP TABLE t1;
+
+--connection node_1
+CALL mtr.add_suppression("Protocol violation");

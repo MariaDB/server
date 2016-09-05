@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+Copyright (c) 2000, 2016, Oracle and/or its affiliates.
 Copyright (c) 2013, 2016, MariaDB Corporation.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
@@ -2045,7 +2045,7 @@ thd_flush_log_at_trx_commit(
 /********************************************************************//**
 Obtain the InnoDB transaction of a MySQL thread.
 @return	reference to transaction pointer */
-__attribute__((warn_unused_result, nonnull))
+MY_ATTRIBUTE((warn_unused_result, nonnull))
 static inline
 trx_t*&
 thd_to_trx(
@@ -2081,8 +2081,8 @@ static
 int
 innobase_release_temporary_latches(
 /*===============================*/
-	handlerton*	hton __attribute__((unused)),	/*!< in: handlerton */
-	THD*		thd __attribute__((unused)))	/*!< in: MySQL thread */
+	handlerton*	hton MY_ATTRIBUTE((unused)),	/*!< in: handlerton */
+	THD*		thd MY_ATTRIBUTE((unused)))	/*!< in: MySQL thread */
 {
 #ifdef UNIV_DEBUG
 	DBUG_ASSERT(hton == innodb_hton_ptr);
@@ -4256,6 +4256,16 @@ innobase_change_buffering_inited_ok:
 			innobase_open_files = tc_size;
 		}
 	}
+
+	if (innobase_open_files > (long) open_files_limit) {
+		fprintf(stderr,
+                       "innodb_open_files should not be greater"
+                       " than the open_files_limit.\n");
+		if (innobase_open_files > (long) tc_size) {
+			innobase_open_files = tc_size;
+		}
+	}
+
 	srv_max_n_open_files = (ulint) innobase_open_files;
 	srv_innodb_status = (ibool) innobase_create_status_file;
 
@@ -4445,7 +4455,7 @@ int
 innobase_end(
 /*=========*/
 	handlerton*		hton,	/*!< in/out: InnoDB handlerton */
-	ha_panic_function	type __attribute__((unused)))
+	ha_panic_function	type MY_ATTRIBUTE((unused)))
 					/*!< in: ha_panic() parameter */
 {
 	int	err= 0;
@@ -4540,7 +4550,7 @@ static
 my_bool
 innobase_is_fake_change(
 /*====================*/
-	handlerton	*hton __attribute__((unused)),
+	handlerton	*hton MY_ATTRIBUTE((unused)),
 				/*!< in: InnoDB handlerton */
 	THD*		thd)	/*!< in: MySQL thread handle of the user for
 				whom the transaction is being committed */
@@ -11245,7 +11255,7 @@ create_table_check_doc_id_col(
 
 /*****************************************************************//**
 Creates a table definition to an InnoDB database. */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 int
 create_table_def(
 /*=============*/
@@ -12929,6 +12939,25 @@ ha_innobase::discard_or_import_tablespace(
 	/* Commit the transaction in order to release the table lock. */
 	trx_commit_for_mysql(prebuilt->trx);
 
+	if (err == DB_SUCCESS && !discard
+	    && dict_stats_is_persistent_enabled(dict_table)) {
+		dberr_t		ret;
+
+		/* Adjust the persistent statistics. */
+		ret = dict_stats_update(dict_table,
+					DICT_STATS_RECALC_PERSISTENT);
+
+		if (ret != DB_SUCCESS) {
+			push_warning_printf(
+				ha_thd(),
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_ALTER_INFO,
+				"Error updating stats for table '%s'"
+				" after table rebuild: %s",
+				dict_table->name, ut_strerr(ret));
+		}
+	}
+
 	DBUG_RETURN(convert_error_code_to_mysql(err, dict_table->flags, NULL));
 }
 
@@ -13080,7 +13109,8 @@ ha_innobase::delete_table(
 
 	/* Drop the table in InnoDB */
 	err = row_drop_table_for_mysql(
-		norm_name, trx, thd_sql_command(thd) == SQLCOM_DROP_DB);
+		norm_name, trx, thd_sql_command(thd) == SQLCOM_DROP_DB,
+		FALSE);
 
 
 	if (err == DB_TABLE_NOT_FOUND
@@ -13111,7 +13141,8 @@ ha_innobase::delete_table(
 #endif
 			err = row_drop_table_for_mysql(
 				par_case_name, trx,
-				thd_sql_command(thd) == SQLCOM_DROP_DB);
+				thd_sql_command(thd) == SQLCOM_DROP_DB,
+				FALSE);
 		}
 	}
 
@@ -13311,7 +13342,7 @@ innobase_drop_database(
 /*********************************************************************//**
 Renames an InnoDB table.
 @return DB_SUCCESS or error code */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 innobase_rename_table(
 /*==================*/
@@ -14436,7 +14467,7 @@ ha_innobase::optimize(
 	if (innodb_optimize_fulltext_only) {
 		if (prebuilt->table->fts && prebuilt->table->fts->cache
 		    && !dict_table_is_discarded(prebuilt->table)) {
-			fts_sync_table(prebuilt->table);
+			fts_sync_table(prebuilt->table, false, true);
 			fts_optimize_table(prebuilt->table);
 		}
 		return(HA_ADMIN_OK);
@@ -14494,6 +14525,34 @@ ha_innobase::check(
 			thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLESPACE_MISSING,
 			table->s->table_name.str);
+
+		DBUG_RETURN(HA_ADMIN_CORRUPT);
+	}
+
+	if (prebuilt->table->corrupted) {
+		char	index_name[MAX_FULL_NAME_LEN + 1];
+		/* If some previous operation has marked the table as
+		corrupted in memory, and has not propagated such to
+		clustered index, we will do so here */
+		index = dict_table_get_first_index(prebuilt->table);
+
+		if (!dict_index_is_corrupted(index)) {
+			row_mysql_lock_data_dictionary(prebuilt->trx);
+			dict_set_corrupted(index, prebuilt->trx, "CHECK TABLE");
+			row_mysql_unlock_data_dictionary(prebuilt->trx);
+		}
+
+		innobase_format_name(index_name, sizeof index_name,
+			index->name, TRUE);
+
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_INDEX_CORRUPT,
+				    "InnoDB: Index %s is marked as"
+				    " corrupted", index_name);
+
+		/* Now that the table is already marked as corrupted,
+		there is no need to check any index of this table */
+		prebuilt->trx->op_info = "";
 
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
 	}
@@ -14580,6 +14639,15 @@ ha_innobase::check(
 
 		prebuilt->index_usable = row_merge_is_index_usable(
 			prebuilt->trx, prebuilt->index);
+
+		DBUG_EXECUTE_IF(
+			"dict_set_index_corrupted",
+			if (!dict_index_is_clust(index)) {
+				prebuilt->index_usable = FALSE;
+				row_mysql_lock_data_dictionary(prebuilt->trx);
+                                dict_set_corrupted(index, prebuilt->trx, "dict_set_index_corrupted");;
+				row_mysql_unlock_data_dictionary(prebuilt->trx);
+			});
 
 		if (UNIV_UNLIKELY(!prebuilt->index_usable)) {
 			innobase_format_name(
@@ -18406,7 +18474,7 @@ static char* srv_buffer_pool_evict;
 Evict all uncompressed pages of compressed tables from the buffer pool.
 Keep the compressed pages in the buffer pool.
 @return whether all uncompressed pages were evicted */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 bool
 innodb_buffer_pool_evict_uncompressed(void)
 /*=======================================*/
@@ -19029,13 +19097,13 @@ void
 purge_run_now_set(
 /*==============*/
 	THD*				thd	/*!< in: thread handle */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
 						variable */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
 						string goes */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
@@ -19052,13 +19120,13 @@ void
 purge_stop_now_set(
 /*===============*/
 	THD*				thd	/*!< in: thread handle */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
 						variable */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
 						string goes */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
@@ -19074,13 +19142,13 @@ void
 checkpoint_now_set(
 /*===============*/
 	THD*				thd	/*!< in: thread handle */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
 						variable */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
 						string goes */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {
@@ -19101,13 +19169,13 @@ void
 buf_flush_list_now_set(
 /*===================*/
 	THD*				thd	/*!< in: thread handle */
-	__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
-						  variable */
-	__attribute__((unused)),
+						variable */
+					MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
-						  string goes */
-	__attribute__((unused)),
+						string goes */
+					MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						  check function */
 {
@@ -19124,13 +19192,13 @@ void
 track_redo_log_now_set(
 /*===================*/
 	THD*				thd	/*!< in: thread handle */
-	__attribute__((unused)),
+	MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
 						  variable */
-	__attribute__((unused)),
+	MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
 						  string goes */
-	__attribute__((unused)),
+	MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						  check function */
 {
@@ -19239,13 +19307,13 @@ void
 buffer_pool_dump_now(
 /*=================*/
 	THD*				thd	/*!< in: thread handle */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	struct st_mysql_sys_var*	var	/*!< in: pointer to system
 						variable */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	void*				var_ptr	/*!< out: where the formal
 						string goes */
-					__attribute__((unused)),
+					MY_ATTRIBUTE((unused)),
 	const void*			save)	/*!< in: immediate result from
 						check function */
 {

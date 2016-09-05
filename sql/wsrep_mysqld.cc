@@ -169,7 +169,7 @@ static PSI_file_info wsrep_files[]=
 
 my_bool wsrep_inited                   = 0; // initialized ?
 
-static const wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
+static wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
 static char         cluster_uuid_str[40]= { 0, };
 static const char*  cluster_status_str[WSREP_VIEW_MAX] =
 {
@@ -561,8 +561,6 @@ int wsrep_init()
 
   wsrep_sst_auth_init(wsrep_sst_auth);
 
-  wsrep_causal_reads_update(&global_system_variables);
-
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
 
@@ -575,8 +573,7 @@ int wsrep_init()
       WSREP_ERROR("wsrep_load(%s) failed: %s (%d). Reverting to no provider.",
                   wsrep_provider, strerror(rcode), rcode);
       strcpy((char*)wsrep_provider, WSREP_NONE); // damn it's a dirty hack
-      (void) wsrep_init();
-      return rcode;
+      return wsrep_init();
     }
     else /* this is for recursive call above */
     {
@@ -785,6 +782,9 @@ void wsrep_init_startup (bool first)
      wsrep_debug, wsrep_convert_LOCK_to_trx,
      (wsrep_on_fun)wsrep_on);
 
+  /* Skip replication start if dummy wsrep provider is loaded */
+  if (!strcmp(wsrep_provider, WSREP_NONE)) return;
+
   /* Skip replication start if no cluster address */
   if (!wsrep_cluster_address || strlen(wsrep_cluster_address) == 0) return;
 
@@ -880,6 +880,9 @@ void wsrep_stop_replication(THD *thd)
 bool wsrep_start_replication()
 {
   wsrep_status_t rcode;
+
+  /* wsrep provider must be loaded. */
+  DBUG_ASSERT(wsrep);
 
   /*
     if provider is trivial, don't even try to connect,
@@ -1260,7 +1263,7 @@ wsrep_alter_query_string(THD *thd, String *buf)
   return 0;
 }
 
-int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len)
+static int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len)
 {
   String log_query;
 
@@ -1356,6 +1359,10 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     return wsrep_to_buf_helper(thd, buff.ptr(), buff.length(), buf, buf_len);
 }
 
+/* Forward declarations. */
+static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);
+static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
+
 /*
   returns: 
    0: statement was replicated as TOI
@@ -1391,6 +1398,12 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
   case SQLCOM_ALTER_EVENT:
     buf_err= wsrep_alter_event_query(thd, &buf, &buf_len);
     break;
+  case SQLCOM_CREATE_ROLE:
+    if (sp_process_definer(thd))
+    {
+      WSREP_WARN("Failed to set CREATE ROLE definer for TOI.");
+    }
+    /* fallthrough */
   default:
     buf_err= wsrep_to_buf_helper(thd, thd->query(), thd->query_length(), &buf,
                                  &buf_len);
@@ -1465,19 +1478,15 @@ static int wsrep_RSU_begin(THD *thd, char *db_, char *table_)
   WSREP_DEBUG("RSU BEGIN: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
                thd->wsrep_exec_mode, thd->query() );
 
-  if (!wsrep_desync)
+  ret = wsrep->desync(wsrep);
+  if (ret != WSREP_OK)
   {
-    ret = wsrep->desync(wsrep);
-    if (ret != WSREP_OK)
-    {
-      WSREP_WARN("RSU desync failed %d for schema: %s, query: %s",
-                 ret, (thd->db ? thd->db : "(null)"), thd->query());
-      my_error(ER_LOCK_DEADLOCK, MYF(0));
-      return(ret);
-    }
+    WSREP_WARN("RSU desync failed %d for schema: %s, query: %s",
+               ret, (thd->db ? thd->db : "(null)"), thd->query());
+    my_error(ER_LOCK_DEADLOCK, MYF(0));
+    return(ret);
   }
-  else
-    WSREP_DEBUG("RSU desync skipped: %d", wsrep_desync);
+
   mysql_mutex_lock(&LOCK_wsrep_replaying);
   wsrep_replaying++;
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
@@ -1492,15 +1501,13 @@ static int wsrep_RSU_begin(THD *thd, char *db_, char *table_)
     wsrep_replaying--;
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
 
-    if (!wsrep_desync)
+    ret = wsrep->resync(wsrep);
+    if (ret != WSREP_OK)
     {
-      ret = wsrep->resync(wsrep);
-      if (ret != WSREP_OK)
-      {
-        WSREP_WARN("resync failed %d for schema: %s, query: %s",
-                   ret, (thd->db ? thd->db : "(null)"), thd->query());
-      }
+      WSREP_WARN("resync failed %d for schema: %s, query: %s",
+                 ret, (thd->db ? thd->db : "(null)"), thd->query());
     }
+
     my_error(ER_LOCK_DEADLOCK, MYF(0));
     return(1);
   }
@@ -1536,18 +1543,15 @@ static void wsrep_RSU_end(THD *thd)
                (thd->db ? thd->db : "(null)"),
                thd->query());
   }
-  if (!wsrep_desync)
+
+  ret = wsrep->resync(wsrep);
+  if (ret != WSREP_OK)
   {
-    ret = wsrep->resync(wsrep);
-    if (ret != WSREP_OK)
-    {
-      WSREP_WARN("resync failed %d for schema: %s, query: %s", ret,
-                 (thd->db ? thd->db : "(null)"), thd->query());
-      return;
-    }
+    WSREP_WARN("resync failed %d for schema: %s, query: %s", ret,
+               (thd->db ? thd->db : "(null)"), thd->query());
+    return;
   }
-  else
-    WSREP_DEBUG("RSU resync skipped: %d", wsrep_desync);
+
   thd->variables.wsrep_on = 1;
 }
 
@@ -2167,7 +2171,7 @@ void wsrep_kill_mysql(THD *thd)
 }
 
 
-int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
+static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 {
   String log_query;
   sp_head *sp = thd->lex->sphead;
@@ -2494,7 +2498,7 @@ error:
 }
 
 
-int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
+static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
 {
   LEX *lex= thd->lex;
   String stmt_query;
@@ -2621,4 +2625,14 @@ void wsrep_aborting_thd_enqueue(THD *thd)
   aborting->aborting_thd  = thd;
   aborting->next          = wsrep_aborting_thd;
   wsrep_aborting_thd      = aborting;
+}
+
+bool wsrep_node_is_donor()
+{
+  return (WSREP_ON) ? (wsrep_config_state.get_status() == 2) : false;
+}
+
+bool wsrep_node_is_synced()
+{
+  return (WSREP_ON) ? (wsrep_config_state.get_status() == 4) : false;
 }

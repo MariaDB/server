@@ -404,10 +404,10 @@ Description: MariaDB database regression test suite (metapackage for the latest 
 
 Package: mariadb-connect-engine-10.1
 Architecture: any
-Depends: libxml2, mariadb-server-10.1, unixODBC
+Depends: libxml2, mariadb-server-10.1, unixodbc
 Build-Depends: libxml2-dev,
                mariadb-server-10.1,
-               unixODBC-dev,
+               unixodbc-dev,
                ${misc:Depends},
                ${shlibs:Depends}
 Description: Connect storage engine for MariaDB

@@ -3,9 +3,6 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
 SET SESSION wsrep_sync_wait = 0;
-SHOW STATUS LIKE 'wsrep_cluster_status';
-Variable_name	Value
-wsrep_cluster_status	non-Primary
 SET GLOBAL wsrep_provider_options = 'pc.bootstrap=1';
 SHOW STATUS LIKE 'wsrep_cluster_size';
 Variable_name	Value

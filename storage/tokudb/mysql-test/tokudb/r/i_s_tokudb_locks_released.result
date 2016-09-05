@@ -9,6 +9,8 @@ set autocommit=0;
 set tokudb_prelock_empty=OFF;
 insert into t values (1);
 set autocommit=0;
+set tokudb_prelock_empty=OFF;
+set tokudb_lock_timeout=600000;
 insert into t values (1);
 select * from information_schema.tokudb_locks;
 locks_trx_id	locks_mysql_thread_id	locks_dname	locks_key_left	locks_key_right	locks_table_schema	locks_table_name	locks_table_dictionary_name

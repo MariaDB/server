@@ -1804,6 +1804,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
+        uint add_keyparts_for_this_key= add_first_key_parts;
 
         /* 
           Do not extend the key that contains a component
@@ -1815,19 +1816,20 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           if (share->field[fieldnr-1]->key_length() !=
               keyinfo->key_part[i].length)
 	  {
-            add_first_key_parts= 0;
+            add_keyparts_for_this_key= 0;
             break;
           }
         }
 
-        if (add_first_key_parts < keyinfo->ext_key_parts-keyinfo->user_defined_key_parts)
+        if (add_keyparts_for_this_key < (keyinfo->ext_key_parts -
+                                        keyinfo->user_defined_key_parts))
 	{
           share->ext_key_parts-= keyinfo->ext_key_parts;
           key_part_map ext_key_part_map= keyinfo->ext_key_part_map;
           keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
           keyinfo->ext_key_flags= keyinfo->flags;
 	  keyinfo->ext_key_part_map= 0; 
-          for (i= 0; i < add_first_key_parts; i++)
+          for (i= 0; i < add_keyparts_for_this_key; i++)
 	  {
             if (ext_key_part_map & 1<<i)
 	    {
@@ -3442,18 +3444,23 @@ bool get_field(MEM_ROOT *mem, Field *field, String *res)
 {
   char buff[MAX_FIELD_WIDTH], *to;
   String str(buff,sizeof(buff),&my_charset_bin);
-  uint length;
+  bool rc;
+  THD *thd= field->get_thd();
+  ulonglong sql_mode_backup= thd->variables.sql_mode;
+  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
 
   field->val_str(&str);
-  if (!(length= str.length()))
+  if ((rc= !str.length() ||
+           !(to= strmake_root(mem, str.ptr(), str.length()))))
   {
     res->length(0);
-    return 1;
+    goto ex;
   }
-  if (!(to= strmake_root(mem, str.ptr(), length)))
-    length= 0;                                  // Safety fix
-  res->set(to, length, field->charset());
-  return 0;
+  res->set(to, str.length(), field->charset());
+
+ex:
+  thd->variables.sql_mode= sql_mode_backup;
+  return rc;
 }
 
 
@@ -3472,17 +3479,10 @@ bool get_field(MEM_ROOT *mem, Field *field, String *res)
 
 char *get_field(MEM_ROOT *mem, Field *field)
 {
-  char buff[MAX_FIELD_WIDTH], *to;
-  String str(buff,sizeof(buff),&my_charset_bin);
-  uint length;
-
-  field->val_str(&str);
-  length= str.length();
-  if (!length || !(to= (char*) alloc_root(mem,length+1)))
-    return NullS;
-  memcpy(to,str.ptr(),(uint) length);
-  to[length]=0;
-  return to;
+  String str;
+  bool rc= get_field(mem, field, &str);
+  DBUG_ASSERT(rc || str.ptr()[str.length()] == '\0');
+  return  rc ? NullS : (char *) str.ptr();
 }
 
 /*

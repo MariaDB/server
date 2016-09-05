@@ -420,6 +420,8 @@ static void print_db_env_struct (void) {
                              "int (*set_client_pool_threads)(DB_ENV *, uint32_t)",
                              "int (*set_cachetable_pool_threads)(DB_ENV *, uint32_t)",
                              "int (*set_checkpoint_pool_threads)(DB_ENV *, uint32_t)",
+                             "void (*set_check_thp)(DB_ENV *, bool new_val)",
+                             "bool (*get_check_thp)(DB_ENV *)",
                              NULL};
 
         sort_and_dump_fields("db_env", true, extra);
@@ -510,8 +512,9 @@ static void print_db_struct (void) {
 			 "int (*update_broadcast)(DB *, DB_TXN*, const DBT *extra, uint32_t flags)",
 			 "int (*get_fractal_tree_info64)(DB*,uint64_t*,uint64_t*,uint64_t*,uint64_t*)",
 			 "int (*iterate_fractal_tree_block_map)(DB*,int(*)(uint64_t,int64_t,int64_t,int64_t,int64_t,void*),void*)",
-                         "const char *(*get_dname)(DB *db)",
-                         "int (*get_last_key)(DB *db, YDB_CALLBACK_FUNCTION func, void* extra)",
+			 "const char *(*get_dname)(DB *db)",
+			 "int (*get_last_key)(DB *db, YDB_CALLBACK_FUNCTION func, void* extra)",
+			 "int (*recount_rows)(DB* db, int (*progress_callback)(uint64_t count, uint64_t deleted, void* progress_extra), void* progress_extra)",
 			 NULL};
     sort_and_dump_fields("db", true, extra);
 }

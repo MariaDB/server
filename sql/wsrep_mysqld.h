@@ -50,6 +50,7 @@ struct wsrep_thd_shadow {
   ulong                tx_isolation;
   char                 *db;
   size_t               db_length;
+  my_hrtime_t          user_time;
 };
 
 // Global wsrep parameters
@@ -168,8 +169,13 @@ extern void wsrep_prepend_PATH (const char* path);
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
 
-#define WSREP_ON \
+#define WSREP_ON                         \
   (global_system_variables.wsrep_on)
+
+#define WSREP_ON_NEW                     \
+  ((global_system_variables.wsrep_on) && \
+   wsrep_provider                     && \
+   strcmp(wsrep_provider, WSREP_NONE))
 
 #define WSREP(thd) \
   (WSREP_ON && wsrep && (thd && thd->variables.wsrep_on))
@@ -280,10 +286,7 @@ void wsrep_to_isolation_end(THD *thd);
 void wsrep_cleanup_transaction(THD *thd);
 int wsrep_to_buf_helper(
   THD* thd, const char *query, uint query_len, uchar** buf, size_t* buf_len);
-int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);
-int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len);
-int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len);
 
 extern bool
 wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
@@ -304,14 +307,14 @@ void wsrep_close_applier_threads(int count);
 void wsrep_wait_appliers_close(THD *thd);
 void wsrep_kill_mysql(THD *thd);
 void wsrep_close_threads(THD *thd);
-int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);
 void wsrep_copy_query(THD *thd);
 bool wsrep_is_show_query(enum enum_sql_command command);
 void wsrep_replay_transaction(THD *thd);
 bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
                              TABLE_LIST* src_table,
 	                     HA_CREATE_INFO *create_info);
-int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
+bool wsrep_node_is_donor();
+bool wsrep_node_is_synced();
 
 #else /* WITH_WSREP */
 

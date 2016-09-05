@@ -10,12 +10,10 @@
 --source include/galera_connect.inc
 
 # Save original auto_increment_offset values.
---connection node_1
-let $auto_increment_offset_node_1 = `SELECT @@global.auto_increment_offset`;
---connection node_2
-let $auto_increment_offset_node_2 = `SELECT @@global.auto_increment_offset`;
---connection node_3
-let $auto_increment_offset_node_3 = `SELECT @@global.auto_increment_offset`;
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
 
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
@@ -49,12 +47,7 @@ SELECT COUNT(*) = 2 FROM t1;
 DROP TABLE t1;
 
 # Restore original auto_increment_offset values.
---disable_query_log
---connection node_1
---eval SET @@global.auto_increment_offset = $auto_increment_offset_node_1;
---connection node_2
---eval SET @@global.auto_increment_offset = $auto_increment_offset_node_2;
---connection node_3
---eval SET @@global.auto_increment_offset = $auto_increment_offset_node_3;
---enable_query_log
+--source ../galera/include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc
 

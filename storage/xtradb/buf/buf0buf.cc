@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
@@ -706,7 +706,7 @@ buf_page_is_corrupted(
 				"InnoDB: " REFMAN
 				"forcing-innodb-recovery.html\n"
 				"InnoDB: for more information.\n",
-				(ulong) mach_read_from_4(
+				(ulint) mach_read_from_4(
 					read_buf + FIL_PAGE_OFFSET),
 				(lsn_t) mach_read_from_8(
 					read_buf + FIL_PAGE_LSN),
@@ -904,7 +904,7 @@ buf_page_print(
 		ut_print_timestamp(stderr);
 		fprintf(stderr,
 			" InnoDB: Page dump in ascii and hex (%lu bytes):\n",
-			(ulong) size);
+			size);
 		ut_print_buf(stderr, read_buf, size);
 		fputs("\nInnoDB: End of page dump\n", stderr);
 	}
@@ -1544,6 +1544,7 @@ buf_pool_free_instance(
 	buf_chunk_t*	chunk;
 	buf_chunk_t*	chunks;
 	buf_page_t*	bpage;
+	ulint		i;
 
 	bpage = UT_LIST_GET_LAST(buf_pool->LRU);
 	while (bpage != NULL) {
@@ -1567,10 +1568,29 @@ buf_pool_free_instance(
 	mem_free(buf_pool->watch);
 	buf_pool->watch = NULL;
 
+	for (i = BUF_FLUSH_LRU; i < BUF_FLUSH_N_TYPES; i++) {
+		os_event_free(buf_pool->no_flush[i]);
+	}
+	mutex_free(&buf_pool->LRU_list_mutex);
+	mutex_free(&buf_pool->free_list_mutex);
+	mutex_free(&buf_pool->zip_free_mutex);
+	mutex_free(&buf_pool->zip_hash_mutex);
+	mutex_free(&buf_pool->zip_mutex);
+	mutex_free(&buf_pool->flush_state_mutex);
+	mutex_free(&buf_pool->flush_list_mutex);
+
 	chunks = buf_pool->chunks;
 	chunk = chunks + buf_pool->n_chunks;
 
 	while (--chunk >= chunks) {
+		buf_block_t* block = chunk->blocks;
+		for (i = 0; i < chunk->size; i++, block++) {
+			mutex_free(&block->mutex);
+			rw_lock_free(&block->lock);
+#ifdef UNIV_SYNC_DEBUG
+			rw_lock_free(&block->debug_latch);
+#endif
+		}
 		os_mem_free_large(chunk->mem, chunk->mem_size);
 	}
 
@@ -2480,9 +2500,9 @@ buf_zip_decompress(
 		}
 
 		fprintf(stderr,
-			"InnoDB: unable to decompress space %lu page %lu\n",
-			(ulong) block->page.space,
-			(ulong) block->page.offset);
+			"InnoDB: unable to decompress space %u page %u\n",
+			block->page.space,
+			block->page.offset);
 		return(FALSE);
 
 	case FIL_PAGE_TYPE_ALLOCATED:
@@ -3818,7 +3838,7 @@ buf_page_init_low(
 
 /********************************************************************//**
 Inits a page to the buffer buf_pool. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 buf_page_init(
 /*==========*/
@@ -3889,8 +3909,8 @@ buf_page_init(
 		fprintf(stderr,
 			"InnoDB: Error: page %lu %lu already found"
 			" in the hash table: %p, %p\n",
-			(ulong) space,
-			(ulong) offset,
+			space,
+			offset,
 			(const void*) hash_page, (const void*) block);
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 		mutex_exit(&block->mutex);
@@ -4258,7 +4278,7 @@ buf_page_create(
 #ifdef UNIV_DEBUG
 	if (buf_debug_prints) {
 		fprintf(stderr, "Creating space %lu page %lu to buffer\n",
-			(ulong) space, (ulong) offset);
+			space, offset);
 	}
 #endif /* UNIV_DEBUG */
 
@@ -4666,10 +4686,10 @@ buf_page_io_complete(
 
 			ut_print_timestamp(stderr);
 			fprintf(stderr,
-				"  InnoDB: Error: reading page %lu\n"
+				"  InnoDB: Error: reading page %u\n"
 				"InnoDB: which is in the"
 				" doublewrite buffer!\n",
-				(ulong) bpage->offset);
+				bpage->offset);
 		} else if (!read_space_id && !read_page_no) {
 			/* This is likely an uninitialized page. */
 		} else if ((bpage->space
@@ -4685,10 +4705,11 @@ buf_page_io_complete(
 				"  InnoDB: Error: space id and page n:o"
 				" stored in the page\n"
 				"InnoDB: read in are %lu:%lu,"
-				" should be %lu:%lu!\n",
-				(ulong) read_space_id, (ulong) read_page_no,
-				(ulong) bpage->space,
-				(ulong) bpage->offset);
+				" should be %u:%u!\n",
+				read_space_id,
+				read_page_no,
+				bpage->space,
+				bpage->offset);
 		}
 
 		if (UNIV_LIKELY(!bpage->is_corrupt ||
@@ -4722,10 +4743,10 @@ corrupt:
 					"Database page corruption on disk"
 					" or a failed");
 				ib_logf(IB_LOG_LEVEL_ERROR,
-					"Space %lu file %s read of page %lu.",
-					(ulint)bpage->space,
+					"Space %u file %s read of page %u.",
+					bpage->space,
 					space ? space->name : "NULL",
-					(ulong) bpage->offset);
+					bpage->offset);
 				ib_logf(IB_LOG_LEVEL_ERROR,
 					"You may have to recover"
 					" from a backup.");
@@ -4953,8 +4974,8 @@ retry_mutex:
 	if (buf_debug_prints) {
 		fprintf(stderr, "Has %s page space %lu page no %lu\n",
 			io_type == BUF_IO_READ ? "read" : "written",
-			(ulong) buf_page_get_space(bpage),
-			(ulong) buf_page_get_page_no(bpage));
+			buf_page_get_space(bpage),
+			buf_page_get_page_no(bpage));
 	}
 #endif /* UNIV_DEBUG */
 
@@ -4989,11 +5010,21 @@ buf_all_freed_instance(
 		mutex_exit(&buf_pool->LRU_list_mutex);
 
 		if (UNIV_LIKELY_NULL(block)) {
-			if (block->page.key_version == 0) {
-				fprintf(stderr,
-					"Page %lu %lu still fixed or dirty\n",
-					(ulong) block->page.space,
-					(ulong) block->page.offset);
+				if (block->page.key_version == 0) {
+				fil_space_t* space = fil_space_get(block->page.space);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Page %u %u still fixed or dirty.",
+					block->page.space,
+					block->page.offset);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Page oldest_modification %lu fix_count %d io_fix %d.",
+					block->page.oldest_modification,
+					block->page.buf_fix_count,
+					buf_page_get_io_fix(&block->page));
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"Page space_id %u name %s.",
+					block->page.space,
+					(space && space->name) ? space->name : "NULL");
 				ut_error;
 			}
 		}
@@ -5286,8 +5317,8 @@ buf_pool_validate_instance(
 
 	if (n_lru + n_free > buf_pool->curr_size + n_zip) {
 		fprintf(stderr, "n LRU %lu, n free %lu, pool %lu zip %lu\n",
-			(ulong) n_lru, (ulong) n_free,
-			(ulong) buf_pool->curr_size, (ulong) n_zip);
+			n_lru, n_free,
+			buf_pool->curr_size, n_zip);
 		ut_error;
 	}
 
@@ -5297,8 +5328,8 @@ buf_pool_validate_instance(
 
 	if (UT_LIST_GET_LEN(buf_pool->free) != n_free) {
 		fprintf(stderr, "Free list len %lu, free blocks %lu\n",
-			(ulong) UT_LIST_GET_LEN(buf_pool->free),
-			(ulong) n_free);
+			UT_LIST_GET_LEN(buf_pool->free),
+			n_free);
 		ut_error;
 	}
 
@@ -5379,20 +5410,20 @@ buf_print_instance(
 		"n pending flush LRU %lu list %lu single page %lu\n"
 		"pages made young %lu, not young %lu\n"
 		"pages read %lu, created %lu, written %lu\n",
-		(ulong) size,
-		(ulong) UT_LIST_GET_LEN(buf_pool->LRU),
-		(ulong) UT_LIST_GET_LEN(buf_pool->free),
-		(ulong) UT_LIST_GET_LEN(buf_pool->flush_list),
-		(ulong) buf_pool->n_pend_unzip,
-		(ulong) buf_pool->n_pend_reads,
-		(ulong) buf_pool->n_flush[BUF_FLUSH_LRU],
-		(ulong) buf_pool->n_flush[BUF_FLUSH_LIST],
-		(ulong) buf_pool->n_flush[BUF_FLUSH_SINGLE_PAGE],
-		(ulong) buf_pool->stat.n_pages_made_young,
-		(ulong) buf_pool->stat.n_pages_not_made_young,
-		(ulong) buf_pool->stat.n_pages_read,
-		(ulong) buf_pool->stat.n_pages_created,
-		(ulong) buf_pool->stat.n_pages_written);
+		(ulint) size,
+		(ulint) UT_LIST_GET_LEN(buf_pool->LRU),
+		(ulint) UT_LIST_GET_LEN(buf_pool->free),
+		(ulint) UT_LIST_GET_LEN(buf_pool->flush_list),
+		(ulint) buf_pool->n_pend_unzip,
+		(ulint) buf_pool->n_pend_reads,
+		(ulint) buf_pool->n_flush[BUF_FLUSH_LRU],
+		(ulint) buf_pool->n_flush[BUF_FLUSH_LIST],
+		(ulint) buf_pool->n_flush[BUF_FLUSH_SINGLE_PAGE],
+		(ulint) buf_pool->stat.n_pages_made_young,
+		(ulint) buf_pool->stat.n_pages_not_made_young,
+		(ulint) buf_pool->stat.n_pages_read,
+		(ulint) buf_pool->stat.n_pages_created,
+		(ulint) buf_pool->stat.n_pages_written);
 
 	/* Count the number of blocks belonging to each index in the buffer */
 
@@ -5443,7 +5474,7 @@ buf_print_instance(
 		fprintf(stderr,
 			"Block count for index %llu in buffer is about %lu",
 			(ullint) index_ids[i],
-			(ulong) counts[i]);
+			(ulint) counts[i]);
 
 		if (index) {
 			putc(' ', stderr);
@@ -5897,10 +5928,10 @@ buf_print_io_instance(
 		fprintf(file,
 			"Buffer pool hit rate %lu / 1000,"
 			" young-making rate %lu / 1000 not %lu / 1000\n",
-			(ulong) hit_rate,
-			(ulong) (1000 * pool_info->young_making_delta
+			(ulint) hit_rate,
+			(ulint) (1000 * pool_info->young_making_delta
 				 / pool_info->n_page_get_delta),
-			(ulong) (1000 * pool_info->not_young_making_delta
+			(ulint) (1000 * pool_info->not_young_making_delta
 				 / pool_info->n_page_get_delta));
 	} else {
 		fputs("No buffer pool page gets since the last printout\n",

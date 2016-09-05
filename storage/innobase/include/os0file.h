@@ -1,6 +1,6 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2013, 2015, MariaDB Corporation.
 
@@ -637,7 +637,7 @@ pfs_os_file_create_simple_func(
 	ibool*		success,/*!< out: TRUE if succeed, FALSE if error */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /****************************************************************//**
 NOTE! Please use the corresponding macro
@@ -664,7 +664,7 @@ pfs_os_file_create_simple_no_error_handling_func(
 				value */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /****************************************************************//**
 NOTE! Please use the corresponding macro os_file_create(), not directly
@@ -694,7 +694,7 @@ pfs_os_file_create_func(
 				      value*/
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /***********************************************************************//**
 NOTE! Please use the corresponding macro os_file_close(), not directly
@@ -880,7 +880,7 @@ os_offset_t
 os_file_get_size(
 /*=============*/
 	os_file_t	file)	/*!< in: handle to a file */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /***********************************************************************//**
 Write the specified number of zeros to a newly created file.
 @return	TRUE if success */
@@ -892,7 +892,7 @@ os_file_set_size(
 				null-terminated string */
 	os_file_t	file,	/*!< in: handle to a file */
 	os_offset_t	size)	/*!< in: file size */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************************//**
 Truncates a file at its current position.
 @return	TRUE if success */

@@ -69,8 +69,8 @@ SET ROLE role1;
 FLUSH TABLES;
 SELECT * FROM mysql.roles_mapping;
 Host	User	Role	Admin_option
-		role1	Y
 localhost	foo	role1	N
+localhost	root	role1	Y
 SHOW TABLES FROM test1;
 Tables_in_test1
 t1
@@ -153,4 +153,43 @@ role1
 # Connect with node_1
 DROP USER foo@localhost;
 DROP DATABASE test1;
+#
+# MDEV-10566: Create role statement replicated inconsistently in Galera Cluster
+#
+
+# On node_1
+CREATE USER foo@localhost;
+CREATE ROLE role1;
+CREATE ROLE role2 WITH ADMIN CURRENT_USER;
+CREATE ROLE role3 WITH ADMIN foo@localhost;
+CREATE ROLE role4 WITH ADMIN role1;
+SELECT * FROM mysql.roles_mapping;
+Host	User	Role	Admin_option
+	role1	role4	Y
+localhost	foo	role3	Y
+localhost	root	role1	Y
+localhost	root	role2	Y
+SELECT * FROM INFORMATION_SCHEMA.APPLICABLE_ROLES;
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+role1	role4	YES	NULL
+root@localhost	role1	YES	NO
+root@localhost	role2	YES	NO
+
+# On node_2
+SELECT * FROM mysql.roles_mapping;
+Host	User	Role	Admin_option
+	role1	role4	Y
+localhost	foo	role3	Y
+localhost	root	role1	Y
+localhost	root	role2	Y
+SELECT * FROM INFORMATION_SCHEMA.APPLICABLE_ROLES;
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+role1	role4	YES	NULL
+root@localhost	role1	YES	NO
+root@localhost	role2	YES	NO
+DROP ROLE role1;
+DROP ROLE role2;
+DROP ROLE role3;
+DROP ROLE role4;
+DROP USER foo@localhost;
 # End of test
