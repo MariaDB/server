@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2009, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -3631,10 +3631,25 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
   if (time_zone_len)
     copy_str_and_move(&time_zone_str, &start, time_zone_len);
 
-  if (user.length > 0)
+  if (user.length)
+  {
     copy_str_and_move((const char **)&(user.str), &start, user.length);
-  if (host.length > 0)
+  }
+  else
+  {
+    user.str= (char *) start++;
+    user.str[0]= '\0';
+  }
+
+  if (host.length)
+  {
     copy_str_and_move((const char **)&(host.str), &start, host.length);
+  }
+  else
+  {
+    host.str= (char *) start++;
+    host.str[0]= '\0';
+  }
 
   /**
     if time_zone_len or catalog_len are 0, then time_zone and catalog
@@ -9738,9 +9753,6 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     /*
       When the open and locking succeeded, we check all tables to
       ensure that they still have the correct type.
-
-      We can use a down cast here since we know that every table added
-      to the tables_to_lock is a RPL_TABLE_LIST.
     */
 
     {
@@ -9759,10 +9771,37 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         NOTE: The base tables are added here are removed when 
               close_thread_tables is called.
        */
-      RPL_TABLE_LIST *ptr= rgi->tables_to_lock;
-      for (uint i= 0 ; ptr && (i < rgi->tables_to_lock_count);
-           ptr= static_cast<RPL_TABLE_LIST*>(ptr->next_global), i++)
+      TABLE_LIST *table_list_ptr= rgi->tables_to_lock;
+      for (uint i=0 ; table_list_ptr && (i < rgi->tables_to_lock_count);
+           table_list_ptr= table_list_ptr->next_global, i++)
       {
+        /*
+          Below if condition takes care of skipping base tables that
+          make up the MERGE table (which are added by open_tables()
+          call). They are added next to the merge table in the list.
+          For eg: If RPL_TABLE_LIST is t3->t1->t2 (where t1 and t2
+          are base tables for merge table 't3'), open_tables will modify
+          the list by adding t1 and t2 again immediately after t3 in the
+          list (*not at the end of the list*). New table_to_lock list will
+          look like t3->t1'->t2'->t1->t2 (where t1' and t2' are TABLE_LIST
+          objects added by open_tables() call). There is no flag(or logic) in
+          open_tables() that can skip adding these base tables to the list.
+          So the logic here should take care of skipping them.
+
+          tables_to_lock_count logic will take care of skipping base tables
+          that are added at the end of the list.
+          For eg: If RPL_TABLE_LIST is t1->t2->t3, open_tables will modify
+          the list into t1->t2->t3->t1'->t2'. t1' and t2' will be skipped
+          because tables_to_lock_count logic in this for loop.
+        */
+        if (table_list_ptr->parent_l)
+          continue;
+        /*
+          We can use a down cast here since we know that every table added
+          to the tables_to_lock is a RPL_TABLE_LIST (or child table which is
+          skipped above).
+        */
+        RPL_TABLE_LIST *ptr= static_cast<RPL_TABLE_LIST*>(table_list_ptr);
         DBUG_ASSERT(ptr->m_tabledef_valid);
         TABLE *conv_table;
         if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
@@ -9804,6 +9843,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     TABLE_LIST *ptr= rgi->tables_to_lock;
     for (uint i=0 ;  ptr && (i < rgi->tables_to_lock_count); ptr= ptr->next_global, i++)
     {
+      /*
+        Please see comment in above 'for' loop to know the reason
+        for this if condition
+      */
+      if (ptr->parent_l)
+        continue;
       rgi->m_table_map.set_table(ptr->table_id, ptr->table);
       /*
         Following is passing flag about triggers on the server. The problem was

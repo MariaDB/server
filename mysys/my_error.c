@@ -217,7 +217,7 @@ void my_message(uint error, const char *str, register myf MyFlags)
   @retval  != 0     Error
 */
 
-int my_error_register(const char** (*get_errmsgs) (), uint first, uint last)
+int my_error_register(const char** (*get_errmsgs) (void), uint first, uint last)
 {
   struct my_err_head *meh_p;
   struct my_err_head **search_meh_pp;

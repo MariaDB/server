@@ -137,8 +137,24 @@ insert_random_message_to_bn(
     *keyp = toku_xmemdup(keydbt->data, keydbt->size);
     ft_msg msg(keydbt, valdbt, FT_INSERT, msn, xids);
     int64_t numbytes;
-    toku_le_apply_msg(msg, NULL, NULL, 0, keydbt->size, &non_mvcc_gc_info, save, &numbytes);
-    toku_ft_bn_apply_msg(t->ft->cmp, t->ft->update_fun, blb, msg, &non_mvcc_gc_info, NULL, NULL);
+    toku_le_apply_msg(
+        msg,
+        NULL,
+        NULL,
+        0,
+        keydbt->size,
+        &non_mvcc_gc_info,
+        save,
+        &numbytes);
+    toku_ft_bn_apply_msg(
+        t->ft->cmp,
+        t->ft->update_fun,
+        blb,
+        msg,
+        &non_mvcc_gc_info,
+        NULL,
+        NULL,
+        NULL);
     if (msn.msn > blb->max_msn_applied.msn) {
         blb->max_msn_applied = msn;
     }
@@ -182,12 +198,36 @@ insert_same_message_to_bns(
     *keyp = toku_xmemdup(keydbt->data, keydbt->size);
     ft_msg msg(keydbt, valdbt, FT_INSERT, msn, xids);
     int64_t numbytes;
-    toku_le_apply_msg(msg, NULL, NULL, 0, keydbt->size, &non_mvcc_gc_info, save, &numbytes);
-    toku_ft_bn_apply_msg(t->ft->cmp, t->ft->update_fun, blb1, msg, &non_mvcc_gc_info, NULL, NULL);
+    toku_le_apply_msg(
+        msg,
+        NULL,
+        NULL,
+        0,
+        keydbt->size,
+        &non_mvcc_gc_info,
+        save,
+        &numbytes);
+    toku_ft_bn_apply_msg(
+        t->ft->cmp,
+        t->ft->update_fun,
+        blb1,
+        msg,
+        &non_mvcc_gc_info,
+        NULL,
+        NULL,
+        NULL);
     if (msn.msn > blb1->max_msn_applied.msn) {
         blb1->max_msn_applied = msn;
     }
-    toku_ft_bn_apply_msg(t->ft->cmp, t->ft->update_fun, blb2, msg, &non_mvcc_gc_info, NULL, NULL);
+    toku_ft_bn_apply_msg(
+        t->ft->cmp,
+        t->ft->update_fun,
+        blb2,
+        msg,
+        &non_mvcc_gc_info,
+        NULL,
+        NULL,
+        NULL);
     if (msn.msn > blb2->max_msn_applied.msn) {
         blb2->max_msn_applied = msn;
     }
@@ -619,7 +659,16 @@ flush_to_leaf(FT_HANDLE t, bool make_leaf_up_to_date, bool use_flush) {
     if (make_leaf_up_to_date) {
         for (i = 0; i < num_parent_messages; ++i) {
             if (!parent_messages_is_fresh[i]) {
-                toku_ft_leaf_apply_msg(t->ft->cmp, t->ft->update_fun, child, -1, *parent_messages[i], &non_mvcc_gc_info, NULL, NULL);
+                toku_ft_leaf_apply_msg(
+                    t->ft->cmp,
+                    t->ft->update_fun,
+                    child,
+                    -1,
+                    *parent_messages[i],
+                    &non_mvcc_gc_info,
+                    NULL,
+                    NULL,
+                    NULL);
             }
         }
         for (i = 0; i < 8; ++i) {
@@ -842,7 +891,16 @@ flush_to_leaf_with_keyrange(FT_HANDLE t, bool make_leaf_up_to_date) {
         for (i = 0; i < num_parent_messages; ++i) {
             if (dummy_cmp(parent_messages[i]->kdbt(), &childkeys[7]) <= 0 &&
                 !parent_messages_is_fresh[i]) {
-                toku_ft_leaf_apply_msg(t->ft->cmp, t->ft->update_fun, child, -1, *parent_messages[i], &non_mvcc_gc_info, NULL, NULL);
+                toku_ft_leaf_apply_msg(
+                    t->ft->cmp,
+                    t->ft->update_fun,
+                    child,
+                    -1,
+                    *parent_messages[i],
+                    &non_mvcc_gc_info,
+                    NULL,
+                    NULL,
+                    NULL);
             }
         }
         for (i = 0; i < 8; ++i) {
@@ -1045,8 +1103,26 @@ compare_apply_and_flush(FT_HANDLE t, bool make_leaf_up_to_date) {
     if (make_leaf_up_to_date) {
         for (i = 0; i < num_parent_messages; ++i) {
             if (!parent_messages_is_fresh[i]) {
-                toku_ft_leaf_apply_msg(t->ft->cmp, t->ft->update_fun, child1, -1, *parent_messages[i], &non_mvcc_gc_info, NULL, NULL);
-                toku_ft_leaf_apply_msg(t->ft->cmp, t->ft->update_fun, child2, -1, *parent_messages[i], &non_mvcc_gc_info, NULL, NULL);
+                toku_ft_leaf_apply_msg(
+                    t->ft->cmp,
+                    t->ft->update_fun,
+                    child1,
+                    -1,
+                    *parent_messages[i],
+                    &non_mvcc_gc_info,
+                    NULL,
+                    NULL,
+                    NULL);
+                toku_ft_leaf_apply_msg(
+                    t->ft->cmp,
+                    t->ft->update_fun,
+                    child2,
+                    -1,
+                    *parent_messages[i],
+                    &non_mvcc_gc_info,
+                    NULL,
+                    NULL,
+                    NULL);
             }
         }
         for (i = 0; i < 8; ++i) {

@@ -129,13 +129,32 @@ static int safe_print_str(const char *addr, int max_len)
 
 #endif
 
-void my_safe_print_str(const char* val, int max_len)
+/*
+  Attempt to print a char * pointer as a string.
+
+  SYNOPSIS
+    Prints either until the end of string ('\0'), or max_len characters have
+    been printed.
+
+  RETURN VALUE
+    0  Pointer was within the heap address space.
+       The string was printed fully, or until the end of the heap address space.
+    1  Pointer is outside the heap address space. Printed as invalid.
+
+  NOTE
+    On some systems, we can have valid pointers outside the heap address space.
+    This is through the use of mmap inside malloc calls. When this function
+    returns 1, it does not mean 100% that the pointer is corrupted.
+*/
+
+int my_safe_print_str(const char* val, int max_len)
 {
   char *heap_end;
 
 #ifdef __linux__
+  // Try and make use of /proc filesystem to safely print memory contents.
   if (!safe_print_str(val, max_len))
-    return;
+    return 0;
 #endif
 
   heap_end= (char*) sbrk(0);
@@ -143,12 +162,14 @@ void my_safe_print_str(const char* val, int max_len)
   if (!PTR_SANE(val))
   {
     my_safe_printf_stderr("%s", "is an invalid pointer");
-    return;
+    return 1;
   }
 
   for (; max_len && PTR_SANE(val) && *val; --max_len)
     my_write_stderr((val++), 1);
   my_safe_printf_stderr("%s", "\n");
+
+  return 0;
 }
 
 #if defined(HAVE_PRINTSTACK)
@@ -728,7 +749,7 @@ void my_write_core(int unused)
 }
 
 
-void my_safe_print_str(const char *val, int len)
+int my_safe_print_str(const char *val, int len)
 {
   __try
   {
@@ -738,6 +759,7 @@ void my_safe_print_str(const char *val, int len)
   {
     my_safe_printf_stderr("%s", "is an invalid string pointer");
   }
+  return 0;
 }
 #endif /*__WIN__*/
 

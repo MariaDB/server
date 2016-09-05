@@ -178,6 +178,7 @@ nojit=
 sim=
 skip=
 valgrind=
+vjs=
 
 # This is in case the caller has set aliases (as I do - PH)
 unset cp ls mv rm
@@ -357,6 +358,9 @@ $sim ./pcretest -C jit >/dev/null
 jit=$?
 if [ $jit -ne 0 -a "$nojit" != "yes" ] ; then
   jitopt=-s+
+  if [ "$valgrind" != "" ] ; then
+    vjs="--suppressions=$testdata/valgrind-jit.supp"
+  fi
 fi
 
 # If no specific tests were requested, select all. Those that are not
@@ -423,7 +427,7 @@ for bmode in "$test8" "$test16" "$test32"; do
 if [ $do1 = yes ] ; then
   echo $title1
   for opt in "" "-s" $jitopt; do
-    $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput1 testtry
+    $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput1 testtry
     if [ $? = 0 ] ; then
       $cf $testdata/testoutput1 testtry
       if [ $? != 0 ] ; then exit 1; fi
@@ -441,7 +445,7 @@ fi
 if [ $do2 = yes ] ; then
   echo $title2 "(not UTF-$bits)"
   for opt in "" "-s" $jitopt; do
-    $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput2 testtry
+    $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput2 testtry
     if [ $? = 0 ] ; then
       $cf $testdata/testoutput2 testtry
       if [ $? != 0 ] ; then exit 1; fi
@@ -504,7 +508,7 @@ if [ $do3 = yes ] ; then
   if [ "$locale" != "" ] ; then
     echo $title3 "(using '$locale' locale)"
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $infile testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $infile testtry
       if [ $? = 0 ] ; then
         if $cf $outfile testtry >teststdout || \
            $cf $outfile2 testtry >teststdout || \
@@ -540,7 +544,7 @@ if [ $do4 = yes ] ; then
     echo "  Skipped because UTF-$bits support is not available"
   else
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput4 testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput4 testtry
       if [ $? = 0 ] ; then
         $cf $testdata/testoutput4 testtry
         if [ $? != 0 ] ; then exit 1; fi
@@ -560,7 +564,7 @@ if [ $do5 = yes ] ; then
     echo "  Skipped because UTF-$bits support is not available"
   else
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput5 testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput5 testtry
       if [ $? = 0 ] ; then
         $cf $testdata/testoutput5 testtry
         if [ $? != 0 ] ; then exit 1; fi
@@ -580,7 +584,7 @@ if [ $do6 = yes ] ; then
     echo "  Skipped because Unicode property support is not available"
   else
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput6 testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput6 testtry
       if [ $? = 0 ] ; then
         $cf $testdata/testoutput6 testtry
         if [ $? != 0 ] ; then exit 1; fi
@@ -602,7 +606,7 @@ if [ $do7 = yes ] ; then
     echo "  Skipped because Unicode property support is not available"
   else
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput7 testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput7 testtry
       if [ $? = 0 ] ; then
         $cf $testdata/testoutput7 testtry
         if [ $? != 0 ] ; then exit 1; fi
@@ -698,7 +702,7 @@ if [ $do12 = yes ] ; then
   if [ $jit -eq 0 -o "$nojit" = "yes" ] ; then
     echo "  Skipped because JIT is not available or not usable"
   else
-    $sim $valgrind ./pcretest -q $bmode $testdata/testinput12 testtry
+    $sim $valgrind $vjs ./pcretest -q $bmode $testdata/testinput12 testtry
     if [ $? = 0 ] ; then
       $cf $testdata/testoutput12 testtry
       if [ $? != 0 ] ; then exit 1; fi
@@ -735,7 +739,7 @@ if [ "$do14" = yes ] ; then
     cp -f $testdata/saved16 testsaved16
     cp -f $testdata/saved32 testsaved32
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput14 testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput14 testtry
       if [ $? = 0 ] ; then
         $cf $testdata/testoutput14 testtry
         if [ $? != 0 ] ; then exit 1; fi
@@ -759,7 +763,7 @@ if [ "$do15" = yes ] ; then
     echo "  Skipped because UTF-$bits support is not available"
   else
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput15 testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput15 testtry
       if [ $? = 0 ] ; then
         $cf $testdata/testoutput15 testtry
         if [ $? != 0 ] ; then exit 1; fi
@@ -783,7 +787,7 @@ if [ $do16 = yes ] ; then
     echo "  Skipped because Unicode property support is not available"
   else
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput16 testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput16 testtry
       if [ $? = 0 ] ; then
         $cf $testdata/testoutput16 testtry
         if [ $? != 0 ] ; then exit 1; fi
@@ -805,7 +809,7 @@ if [ $do17 = yes ] ; then
     echo "  Skipped when running 8-bit tests"
   else
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput17 testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput17 testtry
       if [ $? = 0 ] ; then
         $cf $testdata/testoutput17 testtry
         if [ $? != 0 ] ; then exit 1; fi
@@ -829,7 +833,7 @@ if [ $do18 = yes ] ; then
     echo "  Skipped because UTF-$bits support is not available"
   else
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput18 testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput18 testtry
       if [ $? = 0 ] ; then
         $cf $testdata/testoutput18-$bits testtry
         if [ $? != 0 ] ; then exit 1; fi
@@ -853,7 +857,7 @@ if [ $do19 = yes ] ; then
     echo "  Skipped because Unicode property support is not available"
   else
     for opt in "" "-s" $jitopt; do
-      $sim $valgrind ./pcretest -q $bmode $opt $testdata/testinput19 testtry
+      $sim $valgrind ${opt:+$vjs} ./pcretest -q $bmode $opt $testdata/testinput19 testtry
       if [ $? = 0 ] ; then
         $cf $testdata/testoutput19 testtry
         if [ $? != 0 ] ; then exit 1; fi

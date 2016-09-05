@@ -74,11 +74,20 @@ append_leaf(FTNODE leafnode, void *key, size_t keylen, void *val, size_t vallen)
     // apply an insert to the leaf node
     txn_gc_info gc_info(nullptr, TXNID_NONE, TXNID_NONE, false);
     ft_msg msg(&thekey, &theval, FT_INSERT, msn, toku_xids_get_root_xids());
-    toku_ft_bn_apply_msg_once(BLB(leafnode,0), msg, idx, keylen, NULL, &gc_info, NULL, NULL);
+    toku_ft_bn_apply_msg_once(
+        BLB(leafnode, 0),
+        msg,
+        idx,
+        keylen,
+        NULL,
+        &gc_info,
+        NULL,
+        NULL,
+        NULL);
 
     leafnode->max_msn_applied_to_node_on_disk = msn;
 
-    // dont forget to dirty the node
+    // don't forget to dirty the node
     leafnode->dirty = 1;
 }
 

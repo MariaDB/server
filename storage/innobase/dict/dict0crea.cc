@@ -246,7 +246,7 @@ dict_create_sys_columns_tuple(
 /***************************************************************//**
 Builds a table definition to insert.
 @return	DB_SUCCESS or error code */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 dict_build_table_def_step(
 /*======================*/
@@ -573,7 +573,7 @@ dict_create_search_tuple(
 /***************************************************************//**
 Builds an index definition row to insert.
 @return	DB_SUCCESS or error code */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 dict_build_index_def_step(
 /*======================*/
@@ -648,7 +648,7 @@ dict_build_field_def_step(
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.
 @return	DB_SUCCESS or DB_OUT_OF_FILE_SPACE */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 dict_create_index_tree_step(
 /*========================*/
@@ -1365,7 +1365,7 @@ dict_create_or_check_foreign_constraint_tables(void)
 		ib_logf(IB_LOG_LEVEL_WARN,
 			"Dropping incompletely created "
 			"SYS_FOREIGN table.");
-		row_drop_table_for_mysql("SYS_FOREIGN", trx, TRUE);
+		row_drop_table_for_mysql("SYS_FOREIGN", trx, TRUE, TRUE);
 	}
 
 	if (sys_foreign_cols_err == DB_CORRUPTION) {
@@ -1373,7 +1373,7 @@ dict_create_or_check_foreign_constraint_tables(void)
 			"Dropping incompletely created "
 			"SYS_FOREIGN_COLS table.");
 
-		row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx, TRUE);
+		row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx, TRUE, TRUE);
 	}
 
 	ib_logf(IB_LOG_LEVEL_WARN,
@@ -1427,8 +1427,8 @@ dict_create_or_check_foreign_constraint_tables(void)
 		ut_ad(err == DB_OUT_OF_FILE_SPACE
 		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
 
-		row_drop_table_for_mysql("SYS_FOREIGN", trx, TRUE);
-		row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx, TRUE);
+		row_drop_table_for_mysql("SYS_FOREIGN", trx, TRUE, TRUE);
+		row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx, TRUE, TRUE);
 
 		if (err == DB_OUT_OF_FILE_SPACE) {
 			err = DB_MUST_GET_MORE_FILE_SPACE;
@@ -1464,7 +1464,7 @@ dict_create_or_check_foreign_constraint_tables(void)
 /****************************************************************//**
 Evaluate the given foreign key SQL statement.
 @return	error code or DB_SUCCESS */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 dict_foreign_eval_sql(
 /*==================*/
@@ -1530,7 +1530,7 @@ dict_foreign_eval_sql(
 Add a single foreign key field definition to the data dictionary tables in
 the database.
 @return	error code or DB_SUCCESS */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 dict_create_add_foreign_field_to_dictionary(
 /*========================================*/
@@ -1853,7 +1853,7 @@ dict_create_or_check_sys_tablespace(void)
 		ib_logf(IB_LOG_LEVEL_WARN,
 			"Dropping incompletely created "
 			"SYS_TABLESPACES table.");
-		row_drop_table_for_mysql("SYS_TABLESPACES", trx, TRUE);
+		row_drop_table_for_mysql("SYS_TABLESPACES", trx, TRUE, TRUE);
 	}
 
 	if (sys_datafiles_err == DB_CORRUPTION) {
@@ -1861,7 +1861,7 @@ dict_create_or_check_sys_tablespace(void)
 			"Dropping incompletely created "
 			"SYS_DATAFILES table.");
 
-		row_drop_table_for_mysql("SYS_DATAFILES", trx, TRUE);
+		row_drop_table_for_mysql("SYS_DATAFILES", trx, TRUE, TRUE);
 	}
 
 	ib_logf(IB_LOG_LEVEL_INFO,
@@ -1897,8 +1897,8 @@ dict_create_or_check_sys_tablespace(void)
 		ut_a(err == DB_OUT_OF_FILE_SPACE
 		     || err == DB_TOO_MANY_CONCURRENT_TRXS);
 
-		row_drop_table_for_mysql("SYS_TABLESPACES", trx, TRUE);
-		row_drop_table_for_mysql("SYS_DATAFILES", trx, TRUE);
+		row_drop_table_for_mysql("SYS_TABLESPACES", trx, TRUE, TRUE);
+		row_drop_table_for_mysql("SYS_DATAFILES", trx, TRUE, TRUE);
 
 		if (err == DB_OUT_OF_FILE_SPACE) {
 			err = DB_MUST_GET_MORE_FILE_SPACE;

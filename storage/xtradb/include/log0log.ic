@@ -553,37 +553,15 @@ log_free_check(void)
 #endif /* !UNIV_HOTBACKUP */
 
 /****************************************************************//**
-Unsafely reads the log_sys->tracked_lsn value.  Uses atomic operations
-if available, or use dirty read. Use for printing only.
+Safely reads the log_sys->tracked_lsn value.  The writer counterpart function
+is log_set_tracked_lsn() in log0online.c.
 
-@return log_sys->tracked_lsn value. */
-UNIV_INLINE
-lsn_t
-log_get_tracked_lsn_peek(void)
-/*==========================*/
-{
-#ifdef HAVE_ATOMIC_BUILTINS_64
-	return os_atomic_increment_uint64(&log_sys->tracked_lsn, 0);
-#else
-	return log_sys->tracked_lsn;
-#endif
-}
-
-/****************************************************************//**
-Safely reads the log_sys->tracked_lsn value.  Uses atomic operations
-if available, otherwise this field is protected with the log system
-mutex.  The writer counterpart function is log_set_tracked_lsn() in
-log0online.c.
 @return log_sys->tracked_lsn value. */
 UNIV_INLINE
 lsn_t
 log_get_tracked_lsn(void)
 /*=====================*/
 {
-#ifdef HAVE_ATOMIC_BUILTINS_64
-	return os_atomic_increment_uint64(&log_sys->tracked_lsn, 0);
-#else
-	ut_ad(mutex_own(&(log_sys->mutex)));
+	os_rmb;
 	return log_sys->tracked_lsn;
-#endif
 }

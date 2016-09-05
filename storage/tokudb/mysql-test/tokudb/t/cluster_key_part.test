@@ -5,19 +5,47 @@ source include/have_partition.inc;
 set default_storage_engine='tokudb';
 
 disable_warnings;
-drop table if exists t;
+DROP TABLE IF EXISTS t;
 enable_warnings;
 
-create table t (
-    x int not null,
-    y int not null, 
-    primary key(x)) 
-partition by hash(x) partitions 2;
+CREATE TABLE t (a INT NOT NULL AUTO_INCREMENT, b INT, PRIMARY KEY(a), KEY b(b) CLUSTERING=YES) ENGINE=TokuDB
+PARTITION BY RANGE(a) (PARTITION p0 VALUES LESS THAN (100) ENGINE = TokuDB, PARTITION p2 VALUES LESS THAN MAXVALUE ENGINE = TokuDB);
 
-show create table t;
+SHOW CREATE TABLE t;
 
-alter table t add key(y) clustering=yes;
+DROP TABLE t;
 
-show create table t;
 
-drop table t;
+
+CREATE TABLE t (x INT NOT NULL, y INT NOT NULL, PRIMARY KEY(x))
+PARTITION BY HASH(x) PARTITIONS 2;
+
+SHOW CREATE TABLE t;
+
+ALTER TABLE t ADD KEY(y) CLUSTERING=YES;
+
+SHOW CREATE TABLE t;
+
+DROP TABLE t;
+
+
+CREATE TABLE t1(a INT, b INT, c INT, d INT, PRIMARY KEY(a,b,c), KEY(b) CLUSTERING=YES, KEY (c)) ENGINE=TOKUDB
+PARTITION BY RANGE(a) (PARTITION p0 VALUES LESS THAN (5) ENGINE = TOKUDB, PARTITION p2 VALUES LESS THAN MAXVALUE ENGINE = TOKUDB);
+
+--source ../include/cluster_key.inc
+
+DROP TABLE t1;
+
+CREATE TABLE t1(a INT, b INT, c INT, d INT, PRIMARY KEY(a,b,c), KEY(b) CLUSTERING=YES, KEY (c)) ENGINE=TOKUDB
+PARTITION BY RANGE(b) (PARTITION p0 VALUES LESS THAN (50) ENGINE = TOKUDB, PARTITION p2 VALUES LESS THAN MAXVALUE ENGINE = TOKUDB);
+
+--source ../include/cluster_key.inc
+
+DROP TABLE t1;
+
+CREATE TABLE t1(a INT, b INT, c INT, d INT, PRIMARY KEY(a,b,c), KEY(b) CLUSTERING=YES, KEY (c)) ENGINE=TOKUDB
+PARTITION BY RANGE(c) (PARTITION p0 VALUES LESS THAN (500) ENGINE = TOKUDB, PARTITION p2 VALUES LESS THAN MAXVALUE ENGINE = TOKUDB);
+
+--source ../include/cluster_key.inc
+
+DROP TABLE t1;

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -143,7 +143,7 @@ If a compressed page is freed other compressed pages may be relocated.
 caller needs to free the page to the free list
 @retval false if BUF_BLOCK_ZIP_PAGE was removed from page_hash. In
 this case the block is already returned to the buddy allocator. */
-static __attribute__((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 buf_LRU_block_remove_hashed(
 /*========================*/
@@ -368,7 +368,7 @@ want to hog the CPU and resources. Release the buffer pool and block
 mutex and try to force a context switch. Then reacquire the same mutexes.
 The current page is "fixed" before the release of the mutexes and then
 "unfixed" again once we have reacquired the mutexes. */
-static	__attribute__((nonnull))
+static	MY_ATTRIBUTE((nonnull))
 void
 buf_flush_yield(
 /*============*/
@@ -407,7 +407,7 @@ If we have hogged the resources for too long then release the buffer
 pool and flush list mutex and do a thread yield. Set the current page
 to "sticky" so that it is not relocated during the yield.
 @return true if yielded */
-static	__attribute__((nonnull(1), warn_unused_result))
+static	MY_ATTRIBUTE((nonnull(1), warn_unused_result))
 bool
 buf_flush_try_yield(
 /*================*/
@@ -476,7 +476,7 @@ buf_flush_try_yield(
 Removes a single page from a given tablespace inside a specific
 buffer pool instance.
 @return true if page was removed. */
-static	__attribute__((nonnull, warn_unused_result))
+static	MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 buf_flush_or_remove_page(
 /*=====================*/
@@ -578,7 +578,7 @@ the list as they age towards the tail of the LRU.
 @retval DB_SUCCESS if all freed
 @retval DB_FAIL if not all freed
 @retval DB_INTERRUPTED if the transaction was interrupted */
-static	__attribute__((nonnull(1), warn_unused_result))
+static	MY_ATTRIBUTE((nonnull(1), warn_unused_result))
 dberr_t
 buf_flush_or_remove_pages(
 /*======================*/
@@ -607,6 +607,7 @@ rescan:
 	     bpage != NULL;
 	     bpage = prev) {
 
+		ut_ad(!must_restart);
 		ut_a(buf_page_in_file(bpage));
 
 		/* Save the previous link because once we free the
@@ -624,9 +625,6 @@ rescan:
 
 			/* Remove was unsuccessful, we have to try again
 			by scanning the entire list from the end.
-			This also means that we never released the
-			flush list mutex. Therefore we can trust the prev
-			pointer.
 			buf_flush_or_remove_page() released the
 			flush list mutex but not the LRU list mutex.
 			Therefore it is possible that a new page was
@@ -643,6 +641,11 @@ rescan:
 			iteration. */
 
 			all_freed = false;
+			if (UNIV_UNLIKELY(must_restart)) {
+
+				/* Cannot trust the prev pointer */
+				break;
+			}
 		} else if (flush) {
 
 			/* The processing was successful. And during the
@@ -650,12 +653,9 @@ rescan:
 			when calling buf_page_flush(). We cannot trust
 			prev pointer. */
 			goto rescan;
-		} else if (UNIV_UNLIKELY(must_restart)) {
-
-			ut_ad(!all_freed);
-			break;
 		}
 
+		ut_ad(!must_restart);
 		++processed;
 
 		/* Yield if we have hogged the CPU and mutexes for too long. */
@@ -666,6 +666,11 @@ rescan:
 			/* Reset the batch size counter if we had to yield. */
 
 			processed = 0;
+		} else if (UNIV_UNLIKELY(must_restart)) {
+
+			/* Cannot trust the prev pointer */
+			all_freed = false;
+			break;
 		}
 
 #ifdef DBUG_OFF
@@ -694,7 +699,7 @@ Remove or flush all the dirty pages that belong to a given tablespace
 inside a specific buffer pool instance. The pages will remain in the LRU
 list and will be evicted from the LRU list as they age and move towards
 the tail of the LRU list. */
-static __attribute__((nonnull(1)))
+static MY_ATTRIBUTE((nonnull(1)))
 void
 buf_flush_dirty_pages(
 /*==================*/
@@ -734,7 +739,7 @@ buf_flush_dirty_pages(
 /******************************************************************//**
 Remove all pages that belong to a given tablespace inside a specific
 buffer pool instance when we are DISCARDing the tablespace. */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 buf_LRU_remove_all_pages(
 /*=====================*/
@@ -890,7 +895,7 @@ buffer pool instance when we are deleting the data file(s) of that
 tablespace. The pages still remain a part of LRU and are evicted from
 the list as they age towards the tail of the LRU only if buf_remove
 is BUF_REMOVE_FLUSH_NO_WRITE. */
-static	__attribute__((nonnull(1)))
+static	MY_ATTRIBUTE((nonnull(1)))
 void
 buf_LRU_remove_pages(
 /*=================*/

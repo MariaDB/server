@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -658,12 +658,19 @@ fil_node_open_file(
 			ut_error;
 		}
 
-		if (UNIV_UNLIKELY(space->flags != flags)) {
+		/* Validate the flags but do not compare the data directory
+		flag, in case this tablespace was relocated. */
+		const unsigned relevant_space_flags
+			= space->flags & ~FSP_FLAGS_MASK_DATA_DIR;
+		const unsigned relevant_flags
+			= flags & ~FSP_FLAGS_MASK_DATA_DIR;
+		if (UNIV_UNLIKELY(relevant_space_flags != relevant_flags)) {
 			fprintf(stderr,
-				"InnoDB: Error: table flags are 0x%lx"
+				"InnoDB: Error: table flags are 0x%x"
 				" in the data dictionary\n"
-				"InnoDB: but the flags in file %s are 0x%lx!\n",
-				space->flags, node->name, flags);
+				"InnoDB: but the flags in file %s are 0x%x!\n",
+				relevant_space_flags, node->name,
+				relevant_flags);
 
 			ut_error;
 		}
@@ -1344,6 +1351,28 @@ fil_space_free(
 
 /*******************************************************************//**
 Returns a pointer to the file_space_t that is in the memory cache
+associated with a space id.
+@return	file_space_t pointer, NULL if space not found */
+fil_space_t*
+fil_space_get(
+/*==========*/
+	ulint	id)	/*!< in: space id */
+{
+	fil_space_t*	space;
+
+	ut_ad(fil_system);
+
+	mutex_enter(&fil_system->mutex);
+
+	space = fil_space_get_by_id(id);
+
+	mutex_exit(&fil_system->mutex);
+
+	return (space);
+}
+
+/*******************************************************************//**
+Returns a pointer to the file_space_t that is in the memory cache
 associated with a space id. The caller must lock fil_system->mutex.
 @return	file_space_t pointer, NULL if space not found */
 UNIV_INLINE
@@ -1755,7 +1784,7 @@ fil_set_max_space_id_if_bigger(
 Writes the flushed lsn and the latest archived log number to the page header
 of the first page of a data file of the system tablespace (space 0),
 which is uncompressed. */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 fil_write_lsn_and_arch_no_to_file(
 /*==============================*/
@@ -1763,7 +1792,7 @@ fil_write_lsn_and_arch_no_to_file(
 	ulint	sum_of_sizes,	/*!< in: combined size of previous files
 				in space, in database pages */
 	lsn_t	lsn,		/*!< in: lsn to write */
-	ulint	arch_log_no __attribute__((unused)))
+	ulint	arch_log_no MY_ATTRIBUTE((unused)))
 				/*!< in: archived log number to write */
 {
 	byte*	buf1;
@@ -1850,7 +1879,7 @@ Checks the consistency of the first data page of a tablespace
 at database startup.
 @retval NULL on success, or if innodb_force_recovery is set
 @return pointer to an error message string */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 const char*
 fil_check_first_page(
 /*=================*/
@@ -3084,8 +3113,6 @@ fil_create_link_file(
 	const char*	tablename,	/*!< in: tablename */
 	const char*	filepath)	/*!< in: pathname of tablespace */
 {
-	os_file_t	file;
-	ibool		success;
 	dberr_t		err = DB_SUCCESS;
 	char*		link_filepath;
 	char*		prev_filepath = fil_read_link_file(tablename);
@@ -3104,13 +3131,24 @@ fil_create_link_file(
 
 	link_filepath = fil_make_isl_name(tablename);
 
-	file = os_file_create_simple_no_error_handling(
-		innodb_file_data_key, link_filepath,
-		OS_FILE_CREATE, OS_FILE_READ_WRITE, &success);
+	/** Check if the file already exists. */
+	FILE*                   file = NULL;
+	ibool                   exists;
+	os_file_type_t          ftype;
 
-	if (!success) {
-		/* The following call will print an error message */
-		ulint	error = os_file_get_last_error(true);
+	bool success = os_file_status(link_filepath, &exists, &ftype);
+
+	ulint error = 0;
+	if (success && !exists) {
+		file = fopen(link_filepath, "w");
+		if (file == NULL) {
+			/* This call will print its own error message */
+			error = os_file_get_last_error(true);
+		}
+	} else {
+		error = OS_FILE_ALREADY_EXISTS;
+	}
+	if (error != 0) {
 
 		ut_print_timestamp(stderr);
 		fputs("  InnoDB: Cannot create file ", stderr);
@@ -3135,13 +3173,17 @@ fil_create_link_file(
 		return(err);
 	}
 
-	if (!os_file_write(link_filepath, file, filepath, 0,
-			    strlen(filepath))) {
+	ulint rbytes = fwrite(filepath, 1, strlen(filepath), file);
+	if (rbytes != strlen(filepath)) {
+		os_file_get_last_error(true);
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"cannot write link file "
+			 "%s",filepath);
 		err = DB_ERROR;
 	}
 
 	/* Close the file, we only need it at startup */
-	os_file_close(file);
+	fclose(file);
 
 	mem_free(link_filepath);
 
@@ -5016,7 +5058,7 @@ retry:
 		if (posix_fallocate(node->handle, start_offset, len) == -1) {
 			ib_logf(IB_LOG_LEVEL_ERROR, "preallocating file "
 				"space for file \'%s\' failed.  Current size "
-				INT64PF ", desired size " INT64PF "\n",
+				INT64PF ", desired size " INT64PF,
 				node->name, start_offset, len+start_offset);
 			os_file_handle_error_no_exit(node->name, "posix_fallocate", FALSE);
 			success = FALSE;
@@ -6109,10 +6151,7 @@ void
 fil_close(void)
 /*===========*/
 {
-#ifndef UNIV_HOTBACKUP
-	/* The mutex should already have been freed. */
-	ut_ad(fil_system->mutex.magic_n == 0);
-#endif /* !UNIV_HOTBACKUP */
+	mutex_free(&fil_system->mutex);
 
 	hash_table_free(fil_system->spaces);
 
@@ -6635,27 +6674,6 @@ fil_mtr_rename_log(
 
 /*************************************************************************
 functions to access is_corrupt flag of fil_space_t*/
-
-ibool
-fil_space_is_corrupt(
-/*=================*/
-	ulint	space_id)
-{
-	fil_space_t*	space;
-	ibool		ret = FALSE;
-
-	mutex_enter(&fil_system->mutex);
-
-	space = fil_space_get_by_id(space_id);
-
-	if (UNIV_UNLIKELY(space && space->is_corrupt)) {
-		ret = TRUE;
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return(ret);
-}
 
 void
 fil_space_set_corrupt(

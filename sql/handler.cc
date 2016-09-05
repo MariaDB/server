@@ -284,7 +284,7 @@ handler *get_ha_partition(partition_info *part_info)
 static const char **handler_errmsgs;
 
 C_MODE_START
-static const char **get_handler_errmsgs()
+static const char **get_handler_errmsgs(void)
 {
   return handler_errmsgs;
 }
@@ -1337,7 +1337,8 @@ int ha_commit_trans(THD *thd, bool all)
 
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
   /* rw_trans is TRUE when we in a transaction changing data */
-  bool rw_trans= is_real_trans && (rw_ha_count > 0);
+  bool rw_trans= is_real_trans &&
+                 (rw_ha_count > !thd->is_current_stmt_binlog_disabled());
   MDL_request mdl_request;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
@@ -2753,6 +2754,15 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
   if (!result)
     update_index_statistics();
   table->status=result ? STATUS_NOT_FOUND: 0;
+  return result;
+}
+
+
+bool handler::ha_was_semi_consistent_read()
+{
+  bool result= was_semi_consistent_read();
+  if (result)
+    increment_statistics(&SSV::ha_read_retry_count);
   return result;
 }
 

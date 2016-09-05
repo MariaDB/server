@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2006, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -136,7 +136,7 @@ enum durability_properties
 thd_requested_durability(
 /*=====================*/
 	const THD* thd)	/*!< in: thread handle */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /******************************************************************//**
 Returns true if the transaction this thread is processing has edited
@@ -177,7 +177,7 @@ innobase_mysql_cmp(
 	const unsigned char* b,		/*!< in: data field */
 	unsigned int	b_length)	/*!< in: data field length,
 					not UNIV_SQL_NULL */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*****************************************************************//**
 Log code calls this whenever log has been written and/or flushed up
@@ -205,7 +205,7 @@ get_innobase_type_from_mysql_type(
 					and unsigned integer
 					types are 'unsigned types' */
 	const void*	field)		/*!< in: MySQL Field */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 
 /******************************************************************//**
 Get the variable length bounds of the given character set. */
@@ -303,7 +303,7 @@ innobase_get_stmt(
 /*==============*/
 	THD*	thd,		/*!< in: MySQL thread handle */
 	size_t*	length)		/*!< out: length of the SQL statement */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 /******************************************************************//**
 This function is used to find the storage length in bytes of the first n
 characters for prefix indexes using a multibyte character set. The function
@@ -329,7 +329,7 @@ enum icp_result
 innobase_index_cond(
 /*================*/
 	void*	file)	/*!< in/out: pointer to ha_innobase */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /******************************************************************//**
 Returns true if the thread supports XA,
 global value of innodb_supports_xa if thd is NULL.
@@ -465,7 +465,7 @@ innobase_format_name(
 	const char*	name,		/*!< in: index or table name
 					to format */
 	ibool		is_index_name)	/*!< in: index name */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 
 /** Corresponds to Sql_condition:enum_warning_level. */
 enum ib_log_level_t {
@@ -495,7 +495,7 @@ ib_errf(
 	ib_uint32_t	code,		/*!< MySQL error code */
 	const char*	format,		/*!< printf format */
 	...)				/*!< Args */
-	__attribute__((format(printf, 4, 5)));
+	MY_ATTRIBUTE((format(printf, 4, 5)));
 
 /******************************************************************//**
 Use this when the args are passed to the format string from
@@ -526,7 +526,7 @@ ib_logf(
 	ib_log_level_t	level,		/*!< in: warning level */
 	const char*	format,		/*!< printf format */
 	...)				/*!< Args */
-	__attribute__((format(printf, 2, 3)));
+	MY_ATTRIBUTE((format(printf, 2, 3)));
 
 /******************************************************************//**
 Returns the NUL terminated value of glob_hostname.
@@ -572,7 +572,7 @@ innobase_next_autoinc(
 	ulonglong	step,		/*!< in: AUTOINC increment step */
 	ulonglong	offset,		/*!< in: AUTOINC offset */
 	ulonglong	max_value)	/*!< in: max value for type */
-	__attribute__((pure, warn_unused_result));
+	MY_ATTRIBUTE((pure, warn_unused_result));
 
 /********************************************************************//**
 Get the upper limit of the MySQL integral and floating-point type.
@@ -582,7 +582,7 @@ ulonglong
 innobase_get_int_col_max_value(
 /*===========================*/
 	const Field*	field)	/*!< in: MySQL field */
-	__attribute__((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
 
 /**********************************************************************
 Converts an identifier from my_charset_filename to UTF-8 charset. */

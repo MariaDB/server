@@ -1,0 +1,50 @@
+--source include/have_tokudb.inc
+
+# Check the default value
+SET @orig_global = @@global.tokudb_analyze_throttle;
+SELECT @orig_global;
+
+SET @orig_session = @@session.tokudb_analyze_throttle;
+SELECT @orig_session;
+
+# Test global
+SET GLOBAL tokudb_analyze_throttle = 10;
+SELECT @@global.tokudb_analyze_throttle;
+
+SET GLOBAL tokudb_analyze_throttle = 0;
+SELECT @@global.tokudb_analyze_throttle;
+
+SET GLOBAL tokudb_analyze_throttle = DEFAULT;
+SELECT @@global.tokudb_analyze_throttle;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL tokudb_analyze_throttle = 'foobar';
+SELECT @@global.tokudb_analyze_throttle;
+
+# Test session
+SET SESSION tokudb_analyze_throttle = 10;
+SELECT @@session.tokudb_analyze_throttle;
+
+SET SESSION tokudb_analyze_throttle = 0;
+SELECT @@session.tokudb_analyze_throttle;
+
+SET SESSION tokudb_analyze_throttle = DEFAULT;
+SELECT @@session.tokudb_analyze_throttle;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET SESSION tokudb_analyze_throttle = 'foobar';
+SELECT @@session.tokudb_analyze_throttle;
+
+# both
+SET GLOBAL tokudb_analyze_throttle = 12;
+SET SESSION tokudb_analyze_throttle = 13;
+SELECT @@global.tokudb_analyze_throttle;
+SELECT @@session.tokudb_analyze_throttle;
+SHOW VARIABLES LIKE 'tokudb_analyze_throttle';
+
+# Clean up
+SET SESSION tokudb_analyze_throttle = @orig_session;
+SELECT @@session.tokudb_analyze_throttle;
+
+SET GLOBAL tokudb_analyze_throttle = @orig_global;
+SELECT @@global.tokudb_analyze_throttle;

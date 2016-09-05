@@ -2378,6 +2378,7 @@ SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
 Handler_read_key	8
 Handler_read_next	0
+Handler_read_retry	0
 EXPLAIN SELECT max(b), a FROM t1 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	NULL	a	5	NULL	8	Using index for group-by
@@ -2387,6 +2388,7 @@ SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
 Handler_read_key	8
 Handler_read_next	0
+Handler_read_retry	0
 FLUSH STATUS;
 SELECT * FROM (SELECT max(b), a FROM t1 GROUP BY a) b;
 max(b)	a
@@ -2398,6 +2400,7 @@ SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
 Handler_read_key	8
 Handler_read_next	0
+Handler_read_retry	0
 FLUSH STATUS;
 (SELECT max(b), a FROM t1 GROUP BY a) UNION 
 (SELECT max(b), a FROM t1 GROUP BY a);
@@ -2410,6 +2413,7 @@ SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
 Handler_read_key	16
 Handler_read_next	0
+Handler_read_retry	0
 EXPLAIN (SELECT max(b), a FROM t1 GROUP BY a) UNION 
 (SELECT max(b), a FROM t1 GROUP BY a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -2462,6 +2466,7 @@ SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
 Handler_read_key	8
 Handler_read_next	0
+Handler_read_retry	0
 DELETE FROM t3;
 FLUSH STATUS;
 INSERT INTO t3 SELECT 1, (SELECT MAX(b) FROM t1 GROUP BY a HAVING a < 2) 
@@ -2470,12 +2475,14 @@ SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
 Handler_read_key	8
 Handler_read_next	0
+Handler_read_retry	0
 FLUSH STATUS;
 DELETE FROM t3 WHERE (SELECT MAX(b) FROM t1 GROUP BY a HAVING a < 2) > 10000;
 SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
 Handler_read_key	8
 Handler_read_next	0
+Handler_read_retry	0
 FLUSH STATUS;
 DELETE FROM t3 WHERE (SELECT (SELECT MAX(b) FROM t1 GROUP BY a HAVING a < 2) x 
 FROM t1) > 10000;
@@ -2484,6 +2491,7 @@ SHOW STATUS LIKE 'handler_read__e%';
 Variable_name	Value
 Handler_read_key	8
 Handler_read_next	1
+Handler_read_retry	0
 DROP TABLE t1,t2,t3;
 CREATE TABLE t1 (a int, INDEX idx(a));
 INSERT INTO t1 VALUES

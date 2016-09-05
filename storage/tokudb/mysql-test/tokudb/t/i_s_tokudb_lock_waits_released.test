@@ -25,10 +25,12 @@ select * from information_schema.tokudb_lock_waits;
 connect (conn_a,localhost,root,,);
 set autocommit=0;
 set tokudb_prelock_empty=OFF; # disable the bulk loader
+set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 insert into t values (1);
 
 connect (conn_b,localhost,root,,);
 set autocommit=0;
+set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 send insert into t values (1);
 
 # should find the presence of a lock on 1st transaction
@@ -51,6 +53,9 @@ select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
 connection conn_a;
 commit;
 # verify that the lock on the 1st transaction is released and replaced by the lock for the 2nd transaction
+let $wait_condition= select count(*)=1 from information_schema.tokudb_locks where locks_dname='./test/t-main';
+source include/wait_condition.inc;
+
 replace_column 1 TRX_ID 2 MYSQL_ID;
 select * from information_schema.tokudb_locks;
 select * from information_schema.tokudb_lock_waits;
@@ -74,11 +79,13 @@ select * from information_schema.tokudb_lock_waits;
 
 connect (conn_a,localhost,root,,);
 set autocommit=0;
+set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 set tokudb_prelock_empty=OFF; # disable the bulk loader
 replace into t values (1);
 
 connect (conn_b,localhost,root,,);
 set autocommit=0;
+set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 send replace into t values (1);
 
 # should find the presence of a lock on 1st transaction

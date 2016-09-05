@@ -2939,12 +2939,13 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   }
   unpack_time(min_max, ltime);
 
-  if (compare_as_dates->field_type() == MYSQL_TYPE_DATE)
+  enum_field_types ftype= compare_as_dates->field_type();
+  if (ftype == MYSQL_TYPE_DATE || ftype == MYSQL_TYPE_NEWDATE)
   {
     ltime->time_type= MYSQL_TIMESTAMP_DATE;
     ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
   }
-  else if (compare_as_dates->field_type() == MYSQL_TYPE_TIME)
+  else if (ftype == MYSQL_TYPE_TIME)
   {
     ltime->time_type= MYSQL_TIMESTAMP_TIME;
     ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
@@ -3941,7 +3942,7 @@ longlong Item_master_pos_wait::val_int()
   longlong timeout = (arg_count>=3) ? args[2]->val_int() : 0 ;
   String connection_name_buff;
   LEX_STRING connection_name;
-  Master_info *mi;
+  Master_info *mi= NULL;
   if (arg_count >= 4)
   {
     String *con;
@@ -3961,8 +3962,9 @@ longlong Item_master_pos_wait::val_int()
     connection_name= thd->variables.default_master_connection;
 
   mysql_mutex_lock(&LOCK_active_mi);
-  mi= master_info_index->get_master_info(&connection_name,
-                                         Sql_condition::WARN_LEVEL_WARN);
+  if (master_info_index)  // master_info_index is set to NULL on shutdown.
+    mi= master_info_index->get_master_info(&connection_name,
+                                           Sql_condition::WARN_LEVEL_WARN);
   mysql_mutex_unlock(&LOCK_active_mi);
   if (!mi)
     goto err;

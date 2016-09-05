@@ -1,4 +1,4 @@
-.TH PCREAPI 3 "09 February 2014" "PCRE 8.35"
+.TH PCREAPI 3 "18 December 2015" "PCRE 8.39"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .sp
@@ -273,9 +273,8 @@ documentation for details of how to do this. It is a non-standard way of
 building PCRE, for use in environments that have limited stacks. Because of the
 greater use of memory management, it runs more slowly. Separate functions are
 provided so that special-purpose external code can be used for this case. When
-used, these functions are always called in a stack-like manner (last obtained,
-first freed), and always for memory blocks of the same size. There is a
-discussion about PCRE's stack usage in the
+used, these functions always allocate memory blocks of the same size. There is
+a discussion about PCRE's stack usage in the
 .\" HREF
 \fBpcrestack\fP
 .\"
@@ -2914,6 +2913,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 09 February 2014
-Copyright (c) 1997-2014 University of Cambridge.
+Last updated: 18 December 2015
+Copyright (c) 1997-2015 University of Cambridge.
 .fi
