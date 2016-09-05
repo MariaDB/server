@@ -65,6 +65,18 @@ where t1.b>10 group by a,b having c < 300
 union
 select a, b, avg(c) as c from t1
 where t1.c>300 group by a,b having c < 707;
+create view v3_union as 
+select a, b, (a+1) as c from t1
+where t1.a<10
+union
+select a, b, c from t1
+where t1.b>10 and t1.c>100;
+create view v4_union as 
+select a, b, max(c)-100 as c from t1
+where t1.a<10 group by a,b having c > 109
+union
+select a, b, (c+100) as c from t1
+where t1.b>10;
 create view v_double as
 select a, avg(a/4) as avg_a, b, c from t1_double
 where (b>12.2) group by b,c having (avg_a<22.333);
@@ -5262,6 +5274,540 @@ EXPLAIN
     }
   }
 }
+# using derived table with union of selects without aggregation
+# extracted conjunctive predicate: pushing in WHERE of both selects
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v3_union as v,t2 where (v.a=t2.a) and (v.c>6);
+a	b	c	a	b	c	d
+1	21	123	1	21	909	12
+1	21	101	1	21	909	12
+1	21	104	1	21	909	12
+1	33	988	1	21	909	12
+1	19	107	1	21	909	12
+1	21	500	1	21	909	12
+1	21	345	1	21	909	12
+7	11	708	7	13	312	406
+7	11	8	7	13	312	406
+8	33	404	8	64	248	107
+8	33	123	8	64	248	107
+8	33	114	8	64	248	107
+8	33	9	8	64	248	107
+6	20	214	6	20	315	279
+6	20	315	6	20	315	279
+6	20	309	6	20	315	279
+6	20	7	6	20	315	279
+1	21	123	1	19	203	107
+1	21	101	1	19	203	107
+1	21	104	1	19	203	107
+1	33	988	1	19	203	107
+1	19	107	1	19	203	107
+1	21	500	1	19	203	107
+1	21	345	1	19	203	107
+8	33	404	8	80	800	314
+8	33	123	8	80	800	314
+8	33	114	8	80	800	314
+8	33	9	8	80	800	314
+6	20	214	6	23	303	909
+6	20	315	6	23	303	909
+6	20	309	6	23	303	909
+6	20	7	6	23	303	909
+select * from v3_union as v,t2 where (v.a=t2.a) and (v.c>6);
+a	b	c	a	b	c	d
+1	21	123	1	21	909	12
+1	21	101	1	21	909	12
+1	21	104	1	21	909	12
+1	33	988	1	21	909	12
+1	19	107	1	21	909	12
+1	21	500	1	21	909	12
+1	21	345	1	21	909	12
+7	11	708	7	13	312	406
+7	11	8	7	13	312	406
+8	33	404	8	64	248	107
+8	33	123	8	64	248	107
+8	33	114	8	64	248	107
+8	33	9	8	64	248	107
+6	20	214	6	20	315	279
+6	20	315	6	20	315	279
+6	20	309	6	20	315	279
+6	20	7	6	20	315	279
+1	21	123	1	19	203	107
+1	21	101	1	19	203	107
+1	21	104	1	19	203	107
+1	33	988	1	19	203	107
+1	19	107	1	19	203	107
+1	21	500	1	19	203	107
+1	21	345	1	19	203	107
+8	33	404	8	80	800	314
+8	33	123	8	80	800	314
+8	33	114	8	80	800	314
+8	33	9	8	80	800	314
+6	20	214	6	23	303	909
+6	20	315	6	23	303	909
+6	20	309	6	23	303	909
+6	20	7	6	23	303	909
+explain select * from v3_union as v,t2 where (v.a=t2.a) and (v.c>6);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v3_union as v,t2 where (v.a=t2.a) and (v.c>6);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "(t2.a is not null)"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 4,
+      "filtered": 100,
+      "attached_condition": "(v.c > 6)",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 20,
+                    "filtered": 100,
+                    "attached_condition": "((t1.a < 10) and ((t1.a + 1) > 6))"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 20,
+                    "filtered": 100,
+                    "attached_condition": "((t1.b > 10) and (t1.c > 100) and (t1.c > 6))"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using derived table with union of selects without aggregation
+# extracted conjunctive OR subformula: pushing in WHERE using equalities
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v3_union as v,t2 where (v.a=t2.a) and ((t2.a>1) or (v.b<20));
+a	b	c	a	b	c	d
+1	19	107	1	21	909	12
+1	19	2	1	21	909	12
+7	11	708	7	13	312	406
+7	11	8	7	13	312	406
+8	33	404	8	64	248	107
+8	33	123	8	64	248	107
+8	33	114	8	64	248	107
+8	33	9	8	64	248	107
+6	20	214	6	20	315	279
+6	20	315	6	20	315	279
+6	20	309	6	20	315	279
+6	20	7	6	20	315	279
+1	19	107	1	19	203	107
+1	19	2	1	19	203	107
+8	33	404	8	80	800	314
+8	33	123	8	80	800	314
+8	33	114	8	80	800	314
+8	33	9	8	80	800	314
+6	20	214	6	23	303	909
+6	20	315	6	23	303	909
+6	20	309	6	23	303	909
+6	20	7	6	23	303	909
+select * from v3_union as v,t2 where (v.a=t2.a) and ((t2.a>1) or (v.b<20));
+a	b	c	a	b	c	d
+1	19	107	1	21	909	12
+1	19	2	1	21	909	12
+7	11	708	7	13	312	406
+7	11	8	7	13	312	406
+8	33	404	8	64	248	107
+8	33	123	8	64	248	107
+8	33	114	8	64	248	107
+8	33	9	8	64	248	107
+6	20	214	6	20	315	279
+6	20	315	6	20	315	279
+6	20	309	6	20	315	279
+6	20	7	6	20	315	279
+1	19	107	1	19	203	107
+1	19	2	1	19	203	107
+8	33	404	8	80	800	314
+8	33	123	8	80	800	314
+8	33	114	8	80	800	314
+8	33	9	8	80	800	314
+6	20	214	6	23	303	909
+6	20	315	6	23	303	909
+6	20	309	6	23	303	909
+6	20	7	6	23	303	909
+explain select * from v3_union as v,t2 where (v.a=t2.a) and ((t2.a>1) or (v.b<20));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v3_union as v,t2 where (v.a=t2.a) and ((t2.a>1) or (v.b<20));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "(t2.a is not null)"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 4,
+      "filtered": 100,
+      "attached_condition": "((t2.a > 1) or (v.b < 20))",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 20,
+                    "filtered": 100,
+                    "attached_condition": "((t1.a < 10) and ((t1.a > 1) or (t1.b < 20)))"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 20,
+                    "filtered": 100,
+                    "attached_condition": "((t1.b > 10) and (t1.c > 100) and ((t1.a > 1) or (t1.b < 20)))"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using derived table with union of selects without aggregation
+# extracted the whole condition: in WHERE of both selects
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v3_union as v,t2 where 
+(v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
+a	b	c	a	b	c	d
+1	19	2	1	21	909	12
+1	21	2	1	21	909	12
+1	19	2	1	19	203	107
+1	21	2	1	19	203	107
+select * from v3_union as v,t2 where 
+(v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
+a	b	c	a	b	c	d
+1	19	2	1	21	909	12
+1	21	2	1	21	909	12
+1	19	2	1	19	203	107
+1	21	2	1	19	203	107
+explain select * from v3_union as v,t2 where 
+(v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v3_union as v,t2 where 
+(v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "(t2.a is not null)"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 4,
+      "filtered": 100,
+      "attached_condition": "(((v.b = 19) or (v.b = 21)) and ((v.c < 3) or (v.c > 600)))",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 20,
+                    "filtered": 100,
+                    "attached_condition": "((t1.a < 10) and ((t1.b = 19) or (t1.b = 21)) and (((t1.a + 1) < 3) or ((t1.a + 1) > 600)))"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 20,
+                    "filtered": 100,
+                    "attached_condition": "((t1.b > 10) and (t1.c > 100) and ((t1.b = 19) or (t1.b = 21)) and ((t1.c < 3) or (t1.c > 600)))"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using derived table with union of 
+# a select without aggregation and a select with aggregation
+# extracted conjunctive predicate: pushing in WHERE of both selects
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
+a	b	c	a	b	c	d
+1	19	207	1	21	909	12
+7	11	808	7	13	312	406
+7	11	608	7	13	312	406
+1	19	207	1	19	203	107
+select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
+a	b	c	a	b	c	d
+1	19	207	1	21	909	12
+7	11	808	7	13	312	406
+7	11	608	7	13	312	406
+1	19	207	1	19	203	107
+explain select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "(t2.a is not null)"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 4,
+      "filtered": 100,
+      "attached_condition": "(v.b < 20)",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "(c > 109)",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 20,
+                        "filtered": 100,
+                        "attached_condition": "((t1.a < 10) and (t1.b < 20))"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 20,
+                    "filtered": 100,
+                    "attached_condition": "((t1.b > 10) and (t1.b < 20))"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+# using derived table with union of 
+# a select without aggregation and a select with aggregation
+# extracted subformula: pushing in WHERE of one select
+# extracted subformula: pushing in HAVING of the other select
+# extracted sub-subformula: pushing in WHERE of the other select
+# using an equality in all pushdowns
+set statement optimizer_switch='condition_pushdown_for_derived=off' for select * from v4_union as v,t2 where 
+(v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
+a	b	c	a	b	c	d
+1	33	1088	1	21	909	12
+1	21	600	1	21	909	12
+1	33	888	1	21	909	12
+7	11	808	7	13	312	406
+7	11	608	7	13	312	406
+8	33	504	8	64	248	107
+1	33	1088	1	19	203	107
+1	21	600	1	19	203	107
+1	33	888	1	19	203	107
+8	33	504	8	80	800	314
+select * from v4_union as v,t2 where 
+(v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
+a	b	c	a	b	c	d
+1	33	1088	1	21	909	12
+1	21	600	1	21	909	12
+1	33	888	1	21	909	12
+7	11	808	7	13	312	406
+7	11	608	7	13	312	406
+8	33	504	8	64	248	107
+1	33	1088	1	19	203	107
+1	21	600	1	19	203	107
+1	33	888	1	19	203	107
+8	33	504	8	80	800	314
+explain select * from v4_union as v,t2 where 
+(v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+explain format=json select * from v4_union as v,t2 where 
+(v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 9,
+      "filtered": 100,
+      "attached_condition": "(t2.a is not null)"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.a"],
+      "rows": 4,
+      "filtered": 100,
+      "attached_condition": "(((t2.a < 3) or (v.b < 40)) and (v.c > 500))",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "having_condition": "((c > 109) and (c > 500))",
+                  "filesort": {
+                    "sort_key": "t1.a, t1.b",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t1",
+                        "access_type": "ALL",
+                        "rows": 20,
+                        "filtered": 100,
+                        "attached_condition": "((t1.a < 10) and ((t1.a < 3) or (t1.b < 40)))"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "rows": 20,
+                    "filtered": 100,
+                    "attached_condition": "((t1.b > 10) and ((t1.a < 3) or (t1.b < 40)) and ((t1.c + 100) > 500))"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
 # using embedded derived table : pushing the same conditions
 # using several derived tables : pushing in all tables
 # conjunctive subformula : pushing into WHERE
@@ -6432,5 +6978,7 @@ EXPLAIN
     }
   }
 }
-drop view v1,v2,v3,v4,v_union,v2_union,v_double,v_char,v_decimal;
+drop view v1,v2,v3,v4;
+drop view v_union,v2_union,v3_union,v4_union;
+drop view v_double,v_char,v_decimal;
 drop table t1,t2,t1_double,t2_double,t1_char,t2_char,t1_decimal,t2_decimal;

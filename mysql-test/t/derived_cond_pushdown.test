@@ -78,6 +78,20 @@ create view v2_union as
   select a, b, avg(c) as c from t1
     where t1.c>300 group by a,b having c < 707;   
 
+create view v3_union as 
+  select a, b, (a+1) as c from t1
+    where t1.a<10
+      union
+  select a, b, c from t1
+    where t1.b>10 and t1.c>100;     
+    
+create view v4_union as 
+  select a, b, max(c)-100 as c from t1
+    where t1.a<10 group by a,b having c > 109
+      union
+  select a, b, (c+100) as c from t1
+    where t1.b>10;         
+
 create view v_double as
   select a, avg(a/4) as avg_a, b, c from t1_double
     where (b>12.2) group by b,c having (avg_a<22.333);  
@@ -683,6 +697,58 @@ eval $query;
 eval explain $query;
 eval explain format=json $query;         
 
+--echo # using derived table with union of selects without aggregation
+--echo # extracted conjunctive predicate: pushing in WHERE of both selects
+let $query=    
+  select * from v3_union as v,t2 where (v.a=t2.a) and (v.c>6);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;  
+
+--echo # using derived table with union of selects without aggregation
+--echo # extracted conjunctive OR subformula: pushing in WHERE using equalities
+let $query=    
+  select * from v3_union as v,t2 where (v.a=t2.a) and ((t2.a>1) or (v.b<20));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;  
+
+--echo # using derived table with union of selects without aggregation
+--echo # extracted the whole condition: in WHERE of both selects
+let $query=    
+  select * from v3_union as v,t2 where 
+    (v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;  
+
+--echo # using derived table with union of 
+--echo # a select without aggregation and a select with aggregation
+--echo # extracted conjunctive predicate: pushing in WHERE of both selects
+let $query=    
+  select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query; 
+
+--echo # using derived table with union of 
+--echo # a select without aggregation and a select with aggregation
+--echo # extracted subformula: pushing in WHERE of one select
+--echo # extracted subformula: pushing in HAVING of the other select
+--echo # extracted sub-subformula: pushing in WHERE of the other select
+--echo # using an equality in all pushdowns
+let $query=    
+  select * from v4_union as v,t2 where 
+    (v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query; 
+
 --echo # using embedded derived table : pushing the same conditions
 --echo # using several derived tables : pushing in all tables
 --echo # conjunctive subformula : pushing into WHERE
@@ -808,5 +874,7 @@ eval $query;
 eval explain $query;
 eval explain format=json $query;   
      
-drop view v1,v2,v3,v4,v_union,v2_union,v_double,v_char,v_decimal;
+drop view v1,v2,v3,v4;
+drop view v_union,v2_union,v3_union,v4_union;
+drop view v_double,v_char,v_decimal;
 drop table t1,t2,t1_double,t2_double,t1_char,t2_char,t1_decimal,t2_decimal;    

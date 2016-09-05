@@ -6818,6 +6818,42 @@ Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
 
 Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
 {
+  Item *producing_item;
+  st_select_lex *sl= (st_select_lex *)arg;
+  List_iterator_fast<Item> li(sl->item_list);
+  table_map map= sl->master_unit()->derived->table->map;
+  if (used_tables() == map)
+  {
+    uint field_no= ((Item_field*) this)->field->field_index;
+    for (uint i= 0; i <= field_no; i++)
+      producing_item= li++;
+    return producing_item->build_clone(thd, thd->mem_root);
+  }
+  else if (((Item_field*)this)->item_equal)
+  {
+    Item_equal *cond= (Item_equal *) ((Item_field*)this)->item_equal;
+    Item_equal_fields_iterator it(*cond);
+    Item *item;
+    while ((item=it++))
+    {
+      if (item->used_tables() == map && item->type() == FIELD_ITEM)
+      {   
+	Item_field *field_item= (Item_field *) item;
+	li.rewind();
+        uint field_no= ((Item_field*) this)->field->field_index;
+        for (uint i= 0; i <= field_no; i++)
+          producing_item= li++;
+        return producing_item->build_clone(thd, thd->mem_root);
+      }
+    }
+  }
+  return this;
+}
+
+
+Item *Item_field::derived_grouping_field_transformer_for_where(THD *thd,
+                                                               uchar *arg)
+{
   st_select_lex *sl= (st_select_lex *)arg;
   List_iterator<Grouping_tmp_field> li(sl->grouping_tmp_fields);
   Grouping_tmp_field *field;

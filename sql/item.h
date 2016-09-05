@@ -1695,6 +1695,9 @@ public:
   { return this; }
   virtual Item *derived_field_transformer_for_where(THD *thd, uchar *arg)
   { return this; }
+  virtual Item *derived_grouping_field_transformer_for_where(THD *thd,
+                                                             uchar *arg)
+  { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs)
@@ -2578,8 +2581,9 @@ public:
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
-  virtual Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
-  virtual Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
+  Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
+  Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
+  Item *derived_grouping_field_transformer_for_where(THD *thd, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
   bool exclusive_dependence_on_table_processor(void *map);
   bool exclusive_dependence_on_grouping_fields_processor(void *arg);
