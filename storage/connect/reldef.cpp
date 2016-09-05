@@ -294,7 +294,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
 				nlg+= nof;
       case TAB_DIR:
       case TAB_XML:
-        poff= loff + 1;
+				poff= loff + (pcf->Flags & U_VIRTUAL ? 0 : 1);
         break;
       case TAB_INI:
       case TAB_MAC:
