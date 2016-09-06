@@ -273,6 +273,8 @@ latin1_bin	latin1	47		#	1
 latin1_general_ci	latin1	48		#	1
 latin1_general_cs	latin1	49		#	1
 latin1_spanish_ci	latin1	94		#	1
+latin1_swedish_nopad_ci	latin1	1032		#	1
+latin1_nopad_bin	latin1	1071		#	1
 SHOW COLLATION LIKE 'latin1%';
 Collation	Charset	Id	Default	Compiled	Sortlen
 latin1_german1_ci	latin1	5		#	1
@@ -283,6 +285,8 @@ latin1_bin	latin1	47		#	1
 latin1_general_ci	latin1	48		#	1
 latin1_general_cs	latin1	49		#	1
 latin1_spanish_ci	latin1	94		#	1
+latin1_swedish_nopad_ci	latin1	1032		#	1
+latin1_nopad_bin	latin1	1071		#	1
 SHOW COLLATION WHERE collation like 'latin1%';
 Collation	Charset	Id	Default	Compiled	Sortlen
 latin1_german1_ci	latin1	5		#	1
@@ -293,6 +297,8 @@ latin1_bin	latin1	47		#	1
 latin1_general_ci	latin1	48		#	1
 latin1_general_cs	latin1	49		#	1
 latin1_spanish_ci	latin1	94		#	1
+latin1_swedish_nopad_ci	latin1	1032		#	1
+latin1_nopad_bin	latin1	1071		#	1
 select * from information_schema.COLLATION_CHARACTER_SET_APPLICABILITY
 where COLLATION_NAME like 'latin1%';
 COLLATION_NAME	CHARACTER_SET_NAME
@@ -304,6 +310,8 @@ latin1_bin	latin1
 latin1_general_ci	latin1
 latin1_general_cs	latin1
 latin1_spanish_ci	latin1
+latin1_swedish_nopad_ci	latin1
+latin1_nopad_bin	latin1
 drop procedure if exists sel2;
 drop function if exists sub1;
 drop function if exists sub2;
@@ -440,6 +448,8 @@ latin1_bin
 latin1_general_ci
 latin1_general_cs
 latin1_spanish_ci
+latin1_swedish_nopad_ci
+latin1_nopad_bin
 show keys from v4;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 select * from information_schema.views where TABLE_NAME like "v%";

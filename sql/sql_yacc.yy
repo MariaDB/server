@@ -6073,7 +6073,7 @@ key_def:
 constraint_def:
          opt_constraint check_constraint
          {
-           Lex->add_constraint(&$1, $2);
+           Lex->add_constraint(&$1, $2, FALSE);
          }
        ;
 
@@ -7560,6 +7560,11 @@ alter_list_item:
           {
             Lex->alter_info.flags|= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
 	  }
+        | ADD CONSTRAINT IF_SYM not EXISTS field_ident check_constraint
+         {
+           Lex->alter_info.flags|= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+           Lex->add_constraint(&$6, $7, TRUE);
+         }
         | CHANGE opt_column opt_if_exists_table_element field_ident
           field_spec opt_place
           {

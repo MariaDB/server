@@ -551,6 +551,8 @@ public:
   {
     if (where_to_move == this)
       return;
+    if (next)
+      next->prev= prev;
     *prev= next;
     *where_to_move->prev= this;
     next= where_to_move;
@@ -3025,9 +3027,12 @@ public:
     return false;
   }
   // Add a constraint as a part of CREATE TABLE or ALTER TABLE
-  bool add_constraint(LEX_STRING *name, Virtual_column_info *constr)
+  bool add_constraint(LEX_STRING *name, Virtual_column_info *constr,
+                      bool if_not_exists)
   {
     constr->name= *name;
+    constr->flags= if_not_exists ?
+                   Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS : 0;
     alter_info.check_constraint_list.push_back(constr);
     return false;
   }

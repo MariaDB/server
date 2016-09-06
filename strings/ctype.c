@@ -88,6 +88,8 @@ struct my_cs_file_section_st
 #define _CS_CL_SUPPRESS_CONTRACTIONS    101
 #define _CS_CL_OPTIMIZE                 102
 #define _CS_CL_SHIFT_AFTER_METHOD       103
+#define _CS_CL_RULES_IMPORT             104
+#define _CS_CL_RULES_IMPORT_SOURCE      105
 
 
 /* Collation Settings */
@@ -188,6 +190,8 @@ static const struct my_cs_file_section_st sec[] =
   {_CS_CL_SUPPRESS_CONTRACTIONS, "charsets/charset/collation/suppress_contractions"},
   {_CS_CL_OPTIMIZE,              "charsets/charset/collation/optimize"},
   {_CS_CL_SHIFT_AFTER_METHOD,    "charsets/charset/collation/shift-after-method"},
+  {_CS_CL_RULES_IMPORT,          "charsets/charset/collation/rules/import"},
+  {_CS_CL_RULES_IMPORT_SOURCE,   "charsets/charset/collation/rules/import/source"},
 
   /* Collation Settings */
   {_CS_ST_SETTINGS,              "charsets/charset/collation/settings"},
@@ -614,6 +618,8 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
       i->cs.state|= MY_CS_BINSORT;
     else if (!strncmp("compiled",attr,len))
       i->cs.state|= MY_CS_COMPILED;
+    else if (!strncmp("nopad",attr,len))
+      i->cs.state|= MY_CS_NOPAD;
     break;
   case _CS_UPPERMAP:
     fill_uchar(i->to_upper,MY_CS_TO_UPPER_TABLE_SIZE,attr,len);
@@ -639,6 +645,10 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
   /* Special purpose commands */
   case _CS_UCA_VERSION:
     rc= tailoring_append(st, "[version %.*s]", len, attr);
+    break;
+
+  case _CS_CL_RULES_IMPORT_SOURCE:
+    rc= tailoring_append(st, "[import %.*s]", len, attr);
     break;
 
   case _CS_CL_SUPPRESS_CONTRACTIONS:

@@ -390,13 +390,20 @@ select "foo" = "foo " collate latin1_test;
 The following tests check that two-byte collation IDs work
 select * from information_schema.collations where id>256 and is_compiled<>'Yes' order by id;
 COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN
+ascii2_general_nopad_ci	ascii2	318			1
+ascii2_bin2	ascii2	319			1
 ascii2_general_ci	ascii2	320	Yes		1
 ascii2_bin	ascii2	321			1
+ascii2_general_inherited_ci	ascii2	322			1
+ascii2_general_inherited2_ci	ascii2	323			1
+ascii2_badly_inherited_ci	ascii2	324			1
+ascii2_nopad_bin	ascii2	325			1
 utf8mb4_test_ci	utf8mb4	326			8
 utf16_test_ci	utf16	327			8
 utf8mb4_test_400_ci	utf8mb4	328			8
 latin1_test2	latin1	332			1
 latin1_test2_cs	latin1	333			1
+latin1_swedish_nopad2_ci	latin1	334			1
 utf8_bengali_standard_ci	utf8	336			8
 utf8_bengali_traditional_ci	utf8	337			8
 utf8_implicit_weights_ci	utf8	338			8

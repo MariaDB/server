@@ -4201,6 +4201,22 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         make_unique_constraint_name(thd, &check->name,
                                     &alter_info->check_constraint_list,
                                     &nr);
+      {
+        /* Check that there's no repeating constraint names. */
+        List_iterator_fast<Virtual_column_info>
+          dup_it(alter_info->check_constraint_list);
+        Virtual_column_info *dup_check;
+        while ((dup_check= dup_it++) && dup_check != check)
+        {
+          if (check->name.length == dup_check->name.length &&
+              my_strcasecmp(system_charset_info,
+                            check->name.str, dup_check->name.str) == 0)
+          {
+            my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name);
+            DBUG_RETURN(TRUE);
+          }
+        }
+      }
 
       if (check_string_char_length(&check->name, 0, NAME_CHAR_LEN,
                                    system_charset_info, 1))
@@ -6152,6 +6168,39 @@ remove_key:
     }
   }
 #endif /*WITH_PARTITION_STORAGE_ENGINE*/
+
+  /* ADD CONSTRAINT IF NOT EXISTS. */
+  {
+    List_iterator<Virtual_column_info> it(alter_info->check_constraint_list);
+    Virtual_column_info *check;
+    TABLE_SHARE *share= table->s;
+    uint c;
+    while ((check=it++))
+    {
+      if ((!check->flags & Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS) &&
+          check->name.length)
+        continue;
+      check->flags= 0;
+      for (c= share->field_check_constraints;
+           c < share->table_check_constraints ; c++)
+      {
+        Virtual_column_info *dup= table->check_constraints[c];
+        if (dup->name.length == check->name.length &&
+            my_strcasecmp(system_charset_info,
+                          check->name.str, dup->name.str) == 0)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+            ER_DUP_CONSTRAINT_NAME, ER_THD(thd, ER_DUP_CONSTRAINT_NAME),
+            "CHECK", check->name.str);
+          it.remove();
+          if (alter_info->check_constraint_list.elements == 0)
+            alter_info->flags&= ~Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+
+          break;
+        }
+      }
+    }
+  }
 
   DBUG_VOID_RETURN;
 }

@@ -6762,8 +6762,8 @@ ER_FK_CANNOT_OPEN_PARENT
 ER_FK_INCORRECT_OPTION
         eng "Failed to add the foreign key constraint on table '%s'. Incorrect options in FOREIGN KEY constraint '%s'"
 
-ER_FK_DUP_NAME
-	eng "Duplicate foreign key constraint name '%s'"
+ER_DUP_CONSTRAINT_NAME
+       eng "Duplicate %s constraint name '%s'"
 
 ER_PASSWORD_FORMAT
   eng "The password hash doesn't have the expected format. Check if the correct password algorithm is being used with the PASSWORD() function."

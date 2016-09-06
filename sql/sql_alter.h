@@ -174,6 +174,8 @@ public:
   List<Key>                     key_list;
   // List of columns, used by both CREATE and ALTER TABLE.
   List<Create_field>            create_list;
+
+  static const uint CHECK_CONSTRAINT_IF_NOT_EXISTS= 1;
   List<Virtual_column_info>     check_constraint_list;
   // Type of ALTER TABLE operation.
   uint                          flags;

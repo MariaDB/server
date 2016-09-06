@@ -3535,6 +3535,144 @@ static const uchar sort_order_cp1250_polish_ci[] = {
 
 #endif
 
+#ifdef HAVE_CHARSET_dec8
+#endif
+
+#ifdef HAVE_CHARSET_cp850
+#endif
+
+#ifdef HAVE_CHARSET_hp8
+#endif
+
+#ifdef HAVE_CHARSET_koi8r
+#endif
+
+#ifdef HAVE_CHARSET_latin2
+#endif
+
+#ifdef HAVE_CHARSET_swe7
+#endif
+
+#ifdef HAVE_CHARSET_ascii
+#endif
+
+#ifdef HAVE_CHARSET_hebrew
+#endif
+
+#ifdef HAVE_CHARSET_koi8u
+#endif
+
+#ifdef HAVE_CHARSET_greek
+#endif
+
+#ifdef HAVE_CHARSET_cp1250
+#endif
+
+#ifdef HAVE_CHARSET_latin5
+#endif
+
+#ifdef HAVE_CHARSET_armscii8
+#endif
+
+#ifdef HAVE_CHARSET_cp866
+#endif
+
+#ifdef HAVE_CHARSET_keybcs2
+#endif
+
+#ifdef HAVE_CHARSET_macce
+#endif
+
+#ifdef HAVE_CHARSET_macroman
+#endif
+
+#ifdef HAVE_CHARSET_cp852
+#endif
+
+#ifdef HAVE_CHARSET_latin7
+#endif
+
+#ifdef HAVE_CHARSET_macce
+#endif
+
+#ifdef HAVE_CHARSET_cp1251
+#endif
+
+#ifdef HAVE_CHARSET_cp1251
+#endif
+
+#ifdef HAVE_CHARSET_macroman
+#endif
+
+#ifdef HAVE_CHARSET_cp1256
+#endif
+
+#ifdef HAVE_CHARSET_cp1257
+#endif
+
+#ifdef HAVE_CHARSET_cp1257
+#endif
+
+#ifdef HAVE_CHARSET_armscii8
+#endif
+
+#ifdef HAVE_CHARSET_ascii
+#endif
+
+#ifdef HAVE_CHARSET_cp1250
+#endif
+
+#ifdef HAVE_CHARSET_cp1256
+#endif
+
+#ifdef HAVE_CHARSET_cp866
+#endif
+
+#ifdef HAVE_CHARSET_dec8
+#endif
+
+#ifdef HAVE_CHARSET_greek
+#endif
+
+#ifdef HAVE_CHARSET_hebrew
+#endif
+
+#ifdef HAVE_CHARSET_hp8
+#endif
+
+#ifdef HAVE_CHARSET_keybcs2
+#endif
+
+#ifdef HAVE_CHARSET_koi8r
+#endif
+
+#ifdef HAVE_CHARSET_koi8u
+#endif
+
+#ifdef HAVE_CHARSET_latin2
+#endif
+
+#ifdef HAVE_CHARSET_latin5
+#endif
+
+#ifdef HAVE_CHARSET_latin7
+#endif
+
+#ifdef HAVE_CHARSET_cp850
+#endif
+
+#ifdef HAVE_CHARSET_cp852
+#endif
+
+#ifdef HAVE_CHARSET_swe7
+#endif
+
+#ifdef HAVE_CHARSET_geostd8
+#endif
+
+#ifdef HAVE_CHARSET_geostd8
+#endif
+
 struct charset_info_st compiled_charsets[] = {
 #ifdef HAVE_CHARSET_dec8
 {
@@ -3545,11 +3683,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_dec8_swedish_ci,                   /* ctype         */
-  to_lower_dec8_swedish_ci,                /* lower         */
-  to_upper_dec8_swedish_ci,                /* upper         */
+  to_lower_dec8_swedish_ci,                   /* to_lower         */
+  to_upper_dec8_swedish_ci,                   /* to_upper         */
   sort_order_dec8_swedish_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_dec8_swedish_ci,                  /* to_uni        */
+  to_uni_dec8_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3578,11 +3716,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp850_general_ci,                   /* ctype         */
-  to_lower_cp850_general_ci,                /* lower         */
-  to_upper_cp850_general_ci,                /* upper         */
+  to_lower_cp850_general_ci,                   /* to_lower         */
+  to_upper_cp850_general_ci,                   /* to_upper         */
   sort_order_cp850_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp850_general_ci,                  /* to_uni        */
+  to_uni_cp850_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3611,11 +3749,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin1_german1_ci,                   /* ctype         */
-  to_lower_latin1_german1_ci,                /* lower         */
-  to_upper_latin1_german1_ci,                /* upper         */
+  to_lower_latin1_german1_ci,                   /* to_lower         */
+  to_upper_latin1_german1_ci,                   /* to_upper         */
   sort_order_latin1_german1_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin1_german1_ci,                  /* to_uni        */
+  to_uni_latin1_german1_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3644,11 +3782,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_hp8_english_ci,                   /* ctype         */
-  to_lower_hp8_english_ci,                /* lower         */
-  to_upper_hp8_english_ci,                /* upper         */
+  to_lower_hp8_english_ci,                   /* to_lower         */
+  to_upper_hp8_english_ci,                   /* to_upper         */
   sort_order_hp8_english_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_hp8_english_ci,                  /* to_uni        */
+  to_uni_hp8_english_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3677,11 +3815,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_koi8r_general_ci,                   /* ctype         */
-  to_lower_koi8r_general_ci,                /* lower         */
-  to_upper_koi8r_general_ci,                /* upper         */
+  to_lower_koi8r_general_ci,                   /* to_lower         */
+  to_upper_koi8r_general_ci,                   /* to_upper         */
   sort_order_koi8r_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_koi8r_general_ci,                  /* to_uni        */
+  to_uni_koi8r_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3710,11 +3848,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin2_general_ci,                   /* ctype         */
-  to_lower_latin2_general_ci,                /* lower         */
-  to_upper_latin2_general_ci,                /* upper         */
+  to_lower_latin2_general_ci,                   /* to_lower         */
+  to_upper_latin2_general_ci,                   /* to_upper         */
   sort_order_latin2_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin2_general_ci,                  /* to_uni        */
+  to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3743,11 +3881,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_swe7_swedish_ci,                   /* ctype         */
-  to_lower_swe7_swedish_ci,                /* lower         */
-  to_upper_swe7_swedish_ci,                /* upper         */
+  to_lower_swe7_swedish_ci,                   /* to_lower         */
+  to_upper_swe7_swedish_ci,                   /* to_upper         */
   sort_order_swe7_swedish_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_swe7_swedish_ci,                  /* to_uni        */
+  to_uni_swe7_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3776,11 +3914,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_ascii_general_ci,                   /* ctype         */
-  to_lower_ascii_general_ci,                /* lower         */
-  to_upper_ascii_general_ci,                /* upper         */
+  to_lower_ascii_general_ci,                   /* to_lower         */
+  to_upper_ascii_general_ci,                   /* to_upper         */
   sort_order_ascii_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_ascii_general_ci,                  /* to_uni        */
+  to_uni_ascii_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3809,11 +3947,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
-  to_lower_cp1251_general_ci,                /* lower         */
-  to_upper_cp1251_general_ci,                /* upper         */
+  to_lower_cp1251_general_ci,                   /* to_lower         */
+  to_upper_cp1251_general_ci,                   /* to_upper         */
   sort_order_cp1251_bulgarian_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1251_general_ci,                  /* to_uni        */
+  to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3842,11 +3980,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin1_danish_ci,                   /* ctype         */
-  to_lower_latin1_danish_ci,                /* lower         */
-  to_upper_latin1_danish_ci,                /* upper         */
+  to_lower_latin1_danish_ci,                   /* to_lower         */
+  to_upper_latin1_danish_ci,                   /* to_upper         */
   sort_order_latin1_danish_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin1_danish_ci,                  /* to_uni        */
+  to_uni_latin1_danish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3875,11 +4013,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_hebrew_general_ci,                   /* ctype         */
-  to_lower_hebrew_general_ci,                /* lower         */
-  to_upper_hebrew_general_ci,                /* upper         */
+  to_lower_hebrew_general_ci,                   /* to_lower         */
+  to_upper_hebrew_general_ci,                   /* to_upper         */
   sort_order_hebrew_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_hebrew_general_ci,                  /* to_uni        */
+  to_uni_hebrew_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3908,11 +4046,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin7_general_ci,                   /* ctype         */
-  to_lower_latin7_general_ci,                /* lower         */
-  to_upper_latin7_general_ci,                /* upper         */
+  to_lower_latin7_general_ci,                   /* to_lower         */
+  to_upper_latin7_general_ci,                   /* to_upper         */
   sort_order_latin7_estonian_cs,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin7_general_ci,                  /* to_uni        */
+  to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3941,11 +4079,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin2_general_ci,                   /* ctype         */
-  to_lower_latin2_general_ci,                /* lower         */
-  to_upper_latin2_general_ci,                /* upper         */
+  to_lower_latin2_general_ci,                   /* to_lower         */
+  to_upper_latin2_general_ci,                   /* to_upper         */
   sort_order_latin2_hungarian_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin2_general_ci,                  /* to_uni        */
+  to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -3974,11 +4112,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_koi8u_general_ci,                   /* ctype         */
-  to_lower_koi8u_general_ci,                /* lower         */
-  to_upper_koi8u_general_ci,                /* upper         */
+  to_lower_koi8u_general_ci,                   /* to_lower         */
+  to_upper_koi8u_general_ci,                   /* to_upper         */
   sort_order_koi8u_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_koi8u_general_ci,                  /* to_uni        */
+  to_uni_koi8u_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4007,11 +4145,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
-  to_lower_cp1251_general_ci,                /* lower         */
-  to_upper_cp1251_general_ci,                /* upper         */
+  to_lower_cp1251_general_ci,                   /* to_lower         */
+  to_upper_cp1251_general_ci,                   /* to_upper         */
   sort_order_cp1251_ukrainian_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1251_general_ci,                  /* to_uni        */
+  to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4040,11 +4178,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_greek_general_ci,                   /* ctype         */
-  to_lower_greek_general_ci,                /* lower         */
-  to_upper_greek_general_ci,                /* upper         */
+  to_lower_greek_general_ci,                   /* to_lower         */
+  to_upper_greek_general_ci,                   /* to_upper         */
   sort_order_greek_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_greek_general_ci,                  /* to_uni        */
+  to_uni_greek_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4073,11 +4211,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1250_general_ci,                   /* ctype         */
-  to_lower_cp1250_general_ci,                /* lower         */
-  to_upper_cp1250_general_ci,                /* upper         */
+  to_lower_cp1250_general_ci,                   /* to_lower         */
+  to_upper_cp1250_general_ci,                   /* to_upper         */
   sort_order_cp1250_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1250_general_ci,                  /* to_uni        */
+  to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4106,11 +4244,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin2_general_ci,                   /* ctype         */
-  to_lower_latin2_general_ci,                /* lower         */
-  to_upper_latin2_general_ci,                /* upper         */
+  to_lower_latin2_general_ci,                   /* to_lower         */
+  to_upper_latin2_general_ci,                   /* to_upper         */
   sort_order_latin2_croatian_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin2_general_ci,                  /* to_uni        */
+  to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4139,11 +4277,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1257_general_ci,                   /* ctype         */
-  to_lower_cp1257_general_ci,                /* lower         */
-  to_upper_cp1257_general_ci,                /* upper         */
+  to_lower_cp1257_general_ci,                   /* to_lower         */
+  to_upper_cp1257_general_ci,                   /* to_upper         */
   sort_order_cp1257_lithuanian_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1257_general_ci,                  /* to_uni        */
+  to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4172,11 +4310,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin5_turkish_ci,                   /* ctype         */
-  to_lower_latin5_turkish_ci,                /* lower         */
-  to_upper_latin5_turkish_ci,                /* upper         */
+  to_lower_latin5_turkish_ci,                   /* to_lower         */
+  to_upper_latin5_turkish_ci,                   /* to_upper         */
   sort_order_latin5_turkish_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin5_turkish_ci,                  /* to_uni        */
+  to_uni_latin5_turkish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4205,11 +4343,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_armscii8_general_ci,                   /* ctype         */
-  to_lower_armscii8_general_ci,                /* lower         */
-  to_upper_armscii8_general_ci,                /* upper         */
+  to_lower_armscii8_general_ci,                   /* to_lower         */
+  to_upper_armscii8_general_ci,                   /* to_upper         */
   sort_order_armscii8_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_armscii8_general_ci,                  /* to_uni        */
+  to_uni_armscii8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4238,11 +4376,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp866_general_ci,                   /* ctype         */
-  to_lower_cp866_general_ci,                /* lower         */
-  to_upper_cp866_general_ci,                /* upper         */
+  to_lower_cp866_general_ci,                   /* to_lower         */
+  to_upper_cp866_general_ci,                   /* to_upper         */
   sort_order_cp866_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp866_general_ci,                  /* to_uni        */
+  to_uni_cp866_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4271,11 +4409,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_keybcs2_general_ci,                   /* ctype         */
-  to_lower_keybcs2_general_ci,                /* lower         */
-  to_upper_keybcs2_general_ci,                /* upper         */
+  to_lower_keybcs2_general_ci,                   /* to_lower         */
+  to_upper_keybcs2_general_ci,                   /* to_upper         */
   sort_order_keybcs2_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_keybcs2_general_ci,                  /* to_uni        */
+  to_uni_keybcs2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4304,11 +4442,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_macce_general_ci,                   /* ctype         */
-  to_lower_macce_general_ci,                /* lower         */
-  to_upper_macce_general_ci,                /* upper         */
+  to_lower_macce_general_ci,                   /* to_lower         */
+  to_upper_macce_general_ci,                   /* to_upper         */
   sort_order_macce_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_macce_general_ci,                  /* to_uni        */
+  to_uni_macce_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4337,11 +4475,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_macroman_general_ci,                   /* ctype         */
-  to_lower_macroman_general_ci,                /* lower         */
-  to_upper_macroman_general_ci,                /* upper         */
+  to_lower_macroman_general_ci,                   /* to_lower         */
+  to_upper_macroman_general_ci,                   /* to_upper         */
   sort_order_macroman_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_macroman_general_ci,                  /* to_uni        */
+  to_uni_macroman_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4370,11 +4508,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp852_general_ci,                   /* ctype         */
-  to_lower_cp852_general_ci,                /* lower         */
-  to_upper_cp852_general_ci,                /* upper         */
+  to_lower_cp852_general_ci,                   /* to_lower         */
+  to_upper_cp852_general_ci,                   /* to_upper         */
   sort_order_cp852_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp852_general_ci,                  /* to_uni        */
+  to_uni_cp852_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4403,11 +4541,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin7_general_ci,                   /* ctype         */
-  to_lower_latin7_general_ci,                /* lower         */
-  to_upper_latin7_general_ci,                /* upper         */
+  to_lower_latin7_general_ci,                   /* to_lower         */
+  to_upper_latin7_general_ci,                   /* to_upper         */
   sort_order_latin7_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin7_general_ci,                  /* to_uni        */
+  to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4436,11 +4574,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin7_general_ci,                   /* ctype         */
-  to_lower_latin7_general_ci,                /* lower         */
-  to_upper_latin7_general_ci,                /* upper         */
+  to_lower_latin7_general_ci,                   /* to_lower         */
+  to_upper_latin7_general_ci,                   /* to_upper         */
   sort_order_latin7_general_cs,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin7_general_ci,                  /* to_uni        */
+  to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4469,11 +4607,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_macce_general_ci,                   /* ctype         */
-  to_lower_macce_general_ci,                /* lower         */
-  to_upper_macce_general_ci,                /* upper         */
+  to_lower_macce_general_ci,                   /* to_lower         */
+  to_upper_macce_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_macce_general_ci,                  /* to_uni        */
+  to_uni_macce_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4502,11 +4640,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1250_general_ci,                   /* ctype         */
-  to_lower_cp1250_general_ci,                /* lower         */
-  to_upper_cp1250_general_ci,                /* upper         */
+  to_lower_cp1250_general_ci,                   /* to_lower         */
+  to_upper_cp1250_general_ci,                   /* to_upper         */
   sort_order_cp1250_croatian_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1250_general_ci,                  /* to_uni        */
+  to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4535,11 +4673,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin1_general_ci,                   /* ctype         */
-  to_lower_latin1_general_ci,                /* lower         */
-  to_upper_latin1_general_ci,                /* upper         */
+  to_lower_latin1_general_ci,                   /* to_lower         */
+  to_upper_latin1_general_ci,                   /* to_upper         */
   sort_order_latin1_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin1_general_ci,                  /* to_uni        */
+  to_uni_latin1_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4568,11 +4706,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin1_general_cs,                   /* ctype         */
-  to_lower_latin1_general_cs,                /* lower         */
-  to_upper_latin1_general_cs,                /* upper         */
+  to_lower_latin1_general_cs,                   /* to_lower         */
+  to_upper_latin1_general_cs,                   /* to_upper         */
   sort_order_latin1_general_cs,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin1_general_cs,                  /* to_uni        */
+  to_uni_latin1_general_cs,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4601,11 +4739,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
-  to_lower_cp1251_general_ci,                /* lower         */
-  to_upper_cp1251_general_ci,                /* upper         */
+  to_lower_cp1251_general_ci,                   /* to_lower         */
+  to_upper_cp1251_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1251_general_ci,                  /* to_uni        */
+  to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4634,11 +4772,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
-  to_lower_cp1251_general_ci,                /* lower         */
-  to_upper_cp1251_general_ci,                /* upper         */
+  to_lower_cp1251_general_ci,                   /* to_lower         */
+  to_upper_cp1251_general_ci,                   /* to_upper         */
   sort_order_cp1251_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1251_general_ci,                  /* to_uni        */
+  to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4667,11 +4805,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1251_general_ci,                   /* ctype         */
-  to_lower_cp1251_general_ci,                /* lower         */
-  to_upper_cp1251_general_ci,                /* upper         */
+  to_lower_cp1251_general_ci,                   /* to_lower         */
+  to_upper_cp1251_general_ci,                   /* to_upper         */
   sort_order_cp1251_general_cs,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1251_general_ci,                  /* to_uni        */
+  to_uni_cp1251_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4700,11 +4838,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_macroman_general_ci,                   /* ctype         */
-  to_lower_macroman_general_ci,                /* lower         */
-  to_upper_macroman_general_ci,                /* upper         */
+  to_lower_macroman_general_ci,                   /* to_lower         */
+  to_upper_macroman_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_macroman_general_ci,                  /* to_uni        */
+  to_uni_macroman_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4733,11 +4871,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1256_general_ci,                   /* ctype         */
-  to_lower_cp1256_general_ci,                /* lower         */
-  to_upper_cp1256_general_ci,                /* upper         */
+  to_lower_cp1256_general_ci,                   /* to_lower         */
+  to_upper_cp1256_general_ci,                   /* to_upper         */
   sort_order_cp1256_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1256_general_ci,                  /* to_uni        */
+  to_uni_cp1256_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4766,11 +4904,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1257_general_ci,                   /* ctype         */
-  to_lower_cp1257_general_ci,                /* lower         */
-  to_upper_cp1257_general_ci,                /* upper         */
+  to_lower_cp1257_general_ci,                   /* to_lower         */
+  to_upper_cp1257_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1257_general_ci,                  /* to_uni        */
+  to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4799,11 +4937,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1257_general_ci,                   /* ctype         */
-  to_lower_cp1257_general_ci,                /* lower         */
-  to_upper_cp1257_general_ci,                /* upper         */
+  to_lower_cp1257_general_ci,                   /* to_lower         */
+  to_upper_cp1257_general_ci,                   /* to_upper         */
   sort_order_cp1257_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1257_general_ci,                  /* to_uni        */
+  to_uni_cp1257_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4832,11 +4970,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_armscii8_general_ci,                   /* ctype         */
-  to_lower_armscii8_general_ci,                /* lower         */
-  to_upper_armscii8_general_ci,                /* upper         */
+  to_lower_armscii8_general_ci,                   /* to_lower         */
+  to_upper_armscii8_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_armscii8_general_ci,                  /* to_uni        */
+  to_uni_armscii8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4865,11 +5003,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_ascii_general_ci,                   /* ctype         */
-  to_lower_ascii_general_ci,                /* lower         */
-  to_upper_ascii_general_ci,                /* upper         */
+  to_lower_ascii_general_ci,                   /* to_lower         */
+  to_upper_ascii_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_ascii_general_ci,                  /* to_uni        */
+  to_uni_ascii_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4898,11 +5036,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1250_general_ci,                   /* ctype         */
-  to_lower_cp1250_general_ci,                /* lower         */
-  to_upper_cp1250_general_ci,                /* upper         */
+  to_lower_cp1250_general_ci,                   /* to_lower         */
+  to_upper_cp1250_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1250_general_ci,                  /* to_uni        */
+  to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4931,11 +5069,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1256_general_ci,                   /* ctype         */
-  to_lower_cp1256_general_ci,                /* lower         */
-  to_upper_cp1256_general_ci,                /* upper         */
+  to_lower_cp1256_general_ci,                   /* to_lower         */
+  to_upper_cp1256_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1256_general_ci,                  /* to_uni        */
+  to_uni_cp1256_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4964,11 +5102,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp866_general_ci,                   /* ctype         */
-  to_lower_cp866_general_ci,                /* lower         */
-  to_upper_cp866_general_ci,                /* upper         */
+  to_lower_cp866_general_ci,                   /* to_lower         */
+  to_upper_cp866_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp866_general_ci,                  /* to_uni        */
+  to_uni_cp866_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -4997,11 +5135,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_dec8_swedish_ci,                   /* ctype         */
-  to_lower_dec8_swedish_ci,                /* lower         */
-  to_upper_dec8_swedish_ci,                /* upper         */
+  to_lower_dec8_swedish_ci,                   /* to_lower         */
+  to_upper_dec8_swedish_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_dec8_swedish_ci,                  /* to_uni        */
+  to_uni_dec8_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5030,11 +5168,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_greek_general_ci,                   /* ctype         */
-  to_lower_greek_general_ci,                /* lower         */
-  to_upper_greek_general_ci,                /* upper         */
+  to_lower_greek_general_ci,                   /* to_lower         */
+  to_upper_greek_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_greek_general_ci,                  /* to_uni        */
+  to_uni_greek_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5063,11 +5201,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_hebrew_general_ci,                   /* ctype         */
-  to_lower_hebrew_general_ci,                /* lower         */
-  to_upper_hebrew_general_ci,                /* upper         */
+  to_lower_hebrew_general_ci,                   /* to_lower         */
+  to_upper_hebrew_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_hebrew_general_ci,                  /* to_uni        */
+  to_uni_hebrew_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5096,11 +5234,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_hp8_english_ci,                   /* ctype         */
-  to_lower_hp8_english_ci,                /* lower         */
-  to_upper_hp8_english_ci,                /* upper         */
+  to_lower_hp8_english_ci,                   /* to_lower         */
+  to_upper_hp8_english_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_hp8_english_ci,                  /* to_uni        */
+  to_uni_hp8_english_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5129,11 +5267,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_keybcs2_general_ci,                   /* ctype         */
-  to_lower_keybcs2_general_ci,                /* lower         */
-  to_upper_keybcs2_general_ci,                /* upper         */
+  to_lower_keybcs2_general_ci,                   /* to_lower         */
+  to_upper_keybcs2_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_keybcs2_general_ci,                  /* to_uni        */
+  to_uni_keybcs2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5162,11 +5300,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_koi8r_general_ci,                   /* ctype         */
-  to_lower_koi8r_general_ci,                /* lower         */
-  to_upper_koi8r_general_ci,                /* upper         */
+  to_lower_koi8r_general_ci,                   /* to_lower         */
+  to_upper_koi8r_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_koi8r_general_ci,                  /* to_uni        */
+  to_uni_koi8r_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5195,11 +5333,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_koi8u_general_ci,                   /* ctype         */
-  to_lower_koi8u_general_ci,                /* lower         */
-  to_upper_koi8u_general_ci,                /* upper         */
+  to_lower_koi8u_general_ci,                   /* to_lower         */
+  to_upper_koi8u_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_koi8u_general_ci,                  /* to_uni        */
+  to_uni_koi8u_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5228,11 +5366,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin2_general_ci,                   /* ctype         */
-  to_lower_latin2_general_ci,                /* lower         */
-  to_upper_latin2_general_ci,                /* upper         */
+  to_lower_latin2_general_ci,                   /* to_lower         */
+  to_upper_latin2_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin2_general_ci,                  /* to_uni        */
+  to_uni_latin2_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5261,11 +5399,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin5_turkish_ci,                   /* ctype         */
-  to_lower_latin5_turkish_ci,                /* lower         */
-  to_upper_latin5_turkish_ci,                /* upper         */
+  to_lower_latin5_turkish_ci,                   /* to_lower         */
+  to_upper_latin5_turkish_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin5_turkish_ci,                  /* to_uni        */
+  to_uni_latin5_turkish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5294,11 +5432,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin7_general_ci,                   /* ctype         */
-  to_lower_latin7_general_ci,                /* lower         */
-  to_upper_latin7_general_ci,                /* upper         */
+  to_lower_latin7_general_ci,                   /* to_lower         */
+  to_upper_latin7_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin7_general_ci,                  /* to_uni        */
+  to_uni_latin7_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5327,11 +5465,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp850_general_ci,                   /* ctype         */
-  to_lower_cp850_general_ci,                /* lower         */
-  to_upper_cp850_general_ci,                /* upper         */
+  to_lower_cp850_general_ci,                   /* to_lower         */
+  to_upper_cp850_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp850_general_ci,                  /* to_uni        */
+  to_uni_cp850_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5360,11 +5498,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp852_general_ci,                   /* ctype         */
-  to_lower_cp852_general_ci,                /* lower         */
-  to_upper_cp852_general_ci,                /* upper         */
+  to_lower_cp852_general_ci,                   /* to_lower         */
+  to_upper_cp852_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp852_general_ci,                  /* to_uni        */
+  to_uni_cp852_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5393,11 +5531,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_swe7_swedish_ci,                   /* ctype         */
-  to_lower_swe7_swedish_ci,                /* lower         */
-  to_upper_swe7_swedish_ci,                /* upper         */
+  to_lower_swe7_swedish_ci,                   /* to_lower         */
+  to_upper_swe7_swedish_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_swe7_swedish_ci,                  /* to_uni        */
+  to_uni_swe7_swedish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5426,11 +5564,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_geostd8_general_ci,                   /* ctype         */
-  to_lower_geostd8_general_ci,                /* lower         */
-  to_upper_geostd8_general_ci,                /* upper         */
+  to_lower_geostd8_general_ci,                   /* to_lower         */
+  to_upper_geostd8_general_ci,                   /* to_upper         */
   sort_order_geostd8_general_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_geostd8_general_ci,                  /* to_uni        */
+  to_uni_geostd8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5459,11 +5597,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_geostd8_general_ci,                   /* ctype         */
-  to_lower_geostd8_general_ci,                /* lower         */
-  to_upper_geostd8_general_ci,                /* upper         */
+  to_lower_geostd8_general_ci,                   /* to_lower         */
+  to_upper_geostd8_general_ci,                   /* to_upper         */
   NULL,                     /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_geostd8_general_ci,                  /* to_uni        */
+  to_uni_geostd8_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5492,11 +5630,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_latin1_spanish_ci,                   /* ctype         */
-  to_lower_latin1_spanish_ci,                /* lower         */
-  to_upper_latin1_spanish_ci,                /* upper         */
+  to_lower_latin1_spanish_ci,                   /* to_lower         */
+  to_upper_latin1_spanish_ci,                   /* to_upper         */
   sort_order_latin1_spanish_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_latin1_spanish_ci,                  /* to_uni        */
+  to_uni_latin1_spanish_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5525,11 +5663,11 @@ struct charset_info_st compiled_charsets[] = {
   "",                       /* comment       */
   NULL,                       /* tailoring     */
   ctype_cp1250_general_ci,                   /* ctype         */
-  to_lower_cp1250_general_ci,                /* lower         */
-  to_upper_cp1250_general_ci,                /* upper         */
+  to_lower_cp1250_general_ci,                   /* to_lower         */
+  to_upper_cp1250_general_ci,                   /* to_upper         */
   sort_order_cp1250_polish_ci,            /* sort_order    */
   NULL,                       /* uca           */
-  to_uni_cp1250_general_ci,                  /* to_uni        */
+  to_uni_cp1250_general_ci,                   /* to_uni         */
   NULL,                       /* from_uni      */
   &my_unicase_default,        /* caseinfo      */
   NULL,                       /* state map     */
@@ -5546,6 +5684,1524 @@ struct charset_info_st compiled_charsets[] = {
   1,                          /* levels_for_order   */
   &my_charset_8bit_handler,
   &my_collation_8bit_simple_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_dec8
+{
+  1027,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "dec8",                     /* cset name     */
+  "dec8_swedish_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import dec8_swedish_ci]",                    /* tailoring */
+  ctype_dec8_swedish_ci,                   /* ctype         */
+  to_lower_dec8_swedish_ci,                   /* to_lower         */
+  to_upper_dec8_swedish_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_dec8_swedish_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp850
+{
+  1028,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "cp850",                     /* cset name     */
+  "cp850_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import cp850_general_ci]",                    /* tailoring */
+  ctype_cp850_general_ci,                   /* ctype         */
+  to_lower_cp850_general_ci,                   /* to_lower         */
+  to_upper_cp850_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp850_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_hp8
+{
+  1030,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "hp8",                     /* cset name     */
+  "hp8_english_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import hp8_english_ci]",                    /* tailoring */
+  ctype_hp8_english_ci,                   /* ctype         */
+  to_lower_hp8_english_ci,                   /* to_lower         */
+  to_upper_hp8_english_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_hp8_english_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_koi8r
+{
+  1031,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "koi8r",                     /* cset name     */
+  "koi8r_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import koi8r_general_ci]",                    /* tailoring */
+  ctype_koi8r_general_ci,                   /* ctype         */
+  to_lower_koi8r_general_ci,                   /* to_lower         */
+  to_upper_koi8r_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_koi8r_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_latin2
+{
+  1033,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "latin2",                     /* cset name     */
+  "latin2_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import latin2_general_ci]",                    /* tailoring */
+  ctype_latin2_general_ci,                   /* ctype         */
+  to_lower_latin2_general_ci,                   /* to_lower         */
+  to_upper_latin2_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_latin2_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_swe7
+{
+  1034,0,0,
+  MY_CS_COMPILED|MY_CS_NONASCII|MY_CS_NOPAD,
+  "swe7",                     /* cset name     */
+  "swe7_swedish_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import swe7_swedish_ci]",                    /* tailoring */
+  ctype_swe7_swedish_ci,                   /* ctype         */
+  to_lower_swe7_swedish_ci,                   /* to_lower         */
+  to_upper_swe7_swedish_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_swe7_swedish_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_ascii
+{
+  1035,0,0,
+  MY_CS_COMPILED|MY_CS_PUREASCII|MY_CS_NOPAD,
+  "ascii",                     /* cset name     */
+  "ascii_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import ascii_general_ci]",                    /* tailoring */
+  ctype_ascii_general_ci,                   /* ctype         */
+  to_lower_ascii_general_ci,                   /* to_lower         */
+  to_upper_ascii_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_ascii_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_hebrew
+{
+  1040,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "hebrew",                     /* cset name     */
+  "hebrew_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import hebrew_general_ci]",                    /* tailoring */
+  ctype_hebrew_general_ci,                   /* ctype         */
+  to_lower_hebrew_general_ci,                   /* to_lower         */
+  to_upper_hebrew_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_hebrew_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_koi8u
+{
+  1046,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "koi8u",                     /* cset name     */
+  "koi8u_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import koi8u_general_ci]",                    /* tailoring */
+  ctype_koi8u_general_ci,                   /* ctype         */
+  to_lower_koi8u_general_ci,                   /* to_lower         */
+  to_upper_koi8u_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_koi8u_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_greek
+{
+  1049,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "greek",                     /* cset name     */
+  "greek_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import greek_general_ci]",                    /* tailoring */
+  ctype_greek_general_ci,                   /* ctype         */
+  to_lower_greek_general_ci,                   /* to_lower         */
+  to_upper_greek_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_greek_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp1250
+{
+  1050,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "cp1250",                     /* cset name     */
+  "cp1250_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import cp1250_general_ci]",                    /* tailoring */
+  ctype_cp1250_general_ci,                   /* ctype         */
+  to_lower_cp1250_general_ci,                   /* to_lower         */
+  to_upper_cp1250_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp1250_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_latin5
+{
+  1054,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "latin5",                     /* cset name     */
+  "latin5_turkish_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import latin5_turkish_ci]",                    /* tailoring */
+  ctype_latin5_turkish_ci,                   /* ctype         */
+  to_lower_latin5_turkish_ci,                   /* to_lower         */
+  to_upper_latin5_turkish_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_latin5_turkish_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_armscii8
+{
+  1056,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "armscii8",                     /* cset name     */
+  "armscii8_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import armscii8_general_ci]",                    /* tailoring */
+  ctype_armscii8_general_ci,                   /* ctype         */
+  to_lower_armscii8_general_ci,                   /* to_lower         */
+  to_upper_armscii8_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_armscii8_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp866
+{
+  1060,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "cp866",                     /* cset name     */
+  "cp866_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import cp866_general_ci]",                    /* tailoring */
+  ctype_cp866_general_ci,                   /* ctype         */
+  to_lower_cp866_general_ci,                   /* to_lower         */
+  to_upper_cp866_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp866_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_keybcs2
+{
+  1061,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "keybcs2",                     /* cset name     */
+  "keybcs2_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import keybcs2_general_ci]",                    /* tailoring */
+  ctype_keybcs2_general_ci,                   /* ctype         */
+  to_lower_keybcs2_general_ci,                   /* to_lower         */
+  to_upper_keybcs2_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_keybcs2_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_macce
+{
+  1062,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "macce",                     /* cset name     */
+  "macce_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import macce_general_ci]",                    /* tailoring */
+  ctype_macce_general_ci,                   /* ctype         */
+  to_lower_macce_general_ci,                   /* to_lower         */
+  to_upper_macce_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_macce_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_macroman
+{
+  1063,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "macroman",                     /* cset name     */
+  "macroman_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import macroman_general_ci]",                    /* tailoring */
+  ctype_macroman_general_ci,                   /* ctype         */
+  to_lower_macroman_general_ci,                   /* to_lower         */
+  to_upper_macroman_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_macroman_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp852
+{
+  1064,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "cp852",                     /* cset name     */
+  "cp852_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import cp852_general_ci]",                    /* tailoring */
+  ctype_cp852_general_ci,                   /* ctype         */
+  to_lower_cp852_general_ci,                   /* to_lower         */
+  to_upper_cp852_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp852_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_latin7
+{
+  1065,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "latin7",                     /* cset name     */
+  "latin7_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import latin7_general_ci]",                    /* tailoring */
+  ctype_latin7_general_ci,                   /* ctype         */
+  to_lower_latin7_general_ci,                   /* to_lower         */
+  to_upper_latin7_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_latin7_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_macce
+{
+  1067,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "macce",                     /* cset name     */
+  "macce_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_macce_general_ci,                   /* ctype         */
+  to_lower_macce_general_ci,                   /* to_lower         */
+  to_upper_macce_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_macce_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp1251
+{
+  1074,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "cp1251",                     /* cset name     */
+  "cp1251_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_cp1251_general_ci,                   /* ctype         */
+  to_lower_cp1251_general_ci,                   /* to_lower         */
+  to_upper_cp1251_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp1251_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp1251
+{
+  1075,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "cp1251",                     /* cset name     */
+  "cp1251_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import cp1251_general_ci]",                    /* tailoring */
+  ctype_cp1251_general_ci,                   /* ctype         */
+  to_lower_cp1251_general_ci,                   /* to_lower         */
+  to_upper_cp1251_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp1251_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_macroman
+{
+  1077,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "macroman",                     /* cset name     */
+  "macroman_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_macroman_general_ci,                   /* ctype         */
+  to_lower_macroman_general_ci,                   /* to_lower         */
+  to_upper_macroman_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_macroman_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp1256
+{
+  1081,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "cp1256",                     /* cset name     */
+  "cp1256_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import cp1256_general_ci]",                    /* tailoring */
+  ctype_cp1256_general_ci,                   /* ctype         */
+  to_lower_cp1256_general_ci,                   /* to_lower         */
+  to_upper_cp1256_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp1256_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp1257
+{
+  1082,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "cp1257",                     /* cset name     */
+  "cp1257_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_cp1257_general_ci,                   /* ctype         */
+  to_lower_cp1257_general_ci,                   /* to_lower         */
+  to_upper_cp1257_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp1257_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp1257
+{
+  1083,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "cp1257",                     /* cset name     */
+  "cp1257_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import cp1257_general_ci]",                    /* tailoring */
+  ctype_cp1257_general_ci,                   /* ctype         */
+  to_lower_cp1257_general_ci,                   /* to_lower         */
+  to_upper_cp1257_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp1257_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_armscii8
+{
+  1088,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "armscii8",                     /* cset name     */
+  "armscii8_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_armscii8_general_ci,                   /* ctype         */
+  to_lower_armscii8_general_ci,                   /* to_lower         */
+  to_upper_armscii8_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_armscii8_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_ascii
+{
+  1089,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_PUREASCII|MY_CS_NOPAD,
+  "ascii",                     /* cset name     */
+  "ascii_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_ascii_general_ci,                   /* ctype         */
+  to_lower_ascii_general_ci,                   /* to_lower         */
+  to_upper_ascii_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_ascii_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp1250
+{
+  1090,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "cp1250",                     /* cset name     */
+  "cp1250_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_cp1250_general_ci,                   /* ctype         */
+  to_lower_cp1250_general_ci,                   /* to_lower         */
+  to_upper_cp1250_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp1250_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp1256
+{
+  1091,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "cp1256",                     /* cset name     */
+  "cp1256_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_cp1256_general_ci,                   /* ctype         */
+  to_lower_cp1256_general_ci,                   /* to_lower         */
+  to_upper_cp1256_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp1256_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp866
+{
+  1092,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "cp866",                     /* cset name     */
+  "cp866_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_cp866_general_ci,                   /* ctype         */
+  to_lower_cp866_general_ci,                   /* to_lower         */
+  to_upper_cp866_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp866_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_dec8
+{
+  1093,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "dec8",                     /* cset name     */
+  "dec8_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_dec8_swedish_ci,                   /* ctype         */
+  to_lower_dec8_swedish_ci,                   /* to_lower         */
+  to_upper_dec8_swedish_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_dec8_swedish_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_greek
+{
+  1094,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "greek",                     /* cset name     */
+  "greek_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_greek_general_ci,                   /* ctype         */
+  to_lower_greek_general_ci,                   /* to_lower         */
+  to_upper_greek_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_greek_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_hebrew
+{
+  1095,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "hebrew",                     /* cset name     */
+  "hebrew_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_hebrew_general_ci,                   /* ctype         */
+  to_lower_hebrew_general_ci,                   /* to_lower         */
+  to_upper_hebrew_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_hebrew_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_hp8
+{
+  1096,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "hp8",                     /* cset name     */
+  "hp8_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_hp8_english_ci,                   /* ctype         */
+  to_lower_hp8_english_ci,                   /* to_lower         */
+  to_upper_hp8_english_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_hp8_english_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_keybcs2
+{
+  1097,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "keybcs2",                     /* cset name     */
+  "keybcs2_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_keybcs2_general_ci,                   /* ctype         */
+  to_lower_keybcs2_general_ci,                   /* to_lower         */
+  to_upper_keybcs2_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_keybcs2_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_koi8r
+{
+  1098,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "koi8r",                     /* cset name     */
+  "koi8r_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_koi8r_general_ci,                   /* ctype         */
+  to_lower_koi8r_general_ci,                   /* to_lower         */
+  to_upper_koi8r_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_koi8r_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_koi8u
+{
+  1099,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "koi8u",                     /* cset name     */
+  "koi8u_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_koi8u_general_ci,                   /* ctype         */
+  to_lower_koi8u_general_ci,                   /* to_lower         */
+  to_upper_koi8u_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_koi8u_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_latin2
+{
+  1101,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "latin2",                     /* cset name     */
+  "latin2_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_latin2_general_ci,                   /* ctype         */
+  to_lower_latin2_general_ci,                   /* to_lower         */
+  to_upper_latin2_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_latin2_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_latin5
+{
+  1102,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "latin5",                     /* cset name     */
+  "latin5_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_latin5_turkish_ci,                   /* ctype         */
+  to_lower_latin5_turkish_ci,                   /* to_lower         */
+  to_upper_latin5_turkish_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_latin5_turkish_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_latin7
+{
+  1103,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "latin7",                     /* cset name     */
+  "latin7_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_latin7_general_ci,                   /* ctype         */
+  to_lower_latin7_general_ci,                   /* to_lower         */
+  to_upper_latin7_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_latin7_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp850
+{
+  1104,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "cp850",                     /* cset name     */
+  "cp850_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_cp850_general_ci,                   /* ctype         */
+  to_lower_cp850_general_ci,                   /* to_lower         */
+  to_upper_cp850_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp850_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_cp852
+{
+  1105,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "cp852",                     /* cset name     */
+  "cp852_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_cp852_general_ci,                   /* ctype         */
+  to_lower_cp852_general_ci,                   /* to_lower         */
+  to_upper_cp852_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_cp852_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_swe7
+{
+  1106,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NONASCII|MY_CS_NOPAD,
+  "swe7",                     /* cset name     */
+  "swe7_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_swe7_swedish_ci,                   /* ctype         */
+  to_lower_swe7_swedish_ci,                   /* to_lower         */
+  to_upper_swe7_swedish_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_swe7_swedish_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_geostd8
+{
+  1116,0,0,
+  MY_CS_COMPILED|MY_CS_NOPAD,
+  "geostd8",                     /* cset name     */
+  "geostd8_general_nopad_ci",                     /* coll name     */
+  "",                       /* comment       */
+  "[import geostd8_general_ci]",                    /* tailoring */
+  ctype_geostd8_general_ci,                   /* ctype         */
+  to_lower_geostd8_general_ci,                   /* to_lower         */
+  to_upper_geostd8_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_geostd8_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_simple_nopad_ci_handler,
+}
+,
+#endif
+#ifdef HAVE_CHARSET_geostd8
+{
+  1117,0,0,
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,
+  "geostd8",                     /* cset name     */
+  "geostd8_nopad_bin",                     /* coll name     */
+  "",                       /* comment       */
+  NULL,                       /* tailoring     */
+  ctype_geostd8_general_ci,                   /* ctype         */
+  to_lower_geostd8_general_ci,                   /* to_lower         */
+  to_upper_geostd8_general_ci,                   /* to_upper         */
+  NULL,                     /* sort_order    */
+  NULL,                       /* uca           */
+  to_uni_geostd8_general_ci,                   /* to_uni         */
+  NULL,                       /* from_uni      */
+  &my_unicase_default,        /* caseinfo      */
+  NULL,                       /* state map     */
+  NULL,                       /* ident map     */
+  1,                          /* strxfrm_multiply*/
+  1,                          /* caseup_multiply*/
+  1,                          /* casedn_multiply*/
+  1,                          /* mbminlen      */
+  1,                          /* mbmaxlen      */
+  0,                          /* min_sort_char */
+  255,                        /* max_sort_char */
+  ' ',                        /* pad_char      */
+  0,                          /* escape_with_backslash_is_dangerous */
+  1,                          /* levels_for_order   */
+  &my_charset_8bit_handler,
+  &my_collation_8bit_nopad_bin_handler,
 }
 ,
 #endif

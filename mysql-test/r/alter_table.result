@@ -2057,3 +2057,26 @@ t1	CREATE TABLE `t1` (
   KEY `i1` (`a`) COMMENT 'comment2'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-10421 duplicate CHECK CONSTRAINTs
+#
+CREATE TABLE t1 (a INT, b INT) engine=myisam;
+ALTER TABLE t1 ADD CONSTRAINT IF NOT EXISTS `min` CHECK (a+b > 100);
+ALTER TABLE t1 ADD CONSTRAINT `min` CHECK (a+b > 100);
+ERROR HY000: Duplicate CHECK constraint name 'min'
+ALTER TABLE t1 ADD CONSTRAINT IF NOT EXISTS `min` CHECK (a+b > 100);
+Warnings:
+Note	1826	Duplicate CHECK constraint name 'min'
+ALTER TABLE t1 ADD CONSTRAINT `mini` CHECK (a+b > 100);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `min` CHECK (a+b > 100),
+  CONSTRAINT `mini` CHECK (a+b > 100)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1(a INT, b INT, CONSTRAINT min check (a>5),
+CONSTRAINT min check (b>5));
+ERROR HY000: Duplicate CHECK constraint name 'min'

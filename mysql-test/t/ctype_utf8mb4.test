@@ -1954,5 +1954,16 @@ SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+let $coll='utf8mb4_general_nopad_ci';
+let $coll_pad='utf8mb4_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='utf8mb4_nopad_bin';
+let $coll_pad='utf8mb4_bin';
+--source include/ctype_pad_all_engines.inc
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

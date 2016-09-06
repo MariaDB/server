@@ -32,6 +32,8 @@
 #define DBUG_ASSERT(A) assert(A)
 #endif
 
+#define MY_NOPAD_ID(x)  ((x)+0x400)
+
 /* SPACE_INT is a word that contains only spaces */
 #if SIZEOF_INT == 4
 #define SPACE_INT 0x20202020
