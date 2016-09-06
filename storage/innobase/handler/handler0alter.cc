@@ -1125,9 +1125,9 @@ innobase_get_foreign_key_info(
 			    referenced_column_names, referenced_num_col)) {
 			mutex_exit(&dict_sys->mutex);
 			my_error(
-				ER_FK_DUP_NAME,
+				ER_DUP_CONSTRAINT_NAME,
 				MYF(0),
-				add_fk[num_fk]->id);
+                                "FOREIGN KEY", add_fk[num_fk]->id);
 			goto err_exit;
 		}
 
