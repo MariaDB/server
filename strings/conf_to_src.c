@@ -119,7 +119,10 @@ static void simple_cs_copy_data(struct charset_info_st *to, CHARSET_INFO *from)
   
   if (from->name)
     to->name= strdup(from->name);
-  
+
+  if (from->tailoring)
+    to->tailoring= strdup(from->tailoring);
+
   if (from->ctype)
     to->ctype= (uchar*) mdup((char*) from->ctype, MY_CS_CTYPE_TABLE_SIZE);
   if (from->to_lower)
@@ -144,30 +147,60 @@ static void simple_cs_copy_data(struct charset_info_st *to, CHARSET_INFO *from)
 }
 
 
-static void inherit_data(struct charset_info_st *cs, CHARSET_INFO *refcs)
+/*
+  cs->xxx arrays can be NULL in case when a collation has an entry only
+  in Index.xml and has no entry in csname.xml (e.g. in case of a binary
+  collation or a collation using <import> command).
+
+  refcs->xxx arrays can be NULL if <import> refers to a collation
+  which is not defined in csname.xml, e.g. an always compiled collation
+  such as latin1_swedish_ci.
+*/
+static void inherit_charset_data(struct charset_info_st *cs,
+                                 CHARSET_INFO *refcs)
 {
-  if (refcs->ctype &&
+  cs->state|= (refcs->state & (MY_CS_PUREASCII|MY_CS_NONASCII));
+  if (refcs->ctype && cs->ctype &&
       !memcmp(cs->ctype, refcs->ctype, MY_CS_CTYPE_TABLE_SIZE))
     cs->ctype= NULL;
-  if (refcs->to_lower &&
+  if (refcs->to_lower && cs->to_lower &&
       !memcmp(cs->to_lower, refcs->to_lower, MY_CS_TO_LOWER_TABLE_SIZE))
      cs->to_lower= NULL;
-  if (refcs->to_upper &&
+  if (refcs->to_upper && cs->to_upper &&
       !memcmp(cs->to_upper, refcs->to_upper, MY_CS_TO_LOWER_TABLE_SIZE))
     cs->to_upper= NULL;
-  if (refcs->tab_to_uni &&
+  if (refcs->tab_to_uni && cs->tab_to_uni &&
       !memcmp(cs->tab_to_uni, refcs->tab_to_uni,
               MY_CS_TO_UNI_TABLE_SIZE * sizeof(uint16)))
     cs->tab_to_uni= NULL;
 }
 
 
+static CHARSET_INFO *find_charset_data_inheritance_source(CHARSET_INFO *cs)
+{
+  CHARSET_INFO *refcs;
+  uint refid= get_charset_number_internal(cs->csname, MY_CS_PRIMARY);
+  return refid && refid != cs->number &&
+         (refcs= &all_charsets[refid]) &&
+         (refcs->state & MY_CS_LOADED) ? refcs : NULL;
+}
+
+
+/**
+  Detect if "cs" needs further loading from csname.xml
+  @param   cs    - the character set pointer
+  @retval  FALSE - if the current data (e.g. loaded from from Index.xml)
+                   is not enough to dump the character set and requires
+                   further reading from the csname.xml file.
+  @retval  TRUE  - if the current data is enough to dump,
+                   no reading of csname.xml is needed.
+*/
 static my_bool simple_cs_is_full(CHARSET_INFO *cs)
 {
   return ((cs->csname && cs->tab_to_uni && cs->ctype && cs->to_upper &&
 	   cs->to_lower) &&
 	  (cs->number && cs->name && 
-	  (cs->sort_order || (cs->state & MY_CS_BINSORT))));
+	  (cs->sort_order || cs->tailoring || (cs->state & MY_CS_BINSORT))));
 }
 
 static int add_collation(struct charset_info_st *cs)
@@ -183,6 +216,7 @@ static int add_collation(struct charset_info_st *cs)
     
     cs->number= 0;
     cs->name= NULL;
+    cs->tailoring= NULL;
     cs->state= 0;
     cs->sort_order= NULL;
     cs->state= 0;
@@ -255,6 +289,55 @@ void print_arrays(FILE *f, CHARSET_INFO *cs)
 }
 
 
+/**
+  Print an array member of a CHARSET_INFO.
+  @param   f       - the file to print into
+  @param   cs0     - reference to the CHARSET_INFO to print
+  @param   array0  - pointer to the array data (can be NULL)
+  @param   cs1     - reference to the CHARSET_INFO that the data
+                     can be inherited from (e.g. primary collation)
+  @param   array1  - pointer to the array data in cs1 (can be NULL)
+  @param   name    - name of the member
+
+  If array0 is not null, then the CHARSET_INFO being dumped has its
+  own array (e.g. the default collation for the character set).
+  We print the name of this array using cs0->name and return.
+
+  If array1 is not null, then the CHARSET_INFO being dumpled reuses
+  the array from another collation. We print the name of the array of
+  the referenced collation using cs1->name and return.
+
+  Otherwise (if both array0 and array1 are NULL), we have a collation
+  of a character set whose primary collation is not available now,
+  and which does not have its own entry in csname.xml file.
+
+  For example, Index.xml has this entry:
+    <collation name="latin1_swedish_ci_copy">
+    <rules>
+      <import source="latin1_swedish_ci"/>
+    </rules>
+    </collation>
+  and latin1.xml does not have entries for latin1_swedish_ci_copy.
+
+  In such cases we print NULL as a pointer to the array.
+  It will be set to a not-null data during the first initialization
+  by the inherit_charset_data() call (see mysys/charset.c for details).
+*/
+static void
+print_array_ref(FILE *f,
+                CHARSET_INFO *cs0, const void *array0,
+                CHARSET_INFO *cs1, const void *array1,
+                const char *name)
+{
+  CHARSET_INFO *cs= array0 ? cs0 : array1 ? cs1 : NULL;
+  if (cs)
+    fprintf(f,"  %s_%s,                   /* %s         */\n",
+            name, cs->name, name);
+  else
+    fprintf(f,"  NULL,                     /* %s         */\n", name);
+}
+
+
 void dispcset(FILE *f,CHARSET_INFO *cs)
 {
   fprintf(f,"{\n");
@@ -272,21 +355,23 @@ void dispcset(FILE *f,CHARSET_INFO *cs)
     fprintf(f,"  \"%s\",                     /* cset name     */\n",cs->csname);
     fprintf(f,"  \"%s\",                     /* coll name     */\n",cs->name);
     fprintf(f,"  \"\",                       /* comment       */\n");
-    fprintf(f,"  NULL,                       /* tailoring     */\n");
+    if (cs->tailoring)
+      fprintf(f, "  \"%s\",                    /* tailoring */\n", cs->tailoring);
+    else
+      fprintf(f,"  NULL,                       /* tailoring     */\n");
 
-    fprintf(f,"  ctype_%s,                   /* ctype         */\n",
-            cs->ctype ? cs->name : srccs->name);
-    fprintf(f,"  to_lower_%s,                /* lower         */\n",
-            cs->to_lower ? cs->name : srccs->name);
-    fprintf(f,"  to_upper_%s,                /* upper         */\n",
-            cs->to_upper ? cs->name : srccs->name);
+    print_array_ref(f, cs, cs->ctype, srccs, srccs->ctype, "ctype");
+    print_array_ref(f, cs, cs->to_lower, srccs, srccs->to_lower, "to_lower");
+    print_array_ref(f, cs, cs->to_upper, srccs, srccs->to_upper, "to_upper");
+
     if (cs->sort_order)
       fprintf(f,"  sort_order_%s,            /* sort_order    */\n",cs->name);
     else
       fprintf(f,"  NULL,                     /* sort_order    */\n");
+
     fprintf(f,"  NULL,                       /* uca           */\n");
-    fprintf(f,"  to_uni_%s,                  /* to_uni        */\n",
-            cs->tab_to_uni ? cs->name : srccs->name);
+
+    print_array_ref(f, cs, cs->tab_to_uni, srccs, srccs->tab_to_uni, "to_uni");
   }
   else
   {
@@ -403,14 +488,13 @@ main(int argc, char **argv  __attribute__((unused)))
   {
     if (cs->state & MY_CS_LOADED)
     {
-      uint refid= get_charset_number_internal(cs->csname, MY_CS_PRIMARY);
+      CHARSET_INFO *refcs= find_charset_data_inheritance_source(cs);
       cs->state|= my_8bit_charset_flags_from_data(cs) |
                   my_8bit_collation_flags_from_data(cs);
-      if (refid && cs->number != refid)
+      if (refcs)
       {
-        CHARSET_INFO *refcs= &all_charsets[refid];
-        refids[cs->number]= refid;
-        inherit_data(cs, refcs);
+        refids[cs->number]= refcs->number;
+        inherit_charset_data(cs, refcs);
       }
       fprintf(f,"#ifdef HAVE_CHARSET_%s\n",cs->csname);
       print_arrays(f, cs);

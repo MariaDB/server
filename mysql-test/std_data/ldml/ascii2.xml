@@ -116,6 +116,12 @@
 
 <collation name="ascii2_bin"	flag="binary"/>
 
+<collation name="ascii2_general_inherited_ci">
+  <rules>
+    <import source="ascii2_general_ci"/>
+  </rules>
+</collation>
+
 </charset>
 
 </charsets>

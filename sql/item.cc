@@ -2078,6 +2078,9 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
         set(0, DERIVATION_NONE, 0);
         return 1;
       }
+      if (collation->state & MY_CS_BINSORT &&
+          dt.collation->state & MY_CS_BINSORT)
+        return 1;
       if (collation->state & MY_CS_BINSORT)
         return 0;
       if (dt.collation->state & MY_CS_BINSORT)

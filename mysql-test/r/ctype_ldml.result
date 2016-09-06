@@ -454,8 +454,12 @@ select "foo" = "foo " collate latin1_test;
 The following tests check that two-byte collation IDs work
 select * from information_schema.collations where id>256 and is_compiled<>'Yes' order by id;
 COLLATION_NAME	CHARACTER_SET_NAME	ID	IS_DEFAULT	IS_COMPILED	SORTLEN
+ascii2_bin2	ascii2	319			1
 ascii2_general_ci	ascii2	320	Yes		1
 ascii2_bin	ascii2	321			1
+ascii2_general_inherited_ci	ascii2	322			1
+ascii2_general_inherited2_ci	ascii2	323			1
+ascii2_badly_inherited_ci	ascii2	324			1
 utf8mb4_test_ci	utf8mb4	326			8
 utf16_test_ci	utf16	327			8
 utf8mb4_test_400_ci	utf8mb4	328			8
@@ -1185,9 +1189,15 @@ ch	w	ducet
 DROP TABLE t1;
 #
 # Testing that the MY_CS_PUREASCII flag is set properly
+# Comparison between ascii2 and latin1 should not give "illegal collation error"
 #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii2, b VARCHAR(10) CHARACTER SET latin1);
 INSERT INTO t1 VALUES ('a','a'),('b','b');
+SELECT * FROM t1 WHERE a=b;
+a	b
+a	a
+b	b
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_bin2;
 SELECT * FROM t1 WHERE a=b;
 a	b
 a	a
@@ -1197,7 +1207,43 @@ SELECT * FROM t1 WHERE a=b;
 a	b
 a	a
 b	b
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_general_inherited_ci;
+SELECT * FROM t1 WHERE a=b;
+a	b
+a	a
+b	b
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_general_inherited2_ci;
+SELECT * FROM t1 WHERE a=b;
+a	b
+a	a
+b	b
 DROP TABLE t1;
+#
+# Testing that in case of two binary collations
+# "BINARY" in a column definition uses the collation with the least id
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii2 BINARY);
+INSERT INTO t1 VALUES ('test');
+SELECT COLLATION(a) FROM t1;
+COLLATION(a)
+ascii2_bin2
+DROP TABLE t1;
+#
+# Testing mixing of two binary collations of the same character set
+#
+CREATE TABLE t1 (
+a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_bin,
+b VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_bin2
+);
+INSERT INTO t1 VALUES ('a','a');
+SELECT * FROM t1 WHERE a=b;
+ERROR HY000: Illegal mix of collations (ascii2_bin,IMPLICIT) and (ascii2_bin2,IMPLICIT) for operation '='
+DROP TABLE t1;
+#
+# Testing bad collation inheritance
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_badly_inherited_ci);
+ERROR HY000: Unknown collation: 'ascii2_badly_inherited_ci'
 #
 # Testing that the MY_CS_CSSORT flag is set properly
 #

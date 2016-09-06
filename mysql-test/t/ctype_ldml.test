@@ -413,16 +413,48 @@ DROP TABLE t1;
 
 --echo #
 --echo # Testing that the MY_CS_PUREASCII flag is set properly
+--echo # Comparison between ascii2 and latin1 should not give "illegal collation error"
 --echo #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii2, b VARCHAR(10) CHARACTER SET latin1);
 INSERT INTO t1 VALUES ('a','a'),('b','b');
-# should not give "illegal collation" error
+SELECT * FROM t1 WHERE a=b;
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_bin2;
 SELECT * FROM t1 WHERE a=b;
 ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_bin;
-# should not give "illegal collation" error
+SELECT * FROM t1 WHERE a=b;
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_general_inherited_ci;
+SELECT * FROM t1 WHERE a=b;
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_general_inherited2_ci;
 SELECT * FROM t1 WHERE a=b;
 DROP TABLE t1;
 
+--echo #
+--echo # Testing that in case of two binary collations
+--echo # "BINARY" in a column definition uses the collation with the least id
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii2 BINARY);
+INSERT INTO t1 VALUES ('test');
+SELECT COLLATION(a) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing mixing of two binary collations of the same character set
+--echo #
+CREATE TABLE t1 (
+ a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_bin,
+ b VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_bin2
+);
+INSERT INTO t1 VALUES ('a','a');
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT * FROM t1 WHERE a=b;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing bad collation inheritance
+--echo #
+--error ER_UNKNOWN_COLLATION
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_badly_inherited_ci);
 
 --echo #
 --echo # Testing that the MY_CS_CSSORT flag is set properly

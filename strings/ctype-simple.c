@@ -1417,6 +1417,8 @@ my_cset_init_8bit(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
   cs->caseup_multiply= 1;
   cs->casedn_multiply= 1;
   cs->pad_char= ' ';
+  if (!cs->to_lower || !cs->to_upper || !cs->ctype || !cs->tab_to_uni)
+    return TRUE;
   return create_fromuni(cs, loader);
 }
 
@@ -1442,6 +1444,8 @@ static void set_max_sort_char(struct charset_info_st *cs)
 static my_bool my_coll_init_simple(struct charset_info_st *cs,
                                    MY_CHARSET_LOADER *loader __attribute__((unused)))
 {
+  if (!cs->sort_order)
+    return TRUE;
   cs->state|= my_8bit_collation_flags_from_data(cs);
   set_max_sort_char(cs);
   return FALSE;

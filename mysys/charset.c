@@ -197,13 +197,55 @@ err:
 }
 
 
+static my_bool simple_8bit_charset_data_is_full(CHARSET_INFO *cs)
+{
+  return cs->ctype && cs->to_upper && cs->to_lower && cs->tab_to_uni;
+}
+
+
+/**
+  Inherit missing 8bit charset data from another collation.
+  Arrays pointed by refcs must be in the permanent memory already,
+  e.g. static memory, or allocated by my_once_xxx().
+*/
+static void
+inherit_charset_data(struct charset_info_st *cs, CHARSET_INFO *refcs)
+{
+  if (!cs->to_upper)
+    cs->to_upper= refcs->to_upper;
+  if (!cs->to_lower)
+    cs->to_lower= refcs->to_lower;
+  if (!cs->ctype)
+    cs->ctype= refcs->ctype;
+  if (!cs->tab_to_uni)
+    cs->tab_to_uni= refcs->tab_to_uni;
+}
+
+
+static my_bool simple_8bit_collation_data_is_full(CHARSET_INFO *cs)
+{
+  return cs->sort_order || (cs->state & MY_CS_BINSORT);
+}
+
+
+/**
+  Inherit 8bit simple collation data from another collation.
+  refcs->sort_order must be in the permanent memory already,
+  e.g. static memory, or allocated by my_once_xxx().
+*/
+static void
+inherit_collation_data(struct charset_info_st *cs, CHARSET_INFO *refcs)
+{
+  if (!simple_8bit_collation_data_is_full(cs))
+    cs->sort_order= refcs->sort_order;
+}
+
 
 static my_bool simple_cs_is_full(CHARSET_INFO *cs)
 {
-  return ((cs->csname && cs->tab_to_uni && cs->ctype && cs->to_upper &&
-	   cs->to_lower) &&
-	  (cs->number && cs->name &&
-	  (cs->sort_order || (cs->state & MY_CS_BINSORT) )));
+  return  cs->number && cs->csname && cs->name &&
+          simple_8bit_charset_data_is_full(cs) &&
+          (simple_8bit_collation_data_is_full(cs) || cs->tailoring);
 }
 
 
@@ -336,7 +378,7 @@ static int add_collation(struct charset_info_st *cs)
     cs->name= NULL;
     cs->state= 0;
     cs->sort_order= NULL;
-    cs->state= 0;
+    cs->tailoring= NULL;
   }
   return MY_XML_OK;
 }
@@ -631,6 +673,39 @@ const char *get_charset_name(uint charset_number)
 }
 
 
+static CHARSET_INFO *inheritance_source_by_id(CHARSET_INFO *cs, uint refid)
+{
+  CHARSET_INFO *refcs;
+  return refid && refid != cs->number &&
+         (refcs= all_charsets[refid]) &&
+         (refcs->state & MY_CS_AVAILABLE) ? refcs : NULL;
+}
+
+
+static CHARSET_INFO *find_collation_data_inheritance_source(CHARSET_INFO *cs)
+{
+  const char *beg, *end;
+  if (cs->tailoring &&
+      !strncmp(cs->tailoring, "[import ", 8) &&
+      (end= strchr(cs->tailoring + 8, ']')) &&
+      (beg= cs->tailoring + 8) + MY_CS_NAME_SIZE > end)
+  {
+    char name[MY_CS_NAME_SIZE + 1];
+    memcpy(name, beg, end - beg);
+    name[end - beg]= '\0';
+    return inheritance_source_by_id(cs, get_collation_number(name));
+  }
+  return NULL;
+}
+
+
+static CHARSET_INFO *find_charset_data_inheritance_source(CHARSET_INFO *cs)
+{
+  uint refid= get_charset_number_internal(cs->csname, MY_CS_PRIMARY);
+  return inheritance_source_by_id(cs, refid);
+}
+
+
 static CHARSET_INFO *
 get_internal_charset(MY_CHARSET_LOADER *loader, uint cs_number, myf flags)
 {
@@ -665,6 +740,19 @@ get_internal_charset(MY_CHARSET_LOADER *loader, uint cs_number, myf flags)
     {
       if (!(cs->state & MY_CS_READY))
       {
+        if (!simple_8bit_charset_data_is_full(cs))
+        {
+          CHARSET_INFO *refcs= find_charset_data_inheritance_source(cs);
+          if (refcs)
+            inherit_charset_data(cs, refcs);
+        }
+        if (!simple_8bit_collation_data_is_full(cs))
+        {
+          CHARSET_INFO *refcl= find_collation_data_inheritance_source(cs);
+          if (refcl)
+            inherit_collation_data(cs, refcl);
+        }
+
         if ((cs->cset->init && cs->cset->init(cs, loader)) ||
             (cs->coll->init && cs->coll->init(cs, loader)))
         {
