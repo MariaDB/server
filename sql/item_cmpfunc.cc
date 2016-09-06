@@ -34,9 +34,6 @@
 #include "sql_time.h"                  // make_truncated_value_warning
 #include "sql_base.h"                  // dynamic_column_error_message
 
-#define FULL_EXTRACTION_FL (1 << 6)
-#define NO_EXTRACTION_FL (1 << 7)
-
 
 /**
   find an temporal type (item) that others will be converted to
