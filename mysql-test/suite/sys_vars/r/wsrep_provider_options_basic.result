@@ -2,6 +2,7 @@
 # wsrep_provider_options
 #
 call mtr.add_suppression("WSREP: Failed to get provider options");
+SET @@global.wsrep_provider =  @@global.wsrep_provider;
 # save the initial value
 SET @wsrep_provider_options_global_saved = @@global.wsrep_provider_options;
 # default
