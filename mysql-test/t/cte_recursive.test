@@ -1184,3 +1184,13 @@ drop table t1;
 WITH RECURSIVE cte(n) AS
   ( SELECT n+1 FROM cte WHERE n < 5 UNION SELECT 1 UNION SELECT 1 )
 SELECT * FROM cte;
+
+--echo #
+--echo # MDEV-10736: recursive definition with anchor over a table with blob
+--echo #
+
+CREATE TABLE t1 (f VARCHAR(1024));
+WITH RECURSIVE cte(f) AS
+(SELECT t1.f FROM t1 UNION ALL SELECT cte.f FROM cte) 
+SELECT * FROM cte;
+DROP TABLE t1;

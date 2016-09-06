@@ -1301,6 +1301,9 @@ bool With_element::instantiate_tmp_tables()
                               &rec_result->tmp_table_param.recinfo,
                               0))
       return true;
+
+    rec_table->file->extra(HA_EXTRA_WRITE_CACHE);
+    rec_table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
   }
   return false;
 }

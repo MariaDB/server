@@ -237,12 +237,6 @@ select_union_recursive::create_result_table(THD *thd_arg,
   for (uint i=0; i < table->s->fields; i++)
     rec_table->field[i]->flags &= ~PART_KEY_FLAG;
 
-  if (create_table)
-  {
-    rec_table->file->extra(HA_EXTRA_WRITE_CACHE);
-    rec_table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-  }
-
   if (rec_tables.push_back(rec_table))
     return true;
 
