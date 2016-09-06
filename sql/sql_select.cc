@@ -1138,7 +1138,6 @@ JOIN::optimize_inner()
   uint no_jbuf_after;
   JOIN_TAB *tab;
   DBUG_ENTER("JOIN::optimize");
-  dbug_print_item(conds);
   do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
   // to prevent double initialization on EXPLAIN
   if (optimized)
