@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -452,7 +452,7 @@ lock_prdt_add_to_queue(
 
 	RecLock	rec_lock(index, block, PRDT_HEAPNO, type_mode);
 
-	return(rec_lock.create(trx, caller_owns_trx_mutex, prdt));
+	return(rec_lock.create(trx, caller_owns_trx_mutex, true, prdt));
 }
 
 /*********************************************************************//**
@@ -838,7 +838,7 @@ lock_prdt_lock(
 
 		RecLock	rec_lock(index, block, PRDT_HEAPNO, prdt_mode);
 
-		lock = rec_lock.create(trx, false);
+		lock = rec_lock.create(trx, false, true);
 
 		status = LOCK_REC_SUCCESS_CREATED;
 
@@ -954,7 +954,7 @@ lock_place_prdt_page_lock(
 		RecID	rec_id(space, page_no, PRDT_HEAPNO);
 		RecLock	rec_lock(index, rec_id, mode);
 
-		rec_lock.create(trx, false);
+		rec_lock.create(trx, false, true);
 
 #ifdef PRDT_DIAG
 		printf("GIS_DIAGNOSTIC: page lock %d\n", (int) page_no);
@@ -966,14 +966,16 @@ lock_place_prdt_page_lock(
 	return(DB_SUCCESS);
 }
 
-/*********************************************************************//**
-Check whether there are R-tree Page lock on a page
+/** Check whether there are R-tree Page lock on a page
+@param[in]	trx	trx to test the lock
+@param[in]	space	space id for the page
+@param[in]	page_no	page number
 @return	true if there is none */
 bool
 lock_test_prdt_page_lock(
-/*=====================*/
-	ulint		space,		/*!< in: space id for the page */
-	ulint		page_no)	/*!< in: page number */
+	const trx_t*    trx,
+	ulint           space,
+	ulint           page_no)
 {
 	lock_t*		lock;
 
@@ -984,7 +986,7 @@ lock_test_prdt_page_lock(
 
 	lock_mutex_exit();
 
-	return(lock == NULL);
+	return(lock == NULL || trx == lock->trx);
 }
 
 /*************************************************************//**
@@ -1024,14 +1026,13 @@ lock_prdt_rec_move(
 	lock_mutex_exit();
 }
 
-/*************************************************************//**
-Removes predicate lock objects set on an index page which is discarded. */
+/** Removes predicate lock objects set on an index page which is discarded.
+@param[in]	block		page to be discarded
+@param[in]	lock_hash	lock hash */
 void
-lock_prdt_free_from_discard_page(
-/*=============================*/
-	const buf_block_t*      block,	/*!< in: page to be discarded */
+lock_prdt_page_free_from_discard(
+	const buf_block_t*      block,
 	hash_table_t*		lock_hash)
-					/*!< in: lock hash */
 {
 	lock_t*	lock;
 	lock_t*	next_lock;

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2016, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
@@ -335,6 +335,21 @@ dict_index_is_unique(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(index->type & DICT_UNIQUE);
+}
+
+/********************************************************************//**
+Check whether the index is an universal index tree.
+@return	nonzero for universal tree, zero for other indexes */
+UNIV_INLINE
+ulint
+dict_index_is_univ(
+/*===============*/
+	const dict_index_t*	index)	/*!< in: index */
+{
+	ut_ad(index);
+	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+
+	return(index->type & DICT_UNIVERSAL);
 }
 
 /********************************************************************//**
@@ -711,7 +726,7 @@ dict_tf_is_valid(
 		}
 	}
 
-        if (page_compression || page_compression_level) {
+	if (page_compression || page_compression_level) {
 		/* Page compression format must have compact and
 		atomic_blobs and page_compression_level requires
 		page_compression */
@@ -774,6 +789,7 @@ dict_tf2_is_valid(
 
 	bool	file_per_table = ((flags2 & DICT_TF2_USE_FILE_PER_TABLE) != 0);
 	bool	shared_space = DICT_TF_HAS_SHARED_SPACE(flags);
+
 	if (file_per_table && shared_space) {
 		return(false);
 	}
@@ -869,13 +885,13 @@ dict_sys_tables_type_validate(
 	format, so the DATA_DIR flag is compatible with any other
 	table flags. However, it is not used with TEMPORARY tables. */
 
-        if (page_compression || page_compression_level) {
+	if (page_compression || page_compression_level) {
 		/* page compressed row format must have low_order_bit and
 		atomic_blobs bits set and the DICT_N_COLS_COMPACT flag
 		should be in N_COLS, but we already know about the
 		low_order_bit and DICT_N_COLS_COMPACT flags. */
 
-                if (!atomic_blobs || !page_compression) {
+		if (!atomic_blobs || !page_compression) {
 			ib::error() << "SYS_TABLES::TYPE=" << type
 				<< " page_compression:" << page_compression
 				<< " page_compression_level:" << page_compression_level
@@ -1008,7 +1024,7 @@ dict_tf_set(
 
 	if (page_compressed) {
 		*flags |= (1 << DICT_TF_POS_ATOMIC_BLOBS)
-                       | (1 << DICT_TF_POS_PAGE_COMPRESSION)
+		       | (1 << DICT_TF_POS_PAGE_COMPRESSION)
 		       | (page_compression_level << DICT_TF_POS_PAGE_COMPRESSION_LEVEL);
 
 		ut_ad(zip_ssize == 0);
@@ -1067,7 +1083,7 @@ dict_tf_init(
 
 	if (page_compressed) {
 		flags |= (1 << DICT_TF_POS_ATOMIC_BLOBS)
-                      | (1 << DICT_TF_POS_PAGE_COMPRESSION)
+		      | (1 << DICT_TF_POS_PAGE_COMPRESSION)
 		      | (page_compression_level << DICT_TF_POS_PAGE_COMPRESSION_LEVEL);
 
 		ut_ad(zip_ssize == 0);
@@ -1706,9 +1722,11 @@ dict_max_v_field_len_store_undo(
 	for UNIV_FORMAT_B, upto col->max_prefix or
 	2) REC_VERSION_56_MAX_INDEX_COL_LEN, whichever is less */
 	if (dict_table_get_format(table) >= UNIV_FORMAT_B) {
-		max_log_len = (col->max_prefix > 0)
-			? col->max_prefix
-			: DICT_MAX_FIELD_LEN_BY_FORMAT(table);
+		if (DATA_BIG_COL(col) && col->max_prefix > 0) {
+			max_log_len = col->max_prefix;
+		} else {
+			max_log_len = DICT_MAX_FIELD_LEN_BY_FORMAT(table);
+		}
 	} else {
 		max_log_len = REC_ANTELOPE_MAX_INDEX_COL_LEN;
 	}
@@ -1786,6 +1804,18 @@ dict_table_is_temporary(
 	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY));
 }
 
+/********************************************************************//**
+Check if it is a encrypted table.
+@return true if table encrypted flag is set. */
+UNIV_INLINE
+bool
+dict_table_is_encrypted(
+/*====================*/
+	const dict_table_t*	table)	/*!< in: table to check */
+{
+	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_ENCRYPTION));
+}
+
 /** Check whether the table is intrinsic.
 An intrinsic table is a special kind of temporary table that
 is invisible to the end user.  It can be created internally by InnoDB, the MySQL
@@ -1804,6 +1834,18 @@ dict_table_is_intrinsic(
 	const dict_table_t*	table)
 {
 	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_INTRINSIC));
+}
+
+/** Check if the table is in a shared tablespace (System or General).
+@param[in]	id	Space ID to check
+@return true if id is a shared tablespace, false if not. */
+UNIV_INLINE
+bool
+dict_table_in_shared_tablespace(
+	const dict_table_t*	table)
+{
+	return(is_system_tablespace(table->space)
+		|| DICT_TF_HAS_SHARED_SPACE(table->flags));
 }
 
 /** Check whether locking is disabled for this table.
@@ -2001,6 +2043,47 @@ dict_table_decode_n_col(
 	ulint	num = encoded & ~DICT_N_COLS_COMPACT;
 	*n_v_col = num >> 16;
 	*n_col = num & 0xFFFF;
+}
+
+/** Free the virtual column template
+@param[in,out]	vc_templ	virtual column template */
+void
+dict_free_vc_templ(
+	dict_vcol_templ_t*	vc_templ)
+{
+	if (vc_templ->vtempl != NULL) {
+		ut_ad(vc_templ->n_v_col > 0);
+		for (ulint i = 0; i < vc_templ->n_col
+		     + vc_templ->n_v_col; i++) {
+			if (vc_templ->vtempl[i] != NULL) {
+				ut_free(vc_templ->vtempl[i]);
+			}
+		}
+		ut_free(vc_templ->default_rec);
+		ut_free(vc_templ->vtempl);
+		vc_templ->vtempl = NULL;
+	}
+}
+
+/** Check whether the table have virtual index.
+@param[in]	table	InnoDB table
+@return true if the table have virtual index, false otherwise. */
+UNIV_INLINE
+bool
+dict_table_have_virtual_index(
+	dict_table_t*	table)
+{
+	for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(table);
+	     col_no++) {
+		const dict_v_col_t*	col
+			= dict_table_get_nth_v_col(table, col_no);
+
+		if (col->m_col.ord_part) {
+			return(true);
+		}
+	}
+
+	return(false);
 }
 
 #endif /* !UNIV_HOTBACKUP */

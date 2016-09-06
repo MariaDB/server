@@ -22,7 +22,3 @@ innodb-wl5522-debug-zip  : broken upstream
 innodb_bug12902967       : broken upstream
 file_contents            : MDEV-6526 these files are not installed anymore
 max_statement_time       : cannot possibly work, depends on timing
-implicit_commit          : MDEV-10549
-lock_sync                : MDEV-10548
-innodb_mysql_sync        : MDEV-10548
-partition_debug_sync     : MDEV-10548

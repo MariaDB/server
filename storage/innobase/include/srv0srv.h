@@ -58,6 +58,8 @@ Created 10/10/1995 Heikki Tuuri
 #include "ut0counter.h"
 #include "fil0fil.h"
 
+struct fil_space_t;
+
 /* Global counters used inside InnoDB. */
 struct srv_stats_t {
 	typedef ib_counter_t<ulint, 64> ulint_ctr_64_t;
@@ -297,8 +299,8 @@ extern my_bool srv_use_atomic_writes;
 extern ulong innodb_compression_algorithm;
 
 /* Number of flush threads */
-#define MTFLUSH_MAX_WORKER       64
-#define MTFLUSH_DEFAULT_WORKER   8
+#define MTFLUSH_MAX_WORKER		64
+#define MTFLUSH_DEFAULT_WORKER		8
 
 /* Number of threads used for multi-threaded flush */
 extern long    srv_mtflush_threads;
@@ -372,6 +374,7 @@ extern my_bool	srv_flush_sync;
 /* When this event is reset we do not allow any file writes to take place. */
 extern os_event_t	srv_allow_writes_event;
 #endif /* WITH_INNODB_DISALLOW_WRITES */
+
 /* If this flag is TRUE, then we will load the indexes' (and tables') metadata
 even if they are marked as "corrupted". Mostly it is for DBA to process
 corrupted index and table */
@@ -414,6 +417,7 @@ extern my_bool	srv_random_read_ahead;
 extern ulong	srv_read_ahead_threshold;
 extern ulint	srv_n_read_io_threads;
 extern ulint	srv_n_write_io_threads;
+
 /* Defragmentation, Origianlly facebook default value is 100, but it's too high */
 #define SRV_DEFRAGMENT_FREQUENCY_DEFAULT 40
 extern my_bool	srv_defragment;
@@ -481,6 +485,7 @@ extern my_bool			srv_stats_sample_traditional;
 
 extern ibool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
+extern ulong	srv_checksum_algorithm;
 
 extern double	srv_max_buf_pool_modified_pct;
 extern my_bool	srv_force_primary_key;
@@ -529,6 +534,9 @@ extern my_bool	srv_ibuf_disable_background_merge;
 #ifdef UNIV_DEBUG
 extern my_bool	srv_sync_debug;
 extern my_bool	srv_purge_view_update_only_debug;
+
+/** Value of MySQL global used to disable master thread. */
+extern my_bool	srv_master_thread_disabled_debug;
 #endif /* UNIV_DEBUG */
 
 #define SRV_SEMAPHORE_WAIT_EXTENSION	7200
@@ -594,6 +602,7 @@ extern mysql_pfs_key_t	srv_lock_timeout_thread_key;
 extern mysql_pfs_key_t	srv_master_thread_key;
 extern mysql_pfs_key_t	srv_monitor_thread_key;
 extern mysql_pfs_key_t	srv_purge_thread_key;
+extern mysql_pfs_key_t	srv_worker_thread_key;
 extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
 
 /* This macro register the current thread and its key with performance
@@ -951,11 +960,26 @@ bool
 srv_is_tablespace_truncated(ulint space_id);
 
 /** Check if tablespace was truncated.
-@param	space_id	space_id to check for truncate action
+@param[in]	space	space object to check for truncate action
 @return true if tablespace was truncated and we still have an active
 MLOG_TRUNCATE REDO log record. */
 bool
-srv_was_tablespace_truncated(ulint space_id);
+srv_was_tablespace_truncated(const fil_space_t* space);
+
+#ifdef UNIV_DEBUG
+/** Disables master thread. It's used by:
+	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
+@param[in]	thd		thread handle
+@param[in]	var		pointer to system variable
+@param[out]	var_ptr		where the formal string goes
+@param[in]	save		immediate result from check function */
+void
+srv_master_thread_disabled_debug_update(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				var_ptr,
+	const void*			save);
+#endif /* UNIV_DEBUG */
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
@@ -990,6 +1014,7 @@ struct export_var_t{
 	ulint innodb_buffer_pool_read_ahead_evicted;/*!< srv_read_ahead evicted*/
 	ulint innodb_dblwr_pages_written;	/*!< srv_dblwr_pages_written */
 	ulint innodb_dblwr_writes;		/*!< srv_dblwr_writes */
+	ibool innodb_have_atomic_builtins;	/*!< HAVE_ATOMIC_BUILTINS */
 	ulint innodb_log_waits;			/*!< srv_log_waits */
 	ulint innodb_log_write_requests;	/*!< srv_log_write_requests */
 	ulint innodb_log_writes;		/*!< srv_log_writes */
@@ -1136,6 +1161,7 @@ struct srv_slot_t{
 # define srv_start_raw_disk_in_use		0
 # define srv_file_per_table			1
 #endif /* !UNIV_HOTBACKUP */
+
 #ifdef WITH_WSREP
 UNIV_INTERN
 void

@@ -192,10 +192,10 @@ wsrep_is_BF_lock_timeout(
 	if (wsrep_on(trx->mysql_thd) &&
 	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		fprintf(stderr, "WSREP: BF lock wait long\n");
-                srv_print_innodb_monitor 	= TRUE;
-                srv_print_innodb_lock_monitor 	= TRUE;
-                os_event_set(srv_monitor_event);
-                return TRUE;
+		srv_print_innodb_monitor 	= TRUE;
+		srv_print_innodb_lock_monitor 	= TRUE;
+		os_event_set(srv_monitor_event);
+		return TRUE;
 	}
 	return FALSE;
  }
@@ -398,8 +398,8 @@ lock_wait_suspend_thread(
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout
 #ifdef WITH_WSREP
-            && (!wsrep_on(trx->mysql_thd) ||
-                (!wsrep_is_BF_lock_timeout(trx) && trx->error_state != DB_DEADLOCK))
+	    && (!wsrep_on(trx->mysql_thd) ||
+	       (!wsrep_is_BF_lock_timeout(trx) && trx->error_state != DB_DEADLOCK))
 #endif /* WITH_WSREP */
 	    && !trx_is_high_priority(trx)) {
 
@@ -570,7 +570,7 @@ DECLARE_THREAD(lock_wait_timeout_thread)(
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }

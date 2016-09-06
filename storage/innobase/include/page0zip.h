@@ -2,7 +2,6 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2016, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -88,7 +87,7 @@ ulint
 page_zip_get_size(
 /*==============*/
 	const page_zip_des_t*	page_zip)	/*!< in: compressed page */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************************//**
 Set the size of a compressed page in bytes. */
 UNIV_INLINE
@@ -113,7 +112,7 @@ page_zip_rec_needs_ext(
 	ulint			comp,
 	ulint			n_fields,
 	const page_size_t&	page_size)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /**********************************************************************//**
 Determine the guaranteed free space on an empty page.
@@ -124,6 +123,15 @@ page_zip_empty_size(
 	ulint	n_fields,	/*!< in: number of columns in the index */
 	ulint	zip_size)	/*!< in: compressed page size in bytes */
 	MY_ATTRIBUTE((const));
+
+/** Check whether a tuple is too big for compressed table
+@param[in]	index	dict index object
+@param[in]	entry	entry for the index
+@return	true if it's too big, otherwise false */
+bool
+page_zip_is_too_big(
+	const dict_index_t*	index,
+	const dtuple_t*		entry);
 #endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
@@ -243,7 +251,7 @@ page_zip_max_ins_size(
 /*==================*/
 	const page_zip_des_t*	page_zip,/*!< in: compressed page */
 	ibool			is_clust)/*!< in: TRUE if clustered index */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /**********************************************************************//**
 Determine if enough space is available in the modification log.
@@ -257,7 +265,7 @@ page_zip_available(
 	ulint			length,	/*!< in: combined size of the record */
 	ulint			create)	/*!< in: nonzero=add the record to
 					the heap */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /**********************************************************************//**
 Write data to the uncompressed header portion of a page.  The data must
@@ -553,26 +561,6 @@ void
 page_zip_reset_stat_per_index();
 /*===========================*/
 
-#ifndef UNIV_HOTBACKUP
-/** Check if a pointer to an uncompressed page matches a compressed page.
-When we IMPORT a tablespace the blocks and accompanying frames are allocted
-from outside the buffer pool.
-@param ptr pointer to an uncompressed page frame
-@param page_zip compressed page descriptor
-@return TRUE if ptr and page_zip refer to the same block */
-# define PAGE_ZIP_MATCH(ptr, page_zip)					\
-	(((page_zip)->m_external					\
-	  && (page_align(ptr) + UNIV_PAGE_SIZE == (page_zip)->data))	\
-	  || buf_frame_get_page_zip(ptr) == (page_zip))
-#else /* !UNIV_HOTBACKUP */
-/** Check if a pointer to an uncompressed page matches a compressed page.
-@param ptr pointer to an uncompressed page frame
-@param page_zip compressed page descriptor
-@return TRUE if ptr and page_zip refer to the same block */
-# define PAGE_ZIP_MATCH(ptr, page_zip)				\
-	(page_align(ptr) + UNIV_PAGE_SIZE == (page_zip)->data)
-#endif /* !UNIV_HOTBACKUP */
-
 #ifdef UNIV_MATERIALIZE
 # undef UNIV_INLINE
 # define UNIV_INLINE	UNIV_INLINE_ORIGINAL
@@ -581,20 +569,6 @@ from outside the buffer pool.
 #ifndef UNIV_NONINL
 # include "page0zip.ic"
 #endif
-
-/** Issue a warning when the checksum that is stored in the page is valid,
-but different than the global setting innodb_checksum_algorithm.
-@param[in]	current_algo	current checksum algorithm
-@param[in]	page_checksum	page valid checksum
-@param[in]	space_id	tablespace id
-@param[in]	page_no		page number */
-void
-page_warn_strict_checksum(
-	srv_checksum_algorithm_t	curr_algo,
-	srv_checksum_algorithm_t	page_checksum,
-	ulint				space_id,
-	ulint				page_no);
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 #endif /* page0zip_h */

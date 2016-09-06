@@ -252,7 +252,7 @@ bool
 trx_in_rw_trx_list(
 /*============*/
 	const trx_t*	in_trx)		/*!< in: transaction */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* UNIV_DEBUG */
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 /***********************************************************//**
@@ -277,9 +277,7 @@ trx_sys_update_mysql_binlog_offset(
 	int64_t		offset,	/*!< in: position in that log file */
 	ulint		field,	/*!< in: offset of the MySQL log info field in
 				the trx sys header */
-#ifdef WITH_WSREP
         trx_sysf_t*     sys_header, /*!< in: trx sys header */
-#endif /* WITH_WSREP */
 	mtr_t*		mtr);	/*!< in: mtr */
 /*****************************************************************//**
 Prints to stderr the MySQL binlog offset info in the trx system header if
@@ -291,25 +289,29 @@ trx_sys_print_mysql_binlog_offset(void);
 /** Update WSREP checkpoint XID in sys header. */
 void
 trx_sys_update_wsrep_checkpoint(
-        const XID*      xid,         /*!< in: WSREP XID */
-        trx_sysf_t*     sys_header,  /*!< in: sys_header */
-        mtr_t*          mtr);        /*!< in: mtr       */
+/*============================*/
+	const XID*	xid,		/*!< in: WSREP XID */
+	trx_sysf_t*	sys_header,	/*!< in: sys_header */
+	mtr_t*		mtr);		/*!< in: mtr */
 
 void
 /** Read WSREP checkpoint XID from sys header. */
 trx_sys_read_wsrep_checkpoint(
-        XID* xid); /*!< out: WSREP XID */
+/*==========================*/
+	XID* xid); /*!< out: WSREP XID */
 #endif /* WITH_WSREP */
-/*****************************************************************//**
-Initializes the tablespace tag system. */
+
+/** Initializes the tablespace tag system. */
 void
 trx_sys_file_format_init(void);
 /*==========================*/
+
 /*****************************************************************//**
 Closes the tablespace tag system. */
 void
 trx_sys_file_format_close(void);
 /*===========================*/
+
 /********************************************************************//**
 Tags the system table space with minimum format id if it has not been
 tagged yet.
@@ -318,6 +320,7 @@ redo log application during recovery has finished. */
 void
 trx_sys_file_format_tag_init(void);
 /*==============================*/
+
 /*****************************************************************//**
 Shutdown/Close the transaction system. */
 void

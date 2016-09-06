@@ -34,13 +34,17 @@ Created 2012/04/12 by Sunny Bains
 /** CPU cache line size */
 #ifndef UNIV_HOTBACKUP
 # ifdef CPU_LEVEL1_DCACHE_LINESIZE
-#  define CACHE_LINE_SIZE              CPU_LEVEL1_DCACHE_LINESIZE
+#  define CACHE_LINE_SIZE	CPU_LEVEL1_DCACHE_LINESIZE
 # else
 #  error CPU_LEVEL1_DCACHE_LINESIZE is undefined
 # endif /* CPU_LEVEL1_DCACHE_LINESIZE */
 #else
-# define CACHE_LINE_SIZE 64
+#ifdef powerpc
+#define CACHE_LINE_SIZE		128
+#else
+# define CACHE_LINE_SIZE	64
 #endif /* __powerpc__ */
+#endif /* UNIV_HOTBACKUP */
 
 /** Default number of slots to use in ib_counter_t */
 #define IB_N_SLOTS		64

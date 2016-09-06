@@ -338,8 +338,10 @@ btr_root_adjust_on_import(
 		} else {
 			/* Check that the table flags and the tablespace
 			flags match. */
-			ulint	flags = dict_tf_to_fsp_flags(table->flags,
-							     false);
+			ulint	flags = dict_tf_to_fsp_flags(
+				table->flags,
+				false,
+				dict_table_is_encrypted(table));
 			ulint	fsp_flags = fil_space_get_flags(table->space);
 			err = fsp_flags_are_equal(flags, fsp_flags)
 			      ? DB_SUCCESS : DB_CORRUPTION;
@@ -910,6 +912,7 @@ btr_page_get_father_node_ptr_func(
 
 	page_no = btr_cur_get_block(cursor)->page.id.page_no();
 	index = btr_cur_get_index(cursor);
+	ut_ad(!dict_index_is_spatial(index));
 
 	ut_ad(srv_read_only_mode
 	      || mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
@@ -923,44 +926,33 @@ btr_page_get_father_node_ptr_func(
 
 	user_rec = btr_cur_get_rec(cursor);
 	ut_a(page_rec_is_user_rec(user_rec));
+
 	tuple = dict_index_build_node_ptr(index, user_rec, 0, heap, level);
-
-	if (!dict_index_is_spatial(index)) {
-		dberr_t err = DB_SUCCESS;
-		if (dict_table_is_intrinsic(index->table)) {
-			err = btr_cur_search_to_nth_level_with_no_latch(
-				index, level + 1, tuple, PAGE_CUR_LE, cursor,
-				file, line, mtr);
-		} else {
-			err = btr_cur_search_to_nth_level(
-				index, level + 1, tuple,
-				PAGE_CUR_LE, latch_mode, cursor, 0,
-				file, line, mtr);
-		}
-
-		if (err != DB_SUCCESS) {
-			ib::warn() << " Error code: " << err
-				   << " btr_page_get_father_node_ptr_func "
-				   << " level: " << level + 1
-				   << " called from file: "
-				   << file << " line: " << line
-				   << " table: " << index->table->name
-				   << " index: " << index->name;
-		}
+	dberr_t err = DB_SUCCESS;
+	
+	if (dict_table_is_intrinsic(index->table)) {
+		err = btr_cur_search_to_nth_level_with_no_latch(
+			index, level + 1, tuple, PAGE_CUR_LE, cursor,
+			file, line, mtr);
 	} else {
-		/* For R-tree, only latch mode from caller would be
-		BTR_CONT_MODIFY_TREE */
-		ut_ad(latch_mode == BTR_CONT_MODIFY_TREE);
+		err = btr_cur_search_to_nth_level(
+			index, level + 1, tuple,
+			PAGE_CUR_LE, latch_mode, cursor, 0,
+			file, line, mtr);
+	}
 
-		/* Try to avoid traverse from the root, and get the
-		father node from parent_path vector */
-		rtr_get_father_node(index, level + 1, tuple,
-				    NULL, cursor, page_no, mtr);
+	if (err != DB_SUCCESS) {
+		ib::warn() << " Error code: " << err
+			<< " btr_page_get_father_node_ptr_func "
+			<< " level: " << level + 1
+			<< " called from file: "
+			<< file << " line: " << line
+			<< " table: " << index->table->name
+			<< " index: " << index->name();
 	}
 
 	node_ptr = btr_cur_get_rec(cursor);
-	ut_ad(!page_rec_is_comp(node_ptr)
-	      || rec_get_status(node_ptr) == REC_STATUS_NODE_PTR);
+
 	offsets = rec_get_offsets(node_ptr, index, offsets,
 				  ULINT_UNDEFINED, &heap);
 
@@ -1106,7 +1098,7 @@ btr_free_root_invalidate(
 @param[in,out]	mtr		mini-transaction
 @return root block, to invoke btr_free_but_not_root() and btr_free_root()
 @retval NULL if the page is no longer a matching B-tree page */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 buf_block_t*
 btr_free_root_check(
 	const page_id_t&	page_id,
@@ -1654,7 +1646,6 @@ IBUF_BITMAP_FREE is unaffected by reorganization.
 
 @retval true if the operation was successful
 @retval false if it is a compressed page, and recompression failed */
-UNIV_INTERN
 bool
 btr_page_reorganize_block(
 /*======================*/
@@ -1782,7 +1773,7 @@ the tuple. It is assumed that mtr contains an x-latch on the tree.
 NOTE that the operation of this function must always succeed,
 we cannot reverse it: therefore enough free disk space must be
 guaranteed to be available before this function is called.
-@return	inserted record or NULL if run out of space */
+@return inserted record */
 rec_t*
 btr_root_raise_and_insert(
 /*======================*/
@@ -1848,7 +1839,7 @@ btr_root_raise_and_insert(
 
 	if (new_block == NULL && os_has_said_disk_full) {
 		return(NULL);
-        }
+	}
 
 	new_page = buf_block_get_frame(new_block);
 	new_page_zip = buf_block_get_page_zip(new_block);
@@ -2719,7 +2710,6 @@ released within this function! NOTE that the operation of this
 function must always succeed, we cannot reverse it: therefore enough
 free disk space (2 pages) must be guaranteed to be available before
 this function is called.
-
 NOTE: jonaso added support for calling function with tuple == NULL
 which cause it to only split a page.
 
@@ -2850,7 +2840,7 @@ func_start:
 
 	DBUG_EXECUTE_IF("disk_is_full",
 			os_has_said_disk_full = true;
-                        return(NULL););
+			return(NULL););
 
 	/* 2. Allocate a new page to the index */
 	new_block = btr_page_alloc(cursor->index, hint_page_no, direction,
@@ -2858,7 +2848,7 @@ func_start:
 
 	if (new_block == NULL && os_has_said_disk_full) {
 		return(NULL);
-        }
+	}
 
 	new_page = buf_block_get_frame(new_block);
 	new_page_zip = buf_block_get_page_zip(new_block);
@@ -3164,7 +3154,6 @@ func_exit:
 @param[in,out]	page		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-UNIV_INTERN
 void
 btr_level_list_remove_func(
 	ulint			space,
@@ -3369,8 +3358,15 @@ btr_lift_page_up(
 			* (REC_OFFS_HEADER_SIZE + 1 + 1 + index->n_fields));
 		buf_block_t*	b;
 
-		offsets = btr_page_get_father_block(offsets, heap, index,
-						    block, mtr, &cursor);
+		if (dict_index_is_spatial(index)) {
+			offsets = rtr_page_get_father_block(
+				NULL, heap, index, block, mtr,
+				NULL, &cursor);
+		} else {
+			offsets = btr_page_get_father_block(offsets, heap,
+							    index, block,
+							    mtr, &cursor);
+		}
 		father_block = btr_cur_get_block(&cursor);
 		father_page_zip = buf_block_get_page_zip(father_block);
 		father_page = buf_block_get_frame(father_block);
@@ -3386,9 +3382,17 @@ btr_lift_page_up(
 		     b->page.id.page_no() != root_page_no; ) {
 			ut_a(n_blocks < BTR_MAX_LEVELS);
 
-			offsets = btr_page_get_father_block(offsets, heap,
-							    index, b,
-							    mtr, &cursor);
+			if (dict_index_is_spatial(index)) {
+				offsets = rtr_page_get_father_block(
+					NULL, heap, index, b, mtr,
+					NULL, &cursor);
+			} else {
+				offsets = btr_page_get_father_block(offsets,
+								    heap,
+								    index, b,
+								    mtr,
+								    &cursor);
+			}
 
 			blocks[n_blocks++] = b = btr_cur_get_block(&cursor);
 		}
@@ -3460,6 +3464,13 @@ btr_lift_page_up(
 	}
 
 	if (!dict_table_is_locking_disabled(index->table)) {
+		/* Free predicate page locks on the block */
+		if (dict_index_is_spatial(index)) {
+			lock_mutex_enter();
+			lock_prdt_page_free_from_discard(
+				block, lock_sys->prdt_page_hash);
+			lock_mutex_exit();
+		}
 		lock_update_copy_and_discard(father_block, block);
 	}
 
@@ -3686,6 +3697,11 @@ retry:
 				goto retry;
 			}
 
+			/* Set rtr_info for cursor2, since it is
+			necessary in recursive page merge. */
+			cursor2.rtr_info = cursor->rtr_info;
+			cursor2.tree_height = cursor->tree_height;
+
 			offsets2 = rec_get_offsets(
 				btr_cur_get_rec(&cursor2), index,
 				NULL, ULINT_UNDEFINED, &heap);
@@ -3744,6 +3760,8 @@ retry:
 
 			/* No GAP lock needs to be worrying about */
 			lock_mutex_enter();
+			lock_prdt_page_free_from_discard(
+				block, lock_sys->prdt_page_hash);
 			lock_rec_free_all_from_discard_page(block);
 			lock_mutex_exit();
 		} else {
@@ -3781,6 +3799,11 @@ retry:
 				merge_block, heap)) {
 				goto err_exit;
 			}
+
+			/* Set rtr_info for cursor2, since it is
+			necessary in recursive page merge. */
+			cursor2.rtr_info = cursor->rtr_info;
+			cursor2.tree_height = cursor->tree_height;
 		} else {
 			btr_page_get_father(index, merge_block, mtr, &cursor2);
 		}
@@ -3858,6 +3881,8 @@ retry:
 		/* For rtree, we need to update father's mbr. */
 		if (dict_index_is_spatial(index)) {
 			ulint*	offsets2;
+			ulint	rec_info;
+
 			offsets2 = rec_get_offsets(
 				btr_cur_get_rec(&cursor2),
 				index, NULL, ULINT_UNDEFINED, &heap);
@@ -3866,12 +3891,34 @@ retry:
 				btr_cur_get_rec(&cursor2), offsets2)
 				== right_page_no);
 
-			rtr_merge_and_update_mbr(&father_cursor,
-						 &cursor2,
-						 offsets, offsets2,
-						 merge_page, merge_block,
-						 block, index, mtr);
+			rec_info = rec_get_info_bits(
+				btr_cur_get_rec(&father_cursor),
+				rec_offs_comp(offsets));
+			if (rec_info & REC_INFO_MIN_REC_FLAG) {
+				/* When the father node ptr is minimal rec,
+				we will keep it and delete the node ptr of
+				merge page. */
+				rtr_merge_and_update_mbr(&father_cursor,
+							 &cursor2,
+							 offsets, offsets2,
+							 merge_page,
+							 merge_block,
+							 block, index, mtr);
+			} else {
+				/* Otherwise, we will keep the node ptr of
+				merge page and delete the father node ptr.
+				This is for keeping the rec order in upper
+				level. */
+				rtr_merge_and_update_mbr(&cursor2,
+							 &father_cursor,
+							 offsets2, offsets,
+							 merge_page,
+							 merge_block,
+							 block, index, mtr);
+			}
 			lock_mutex_enter();
+			lock_prdt_page_free_from_discard(
+				block, lock_sys->prdt_page_hash);
 			lock_rec_free_all_from_discard_page(block);
 			lock_mutex_exit();
 		} else {
@@ -4028,9 +4075,10 @@ btr_discard_only_page_on_level(
 		if (dict_index_is_spatial(index)) {
 			/* Check any concurrent search having this page */
 			rtr_check_discard_page(index, NULL, block);
+			rtr_page_get_father(index, block, mtr, NULL, &cursor);
+		} else {
+			btr_page_get_father(index, block, mtr, &cursor);
 		}
-
-		btr_page_get_father(index, block, mtr, &cursor);
 		father = btr_cur_get_block(&cursor);
 
 		if (!dict_table_is_locking_disabled(index->table)) {
@@ -4114,7 +4162,11 @@ btr_discard_page(
 	MONITOR_INC(MONITOR_INDEX_DISCARD);
 
 #ifdef UNIV_DEBUG
-	btr_page_get_father(index, block, mtr, &parent_cursor);
+	if (dict_index_is_spatial(index)) {
+		rtr_page_get_father(index, block, mtr, cursor, &parent_cursor);
+	} else {
+		btr_page_get_father(index, block, mtr, &parent_cursor);
+	}
 #endif
 
 	/* Decide the page which will inherit the locks */
@@ -4178,10 +4230,20 @@ btr_discard_page(
 		btr_set_min_rec_mark(node_ptr, mtr);
 	}
 
-	btr_node_ptr_delete(index, block, mtr);
+	if (dict_index_is_spatial(index)) {
+		btr_cur_t	father_cursor;
+
+		/* Since rtr_node_ptr_delete doesn't contain get father
+		node ptr, so, we need to get father node ptr first and then
+		delete it. */
+		rtr_page_get_father(index, block, mtr, cursor, &father_cursor);
+		rtr_node_ptr_delete(index, &father_cursor, block, mtr);
+	} else {
+		btr_node_ptr_delete(index, block, mtr);
+	}
 
 	/* Remove the page from the level list */
-	btr_level_list_remove(space, page_size, (page_t*)page, index, mtr);
+	btr_level_list_remove(space, page_size, page, index, mtr);
 
 #ifdef UNIV_ZIP_DEBUG
 	{
@@ -4377,8 +4439,14 @@ btr_check_node_ptr(
 	}
 
 	heap = mem_heap_create(256);
-	offsets = btr_page_get_father_block(NULL, heap, index, block, mtr,
-					    &cursor);
+
+	if (dict_index_is_spatial(index)) {
+		offsets = rtr_page_get_father_block(NULL, heap, index, block, mtr,
+						    NULL, &cursor);
+	} else {
+		offsets = btr_page_get_father_block(NULL, heap, index, block, mtr,
+						    &cursor);
+	}
 
 	if (page_is_leaf(page)) {
 

@@ -107,8 +107,14 @@ enum monitor_type_t {
 
 /** Counter minimum value is initialized to be max value of
  mon_type_t (int64_t) */
-#define	MIN_RESERVED		INT_MAX64
-#define	MAX_RESERVED		(~MIN_RESERVED)
+#ifndef INT64_MAX
+#define INT64_MAX		(9223372036854775807LL)
+#endif
+#ifndef INT64_MIN
+#define INT64_MIN		(-9223372036854775807LL-1)
+#endif
+#define	MIN_RESERVED		INT64_MAX
+#define	MAX_RESERVED		INT64_MIN
 
 /** This enumeration defines internal monitor identifier used internally
 to identify each particular counter. Its value indexes into two arrays,

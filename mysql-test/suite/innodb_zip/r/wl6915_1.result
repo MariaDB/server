@@ -270,9 +270,14 @@ rollback;
 set n = n - 1; 
 end while;
 end|
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
 #---client 1 : dml operation ---"
+connection con1;
 #---client 2 : dml operation ---"
+connection con2;
 # In connection 1
+connection con1;
 SELECT count(*) FROM t1_1;
 count(*)
 36
@@ -550,6 +555,7 @@ c1
 138
 140
 # In connection 2
+connection con2;
 SELECT count(*) FROM t1_2;
 count(*)
 36
@@ -827,6 +833,7 @@ c1
 138
 140
 # In connection 1
+connection con1;
 set AUTOCOMMIT = 0;
 ALTER TABLE t1_temp DROP PRIMARY KEY;
 ALTER TABLE t1_temp ADD PRIMARY KEY (c1);
@@ -898,17 +905,9 @@ SELECT c1,c2,c3,c4,c5,c6,c7,c9 FROM t4_temp WHERE c1 = 20;
 c1	c2	c3	c4	c5	c6	c7	c9
 20	1	a	a	a	a	a	100.550
 update ignore t1_temp set c1 = 20 WHERE c1 = 140 ;
-Warnings:
-Warning	1062	Duplicate entry '20' for key 'PRIMARY'
 update ignore t2_temp set c1 = 20 WHERE c1 = 140 ;
-Warnings:
-Warning	1062	Duplicate entry '20' for key 'PRIMARY'
 update ignore t3_temp set c1 = 20 WHERE c1 = 140 ;
-Warnings:
-Warning	1062	Duplicate entry '20' for key 'PRIMARY'
 update ignore t4_temp set c1 = 20 WHERE c1 = 140 ;
-Warnings:
-Warning	1062	Duplicate entry '20' for key 'PRIMARY'
 SELECT count(*) FROM t1_temp WHERE c1 = 140;
 count(*)
 1
@@ -938,11 +937,19 @@ SELECT c1,c2,c3,c4,c5,c6,c7,c9,c10,c11 FROM t1_temp WHERE c1 < 0;
 c1	c2	c3	c4	c5	c6	c7	c9	c10	c11
 -2	-2	a	a	a	a	a	100.550	99	test
 DROP TABLE t1_1 ,t2_1 ,t3_1,t4_1;
+disconnect con1;
+connection con2;
 DROP TABLE t1_2 ,t2_2 ,t3_2,t4_2;
-# restart: --innodb_undo_tablespaces=0 --innodb_rollback_segments=20 --innodb_undo_logs=20 --innodb_log_files_in_group=4
+disconnect con2;
+connection default;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
 call populate_tables('_1');;
+connection con2;
 call populate_tables('_2');;
 "#connection 1 - verify tables"
+connection con1;
 SELECT count(*) FROM t1_1;
 count(*)
 36
@@ -1220,7 +1227,9 @@ c1
 138
 140
 DROP TABLE t1_1 ,t2_1 ,t3_1,t4_1;
+disconnect con1;
 "#connection 2 - verify tables"
+connection con2;
 SELECT count(*) FROM t1_2;
 count(*)
 36
@@ -1498,10 +1507,16 @@ c1
 138
 140
 DROP TABLE t1_2 ,t2_2 ,t3_2,t4_2;
-# restart: --innodb_undo_tablespaces=0 --innodb_rollback_segments=30 --innodb_undo_logs=20 --innodb_log_files_in_group=4
+disconnect con2;
+connection default;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
 call populate_tables('_1');;
+connection con2;
 call populate_tables('_2');;
 "#connection 1 - verify tables"
+connection con1;
 SELECT count(*) FROM t1_1;
 count(*)
 36
@@ -1779,7 +1794,9 @@ c1
 138
 140
 DROP TABLE t1_1 ,t2_1 ,t3_1,t4_1;
+disconnect con1;
 "#connection 2 - verify tables"
+connection con2;
 SELECT count(*) FROM t1_2;
 count(*)
 36
@@ -2057,4 +2074,6 @@ c1
 138
 140
 DROP TABLE t1_2 ,t2_2 ,t3_2,t4_2;
+disconnect con2;
+connection default;
 DROP PROCEDURE populate_tables;

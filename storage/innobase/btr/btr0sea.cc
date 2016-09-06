@@ -52,8 +52,13 @@ char		btr_search_enabled	= true;
 /** Number of adaptive hash index partition. */
 ulong		btr_ahi_parts		= 8;
 
+#ifdef UNIV_SEARCH_PERF_STAT
+/** Number of successful adaptive hash index lookups */
 ulint		btr_search_n_succ	= 0;
+/** Number of failed adaptive hash index lookups */
 ulint		btr_search_n_hash_fail	= 0;
+#endif /* UNIV_SEARCH_PERF_STAT */
+
 /** padding to prevent other memory update
 hotspots from residing on the same memory
 cache line as btr_search_latches */
@@ -87,7 +92,7 @@ before hash index building is started */
 @param[in]	n_fields	number of complete fields
 @param[in]	n_bytes		number of bytes in an incomplete last field
 @return	number of complete or incomplete fields */
-inline __attribute__((warn_unused_result))
+inline MY_ATTRIBUTE((warn_unused_result))
 ulint
 btr_search_get_n_fields(
 	ulint	n_fields,
@@ -99,7 +104,7 @@ btr_search_get_n_fields(
 /** Determine the number of accessed key fields.
 @param[in]	cursor		b-tree cursor
 @return	number of complete or incomplete fields */
-inline __attribute__((warn_unused_result))
+inline MY_ATTRIBUTE((warn_unused_result))
 ulint
 btr_search_get_n_fields(
 	const btr_cur_t*	cursor)
@@ -561,7 +566,7 @@ ibool
 btr_search_update_block_hash_info(
 	btr_search_t*		info,
 	buf_block_t*		block,
-	const btr_cur_t*	cursor MY_ATTRIBUTE((unused)))
+	const btr_cur_t*	cursor)
 {
 	ut_ad(!rw_lock_own(btr_get_search_latch(cursor->index), RW_LOCK_S));
 	ut_ad(!rw_lock_own(btr_get_search_latch(cursor->index), RW_LOCK_X));
@@ -727,6 +732,10 @@ btr_search_info_update_slow(
 
 	if (cursor->flag == BTR_CUR_HASH_FAIL) {
 		/* Update the hash node reference, if appropriate */
+
+#ifdef UNIV_SEARCH_PERF_STAT
+		btr_search_n_hash_fail++;
+#endif /* UNIV_SEARCH_PERF_STAT */
 
 		btr_search_x_lock(cursor->index);
 
@@ -1011,7 +1020,7 @@ btr_search_guess_on_hash(
 		return(FALSE);
 	}
 
-	buf_block_t*	block = buf_block_align(rec);
+	buf_block_t*	block = buf_block_from_ahi(rec);
 
 	if (!has_search_latch) {
 
@@ -1114,6 +1123,9 @@ btr_search_guess_on_hash(
 #endif
 	info->last_hash_succ = TRUE;
 
+#ifdef UNIV_SEARCH_PERF_STAT
+	btr_search_n_succ++;
+#endif
 	if (!has_search_latch && buf_page_peek_if_too_old(&block->page)) {
 
 		buf_page_make_young(&block->page);
@@ -1121,7 +1133,6 @@ btr_search_guess_on_hash(
 
 	/* Increment the page get statistics though we did not really
 	fix the page: for user info only */
-
 	{
 		buf_pool_t*	buf_pool = buf_pool_from_bpage(&block->page);
 
@@ -1181,7 +1192,8 @@ retry:
 	const index_id_t	index_id
 		= btr_page_get_index_id(block->frame);
 	const ulint		ahi_slot
-		= ut_fold_ulint_pair(index_id, block->page.id.space())
+		= ut_fold_ulint_pair(static_cast<ulint>(index_id),
+				     static_cast<ulint>(block->page.id.space()))
 		% btr_ahi_parts;
 	latch = btr_search_latches[ahi_slot];
 
@@ -2006,7 +2018,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 
 		for (; node != NULL; node = node->next) {
 			const buf_block_t*	block
-				= buf_block_align((byte*) node->data);
+				= buf_block_from_ahi((byte*) node->data);
 			const buf_block_t*	hash_block;
 			buf_pool_t*		buf_pool;
 			index_id_t		page_index_id;

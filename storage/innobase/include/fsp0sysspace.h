@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -152,6 +152,15 @@ public:
 		       * ((1024 * 1024) / UNIV_PAGE_SIZE));
 	}
 
+	/** Roundoff to MegaBytes is similar as done in
+	SysTablespace::parse_units() function.
+	@return the pages when given size of file (bytes). */
+	ulint get_pages_from_size(os_offset_t size)
+	{
+		return (ulint)((size / (1024 * 1024))
+			       * ((1024 * 1024) / UNIV_PAGE_SIZE));
+	}
+
 	/**
 	@return next increment size */
 	ulint get_increment() const;
@@ -167,7 +176,7 @@ public:
 		bool	create_new_db,
 		ulint*	sum_new_sizes,
 		lsn_t*	flush_lsn)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 private:
 	/** Check the tablespace header for this tablespace.
@@ -287,17 +296,6 @@ is_system_tablespace(
 {
 	return(id == srv_sys_space.space_id()
 	       || id == srv_tmp_space.space_id());
-}
-
-/** Check if it is a shared tablespace.
-@param[in]	id	Space ID to check
-@return true if id is a shared tablespace, false if not. */
-UNIV_INLINE
-bool
-is_shared_tablespace(
-	ulint	id)
-{
-	return(is_system_tablespace(id));
 }
 
 /** Check if shared-system or undo tablespace.

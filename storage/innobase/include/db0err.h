@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -137,6 +137,7 @@ enum dberr_t {
 					/*< Too many words in a phrase */
 
 	DB_TABLESPACE_TRUNCATED,	/*!< tablespace was truncated */
+
 	DB_DECRYPTION_FAILED,		/* Tablespace encrypted and
 					decrypt operation failed because
 					of missing key management plugin,
@@ -157,6 +158,12 @@ enum dberr_t {
 	DB_IO_NO_PUNCH_HOLE_TABLESPACE,	/*!< The tablespace doesn't support
 					punch hole */
 
+	DB_IO_DECRYPT_FAIL,		/*!< Failure to decrypt a page
+					after reading it from disk */
+
+	DB_IO_NO_ENCRYPT_TABLESPACE,	/*!< The tablespace doesn't support
+					encrypt */
+
 	DB_IO_PARTIAL_FAILED,		/*!< Partial IO request failed */
 
 	DB_FORCED_ABORT,		/*!< Transaction was forced to rollback
@@ -168,6 +175,10 @@ enum dberr_t {
 	DB_WRONG_FILE_NAME,		/*!< Invalid Filename */
 
 	DB_COMPUTE_VALUE_FAILED,	/*!< Compute generated value failed */
+
+	DB_NO_FK_ON_S_BASE_COL,		/*!< Cannot add foreign constrain
+					placed on the base column of
+					stored column */
 
 	/* The following are partial failure codes */
 	DB_FAIL = 1000,

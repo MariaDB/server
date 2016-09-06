@@ -125,6 +125,17 @@ srv_get_meta_data_filename(
 	char*		filename,
 	ulint		max_len);
 
+/** Get the encryption-data filename from the table name for a
+single-table tablespace.
+@param[in]	table		table object
+@param[out]	filename	filename
+@param[in]	max_len		filename max length */
+void
+srv_get_encryption_data_filename(
+	dict_table_t*	table,
+	char*		filename,
+	ulint		max_len);
+
 /** Log sequence number at shutdown */
 extern	lsn_t	srv_shutdown_lsn;
 /** Log sequence number immediately after startup */

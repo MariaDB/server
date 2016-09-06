@@ -77,7 +77,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "ut0crc32.h"
 #include "btr0defragment.h"
 #include "ut0mem.h"
-
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
@@ -190,11 +189,6 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 my_bool	srv_use_native_aio = TRUE;
 my_bool	srv_numa_interleave = FALSE;
-
-#ifdef UNIV_DEBUG
-/** Force all user tables to use page compression. */
-ulong	srv_debug_compress;
-#endif /* UNIV_DEBUG */
 /* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
 to the pages */
 UNIV_INTERN my_bool	srv_use_trim = FALSE;
@@ -209,6 +203,17 @@ UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;
 /* If this flag is TRUE, then we will use multi threaded flush. */
 UNIV_INTERN my_bool	srv_use_mtflush                 = FALSE;
 
+#ifdef UNIV_DEBUG
+/** Force all user tables to use page compression. */
+ulong	srv_debug_compress;
+/** Used by SET GLOBAL innodb_master_thread_disabled_debug = X. */
+my_bool	srv_master_thread_disabled_debug;
+/** Event used to inform that master thread is disabled. */
+static os_event_t	srv_master_thread_disabled_event;
+/** Debug variable to find if any background threads are adding
+to purge during slow shutdown. */
+extern bool		trx_commit_disallowed;
+#endif /* UNIV_DEBUG */
 
 /*------------------------- LOG FILES ------------------------ */
 char*	srv_log_group_home_dir	= NULL;
@@ -258,7 +263,6 @@ UNIV_INTERN os_event_t	srv_allow_writes_event;
 
 /** Requested size in bytes */
 ulint	srv_buf_pool_size	= ULINT_MAX;
-/** Minimum pool size in bytes */
 const ulint	srv_buf_pool_min_size	= 5 * 1024 * 1024;
 /** Default pool size in bytes */
 const ulint	srv_buf_pool_def_size	= 128 * 1024 * 1024;
@@ -335,8 +339,8 @@ in the buffer pool to all database pages in the buffer pool smaller than
 the following number. But it is not guaranteed that the value stays below
 that during a time of heavy update/insert activity. */
 
-UNIV_INTERN double	srv_max_buf_pool_modified_pct	= 75.0;
-UNIV_INTERN double	srv_max_dirty_pages_pct_lwm	= 50.0;
+double	srv_max_buf_pool_modified_pct	= 75.0;
+double	srv_max_dirty_pages_pct_lwm	= 0.0;
 
 /* This is the percentage of log capacity at which adaptive flushing,
 if enabled, will kick in. */
@@ -411,7 +415,7 @@ UNIV_INTERN unsigned long long srv_stats_modified_counter = 0;
 pages default true. */
 UNIV_INTERN my_bool	srv_stats_sample_traditional = TRUE;
 
-UNIV_INTERN ibool	srv_use_doublewrite_buf	= TRUE;
+ibool	srv_use_doublewrite_buf	= TRUE;
 
 /** doublewrite buffer is 1MB is size i.e.: it can hold 128 16K pages.
 The following parameter is the size of the buffer that is used for
@@ -428,7 +432,6 @@ UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 15;
 #else
 UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 30;
 #endif
-
 ulong	srv_spin_wait_delay	= 6;
 ibool	srv_priority_boost	= TRUE;
 
@@ -466,13 +469,13 @@ UNIV_INTERN ulonglong	srv_defragment_interval = 0;
 
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
-ibool	srv_print_verbose_log		= TRUE;
-my_bool	srv_print_innodb_monitor	= FALSE;
-my_bool	srv_print_innodb_lock_monitor	= FALSE;
-UNIV_INTERN my_bool        srv_print_innodb_tablespace_monitor = FALSE;
-UNIV_INTERN my_bool        srv_print_innodb_table_monitor = FALSE;
+ibool	srv_print_verbose_log			= TRUE;
+my_bool	srv_print_innodb_monitor		= FALSE;
+my_bool	srv_print_innodb_lock_monitor		= FALSE;
+my_bool	srv_print_innodb_tablespace_monitor 	= FALSE;
+my_bool	srv_print_innodb_table_monitor 		= FALSE;
 /** If this flag is set tables without primary key are not allowed */
-UNIV_INTERN my_bool	srv_force_primary_key		= FALSE;
+my_bool	srv_force_primary_key			= FALSE;
 
 /* Array of English strings describing the current state of an
 i/o handler thread */
@@ -742,7 +745,8 @@ srv_print_master_thread_info(
 		srv_main_active_loops,
 		srv_main_shutdown_loops,
 		srv_main_idle_loops);
-	fprintf(file, "srv_master_thread log flush and writes: %lu\n",
+	fprintf(file,
+		"srv_master_thread log flush and writes: " ULINTPF "\n",
 		srv_log_writes_and_flush);
 }
 
@@ -1078,6 +1082,8 @@ srv_init(void)
 
 	srv_buf_resize_event = os_event_create(0);
 
+	ut_d(srv_master_thread_disabled_event = os_event_create(0));
+
 	/* page_zip_stat_per_index_mutex is acquired from:
 	1. page_zip_compress() (after SYNC_FSP)
 	2. page_zip_decompress()
@@ -1100,6 +1106,7 @@ srv_init(void)
 	srv_allow_writes_event = os_event_create(0);
 	os_event_set(srv_allow_writes_event);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
+
 	/* Initialize some INFORMATION SCHEMA internal structures */
 	trx_i_s_cache_init(trx_i_s_cache);
 
@@ -1134,6 +1141,11 @@ srv_free(void)
 	}
 
 	os_event_destroy(srv_buf_resize_event);
+
+#ifdef UNIV_DEBUG
+	os_event_destroy(srv_master_thread_disabled_event);
+	srv_master_thread_disabled_event = NULL;
+#endif /* UNIV_DEBUG */
 
 	trx_i_s_cache_free(trx_i_s_cache);
 
@@ -1375,8 +1387,10 @@ srv_printf_innodb_monitor(
 	fputs("--------------\n"
 	      "ROW OPERATIONS\n"
 	      "--------------\n", file);
-	fprintf(file, "%ld queries inside InnoDB, %lu queries in queue\n",
-		(long) srv_conc_get_active_threads(),
+	fprintf(file,
+		ULINTPF " queries inside InnoDB, "
+		ULINTPF " queries in queue\n",
+		srv_conc_get_active_threads(),
 		srv_conc_get_waiting_threads());
 
 	/* This is a dirty read, without holding trx_sys->mutex. */
@@ -1388,18 +1402,20 @@ srv_printf_innodb_monitor(
 		fprintf(file,
 			"%lu tablespace extents now reserved for"
 			" B-tree split operations\n",
-			(ulong) n_reserved);
+			n_reserved);
 	}
 
 	fprintf(file,
 		"Process ID=" ULINTPF
-		", Main thread ID=" ULINTPF ", state: %s\n",
+		", Main thread ID=" ULINTPF
+		", state: %s\n",
 		srv_main_thread_process_no,
 		srv_main_thread_id,
 		srv_main_thread_op_info);
 	fprintf(file,
 		"Number of rows inserted " ULINTPF
-		", updated " ULINTPF ", deleted " ULINTPF
+		", updated " ULINTPF
+		", deleted " ULINTPF
 		", read " ULINTPF "\n",
 		(ulint) srv_stats.n_rows_inserted,
 		(ulint) srv_stats.n_rows_updated,
@@ -1539,13 +1555,12 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_pages_misc =
 		buf_pool_get_n_pages() - LRU_len - free_len;
 
-	/* JAN: TODO: MySQL 5.7
 #ifdef HAVE_ATOMIC_BUILTINS
 	export_vars.innodb_have_atomic_builtins = 1;
 #else
 	export_vars.innodb_have_atomic_builtins = 0;
 #endif
-	*/
+
 	export_vars.innodb_page_size = UNIV_PAGE_SIZE;
 
 	export_vars.innodb_log_waits = srv_stats.log_waits;
@@ -1717,9 +1732,9 @@ DECLARE_THREAD(srv_monitor_thread)(
 	int64_t		sig_count;
 	double		time_elapsed;
 	time_t		current_time;
+	time_t		last_monitor_time;
 	time_t		last_table_monitor_time;
 	time_t		last_tablespace_monitor_time;
-	time_t		last_monitor_time;
 	ulint		mutex_skipped;
 	ibool		last_srv_print_monitor;
 
@@ -1874,7 +1889,7 @@ exit_func:
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -2002,7 +2017,7 @@ loop:
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -2092,8 +2107,10 @@ srv_any_background_threads_are_active(void)
 	os_event_set(lock_sys->timeout_event);
 	os_event_set(dict_stats_event);
 	os_event_set(srv_buf_resize_event);
-	if (srv_scrub_log)
+
+	if (srv_scrub_log) {
 		os_event_set(log_scrub_event);
+	}
 
 	return(thread_active);
 }
@@ -2277,6 +2294,60 @@ srv_shutdown_print_master_pending(
 	}
 }
 
+#ifdef UNIV_DEBUG
+/** Waits in loop as long as master thread is disabled (debug) */
+static
+void
+srv_master_do_disabled_loop(void)
+{
+	if (!srv_master_thread_disabled_debug) {
+		/* We return here to avoid changing op_info. */
+		return;
+	}
+
+	srv_main_thread_op_info = "disabled";
+
+	while (srv_master_thread_disabled_debug) {
+		os_event_set(srv_master_thread_disabled_event);
+		if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+			break;
+		}
+		os_thread_sleep(100000);
+	}
+
+	srv_main_thread_op_info = "";
+}
+
+/** Disables master thread. It's used by:
+	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
+@param[in]	thd		thread handle
+@param[in]	var		pointer to system variable
+@param[out]	var_ptr		where the formal string goes
+@param[in]	save		immediate result from check function */
+void
+srv_master_thread_disabled_debug_update(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				var_ptr,
+	const void*			save)
+{
+	/* This method is protected by mutex, as every SET GLOBAL .. */
+	ut_ad(srv_master_thread_disabled_event != NULL);
+
+	const bool disable = *static_cast<const my_bool*>(save);
+
+	const int64_t sig_count = os_event_reset(
+		srv_master_thread_disabled_event);
+
+	srv_master_thread_disabled_debug = disable;
+
+	if (disable) {
+		os_event_wait_low(
+			srv_master_thread_disabled_event, sig_count);
+	}
+}
+#endif /* UNIV_DEBUG */
+
 /*********************************************************************//**
 Perform the tasks that the master thread is supposed to do when the
 server is active. There are two types of tasks. The first category is
@@ -2307,6 +2378,8 @@ srv_master_do_active_tasks(void)
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND, counter_time);
 
+	ut_d(srv_master_do_disabled_loop());
+
 	if (srv_shutdown_state > 0) {
 		return;
 	}
@@ -2319,7 +2392,7 @@ srv_master_do_active_tasks(void)
 	/* Do an ibuf merge */
 	srv_main_thread_op_info = "doing insert buffer merge";
 	counter_time = ut_time_us(NULL);
-	ibuf_merge_in_background(false, ULINT_UNDEFINED);
+	ibuf_merge_in_background(false);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
 
@@ -2394,6 +2467,8 @@ srv_master_do_idle_tasks(void)
 		MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND,
 			 counter_time);
 
+	ut_d(srv_master_do_disabled_loop());
+
 	if (srv_shutdown_state > 0) {
 		return;
 	}
@@ -2406,7 +2481,7 @@ srv_master_do_idle_tasks(void)
 	/* Do an ibuf merge */
 	counter_time = ut_time_us(NULL);
 	srv_main_thread_op_info = "doing insert buffer merge";
-	ibuf_merge_in_background(true, ULINT_UNDEFINED);
+	ibuf_merge_in_background(true);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
 
@@ -2486,7 +2561,7 @@ srv_master_do_shutdown_tasks(
 
 	/* Do an ibuf merge */
 	srv_main_thread_op_info = "doing insert buffer merge";
-	n_bytes_merged = ibuf_merge_in_background(true, ULINT_UNDEFINED);
+	n_bytes_merged = ibuf_merge_in_background(true);
 
 	/* Flush logs if needed */
 	srv_sync_log_buffer_in_background();
@@ -2600,7 +2675,7 @@ suspend_thread:
 	}
 
 	my_thread_end();
-	os_thread_exit(NULL);
+	os_thread_exit();
 	DBUG_RETURN(0);
 }
 
@@ -2741,7 +2816,7 @@ DECLARE_THREAD(srv_worker_thread)(
         my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;	/* Not reached, avoid compiler warning */
 }
@@ -3015,6 +3090,12 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		n_pages_purged = trx_purge(1, srv_purge_batch_size, false);
 	}
 
+#ifdef UNIV_DEBUG
+	if (srv_fast_shutdown == 0) {
+		trx_commit_disallowed = true;
+	}
+#endif /* UNIV_DEBUG */
+
 	/* This trx_purge is called to remove any undo records (added by
 	background threads) after completion of the above loop. When
 	srv_fast_shutdown != 0, a large batch size can cause significant
@@ -3062,7 +3143,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;	/* Not reached, avoid compiler warning */
 }
@@ -3145,17 +3226,24 @@ srv_is_tablespace_truncated(ulint space_id)
 }
 
 /** Check if tablespace was truncated.
-@param	space_id	space_id to check for truncate action
+@param[in]	space	space object to check for truncate action
 @return true if tablespace was truncated and we still have an active
 MLOG_TRUNCATE REDO log record. */
 bool
-srv_was_tablespace_truncated(ulint space_id)
+srv_was_tablespace_truncated(const fil_space_t* space)
 {
-	if (is_system_tablespace(space_id)) {
+	if (space == NULL) {
+		ut_ad(0);
 		return(false);
 	}
 
-	return(truncate_t::was_tablespace_truncated(space_id));
+	bool	has_shared_space = FSP_FLAGS_GET_SHARED(space->flags);
+
+	if (is_system_tablespace(space->id) || has_shared_space) {
+		return(false);
+	}
+
+	return(truncate_t::was_tablespace_truncated(space->id));
 }
 
 /** Call exit(3) */

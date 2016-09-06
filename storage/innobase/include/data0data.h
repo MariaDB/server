@@ -70,8 +70,8 @@ void
 dfield_set_type(
 /*============*/
 	dfield_t*	field,	/*!< in: SQL data field */
-	const dtype_t*	type)	/*!< in: pointer to data type struct */
-	MY_ATTRIBUTE((nonnull));
+	const dtype_t*	type);	/*!< in: pointer to data type struct */
+
 /*********************************************************************//**
 Gets length of field data.
 @return length of data; UNIV_SQL_NULL if SQL null data */
@@ -116,6 +116,23 @@ dfield_set_ext(
 /*===========*/
 	dfield_t*	field)	/*!< in/out: field */
 	MY_ATTRIBUTE((nonnull));
+
+/** Gets spatial status for "external storage"
+@param[in,out]	field		field */
+UNIV_INLINE
+spatial_status_t
+dfield_get_spatial_status(
+	const dfield_t*	field);
+
+/** Sets spatial status for "external storage"
+@param[in,out]	field		field
+@param[in]	spatial_status	spatial status */
+UNIV_INLINE
+void
+dfield_set_spatial_status(
+	dfield_t*		field,
+	spatial_status_t	spatial_status);
+
 /*********************************************************************//**
 Sets pointer to the data and length in a field. */
 UNIV_INLINE
@@ -134,7 +151,7 @@ dfield_write_mbr(
 /*=============*/
 	dfield_t*	field,	/*!< in: field */
 	const double*	mbr)	/*!< in: data */
-	__attribute__((nonnull(1)));
+	MY_ATTRIBUTE((nonnull(1)));
 /*********************************************************************//**
 Sets a data field to SQL NULL. */
 UNIV_INLINE
@@ -159,8 +176,8 @@ void
 dfield_copy_data(
 /*=============*/
 	dfield_t*	field1,		/*!< out: field to copy to */
-	const dfield_t*	field2)	/*!< in: field to copy from */
-	MY_ATTRIBUTE((nonnull));
+	const dfield_t*	field2);	/*!< in: field to copy from */
+
 /*********************************************************************//**
 Copies a data field to another. */
 UNIV_INLINE
@@ -408,7 +425,7 @@ int
 dtuple_coll_cmp(
 	const dtuple_t*	tuple1,
 	const dtuple_t*	tuple2)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /** Fold a prefix given as the number of fields of a tuple.
 @param[in]	tuple		index record
 @param[in]	n_fields	number of complete fields to fold
@@ -422,7 +439,7 @@ dtuple_fold(
 	ulint		n_fields,
 	ulint		n_bytes,
 	index_id_t	tree_id)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /*******************************************************************//**
 Sets types of fields binary in a tuple. */
 UNIV_INLINE
@@ -544,7 +561,7 @@ dtuple_convert_big_rec(
 	dtuple_t*	entry,	/*!< in/out: index entry */
 	ulint*		n_ext)	/*!< in/out: number of
 				externally stored columns */
-	MY_ATTRIBUTE((nonnull(1,4), malloc, warn_unused_result));
+	MY_ATTRIBUTE((malloc, warn_unused_result));
 /**************************************************************//**
 Puts back to entry the data stored in vector. Note that to ensure the
 fields in entry can accommodate the data, vector must have been created
@@ -572,7 +589,10 @@ dtuple_big_rec_free(
 /** Structure for an SQL data field */
 struct dfield_t{
 	void*		data;	/*!< pointer to data */
-	unsigned	ext;	/*!< TRUE=externally stored, FALSE=local */
+	unsigned	ext:1;	/*!< TRUE=externally stored, FALSE=local */
+	unsigned	spatial_status:2;
+				/*!< spatial status of externally stored field
+				in undo log for purge */
 	unsigned	len;	/*!< data length; UNIV_SQL_NULL if SQL null */
 	dtype_t		type;	/*!< type of data */
 

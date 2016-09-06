@@ -12,5 +12,5 @@
 
 innodb.auto_increment_dup : MDEV-10548
 innodb_skip_innodb_is_tables : MDEV-10200
-innodb.innodb_bug13510739: MDEV-10549
 innodb.defrag_mdl-9155 : MDEV-10551
+innodb_defragment_fill_factor : MDEV-10771

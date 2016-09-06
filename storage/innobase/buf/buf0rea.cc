@@ -746,10 +746,10 @@ buf_read_ahead_linear(
 
 	if (count) {
 		DBUG_PRINT("ib_buf", ("linear read-ahead %lu pages, "
-				      UINT32PF ":" UINT32PF,
+				      "%lu:%lu",
 				      count,
-				      page_id.space(),
-				      page_id.page_no()));
+				      (ulint)page_id.space(),
+				      (ulint)page_id.page_no()));
 	}
 
 	/* Read ahead is considered one I/O operation for the purpose of
@@ -773,13 +773,6 @@ buf_read_ibuf_merge_pages(
 					to get read in, before this
 					function returns */
 	const ulint*	space_ids,	/*!< in: array of space ids */
-	const ib_uint64_t* space_versions,/*!< in: the spaces must have
-					this version number
-					(timestamp), otherwise we
-					discard the read; we use this
-					to cancel reads if DISCARD +
-					IMPORT may have changed the
-					tablespace size */
 	const ulint*	page_nos,	/*!< in: array of page numbers
 					to read, with the highest page
 					number the last in the

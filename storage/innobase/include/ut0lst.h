@@ -318,7 +318,6 @@ ut_list_insert(
 	++list.count;
 
 }
-
 /*******************************************************************//**
 Removes a node from a two-way linked list.
 @param list the base node (not a pointer to it)

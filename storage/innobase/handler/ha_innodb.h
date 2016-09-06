@@ -27,10 +27,14 @@ extern const char innobase_index_reserve_name[];
 to explicitly create a file_per_table tablespace for the table. */
 extern const char reserved_file_per_table_space_name[];
 
-/* "innodb_system" tablespace name is reserved by InnoDB for the system tablespace
-which uses space_id 0 and stores extra types of system pages like UNDO
-and doublewrite. */
+/* "innodb_system" tablespace name is reserved by InnoDB for the
+system tablespace which uses space_id 0 and stores extra types of
+system pages like UNDO and doublewrite. */
 extern const char reserved_system_space_name[];
+
+/* "innodb_temporary" tablespace name is reserved by InnoDB for the
+predefined shared temporary tablespace. */
+extern const char reserved_temporary_space_name[];
 
 /* Structure defines translation table between mysql index and InnoDB
 index structures */
@@ -46,38 +50,9 @@ struct innodb_idx_translate_t {
 					array index */
 };
 
-
-/** Structure defines template related to virtual columns and
-their base columns */
-struct innodb_col_templ_t {
-	/** number of regular columns */
-	ulint			n_col;
-
-	/** number of virtual columns */
-	ulint			n_v_col;
-
-	/** array of templates for virtual col and their base columns */
-	mysql_row_templ_t**	vtempl;
-
-	/** table's database name */
-	char			db_name[MAX_DATABASE_NAME_LEN];
-
-	/** table name */
-	char			tb_name[MAX_TABLE_NAME_LEN];
-
-	/** share->table_name */
-	char			share_name[MAX_DATABASE_NAME_LEN
-					   + MAX_TABLE_NAME_LEN];
-
-	/** MySQL record length */
-	ulint			rec_len;
-
-	/** default column value if any */
-	const byte*		default_rec;
-};
-
 /** InnoDB table share */
 typedef struct st_innobase_share {
+	THR_LOCK	lock;
 	const char*	table_name;	/*!< InnoDB table name */
 	uint		use_count;	/*!< reference count,
 					incremented in get_share()
@@ -88,9 +63,6 @@ typedef struct st_innobase_share {
 	innodb_idx_translate_t
 			idx_trans_tbl;	/*!< index translation table between
 					MySQL and InnoDB */
-	innodb_col_templ_t
-			s_templ;	/*!< table virtual column template
-					info */
 } INNOBASE_SHARE;
 
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
@@ -112,39 +84,15 @@ struct ha_table_option_struct
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */
 	ulonglong	encryption_key_id;	/*!< encryption key id  */
 };
-
 /* JAN: TODO: MySQL 5.7 handler.h */
 struct st_handler_tablename
 {
   const char *db;
   const char *tablename;
 };
-
 /** The class defining a handle to an Innodb table */
 class ha_innobase: public handler
 {
-	ha_statistics*	ha_partition_stats; /*!< stats of the partition owner
-					handler (if there is one) */
-	uint store_key_val_for_row(uint keynr, char* buff, uint buff_len,
-                                   const uchar* record);
-	inline void update_thd(THD* thd);
-	void update_thd();
-	int change_active_index(uint keynr);
-	int general_fetch(uchar* buf, uint direction, uint match_mode);
-	dberr_t innobase_lock_autoinc();
-	ulonglong innobase_peek_autoinc();
-	dberr_t innobase_set_max_autoinc(ulonglong auto_inc);
-	dberr_t innobase_reset_autoinc(ulonglong auto_inc);
-	dberr_t innobase_get_autoinc(ulonglong* value);
-	void innobase_initialize_autoinc();
-	dict_index_t* innobase_get_index(uint keynr);
-
-#ifdef WITH_WSREP
-	int wsrep_append_keys(THD *thd, bool shared,
-			      const uchar* record0, const uchar* record1);
-#endif
-
-	/* Init values for the class: */
 public:
 	ha_innobase(handlerton* hton, TABLE_SHARE* table_arg);
 	~ha_innobase();
@@ -154,13 +102,21 @@ public:
 	enum row_type get_row_type() const;
 
 	const char* table_type() const;
+
 	const char* index_type(uint key_number);
+
 	const char** bas_ext() const;
+
 	Table_flags table_flags() const;
+
 	ulong index_flags(uint idx, uint part, bool all_parts) const;
+
 	uint max_supported_keys() const;
+
 	uint max_supported_key_length() const;
+
 	uint max_supported_key_part_length() const;
+
 	const key_map* keys_to_use_for_scanning();
 
 	/** Opens dictionary table object using table name. For partition, we need to
@@ -171,136 +127,192 @@ public:
 	@param[in]	is_partition	if this is a partition of a table
 	@param[in]	ignore_err	error to ignore for loading dictionary object
 	@return dictionary table object or NULL if not found */
-	static dict_table_t* open_dict_table(
-	const char*		table_name,
-	const char*		norm_name,
-	bool			is_partition,
-	dict_err_ignore_t	ignore_err);
+        static dict_table_t* open_dict_table(
+		const char*		table_name,
+		const char*		norm_name,
+		bool			is_partition,
+		dict_err_ignore_t	ignore_err);
 
 	int open(const char *name, int mode, uint test_if_locked);
+
 	handler* clone(const char *name, MEM_ROOT *mem_root);
+
 	int close(void);
+
 	double scan_time();
+
 	double read_time(uint index, uint ranges, ha_rows rows);
+
 	longlong get_memory_buffer_size() const;
 
 	int delete_all_rows();
 
 	int write_row(uchar * buf);
+
 	int update_row(const uchar * old_data, uchar * new_data);
+
 	int delete_row(const uchar * buf);
+
 	bool was_semi_consistent_read();
+
 	void try_semi_consistent_read(bool yes);
+
 	void unlock_row();
 
 	int index_init(uint index, bool sorted);
+
 	int index_end();
-	int index_read(uchar * buf, const uchar * key,
-		uint key_len, enum ha_rkey_function find_flag);
-	int index_read_idx(uchar * buf, uint index, const uchar * key,
-			   uint key_len, enum ha_rkey_function find_flag);
+
+	int index_read(
+		uchar*			buf,
+		const uchar*		key,
+		uint			key_len,
+		ha_rkey_function	find_flag);
+
 	int index_read_last(uchar * buf, const uchar * key, uint key_len);
+
 	int index_next(uchar * buf);
+
 	int index_next_same(uchar * buf, const uchar *key, uint keylen);
+
 	int index_prev(uchar * buf);
+
 	int index_first(uchar * buf);
+
 	int index_last(uchar * buf);
 
 	int rnd_init(bool scan);
+
 	int rnd_end();
+
 	int rnd_next(uchar *buf);
+
 	int rnd_pos(uchar * buf, uchar *pos);
 
 	int ft_init();
-	void ft_end();
-	FT_INFO *ft_init_ext(uint flags, uint inx, String* key);
-	int ft_read(uchar* buf);
 
-	FT_INFO *ft_init_ext_with_hints(
+	void ft_end();
+
+	FT_INFO* ft_init_ext(uint flags, uint inx, String* key);
+
+	FT_INFO* ft_init_ext_with_hints(
 		uint			inx,
 		String*			key,
 		void*			hints);
-		/* JAN: TODO: MySQL 5.6
-		Ft_hints*		hints);
-		*/
+		//Ft_hints*		hints);
+
+	int ft_read(uchar* buf);
 
 	int enable_indexes(uint mode);
 	int disable_indexes(uint mode);
 
 	void position(const uchar *record);
+
 	int info(uint);
+
 	int analyze(THD* thd,HA_CHECK_OPT* check_opt);
+
 	int optimize(THD* thd,HA_CHECK_OPT* check_opt);
+
 	int discard_or_import_tablespace(my_bool discard);
-	int extra(enum ha_extra_function operation);
+
+	int extra(ha_extra_function operation);
+
 	int reset();
+
 	int external_lock(THD *thd, int lock_type);
-	int transactional_table_lock(THD *thd, int lock_type);
+
 	int start_stmt(THD *thd, thr_lock_type lock_type);
+
 	void position(uchar *record);
-	ha_rows records_in_range(uint inx, key_range *min_key, key_range
-								*max_key);
+
+	// MySQL 5.7 Select count optimization
+	// int records(ha_rows* num_rows);
+
+	ha_rows records_in_range(
+		uint			inx,
+		key_range*		min_key,
+		key_range*		max_key);
+
 	ha_rows estimate_rows_upper_bound();
 
 	// JAN: TODO: MySQL 5.7
 	// int records(ha_rows* num_rows);
 
 	void update_create_info(HA_CREATE_INFO* create_info);
-	int parse_table_name(const char*name,
-			     HA_CREATE_INFO* create_info,
-			     ulint flags,
-			     ulint flags2,
-			     char* norm_name,
-			     char* temp_path,
-			     char* remote_path);
+
+	int create(
+		const char*		name,
+		TABLE*			form,
+		HA_CREATE_INFO*		create_info);
+
 	const char* check_table_options(THD *thd, TABLE* table,
 		HA_CREATE_INFO*	create_info, const bool use_tablespace, const ulint file_format);
-	int create(const char *name, register TABLE *form,
-					HA_CREATE_INFO *create_info);
+
 	int truncate();
+
 	int delete_table(const char *name);
+
 	int rename_table(const char* from, const char* to);
 	int defragment_table(const char* name, const char* index_name,
 						bool async);
 	int check(THD* thd, HA_CHECK_OPT* check_opt);
 	char* update_table_comment(const char* comment);
+
 	char* get_foreign_key_create_info();
+
 	int get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-	int get_parent_foreign_key_list(THD *thd,
-					List<FOREIGN_KEY_INFO> *f_key_list);
+
+	int get_parent_foreign_key_list(
+		THD*			thd,
+		List<FOREIGN_KEY_INFO>*	f_key_list);
 	int get_cascade_foreign_key_table_list(
 		THD*				thd,
 		List<st_handler_tablename>*	fk_table_list);
 
+
 	bool can_switch_engines();
+
 	uint referenced_by_foreign_key();
+
 	void free_foreign_key_create_info(char* str);
-	THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
-					enum thr_lock_type lock_type);
+
+	//uint lock_count(void) const;
+
+	THR_LOCK_DATA** store_lock(
+		THD*			thd,
+		THR_LOCK_DATA**		to,
+		thr_lock_type		lock_type);
+
 	void init_table_handle_for_HANDLER();
-        virtual void get_auto_increment(ulonglong offset, ulonglong increment,
-                                        ulonglong nb_desired_values,
-                                        ulonglong *first_value,
-                                        ulonglong *nb_reserved_values);
+
+	virtual void get_auto_increment(
+		ulonglong		offset,
+		ulonglong		increment,
+		ulonglong		nb_desired_values,
+		ulonglong*		first_value,
+		ulonglong*		nb_reserved_values);
 	int reset_auto_increment(ulonglong value);
 
-	uint lock_count(void) const;
-
 	virtual bool get_error_message(int error, String *buf);
+
 	virtual bool get_foreign_dup_key(char*, uint, char*, uint);
+
 	uint8 table_cache_type();
 
 	/**
 	Ask handler about permission to cache table during query registration
 	*/
-	my_bool register_query_cache_table(THD *thd, char *table_key,
-					   uint key_length,
-					   qc_engine_callback *call_back,
-					   ulonglong *engine_data);
-	static const char *get_mysql_bin_log_name();
-	static ulonglong get_mysql_bin_log_pos();
+	my_bool register_query_cache_table(
+		THD*			thd,
+		char*			table_key,
+		uint			key_length,
+		qc_engine_callback*	call_back,
+		ulonglong*		engine_data);
+
 	bool primary_key_is_clustered();
-	int cmp_ref(const uchar *ref1, const uchar *ref2);
+
+	int cmp_ref(const uchar* ref1, const uchar* ref2);
 
 	/** On-line ALTER TABLE interface @see handler0alter.cc @{ */
 
@@ -371,87 +383,74 @@ public:
 		Alter_inplace_info*	ha_alter_info,
 		bool			commit);
 	/** @} */
-	void set_partition_owner_stats(ha_statistics *stats);
 
-	bool check_if_incompatible_data(HA_CREATE_INFO *info,
-					uint table_changes);
-	bool check_if_supported_virtual_columns(void) { return TRUE; }
+	bool check_if_incompatible_data(
+		HA_CREATE_INFO*		info,
+		uint			table_changes);
 
-private:
-	/** Builds a 'template' to the prebuilt struct.
-
-	The template is used in fast retrieval of just those column
-	values MySQL needs in its processing.
-	@param whole_row true if access is needed to a whole row,
-	false if accessing individual fields is enough */
-	void build_template(bool whole_row);
-	/** Resets a query execution 'template'.
-	@see build_template() */
-	inline void reset_template();
-
-	int info_low(uint, bool);
-
-	/** Write Row Interface optimized for Intrinsic table. */
-	int intrinsic_table_write_row(uchar* record);
-
-public:
 	/** @name Multi Range Read interface @{ */
+
 	/** Initialize multi range read @see DsMrr_impl::dsmrr_init
-	* @param seq
-	* @param seq_init_param
-	* @param n_ranges
-	* @param mode
-	* @param buf
-	*/
-	int multi_range_read_init(RANGE_SEQ_IF* seq,
-				  void* seq_init_param,
-				  uint n_ranges, uint mode,
-				  HANDLER_BUFFER* buf);
+	@param seq
+	@param seq_init_param
+	@param n_ranges
+	@param mode
+	@param buf */
+	int multi_range_read_init(
+		RANGE_SEQ_IF*		seq,
+		void*			seq_init_param,
+		uint			n_ranges,
+		uint			mode,
+		HANDLER_BUFFER*		buf);
+
 	/** Process next multi range read @see DsMrr_impl::dsmrr_next
-	* @param range_info
-	*/
-        int multi_range_read_next(range_id_t *range_info);
+	@param range_info */
+	int multi_range_read_next(range_id_t *range_info);
+
 	/** Initialize multi range read and get information.
-	* @see ha_myisam::multi_range_read_info_const
-	* @see DsMrr_impl::dsmrr_info_const
-	* @param keyno
-	* @param seq
-	* @param seq_init_param
-	* @param n_ranges
-	* @param bufsz
-	* @param flags
-	* @param cost
-	*/
-	ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF* seq,
-					   void* seq_init_param,
-					   uint n_ranges, uint* bufsz,
-					   uint* flags, Cost_estimate* cost);
+	@see ha_myisam::multi_range_read_info_const
+	@see DsMrr_impl::dsmrr_info_const
+	@param keyno
+	@param seq
+	@param seq_init_param
+	@param n_ranges
+	@param bufsz
+	@param flags
+	@param cost */
+	ha_rows multi_range_read_info_const(
+		uint			keyno,
+		RANGE_SEQ_IF*		seq,
+		void*			seq_init_param,
+		uint			n_ranges,
+		uint*			bufsz,
+		uint*			flags,
+		Cost_estimate*		cost);
+
 	/** Initialize multi range read and get information.
-	* @see DsMrr_impl::dsmrr_info
-	* @param keyno
-	* @param seq
-	* @param seq_init_param
-	* @param n_ranges
-	* @param bufsz
-	* @param flags
-	* @param cost
-	*/
+	@see DsMrr_impl::dsmrr_info
+	@param keyno
+	@param seq
+	@param seq_init_param
+	@param n_ranges
+	@param bufsz
+	@param flags
+	@param cost */
 	ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
 				      uint key_parts, uint* bufsz, uint* flags,
 				      Cost_estimate* cost);
 
-        int multi_range_read_explain_info(uint mrr_mode,
-                                          char *str, size_t size);
+	int multi_range_read_explain_info(uint mrr_mode,
+					  char *str, size_t size);
 
 	/** Attempt to push down an index condition.
-	* @param[in] keyno	MySQL key number
-	* @param[in] idx_cond	Index condition to be checked
-	* @return idx_cond if pushed; NULL if not pushed
-	*/
-	class Item* idx_cond_push(uint keyno, class Item* idx_cond);
+	@param[in] keyno MySQL key number
+	@param[in] idx_cond Index condition to be checked
+	@return idx_cond if pushed; NULL if not pushed */
+	Item* idx_cond_push(uint keyno, Item* idx_cond);
+	/* @} */
 
-        /* An helper function for index_cond_func_innodb: */
-        bool is_thd_killed();
+	/* An helper function for index_cond_func_innodb: */
+	bool is_thd_killed();
 
 protected:
 
@@ -460,6 +459,42 @@ protected:
 	exists for readability only, called from reset(). The name reset()
 	doesn't give any clue that it is called at the end of a statement. */
 	int end_stmt();
+
+	dberr_t innobase_get_autoinc(ulonglong* value);
+	void innobase_initialize_autoinc();
+	dberr_t innobase_lock_autoinc();
+	ulonglong innobase_peek_autoinc();
+	dberr_t innobase_set_max_autoinc(ulonglong auto_inc);
+	dberr_t innobase_reset_autoinc(ulonglong auto_inc);
+
+	/** Resets a query execution 'template'.
+	@see build_template() */
+	void reset_template();
+
+	/** Write Row Interface optimized for Intrinsic table. */
+	int intrinsic_table_write_row(uchar* record);
+
+protected:
+	inline void update_thd(THD* thd);
+	void update_thd();
+
+	int general_fetch(uchar* buf, uint direction, uint match_mode);
+	int change_active_index(uint keynr);
+	dict_index_t* innobase_get_index(uint keynr);
+
+#ifdef WITH_WSREP
+	int wsrep_append_keys(THD *thd, bool shared,
+			      const uchar* record0, const uchar* record1);
+#endif
+	/** Builds a 'template' to the prebuilt struct.
+
+	The template is used in fast retrieval of just those column
+	values MySQL needs in its processing.
+	@param whole_row true if access is needed to a whole row,
+	false if accessing individual fields is enough */
+	void build_template(bool whole_row);
+
+	virtual int info_low(uint, bool);
 
 	/** The multi range read session object */
 	DsMrr_impl		m_ds_mrr;
@@ -474,6 +509,8 @@ protected:
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;
+
+	THR_LOCK_DATA	lock;
 
 	/** information for MySQL table locking */
 	INNOBASE_SHARE*		m_share;
@@ -514,70 +551,51 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 #error InnoDB needs MySQL to be built with #define INNODB_COMPATIBILITY_HOOKS
 #endif
 
+LEX_STRING* thd_query_string(MYSQL_THD thd);
+size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
+
 extern "C" {
 
 struct charset_info_st *thd_charset(MYSQL_THD thd);
-LEX_STRING* thd_query_string(MYSQL_THD thd);
 
-/**
-  Check if a user thread is a replication slave thread
-  @param thd  user thread
-  @retval 0 the user thread is not a replication slave thread
-  @retval 1 the user thread is a replication slave thread
-*/
+/** Check if a user thread is a replication slave thread
+@param thd user thread
+@retval 0 the user thread is not a replication slave thread
+@retval 1 the user thread is a replication slave thread */
 int thd_slave_thread(const MYSQL_THD thd);
 
-/**
-  Check if a user thread is running a non-transactional update
-  @param thd  user thread
-  @retval 0 the user thread is not running a non-transactional update
-  @retval 1 the user thread is running a non-transactional update
-*/
+/** Check if a user thread is running a non-transactional update
+@param thd user thread
+@retval 0 the user thread is not running a non-transactional update
+@retval 1 the user thread is running a non-transactional update */
 int thd_non_transactional_update(const MYSQL_THD thd);
 
-/**
-  Get the user thread's binary logging format
-  @param thd  user thread
-  @return Value to be used as index into the binlog_format_names array
-*/
+/** Get the user thread's binary logging format
+@param thd user thread
+@return Value to be used as index into the binlog_format_names array */
 int thd_binlog_format(const MYSQL_THD thd);
 
-/**
-  Mark transaction to rollback and mark error as fatal to a sub-statement.
-  @param  thd   Thread handle
-  @param  all   TRUE <=> rollback main transaction.
-*/
-void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all);
-
-/**
-  Check if binary logging is filtered for thread's current db.
-  @param  thd   Thread handle
-  @retval 1 the query is not filtered, 0 otherwise.
-*/
+/** Check if binary logging is filtered for thread's current db.
+@param thd Thread handle
+@retval 1 the query is not filtered, 0 otherwise. */
 bool thd_binlog_filter_ok(const MYSQL_THD thd);
 
-/**
-  Check if the query may generate row changes which
-  may end up in the binary.
-  @param  thd   Thread handle
-  @return 1 the query may generate row changes, 0 otherwise.
+/** Check if the query may generate row changes which may end up in the binary.
+@param thd Thread handle
+@retval 1 the query may generate row changes, 0 otherwise.
 */
 bool thd_sqlcom_can_generate_row_events(const MYSQL_THD thd);
 
-/**
-  Gets information on the durability property requested by
-  a thread.
-  @param  thd   Thread handle
-  @return a durability property.
-*/
-enum durability_properties thd_get_durability_property(const MYSQL_THD thd);
+/** Gets information on the durability property requested by a thread.
+@param thd Thread handle
+@return a durability property. */
+durability_properties thd_get_durability_property(const MYSQL_THD thd);
 
 /** Is strict sql_mode set.
-@param thd	Thread object
-@return True if sql_mode has strict mode (all or trans), false otherwise.
-*/
-bool thd_is_strict_mode(const MYSQL_THD thd)
-__attribute__((nonnull));
+@param thd Thread object
+@return True if sql_mode has strict mode (all or trans), false otherwise. */
+bool thd_is_strict_mode(const MYSQL_THD thd);
+
 } /* extern "C" */
 
 /** Get the file name and position of the MySQL binlog corresponding to the
@@ -657,47 +675,13 @@ innobase_index_name_is_reserved(
 						created */
 	ulint			num_of_keys)	/*!< in: Number of indexes to
 						be created. */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 extern const char reserved_file_per_table_space_name[];
+
 #ifdef WITH_WSREP
 //extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
 #endif
-
-/** Check if the explicit tablespace targeted is file_per_table.
-@param[in]	create_info	Metadata for the table to create.
-Determines InnoDB table flags.
-@retval true if successful, false if error */
-UNIV_INTERN
-bool
-innobase_table_flags(
-/*=================*/
-	const TABLE*		form,		/*!< in: table */
-	const HA_CREATE_INFO*	create_info,	/*!< in: information
-						on table columns and indexes */
-	THD*			thd,		/*!< in: connection */
-	bool			use_tablespace,	/*!< in: whether to create
-						outside system tablespace */
-	ulint*			flags,		/*!< out: DICT_TF flags */
-	ulint*			flags2)		/*!< out: DICT_TF2 flags */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/*****************************************************************//**
-Validates the create options. We may build on this function
-in future. For now, it checks two specifiers:
-KEY_BLOCK_SIZE and ROW_FORMAT
-If innodb_strict_mode is not set then this function is a no-op
-@return	NULL if valid, string if not. */
-UNIV_INTERN
-const char*
-create_options_are_invalid(
-/*=======================*/
-	THD*		thd,		/*!< in: connection thread. */
-	TABLE*		form,		/*!< in: information on table
-					columns and indexes */
-	HA_CREATE_INFO*	create_info,	/*!< in: create info. */
-	bool		use_tablespace)	/*!< in: srv_file_per_table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Check if the explicit tablespace targeted is file_per_table.
 @param[in]	create_info	Metadata for the table to create.
@@ -712,18 +696,37 @@ tablespace_is_file_per_table(
 			       reserved_file_per_table_space_name)));
 }
 
-/** Check if table will be put in an existing shared general tablespace.
+/** Check if table will be explicitly put in an existing shared general
+or system tablespace.
 @param[in]	create_info	Metadata for the table to create.
-@return true if the table will use an existing shared general tablespace. */
+@return true if the table will use a shared general or system tablespace. */
 UNIV_INLINE
 bool
 tablespace_is_shared_space(
+const HA_CREATE_INFO*	create_info)
+{
+	return(create_info->tablespace != NULL
+		&& create_info->tablespace[0] != '\0'
+		&& (0 != strcmp(create_info->tablespace,
+		reserved_file_per_table_space_name)));
+}
+
+/** Check if table will be explicitly put in a general tablespace.
+@param[in]	create_info	Metadata for the table to create.
+@return true if the table will use a general tablespace. */
+UNIV_INLINE
+bool
+tablespace_is_general_space(
 	const HA_CREATE_INFO*	create_info)
 {
 	return(create_info->tablespace != NULL
-	       && create_info->tablespace[0] != '\0'
-	       && (0 != strcmp(create_info->tablespace,
-			       reserved_file_per_table_space_name)));
+		&& create_info->tablespace[0] != '\0'
+		&& (0 != strcmp(create_info->tablespace,
+				reserved_file_per_table_space_name))
+		&& (0 != strcmp(create_info->tablespace,
+				reserved_temporary_space_name))
+		&& (0 != strcmp(create_info->tablespace,
+				reserved_system_space_name)));
 }
 
 /** Parse hint for table and its indexes, and update the information
@@ -795,6 +798,9 @@ public:
 
 	/** Validate TABLESPACE option. */
 	bool create_option_tablespace_is_valid();
+
+	/** Validate COMPRESSION option. */
+	bool create_option_compression_is_valid();
 
 	/** Prepare to create a table. */
 	int prepare_create_table(const char*		name);
@@ -912,7 +918,8 @@ private:
 	/** Table flags2 */
 	ulint		m_flags2;
 };
-/*********************************************************************//**
+
+/**
 Retrieve the FTS Relevance Ranking result for doc with doc_id
 of prebuilt->fts_doc_id
 @return the relevance ranking value */
@@ -934,9 +941,8 @@ innobase_fts_find_ranking(
 Free the memory for the FTS handler */
 void
 innobase_fts_close_ranking(
-/*=======================*/
-	FT_INFO*	fts_hdl)	/*!< in: FTS handler */
-	MY_ATTRIBUTE((nonnull));
+	FT_INFO*	fts_hdl);	/*!< in: FTS handler */
+
 /**
 Initialize the table FTS stopword list
 @return TRUE if success */
@@ -946,7 +952,7 @@ innobase_fts_load_stopword(
 	dict_table_t*	table,		/*!< in: Table has the FTS */
 	trx_t*		trx,		/*!< in: transaction */
 	THD*		thd)		/*!< in: current thread */
-	MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Some defines for innobase_fts_check_doc_id_index() return value */
 enum fts_doc_id_index_enum {
@@ -961,7 +967,6 @@ on the Doc ID column.
 @return the status of the FTS_DOC_ID index */
 fts_doc_id_index_enum
 innobase_fts_check_doc_id_index(
-/*============================*/
 	const dict_table_t*	table,		/*!< in: table definition */
 	const TABLE*		altered_table,	/*!< in: MySQL table
 						that is being altered */
@@ -976,22 +981,21 @@ on the Doc ID column in MySQL create index definition.
 FTS_INCORRECT_DOC_ID_INDEX if the FTS_DOC_ID index is of wrong format */
 fts_doc_id_index_enum
 innobase_fts_check_doc_id_index_in_def(
-/*===================================*/
 	ulint		n_key,		/*!< in: Number of keys */
 	const KEY*	key_info)	/*!< in: Key definitions */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
-/***********************************************************************
+/**
 @return version of the extended FTS API */
 uint
 innobase_fts_get_version();
 
-/***********************************************************************
+/**
 @return Which part of the extended FTS API is supported */
 ulonglong
 innobase_fts_flags();
 
-/***********************************************************************
+/**
 Find and Retrieve the FTS doc_id for the current result row
 @return the document ID */
 ulonglong
@@ -999,7 +1003,7 @@ innobase_fts_retrieve_docid(
 /*========================*/
 	FT_INFO_EXT*	fts_hdl);	/*!< in: FTS handler */
 
-/***********************************************************************
+/**
 Find and retrieve the size of the current result
 @return number of matching rows */
 ulonglong
@@ -1007,50 +1011,54 @@ innobase_fts_count_matches(
 /*=======================*/
 	FT_INFO_EXT*	fts_hdl);	/*!< in: FTS handler */
 
-/** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
-system clustered index when there is no primary key. */
-extern const char innobase_index_reserve_name[];
-
-/*********************************************************************//**
+/**
 Copy table flags from MySQL's HA_CREATE_INFO into an InnoDB table object.
 Those flags are stored in .frm file and end up in the MySQL table object,
 but are frequently used inside InnoDB so we keep their copies into the
 InnoDB table object. */
-UNIV_INTERN
 void
 innobase_copy_frm_flags_from_create_info(
-/*=====================================*/
 	dict_table_t*		innodb_table,	/*!< in/out: InnoDB table */
 	const HA_CREATE_INFO*	create_info);	/*!< in: create info */
 
-/*********************************************************************//**
+/**
 Copy table flags from MySQL's TABLE_SHARE into an InnoDB table object.
 Those flags are stored in .frm file and end up in the MySQL table object,
 but are frequently used inside InnoDB so we keep their copies into the
 InnoDB table object. */
-UNIV_INTERN
 void
 innobase_copy_frm_flags_from_table_share(
-/*=====================================*/
 	dict_table_t*		innodb_table,	/*!< in/out: InnoDB table */
 	const TABLE_SHARE*	table_share);	/*!< in: table share */
 
-/********************************************************************//**
-Helper function to push frm mismatch error to error log and
-if needed to sql-layer. */
-UNIV_INTERN
+/** Set up base columns for virtual column
+@param[in]	table	the InnoDB table
+@param[in]	field	MySQL field
+@param[in,out]	v_col	virtual column to be set up */
 void
-ib_push_frm_error(
-/*==============*/
-	THD*		thd,		/*!< in: MySQL thd */
-	dict_table_t*	ib_table,	/*!< in: InnoDB table */
-	TABLE*		table,		/*!< in: MySQL table */
-	ulint		n_keys,		/*!< in: InnoDB #keys */
-	bool		push_warning);	/*!< in: print warning ? */
+innodb_base_col_setup(
+	dict_table_t*	table,
+	const Field*	field,
+	dict_v_col_t*	v_col);
 
+/** Set up base columns for stored column
+@param[in]	table	InnoDB table
+@param[in]	field	MySQL field
+@param[in,out]	s_col	stored column */
+void
+innodb_base_col_setup_for_stored(
+	const dict_table_t*	table,
+	const Field*		field,
+	dict_s_col_t*		s_col);
+
+/** whether this is a stored column */
 // JAN: TODO: MySQL 5.7 virtual fields
-// #define innobase_is_v_fld(field) ((field)->gcol_info && !(field)->stored_in_db)
-#define innobase_is_v_fld(field) (false)
+//#define innobase_is_s_fld(field) ((field)->gcol_info && (field)->stored_in_db)
+#define innobase_is_s_fld(field) (field == NULL)
+// JAN: TODO: MySQL 5.7 virtual fields
+/** whether this is a computed virtual column */
+//#define innobase_is_v_fld(field) ((field)->gcol_info && !(field)->stored_in_db)
+#define innobase_is_v_fld(field) (field == NULL)
 
 /** Release temporary latches.
 Call this function when mysqld passes control to the client. That is to
@@ -1133,27 +1141,10 @@ void
 innobase_build_v_templ(
 	const TABLE*		table,
 	const dict_table_t*	ib_table,
-	innodb_col_templ_t*	s_templ,
+	dict_vcol_templ_t*	s_templ,
 	const dict_add_v_col_t*	add_v,
 	bool			locked,
 	const char*		share_tbl_name);
-
-/** Free a virtual template in INNOBASE_SHARE structure
-@param[in,out]  share   table share holds the template to free */
-void
-free_share_vtemp(
-	INNOBASE_SHARE* share);
-
-/** Refresh template for the virtual columns and their base columns if
-the share structure exists
-@param[in]	table		MySQL TABLE
-@param[in]	ib_table	InnoDB dict_table_t
-@param[in]	table_name	table_name used to find the share structure */
-void
-refresh_share_vtempl(
-	const TABLE*		mysql_table,
-	const dict_table_t*	ib_table,
-	const char*	table_name);
 
 /** callback used by MySQL server layer to initialized
 the table virtual columns' template
@@ -1168,25 +1159,32 @@ innobase_build_v_templ_callback(
 the table virtual columns' template */
 typedef void (*my_gcolumn_templatecallback_t)(const TABLE*, void*);
 
-/** Get the computed value by supplying the base column values.
-@param[in,out]  table   the table whose virtual column template to be built */
+/********************************************************************//**
+Helper function to push frm mismatch error to error log and
+if needed to sql-layer. */
+UNIV_INTERN
 void
-innobase_init_vc_templ(
-        dict_table_t*   table);
+ib_push_frm_error(
+/*==============*/
+	THD*		thd,		/*!< in: MySQL thd */
+	dict_table_t*	ib_table,	/*!< in: InnoDB table */
+	TABLE*		table,		/*!< in: MySQL table */
+	ulint		n_keys,		/*!< in: InnoDB #keys */
+	bool		push_warning);	/*!< in: print warning ? */
 
-/** Free the virtual column template
-@param[in,out]  vc_templ        virtual column template */
-void
-free_vc_templ(
-	innodb_col_templ_t*	vc_templ);
-
-/** Set up base columns for virtual column
-@param[in]	table		InnoDB table
-@param[in]	field		MySQL field
-@param[in,out]	v_col		virtual column */
-void
-innodb_base_col_setup(
-	dict_table_t*	table,
-	const Field*	field,
-	dict_v_col_t*	v_col);
-
+/*****************************************************************//**
+Validates the create options. We may build on this function
+in future. For now, it checks two specifiers:
+KEY_BLOCK_SIZE and ROW_FORMAT
+If innodb_strict_mode is not set then this function is a no-op
+@return	NULL if valid, string if not. */
+UNIV_INTERN
+const char*
+create_options_are_invalid(
+/*=======================*/
+	THD*		thd,		/*!< in: connection thread. */
+	TABLE*		form,		/*!< in: information on table
+					columns and indexes */
+	HA_CREATE_INFO*	create_info,	/*!< in: create info. */
+	bool		use_tablespace)	/*!< in: srv_file_per_table */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));

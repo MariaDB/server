@@ -348,7 +348,7 @@ row_ins_clust_index_entry_by_modify(
 	upd_t*		update;
 	dberr_t		err;
 	btr_cur_t*	cursor	= btr_pcur_get_btr_cur(pcur);
-
+	TABLE*		mysql_table = NULL;
 	ut_ad(dict_index_is_clust(cursor->index));
 
 	rec = btr_cur_get_rec(cursor);
@@ -359,10 +359,14 @@ row_ins_clust_index_entry_by_modify(
 	/* Build an update vector containing all the fields to be modified;
 	NOTE that this vector may NOT contain system columns trx_id or
 	roll_ptr */
+	if (thr->prebuilt != NULL) {
+		mysql_table = thr->prebuilt->m_mysql_table;
+		ut_ad(thr->prebuilt->trx == thr_get_trx(thr));
+	}
 
 	update = row_upd_build_difference_binary(
 		cursor->index, entry, rec, NULL, true,
-		thr_get_trx(thr), heap);
+		thr_get_trx(thr), heap, mysql_table);
 	if (mode != BTR_MODIFY_TREE) {
 		ut_ad((mode & ~BTR_ALREADY_S_LATCHED) == BTR_MODIFY_LEAF);
 
@@ -518,7 +522,6 @@ row_ins_cascade_calc_update_vec(
 	update = cascade->update;
 
 	update->info_bits = 0;
-	update->n_fields = foreign->n_fields;
 
 	n_fields_updated = 0;
 
@@ -932,8 +935,122 @@ row_ins_invalidate_query_cache(
 	ulint	len = strlen(name) + 1;
 	innobase_invalidate_query_cache(thr_get_trx(thr), name, len);
 }
+
+#ifdef MYSQL_VIRTUAL_COLUMNS
+
+/** Fill virtual column information in cascade node for the child table.
+@param[out]	cascade		child update node
+@param[in]	rec		clustered rec of child table
+@param[in]	index		clustered index of child table
+@param[in]	node		parent update node
+@param[in]	foreign		foreign key information
+@param[out]	err		error code. */
+static
+void
+row_ins_foreign_fill_virtual(
+	upd_node_t*		cascade,
+	const rec_t*		rec,
+	dict_index_t*		index,
+	upd_node_t*		node,
+	dict_foreign_t*		foreign,
+	dberr_t*		err)
+{
+	THD*		thd = current_thd;
+	row_ext_t*	ext;
+	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs_init(offsets_);
+	const ulint*	offsets =
+		rec_get_offsets(rec, index, offsets_,
+				ULINT_UNDEFINED, &cascade->heap);
+	mem_heap_t*	v_heap = NULL;
+	upd_t*		update = cascade->update;
+	ulint		n_v_fld = index->table->n_v_def;
+	ulint		n_diff;
+	upd_field_t*	upd_field;
+	dict_vcol_set*	v_cols = foreign->v_cols;
+	update->old_vrow = row_build(
+		ROW_COPY_POINTERS, index, rec,
+		offsets, index->table, NULL, NULL,
+		&ext, cascade->heap);
+	n_diff = update->n_fields;
+
+	update->n_fields += n_v_fld;
+
+	if (index->table->vc_templ == NULL) {
+		/** This can occur when there is a cascading
+		delete or update after restart. */
+		innobase_init_vc_templ(index->table);
+	}
+
+	for (ulint i = 0; i < n_v_fld; i++) {
+
+		dict_v_col_t*     col = dict_table_get_nth_v_col(
+				index->table, i);
+
+		dict_vcol_set::iterator it = v_cols->find(col);
+
+		if (it == v_cols->end()) {
+			continue;
+		}
+
+		dfield_t*	vfield = innobase_get_computed_value(
+				update->old_vrow, col, index,
+				&v_heap, update->heap, NULL, thd, NULL,
+				NULL, NULL, NULL);
+
+		if (vfield == NULL) {
+			*err = DB_COMPUTE_VALUE_FAILED;
+			goto func_exit;
+		}
+
+		upd_field = upd_get_nth_field(update, n_diff);
+
+		upd_field->old_v_val = static_cast<dfield_t*>(
+				mem_heap_alloc(cascade->heap,
+					sizeof *upd_field->old_v_val));
+
+		dfield_copy(upd_field->old_v_val, vfield);
+
+		upd_field_set_v_field_no(upd_field, i, index);
+
+		if (node->is_delete
+		    ? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
+		    : (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL)) {
+
+			dfield_set_null(&upd_field->new_val);
+		}
+
+		if (!node->is_delete
+		    && (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE)) {
+
+			dfield_t* new_vfield = innobase_get_computed_value(
+					update->old_vrow, col, index,
+					&v_heap, update->heap, NULL, thd,
+					NULL, NULL, node->update, foreign);
+
+			if (new_vfield == NULL) {
+				*err = DB_COMPUTE_VALUE_FAILED;
+				goto func_exit;
+			}
+
+			dfield_copy(&(upd_field->new_val), new_vfield);
+		}
+
+		n_diff++;
+	}
+
+	update->n_fields = n_diff;
+	*err = DB_SUCCESS;
+
+func_exit:
+	if (v_heap) {
+		mem_heap_free(v_heap);
+	}
+}
+#endif /* MYSQL_VIRTUAL_COLUMNS */
+
 #ifdef WITH_WSREP
-dberr_t wsrep_append_foreign_key(trx_t *trx,  
+dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       dict_foreign_t*	foreign,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
@@ -1225,6 +1342,19 @@ row_ins_foreign_check_on_constraint(
 		if (fts_col_affacted) {
 			cascade->fts_doc_id = doc_id;
 		}
+
+#ifdef MYSQL_VIRTUAL_COLUMNS
+		if (foreign->v_cols != NULL
+		    && foreign->v_cols->size() > 0) {
+			row_ins_foreign_fill_virtual(
+				cascade, clust_rec, clust_index,
+				node, foreign, &err);
+
+			if (err != DB_SUCCESS) {
+				goto nonstandard_exit_func;
+			}
+		}
+#endif /* MYSQL_VIRTUAL_COLUMNS */
 	} else if (table->fts && cascade->is_delete) {
 		/* DICT_FOREIGN_ON_DELETE_CASCADE case */
 		for (i = 0; i < foreign->n_fields; i++) {
@@ -1252,6 +1382,20 @@ row_ins_foreign_check_on_constraint(
 		n_to_update = row_ins_cascade_calc_update_vec(
 			node, foreign, cascade->cascade_heap,
 			trx, &fts_col_affacted, cascade);
+
+
+#ifdef MYSQL_VIRTUAL_COLUMNS
+		if (foreign->v_cols != NULL
+		    && foreign->v_cols->size() > 0) {
+			row_ins_foreign_fill_virtual(
+				cascade, clust_rec, clust_index,
+				node, foreign, &err);
+
+			if (err != DB_SUCCESS) {
+				goto nonstandard_exit_func;
+			}
+		}
+#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 		if (n_to_update == ULINT_UNDEFINED) {
 			err = DB_ROW_IS_REFERENCED;
@@ -2693,7 +2837,7 @@ row_ins_sorted_clust_index_entry(
 @param[in]	check		whether to check
 @param[in]	search_mode	flags
 @return true if the index is to be dropped */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 bool
 row_ins_sec_mtr_start_and_check_if_aborted(
 	mtr_t*		mtr,
@@ -2837,7 +2981,7 @@ row_ins_sec_index_entry_low(
 		rtr_init_rtr_info(&rtr_info, false, &cursor, index, false);
 		rtr_info_update_btr(&cursor, &rtr_info);
 
-		btr_cur_search_to_nth_level(
+		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_RTREE_INSERT,
 			search_mode,
 			&cursor, 0, __FILE__, __LINE__, &mtr);
@@ -2852,7 +2996,7 @@ row_ins_sec_index_entry_low(
 			mtr.set_named_space(index->space);
 			search_mode &= ~BTR_MODIFY_LEAF;
 			search_mode |= BTR_MODIFY_TREE;
-			btr_cur_search_to_nth_level(
+			err = btr_cur_search_to_nth_level(
 				index, 0, entry, PAGE_CUR_RTREE_INSERT,
 				search_mode,
 				&cursor, 0, __FILE__, __LINE__, &mtr);
@@ -2871,7 +3015,7 @@ row_ins_sec_index_entry_low(
 			ut_ad(cursor.page_cur.block != NULL);
 			ut_ad(cursor.page_cur.block->made_dirty_with_no_latch);
 		} else {
-			btr_cur_search_to_nth_level(
+			err = btr_cur_search_to_nth_level(
 				index, 0, entry, PAGE_CUR_LE,
 				search_mode,
 				&cursor, 0, __FILE__, __LINE__, &mtr);

@@ -7214,3 +7214,21 @@ ER_CALCULATING_DEFAULT_VALUE
         eng "Got an error when calculating default value for %`s"
 ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
         eng "Expression for field %`-.64s is refering to uninitialized field %`s"
+ER_BUFPOOL_RESIZE_INPROGRESS
+        eng "Another buffer pool resize is already in progress."
+ER_CANNOT_DISCARD_TEMPORARY_TABLE
+        eng "Cannot DISCARD/IMPORT tablespace associated with temporary table"
+ER_FK_DEPTH_EXCEEDED
+        eng "Foreign key cascade delete/update exceeds max depth of %d."
+ER_INNODB_FORCED_RECOVERY
+        eng "Operation not allowed when innodb_forced_recovery > 0."
+ER_TABLE_REFERENCED
+        eng "Cannot complete the operation because table is referenced by another connection."
+ER_TABLESPACE_IS_NOT_EMPTY
+        eng "Tablespace `%-.192s` is not empty."
+ER_MISSING_HA_CREATE_OPTION
+        eng "Table storage engine '%-.64s' found required create option missing"
+ER_ENGINE_OUT_OF_MEMORY
+        eng "Out of memory in storage engine '%-.64s'."
+ER_WRONG_FILE_NAME
+        eng "Incorrect File Name '%s'."

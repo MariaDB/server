@@ -42,6 +42,7 @@ mach_write_to_1(
 
 	b[0] = (byte) n;
 }
+
 #endif /* !UNIV_INNOCHECKSUM */
 
 /*******************************************************//**
@@ -948,4 +949,3 @@ mach_read_ulint(
 
 #endif /* !UNIV_HOTBACKUP */
 #endif /* !UNIV_INNOCHECKSUM */
-

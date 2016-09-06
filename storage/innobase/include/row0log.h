@@ -56,8 +56,9 @@ row_log_allocate(
 	const dtuple_t*	add_cols,
 				/*!< in: default values of
 				added columns, or NULL */
-	const ulint*	col_map)/*!< in: mapping of old column
+	const ulint*	col_map,/*!< in: mapping of old column
 				numbers to new ones, or NULL if !table */
+	const char*	path)	/*!< in: where to create temporary file */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /******************************************************//**
@@ -111,6 +112,16 @@ row_log_table_get_error(
 	const dict_index_t*	index)	/*!< in: clustered index of a table
 					that is being rebuilt online */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Check whether a virtual column is indexed in the new table being
+created during alter table
+@param[in]	index	cluster index
+@param[in]	v_no	virtual column number
+@return true if it is indexed, else false */
+bool
+row_log_col_is_indexed(
+	const dict_index_t*	index,
+	ulint			v_no);
 
 /******************************************************//**
 Logs a delete operation to a table that is being rebuilt.
@@ -208,7 +219,7 @@ row_log_table_apply(
 	dict_table_t*		old_table,
 	struct TABLE*		table,
 	ut_stage_alter_t*	stage)
-__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************//**
 Get the latest transaction ID that has invoked row_log_online_op()
@@ -235,7 +246,7 @@ row_log_apply(
 	dict_index_t*		index,
 	struct TABLE*		table,
 	ut_stage_alter_t*	stage)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Estimate how much work is to be done by the log apply phase

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -151,11 +151,6 @@ mlog_parse_nbytes(
 	offset = mach_read_from_2(ptr);
 	ptr += 2;
 
-	ut_a(!page || !page_zip || fil_page_get_type(page) != FIL_PAGE_INDEX ||
-	     /* scrubbing changes page type from FIL_PAGE_INDEX to
-	     * FIL_PAGE_TYPE_ALLOCATED (rest of this assertion is below) */
-	     (type == MLOG_2BYTES && offset == FIL_PAGE_TYPE));
-
 	if (offset >= UNIV_PAGE_SIZE) {
 		recv_sys->found_corrupt_log = TRUE;
 
@@ -215,13 +210,6 @@ mlog_parse_nbytes(
 			}
 			mach_write_to_2(page + offset, val);
 		}
-		ut_a(!page || !page_zip ||
-		     fil_page_get_type(page) != FIL_PAGE_INDEX ||
-		     /* scrubbing changes page type from FIL_PAGE_INDEX to
-		     * FIL_PAGE_TYPE_ALLOCATED */
-		     (type == MLOG_2BYTES &&
-		      offset == FIL_PAGE_TYPE &&
-		      val == FIL_PAGE_TYPE_ALLOCATED));
 
 		break;
 	case MLOG_4BYTES:

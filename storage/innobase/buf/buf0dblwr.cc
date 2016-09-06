@@ -173,7 +173,7 @@ buf_dblwr_init(
 Creates the doublewrite buffer to a new InnoDB installation. The header of the
 doublewrite buffer is placed on the trx system header page.
 @return true if successful, false if not. */
-__attribute__((warn_unused_result))
+MY_ATTRIBUTE((warn_unused_result))
 bool
 buf_dblwr_create(void)
 /*==================*/
@@ -576,7 +576,7 @@ buf_dblwr_process(void)
 			MLOG_TRUNCATE record in redo. */
 			bool	skip_warning =
 				srv_is_tablespace_truncated(space_id)
-				|| srv_was_tablespace_truncated(space_id);
+				|| srv_was_tablespace_truncated(space);
 
 			if (!skip_warning) {
 				ib::warn() << "Page " << page_no_dblwr
@@ -601,6 +601,14 @@ buf_dblwr_process(void)
 				request, true,
 				page_id, page_size,
 				0, page_size.physical(), read_buf, NULL, NULL);
+
+			if (err != DB_SUCCESS) {
+
+				ib::warn()
+					<< "Double write buffer recovery: "
+					<< page_id << " read failed with "
+					<< "error: " << ut_strerr(err);
+			}
 
 			/* Is page compressed ? */
 			is_compressed = fil_page_is_compressed_encrypted(read_buf) |
@@ -1186,6 +1194,7 @@ try_again:
 		       univ_page_size.physical() - bpage->size.physical());
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
+
 
 		UNIV_MEM_ASSERT_RW(frame,
 				   bpage->size.logical());

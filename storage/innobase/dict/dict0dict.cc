@@ -25,6 +25,9 @@ Data dictionary system
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
 
+#include <my_config.h>
+#include <string>
+
 #include "ha_prototypes.h"
 #include <mysqld.h>
 #include <strfunc.h>
@@ -33,7 +36,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "fil0fil.h"
 #include <algorithm>
-#include <string>
 
 #ifdef UNIV_NONINL
 #include "dict0dict.ic"
@@ -569,6 +571,8 @@ dict_table_close_and_drop(
 	trx_t*		trx,		/*!< in: data dictionary transaction */
 	dict_table_t*	table)		/*!< in/out: table */
 {
+	dberr_t err = DB_SUCCESS;
+
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(trx->dict_operation != TRX_DICT_OP_NONE);
@@ -583,7 +587,13 @@ dict_table_close_and_drop(
 	ut_a(!table->stat_initialized);
 #endif /* UNIV_DEBUG || UNIV_DDL_DEBUG */
 
-	row_merge_drop_table(trx, table);
+	err = row_merge_drop_table(trx, table);
+
+	if (err != DB_SUCCESS) {
+		ib::error() << "At " << __FILE__ << ":" << __LINE__
+			    << " row_merge_drop_table returned error: " << err
+			    << " table: " << table->name.m_name;
+	}
 }
 
 /** Check if the table has a given (non_virtual) column.
@@ -684,6 +694,7 @@ dict_table_get_col_name_for_mysql(
 
 	return(s);
 }
+
 /** Returns a virtual column's name.
 @param[in]	table	target table
 @param[in]	col_nr	virtual column number (nth virtual column)
@@ -1237,7 +1248,7 @@ dict_init(void)
 		       dict_operation_lock, SYNC_DICT_OPERATION);
 
 	if (!srv_read_only_mode) {
-		dict_foreign_err_file = os_file_create_tmpfile();
+		dict_foreign_err_file = os_file_create_tmpfile(NULL);
 		ut_a(dict_foreign_err_file);
 	}
 
@@ -1309,9 +1320,7 @@ dict_table_open_on_name(
 		if (ignore_err == DICT_ERR_IGNORE_NONE
 			&& table->is_encrypted) {
 			/* Make life easy for drop table. */
-			if (table->can_be_evicted) {
-				dict_table_move_from_lru_to_non_lru(table);
-			}
+			dict_table_prevent_eviction(table);
 
 			if (table->can_be_evicted) {
 				dict_move_to_mru(table);
@@ -1328,10 +1337,8 @@ dict_table_open_on_name(
 		/* If table is corrupted, return NULL */
 		else if (ignore_err == DICT_ERR_IGNORE_NONE
 		    && table->corrupted) {
-
 			/* Make life easy for drop table. */
 			dict_table_prevent_eviction(table);
-
 			if (!dict_locked) {
 				mutex_exit(&dict_sys->mutex);
 			}
@@ -1668,7 +1675,6 @@ dict_table_move_from_lru_to_non_lru(
 @param[in]	table	table instance
 @param[in]	id	index id
 @return index or NULL */
-UNIV_INTERN
 dict_index_t*
 dict_table_find_index_on_id(
 	const dict_table_t*	table,
@@ -1764,6 +1770,7 @@ dict_table_rename_in_cache(
 	dict_index_t*	index;
 	ulint		fold;
 	char		old_name[MAX_FULL_NAME_LEN + 1];
+	os_file_type_t	ftype;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
 
@@ -1798,7 +1805,6 @@ dict_table_rename_in_cache(
 	.ibd file and rebuild the .isl file if needed. */
 
 	if (dict_table_is_discarded(table)) {
-		os_file_type_t	type;
 		bool		exists;
 		char*		filepath;
 
@@ -1826,7 +1832,7 @@ dict_table_rename_in_cache(
 		fil_delete_tablespace(table->space, BUF_REMOVE_ALL_NO_WRITE);
 
 		/* Delete any temp file hanging around. */
-		if (os_file_status(filepath, &exists, &type)
+		if (os_file_status(filepath, &exists, &ftype)
 		    && exists
 		    && !os_file_delete_if_exists(innodb_temp_file_key,
 						 filepath, NULL)) {
@@ -1860,19 +1866,31 @@ dict_table_rename_in_cache(
 				ut_free(old_path);
 				return(DB_TABLESPACE_EXISTS);
 			}
+		} else {
+			new_path = fil_make_filepath(
+				NULL, new_name, IBD, false);
+		}
+
+		/* New filepath must not exist. */
+		err = fil_rename_tablespace_check(
+			table->space, old_path, new_path, false);
+		if (err != DB_SUCCESS) {
+			ut_free(old_path);
+			ut_free(new_path);
+			return(err);
 		}
 
 		bool	success = fil_rename_tablespace(
 			table->space, old_path, new_name, new_path);
 
 		ut_free(old_path);
+		ut_free(new_path);
 
 		/* If the tablespace is remote, a new .isl file was created
-		If success, delete the old one. If not, delete the new one.  */
-		if (new_path) {
-
-			ut_free(new_path);
-			RemoteDatafile::delete_link_file(success ? old_name : new_name);
+		If success, delete the old one. If not, delete the new one. */
+		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
+			RemoteDatafile::delete_link_file(
+				success ? old_name : new_name);
 		}
 
 		if (!success) {
@@ -2271,6 +2289,12 @@ dict_table_remove_from_cache_low(
 		trx_free_for_background(trx);
 	}
 
+	/* Free virtual column template if any */
+	if (table->vc_templ != NULL) {
+		dict_free_vc_templ(table->vc_templ);
+		UT_DELETE(table->vc_templ);
+	}
+
 	size = mem_heap_get_size(table->heap) + strlen(table->name.m_name) + 1;
 
 	ut_ad(dict_sys->size >= size);
@@ -2516,7 +2540,7 @@ dict_index_too_big_for_tree(
 		REC_STATUS_ORDINARY records. */
 
 		field_max_size = dict_col_get_fixed_size(col, comp);
-		if (field_max_size) {
+		if (field_max_size && field->fixed_len != 0) {
 			/* dict_index_add_col() should guarantee this */
 			ut_ad(!field->prefix_len
 			      || field->fixed_len == field->prefix_len);
@@ -2681,18 +2705,31 @@ dict_index_add_to_cache_w_vcol(
 	}
 
 	n_ord = new_index->n_uniq;
-
 	/* Flag the ordering columns and also set column max_prefix */
 
 	for (i = 0; i < n_ord; i++) {
 		const dict_field_t*	field
 			= dict_index_get_nth_field(new_index, i);
 
-		field->col->ord_part = 1;
-
-		if (field->prefix_len > field->col->max_prefix) {
+		/* Check the column being added in the index for
+		the first time and flag the ordering column. */
+		if (field->col->ord_part == 0 ) {
+			field->col->max_prefix = field->prefix_len;
+			field->col->ord_part = 1;
+		} else if (field->prefix_len == 0) {
+			/* Set the max_prefix for a column to 0 if
+			its prefix length is 0 (for this index)
+			even if it was a part of any other index
+			with some prefix length. */
+			field->col->max_prefix = 0;
+		} else if (field->col->max_prefix != 0
+			   && field->prefix_len
+			   > field->col->max_prefix) {
+			/* Set the max_prefix value based on the
+			prefix_len. */
 			field->col->max_prefix = field->prefix_len;
 		}
+		ut_ad(field->col->ord_part == 1);
 	}
 
 	new_index->stat_n_diff_key_vals =
@@ -3051,7 +3088,6 @@ dict_index_add_col(
 	field = dict_index_get_nth_field(index, index->n_def - 1);
 
 	field->col = col;
-
 	/* DATA_POINT is a special type, whose fixed_len should be:
 	1) DATA_MBR_LEN, when it's indexed in R-TREE. In this case,
 	it must be the first col to be added.
@@ -3663,7 +3699,7 @@ dict_foreign_find_index(
 					/*!< out: column number where
 					error happened */
 	dict_index_t**		err_index)
-			                /*!< out: index where error
+					/*!< out: index where error
 					happened */
 {
 	dict_index_t*	index;
@@ -4645,6 +4681,11 @@ dict_foreign_push_index_error(
 }
 
 /*********************************************************************//**
+Scans a table create SQL string and adds to the data dictionary the foreign key
+constraints declared in the string. This function should be called after the
+indexes for a table have been created. Each foreign key constraint must be
+accompanied with indexes in bot participating tables. The indexes are allowed
+to contain more fields than mentioned in the constraint.
 @return error code or DB_SUCCESS */
 static
 dberr_t
@@ -4879,6 +4920,10 @@ loop:
 			return(DB_CANNOT_ADD_CONSTRAINT);
 		}
 
+		if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
+			return(DB_NO_FK_ON_S_BASE_COL);
+		}
+
 		/**********************************************************/
 		/* The following call adds the foreign key constraints
 		to the data dictionary system tables on disk */
@@ -4894,6 +4939,8 @@ loop:
 				      local_fk_set.end(),
 				      dict_foreign_add_to_referenced_table());
 			local_fk_set.clear();
+
+			dict_mem_table_fill_foreign_vcol_set(table);
 		}
 		return(error);
 	}
@@ -4919,53 +4966,52 @@ loop:
 	}
 
 	if (my_isspace(cs, *ptr)) {
-                ptr1 = dict_accept(cs, ptr, "IF", &success);
+		ptr1 = dict_accept(cs, ptr, "IF", &success);
 
-                if (success) {
-                        if (!my_isspace(cs, *ptr1)) {
-                                goto loop;
-                        }
-                        ptr1 = dict_accept(cs, ptr1, "NOT", &success);
-                        if (!success) {
-                                goto loop;
-                        }
-                        ptr1 = dict_accept(cs, ptr1, "EXISTS", &success);
-                        if (!success) {
-                                goto loop;
-                        }
-                        ptr = ptr1;
-                }
+		if (success) {
+			if (!my_isspace(cs, *ptr1)) {
+				goto loop;
+			}
+			ptr1 = dict_accept(cs, ptr1, "NOT", &success);
+			if (!success) {
+				goto loop;
+			}
+			ptr1 = dict_accept(cs, ptr1, "EXISTS", &success);
+			if (!success) {
+				goto loop;
+			}
+			ptr = ptr1;
+		}
 	}
 
 	orig = ptr;
 	ptr = dict_accept(cs, ptr, "(", &success);
 
 	if (!success) {
-                if (constraint_name) {
-		  /* MySQL allows also an index id before the '('; we
-		  skip it */
-		  ptr = dict_skip_word(cs, ptr, &success);
-		  if (!success) {
-			  dict_foreign_report_syntax_err(
-				"%s table %s with foreign key constraint"
-				" failed. Parse error in '%s'"
-				" near '%s'.\n",
-				operation, create_name, start_of_latest_foreign, orig);
+		if (constraint_name) {
+			/* MySQL allows also an index id before the '('; we
+			skip it */
+			ptr = dict_skip_word(cs, ptr, &success);
+			if (!success) {
+				dict_foreign_report_syntax_err(
+					"%s table %s with foreign key constraint"
+					" failed. Parse error in '%s'"
+					" near '%s'.\n",
+					operation, create_name, start_of_latest_foreign, orig);
 
-			  ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
-				"%s table %s with foreign key constraint"
-				" failed. Parse error in '%s'"
-				" near '%s'.",
-				operation, create_name, start_of_latest_foreign, orig);
-			  return(DB_CANNOT_ADD_CONSTRAINT);
-                  }
-		}
-                else {
-		  while (my_isspace(cs, *ptr)) {
-			  ptr++;
-		  }
+				ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
+					"%s table %s with foreign key constraint"
+					" failed. Parse error in '%s'"
+					" near '%s'.",
+					operation, create_name, start_of_latest_foreign, orig);
+				return(DB_CANNOT_ADD_CONSTRAINT);
+			}
+		} else {
+			while (my_isspace(cs, *ptr)) {
+				ptr++;
+			}
 
-		  ptr = dict_scan_id(cs, ptr, heap,
+			ptr = dict_scan_id(cs, ptr, heap,
 				     &constraint_name, FALSE, FALSE);
 		}
 
@@ -5075,6 +5121,23 @@ col_loop1:
 			" failed. Parse error in '%s'"
 			" near '%s'.",
 			operation, create_name, start_of_latest_foreign, orig);
+		return(DB_CANNOT_ADD_CONSTRAINT);
+	}
+
+	/* Don't allow foreign keys on partitioned tables yet. */
+	ptr1 = dict_scan_to(ptr, "PARTITION");
+	if (ptr1) {
+		ptr1 = dict_accept(cs, ptr1, "PARTITION", &success);
+		if (success && my_isspace(cs, *ptr1)) {
+			ptr2 = dict_accept(cs, ptr1, "BY", &success);
+			if (success) {
+				my_error(ER_FOREIGN_KEY_ON_PARTITIONED,MYF(0));
+				return(DB_CANNOT_ADD_CONSTRAINT);
+			}
+		}
+	}
+	if (dict_table_is_partition(table)) {
+		my_error(ER_FOREIGN_KEY_ON_PARTITIONED,MYF(0));
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
 
@@ -5602,7 +5665,7 @@ dict_foreign_parse_drop_constraints(
 	char*			str;
 	size_t			len;
 	const char*		ptr;
-        const char*             ptr1;
+	const char*		ptr1;
 	const char*		id;
 	CHARSET_INFO*		cs;
 
@@ -5656,11 +5719,10 @@ loop:
 	ptr1 = dict_accept(cs, ptr, "IF", &success);
 
 	if (success && my_isspace(cs, *ptr1)) {
-	        ptr1 = dict_accept(cs, ptr1, "EXISTS", &success);
-	        if (success) {
-
-                        ptr = ptr1;
-	        }
+		ptr1 = dict_accept(cs, ptr1, "EXISTS", &success);
+		if (success) {
+			ptr = ptr1;
+		}
 	}
 
 	ptr = dict_scan_id(cs, ptr, heap, &id, FALSE, TRUE);
@@ -5875,6 +5937,12 @@ dict_index_copy_rec_order_prefix(
 			n = dict_index_get_n_unique_in_tree(index);
 		} else {
 			n = dict_index_get_n_unique_in_tree_nonleaf(index);
+			/* For internal node of R-tree, since we need to
+			compare the page no field, so, we need to copy this
+			field as well. */
+			if (dict_index_is_spatial(index)) {
+				n++;
+			}
 		}
 	}
 
@@ -5992,11 +6060,11 @@ dict_print_info_on_foreign_key_in_create_format(
 
 	str.append(" CONSTRAINT ");
 
-	str.append(ut_get_name(trx, FALSE, stripped_id));
+	str.append(innobase_quote_identifier(trx, stripped_id));
 	str.append(" FOREIGN KEY (");
 
 	for (i = 0;;) {
-		str.append(ut_get_name(trx, FALSE, foreign->foreign_col_names[i]));
+		str.append(innobase_quote_identifier(trx, foreign->foreign_col_names[i]));
 
 		if (++i < foreign->n_fields) {
 			str.append(", ");
@@ -6010,18 +6078,18 @@ dict_print_info_on_foreign_key_in_create_format(
 	if (dict_tables_have_same_db(foreign->foreign_table_name_lookup,
 				     foreign->referenced_table_name_lookup)) {
 		/* Do not print the database name of the referenced table */
-		str.append(ut_get_name(trx, TRUE,
+		str.append(ut_get_name(trx,
 			      dict_remove_db_name(
 				      foreign->referenced_table_name)));
 	} else {
-		str.append(ut_get_name(trx, TRUE,
+		str.append(ut_get_name(trx,
 				foreign->referenced_table_name));
 	}
 
 	str.append(" (");
 
 	for (i = 0;;) {
-		str.append(ut_get_name(trx, FALSE,
+		str.append(innobase_quote_identifier(trx,
 				foreign->referenced_col_names[i]));
 
 		if (++i < foreign->n_fields) {
@@ -6096,12 +6164,12 @@ dict_print_info_on_foreign_keys(
 					str.append(" ");
 				}
 
-				str.append(ut_get_name(trx, FALSE,
+				str.append(innobase_quote_identifier(trx,
 						foreign->foreign_col_names[i]));
 			}
 
 			str.append(") REFER ");
-			str.append(ut_get_name(trx, TRUE,
+			str.append(ut_get_name(trx,
 					foreign->referenced_table_name));
 			str.append(")");
 
@@ -6109,8 +6177,8 @@ dict_print_info_on_foreign_keys(
 				if (i) {
 					str.append(" ");
 				}
-				str.append(ut_get_name(
-						trx, FALSE,
+				str.append(innobase_quote_identifier(
+						trx,
 						foreign->referenced_col_names[i]));
 			}
 
@@ -6143,7 +6211,6 @@ dict_print_info_on_foreign_keys(
 	}
 
 	mutex_exit(&dict_sys->mutex);
-
 	return str;
 }
 
@@ -6259,6 +6326,13 @@ dict_set_corrupted(
 	if (index->type & DICT_CORRUPT) {
 		/* The index was already flagged corrupted. */
 		ut_ad(!dict_index_is_clust(index) || index->table->corrupted);
+		goto func_exit;
+	}
+
+	/* If this is read only mode, do not update SYS_INDEXES, just
+	mark it as corrupted in memory */
+	if (srv_read_only_mode) {
+		index->type |= DICT_CORRUPT;
 		goto func_exit;
 	}
 
@@ -6451,6 +6525,7 @@ dict_set_merge_threshold_all_debug(
 
 	mutex_exit(&dict_sys->mutex);
 }
+
 #endif /* UNIV_DEBUG */
 #endif /* !UNIV_HOTBACKUP */
 
@@ -6914,7 +6989,8 @@ dict_fs2utf8(
 
 	errors = 0;
 	strconvert(
-                &my_charset_filename, buf, (uint) (buf_p - buf), system_charset_info,
+		&my_charset_filename, buf, (uint) (buf_p - buf),
+		system_charset_info,
 		table_utf8, table_utf8_size,
 		&errors);
 
@@ -7380,11 +7456,13 @@ dict_table_t::flags |     0     |    1    |     1      |    1
 fil_space_t::flags  |     0     |    0    |     1      |    1
 @param[in]	table_flags	dict_table_t::flags
 @param[in]	is_temp		whether the tablespace is temporary
+@param[in]	is_encrypted	whether the tablespace is encrypted
 @return tablespace flags (fil_space_t::flags) */
 ulint
 dict_tf_to_fsp_flags(
 	ulint	table_flags,
-	bool	is_temp)
+	bool	is_temp,
+	bool	is_encrypted)
 {
 	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
 			return(ULINT_UNDEFINED););
@@ -7411,9 +7489,30 @@ dict_tf_to_fsp_flags(
 						   has_data_dir,
 						   is_shared,
 						   is_temp,
-						   page_compression,
-						   page_compression_level,
-						   atomic_writes);
+						   0,
+						   0,
+						   0,
+						   is_encrypted);
+
+	/* In addition, tablespace flags also contain if the page
+	compression is used for this table. */
+	if (page_compression) {
+		fsp_flags |= FSP_FLAGS_SET_PAGE_COMPRESSION(fsp_flags, page_compression);
+	}
+
+	/* In addition, tablespace flags also contain page compression level
+	if page compression is used for this table. */
+	if (page_compression && page_compression_level) {
+		fsp_flags |= FSP_FLAGS_SET_PAGE_COMPRESSION_LEVEL(fsp_flags, page_compression_level);
+	}
+
+	/* In addition, tablespace flags also contain flag if atomic writes
+	is used for this table */
+	if (atomic_writes) {
+		fsp_flags |= FSP_FLAGS_SET_ATOMIC_WRITES(fsp_flags, atomic_writes);
+	}
+
+	ut_ad(fsp_flags_is_valid(fsp_flags));
 
 	return(fsp_flags);
 }
@@ -7442,10 +7541,10 @@ dict_tf_to_row_format_string(
 }
 
 /** Look for any dictionary objects that are found in the given tablespace.
-@param[in]	space	Tablespace ID to search for.
+@param[in]	space_id	Tablespace ID to search for.
 @return true if tablespace is empty. */
 bool
-dict_tablespace_is_empty(
+dict_space_is_empty(
 	ulint	space_id)
 {
 	btr_pcur_t	pcur;
@@ -7479,6 +7578,55 @@ dict_tablespace_is_empty(
 	rw_lock_x_unlock(dict_operation_lock);
 
 	return(!found);
+}
+
+/** Find the space_id for the given name in sys_tablespaces.
+@param[in]	name	Tablespace name to search for.
+@return the tablespace ID. */
+ulint
+dict_space_get_id(
+	const char*	name)
+{
+	btr_pcur_t	pcur;
+	const rec_t*	rec;
+	mtr_t		mtr;
+	ulint		name_len = strlen(name);
+	ulint		id = ULINT_UNDEFINED;
+
+	rw_lock_x_lock(dict_operation_lock);
+	mutex_enter(&dict_sys->mutex);
+	mtr_start(&mtr);
+
+	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
+	     rec != NULL;
+	     rec = dict_getnext_system(&pcur, &mtr)) {
+		const byte*	field;
+		ulint		len;
+
+		field = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_TABLESPACES__NAME, &len);
+		ut_ad(len > 0);
+		ut_ad(len < OS_FILE_MAX_PATH);
+
+		if (len == name_len && ut_memcmp(name, field, len) == 0) {
+
+			field = rec_get_nth_field_old(
+				rec, DICT_FLD__SYS_TABLESPACES__SPACE, &len);
+			ut_ad(len == 4);
+			id = mach_read_from_4(field);
+
+			/* This is normally called by dict_getnext_system()
+			at the end of the index. */
+			btr_pcur_close(&pcur);
+			break;
+		}
+	}
+
+	mtr_commit(&mtr);
+	mutex_exit(&dict_sys->mutex);
+	rw_lock_x_unlock(dict_operation_lock);
+
+	return(id);
 }
 #endif /* !UNIV_HOTBACKUP */
 

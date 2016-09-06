@@ -516,9 +516,9 @@ dict_boot(void)
 			dict_load_sys_table(dict_sys->sys_indexes);
 			dict_load_sys_table(dict_sys->sys_fields);
 		}
+	}
 
 	mutex_exit(&dict_sys->mutex);
-	}
 
 	return(err);
 }

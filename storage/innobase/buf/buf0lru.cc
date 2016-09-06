@@ -145,7 +145,7 @@ If a compressed page is freed other compressed pages may be relocated.
 caller needs to free the page to the free list
 @retval false if BUF_BLOCK_ZIP_PAGE was removed from page_hash. In
 this case the block is already returned to the buddy allocator. */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 bool
 buf_LRU_block_remove_hashed(
 /*========================*/
@@ -376,7 +376,7 @@ want to hog the CPU and resources. Release the buffer pool and block
 mutex and try to force a context switch. Then reacquire the same mutexes.
 The current page is "fixed" before the release of the mutexes and then
 "unfixed" again once we have reacquired the mutexes. */
-static	MY_ATTRIBUTE((nonnull))
+static
 void
 buf_flush_yield(
 /*============*/
@@ -419,7 +419,7 @@ If we have hogged the resources for too long then release the buffer
 pool and flush list mutex and do a thread yield. Set the current page
 to "sticky" so that it is not relocated during the yield.
 @return true if yielded */
-static	MY_ATTRIBUTE((nonnull(1), warn_unused_result))
+static	MY_ATTRIBUTE((warn_unused_result))
 bool
 buf_flush_try_yield(
 /*================*/
@@ -462,7 +462,7 @@ buf_flush_try_yield(
 Removes a single page from a given tablespace inside a specific
 buffer pool instance.
 @return true if page was removed. */
-static	MY_ATTRIBUTE((nonnull, warn_unused_result))
+static	MY_ATTRIBUTE((warn_unused_result))
 bool
 buf_flush_or_remove_page(
 /*=====================*/
@@ -548,7 +548,7 @@ the list as they age towards the tail of the LRU.
 @retval DB_SUCCESS if all freed
 @retval DB_FAIL if not all freed
 @retval DB_INTERRUPTED if the transaction was interrupted */
-static	MY_ATTRIBUTE((nonnull(1), warn_unused_result))
+static	MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 buf_flush_or_remove_pages(
 /*======================*/
@@ -668,7 +668,7 @@ Remove or flush all the dirty pages that belong to a given tablespace
 inside a specific buffer pool instance. The pages will remain in the LRU
 list and will be evicted from the LRU list as they age and move towards
 the tail of the LRU list. */
-static MY_ATTRIBUTE((nonnull(1)))
+static
 void
 buf_flush_dirty_pages(
 /*==================*/
@@ -717,7 +717,7 @@ buf_flush_dirty_pages(
 /******************************************************************//**
 Remove all pages that belong to a given tablespace inside a specific
 buffer pool instance when we are DISCARDing the tablespace. */
-static MY_ATTRIBUTE((nonnull))
+static
 void
 buf_LRU_remove_all_pages(
 /*=====================*/
@@ -856,7 +856,7 @@ buffer pool instance when we are deleting the data file(s) of that
 tablespace. The pages still remain a part of LRU and are evicted from
 the list as they age towards the tail of the LRU only if buf_remove
 is BUF_REMOVE_FLUSH_NO_WRITE. */
-static	MY_ATTRIBUTE((nonnull(1)))
+static
 void
 buf_LRU_remove_pages(
 /*=================*/
@@ -1902,7 +1902,7 @@ func_exit:
 	DBUG_PRINT("ib_buf", ("free page %u:%u",
 			      bpage->id.space(), bpage->id.page_no()));
 
-        ut_ad(rw_lock_own(hash_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(hash_lock, RW_LOCK_X));
 	ut_ad(buf_page_can_relocate(bpage));
 
 	if (!buf_LRU_block_remove_hashed(bpage, zip)) {
@@ -2102,8 +2102,9 @@ buf_LRU_block_free_non_file_page(
 	case BUF_BLOCK_READY_FOR_USE:
 		break;
 	default:
-		fprintf(stderr, "InnoDB: Error: Block %p incorrect state %s in buf_LRU_block_free_non_file_page()\n",
-			block, buf_get_state_name(block));
+		ib::error() << "Block:" << block
+			    << " incorrect state:" << buf_get_state_name(block)
+			    << " in buf_LRU_block_free_non_file_page";
 		return; /* Continue */
 	}
 
@@ -2280,27 +2281,27 @@ buf_LRU_block_remove_hashed(
 	}
 
 	hashed_bpage = buf_page_hash_get_low(buf_pool, bpage->id);
-
 	if (bpage != hashed_bpage) {
 		ib::error() << "Page " << bpage->id
 			<< " not found in the hash table";
 
 #ifdef UNIV_DEBUG
-		fprintf(stderr,
-			"InnoDB: in_page_hash %lu in_zip_hash %lu\n"
-			" in_free_list %lu in_flush_list %lu in_LRU_list %lu\n"
-			" zip.data %p zip_size %lu page_state %d\n",
-			bpage->in_page_hash, bpage->in_zip_hash,
-			bpage->in_free_list, bpage->in_flush_list,
-			bpage->in_LRU_list, bpage->zip.data,
-			bpage->size.logical(),
-			buf_page_get_state(bpage));
+
+		
+		ib::error()
+			<< "in_page_hash:" << bpage->in_page_hash
+			<< " in_zip_hash:" << bpage->in_zip_hash
+			//			<< " in_free_list:"<< bpage->in_fee_list
+			<< " in_flush_list:" << bpage->in_flush_list
+			<< " in_LRU_list:" << bpage->in_LRU_list
+			<< " zip.data:" << bpage->zip.data
+			<< " zip_size:" << bpage->size.logical()
+			<< " page_state:" << buf_page_get_state(bpage);
 #else
-		fprintf(stderr,
-			"InnoDB: zip.data %p zip_size %lu page_state %d\n",
-			bpage->zip.data,
-			bpage->size.logical(),
-			buf_page_get_state(bpage));
+		ib::error()
+			<< " zip.data:" << bpage->zip.data
+			<< " zip_size:" << bpage->size.logical()
+			<< " page_state:" << buf_page_get_state(bpage);
 #endif
 
 		if (hashed_bpage) {
@@ -2751,14 +2752,14 @@ buf_LRU_print_instance(
 		case BUF_BLOCK_FILE_PAGE:
 			frame = buf_block_get_frame((buf_block_t*) bpage);
 			fprintf(stderr, "\ntype %lu"
-				" index id " UINT32PF "\n",
+				" index id " IB_ID_FMT "\n",
 				(ulong) fil_page_get_type(frame),
 				btr_page_get_index_id(frame));
 			break;
 		case BUF_BLOCK_ZIP_PAGE:
 			frame = bpage->zip.data;
 			fprintf(stderr, "\ntype %lu size %lu"
-				" index id " UINT32PF "\n",
+				" index id " IB_ID_FMT "\n",
 				(ulong) fil_page_get_type(frame),
 				(ulong) bpage->size.physical(),
 				btr_page_get_index_id(frame));

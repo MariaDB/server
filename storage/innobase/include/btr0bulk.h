@@ -260,7 +260,7 @@ private:
 	FlushObserver*	m_flush_observer;
 
 	/** Operation result DB_SUCCESS or error code */
-	dberr_t         m_err;
+	dberr_t		m_err;
 };
 
 typedef std::vector<PageBulk*, ut_allocator<PageBulk*> >

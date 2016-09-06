@@ -148,26 +148,28 @@ row_sel_sec_rec_is_for_blob(
 	return(!cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len));
 }
 
-/********************************************************************//**
-Returns TRUE if the user-defined column values in a secondary index record
+/** Returns TRUE if the user-defined column values in a secondary index record
 are alphabetically the same as the corresponding columns in the clustered
 index record.
 NOTE: the comparison is NOT done as a binary comparison, but character
 fields are compared with collation!
+@param[in]	sec_rec		secondary index record
+@param[in]	sec_index	secondary index
+@param[in]	clust_rec	clustered index record;
+				must be protected by a page s-latch
+@param[in]	clust_index	clustered index
+@param[in]	thr		query thread
 @return TRUE if the secondary record is equal to the corresponding
 fields in the clustered record, when compared with collation;
 FALSE if not equal or if the clustered record has been marked for deletion */
 static
 ibool
 row_sel_sec_rec_is_for_clust_rec(
-/*=============================*/
-	const rec_t*	sec_rec,	/*!< in: secondary index record */
-	dict_index_t*	sec_index,	/*!< in: secondary index */
-	const rec_t*	clust_rec,	/*!< in: clustered index record;
-					must be protected by a lock or
-					a page latch against deletion
-					in rollback or purge */
-	dict_index_t*	clust_index)	/*!< in: clustered index */
+	const rec_t*	sec_rec,
+	dict_index_t*	sec_index,
+	const rec_t*	clust_rec,
+	dict_index_t*	clust_index,
+	que_thr_t*	thr)
 {
 	const byte*	sec_field;
 	ulint		sec_len;
@@ -210,7 +212,6 @@ row_sel_sec_rec_is_for_clust_rec(
 		ulint			clust_len;
 		ulint			len;
 		bool			is_virtual;
-		row_ext_t*		ext;
 
 		ifield = dict_index_get_nth_field(sec_index, i);
 		col = dict_field_get_col(ifield);
@@ -220,9 +221,11 @@ row_sel_sec_rec_is_for_clust_rec(
 		/* For virtual column, its value will need to be
 		reconstructed from base column in cluster index */
 		if (is_virtual) {
+#ifdef MYSQL_VIRTUAL_COLUMNS
 			const dict_v_col_t*	v_col;
 			const dtuple_t*         row;
 			dfield_t*		vfield;
+			row_ext_t*		ext;
 
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 
@@ -233,11 +236,14 @@ row_sel_sec_rec_is_for_clust_rec(
 
 			vfield = innobase_get_computed_value(
 					row, v_col, clust_index,
-					NULL, &heap, NULL, NULL, false);
+					&heap, NULL, NULL,
+					thr_get_trx(thr)->mysql_thd,
+					thr->prebuilt->m_mysql_table, NULL,
+					NULL, NULL);
 
 			clust_len = vfield->len;
 			clust_field = static_cast<byte*>(vfield->data);
-
+#endif /* MYSQL_VIRTUAL_COLUMNS */
 		} else {
 			clust_pos = dict_col_get_clust_pos(col, clust_index);
 
@@ -1018,7 +1024,8 @@ row_sel_get_clust_rec(
 		     || rec_get_deleted_flag(rec, dict_table_is_comp(
 						     plan->table)))
 		    && !row_sel_sec_rec_is_for_clust_rec(rec, plan->index,
-							 clust_rec, index)) {
+							 clust_rec, index,
+							 thr)) {
 			goto func_exit;
 		}
 	}
@@ -1519,7 +1526,7 @@ row_sel_try_search_shortcut(
 		}
 	} else if (!srv_read_only_mode
 		   && !lock_sec_rec_cons_read_sees(
-			   rec, index, offsets, node->read_view)) {
+			rec, index, node->read_view)) {
 
 		ret = SEL_RETRY;
 		goto func_exit;
@@ -1563,7 +1570,7 @@ func_exit:
 /*********************************************************************//**
 Performs a select step.
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_sel(
 /*====*/
@@ -1966,7 +1973,7 @@ skip_lock:
 			}
 		} else if (!srv_read_only_mode
 			   && !lock_sec_rec_cons_read_sees(
-				   rec, index, offsets, node->read_view)) {
+				   rec, index, node->read_view)) {
 
 			cons_read_requires_clust_rec = TRUE;
 		}
@@ -3227,9 +3234,10 @@ row_sel_store_mysql_rec(
 		if (templ->is_virtual && dict_index_is_clust(index)) {
 
 			/* Skip virtual columns if it is not a covered
-			search */
+			search or virtual key read is not requested. */
 			if (!dict_index_has_virtual(prebuilt->index)
-			    || !prebuilt->read_just_key
+			    || (!prebuilt->read_just_key
+				&& !prebuilt->m_read_virtual_key)
 			    || !rec_clust) {
 				continue;
 			}
@@ -3242,6 +3250,24 @@ row_sel_store_mysql_rec(
 
 			const dfield_t* dfield = dtuple_get_nth_v_field(
 				vrow, col->v_pos);
+
+			/* If this is a partitioned table, it might request
+			InnoDB to fill out virtual column data for serach
+			index key values while other non key columns are also
+			getting selected. The non-key virtual columns may
+			not be materialized and we should skip them. */
+			if (dfield_get_type(dfield)->mtype == DATA_MISSING) {
+				ulint prefix;
+				ut_ad(prebuilt->m_read_virtual_key);
+
+				/* If it is part of index key the data should
+				have been materialized. */
+				ut_ad(dict_index_get_nth_col_or_prefix_pos(
+					prebuilt->index, col->v_pos, false,
+					true, &prefix) == ULINT_UNDEFINED);
+
+				continue;
+			}
 
 			if (dfield->len == UNIV_SQL_NULL) {
 				mysql_rec[templ->mysql_null_byte_offset]
@@ -3283,6 +3309,7 @@ row_sel_store_mysql_rec(
 		if (!row_sel_store_mysql_field(mysql_rec, prebuilt,
 					       rec, index, offsets,
 					       field_no, templ)) {
+
 			DBUG_RETURN(FALSE);
 		}
 	}
@@ -3580,7 +3607,7 @@ row_sel_get_clust_rec_for_mysql(
 			|| rec_get_deleted_flag(rec, dict_table_is_comp(
 							sec_index->table)))
 		    && !row_sel_sec_rec_is_for_clust_rec(
-			    rec, sec_index, clust_rec, clust_index)) {
+			    rec, sec_index, clust_rec, clust_index, thr)) {
 			clust_rec = NULL;
 		}
 
@@ -4404,6 +4431,9 @@ row_sel_fill_vrow(
 	*vrow = dtuple_create_with_vcol(
 		heap, 0, dict_table_get_n_v_cols(index->table));
 
+	/* Initialize all virtual row's mtype to DATA_MISSING */
+	dtuple_init_v_fld(*vrow);
+
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
 		const dict_field_t*     field;
                 const dict_col_t*       col;
@@ -4423,6 +4453,7 @@ row_sel_fill_vrow(
 			dfield_t* dfield = dtuple_get_nth_v_field(
 				*vrow, vcol->v_pos);
 			dfield_set_data(dfield, data, len);
+			dict_col_copy_type(col, dfield_get_type(dfield));
 		}
 	}
 }
@@ -4522,7 +4553,6 @@ row_search_mvcc(
 
 		return(DB_DECRYPTION_FAILED);
 	} else if (!prebuilt->index_usable) {
-
 		DBUG_RETURN(DB_MISSING_HISTORY);
 
 	} else if (dict_index_is_corrupted(prebuilt->index)) {
@@ -4530,10 +4560,12 @@ row_search_mvcc(
 		DBUG_RETURN(DB_CORRUPTION);
 	}
 
-	/* We need to get the virtual row value only if this is covered
-	index scan */
+	/* We need to get the virtual column values stored in secondary
+	index key, if this is covered index scan or virtual key read is
+	requested. */
 	bool    need_vrow = dict_index_has_virtual(prebuilt->index)
-			    && prebuilt->read_just_key;
+		&& (prebuilt->read_just_key
+		    || prebuilt->m_read_virtual_key);
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 0: Release a possible s-latch we are holding on the
@@ -5462,7 +5494,7 @@ no_gap_lock:
 
 			if (!srv_read_only_mode
 			    && !lock_sec_rec_cons_read_sees(
-				    rec, index, offsets, trx->read_view)) {
+					rec, index, trx->read_view)) {
 				/* We should look at the clustered index.
 				However, as this is a non-locking read,
 				we can skip the clustered index lookup if

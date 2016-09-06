@@ -715,7 +715,6 @@ fill_lock_data(
 
 	page = reinterpret_cast<const page_t*>(buf_block_get_frame(block));
 
-
 	rec_offs_init(offsets_onstack);
 	offsets = offsets_onstack;
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -485,6 +485,7 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_RECV);
 	LEVEL_MAP_INSERT(SYNC_LOG_FLUSH_ORDER);
 	LEVEL_MAP_INSERT(SYNC_LOG);
+	LEVEL_MAP_INSERT(SYNC_LOG_WRITE);
 	LEVEL_MAP_INSERT(SYNC_PAGE_CLEANER);
 	LEVEL_MAP_INSERT(SYNC_PURGE_QUEUE);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS_HEADER);
@@ -766,6 +767,7 @@ LatchDebug::check_order(
 	case SYNC_FTS_CACHE_INIT:
 	case SYNC_PAGE_CLEANER:
 	case SYNC_LOG:
+	case SYNC_LOG_WRITE:
 	case SYNC_LOG_FLUSH_ORDER:
 	case SYNC_FILE_FORMAT_TAG:
 	case SYNC_DOUBLEWRITE:
@@ -1389,6 +1391,8 @@ sync_latch_meta_init()
 
 	LATCH_ADD(LOG_SYS, SYNC_LOG, log_sys_mutex_key);
 
+	LATCH_ADD(LOG_WRITE, SYNC_LOG_WRITE, log_sys_write_mutex_key);
+
 	LATCH_ADD(LOG_FLUSH_ORDER, SYNC_LOG_FLUSH_ORDER,
 		  log_flush_order_mutex_key);
 
@@ -1538,16 +1542,16 @@ sync_latch_meta_init()
 	LATCH_ADD(HASH_TABLE_RW_LOCK, SYNC_BUF_PAGE_HASH,
 		  hash_table_locks_key);
 
-#ifdef UNIV_DEBUG
-	LATCH_ADD(BUF_CHUNK_MAP_LATCH, SYNC_ANY_LATCH, buf_chunk_map_latch_key);
-#endif /* UNIV_DEBUG */
-
 	LATCH_ADD(SYNC_DEBUG_MUTEX, SYNC_NO_ORDER_CHECK, PFS_NOT_INSTRUMENTED);
+
+	LATCH_ADD(MASTER_KEY_ID_MUTEX, SYNC_NO_ORDER_CHECK, master_key_id_mutex_key);
 
 	/* JAN: TODO: Add PFS instrumentation */
 	LATCH_ADD(SCRUB_STAT_MUTEX, SYNC_NO_ORDER_CHECK, PFS_NOT_INSTRUMENTED);
 	LATCH_ADD(DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK, PFS_NOT_INSTRUMENTED);
+	LATCH_ADD(BTR_DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK, PFS_NOT_INSTRUMENTED);
 	LATCH_ADD(MTFLUSH_THREAD_MUTEX,  SYNC_NO_ORDER_CHECK, PFS_NOT_INSTRUMENTED);
+	LATCH_ADD(MTFLUSH_MUTEX,  SYNC_NO_ORDER_CHECK, PFS_NOT_INSTRUMENTED);
 	LATCH_ADD(FIL_CRYPT_MUTEX, SYNC_NO_ORDER_CHECK, PFS_NOT_INSTRUMENTED);
 	LATCH_ADD(FIL_CRYPT_STAT_MUTEX, SYNC_NO_ORDER_CHECK, PFS_NOT_INSTRUMENTED);
 	LATCH_ADD(FIL_CRYPT_DATA_MUTEX, SYNC_NO_ORDER_CHECK, PFS_NOT_INSTRUMENTED);
@@ -1564,6 +1568,7 @@ sync_latch_meta_init()
 	     ++it) {
 
 		const latch_meta_t*	meta = *it;
+
 
 		/* Skip blank entries */
 		if (meta == NULL || meta->get_id() == LATCH_ID_NONE) {
@@ -1803,6 +1808,6 @@ sync_check_close()
 
 	create_tracker = NULL;
 
-	//sync_latch_meta_destroy();
+	//	sync_latch_meta_destroy();
 }
 

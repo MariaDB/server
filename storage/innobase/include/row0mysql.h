@@ -130,7 +130,7 @@ row_mysql_read_geometry(
 					MySQL format */
 	ulint		col_len)	/*!< in: BLOB reference length
 					(not BLOB length) */
-	__attribute__((nonnull(1,2), warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
 /**************************************************************//**
 Pad a column with spaces. */
 void
@@ -229,6 +229,7 @@ row_lock_table_autoinc_for_mysql(
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in the MySQL
 					table handle */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /*********************************************************************//**
 Sets a table lock on the table mentioned in prebuilt.
 @return error code or DB_SUCCESS */
@@ -253,7 +254,7 @@ dberr_t
 row_insert_for_mysql(
 	const byte*		mysql_rec,
 	row_prebuilt_t*		prebuilt)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
 Builds a dummy query graph used in selects. */
@@ -289,7 +290,7 @@ dberr_t
 row_update_for_mysql(
 	const byte*		mysql_rec,
 	row_prebuilt_t*		prebuilt)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Delete all rows for the given table by freeing/truncating indexes.
 @param[in,out]	table	table handler
@@ -297,7 +298,7 @@ row_update_for_mysql(
 dberr_t
 row_delete_all_rows(
 	dict_table_t*	table)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
 session is using a READ COMMITTED or READ UNCOMMITTED isolation level.
@@ -381,13 +382,14 @@ row_create_table_for_mysql(
 	dict_table_t*	table,	/*!< in, own: table definition
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
-        const char*     compression,
-                                /*!< in: compression algorithm to use,
-                                can be NULL */
+	const char*	compression,
+				/*!< in: compression algorithm to use,
+				can be NULL */
 	trx_t*		trx,	/*!< in/out: transaction */
 	bool		commit,	/*!< in: if true, commit the transaction */
 	fil_encryption_t mode,	/*!< in: encryption mode */
-	ulint		key_id);/*!< in: encryption key_id */
+	ulint		key_id)	/*!< in: encryption key_id */
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
 Does an index creation operation for MySQL. TODO: currently failure
@@ -407,7 +409,7 @@ row_create_index_for_mysql(
 					then checked for not being too
 					large. */
 	dict_table_t*	handler)	/* ! in/out: table handler. */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Scans a table create SQL string and adds to the data dictionary
 the foreign key constraints declared in the string. This function
@@ -438,7 +440,7 @@ row_table_add_foreign_constraints(
 	size_t			sql_length,
 	const char*		name,
 	ibool			reject_fks)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
 The master thread in srv0srv.cc calls this regularly to drop tables which
@@ -489,8 +491,8 @@ row_drop_table_for_mysql(
 	trx_t*		trx,	/*!< in: dictionary transaction handle */
 	bool		drop_db,/*!< in: true=dropping whole database */
 	ibool		create_failed,/*!<in: TRUE=create table failed
-				       because e.g. foreign key column
-				       type mismatch. */
+					because e.g. foreign key column
+					type mismatch. */
 	bool		nonatomic = true,
 				/*!< in: whether it is permitted
 				to release and reacquire dict_operation_lock */
@@ -557,7 +559,7 @@ row_rename_partitions_for_mysql(
 	const char*	old_name,
 	const char*	new_name,
 	trx_t*		trx)
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
 Scans an index for either COOUNT(*) or CHECK TABLE.
@@ -576,7 +578,7 @@ row_scan_index_for_mysql(
 						false=count the rows only */
 	ulint*			n_rows)		/*!< out: number of entries
 						seen in the consistent read */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Initialize this module */
 void
@@ -910,6 +912,14 @@ struct row_prebuilt_t {
 	/** Disable prefetch. */
 	bool		m_no_prefetch;
 
+	/** Return materialized key for secondary index scan */
+	bool		m_read_virtual_key;
+
+	/** The MySQL table object */
+	TABLE*		m_mysql_table;
+
+	/** limit value to avoid fts result overflow */
+	ulonglong	m_fts_limit;
 };
 
 /** Callback for row_mysql_sys_index_iterate() */
@@ -926,22 +936,42 @@ struct SysIndexCallback {
 @param[in,out]	row		the data row
 @param[in]	col		virtual column
 @param[in]	index		index on the virtual column
-@param[in,out]	my_rec		MySQL record to store the rows
 @param[in,out]	local_heap	heap memory for processing large data etc.
 @param[in,out]	heap		memory heap that copies the actual index row
 @param[in]	ifield		index field
-@param[in]	in_purge	whether this is called by purge
+@param[in]	thd		MySQL thread handle
+@param[in,out]	mysql_table	mysql table object
+@param[in]	old_table	during ALTER TABLE, this is the old table
+				or NULL.
+@param[in]	parent_update	update vector for the parent row
+@param[in]	foreign		foreign key information
 @return the field filled with computed value */
 dfield_t*
 innobase_get_computed_value(
 	const dtuple_t*		row,
 	const dict_v_col_t*	col,
 	const dict_index_t*	index,
-	byte*			my_rec,
 	mem_heap_t**		local_heap,
 	mem_heap_t*		heap,
 	const dict_field_t*	ifield,
-	bool			in_purge);
+	THD*			thd,
+	TABLE*			mysql_table,
+	const dict_table_t*	old_table,
+	upd_t*			parent_update,
+	dict_foreign_t*		foreign);
+
+/** Get the computed value by supplying the base column values.
+@param[in,out]	table	the table whose virtual column template to be built */
+void
+innobase_init_vc_templ(
+	dict_table_t*	table);
+
+/** Change dbname and table name in table->vc_templ.
+@param[in,out]	table	the table whose virtual column template
+dbname and tbname to be renamed. */
+void
+innobase_rename_vc_templ(
+	dict_table_t*	table);
 
 #define ROW_PREBUILT_FETCH_MAGIC_N	465765687
 
@@ -963,5 +993,11 @@ innobase_get_computed_value(
 #ifndef UNIV_NONINL
 #include "row0mysql.ic"
 #endif
+
+#ifdef UNIV_DEBUG
+/** Wait for the background drop list to become empty. */
+void
+row_wait_for_background_drop_list_empty();
+#endif /* UNIV_DEBUG */
 
 #endif /* row0mysql.h */

@@ -72,14 +72,9 @@ Created 11/5/1995 Heikki Tuuri
 #include "sync0sync.h"
 #include "buf0dump.h"
 #include "ut0new.h"
-
 #include <new>
 #include <map>
 #include <sstream>
-#ifdef HAVE_LIBNUMA
-#include <numa.h>
-#include <numaif.h>
-#endif // HAVE_LIBNUMA
 #ifndef UNIV_INNOCHECKSUM
 #include "fil0pagecompress.h"
 #include "fsp0pagecompress.h"
@@ -91,6 +86,48 @@ Created 11/5/1995 Heikki Tuuri
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
 #endif
+
+#if defined(HAVE_LIBNUMA) && defined(WITH_NUMA)
+#include <numa.h>
+#include <numaif.h>
+struct set_numa_interleave_t
+{
+	set_numa_interleave_t()
+	{
+		if (srv_numa_interleave) {
+
+			ib::info() << "Setting NUMA memory policy to"
+				" MPOL_INTERLEAVE";
+			if (set_mempolicy(MPOL_INTERLEAVE,
+					  numa_all_nodes_ptr->maskp,
+					  numa_all_nodes_ptr->size) != 0) {
+
+				ib::warn() << "Failed to set NUMA memory"
+					" policy to MPOL_INTERLEAVE: "
+					<< strerror(errno);
+			}
+		}
+	}
+
+	~set_numa_interleave_t()
+	{
+		if (srv_numa_interleave) {
+
+			ib::info() << "Setting NUMA memory policy to"
+				" MPOL_DEFAULT";
+			if (set_mempolicy(MPOL_DEFAULT, NULL, 0) != 0) {
+				ib::warn() << "Failed to set NUMA memory"
+					" policy to MPOL_DEFAULT: "
+					<< strerror(errno);
+			}
+		}
+	}
+};
+
+#define NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE set_numa_interleave_t scoped_numa
+#else
+#define NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE
+#endif /* HAVE_LIBNUMA && WITH_NUMA */
 
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
@@ -323,10 +360,6 @@ The map pointed by this should not be updated */
 static buf_pool_chunk_map_t*	buf_chunk_map_ref = NULL;
 
 #ifdef UNIV_DEBUG
-/** Protect reference for buf_chunk_map_ref from deleting map,
-because the reference can be caused by debug assertion code. */
-static rw_lock_t*	buf_chunk_map_latch;
-
 /** Disable resizing buffer pool to make assertion code not expensive. */
 my_bool			buf_disable_resize_buffer_pool_debug = TRUE;
 #endif /* UNIV_DEBUG */
@@ -569,29 +602,31 @@ buf_page_is_zeroes(
 }
 
 /** Checks if the page is in crc32 checksum format.
-@param[in]	read_buf	database page
-@param[in]	checksum_field1	new checksum field
-@param[in]	checksum_field2	old checksum field
-@param[in]	page_no		page number of given read_buf
-@param[in]	is_log_enabled	true if log option is enabled
-@param[in]	log_file	file pointer to log_file
-@param[in]	curr_algo	current checksum algorithm
+@param[in]	read_buf		database page
+@param[in]	checksum_field1		new checksum field
+@param[in]	checksum_field2		old checksum field
+@param[in]	page_no			page number of given read_buf
+@param[in]	is_log_enabled		true if log option is enabled
+@param[in]	log_file		file pointer to log_file
+@param[in]	curr_algo		current checksum algorithm
+@param[in]	use_legacy_big_endian   use legacy big endian algorithm
 @return true if the page is in crc32 checksum format. */
 UNIV_INLINE
 bool
 buf_page_is_checksum_valid_crc32(
 	const byte*			read_buf,
 	ulint				checksum_field1,
-	ulint				checksum_field2
+	ulint				checksum_field2,
 #ifdef UNIV_INNOCHECKSUM
-	,uintmax_t			page_no,
+	uintmax_t			page_no,
 	bool				is_log_enabled,
 	FILE*				log_file,
-	const srv_checksum_algorithm_t	curr_algo
+	const srv_checksum_algorithm_t	curr_algo,
 #endif /* UNIV_INNOCHECKSUM */
-	)
+	bool				use_legacy_big_endian)
 {
-	const uint32_t	crc32 = buf_calc_page_crc32(read_buf);
+	const uint32_t	crc32 = buf_calc_page_crc32(read_buf,
+						    use_legacy_big_endian);
 
 #ifdef UNIV_INNOCHECKSUM
 	if (is_log_enabled
@@ -739,6 +774,7 @@ buf_page_is_checksum_valid_none(
 			checksum_field1, checksum_field2);
 	}
 #endif /* UNIV_INNOCHECKSUM */
+
 
 	return(checksum_field1 == checksum_field2
 	       && checksum_field1 == BUF_NO_CHECKSUM_MAGIC);
@@ -896,16 +932,18 @@ buf_page_is_corrupted(
 	const srv_checksum_algorithm_t	curr_algo =
 		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
+	bool	legacy_checksum_checked = false;
+
 	switch (curr_algo) {
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 
 		if (buf_page_is_checksum_valid_crc32(read_buf,
-			checksum_field1, checksum_field2
+			checksum_field1, checksum_field2,
 #ifdef UNIV_INNOCHECKSUM
-			, page_no, is_log_enabled, log_file, curr_algo
+			page_no, is_log_enabled, log_file, curr_algo,
 #endif /* UNIV_INNOCHECKSUM */
-			)) {
+			false)) {
 			return(FALSE);
 		}
 
@@ -928,13 +966,13 @@ buf_page_is_corrupted(
 			if (is_log_enabled) {
 
 				fprintf(log_file, "page::%lu;"
-					" old style: calculated = %lu;"
-					" recorded = %lu\n", page_no,
+					" old style: calculated = " ULINTPF ";"
+					" recorded = " ULINTPF "\n", page_no,
 					buf_calc_page_old_checksum(read_buf),
 					checksum_field2);
 				fprintf(log_file, "page::%lu;"
-					" new style: calculated = %lu;"
-					" crc32 = %u; recorded = %lu\n",
+					" new style: calculated = " ULINTPF ";"
+					" crc32 = %u; recorded = " ULINTPF "\n",
 					page_no,
 					buf_calc_page_new_checksum(read_buf),
 					buf_calc_page_crc32(read_buf),
@@ -942,6 +980,24 @@ buf_page_is_corrupted(
 			}
 #endif /* UNIV_INNOCHECKSUM */
 			return(FALSE);
+		}
+
+		/* We need to check whether the stored checksum matches legacy
+		big endian checksum or Innodb checksum. We optimize the order
+		based on earlier results. if earlier we have found pages
+		matching legacy big endian checksum, we try to match it first.
+		Otherwise we check innodb checksum first. */
+		if (legacy_big_endian_checksum) {
+			if (buf_page_is_checksum_valid_crc32(read_buf,
+				checksum_field1, checksum_field2,
+#ifdef UNIV_INNOCHECKSUM
+				page_no, is_log_enabled, log_file, curr_algo,
+#endif /* UNIV_INNOCHECKSUM */
+				true)) {
+
+				return(FALSE);
+			}
+			legacy_checksum_checked = true;
 		}
 
 		if (buf_page_is_checksum_valid_innodb(read_buf,
@@ -959,6 +1015,18 @@ buf_page_is_corrupted(
 			}
 #endif /* UNIV_INNOCHECKSUM */
 			return(FALSE);
+		}
+
+		/* If legacy checksum is not checked, do it now. */
+		if (!legacy_checksum_checked && buf_page_is_checksum_valid_crc32(
+			read_buf, checksum_field1, checksum_field2,
+#ifdef UNIV_INNOCHECKSUM
+			page_no, is_log_enabled, log_file, curr_algo,
+#endif /* UNIV_INNOCHECKSUM */
+			true)) {
+
+				legacy_big_endian_checksum = true;
+				return(FALSE);
 		}
 
 #ifdef UNIV_INNOCHECKSUM
@@ -1016,12 +1084,19 @@ buf_page_is_corrupted(
 			return(FALSE);
 		}
 
-		if (buf_page_is_checksum_valid_crc32(read_buf,
-			checksum_field1, checksum_field2
 #ifdef UNIV_INNOCHECKSUM
-			, page_no, is_log_enabled, log_file, curr_algo)) {
+		if (buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2,
+			page_no, is_log_enabled, log_file, curr_algo, false)
+		    || buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2,
+			page_no, is_log_enabled, log_file, curr_algo, true)) {
 #else /* UNIV_INNOCHECKSUM */
-		)) {
+		if (buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2, false)
+		    || buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2, true)) {
+
 			if (curr_algo
 			    == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
 				page_warn_strict_checksum(
@@ -1054,12 +1129,19 @@ buf_page_is_corrupted(
 			return(false);
 		}
 
-		if (buf_page_is_checksum_valid_crc32(read_buf,
-			checksum_field1, checksum_field2
 #ifdef UNIV_INNOCHECKSUM
-			, page_no, is_log_enabled, log_file, curr_algo)) {
+		if (buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2,
+			page_no, is_log_enabled, log_file, curr_algo, false)
+		    || buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2,
+			page_no, is_log_enabled, log_file, curr_algo, true)) {
 #else /* UNIV_INNOCHECKSUM */
-		)) {
+		if (buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2, false)
+		    || buf_page_is_checksum_valid_crc32(read_buf,
+			checksum_field1, checksum_field2, true)) {
+
 			page_warn_strict_checksum(
 				curr_algo,
 				SRV_CHECKSUM_ALGORITHM_CRC32,
@@ -1469,9 +1551,9 @@ buf_chunk_init(
 		return(NULL);
 	}
 
-#ifdef HAVE_LIBNUMA
+#if defined(HAVE_LIBNUMA) && defined(WITH_NUMA)
 	if (srv_numa_interleave) {
-		int	st = mbind(chunk->mem, mem_size,
+		int	st = mbind(chunk->mem, chunk->mem_size(),
 				   MPOL_INTERLEAVE,
 				   numa_all_nodes_ptr->maskp,
 				   numa_all_nodes_ptr->size,
@@ -1482,7 +1564,8 @@ buf_chunk_init(
 				" (error: " << strerror(errno) << ").";
 		}
 	}
-#endif // HAVE_LIBNUMA
+#endif /* HAVE_LIBNUMA && WITH_NUMA */
+
 
 	/* Allocate the block descriptors from
 	the start of the memory block. */
@@ -1891,7 +1974,6 @@ buf_pool_free_instance(
 	hash_table_free(buf_pool->page_hash);
 	hash_table_free(buf_pool->zip_hash);
 
-	buf_pool->allocator.~ut_allocator();
 	/* Free all used temporary slots */
 	if (buf_pool->tmp_arr) {
 		for(ulint i = 0; i < buf_pool->tmp_arr->n_slots; i++) {
@@ -1912,11 +1994,13 @@ buf_pool_free_instance(
 				slot->comp_buf_free = NULL;
 			}
 		}
+
+		ut_free(buf_pool->tmp_arr->slots);
+		ut_free(buf_pool->tmp_arr);
+		buf_pool->tmp_arr = NULL;
 	}
 
-	ut_free(buf_pool->tmp_arr->slots);
-	ut_free(buf_pool->tmp_arr);
-	buf_pool->tmp_arr = NULL;
+	buf_pool->allocator.~ut_allocator();
 }
 
 /********************************************************************//**
@@ -1935,32 +2019,16 @@ buf_pool_init(
 	ut_ad(n_instances <= MAX_BUFFER_POOLS);
 	ut_ad(n_instances == srv_buf_pool_instances);
 
+	NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
+
 	buf_pool_resizing = false;
 	buf_pool_withdrawing = false;
 	buf_withdraw_clock = 0;
-
-#ifdef HAVE_LIBNUMA
-	if (srv_numa_interleave) {
-		ib::info() << "Setting NUMA memory policy to MPOL_INTERLEAVE";
-		if (set_mempolicy(MPOL_INTERLEAVE,
-				  numa_all_nodes_ptr->maskp,
-				  numa_all_nodes_ptr->size) != 0) {
-			ib::warn() << "Failed to set NUMA memory policy to"
-				" MPOL_INTERLEAVE: " << strerror(errno);
-		}
-	}
-#endif // HAVE_LIBNUMA
 
 	buf_pool_ptr = (buf_pool_t*) ut_zalloc_nokey(
 		n_instances * sizeof *buf_pool_ptr);
 
 	buf_chunk_map_reg = UT_NEW_NOKEY(buf_pool_chunk_map_t());
-
-	ut_d(buf_chunk_map_latch = static_cast<rw_lock_t*>(
-			ut_zalloc_nokey(sizeof(*buf_chunk_map_latch))));
-
-	ut_d(rw_lock_create(
-		buf_chunk_map_latch_key, buf_chunk_map_latch, SYNC_ANY_LATCH));
 
 	for (i = 0; i < n_instances; i++) {
 		buf_pool_t*	ptr	= &buf_pool_ptr[i];
@@ -1981,18 +2049,6 @@ buf_pool_init(
 
 	btr_search_sys_create(buf_pool_get_curr_size() / sizeof(void*) / 64);
 
-#ifdef HAVE_LIBNUMA
-	if (srv_numa_interleave) {
-		ib::info() << "Setting NUMA memory policy to MPOL_DEFAULT";
-		if (set_mempolicy(MPOL_DEFAULT, NULL, 0) != 0) {
-			ib::warn() << "Failed to set NUMA memory policy to"
-				" MPOL_DEFAULT: " << strerror(errno);
-		}
-	}
-#endif // HAVE_LIBNUMA
-
-	buf_flush_event = os_event_create(0);
-
 	return(DB_SUCCESS);
 }
 
@@ -2007,10 +2063,6 @@ buf_pool_free(
 	for (ulint i = 0; i < n_instances; i++) {
 		buf_pool_free_instance(buf_pool_from_array(i));
 	}
-
-	ut_d(rw_lock_free(buf_chunk_map_latch));
-	ut_d(ut_free(buf_chunk_map_latch));
-	ut_d(buf_chunk_map_latch = NULL);
 
 	UT_DELETE(buf_chunk_map_reg);
 	buf_chunk_map_reg = buf_chunk_map_ref = NULL;
@@ -2561,6 +2613,8 @@ buf_pool_resize()
 	ulint		new_instance_size;
 	bool		warning = false;
 
+	NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
+
 	ut_ad(!buf_pool_resizing);
 	ut_ad(!buf_pool_withdrawing);
 	ut_ad(srv_buf_pool_chunk_unit > 0);
@@ -2958,9 +3012,7 @@ calc_buf_pool_size:
 		}
 	}
 
-	ut_d(rw_lock_x_lock(buf_chunk_map_latch));
 	UT_DELETE(chunk_map_old);
-	ut_d(rw_lock_x_unlock(buf_chunk_map_latch));
 
 	buf_pool_resizing = false;
 
@@ -3028,13 +3080,11 @@ when waked up either performs a resizing and sleeps again.
 extern "C"
 os_thread_ret_t
 DECLARE_THREAD(buf_resize_thread)(
-	void*	arg __attribute__((unused)))
+	void*	arg MY_ATTRIBUTE((unused)))
 {
 	my_thread_init();
 
 	srv_buf_resize_thread_active = true;
-
-	buf_resize_status("not started");
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 		os_event_wait(srv_buf_resize_event);
@@ -3063,7 +3113,7 @@ DECLARE_THREAD(buf_resize_thread)(
 	srv_buf_resize_thread_active = false;
 
 	my_thread_end();
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -3666,6 +3716,7 @@ buf_page_get_zip(
 	ibool		discard_attempted = FALSE;
 	ibool		must_read;
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
+	buf_page_t*	rpage = NULL;
 
 	buf_pool->stat.n_page_gets++;
 
@@ -3684,7 +3735,7 @@ lookup:
 		/* Page not in buf_pool: needs to be read from file */
 
 		ut_ad(!hash_lock);
-		buf_read_page(page_id, page_size, NULL);
+		buf_read_page(page_id, page_size, &rpage);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 		ut_a(++buf_dbg_counter % 5771 || buf_validate());
@@ -3873,150 +3924,44 @@ buf_zip_decompress(
 }
 
 #ifndef UNIV_HOTBACKUP
-/*******************************************************************//**
-Gets the block to whose frame the pointer is pointing to.
+/** Get a buffer block from an adaptive hash index pointer.
+This function does not return if the block is not identified.
+@param[in]	ptr	pointer to within a page frame
 @return pointer to block, never NULL */
 buf_block_t*
-buf_block_align(
-/*============*/
-	const byte*	ptr)	/*!< in: pointer to a frame */
+buf_block_from_ahi(const byte* ptr)
 {
 	buf_pool_chunk_map_t::iterator it;
 
-	ut_ad(srv_buf_pool_chunk_unit > 0);
-
-	/* TODO: This might be still optimistic treatment.
-	buf_pool_resize() needs all buf_pool_mutex and all
-	buf_pool->page_hash x-latched until actual modification.
-	It should block the other user threads and should take while
-	which is enough to done the buf_pool_chunk_map access. */
-	while (buf_pool_resizing) {
-		/* buf_pool_chunk_map is being modified */
-		os_thread_sleep(100000); /* 0.1 sec */
-	}
-
-	ulint	counter = 0;
-retry:
-#ifdef UNIV_DEBUG
-	bool resize_disabled = (buf_disable_resize_buffer_pool_debug != FALSE);
-	if (!resize_disabled) {
-		rw_lock_s_lock(buf_chunk_map_latch);
-	}
-#endif /* UNIV_DEBUG */
 	buf_pool_chunk_map_t*	chunk_map = buf_chunk_map_ref;
+	ut_ad(buf_chunk_map_ref == buf_chunk_map_reg);
+	ut_ad(!buf_pool_resizing);
 
-	if (ptr < reinterpret_cast<byte*>(srv_buf_pool_chunk_unit)) {
-		it = chunk_map->upper_bound(0);
-	} else {
-		it = chunk_map->upper_bound(
-			ptr - srv_buf_pool_chunk_unit);
-	}
+	const byte* bound = reinterpret_cast<uintptr_t>(ptr)
+			    > srv_buf_pool_chunk_unit
+			    ? ptr - srv_buf_pool_chunk_unit : 0;
+	it = chunk_map->upper_bound(bound);
 
-	if (it == chunk_map->end()) {
-#ifdef UNIV_DEBUG
-		if (!resize_disabled) {
-			rw_lock_s_unlock(buf_chunk_map_latch);
-		}
-#endif /* UNIV_DEBUG */
-		/* The block should always be found. */
-		++counter;
-		ut_a(counter < 10);
-		os_thread_sleep(100000); /* 0.1 sec */
-		goto retry;
-	}
+	ut_a(it != chunk_map->end());
 
 	buf_chunk_t*	chunk = it->second;
-#ifdef UNIV_DEBUG
-	if (!resize_disabled) {
-		rw_lock_s_unlock(buf_chunk_map_latch);
-	}
-#endif /* UNIV_DEBUG */
-
 	ulint		offs = ptr - chunk->blocks->frame;
 
 	offs >>= UNIV_PAGE_SIZE_SHIFT;
 
-	if (offs < chunk->size) {
-		buf_block_t*	block = &chunk->blocks[offs];
+	ut_a(offs < chunk->size);
 
-		/* The function buf_chunk_init() invokes
-		buf_block_init() so that block[n].frame ==
-		block->frame + n * UNIV_PAGE_SIZE.  Check it. */
-		ut_ad(block->frame == page_align(ptr));
-#ifdef UNIV_DEBUG
-		/* A thread that updates these fields must
-		hold buf_pool->mutex and block->mutex.  Acquire
-		only the latter. */
-		buf_page_mutex_enter(block);
+	buf_block_t*	block = &chunk->blocks[offs];
 
-		switch (buf_block_get_state(block)) {
-		case BUF_BLOCK_POOL_WATCH:
-		case BUF_BLOCK_ZIP_PAGE:
-		case BUF_BLOCK_ZIP_DIRTY:
-			/* These types should only be used in
-			the compressed buffer pool, whose
-			memory is allocated from
-			buf_pool->chunks, in UNIV_PAGE_SIZE
-			blocks flagged as BUF_BLOCK_MEMORY. */
-			ut_error;
-			break;
-		case BUF_BLOCK_NOT_USED:
-		case BUF_BLOCK_READY_FOR_USE:
-		case BUF_BLOCK_MEMORY:
-			/* Some data structures contain
-			"guess" pointers to file pages.  The
-			file pages may have been freed and
-			reused.  Do not complain. */
-			break;
-		case BUF_BLOCK_REMOVE_HASH:
-			/* buf_LRU_block_remove_hashed_page()
-			will overwrite the FIL_PAGE_OFFSET and
-			FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID with
-			0xff and set the state to
-			BUF_BLOCK_REMOVE_HASH. */
-# ifndef UNIV_DEBUG_VALGRIND
-			/* In buf_LRU_block_remove_hashed() we
-			explicitly set those values to 0xff and
-			declare them uninitialized with
-			UNIV_MEM_INVALID() after that. */
-			ut_ad(page_get_space_id(page_align(ptr))
-			      == 0xffffffff);
-			ut_ad(page_get_page_no(page_align(ptr))
-			      == 0xffffffff);
-# endif /* UNIV_DEBUG_VALGRIND */
-			break;
-			case BUF_BLOCK_FILE_PAGE:
-			const ulint	space_id1 = block->page.id.space();
-			const ulint	page_no1 = block->page.id.page_no();
-			const ulint	space_id2 = page_get_space_id(
-							page_align(ptr));
-			const ulint	page_no2= page_get_page_no(
-							page_align(ptr));
-
-			if (space_id1 != space_id2 || page_no1 != page_no2) {
-
-				ib::error() << "Found a mismatch page,"
-					<< " expect page "
-					<< page_id_t(space_id1, page_no1)
-					<< " but found "
-					<< page_id_t(space_id2, page_no2);
-
-				ut_ad(0);
-			}
-			break;
-		}
-
-		buf_page_mutex_exit(block);
-#endif /* UNIV_DEBUG */
-
-		return(block);
-	}
-
-	/* The block should always be found. */
-	++counter;
-	ut_a(counter < 10);
-	os_thread_sleep(100000); /* 0.1 sec */
-	goto retry;
+	/* The function buf_chunk_init() invokes buf_block_init() so that
+	block[n].frame == block->frame + n * UNIV_PAGE_SIZE.  Check it. */
+	ut_ad(block->frame == page_align(ptr));
+	/* Read the state of the block without holding a mutex.
+	A state transition from BUF_BLOCK_FILE_PAGE to
+	BUF_BLOCK_REMOVE_HASH is possible during this execution. */
+	ut_d(const buf_page_state state = buf_block_get_state(block));
+	ut_ad(state == BUF_BLOCK_FILE_PAGE || state == BUF_BLOCK_REMOVE_HASH);
+	return(block);
 }
 
 /********************************************************************//**
@@ -5657,6 +5602,7 @@ buf_page_create(
 	/* These 8 bytes are also repurposed for PageIO compression and must
 	be reset when the frame is assigned to a new page id. See fil0fil.h.
 
+
 	FIL_PAGE_FILE_FLUSH_LSN is used on the following pages:
 	(1) The first page of the InnoDB system tablespace (page 0:0)
 	(2) FIL_RTREE_SPLIT_SEQ_NUM on R-tree pages .
@@ -5948,7 +5894,7 @@ buf_page_io_complete(
 		ulint	read_page_no;
 		ulint	read_space_id;
 		byte*	frame;
-		bool	compressed_page;
+		bool	compressed_page=false;
 
 		ut_ad(bpage->zip.data != NULL || ((buf_block_t*)bpage)->frame != NULL);
 
@@ -6009,6 +5955,7 @@ buf_page_io_complete(
 				<< ", should be " << bpage->id;
 		}
 
+#ifdef MYSQL_COMPRESSION
 		compressed_page = Compression::is_compressed_page(frame);
 
 		/* If the decompress failed then the most likely case is
@@ -6026,6 +5973,7 @@ buf_page_io_complete(
 				<< Compression::to_string(meta) << " "
 				<< "that is not supported by this instance";
 		}
+#endif /* MYSQL_COMPRESSION */
 
 		/* From version 3.23.38 up we store the page checksum
 		to the 4 first bytes of the page end lsn field */
@@ -6064,7 +6012,7 @@ corrupt:
 
 				ib::info()
 					<< "It is also possible that your"
-				        " operating system has corrupted"
+					" operating system has corrupted"
 					" its own file cache and rebooting"
 					" your computer removes the error."
 					" If the corrupt page is an index page."
@@ -6125,7 +6073,9 @@ corrupt:
 		/* If space is being truncated then avoid ibuf operation.
 		During re-init we have already freed ibuf entries. */
 		if (uncompressed
+#ifdef MYSQL_COMPRESSION
 		    && !Compression::is_compressed_page(frame)
+#endif /* MYSQL_COMPRESSION */
 		    && !recv_no_ibuf_operations
 		    && !Tablespace::is_undo_tablespace(bpage->id.space())
 		    && bpage->id.space() != srv_tmp_space.space_id()
@@ -7143,8 +7093,9 @@ buf_print_io_instance(
 	/* Print some values to help us with visualizing what is
 	happening with LRU eviction. */
 	fprintf(file,
-		"LRU len: %lu, unzip_LRU len: %lu\n"
-		"I/O sum[%lu]:cur[%lu], unzip sum[%lu]:cur[%lu]\n",
+		"LRU len: " ULINTPF ", unzip_LRU len: " ULINTPF "\n"
+		"I/O sum[" ULINTPF "]:cur[" ULINTPF "], "
+		"unzip sum[" ULINTPF "]:cur[" ULINTPF "]\n",
 		pool_info->lru_len, pool_info->unzip_lru_len,
 		pool_info->io_sum, pool_info->io_cur,
 		pool_info->unzip_sum, pool_info->unzip_cur);
@@ -7205,7 +7156,7 @@ buf_print_io(
 		"----------------------\n", file);
 
 		for (i = 0; i < srv_buf_pool_instances; i++) {
-			fprintf(file, "---BUFFER POOL %lu\n", i);
+			fprintf(file, "---BUFFER POOL " ULINTPF "\n", i);
 			buf_print_io_instance(&pool_info[i], file);
 		}
 	}
@@ -7683,3 +7634,4 @@ buf_page_decrypt_after_read(
 	return (success);
 }
 #endif /* !UNIV_INNOCHECKSUM */
+

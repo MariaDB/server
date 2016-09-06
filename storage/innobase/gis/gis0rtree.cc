@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -152,7 +152,9 @@ rtr_index_build_node_ptr(
 
 	tuple = dtuple_create(heap, n_unique + 1);
 
-	dtuple_set_n_fields_cmp(tuple, n_unique);
+	/* For rtree internal node, we need to compare page number
+	fields. */
+	dtuple_set_n_fields_cmp(tuple, n_unique + 1);
 
 	dict_index_copy_types(tuple, index, n_unique);
 
@@ -621,7 +623,7 @@ update_mbr:
 
 /**************************************************************//**
 Update parent page's MBR and Predicate lock information during a split */
-static __attribute__((nonnull))
+static MY_ATTRIBUTE((nonnull))
 void
 rtr_adjust_upper_level(
 /*===================*/
@@ -723,8 +725,6 @@ rtr_adjust_upper_level(
 		node_ptr_upper, &rec, &dummy_big_rec, 0, NULL, mtr);
 
 	if (err == DB_FAIL) {
-		ut_ad(!cursor.rtr_info);
-
 		cursor.rtr_info = sea_cur->rtr_info;
 		cursor.tree_height = sea_cur->tree_height;
 
@@ -1025,6 +1025,7 @@ rtr_page_split_and_insert(
 	lock_prdt_t		new_prdt;
 	rec_t*			first_rec = NULL;
 	int			first_rec_group = 1;
+	ulint			n_iterations = 0;
 
 	if (!*heap) {
 		*heap = mem_heap_create(1024);
@@ -1229,6 +1230,15 @@ func_start:
 	page_cur_search(insert_block, cursor->index, tuple,
 			PAGE_CUR_LE, page_cursor);
 
+	/* It's possible that the new record is too big to be inserted into
+	the page, and it'll need the second round split in this case.
+	We test this scenario here*/
+	DBUG_EXECUTE_IF("rtr_page_need_second_split",
+			if (n_iterations == 0) {
+				rec = NULL;
+				goto after_insert; }
+	);
+
 	rec = page_cur_tuple_insert(page_cursor, tuple, cursor->index,
 				    offsets, heap, n_ext, mtr);
 
@@ -1247,6 +1257,9 @@ func_start:
 		again. */
 	}
 
+#ifdef UNIV_DEBUG
+after_insert:
+#endif
 	/* Calculate the mbr on the upper half-page, and the mbr on
 	original page. */
 	rtr_page_cal_mbr(cursor->index, block, &mbr, *heap);
@@ -1279,6 +1292,7 @@ func_start:
 			block, new_block, mtr);
 	}
 
+
 	/* If the new res insert fail, we need to do another split
 	 again. */
 	if (!rec) {
@@ -1289,9 +1303,12 @@ func_start:
 			ibuf_reset_free_bits(block);
 		}
 
-		*offsets = rtr_page_get_father_block(
-                                NULL, *heap, cursor->index, block, mtr,
-				NULL, cursor);
+		/* We need to clean the parent path here and search father
+		node later, otherwise, it's possible that find a wrong
+		parent. */
+		rtr_clean_rtr_info(cursor->rtr_info, true);
+		cursor->rtr_info = NULL;
+		n_iterations++;
 
 		rec_t* i_rec = page_rec_get_next(page_get_infimum_rec(
 			buf_block_get_frame(block)));
@@ -1411,19 +1428,19 @@ rtr_page_copy_rec_list_end_no_locks(
 	page_cur_t	page_cur;
 	page_cur_t	cur1;
 	rec_t*		cur_rec;
-	dtuple_t*	tuple;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
-	ulint		n_fields = 0;
+	ulint		offsets_1[REC_OFFS_NORMAL_SIZE];
+	ulint*		offsets1 = offsets_1;
+	ulint		offsets_2[REC_OFFS_NORMAL_SIZE];
+	ulint*		offsets2 = offsets_2;
 	ulint		moved = 0;
 	bool		is_leaf = page_is_leaf(new_page);
 
-	rec_offs_init(offsets_);
+	rec_offs_init(offsets_1);
+	rec_offs_init(offsets_2);
 
 	page_cur_position(rec, block, &cur1);
 
 	if (page_cur_is_before_first(&cur1)) {
-
 		page_cur_move_to_next(&cur1);
 	}
 
@@ -1436,30 +1453,27 @@ rtr_page_copy_rec_list_end_no_locks(
 		page_get_infimum_rec(buf_block_get_frame(new_block)));
 	page_cur_position(cur_rec, new_block, &page_cur);
 
-	n_fields = dict_index_get_n_fields(index);
-
 	/* Copy records from the original page to the new page */
 	while (!page_cur_is_after_last(&cur1)) {
 		rec_t*	cur1_rec = page_cur_get_rec(&cur1);
 		rec_t*	ins_rec;
 
-		/* Find the place to insert. */
-		tuple = dict_index_build_data_tuple(index, cur1_rec,
-						    n_fields, heap);
-
 		if (page_rec_is_infimum(cur_rec)) {
 			cur_rec = page_rec_get_next(cur_rec);
 		}
 
+		offsets1 = rec_get_offsets(cur1_rec, index, offsets1,
+					   ULINT_UNDEFINED, &heap);
 		while (!page_rec_is_supremum(cur_rec)) {
 			ulint		cur_matched_fields = 0;
 			int		cmp;
 
-			offsets = rec_get_offsets(
-					cur_rec, index, offsets,
-					dtuple_get_n_fields_cmp(tuple), &heap);
-			cmp = cmp_dtuple_rec_with_match(tuple, cur_rec, offsets,
-							&cur_matched_fields);
+			offsets2 = rec_get_offsets(cur_rec, index, offsets2,
+						   ULINT_UNDEFINED, &heap);
+			cmp = cmp_rec_rec_with_match(cur1_rec, cur_rec,
+						     offsets1, offsets2,
+						     index, FALSE,
+						     &cur_matched_fields);
 			if (cmp < 0) {
 				page_cur_move_to_prev(&page_cur);
 				break;
@@ -1490,11 +1504,11 @@ rtr_page_copy_rec_list_end_no_locks(
 
 		cur_rec = page_cur_get_rec(&page_cur);
 
-		offsets = rec_get_offsets(cur1_rec, index, offsets,
-					  ULINT_UNDEFINED, &heap);
+		offsets1 = rec_get_offsets(cur1_rec, index, offsets1,
+					   ULINT_UNDEFINED, &heap);
 
 		ins_rec = page_cur_insert_rec_low(cur_rec, index,
-						  cur1_rec, offsets, mtr);
+						  cur1_rec, offsets1, mtr);
 		if (UNIV_UNLIKELY(!ins_rec)) {
 			fprintf(stderr, "page number %ld and %ld\n",
 				(long)new_block->page.id.page_no(),
@@ -1540,17 +1554,16 @@ rtr_page_copy_rec_list_start_no_locks(
 {
 	page_cur_t	cur1;
 	rec_t*		cur_rec;
-	dtuple_t*	tuple;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets	= offsets_;
-	ulint		n_fields = 0;
+	ulint		offsets_1[REC_OFFS_NORMAL_SIZE];
+	ulint*		offsets1 = offsets_1;
+	ulint		offsets_2[REC_OFFS_NORMAL_SIZE];
+	ulint*		offsets2 = offsets_2;
 	page_cur_t	page_cur;
 	ulint		moved = 0;
 	bool		is_leaf = page_is_leaf(buf_block_get_frame(block));
 
-	rec_offs_init(offsets_);
-
-	n_fields = dict_index_get_n_fields(index);
+	rec_offs_init(offsets_1);
+	rec_offs_init(offsets_2);
 
 	page_cur_set_before_first(block, &cur1);
 	page_cur_move_to_next(&cur1);
@@ -1563,23 +1576,23 @@ rtr_page_copy_rec_list_start_no_locks(
 		rec_t*	cur1_rec = page_cur_get_rec(&cur1);
 		rec_t*	ins_rec;
 
-		/* Find the place to insert. */
-		tuple = dict_index_build_data_tuple(index, cur1_rec,
-						    n_fields, heap);
-
 		if (page_rec_is_infimum(cur_rec)) {
 			cur_rec = page_rec_get_next(cur_rec);
 		}
+
+		offsets1 = rec_get_offsets(cur1_rec, index, offsets1,
+					   ULINT_UNDEFINED, &heap);
 
 		while (!page_rec_is_supremum(cur_rec)) {
 			ulint		cur_matched_fields = 0;
 			int		cmp;
 
-			offsets = rec_get_offsets(cur_rec, index, offsets,
-						  dtuple_get_n_fields_cmp(tuple),
-						  &heap);
-			cmp = cmp_dtuple_rec_with_match(tuple, cur_rec, offsets,
-							&cur_matched_fields);
+			offsets2 = rec_get_offsets(cur_rec, index, offsets2,
+						   ULINT_UNDEFINED, &heap);
+			cmp = cmp_rec_rec_with_match(cur1_rec, cur_rec,
+						     offsets1, offsets2,
+						     index, FALSE,
+						     &cur_matched_fields);
 			if (cmp < 0) {
 				page_cur_move_to_prev(&page_cur);
 				cur_rec = page_cur_get_rec(&page_cur);
@@ -1612,11 +1625,11 @@ rtr_page_copy_rec_list_start_no_locks(
 
 		cur_rec = page_cur_get_rec(&page_cur);
 
-		offsets = rec_get_offsets(cur1_rec, index, offsets,
-					  ULINT_UNDEFINED, &heap);
+		offsets1 = rec_get_offsets(cur1_rec, index, offsets1,
+					   ULINT_UNDEFINED, &heap);
 
 		ins_rec = page_cur_insert_rec_low(cur_rec, index,
-						  cur1_rec, offsets, mtr);
+						  cur1_rec, offsets1, mtr);
 		if (UNIV_UNLIKELY(!ins_rec)) {
 			fprintf(stderr, "page number %ld and %ld\n",
 				(long)new_block->page.id.page_no(),
@@ -1687,36 +1700,6 @@ rtr_merge_mbr_changed(
 		changed = (changed || mbr1[i + 1] != mbr2 [i + 1]);
 		*mbr = mbr1[i + 1] > mbr2[i + 1] ? mbr1[i + 1] : mbr2[i + 1];
 		mbr++;
-	}
-
-	if (!changed) {
-		rec_t*	rec1;
-		rec_t*	rec2;
-		ulint*	offsets1;
-		ulint*	offsets2;
-		mem_heap_t*	heap;
-
-		heap = mem_heap_create(100);
-
-		rec1 = page_rec_get_next(
-			page_get_infimum_rec(
-				buf_block_get_frame(merge_block)));
-
-		offsets1 = rec_get_offsets(
-			rec1, index, NULL, ULINT_UNDEFINED, &heap);
-
-		rec2 = page_rec_get_next(
-			page_get_infimum_rec(
-				buf_block_get_frame(block)));
-		offsets2 = rec_get_offsets(
-			rec2, index, NULL, ULINT_UNDEFINED, &heap);
-
-		/* Check any primary key fields have been changed */
-		if (cmp_rec_rec(rec1, rec2, offsets1, offsets2, index) != 0) {
-			changed = true;
-		}
-
-		mem_heap_free(heap);
 	}
 
 	return(changed);
@@ -1887,7 +1870,7 @@ rtr_estimate_n_rows_in_range(
 
 	/* Read mbr from tuple. */
 	const dfield_t*	dtuple_field;
-	ulint		dtuple_f_len __attribute__((unused));
+	ulint		dtuple_f_len MY_ATTRIBUTE((unused));
 	rtr_mbr_t	range_mbr;
 	double		range_area;
 	byte*		range_mbr_ptr;

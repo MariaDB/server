@@ -205,6 +205,8 @@ struct row_log_t {
 				old table */
 	ulint		n_old_vcol;
 				/*!< number of virtual column in old table */
+	const char*	path;	/*!< where to create temporary file during
+				log operation */
 };
 
 /** Create the file or online log if it does not exist.
@@ -217,7 +219,7 @@ row_log_tmpfile(
 {
 	DBUG_ENTER("row_log_tmpfile");
 	if (log->fd < 0) {
-		log->fd = row_merge_file_create_low();
+		log->fd = row_merge_file_create_low(log->path);
 		DBUG_EXECUTE_IF("row_log_tmpfile_fail",
 				if (log->fd > 0)
 					row_merge_file_destroy_low(log->fd);
@@ -535,6 +537,20 @@ err_exit:
 	row_log_table_close_func(log, size, avail)
 #endif /* UNIV_DEBUG */
 
+/** Check whether a virtual column is indexed in the new table being
+created during alter table
+@param[in]	index	cluster index
+@param[in]	v_no	virtual column number
+@return true if it is indexed, else false */
+bool
+row_log_col_is_indexed(
+	const dict_index_t*	index,
+	ulint			v_no)
+{
+	return(dict_table_get_nth_v_col(
+		index->online_log->table, v_no)->m_col.ord_part);
+}
+
 /******************************************************//**
 Logs a delete operation to a table that is being rebuilt.
 This will be merged in row_log_table_apply_delete(). */
@@ -665,8 +681,8 @@ row_log_table_delete(
 	if (ventry->n_v_fields > 0) {
 		ulint	v_extra;
 		mrec_size += rec_get_converted_size_temp(
-                        index, NULL, 0, ventry, &v_extra);
-        }
+			new_index, NULL, 0, ventry, &v_extra);
+	}
 
 	if (byte* b = row_log_table_open(index->online_log,
 					 mrec_size, &avail_size)) {
@@ -815,7 +831,7 @@ row_log_table_low_redundant(
 
 		if (o_ventry) {
 			mrec_size += rec_get_converted_size_temp(
-				index, NULL, 0, ventry, &v_extra);
+				index, NULL, 0, o_ventry, &v_extra);
 		}
 	} else if (index->table->n_v_cols) {
 		mrec_size += 2;
@@ -893,7 +909,7 @@ row_log_table_low_redundant(
 
 /******************************************************//**
 Logs an insert or update to a table that is being rebuilt. */
-static MY_ATTRIBUTE((nonnull(1,2,4)))
+static
 void
 row_log_table_low(
 /*==============*/
@@ -958,11 +974,11 @@ row_log_table_low(
 	if (ventry && ventry->n_v_fields > 0) {
 		ulint	v_extra = 0;
 		mrec_size += rec_get_converted_size_temp(
-			index, NULL, 0, ventry, &v_extra);
+			new_index, NULL, 0, ventry, &v_extra);
 
 		if (o_ventry) {
 			mrec_size += rec_get_converted_size_temp(
-				index, NULL, 0, ventry, &v_extra);
+				new_index, NULL, 0, o_ventry, &v_extra);
 		}
 	} else if (index->table->n_v_cols) {
 		/* Always leave 2 bytes length marker for virtual column
@@ -1629,7 +1645,7 @@ row_log_table_apply_insert_low(
 	{
 		rec_printer p(row);
 		DBUG_PRINT("ib_alter_table",
-			("insert table %llu (index %llu): %s",
+			("insert table " IB_ID_FMT " (index " IB_ID_FMT "): %s",
 			index->table->id, index->id,
 			p.str().c_str()));
 	}
@@ -1673,6 +1689,7 @@ row_log_table_apply_insert_low(
 			flags, BTR_MODIFY_TREE,
 			index, offsets_heap, heap, entry, trx_id, thr,
 			false);
+
 		/* Report correct index name for duplicate key error. */
 		if (error == DB_DUPLICATE_KEY) {
 			thr_get_trx(thr)->error_key_num = n_index;
@@ -1738,7 +1755,7 @@ row_log_table_apply_insert(
 /******************************************************//**
 Deletes a record from a table that is being rebuilt.
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull(1, 2, 5), warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_log_table_apply_delete_low(
 /*===========================*/
@@ -1764,7 +1781,7 @@ row_log_table_apply_delete_low(
 	{
 		rec_printer p(btr_pcur_get_rec(pcur), offsets);
 		DBUG_PRINT("ib_alter_table",
-			("delete table %llu (index %llu): %s",
+			("delete table " IB_ID_FMT " (index " IB_ID_FMT "): %s",
 			index->table->id, index->id,
 			p.str().c_str()));
 	}
@@ -2197,7 +2214,7 @@ func_exit_committed:
 		row, NULL, index, heap);
 	upd_t*		update	= row_upd_build_difference_binary(
 		index, entry, btr_pcur_get_rec(&pcur), cur_offsets,
-		false, NULL, heap);
+		false, NULL, heap, dup->table);
 
 	if (!update->n_fields) {
 		/* Nothing to do. */
@@ -2254,7 +2271,7 @@ func_exit_committed:
 			rec_printer old(old_row);
 			rec_printer new_row(row);
 			DBUG_PRINT("ib_alter_table",
-				("update table %llu (index %llu): %s to %s",
+				("update table " IB_ID_FMT " (index " IB_ID_FMT "): %s to %s",
 				index->table->id, index->id,
 				old.str().c_str(),
 				new_row.str().c_str()));
@@ -2751,7 +2768,7 @@ row_log_progress_inc_per_block()
 ALTER TABLE. If not NULL, then stage->inc() will be called for each block
 of log that is applied.
 @return DB_SUCCESS, or error code on failure */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_log_table_apply_ops(
 	que_thr_t*		thr,
@@ -3164,8 +3181,9 @@ row_log_allocate(
 	const dtuple_t*	add_cols,
 				/*!< in: default values of
 				added columns, or NULL */
-	const ulint*	col_map)/*!< in: mapping of old column
+	const ulint*	col_map,/*!< in: mapping of old column
 				numbers to new ones, or NULL if !table */
+	const char*	path)	/*!< in: where to create temporary file */
 {
 	row_log_t*	log;
 	DBUG_ENTER("row_log_allocate");
@@ -3199,6 +3217,7 @@ row_log_allocate(
 	log->tail.block = log->head.block = NULL;
 	log->head.blocks = log->head.bytes = 0;
 	log->head.total = 0;
+	log->path = path;
 	log->n_old_col = index->table->n_cols;
 	log->n_old_vcol = index->table->n_v_cols;
 
@@ -3283,7 +3302,7 @@ row_log_apply_op_low(
 	{
 		rec_printer p(entry);
 		DBUG_PRINT("ib_create_index",
-				("%s %s index %llu,%lu: %s",
+				("%s %s index " IB_ID_FMT "," IB_ID_FMT ": %s",
 				op == ROW_OP_INSERT ? "insert" : "delete",
 				has_index_lock ? "locked" : "unlocked",
 				index->id, trx_id,
@@ -3613,7 +3632,7 @@ interrupted)
 ALTER TABLE. If not NULL, then stage->inc() will be called for each block
 of log that is applied.
 @return DB_SUCCESS, or error code on failure */
-static MY_ATTRIBUTE((nonnull))
+static
 dberr_t
 row_log_apply_ops(
 	const trx_t*		trx,

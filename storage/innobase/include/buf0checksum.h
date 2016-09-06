@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,9 +29,6 @@ Created Aug 11, 2011 Vasil Dimov
 #include "univ.i"
 
 #include "buf0types.h"
-
-/** Magic value to use instead of checksums when they are disabled */
-#define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
 
 /** Calculates the CRC32 checksum of a page. The value is stored to the page
 when it is written to a file and also checked for a match when reading from
@@ -70,6 +67,7 @@ buf_calc_page_old_checksum(
 /*=======================*/
 	const byte*	page);	/*!< in: buffer page */
 
+
 /********************************************************************//**
 Return a printable string describing the checksum algorithm.
 @return algorithm name */
@@ -79,5 +77,6 @@ buf_checksum_algorithm_name(
 	srv_checksum_algorithm_t	algo);	/*!< in: algorithm */
 
 extern ulong	srv_checksum_algorithm;
+extern bool	legacy_big_endian_checksum;
 
 #endif /* buf0checksum_h */

@@ -43,6 +43,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "dict0load.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
+#include "dict0defrag_bg.h"
 #include "btr0defragment.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
@@ -101,6 +102,8 @@ static ib_mutex_t row_drop_list_mutex;
 /** Flag: has row_mysql_drop_list been initialized? */
 static ibool	row_mysql_drop_list_inited	= FALSE;
 
+extern ib_mutex_t	master_key_id_mutex;
+
 /** Magic table names for invoking various monitor threads */
 /* @{ */
 static const char S_innodb_monitor[] = "innodb_monitor";
@@ -153,6 +156,21 @@ ibool
 row_add_table_to_background_drop_list(
 /*==================================*/
 	const char*	name);	/*!< in: table name */
+
+#ifdef UNIV_DEBUG
+/** Wait for the background drop list to become empty. */
+void
+row_wait_for_background_drop_list_empty()
+{
+	bool	empty = false;
+	while (!empty) {
+		mutex_enter(&row_drop_list_mutex);
+		empty = (UT_LIST_GET_LEN(row_mysql_drop_list) == 0);
+		mutex_exit(&row_drop_list_mutex);
+		os_thread_sleep(100000);
+	}
+}
+#endif /* UNIV_DEBUG */
 
 /*******************************************************************//**
 Delays an INSERT, DELETE or UPDATE operation if the purge is lagging. */
@@ -763,6 +781,7 @@ handle_new_error:
 	case DB_CANT_CREATE_GEOMETRY_OBJECT:
 	case DB_TABLE_NOT_FOUND:
 	case DB_DECRYPTION_FAILED:
+	case DB_COMPUTE_VALUE_FAILED:
 		DBUG_EXECUTE_IF("row_mysql_crash_if_error", {
 					log_buffer_flush_to_disk();
 					DBUG_SUICIDE(); });
@@ -856,7 +875,8 @@ row_create_prebuilt(
 	uint		srch_key_len = 0;
 	ulint		search_tuple_n_fields;
 
-	search_tuple_n_fields = 2 * dict_table_get_n_cols(table);
+	search_tuple_n_fields = 2 * (dict_table_get_n_cols(table)
+				     + dict_table_get_n_v_cols(table));
 
 	clust_index = dict_table_get_first_index(table);
 
@@ -896,7 +916,8 @@ row_create_prebuilt(
 	sure if this prebuilt instance is going to be \
 	used in inserts */ \
 	+ (mysql_row_len < 256 ? mysql_row_len : 0) \
-	+ DTUPLE_EST_ALLOC(dict_table_get_n_cols(table)) \
+	+ DTUPLE_EST_ALLOC(dict_table_get_n_cols(table) \
+			   + dict_table_get_n_v_cols(table)) \
 	+ sizeof(que_fork_t) \
 	+ sizeof(que_thr_t) \
 	+ sizeof(*prebuilt->pcur) \
@@ -1001,6 +1022,7 @@ row_create_prebuilt(
 	prebuilt->blob_heap = NULL;
 
 	prebuilt->m_no_prefetch = false;
+	prebuilt->m_read_virtual_key = false;
 
 	DBUG_RETURN(prebuilt);
 }
@@ -1172,7 +1194,7 @@ row_get_prebuilt_insert_row(
 		que_node_get_parent(
 			pars_complete_graph_for_exec(
 				node,
-				prebuilt->trx, prebuilt->heap)));
+				prebuilt->trx, prebuilt->heap, prebuilt)));
 
 	prebuilt->ins_graph->state = QUE_FORK_ACTIVE;
 
@@ -1704,8 +1726,18 @@ row_insert_for_mysql_using_ins_graph(
 	} else if (srv_force_recovery) {
 
 		ib::error() << MODIFICATIONS_NOT_ALLOWED_MSG_FORCE_RECOVERY;
-
 		return(DB_READ_ONLY);
+	}
+	DBUG_EXECUTE_IF("mark_table_corrupted", {
+		/* Mark the table corrupted for the clustered index */
+		dict_index_t*	index = dict_table_get_first_index(table);
+		ut_ad(dict_index_is_clust(index));
+		dict_set_corrupted(index, trx, "INSERT TABLE"); });
+
+	if (dict_table_is_corrupted(table)) {
+
+		ib::error() << "Table " << table->name << " is corrupt.";
+		return(DB_TABLE_CORRUPT);
 	}
 
 	DBUG_EXECUTE_IF("mark_table_corrupted", {
@@ -1816,8 +1848,9 @@ error_exit:
 			doc_ids difference should not exceed
 			FTS_DOC_ID_MAX_STEP value. */
 
-			if (doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
-				ib::error() << "Doc ID " << doc_id
+			if (next_doc_id > 1
+			    && doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
+				 ib::error() << "Doc ID " << doc_id
 					<< " is too big. Its difference with"
 					" largest used Doc ID "
 					<< next_doc_id - 1 << " cannot"
@@ -1903,7 +1936,8 @@ row_prebuild_sel_graph(
 			que_node_get_parent(
 				pars_complete_graph_for_exec(
 					static_cast<sel_node_t*>(node),
-					prebuilt->trx, prebuilt->heap)));
+					prebuilt->trx, prebuilt->heap,
+					prebuilt)));
 
 		prebuilt->sel_graph->state = QUE_FORK_ACTIVE;
 	}
@@ -1982,7 +2016,8 @@ row_get_prebuilt_update_vector(
 			que_node_get_parent(
 				pars_complete_graph_for_exec(
 					static_cast<upd_node_t*>(node),
-					prebuilt->trx, prebuilt->heap)));
+					prebuilt->trx, prebuilt->heap,
+					prebuilt)));
 
 		prebuilt->upd_graph->state = QUE_FORK_ACTIVE;
 	}
@@ -2067,9 +2102,7 @@ init_fts_doc_id_for_ref(
 
 		foreign = *it;
 
-		if (foreign->foreign_table == NULL) {
-			break;
-		}
+		ut_ad(foreign->foreign_table != NULL);
 
 		if (foreign->foreign_table->fts != NULL) {
 			fts_init_doc_id(foreign->foreign_table);
@@ -2365,7 +2398,13 @@ row_del_upd_for_mysql_using_cursor(
 		btr_pcur_copy_stored_position(node->pcur,
 					      prebuilt->clust_pcur);
 	}
-	row_upd_store_row(node);
+
+	ut_ad(dict_table_is_intrinsic(prebuilt->table));
+	ut_ad(!prebuilt->table->n_v_cols);
+
+	/* Internal table is created by optimiser. So there
+	should not be any virtual columns. */
+	row_upd_store_row(node, NULL, NULL);
 
 	/* Step-2: Execute DELETE operation. */
 	err = row_delete_for_mysql_using_cursor(node, delete_entries, false);
@@ -2632,6 +2671,7 @@ run_again:
 		node->cascade_upd_nodes = cascade_upd_nodes;
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
+		prebuilt->m_mysql_table = NULL;
 
 		goto run_again;
 	}
@@ -3033,8 +3073,6 @@ row_create_table_for_mysql(
 	tab_node_t*	node;
 	mem_heap_t*	heap;
 	que_thr_t*	thr;
-	const char*	table_name;
-	ulint		table_name_len;
 	dberr_t		err;
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
@@ -3085,7 +3123,7 @@ err_exit:
 
 	node = tab_create_graph_create(table, heap, mode, key_id);
 
-	thr = pars_complete_graph_for_exec(node, trx, heap);
+	thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
 
 	ut_a(thr == que_fork_start_command(
 			static_cast<que_fork_t*>(que_node_get_parent(thr))));
@@ -3115,28 +3153,39 @@ err_exit:
 			/* We must delete the link file. */
 			RemoteDatafile::delete_link_file(table->name.m_name);
 
-		} else if (compression != NULL) {
-
-			ut_ad(!is_shared_tablespace(table->space));
+		} else if (compression != NULL && compression[0] != '\0') {
+#ifdef MYSQL_COMPRESSION
+			ut_ad(!dict_table_in_shared_tablespace(table));
 
 			ut_ad(Compression::validate(compression) == DB_SUCCESS);
 
-			err = fil_set_compression(table->space, compression);
+			err = fil_set_compression(table, compression);
 
-			/* The tablespace must be found and we have already
-			done the check for the system tablespace and the
-			temporary tablespace. Compression must be a valid
-			and supported algorithm. */
+			switch (err) {
+			case DB_SUCCESS:
+				break;
+			case DB_NOT_FOUND:
+			case DB_UNSUPPORTED:
+			case DB_IO_NO_PUNCH_HOLE_FS:
+				/* Return these errors */
+				break;
+			case DB_IO_NO_PUNCH_HOLE_TABLESPACE:
+				/* Page Compression will not be used. */
+				err = DB_SUCCESS;
+				break;
+			default:
+				ut_error;
+			}
 
-			/* However, we can check for file system punch hole
-			support only after creating the tablespace. On Windows
+			/* We can check for file system punch hole support
+			only after creating the tablespace. On Windows
 			we can query that information but not on Linux. */
-
 			ut_ad(err == DB_SUCCESS
-			      || err == DB_IO_NO_PUNCH_HOLE_FS);
-
-                        /* In non-strict mode we ignore dodgy compression
-                        settings. */
+				|| err == DB_IO_NO_PUNCH_HOLE_FS);
+#endif /* MYSQL_COMPRESSION */
+			
+			/* In non-strict mode we ignore dodgy compression
+			settings. */
 		}
 	}
 
@@ -3166,7 +3215,7 @@ err_exit:
 
 		break;
 
-        case DB_UNSUPPORTED:
+	case DB_UNSUPPORTED:
 	case DB_TOO_MANY_CONCURRENT_TRXS:
 		/* We already have .ibd file here. it should be deleted. */
 
@@ -3294,10 +3343,9 @@ row_create_index_for_mysql(
 		in dict0crea.cc. */
 
 		heap = mem_heap_create(512);
-
 		node = ind_create_graph_create(index, heap, NULL);
 
-		thr = pars_complete_graph_for_exec(node, trx, heap);
+		thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
 
 		ut_a(thr == que_fork_start_command(
 				static_cast<que_fork_t*>(
@@ -3355,7 +3403,8 @@ row_create_index_for_mysql(
 		idx = dict_table_get_index_on_name(table, index_name);
 
 		ut_ad(idx);
-		err = fts_create_index_tables(trx, idx);
+		err = fts_create_index_tables_low(
+			trx, idx, table->name.m_name, table->id);
 	}
 
 error_handling:
@@ -3663,15 +3712,16 @@ row_add_table_to_background_drop_list(
 	return(TRUE);
 }
 
-/*********************************************************************//**
-Reassigns the table identifier of a table.
+/** Reassigns the table identifier of a table.
+@param[in,out]	table	table
+@param[in,out]	trx	transaction
+@param[out]	new_id	new table id
 @return error code or DB_SUCCESS */
 dberr_t
 row_mysql_table_id_reassign(
-/*========================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	trx_t*		trx,	/*!< in/out: transaction */
-	table_id_t*	new_id)	/*!< out: new table id */
+	dict_table_t*	table,
+	trx_t*		trx,
+	table_id_t*	new_id)
 {
 	dberr_t		err;
 	pars_info_t*	info	= pars_info_create();
@@ -3693,6 +3743,8 @@ row_mysql_table_id_reassign(
 		"UPDATE SYS_COLUMNS SET TABLE_ID = :new_id\n"
 		" WHERE TABLE_ID = :old_id;\n"
 		"UPDATE SYS_INDEXES SET TABLE_ID = :new_id\n"
+		" WHERE TABLE_ID = :old_id;\n"
+		"UPDATE SYS_VIRTUAL SET TABLE_ID = :new_id\n"
 		" WHERE TABLE_ID = :old_id;\n"
 		"END;\n", FALSE, trx);
 
@@ -3892,6 +3944,33 @@ row_discard_tablespace(
 		return(err);
 	}
 
+	/* For encrypted table, before we discard the tablespace,
+	we need save the encryption information into table, otherwise,
+	this information will be lost in fil_discard_tablespace along
+	with fil_space_free(). */
+	if (dict_table_is_encrypted(table)) {
+		ut_ad(table->encryption_key == NULL
+		      && table->encryption_iv == NULL);
+
+		table->encryption_key =
+			static_cast<byte*>(mem_heap_alloc(table->heap,
+							  ENCRYPTION_KEY_LEN));
+
+		table->encryption_iv =
+			static_cast<byte*>(mem_heap_alloc(table->heap,
+							  ENCRYPTION_KEY_LEN));
+
+		fil_space_t*	space = fil_space_get(table->space);
+		ut_ad(FSP_FLAGS_GET_ENCRYPTION(space->flags));
+
+		memcpy(table->encryption_key,
+		       space->encryption_key,
+		       ENCRYPTION_KEY_LEN);
+		memcpy(table->encryption_iv,
+		       space->encryption_iv,
+		       ENCRYPTION_KEY_LEN);
+	}
+
 	/* Discard the physical file that is used for the tablespace. */
 
 	err = fil_discard_tablespace(table->space);
@@ -4033,7 +4112,7 @@ row_mysql_lock_table(
 	trx->op_info = op_info;
 
 	node = sel_node_create(heap);
-	thr = pars_complete_graph_for_exec(node, trx, heap);
+	thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
 	thr->graph->state = QUE_FORK_ACTIVE;
 
 	/* We use the select query graph as the dummy graph needed
@@ -4098,7 +4177,6 @@ fil_wait_crypt_bg_threads(
 {
 	uint start = time(0);
 	uint last = start;
-
 	if (table->space != 0) {
 		fil_space_crypt_mark_space_closing(table->space);
 	}
@@ -4115,7 +4193,6 @@ fil_wait_crypt_bg_threads(
 				<< table->name.m_name << " space: " << table->space;
 			last = now;
 		}
-
 		if (now >= start + 300) {
 			ib::warn()
 				<< "After " << now - start
@@ -4126,7 +4203,6 @@ fil_wait_crypt_bg_threads(
 		}
 	}
 }
-
 /** Drop ancillary FTS tables as part of dropping a table.
 @param[in,out]	table		Table cache entry
 @param[in,out]	trx		Transaction handle
@@ -4227,23 +4303,25 @@ This deletes the fil_space_t if found and the file on disk.
 @param[in]	tablename	Table name, same as the tablespace name
 @param[in]	filepath	File path of tablespace to delete
 @param[in]	is_temp		Is this a temporary table/tablespace
+@param[in]	is_encrypted	Is this an encrypted table/tablespace
 @param[in]	trx		Transaction handle
 @return error code or DB_SUCCESS */
 UNIV_INLINE
 dberr_t
 row_drop_single_table_tablespace(
-	ulint	space_id,
+	ulint		space_id,
 	const char*	tablename,
 	const char*	filepath,
-	bool	is_temp,
-	trx_t*	trx)
+	bool		is_temp,
+	bool		is_encrypted,
+	trx_t*		trx)
 {
 	dberr_t	err = DB_SUCCESS;
 
 	/* This might be a temporary single-table tablespace if the table
 	is compressed and temporary. If so, don't spam the log when we
 	delete one of these or if we can't find the tablespace. */
-	bool	print_msg = !is_temp;
+	bool	print_msg = !is_temp && !is_encrypted;
 
 	/* If the tablespace is not in the cache, just delete the file. */
 	if (!fil_space_for_table_exists_in_mem(
@@ -4256,7 +4334,6 @@ row_drop_single_table_tablespace(
 			ib::info() << "Removed datafile " << filepath
 				<< " for table " << tablename;
 		}
-
 	} else if (fil_delete_tablespace(space_id, BUF_REMOVE_FLUSH_NO_WRITE)
 		   != DB_SUCCESS) {
 
@@ -4347,7 +4424,6 @@ row_drop_table_for_mysql(
 		err = DB_TABLE_NOT_FOUND;
 		goto funct_exit;
 	}
-
 	/* If table is encrypted and table page encryption failed
 	return error. */
 	if (table->is_encrypted) {
@@ -4370,6 +4446,7 @@ row_drop_table_for_mysql(
 			trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 		}
 	}
+
 	/* Turn on this drop bit before we could release the dictionary
 	latch */
 	table->to_be_dropped = true;
@@ -4744,6 +4821,7 @@ row_drop_table_for_mysql(
 	switch (err) {
 		ulint	space_id;
 		bool	is_temp;
+		bool	is_encrypted;
 		bool	ibd_file_missing;
 		bool	is_discarded;
 		bool	shared_tablespace;
@@ -4753,6 +4831,7 @@ row_drop_table_for_mysql(
 		ibd_file_missing = table->ibd_file_missing;
 		is_discarded = dict_table_is_discarded(table);
 		is_temp = dict_table_is_temporary(table);
+		is_encrypted = dict_table_is_encrypted(table);
 		shared_tablespace = DICT_TF_HAS_SHARED_SPACE(table->flags);
 
 		/* If there is a temp path then the temp flag is set.
@@ -4775,7 +4854,6 @@ row_drop_table_for_mysql(
 		dict_table_t.  Free this memory before returning. */
 		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			ut_a(table->data_dir_path);
-
 			filepath = fil_make_filepath(
 				table->data_dir_path,
 				table->name.m_name, IBD, true);
@@ -4798,12 +4876,32 @@ row_drop_table_for_mysql(
 		nor system or shared general tablespaces. */
 		if (is_discarded || ibd_file_missing || shared_tablespace
 		    || is_system_tablespace(space_id)) {
-			break;
+			/* For encrypted table, if ibd file can not be decrypt,
+			we also set ibd_file_missing. We still need to try to
+			remove the ibd file for this. */
+			if (is_discarded || !is_encrypted
+			    || !ibd_file_missing) {
+				break;
+			}
 		}
+
+#ifdef MYSQL_ENCRYPTION
+		if (is_encrypted) {
+			/* Require the mutex to block key rotation. */
+			mutex_enter(&master_key_id_mutex);
+		}
+#endif /* MYSQL_ENCRYPTION */
 
 		/* We can now drop the single-table tablespace. */
 		err = row_drop_single_table_tablespace(
-			space_id, tablename, filepath, is_temp, trx);
+			space_id, tablename, filepath,
+			is_temp, is_encrypted, trx);
+
+#ifdef MYSQL_ENCRYPTION
+		if (is_encrypted) {
+			mutex_exit(&master_key_id_mutex);
+		}
+#endif /* MYSQL_ENCRYPTION */
 		break;
 
 	case DB_OUT_OF_FILE_SPACE:
@@ -4866,9 +4964,7 @@ funct_exit:
 		mem_heap_free(heap);
 	}
 
-	if (filepath) {
-		ut_free(filepath);
-	}
+	ut_free(filepath);
 
 	if (locked_dictionary) {
 
@@ -5202,7 +5298,7 @@ loop:
 Checks if a table name contains the string "/#sql" which denotes temporary
 tables in MySQL.
 @return true if temporary table */
-UNIV_INTERN MY_ATTRIBUTE((warn_unused_result))
+MY_ATTRIBUTE((warn_unused_result))
 bool
 row_is_mysql_tmp_table_name(
 /*========================*/
@@ -5648,6 +5744,15 @@ end:
 			goto funct_exit;
 		}
 
+#ifdef MYSQL_VIRTUAL_COLUMNS
+		/* In case of copy alter, template db_name and
+		table_name should be renamed only for newly
+		created table. */
+		if (table->vc_templ != NULL && !new_is_tmp) {
+			innobase_rename_vc_templ(table);
+		}
+#endif
+
 		/* We only want to switch off some of the type checking in
 		an ALTER TABLE...ALGORITHM=COPY, not in a RENAME. */
 		dict_names_t	fk_tables;
@@ -5680,6 +5785,24 @@ end:
 			trx_rollback_to_savepoint(trx, NULL);
 			trx->error_state = DB_SUCCESS;
 		}
+
+		/* Check whether virtual column or stored column affects
+		the foreign key constraint of the table. */
+		if (dict_foreigns_has_s_base_col(
+				table->foreign_set, table)) {
+			err = DB_NO_FK_ON_S_BASE_COL;
+			ut_a(DB_SUCCESS == dict_table_rename_in_cache(
+				table, old_name, FALSE));
+			trx->error_state = DB_SUCCESS;
+			trx_rollback_to_savepoint(trx, NULL);
+			trx->error_state = DB_SUCCESS;
+			goto funct_exit;
+		}
+
+		/* Fill the virtual column set in foreign when
+		the table undergoes copy alter operation. */
+		dict_mem_table_free_foreign_vcol_set(table);
+		dict_mem_table_fill_foreign_vcol_set(table);
 
 		while (!fk_tables.empty()) {
 			dict_load_table(fk_tables.front(), true,
@@ -5906,7 +6029,6 @@ func_exit:
 
 		cmp = cmp_dtuple_rec_with_match(prev_entry, rec, offsets,
 						&matched_fields);
-
 		contains_null = FALSE;
 
 		/* In a unique secondary index we allow equal key values if
@@ -5978,7 +6100,6 @@ next_rec:
 
 	goto loop;
 }
-
 /*********************************************************************//**
 Determines if a table is a magic monitor table.
 @return	true if monitor table */

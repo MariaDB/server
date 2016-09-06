@@ -172,7 +172,7 @@ ut_pair_cmp(
 	ulint	a_l,
 	ulint	b_h,
 	ulint	b_l)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*************************************************************//**
 Calculates fast the remainder of n/m when m is a power of two.
@@ -345,7 +345,7 @@ ut_get_year_month_day(
 Runs an idle loop on CPU. The argument gives the desired delay
 in microseconds on 100 MHz Pentium + Visual C++.
 @return dummy value */
-void
+ulint
 ut_delay(
 /*=====*/
 	ulint	delay);	/*!< in: delay in microseconds on 100 MHz Pentium */
@@ -367,7 +367,7 @@ ut_print_buf_hex(
 	std::ostream&	o,	/*!< in/out: output stream */
 	const void*	buf,	/*!< in: memory buffer */
 	ulint		len)	/*!< in: length of the buffer */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
 void
@@ -376,7 +376,7 @@ ut_print_buf(
 	std::ostream&	o,	/*!< in/out: output stream */
 	const void*	buf,	/*!< in: memory buffer */
 	ulint		len)	/*!< in: length of the buffer */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 
 #ifndef UNIV_HOTBACKUP
 /* Forward declaration of transaction handle */
@@ -403,26 +403,17 @@ as in SQL database_name.identifier. */
 void
 ut_print_name(
 /*==========*/
-	FILE*		f,	/*!< in: output stream */
+	FILE*		ef,	/*!< in: stream */
 	const trx_t*	trx,	/*!< in: transaction */
 	const char*	name);	/*!< in: table name to print */
-/**********************************************************************//**
-Outputs a fixed-length string, quoted as an SQL identifier.
-If the string contains a slash '/', the string will be
-output as two identifiers separated by a period (.),
-as in SQL database_name.identifier. */
-UNIV_INTERN
-std::string
-ut_get_name(
-/*=========*/
-	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
-	ibool		table_id,/*!< in: TRUE=print a table name,
-				FALSE=print other identifier */
-	const char*	name);	/*!< in: name to print */
-/**********************************************************************//**
-Formats a table or index name, quoted as an SQL identifier. If the name
-contains a slash '/', the result will contain two identifiers separated by
-a period (.), as in SQL database_name.identifier.
+/** Format a table name, quoted as an SQL identifier.
+If the name contains a slash '/', the result will contain two
+identifiers separated by a period (.), as in SQL
+database_name.table_name.
+@see table_name_t
+@param[in]	name		table or index name
+@param[out]	formatted	formatted result, will be NUL-terminated
+@param[in]	formatted_size	size of the buffer in bytes
 @return pointer to 'formatted' */
 char*
 ut_format_name(

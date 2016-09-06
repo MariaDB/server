@@ -211,7 +211,7 @@ struct ha_node_t {
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	buf_block_t*	block;	/*!< buffer block containing the data, or NULL */
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-        const rec_t*	data;	/*!< pointer to the data */
+	const rec_t*	data;	/*!< pointer to the data */
 };
 
 #ifdef UNIV_DEBUG

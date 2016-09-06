@@ -46,31 +46,26 @@ fts_write_object_id(
 	/* Use this to construct old(5.6.14 and 5.7.3) windows
 	ambiguous aux table names */
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			return(sprintf(str, "%016llu", id)););
+			return(sprintf(str, "%016llu", (ulonglong) id)););
 
 #else /* _WIN32 */
 
 	/* Use this to construct old(5.6.14 and 5.7.3) windows
 	ambiguous aux table names */
 	DBUG_EXECUTE_IF("innodb_test_wrong_windows_fts_aux_table_name",
-			return(sprintf(str, "%016lu", id)););
+			return(sprintf(str, "%016llu", (ulonglong) id)););
 
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			return(sprintf(str, "%016lx", id)););
+			return(sprintf(str, "%016llx", (ulonglong) id)););
 
 #endif /* _WIN32 */
 
 	/* As above, but this is only for those tables failing to rename. */
 	if (!hex_format) {
-#ifdef _WIN32
-		// FIXME: Use ut_snprintf(), so does following one.
-		return(sprintf(str, "%016llu", id));
-#else /* _WIN32 */
-		return(sprintf(str, "%016lu", id));
-#endif /* _WIN32 */
+		return(sprintf(str, "%016llu", (ulonglong) id));
 	}
 
-	return(sprintf(str, "%016lx", id));
+	return(sprintf(str, "%016llx", (ulonglong) id));
 }
 
 /******************************************************************//**
@@ -86,7 +81,7 @@ fts_read_object_id(
 	/* NOTE: this func doesn't care about whether current table
 	is set with HEX_NAME, the user of the id read here will check
 	if the id is HEX or DEC and do the right thing with it. */
-	return(sscanf(str, "%016lx", id) == 1);
+	return(sscanf(str, UINT64PFx, id) == 1);
 }
 
 /******************************************************************//**

@@ -602,7 +602,7 @@ fts_zip_read_word(
 		/* Finished decompressing block. */
 		if (zip->zp->avail_in == 0) {
 
-			/* Free the block that's been decompressed. */
+			/* Free the block thats been decompressed. */
 			if (zip->pos > 0) {
 				ulint	prev = zip->pos - 1;
 
@@ -1507,6 +1507,12 @@ fts_optimize_write_word(
 		fts_node_t* node = (fts_node_t*) ib_vector_get(nodes, i);
 
 		if (error == DB_SUCCESS) {
+			/* Skip empty node. */
+			if (node->ilist == NULL) {
+				ut_ad(node->ilist_size == 0);
+				continue;
+			}
+
 			error = fts_write_node(
 				trx, &graph, fts_table, word, node);
 
@@ -2635,7 +2641,6 @@ fts_optimize_remove_table(
 
 /** Send sync fts cache for the table.
 @param[in]	table	table to sync */
-UNIV_INTERN
 void
 fts_optimize_request_sync_table(
 	dict_table_t*	table)
@@ -2650,7 +2655,7 @@ fts_optimize_request_sync_table(
 
 	/* FTS optimizer thread is already exited */
 	if (fts_opt_start_shutdown) {
-		ib::info() << "Try to remove table " << table->name
+		ib::info() << "Try to sync table " << table->name
 			<< " after FTS optimize thread exiting.";
 		return;
 	}
@@ -2964,7 +2969,7 @@ fts_optimize_sync_table(
 
 	if (table) {
 		if (dict_table_has_fts_index(table) && table->fts->cache) {
-			fts_sync_table(table, true, false);
+			fts_sync_table(table, true, false, true);
 		}
 
 		dict_table_close(table, FALSE, FALSE);
@@ -3122,26 +3127,7 @@ fts_optimize_thread(
 				ib_vector_get(tables, i));
 
 			if (slot->state != FTS_STATE_EMPTY) {
-				dict_table_t*	table = NULL;
-
-				/*slot->table may be freed, so we try to open
-				table by slot->table_id.*/
-			        table = dict_table_open_on_id(
-					slot->table_id, FALSE,
-					DICT_TABLE_OP_NORMAL);
-
-				if (table) {
-
-					if (dict_table_has_fts_index(table)) {
-						fts_sync_table(table, false, true);
-					}
-
-					if (table->fts) {
-						fts_free(table);
-					}
-
-					dict_table_close(table, FALSE, FALSE);
-				}
+				fts_optimize_sync_table(slot->table_id);
 			}
 		}
 	}
@@ -3155,7 +3141,7 @@ fts_optimize_thread(
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -3189,11 +3175,9 @@ fts_optimize_is_init(void)
 	return(fts_optimize_wq != NULL);
 }
 
-/**********************************************************************//**
-Signal the optimize thread to prepare for shutdown. */
+/** Shutdown fts optimize thread. */
 void
-fts_optimize_start_shutdown(void)
-/*=============================*/
+fts_optimize_shutdown()
 {
 	ut_ad(!srv_read_only_mode);
 
@@ -3222,17 +3206,5 @@ fts_optimize_start_shutdown(void)
 	os_event_destroy(fts_opt_shutdown_event);
 
 	ib_wqueue_free(fts_optimize_wq);
-}
-
-/**********************************************************************//**
-Reset the work queue. */
-void
-fts_optimize_end(void)
-/*==================*/
-{
-	ut_ad(!srv_read_only_mode);
-
-	// FIXME: Potential race condition here: We should wait for
-	// the optimize thread to confirm shutdown.
 	fts_optimize_wq = NULL;
 }

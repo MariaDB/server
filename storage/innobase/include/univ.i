@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2016, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -45,7 +45,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	9
+#define INNODB_VERSION_BUGFIX	14
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -199,7 +199,7 @@ command. */
 #define UNIV_ENABLE_UNIT_TEST_ROW_RAW_FORMAT_INT
 */
 
-#if defined(HAVE_valgrind)&& defined(HAVE_VALGRIND_MEMCHECK_H)
+#if defined HAVE_VALGRIND
 # define UNIV_DEBUG_VALGRIND
 #endif /* HAVE_VALGRIND */
 #if 0
@@ -259,11 +259,18 @@ and the insert buffer must be empty when the database is started */
 that are only referenced from within InnoDB, not from MySQL. We disable the
 GCC visibility directive on all Sun operating systems because there is no
 easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
-#define MY_ATTRIBUTE __attribute__
 #if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(sun) || defined(__INTEL_COMPILER)
-# define UNIV_INTERN MY_ATTRIBUTE((visibility ("hidden")))
+# define UNIV_INTERN __attribute__((visibility ("hidden")))
 #else
 # define UNIV_INTERN
+#endif
+
+#ifndef MY_ATTRIBUTE
+#if defined(__GNUC__)
+#  define MY_ATTRIBUTE(A) __attribute__(A)
+#else
+#  define MY_ATTRIBUTE(A)
+#endif
 #endif
 
 #if defined(COMPILER_HINTS)      \
@@ -482,29 +489,26 @@ macro ULINTPF. */
 
 #ifdef _WIN32
 /* Use the integer types and formatting strings defined in Visual Studio. */
-# define UINT32PF	"%lu"
+# define UINT32PF	"%u"
 # define UINT64PF	"%llu"
 # define UINT64PFx	"%016llx"
+# define UINT64scan     "llu"
 typedef unsigned __int64 ib_uint64_t;
 typedef unsigned __int32 ib_uint32_t;
 #else
-// JAN: TODO: Use formating strings defined in the C99 standard
-/* Use the integer types and formatting strings defined in the C99 standard. */
-//# define UINT32PF	"%" PRIu32
-//# define UINT64PF	"%" PRIu64
-//# define UINT64PFx	"%016" PRIx64
-# define UINT32PF	"%lu"
+# define UINT32PF	"%u"
+#if SIZEOF_LONG == 8
+# define UINT64PF	"%lu"
+# define UINT64PFx	"%016lx"
+# define UINT64scan     "lu"
+#else
 # define UINT64PF	"%llu"
 # define UINT64PFx	"%016llx"
+# define UINT64scan     "llu"
+#endif
 typedef uint64_t ib_uint64_t;
 typedef uint32_t ib_uint32_t;
 #endif /* _WIN32 */
-
-/* JAN: TODO: Fix server to use c99 when possible. */
-#define IB_ID_FMT	UINT64PF
-
-/* Type used for all log sequence number storage and arithmetics */
-typedef	ib_uint64_t		lsn_t;
 
 #ifdef _WIN64
 typedef unsigned __int64	ulint;
@@ -542,13 +546,13 @@ typedef long int		lint;
 #define IB_UINT64_MAX		((ib_uint64_t) (~0ULL))
 
 /** The generic InnoDB system object identifier data type */
-typedef ib_uint64_t		ib_id_t;
-#define IB_ID_MAX		IB_UINT64_MAX
+typedef ib_uint64_t	        ib_id_t;
+#define IB_ID_MAX               (~(ib_id_t) 0)
+#define IB_ID_FMT               UINT64PF
 
 #ifndef UINTMAX_MAX
 #define UINTMAX_MAX		IB_UINT64_MAX
 #endif
-
 /** This 'ibool' type is used within Innobase. Remember that different included
 headers may define 'bool' differently. Do not assume that 'bool' is a ulint! */
 #define ibool			ulint

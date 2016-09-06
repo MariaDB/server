@@ -109,6 +109,9 @@ extern buf_block_t*	back_block2;	/*!< second block, for page reorganize */
 #endif /* !UNIV_HOTBACKUP */
 #endif /* !UNIV_INNOCHECKSUM */
 
+/** Magic value to use instead of checksums when they are disabled */
+#define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
+
 #ifndef UNIV_INNOCHECKSUM
 /** @brief States of a control block
 @see buf_page_t
@@ -679,7 +682,7 @@ ulint
 buf_page_get_freed_page_clock(
 /*==========================*/
 	const buf_page_t*	bpage)	/*!< in: block */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Reads the freed_page_clock of a buffer block.
 @return freed_page_clock */
@@ -688,7 +691,7 @@ ulint
 buf_block_get_freed_page_clock(
 /*===========================*/
 	const buf_block_t*	block)	/*!< in: block */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
 Tells if a block is still close enough to the MRU end of the LRU list
@@ -834,8 +837,7 @@ buf_page_is_corrupted(
 	bool			is_log_enabled,
 	FILE*			log_file
 #endif /* UNIV_INNOCHECKSUM */
-) __attribute__((warn_unused_result));
-
+) MY_ATTRIBUTE((warn_unused_result));
 #ifndef UNIV_INNOCHECKSUM
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
@@ -857,7 +859,7 @@ ulint
 buf_block_get_lock_hash_val(
 /*========================*/
 	const buf_block_t*	block)	/*!< in: block */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
 Finds a block in the buffer pool that points to a
@@ -1039,7 +1041,7 @@ enum buf_page_state
 buf_block_get_state(
 /*================*/
 	const buf_block_t*	block)	/*!< in: pointer to the control block */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Sets the state of a block. */
 UNIV_INLINE
@@ -1064,7 +1066,7 @@ ibool
 buf_page_in_file(
 /*=============*/
 	const buf_page_t*	bpage)	/*!< in: pointer to control block */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 #ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Determines if a block should be on unzip_LRU list.
@@ -1074,7 +1076,7 @@ ibool
 buf_page_belongs_to_unzip_LRU(
 /*==========================*/
 	const buf_page_t*	bpage)	/*!< in: pointer to control block */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
 Gets the mutex of a block.
@@ -1084,7 +1086,7 @@ BPageMutex*
 buf_page_get_mutex(
 /*===============*/
 	const buf_page_t*	bpage)	/*!< in: pointer to control block */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
 Get the flush type of a page.
@@ -1094,7 +1096,7 @@ buf_flush_t
 buf_page_get_flush_type(
 /*====================*/
 	const buf_page_t*	bpage)	/*!< in: buffer page */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Set the flush type of a page. */
 UNIV_INLINE
@@ -1121,7 +1123,7 @@ enum buf_io_fix
 buf_page_get_io_fix(
 /*================*/
 	const buf_page_t*	bpage)	/*!< in: pointer to the control block */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Gets the io_fix state of a block.
 @return io_fix state */
@@ -1130,7 +1132,7 @@ enum buf_io_fix
 buf_block_get_io_fix(
 /*================*/
 	const buf_block_t*	block)	/*!< in: pointer to the control block */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Sets the io_fix state of a block. */
 UNIV_INLINE
@@ -1176,7 +1178,7 @@ ibool
 buf_page_can_relocate(
 /*==================*/
 	const buf_page_t*	bpage)	/*!< control block being relocated */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
 Determine if a block has been flagged old.
@@ -1186,7 +1188,7 @@ ibool
 buf_page_is_old(
 /*============*/
 	const buf_page_t*	bpage)	/*!< in: control block */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Flag a block old. */
 UNIV_INLINE
@@ -1203,7 +1205,7 @@ unsigned
 buf_page_is_accessed(
 /*=================*/
 	const buf_page_t*	bpage)	/*!< in: control block */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Flag a block accessed. */
 UNIV_INLINE
@@ -1222,7 +1224,7 @@ buf_block_t*
 buf_page_get_block(
 /*===============*/
 	buf_page_t*	bpage)	/*!< in: control block, or NULL */
-	MY_ATTRIBUTE((pure));
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
@@ -1233,7 +1235,7 @@ buf_frame_t*
 buf_block_get_frame(
 /*================*/
 	const buf_block_t*	block)	/*!< in: pointer to the control block */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 #else /* UNIV_DEBUG */
 # define buf_block_get_frame(block) (block)->frame
 #endif /* UNIV_DEBUG */
@@ -1244,13 +1246,14 @@ if applicable. */
 #define buf_block_get_page_zip(block) \
 	((block)->page.zip.data ? &(block)->page.zip : NULL)
 #ifndef UNIV_HOTBACKUP
-/*******************************************************************//**
-Gets the block to whose frame the pointer is pointing to.
+
+/** Get a buffer block from an adaptive hash index pointer.
+This function does not return if the block is not identified.
+@param[in]	ptr	pointer to within a page frame
 @return pointer to block, never NULL */
 buf_block_t*
-buf_block_align(
-/*============*/
-	const byte*	ptr);	/*!< in: pointer to a frame */
+buf_block_from_ahi(const byte* ptr);
+
 /********************************************************************//**
 Find out if a pointer belongs to a buf_block_t. It can be a pointer to
 the buf_block_t itself or a member of it
@@ -1270,18 +1273,6 @@ buf_pointer_is_block_field(
 @return TRUE if l is a buf_block_t::lock */
 #define buf_pool_is_block_lock(l)			\
 	buf_pointer_is_block_field((const void*)(l))
-
-#if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
-/*********************************************************************//**
-Gets the compressed page descriptor corresponding to an uncompressed page
-if applicable.
-@return compressed page descriptor, or NULL */
-UNIV_INLINE
-const page_zip_des_t*
-buf_frame_get_page_zip(
-/*===================*/
-	const byte*	ptr);	/*!< in: pointer to the page */
-#endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
 
 /** Inits a page for read to the buffer buf_pool. If the page is
 (1) already in buf_pool, or
@@ -1322,7 +1313,7 @@ ulint
 buf_pool_index(
 /*===========*/
 	const buf_pool_t*	buf_pool)	/*!< in: buffer pool */
-	MY_ATTRIBUTE((nonnull, const));
+	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************************//**
 Returns the buffer pool instance given a page instance
 @return buf_pool */
@@ -1465,7 +1456,7 @@ buf_page_t*
 buf_pool_watch_set(
 	const page_id_t&	page_id,
 	rw_lock_t**		hash_lock)
-	MY_ATTRIBUTE((warn_unused_result));
+MY_ATTRIBUTE((warn_unused_result));
 
 /** Stop watching if the page has been read in.
 buf_pool_watch_set(space,offset) must have returned NULL before.
@@ -1482,7 +1473,7 @@ has returned NULL and before invoking buf_pool_watch_unset(space,offset).
 ibool
 buf_pool_watch_occurred(
 	const page_id_t&	page_id)
-	MY_ATTRIBUTE((warn_unused_result));
+MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
 Get total buffer pool statistics. */

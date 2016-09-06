@@ -123,12 +123,6 @@ lsn_t	srv_start_lsn;
 /** Log sequence number at shutdown */
 lsn_t	srv_shutdown_lsn;
 
-#ifdef HAVE_DARWIN_THREADS
-# include <sys/utsname.h>
-/** TRUE if the F_FULLFSYNC option is available */
-UNIV_INTERN ibool	srv_have_fullfsync = FALSE;
-#endif
-
 /** TRUE if a raw partition is in use */
 ibool	srv_start_raw_disk_in_use = FALSE;
 
@@ -191,7 +185,6 @@ static bool		thread_started[SRV_MAX_N_IO_THREADS + 6 + 32] = {false};
 static bool		buf_dump_thread_started = false;
 static bool		dict_stats_thread_started = false;
 static bool		buf_flush_page_cleaner_thread_started = false;
-
 /** Name of srv_monitor_file */
 static char*	srv_monitor_file_name;
 #endif /* !UNIV_HOTBACKUP */
@@ -219,6 +212,7 @@ mysql_pfs_key_t	srv_lock_timeout_thread_key;
 mysql_pfs_key_t	srv_master_thread_key;
 mysql_pfs_key_t	srv_monitor_thread_key;
 mysql_pfs_key_t	srv_purge_thread_key;
+mysql_pfs_key_t	srv_worker_thread_key;
 #endif /* UNIV_PFS_THREAD */
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
@@ -345,7 +339,7 @@ DECLARE_THREAD(io_handler_thread)(
 	The thread actually never comes here because it is exited in an
 	os_event_wait(). */
 
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -1474,32 +1468,6 @@ innobase_start_or_create_for_mysql(void)
 		srv_use_doublewrite_buf = FALSE;
 	}
 
-#ifdef HAVE_DARWIN_THREADS
-# ifdef F_FULLFSYNC
-	/* This executable has been compiled on Mac OS X 10.3 or later.
-	Assume that F_FULLFSYNC is available at run-time. */
-	srv_have_fullfsync = TRUE;
-# else /* F_FULLFSYNC */
-	/* This executable has been compiled on Mac OS X 10.2
-	or earlier.  Determine if the executable is running
-	on Mac OS X 10.3 or later. */
-	struct utsname utsname;
-	if (uname(&utsname)) {
-		ut_print_timestamp(stderr);
-		fputs(" InnoDB: cannot determine Mac OS X version!\n", stderr);
-	} else {
-		srv_have_fullfsync = strcmp(utsname.release, "7.") >= 0;
-	}
-	if (!srv_have_fullfsync) {
-		ut_print_timestamp(stderr);
-		fputs(" InnoDB: On Mac OS X, fsync() may be "
-		      "broken on internal drives,\n", stderr);
-		ut_print_timestamp(stderr);
-		fputs(" InnoDB: making transactions unsafe!\n", stderr);
-	}
-# endif /* F_FULLFSYNC */
-#endif /* HAVE_DARWIN_THREADS */
-
 #ifdef HAVE_LZO1X
 	if (lzo_init() != LZO_E_OK) {
 		ib::warn() << "lzo_init() failed, support disabled";
@@ -1759,7 +1727,8 @@ innobase_start_or_create_for_mysql(void)
 					strlen(fil_path_to_mysql_datadir)
 					+ 20 + sizeof "/innodb_status."));
 
-			sprintf(srv_monitor_file_name, "%s/innodb_status.%lu",
+			sprintf(srv_monitor_file_name,
+				"%s/innodb_status." ULINTPF,
 				fil_path_to_mysql_datadir,
 				os_proc_get_number());
 
@@ -1774,7 +1743,7 @@ innobase_start_or_create_for_mysql(void)
 		} else {
 
 			srv_monitor_file_name = NULL;
-			srv_monitor_file = os_file_create_tmpfile();
+			srv_monitor_file = os_file_create_tmpfile(NULL);
 
 			if (!srv_monitor_file) {
 				return(srv_init_abort(DB_ERROR));
@@ -1784,7 +1753,7 @@ innobase_start_or_create_for_mysql(void)
 		mutex_create(LATCH_ID_SRV_DICT_TMPFILE,
 			     &srv_dict_tmpfile_mutex);
 
-		srv_dict_tmpfile = os_file_create_tmpfile();
+		srv_dict_tmpfile = os_file_create_tmpfile(NULL);
 
 		if (!srv_dict_tmpfile) {
 			return(srv_init_abort(DB_ERROR));
@@ -1793,7 +1762,7 @@ innobase_start_or_create_for_mysql(void)
 		mutex_create(LATCH_ID_SRV_MISC_TMPFILE,
 			     &srv_misc_tmpfile_mutex);
 
-		srv_misc_tmpfile = os_file_create_tmpfile();
+		srv_misc_tmpfile = os_file_create_tmpfile(NULL);
 
 		if (!srv_misc_tmpfile) {
 			return(srv_init_abort(DB_ERROR));
@@ -1898,6 +1867,8 @@ innobase_start_or_create_for_mysql(void)
 
 	os_thread_create(buf_flush_page_cleaner_coordinator,
 			 NULL, NULL);
+
+	buf_flush_page_cleaner_thread_started = true;
 
 	for (i = 1; i < srv_n_page_cleaners; ++i) {
 		os_thread_create(buf_flush_page_cleaner_worker,
@@ -2174,6 +2145,7 @@ files_checked:
 	trx_sys_create();
 
 	if (create_new_db) {
+		dberr_t err = DB_SUCCESS;
 
 		ut_a(!srv_read_only_mode);
 
@@ -2210,7 +2182,11 @@ files_checked:
 
 		flushed_lsn = log_get_lsn();
 
-		fil_write_flushed_lsn(flushed_lsn);
+		err = fil_write_flushed_lsn(flushed_lsn);
+
+		if (err != DB_SUCCESS) {
+			return(srv_init_abort(err));
+		}
 
 		create_log_files_rename(
 			logfilename, dirnamelen, flushed_lsn, logfile0);
@@ -2366,6 +2342,17 @@ files_checked:
 			dict_check_tablespaces_and_store_max_id(validate);
 		}
 
+#ifdef MYSQL_ENCRYPTION
+		/* Rotate the encryption key for recovery. It's because
+		server could crash in middle of key rotation. Some tablespace
+		didn't complete key rotation. Here, we will resume the
+		rotation. */
+		if (!srv_read_only_mode
+		    && srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
+			fil_encryption_rotate();
+		}
+#endif /* MYSQL_ENCRYPTION */
+
 		/* Fix-up truncate of table if server crashed while truncate
 		was active. */
 		err = truncate_t::fixup_tables_in_non_system_tablespace();
@@ -2378,6 +2365,7 @@ files_checked:
 		    && !recv_sys->found_corrupt_log
 		    && (srv_log_file_size_requested != srv_log_file_size
 			|| srv_n_log_files_found != srv_n_log_files)) {
+			dberr_t err = DB_SUCCESS;
 
 			/* Prepare to replace the redo log files. */
 
@@ -2399,7 +2387,11 @@ files_checked:
 			RECOVERY_CRASH(3);
 
 			/* Stamp the LSN to the data files. */
-			fil_write_flushed_lsn(flushed_lsn);
+			err = fil_write_flushed_lsn(flushed_lsn);
+
+			if (err != DB_SUCCESS) {
+				return(srv_init_abort(err));
+			}
 
 			RECOVERY_CRASH(4);
 
@@ -2462,7 +2454,6 @@ files_checked:
 	if (err != DB_SUCCESS) {
 		return(srv_init_abort(err));
 	}
-
 	/* Create the doublewrite buffer to a new tablespace */
 	if (buf_dblwr == NULL && !buf_dblwr_create()) {
 		return(srv_init_abort(DB_ERROR));
@@ -2533,6 +2524,7 @@ files_checked:
 		return(srv_init_abort(err));
 	}
 
+	/* Create the SYS_TABLESPACES system table */
 	err = dict_create_or_check_sys_tablespace();
 	if (err != DB_SUCCESS) {
 		return(srv_init_abort(err));
@@ -2744,13 +2736,14 @@ files_checked:
 		}
 	}
 
+	/* Create the buffer pool resize thread */
+	os_thread_create(buf_resize_thread, NULL, NULL);
+
 	/* Init data for datafile scrub threads */
 	btr_scrub_init();
 
 	/* Initialize online defragmentation. */
 	btr_defragment_init();
-	/* Create the buffer pool resize thread */
-	os_thread_create(buf_resize_thread, NULL, NULL);
 
 	srv_was_started = TRUE;
 	return(DB_SUCCESS);
@@ -2803,10 +2796,8 @@ innobase_shutdown_for_mysql(void)
 	}
 
 	if (!srv_read_only_mode) {
-		/* Shutdown the FTS optimize sub system. */
-		fts_optimize_start_shutdown();
-
-		fts_optimize_end();
+		fts_optimize_shutdown();
+		dict_stats_shutdown();
 
 		/* Shutdown key rotation threads */
 		fil_crypt_threads_end();
@@ -2828,13 +2819,10 @@ innobase_shutdown_for_mysql(void)
 	/* 2. Make all threads created by InnoDB to exit */
 	srv_shutdown_all_bg_threads();
 
-
-		if (srv_use_mtflush) {
-			/* g. Exit the multi threaded flush threads */
-
-			buf_mtflu_io_thread_exit();
-		}
-
+	if (srv_use_mtflush) {
+		/* g. Exit the multi threaded flush threads */
+		buf_mtflu_io_thread_exit();
+	}
 
 	if (srv_monitor_file) {
 		fclose(srv_monitor_file);
@@ -3042,10 +3030,9 @@ single-table tablespace.
 @param[in]	max_len		filename max length */
 void
 srv_get_meta_data_filename(
-/*=======================*/
-	dict_table_t*	table,		/*!< in: table */
-	char*		filename,	/*!< out: filename */
-	ulint		max_len)	/*!< in: filename max length */
+	dict_table_t*	table,
+	char*		filename,
+	ulint		max_len)
 {
 	ulint		len;
 	char*		path;
@@ -3060,6 +3047,39 @@ srv_get_meta_data_filename(
 			table->data_dir_path, table->name.m_name, CFG, true);
 	} else {
 		path = fil_make_filepath(NULL, table->name.m_name, CFG, false);
+	}
+
+	ut_a(path);
+	len = ut_strlen(path);
+	ut_a(max_len >= len);
+
+	strcpy(filename, path);
+
+	ut_free(path);
+}
+/** Get the encryption-data filename from the table name for a
+single-table tablespace.
+@param[in]	table		table object
+@param[out]	filename	filename
+@param[in]	max_len		filename max length */
+void
+srv_get_encryption_data_filename(
+	dict_table_t*	table,
+	char*		filename,
+	ulint		max_len)
+{
+	ulint		len;
+	char*		path;
+	/* Make sure the data_dir_path is set. */
+	dict_get_and_save_data_dir_path(table, false);
+
+	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
+		ut_a(table->data_dir_path);
+
+		path = fil_make_filepath(
+			table->data_dir_path, table->name.m_name, CFP, true);
+	} else {
+		path = fil_make_filepath(NULL, table->name.m_name, CFP, false);
 	}
 
 	ut_a(path);

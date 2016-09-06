@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
@@ -530,9 +530,11 @@ sync_array_cell_print(
 #endif /* UNIV_DEBUG */
 
 		if (mutex) {
-			fprintf(file,
-				"Mutex at %p created file %s line %lu, lock var %lu\n"
-				"Last time reserved by thread %lu in file %s line %lu, "
+		fprintf(file,
+			"Mutex at %p, %s, lock var %lu\n"
+#ifdef UNIV_DEBUG
+			"Last time reserved in file %s line %lu"
+#endif /* UNIV_DEBUG */
 			"\n",
 			(void*) mutex,
 			policy.to_string().c_str(),
@@ -607,13 +609,13 @@ sync_array_cell_print(
 				" lock_word: %lx\n"
 				"Last time read locked in file %s line %lu\n"
 				"Last time write locked in file %s line %lu\n",
-				(ulong) rw_lock_get_reader_count(rwlock),
-				(ulong) rwlock->waiters,
+				(ulint) rw_lock_get_reader_count(rwlock),
+				(ulint) rwlock->waiters,
 				rwlock->lock_word,
 				innobase_basename(rwlock->last_s_file_name),
-				(ulong) rwlock->last_s_line,
+				(ulint) rwlock->last_s_line,
 				rwlock->last_x_file_name,
-				(ulong) rwlock->last_x_line);
+				(ulint) rwlock->last_x_line);
 
 			/* JAN: TODO: FIX LATER
 			fprintf(file,
@@ -735,7 +737,6 @@ sync_array_detect_deadlock(
 	os_thread_id_t	thread;
 	ibool		ret;
 	rw_lock_debug_t*debug;
-	os_thread_id_t	reserver=0;
 
 	ut_a(arr);
 	ut_a(start);
@@ -834,7 +835,6 @@ sync_array_detect_deadlock(
 					<< " file " << name << " line "
 					<< policy.get_enter_line();
 
-				sync_array_cell_print(stderr, cell, 0);
 
 				return(true);
 			}
@@ -842,7 +842,8 @@ sync_array_detect_deadlock(
 
 		/* No deadlock */
 		return(false);
-		}
+	}
+
 	case RW_LOCK_X:
 	case RW_LOCK_X_WAIT:
 
@@ -1133,7 +1134,7 @@ sync_array_print_long_waits_low(
 # define SYNC_ARRAY_TIMEOUT	240
 #endif
 
-	for (i = 0; i < arr->n_cells; i++) {
+	for (ulint i = 0; i < arr->n_cells; i++) {
 
 		sync_cell_t*	cell;
 		void*		latch;
@@ -1301,7 +1302,6 @@ sync_array_print_info_low(
 {
 	ulint		i;
 	ulint		count = 0;
-	os_thread_id_t	r = 0;
 
 	fprintf(file,
 		"OS WAIT ARRAY INFO: reservation count " ULINTPF "\n",

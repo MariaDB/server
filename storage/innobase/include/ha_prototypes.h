@@ -37,6 +37,7 @@ simple headers.
 class THD;
 class Field;
 struct fts_string_t;
+//typedef struct charset_info_st CHARSET_INFO;
 
 /*********************************************************************//**
 Wrapper around MySQL's copy_and_convert function.
@@ -162,7 +163,7 @@ checkpoint when necessary.*/
 UNIV_INTERN
 void
 innobase_mysql_log_notify(
-/*===============*/
+/*======================*/
 	ib_uint64_t	write_lsn,	/*!< in: LSN written to log file */
 	ib_uint64_t	flush_lsn);	/*!< in: LSN flushed to disk */
 
@@ -341,6 +342,14 @@ thd_set_lock_wait_time(
 /*===================*/
 	THD*	thd,	/*!< in/out: thread handle */
 	ulint	value);	/*!< in: time waited for the lock */
+
+/** Get status of innodb_tmpdir.
+@param[in]	thd	thread handle, or NULL to query
+			the global innodb_tmpdir.
+@retval NULL if innodb_tmpdir="" */
+const char*
+thd_innodb_tmpdir(
+	THD*	thd);
 
 /**********************************************************************//**
 Get the current setting of the table_cache_size global parameter. We do
@@ -531,7 +540,6 @@ innobase_convert_to_system_charset(
 	const char*     from,		/* in: identifier to convert */
 	ulint           len,		/* in: length of 'to', in bytes */
 	uint*		errors);	/* out: error return */
-
 /**********************************************************************
 Check if the length of the identifier exceeds the maximum allowed.
 The input to this function is an identifier in charset my_charset_filename.
@@ -606,7 +614,7 @@ ICP_RESULT
 innobase_index_cond(
 /*================*/
 	void*	file)	/*!< in/out: pointer to ha_innobase */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************************//**
 Gets information on the durability property requested by thread.
@@ -625,7 +633,7 @@ enum durability_properties
 thd_requested_durability(
 /*=====================*/
 	const THD* thd)	/*!< in: thread handle */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Update the system variable with the given value of the InnoDB
 buffer pool size.

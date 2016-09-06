@@ -1,8 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2015, MariaDB Corporation.
+Copyright (c) 2014, 2016, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -50,6 +50,11 @@ struct buf_chunk_t{
 					alloc method and later passed to the
 					deallocate method. */
 	buf_block_t*	blocks;		/*!< array of buffer control blocks */
+
+	/** Get the size of 'mem' in bytes. */
+	size_t	mem_size() const {
+		return(mem_pfx.m_size);
+	}
 };
 
 /*********************************************************************//**
@@ -315,7 +320,8 @@ buf_page_set_state(
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		if (!(state == BUF_BLOCK_NOT_USED
-	              || state == BUF_BLOCK_REMOVE_HASH)) {
+	              || state == BUF_BLOCK_REMOVE_HASH
+		      || state == BUF_BLOCK_FILE_PAGE)) {
 			const char *old_state_name = buf_get_state_name((buf_block_t*)bpage);
 			bpage->state = state;
 
@@ -326,10 +332,11 @@ buf_page_set_state(
 				old_state_name,
 				state,
 				buf_get_state_name((buf_block_t*)bpage));
+			ut_a(state == BUF_BLOCK_NOT_USED
+				|| state == BUF_BLOCK_REMOVE_HASH
+				|| state == BUF_BLOCK_FILE_PAGE);
 		}
 
-		ut_a(state == BUF_BLOCK_NOT_USED
-		     || state == BUF_BLOCK_REMOVE_HASH);
 		break;
 	case BUF_BLOCK_REMOVE_HASH:
 		ut_a(state == BUF_BLOCK_MEMORY);
@@ -769,23 +776,6 @@ buf_frame_align(
 
         return(frame);
 }
-
-#ifndef UNIV_HOTBACKUP
-#if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
-/*********************************************************************//**
-Gets the compressed page descriptor corresponding to an uncompressed page
-if applicable.
-@return compressed page descriptor, or NULL */
-UNIV_INLINE
-const page_zip_des_t*
-buf_frame_get_page_zip(
-/*===================*/
-	const byte*	ptr)	/*!< in: pointer to the page */
-{
-	return(buf_block_get_page_zip(buf_block_align(ptr)));
-}
-#endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a
@@ -1421,6 +1411,25 @@ buf_get_nth_chunk_block(
 	return(chunk->blocks);
 }
 
+/********************************************************************//**
+Get buf frame. */
+UNIV_INLINE
+void *
+buf_page_get_frame(
+/*===============*/
+	const buf_page_t*	bpage) /*!< in: buffer pool page */
+{
+	/* In encryption/compression buffer pool page may contain extra
+	buffer where result is stored. */
+	if (bpage->slot && bpage->slot->out_buf) {
+		return bpage->slot->out_buf;
+	} else if (bpage->zip.data) {
+		return bpage->zip.data;
+	} else {
+		return ((buf_block_t*) bpage)->frame;
+	}
+}
+
 /** Verify the possibility that a stored page is not in buffer pool.
 @param[in]	withdraw_clock	withdraw clock when stored the page
 @retval true	if the page might be relocated */
@@ -1452,22 +1461,4 @@ buf_pool_size_align(
 	}
 }
 
-/********************************************************************//**
-Get buf frame. */
-UNIV_INLINE
-void *
-buf_page_get_frame(
-/*===============*/
-	const buf_page_t*	bpage) /*!< in: buffer pool page */
-{
-	/* In encryption/compression buffer pool page may contain extra
-	buffer where result is stored. */
-	if (bpage->slot && bpage->slot->out_buf) {
-		return bpage->slot->out_buf;
-	} else if (bpage->zip.data) {
-		return bpage->zip.data;
-	} else {
-		return ((buf_block_t*) bpage)->frame;
-	}
-}
 #endif /* !UNIV_HOTBACKUP */

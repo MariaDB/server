@@ -233,6 +233,42 @@ dict_stats_empty_defrag_stats(
 	dict_index_t* index);	/*!< in: index to clear defragmentation stats */
 
 
+/*********************************************************************//**
+Renames an index in InnoDB persistent stats storage.
+This function creates its own transaction and commits it.
+@return DB_SUCCESS or error code. DB_STATS_DO_NOT_EXIST will be returned
+if the persistent stats do not exist. */
+dberr_t
+dict_stats_rename_index(
+/*====================*/
+	const dict_table_t*	table,		/*!< in: table whose index
+						is renamed */
+	const char*		old_index_name,	/*!< in: old index name */
+	const char*		new_index_name)	/*!< in: new index name */
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Save an individual index's statistic into the persistent statistics
+storage.
+@param[in]	index			index to be updated
+@param[in]	last_update		timestamp of the stat
+@param[in]	stat_name		name of the stat
+@param[in]	stat_value		value of the stat
+@param[in]	sample_size		n pages sampled or NULL
+@param[in]	stat_description	description of the stat
+@param[in,out]	trx			in case of NULL the function will
+allocate and free the trx object. If it is not NULL then it will be
+rolled back only in the case of error, but not freed.
+@return DB_SUCCESS or error code */
+dberr_t
+dict_stats_save_index_stat(
+	dict_index_t*	index,
+	lint		last_update,
+	const char*	stat_name,
+	ib_uint64_t	stat_value,
+	ib_uint64_t*	sample_size,
+	const char*	stat_description,
+	trx_t*		trx);
+
 #ifndef UNIV_NONINL
 #include "dict0stats.ic"
 #endif

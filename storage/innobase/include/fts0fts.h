@@ -66,7 +66,7 @@ optimize using a 4 byte Doc ID for FIC merge sort to reduce sort size */
 #define MAX_DOC_ID_OPT_VAL		1073741824
 
 /** Document id type. */
-typedef ib_uint64_t doc_id_t;
+typedef ib_id_t doc_id_t;
 
 /** doc_id_t printf format */
 #define FTS_DOC_ID_FORMAT	IB_ID_FMT
@@ -103,7 +103,6 @@ those defined in mysql file ft_global.h */
 should not exceed FTS_DOC_ID_MAX_STEP */
 #define FTS_DOC_ID_MAX_STEP		65535
 
-
 /** Maximum possible Fulltext word length */
 #define FTS_MAX_WORD_LEN		HA_FT_MAXBYTELEN
 
@@ -127,6 +126,7 @@ should not exceed FTS_DOC_ID_MAX_STEP */
 #define FTS_INDEX_DOC_COUNT_LEN		4
 /* BLOB COLUMN, 0 means VARIABLE SIZE */
 #define FTS_INDEX_ILIST_LEN		0
+
 
 /** Variable specifying the FTS parallel sort degree */
 extern ulong		fts_sort_pll_degree;
@@ -515,7 +515,7 @@ fts_create_common_tables(
 						index */
 	const char*	name,			/*!< in: table name */
 	bool		skip_doc_id_index)	/*!< in: Skip index on doc id */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************************//**
 Wrapper function of fts_create_index_tables_low(), create auxiliary
 tables for an FTS index
@@ -526,7 +526,7 @@ fts_create_index_tables(
 	trx_t*			trx,		/*!< in: transaction handle */
 	const dict_index_t*	index)		/*!< in: the FTS index
 						instance */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************************//**
 Creates the column specific ancillary tables needed for supporting an
 FTS index on the given table. row_mysql_lock_data_dictionary must have
@@ -541,15 +541,14 @@ fts_create_index_tables_low(
 						instance */
 	const char*	table_name,		/*!< in: the table name */
 	table_id_t	table_id)		/*!< in: the table id */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /******************************************************************//**
 Add the FTS document id hidden column. */
 void
 fts_add_doc_id_column(
 /*==================*/
 	dict_table_t*	table,	/*!< in/out: Table with FTS index */
-	mem_heap_t*	heap)	/*!< in: temporary memory heap, or NULL */
-	MY_ATTRIBUTE((nonnull(1)));
+	mem_heap_t*	heap);	/*!< in: temporary memory heap, or NULL */
 
 /*********************************************************************//**
 Drops the ancillary tables needed for supporting an FTS index on the
@@ -560,9 +559,8 @@ dberr_t
 fts_drop_tables(
 /*============*/
 	trx_t*		trx,			/*!< in: transaction */
-	dict_table_t*	table)			/*!< in: table has the FTS
+	dict_table_t*	table);			/*!< in: table has the FTS
 						index */
-	MY_ATTRIBUTE((nonnull));
 /******************************************************************//**
 The given transaction is about to be committed; do whatever is necessary
 from the FTS system's POV.
@@ -571,23 +569,27 @@ dberr_t
 fts_commit(
 /*=======*/
 	trx_t*		trx)			/*!< in: transaction */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
-/*******************************************************************//**
-FTS Query entry point.
+/** FTS Query entry point.
+@param[in]	trx		transaction
+@param[in]	index		fts index to search
+@param[in]	flags		FTS search mode
+@param[in]	query_str	FTS query
+@param[in]	query_len	FTS query string len in bytes
+@param[in,out]	result		result doc ids
+@param[in]	limit		limit value
 @return DB_SUCCESS if successful otherwise error code */
 dberr_t
 fts_query(
-/*======*/
-	trx_t*		trx,			/*!< in: transaction */
-	dict_index_t*	index,			/*!< in: FTS index to search */
-	uint		flags,			/*!< in: FTS search mode */
-	const byte*	query,			/*!< in: FTS query */
-	ulint		query_len,		/*!< in: FTS query string len
-						in bytes */
-	fts_result_t**	result)			/*!< out: query result, to be
-						freed by the caller.*/
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	trx_t*		trx,
+	dict_index_t*	index,
+	uint		flags,
+	const byte*	query_str,
+	ulint		query_len,
+	fts_result_t**	result,
+	ulonglong	limit)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************************//**
 Retrieve the FTS Relevance Ranking result for doc with doc_id
@@ -704,8 +706,7 @@ Run OPTIMIZE on the given table.
 dberr_t
 fts_optimize_table(
 /*===============*/
-	dict_table_t*	table)			/*!< in: table to optimiza */
-	MY_ATTRIBUTE((nonnull));
+	dict_table_t*	table);			/*!< in: table to optimiza */
 
 /**********************************************************************//**
 Startup the optimize thread and create the work queue. */
@@ -728,7 +729,7 @@ fts_drop_index_tables(
 /*==================*/
 	trx_t*		trx,			/*!< in: transaction */
 	dict_index_t*	index)			/*!< in: Index to drop */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************************//**
 Remove the table from the OPTIMIZER's list. We do wait for
@@ -738,24 +739,15 @@ fts_optimize_remove_table(
 /*======================*/
 	dict_table_t*	table);			/*!< in: table to remove */
 
+/** Shutdown fts optimize thread. */
+void
+fts_optimize_shutdown();
+
 /** Send sync fts cache for the table.
 @param[in]	table	table to sync */
-UNIV_INTERN
 void
 fts_optimize_request_sync_table(
 	dict_table_t*	table);
-
-/**********************************************************************//**
-Signal the optimize thread to prepare for shutdown. */
-void
-fts_optimize_start_shutdown(void);
-/*==============================*/
-
-/**********************************************************************//**
-Inform optimize to clean up. */
-void
-fts_optimize_end(void);
-/*===================*/
 
 /**********************************************************************//**
 Take a FTS savepoint. */
@@ -764,15 +756,15 @@ fts_savepoint_take(
 /*===============*/
 	trx_t*		trx,			/*!< in: transaction */
 	fts_trx_t*	fts_trx,		/*!< in: fts transaction */
-	const char*	name)			/*!< in: savepoint name */
-	MY_ATTRIBUTE((nonnull));
+	const char*	name);			/*!< in: savepoint name */
+
 /**********************************************************************//**
 Refresh last statement savepoint. */
 void
 fts_savepoint_laststmt_refresh(
 /*===========================*/
-	trx_t*		trx)			/*!< in: transaction */
-	MY_ATTRIBUTE((nonnull));
+	trx_t*		trx);			/*!< in: transaction */
+
 /**********************************************************************//**
 Release the savepoint data identified by  name. */
 void
@@ -832,19 +824,21 @@ fts_drop_index_split_tables(
 /*========================*/
 	trx_t*		trx,			/*!< in: transaction */
 	dict_index_t*	index)			/*!< in: fts instance */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	table		fts table
 @param[in]	unlock_cache	whether unlock cache when write node
 @param[in]	wait		whether wait for existing sync to finish
+@param[in]      has_dict        whether has dict operation lock
 @return DB_SUCCESS on success, error code on failure. */
 dberr_t
 fts_sync_table(
 	dict_table_t*	table,
 	bool		unlock_cache,
-	bool		wait);
+	bool		wait,
+	bool		has_dict);
 
 /****************************************************************//**
 Free the query graph but check whether dict_sys->mutex is already
@@ -1027,8 +1021,7 @@ fts_drop_index(
 /*===========*/
 	dict_table_t*	table,	/*!< in: Table where indexes are dropped */
 	dict_index_t*	index,	/*!< in: Index to be dropped */
-	trx_t*		trx)	/*!< in: Transaction for the drop */
-	MY_ATTRIBUTE((nonnull));
+	trx_t*		trx);	/*!< in: Transaction for the drop */
 
 /****************************************************************//**
 Rename auxiliary tables for all fts index for a table
@@ -1053,12 +1046,12 @@ fts_check_cached_index(
 consistent state. For now consistency is check only by ensuring
 index->page_no != FIL_NULL
 @param[out]	base_table	table has host fts index
-@param[in,out]	trx		trx handler
-@return true if check certifies auxillary tables are sane false otherwise. */
-bool
-fts_is_corrupt(
+@param[in,out]	trx		trx handler */
+void
+fts_check_corrupt(
 	dict_table_t*	base_table,
 	trx_t*		trx);
+
 
 #endif /*!< fts0fts.h */
 

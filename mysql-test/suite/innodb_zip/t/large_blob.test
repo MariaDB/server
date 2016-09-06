@@ -3,7 +3,7 @@
 --echo #
 
 --source include/have_innodb.inc
---source include/have_nodebug.inc
+--source include/not_debug.inc
 --source include/big_test.inc
 
 --disable_query_log

@@ -288,18 +288,18 @@ DROP TABLE t1;
 SET SESSION innodb_strict_mode = ON;
 SET GLOBAL innodb_file_per_table = OFF;
 SHOW VARIABLES LIKE 'innodb_file_per_table';
---error ER_ILLEGAL_HA
+--error ER_ILLEGAL_HA,1005
 CREATE TABLE t4 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=8;
 SHOW WARNINGS;
---error ER_ILLEGAL_HA
+--error ER_ILLEGAL_HA,1005
 CREATE TABLE t5 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=16;
 SHOW WARNINGS;
 SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_file_format = `Antelope`;
---error ER_ILLEGAL_HA
+--error ER_ILLEGAL_HA,1005
 CREATE TABLE t4 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=8;
 SHOW WARNINGS;
---error ER_ILLEGAL_HA
+--error ER_ILLEGAL_HA,1005
 CREATE TABLE t5 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=16;
 SHOW WARNINGS;
 SET GLOBAL innodb_file_format = `Barracuda`;

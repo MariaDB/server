@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -21,9 +21,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef ha_innopart_h
 #define ha_innopart_h
 
-/* JAN: TODO: MySQL 5.7 */
-//#include "partitioning/partition_handler.h"
-#include "ha_partition.h"
+#include "partitioning/partition_handler.h"
 
 /* Forward declarations */
 class Altered_partitions;
@@ -62,8 +60,6 @@ private:
 	/** Pointer back to owning TABLE_SHARE. */
 	TABLE_SHARE*		m_table_share;
 
-	/** Virtual column template */
-	innodb_col_templ_t*	m_s_templ;
 public:
 	Ha_innopart_share(
 		TABLE_SHARE*	table_share);
@@ -188,7 +184,7 @@ truncate_partition.
 InnoDB specific functions related to partitioning is implemented here. */
 class ha_innopart:
 	public ha_innobase,
-//	public Partition_helper,
+	public Partition_helper,
 	public Partition_handler
 {
 public:
@@ -509,9 +505,7 @@ public:
 	ft_init_ext_with_hints(
 		uint		inx,
 		String*		key,
-		/* JAN: TODO: MySQL 5. /
-		Ft_hints*	hints)*/
-		void*		hints)
+		Ft_hints*	hints)
 	{
 		ut_ad(0);
 		return(NULL);
@@ -613,7 +607,7 @@ public:
 
 	uint
 	alter_flags(
-		uint	flags __attribute__((unused))) const
+		uint	flags MY_ATTRIBUTE((unused))) const
 	{
 		return(HA_PARTITION_FUNCTION_SUPPORTED
 		       | HA_FAST_CHANGE_PARTITION);
@@ -1123,6 +1117,12 @@ private:
 	external_lock(
 		THD*	thd,
 		int	lock_type);
+
+	THR_LOCK_DATA**
+	store_lock(
+		THD*			thd,
+		THR_LOCK_DATA**		to,
+		thr_lock_type		lock_type);
 
 	int
 	write_row(

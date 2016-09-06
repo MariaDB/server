@@ -44,7 +44,7 @@ ut_dbg_assertion_failed(
 	const char*	expr,	/*!< in: the failed assertion */
 	const char*	file,	/*!< in: source file containing the assertion */
 	ulint		line)	/*!< in: line number of the assertion */
-	UNIV_COLD MY_ATTRIBUTE((nonnull(2)));
+	UNIV_COLD MY_ATTRIBUTE((nonnull(2), noreturn));
 
 /** Abort execution if EXPR does not evaluate to nonzero.
 @param EXPR assertion expression that should hold */

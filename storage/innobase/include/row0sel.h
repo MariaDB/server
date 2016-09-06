@@ -174,7 +174,7 @@ row_search_for_mysql(
 	row_prebuilt_t*	prebuilt,
 	ulint		match_mode,
 	ulint		direction)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Searches for rows in the database using cursor.
 function is meant for temporary table that are not shared accross connection
@@ -201,7 +201,7 @@ row_search_no_mvcc(
 	row_prebuilt_t*	prebuilt,
 	ulint		match_mode,
 	ulint		direction)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Searches for rows in the database using cursor.
 Function is mainly used for tables that are shared accorss connection and
@@ -238,7 +238,7 @@ row_search_mvcc(
 	row_prebuilt_t*	prebuilt,
 	ulint		match_mode,
 	ulint		direction)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
 Count rows in a R-Tree leaf level.
@@ -253,10 +253,9 @@ row_count_rtree_recs(
 					position the cursor at the start or
 					the end of the index, depending on
 					'mode' */
-	ulint*		n_rows)		/*!< out: number of entries
+	ulint*		n_rows);	/*!< out: number of entries
 					seen in the consistent read */
 
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*******************************************************************//**
 Checks if MySQL at the moment is allowed for this table to retrieve a
 consistent read result, or store it to the query cache.

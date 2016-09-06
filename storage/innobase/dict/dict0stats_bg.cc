@@ -24,9 +24,9 @@ Created Apr 25, 2012 Vasil Dimov
 *******************************************************/
 
 #include "dict0dict.h"
-#include "dict0dict.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
+#include "dict0defrag_bg.h"
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "ut0new.h"
@@ -45,15 +45,27 @@ Created Apr 25, 2012 Vasil Dimov
 /** Event to wake up the stats thread */
 os_event_t			dict_stats_event = NULL;
 
+/** Variable to initiate shutdown the dict stats thread. Note we don't
+use 'srv_shutdown_state' because we want to shutdown dict stats thread
+before purge thread. */
+bool				dict_stats_start_shutdown = false;
+
+/** Event to wait for shutdown of the dict stats thread */
+os_event_t			dict_stats_shutdown_event = NULL;
+
+#ifdef UNIV_DEBUG
+/** Used by SET GLOBAL innodb_dict_stats_disabled_debug = 1; */
+my_bool				innodb_dict_stats_disabled_debug;
+
+static os_event_t		dict_stats_disabled_event;
+#endif /* UNIV_DEBUG */
+
 /** This mutex protects the "recalc_pool" variable. */
 static ib_mutex_t		recalc_pool_mutex;
-static ib_mutex_t		defrag_pool_mutex;
-static mysql_pfs_key_t		defrag_pool_mutex_key;
 
 /** The number of tables that can be added to "recalc_pool" before
 it is enlarged */
 static const ulint		RECALC_POOL_INITIAL_SLOTS = 128;
-static const ulint		DEFRAG_POOL_INITIAL_SLOTS = 128;
 
 /** Allocator type, used by std::vector */
 typedef ut_allocator<table_id_t>
@@ -73,39 +85,23 @@ typedef recalc_pool_t::iterator
 by background statistics gathering. */
 static recalc_pool_t*		recalc_pool;
 
-/** Indices whose defrag stats need to be saved to persistent storage.*/
-struct defrag_pool_item_t {
-	table_id_t	table_id;
-	index_id_t	index_id;
-};
-
-typedef ut_allocator<defrag_pool_item_t>
-	defrag_pool_allocator_t;
-typedef std::vector<defrag_pool_item_t, defrag_pool_allocator_t>
-	defrag_pool_t;
-static defrag_pool_t*			defrag_pool;
-typedef defrag_pool_t::iterator		defrag_pool_iterator_t;
 
 /*****************************************************************//**
 Initialize the recalc pool, called once during thread initialization. */
 static
 void
-dict_stats_pool_init()
+dict_stats_recalc_pool_init()
 /*=========================*/
 {
 	ut_ad(!srv_read_only_mode);
 	/* JAN: TODO: MySQL 5.7 PSI
 	const PSI_memory_key	key = mem_key_dict_stats_bg_recalc_pool_t;
-	const PSI_memory_key	key2 = mem_key_dict_defrag_pool_t;
 
 	recalc_pool = UT_NEW(recalc_pool_t(recalc_pool_allocator_t(key)), key);
-	defrag_pool = UT_NEW(defrag_pool_t(defrag_pool_allocator_t(key2)), key2);
 
-	defrag_pool->reserve(DEFRAG_POOL_INITIAL_SLOTS);
 	recalc_pool->reserve(RECALC_POOL_INITIAL_SLOTS);
 	*/
 	recalc_pool = new std::vector<table_id_t, recalc_pool_allocator_t>();
-	defrag_pool = new std::vector<defrag_pool_item_t, defrag_pool_allocator_t>();
 }
 
 /*****************************************************************//**
@@ -113,16 +109,14 @@ Free the resources occupied by the recalc pool, called once during
 thread de-initialization. */
 static
 void
-dict_stats_pool_deinit()
-/*====================*/
+dict_stats_recalc_pool_deinit()
+/*===========================*/
 {
 	ut_ad(!srv_read_only_mode);
 
 	recalc_pool->clear();
-	defrag_pool->clear();
 
 	UT_DELETE(recalc_pool);
-	UT_DELETE(defrag_pool);
 }
 
 /*****************************************************************//**
@@ -217,111 +211,6 @@ dict_stats_recalc_pool_del(
 }
 
 /*****************************************************************//**
-Add an index in a table to the defrag pool, which is processed by the
-background stats gathering thread. Only the table id and index id are
-added to the list, so the table can be closed after being enqueued and
-it will be opened when needed. If the table or index does not exist later
-(has been DROPped), then it will be removed from the pool and skipped. */
-UNIV_INTERN
-void
-dict_stats_defrag_pool_add(
-/*=======================*/
-	const dict_index_t*	index)	/*!< in: table to add */
-{
-	defrag_pool_item_t item;
-
-	ut_ad(!srv_read_only_mode);
-
-	mutex_enter(&defrag_pool_mutex);
-
-	/* quit if already in the list */
-	for (defrag_pool_iterator_t iter = defrag_pool->begin();
-	     iter != defrag_pool->end();
-	     ++iter) {
-		if ((*iter).table_id == index->table->id
-		    && (*iter).index_id == index->id) {
-			mutex_exit(&defrag_pool_mutex);
-			return;
-		}
-	}
-
-	item.table_id = index->table->id;
-	item.index_id = index->id;
-	defrag_pool->push_back(item);
-
-	mutex_exit(&defrag_pool_mutex);
-
-	os_event_set(dict_stats_event);
-}
-
-/*****************************************************************//**
-Get an index from the auto defrag pool. The returned index id is removed
-from the pool.
-@return true if the pool was non-empty and "id" was set, false otherwise */
-static
-bool
-dict_stats_defrag_pool_get(
-/*=======================*/
-	table_id_t*	table_id,	/*!< out: table id, or unmodified if
-					list is empty */
-	index_id_t*	index_id)	/*!< out: index id, or unmodified if
-					list is empty */
-{
-	ut_ad(!srv_read_only_mode);
-
-	mutex_enter(&defrag_pool_mutex);
-
-	if (defrag_pool->empty()) {
-		mutex_exit(&defrag_pool_mutex);
-		return(false);
-	}
-
-	defrag_pool_item_t& item = defrag_pool->back();
-	*table_id = item.table_id;
-	*index_id = item.index_id;
-
-	defrag_pool->pop_back();
-
-	mutex_exit(&defrag_pool_mutex);
-
-	return(true);
-}
-
-/*****************************************************************//**
-Delete a given index from the auto defrag pool. */
-UNIV_INTERN
-void
-dict_stats_defrag_pool_del(
-/*=======================*/
-	const dict_table_t*	table,	/*!<in: if given, remove
-					all entries for the table */
-	const dict_index_t*	index)	/*!< in: if given, remove this index */
-{
-	ut_a((table && !index) || (!table && index));
-	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	mutex_enter(&defrag_pool_mutex);
-
-	defrag_pool_iterator_t iter = defrag_pool->begin();
-	while (iter != defrag_pool->end()) {
-		if ((table && (*iter).table_id == table->id)
-		    || (index
-			&& (*iter).table_id == index->table->id
-			&& (*iter).index_id == index->id)) {
-			/* erase() invalidates the iterator */
-			iter = defrag_pool->erase(iter);
-			if (index)
-				break;
-		} else {
-			iter++;
-		}
-	}
-
-	mutex_exit(&defrag_pool_mutex);
-}
-
-/*****************************************************************//**
 Wait until background stats thread has stopped using the specified table.
 The caller must have locked the data dictionary using
 row_mysql_lock_data_dictionary() and this function may unlock it temporarily
@@ -352,6 +241,9 @@ dict_stats_thread_init()
 	ut_a(!srv_read_only_mode);
 
 	dict_stats_event = os_event_create(0);
+	dict_stats_shutdown_event = os_event_create(0);
+
+	ut_d(dict_stats_disabled_event = os_event_create(0));
 
 	/* The recalc_pool_mutex is acquired from:
 	1) the background stats gathering thread before any other latch
@@ -369,10 +261,9 @@ dict_stats_thread_init()
 
 	mutex_create(LATCH_ID_RECALC_POOL, &recalc_pool_mutex);
 
-	/* We choose SYNC_STATS_DEFRAG to be below SYNC_FSP_PAGE. */
-	mutex_create(LATCH_ID_DEFRAGMENT_MUTEX, &defrag_pool_mutex);
+	dict_stats_recalc_pool_init();
+	dict_defrag_pool_init();
 
-	dict_stats_pool_init();
 }
 
 /*****************************************************************//**
@@ -385,13 +276,21 @@ dict_stats_thread_deinit()
 	ut_a(!srv_read_only_mode);
 	ut_ad(!srv_dict_stats_thread_active);
 
-	dict_stats_pool_deinit();
+	dict_stats_recalc_pool_deinit();
+	dict_defrag_pool_deinit();
 
 	mutex_free(&recalc_pool_mutex);
-	mutex_free(&defrag_pool_mutex);
+
+#ifdef UNIV_DEBUG
+	os_event_destroy(dict_stats_disabled_event);
+	dict_stats_disabled_event = NULL;
+#endif /* UNIV_DEBUG */
 
 	os_event_destroy(dict_stats_event);
+	os_event_destroy(dict_stats_shutdown_event);
 	dict_stats_event = NULL;
+	dict_stats_shutdown_event = NULL;
+	dict_stats_start_shutdown = false;
 }
 
 /*****************************************************************//**
@@ -459,69 +358,43 @@ dict_stats_process_entry_from_recalc_pool()
 
 	mutex_enter(&dict_sys->mutex);
 
-	table->stats_bg_flag &= ~BG_STAT_IN_PROGRESS;
+	table->stats_bg_flag = BG_STAT_NONE;
 
 	dict_table_close(table, TRUE, FALSE);
 
 	mutex_exit(&dict_sys->mutex);
 }
 
-/*****************************************************************//**
-Get the first index that has been added for updating persistent defrag
-stats and eventually save its stats. */
-static
+#ifdef UNIV_DEBUG
+/** Disables dict stats thread. It's used by:
+	SET GLOBAL innodb_dict_stats_disabled_debug = 1 (0).
+@param[in]	thd		thread handle
+@param[in]	var		pointer to system variable
+@param[out]	var_ptr		where the formal string goes
+@param[in]	save		immediate result from check function */
 void
-dict_stats_process_entry_from_defrag_pool()
-/*=======================================*/
+dict_stats_disabled_debug_update(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				var_ptr,
+	const void*			save)
 {
-	table_id_t	table_id;
-	index_id_t	index_id;
+	/* This method is protected by mutex, as every SET GLOBAL .. */
+	ut_ad(dict_stats_disabled_event != NULL);
 
-	ut_ad(!srv_read_only_mode);
+	const bool disable = *static_cast<const my_bool*>(save);
 
-	/* pop the first index from the auto defrag pool */
-	if (!dict_stats_defrag_pool_get(&table_id, &index_id)) {
-		/* no index in defrag pool */
-		return;
+	const int64_t sig_count = os_event_reset(dict_stats_disabled_event);
+
+	innodb_dict_stats_disabled_debug = disable;
+
+	if (disable) {
+		os_event_set(dict_stats_event);
+		os_event_wait_low(dict_stats_disabled_event, sig_count);
 	}
-
-	dict_table_t*	table;
-
-	mutex_enter(&dict_sys->mutex);
-
-	/* If the table is no longer cached, we've already lost the in
-	memory stats so there's nothing really to write to disk. */
-	table = dict_table_open_on_id(table_id, TRUE,
-				      DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
-
-	if (table == NULL) {
-		mutex_exit(&dict_sys->mutex);
-		return;
-	}
-
-	/* Check whether table is corrupted */
-	if (table->corrupted) {
-		dict_table_close(table, TRUE, FALSE);
-		mutex_exit(&dict_sys->mutex);
-		return;
-	}
-	mutex_exit(&dict_sys->mutex);
-
-	dict_index_t*	index = dict_table_find_index_on_id(table, index_id);
-
-	if (index == NULL) {
-		return;
-	}
-
-	/* Check whether index is corrupted */
-	if (dict_index_is_corrupted(index)) {
-		dict_table_close(table, FALSE, FALSE);
-		return;
-	}
-
-	dict_stats_save_defrag_stats(index);
-	dict_table_close(table, FALSE, FALSE);
 }
+#endif /* UNIV_DEBUG */
+
 
 /*****************************************************************//**
 This is the thread for background stats gathering. It pops tables, from
@@ -545,7 +418,7 @@ DECLARE_THREAD(dict_stats_thread)(
 
 	srv_dict_stats_thread_active = TRUE;
 
-	while (!SHUTTING_DOWN()) {
+	while (!dict_stats_start_shutdown) {
 
 		/* Wake up periodically even if not signaled. This is
 		because we may lose an event - if the below call to
@@ -555,23 +428,44 @@ DECLARE_THREAD(dict_stats_thread)(
 		os_event_wait_time(
 			dict_stats_event, MIN_RECALC_INTERVAL * 1000000);
 
-		if (SHUTTING_DOWN()) {
+#ifdef UNIV_DEBUG
+		while (innodb_dict_stats_disabled_debug) {
+			os_event_set(dict_stats_disabled_event);
+			if (dict_stats_start_shutdown) {
+				break;
+			}
+			os_event_wait_time(
+				dict_stats_event, 100000);
+		}
+#endif /* UNIV_DEBUG */
+
+		if (dict_stats_start_shutdown) {
 			break;
 		}
 
 		dict_stats_process_entry_from_recalc_pool();
-
-		while (defrag_pool->size())
-			dict_stats_process_entry_from_defrag_pool();
+		dict_defrag_process_entries_from_defrag_pool();
 
 		os_event_reset(dict_stats_event);
 	}
 
 	srv_dict_stats_thread_active = FALSE;
 
+	os_event_set(dict_stats_shutdown_event);
+	my_thread_end();
+
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit instead of return(). */
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
+}
+
+/** Shutdown the dict stats thread. */
+void
+dict_stats_shutdown()
+{
+	dict_stats_start_shutdown = true;
+	os_event_set(dict_stats_event);
+	os_event_wait(dict_stats_shutdown_event);
 }

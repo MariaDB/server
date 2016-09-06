@@ -184,6 +184,25 @@ buf_load_status(
 	va_end(ap);
 }
 
+/** Returns the directory path where the buffer pool dump file will be created.
+@return directory path */
+static
+const char*
+get_buf_dump_dir()
+{
+	const char*	dump_dir;
+
+	/* The dump file should be created in the default data directory if
+	innodb_data_home_dir is set as an empty string. */
+	if (strcmp(srv_data_home, "") == 0) {
+		dump_dir = fil_path_to_mysql_datadir;
+	} else {
+		dump_dir = srv_data_home;
+	}
+
+	return(dump_dir);
+}
+
 /** Generate the path to the buffer pool dump/load file.
 @param[out]	path		generated path
 @param[in]	path_size	size of 'path', used as in snprintf(3). */
@@ -195,7 +214,7 @@ buf_dump_generate_path(
 {
 	char	buf[FN_REFLEN];
 
-	ut_snprintf(buf, sizeof(buf), "%s%c%s", srv_data_home,
+	ut_snprintf(buf, sizeof(buf), "%s%c%s", get_buf_dump_dir(),
 		    OS_PATH_SEPARATOR, srv_buf_dump_filename);
 
 	os_file_type_t	type;
@@ -217,7 +236,7 @@ buf_dump_generate_path(
 		and append srv_buf_dump_filename to it. */
 		char	srv_data_home_full[FN_REFLEN];
 
-		my_realpath(srv_data_home_full, srv_data_home, 0);
+		my_realpath(srv_data_home_full, get_buf_dump_dir(), 0);
 
 		if (srv_data_home_full[strlen(srv_data_home_full) - 1]
 		    == OS_PATH_SEPARATOR) {
@@ -549,13 +568,22 @@ buf_load()
 		dump_n = total_buffer_pools_pages;
 	}
 
-	dump = static_cast<buf_dump_t*>(ut_malloc_nokey(dump_n
-							* sizeof(*dump)));
+	if(dump_n != 0) {
+		dump = static_cast<buf_dump_t*>(ut_malloc_nokey(
+				dump_n * sizeof(*dump)));
+	} else {
+		fclose(f);
+		ut_sprintf_timestamp(now);
+		buf_load_status(STATUS_INFO,
+				"Buffer pool(s) load completed at %s"
+				" (%s was empty)", now, full_filename);
+		return;
+	}
 
 	if (dump == NULL) {
 		fclose(f);
 		buf_load_status(STATUS_ERR,
-				"Cannot allocate " ULINTPF " bytes: %s",
+				"Cannot allocate %lu bytes: %s",
 				(ulint) (dump_n * sizeof(*dump)),
 				strerror(errno));
 		return;
@@ -767,8 +795,8 @@ DECLARE_THREAD(buf_dump_thread)(
 
 	srv_buf_dump_thread_active = TRUE;
 
-	buf_dump_status(STATUS_VERBOSE, "not started");
-	buf_load_status(STATUS_VERBOSE, "not started");
+	buf_dump_status(STATUS_VERBOSE, "Dumping of buffer pool not started");
+	buf_load_status(STATUS_VERBOSE, "Loading of buffer pool not started");
 
 	if (srv_buffer_pool_load_at_startup) {
 		buf_load();
@@ -800,7 +828,7 @@ DECLARE_THREAD(buf_dump_thread)(
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }

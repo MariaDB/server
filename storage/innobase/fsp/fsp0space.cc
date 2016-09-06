@@ -27,8 +27,10 @@ Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 
 #include "fsp0space.h"
 #include "fsp0sysspace.h"
+#ifndef UNIV_HOTBACKUP
 #include "fsp0fsp.h"
 #include "os0file.h"
+#endif /* !UNIV_HOTBACKUP */
 
 #include "my_sys.h"
 
@@ -68,34 +70,6 @@ Tablespace::shutdown()
 	m_files.clear();
 
 	m_space_id = ULINT_UNDEFINED;
-}
-
-/** Get the sum of the file sizes of each Datafile in a tablespace
-@return ULINT_UNDEFINED if the size is invalid else the sum of sizes */
-ulint
-Tablespace::get_sum_of_sizes() const
-{
-	ulint	sum = 0;
-
-	files_t::const_iterator	end = m_files.end();
-
-	for (files_t::const_iterator it = m_files.begin(); it != end; ++it) {
-
-#ifndef _WIN32
-		if (sizeof(off_t) < 5
-		    && it->m_size >= (1UL << (32UL - UNIV_PAGE_SIZE_SHIFT))) {
-
-			ib::error() << "File size must be < 4 GB with this"
-				" MySQL binary-operating system combination."
-				" In some OS's < 2 GB";
-
-			return(ULINT_UNDEFINED);
-		}
-#endif /* _WIN32 */
-		sum += it->m_size;
-	}
-
-	return(sum);
 }
 
 /** Note that the data file was found.

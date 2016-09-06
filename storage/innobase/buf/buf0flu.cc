@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2016, MariaDB Corporation
 Copyright (c) 2013, 2014, Fusion-io
 
@@ -27,6 +27,7 @@ Created 11/11/1995 Heikki Tuuri
 
 #include "ha_prototypes.h"
 #include <mysql/service_thd_wait.h>
+#include <my_dbug.h>
 
 #include "buf0flu.h"
 
@@ -86,6 +87,7 @@ static lsn_t lsn_avg_rate = 0;
 
 /** Target oldest LSN for the requested flush_sync */
 static lsn_t buf_flush_sync_lsn = 0;
+
 #ifdef UNIV_PFS_THREAD
 mysql_pfs_key_t page_cleaner_thread_key;
 #endif /* UNIV_PFS_THREAD */
@@ -180,9 +182,19 @@ struct page_cleaner_t {
 	page_cleaner_slot_t*	slots;		/*!< pointer to the slots */
 	bool			is_running;	/*!< false if attempt
 						to shutdown */
+
+#ifdef UNIV_DEBUG
+	ulint			n_disabled_debug;
+						/*<! how many of pc threads
+						have been disabled */
+#endif /* UNIV_DEBUG */
 };
 
 static page_cleaner_t*	page_cleaner = NULL;
+
+#ifdef UNIV_DEBUG
+my_bool innodb_page_cleaner_disabled_debug;
+#endif /* UNIV_DEBUG */
 
 /** If LRU list of a buf_pool is less than this size then LRU eviction
 should not happen. This is because when we do LRU flushing we also put
@@ -998,7 +1010,7 @@ buf_flush_write_block_low(
 	bool		sync)		/*!< in: true if sync IO request */
 {
 	page_t*	frame = NULL;
-	ulint space_id          = bpage->id.space();
+	ulint space_id = bpage->id.space();
 	atomic_writes_t awrites = fil_space_get_atomic_writes(space_id);
 
 #ifdef UNIV_DEBUG
@@ -1603,7 +1615,7 @@ The calling thread is not allowed to own any latches on pages!
 It attempts to make 'max' blocks available in the free list. Note that
 it is a best effort attempt and it is not guaranteed that after a call
 to this function there will be 'max' blocks in the free list.*/
-__attribute__((nonnull))
+
 void
 buf_flush_LRU_list_batch(
 /*=====================*/
@@ -1624,9 +1636,7 @@ buf_flush_LRU_list_batch(
 	n->flushed = 0;
 	n->evicted = 0;
 	n->unzip_LRU_evicted = 0;
-
 	ut_ad(buf_pool_mutex_own(buf_pool));
-
 	if (buf_pool->curr_size < buf_pool->old_size
 	    && buf_pool->withdraw_target > 0) {
 		withdraw_depth = buf_pool->withdraw_target
@@ -1704,7 +1714,7 @@ buf_flush_LRU_list_batch(
 /*******************************************************************//**
 Flush and move pages from LRU or unzip_LRU list to the free list.
 Whether LRU or unzip_LRU is used depends on the state of the system.*/
-__attribute__((nonnull))
+
 static
 void
 buf_do_LRU_batch(
@@ -1830,7 +1840,7 @@ BUF_FLUSH_LIST, then the caller must not own any latches on pages
 not guaranteed that the actual number is that big, though)
 @param[in]	lsn_limit	in the case of BUF_FLUSH_LIST all blocks whose
 oldest_modification is smaller than this should be flushed (if their number
-does not exceed min_n), otherwise ignored*/
+does not exceed min_n), otherwise ignored */
 void
 buf_flush_batch(
 	buf_pool_t*		buf_pool,
@@ -2003,6 +2013,7 @@ buf_flush_wait_batch_end(
 }
 
 /** Do flushing batch of a given type.
+NOTE: The calling thread is not allowed to own any latches on pages!
 @param[in,out]	buf_pool	buffer pool instance
 @param[in]	type		flush type
 @param[in]	min_n		wished minimum mumber of blocks flushed
@@ -2010,7 +2021,7 @@ buf_flush_wait_batch_end(
 @param[in]	lsn_limit	in the case BUF_FLUSH_LIST all blocks whose
 oldest_modification is smaller than this should be flushed (if their number
 does not exceed min_n), otherwise ignored
-@param[out]	n		the number of pages which were processed is
+@param[out]	n_processed	the number of pages which were processed is
 passed back to caller. Ignored if NULL
 @retval true	if a batch was queued successfully.
 @retval false	if another batch of same type was already running. */
@@ -2038,7 +2049,6 @@ buf_flush_do_batch(
 
 	return(true);
 }
-
 /**
 Waits until a flush batch of the given lsn ends
 @param[in]	new_oldest	target oldest_modified_lsn to wait for */
@@ -2136,6 +2146,7 @@ buf_flush_lists(
 		buf_pool_t*		buf_pool;
 		flush_counters_t	n;
 
+		memset(&n, 0, sizeof(flush_counters_t));
 		buf_pool = buf_pool_from_array(i);
 
 		if (!buf_flush_do_batch(buf_pool,
@@ -2237,10 +2248,8 @@ buf_flush_single_page_from_LRU(
 		} else {
 			mutex_exit(block_mutex);
 		}
-
 		ut_ad(!mutex_own(block_mutex));
 	}
-
 	if (!freed) {
 		/* Can't find a single flushable page. */
 		ut_ad(!bpage);
@@ -2254,6 +2263,8 @@ buf_flush_single_page_from_LRU(
 			MONITOR_LRU_SINGLE_FLUSH_SCANNED_PER_CALL,
 			scanned);
 	}
+
+
 
 	ut_ad(!buf_pool_mutex_own(buf_pool));
 	return(freed);
@@ -2283,12 +2294,10 @@ buf_flush_LRU_list(
 	}
 
 	ut_ad(buf_pool);
-
 	/* srv_LRU_scan_depth can be arbitrarily large value.
 	We cap it with current LRU size. */
 	buf_pool_mutex_enter(buf_pool);
 	scan_depth = UT_LIST_GET_LEN(buf_pool->LRU);
-
 	if (buf_pool->curr_size < buf_pool->old_size
 	    && buf_pool->withdraw_target > 0) {
 		withdraw_depth = buf_pool->withdraw_target
@@ -2296,16 +2305,13 @@ buf_flush_LRU_list(
 	} else {
 		withdraw_depth = 0;
 	}
-
 	buf_pool_mutex_exit(buf_pool);
-
 	if (withdraw_depth > srv_LRU_scan_depth) {
 		scan_depth = ut_min(withdraw_depth, scan_depth);
 	} else {
 		scan_depth = ut_min(static_cast<ulint>(srv_LRU_scan_depth),
 				    scan_depth);
 	}
-
 	/* Currently one of page_cleaners is the only thread
 	that can trigger an LRU flush at the same time.
 	So, it is not possible that a batch triggered during
@@ -2328,6 +2334,7 @@ buf_flush_LRU_lists(void)
 {
 	ulint	n_flushed = 0;
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
+
 		n_flushed += buf_flush_LRU_list(buf_pool_from_array(i));
 	}
 
@@ -2718,8 +2725,6 @@ pc_sleep_if_needed(
 	return(OS_SYNC_TIME_EXCEEDED);
 }
 
-
-
 /******************************************************************//**
 Initialize page_cleaner. */
 void
@@ -2741,6 +2746,8 @@ buf_flush_page_cleaner_init(void)
 	page_cleaner->slots = static_cast<page_cleaner_slot_t*>(
 		ut_zalloc_nokey(page_cleaner->n_slots
 				* sizeof(*page_cleaner->slots)));
+
+	ut_d(page_cleaner->n_disabled_debug = 0);
 
 	page_cleaner->is_running = true;
 }
@@ -2997,6 +3004,122 @@ buf_flush_page_cleaner_set_priority(
 }
 #endif /* UNIV_LINUX */
 
+#ifdef UNIV_DEBUG
+/** Loop used to disable page cleaner threads. */
+static
+void
+buf_flush_page_cleaner_disabled_loop(void)
+{
+	ut_ad(page_cleaner != NULL);
+
+	if (!innodb_page_cleaner_disabled_debug) {
+		/* We return to avoid entering and exiting mutex. */
+		return;
+	}
+
+	mutex_enter(&page_cleaner->mutex);
+	page_cleaner->n_disabled_debug++;
+	mutex_exit(&page_cleaner->mutex);
+
+	while (innodb_page_cleaner_disabled_debug
+	       && srv_shutdown_state == SRV_SHUTDOWN_NONE
+	       && page_cleaner->is_running) {
+
+		os_thread_sleep(100000); /* [A] */
+	}
+
+	/* We need to wait for threads exiting here, otherwise we would
+	encounter problem when we quickly perform following steps:
+		1) SET GLOBAL innodb_page_cleaner_disabled_debug = 1;
+		2) SET GLOBAL innodb_page_cleaner_disabled_debug = 0;
+		3) SET GLOBAL innodb_page_cleaner_disabled_debug = 1;
+	That's because after step 1 this thread could still be sleeping
+	inside the loop above at [A] and steps 2, 3 could happen before
+	this thread wakes up from [A]. In such case this thread would
+	not re-increment n_disabled_debug and we would be waiting for
+	him forever in buf_flush_page_cleaner_disabled_debug_update(...).
+
+	Therefore we are waiting in step 2 for this thread exiting here. */
+
+	mutex_enter(&page_cleaner->mutex);
+	page_cleaner->n_disabled_debug--;
+	mutex_exit(&page_cleaner->mutex);
+}
+
+/** Disables page cleaner threads (coordinator and workers).
+It's used by: SET GLOBAL innodb_page_cleaner_disabled_debug = 1 (0).
+@param[in]	thd		thread handle
+@param[in]	var		pointer to system variable
+@param[out]	var_ptr		where the formal string goes
+@param[in]	save		immediate result from check function */
+void
+buf_flush_page_cleaner_disabled_debug_update(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				var_ptr,
+	const void*			save)
+{
+	if (page_cleaner == NULL) {
+		return;
+	}
+
+	if (!*static_cast<const my_bool*>(save)) {
+		if (!innodb_page_cleaner_disabled_debug) {
+			return;
+		}
+
+		innodb_page_cleaner_disabled_debug = false;
+
+		/* Enable page cleaner threads. */
+		while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+			mutex_enter(&page_cleaner->mutex);
+			const ulint n = page_cleaner->n_disabled_debug;
+			mutex_exit(&page_cleaner->mutex);
+			/* Check if all threads have been enabled, to avoid
+			problem when we decide to re-disable them soon. */
+			if (n == 0) {
+				break;
+			}
+		}
+		return;
+	}
+
+	if (innodb_page_cleaner_disabled_debug) {
+		return;
+	}
+
+	innodb_page_cleaner_disabled_debug = true;
+
+	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+		/* Workers are possibly sleeping on is_requested.
+
+		We have to wake them, otherwise they could possibly
+		have never noticed, that they should be disabled,
+		and we would wait for them here forever.
+
+		That's why we have sleep-loop instead of simply
+		waiting on some disabled_debug_event. */
+		os_event_set(page_cleaner->is_requested);
+
+		mutex_enter(&page_cleaner->mutex);
+
+		ut_ad(page_cleaner->n_disabled_debug
+		      <= srv_n_page_cleaners);
+
+		if (page_cleaner->n_disabled_debug
+		    == srv_n_page_cleaners) {
+
+			mutex_exit(&page_cleaner->mutex);
+			break;
+		}
+
+		mutex_exit(&page_cleaner->mutex);
+
+		os_thread_sleep(100000);
+	}
+}
+#endif /* UNIV_DEBUG */
+
 /******************************************************************//**
 page_cleaner thread tasked with flushing dirty pages from the buffer
 pools. As of now we'll have only one coordinator.
@@ -3014,6 +3137,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 	ulint	last_activity = srv_get_activity_count();
 	ulint	last_pages = 0;
 
+	my_thread_init();
 #ifdef UNIV_PFS_THREAD
 	/* JAN: TODO: MySQL 5.7 PSI
 	pfs_register_thread(page_cleaner_thread_key);
@@ -3132,6 +3256,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 					} else {
 						warn_interval *= 2;
 					}
+
 					warn_count = warn_interval;
 				} else {
 					--warn_count;
@@ -3268,6 +3393,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 			/* no activity, but woken up by event */
 			n_flushed = 0;
 		}
+
+		ut_d(buf_flush_page_cleaner_disabled_loop());
 	}
 
 	ut_ad(srv_shutdown_state > 0);
@@ -3367,7 +3494,7 @@ thread_exit:
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -3379,10 +3506,12 @@ extern "C"
 os_thread_ret_t
 DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 /*==========================================*/
-	void*	arg __attribute__((unused)))
+	void*	arg MY_ATTRIBUTE((unused)))
 			/*!< in: a dummy parameter required by
 			os_thread_create */
 {
+	my_thread_init();
+
 	mutex_enter(&page_cleaner->mutex);
 	page_cleaner->n_workers++;
 	mutex_exit(&page_cleaner->mutex);
@@ -3401,6 +3530,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 	while (true) {
 		os_event_wait(page_cleaner->is_requested);
 
+		ut_d(buf_flush_page_cleaner_disabled_loop());
+
 		if (!page_cleaner->is_running) {
 			break;
 		}
@@ -3412,7 +3543,9 @@ DECLARE_THREAD(buf_flush_page_cleaner_worker)(
 	page_cleaner->n_workers--;
 	mutex_exit(&page_cleaner->mutex);
 
-	os_thread_exit(NULL);
+	my_thread_end();
+
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -3548,7 +3681,6 @@ buf_flush_validate(
 
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 #endif /* !UNIV_HOTBACKUP */
-
 
 /******************************************************************//**
 Check if there are any dirty pages that belong to a space id in the flush

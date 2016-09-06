@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -153,14 +153,17 @@ que_fork_create(
 	return(fork);
 }
 
-/***********************************************************************//**
-Creates a query graph thread node.
+
+/** Creates a query graph thread node.
+@param[in]	parent		parent node, i.e., a fork node
+@param[in]	heap		memory heap where created
+@param[in]	prebuilt	row prebuilt structure
 @return own: query thread node */
 que_thr_t*
 que_thr_create(
-/*===========*/
-	que_fork_t*	parent,	/*!< in: parent node, i.e., a fork node */
-	mem_heap_t*	heap)	/*!< in: memory heap where created */
+	que_fork_t*	parent,
+	mem_heap_t*	heap,
+	row_prebuilt_t*	prebuilt)
 {
 	que_thr_t*	thr;
 
@@ -180,6 +183,8 @@ que_thr_create(
 	thr->state = QUE_THR_COMMAND_WAIT;
 
 	thr->lock_state = QUE_THR_LOCK_NOLOCK;
+
+	thr->prebuilt = prebuilt;
 
 	UT_LIST_ADD_LAST(parent->thrs, thr);
 
@@ -905,7 +910,7 @@ que_node_get_containing_loop_node(
 #ifndef DBUG_OFF
 /** Gets information of an SQL query graph node.
 @return type description */
-static __attribute__((warn_unused_result, nonnull))
+static MY_ATTRIBUTE((warn_unused_result, nonnull))
 const char*
 que_node_type_string(
 /*=================*/

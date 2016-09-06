@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,8 +33,11 @@ Created 2013-7-26 by Kevin Lewis
 #include "srv0start.h"
 #include "ut0new.h"
 #include "fil0crypt.h"
+#ifdef UNIV_HOTBACKUP
+#include "my_sys.h"
+#endif /* UNIV_HOTBACKUP */
 
-/** Initialize the name and flags of this datafile.
+/** Initialize the name, size and order of this datafile
 @param[in]	name	tablespace name, will be copied
 @param[in]	flags	tablespace flags */
 void
@@ -47,6 +50,8 @@ Datafile::init(
 
 	m_name = mem_strdup(name);
 	m_flags = flags;
+	m_encryption_key = NULL;
+	m_encryption_iv = NULL;
 }
 
 /** Release the resources. */
@@ -60,8 +65,18 @@ Datafile::shutdown()
 
 	free_filepath();
 
+	if (m_encryption_key != NULL) {
+		ut_free(m_encryption_key);
+		m_encryption_key = NULL;
+	}
+
 	if (m_crypt_info) {
 		fil_space_destroy_crypt_data(&m_crypt_info);
+	}
+
+	if (m_encryption_iv != NULL) {
+		ut_free(m_encryption_iv);
+		m_encryption_iv = NULL;
 	}
 
 	free_first_page();
@@ -380,13 +395,15 @@ Datafile::free_first_page()
 space ID and flags.  The file should exist and be successfully opened
 in order for this function to validate it.
 @param[in]	space_id	The expected tablespace ID.
-@param[in]	flags	The expected tablespace flags.
+@param[in]	flags		The expected tablespace flags.
+@param[in]	for_import	if it is for importing
 @retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 m_is_valid is also set true on success, else false. */
 dberr_t
 Datafile::validate_to_dd(
-	ulint	space_id,
-	ulint	flags)
+	ulint		space_id,
+	ulint		flags,
+	bool		for_import)
 {
 	dberr_t err;
 
@@ -397,7 +414,7 @@ Datafile::validate_to_dd(
 	/* Validate this single-table-tablespace with the data dictionary,
 	but do not compare the DATA_DIR flag, in case the tablespace was
 	remotely located. */
-	err = validate_first_page();
+	err = validate_first_page(0, for_import);
 	if (err != DB_SUCCESS) {
 		return(err);
 	}
@@ -441,14 +458,52 @@ Datafile::validate_for_recovery()
 	ut_ad(is_open());
 	ut_ad(!srv_read_only_mode);
 
-	err = validate_first_page();
+	err = validate_first_page(0, false);
 
 	switch (err) {
 	case DB_SUCCESS:
 	case DB_TABLESPACE_EXISTS:
+#ifdef UNIV_HOTBACKUP
+		err = restore_from_doublewrite(0);
+		if (err != DB_SUCCESS) {
+			return(err);
+		}
+		/* Free the previously read first page and then re-validate. */
+		free_first_page();
+		err = validate_first_page(0, false);
+		if (err == DB_SUCCESS) {
+			std::string filepath = fil_space_get_first_path(
+				m_space_id);
+			if (is_intermediate_file(filepath.c_str())) {
+				/* Existing intermediate file with same space
+				id is obsolete.*/
+				if (fil_space_free(m_space_id, FALSE)) {
+					err = DB_SUCCESS;
+				}
+		} else {
+			filepath.assign(m_filepath);
+			if (is_intermediate_file(filepath.c_str())) {
+				/* New intermediate file with same space id
+				shall be ignored.*/
+				err = DB_TABLESPACE_EXISTS;
+				/* Set all bits of 'flags' as a special
+				indicator for "ignore tablespace". Hopefully
+				InnoDB will never use all bits or at least all
+				bits set will not be a meaningful setting
+				otherwise.*/
+				m_flags = ~0;
+			}
+		}
+		}
+#endif /* UNIV_HOTBACKUP */
 		break;
 
 	default:
+		/* For encryption tablespace, we skip the retry step,
+		since it is only because the keyring is not ready. */
+		if (FSP_FLAGS_GET_ENCRYPTION(m_flags)) {
+			return(err);
+		}
 		/* Re-open the file in read-write mode  Attempt to restore
 		page 0 from doublewrite and read the space ID from a survey
 		of the first few pages. */
@@ -476,7 +531,7 @@ Datafile::validate_for_recovery()
 
 		/* Free the previously read first page and then re-validate. */
 		free_first_page();
-		err = validate_first_page();
+		err = validate_first_page(0, false);
 	}
 
 	if (err == DB_SUCCESS) {
@@ -491,12 +546,14 @@ tablespace is opened.  This occurs before the fil_space_t is created
 so the Space ID found here must not already be open.
 m_is_valid is set true on success, else false.
 @param[out]	flush_lsn	contents of FIL_PAGE_FILE_FLUSH_LSN
+@param[in]	for_import	if it is for importing
 (only valid for the first file of the system tablespace)
 @retval DB_SUCCESS on if the datafile is valid
 @retval DB_CORRUPTION if the datafile is not readable
 @retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
 dberr_t
-Datafile::validate_first_page(lsn_t* flush_lsn)
+Datafile::validate_first_page(lsn_t*	flush_lsn,
+			      bool	for_import)
 {
 	char*		prev_name;
 	char*		prev_filepath;
@@ -584,6 +641,51 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 		return(DB_CORRUPTION);
 
 	}
+
+#ifdef MYSQL_ENCRYPTION
+	/* For encrypted tablespace, check the encryption info in the
+	first page can be decrypt by master key, otherwise, this table
+	can't be open. And for importing, we skip checking it. */
+	if (FSP_FLAGS_GET_ENCRYPTION(m_flags) && !for_import) {
+		m_encryption_key = static_cast<byte*>(
+			ut_zalloc_nokey(ENCRYPTION_KEY_LEN));
+		m_encryption_iv = static_cast<byte*>(
+			ut_zalloc_nokey(ENCRYPTION_KEY_LEN));
+#ifdef	UNIV_ENCRYPT_DEBUG
+                fprintf(stderr, "Got from file %lu:", m_space_id);
+#endif
+		if (!fsp_header_get_encryption_key(m_flags,
+						   m_encryption_key,
+						   m_encryption_iv,
+						   m_first_page)) {
+			ib::error()
+				<< "Encryption information in"
+				<< " datafile: " << m_filepath
+				<< " can't be decrypted"
+				<< " , please confirm the keyfile"
+				<< " is match and keyring plugin"
+				<< " is loaded.";
+
+			m_is_valid = false;
+			free_first_page();
+			ut_free(m_encryption_key);
+			ut_free(m_encryption_iv);
+			m_encryption_key = NULL;
+			m_encryption_iv = NULL;
+			return(DB_CORRUPTION);
+		}
+
+		if (recv_recovery_is_on()
+		    && memcmp(m_encryption_key,
+			      m_encryption_iv,
+			      ENCRYPTION_KEY_LEN) == 0) {
+			ut_free(m_encryption_key);
+			ut_free(m_encryption_iv);
+			m_encryption_key = NULL;
+			m_encryption_iv = NULL;
+		}
+	}
+#endif /* MYSQL_ENCRYPTION */
 
 	if (fil_space_read_name_and_filepath(
 		m_space_id, &prev_name, &prev_filepath)) {
@@ -988,13 +1090,11 @@ RemoteDatafile::create_link_file(
 	} else {
 		link_filepath = fil_make_filepath(NULL, name, ISL, false);
 	}
-
 	if (link_filepath == NULL) {
 		return(DB_ERROR);
 	}
 
 	prev_filepath = read_link_file(link_filepath);
-
 	if (prev_filepath) {
 		/* Truncate will call this with an existing
 		link file which contains the same filepath. */
@@ -1007,14 +1107,15 @@ RemoteDatafile::create_link_file(
 	}
 
 	/** Check if the file already exists. */
-	FILE*                   file = NULL;
-	bool                    exists;
-	os_file_type_t          ftype;
+	FILE*			file = NULL;
+	bool			exists;
+	os_file_type_t		ftype;
 
 	success = os_file_status(link_filepath, &exists, &ftype);
 	ulint error = 0;
 
 	if (success && !exists) {
+
 		file = fopen(link_filepath, "w");
 		if (file == NULL) {
 			/* This call will print its own error message */
@@ -1025,6 +1126,7 @@ RemoteDatafile::create_link_file(
 	}
 
 	if (error != 0) {
+
 		ib::error() << "Cannot create file " << link_filepath << ".";
 
 		if (error == OS_FILE_ALREADY_EXISTS) {
@@ -1050,7 +1152,7 @@ RemoteDatafile::create_link_file(
 		error = os_file_get_last_error(true);
 		ib::error() <<
 			"Cannot write link file: "
-			<< filepath;
+			    << link_filepath << " filepath: " << filepath;
 		err = DB_ERROR;
 	}
 

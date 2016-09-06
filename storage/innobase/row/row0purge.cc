@@ -504,10 +504,18 @@ row_purge_remove_sec_if_poss_leaf(
 
 			if (dict_index_is_spatial(index)) {
 				const page_t*   page;
+				const trx_t*	trx = NULL;
+
+				if (btr_cur->rtr_info != NULL
+				    && btr_cur->rtr_info->thr != NULL) {
+					trx = thr_get_trx(
+						btr_cur->rtr_info->thr);
+				}
 
 				page = btr_cur_get_page(btr_cur);
 
 				if (!lock_test_prdt_page_lock(
+					trx,
 					page_get_space_id(page),
 					page_get_page_no(page))
 				     && page_get_n_recs(page) < 2
@@ -598,6 +606,25 @@ retry:
 	ut_a(success);
 }
 
+/** Skip uncommitted virtual indexes on newly added virtual column.
+@param[in,out]	index	dict index object */
+static
+inline
+void
+row_purge_skip_uncommitted_virtual_index(
+	dict_index_t*&	index)
+{
+	/* We need to skip virtual indexes which is not
+	committed yet. It's safe because these indexes are
+	newly created by alter table, and because we do
+	not support LOCK=NONE when adding an index on newly
+	added virtual column.*/
+	while (index != NULL && dict_index_has_virtual(index)
+	       && !index->is_committed() && index->has_new_v_col) {
+		index = dict_table_get_next_index(index);
+	}
+}
+
 /***********************************************************//**
 Purges a delete marking of a record.
 @retval true if the row was not found, or it was successfully removed
@@ -616,6 +643,8 @@ row_purge_del_mark(
 	while (node->index != NULL) {
 		/* skip corrupted secondary index */
 		dict_table_skip_corrupt_index(node->index);
+
+		row_purge_skip_uncommitted_virtual_index(node->index);
 
 		if (!node->index) {
 			break;
@@ -664,6 +693,8 @@ row_purge_upd_exist_or_extern_func(
 
 	while (node->index != NULL) {
 		dict_table_skip_corrupt_index(node->index);
+
+		row_purge_skip_uncommitted_virtual_index(node->index);
 
 		if (!node->index) {
 			break;
@@ -837,6 +868,7 @@ try_again:
 		goto err_exit;
 	}
 
+#ifdef MYSQL_VIRTUAL_COLUMNS
 	if (node->table->n_v_cols && !node->table->vc_templ
 	    && dict_table_has_indexed_v_cols(node->table)) {
 		/* Need server fully up for virtual column computation */
@@ -854,6 +886,7 @@ try_again:
 		/* Initialize the template for the table */
 		innobase_init_vc_templ(node->table);
 	}
+#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 	/* Disable purging for temp-tables as they are short-lived
 	and no point in re-organzing such short lived tables */

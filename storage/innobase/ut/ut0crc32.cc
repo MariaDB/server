@@ -117,7 +117,7 @@ ut_crc32_swap_byteorder(
 /* CRC32 hardware implementation. */
 
 /* Flag that tells whether the CPU supports CRC32 or not */
-UNIV_INTERN bool	ut_crc32_sse2_enabled = false;
+bool	ut_crc32_sse2_enabled = false;
 UNIV_INTERN bool    ut_crc32_power8_enabled = false;
 
 #if defined(__GNUC__) && defined(__x86_64__)

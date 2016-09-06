@@ -62,7 +62,7 @@ cmp_data_data(
 	ulint		len1,
 	const byte*	data2,
 	ulint		len2)
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Compare two data fields.
 @param[in] dfield1 data field; must have type field set
@@ -92,7 +92,22 @@ cmp_dtuple_rec_with_gis(
 	const rec_t*	rec,
 	const ulint*	offsets,
 	page_cur_mode_t	mode)
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
+
+/** Compare a GIS data tuple to a physical record in rtree non-leaf node.
+We need to check the page number field, since we don't store pk field in
+rtree non-leaf node.
+@param[in] dtuple data tuple
+@param[in] rec R-tree record
+@param[in] offsets rec_get_offsets(rec)
+@param[in] mode compare mode
+@retval negative if dtuple is less than rec */
+int
+cmp_dtuple_rec_with_gis_internal(
+	const dtuple_t*	dtuple,
+	const rec_t*	rec,
+	const ulint*	offsets);
+
 /** Compare a data tuple to a physical record.
 @param[in] dtuple data tuple
 @param[in] rec B-tree record
@@ -134,7 +149,7 @@ cmp_dtuple_rec_with_match_bytes(
 	const ulint*		offsets,
 	ulint*			matched_fields,
 	ulint*			matched_bytes)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /** Compare a data tuple to a physical record.
 @see cmp_dtuple_rec_with_match
 @param[in] dtuple data tuple

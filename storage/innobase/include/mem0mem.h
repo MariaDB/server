@@ -207,7 +207,7 @@ mem_heap_is_top(
 	mem_heap_t*	heap,
 	const void*	buf,
 	ulint		buf_sz)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*****************************************************************//**
 Allocate a new chunk of memory from a memory heap, possibly discarding

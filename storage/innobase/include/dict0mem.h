@@ -49,6 +49,8 @@ Created 1/8/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "gis0type.h"
 #include "os0once.h"
+#include "ut0new.h"
+
 #include "fil0fil.h"
 #include <my_crypt.h>
 #include "fil0crypt.h"
@@ -67,6 +69,8 @@ combination of types */
 				auto-generated clustered indexes,
 				also DICT_UNIQUE will be set */
 #define DICT_UNIQUE	2	/*!< unique index */
+#define	DICT_UNIVERSAL	4	/*!< index which can contain records from any
+				other index */
 #define	DICT_IBUF	8	/*!< insert buffer tree */
 #define	DICT_CORRUPT	16	/*!< bit to store the corrupted flag
 				in SYS_INDEXES.TYPE */
@@ -170,9 +174,9 @@ DEFAULT=0, ON = 1, OFF = 2
 			+ DICT_TF_WIDTH_SHARED_SPACE		\
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION	\
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL	\
-		        + DICT_TF_WIDTH_ATOMIC_WRITES		\
-		        + DICT_TF_WIDTH_PAGE_ENCRYPTION		\
-		        + DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
+			+ DICT_TF_WIDTH_ATOMIC_WRITES		\
+			+ DICT_TF_WIDTH_PAGE_ENCRYPTION		\
+			+ DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
 
 /** A mask of all the known/used bits in table flags */
 #define DICT_TF_BIT_MASK	(~(~0 << DICT_TF_BITS))
@@ -305,7 +309,7 @@ ROW_FORMAT=REDUNDANT.  InnoDB engines do not check these flags
 for unknown bits in order to protect backward incompatibility. */
 /* @{ */
 /** Total number of bits in table->flags2. */
-#define DICT_TF2_BITS			8
+#define DICT_TF2_BITS			9
 #define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS)
 #define DICT_TF2_BIT_MASK		~DICT_TF2_UNUSED_BIT_MASK
 
@@ -338,6 +342,9 @@ Intrinsic table is table created internally by MySQL modules viz. Optimizer,
 FTS, etc.... Intrinsic table has all the properties of the normal table except
 it is not created by user and so not visible to end-user. */
 #define DICT_TF2_INTRINSIC		128
+
+/** Encryption table bit. */
+#define DICT_TF2_ENCRYPTION		256
 
 /* @} */
 
@@ -431,13 +438,22 @@ dict_mem_table_add_v_col(
 	ulint		len,
 	ulint		pos,
 	ulint		num_base);
+
+/** Adds a stored column definition to a table.
+@param[in]	table		table
+@param[in]	num_base	number of base columns. */
+void
+dict_mem_table_add_s_col(
+	dict_table_t*	table,
+	ulint		num_base);
+
 /**********************************************************************//**
 Renames a column of a table in the data dictionary cache. */
 void
 dict_mem_table_col_rename(
 /*======================*/
 	dict_table_t*	table,	/*!< in/out: table */
-	unsigned	nth_col,/*!< in: column index */
+	ulint		nth_col,/*!< in: column index */
 	const char*	from,	/*!< in: old column name */
 	const char*	to,	/*!< in: new column name */
 	bool		is_virtual);
@@ -531,6 +547,27 @@ dict_mem_referenced_table_name_lookup_set(
 /*======================================*/
 	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
 	ibool		do_alloc);	/*!< in: is an alloc needed */
+
+/** Fills the dependent virtual columns in a set.
+Reason for being dependent are
+1) FK can be present on base column of virtual columns
+2) FK can be present on column which is a part of virtual index
+@param[in,out] foreign foreign key information. */
+void
+dict_mem_foreign_fill_vcol_set(
+       dict_foreign_t*	foreign);
+
+/** Fill virtual columns set in each fk constraint present in the table.
+@param[in,out] table   innodb table object. */
+void
+dict_mem_table_fill_foreign_vcol_set(
+        dict_table_t*	table);
+
+/** Free the vcol_set from all foreign key constraint on the table.
+@param[in,out] table   innodb table object. */
+void
+dict_mem_table_free_foreign_vcol_set(
+	dict_table_t*	table);
 
 /** Create a temporary tablename like "#sql-ibtid-inc where
   tid = the Table ID
@@ -696,6 +733,21 @@ struct dict_add_v_col_t{
 	const char**		v_col_name;
 };
 
+/** Data structure for a stored column in a table. */
+struct dict_s_col_t {
+	/** Stored column ptr */
+	dict_col_t*	m_col;
+	/** array of base col ptr */
+	dict_col_t**	base_col;
+	/** number of base columns */
+	ulint		num_base;
+	/** column pos in table */
+	ulint		s_pos;
+};
+
+/** list to put stored column for create_table_info_t */
+typedef std::list<dict_s_col_t, ut_allocator<dict_s_col_t> >	dict_s_col_list;
+
 /** @brief DICT_ANTELOPE_MAX_INDEX_COL_LEN is measured in bytes and
 is the maximum indexed column length (or indexed prefix length) in
 ROW_FORMAT=REDUNDANT and ROW_FORMAT=COMPACT. Also, in any format,
@@ -726,6 +778,7 @@ be REC_VERSION_56_MAX_INDEX_COL_LEN (3072) bytes */
 
 /** Defines the maximum fixed length column size */
 #define DICT_MAX_FIXED_COL_LEN		DICT_ANTELOPE_MAX_INDEX_COL_LEN
+
 #ifdef WITH_WSREP
 #define WSREP_MAX_SUPPORTED_KEY_LENGTH 3500
 #endif /* WITH_WSREP */
@@ -982,6 +1035,9 @@ struct dict_index_t{
 			parser;	/*!< fulltext parser plugin */
 	bool		is_ngram;
 				/*!< true if it's ngram parser */
+	bool		has_new_v_col;
+				/*!< whether it has a newly added virtual
+				column in ALTER */
 #ifndef UNIV_HOTBACKUP
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
@@ -1106,6 +1162,11 @@ enum online_index_status {
 	ONLINE_INDEX_ABORTED_DROPPED
 };
 
+/** Set to store the virtual columns which are affected by Foreign
+key constraint. */
+typedef std::set<dict_v_col_t*, std::less<dict_v_col_t*>,
+		ut_allocator<dict_v_col_t*> >		dict_vcol_set;
+
 /** Data structure for a foreign key constraint; an example:
 FOREIGN KEY (A, B) REFERENCES TABLE2 (C, D).  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_foreign_create(). */
@@ -1141,6 +1202,9 @@ struct dict_foreign_t{
 					does not generate new indexes
 					implicitly */
 	dict_index_t*	referenced_index;/*!< referenced index */
+
+	dict_vcol_set*	v_cols;		/*!< set of virtual columns affected
+					by foreign key constraint. */
 };
 
 std::ostream&
@@ -1188,6 +1252,24 @@ struct dict_foreign_with_index {
 
 	const dict_index_t*	m_index;
 };
+
+#ifdef WITH_WSREP
+/** A function object to find a foreign key with the given index as the
+foreign index. Return the foreign key with matching criteria or NULL */
+struct dict_foreign_with_foreign_index {
+
+	dict_foreign_with_foreign_index(const dict_index_t*	index)
+	: m_index(index)
+	{}
+
+	bool operator()(const dict_foreign_t*	foreign) const
+	{
+		return(foreign->foreign_index == m_index);
+	}
+
+	const dict_index_t*	m_index;
+};
+#endif
 
 /* A function object to check if the foreign constraint is between different
 tables.  Returns true if foreign key constraint is between different tables,
@@ -1273,6 +1355,10 @@ dict_foreign_free(
 /*==============*/
 	dict_foreign_t*	foreign)	/*!< in, own: foreign key struct */
 {
+	if (foreign->v_cols != NULL) {
+		UT_DELETE(foreign->v_cols);
+	}
+
 	mem_heap_free(foreign->heap);
 }
 
@@ -1332,12 +1418,42 @@ generate a specific template for it. */
 typedef ut_list_base<lock_t, ut_list_node<lock_t> lock_table_t::*>
 	table_lock_list_t;
 
+/** mysql template structure defined in row0mysql.cc */
+struct mysql_row_templ_t;
+
+/** Structure defines template related to virtual columns and
+their base columns */
+struct dict_vcol_templ_t {
+	/** number of regular columns */
+	ulint			n_col;
+
+	/** number of virtual columns */
+	ulint			n_v_col;
+
+	/** array of templates for virtual col and their base columns */
+	mysql_row_templ_t**	vtempl;
+
+	/** table's database name */
+	std::string		db_name;
+
+	/** table name */
+	std::string		tb_name;
+
+	/** share->table_name */
+	std::string		share_name;
+
+	/** MySQL record length */
+	ulint			rec_len;
+
+	/** default column value if any */
+	byte*			default_rec;
+};
+
 /* This flag is for sync SQL DDL and memcached DML.
 if table->memcached_sync_count == DICT_TABLE_IN_DDL means there's DDL running on
 the table, DML from memcached will be blocked. */
 #define DICT_TABLE_IN_DDL -1
 
-struct innodb_col_templ_t;
 /** These are used when MySQL FRM and InnoDB data dictionary are
 in inconsistent state. */
 typedef enum {
@@ -1363,6 +1479,7 @@ struct dict_table_t {
 
 	void*		thd;		/*!< thd */
 	fil_space_crypt_t *crypt_data; /*!< crypt data if present */
+
 	/** Release the table handle. */
 	inline void release();
 
@@ -1417,6 +1534,8 @@ struct dict_table_t {
 	5 whether the table is being created its own tablespace,
 	6 whether the table has been DISCARDed,
 	7 whether the aux FTS tables names are in hex.
+	8 whether the table is instinc table.
+	9 whether the table has encryption setting.
 	Use DICT_TF2_FLAG_IS_SET() to parse this flag. */
 	unsigned				flags2:DICT_TF2_BITS;
 
@@ -1469,6 +1588,13 @@ struct dict_table_t {
 
 	/** Array of virtual column descriptions. */
 	dict_v_col_t*				v_cols;
+
+	/** List of stored column descriptions. It is used only for foreign key
+	check during create table and copy alter operations.
+	During copy alter, s_cols list is filled during create table operation
+	and need to preserve till rename table operation. That is the
+	reason s_cols is a part of dict_table_t */
+	dict_s_col_list*			s_cols;
 
 	/** Column names packed in a character string
 	"name1\0name2\0...nameN\0". Until the string contains n_cols, it will
@@ -1650,15 +1776,22 @@ struct dict_table_t {
 	/** The state of the background stats thread wrt this table.
 	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
 	Writes are covered by dict_sys->mutex. Dirty reads are possible. */
-#define BG_SCRUB_IN_PROGRESS	((byte)(1 << 2))
+
+	#define BG_SCRUB_IN_PROGRESS	((byte)(1 << 2))
 				/*!< BG_SCRUB_IN_PROGRESS is set in
 				stats_bg_flag when the background
 				scrub code is working on this table. The DROP
 				TABLE code waits for this to be cleared
 				before proceeding. */
 
-#define BG_IN_PROGRESS (BG_STAT_IN_PROGRESS | BG_SCRUB_IN_PROGRESS)
+	#define BG_STAT_SHOULD_QUIT		(1 << 1)
 
+	#define BG_IN_PROGRESS (BG_STAT_IN_PROGRESS | BG_SCRUB_IN_PROGRESS)
+
+
+	/** The state of the background stats thread wrt this table.
+	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
+	Writes are covered by dict_sys->mutex. Dirty reads are possible. */
 	byte					stats_bg_flag;
 
 	bool		stats_error_printed;
@@ -1752,8 +1885,10 @@ public:
 	but just need a increased counter to track consistent view while
 	proceeding SELECT as part of UPDATE. */
 	ib_uint64_t				sess_trx_id;
+
 #endif /* !UNIV_HOTBACKUP */
-	ibool		is_encrypted;
+
+	bool					is_encrypted;
 
 #ifdef UNIV_DEBUG
 	/** Value of 'magic_n'. */
@@ -1764,10 +1899,13 @@ public:
 #endif /* UNIV_DEBUG */
 	/** mysql_row_templ_t for base columns used for compute the virtual
 	columns */
-	innodb_col_templ_t*			vc_templ;
+	dict_vcol_templ_t*			vc_templ;
 
-	/** whether above vc_templ comes from purge allocation */
-	bool					vc_templ_purge;
+	/** encryption key, it's only for export/import */
+	byte*					encryption_key;
+
+	/** encryption iv, it's only for export/import */
+	byte*					encryption_iv;
 };
 
 /*******************************************************************//**
@@ -1871,29 +2009,20 @@ dict_table_autoinc_own(
 }
 #endif /* UNIV_DEBUG */
 
-/** whether a col is used in spatial index or regular index */
-enum col_spatial_status {
-	/** Not used in gis index. */
-	SPATIAL_NONE	= 0,
-
-	/** Used in both spatial index and regular index. */
-	SPATIAL_MIXED	= 1,
-
-	/** Only used in spatial index. */
-	SPATIAL_ONLY	= 2
-};
-
 /** Check whether the col is used in spatial index or regular index.
 @param[in]	col	column to check
-@return col_spatial_status */
+@return spatial status */
 inline
-col_spatial_status
+spatial_status_t
 dict_col_get_spatial_status(
 	const dict_col_t*	col)
 {
-	col_spatial_status	spatial_status = SPATIAL_NONE;
+	spatial_status_t	spatial_status = SPATIAL_NONE;
 
-	ut_ad(col->ord_part);
+	/* Column is not a part of any index. */
+	if (!col->ord_part) {
+		return(spatial_status);
+	}
 
 	if (DATA_GEOMETRY_MTYPE(col->mtype)) {
 		if (col->max_prefix == 0) {

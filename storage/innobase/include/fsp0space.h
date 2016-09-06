@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -100,7 +100,7 @@ public:
 		m_path = mem_strdupl(path, len);
 		ut_ad(m_path != NULL);
 
-		os_normalize_path_for_win(m_path);
+		os_normalize_path(m_path);
 	}
 
 	/** Set tablespace path and filename members.
@@ -171,15 +171,24 @@ public:
 	/** Free the memory allocated by the Tablespace object */
 	void shutdown();
 
-	/**
-	@return ULINT_UNDEFINED if the size is invalid else the sum of sizes */
-	ulint get_sum_of_sizes() const;
+	/** @return the sum of the file sizes of each Datafile */
+	ulint get_sum_of_sizes() const
+	{
+		ulint	sum = 0;
+
+		for (files_t::const_iterator it = m_files.begin();
+		     it != m_files.end(); ++it) {
+			sum += it->m_size;
+		}
+
+		return(sum);
+	}
 
 	/** Open or Create the data files if they do not exist.
 	@param[in]	is_temp	whether this is a temporary tablespace
 	@return DB_SUCCESS or error code */
 	dberr_t open_or_create(bool is_temp)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Delete all the data files. */
 	void delete_files();

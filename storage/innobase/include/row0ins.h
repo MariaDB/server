@@ -97,7 +97,7 @@ row_ins_clust_index_entry_low(
 	bool		dup_chk_only)
 				/*!< in: if true, just do duplicate check
 				and return. don't execute actual insert. */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /***************************************************************//**
 Tries to insert an entry into a secondary index. If a record with exactly the
@@ -125,7 +125,7 @@ row_ins_sec_index_entry_low(
 	bool		dup_chk_only)
 				/*!< in: if true, just do duplicate check
 				and return. don't execute actual insert. */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /** Sets the values of the dtuple fields in entry from the values of appropriate
 columns in row.
 @param[in]	index	index handler
@@ -178,7 +178,7 @@ row_ins_clust_index_entry(
 	bool		dup_chk_only)
 				/*!< in: if true, just do duplicate check
 				and return. don't execute actual insert. */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /***************************************************************//**
 Inserts an entry into a secondary index. Tries first optimistic,
 then pessimistic descent down the tree. If the entry matches enough
@@ -194,7 +194,7 @@ row_ins_sec_index_entry(
 	bool		dup_chk_only)
 				/*!< in: if true, just do duplicate check
 				and return. don't execute actual insert. */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /***********************************************************//**
 Inserts a row to a table. This is a high-level function used in
 SQL execution graphs.

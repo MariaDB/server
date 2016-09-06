@@ -436,7 +436,7 @@ trx_undo_page_init(
 Creates a new undo log segment in file.
 @return DB_SUCCESS if page creation OK possible error codes are:
 DB_TOO_MANY_CONCURRENT_TRXS DB_OUT_OF_FILE_SPACE */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 trx_undo_seg_create(
 /*================*/
@@ -1087,7 +1087,7 @@ trx_undo_empty_header_page(
 Truncates an undo log from the end. This function is used during a rollback
 to free space from an undo log. */
 void
-trx_undo_truncate_end(
+trx_undo_truncate_end_func(
 /*=======================*/
 	trx_t*		trx,	/*!< in: transaction whose undo log it is */
 	trx_undo_t*	undo,	/*!< in: undo log */
@@ -1615,10 +1615,7 @@ trx_undo_create(
 
 	offset = trx_undo_header_create(undo_page, trx_id, mtr);
 
-	if (trx->support_xa) {
-		trx_undo_header_add_space_for_xid(undo_page,
-						  undo_page + offset, mtr);
-	}
+	trx_undo_header_add_space_for_xid(undo_page, undo_page + offset, mtr);
 
 	*undo = trx_undo_mem_create(rseg, id, type, trx_id, xid,
 				   page_no, offset);
@@ -1689,10 +1686,8 @@ trx_undo_reuse_cached(
 	if (type == TRX_UNDO_INSERT) {
 		offset = trx_undo_insert_header_reuse(undo_page, trx_id, mtr);
 
-		if (trx->support_xa) {
-			trx_undo_header_add_space_for_xid(
-				undo_page, undo_page + offset, mtr);
-		}
+		trx_undo_header_add_space_for_xid(
+			undo_page, undo_page + offset, mtr);
 	} else {
 		ut_a(mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
 				      + TRX_UNDO_PAGE_TYPE)
@@ -1700,10 +1695,8 @@ trx_undo_reuse_cached(
 
 		offset = trx_undo_header_create(undo_page, trx_id, mtr);
 
-		if (trx->support_xa) {
-			trx_undo_header_add_space_for_xid(
-				undo_page, undo_page + offset, mtr);
-		}
+		trx_undo_header_add_space_for_xid(
+			undo_page, undo_page + offset, mtr);
 	}
 
 	trx_undo_mem_init_for_reuse(undo, trx_id, xid, offset);

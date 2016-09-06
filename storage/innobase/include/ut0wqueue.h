@@ -96,7 +96,6 @@ void*
 ib_wqueue_nowait(
 /*=============*/
 	ib_wqueue_t*	wq);		/*<! in: work queue */
-
 /********************************************************************
 Get number of items on queue.
 @return number of items on queue */

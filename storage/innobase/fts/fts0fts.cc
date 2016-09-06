@@ -208,19 +208,20 @@ struct fts_tokenize_param_t {
 	ulint		add_pos;	/*!< Added position for tokens */
 };
 
-/****************************************************************//**
-Run SYNC on the table, i.e., write out data from the cache to the
+/** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
 @param[in]	unlock_cache	whether unlock cache lock when write node
 @param[in]	wait		whether wait when a sync is in progress
+@param[in]      has_dict        whether has dict operation lock
 @return DB_SUCCESS if all OK */
 static
 dberr_t
 fts_sync(
 	fts_sync_t*	sync,
 	bool		unlock_cache,
-	bool		wait);
+	bool		wait,
+	bool		has_dict);
 
 /****************************************************************//**
 Release all resources help by the words rb tree e.g., the node ilist. */
@@ -1979,7 +1980,6 @@ fts_create_common_tables(
 
 func_exit:
 	if (error != DB_SUCCESS) {
-
 		for (it = common_tables.begin(); it != common_tables.end();
 		     ++it) {
 			row_drop_table_for_mysql(
@@ -3648,7 +3648,7 @@ fts_add_doc_by_id(
 
 				DBUG_EXECUTE_IF(
 					"fts_instrument_sync_debug",
-					fts_sync(cache->sync, true, true);
+					fts_sync(cache->sync, true, true, false);
 				);
 
 				DEBUG_SYNC_C("fts_instrument_sync_request");
@@ -3928,6 +3928,8 @@ fts_write_node(
 	doc_id_t	last_doc_id;
 	doc_id_t	first_doc_id;
 	char		table_name[MAX_FULL_NAME_LEN];
+
+	ut_a(node->ilist != NULL);
 
 	if (*graph) {
 		info = (*graph)->info;
@@ -4446,7 +4448,7 @@ fts_sync_index(
 
 	ut_ad(rbt_validate(index_cache->words));
 
-	error = fts_sync_write_words(sync->trx, index_cache, sync->unlock_cache);
+	error = fts_sync_write_words(trx, index_cache, sync->unlock_cache);
 
 #ifdef FTS_DOC_STATS_DEBUG
 	/* FTS_RESOLVE: the word counter info in auxiliary table "DOC_ID"
@@ -4463,13 +4465,11 @@ fts_sync_index(
 }
 
 /** Check if index cache has been synced completely
-@param[in,out]	sync		sync state
 @param[in,out]	index_cache	index cache
 @return true if index is synced, otherwise false. */
 static
 bool
 fts_sync_index_check(
-	fts_sync_t*		sync,
 	fts_index_cache_t*	index_cache)
 {
 	const ib_rbt_node_t*	rbt_node;
@@ -4492,14 +4492,36 @@ fts_sync_index_check(
 	return(true);
 }
 
-/*********************************************************************//**
-Commit the SYNC, change state of processed doc ids etc.
+/** Reset synced flag in index cache when rollback
+@param[in,out]	index_cache	index cache */
+static
+void
+fts_sync_index_reset(
+	fts_index_cache_t*	index_cache)
+{
+	const ib_rbt_node_t*	rbt_node;
+
+	for (rbt_node = rbt_first(index_cache->words);
+	     rbt_node != NULL;
+	     rbt_node = rbt_next(index_cache->words, rbt_node)) {
+
+		fts_tokenizer_word_t*	word;
+		word = rbt_value(fts_tokenizer_word_t, rbt_node);
+
+		fts_node_t*	fts_node;
+		fts_node = static_cast<fts_node_t*>(ib_vector_last(word->nodes));
+
+		fts_node->synced = false;
+	}
+}
+
+/** Commit the SYNC, change state of processed doc ids etc.
+@param[in,out]	sync	sync state
 @return DB_SUCCESS if all OK */
 static  MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 fts_sync_commit(
-/*============*/
-	fts_sync_t*	sync)			/*!< in: sync state */
+	fts_sync_t*	sync)
 {
 	dberr_t		error;
 	trx_t*		trx = sync->trx;
@@ -4550,6 +4572,8 @@ fts_sync_commit(
 			<< " ins/sec";
 	}
 
+	/* Avoid assertion in trx_free(). */
+	trx->dict_operation_lock_mode = 0;
 	trx_free_for_background(trx);
 
 	return(error);
@@ -4571,6 +4595,10 @@ fts_sync_rollback(
 
 		index_cache = static_cast<fts_index_cache_t*>(
 			ib_vector_get(cache->indexes, i));
+
+		/* Reset synced flag so nodes will not be skipped
+		in the next sync, see fts_sync_write_words(). */
+		fts_sync_index_reset(index_cache);
 
 		for (j = 0; fts_index_selector[j].value; ++j) {
 
@@ -4597,6 +4625,9 @@ fts_sync_rollback(
 	rw_lock_x_unlock(&cache->lock);
 
 	fts_sql_rollback(trx);
+
+	/* Avoid assertion in trx_free(). */
+	trx->dict_operation_lock_mode = 0;
 	trx_free_for_background(trx);
 }
 
@@ -4605,13 +4636,15 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
 @param[in]	unlock_cache	whether unlock cache lock when write node
 @param[in]	wait		whether wait when a sync is in progress
+@param[in]      has_dict        whether has dict operation lock
 @return DB_SUCCESS if all OK */
 static
 dberr_t
 fts_sync(
 	fts_sync_t*	sync,
 	bool		unlock_cache,
-	bool		wait)
+	bool		wait,
+	bool		has_dict)
 {
 	ulint		i;
 	dberr_t		error = DB_SUCCESS;
@@ -4639,6 +4672,12 @@ fts_sync(
 
 	DEBUG_SYNC_C("fts_sync_begin");
 	fts_sync_begin(sync);
+
+	/* When sync in background, we hold dict operation lock
+	to prevent DDL like DROP INDEX, etc. */
+	if (has_dict) {
+		sync->trx->dict_operation_lock_mode = RW_S_LATCH;
+	}
 
 begin_sync:
 	if (cache->total_size > fts_max_cache_size) {
@@ -4676,7 +4715,7 @@ begin_sync:
 			ib_vector_get(cache->indexes, i));
 
 		if (index_cache->index->to_be_dropped
-		    || fts_sync_index_check(sync, index_cache)) {
+		    || fts_sync_index_check(index_cache)) {
 			continue;
 		}
 
@@ -4691,6 +4730,7 @@ end_sync:
 	}
 
 	rw_lock_x_lock(&cache->lock);
+	sync->interrupted = false;
 	sync->in_progress = false;
 	os_event_set(sync->event);
 	rw_lock_x_unlock(&cache->lock);
@@ -4714,19 +4754,23 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	table		fts table
 @param[in]	unlock_cache	whether unlock cache when write node
 @param[in]	wait		whether wait for existing sync to finish
+@param[in]	has_dict	whether has dict operation lock
 @return DB_SUCCESS on success, error code on failure. */
 dberr_t
 fts_sync_table(
 	dict_table_t*	table,
 	bool		unlock_cache,
-	bool		wait)
+	bool		wait,
+	bool		has_dict)
 {
 	dberr_t	err = DB_SUCCESS;
 
 	ut_ad(table->fts);
 
-	if (!dict_table_is_discarded(table) && table->fts->cache) {
-		err = fts_sync(table->fts->cache->sync, unlock_cache, wait);
+	if (!dict_table_is_discarded(table) && table->fts->cache
+	    && !dict_table_is_corrupted(table)) {
+		err = fts_sync(table->fts->cache->sync,
+			       unlock_cache, wait, has_dict);
 	}
 
 	return(err);
@@ -5114,7 +5158,7 @@ fts_tokenize_document(
 	ut_a(doc->charset);
 
 	doc->tokens = rbt_create_arg_cmp(
-                                         sizeof(fts_token_t), innobase_fts_text_cmp, (void*) doc->charset);
+		sizeof(fts_token_t), innobase_fts_text_cmp, (void*) doc->charset);
 
 	if (parser != NULL) {
 		fts_tokenize_param_t	fts_param;
@@ -5809,6 +5853,8 @@ fts_update_doc_id(
 
 	if (error == DB_SUCCESS) {
 		dict_index_t*	clust_index;
+		dict_col_t*	col = dict_table_get_nth_col(
+			table, table->fts->doc_col);
 
 		ufield->exp = NULL;
 
@@ -5816,8 +5862,8 @@ fts_update_doc_id(
 
 		clust_index = dict_table_get_first_index(table);
 
-		ufield->field_no = dict_col_get_clust_pos(
-			&table->cols[table->fts->doc_col], clust_index);
+		ufield->field_no = dict_col_get_clust_pos(col, clust_index);
+		dict_col_copy_type(col, dfield_get_type(&ufield->new_val));
 
 		/* It is possible we update record that has
 		not yet be sync-ed from last crash. */
@@ -6784,11 +6830,7 @@ fts_fake_hex_to_dec(
 #ifdef UNIV_DEBUG
 	ret =
 #endif /* UNIV_DEBUG */
-#ifdef _WIN32
-	sscanf(tmp_id, "%016llu", &dec_id);
-#else
-	sscanf(tmp_id, "%016llu", &dec_id);
-#endif /* _WIN32 */
+	sscanf(tmp_id, "%016" UINT64scan, &dec_id);
 	ut_ad(ret == 1);
 
 	return dec_id;
@@ -7995,10 +8037,9 @@ func_exit:
 consistent state. For now consistency is check only by ensuring
 index->page_no != FIL_NULL
 @param[out]	base_table	table has host fts index
-@param[in,out]	trx		trx handler
-@return true if check certifies auxillary tables are sane false otherwise. */
-bool
-fts_is_corrupt(
+@param[in,out]	trx		trx handler */
+void
+fts_check_corrupt(
 	dict_table_t*	base_table,
 	trx_t*		trx)
 {
@@ -8016,7 +8057,7 @@ fts_is_corrupt(
 		fts_get_table_name(&fts_table, table_name);
 
 		dict_table_t*	aux_table = dict_table_open_on_name(
-			table_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+			table_name, true, FALSE, DICT_ERR_IGNORE_NONE);
 
 		if (aux_table == NULL) {
 			dict_set_corrupted(
@@ -8045,6 +8086,4 @@ fts_is_corrupt(
 
 		dict_table_close(aux_table, FALSE, FALSE);
 	}
-
-	return(sane);
 }

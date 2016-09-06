@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -227,14 +227,14 @@ ut_print_timestamp(
 
 	GetLocalTime(&cal_tm);
 
-	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#lx",
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#llx",
 		(int) cal_tm.wYear,
 		(int) cal_tm.wMonth,
 		(int) cal_tm.wDay,
 		(int) cal_tm.wHour,
 		(int) cal_tm.wMinute,
 		(int) cal_tm.wSecond,
-		thread_id);
+		static_cast<ulonglong>(thread_id));
 #else
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
@@ -369,17 +369,19 @@ ut_get_year_month_day(
 Runs an idle loop on CPU. The argument gives the desired delay
 in microseconds on 100 MHz Pentium + Visual C++.
 @return dummy value */
-void
+ulint
 ut_delay(
 /*=====*/
 	ulint	delay)	/*!< in: delay in microseconds on 100 MHz Pentium */
 {
-	ulint	i;
+	ulint	i, j;
 
 	UT_LOW_PRIORITY_CPU();
 
+	j = 0;
 
 	for (i = 0; i < delay * 50; i++) {
+		j += i;
 		UT_RELAX_CPU();
 		UT_COMPILER_BARRIER();
 	}
@@ -387,6 +389,7 @@ ut_delay(
 	UT_RESUME_PRIORITY_CPU();
 	UT_RESUME_PRIORITY_CPU();
 
+	return(j);
 }
 #endif /* UNIV_HOTBACKUP */
 
@@ -404,10 +407,10 @@ ut_print_buf(
 
 	UNIV_MEM_ASSERT_RW(buf, len);
 
-	fprintf(file, " len %lu; hex ", len);
+	fprintf(file, " len " ULINTPF "; hex ", len);
 
 	for (data = (const byte*) buf, i = 0; i < len; i++) {
-		fprintf(file, "%02lx", (ulong)*data++);
+		fprintf(file, "%02lx", static_cast<ulong>(*data++));
 	}
 
 	fputs("; asc ", file);
@@ -673,12 +676,10 @@ ut_snprintf(
 }
 #endif /* _WIN32 */
 
-/**********************************************************************//**
-Outputs a fixed-length string, quoted as an SQL identifier.
-If the string contains a slash '/', the string will be
-output as two identifiers separated by a period (.),
-as in SQL database_name.identifier. */
-UNIV_INTERN
+/** Convert an error number to a human readable text message.
+The returned string is static and should not be freed or modified.
+@param[in]	num	InnoDB internal error number
+@return string, describing the error */
 std::string
 ut_get_name(
 /*=========*/
@@ -844,6 +845,10 @@ ut_strerr(
 		return("Punch hole not supported by the file system");
 	case DB_IO_NO_PUNCH_HOLE_TABLESPACE:
 		return("Punch hole not supported by the tablespace");
+	case DB_IO_NO_ENCRYPT_TABLESPACE:
+		return("Page encryption not supported by the tablespace");
+	case DB_IO_DECRYPT_FAIL:
+		return("Page decryption failed after reading from disk");
 	case DB_IO_PARTIAL_FAILED:
 		return("Partial IO failed");
 	case DB_FORCED_ABORT:
@@ -854,6 +859,9 @@ ut_strerr(
 
 	case DB_COMPUTE_VALUE_FAILED:
 		return("Compute generated column failed");
+	case DB_NO_FK_ON_S_BASE_COL:
+		return("Cannot add foreign key on the base column "
+		       "of stored column");
 
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +30,7 @@ Created 9/5/1995 Heikki Tuuri
 #include "univ.i"
 #include "os0thread.h"
 
-/** Synchonization cell */
+/** Synchronization wait array cell */
 struct sync_cell_t;
 
 /** Synchronization wait array */
@@ -128,7 +129,6 @@ Get an instance of the sync wait array. */
 UNIV_INLINE
 sync_array_t*
 sync_array_get();
-
 /**********************************************************************//**
 Prints info of the wait array without using any mutexes/semaphores. */
 UNIV_INTERN

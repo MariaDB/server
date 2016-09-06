@@ -117,14 +117,11 @@ os_thread_create_func(
 	os_thread_id_t*		thread_id);	/*!< out: id of the created
 						thread, or NULL */
 
-/*****************************************************************//**
-Exits the current thread. */
+/** Exits the current thread. */
 void
-os_thread_exit(
-/*===========*/
-	void*	exit_value)	/*!< in: exit value; in Windows this void*
-				is cast as a DWORD */
+os_thread_exit()
 	UNIV_COLD MY_ATTRIBUTE((noreturn));
+
 /*****************************************************************//**
 Returns the thread identifier of current thread.
 @return current thread identifier */

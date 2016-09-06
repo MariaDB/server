@@ -1,1 +1,3 @@
---loose-innodb-lock-wait-timeout=2 --default-storage-engine=MyISAM
+--loose-innodb-lock-wait-timeout=2
+--default-storage-engine=MyISAM
+--loose-innodb-large-prefix=off

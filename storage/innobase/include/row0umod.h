@@ -42,7 +42,7 @@ row_undo_mod(
 /*=========*/
 	undo_node_t*	node,	/*!< in: row undo node */
 	que_thr_t*	thr)	/*!< in: query thread */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 #ifndef UNIV_NONINL
 #include "row0umod.ic"

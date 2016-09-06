@@ -447,7 +447,7 @@ print_hex:
 		fputs(" Hex: ",stderr);
 
 		for (i = 0; i < len; i++) {
-			fprintf(stderr, "%02lx", (ulint) *data++);
+			fprintf(stderr, "%02lx", static_cast<ulong>(*data++));
 		}
 
 		if (dfield_is_ext(dfield)) {
@@ -837,6 +837,7 @@ dfield_t::clone(
 	obj->ext  = ext;
 	obj->len  = len;
 	obj->type = type;
+	obj->spatial_status = spatial_status;
 
 	if (len != UNIV_SQL_NULL) {
 		obj->data = obj + 1;

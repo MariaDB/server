@@ -44,7 +44,7 @@ purge_node_t*
 row_purge_node_create(
 	que_thr_t*	parent,
 	mem_heap_t*	heap)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /***********************************************************//**
 Determines if it is possible to remove a secondary index entry.

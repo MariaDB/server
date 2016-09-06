@@ -36,13 +36,17 @@ Created 11/5/1995 Heikki Tuuri
 /** Flag indicating if the page_cleaner is in active state. */
 extern bool buf_page_cleaner_is_active;
 
+#ifdef UNIV_DEBUG
+
+/** Value of MySQL global variable used to disable page cleaner. */
+extern my_bool		innodb_page_cleaner_disabled_debug;
+
+#endif /* UNIV_DEBUG */
+
 /** Event to synchronise with the flushing. */
 extern os_event_t	buf_flush_event;
 
 class ut_stage_alter_t;
-
-/** Event to synchronise with the flushing. */
-extern os_event_t	buf_flush_event;
 
 /** Handled page counters for a single flush */
 struct flush_counters_t {
@@ -101,7 +105,7 @@ buf_flush_page_try(
 /*===============*/
 	buf_pool_t*	buf_pool,	/*!< in/out: buffer pool instance */
 	buf_block_t*	block)		/*!< in/out: buffer control block */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 # endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 /** Do flushing batch of a given type.
 NOTE: The calling thread is not allowed to own any latches on pages!
@@ -123,6 +127,7 @@ buf_flush_do_batch(
 	ulint			min_n,
 	lsn_t			lsn_limit,
 	flush_counters_t*	n);
+
 
 /** This utility flushes dirty blocks from the end of the flush list of all
 buffer pool instances.
@@ -216,6 +221,22 @@ buf_flush_ready_for_replace(
 /*========================*/
 	buf_page_t*	bpage);	/*!< in: buffer control block, must be
 				buf_page_in_file(bpage) and in the LRU list */
+
+#ifdef UNIV_DEBUG
+/** Disables page cleaner threads (coordinator and workers).
+It's used by: SET GLOBAL innodb_page_cleaner_disabled_debug = 1 (0).
+@param[in]	thd		thread handle
+@param[in]	var		pointer to system variable
+@param[out]	var_ptr		where the formal string goes
+@param[in]	save		immediate result from check function */
+void
+buf_flush_page_cleaner_disabled_debug_update(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				var_ptr,
+	const void*			save);
+#endif /* UNIV_DEBUG */
+
 /******************************************************************//**
 page_cleaner thread tasked with flushing dirty pages from the buffer
 pools. As of now we'll have only one coordinator of this thread.

@@ -566,7 +566,7 @@ ibuf_init_at_db_start(void)
 
 	ibuf->index = dict_mem_index_create(
 		"innodb_change_buffer", "CLUST_IND",
-		IBUF_SPACE_ID, DICT_CLUSTERED | DICT_IBUF, 1);
+		IBUF_SPACE_ID, DICT_CLUSTERED | DICT_UNIVERSAL | DICT_IBUF, 1);
 	ibuf->index->id = DICT_IBUF_ID_MIN + IBUF_SPACE_ID;
 	ibuf->index->table = dict_mem_table_create(
 		"innodb_change_buffer", IBUF_SPACE_ID, 1, 0, 0, 0);
@@ -827,6 +827,7 @@ ibuf_bitmap_get_map_page_func(
 	if (err != DB_SUCCESS) {
 		return NULL;
 	}
+
 
 	buf_block_dbg_add_level(block, SYNC_IBUF_BITMAP);
 
@@ -2245,11 +2246,11 @@ ibuf_free_excess_pages(void)
 }
 
 #ifdef UNIV_DEBUG
-# define ibuf_get_merge_page_nos(contract,rec,mtr,ids,vers,pages,n_stored) \
-	ibuf_get_merge_page_nos_func(contract,rec,mtr,ids,vers,pages,n_stored)
+# define ibuf_get_merge_page_nos(contract,rec,mtr,ids,pages,n_stored) \
+	ibuf_get_merge_page_nos_func(contract,rec,mtr,ids,pages,n_stored)
 #else /* UNIV_DEBUG */
-# define ibuf_get_merge_page_nos(contract,rec,mtr,ids,vers,pages,n_stored) \
-	ibuf_get_merge_page_nos_func(contract,rec,ids,vers, pages,n_stored)
+# define ibuf_get_merge_page_nos(contract,rec,mtr,ids,pages,n_stored) \
+	ibuf_get_merge_page_nos_func(contract,rec,ids,pages,n_stored)
 #endif /* UNIV_DEBUG */
 
 /*********************************************************************//**
@@ -2272,9 +2273,6 @@ ibuf_get_merge_page_nos_func(
 	ulint*		page_nos,/*!< in/out: buffer for at least
 				IBUF_MAX_N_PAGES_MERGED many page numbers;
 				the page numbers are in an ascending order */
-	ib_uint64_t*	space_versions,/*!< in/out: tablespace version
-				timestamps; used to prevent reading in old
-				pages after DISCARD + IMPORT tablespace */
 	ulint*		n_stored)/*!< out: number of page numbers stored to
 				page_nos in this function */
 {
@@ -2403,8 +2401,6 @@ ibuf_get_merge_page_nos_func(
 				/ IBUF_MERGE_THRESHOLD)) {
 
 				space_ids[*n_stored] = prev_space_id;
-				space_versions[*n_stored]
-					= fil_space_get_version(prev_space_id);
 				page_nos[*n_stored] = prev_page_no;
 
 				(*n_stored)++;
@@ -2482,13 +2478,11 @@ ibuf_get_merge_pages(
 	ulint		limit,	/*!< in: max page numbers to read */
 	ulint*		pages,	/*!< out: pages read */
 	ulint*		spaces,	/*!< out: spaces read */
-	ib_uint64_t*	versions,/*!< out: space versions read */
 	ulint*		n_pages,/*!< out: number of pages read */
 	mtr_t*		mtr)	/*!< in: mini transaction */
 {
 	const rec_t*	rec;
 	ulint		volume = 0;
-	ib_uint64_t	version = fil_space_get_version(space);
 
 	ut_a(space != ULINT_UNDEFINED);
 
@@ -2503,7 +2497,6 @@ ibuf_get_merge_pages(
 		if (*n_pages == 0 || pages[*n_pages - 1] != page_no) {
 			spaces[*n_pages] = space;
 			pages[*n_pages] = page_no;
-			versions[*n_pages] = version;
 			++*n_pages;
 		}
 
@@ -2534,7 +2527,6 @@ ibuf_merge_pages(
 	ulint		sum_sizes;
 	ulint		page_nos[IBUF_MAX_N_PAGES_MERGED];
 	ulint		space_ids[IBUF_MAX_N_PAGES_MERGED];
-	ib_uint64_t	space_versions[IBUF_MAX_N_PAGES_MERGED];
 
 	*n_pages = 0;
 
@@ -2570,7 +2562,7 @@ ibuf_merge_pages(
 	sum_sizes = ibuf_get_merge_page_nos(TRUE,
 					    btr_pcur_get_rec(&pcur), &mtr,
 					    space_ids,
-					    page_nos, space_versions, n_pages);
+					    page_nos, n_pages);
 #if 0 /* defined UNIV_IBUF_DEBUG */
 	fprintf(stderr, "Ibuf contract sync %lu pages %lu volume %lu\n",
 		sync, *n_pages, sum_sizes);
@@ -2579,7 +2571,7 @@ ibuf_merge_pages(
 	btr_pcur_close(&pcur);
 
 	buf_read_ibuf_merge_pages(
-		sync, space_ids, space_versions, page_nos, *n_pages);
+		sync, space_ids, page_nos, *n_pages);
 
 	return(sum_sizes + 1);
 }
@@ -2588,7 +2580,6 @@ ibuf_merge_pages(
 Contracts insert buffer trees by reading pages referring to space_id
 to the buffer pool.
 @returns number of pages merged.*/
-UNIV_INTERN
 ulint
 ibuf_merge_space(
 /*=============*/
@@ -2619,7 +2610,6 @@ ibuf_merge_space(
 	ulint		sum_sizes = 0;
 	ulint		pages[IBUF_MAX_N_PAGES_MERGED];
 	ulint		spaces[IBUF_MAX_N_PAGES_MERGED];
-	ib_uint64_t	versions[IBUF_MAX_N_PAGES_MERGED];
 
 	if (page_is_empty(btr_pcur_get_page(&pcur))) {
 		/* If a B-tree page is empty, it must be the root page
@@ -2634,11 +2624,10 @@ ibuf_merge_space(
 	} else {
 
 		sum_sizes = ibuf_get_merge_pages(
-				&pcur, space, IBUF_MAX_N_PAGES_MERGED,
-				&pages[0], &spaces[0], &versions[0], &n_pages,
-				&mtr);
+			&pcur, space, IBUF_MAX_N_PAGES_MERGED,
+			&pages[0], &spaces[0], &n_pages,
+			&mtr);
 		ib::info() << "Size of pages merged " << sum_sizes;
-
 	}
 
 	ibuf_mtr_commit(&mtr);
@@ -2646,18 +2635,16 @@ ibuf_merge_space(
 	btr_pcur_close(&pcur);
 
 	if (n_pages > 0) {
-
-#ifdef UNIV_DEBUG
 		ut_ad(n_pages <= UT_ARR_SIZE(pages));
 
+#ifdef UNIV_DEBUG
 		for (ulint i = 0; i < n_pages; ++i) {
 			ut_ad(spaces[i] == space);
-			ut_ad(i == 0 || versions[i] == versions[i - 1]);
 		}
 #endif /* UNIV_DEBUG */
 
 		buf_read_ibuf_merge_pages(
-			true, spaces, versions, pages, n_pages);
+			true, spaces, pages, n_pages);
 	}
 
 	return(n_pages);
@@ -2667,17 +2654,14 @@ ibuf_merge_space(
 @param[out]	n_pages		number of pages merged
 @param[in]	sync		whether the caller waits for
 the issued reads to complete
-@param[in]	space_id	tablespace for which to merge, or
-ULINT_UNDEFINED for all tablespaces
 @return a lower limit for the combined size in bytes of entries which
 will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 ulint
 ibuf_merge(
 	ulint*		n_pages,
-	bool		sync,
-	ulint		space_id)
+	bool		sync)
 {
 	*n_pages = 0;
 
@@ -2692,10 +2676,8 @@ ibuf_merge(
 	} else if (ibuf_debug) {
 		return(0);
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-	} else if (space_id == ULINT_UNDEFINED) {
-		return(ibuf_merge_pages(n_pages, sync));
 	} else {
-		return(ibuf_merge_space(space_id));
+		return(ibuf_merge_pages(n_pages, sync));
 	}
 }
 
@@ -2718,15 +2700,12 @@ ibuf_contract(
 @param[in]	full		If true, do a full contraction based
 on PCT_IO(100). If false, the size of contract batch is determined
 based on the current size of the change buffer.
-@param[in]	space_id	tablespace for which to contract, or
-ULINT_UNDEFINED to contract for all tablespaces
 @return a lower limit for the combined size in bytes of entries which
 will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
 ulint
 ibuf_merge_in_background(
-	bool	full,
-	ulint	space_id)
+	bool	full)
 {
 	ulint	sum_bytes	= 0;
 	ulint	sum_pages	= 0;
@@ -2734,7 +2713,7 @@ ibuf_merge_in_background(
 	ulint	n_pages;
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-	if (srv_ibuf_disable_background_merge && space_id == ULINT_UNDEFINED) {
+	if (srv_ibuf_disable_background_merge) {
 		return(0);
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
@@ -2771,7 +2750,7 @@ ibuf_merge_in_background(
 	while (sum_pages < n_pages) {
 		ulint	n_bytes;
 
-		n_bytes = ibuf_merge(&n_pag2, false, space_id);
+		n_bytes = ibuf_merge(&n_pag2, false);
 
 		if (n_bytes == 0) {
 			return(sum_bytes);
@@ -3383,7 +3362,7 @@ or clustered
 @param[in]	page_size	page size
 @param[in,out]	thr		query thread
 @return DB_SUCCESS, DB_STRONG_FAIL or other error */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 ibuf_insert_low(
 	ulint			mode,
@@ -3414,7 +3393,6 @@ ibuf_insert_low(
 	ibool		do_merge;
 	ulint		space_ids[IBUF_MAX_N_PAGES_MERGED];
 	ulint		page_nos[IBUF_MAX_N_PAGES_MERGED];
-	ib_uint64_t	space_versions[IBUF_MAX_N_PAGES_MERGED];
 	ulint		n_stored;
 	mtr_t		mtr;
 	mtr_t		bitmap_mtr;
@@ -3576,7 +3554,7 @@ fail_exit:
 			ibuf_get_merge_page_nos(FALSE,
 						btr_pcur_get_rec(&pcur), &mtr,
 						space_ids,
-						page_nos, space_versions, &n_stored);
+						page_nos, &n_stored);
 
 			goto fail_exit;
 		}
@@ -3711,7 +3689,7 @@ func_exit:
 #ifdef UNIV_IBUF_DEBUG
 		ut_a(n_stored <= IBUF_MAX_N_PAGES_MERGED);
 #endif
-		buf_read_ibuf_merge_pages(false, space_ids, space_versions,
+		buf_read_ibuf_merge_pages(false, space_ids,
 					  page_nos, n_stored);
 	}
 
@@ -3973,7 +3951,7 @@ ibuf_insert_to_index_page(
 	ut_ad(!dict_index_is_online_ddl(index));// this is an ibuf_dummy index
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
-	ut_ad(!buf_block_align(page)->index);
+	ut_ad(!block->index);
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
 	if (UNIV_UNLIKELY(dict_table_is_comp(index->table)
@@ -4813,7 +4791,6 @@ reset_bit:
 	os_atomic_increment_ulint(&ibuf->n_merges, 1);
 	ibuf_add_ops(ibuf->n_merged_ops, mops);
 	ibuf_add_ops(ibuf->n_discarded_ops, dops);
-
 	if (space != NULL) {
 		fil_space_release(space);
 	}

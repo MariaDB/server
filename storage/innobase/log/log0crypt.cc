@@ -97,8 +97,6 @@ get_crypt_info(
 /*===========*/
 	ib_uint64_t checkpoint_no)
 {
-	/* so that no one is modifying array while we search */
-	ut_ad(mutex_own(&(log_sys->mutex)));
 	size_t items = crypt_info.size();
 
 	/* a log block only stores 4-bytes of checkpoint no */

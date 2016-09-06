@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -53,16 +53,20 @@ Created 2/6/1997 Heikki Tuuri
 the cluster index
 @param[in]	index		the secondary index
 @param[in]	row		the cluster index row in dtuple form
+@param[in]	ext		externally stored column prefix or NULL
 @param[in]	ientry		the secondary index entry
+@param[in,out]	heap		heap used to build virtual dtuple
 @param[in,out]	n_non_v_col	number of non-virtual columns in the index
 @return true if all matches, false otherwise */
 static
 bool
 row_vers_non_vc_match(
-	dict_index_t*	index,
-	const dtuple_t*	row,
-	const dtuple_t* ientry,
-	ulint*		n_non_v_col);
+	dict_index_t*		index,
+	const dtuple_t*		row,
+	const row_ext_t*	ext,
+	const dtuple_t*		ientry,
+	mem_heap_t*		heap,
+	ulint*			n_non_v_col);
 /*****************************************************************//**
 Finds out if an active transaction has inserted or modified a secondary
 index record.
@@ -90,6 +94,8 @@ row_vers_impl_x_locked_low(
 	ulint*		clust_offsets;
 	mem_heap_t*	heap;
 	dtuple_t*	ientry = NULL;
+	mem_heap_t*	v_heap = NULL;
+	const dtuple_t*	cur_vrow = NULL;
 
 	DBUG_ENTER("row_vers_impl_x_locked_low");
 
@@ -126,7 +132,14 @@ row_vers_impl_x_locked_low(
 
 	if (dict_index_has_virtual(index)) {
 		ulint	n_ext;
-		ientry = row_rec_to_index_entry(rec, index, offsets, &n_ext, heap);
+		ulint	est_size = DTUPLE_EST_ALLOC(index->n_fields);
+
+		/* Allocate the dtuple for virtual columns extracted from undo
+		log with its own heap, so to avoid it being freed as we
+		iterating in the version loop below. */
+		v_heap = mem_heap_create(est_size);
+		ientry = row_rec_to_index_entry(
+			rec, index, offsets, &n_ext, v_heap);
 	}
 
 	/* We look up if some earlier version, which was modified by
@@ -148,7 +161,6 @@ row_vers_impl_x_locked_low(
 		trx_id_t	prev_trx_id;
 		mem_heap_t*	old_heap = heap;
 		const dtuple_t*	vrow = NULL;
-		bool		skip_cmp = false;
 
 		/* We keep the semaphore in mtr on the clust_rec page, so
 		that no other transaction can update it and get an
@@ -215,28 +227,34 @@ row_vers_impl_x_locked_low(
 				NULL, NULL, NULL, &ext, heap);
 
 		if (dict_index_has_virtual(index)) {
-			if (!vrow) {
-				ulint	n_non_v_col = 0;
+			if (vrow) {
+				/* Keep the virtual row info for the next
+				version */
+				cur_vrow = dtuple_copy(vrow, v_heap);
+				dtuple_dup_v_fld(cur_vrow, v_heap);
+			}
 
-				if (!row_vers_non_vc_match(
-					index, row, ientry, &n_non_v_col)) {
-					if (!rec_del) {
-						break;
-					}
-				}
+			if (!cur_vrow) {
+				ulint	n_non_v_col = 0;
 
 				/* If the indexed virtual columns has changed,
 				there must be log record to generate vrow.
 				Otherwise, it is not changed, so no need
 				to compare */
-				skip_cmp = true;
-				if (rec_del != vers_del) {
+				if (row_vers_non_vc_match(
+					index, row, ext, ientry, heap,
+					&n_non_v_col) == 0) {
+					if (rec_del != vers_del) {
+						break;
+					}
+				} else if (!rec_del) {
 					break;
 				}
+
 				goto result_check;
 			} else {
-				ut_ad(row->n_v_fields == vrow->n_v_fields);
-				dtuple_copy_v_fields(row, vrow);
+				ut_ad(row->n_v_fields == cur_vrow->n_v_fields);
+				dtuple_copy_v_fields(row, cur_vrow);
 			}
 		}
 
@@ -260,7 +278,7 @@ row_vers_impl_x_locked_low(
 
 		/* We check if entry and rec are identified in the alphabetical
 		ordering */
-		if (!skip_cmp && 0 == cmp_dtuple_rec(entry, rec, offsets)) {
+		if (0 == cmp_dtuple_rec(entry, rec, offsets)) {
 			/* The delete marks of rec and prev_version should be
 			equal for rec to be in the state required by
 			prev_version */
@@ -302,6 +320,10 @@ result_check:
 	}
 
 	DBUG_PRINT("info", ("Implicit lock is held by trx:" TRX_ID_FMT, trx_id));
+
+	if (v_heap != NULL) {
+		mem_heap_free(v_heap);
+	}
 
 	mem_heap_free(heap);
 	DBUG_RETURN(trx);
@@ -394,16 +416,20 @@ row_vers_must_preserve_del_marked(
 the cluster index
 @param[in]	index		the secondary index
 @param[in]	row		the cluster index row in dtuple form
+@param[in]	ext		externally stored column prefix or NULL
 @param[in]	ientry		the secondary index entry
+@param[in,out]	heap		heap used to build virtual dtuple
 @param[in,out]	n_non_v_col	number of non-virtual columns in the index
 @return true if all matches, false otherwise */
 static
 bool
 row_vers_non_vc_match(
-	dict_index_t*	index,
-	const dtuple_t*	row,
-	const dtuple_t* ientry,
-	ulint*		n_non_v_col)
+	dict_index_t*		index,
+	const dtuple_t*		row,
+	const row_ext_t*	ext,
+	const dtuple_t*		ientry,
+	mem_heap_t*		heap,
+	ulint*			n_non_v_col)
 {
 	const dfield_t* field1;
 	dfield_t*	field2;
@@ -412,20 +438,23 @@ row_vers_non_vc_match(
 
 	*n_non_v_col = 0;
 
+	/* Build index entry out of row */
+	dtuple_t* nentry = row_build_index_entry(row, ext, index, heap);
+
 	for (ulint i = 0; i < n_fields; i++) {
 		const dict_field_t*	ind_field = dict_index_get_nth_field(
 							index, i);
 
 		const dict_col_t*	col = ind_field->col;
 
+		/* Only check non-virtual columns */
 		if (dict_col_is_virtual(col)) {
 			continue;
 		}
 
 		if (ret) {
 			field1  = dtuple_get_nth_field(ientry, i);
-			field2  = dtuple_get_nth_field(
-				row, dict_col_get_no(col));
+			field2  = dtuple_get_nth_field(nentry, i);
 
 			if (cmp_dfield_dfield(field1, field2) != 0) {
 				ret = false;
@@ -438,9 +467,10 @@ row_vers_non_vc_match(
 	return(ret);
 }
 
+#ifdef MYSQL_VIRTUAL_COLUMNS
 /** build virtual column value from current cluster index record data
 @param[in,out]	row		the cluster index row in dtuple form
-@param[in]	clust_index	cluster index
+@param[in]	clust_index	clustered index
 @param[in]	index		the secondary index
 @param[in]	heap		heap used to build virtual dtuple */
 static
@@ -463,14 +493,123 @@ row_vers_build_clust_v_col(
 				ind_field->col);
 
 			innobase_get_computed_value(
-				row, col, clust_index, NULL, &local_heap,
-				heap, NULL, true);
+				row, col, clust_index, &local_heap,
+				heap, NULL, current_thd, NULL, NULL,
+				NULL, NULL);
 		}
 	}
 
 	if (local_heap) {
 		mem_heap_free(local_heap);
 	}
+}
+/** Build latest virtual column data from undo log
+@param[in]	in_purge	whether this is the purge thread
+@param[in]	rec		clustered index record
+@param[in]	clust_index	clustered index
+@param[in,out]	clust_offsets	offsets on the clustered index record
+@param[in]	index		the secondary index
+@param[in]	roll_ptr	the rollback pointer for the purging record
+@param[in]	trx_id		trx id for the purging record
+@param[in,out]	v_heap		heap used to build vrow
+@param[out]	v_row		dtuple holding the virtual rows
+@param[in,out]	mtr		mtr holding the latch on rec */
+static
+void
+row_vers_build_cur_vrow_low(
+	bool		in_purge,
+	const rec_t*	rec,
+	dict_index_t*	clust_index,
+	ulint*		clust_offsets,
+	dict_index_t*	index,
+	roll_ptr_t	roll_ptr,
+	trx_id_t	trx_id,
+	mem_heap_t*	v_heap,
+	const dtuple_t**vrow,
+	mtr_t*		mtr)
+{
+	const rec_t*	version;
+	rec_t*		prev_version;
+	mem_heap_t*	heap = NULL;
+	ulint		num_v = dict_table_get_n_v_cols(index->table);
+	const dfield_t* field;
+	ulint		i;
+	bool		all_filled = false;
+
+	*vrow = dtuple_create_with_vcol(v_heap, 0, num_v);
+	dtuple_init_v_fld(*vrow);
+
+	for (i = 0; i < num_v; i++) {
+		dfield_get_type(dtuple_get_nth_v_field(*vrow, i))->mtype
+			 = DATA_MISSING;
+	}
+
+	version = rec;
+
+	/* If this is called by purge thread, set TRX_UNDO_PREV_IN_PURGE
+	bit to search the undo log until we hit the current undo log with
+	roll_ptr */
+	const ulint	status = in_purge
+		? TRX_UNDO_PREV_IN_PURGE | TRX_UNDO_GET_OLD_V_VALUE
+		: TRX_UNDO_GET_OLD_V_VALUE;
+
+	while (!all_filled) {
+		mem_heap_t*	heap2 = heap;
+		heap = mem_heap_create(1024);
+		roll_ptr_t	cur_roll_ptr = row_get_rec_roll_ptr(
+			version, clust_index, clust_offsets);
+
+		trx_undo_prev_version_build(
+			rec, mtr, version, clust_index, clust_offsets,
+			heap, &prev_version, NULL, vrow, status);
+
+		if (heap2) {
+			mem_heap_free(heap2);
+		}
+
+		if (!prev_version) {
+			/* Versions end here */
+			break;
+		}
+
+		clust_offsets = rec_get_offsets(prev_version, clust_index,
+						NULL, ULINT_UNDEFINED, &heap);
+
+		ulint	entry_len = dict_index_get_n_fields(index);
+
+		all_filled = true;
+
+		for (i = 0; i < entry_len; i++) {
+			const dict_field_t*	ind_field
+				 = dict_index_get_nth_field(index, i);
+			const dict_col_t*	col = ind_field->col;
+
+			if (!dict_col_is_virtual(col)) {
+				continue;
+			}
+
+			const dict_v_col_t*	v_col
+				= reinterpret_cast<const dict_v_col_t*>(col);
+			field = dtuple_get_nth_v_field(*vrow, v_col->v_pos);
+
+			if (dfield_get_type(field)->mtype == DATA_MISSING) {
+				all_filled = false;
+				break;
+			}
+
+		}
+
+		trx_id_t	rec_trx_id = row_get_rec_trx_id(
+			prev_version, clust_index, clust_offsets);
+
+		if (rec_trx_id < trx_id || roll_ptr == cur_roll_ptr) {
+			break;
+		}
+
+		version = prev_version;
+	}
+
+	mem_heap_free(heap);
 }
 
 /** Check a virtual column value index secondary virtual index matches
@@ -479,6 +618,7 @@ stored in undo log
 @param[in]	in_purge	called by purge thread
 @param[in]	rec		record in the clustered index
 @param[in]	row		the cluster index row in dtuple form
+@param[in]	ext		externally stored column prefix or NULL
 @param[in]	clust_index	cluster index
 @param[in]	clust_offsets	offsets on the cluster record
 @param[in]	index		the secondary index
@@ -495,6 +635,7 @@ row_vers_vc_matches_cluster(
 	bool		in_purge,
 	const rec_t*	rec,
 	const dtuple_t*	row,
+	row_ext_t*	ext,
 	dict_index_t*	clust_index,
 	ulint*		clust_offsets,
 	dict_index_t*	index,
@@ -519,14 +660,16 @@ row_vers_vc_matches_cluster(
 	dfield_t*	field2;
 	ulint		i;
 
+	tuple_heap = mem_heap_create(1024);
+
 	/* First compare non-virtual columns (primary keys) */
-	if (!row_vers_non_vc_match(index, row, ientry, &n_non_v_col)) {
+	if (!row_vers_non_vc_match(index, row, ext, ientry, tuple_heap,
+				   &n_non_v_col)) {
+		mem_heap_free(tuple_heap);
 		return(false);
 	}
 
 	ut_ad(n_fields > n_non_v_col);
-
-	tuple_heap = mem_heap_create(1024);
 
 	*vrow = dtuple_create_with_vcol(v_heap ? v_heap : tuple_heap, 0, num_v);
 	dtuple_init_v_fld(*vrow);
@@ -550,6 +693,9 @@ row_vers_vc_matches_cluster(
 		heap = mem_heap_create(1024);
 		roll_ptr_t	cur_roll_ptr = row_get_rec_roll_ptr(
 			version, clust_index, clust_offsets);
+
+		ut_ad(cur_roll_ptr != 0);
+		ut_ad(in_purge == (roll_ptr != 0));
 
 		trx_undo_prev_version_build(
 			rec, mtr, version, clust_index, clust_offsets,
@@ -663,11 +809,6 @@ row_vers_build_cur_vrow(
 	mtr_t*		mtr)
 {
 	const dtuple_t*	cur_vrow = NULL;
-	row_ext_t*      ext;
-
-	dtuple_t*	row = row_build(ROW_COPY_POINTERS, clust_index,
-					rec, *clust_offsets,
-					NULL, NULL, NULL, &ext, heap);
 
 	roll_ptr_t t_roll_ptr = row_get_rec_roll_ptr(
 		rec, clust_index, *clust_offsets);
@@ -675,21 +816,32 @@ row_vers_build_cur_vrow(
 	/* if the row is newly inserted, then the virtual
 	columns need to be computed */
 	if (trx_undo_roll_ptr_is_insert(t_roll_ptr)) {
+
+		ut_ad(!rec_get_deleted_flag(rec, page_rec_is_comp(rec)));
+
+		/* This is a newly inserted record and cannot
+		be deleted, So the externally stored field
+		cannot be freed yet. */
+		dtuple_t* row = row_build(ROW_COPY_POINTERS, clust_index,
+					  rec, *clust_offsets,
+					  NULL, NULL, NULL, NULL, heap);
+
 		row_vers_build_clust_v_col(
 			row, clust_index, index, heap);
 		cur_vrow = dtuple_copy(row, v_heap);
 		dtuple_dup_v_fld(cur_vrow, v_heap);
 	} else {
-		row_vers_vc_matches_cluster(
-			in_purge, rec, row, clust_index, *clust_offsets,
-			index, ientry, roll_ptr,
-			trx_id, v_heap, &cur_vrow, mtr);
+		/* Try to fetch virtual column data from undo log */
+		row_vers_build_cur_vrow_low(
+			in_purge, rec, clust_index, *clust_offsets,
+			index, roll_ptr, trx_id, v_heap, &cur_vrow, mtr);
 	}
 
 	*clust_offsets = rec_get_offsets(rec, clust_index, NULL,
 					 ULINT_UNDEFINED, &heap);
 	return(cur_vrow);
 }
+#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 /*****************************************************************//**
 Finds out if a version of the record, where the version >= the current
@@ -760,6 +912,9 @@ row_vers_old_has_index_entry(
 				NULL, NULL, NULL, &ext, heap);
 
 		if (dict_index_has_virtual(index)) {
+
+#ifdef MYSQL_VIRTUAL_COLUMNS
+
 #ifdef DBUG_OFF
 # define dbug_v_purge false
 #else /* DBUG_OFF */
@@ -794,7 +949,7 @@ row_vers_old_has_index_entry(
 				}
 			} else {
 				if (row_vers_vc_matches_cluster(
-					also_curr, rec, row, clust_index,
+					also_curr, rec, row, ext, clust_index,
 					clust_offsets, index, ientry, roll_ptr,
 					trx_id, NULL, &vrow, mtr)) {
 					mem_heap_free(heap);
@@ -808,6 +963,7 @@ row_vers_old_has_index_entry(
 			}
 			clust_offsets = rec_get_offsets(rec, clust_index, NULL,
 							ULINT_UNDEFINED, &heap);
+#endif /* MYSQL_VIRTUAL_COLUMNS */
 		} else {
 
 			entry = row_build_index_entry(
@@ -845,6 +1001,7 @@ row_vers_old_has_index_entry(
 			}
 		}
 	} else if (dict_index_has_virtual(index)) {
+#ifdef MYSQL_VIRTUAL_COLUMNS
 		/* The current cluster index record could be
 		deleted, but the previous version of it might not. We will
 		need to get the virtual column data from undo record
@@ -852,6 +1009,7 @@ row_vers_old_has_index_entry(
 		cur_vrow = row_vers_build_cur_vrow(
 			also_curr, rec, clust_index, &clust_offsets,
 			index, ientry, roll_ptr, trx_id, heap, v_heap, mtr);
+#endif /* MYSQL_VIRTUAL_COLUMNS */
 	}
 
 	version = rec;

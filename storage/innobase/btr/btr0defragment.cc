@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,6 +33,7 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 #include "btr0pcur.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
+#include "dict0defrag_bg.h"
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "srv0start.h"
@@ -153,7 +154,7 @@ btr_defragment_init()
 {
 	srv_defragment_interval = ut_microseconds_to_timer(
 		(ulonglong) (1000000.0 / srv_defragment_frequency));
-	mutex_create(LATCH_ID_DEFRAGMENT_MUTEX, &btr_defragment_mutex);
+	mutex_create(LATCH_ID_BTR_DEFRAGMENT_MUTEX, &btr_defragment_mutex);
 	os_thread_create(btr_defragment_thread, NULL, NULL);
 }
 
@@ -800,6 +801,9 @@ DECLARE_THREAD(btr_defragment_thread)(
 		cursor = btr_pcur_get_btr_cur(pcur);
 		index = btr_cur_get_index(cursor);
 		first_block = btr_cur_get_block(cursor);
+
+		mtr_x_lock(dict_index_get_lock(index), &mtr);
+		mtr.set_named_space(index->space);
 		last_block = btr_defragment_n_pages(first_block, index,
 						    srv_defragment_n_pages,
 						    &mtr);
@@ -818,16 +822,32 @@ DECLARE_THREAD(btr_defragment_thread)(
 			/* Update the last_processed time of this index. */
 			item->last_processed = now;
 		} else {
+			dberr_t err = DB_SUCCESS;
 			mtr_commit(&mtr);
 			/* Reaching the end of the index. */
 			dict_stats_empty_defrag_stats(index);
-			dict_stats_save_defrag_stats(index);
-			dict_stats_save_defrag_summary(index);
+			err = dict_stats_save_defrag_stats(index);
+			if (err != DB_SUCCESS) {
+				ib::error() << "Saving defragmentation stats for table "
+					    << index->table->name.m_name
+					    << " index " << index->name()
+					    << " failed with error " << err;
+			} else {
+				err = dict_stats_save_defrag_summary(index);
+
+				if (err != DB_SUCCESS) {
+					ib::error() << "Saving defragmentation summary for table "
+					    << index->table->name.m_name
+					    << " index " << index->name()
+					    << " failed with error " << err;
+				}
+			}
+
 			btr_defragment_remove_item(item);
 		}
 	}
 	btr_defragment_shutdown();
-	os_thread_exit(NULL);
+	os_thread_exit();
 	OS_THREAD_DUMMY_RETURN;
 }
 

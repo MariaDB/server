@@ -125,6 +125,30 @@ static const ulint IO_LOG_SEGMENT = 1;
 /** Number of retries for partial I/O's */
 static const ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
 
+/** Blocks for doing IO, used in the transparent compression
+and encryption code. */
+struct Block {
+	/** Default constructor */
+	Block() : m_ptr(), m_in_use() { }
+
+	byte*		m_ptr;
+
+	byte		pad[CACHE_LINE_SIZE - sizeof(ulint)];
+	lock_word_t	m_in_use;
+};
+
+/** For storing the allocated blocks */
+typedef std::vector<Block> Blocks;
+
+/** Block collection */
+static Blocks*	block_cache;
+
+/** Number of blocks to allocate for sync read/writes */
+static const size_t	MAX_BLOCKS = 128;
+
+/** Block buffer size */
+#define BUFFER_BLOCK_SIZE ((ulint)(UNIV_PAGE_SIZE * 1.3))
+
 /* This specifies the file permissions InnoDB uses when it creates files in
 Unix; the value of os_innodb_umask is initialized in ha_innodb.cc to
 my_umask */
@@ -259,7 +283,8 @@ struct Slot {
 	to the caller of os_aio_simulated_handle */
 	bool			io_already_done;
 
-	ulint           file_block_size;/*!< file block size */
+	/*!< file block size */
+	ulint			file_block_size;
 
 	/** The file node for which the IO is requested. */
 	fil_node_t*		m1;
@@ -306,6 +331,9 @@ struct Slot {
 
 	/** Length of the block before it was compressed */
 	uint32			original_len;
+
+	/** Buffer block for compressed pages or encrypted pages */
+	Block*			buf_block;
 
 	/** Unaligned buffer for compressed pages */
 	byte*			compressed_ptr;
@@ -360,7 +388,7 @@ public:
 		os_offset_t	offset,
 		ulint		len,
 		ulint*		write_size)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** @return number of reserved slots */
 	ulint pending_io_count() const;
@@ -369,7 +397,7 @@ public:
 	@param[in]	index	Index of the slot in the array
 	@return pointer to slot */
 	const Slot* at(ulint i) const
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		ut_a(i < m_slots.size());
 
@@ -378,7 +406,7 @@ public:
 
 	/** Non const version */
 	Slot* at(ulint i)
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		ut_a(i < m_slots.size());
 
@@ -399,14 +427,14 @@ public:
 
 	/** @return the number of slots per segment */
 	ulint slots_per_segment() const
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		return(m_slots.size() / m_n_segments);
 	}
 
 	/** @return accessor for n_segments */
 	ulint get_n_segments() const
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		return(m_n_segments);
 	}
@@ -414,7 +442,7 @@ public:
 #ifdef UNIV_DEBUG
 	/** @return true if the thread owns the mutex */
 	bool is_mutex_owned() const
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		return(mutex_own(&m_mutex));
 	}
@@ -441,13 +469,13 @@ public:
 	@param[in,out]	slot	an already reserved slot
 	@return true on success. */
 	bool linux_dispatch(Slot* slot)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Accessor for an AIO event
 	@param[in]	index	Index into the array
 	@return the event at the index */
 	io_event* io_events(ulint index)
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		ut_a(index < m_events.size());
 
@@ -458,7 +486,7 @@ public:
 	@param[in]	segment	Segment for which to get the context
 	@return the AIO context for the segment */
 	io_context* io_ctx(ulint segment)
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		ut_ad(segment < get_n_segments());
 
@@ -470,7 +498,7 @@ public:
 	@param[out]	io_ctx		io_ctx to initialize.
 	@return true on success. */
 	static bool linux_create_io_ctx(ulint max_events, io_context_t* io_ctx)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Checks if the system supports native linux aio. On some kernel
 	versions where native aio is supported it won't work on tmpfs. In such
@@ -478,7 +506,7 @@ public:
 	and native aio.
 	@return true if supported, false otherwise. */
 	static bool is_linux_native_aio_supported()
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 #endif /* LINUX_NATIVE_AIO */
 
 #ifdef WIN_ASYNC_IO
@@ -520,7 +548,7 @@ public:
 	/** The non asynchronous IO array.
 	@return the synchronous AIO array instance. */
 	static AIO* sync_array()
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		return(s_sync);
 	}
@@ -530,7 +558,7 @@ public:
 	@param[in]	segment		The local segment.
 	@return the handles for the segment. */
 	HANDLE* handles(ulint segment)
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		ut_ad(segment < m_handles->size() / slots_per_segment());
 
@@ -539,7 +567,7 @@ public:
 
 	/** @return true if no slots are reserved */
 	bool is_empty() const
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		ut_ad(is_mutex_owned());
 		return(m_n_reserved == 0);
@@ -555,7 +583,7 @@ public:
 		latch_id_t	id,
 		ulint		n_slots,
 		ulint		segments)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Initializes the asynchronous io system. Creates one array each
 	for ibuf and log I/O. Also creates one array each for read and write
@@ -574,7 +602,7 @@ public:
 		ulint		n_readers,
 		ulint		n_writers,
 		ulint		n_slots_sync)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Free the AIO arrays */
 	static void shutdown();
@@ -591,7 +619,7 @@ public:
 	static ulint get_array_and_local_segment(
 		AIO**		array,
 		ulint		segment)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Select the IO slot array
 	@param[in]	type		Type of IO, READ or WRITE
@@ -602,7 +630,7 @@ public:
 		IORequest&	type,
 		bool		read_only,
 		ulint		mode)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Calculates segment number for a slot.
 	@param[in]	array		AIO wait array
@@ -612,7 +640,7 @@ public:
 	static ulint get_segment_no_from_slot(
 		const AIO*	array,
 		const Slot*	slot)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Wakes up a simulated AIO I/O-handler thread if it has something
 	to do.
@@ -624,7 +652,7 @@ public:
 	@param[in]	aio		The AIO instance to check
 	@return true if the AIO instance is for reading. */
 	static bool is_read(const AIO* aio)
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		return(s_reads == aio);
 	}
@@ -648,7 +676,7 @@ private:
 	/** Initialise the slots
 	@return DB_SUCCESS or error code */
 	dberr_t init_slots()
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Wakes up a simulated AIO I/O-handler thread if it has something
 	to do for a local segment in the AIO array.
@@ -671,7 +699,7 @@ private:
 	/** Initialise the Linux native AIO data structures
 	@return DB_SUCCESS or error code */
 	dberr_t init_linux_native_aio()
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 #endif /* LINUX_NATIVE_AIO */
 
 private:
@@ -898,6 +926,77 @@ os_aio_windows_handler(
 	IORequest*	type);
 #endif /* WIN_ASYNC_IO */
 
+#ifdef MYSQL_COMPRESSION_ENCRYPTION
+/** Allocate a page for sync IO
+@return pointer to page */
+static
+Block*
+os_alloc_block()
+{
+	size_t		pos;
+	Blocks&		blocks = *block_cache;
+	size_t		i = static_cast<size_t>(my_timer_cycles());
+	const size_t	size = blocks.size();
+	ulint		retry = 0;
+	Block*		block;
+
+	DBUG_EXECUTE_IF("os_block_cache_busy", retry = MAX_BLOCKS * 3;);
+
+	for (;;) {
+
+		/* After go through the block cache for 3 times,
+		allocate a new temporary block. */
+		if (retry == MAX_BLOCKS * 3) {
+			byte*	ptr;
+
+			ptr = static_cast<byte*>(
+				ut_malloc_nokey(sizeof(*block)
+						+ BUFFER_BLOCK_SIZE));
+
+			block = new (ptr) Block();
+			block->m_ptr = static_cast<byte*>(
+				ptr + sizeof(*block));
+			block->m_in_use = 1;
+
+			break;
+		}
+
+		pos = i++ % size;
+
+		if (TAS(&blocks[pos].m_in_use, 1) == 0) {
+			block = &blocks[pos];
+			break;
+		}
+
+		os_thread_yield();
+
+		++retry;
+	}
+
+	ut_a(block->m_in_use != 0);
+
+	return(block);
+}
+
+/** Free a page after sync IO
+@param[in,own]	block		The block to free/release */
+static
+void
+os_free_block(Block* block)
+{
+	ut_ad(block->m_in_use == 1);
+
+	TAS(&block->m_in_use, 0);
+
+	/* When this block is not in the block cache, and it's
+	a temporary block, we need to free it directly. */
+	if (std::less<Block*>()(block, &block_cache->front())
+	    || std::greater<Block*>()(block, &block_cache->back())) {
+		ut_free(block);
+	}
+}
+#endif /* MYSQL_COMPRESSION_ENCRYPTION */
+
 /** Generic AIO Handler methods. Currently handles IO post processing. */
 class AIOHandler {
 public:
@@ -920,6 +1019,18 @@ public:
 	}
 
 private:
+	/** Check whether the page was encrypted.
+	@param[in]	slot		The slot that contains the IO request
+	@return true if it was an encyrpted page */
+	static bool is_encrypted_page(const Slot* slot)
+	{
+#ifdef MYSQL_ENCRYPTION
+		return(Encryption::is_encrypted_page(slot->buf));
+#else
+		return (false);
+#endif
+	}
+
 	/** Check whether the page was compressed.
 	@param[in]	slot		The slot that contains the IO request
 	@return true if it was a compressed page */
@@ -994,14 +1105,6 @@ public:
 		m_offset(offset)
 	{
 		ut_ad(m_n > 0);
-
-		/* If off_t is > 4 bytes in size, then we assume we can pass a
-		64-bit address */
-		off_t	offs = static_cast<off_t>(m_offset);
-
-		if (sizeof(off_t) <= 4 && m_offset != (os_offset_t) offs) {
-			ib::error() << "file write at offset > 4 GB.";
-		}
 	}
 
 	/** Destructor */
@@ -1092,7 +1195,7 @@ os_file_original_page_size(const byte* buf)
 dberr_t
 AIOHandler::check_read(Slot* slot, ulint n_bytes)
 {
-	dberr_t	err;
+	dberr_t	err=DB_SUCCESS;
 
 	ut_ad(slot->type.is_read());
 	ut_ad(slot->original_len > slot->len);
@@ -1119,10 +1222,29 @@ AIOHandler::check_read(Slot* slot, ulint n_bytes)
 
 			err = DB_FAIL;
 		}
+	} else if (is_encrypted_page(slot)) {
+			ut_a(slot->offset > 0);
+
+			slot->len = slot->original_len;
+#ifdef _WIN32
+			slot->n_bytes = static_cast<DWORD>(n_bytes);
+#else
+			slot->n_bytes = static_cast<ulint>(n_bytes);
+#endif /* _WIN32 */
+
+			err = io_complete(slot);
+			ut_a(err == DB_SUCCESS);
+
 	} else {
 		err = DB_FAIL;
 	}
 
+#ifdef MYSQL_COMPRESSION_ENCRYPTION
+	if (slot->buf_block != NULL) {
+		os_free_block(slot->buf_block);
+		slot->buf_block = NULL;
+	}
+#endif
 	return(err);
 }
 
@@ -1131,7 +1253,7 @@ AIOHandler::check_read(Slot* slot, ulint n_bytes)
 dberr_t
 AIOHandler::post_io_processing(Slot* slot)
 {
-	dberr_t	err;
+	dberr_t	err=DB_SUCCESS;
 
 	ut_ad(slot->is_reserved);
 
@@ -1145,7 +1267,10 @@ AIOHandler::post_io_processing(Slot* slot)
 		&& slot->type.is_compressed()
 		&& slot->len == static_cast<ulint>(slot->n_bytes))) {
 
-		if (!slot->type.is_log() && is_compressed_page(slot)) {
+#ifdef MYSQL_COMPRESSION
+		if (!slot->type.is_log()
+		    && (is_compressed_page(slot)
+			|| is_encrypted_page(slot))) {
 
 			ut_a(slot->offset > 0);
 
@@ -1170,6 +1295,11 @@ AIOHandler::post_io_processing(Slot* slot)
 			err = DB_SUCCESS;
 		}
 
+		if (slot->buf_block != NULL) {
+			os_free_block(slot->buf_block);
+			slot->buf_block = NULL;
+		}
+#endif /* MYSQL_COMPRESSION */
 	} else if ((ulint) slot->n_bytes == (ulint) slot->len) {
 
 		/* It *must* be a partial read. */
@@ -1220,6 +1350,7 @@ AIO::pending_io_count() const
 	return(reserved);
 }
 
+#ifdef MYSQL_COMPRESSION
 /** Compress a data page
 #param[in]	block_size	File system block size
 @param[in]	src		Source contents to compress
@@ -1241,7 +1372,7 @@ os_file_compress_page(
 	ulint		compression_level = page_zip_level;
 	ulint		page_type = mach_read_from_2(src + FIL_PAGE_TYPE);
 
-	/* Must be divisible by the file system block size. */
+	/* The page size must be a multiple of the OS punch hole size. */
 	ut_ad(!(src_len % block_size));
 
 	/* Shouldn't compress an already compressed page. */
@@ -1255,7 +1386,6 @@ os_file_compress_page(
 	if (page_type == FIL_PAGE_RTREE
 	    || block_size == ULINT_UNDEFINED
             || compression.m_type == Compression::NONE
-	    || block_size >= src_len
 	    || src_len < block_size * 2) {
 
 		*dst_len = src_len;
@@ -1367,6 +1497,7 @@ os_file_compress_page(
 
 	return(dst);
 }
+#endif /* MYSQL_COMPRESSION */
 
 #ifdef UNIV_DEBUG
 # ifndef UNIV_HOTBACKUP
@@ -1547,12 +1678,17 @@ AIO::release_with_mutex(Slot* slot)
 }
 
 /** Creates a temporary file.  This function is like tmpfile(3), but
-@return temporary file handle, or NULL on error */
+the temporary file is created in the given parameter path. If the path
+is NULL then it will create the file in the MySQL server configuration
+parameter (--tmpdir).
+@param[in]	path	location for creating temporary file
+@@return temporary file handle, or NULL on error */
 FILE*
-os_file_create_tmpfile()
+os_file_create_tmpfile(
+	const char*	path)
 {
 	FILE*	file	= NULL;
-	int	fd	= innobase_mysql_tmpfile();
+	int	fd	= innobase_mysql_tmpfile(path);
 
 	if (fd >= 0) {
 		file = fdopen(fd, "w+b");
@@ -1613,6 +1749,7 @@ os_file_io_complete(
 	ulint		offset,
 	ulint		len)
 {
+#ifdef MYSQL_ENCRYPTION_COMPRESSION
 	/* We never compress/decompress the first page */
 	ut_a(offset > 0);
 	ut_ad(type.validate());
@@ -1622,11 +1759,19 @@ os_file_io_complete(
 		return(DB_SUCCESS);
 
 	} else if (type.is_read()) {
+		dberr_t		ret = DB_SUCCESS;
+		Encryption	encryption(type.encryption_algorithm());
 
 		ut_ad(!type.is_log());
 
-		return(os_file_decompress_page(
-			type.is_dblwr_recover(), buf, scratch, len));
+		ret = encryption.decrypt(type, buf, src_len, scratch, len);
+		if (ret == DB_SUCCESS) {
+			return(os_file_decompress_page(
+					type.is_dblwr_recover(),
+					buf, scratch, len));
+		} else {
+			return(ret);
+		}
 
 	} else if (type.punch_hole()) {
 
@@ -1660,6 +1805,7 @@ os_file_io_complete(
 	}
 
 	ut_ad(!type.is_log());
+#endif /* MYSQL_ENCRYPTION_COMPRESSION */
 
 	return(DB_SUCCESS);
 }
@@ -1961,6 +2107,7 @@ os_file_create_subdirs_if_needed(
 	return(success ? DB_SUCCESS : DB_ERROR);
 }
 
+#ifdef MYSQL_COMPRESSION
 /** Allocate the buffer for IO on a transparently compressed table.
 @param[in]	type		IO flags
 @param[out]	buf		buffer to read or write
@@ -1969,7 +2116,7 @@ os_file_create_subdirs_if_needed(
 @return pointer to allocated page, compressed data is written to the offset
 	that is aligned on UNIV_SECTOR_SIZE of Block.m_ptr */
 static
-byte*
+Block*
 os_file_compress_page(
 	IORequest&	type,
 	void*&		buf,
@@ -1981,13 +2128,13 @@ os_file_compress_page(
 
 	ulint	n_alloc = *n * 2;
 
-	ut_a(n_alloc < UNIV_PAGE_SIZE_MAX * 2);
+	ut_a(n_alloc <= UNIV_PAGE_SIZE_MAX * 2);
 #ifdef HAVE_LZ4
 	ut_a(type.compression_algorithm().m_type != Compression::LZ4
 	     || static_cast<ulint>(LZ4_COMPRESSBOUND(*n)) < n_alloc);
 #endif
 
-	byte*	ptr = reinterpret_cast<byte*>(ut_malloc_nokey(n_alloc));
+	Block*	ptr = reinterpret_cast<Block*>(ut_malloc_nokey(n_alloc));
 
 	if (ptr == NULL) {
 		return(NULL);
@@ -2009,7 +2156,7 @@ os_file_compress_page(
 	byte*	compressed_page;
 
 	compressed_page = static_cast<byte*>(
-		ut_align(ptr, UNIV_SECTOR_SIZE));
+		ut_align(block->m_ptr, UNIV_SECTOR_SIZE));
 
 	byte*	buf_ptr;
 
@@ -2037,8 +2184,54 @@ os_file_compress_page(
 		}
 	}
 
-	return(ptr);
+	return(block);
 }
+#endif /* MYSQL_COMPRESSION */
+
+#ifdef MYSQL_ENCRYPTION
+/** Encrypt a page content when write it to disk.
+@param[in]	type		IO flags
+@param[out]	buf		buffer to read or write
+@param[in,out]	n		number of bytes to read/write, starting from
+				offset
+@return pointer to the encrypted page */
+static
+Block*
+os_file_encrypt_page(
+	const IORequest&	type,
+	void*&			buf,
+	ulint*			n)
+{
+
+	byte*		encrypted_page;
+	ulint		encrypted_len = *n;
+	byte*		buf_ptr;
+	Encryption	encryption(type.encryption_algorithm());
+
+	ut_ad(!type.is_log());
+	ut_ad(type.is_write());
+	ut_ad(type.is_encrypted());
+
+	Block*  block = os_alloc_block();
+
+	encrypted_page = static_cast<byte*>(
+		ut_align(block->m_ptr, UNIV_SECTOR_SIZE));
+
+	buf_ptr = encryption.encrypt(type,
+				     reinterpret_cast<byte*>(buf), *n,
+				     encrypted_page, &encrypted_len);
+
+	bool	encrypted = buf_ptr != buf;
+
+	if (encrypted) {
+
+		buf = buf_ptr;
+		*n = encrypted_len;
+	}
+
+	return(block);
+}
+#endif /* MYSQL_ENCRYPTION */
 
 #ifndef _WIN32
 
@@ -2272,7 +2465,7 @@ LinuxAIOHandler::check_state(Slot* slot)
 
 	ut_ad(slot->io_already_done);
 
-	dberr_t	err;
+	dberr_t	err = DB_SUCCESS;
 
 	if (slot->ret == 0) {
 
@@ -2469,7 +2662,7 @@ LinuxAIOHandler::collect()
 dberr_t
 LinuxAIOHandler::poll(fil_node_t** m1, void** m2, IORequest* request)
 {
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	Slot*		slot;
 
 	/* Loop until we have found a completed request. */
@@ -2722,7 +2915,7 @@ AIO::is_linux_native_aio_supported()
 	} else if (!srv_read_only_mode) {
 
 		/* Now check if tmpdir supports native aio ops. */
-		fd = innobase_mysql_tmpfile();
+		fd = innobase_mysql_tmpfile(NULL);
 
 		if (fd < 0) {
 			ib::warn()
@@ -2733,7 +2926,7 @@ AIO::is_linux_native_aio_supported()
 		}
 	} else {
 
-		os_normalize_path_for_win(srv_log_group_home_dir);
+		os_normalize_path(srv_log_group_home_dir);
 
 		ulint	dirnamelen = strlen(srv_log_group_home_dir);
 
@@ -3522,11 +3715,11 @@ os_file_create_func(
 	} while (retry);
 
 	/* We disable OS caching (O_DIRECT) only on data files */
-       if (!srv_read_only_mode
-	   && *success
-	   && type != OS_LOG_FILE
-	   && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
-	       || srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
+	if (!read_only
+	    && *success
+	    && (type != OS_LOG_FILE && type != OS_DATA_TEMP_FILE)
+	    && (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT
+		|| srv_unix_file_flush_method == SRV_UNIX_O_DIRECT_NO_FSYNC)) {
 
 	       os_file_set_nocache(file, name, mode_str);
 	}
@@ -5300,6 +5493,7 @@ AIO::simulated_put_read_threads_to_sleep()
 
 #endif /* !_WIN32*/
 
+#ifdef MYSQL_COMPRESSION
 /** Validate the type, offset and number of bytes to read *
 @param[in]	type		IO flags
 @param[in]	offset		Offset from start of the file
@@ -5321,6 +5515,7 @@ os_file_check_args(const IORequest& type, os_offset_t offset, ulint n)
 		ib::error() << "file write at offset > 4 GB.";
 	}
 }
+#endif /* MYSQL_COMPRESSION */
 
 /** Does a syncronous read or write depending upon the type specified
 In case of partial reads/writes the function tries
@@ -5332,7 +5527,7 @@ NUM_RETRIES_ON_PARTIAL_IO times to read/write the complete data.
 @param[in]	n		number of bytes to read, starting from offset
 @param[out]	err		DB_SUCCESS or error code
 @return number of bytes read/written, -1 if error */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 ssize_t
 os_file_io(
 	const IORequest&in_type,
@@ -5342,26 +5537,45 @@ os_file_io(
 	os_offset_t	offset,
 	dberr_t*	err)
 {
-	byte*		ptr;
 	ulint		original_n = n;
 	IORequest	type = in_type;
-	byte*		compressed_page;
+	byte*		compressed_page=NULL;
 	ssize_t		bytes_returned = 0;
 
+#ifdef MYSQL_COMPRESSION
+	Block*		block=NULL;
 	if (type.is_compressed()) {
 
 		/* We don't compress the first page of any file. */
 		ut_ad(offset > 0);
 
-		ptr  = os_file_compress_page(type, buf, &n);
+		block  = os_file_compress_page(type, buf, &n);
 
 		compressed_page = static_cast<byte*>(
-			ut_align(ptr, UNIV_SECTOR_SIZE));
+			ut_align(block->m_ptr, UNIV_SECTOR_SIZE));
 
 	} else {
-		ptr = NULL;
+		block = NULL;
 		compressed_page = NULL;
 	}
+#endif /* MYSQL_COMPRESSION */
+
+#ifdef MYSQL_ENCRYPTION
+	/* We do encryption after compression, since if we do encryption
+	before compression, the encrypted data will cause compression fail
+	or low compression rate. */
+	if (type.is_encrypted() && type.is_write()) {
+		/* We don't encrypt the first page of any file. */
+		Block*	compressed_block = block;
+		ut_ad(offset > 0);
+
+		block = os_file_encrypt_page(type, buf, &n);
+
+		if (compressed_block != NULL) {
+			os_free_block(compressed_block);
+		}
+	}
+#endif /* MYSQL_ENCRYPTION */
 
 	SyncFileIO	sync_file_io(file, buf, n, offset);
 
@@ -5387,14 +5601,15 @@ os_file_io(
 					compressed_page, original_n,
 					static_cast<ulint>(offset), n);
 
-				if (ptr != NULL) {
-					ut_free(ptr);
-				}
-
 			} else {
 
 				*err = DB_SUCCESS;
 			}
+#ifdef MYSQL_COMPRESSION
+			if (block != NULL) {
+				os_free_block(block);
+			}
+#endif
 
 			return(original_n);
 		}
@@ -5422,9 +5637,11 @@ os_file_io(
 		sync_file_io.advance(n_bytes);
 	}
 
-	if (ptr != NULL) {
-		ut_free(ptr);
+#ifdef MYSQL_COMPRESSION
+	if (block != NULL) {
+		os_free_block(block);
 	}
+#endif
 
 	*err = DB_IO_ERROR;
 
@@ -5446,7 +5663,7 @@ os_file_io(
 @param[in]	offset		file offset from the start where to read
 @param[out]	err		DB_SUCCESS or error code
 @return number of bytes written, -1 if error */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 ssize_t
 os_file_pwrite(
 	IORequest&	type,
@@ -5478,7 +5695,7 @@ os_file_pwrite(
 @param[in]	offset		file offset from the start where to read
 @param[in]	n		number of bytes to read, starting from offset
 @return DB_SUCCESS if request was successful, false if fail */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 os_file_write_page(
 	IORequest&	type,
@@ -5490,8 +5707,9 @@ os_file_write_page(
 {
 	dberr_t		err;
 
-	os_file_check_args(type, offset, n);
-
+	ut_ad(type.validate());
+	ut_ad(n > 0);
+	
 	ssize_t	n_bytes = os_file_pwrite(type, file, buf, n, offset, &err);
 
 	if ((ulint) n_bytes != n && !os_has_said_disk_full) {
@@ -5530,7 +5748,7 @@ os_file_write_page(
 @param[in]	n		number of bytes to read, starting from offset
 @param[out]	err		DB_SUCCESS or error code
 @return number of bytes read, -1 if error */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 ssize_t
 os_file_pread(
 	IORequest&	type,
@@ -5563,7 +5781,7 @@ os_file_pread(
 @param[out]	o		number of bytes actually read
 @param[in]	exit_on_err	if true then exit on error
 @return DB_SUCCESS or error code */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 os_file_read_page(
 	IORequest&	type,
@@ -5578,7 +5796,8 @@ os_file_read_page(
 
 	os_bytes_read_since_printout += n;
 
-	os_file_check_args(type, offset, n);
+	ut_ad(type.validate());
+	ut_ad(n > 0);
 
 	for (;;) {
 		ssize_t	n_bytes;
@@ -5595,6 +5814,7 @@ os_file_read_page(
 
 		} else if ((ulint) n_bytes == n) {
 
+#ifdef MYSQL_COMPRESSION
 			/** The read will succeed but decompress can fail
 			for various reasons. */
 
@@ -5607,11 +5827,14 @@ os_file_read_page(
 			} else {
 				return(err);
 			}
+#else
+			return(DB_SUCCESS);
+#endif /* MYSQL_COMPRESSION */
 		}
 
-		ib::error()
-			<< "Tried to read " << n << " bytes at offset "
-			<< offset << " was only able to read" << n_bytes;
+		ib::error() << "Tried to read " << n
+			<< " bytes at offset " << offset
+			<< ", but was only able to read " << n_bytes;
 
 		if (exit_on_err) {
 
@@ -5664,7 +5887,7 @@ and the error type, if should_exit is true then on_error_silent is ignored.
 @param[in]	on_error_silent	if true then don't print any message to the log
 				iff it is an unknown non-fatal error
 @return true if we should retry the operation */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 bool
 os_file_handle_error_cond_exit(
 	const char*	name,
@@ -5785,9 +6008,9 @@ os_file_handle_error_no_exit(
 				message */
 void
 os_file_set_nocache(
-	os_file_t	fd		__attribute__((unused)),
-	const char*	file_name	__attribute__((unused)),
-	const char*	operation_name	__attribute__((unused)))
+	os_file_t	fd		MY_ATTRIBUTE((unused)),
+	const char*	file_name	MY_ATTRIBUTE((unused)),
+	const char*	operation_name	MY_ATTRIBUTE((unused)))
 {
 	/* some versions of Solaris may not have DIRECTIO_ON */
 #if defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)
@@ -6064,6 +6287,13 @@ os_file_punch_hole(
 	os_offset_t	off,
 	os_offset_t	len)
 {
+	/* In this debugging mode, we act as if punch hole is supported,
+	and then skip any calls to actually punch a hole here.
+	In this way, Transparent Page Compression is still being tested. */
+	DBUG_EXECUTE_IF("ignore_punch_hole",
+		return(DB_SUCCESS);
+	);
+
 #ifdef _WIN32
 	return(os_file_punch_hole_win32(fh, off, len));
 #else
@@ -6085,6 +6315,13 @@ Note: On Windows we use the name and on Unices we use the file handle.
 bool
 os_is_sparse_file_supported(const char* path, os_file_t fh)
 {
+	/* In this debugging mode, we act as if punch hole is supported,
+	then we skip any calls to actually punch a hole.  In this way,
+	Transparent Page Compression is still being tested. */
+	DBUG_EXECUTE_IF("ignore_punch_hole",
+		return(true);
+	);
+
 #ifdef _WIN32
 	return(os_is_sparse_file_supported_win32(path));
 #else
@@ -6575,6 +6812,26 @@ os_aio_init(
 	}
 #endif /* _WIN32 */
 
+	ut_a(block_cache == NULL);
+
+	block_cache = UT_NEW_NOKEY(Blocks(MAX_BLOCKS));
+
+	for (Blocks::iterator it = block_cache->begin();
+	     it != block_cache->end();
+	     ++it) {
+
+		ut_a(it->m_in_use == 0);
+		ut_a(it->m_ptr == NULL);
+
+		/* Allocate double of max page size memory, since
+		compress could generate more bytes than orgininal
+		data. */
+		it->m_ptr = static_cast<byte*>(
+			ut_malloc_nokey(BUFFER_BLOCK_SIZE));
+
+		ut_a(it->m_ptr != NULL);
+	}
+
 	return(AIO::start(limit, n_readers, n_writers, n_slots_sync));
 }
 
@@ -6591,6 +6848,18 @@ os_aio_free()
 	ut_free(os_aio_segment_wait_events);
 	os_aio_segment_wait_events = 0;
 	os_aio_n_segments = 0;
+
+	for (Blocks::iterator it = block_cache->begin();
+	     it != block_cache->end();
+	     ++it) {
+
+		ut_a(it->m_in_use == 0);
+		ut_free(it->m_ptr);
+	}
+
+	UT_DELETE(block_cache);
+
+	block_cache = NULL;
 }
 
 /** Wakes up all async i/o threads so that they know to exit themselves in
@@ -6796,70 +7065,78 @@ AIO::reserve_slot(
 	slot->is_log   = type.is_log();
 	slot->original_len = static_cast<uint32>(len);
 	slot->io_already_done = false;
+	slot->buf_block = NULL;
 	slot->buf      = static_cast<byte*>(buf);
 
+#ifdef MYSQL_COMPRESSION
 	if (srv_use_native_aio
 	    && offset > 0
 	    && type.is_write()
 	    && type.is_compressed()) {
+		ulint	compressed_len = len;
 
 		ut_ad(!type.is_log());
 
 		release();
 
-		ulint	compressed_len = len;
+		void* src_buf = slot->buf;
 
-		ulint	old_compressed_len;
-
-		old_compressed_len = mach_read_from_2(
-			slot->buf + FIL_PAGE_COMPRESS_SIZE_V1);
-
-		if (old_compressed_len > 0) {
-			old_compressed_len = ut_calc_align(
-				old_compressed_len + FIL_PAGE_DATA,
-				slot->type.block_size());
-		}
-
-		byte*	ptr;
-
-		ptr = os_file_compress_page(
-			slot->type.compression_algorithm(),
-			slot->type.block_size(),
-			slot->buf,
-			slot->len,
-			slot->compressed_page,
+		slot->buf_block = os_file_compress_page(
+			type,
+			src_buf,
 			&compressed_len);
 
-		if (ptr != buf) {
-			/* Set new compressed size to uncompressed page. */
-			memcpy(slot->buf + FIL_PAGE_COMPRESS_SIZE_V1,
-			       slot->compressed_page
-			       + FIL_PAGE_COMPRESS_SIZE_V1, 2);
+		slot->buf = static_cast<byte*>(src_buf);
+		slot->ptr = slot->buf;
 #ifdef _WIN32
-			slot->len = static_cast<DWORD>(compressed_len);
+		slot->len = static_cast<DWORD>(compressed_len);
 #else
-			slot->len = static_cast<ulint>(compressed_len);
+		slot->len = static_cast<ulint>(compressed_len);
 #endif /* _WIN32 */
-			slot->buf = slot->compressed_page;
-			slot->ptr = slot->buf;
-
-			if (old_compressed_len > 0
-			    && compressed_len >= old_compressed_len) {
-
-				ut_ad(old_compressed_len <= UNIV_PAGE_SIZE);
-
-				slot->skip_punch_hole = true;
-
-			} else {
-				slot->skip_punch_hole = false;
-			}
-
-		} else {
-			slot->skip_punch_hole = false;
-		}
+		slot->skip_punch_hole = type.punch_hole();
 
 		acquire();
 	}
+#endif /* MYSQL_COMPRESSION */
+
+#ifdef MYSQL_ENCRYPTION
+	/* We do encryption after compression, since if we do encryption
+	before compression, the encrypted data will cause compression fail
+	or low compression rate. */
+	if (srv_use_native_aio
+	    && offset > 0
+	    && type.is_write()
+	    && type.is_encrypted()) {
+		ulint		encrypted_len = slot->len;
+		Block*		encrypted_block;
+
+		ut_ad(!type.is_log());
+
+		release();
+
+		void* src_buf = slot->buf;
+		encrypted_block = os_file_encrypt_page(
+			type,
+			src_buf,
+			&encrypted_len);
+
+		if (slot->buf_block != NULL) {
+			os_free_block(slot->buf_block);
+		}
+
+		slot->buf_block = encrypted_block;
+		slot->buf = static_cast<byte*>(src_buf);
+		slot->ptr = slot->buf;
+
+#ifdef _WIN32
+		slot->len = static_cast<DWORD>(encrypted_len);
+#else
+		slot->len = static_cast<ulint>(encrypted_len);
+#endif /* _WIN32 */
+
+		acquire();
+        }
+#endif /* MYSQL_ENCRYPTION */
 
 #ifdef WIN_ASYNC_IO
 	{
@@ -7501,7 +7778,7 @@ public:
 	all data, and perform the I/O
 	@return the length of the buffer */
 	ulint allocate_buffer()
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		ulint	len;
 		Slot*	slot = first_slot();
@@ -7591,7 +7868,7 @@ public:
 
 	/** @return the first slot in the consecutive array */
 	Slot* first_slot()
-		__attribute__((warn_unused_result))
+		MY_ATTRIBUTE((warn_unused_result))
 	{
 		ut_a(m_n_elems > 0);
 
@@ -7605,7 +7882,7 @@ public:
 	ulint check_pending(
 		ulint		global_segment,
 		os_event_t	event)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 private:
 
 	/** Do the file read
@@ -8095,7 +8372,7 @@ os_aio_print(FILE*	file)
 
 	for (ulint i = 0; i < srv_n_file_io_threads; ++i) {
 		fprintf(file, "I/O thread %lu state: %s (%s)",
-			(ulong) i,
+			(ulint) i,
 			srv_io_thread_op_info[i],
 			srv_io_thread_function[i]);
 
@@ -8119,17 +8396,17 @@ os_aio_print(FILE*	file)
 	fprintf(file,
 		"Pending flushes (fsync) log: %lu; buffer pool: %lu\n"
 		"%lu OS file reads, %lu OS file writes, %lu OS fsyncs\n",
-		(ulong) fil_n_pending_log_flushes,
-		(ulong) fil_n_pending_tablespace_flushes,
-		(ulong) os_n_file_reads,
-		(ulong) os_n_file_writes,
-		(ulong) os_n_fsyncs);
+		(ulint) fil_n_pending_log_flushes,
+		(ulint) fil_n_pending_tablespace_flushes,
+		(ulint) os_n_file_reads,
+		(ulint) os_n_file_writes,
+		(ulint) os_n_fsyncs);
 
 	if (os_n_pending_writes != 0 || os_n_pending_reads != 0) {
 		fprintf(file,
 			"%lu pending preads, %lu pending pwrites\n",
 			(ulint) os_n_pending_reads,
-			(ulong) os_n_pending_writes);
+			(ulint) os_n_pending_writes);
 	}
 
 	if (os_n_file_reads == os_n_file_reads_old) {
@@ -8144,7 +8421,7 @@ os_aio_print(FILE*	file)
 		" %.2f writes/s, %.2f fsyncs/s\n",
 		(os_n_file_reads - os_n_file_reads_old)
 		/ time_elapsed,
-		(ulong) avg_bytes_read,
+		(ulint) avg_bytes_read,
 		(os_n_file_writes - os_n_file_writes_old)
 		/ time_elapsed,
 		(os_n_fsyncs - os_n_fsyncs_old)
@@ -8276,8 +8553,37 @@ os_file_set_umask(ulint umask)
 #endif
 
 #include <zlib.h>
+#ifndef UNIV_INNOCHECKSUM
+#include <my_aes.h>
+#include <my_rnd.h>
+#include <mysqld.h>
+#include <mysql/service_mysql_keyring.h>
+#endif
 
+typedef byte	Block;
+
+#ifdef MYSQL_COMPRESSION
+/** Allocate a page for sync IO
+@return pointer to page */
+static
+Block*
+os_alloc_block()
+{
+	return(reinterpret_cast<byte*>(malloc(UNIV_PAGE_SIZE_MAX * 2)));
+}
+
+/** Free a page after sync IO
+@param[in,own]	block		The block to free/release */
+static
+void
+os_free_block(Block* block)
+{
+	ut_free(block);
+}
+#endif
 #endif /* !UNIV_INNOCHECKSUM */
+
+#ifdef MYSQL_COMPRESSION
 
 /**
 @param[in]      type            The compression type
@@ -8388,32 +8694,24 @@ Compression::deserialize(
 		return(DB_CORRUPTION);
 	}
 
-	// FIXME: We should use TLS for this and reduce the malloc/free
-	bool	allocated;
+	Block*	block;
 
 	/* The caller doesn't know what to expect */
 	if (dst == NULL) {
 
-		/* Add a safety margin of an additional 50% */
-		ulint	n_bytes = header.m_original_size
-				+ (header.m_original_size / 2);
+		block = os_alloc_block();
 
-#ifndef UNIV_INNOCHECKSUM
-		dst = reinterpret_cast<byte*>(ut_malloc_nokey(n_bytes));
+#ifdef UNIV_INNOCHECKSUM
+		dst = block;
 #else
-		dst = reinterpret_cast<byte*>(malloc(n_bytes));
-#endif /* !UNIV_INNOCHECKSUM */
+		dst = block->m_ptr;
+#endif /* UNIV_INNOCHECKSUM */
 
-		if (dst == NULL) {
-
-			return(DB_OUT_OF_MEMORY);
-		}
-
-		allocated = true;
 	} else {
-		allocated = false;
+		block = NULL;
 	}
 
+	int		ret;
 	Compression	compression;
 	ulint		len = header.m_original_size;
 
@@ -8427,8 +8725,8 @@ Compression::deserialize(
 		if (uncompress(dst, &zlen, ptr, header.m_compressed_size)
 		    != Z_OK) {
 
-			if (allocated) {
-				ut_free(dst);
+			if (block != NULL) {
+				os_free_block(block);
 			}
 
 			return(DB_IO_DECOMPRESS_FAIL);
@@ -8467,8 +8765,8 @@ Compression::deserialize(
 
 		if (ret < 0) {
 
-			if (allocated) {
-				ut_free(dst);
+			if (block != NULL) {
+				os_free_block(block);
 			}
 
 			return(DB_IO_DECOMPRESS_FAIL);
@@ -8487,8 +8785,8 @@ Compression::deserialize(
 			Compression::to_string(compression.m_type));
 #endif /* !UNIV_INNOCHECKSUM */
 
-		if (allocated) {
-			ut_free(dst);
+		if (block != NULL) {
+			os_free_block(block);
 		}
 
 		return(DB_UNSUPPORTED);
@@ -8503,9 +8801,10 @@ Compression::deserialize(
 			src + (header.m_original_size + FIL_PAGE_DATA)
 			- FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4) == 0);
 
-	if (allocated) {
-		ut_free(dst);
+	if (block != NULL) {
+		os_free_block(block);
 	}
+
 	return(DB_SUCCESS);
 }
 
@@ -8526,6 +8825,635 @@ os_file_decompress_page(
 {
 	return(Compression::deserialize(dblwr_recover, src, dst, dst_len));
 }
+#endif /* MYSQL_COMPRESSION */
+
+#ifdef MYSQL_ENCRYPTION
+
+/**
+@param[in]      type            The encryption type
+@return the string representation */
+const char*
+Encryption::to_string(Type type)
+{
+        switch(type) {
+        case NONE:
+                return("N");
+        case AES:
+                return("Y");
+        }
+
+        ut_ad(0);
+
+        return("<UNKNOWN>");
+}
+
+/** Generate random encryption value for key and iv.
+@param[in,out]	value	Encryption value */
+void Encryption::random_value(byte* value)
+{
+	ut_ad(value != NULL);
+
+	my_rand_buffer(value, ENCRYPTION_KEY_LEN);
+}
+
+/** Create new master key for key rotation.
+@param[in,out]	master_key	master key */
+void
+Encryption::create_master_key(byte** master_key)
+{
+#ifndef UNIV_INNOCHECKSUM
+	char*	key_type = NULL;
+	size_t	key_len;
+	char	key_name[ENCRYPTION_MASTER_KEY_NAME_MAX_LEN];
+	int	ret;
+
+	/* If uuid does not match with current server uuid,
+	set uuid as current server uuid. */
+	if (strcmp(uuid, server_uuid) != 0) {
+		memcpy(uuid, server_uuid, ENCRYPTION_SERVER_UUID_LEN);
+	}
+	memset(key_name, 0, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN);
+
+	/* Generate new master key */
+	ut_snprintf(key_name, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN,
+		    "%s-%s-%lu", ENCRYPTION_MASTER_KEY_PRIFIX,
+		    uuid, master_key_id + 1);
+
+	/* We call key ring API to generate master key here. */
+	ret = my_key_generate(key_name, "AES",
+			      NULL, ENCRYPTION_KEY_LEN);
+
+	/* We call key ring API to get master key here. */
+	ret = my_key_fetch(key_name, &key_type, NULL,
+			   reinterpret_cast<void**>(master_key),
+			   &key_len);
+
+	if (ret || *master_key == NULL) {
+		ib::error() << "Encryption can't find master key, please check"
+				" the keyring plugin is loaded.";
+		*master_key = NULL;
+	} else {
+		master_key_id++;
+	}
+
+	if (key_type) {
+		my_free(key_type);
+	}
+#endif
+}
+
+/** Get master key by key id.
+@param[in]	master_key_id	master key id
+@param[in]	srv_uuid	uuid of server instance
+@param[in,out]	master_key	master key */
+void
+Encryption::get_master_key(ulint master_key_id,
+			   char* srv_uuid,
+			   byte** master_key)
+{
+#ifndef UNIV_INNOCHECKSUM
+	char*	key_type = NULL;
+	size_t	key_len;
+	char	key_name[ENCRYPTION_MASTER_KEY_NAME_MAX_LEN];
+	int	ret;
+
+	memset(key_name, 0, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN);
+
+	if (srv_uuid != NULL) {
+		ut_snprintf(key_name, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN,
+			    "%s-%s-%lu", ENCRYPTION_MASTER_KEY_PRIFIX,
+			    srv_uuid, master_key_id);
+	} else {
+		/* For compitable with 5.7.11, we need to get master key with
+		server id. */
+		memset(key_name, 0, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN);
+		ut_snprintf(key_name, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN,
+			    "%s-%lu-%lu", ENCRYPTION_MASTER_KEY_PRIFIX,
+			    server_id, master_key_id);
+	}
+
+	/* We call key ring API to get master key here. */
+	ret = my_key_fetch(key_name, &key_type, NULL,
+			   reinterpret_cast<void**>(master_key), &key_len);
+
+	if (key_type) {
+		my_free(key_type);
+	}
+
+	if (ret) {
+		*master_key = NULL;
+		ib::error() << "Encryption can't find master key, please check"
+				" the keyring plugin is loaded.";
+	}
+
+#ifdef UNIV_ENCRYPT_DEBUG
+	if (!ret && *master_key) {
+		fprintf(stderr, "Fetched master key:%lu ", master_key_id);
+		ut_print_buf(stderr, *master_key, key_len);
+		fprintf(stderr, "\n");
+	}
+#endif /* DEBUG_TDE */
+
+#endif
+}
+
+/** Current master key id */
+ulint	Encryption::master_key_id = 0;
+
+/** Current uuid of server instance */
+char	Encryption::uuid[ENCRYPTION_SERVER_UUID_LEN + 1] = {0};
+
+/** Get current master key and master key id
+@param[in,out]	master_key_id	master key id
+@param[in,out]	master_key	master key
+@param[in,out]	version		encryption information version */
+void
+Encryption::get_master_key(ulint* master_key_id,
+			   byte** master_key,
+			   Encryption::Version*  version)
+{
+#ifndef UNIV_INNOCHECKSUM
+	char*	key_type = NULL;
+	size_t	key_len;
+	char	key_name[ENCRYPTION_MASTER_KEY_NAME_MAX_LEN];
+	int	ret;
+
+	memset(key_name, 0, ENCRYPTION_KEY_LEN);
+	*version = Encryption::ENCRYPTION_VERSION_2;
+
+	if (Encryption::master_key_id == 0) {
+		/* If m_master_key is 0, means there's no encrypted
+		tablespace, we need to generate the first master key,
+		and store it to key ring. */
+		memset(uuid, 0, ENCRYPTION_SERVER_UUID_LEN + 1);
+		memcpy(uuid, server_uuid, ENCRYPTION_SERVER_UUID_LEN);
+
+		/* Prepare the server uuid. */
+		ut_snprintf(key_name, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN,
+			    "%s-%s-1", ENCRYPTION_MASTER_KEY_PRIFIX,
+			    uuid);
+
+		/* We call key ring API to generate master key here. */
+		ret = my_key_generate(key_name, "AES",
+				      NULL, ENCRYPTION_KEY_LEN);
+
+		/* We call key ring API to get master key here. */
+		ret = my_key_fetch(key_name, &key_type, NULL,
+				   reinterpret_cast<void**>(master_key),
+				   &key_len);
+
+		if (!ret && *master_key != NULL) {
+			Encryption::master_key_id++;
+			*master_key_id = Encryption::master_key_id;
+		}
+#ifdef UNIV_ENCRYPT_DEBUG
+		if (!ret && *master_key) {
+			fprintf(stderr, "Generated new master key:");
+			ut_print_buf(stderr, *master_key, key_len);
+			fprintf(stderr, "\n");
+		}
+#endif
+	} else {
+		*master_key_id = Encryption::master_key_id;
+
+		ut_snprintf(key_name, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN,
+			    "%s-%s-%lu", ENCRYPTION_MASTER_KEY_PRIFIX,
+			    uuid, *master_key_id);
+
+		/* We call key ring API to get master key here. */
+		ret = my_key_fetch(key_name, &key_type, NULL,
+				   reinterpret_cast<void**>(master_key),
+				   &key_len);
+
+		/* For compitable with 5.7.11, we need to try to get master key with
+		server id when get master key with server uuid failure. */
+		if (ret || *master_key == NULL) {
+			if (key_type) {
+				my_free(key_type);
+			}
+
+			memset(key_name, 0,
+			       ENCRYPTION_MASTER_KEY_NAME_MAX_LEN);
+			ut_snprintf(key_name, ENCRYPTION_MASTER_KEY_NAME_MAX_LEN,
+				    "%s-%lu-%lu", ENCRYPTION_MASTER_KEY_PRIFIX,
+				    server_id, *master_key_id);
+
+			ret = my_key_fetch(key_name, &key_type, NULL,
+					   reinterpret_cast<void**>(master_key),
+					   &key_len);
+			*version = Encryption::ENCRYPTION_VERSION_1;
+		}
+#ifdef UNIV_ENCRYPT_DEBUG
+		if (!ret && *master_key) {
+			fprintf(stderr, "Fetched master key:%lu ",
+				*master_key_id);
+			ut_print_buf(stderr, *master_key, key_len);
+			fprintf(stderr, "\n");
+		}
+#endif
+	}
+
+	if (ret) {
+		*master_key = NULL;
+		ib::error() << "Encryption can't find master key, please check"
+				" the keyring plugin is loaded.";
+	}
+
+	if (key_type) {
+		my_free(key_type);
+	}
+#endif
+}
+
+/** Check if page is encrypted page or not
+@param[in]	page	page which need to check
+@return true if it is a encrypted page */
+bool
+Encryption::is_encrypted_page(const byte* page)
+{
+	ulint	page_type = mach_read_from_2(page + FIL_PAGE_TYPE);
+
+	return(page_type == FIL_PAGE_ENCRYPTED
+	       || page_type == FIL_PAGE_COMPRESSED_AND_ENCRYPTED
+	       || page_type == FIL_PAGE_ENCRYPTED_RTREE);
+}
+
+/** Encrypt the page data contents. Page type can't be
+FIL_PAGE_ENCRYPTED, FIL_PAGE_COMPRESSED_AND_ENCRYPTED,
+FIL_PAGE_ENCRYPTED_RTREE.
+@param[in]	type		IORequest
+@param[in,out]	src		page data which need to encrypt
+@param[in]	src_len		Size of the source in bytes
+@param[in,out]	dst		destination area
+@param[in,out]	dst_len		Size of the destination in bytes
+@return buffer data, dst_len will have the length of the data */
+byte*
+Encryption::encrypt(
+	const IORequest&	type,
+	byte*			src,
+	ulint			src_len,
+	byte*			dst,
+	ulint*			dst_len)
+{
+	ulint		len = 0;
+	ulint		page_type = mach_read_from_2(src + FIL_PAGE_TYPE);
+	ulint		data_len;
+	ulint		main_len;
+	ulint		remain_len;
+	byte		remain_buf[MY_AES_BLOCK_SIZE * 2];
+
+#ifdef UNIV_ENCRYPT_DEBUG
+	ulint space_id =
+		mach_read_from_4(src + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	ulint page_no = mach_read_from_4(src + FIL_PAGE_OFFSET);
+
+	fprintf(stderr, "Encrypting page:%lu.%lu len:%lu\n",
+		space_id, page_no, src_len);
+#endif
+
+	/* Shouldn't encrypte an already encrypted page. */
+	ut_ad(page_type != FIL_PAGE_ENCRYPTED
+	      && page_type != FIL_PAGE_COMPRESSED_AND_ENCRYPTED
+	      && page_type != FIL_PAGE_ENCRYPTED_RTREE);
+
+	ut_ad(m_type != Encryption::NONE);
+
+	/* This is data size which need to encrypt. */
+	data_len = src_len - FIL_PAGE_DATA;
+	main_len = (data_len / MY_AES_BLOCK_SIZE) * MY_AES_BLOCK_SIZE;
+	remain_len = data_len - main_len;
+
+	/* Only encrypt the data + trailer, leave the header alone */
+
+	switch (m_type) {
+	case Encryption::NONE:
+		ut_error;
+
+	case Encryption::AES: {
+		lint			elen;
+
+		ut_ad(m_klen == ENCRYPTION_KEY_LEN);
+
+		elen = my_aes_encrypt(
+			src + FIL_PAGE_DATA,
+			static_cast<uint32>(main_len),
+			dst + FIL_PAGE_DATA,
+			reinterpret_cast<unsigned char*>(m_key),
+			static_cast<uint32>(m_klen),
+			my_aes_256_cbc,
+			reinterpret_cast<unsigned char*>(m_iv),
+			false);
+
+		if (elen == MY_AES_BAD_DATA) {
+			ulint	page_no =mach_read_from_4(
+				src + FIL_PAGE_OFFSET);
+			ulint	space_id = mach_read_from_4(
+				src + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+			*dst_len = src_len;
+#ifndef UNIV_INNOCHECKSUM
+				ib::warn()
+					<< " Can't encrypt data of page,"
+					<< " page no:" << page_no
+					<< " space id:" << space_id;
+#else
+				fprintf(stderr, " Can't encrypt data of page,"
+					" page no:" ULINTPF
+					" space id:" ULINTPF,
+					page_no, space_id);
+#endif /* !UNIV_INNOCHECKSUM */
+			return(src);
+		}
+
+		len = static_cast<ulint>(elen);
+		ut_ad(len == main_len);
+
+		/* Copy remain bytes and page tailer. */
+		memcpy(dst + FIL_PAGE_DATA + len,
+		       src + FIL_PAGE_DATA + len,
+		       src_len - FIL_PAGE_DATA - len);
+
+		/* Encrypt the remain bytes. */
+		if (remain_len != 0) {
+			remain_len = MY_AES_BLOCK_SIZE * 2;
+
+			elen = my_aes_encrypt(
+				dst + FIL_PAGE_DATA + data_len - remain_len,
+				static_cast<uint32>(remain_len),
+				remain_buf,
+				reinterpret_cast<unsigned char*>(m_key),
+				static_cast<uint32>(m_klen),
+				my_aes_256_cbc,
+				reinterpret_cast<unsigned char*>(m_iv),
+				false);
+
+			if (elen == MY_AES_BAD_DATA) {
+				ulint	page_no =mach_read_from_4(
+					src + FIL_PAGE_OFFSET);
+				ulint	space_id = mach_read_from_4(
+					src + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+#ifndef UNIV_INNOCHECKSUM
+				ib::warn()
+					<< " Can't encrypt data of page,"
+					<< " page no:" << page_no
+					<< " space id:" << space_id;
+#else
+				fprintf(stderr, " Can't encrypt data of page,"
+					" page no:" ULINTPF
+					" space id:" ULINTPF,
+					page_no, space_id);
+#endif /* !UNIV_INNOCHECKSUM */
+				*dst_len = src_len;
+				return(src);
+			}
+
+			memcpy(dst + FIL_PAGE_DATA + data_len - remain_len,
+			       remain_buf, remain_len);
+		}
+
+
+		break;
+	}
+
+	default:
+		ut_error;
+	}
+
+	/* Copy the header as is. */
+	memmove(dst, src, FIL_PAGE_DATA);
+	ut_ad(memcmp(src, dst, FIL_PAGE_DATA) == 0);
+
+	/* Add encryption control information. Required for decrypting. */
+	if (page_type == FIL_PAGE_COMPRESSED) {
+		/* If the page is compressed, we don't need to save the
+		original type, since it is done in compression already. */
+		mach_write_to_2(dst + FIL_PAGE_TYPE,
+				FIL_PAGE_COMPRESSED_AND_ENCRYPTED);
+		ut_ad(memcmp(src+FIL_PAGE_TYPE+2,
+			     dst+FIL_PAGE_TYPE+2,
+			     FIL_PAGE_DATA-FIL_PAGE_TYPE-2) == 0);
+	} else if (page_type == FIL_PAGE_RTREE) {
+		/* If the page is R-tree page, we need to save original
+		type. */
+		mach_write_to_2(dst + FIL_PAGE_TYPE, FIL_PAGE_ENCRYPTED_RTREE);
+	} else{
+		mach_write_to_2(dst + FIL_PAGE_TYPE, FIL_PAGE_ENCRYPTED);
+		mach_write_to_2(dst + FIL_PAGE_ORIGINAL_TYPE_V1, page_type);
+	}
+
+#ifdef UNIV_ENCRYPT_DEBUG
+#ifndef UNIV_INNOCHECKSUM
+#if 0
+	byte*	check_buf = static_cast<byte*>(ut_malloc_nokey(src_len));
+	byte*	buf2 = static_cast<byte*>(ut_malloc_nokey(src_len));
+
+	memcpy(check_buf, dst, src_len);
+
+	dberr_t err = decrypt(type, check_buf, src_len, buf2, src_len);
+	if (err != DB_SUCCESS || memcmp(src + FIL_PAGE_DATA,
+					check_buf + FIL_PAGE_DATA,
+					src_len - FIL_PAGE_DATA) != 0) {
+		ut_print_buf(stderr, src, src_len);
+		ut_print_buf(stderr, check_buf, src_len);
+		ut_ad(0);
+	}
+	ut_free(buf2);
+	ut_free(check_buf);
+#endif
+	fprintf(stderr, "Encrypted page:%lu.%lu\n", space_id, page_no);
+#endif
+#endif
+	*dst_len = src_len;
+
+
+	return(dst);
+}
+
+/** Decrypt the page data contents. Page type must be FIL_PAGE_ENCRYPTED,
+if not then the source contents are left unchanged and DB_SUCCESS is returned.
+@param[in]	type		IORequest
+@param[in,out]	src		Data read from disk, decrypted data will be
+				copied to this page
+@param[in]	src_len		source data length
+@param[in,out]	dst		Scratch area to use for decryption
+@param[in]	dst_len		Size of the scratch area in bytes
+@return DB_SUCCESS or error code */
+dberr_t
+Encryption::decrypt(
+	const IORequest&	type,
+	byte*			src,
+	ulint			src_len,
+	byte*			dst,
+	ulint			dst_len)
+{
+	ulint		data_len;
+	ulint		main_len;
+	ulint		remain_len;
+	ulint		original_type;
+	ulint		page_type;
+	byte		remain_buf[MY_AES_BLOCK_SIZE * 2];
+	Block*		block;
+
+	/* Do nothing if it's not an encrypted table. */
+	if (!is_encrypted_page(src)) {
+		return(DB_SUCCESS);
+	}
+
+	/* For compressed page, we need to get the compressed size
+	for decryption */
+	page_type = mach_read_from_2(src + FIL_PAGE_TYPE);
+	if (page_type == FIL_PAGE_COMPRESSED_AND_ENCRYPTED) {
+		src_len = static_cast<uint16_t>(
+			mach_read_from_2(src + FIL_PAGE_COMPRESS_SIZE_V1))
+			+ FIL_PAGE_DATA;
+#ifndef UNIV_INNOCHECKSUM
+		src_len = ut_calc_align(src_len, type.block_size());
+#endif
+	}
+#ifdef UNIV_ENCRYPT_DEBUG
+	ulint space_id =
+		mach_read_from_4(src + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	ulint page_no = mach_read_from_4(src + FIL_PAGE_OFFSET);
+
+	fprintf(stderr, "Decrypting page:%lu.%lu len:%lu\n",
+		space_id, page_no, src_len);
+#endif
+
+	original_type = static_cast<uint16_t>(
+		mach_read_from_2(src + FIL_PAGE_ORIGINAL_TYPE_V1));
+
+	byte*	ptr = src + FIL_PAGE_DATA;
+
+	/* The caller doesn't know what to expect */
+	if (dst == NULL) {
+
+		block = os_alloc_block();
+#ifdef UNIV_INNOCHECKSUM
+		dst = block;
+#else
+		dst = block->m_ptr;
+#endif /* UNIV_INNOCHECKSUM */
+
+	} else {
+		block = NULL;
+	}
+
+	data_len = src_len - FIL_PAGE_DATA;
+	main_len = (data_len / MY_AES_BLOCK_SIZE) * MY_AES_BLOCK_SIZE;
+	remain_len = data_len - main_len;
+
+	switch(m_type) {
+	case Encryption::AES: {
+		lint			elen;
+
+		/* First decrypt the last 2 blocks data of data, since
+		data is no block aligned. */
+		if (remain_len != 0) {
+			ut_ad(m_klen == ENCRYPTION_KEY_LEN);
+
+			remain_len = MY_AES_BLOCK_SIZE * 2;
+
+			/* Copy the last 2 blocks. */
+			memcpy(remain_buf,
+			       ptr + data_len - remain_len,
+			       remain_len);
+
+			elen = my_aes_decrypt(
+				remain_buf,
+				static_cast<uint32>(remain_len),
+				dst + data_len - remain_len,
+				reinterpret_cast<unsigned char*>(m_key),
+				static_cast<uint32>(m_klen),
+				my_aes_256_cbc,
+				reinterpret_cast<unsigned char*>(m_iv),
+				false);
+			if (elen == MY_AES_BAD_DATA) {
+				if (block != NULL) {
+					os_free_block(block);
+				}
+
+				return(DB_IO_DECRYPT_FAIL);
+			}
+
+			/* Copy the other data bytes to temp area. */
+			memcpy(dst, ptr, data_len - remain_len);
+		} else {
+			ut_ad(data_len == main_len);
+
+			/* Copy the data bytes to temp area. */
+			memcpy(dst, ptr, data_len);
+		}
+
+		/* Then decrypt the main data */
+		elen = my_aes_decrypt(
+				dst,
+				static_cast<uint32>(main_len),
+				ptr,
+				reinterpret_cast<unsigned char*>(m_key),
+				static_cast<uint32>(m_klen),
+				my_aes_256_cbc,
+				reinterpret_cast<unsigned char*>(m_iv),
+				false);
+		if (elen == MY_AES_BAD_DATA) {
+
+			if (block != NULL) {
+				os_free_block(block);
+			}
+
+			return(DB_IO_DECRYPT_FAIL);
+		}
+
+		ut_ad(static_cast<ulint>(elen) == main_len);
+
+		/* Copy the remain bytes. */
+		memcpy(ptr + main_len, dst + main_len, data_len - main_len);
+
+		break;
+	}
+
+	default:
+#if !defined(UNIV_INNOCHECKSUM)
+		ib::error()
+			<< "Encryption algorithm support missing: "
+			<< Encryption::to_string(m_type);
+#else
+		fprintf(stderr, "Encryption algorithm support missing: %s\n",
+			Encryption::to_string(m_type));
+#endif /* !UNIV_INNOCHECKSUM */
+
+		if (block != NULL) {
+			os_free_block(block);
+		}
+
+		return(DB_UNSUPPORTED);
+	}
+
+	/* Restore the original page type. If it's a compressed and
+	encrypted page, just reset it as compressed page type, since
+	we will do uncompress later. */
+
+	if (page_type == FIL_PAGE_ENCRYPTED) {
+		mach_write_to_2(src + FIL_PAGE_TYPE, original_type);
+		mach_write_to_2(src + FIL_PAGE_ORIGINAL_TYPE_V1, 0);
+	} else if (page_type == FIL_PAGE_ENCRYPTED_RTREE) {
+		mach_write_to_2(src + FIL_PAGE_TYPE, FIL_PAGE_RTREE);
+	} else {
+		ut_ad(page_type == FIL_PAGE_COMPRESSED_AND_ENCRYPTED);
+		mach_write_to_2(src + FIL_PAGE_TYPE, FIL_PAGE_COMPRESSED);
+	}
+
+	if (block != NULL) {
+		os_free_block(block);
+	}
+
+#ifdef UNIV_ENCRYPT_DEBUG
+	fprintf(stderr, "Decrypted page:%lu.%lu\n", space_id, page_no);
+#endif
+
+	DBUG_EXECUTE_IF("ib_crash_during_decrypt_page", DBUG_SUICIDE(););
+
+	return(DB_SUCCESS);
+}
+#endif /* MYSQL_ENCRYPTION */
 
 /** Normalizes a directory path for the current OS:
 On Windows, we convert '/' to '\', else we convert '\' to '/'.

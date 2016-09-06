@@ -125,7 +125,7 @@ dict_table_open_on_id(
 	table_id_t	table_id,	/*!< in: table id */
 	ibool		dict_locked,	/*!< in: TRUE=data dictionary locked */
 	dict_table_op_t	table_op)	/*!< in: operation to perform */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /**********************************************************************//**
 Returns a table object based on table id.
@@ -309,7 +309,7 @@ ulint
 dict_col_get_index_pos(
 	const dict_col_t*	col,
 	const dict_index_t*	index)
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /****************************************************************//**
 If the given column name is reserved for InnoDB system columns, return
@@ -389,7 +389,7 @@ dict_table_add_system_columns(
 void
 dict_table_set_big_rows(
 	dict_table_t*	table)
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Adds a table object to the dictionary cache. */
 void
@@ -531,7 +531,7 @@ dict_create_foreign_constraints(
 	size_t			sql_length,
 	const char*		name,
 	ibool			reject_fks)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************************//**
 Parses the CONSTRAINT id's to be dropped in an ALTER TABLE statement.
 @return DB_SUCCESS or DB_CANNOT_DROP_CONSTRAINT if syntax error or the
@@ -565,7 +565,7 @@ dict_table_open_on_name(
 	ibool			dict_locked,
 	ibool			try_drop,
 	dict_err_ignore_t	ignore_err)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
 Tries to find an index whose first fields are the columns in the array,
@@ -598,7 +598,7 @@ dict_foreign_find_index(
 					/*!< out: column number where
 					error happened */
 	dict_index_t**		err_index)
-			                /*!< out: index where error
+					/*!< out: index where error
 					happened */
 
 	MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
@@ -624,7 +624,7 @@ dict_table_get_col_name_for_mysql(
 	const dict_table_t*	table,	/*!< in: table */
 	const char*		col_name)/*!< in: MySQL table column name */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-	
+
 /** Returns a virtual column's name.
 @param[in]	table		table object
 @param[in]	col_nr		virtual column number(nth virtual column)
@@ -634,7 +634,8 @@ dict_table_get_v_col_name(
 	const dict_table_t*	table,
 	ulint			col_nr);
 
-/**********************************************************************//**
+/** Check if the table has a given column.
+@param[in]	table		table object
 @param[in]	col_name	column name
 @param[in]	col_nr		column number guessed, 0 as default
 @return column number if the table has the specified column,
@@ -656,6 +657,7 @@ dict_print_info_on_foreign_keys(
 				of SHOW TABLE STATUS */
 	trx_t*		trx,	/*!< in: transaction */
 	dict_table_t*	table);	/*!< in: table */
+
 /**********************************************************************//**
 Outputs info on a foreign key of a table in a format suitable for
 CREATE TABLE. */
@@ -665,6 +667,7 @@ dict_print_info_on_foreign_key_in_create_format(
 	trx_t*		trx,		/*!< in: transaction */
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
 	ibool		add_newline);	/*!< in: whether to add a newline */
+
 /*********************************************************************//**
 Tries to find an index whose first fields are the columns in the array,
 in the same order and is not marked for deletion and is not the same
@@ -756,7 +759,7 @@ ulint
 dict_index_is_clust(
 /*================*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Check if index is auto-generated clustered index.
 @param[in]	index	index
@@ -775,7 +778,7 @@ ulint
 dict_index_is_unique(
 /*=================*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Check whether the index is a Spatial Index.
 @return	nonzero for Spatial Index, zero for other indexes */
@@ -784,7 +787,7 @@ ulint
 dict_index_is_spatial(
 /*==================*/
 	const dict_index_t*	index)	/*!< in: index */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /** Check whether the index contains a virtual column.
 @param[in]	index	index
 @return	nonzero for index on virtual column, zero for other indexes */
@@ -800,7 +803,7 @@ ulint
 dict_index_is_ibuf(
 /*===============*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Check whether the index is a secondary index or the insert buffer tree.
 @return nonzero for insert buffer, zero for other indexes */
@@ -809,7 +812,7 @@ ulint
 dict_index_is_sec_or_ibuf(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Get all the FTS indexes on a table.
 @param[in]	table	table
@@ -830,7 +833,7 @@ ulint
 dict_table_get_n_user_cols(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /** Gets the number of user-defined virtual and non-virtual columns in a table
 in the dictionary cache.
 @param[in]	table	table
@@ -849,7 +852,7 @@ ulint
 dict_table_get_n_sys_cols(
 /*======================*/
 	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.
@@ -859,7 +862,7 @@ ulint
 dict_table_get_n_cols(
 /*==================*/
 	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Gets the number of virtual columns in a table in the dictionary cache.
 @param[in]	table	the table to check
@@ -885,7 +888,7 @@ ib_uint64_t
 dict_table_get_n_rows(
 /*==================*/
 	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Increment the number of rows in the table by one.
 Notice that this operation is not protected by any latch, the number is
@@ -1005,6 +1008,7 @@ dict_tf_get_format(
 /*===============*/
 	ulint		flags)		/*!< in: dict_table_t::flags */
 	MY_ATTRIBUTE((warn_unused_result));
+
 /** Set the various values in a dict_table_t::flags pointer.
 @param[in,out]	flags,		Pointer to a 4 byte Table Flags
 @param[in]	format,		File Format
@@ -1053,11 +1057,13 @@ fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
 @param[in]	is_temp		whether the tablespace is temporary
+@param[in]	is_encrypted	whether the tablespace is encrypted
 @return tablespace flags (fil_space_t::flags) */
 ulint
 dict_tf_to_fsp_flags(
 	ulint	table_flags,
-	bool	is_temp)
+	bool	is_temp,
+	bool	is_encrypted = false)
 	MY_ATTRIBUTE((const));
 
 /** Extract the page size from table flags.
@@ -1067,7 +1073,7 @@ UNIV_INLINE
 const page_size_t
 dict_tf_get_page_size(
 	ulint	flags)
-__attribute__((const));
+MY_ATTRIBUTE((const));
 
 /** Determine the extent size (in pages) for the given table
 @param[in]	table	the table whose extent size is being
@@ -1084,7 +1090,7 @@ UNIV_INLINE
 const page_size_t
 dict_table_page_size(
 	const dict_table_t*	table)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 #ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
@@ -1194,7 +1200,7 @@ dict_index_add_to_cache(
 	dict_index_t*	index,
 	ulint		page_no,
 	ibool		strict)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
@@ -1215,7 +1221,7 @@ dict_index_add_to_cache_w_vcol(
 	const dict_add_v_col_t* add_v,
 	ulint			page_no,
 	ibool			strict)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
@@ -1269,7 +1275,7 @@ UNIV_INLINE
 ulint
 dict_index_get_n_unique_in_tree_nonleaf(
 	const dict_index_t*	index)
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /********************************************************************//**
 Gets the number of user-defined ordering fields in the index. In the internal
 representation we add the row id to the ordering fields to make all indexes
@@ -1327,9 +1333,9 @@ dict_index_get_nth_col_pos(
 /*=======================*/
 	const dict_index_t*	index,	/*!< in: index */
 	ulint			n,	/*!< in: column number */
-	ulint*			prefix_col_pos) /*!< out: col num if prefix
-						*/
-	__attribute__((warn_unused_result));
+	ulint*			prefix_col_pos) /*!< out: col num if prefix */
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
+
 /** Looks for column n in an index.
 @param[in]	index		index
 @param[in]	n		column number
@@ -1362,7 +1368,7 @@ dict_index_contains_col_or_prefix(
 	ulint			n,	/*!< in: column number */
 	bool			is_virtual)
 					/*!< in: whether it is a virtual col */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Looks for a matching field in an index. The column has to be the same. The
 column in index must be complete, or must contain a prefix longer than the
@@ -1386,7 +1392,7 @@ dict_table_get_nth_col_pos(
 	const dict_table_t*	table,	/*!< in: table */
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos) /*!< out: col num if prefix */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 /********************************************************************//**
 Returns the position of a system column in an index.
 @return position, ULINT_UNDEFINED if not contained */
@@ -1668,6 +1674,7 @@ dict_tables_have_same_db(
 	const char*	name2)	/*!< in: table name in the form
 				dbname '/' tablename */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
@@ -1679,19 +1686,13 @@ dict_table_get_index_on_name(
 	dict_table_t*	table,
 	const char*	name,
 	bool		committed=true)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
+
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
 @param[in]	committed	true=search for committed,
-false=search for uncommitted */
-dict_index_t*
-dict_table_find_index_on_id(
-/*========================*/
-	const dict_table_t*	table,	/*!< in: table instance */
-	index_id_t		id)	/*!< in: index id */
-	__attribute__((nonnull, warn_unused_result));
-/**********************************************************************//**
+false=search for uncommitted
 @return index, NULL if does not exist */
 inline
 const dict_index_t*
@@ -1715,7 +1716,7 @@ dict_table_is_fts_column(
 	ib_vector_t*	indexes,/* in: vector containing only FTS indexes */
 	ulint		col_no,	/* in: col number to search for */
 	bool		is_virtual)/*!< in: whether it is a virtual column */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************************//**
 Prevent table eviction by moving a table to the non-LRU list from the
 LRU list if it is not already there. */
@@ -1724,7 +1725,8 @@ void
 dict_table_prevent_eviction(
 /*========================*/
 	dict_table_t*	table)	/*!< in: table to prevent eviction */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
+
 /**********************************************************************//**
 Move a table to the non LRU end of the LRU list. */
 void
@@ -1732,6 +1734,7 @@ dict_table_move_from_lru_to_non_lru(
 /*================================*/
 	dict_table_t*	table)	/*!< in: table to move from LRU to non-LRU */
 	MY_ATTRIBUTE((nonnull));
+
 /** Looks for an index with the given id given a table instance.
 @param[in]	table	table instance
 @param[in]	id	index id
@@ -1741,6 +1744,7 @@ dict_table_find_index_on_id(
 	const dict_table_t*	table,
 	index_id_t		id)
 	MY_ATTRIBUTE((nonnull(1)));
+
 /**********************************************************************//**
 Move to the most recently used segment of the LRU list. */
 void
@@ -1990,7 +1994,7 @@ bool
 dict_table_is_discarded(
 /*====================*/
 	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
 Check if it is a temporary table.
@@ -2000,7 +2004,17 @@ bool
 dict_table_is_temporary(
 /*====================*/
 	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
+
+/********************************************************************//**
+Check if it is a encrypted table.
+@return true if table encryption flag is set. */
+UNIV_INLINE
+bool
+dict_table_is_encrypted(
+/*====================*/
+	const dict_table_t*	table)	/*!< in: table to check */
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Check whether the table is intrinsic.
 An intrinsic table is a special kind of temporary table that
@@ -2018,7 +2032,16 @@ UNIV_INLINE
 bool
 dict_table_is_intrinsic(
 	const dict_table_t*	table)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Check if the table is in a shared tablespace (System or General).
+@param[in]	id	Space ID to check
+@return true if id is a shared tablespace, false if not. */
+UNIV_INLINE
+bool
+dict_table_in_shared_tablespace(
+	const dict_table_t*	table)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Check whether locking is disabled for this table.
 Currently this is done for intrinsic table as their visibility is limited
@@ -2030,7 +2053,7 @@ UNIV_INLINE
 bool
 dict_table_is_locking_disabled(
 	const dict_table_t*	table)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
 Turn-off redo-logging if temporary table. */
@@ -2105,7 +2128,7 @@ ulint
 dict_index_node_ptr_max_size(
 /*=========================*/
 	const dict_index_t*	index)	/*!< in: index */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /*****************************************************************//**
 Get index by first field of the index
 @return index which is having first field matches
@@ -2149,11 +2172,33 @@ dict_table_decode_n_col(
 	ulint*	n_v_col);
 
 /** Look for any dictionary objects that are found in the given tablespace.
-@param[in]	space	Tablespace ID to search for.
+@param[in]	space_id	Tablespace ID to search for.
 @return true if tablespace is empty. */
 bool
-dict_tablespace_is_empty(
+dict_space_is_empty(
 	ulint	space_id);
+
+/** Find the space_id for the given name in sys_tablespaces.
+@param[in]	name	Tablespace name to search for.
+@return the tablespace ID. */
+ulint
+dict_space_get_id(
+	const char*	name);
+
+/** Free the virtual column template
+@param[in,out]	vc_templ	virtual column template */
+UNIV_INLINE
+void
+dict_free_vc_templ(
+	dict_vcol_templ_t*	vc_templ);
+
+/** Check whether the table have virtual index.
+@param[in]	table	InnoDB table
+@return true if the table have virtual index, false otherwise. */
+UNIV_INLINE
+bool
+dict_table_have_virtual_index(
+	dict_table_t*	table);
 
 #endif /* !UNIV_HOTBACKUP */
 

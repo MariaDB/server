@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -62,7 +63,7 @@ page size | file space extent size
 #define	FSP_EXTENT_SIZE_MAX	(4194304 / UNIV_PAGE_SIZE_MAX)
 
 /** File space extent size (one megabyte) in pages for MIN page size */
-#define	FSP_EXTENT_SIZE_MIN	(1048576U / UNIV_PAGE_SIZE_MIN)
+#define	FSP_EXTENT_SIZE_MIN	(1048576 / UNIV_PAGE_SIZE_MIN)
 
 /** On a page of any file segment, data may be put starting from this
 offset */
@@ -190,7 +191,7 @@ so they should have a file format number plus the DICT_TF_COMPACT bit set.
 bool
 fsp_flags_is_valid(
 	ulint	flags)
-	__attribute__((warn_unused_result, const));
+	MY_ATTRIBUTE((warn_unused_result, const));
 
 /** Check if tablespace is system temporary.
 @param[in]      space_id        verify is checksum is enabled for given space.
@@ -249,6 +250,9 @@ was created with CREATE TABLESPACE and can be shared by multiple tables. */
 is a temporary tablespace and everything in it is temporary, meaning that
 it is for a single client and should be deleted upon startup if it exists. */
 #define FSP_FLAGS_WIDTH_TEMPORARY	1
+/** Width of the encryption flag.  This flag indicates that the tablespace
+is a tablespace with encryption. */
+#define FSP_FLAGS_WIDTH_ENCRYPTION	1
 
 /** Number of flag bits used to indicate the page compression and compression level */
 #define FSP_FLAGS_WIDTH_PAGE_COMPRESSION  1
@@ -265,6 +269,7 @@ it is for a single client and should be deleted upon startup if it exists. */
 				+ FSP_FLAGS_WIDTH_DATA_DIR	\
 				+ FSP_FLAGS_WIDTH_SHARED	\
 				+ FSP_FLAGS_WIDTH_TEMPORARY	\
+				+ FSP_FLAGS_WIDTH_ENCRYPTION	\
 				+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION \
 				+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL \
 				+ FSP_FLAGS_WIDTH_ATOMIC_WRITES )
@@ -292,9 +297,12 @@ it is for a single client and should be deleted upon startup if it exists. */
 /** Zero relative shift position of the start of the TEMPORARY bit */
 #define FSP_FLAGS_POS_TEMPORARY		(FSP_FLAGS_POS_SHARED		\
 					+ FSP_FLAGS_WIDTH_SHARED)
-/** Zero relative shift position of the PAGE_COMPRESSION field */
-#define FSP_FLAGS_POS_PAGE_COMPRESSION	(FSP_FLAGS_POS_TEMPORARY	\
+/** Zero relative shift position of the start of the ENCRYPTION bit */
+#define FSP_FLAGS_POS_ENCRYPTION	(FSP_FLAGS_POS_TEMPORARY	\
 					+ FSP_FLAGS_WIDTH_TEMPORARY)
+/** Zero relative shift position of the PAGE_COMPRESSION field */
+#define FSP_FLAGS_POS_PAGE_COMPRESSION	(FSP_FLAGS_POS_ENCRYPTION	\
+					+ FSP_FLAGS_WIDTH_ENCRYPTION)
 /** Zero relative shift position of the PAGE_COMPRESSION_LEVEL field */
 #define FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL	(FSP_FLAGS_POS_PAGE_COMPRESSION	\
 					+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION)
@@ -302,8 +310,8 @@ it is for a single client and should be deleted upon startup if it exists. */
 #define FSP_FLAGS_POS_ATOMIC_WRITES	(FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL	\
 					+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL)
 /** Zero relative shift position of the start of the UNUSED bits */
-#define FSP_FLAGS_POS_UNUSED		(FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL	\
-					+ FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL)
+#define FSP_FLAGS_POS_UNUSED		(FSP_FLAGS_POS_ATOMIC_WRITES	\
+					+ FSP_FLAGS_WIDTH_ATOMIC_WRITES)
 
 
 /** Bit mask of the POST_ANTELOPE field */
@@ -334,6 +342,10 @@ it is for a single client and should be deleted upon startup if it exists. */
 #define FSP_FLAGS_MASK_TEMPORARY				\
 		((~(~0U << FSP_FLAGS_WIDTH_TEMPORARY))		\
 		<< FSP_FLAGS_POS_TEMPORARY)
+/** Bit mask of the ENCRYPTION field */
+#define FSP_FLAGS_MASK_ENCRYPTION				\
+		((~(~0U << FSP_FLAGS_WIDTH_ENCRYPTION))		\
+		<< FSP_FLAGS_POS_ENCRYPTION)
 /** Bit mask of the PAGE_COMPRESSION field */
 #define FSP_FLAGS_MASK_PAGE_COMPRESSION			\
 		((~(~0 << FSP_FLAGS_WIDTH_PAGE_COMPRESSION))	\
@@ -375,6 +387,10 @@ it is for a single client and should be deleted upon startup if it exists. */
 #define FSP_FLAGS_GET_TEMPORARY(flags)				\
 		((flags & FSP_FLAGS_MASK_TEMPORARY)		\
 		>> FSP_FLAGS_POS_TEMPORARY)
+/** Return the contents of the ENCRYPTION field */
+#define FSP_FLAGS_GET_ENCRYPTION(flags)				\
+		((flags & FSP_FLAGS_MASK_ENCRYPTION)		\
+		>> FSP_FLAGS_POS_ENCRYPTION)
 /** Return the contents of the UNUSED bits */
 #define FSP_FLAGS_GET_UNUSED(flags)				\
 		(flags >> FSP_FLAGS_POS_UNUSED)

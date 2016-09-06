@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -547,6 +547,7 @@ private:
 
 	/** Truncate log file name. */
 	char*			m_log_file_name;
+
 
 public:
 	/** Magic Number to indicate truncate action is complete. */
@@ -1217,7 +1218,7 @@ Finish the TRUNCATE operations for both commit and rollback.
 @param err		status of truncate operation
 
 @return DB_SUCCESS or error code */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_truncate_complete(
 	dict_table_t*		table,
@@ -1301,7 +1302,7 @@ Handle FTS truncate issues.
 @param new_id		new id for the table
 @param trx		transaction covering the truncate
 @return DB_SUCCESS or error code. */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_truncate_fts(
 	dict_table_t*	table,
@@ -1386,7 +1387,7 @@ Update system table to reflect new table id.
 				dict_sys->mutex around call to pars_sql.
 @param trx			transaction
 @return error code or DB_SUCCESS */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_truncate_update_table_id(
 	table_id_t	old_table_id,
@@ -1426,7 +1427,7 @@ row_truncate_update_table_id(
 Get the table id to truncate.
 @param truncate_t		old/new table id of table to truncate
 @return table_id_t		table_id to use in SYS_XXXX table update. */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 table_id_t
 row_truncate_get_trunc_table_id(
 	const truncate_t&	truncate)
@@ -1448,7 +1449,7 @@ Update system table to reflect new table id and root page number.
 				dict_sys->mutex around call to pars_sql.
 @param mark_index_corrupted	if true, then mark index corrupted.
 @return error code or DB_SUCCESS */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_truncate_update_sys_tables_during_fix_up(
 	const truncate_t&	truncate,
@@ -1479,9 +1480,41 @@ row_truncate_update_sys_tables_during_fix_up(
 		table_id, new_table_id, reserve_dict_mutex, trx);
 
 	if (err == DB_SUCCESS) {
-		trx_commit_for_mysql(trx);
-		trx_free_for_background(trx);
+		dict_mutex_enter_for_mysql();
+
+		/* Remove the table with old table_id from cache. */
+		dict_table_t*	old_table = dict_table_open_on_id(
+			table_id, true, DICT_TABLE_OP_NORMAL);
+
+		if (old_table != NULL) {
+			dict_table_close(old_table, true, false);
+			dict_table_remove_from_cache(old_table);
+		}
+
+		/* Open table with new table_id and set table as
+		corrupted if it has FTS index. */
+
+		dict_table_t*	table = dict_table_open_on_id(
+			new_table_id, true, DICT_TABLE_OP_NORMAL);
+		ut_ad(table->id == new_table_id);
+
+		bool	has_internal_doc_id =
+			dict_table_has_fts_index(table)
+			|| DICT_TF2_FLAG_IS_SET(
+				table, DICT_TF2_FTS_HAS_DOC_ID);
+
+		if (has_internal_doc_id) {
+			trx->dict_operation_lock_mode = RW_X_LATCH;
+			fts_check_corrupt(table, trx);
+			trx->dict_operation_lock_mode = 0;
+		}
+
+		dict_table_close(table, true, false);
+		dict_mutex_exit_for_mysql();
 	}
+
+	trx_commit_for_mysql(trx);
+	trx_free_for_background(trx);
 
 	return(err);
 }
@@ -1495,7 +1528,7 @@ SYSTEM TABLES with the new id.
 @param no_redo			if true, turn-off redo logging
 @param trx			transaction handle
 @return	error code or DB_SUCCESS */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_truncate_update_system_tables(
 	dict_table_t*	table,
@@ -1564,7 +1597,7 @@ be locked in X mode.
 @param table		table to truncate
 @param flags		tablespace flags
 @return	error code or DB_SUCCESS */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_truncate_prepare(dict_table_t* table, ulint* flags)
 {
@@ -1596,7 +1629,7 @@ Do foreign key checks before starting TRUNCATE.
 @param table		table being truncated
 @param trx		transaction covering the truncate
 @return DB_SUCCESS or error code */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_truncate_foreign_key_checks(
 	const dict_table_t*	table,
@@ -1660,7 +1693,7 @@ row_truncate_foreign_key_checks(
 Do some sanity checks before starting the actual TRUNCATE.
 @param table		table being truncated
 @return DB_SUCCESS or error code */
-static __attribute__((warn_unused_result))
+static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_truncate_sanity_checks(
 	const dict_table_t* table)
@@ -1890,7 +1923,7 @@ row_truncate_table_for_mysql(
 	we need to use index locks to sync up */
 	dict_table_x_lock_indexes(table);
 
-	if (!dict_table_is_temporary(table) && !has_internal_doc_id) {
+	if (!dict_table_is_temporary(table)) {
 
 		if (is_file_per_table) {
 
@@ -2212,6 +2245,7 @@ truncate_t::fixup_tables_in_non_system_tablespace()
 					FIL_IBD_FILE_INITIAL_SIZE,
 					(*it)->m_encryption,
 					(*it)->m_key_id);
+
 				if (err != DB_SUCCESS) {
 					/* If checkpoint is not yet done
 					and table is dropped and then we might
@@ -2589,7 +2623,9 @@ truncate_t::parse(
 		index.m_trx_id_pos = mach_read_from_4(start_ptr);
 		start_ptr += 4;
 
-		m_indexes.push_back(index);
+		if (!(index.m_type & DICT_FTS)) {
+			m_indexes.push_back(index);
+		}
 	}
 
 	ut_ad(!m_indexes.empty());

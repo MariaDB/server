@@ -1,7 +1,6 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2016, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,7 +27,6 @@ Created 3/26/1996 Heikki Tuuri
 #define trx0undo_h
 
 #ifndef UNIV_INNOCHECKSUM
-
 #include "univ.i"
 #include "trx0types.h"
 #include "mtr0mtr.h"
@@ -76,7 +74,7 @@ bool
 trx_undo_trx_id_is_insert(
 /*======================*/
 	const byte*	trx_id)	/*!< in: DB_TRX_ID, followed by DB_ROLL_PTR */
-	MY_ATTRIBUTE((nonnull, pure, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 /*****************************************************************//**
 Writes a roll ptr to an index page. In case that the size changes in
@@ -249,13 +247,16 @@ trx_undo_free_last_page_func(
 Truncates an undo log from the end. This function is used during a rollback
 to free space from an undo log. */
 void
-trx_undo_truncate_end(
+trx_undo_truncate_end_func(
 /*=======================*/
 	trx_t*		trx,	/*!< in: transaction whose undo log it is */
 	trx_undo_t*	undo,	/*!< in/out: undo log */
 	undo_no_t	limit)	/*!< in: all undo records with undo number
 				>= this value should be truncated */
-	MY_ATTRIBUTE((nonnull));
+	MY_ATTRIBUTE((nonnull(1,2)));
+
+#define trx_undo_truncate_end(trx, undo, limit) \
+	trx_undo_truncate_end_func(trx, undo, limit)
 
 /** Truncate the head of an undo log.
 NOTE that only whole pages are freed; the header page is not

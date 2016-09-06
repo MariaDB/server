@@ -37,7 +37,7 @@ Created 3/26/1996 Heikki Tuuri
 //#include <unordered_set>
 
 /** printf(3) format used for printing DB_TRX_ID and other system fields */
-#define TRX_ID_FMT		UINT32PF
+#define TRX_ID_FMT	IB_ID_FMT
 
 /** maximum length that a formatted trx_t::id could take, not including
 the terminating NUL character. */

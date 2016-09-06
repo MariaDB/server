@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -68,6 +68,8 @@ public:
 		m_atomic_write(),
 		m_last_os_error(),
 		m_file_info(),
+		m_encryption_key(NULL),
+		m_encryption_iv(NULL),
 		m_crypt_info()
 	{
 		/* No op */
@@ -92,6 +94,8 @@ public:
 		m_atomic_write(),
 		m_last_os_error(),
 		m_file_info(),
+		m_encryption_key(NULL),
+		m_encryption_iv(NULL),
 		m_crypt_info()
 	{
 		ut_ad(m_name != NULL);
@@ -114,6 +118,8 @@ public:
 		m_atomic_write(file.m_atomic_write),
 		m_last_os_error(),
 		m_file_info(),
+		m_encryption_key(NULL),
+		m_encryption_iv(NULL),
 		m_crypt_info()
 	{
 		m_name = mem_strdup(file.m_name);
@@ -172,6 +178,8 @@ public:
 		it should be reread if needed */
 		m_first_page_buf = NULL;
 		m_first_page = NULL;
+		m_encryption_key = NULL;
+		m_encryption_iv = NULL;
 		/* Do not copy crypt info it is read from first page */
 		m_crypt_info = NULL;
 
@@ -200,7 +208,7 @@ public:
 					are enforced.
 	@return DB_SUCCESS or error code */
 	virtual dberr_t open_read_write(bool read_only_mode)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Initialize OS specific file info. */
 	void init_file_info();
@@ -237,12 +245,14 @@ public:
 	successfully opened in order for this function to validate it.
 	@param[in]	space_id	The expected tablespace ID.
 	@param[in]	flags		The expected tablespace flags.
+	@param[in]	for_import	is it for importing
 	@retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 	m_is_valid is also set true on success, else false. */
 	dberr_t validate_to_dd(
-		ulint	space_id,
-		ulint	flags)
-		__attribute__((warn_unused_result));
+		ulint		space_id,
+		ulint		flags,
+		bool		for_import)
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Validates this datafile for the purpose of recovery.
 	The file should exist and be successfully opened. We initially
@@ -253,19 +263,21 @@ public:
 	@retval DB_SUCCESS if tablespace is valid, DB_ERROR if not.
 	m_is_valid is also set true on success, else false. */
 	dberr_t validate_for_recovery()
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Checks the consistency of the first page of a datafile when the
 	tablespace is opened.  This occurs before the fil_space_t is created
 	so the Space ID found here must not already be open.
 	m_is_valid is set true on success, else false.
 	@param[out]	flush_lsn	contents of FIL_PAGE_FILE_FLUSH_LSN
+	@param[in]	for_import	if it is for importing
 	(only valid for the first file of the system tablespace)
 	@retval DB_SUCCESS on if the datafile is valid
 	@retval DB_CORRUPTION if the datafile is not readable
 	@retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-	dberr_t validate_first_page(lsn_t* flush_lsn = 0)
-		__attribute__((warn_unused_result));
+	dberr_t validate_first_page(lsn_t*	flush_lsn,
+				    bool	for_import)
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Get Datafile::m_name.
 	@return m_name */
@@ -370,7 +382,7 @@ private:
 					are enforced.
 	@return DB_SUCCESS or error code */
 	dberr_t open_or_create(bool read_only_mode)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Reads a few significant fields from the first page of the
 	datafile, which must already be open.
@@ -378,7 +390,7 @@ private:
 					are enforced.
 	@return DB_SUCCESS or DB_IO_ERROR if page cannot be read */
 	dberr_t read_first_page(bool read_first_page)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Free the first page from memory when it is no longer needed. */
 	void free_first_page();
@@ -480,8 +492,14 @@ public:
 	struct stat			m_file_info;
 #endif	/* WIN32 */
 
+	/** Encryption key read from first page */
+	byte*			m_encryption_key;
+
+	/** Encryption iv read from first page */
+	byte*			m_encryption_iv;
+
 	/** Encryption information */
-	fil_space_crypt_t* m_crypt_info;
+	fil_space_crypt_t* 	m_crypt_info;
 };
 
 
@@ -551,7 +569,7 @@ public:
 					are enforced.
 	@return DB_SUCCESS or error code */
 	dberr_t open_read_write(bool read_only_mode)
-		__attribute__((warn_unused_result));
+		MY_ATTRIBUTE((warn_unused_result));
 
 	/******************************************************************
 	Global Static Functions;  Cannot refer to data members.

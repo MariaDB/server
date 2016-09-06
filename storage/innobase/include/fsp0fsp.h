@@ -42,6 +42,7 @@ Created 12/18/1995 Heikki Tuuri
 
 #endif /* !UNIV_INNOCHECKSUM */
 #include "fsp0types.h"
+
 #define FSP_FLAGS_POS_DATA_DIR_ORACLE	(FSP_FLAGS_POS_ATOMIC_BLOBS	\
 					+ FSP_FLAGS_WIDTH_ATOMIC_BLOBS  \
 					+ FSP_FLAGS_WIDTH_PAGE_SSIZE)
@@ -49,6 +50,7 @@ Created 12/18/1995 Heikki Tuuri
 #define FSP_FLAGS_MASK_DATA_DIR_ORACLE				\
 		((~(~0 << FSP_FLAGS_WIDTH_DATA_DIR))		\
 		<< FSP_FLAGS_POS_DATA_DIR_ORACLE)
+
 #define FSP_FLAGS_HAS_DATA_DIR_ORACLE(flags)			\
 		((flags & FSP_FLAGS_MASK_DATA_DIR_ORACLE)	\
 		>> FSP_FLAGS_POS_DATA_DIR_ORACLE)
@@ -118,6 +120,7 @@ descriptor page, but used only in the first. */
 					FSP_FREE_LIMIT at a time */
 /* @} */
 
+#ifndef UNIV_INNOCHECKSUM
 
 /* @defgroup File Segment Inode Constants (moved from fsp0fsp.c) @{ */
 
@@ -254,7 +257,6 @@ the extent are free and which contain old tuple version to clean. */
 
 /* @} */
 
-#ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**
 Initializes the file space system. */
 void
@@ -334,6 +336,40 @@ page_size_t
 fsp_header_get_page_size(
 	const page_t*	page);
 
+/** Decoding the encryption info
+from the first page of a tablespace.
+@param[in/out]	key		key
+@param[in/out]	iv		iv
+@param[in]	encryption_info	encrytion info.
+@return true if success */
+bool
+fsp_header_decode_encryption_info(
+	byte*		key,
+	byte*		iv,
+	byte*		encryption_info);
+
+/** Reads the encryption key from the first page of a tablespace.
+@param[in]	fsp_flags	tablespace flags
+@param[in/out]	key		tablespace key
+@param[in/out]	iv		tablespace iv
+@param[in]	page	first page of a tablespace
+@return true if success */
+bool
+fsp_header_get_encryption_key(
+	ulint		fsp_flags,
+	byte*		key,
+	byte*		iv,
+	page_t*		page);
+
+/** Check the encryption key from the first page of a tablespace.
+@param[in]	fsp_flags	tablespace flags
+@param[in]	page		first page of a tablespace
+@return true if success */
+bool
+fsp_header_check_encryption_key(
+	ulint			fsp_flags,
+	page_t*			page);
+
 /**********************************************************************//**
 Writes the space id and flags to a tablespace header.  The flags contain
 row type, physical/compressed page size, and logical/uncompressed page
@@ -345,6 +381,17 @@ fsp_header_init_fields(
 	ulint	space_id,	/*!< in: space id */
 	ulint	flags);		/*!< in: tablespace flags (FSP_SPACE_FLAGS):
 				0, or table->flags if newer than COMPACT */
+
+/** Rotate the encryption info in the space header.
+@param[in]	space		tablespace
+@param[in]      encrypt_info	buffer for re-encrypt key.
+@param[in,out]	mtr		mini-transaction
+@return true if success. */
+bool
+fsp_header_rotate_encryption(
+	fil_space_t*		space,
+	byte*			encrypt_info,
+	mtr_t*			mtr);
 
 /** Initializes the space header of a new created space and creates also the
 insert buffer tree root if space == 0.
@@ -458,8 +505,8 @@ fseg_alloc_free_page_general(
 				If init_mtr!=mtr, but the page is already
 				latched in mtr, do not initialize the page. */
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
-/**********************************************************************//**
-Reserves free pages from a tablespace. All mini-transactions which may
+
+/** Reserves free pages from a tablespace. All mini-transactions which may
 use several pages from the tablespace should call this function beforehand
 and reserve enough free extents so that they certainly will be able
 to do their operation, like a B-tree page split, fully. Reservations
@@ -478,23 +525,33 @@ The purpose is to avoid dead end where the database is full but the
 user cannot free any space because these freeing operations temporarily
 reserve some space.
 
-Single-table tablespaces whose size is < 32 pages are a special case. In this
-function we would liberally reserve several 64 page extents for every page
-split or merge in a B-tree. But we do not want to waste disk space if the table
-only occupies < 32 pages. That is why we apply different rules in that special
-case, just ensuring that there are 3 free pages available.
-@return TRUE if we were able to make the reservation */
+Single-table tablespaces whose size is < FSP_EXTENT_SIZE pages are a special
+case. In this function we would liberally reserve several extents for
+every page split or merge in a B-tree. But we do not want to waste disk space
+if the table only occupies < FSP_EXTENT_SIZE pages. That is why we apply
+different rules in that special case, just ensuring that there are n_pages
+free pages available.
+
+@param[out]	n_reserved	number of extents actually reserved; if we
+				return true and the tablespace size is <
+				FSP_EXTENT_SIZE pages, then this can be 0,
+				otherwise it is n_ext
+@param[in]	space_id	tablespace identifier
+@param[in]	n_ext		number of extents to reserve
+@param[in]	alloc_type	page reservation type (FSP_BLOB, etc)
+@param[in,out]	mtr		the mini transaction
+@param[in]	n_pages		for small tablespaces (tablespace size is
+				less than FSP_EXTENT_SIZE), number of free
+				pages to reserve.
+@return true if we were able to make the reservation */
 bool
 fsp_reserve_free_extents(
-/*=====================*/
-	ulint*	n_reserved,/*!< out: number of extents actually reserved; if we
-			return TRUE and the tablespace size is < 64 pages,
-			then this can be 0, otherwise it is n_ext */
-	ulint	space_id,/*!< in: space id */
-	ulint	n_ext,	/*!< in: number of extents to reserve */
+	ulint*		n_reserved,
+	ulint		space_id,
+	ulint		n_ext,
 	fsp_reserve_t	alloc_type,
-			/*!< in: page reservation type */
-	mtr_t*	mtr);	/*!< in/out: mini-transaction */
+	mtr_t*		mtr,
+	ulint		n_pages = 2);
 
 /** Calculate how many KiB of new data we will be able to insert to the
 tablespace without running out of space.
@@ -551,7 +608,7 @@ fseg_free_step(
 	bool		ahi,	/*!< in: whether we may need to drop
 				the adaptive hash index */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************************//**
 Frees part of a segment. Differs from fseg_free_step because this function
 leaves the header page unfreed.
@@ -564,7 +621,7 @@ fseg_free_step_not_header(
 	bool		ahi,	/*!< in: whether we may need to drop
 				the adaptive hash index */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Checks if a page address is an extent descriptor page address.
 @param[in]	page_id		page id
@@ -629,6 +686,7 @@ fsp_flags_are_equal(
 @param[in]	has_data_dir	This tablespace is in a remote location.
 @param[in]	is_shared	This tablespace can be shared by many tables.
 @param[in]	is_temporary	This tablespace is temporary.
+@param[in]	is_encrypted	This tablespace is encrypted.
 @return tablespace flags after initialization */
 UNIV_INLINE
 ulint
@@ -640,7 +698,8 @@ fsp_flags_init(
 	bool			is_temporary,
 	bool			page_compression,
 	ulint			page_compression_level,
-	ulint			atomic_writes);
+	ulint			atomic_writes,
+	bool			is_encrypted = false);
 
 /** Convert a 32 bit integer tablespace flags to the 32 bit table flags.
 This can only be done for a tablespace that was built as a file-per-table
@@ -687,7 +746,7 @@ xdes_get_descriptor(
 	ulint			offset,
 	const page_size_t&	page_size,
 	mtr_t*			mtr)
-__attribute__((warn_unused_result));
+MY_ATTRIBUTE((warn_unused_result));
 
 /**********************************************************************//**
 Gets a descriptor bit of a page.
@@ -710,11 +769,11 @@ ulint
 xdes_calc_descriptor_page(
 	const page_size_t&	page_size,
 	ulint			offset);
+
 #endif /* !UNIV_INNOCHECKSUM */
 
-
-/*********************************************************************/
-/* @return offset into fsp header where crypt data is stored */
+/*********************************************************************//**
+@return offset into fsp header where crypt data is stored */
 UNIV_INTERN
 ulint
 fsp_header_get_crypt_offset(
@@ -722,10 +781,9 @@ fsp_header_get_crypt_offset(
 	const page_size_t&	page_size,/*!< in: page size */
 	ulint* max_size);	/*!< out: free space after offset */
 
-#define fsp_page_is_free(space,page,mtr) \
-	fsp_page_is_free_func(space,page,mtr, __FILE__, __LINE__)
 
 #ifndef UNIV_INNOCHECKSUM
+
 /**********************************************************************//**
 Checks if a single page is free.
 @return	true if free */
@@ -738,7 +796,12 @@ fsp_page_is_free_func(
 	mtr_t*		mtr,		/*!< in/out: mini-transaction */
 	const char *file,
 	ulint line);
-#endif
+
+#define fsp_page_is_free(space,page,mtr)				\
+	fsp_page_is_free_func(space,page,mtr, __FILE__, __LINE__)
+
+#endif /* UNIV_INNOCHECKSUM */
+
 #ifndef UNIV_NONINL
 #include "fsp0fsp.ic"
 #endif

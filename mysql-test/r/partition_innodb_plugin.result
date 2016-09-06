@@ -1,3 +1,4 @@
+call mtr.add_suppression("InnoDB: Table .* does not exist in the InnoDB internal data dictionary .*");
 #
 # Bug#11766879/Bug#60106: DIFF BETWEEN # OF INDEXES IN MYSQL VS INNODB,
 #                         PARTITONING, ON INDEX CREATE

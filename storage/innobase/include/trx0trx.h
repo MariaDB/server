@@ -247,17 +247,16 @@ Commits a transaction. */
 void
 trx_commit(
 /*=======*/
-	trx_t*	trx)	/*!< in/out: transaction */
-	MY_ATTRIBUTE((nonnull));
+	trx_t*	trx);	/*!< in/out: transaction */
+
 /****************************************************************//**
 Commits a transaction and a mini-transaction. */
 void
 trx_commit_low(
 /*===========*/
 	trx_t*	trx,	/*!< in/out: transaction */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction (will be committed),
+	mtr_t*	mtr);	/*!< in/out: mini-transaction (will be committed),
 			or NULL if trx made no modifications */
-	MY_ATTRIBUTE((nonnull(1)));
 /****************************************************************//**
 Cleans up a transaction at database startup. The cleanup is needed if
 the transaction already got to the middle of a commit when the database
@@ -299,15 +298,14 @@ holding lock_sys->mutex */
 trx_t *
 trx_get_trx_by_xid(
 /*===============*/
-	const XID*	xid);	/*!< in: X/Open XA transaction identifier */
+	XID*	xid);	/*!< in: X/Open XA transaction identifier */
 /**********************************************************************//**
 If required, flushes the log to disk if we called trx_commit_for_mysql()
 with trx->flush_log_later == TRUE. */
 void
 trx_commit_complete_for_mysql(
 /*==========================*/
-	trx_t*	trx)	/*!< in/out: transaction */
-	MY_ATTRIBUTE((nonnull));
+	trx_t*	trx);	/*!< in/out: transaction */
 /**********************************************************************//**
 Marks the latest SQL statement ended. */
 void
@@ -377,9 +375,8 @@ trx_print_low(
 			/*!< in: lock_number_of_rows_locked(&trx->lock) */
 	ulint		n_trx_locks,
 			/*!< in: length of trx->lock.trx_locks */
-	ulint		heap_size)
+	ulint		heap_size);
 			/*!< in: mem_heap_get_size(trx->lock.lock_heap) */
-	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
 Prints info about a transaction.
@@ -390,9 +387,8 @@ trx_print_latched(
 /*==============*/
 	FILE*		f,		/*!< in: output stream */
 	const trx_t*	trx,		/*!< in: transaction */
-	ulint		max_query_len)	/*!< in: max query length to print,
+	ulint		max_query_len);	/*!< in: max query length to print,
 					or 0 to use the default max length */
-	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
 Prints info about a transaction.
@@ -402,9 +398,8 @@ trx_print(
 /*======*/
 	FILE*		f,		/*!< in: output stream */
 	const trx_t*	trx,		/*!< in: transaction */
-	ulint		max_query_len)	/*!< in: max query length to print,
+	ulint		max_query_len);	/*!< in: max query length to print,
 					or 0 to use the default max length */
-	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
 Determine if a transaction is a dictionary operation.
@@ -414,7 +409,7 @@ enum trx_dict_op_t
 trx_get_dict_operation(
 /*===================*/
 	const trx_t*	trx)	/*!< in: transaction */
-	MY_ATTRIBUTE((warn_unused_result, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************************//**
 Flag a transaction a dictionary operation. */
 UNIV_INLINE
@@ -438,7 +433,7 @@ trx_state_eq(
 /*=========*/
 	const trx_t*	trx,	/*!< in: transaction */
 	trx_state_t	state)	/*!< in: state */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 # ifdef UNIV_DEBUG
 /**********************************************************************//**
 Asserts that a transaction has been started.
@@ -448,7 +443,7 @@ ibool
 trx_assert_started(
 /*===============*/
 	const trx_t*	trx)	/*!< in: transaction */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 # endif /* UNIV_DEBUG */
 
 /**********************************************************************//**
@@ -1055,10 +1050,7 @@ struct trx_t {
 					the coordinator using the XA API, and
 					is set to false  after commit or
 					rollback. */
-	unsigned	active_commit_ordered:1;/* 1 if owns prepare mutex, if
-					this is set to 1 then registered should
-					also be set to 1. This is used in the
-					XA code */
+	unsigned	active_commit_ordered:1;/* 1 if owns prepare mutex */
 	/*------------------------------*/
 	bool		check_unique_secondary;
 					/*!< normally TRUE, but if the user
@@ -1067,11 +1059,7 @@ struct trx_t {
 					for secondary indexes when we decide
 					if we can use the insert buffer for
 					them, we set this FALSE */
-	bool		support_xa;	/*!< normally we do the XA two-phase
-					commit steps, but by setting this to
-					FALSE, one can save CPU time and about
-					150 bytes in the undo log size as then
-					we skip XA steps */
+	bool		support_xa;	/*!< normally we do the XA two-phase */
 	bool		flush_log_later;/* In 2PC, we hold the
 					prepare_commit mutex across
 					both phases. In that case, we
@@ -1570,18 +1558,30 @@ private:
 	{
 		ut_ad(trx_mutex_own(trx));
 
+		ulint	loop_count = 0;
+		/* start with optimistic sleep time - 20 micro seconds. */
+		ulint	sleep_time = 20;
+
 		while (is_forced_rollback(trx)) {
-
-			if (!is_started(trx)) {
-
-				return;
-			}
 
 			/* Wait for the async rollback to complete */
 
 			trx_mutex_exit(trx);
 
-			os_thread_sleep(20);
+			loop_count++;
+			/* If the wait is long, don't hog the cpu. */
+			if (loop_count < 100) {
+				/* 20 microseconds */
+				sleep_time = 20;
+			} else if (loop_count < 1000) {
+				/* 1 millisecond */
+				sleep_time = 1000;
+			} else {
+				/* 100 milliseconds */
+				sleep_time = 100000;
+			}
+
+			os_thread_sleep(sleep_time);
 
 			trx_mutex_enter(trx);
 		}

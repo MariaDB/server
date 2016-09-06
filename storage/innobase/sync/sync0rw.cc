@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -346,7 +346,7 @@ rw_lock_s_lock_spin(
 	ulint		i = 0;	/* spin round count */
 	sync_array_t*	sync_arr;
 	ulint		spin_count = 0;
-	ulint		count_os_wait = 0;
+	uint64_t	count_os_wait = 0;
 
 	/* We reuse the thread id to index into the counter, cache
 	it here for efficiency. */
@@ -378,7 +378,8 @@ lock_loop:
 	if (rw_lock_s_lock_low(lock, pass, file_name, line)) {
 
 		if (count_os_wait > 0) {
-			lock->count_os_wait += count_os_wait;
+			lock->count_os_wait +=
+				static_cast<uint32_t>(count_os_wait);
 			rw_lock_stats.rw_s_os_wait_count.add(count_os_wait);
 		}
 
@@ -409,7 +410,8 @@ lock_loop:
 
 			if (count_os_wait > 0) {
 
-				lock->count_os_wait += count_os_wait;
+				lock->count_os_wait +=
+					static_cast<uint32_t>(count_os_wait);
 
 				rw_lock_stats.rw_s_os_wait_count.add(
 					count_os_wait);
@@ -476,12 +478,13 @@ rw_lock_x_lock_wait_func(
 	ulint		i = 0;
 	ulint		n_spins = 0;
 	sync_array_t*	sync_arr;
-	ulint		count_os_wait = 0;
+	uint64_t	count_os_wait = 0;
 
 	os_rmb;
 	ut_ad(lock->lock_word <= threshold);
 
 	while (lock->lock_word < threshold) {
+
 
 		HMT_low();
 		if (srv_spin_wait_delay) {
@@ -544,6 +547,14 @@ rw_lock_x_lock_wait_func(
 		lock->count_os_wait += count_os_wait;
 		rw_lock_stats.rw_x_os_wait_count.add(count_os_wait);
 	}
+
+	rw_lock_stats.rw_x_spin_round_count.add(n_spins);
+
+	if (count_os_wait > 0) {
+		lock->count_os_wait +=
+			static_cast<uint32_t>(count_os_wait);
+		rw_lock_stats.rw_x_os_wait_count.add(count_os_wait);
+	}
 }
 
 #ifdef UNIV_DEBUG
@@ -589,11 +600,7 @@ rw_lock_x_lock_low(
 			os_rmb;
 		}
 
-		/* Decrement failed: relock or failed lock
-		Note: recursive must be loaded before writer_thread see
-		comment for rw_lock_set_writer_id_and_recursion_flag().
-		To achieve this we load it before rw_lock_lock_word_decr(),
-		An X or SX lock is held by either
+		/* Decrement failed: An X or SX lock is held by either
 		this thread or another. Try to relock. */
 		if (!pass
 		    && lock->recursive
@@ -671,7 +678,6 @@ rw_lock_sx_lock_low(
 			lock, !pass);
 
 		lock->sx_recursive = 1;
-
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
 
@@ -747,7 +753,7 @@ rw_lock_x_lock_func(
 	ulint		i = 0;
 	sync_array_t*	sync_arr;
 	ulint		spin_count = 0;
-	ulint		count_os_wait = 0;
+	uint64_t	count_os_wait = 0;
 
 	ut_ad(rw_lock_validate(lock));
 	ut_ad(!rw_lock_own(lock, RW_LOCK_S));
@@ -757,7 +763,8 @@ lock_loop:
 	if (rw_lock_x_lock_low(lock, pass, file_name, line)) {
 
 		if (count_os_wait > 0) {
-			lock->count_os_wait += count_os_wait;
+			lock->count_os_wait +=
+				static_cast<uint32_t>(count_os_wait);
 			rw_lock_stats.rw_x_os_wait_count.add(count_os_wait);
 		}
 
@@ -809,7 +816,8 @@ lock_loop:
 		sync_array_free_cell(sync_arr, cell);
 
 		if (count_os_wait > 0) {
-			lock->count_os_wait += count_os_wait;
+			lock->count_os_wait +=
+				static_cast<uint32_t>(count_os_wait);
 			rw_lock_stats.rw_x_os_wait_count.add(count_os_wait);
 		}
 
@@ -850,7 +858,7 @@ rw_lock_sx_lock_func(
 	ulint		i = 0;
 	sync_array_t*	sync_arr;
 	ulint		spin_count = 0;
-	ulint		count_os_wait = 0;
+	uint64_t	count_os_wait = 0;
 	ulint		spin_wait_count = 0;
 
 	ut_ad(rw_lock_validate(lock));
@@ -861,7 +869,8 @@ lock_loop:
 	if (rw_lock_sx_lock_low(lock, pass, file_name, line)) {
 
 		if (count_os_wait > 0) {
-			lock->count_os_wait += count_os_wait;
+			lock->count_os_wait +=
+				static_cast<uint32_t>(count_os_wait);
 			rw_lock_stats.rw_sx_os_wait_count.add(count_os_wait);
 		}
 
@@ -914,7 +923,8 @@ lock_loop:
 		sync_array_free_cell(sync_arr, cell);
 
 		if (count_os_wait > 0) {
-			lock->count_os_wait += count_os_wait;
+			lock->count_os_wait +=
+				static_cast<uint32_t>(count_os_wait);
 			rw_lock_stats.rw_sx_os_wait_count.add(count_os_wait);
 		}
 
@@ -1249,7 +1259,7 @@ rw_lock_list_print_info(
 #endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 	}
 
-	fprintf(file, "Total number of rw-locks %ld\n", count);
+	fprintf(file, "Total number of rw-locks " ULINTPF "\n", count);
 	mutex_exit(&rw_lock_list_mutex);
 }
 

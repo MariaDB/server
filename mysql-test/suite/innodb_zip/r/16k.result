@@ -8,7 +8,7 @@ variable_value
 SELECT variable_value FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_buffer_pool_pages_total';
 variable_value
-{checked_valid}
+512
 # Test 3) Query some information_shema tables that are dependent upon
 #         the page size.
 SELECT	t.name table_name, t.n_cols, t.flag table_flags,
@@ -20,28 +20,8 @@ WHERE	t.table_id = i.table_id
 AND	t.name LIKE 'mysql%'
 	ORDER BY t.name, i.index_id;
 table_name	n_cols	table_flags	index_name	root_page	type	n_fields	merge_threshold
-mysql/engine_cost	9	33	PRIMARY	3	3	3	50
-mysql/gtid_executed	6	33	PRIMARY	3	3	2	50
-mysql/help_category	7	33	PRIMARY	3	3	1	50
-mysql/help_category	7	33	name	4	2	1	50
-mysql/help_keyword	5	33	PRIMARY	3	3	1	50
-mysql/help_keyword	5	33	name	4	2	1	50
-mysql/help_relation	5	33	PRIMARY	3	3	2	50
-mysql/help_topic	9	33	PRIMARY	3	3	1	50
-mysql/help_topic	9	33	name	4	2	1	50
 mysql/innodb_index_stats	11	33	PRIMARY	3	3	4	50
 mysql/innodb_table_stats	9	33	PRIMARY	3	3	2	50
-mysql/plugin	5	33	PRIMARY	3	3	1	50
-mysql/servers	12	33	PRIMARY	3	3	1	50
-mysql/server_cost	7	33	PRIMARY	3	3	1	50
-mysql/slave_master_info	28	33	PRIMARY	3	3	1	50
-mysql/slave_relay_log_info	12	33	PRIMARY	3	3	1	50
-mysql/slave_worker_info	16	33	PRIMARY	3	3	2	50
-mysql/time_zone	5	33	PRIMARY	3	3	1	50
-mysql/time_zone_leap_second	5	33	PRIMARY	3	3	1	50
-mysql/time_zone_name	5	33	PRIMARY	3	3	1	50
-mysql/time_zone_transition	6	33	PRIMARY	3	3	2	50
-mysql/time_zone_transition_type	8	33	PRIMARY	3	3	2	50
 CREATE TABLE t1 (a INT KEY, b TEXT) ROW_FORMAT=REDUNDANT ENGINE=innodb;
 CREATE TABLE t2 (a INT KEY, b TEXT) ROW_FORMAT=COMPACT ENGINE=innodb;
 CREATE TABLE t3 (a INT KEY, b TEXT) ROW_FORMAT=COMPRESSED ENGINE=innodb;
@@ -209,35 +189,35 @@ Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=16
+t1	Compressed	row_format=COMPRESSED key_block_size=16
 ALTER TABLE t1 KEY_BLOCK_SIZE=8;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=8
+t1	Compressed	row_format=COMPRESSED key_block_size=8
 ALTER TABLE t1 KEY_BLOCK_SIZE=4;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=4
+t1	Compressed	row_format=COMPRESSED key_block_size=4
 ALTER TABLE t1 KEY_BLOCK_SIZE=2;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=2
+t1	Compressed	row_format=COMPRESSED key_block_size=2
 ALTER TABLE t1 KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=1
+t1	Compressed	row_format=COMPRESSED key_block_size=1
 ALTER TABLE t1 KEY_BLOCK_SIZE=0;
 SHOW WARNINGS;
 Level	Code	Message
@@ -253,35 +233,35 @@ Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=16
+t1	Compressed	row_format=COMPRESSED key_block_size=16
 ALTER TABLE t1 KEY_BLOCK_SIZE=8;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=8
+t1	Compressed	row_format=COMPRESSED key_block_size=8
 ALTER TABLE t1 KEY_BLOCK_SIZE=4;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=4
+t1	Compressed	row_format=COMPRESSED key_block_size=4
 ALTER TABLE t1 KEY_BLOCK_SIZE=2;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=2
+t1	Compressed	row_format=COMPRESSED key_block_size=2
 ALTER TABLE t1 KEY_BLOCK_SIZE=1;
 SHOW WARNINGS;
 Level	Code	Message
 SELECT table_name, row_format, create_options
 FROM information_schema.tables WHERE table_name = 't1';
 table_name	row_format	create_options
-t1	Compressed	row_format=COMPRESSED KEY_BLOCK_SIZE=1
+t1	Compressed	row_format=COMPRESSED key_block_size=1
 ALTER TABLE t1 KEY_BLOCK_SIZE=0;
 SHOW WARNINGS;
 Level	Code	Message
@@ -298,33 +278,37 @@ SHOW VARIABLES LIKE 'innodb_file_per_table';
 Variable_name	Value
 innodb_file_per_table	OFF
 CREATE TABLE t4 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=8;
-ERROR HY000: Table storage engine for 't4' doesn't have this option
+Got one of the listed errors
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Error	1031	Table storage engine for 't4' doesn't have this option
+Error	1005	Can't create table `test`.`t4` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TABLE t5 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=16;
-ERROR HY000: Table storage engine for 't5' doesn't have this option
+Got one of the listed errors
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
-Error	1031	Table storage engine for 't5' doesn't have this option
+Error	1005	Can't create table `test`.`t5` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_file_format = `Antelope`;
 Warnings:
 Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 CREATE TABLE t4 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=8;
-ERROR HY000: Table storage engine for 't4' doesn't have this option
+Got one of the listed errors
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
-Error	1031	Table storage engine for 't4' doesn't have this option
+Error	1005	Can't create table `test`.`t4` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TABLE t5 (id int PRIMARY KEY) ENGINE=innodb KEY_BLOCK_SIZE=16;
-ERROR HY000: Table storage engine for 't5' doesn't have this option
+Got one of the listed errors
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_format > Antelope.
-Error	1031	Table storage engine for 't5' doesn't have this option
+Error	1005	Can't create table `test`.`t5` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 SET GLOBAL innodb_file_format = `Barracuda`;
 Warnings:
 Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
@@ -420,10 +404,8 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 EXPLAIN SELECT * FROM t1 WHERE b LIKE 'adfd%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	NULL	range	b	b	769	NULL	12	100.00	Using where
-Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where (`test`.`t1`.`b` like 'adfd%')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	b	NULL	NULL	NULL	15	Using where
 DROP TABLE t1;
 # Test 8) Test creating a table that could lead to undo log overflow.
 CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
@@ -489,27 +471,27 @@ CREATE INDEX t1st ON t1 (s(767), t(767));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` blob,
-  `b` blob,
-  `c` blob,
-  `d` blob,
-  `e` blob,
-  `f` blob,
-  `g` blob,
-  `h` blob,
-  `i` blob,
-  `j` blob,
-  `k` blob,
-  `l` blob,
-  `m` blob,
-  `n` blob,
-  `o` blob,
-  `p` blob,
-  `q` blob,
-  `r` blob,
-  `s` blob,
-  `t` blob,
-  `u` blob,
+  `a` blob DEFAULT NULL,
+  `b` blob DEFAULT NULL,
+  `c` blob DEFAULT NULL,
+  `d` blob DEFAULT NULL,
+  `e` blob DEFAULT NULL,
+  `f` blob DEFAULT NULL,
+  `g` blob DEFAULT NULL,
+  `h` blob DEFAULT NULL,
+  `i` blob DEFAULT NULL,
+  `j` blob DEFAULT NULL,
+  `k` blob DEFAULT NULL,
+  `l` blob DEFAULT NULL,
+  `m` blob DEFAULT NULL,
+  `n` blob DEFAULT NULL,
+  `o` blob DEFAULT NULL,
+  `p` blob DEFAULT NULL,
+  `q` blob DEFAULT NULL,
+  `r` blob DEFAULT NULL,
+  `s` blob DEFAULT NULL,
+  `t` blob DEFAULT NULL,
+  `u` blob DEFAULT NULL,
   KEY `t1a` (`a`(767)),
   KEY `t1b` (`b`(767)),
   KEY `t1c` (`c`(767)),
@@ -620,22 +602,22 @@ CREATE INDEX ndx_p ON t12963823 (p(500));
 SHOW CREATE TABLE t12963823;
 Table	Create Table
 t12963823	CREATE TABLE `t12963823` (
-  `a` blob,
-  `b` blob,
-  `c` blob,
-  `d` blob,
-  `e` blob,
-  `f` blob,
-  `g` blob,
-  `h` blob,
-  `i` blob,
-  `j` blob,
-  `k` blob,
-  `l` blob,
-  `m` blob,
-  `n` blob,
-  `o` blob,
-  `p` blob,
+  `a` blob DEFAULT NULL,
+  `b` blob DEFAULT NULL,
+  `c` blob DEFAULT NULL,
+  `d` blob DEFAULT NULL,
+  `e` blob DEFAULT NULL,
+  `f` blob DEFAULT NULL,
+  `g` blob DEFAULT NULL,
+  `h` blob DEFAULT NULL,
+  `i` blob DEFAULT NULL,
+  `j` blob DEFAULT NULL,
+  `k` blob DEFAULT NULL,
+  `l` blob DEFAULT NULL,
+  `m` blob DEFAULT NULL,
+  `n` blob DEFAULT NULL,
+  `o` blob DEFAULT NULL,
+  `p` blob DEFAULT NULL,
   KEY `ndx_c` (`c`(500)),
   KEY `ndx_d` (`d`(500)),
   KEY `ndx_e` (`e`(500)),
@@ -727,11 +709,9 @@ EXPLAIN
 SELECT COUNT(*) FROM
 (SELECT * FROM t1 FORCE INDEX (idx,PRIMARY)
 WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	1537	100.00	NULL
-2	DERIVED	t1	NULL	index_merge	PRIMARY,idx	idx,PRIMARY	5,4	NULL	1537	100.00	Using sort_union(idx,PRIMARY); Using where
-Warnings:
-Note	1003	/* select#1 */ select count(0) AS `COUNT(*)` from (/* select#2 */ select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` FORCE INDEX (PRIMARY) FORCE INDEX (`idx`) where ((`test`.`t1`.`a` between 2 and 7) or (`test`.`t1`.`pk` = 1000000))) `t`
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	1537	
+2	DERIVED	t1	index_merge	PRIMARY,idx	idx,PRIMARY	5,4	NULL	1537	Using sort_union(idx,PRIMARY); Using where
 SELECT COUNT(*) FROM
 (SELECT * FROM t1 FORCE INDEX (idx,PRIMARY)
 WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;

@@ -213,6 +213,20 @@ dict_create_add_foreigns_to_dictionary(
 	const dict_table_t*	table,
 	trx_t*			trx)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Check if a foreign constraint is on columns server as base columns
+of any stored column. This is to prevent creating SET NULL or CASCADE
+constraint on such columns
+@param[in]	local_fk_set	set of foreign key objects, to be added to
+the dictionary tables
+@param[in]	table		table to which the foreign key objects in
+local_fk_set belong to
+@return true if yes, otherwise, false */
+bool
+dict_foreigns_has_s_base_col(
+	const dict_foreign_set&	local_fk_set,
+	const dict_table_t*	table);
+
 /****************************************************************//**
 Creates the tablespaces and datafiles system tables inside InnoDB
 at server bootstrap or server start if they are not found or are

@@ -198,7 +198,6 @@ ib_wqueue_nowait(
 
 	return (node ? node->data : NULL);
 }
-
 /********************************************************************
 Check if queue is empty. */
 ibool

@@ -159,9 +159,10 @@ page_cur_tuple_insert(
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr,	/*!< in: mini-transaction handle, or NULL */
-	bool		use_cache = false);
+	bool		use_cache = false)
 				/*!< in: if true, then use record cache to
 				hold the tuple converted record. */
+	MY_ATTRIBUTE((nonnull(1,2,3,4,5), warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Inserts a record next to page cursor. Returns pointer to inserted record if

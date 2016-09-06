@@ -110,7 +110,7 @@ trx_rollback_to_savepoint_low(
 		ut_ad(trx->rsegs.m_redo.rseg != 0
 		      || trx->rsegs.m_noredo.rseg != 0);
 
-		thr = pars_complete_graph_for_exec(roll_node, trx, heap);
+		thr = pars_complete_graph_for_exec(roll_node, trx, heap, NULL);
 
 		ut_a(thr == que_fork_start_command(
 			static_cast<que_fork_t*>(que_node_get_parent(thr))));
@@ -207,8 +207,7 @@ trx_rollback_low(
 	case TRX_STATE_NOT_STARTED:
 		trx->will_lock = 0;
 		ut_ad(trx->in_mysql_trx_list);
-		return(trx->state == TRX_STATE_NOT_STARTED
-		       ? DB_SUCCESS : DB_FORCED_ABORT);
+		return(DB_SUCCESS);
 
 	case TRX_STATE_ACTIVE:
 		ut_ad(trx->in_mysql_trx_list);
@@ -290,11 +289,6 @@ trx_rollback_for_mysql(
 
 		TrxInInnoDB	trx_in_innodb(trx, true);
 
-		if (trx_in_innodb.is_aborted()) {
-
-			return(DB_FORCED_ABORT);
-		}
-
 		return(trx_rollback_low(trx));
 	}
 }
@@ -317,8 +311,6 @@ trx_rollback_last_sql_stat_for_mysql(
 
 	switch (trx->state) {
 	case TRX_STATE_FORCED_ROLLBACK:
-		return(DB_FORCED_ABORT);
-
 	case TRX_STATE_NOT_STARTED:
 		return(DB_SUCCESS);
 
@@ -651,7 +643,7 @@ trx_rollback_active(
 	fork = que_fork_create(NULL, NULL, QUE_FORK_RECOVERY, heap);
 	fork->trx = trx;
 
-	thr = que_thr_create(fork, heap);
+	thr = que_thr_create(fork, heap, NULL);
 
 	roll_node = roll_node_create(heap);
 
@@ -887,7 +879,7 @@ DECLARE_THREAD(trx_rollback_or_clean_all_recovered)(
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
 
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -1120,7 +1112,7 @@ trx_roll_graph_build(
 	fork = que_fork_create(NULL, NULL, QUE_FORK_ROLLBACK, heap);
 	fork->trx = trx;
 
-	thr = que_thr_create(fork, heap);
+	thr = que_thr_create(fork, heap, NULL);
 
 	thr->child = row_undo_node_create(trx, thr, heap);
 

@@ -171,6 +171,18 @@ unlocking, not the corresponding function. */
 #define rw_lock_sx_lock_nowait(M, P)				\
 	rw_lock_sx_lock_low((M), (P), __FILE__, __LINE__)
 
+#define rw_lock_sx_lock(L)					\
+	rw_lock_sx_lock_func((L), 0, __FILE__, __LINE__)
+
+#define rw_lock_sx_lock_inline(M, P, F, L)			\
+	rw_lock_sx_lock_func((M), (P), (F), (L))
+
+#define rw_lock_sx_lock_gen(M, P)				\
+	rw_lock_sx_lock_func((M), (P), __FILE__, __LINE__)
+
+#define rw_lock_sx_lock_nowait(M, P)				\
+	rw_lock_sx_lock_low((M), (P), __FILE__, __LINE__)
+
 # ifdef UNIV_DEBUG
 #  define rw_lock_sx_unlock(L)		rw_lock_sx_unlock_func(0, L)
 #  define rw_lock_sx_unlock_gen(L, P)	rw_lock_sx_unlock_func(P, L)
@@ -552,7 +564,7 @@ rw_lock_own_flagged(
 	const rw_lock_t*	lock,	/*!< in: rw-lock */
 	rw_lock_flags_t		flags)	/*!< in: specify lock types with
 					OR of the rw_lock_flag_t values */
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* UNIV_DEBUG */
 /******************************************************************//**
 Checks if somebody has locked the rw-lock in the specified mode.

@@ -733,7 +733,6 @@ err_len:
 @param[in]	space_id	Tablespace ID
 @return First filepath (caller must invoke ut_free() on it)
 @retval NULL if no SYS_DATAFILES entry was found. */
-static
 char*
 dict_get_first_path(
 	ulint	space_id)
@@ -819,7 +818,7 @@ dict_get_first_path(
 @retval NULL if no dictionary entry was found. */
 static
 char*
-dict_get_space_name(
+dict_space_get_name(
 	ulint		space_id,
 	mem_heap_t*	callers_heap)
 {
@@ -1127,7 +1126,7 @@ dict_sys_tablespaces_rec_read(
 		rec, DICT_FLD__SYS_TABLESPACES__NAME, &len);
 	if (len == 0 || len == UNIV_SQL_NULL) {
 		ib::error() << "Wrong field length in SYS_TABLESPACES.NAME: "
-		<< len;
+			<< len;
 		return(false);
 	}
 	strncpy(name, reinterpret_cast<const char*>(field), NAME_LEN);
@@ -1137,7 +1136,7 @@ dict_sys_tablespaces_rec_read(
 		rec, DICT_FLD__SYS_TABLESPACES__FLAGS, &len);
 	if (len != 4) {
 		ib::error() << "Wrong field length in SYS_TABLESPACES.FLAGS: "
-		<< len;
+			<< len;
 		return(false);
 	}
 	*flags = mach_read_from_4(field);
@@ -1313,32 +1312,16 @@ dict_sys_tables_rec_read(
 
 	*flags = dict_sys_tables_type_to_tf(type, *n_cols);
 
-	/* For tables created with old versions of InnoDB, there may be
-	garbage in SYS_TABLES.MIX_LEN where flags2 are found. Such tables
-	would always be in ROW_FORMAT=REDUNDANT which do not have the
-	high bit set in n_cols, and flags would be zero. */
-	if (*flags != 0 || *n_cols & DICT_N_COLS_COMPACT) {
+	/* Get flags2 from SYS_TABLES.MIX_LEN */
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_TABLES__MIX_LEN, &len);
+	*flags2 = mach_read_from_4(field);
 
-		/* Get flags2 from SYS_TABLES.MIX_LEN */
-		field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_TABLES__MIX_LEN, &len);
-		*flags2 = mach_read_from_4(field);
+	/* DICT_TF2_FTS will be set when indexes are being loaded */
+	*flags2 &= ~DICT_TF2_FTS;
 
-		if (!dict_tf2_is_valid(*flags, *flags2)) {
-			ib::error() << "Table " << table_name << " in InnoDB"
-				" data dictionary contains invalid flags."
-				" SYS_TABLES.MIX_LEN=" << *flags2;
-			*flags2 = ULINT_UNDEFINED;
-			return(false);
-		}
-
-		/* DICT_TF2_FTS will be set when indexes are being loaded */
-		*flags2 &= ~DICT_TF2_FTS;
-
-		/* Now that we have used this bit, unset it. */
-		*n_cols &= ~DICT_N_COLS_COMPACT;
-	}
-
+	/* Now that we have used this bit, unset it. */
+	*n_cols &= ~DICT_N_COLS_COMPACT;
 	return(true);
 }
 
@@ -1431,10 +1414,10 @@ dict_check_sys_tables(
 		and the tablespace_name are the same.
 		Some hidden tables like FTS AUX tables may not be found in
 		the dictionary since they can always be found in the default
-		location. If so, then dict_get_space_name() will return NULL,
+		location. If so, then dict_space_get_name() will return NULL,
 		the space name must be the table_name, and the filepath can be
 		discovered in the default location.*/
-		char*	shared_space_name = dict_get_space_name(space_id, NULL);
+		char*	shared_space_name = dict_space_get_name(space_id, NULL);
 		space_name = shared_space_name == NULL
 			? table_name.m_name
 			: shared_space_name;
@@ -1468,17 +1451,13 @@ dict_check_sys_tables(
 		opened. */
 		char*	filepath = dict_get_first_path(space_id);
 
-			/* We need to read page 0 to get (optional) IV
-			regardless if encryptions is turned on or not,
-			since if it's off we should decrypt a potentially
-			already encrypted table */
-			bool read_page_0 = true;
-
 		/* Check that the .ibd file exists. */
 		bool	is_temp = flags2 & DICT_TF2_TEMPORARY;
-		ulint	fsp_flags = dict_tf_to_fsp_flags(flags, is_temp);
-
-		validate = true;
+		bool	is_encrypted = flags2 & DICT_TF2_ENCRYPTION;
+		ulint	fsp_flags = dict_tf_to_fsp_flags(flags,
+							 is_temp,
+							 is_encrypted);
+		validate = true; /* Encryption */
 
 		dberr_t	err = fil_ibd_open(
 			validate,
@@ -2601,7 +2580,7 @@ dict_load_indexes(
 				dictionary cache for such metadata corruption,
 				since we would always be able to set it
 				when loading the dictionary cache */
-				ut_ad(index->table == table);
+				index->table = table;
 				dict_set_corrupted_index_cache_only(index);
 
 				ib::info() << "Index is corrupt but forcing"
@@ -2848,7 +2827,7 @@ dict_get_and_save_space_name(
 			dict_mutex_enter_for_mysql();
 		}
 
-		table->tablespace = dict_get_space_name(
+		table->tablespace = dict_space_get_name(
 			table->space, table->heap);
 
 		if (!dict_mutex_own) {
@@ -2948,7 +2927,7 @@ dict_load_tablespace(
 	if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
 		if (srv_sys_tablespaces_open) {
 			shared_space_name =
-				dict_get_space_name(table->space, NULL);
+				dict_space_get_name(table->space, NULL);
 
 		} else {
 			/* Make the temporary tablespace name. */
@@ -3012,7 +2991,9 @@ dict_load_tablespace(
 
 	/* Try to open the tablespace.  We set the 2nd param (fix_dict) to
 	false because we do not have an x-lock on dict_operation_lock */
-	ulint fsp_flags = dict_tf_to_fsp_flags(table->flags, false);
+	ulint fsp_flags = dict_tf_to_fsp_flags(table->flags,
+					       false,
+					       dict_table_is_encrypted(table));
 	dberr_t err = fil_ibd_open(
 		true, false, FIL_TYPE_TABLESPACE, table->space,
 		fsp_flags, space_name, filepath, table);
@@ -3179,6 +3160,32 @@ err_exit:
 		}
 	}
 
+	/* We don't trust the table->flags2(retrieved from SYS_TABLES.MIX_LEN
+	field) if the datafiles are from 3.23.52 version. To identify this
+	version, we do the below check and reset the flags. */
+	if (!DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID)
+	    && table->space == srv_sys_space.space_id()
+	    && table->flags == 0) {
+		table->flags2 = 0;
+	}
+
+	DBUG_EXECUTE_IF("ib_table_invalid_flags",
+			if(strcmp(table->name.m_name, "test/t1") == 0) {
+				table->flags2 = 255;
+				table->flags = 255;
+			});
+
+	if (!dict_tf2_is_valid(table->flags, table->flags2)) {
+		ib::error() << "Table " << table->name << " in InnoDB"
+			" data dictionary contains invalid flags."
+			" SYS_TABLES.MIX_LEN=" << table->flags2;
+		table->flags2 &= ~(DICT_TF2_TEMPORARY|DICT_TF2_INTRINSIC);
+		dict_table_remove_from_cache(table);
+		table = NULL;
+		err = DB_FAIL;
+		goto func_exit;
+	}
+
 	/* Initialize table foreign_child value. Its value could be
 	changed when dict_load_foreigns() is called below */
 	table->fk_max_recusive_level = 0;
@@ -3203,6 +3210,7 @@ err_exit:
 			dict_table_remove_from_cache(table);
 			table = NULL;
 		} else {
+			dict_mem_table_fill_foreign_vcol_set(table);
 			table->fk_max_recusive_level = 0;
 		}
 	} else {
@@ -3351,99 +3359,6 @@ check_rec:
 	mem_heap_free(heap);
 
 	return(table);
-}
-
-/***********************************************************************//**
-Loads a table id based on the index id.
-@return	true if found */
-static
-bool
-dict_load_table_id_on_index_id(
-/*==================*/
-	index_id_t		index_id,  /*!< in: index id */
-	table_id_t*		table_id) /*!< out: table id */
-{
-	/* check hard coded indexes */
-	switch(index_id) {
-	case DICT_TABLES_ID:
-	case DICT_COLUMNS_ID:
-	case DICT_INDEXES_ID:
-	case DICT_FIELDS_ID:
-		*table_id = index_id;
-		return true;
-	case DICT_TABLE_IDS_ID:
-		/* The following is a secondary index on SYS_TABLES */
-		*table_id = DICT_TABLES_ID;
-		return true;
-	}
-
-	bool		found = false;
-	mtr_t		mtr;
-
-	ut_ad(mutex_own(&(dict_sys->mutex)));
-
-	/* NOTE that the operation of this function is protected by
-	the dictionary mutex, and therefore no deadlocks can occur
-	with other dictionary operations. */
-
-	mtr_start(&mtr);
-
-	btr_pcur_t pcur;
-	const rec_t* rec = dict_startscan_system(&pcur, &mtr, SYS_INDEXES);
-
-	while (rec) {
-		ulint len;
-		const byte* field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_INDEXES__ID, &len);
-		ut_ad(len == 8);
-
-		/* Check if the index id is the one searched for */
-		if (index_id == mach_read_from_8(field)) {
-			found = true;
-			/* Now we get the table id */
-			const byte* field = rec_get_nth_field_old(
-				rec,
-				DICT_FLD__SYS_INDEXES__TABLE_ID,
-				&len);
-			*table_id = mach_read_from_8(field);
-			break;
-		}
-		mtr_commit(&mtr);
-		mtr_start(&mtr);
-		rec = dict_getnext_system(&pcur, &mtr);
-	}
-
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
-
-	return(found);
-}
-
-UNIV_INTERN
-dict_table_t*
-dict_table_open_on_index_id(
-/*==================*/
-	index_id_t index_id,	/*!< in: index id */
-	bool dict_locked)	/*!< in: dict locked */
-{
-	if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
-	}
-
-	ut_ad(mutex_own(&dict_sys->mutex));
-	table_id_t table_id;
-	dict_table_t * table = NULL;
-	if (dict_load_table_id_on_index_id(index_id, &table_id)) {
-		bool local_dict_locked = true;
-		table = dict_table_open_on_id(table_id,
-					      local_dict_locked,
-					      DICT_TABLE_OP_LOAD_TABLESPACE);
-	}
-
-	if (!dict_locked) {
-		mutex_exit(&dict_sys->mutex);
-	}
-	return table;
 }
 
 /********************************************************************//**
@@ -3952,4 +3867,97 @@ load_next_index:
 	}
 
 	DBUG_RETURN(DB_SUCCESS);
+}
+
+/***********************************************************************//**
+Loads a table id based on the index id.
+@return	true if found */
+static
+bool
+dict_load_table_id_on_index_id(
+/*===========================*/
+	index_id_t		index_id,  /*!< in: index id */
+	table_id_t*		table_id) /*!< out: table id */
+{
+	/* check hard coded indexes */
+	switch(index_id) {
+	case DICT_TABLES_ID:
+	case DICT_COLUMNS_ID:
+	case DICT_INDEXES_ID:
+	case DICT_FIELDS_ID:
+		*table_id = index_id;
+		return true;
+	case DICT_TABLE_IDS_ID:
+		/* The following is a secondary index on SYS_TABLES */
+		*table_id = DICT_TABLES_ID;
+		return true;
+	}
+
+	bool		found = false;
+	mtr_t		mtr;
+
+	ut_ad(mutex_own(&(dict_sys->mutex)));
+
+	/* NOTE that the operation of this function is protected by
+	the dictionary mutex, and therefore no deadlocks can occur
+	with other dictionary operations. */
+
+	mtr_start(&mtr);
+
+	btr_pcur_t pcur;
+	const rec_t* rec = dict_startscan_system(&pcur, &mtr, SYS_INDEXES);
+
+	while (rec) {
+		ulint len;
+		const byte* field = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_INDEXES__ID, &len);
+		ut_ad(len == 8);
+
+		/* Check if the index id is the one searched for */
+		if (index_id == mach_read_from_8(field)) {
+			found = true;
+			/* Now we get the table id */
+			const byte* field = rec_get_nth_field_old(
+				rec,
+				DICT_FLD__SYS_INDEXES__TABLE_ID,
+				&len);
+			*table_id = mach_read_from_8(field);
+			break;
+		}
+		mtr_commit(&mtr);
+		mtr_start(&mtr);
+		rec = dict_getnext_system(&pcur, &mtr);
+	}
+
+	btr_pcur_close(&pcur);
+	mtr_commit(&mtr);
+
+	return(found);
+}
+
+UNIV_INTERN
+dict_table_t*
+dict_table_open_on_index_id(
+/*========================*/
+	index_id_t index_id,	/*!< in: index id */
+	bool dict_locked)	/*!< in: dict locked */
+{
+	if (!dict_locked) {
+		mutex_enter(&dict_sys->mutex);
+	}
+
+	ut_ad(mutex_own(&dict_sys->mutex));
+	table_id_t table_id;
+	dict_table_t * table = NULL;
+	if (dict_load_table_id_on_index_id(index_id, &table_id)) {
+		bool local_dict_locked = true;
+		table = dict_table_open_on_id(table_id,
+					      local_dict_locked,
+					      DICT_TABLE_OP_LOAD_TABLESPACE);
+	}
+
+	if (!dict_locked) {
+		mutex_exit(&dict_sys->mutex);
+	}
+	return table;
 }

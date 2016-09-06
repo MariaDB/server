@@ -244,7 +244,7 @@ ibool
 ibuf_inside(
 /*========*/
 	const mtr_t*	mtr)	/*!< in: mini-transaction */
-	MY_ATTRIBUTE((nonnull, pure));
+	MY_ATTRIBUTE((warn_unused_result));
 
 /** Checks if a page address is an ibuf bitmap page (level 3 page) address.
 @param[in]	page_id		page id
@@ -362,20 +362,16 @@ ibuf_delete_for_discarded_space(
 @param[in]	full		If true, do a full contraction based
 on PCT_IO(100). If false, the size of contract batch is determined
 based on the current size of the change buffer.
-@param[in]	space_id	tablespace for which to contract, or
-ULINT_UNDEFINED to contract for all tablespaces
 @return a lower limit for the combined size in bytes of entries which
 will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
 ulint
 ibuf_merge_in_background(
-	bool	full,
-	ulint	space_id);
+	bool	full);
 
 /** Contracts insert buffer trees by reading pages referring to space_id
 to the buffer pool.
 @returns number of pages merged.*/
-UNIV_INTERN
 ulint
 ibuf_merge_space(
 /*=============*/

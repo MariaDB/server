@@ -2663,7 +2663,7 @@ void yyrestart  (FILE * input_file )
  * @param new_buffer The new input buffer.
  *
  */
-    MY_ATTRIBUTE((unused)) static void yy_switch_to_buffer  (YY_BUFFER_STATE  new_buffer )
+MY_ATTRIBUTE((unused)) static void yy_switch_to_buffer  (YY_BUFFER_STATE  new_buffer )
 {
 
 	/* TODO. We should be able to replace this entire function body

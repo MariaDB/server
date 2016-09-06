@@ -241,6 +241,8 @@ row_fts_psort_info_init(
 		crypt_data = NULL;
 	}
 
+	ut_ad(trx->mysql_thd != NULL);
+	const char*	path = thd_innodb_tmpdir(trx->mysql_thd);
 	/* There will be FTS_NUM_AUX_INDEX number of "sort buckets" for
 	each parallel sort thread. Each "sort bucket" holds records for
 	a particular "FTS index partition" */
@@ -263,7 +265,8 @@ row_fts_psort_info_init(
 			psort_info[j].merge_buf[i] = row_merge_buf_create(
 				dup->index);
 
-			if (row_merge_file_create(psort_info[j].merge_file[i]) < 0) {
+			if (row_merge_file_create(psort_info[j].merge_file[i],
+						  path) < 0) {
 				goto func_exit;
 			}
 
@@ -359,7 +362,6 @@ row_fts_psort_info_destroy(
 				if (psort_info[j].crypt_alloc[i]) {
 					ut_free(psort_info[j].crypt_alloc[i]);
 				}
-
 			}
 
 			mutex_free(&psort_info[j].mutex);
@@ -804,6 +806,11 @@ fts_parallel_tokenization(
 		psort_info->psort_common->trx->mysql_thd);
 	*/
 
+	ut_ad(psort_info->psort_common->trx->mysql_thd != NULL);
+
+	const char*		path = thd_innodb_tmpdir(
+		psort_info->psort_common->trx->mysql_thd);
+
 	ut_ad(psort_info);
 
 	buf = psort_info->merge_buf;
@@ -857,8 +864,7 @@ loop:
 				doc.text.f_str =
 					btr_copy_externally_stored_field(
 						&doc.text.f_len, data,
-						page_size, data_len, blob_heap
-						);
+						page_size, data_len, blob_heap);
 			} else {
 				doc.text.f_str = data;
 				doc.text.f_len = data_len;
@@ -1045,7 +1051,7 @@ exit:
 			continue;
 		}
 
-		tmpfd[i] = row_merge_file_create_low();
+		tmpfd[i] = row_merge_file_create_low(path);
 		if (tmpfd[i] < 0) {
 			error = DB_OUT_OF_MEMORY;
 			goto func_exit;
@@ -1096,7 +1102,7 @@ func_exit:
 	CloseHandle((HANDLE)psort_info->thread_hdl);
 #endif /*__WIN__ */
 
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -1113,8 +1119,9 @@ row_fts_start_psort(
 
 	for (i = 0; i < fts_sort_pll_degree; i++) {
 		psort_info[i].psort_id = i;
-		os_thread_create(fts_parallel_tokenization,
-				 (void*) &psort_info[i],
+		psort_info[i].thread_hdl =
+			os_thread_create(fts_parallel_tokenization,
+				(void*) &psort_info[i],
 				 &thd_id);
 	}
 }
@@ -1146,7 +1153,7 @@ fts_parallel_merge(
 	CloseHandle((HANDLE)psort_info->thread_hdl);
 #endif /*__WIN__ */
 
-	os_thread_exit(NULL);
+	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
 }
@@ -1166,9 +1173,8 @@ row_fts_start_parallel_merge(
 		merge_info[i].psort_id = i;
 		merge_info[i].child_status = 0;
 
-		os_thread_create(
-			fts_parallel_merge, (void*) &merge_info[i], &thd_id);
-		merge_info[i].thread_hdl = thd_id;
+		merge_info[i].thread_hdl = os_thread_create(fts_parallel_merge,
+			(void*) &merge_info[i], &thd_id);
 	}
 }
 

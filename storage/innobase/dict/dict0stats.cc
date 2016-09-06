@@ -930,14 +930,14 @@ dict_stats_update_transient(
 
 	if (dict_table_is_discarded(table)) {
 		/* Nothing to do. */
-		dict_stats_empty_table(table, false);
+		dict_stats_empty_table(table, true);
 		return;
 	} else if (index == NULL) {
 		/* Table definition is corrupt */
 
 		ib::warn() << "Table " << table->name
 			<< " has no indexes. Cannot calculate statistics.";
-		dict_stats_empty_table(table, false);
+		dict_stats_empty_table(table, true);
 		return;
 	}
 
@@ -2316,7 +2316,6 @@ storage.
 allocate and free the trx object. If it is not NULL then it will be
 rolled back only in the case of error, but not freed.
 @return DB_SUCCESS or error code */
-static
 dberr_t
 dict_stats_save_index_stat(
 	dict_index_t*	index,
@@ -3257,15 +3256,15 @@ dict_stats_update(
 
 			if (innodb_table_stats_not_found == false &&
 			    table->stats_error_printed == false) {
-			ib::error() << "Fetch of persistent statistics"
-				" requested for table "
-				<< table->name
-				<< " but the required system tables "
-				<< TABLE_STATS_NAME_PRINT
-				<< " and " << INDEX_STATS_NAME_PRINT
-				<< " are not present or have unexpected"
-				" structure. Using transient stats instead.";
-				table->stats_error_printed = true;
+				ib::error() << "Fetch of persistent statistics"
+					" requested for table "
+					<< table->name
+					<< " but the required system tables "
+					<< TABLE_STATS_NAME_PRINT
+					<< " and " << INDEX_STATS_NAME_PRINT
+					<< " are not present or have unexpected"
+					" structure. Using transient stats instead.";
+					table->stats_error_printed = true;
 			}
 
 			goto transient;
@@ -3337,12 +3336,12 @@ dict_stats_update(
 
 			if (innodb_table_stats_not_found == false &&
 			    table->stats_error_printed == false) {
-			ib::error() << "Error fetching persistent statistics"
-				" for table "
-				<< table->name
-				<< " from " TABLE_STATS_NAME_PRINT " and "
-				INDEX_STATS_NAME_PRINT ": " << ut_strerr(err)
-				<< ". Using transient stats method instead.";
+				ib::error() << "Error fetching persistent statistics"
+					" for table "
+					<< table->name
+					<< " from " TABLE_STATS_NAME_PRINT " and "
+					INDEX_STATS_NAME_PRINT ": " << ut_strerr(err)
+					<< ". Using transient stats method instead.";
 			}
 
 			goto transient;
@@ -3839,120 +3838,6 @@ dict_stats_rename_table(
 	}
 
 	return(ret);
-}
-
-/*********************************************************************//**
-Save defragmentation result.
-@return DB_SUCCESS or error code */
-UNIV_INTERN
-dberr_t
-dict_stats_save_defrag_summary(
-	dict_index_t*	index)	/*!< in: index */
-{
-	dberr_t	ret;
-	lint	now = (lint) ut_time();
-
-	if (dict_stats_should_ignore_index(index)) {
-		return DB_SUCCESS;
-	}
-
-	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys->mutex);
-	ret = dict_stats_save_index_stat(index, now, "n_pages_freed",
-					 index->stat_defrag_n_pages_freed,
-					 NULL,
-					 "Number of pages freed during"
-					 " last defragmentation run.",
-					 NULL);
-
-	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
-	return (ret);
-}
-
-/*********************************************************************//**
-Save defragmentation stats for a given index.
-@return DB_SUCCESS or error code */
-UNIV_INTERN
-dberr_t
-dict_stats_save_defrag_stats(
-	dict_index_t*	index)	/*!< in: index */
-{
-	dberr_t	ret;
-
-	if (index->table->ibd_file_missing) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Cannot save defragment stats because "
-			".ibd file is missing.\n");
-		return (DB_TABLESPACE_DELETED);
-	}
-	if (dict_index_is_corrupted(index)) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Cannot save defragment stats because "
-			"index is corrupted.\n");
-		return(DB_CORRUPTION);
-	}
-
-	if (dict_stats_should_ignore_index(index)) {
-		return DB_SUCCESS;
-	}
-
-	lint	now = (lint) ut_time();
-	mtr_t	mtr;
-	ulint	n_leaf_pages=0;
-	ulint	n_leaf_reserved=0;
-	mtr_start(&mtr);
-	mtr_s_lock(dict_index_get_lock(index), &mtr);
-
-	n_leaf_reserved = btr_get_size_and_reserved(index, BTR_N_LEAF_PAGES,
-						    &n_leaf_pages, &mtr);
-	mtr_commit(&mtr);
-
-	if (n_leaf_reserved == ULINT_UNDEFINED) {
-		// The index name is different during fast index creation,
-		// so the stats won't be associated with the right index
-		// for later use. We just return without saving.
-		return DB_SUCCESS;
-	}
-
-	rw_lock_x_lock(dict_operation_lock);
-
-	mutex_enter(&dict_sys->mutex);
-	ret = dict_stats_save_index_stat(index, now, "n_page_split",
-					 index->stat_defrag_n_page_split,
-					 NULL,
-					 "Number of new page splits on leaves"
-					 " since last defragmentation.",
-					 NULL);
-	if (ret != DB_SUCCESS) {
-		goto end;
-	}
-
-	ret = dict_stats_save_index_stat(
-		index, now, "n_leaf_pages_defrag",
-		n_leaf_pages,
-		NULL,
-		"Number of leaf pages when this stat is saved to disk",
-		NULL);
-	if (ret != DB_SUCCESS) {
-		goto end;
-	}
-
-	ret = dict_stats_save_index_stat(
-		index, now, "n_leaf_pages_reserved",
-		n_leaf_reserved,
-		NULL,
-		"Number of pages reserved for this index leaves when this stat "
-		"is saved to disk",
-		NULL);
-
-end:
-	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
-
-	return (ret);
 }
 
 /*********************************************************************//**

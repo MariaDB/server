@@ -219,6 +219,11 @@ an asynchronous i/o operation.
 @param[in,out]	m2		message for the AIO handler (can be used to
 				identify a completed AIO operation); ignored
 				if mode is OS_AIO_SYNC
+@param[in,out]	write_size	Actual write size initialized
+				after fist successfull trim
+				operation for this page and if
+				initialized we do not trim again if
+				actual page size 
 @param[in]	src_file	file name where func invoked
 @param[in]	src_line	line where the func invoked
 @return DB_SUCCESS if request was queued successfully, FALSE if fail */
@@ -235,11 +240,7 @@ pfs_os_aio_func(
 	bool		read_only,
 	fil_node_t*	m1,
 	void*		m2,
-	ulint*		write_size,/*!< in/out: Actual write size initialized
-			       after fist successfull trim
-			       operation for this page and if
-			       initialized we do not trim again if
-			       actual page size does not decrease. */
+	ulint*		write_size,
 	const char*	src_file,
 	ulint		src_line)
 {

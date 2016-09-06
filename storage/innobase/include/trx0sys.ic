@@ -105,9 +105,11 @@ trx_sysf_get(
 	block = buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
 			     univ_page_size, RW_X_LATCH, mtr);
 
-	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
+	if (block) {
+		buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
 
-	header = TRX_SYS + buf_block_get_frame(block);
+		header = TRX_SYS + buf_block_get_frame(block);
+	}
 
 	return(header);
 }
@@ -423,7 +425,7 @@ trx_sys_get_new_trx_id()
 {
 #ifndef WITH_WSREP
 	/* wsrep_fake_trx_id  violates this assert */
-	ut_ad(mutex_own(&trx_sys->mutex));
+	ut_ad(trx_sys_mutex_own());
 #endif /* WITH_WSREP */
 
 	/* VERY important: after the database is started, max_trx_id value is
