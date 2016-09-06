@@ -470,3 +470,15 @@ INSERT INTO t1 VALUES ('a'),('A');
  # should be case sensitive
 SELECT * FROM t1 WHERE a RLIKE 'a';
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9711 NO PAD collations
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_general_nopad_ci);
+INSERT INTO t1 VALUES ('a'),('a '),('A'),('A ');
+SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8) FROM t1;
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET ascii2 COLLATE ascii2_nopad_bin;
+SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8) FROM t1;
+ALTER TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_swedish_nopad2_ci;
+SELECT a, a='a', a='a ', HEX(a), LOWER(a), UPPER(a), CONVERT(a USING utf8) FROM t1;
+DROP TABLE t1;

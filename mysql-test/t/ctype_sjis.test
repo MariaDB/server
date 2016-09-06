@@ -245,6 +245,17 @@ SELECT HEX(a) FROM t1;
 SELECT a=CONCAT('x', REPEAT(_sjis 0x835C, 200)) FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+SET character_set_connection=sjis;
+let $coll='sjis_japanese_nopad_ci';
+let $coll_pad='sjis_japanese_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='sjis_nopad_bin';
+let $coll_pad='sjis_bin';
+--source include/ctype_pad_all_engines.inc
 
 --echo #
 --echo # End of 10.2 tests

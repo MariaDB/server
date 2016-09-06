@@ -123,13 +123,21 @@ static my_bool init_state_maps(struct charset_info_st *cs)
 }
 
 
+static MY_COLLATION_HANDLER *get_simple_collation_handler_by_flags(uint flags)
+{
+  return flags & MY_CS_BINSORT ?
+           (flags & MY_CS_NOPAD ?
+            &my_collation_8bit_nopad_bin_handler :
+            &my_collation_8bit_bin_handler) :
+           (flags & MY_CS_NOPAD ?
+            &my_collation_8bit_simple_nopad_ci_handler :
+            &my_collation_8bit_simple_ci_handler);
+}
+
+
 static void simple_cs_init_functions(struct charset_info_st *cs)
 {
-  if (cs->state & MY_CS_BINSORT)
-    cs->coll= &my_collation_8bit_bin_handler;
-  else
-    cs->coll= &my_collation_8bit_simple_ci_handler;
-  
+  cs->coll= get_simple_collation_handler_by_flags(cs->state);
   cs->cset= &my_charset_8bit_handler;
 }
 

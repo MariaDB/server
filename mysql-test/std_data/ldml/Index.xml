@@ -328,6 +328,11 @@
       - ascii2_general_inherited_ci inherits sort order in ascii2.xml
       - ascii2_genegal_inherited2_ci inherits sort order directly in this file.
     -->
+    <collation name="ascii2_general_nopad_ci" id="318" flag="nopad">
+      <rules>
+        <import source="ascii2_general_ci"/>
+      </rules>
+    </collation>
     <collation name="ascii2_bin2" id="319" flag="binary"/>
     <collation name="ascii2_general_ci"	id="320" flag="primary"/>
     <collation name="ascii2_bin" id="321" flag="binary"/>
@@ -342,6 +347,7 @@
         <import source="ascii2_non_existing_ci"/>
       </rules>
     </collation>
+    <collation name="ascii2_nopad_bin" id="325" flag="binary" flag="nopad"/>
   </charset>
 
   <charset name="latin1">
@@ -357,6 +363,11 @@
     <collation name="latin1_test" id="99" order="test"/>
     <collation name="latin1_test2" id="332" order="test"/>
     <collation name="latin1_test2_cs" id="333"/>
+    <collation name="latin1_swedish_nopad2_ci" id="334" flag="nopad">
+      <rules>
+        <import source="latin1_swedish_ci"/>
+      </rules>
+    </collation>
   </charset>
 
   <charset name="utf8">

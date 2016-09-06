@@ -338,16 +338,23 @@ print_array_ref(FILE *f,
 }
 
 
+static const char *nopad_infix(CHARSET_INFO *cs)
+{
+  return (cs->state & MY_CS_NOPAD) ? "_nopad" : "";
+}
+
+
 void dispcset(FILE *f,CHARSET_INFO *cs)
 {
   fprintf(f,"{\n");
   fprintf(f,"  %d,%d,%d,\n",cs->number,0,0);
-  fprintf(f,"  MY_CS_COMPILED%s%s%s%s%s,\n",
+  fprintf(f,"  MY_CS_COMPILED%s%s%s%s%s%s,\n",
           cs->state & MY_CS_BINSORT         ? "|MY_CS_BINSORT"   : "",
           cs->state & MY_CS_PRIMARY         ? "|MY_CS_PRIMARY"   : "",
           cs->state & MY_CS_CSSORT          ? "|MY_CS_CSSORT"    : "",
           cs->state & MY_CS_PUREASCII       ? "|MY_CS_PUREASCII" : "",
-          cs->state & MY_CS_NONASCII        ? "|MY_CS_NONASCII"  : "");
+          cs->state & MY_CS_NONASCII        ? "|MY_CS_NONASCII"  : "",
+          cs->state & MY_CS_NOPAD           ? "|MY_CS_NOPAD"     : "");
   
   if (cs->name)
   {
@@ -402,10 +409,11 @@ void dispcset(FILE *f,CHARSET_INFO *cs)
   fprintf(f,"  0,                          /* escape_with_backslash_is_dangerous */\n");
   fprintf(f,"  1,                          /* levels_for_order   */\n");
   fprintf(f,"  &my_charset_8bit_handler,\n");
+
   if (cs->state & MY_CS_BINSORT)
-    fprintf(f,"  &my_collation_8bit_bin_handler,\n");
+    fprintf(f,"  &my_collation_8bit%s_bin_handler,\n", nopad_infix(cs));
   else
-    fprintf(f,"  &my_collation_8bit_simple_ci_handler,\n");
+    fprintf(f,"  &my_collation_8bit_simple%s_ci_handler,\n", nopad_infix(cs));
   fprintf(f,"}\n");
 }
 
