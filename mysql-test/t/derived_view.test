@@ -143,8 +143,6 @@ select * from (select * from
   (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) zz;
 
 --echo mat in merged derived join mat in merged derived
-set @save_optimizer_switch=@@optimizer_switch;
-set optimizer_switch='condition_pushdown_for_derived=off';
 explain extended  select * from 
  (select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) x
 join 
@@ -164,7 +162,6 @@ join
  on x.f1 = z.f1;
 show status like 'Handler_read%';
 flush status;
-set optimizer_switch=@save_optimizer_switch;
 
 --echo merged in merged derived join merged in merged derived
 explain extended  select * from 
@@ -232,6 +229,7 @@ select * from (select * from v7 group by 1) tt;
 
 --echo join of above two
 explain extended select * from v6 join v7 on f2=f1;
+explain format=json select * from v6 join v7 on f2=f1;
 select * from v6 join v7 on f2=f1;
 
 --echo test two keys

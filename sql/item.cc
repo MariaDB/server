@@ -6800,12 +6800,12 @@ Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
     Item *item;
     while ((item=li++))
     {
-      if (item->used_tables() == map && item->type() == FIELD_ITEM)
+      if (item->used_tables() == map && item->real_item()->type() == FIELD_ITEM)
       {
 	Item_ref *rf= 
 	  new (thd->mem_root) Item_ref(thd, &sl->context, 
 				       NullS, NullS,
-				     ((Item_field*) item)->field_name);
+			      ((Item_field*) (item->real_item()))->field_name);
 	if (!rf)
 	  return 0;
 	return rf;
@@ -6836,11 +6836,11 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
     Item *item;
     while ((item=it++))
     {
-      if (item->used_tables() == map && item->type() == FIELD_ITEM)
+      if (item->used_tables() == map && item->real_item()->type() == FIELD_ITEM)
       {   
-	Item_field *field_item= (Item_field *) item;
+	Item_field *field_item= (Item_field *) (item->real_item());
 	li.rewind();
-        uint field_no= ((Item_field*) this)->field->field_index;
+        uint field_no= field_item->field->field_index;
         for (uint i= 0; i <= field_no; i++)
           producing_item= li++;
         return producing_item->build_clone(thd, thd->mem_root);
@@ -6873,9 +6873,9 @@ Item *Item_field::derived_grouping_field_transformer_for_where(THD *thd,
     Item *item;
     while ((item=it++))
     {
-      if (item->used_tables() == map && item->type() == FIELD_ITEM)
+      if (item->used_tables() == map && item->real_item()->type() == FIELD_ITEM)
       {   
-	Item_field *field_item= (Item_field *) item;
+	Item_field *field_item= (Item_field *) (item->real_item());
 	li.rewind();
         while ((field=li++))
         {
@@ -10147,12 +10147,12 @@ bool Item_field::exclusive_dependence_on_grouping_fields_processor(void *arg)
     Item *item;
     while ((item=it++))
     {
-      if (item->used_tables() == map && item->type() == FIELD_ITEM)
+      if (item->used_tables() == map && item->real_item()->type() == FIELD_ITEM)
       {
 	li.rewind();
         while ((field=li++))
         {
-	  if (((Item_field *)item)->field == field->tmp_field)
+	  if (((Item_field *)(item->real_item()))->field == field->tmp_field)
 	    return false;
 	}
       }
