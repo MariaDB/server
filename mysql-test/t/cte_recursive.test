@@ -1177,3 +1177,10 @@ select  * from t;
 drop table t1;
 
 
+--echo #
+--echo # MDEV-10737: recursive union with several anchors at the end
+--echo #
+
+WITH RECURSIVE cte(n) AS
+  ( SELECT n+1 FROM cte WHERE n < 5 UNION SELECT 1 UNION SELECT 1 )
+SELECT * FROM cte;

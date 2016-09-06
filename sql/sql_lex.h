@@ -551,6 +551,8 @@ public:
   {
     if (where_to_move == this)
       return;
+    if (next)
+      next->prev= prev;
     *prev= next;
     *where_to_move->prev= this;
     next= where_to_move;
