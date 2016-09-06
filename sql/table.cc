@@ -8204,6 +8204,7 @@ int get_hash_key(THD *thd,TABLE *table, handler *h,  uint key_index,
   String *str2, temp2;
   bool is_null= false;
   bool is_same= true;
+  bool is_index_inited= h->inited;
   /* difference between field->ptr and start of rec_buff */
   long diff = rec_buff- table->record[0];
   int result= 0;
@@ -8287,7 +8288,8 @@ int get_hash_key(THD *thd,TABLE *table, handler *h,  uint key_index,
                           t_field->null_ptr-diff, t_field->null_bit);
     }
   }
-  h->ha_index_end();
+  if (!is_index_inited)
+    h->ha_index_end();
   re_setup_table(table);
   return result;
 }

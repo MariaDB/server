@@ -5598,6 +5598,17 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
         }
         else if (use->keypart != 0 && skip_unprefixed_keyparts)
           continue; /* remove - first found must be 0 */
+
+        if ((use->table->key_info[use->key].flags & HA_UNIQUE_HASH) &&
+            ((!(use+1)->table) || (use->key != (use+1)->key)) &&
+            (use->keypart +1 !=
+                  use->table->key_info[use->key].user_defined_key_parts))
+        {
+          use->table->reginfo.join_tab->checked_keys.clear_bit(use->key);
+          use->table->reginfo.join_tab->const_keys.clear_bit(use->key);
+          save_pos-= use->keypart;
+          continue;
+        }
       }
 
       prev= use;
