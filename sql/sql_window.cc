@@ -795,6 +795,9 @@ public:
     perform_no_action= true;
   }
 
+  /* Retrieves the row number that this cursor currently points at. */
+  virtual ha_rows get_curr_rownum()= 0;
+
 protected:
   inline void add_value_to_items()
   {
@@ -988,6 +991,11 @@ public:
     walk_till_non_peer();
   }
 
+  ha_rows get_curr_rownum()
+  {
+    return cursor.get_rownum();
+  }
+
 private:
   void walk_till_non_peer()
   {
@@ -1110,6 +1118,11 @@ public:
     walk_till_non_peer();
   }
 
+  ha_rows get_curr_rownum()
+  {
+    return cursor.get_rownum();
+  }
+
 private:
   void walk_till_non_peer()
   {
@@ -1198,6 +1211,11 @@ public:
       return;
     }
     walk_till_non_peer();
+  }
+
+  ha_rows get_curr_rownum()
+  {
+    return cursor.get_rownum();
   }
 
 private:
@@ -1299,6 +1317,11 @@ public:
       while (1);
     }
   }
+
+  ha_rows get_curr_rownum()
+  {
+    return cursor.get_rownum();
+  }
 };
 
 
@@ -1322,15 +1345,25 @@ public:
   void next_partition(ha_rows rownum)
   {
     /*
-      UNBOUNDED PRECEDING frame end just stays on the first row.
-      We are top of the frame, so we don't need to update the sum function.
+      UNBOUNDED PRECEDING frame end just stays on the first row of the
+      partition. We are top of the frame, so we don't need to update the sum
+      function.
     */
+    curr_rownum= rownum;
   }
 
   void next_row()
   {
     /* Do nothing, UNBOUNDED PRECEDING frame end doesn't move. */
   }
+
+  ha_rows get_curr_rownum()
+  {
+    return curr_rownum;
+  }
+
+private:
+  ha_rows curr_rownum;
 };
 
 
@@ -1380,6 +1413,11 @@ public:
   {
     /* Do nothing, UNBOUNDED FOLLOWING frame end doesn't move */
   }
+
+  ha_rows get_curr_rownum()
+  {
+    return cursor.get_rownum();
+  }
 };
 
 
@@ -1414,6 +1452,11 @@ public:
         static_cast<Item_sum_window_with_row_count *>(item);
       item_with_row_count->set_row_count(num_rows_in_partition);
     }
+  }
+
+  ha_rows get_curr_rownum()
+  {
+    return cursor.get_rownum();
   }
 };
 
@@ -1492,6 +1535,11 @@ public:
     else
       add_value_to_items();
   }
+
+  ha_rows get_curr_rownum()
+  {
+    return cursor.get_rownum();
+  }
 };
 
 
@@ -1506,17 +1554,33 @@ class Frame_rows_current_row_bottom : public Frame_cursor
 {
 public:
 
+  Frame_rows_current_row_bottom() : curr_rownum(0) {}
+
   void pre_next_partition(ha_rows rownum)
   {
     add_value_to_items();
   }
+
   void next_partition(ha_rows rownum) {}
+
   void pre_next_row()
   {
     /* Temp table's current row is current_row. Add it to the window func */
     add_value_to_items();
   }
-  void next_row() {};
+
+  void next_row()
+  {
+    curr_rownum++;
+  };
+
+  ha_rows get_curr_rownum()
+  {
+    return curr_rownum;
+  }
+
+private:
+  ha_rows curr_rownum;
 };
 
 
@@ -1609,6 +1673,11 @@ public:
     if (at_partition_end)
       return;
     next_row_intern();
+  }
+
+  ha_rows get_curr_rownum()
+  {
+    return cursor.get_rownum();
   }
 
 private:
