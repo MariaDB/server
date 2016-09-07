@@ -921,6 +921,15 @@ trx_sys_create_rsegs()
 					" requested innodb_undo_logs";
 				return(false);
 			}
+
+			/* Increase the number of active undo
+			tablespace in case new rollback segment
+			assigned to new undo tablespace. */
+			if (space > srv_undo_tablespaces_active) {
+				srv_undo_tablespaces_active++;
+
+				ut_ad(srv_undo_tablespaces_active == space);
+			}
 		}
 	}
 
