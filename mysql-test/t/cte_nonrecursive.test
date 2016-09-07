@@ -558,3 +558,21 @@ INSERT INTO t3 VALUES (1),(2),(3);
 EXPLAIN SELECT * FROM (WITH a AS (SELECT * FROM t1) (t2 NATURAL JOIN t3));
 explain SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT * FROM t2 NATURAL JOIN t3) AS d1;
 DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-10729: Server crashes in st_select_lex::set_explain_type
+--echo #
+CREATE TABLE t1 (i1 INT, KEY(i1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4),(8);
+                        
+CREATE TABLE t2 (a2 INT, b2 INT, KEY(b2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8,7);
+            
+CREATE TABLE t3 (i3 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (2),(6);
+ 
+SELECT * FROM t1, t2 WHERE a2 = i1 and b2 >= i1 AND i1 IN ( SELECT i3 FROM t3 )
+UNION
+SELECT * FROM t1, t2 WHERE a2 = i1 and b2 >= i1 AND i1 IN ( SELECT i3 FROM t3 )
+;
+DROP TABLE t1,t2,t3;

@@ -4370,7 +4370,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
           for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
                tab= next_explain_order_tab(join, tab))
           {
-            if (tab->table->pos_in_table_list->with)
+            if (tab->table && tab->table->pos_in_table_list->with)
             {
               uses_cte= true;
               break;
