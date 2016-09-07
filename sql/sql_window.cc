@@ -647,7 +647,7 @@ private:
   end, and it needs an explicit command to move to the next partition.
 */
 
-class Partition_read_cursor
+class Partition_read_cursor : public Table_read_cursor
 {
 public:
   Partition_read_cursor(THD *thd, SQL_I_List<ORDER> *partition_list) :
@@ -655,7 +655,7 @@ public:
 
   void init(READ_RECORD *info)
   {
-    tbl_cursor.init(info);
+    Table_read_cursor::init(info);
     bound_tracker.init();
     end_of_partition= false;
   }
@@ -676,7 +676,7 @@ public:
   /*
     Moves to a new row. The row is assumed to be within the current partition.
   */
-  void move_to(ha_rows rownum) { tbl_cursor.move_to(rownum); }
+  void move_to(ha_rows rownum) { Table_read_cursor::move_to(rownum); }
 
   /*
     This returns -1 when end of partition was reached.
@@ -686,7 +686,7 @@ public:
     int res;
     if (end_of_partition)
       return -1;
-    if ((res= tbl_cursor.get_next()))
+    if ((res= Table_read_cursor::get_next()))
       return res;
 
     if (bound_tracker.compare_with_cache())
@@ -699,11 +699,10 @@ public:
 
   bool restore_last_row()
   {
-    return tbl_cursor.restore_last_row();
+    return Table_read_cursor::restore_last_row();
   }
 
 private:
-  Table_read_cursor tbl_cursor;
   Group_bound_tracker bound_tracker;
   bool end_of_partition;
 };
