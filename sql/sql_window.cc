@@ -748,6 +748,8 @@ private:
 class Frame_cursor : public Sql_alloc
 {
 public:
+  Frame_cursor() : sum_functions(), perform_no_action(false) {}
+
   virtual void init(READ_RECORD *info) {};
 
   bool add_sum_func(Item_sum* item)
@@ -783,9 +785,22 @@ public:
 
   virtual ~Frame_cursor() {}
 
+  /*
+     Regular frame cursors add or remove values from the sum functions they
+     manage. By calling this method, they will only perform the required
+     movement within the table, but no adding/removing will happen.
+  */
+  void set_no_action()
+  {
+    perform_no_action= true;
+  }
+
 protected:
   inline void add_value_to_items()
   {
+    if (perform_no_action)
+      return;
+
     List_iterator_fast<Item_sum> it(sum_functions);
     Item_sum *item_sum;
     while ((item_sum= it++))
@@ -793,8 +808,12 @@ protected:
       item_sum->add();
     }
   }
+
   inline void remove_value_from_items()
   {
+    if (perform_no_action)
+      return;
+
     List_iterator_fast<Item_sum> it(sum_functions);
     Item_sum *item_sum;
     while ((item_sum= it++))
@@ -805,6 +824,9 @@ protected:
 
   /* Sum functions that this cursor handles. */
   List<Item_sum> sum_functions;
+
+private:
+  bool perform_no_action;
 };
 
 /*
