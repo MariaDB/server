@@ -714,34 +714,6 @@ bool add_select_to_union_list(LEX *lex, bool is_union_distinct,
   return FALSE;
 }
 
-/**
-   @brief Initializes a SELECT_LEX for a query within parentheses (aka
-   braces).
-
-   @return false if successful, true if an error was reported. In the latter
-   case parsing should stop.
- */
-bool setup_select_in_parentheses(LEX *lex) 
-{
-  SELECT_LEX * sel= lex->current_select;
-  /*
-  if (sel->set_braces(1))
-  {
-    my_parse_error(lex->thd, ER_SYNTAX_ERROR);
-    return TRUE;
-  }
-  */
-  DBUG_ASSERT(sel->braces);
-  if (sel->linkage == UNION_TYPE &&
-      !sel->master_unit()->first_select()->braces &&
-      sel->master_unit()->first_select()->linkage ==
-      UNION_TYPE)
-  {
-    my_parse_error(lex->thd, ER_SYNTAX_ERROR);
-    return TRUE;
-  }
-  return FALSE;
-}
 
 static bool add_create_index_prepare(LEX *lex, Table_ident *table)
 {
@@ -5245,6 +5217,27 @@ opt_part_values:
               part_info->part_type= LIST_PARTITION;
           }
           part_values_in {}
+        | DEFAULT
+         {
+            LEX *lex= Lex;
+            partition_info *part_info= lex->part_info;
+            if (! lex->is_partition_management())
+            {
+              if (part_info->part_type != LIST_PARTITION)
+                my_yyabort_error((ER_PARTITION_WRONG_VALUES_ERROR, MYF(0),
+                                  "LIST", "DEFAULT"));
+            }
+            else
+              part_info->part_type= LIST_PARTITION;
+            if (part_info->init_column_part(thd))
+            {
+              MYSQL_YYABORT;
+            }
+            if (part_info->add_max_value(thd))
+            {
+              MYSQL_YYABORT;
+            }
+         }
         ;
 
 part_func_max:
@@ -8398,8 +8391,7 @@ select_paren:
           SELECT_SYM select_options_and_item_list select_part3
           opt_select_lock_type
           {
-            if (setup_select_in_parentheses(Lex))
-              MYSQL_YYABORT;
+            DBUG_ASSERT(Lex->current_select->braces);
           }
         | '(' select_paren ')'
         ;
@@ -8415,8 +8407,7 @@ select_paren_union_query_term:
           SELECT_SYM select_options_and_item_list select_part3_union_query_term
           opt_select_lock_type
           {
-            if (setup_select_in_parentheses(Lex))
-              MYSQL_YYABORT;
+            DBUG_ASSERT(Lex->current_select->braces);
           }
         | '(' select_paren_union_query_term ')'
         ;
@@ -8432,8 +8423,7 @@ select_paren_view:
           SELECT_SYM select_options_and_item_list select_part3_view
           opt_select_lock_type
           {
-            if (setup_select_in_parentheses(Lex))
-              MYSQL_YYABORT;
+            DBUG_ASSERT(Lex->current_select->braces);
           }
         | '(' select_paren_view ')'
         ;
@@ -8449,8 +8439,7 @@ select_paren_derived:
           opt_limit_clause
           opt_select_lock_type
           {
-            if (setup_select_in_parentheses(Lex))
-              MYSQL_YYABORT;
+            DBUG_ASSERT(Lex->current_select->braces);
             $$= Lex->current_select->master_unit()->first_select();
           }
         | '(' select_paren_derived ')'  { $$= $2; }
@@ -11076,12 +11065,7 @@ union_list_derived:
 select_init2_derived:
           select_part2_derived
           {
-            LEX *lex= Lex;
-            if (lex->current_select->set_braces(0))
-            {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
-              MYSQL_YYABORT;
-            }
+            Select->set_braces(0);
           }
         ;
 
@@ -11126,16 +11110,8 @@ select_derived:
 derived_query_specification:
           SELECT_SYM select_derived_init select_derived2
           {
-            LEX *lex= Lex;
-            SELECT_LEX *sel= lex->current_select;
             if ($2)
-            {
-              if (sel->set_braces(1))
-              {
-                my_parse_error(thd, ER_SYNTAX_ERROR);
-                MYSQL_YYABORT;
-              }
-            }
+              Select->set_braces(1);
             $$= NULL;
           }
         ;

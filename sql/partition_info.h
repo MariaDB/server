@@ -202,6 +202,7 @@ public:
   uint num_full_part_fields;
 
   uint has_null_part_id;
+  uint32 default_partition_id;
   /*
     This variable is used to calculate the partition id when using
     LINEAR KEY/HASH. This functionality is kept in the MySQL Server
@@ -230,6 +231,10 @@ public:
   bool use_default_num_subpartitions;
   bool default_partitions_setup;
   bool defined_max_value;
+  inline bool has_default_partititon()
+  {
+    return (part_type == LIST_PARTITION && defined_max_value);
+  }
   bool list_of_part_fields;                  // KEY or COLUMNS PARTITIONING
   bool list_of_subpart_fields;               // KEY SUBPARTITIONING
   bool linear_hash_ind;                      // LINEAR HASH/KEY
@@ -323,8 +328,7 @@ public:
   Item* get_column_item(Item *item, Field *field);
   int fix_partition_values(THD *thd,
                            part_elem_value *val,
-                           partition_element *part_elem,
-                           uint part_id);
+                           partition_element *part_elem);
   bool fix_column_value_functions(THD *thd,
                                   part_elem_value *val,
                                   uint part_id);
@@ -399,6 +403,7 @@ static inline void init_single_partition_iterator(uint32 part_id,
   part_iter->part_nums.start= part_iter->part_nums.cur= part_id;
   part_iter->part_nums.end= part_id+1;
   part_iter->ret_null_part= part_iter->ret_null_part_orig= FALSE;
+  part_iter->ret_default_part= part_iter->ret_default_part_orig= FALSE;
   part_iter->get_next= get_next_partition_id_range;
 }
 
@@ -410,6 +415,7 @@ void init_all_partitions_iterator(partition_info *part_info,
   part_iter->part_nums.start= part_iter->part_nums.cur= 0;
   part_iter->part_nums.end= part_info->num_parts;
   part_iter->ret_null_part= part_iter->ret_null_part_orig= FALSE;
+  part_iter->ret_default_part= part_iter->ret_default_part_orig= FALSE;
   part_iter->get_next= get_next_partition_id_range;
 }
 

@@ -2457,7 +2457,6 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
   return FALSE;
 }
 
-bool st_select_lex_node::set_braces(bool value)      { return 1; }
 bool st_select_lex_node::inc_in_sum_expr()           { return 1; }
 uint st_select_lex_node::get_in_sum_expr()           { return 0; }
 TABLE_LIST* st_select_lex_node::get_table_list()     { return 0; }
@@ -2604,13 +2603,6 @@ bool st_select_lex::add_ftfunc_to_list(THD *thd, Item_func_match *func)
 st_select_lex* st_select_lex::outer_select()
 {
   return (st_select_lex*) master->get_master();
-}
-
-
-bool st_select_lex::set_braces(bool value)
-{
-  braces= value;
-  return 0; 
 }
 
 
@@ -4378,7 +4370,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
           for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
                tab= next_explain_order_tab(join, tab))
           {
-            if (tab->table->pos_in_table_list->with)
+            if (tab->table && tab->table->pos_in_table_list->with)
             {
               uses_cte= true;
               break;

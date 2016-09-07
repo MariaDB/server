@@ -531,7 +531,6 @@ public:
   virtual st_select_lex* outer_select()= 0;
   virtual st_select_lex* return_after_parsing()= 0;
 
-  virtual bool set_braces(bool value);
   virtual bool inc_in_sum_expr();
   virtual uint get_in_sum_expr();
   virtual TABLE_LIST* get_table_list();
@@ -971,7 +970,10 @@ public:
 
   bool mark_as_dependent(THD *thd, st_select_lex *last, Item *dependency);
 
-  bool set_braces(bool value);
+  void set_braces(bool value)
+  {
+    braces= value;
+  }
   bool inc_in_sum_expr();
   uint get_in_sum_expr();
 

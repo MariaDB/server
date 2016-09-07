@@ -7219,3 +7219,6 @@ ER_CALCULATING_DEFAULT_VALUE
         eng "Got an error when calculating default value for %`s"
 ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
         eng "Expression for field %`-.64s is refering to uninitialized field %`s"
+ER_PARTITION_DEFAULT_ERROR
+        eng "Only one DEFAULT partition allowed"
+        ukr "Припустимо мати тільки один DEFAULT розділ" 
