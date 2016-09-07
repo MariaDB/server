@@ -7468,22 +7468,16 @@ mysql_new_select(LEX *lex, bool move_down)
       my_error(ER_WRONG_USAGE, MYF(0), "UNION", "INTO");
       DBUG_RETURN(TRUE);
     }
-    if (lex->proc_list.elements!=0)
-    {
-      my_error(ER_WRONG_USAGE, MYF(0), "UNION",
-               "SELECT ... PROCEDURE ANALYSE()");
-      DBUG_RETURN(TRUE);
-    }
-    if (lex->current_select->order_list.first && !lex->current_select->braces)
-    {
-      my_error(ER_WRONG_USAGE, MYF(0), "UNION", "ORDER BY");
-      DBUG_RETURN(1);
-    }
-    if (lex->current_select->explicit_limit && !lex->current_select->braces)
-    {
-      my_error(ER_WRONG_USAGE, MYF(0), "UNION", "LIMIT");
-      DBUG_RETURN(1);
-    }
+
+    // SELECT 1 FROM t1 PROCEDURE ANALYSE() UNION ...  --    not possible
+    DBUG_ASSERT(lex->proc_list.elements == 0);
+    // SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 -- not possible
+    DBUG_ASSERT(!lex->current_select->order_list.first ||
+                lex->current_select->braces);
+    // SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1;   -- not possible
+    DBUG_ASSERT(!lex->current_select->explicit_limit ||
+                lex->current_select->braces);
+
     select_lex->include_neighbour(lex->current_select);
     SELECT_LEX_UNIT *unit= select_lex->master_unit();                              
     if (!unit->fake_select_lex && unit->add_fake_select_lex(lex->thd))

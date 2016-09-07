@@ -6690,6 +6690,22 @@ my_mb_wc_big5(CHARSET_INFO *cs __attribute__((unused)),
 #include "strcoll.ic"
 
 
+#define DEFINE_STRNNCOLLSP_NOPAD
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _big5_chinese_nopad_ci
+#define WEIGHT_MB1(x)        (sort_order_big5[(uchar) (x)])
+#define WEIGHT_MB2(x,y)      (big5code(x, y))
+#define WEIGHT_MB2_FRM(x,y)  (big5strokexfrm((uint16) WEIGHT_MB2(x, y)))
+#define DEFINE_STRNXFRM
+#include "strcoll.ic"
+
+
+#define DEFINE_STRNNCOLLSP_NOPAD
+#define MY_FUNCTION_NAME(x)   my_ ## x ## _big5_nopad_bin
+#define WEIGHT_MB1(x)        ((uchar) (x))
+#define WEIGHT_MB2(x,y)      (big5code(x, y))
+#include "strcoll.ic"
+
+
 static MY_COLLATION_HANDLER my_collation_handler_big5_chinese_ci=
 {
   NULL,			/* init */
@@ -6718,6 +6734,38 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_bin=
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_bin,
+  my_propagate_simple
+};
+
+
+static MY_COLLATION_HANDLER my_collation_handler_big5_chinese_nopad_ci=
+{
+  NULL,			/* init */
+  my_strnncoll_big5_chinese_ci,
+  my_strnncollsp_big5_chinese_nopad_ci,
+  my_strnxfrm_big5_chinese_nopad_ci,
+  my_strnxfrmlen_simple,
+  my_like_range_mb,
+  my_wildcmp_mb,
+  my_strcasecmp_mb,
+  my_instr_mb,
+  my_hash_sort_simple_nopad,
+  my_propagate_simple
+};
+
+
+static MY_COLLATION_HANDLER my_collation_handler_big5_nopad_bin=
+{
+  NULL,	                /* init */
+  my_strnncoll_big5_bin,
+  my_strnncollsp_big5_nopad_bin,
+  my_strnxfrm_mb_nopad,
+  my_strnxfrmlen_simple,
+  my_like_range_mb,
+  my_wildcmp_mb_bin,
+  my_strcasecmp_mb_bin,
+  my_instr_mb,
+  my_hash_sort_mb_nopad_bin,
   my_propagate_simple
 };
 
@@ -6818,6 +6866,72 @@ struct charset_info_st my_charset_big5_bin=
     1,                  /* levels_for_order   */
     &my_charset_big5_handler,
     &my_collation_handler_big5_bin
+};
+
+
+struct charset_info_st my_charset_big5_chinese_nopad_ci=
+{
+    MY_NOPAD_ID(1),0,0,       /* number     */
+    MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NOPAD, /* state */
+    "big5",                   /* cs name    */
+    "big5_chinese_nopad_ci",  /* name       */
+    "",                       /* comment    */
+    NULL,                     /* tailoring */
+    ctype_big5,
+    to_lower_big5,
+    to_upper_big5,
+    sort_order_big5,
+    NULL,                     /* uca */
+    NULL,                     /* tab_to_uni   */
+    NULL,                     /* tab_from_uni */
+    &my_caseinfo_big5,        /* caseinfo     */
+    NULL,                     /* state_map    */
+    NULL,                     /* ident_map    */
+    1,                        /* strxfrm_multiply */
+    1,                        /* caseup_multiply  */
+    1,                        /* casedn_multiply  */
+    1,                        /* mbminlen   */
+    2,                        /* mbmaxlen   */
+    0,                        /* min_sort_char */
+    0xF9D5,                   /* max_sort_char */
+    ' ',                      /* pad char      */
+    1,                        /* escape_with_backslash_is_dangerous */
+    1,                        /* levels_for_order   */
+    &my_charset_big5_handler,
+    &my_collation_handler_big5_chinese_nopad_ci
+};
+
+
+struct charset_info_st my_charset_big5_nopad_bin=
+{
+    MY_NOPAD_ID(84),0,0,      /* number     */
+    MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
+    "big5",                   /* cs name    */
+    "big5_nopad_bin",         /* name       */
+    "",                       /* comment    */
+    NULL,                     /* tailoring */
+    ctype_big5,
+    to_lower_big5,
+    to_upper_big5,
+    NULL,                     /* sort_order   */
+    NULL,                     /* uca          */
+    NULL,                     /* tab_to_uni   */
+    NULL,                     /* tab_from_uni */
+    &my_caseinfo_big5,        /* caseinfo     */
+    NULL,                     /* state_map    */
+    NULL,                     /* ident_map    */
+    1,                        /* strxfrm_multiply */
+    1,                        /* caseup_multiply  */
+    1,                        /* casedn_multiply  */
+    1,                        /* mbminlen   */
+    2,                        /* mbmaxlen   */
+    0,                        /* min_sort_char */
+    0xF9FE,                   /* max_sort_char */
+    ' ',                      /* pad char      */
+    1,                        /* escape_with_backslash_is_dangerous */
+    1,                        /* levels_for_order   */
+    &my_charset_big5_handler,
+    &my_collation_handler_big5_nopad_bin
 };
 
 

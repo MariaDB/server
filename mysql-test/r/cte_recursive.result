@@ -1611,3 +1611,15 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# MDEV-10737: recursive union with several anchors at the end
+#
+WITH RECURSIVE cte(n) AS
+( SELECT n+1 FROM cte WHERE n < 5 UNION SELECT 1 UNION SELECT 1 )
+SELECT * FROM cte;
+n
+1
+2
+3
+4
+5

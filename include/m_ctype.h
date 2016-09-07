@@ -362,6 +362,8 @@ struct my_collation_handler_st
 
 extern MY_COLLATION_HANDLER my_collation_8bit_bin_handler;
 extern MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler;
+extern MY_COLLATION_HANDLER my_collation_8bit_nopad_bin_handler;
+extern MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler;
 extern MY_COLLATION_HANDLER my_collation_ucs2_uca_handler;
 
 /* Some typedef to make it easy for C++ to make function pointers */
@@ -585,49 +587,81 @@ struct charset_info_st
 
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_bin;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_latin1;
+extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_latin1_nopad;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_filename;
 extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_utf8_general_ci;
 
 extern struct charset_info_st my_charset_big5_bin;
 extern struct charset_info_st my_charset_big5_chinese_ci;
+extern struct charset_info_st my_charset_big5_nopad_bin;
+extern struct charset_info_st my_charset_big5_chinese_nopad_ci;
 extern struct charset_info_st my_charset_cp1250_czech_ci;
 extern struct charset_info_st my_charset_cp932_bin;
 extern struct charset_info_st my_charset_cp932_japanese_ci;
+extern struct charset_info_st my_charset_cp932_nopad_bin;
+extern struct charset_info_st my_charset_cp932_japanese_nopad_ci;
 extern struct charset_info_st my_charset_eucjpms_bin;
 extern struct charset_info_st my_charset_eucjpms_japanese_ci;
+extern struct charset_info_st my_charset_eucjpms_nopad_bin;
+extern struct charset_info_st my_charset_eucjpms_japanese_nopad_ci;
 extern struct charset_info_st my_charset_euckr_bin;
 extern struct charset_info_st my_charset_euckr_korean_ci;
+extern struct charset_info_st my_charset_euckr_nopad_bin;
+extern struct charset_info_st my_charset_euckr_korean_nopad_ci;
 extern struct charset_info_st my_charset_gb2312_bin;
 extern struct charset_info_st my_charset_gb2312_chinese_ci;
+extern struct charset_info_st my_charset_gb2312_nopad_bin;
+extern struct charset_info_st my_charset_gb2312_chinese_nopad_ci;
 extern struct charset_info_st my_charset_gbk_bin;
 extern struct charset_info_st my_charset_gbk_chinese_ci;
+extern struct charset_info_st my_charset_gbk_nopad_bin;
+extern struct charset_info_st my_charset_gbk_chinese_nopad_ci;
 extern struct charset_info_st my_charset_latin1_bin;
+extern struct charset_info_st my_charset_latin1_nopad_bin;
 extern struct charset_info_st my_charset_latin1_german2_ci;
 extern struct charset_info_st my_charset_latin2_czech_ci;
 extern struct charset_info_st my_charset_sjis_bin;
 extern struct charset_info_st my_charset_sjis_japanese_ci;
+extern struct charset_info_st my_charset_sjis_nopad_bin;
+extern struct charset_info_st my_charset_sjis_japanese_nopad_ci;
 extern struct charset_info_st my_charset_tis620_bin;
 extern struct charset_info_st my_charset_tis620_thai_ci;
+extern struct charset_info_st my_charset_tis620_nopad_bin;
+extern struct charset_info_st my_charset_tis620_thai_nopad_ci;
 extern struct charset_info_st my_charset_ucs2_bin;
 extern struct charset_info_st my_charset_ucs2_general_ci;
+extern struct charset_info_st my_charset_ucs2_nopad_bin;
+extern struct charset_info_st my_charset_ucs2_general_nopad_ci;
 extern struct charset_info_st my_charset_ucs2_general_mysql500_ci;
 extern struct charset_info_st my_charset_ucs2_unicode_ci;
 extern struct charset_info_st my_charset_ucs2_general_mysql500_ci;
 extern struct charset_info_st my_charset_ujis_bin;
 extern struct charset_info_st my_charset_ujis_japanese_ci;
+extern struct charset_info_st my_charset_ujis_nopad_bin;
+extern struct charset_info_st my_charset_ujis_japanese_nopad_ci;
 extern struct charset_info_st my_charset_utf16_bin;
 extern struct charset_info_st my_charset_utf16_general_ci;
 extern struct charset_info_st my_charset_utf16_unicode_ci;
 extern struct charset_info_st my_charset_utf16le_bin;
 extern struct charset_info_st my_charset_utf16le_general_ci;
+extern struct charset_info_st my_charset_utf16_general_nopad_ci;
+extern struct charset_info_st my_charset_utf16_nopad_bin;
+extern struct charset_info_st my_charset_utf16le_nopad_bin;
+extern struct charset_info_st my_charset_utf16le_general_nopad_ci;
 extern struct charset_info_st my_charset_utf32_bin;
 extern struct charset_info_st my_charset_utf32_general_ci;
 extern struct charset_info_st my_charset_utf32_unicode_ci;
+extern struct charset_info_st my_charset_utf32_nopad_bin;
+extern struct charset_info_st my_charset_utf32_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8_bin;
+extern struct charset_info_st my_charset_utf8_nopad_bin;
+extern struct charset_info_st my_charset_utf8_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8_general_mysql500_ci;
 extern struct charset_info_st my_charset_utf8_unicode_ci;
 extern struct charset_info_st my_charset_utf8mb4_bin;
 extern struct charset_info_st my_charset_utf8mb4_general_ci;
+extern struct charset_info_st my_charset_utf8mb4_nopad_bin;
+extern struct charset_info_st my_charset_utf8mb4_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8mb4_unicode_ci;
 
 #define MY_UTF8MB3                 "utf8"
@@ -653,6 +687,11 @@ extern int  my_strnncollsp_simple(CHARSET_INFO *, const uchar *, size_t,
 extern void my_hash_sort_simple(CHARSET_INFO *cs,
 				const uchar *key, size_t len,
 				ulong *nr1, ulong *nr2); 
+
+extern void my_hash_sort_simple_nopad(CHARSET_INFO *cs,
+				      const uchar *key, size_t len,
+				      ulong *nr1, ulong *nr2);
+
 extern void my_hash_sort_bin(CHARSET_INFO *cs,
                              const uchar *key, size_t len, ulong *nr1,
                              ulong *nr2);
@@ -824,18 +863,38 @@ int my_strcasecmp_mb_bin(CHARSET_INFO * cs __attribute__((unused)),
 void my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
                          const uchar *key, size_t len,ulong *nr1, ulong *nr2);
 
+void my_hash_sort_mb_nopad_bin(CHARSET_INFO *cs __attribute__((unused)),
+                               const uchar *key, size_t len,
+                               ulong *nr1, ulong *nr2);
+
 size_t my_strnxfrm_mb(CHARSET_INFO *,
                       uchar *dst, size_t dstlen, uint nweights,
                       const uchar *src, size_t srclen, uint flags);
 
+size_t my_strnxfrm_mb_nopad(CHARSET_INFO *,
+			    uchar *dst, size_t dstlen, uint nweights,
+			    const uchar *src, size_t srclen, uint flags);
+
 size_t my_strnxfrm_unicode(CHARSET_INFO *,
                            uchar *dst, size_t dstlen, uint nweights,
                            const uchar *src, size_t srclen, uint flags);
+
+size_t my_strnxfrm_unicode_nopad(CHARSET_INFO *,
+				 uchar *dst, size_t dstlen, uint nweights,
+				 const uchar *src, size_t srclen, uint flags);
+
 size_t  my_strnxfrmlen_unicode(CHARSET_INFO *, size_t); 
 
 size_t my_strnxfrm_unicode_full_bin(CHARSET_INFO *,
-                                    uchar *dst, size_t dstlen, uint nweights,
-                                    const uchar *src, size_t srclen, uint flags);
+                                    uchar *dst, size_t dstlen,
+                                    uint nweights, const uchar *src,
+                                    size_t srclen, uint flags);
+
+size_t my_strnxfrm_unicode_full_nopad_bin(CHARSET_INFO *,
+					  uchar *dst, size_t dstlen,
+					  uint nweights, const uchar *src,
+					  size_t srclen, uint flags);
+
 size_t  my_strnxfrmlen_unicode_full_bin(CHARSET_INFO *, size_t); 
 
 int my_wildcmp_unicode(CHARSET_INFO *cs,
@@ -865,7 +924,6 @@ void my_string_metadata_get(MY_STRING_METADATA *metadata,
                             CHARSET_INFO *cs, const char *str, size_t len);
 uint my_string_repertoire(CHARSET_INFO *cs, const char *str, ulong len);
 my_bool my_charset_is_ascii_based(CHARSET_INFO *cs);
-my_bool my_charset_is_8bit_pure_ascii(CHARSET_INFO *cs);
 uint my_charset_repertoire(CHARSET_INFO *cs);
 
 uint my_strxfrm_flag_normalize(uint flags, uint nlevels);
@@ -874,8 +932,10 @@ void my_strxfrm_desc_and_reverse(uchar *str, uchar *strend,
 size_t my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
                                        uchar *str, uchar *frmend, uchar *strend,
                                        uint nweights, uint flags, uint level);
-
-my_bool my_charset_is_ascii_compatible(CHARSET_INFO *cs);
+size_t my_strxfrm_pad_desc_and_reverse_nopad(CHARSET_INFO *cs,
+					     uchar *str, uchar *frmend,
+					     uchar *strend, uint nweights,
+					     uint flags, uint level);
 
 const MY_CONTRACTIONS *my_charset_get_contractions(CHARSET_INFO *cs,
                                                    int level);

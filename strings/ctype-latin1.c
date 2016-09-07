@@ -460,6 +460,39 @@ struct charset_info_st my_charset_latin1=
 };
 
 
+struct charset_info_st my_charset_latin1_nopad=
+{
+    MY_NOPAD_ID(8),0,0,           /* number           */
+    MY_CS_COMPILED | MY_CS_NOPAD, /* state            */
+    "latin1",                     /* cs name          */
+    "latin1_swedish_nopad_ci",    /* name             */
+    "",                           /* comment          */
+    NULL,                         /* tailoring        */
+    ctype_latin1,
+    to_lower_latin1,
+    to_upper_latin1,
+    sort_order_latin1,
+    NULL,                         /* uca              */
+    cs_to_uni,                    /* tab_to_uni       */
+    NULL,                         /* tab_from_uni     */
+    &my_unicase_default,          /* caseinfo         */
+    NULL,                         /* state_map        */
+    NULL,                         /* ident_map        */
+    1,                            /* strxfrm_multiply */
+    1,                            /* caseup_multiply  */
+    1,                            /* casedn_multiply  */
+    1,                            /* mbminlen         */
+    1,                            /* mbmaxlen         */
+    0,                            /* min_sort_char    */
+    255,                          /* max_sort_char    */
+    ' ',                          /* pad char         */
+    0,                            /* escape_with_backslash_is_dangerous */
+    1,                            /* levels_for_order */
+    &my_charset_handler,
+    &my_collation_8bit_simple_nopad_ci_handler
+};
+
+
 
 
 /*
@@ -768,5 +801,38 @@ struct charset_info_st my_charset_latin1_bin=
   1,                                    /* levels_for_order   */
   &my_charset_handler,
   &my_collation_8bit_bin_handler
+};
+
+
+struct charset_info_st my_charset_latin1_nopad_bin=
+{
+  MY_NOPAD_ID(47),0,0,                 /* number           */
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,/* state        */
+  "latin1",                            /* cs name          */
+  "latin1_nopad_bin",                  /* name             */
+  "",                                  /* comment          */
+  NULL,                                /* tailoring        */
+  ctype_latin1,
+  to_lower_latin1,
+  to_upper_latin1,
+  NULL,                                /* sort_order       */
+  NULL,                                /* uca              */
+  cs_to_uni,                           /* tab_to_uni       */
+  NULL,                                /* tab_from_uni     */
+  &my_unicase_default,                 /* caseinfo         */
+  NULL,                                /* state_map        */
+  NULL,                                /* ident_map        */
+  1,                                   /* strxfrm_multiply */
+  1,                                   /* caseup_multiply  */
+  1,                                   /* casedn_multiply  */
+  1,                                   /* mbminlen         */
+  1,                                   /* mbmaxlen         */
+  0,                                   /* min_sort_char    */
+  255,                                 /* max_sort_char    */
+  ' ',                                 /* pad char         */
+  0,                                   /* escape_with_backslash_is_dangerous */
+  1,                                   /* levels_for_order */
+  &my_charset_handler,
+  &my_collation_8bit_nopad_bin_handler
 };
 

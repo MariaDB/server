@@ -199,6 +199,15 @@ static int my_strnncollsp_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
 }
 
 
+static int my_strnncollsp_8bit_nopad_bin(CHARSET_INFO * cs
+                                         __attribute__((unused)),
+                                         const uchar *a, size_t a_length,
+                                         const uchar *b, size_t b_length)
+{
+  return my_strnncoll_8bit_bin(cs, a, a_length, b, b_length, FALSE);
+}
+
+
 /* This function is used for all conversion functions */
 
 static size_t my_case_str_bin(CHARSET_INFO *cs __attribute__((unused)),
@@ -253,31 +262,8 @@ int my_wc_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
-                           const uchar *key, size_t len,
-                           ulong *nr1, ulong *nr2)
-{
-  ulong tmp1= *nr1;
-  ulong tmp2= *nr2;
-
-  /*
-     Remove trailing spaces. We have to do this to be able to compare
-    'A ' and 'A' as identical
-  */
-  const uchar *end = skip_trailing_space(key, len);
-
-  for (; key < end ; key++)
-  {
-    MY_HASH_ADD(tmp1, tmp2, (uint) *key);
-  }
-
-  *nr1= tmp1;
-  *nr2= tmp2;
-}
-
-
 void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
-		      const uchar *key, size_t len,ulong *nr1, ulong *nr2)
+                      const uchar *key, size_t len,ulong *nr1, ulong *nr2)
 {
   const uchar *end = key + len;
   ulong tmp1= *nr1;
@@ -290,6 +276,19 @@ void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
 
   *nr1= tmp1;
   *nr2= tmp2;
+}
+
+
+void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
+                           const uchar *key, size_t len,
+                           ulong *nr1, ulong *nr2)
+{
+  /*
+     Remove trailing spaces. We have to do this to be able to compare
+    'A ' and 'A' as identical
+  */
+  const uchar *end= skip_trailing_space(key, len);
+  my_hash_sort_bin(cs, key, end - key, nr1, nr2);
 }
 
 
@@ -407,6 +406,21 @@ my_strnxfrm_8bit_bin(CHARSET_INFO *cs,
 }
 
 
+static size_t
+my_strnxfrm_8bit_nopad_bin(CHARSET_INFO *cs,
+                           uchar * dst, size_t dstlen, uint nweights,
+                           const uchar *src, size_t srclen, uint flags)
+{
+  set_if_smaller(srclen, dstlen);
+  set_if_smaller(srclen, nweights);
+  if (dst != src)
+    memcpy(dst, src, srclen);
+  return my_strxfrm_pad_desc_and_reverse_nopad(cs, dst, dst + srclen,
+                                               dst + dstlen, nweights - srclen,
+                                               flags, 0);
+}
+
+
 static
 uint my_instr_bin(CHARSET_INFO *cs __attribute__((unused)),
 		  const char *b, size_t b_length,
@@ -480,6 +494,22 @@ MY_COLLATION_HANDLER my_collation_8bit_bin_handler =
   my_strcasecmp_bin,
   my_instr_bin,
   my_hash_sort_8bit_bin,
+  my_propagate_simple
+};
+
+
+MY_COLLATION_HANDLER my_collation_8bit_nopad_bin_handler =
+{
+  my_coll_init_8bit_bin,
+  my_strnncoll_8bit_bin,
+  my_strnncollsp_8bit_nopad_bin,
+  my_strnxfrm_8bit_nopad_bin,
+  my_strnxfrmlen_simple,
+  my_like_range_simple,
+  my_wildcmp_bin,
+  my_strcasecmp_bin,
+  my_instr_bin,
+  my_hash_sort_bin,
   my_propagate_simple
 };
 

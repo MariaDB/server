@@ -531,7 +531,6 @@ public:
   virtual st_select_lex* outer_select()= 0;
   virtual st_select_lex* return_after_parsing()= 0;
 
-  virtual bool set_braces(bool value);
   virtual bool inc_in_sum_expr();
   virtual uint get_in_sum_expr();
   virtual TABLE_LIST* get_table_list();
@@ -551,6 +550,8 @@ public:
   {
     if (where_to_move == this)
       return;
+    if (next)
+      next->prev= prev;
     *prev= next;
     *where_to_move->prev= this;
     next= where_to_move;
@@ -925,6 +926,9 @@ public:
 
   table_map with_dep;
 
+  /* it is for correct printing SELECT options */
+  thr_lock_type lock_type;
+
   void init_query();
   void init_select();
   st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
@@ -950,7 +954,10 @@ public:
 
   bool mark_as_dependent(THD *thd, st_select_lex *last, Item *dependency);
 
-  bool set_braces(bool value);
+  void set_braces(bool value)
+  {
+    braces= value;
+  }
   bool inc_in_sum_expr();
   uint get_in_sum_expr();
 
@@ -2998,9 +3005,12 @@ public:
     return false;
   }
   // Add a constraint as a part of CREATE TABLE or ALTER TABLE
-  bool add_constraint(LEX_STRING *name, Virtual_column_info *constr)
+  bool add_constraint(LEX_STRING *name, Virtual_column_info *constr,
+                      bool if_not_exists)
   {
     constr->name= *name;
+    constr->flags= if_not_exists ?
+                   Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS : 0;
     alter_info.check_constraint_list.push_back(constr);
     return false;
   }
