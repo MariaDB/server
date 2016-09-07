@@ -1097,7 +1097,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         signal_allowed_expr
         simple_target_specification
         condition_number
-        opt_sp_proc_stmt_exit_when_clause
+        reset_lex_expr
 
 %type <item_param> param_marker
 
@@ -2988,33 +2988,56 @@ sp_proc_stmt_return:
           }
         ;
 
-opt_sp_proc_stmt_exit_when_clause:
-          /* Empty */   { $$= NULL; }
-        | WHEN_SYM expr { $$= $2; }
+reset_lex_expr:
+          { Lex->sphead->reset_lex(thd); } expr { $$= $2; }
         ;
 
 sp_proc_stmt_exit:
-          EXIT_SYM opt_sp_proc_stmt_exit_when_clause
+          EXIT_SYM
           {
-            if (Lex->sp_exit_statement(thd, $2))
+            if (Lex->sp_exit_statement(thd, NULL))
               MYSQL_YYABORT;
           }
-        | EXIT_SYM label_ident opt_sp_proc_stmt_exit_when_clause
+        | EXIT_SYM label_ident
           {
-            if (Lex->sp_exit_statement(thd, $2, $3))
+            if (Lex->sp_exit_statement(thd, $2, NULL))
+              MYSQL_YYABORT;
+          }
+        | EXIT_SYM WHEN_SYM reset_lex_expr
+          {
+            if (Lex->sp_exit_statement(thd, $3) ||
+                Lex->sphead->restore_lex(thd))
+              MYSQL_YYABORT;
+          }
+        | EXIT_SYM label_ident WHEN_SYM reset_lex_expr
+          {
+            if (Lex->sp_exit_statement(thd, $2, $4) ||
+                Lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
         ;
 
 sp_proc_stmt_continue:
-          CONTINUE_SYM opt_sp_proc_stmt_exit_when_clause
+          CONTINUE_SYM
           {
-            if (Lex->sp_continue_statement(thd, $2))
+            if (Lex->sp_continue_statement(thd, NULL))
               MYSQL_YYABORT;
           }
-        | CONTINUE_SYM label_ident opt_sp_proc_stmt_exit_when_clause
+        | CONTINUE_SYM label_ident
           {
-            if (Lex->sp_continue_statement(thd, $2, $3))
+            if (Lex->sp_continue_statement(thd, $2, NULL))
+              MYSQL_YYABORT;
+          }
+        | CONTINUE_SYM WHEN_SYM reset_lex_expr
+          {
+            if (Lex->sp_continue_statement(thd, $3) ||
+                Lex->sphead->restore_lex(thd))
+              MYSQL_YYABORT;
+          }
+        | CONTINUE_SYM label_ident WHEN_SYM reset_lex_expr
+          {
+            if (Lex->sp_continue_statement(thd, $2, $4) ||
+                Lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
         ;
