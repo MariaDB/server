@@ -1027,6 +1027,7 @@ private:
 
 public:
 
+  uint32 instance; /** Table cache instance this TABLE is belonging to */
   THD	*in_use;                        /* Which thread uses this */
   Field **field;			/* Pointer to fields */
 
