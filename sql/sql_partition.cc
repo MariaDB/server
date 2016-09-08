@@ -7960,8 +7960,19 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
         /* col = x and F(x) = NULL -> only search NULL partition */
         part_iter->part_nums.cur= part_iter->part_nums.start= 0;
         part_iter->part_nums.end= 0;
-        part_iter->ret_null_part= part_iter->ret_null_part_orig= TRUE;
-        DBUG_RETURN(1);
+        /*
+          if NULL partition exists:
+            for RANGE it is the first partition (always exists);
+            for LIST should be indicator that it is present
+        */
+        if (part_info->part_type == RANGE_PARTITION ||
+            part_info->has_null_value)
+        {
+          part_iter->ret_null_part= part_iter->ret_null_part_orig= TRUE;
+          DBUG_RETURN(1);
+        }
+        // If no NULL partition look up in DEFAULT or there is no such value
+        goto not_found;
       }
       part_iter->part_nums.cur= part_iter->part_nums.start;
       if (check_zero_dates && !part_info->part_expr->null_value)

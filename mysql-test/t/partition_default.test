@@ -498,5 +498,25 @@ insert into t1 values
 explain partitions 
 select * from t1 
 where a>=10  and (a <=10 and b <=30);
+drop table t1;
+
+--echo #
+--echo # MDEV-10763: Wrong result - server does not return NULL values
+--echo # from default list partition after ALTER table
+--echo #
+create table t1 (i int) partition by list (i) ( partition p1 default);
+insert into t1 values (null);
+select * from t1 where i is null;
+alter table t1 partition by list (i) ( partition p1 values in (1), partition p2 default);
+select * from t1 where i is null;
+explain partitions 
+select * from t1 where i is null;
+alter table t1 partition by list (i) (
+  partition p0 values in (NULL),
+  partition p1 values in (1),
+  partition p2 default);
+select * from t1 where i is null;
+explain partitions 
+select * from t1 where i is null;
 
 drop table t1;
