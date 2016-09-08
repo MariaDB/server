@@ -3351,6 +3351,7 @@ ha_innobase::ha_innobase(
 		*/
 			  | HA_CAN_EXPORT
 			  | HA_CAN_RTREEKEYS
+                          | HA_CONCURRENT_OPTIMIZE
 		/* JAN: TODO: MySQL 5.7
 			  | HA_HAS_RECORDS
 			  | HA_NO_READ_LOCAL_LOCK
