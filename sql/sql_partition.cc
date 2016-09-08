@@ -7723,6 +7723,7 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
   bool can_match_multiple_values;
   uint32 nparts;
   get_col_endpoint_func  UNINIT_VAR(get_col_endpoint);
+  uint full_length= 0;
   DBUG_ENTER("get_part_iter_for_interval_cols_via_map");
 
   if (part_info->part_type == RANGE_PARTITION)
@@ -7740,9 +7741,14 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
   else
     assert(0);
 
+  for (uint32 i= 0; i < part_info->num_columns; i++)
+    full_length+= store_length_array[i];
+
   can_match_multiple_values= ((flags &
                                (NO_MIN_RANGE | NO_MAX_RANGE | NEAR_MIN |
                                 NEAR_MAX)) ||
+                              (min_len != max_len) ||
+                              (min_len != full_length) ||
                               memcmp(min_value, max_value, min_len));
   DBUG_ASSERT(can_match_multiple_values || (flags & EQ_RANGE) || flags == 0);
   if (can_match_multiple_values && part_info->has_default_partititon())
