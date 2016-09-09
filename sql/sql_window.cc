@@ -2313,24 +2313,18 @@ bool Window_func_runner::add_function_to_run(Item_window_func *win_func)
   sum_func->setup_window_func(current_thd, win_func->window_spec);
 
   Item_sum::Sumfunctype type= win_func->window_func()->sum_func();
+
   switch (type)
   {
-    case Item_sum::ROW_NUMBER_FUNC:
-    case Item_sum::RANK_FUNC:
-    case Item_sum::DENSE_RANK_FUNC:
-    case Item_sum::COUNT_FUNC:
-    case Item_sum::SUM_BIT_FUNC:
-    case Item_sum::SUM_FUNC:
-    case Item_sum::AVG_FUNC:
-    case Item_sum::PERCENT_RANK_FUNC:
-    case Item_sum::CUME_DIST_FUNC:
-    case Item_sum::NTILE_FUNC:
-      break;
-
-    default:
+    /* Distinct is not yet supported. */
+    case Item_sum::GROUP_CONCAT_FUNC:
+    case Item_sum::SUM_DISTINCT_FUNC:
+    case Item_sum::AVG_DISTINCT_FUNC:
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                "This aggregate as window function");
       return true;
+    default:
+      break;
   }
 
   return window_functions.push_back(win_func);
