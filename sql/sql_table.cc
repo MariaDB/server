@@ -6178,7 +6178,7 @@ remove_key:
     uint c;
     while ((check=it++))
     {
-      if ((!check->flags & Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS) &&
+      if (!(check->flags & Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS) &&
           check->name.length)
         continue;
       check->flags= 0;
