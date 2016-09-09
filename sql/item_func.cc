@@ -2273,15 +2273,6 @@ longlong Item_func_bit_neg::val_int()
 
 // Conversion functions
 
-void Item_func_integer::fix_length_and_dec()
-{
-  max_length=args[0]->max_length - args[0]->decimals+1;
-  uint tmp=float_length(decimals);
-  set_if_smaller(max_length,tmp);
-  decimals=0;
-}
-
-
 void Item_func_int_val::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
@@ -3885,7 +3876,7 @@ longlong Item_master_pos_wait::val_int()
   longlong timeout = (arg_count>=3) ? args[2]->val_int() : 0 ;
   String connection_name_buff;
   LEX_STRING connection_name;
-  Master_info *mi;
+  Master_info *mi= NULL;
   if (arg_count >= 4)
   {
     String *con;
@@ -3905,8 +3896,9 @@ longlong Item_master_pos_wait::val_int()
     connection_name= thd->variables.default_master_connection;
 
   mysql_mutex_lock(&LOCK_active_mi);
-  mi= master_info_index->get_master_info(&connection_name,
-                                         Sql_condition::WARN_LEVEL_WARN);
+  if (master_info_index)  // master_info_index is set to NULL on shutdown.
+    mi= master_info_index->get_master_info(&connection_name,
+                                           Sql_condition::WARN_LEVEL_WARN);
   mysql_mutex_unlock(&LOCK_active_mi);
   if (!mi)
     goto err;

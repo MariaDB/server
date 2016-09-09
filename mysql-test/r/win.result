@@ -1189,6 +1189,44 @@ pk	c	cnt
 10	2	0
 select
 pk, c,
+sum(c) over (partition by c
+order by pk
+rows between 1 preceding
+and 2 preceding)
+as sum
+from t1;
+pk	c	sum
+1	1	NULL
+2	1	NULL
+3	1	NULL
+4	1	NULL
+5	2	NULL
+6	2	NULL
+7	2	NULL
+8	2	NULL
+9	2	NULL
+10	2	NULL
+select
+pk, c,
+sum(c) over (partition by c
+order by pk
+rows between 2 following
+and 1 following)
+as sum
+from t1;
+pk	c	sum
+1	1	NULL
+2	1	NULL
+3	1	NULL
+4	1	NULL
+5	2	NULL
+6	2	NULL
+7	2	NULL
+8	2	NULL
+9	2	NULL
+10	2	NULL
+select
+pk, c,
 count(*) over (partition by c
 order by pk
 range between 1 preceding
@@ -1788,15 +1826,12 @@ rank() over (order by b)
 0
 0
 drop table t1;
-#
-# MDEV-9894: Assertion `0' failed in Window_func_runner::setup
-#  return ER_NOT_SUPPORTED_YET for aggregates that are not yet supported
-#  as window functions.
-#
 create table t1 (i int);
 insert into t1 values (1),(2);
 SELECT MAX(i) OVER (PARTITION BY (i)) FROM t1;
-ERROR 42000: This version of MariaDB doesn't yet support 'This aggregate as window function'
+MAX(i) OVER (PARTITION BY (i))
+1
+2
 drop table t1;
 #
 # Check the 0 in ROWS 0 PRECEDING
@@ -1959,3 +1994,24 @@ select rank() over (order by i) from v1;
 rank() over (order by i)
 1
 drop view v1;
+#
+# MDEV-10097: Assertion `count > 0' failed in Item_sum_sum::add_helper(bool)
+#
+CREATE TABLE `orders` (
+`o_orderkey` int(11) NOT NULL,
+`o_custkey` int(11) DEFAULT NULL,
+PRIMARY KEY (`o_orderkey`)
+) DEFAULT CHARSET=latin1;
+INSERT INTO `orders` VALUES (59908,242);
+INSERT INTO `orders` VALUES (59940,238);
+SELECT o_custkey, avg(o_custkey) OVER (PARTITION BY abs(o_custkey)
+ORDER BY o_custkey
+RANGE BETWEEN 15 FOLLOWING
+AND 15 FOLLOWING) from orders;
+o_custkey	avg(o_custkey) OVER (PARTITION BY abs(o_custkey)
+ORDER BY o_custkey
+RANGE BETWEEN 15 FOLLOWING
+AND 15 FOLLOWING)
+242	NULL
+238	NULL
+DROP table orders;

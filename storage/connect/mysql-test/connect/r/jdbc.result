@@ -1,3 +1,4 @@
+SET GLOBAL time_zone='+1:00';
 CREATE DATABASE connect;
 USE connect;
 CREATE TABLE t2 (
@@ -99,8 +100,8 @@ George	San Jose	1981-08-10	2010-06-02
 Sam	Chicago	1979-11-22	2007-10-10
 James	Dallas	1992-05-13	2009-12-14
 Bill	Boston	1986-09-11	2008-02-10
-Donald	Atlanta	1999-04-01	2016-03-31
-Mick	New York	1980-01-20	2002-09-11
+Donald	Atlanta	1999-03-31	2016-03-30
+Mick	New York	1980-01-20	2002-09-10
 Tom	Seatle	2002-03-15	1970-01-01
 DROP TABLE t3;
 #
@@ -110,7 +111,7 @@ CREATE TABLE t3 (
 name CHAR(9) NOT NULL,
 city CHAR(12) NOT NULL,
 age INT(2))
-engine=CONNECT table_type=FIX file_name='girls.txt';
+ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='girls.txt' ENDING=1;
 SELECT g.name, b.name, g.city FROM t3 g STRAIGHT_JOIN connect.boys b where g.city = b.city;
 name	name	city
 Mary	John	Boston
@@ -167,8 +168,11 @@ serialno	name	sex	title	manager	department	secretary	salary
 00137	BROWNY	1	ENGINEER	40567	0319	12345	10500.00
 73111	WHEELFOR	1	SALESMAN	70012	0318	24888	10030.00
 00023	MARTIN	1	ENGINEER	40567	0319	12345	10000.00
+#
+# Option Driver is required to find the Driver class inside the executable jar file
+#
 USE test;
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=emp CONNECTION='jdbc:mariadb://localhost:PORT/connect?user=root';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=emp CONNECTION='jdbc:mariadb://localhost:PORT/connect?user=root' OPTION_LIST='Driver=org.mariadb.jdbc.Driver';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -180,7 +184,7 @@ t1	CREATE TABLE `t1` (
   `department` char(4) NOT NULL,
   `secretary` char(5) NOT NULL,
   `salary` double(12,2) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mariadb://localhost:PORT/connect?user=root' `TABLE_TYPE`='JDBC' `TABNAME`='emp'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mariadb://localhost:PORT/connect?user=root' `TABLE_TYPE`='JDBC' `TABNAME`='emp' `OPTION_LIST`='Driver=org.mariadb.jdbc.Driver'
 SELECT * FROM t1;
 serialno	name	sex	title	manager	department	secretary	salary
 74200	BANCROFT	2	SALESMAN	70012	0318	24888	9600.00
@@ -260,10 +264,8 @@ DROP TABLE t2;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables CONNECTION='jdbc:mariadb://localhost:PORT/connect' option_list='User=root,Maxres=50';
 SELECT * FROM t1;
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
-connect	NULL	tx1	BASE TABLE	
+connect	NULL	tx1	TABLE	
 DROP TABLE t1;
 DROP TABLE connect.tx1;
 DROP DATABASE connect;
-SET GLOBAL connect_jvm_path=NULL;
-SET GLOBAL connect_class_path=NULL;
-SET GLOBAL time_zone = SYSTEM;
+SET GLOBAL time_zone=SYSTEM;

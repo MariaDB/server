@@ -4,6 +4,7 @@
 #include "filesort.h"
 #include "sql_base.h"
 #include "sql_window.h"
+#include "my_dbug.h"
 
 
 bool
@@ -37,12 +38,12 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
       if (win_spec->order_list->elements && order_list->elements)
       {
         my_error(ER_ORDER_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0), ref_name);
-        return true;              
+        return true;
       } 
-      if (win_spec->window_frame) 
+      if (win_spec->window_frame)
       {
         my_error(ER_WINDOW_FRAME_IN_REFERENCED_WINDOW_SPEC, MYF(0), ref_name);
-        return true;              
+        return true;
       }
       referenced_win_spec= win_spec;
       if (partition_list->elements == 0)
@@ -54,7 +55,7 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
   if (ref_name && !referenced_win_spec)
   {
     my_error(ER_WRONG_WINDOW_SPEC_NAME, MYF(0), ref_name);
-    return true;              
+    return true;
   }
   window_names_are_checked= true;
   return false;
@@ -73,7 +74,7 @@ Window_frame::check_frame_bounds()
        top_bound->precedence_type == Window_frame_bound::FOLLOWING))
   {
     my_error(ER_BAD_COMBINATION_OF_WINDOW_FRAME_BOUND_SPECS, MYF(0));
-    return true;              
+    return true;
   }
 
   return false;
@@ -86,7 +87,7 @@ Window_frame::check_frame_bounds()
 
 int
 setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
-	      List<Item> &fields, List<Item> &all_fields, 
+              List<Item> &fields, List<Item> &all_fields,
               List<Window_spec> &win_specs, List<Item_window_func> &win_funcs)
 {
   Window_spec *win_spec;
@@ -116,7 +117,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   it.rewind();
 
   List_iterator_fast<Window_spec> itp(win_specs);
-    
+
   while ((win_spec= it++))
   {
     bool hidden_group_fields;
@@ -131,7 +132,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     {
       DBUG_RETURN(1);
     }
-    
+
     if (win_spec->window_frame &&
         win_spec->window_frame->exclusion != Window_frame::EXCL_NONE)
     {
@@ -188,7 +189,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
         }
       }
     }
-    
+
     /* "ROWS PRECEDING|FOLLOWING $n" must have a numeric $n */
     if (win_spec->window_frame && 
         win_spec->window_frame->units == Window_frame::UNITS_ROWS)
@@ -219,7 +220,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
   {
     win_func_item->update_used_tables();
   }
-  
+
   DBUG_RETURN(0);
 }
 
@@ -445,7 +446,7 @@ typedef int (*Item_window_func_cmp)(Item_window_func *f1,
   @brief
     Sort window functions so that those that can be computed together are
     adjacent.
-  
+
   @detail
     Sort window functions by their
      - required sorting order,
@@ -498,47 +499,14 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
     }
     else if (win_spec_prev->window_frame != win_spec_curr->window_frame)
       curr->marker|= FRAME_CHANGE_FLAG;
-   
-    prev= curr;                                             
-  }  
+
+    prev= curr;
+  }
 }
 
 
 /////////////////////////////////////////////////////////////////////////////
 
-
-/*
-  Do a pass over sorted table and compute window function values.
-
-  This function is for handling window functions that can be computed on the
-  fly. Examples are RANK() and ROW_NUMBER().
-*/
-bool compute_window_func_values(Item_window_func *item_win, 
-                                TABLE *tbl, READ_RECORD *info)
-{
-  int err;
-  while (!(err=info->read_record(info)))
-  {
-    store_record(tbl,record[1]);
-    
-    /* 
-      This will cause window function to compute its value for the
-      current row :
-    */
-    item_win->advance_window();
-
-    /*
-      Put the new value into temptable's field
-      TODO: Should this use item_win->update_field() call?
-      Regular aggegate function implementations seem to implement it.
-    */
-    item_win->save_in_field(item_win->result_field, true);
-    err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
-    if (err && err != HA_ERR_RECORD_IS_THE_SAME)
-      return true;
-  }
-  return false;
-}
 
 /////////////////////////////////////////////////////////////////////////////
 // Window Frames support 
@@ -571,11 +539,6 @@ bool clone_read_record(const READ_RECORD *src, READ_RECORD *dst)
 
 class Rowid_seq_cursor
 {
-  uchar *cache_start;
-  uchar *cache_pos;
-  uchar *cache_end;
-  uint ref_length;
-
 public:
   virtual ~Rowid_seq_cursor() {}
 
@@ -587,29 +550,44 @@ public:
     ref_length= info->ref_length;
   }
 
-  virtual int get_next()
+  virtual int next()
   {
-    /* Allow multiple get_next() calls in EOF state*/
+    /* Allow multiple next() calls in EOF state. */
     if (cache_pos == cache_end)
       return -1;
+
     cache_pos+= ref_length;
+    DBUG_ASSERT(cache_pos <= cache_end);
+
     return 0;
   }
-  
-  ha_rows get_rownum()
+
+  virtual int prev()
+  {
+    /* Allow multiple prev() calls when positioned at the start. */
+    if (cache_pos == cache_start)
+      return -1;
+    cache_pos-= ref_length;
+    DBUG_ASSERT(cache_pos >= cache_start);
+
+    return 0;
+  }
+
+  ha_rows get_rownum() const
   {
     return (cache_pos - cache_start) / ref_length;
   }
 
-  // will be called by ROWS n FOLLOWING to catch up.
   void move_to(ha_rows row_number)
   {
-    cache_pos= cache_start + row_number * ref_length;
+    cache_pos= MY_MIN(cache_end, cache_start + row_number * ref_length);
+    DBUG_ASSERT(cache_pos <= cache_end);
   }
+
 protected:
   bool at_eof() { return (cache_pos == cache_end); }
 
-  uchar *get_last_rowid()
+  uchar *get_prev_rowid()
   {
     if (cache_pos == cache_start)
       return NULL;
@@ -618,6 +596,12 @@ protected:
   }
 
   uchar *get_curr_rowid() { return cache_pos; }
+
+private:
+  uchar *cache_start;
+  uchar *cache_pos;
+  uchar *cache_end;
+  uint ref_length;
 };
 
 
@@ -627,66 +611,64 @@ protected:
 
 class Table_read_cursor : public Rowid_seq_cursor
 {
-  /* 
-    Note: we don't own *read_record, somebody else is using it.
-    We only look at the constant part of it, e.g. table, record buffer, etc.
-  */
-  READ_RECORD *read_record;
 public:
   virtual ~Table_read_cursor() {}
 
   void init(READ_RECORD *info)
   {
     Rowid_seq_cursor::init(info);
-    read_record= info;
+    table= info->table;
+    record= info->record;
   }
 
-  virtual int get_next()
+  virtual int fetch()
   {
     if (at_eof())
       return -1;
 
     uchar* curr_rowid= get_curr_rowid();
-    int res= Rowid_seq_cursor::get_next();
-    if (!res)
-    {
-      res= read_record->table->file->ha_rnd_pos(read_record->record,
-                                                curr_rowid);
-    }
-    return res;
+    return table->file->ha_rnd_pos(record, curr_rowid);
   }
 
-  bool restore_last_row()
+  bool fetch_prev_row()
   {
     uchar *p;
-    if ((p= get_last_rowid()))
+    if ((p= get_prev_rowid()))
     {
-      int rc= read_record->table->file->ha_rnd_pos(read_record->record, p);
+      int rc= table->file->ha_rnd_pos(record, p);
       if (!rc)
         return true; // restored ok
     }
     return false; // didn't restore
   }
 
-  // todo: should move_to() also read row here? 
+private:
+  /* The table that is acccesed by this cursor. */
+  TABLE *table;
+  /* Buffer where to store the table's record data. */
+  uchar *record;
+
+  // TODO(spetrunia): should move_to() also read row here?
 };
 
 
 /*
   A cursor which only moves within a partition. The scan stops at the partition
   end, and it needs an explicit command to move to the next partition.
+
+  This cursor can not move backwards.
 */
 
-class Partition_read_cursor
+class Partition_read_cursor : public Table_read_cursor
 {
-  Table_read_cursor tbl_cursor;
-  Group_bound_tracker bound_tracker;
-  bool end_of_partition;
 public:
-  void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list)
+  Partition_read_cursor(THD *thd, SQL_I_List<ORDER> *partition_list) :
+    bound_tracker(thd, partition_list) {}
+
+  void init(READ_RECORD *info)
   {
-    tbl_cursor.init(info);
-    bound_tracker.init(thd, partition_list);
+    Table_read_cursor::init(info);
+    bound_tracker.init();
     end_of_partition= false;
   }
 
@@ -699,46 +681,46 @@ public:
   void on_next_partition(ha_rows rownum)
   {
     /* Remember the sort key value from the new partition */
+    move_to(rownum);
     bound_tracker.check_if_next_group();
     end_of_partition= false;
-  }
 
-  /*
-    Moves to a new row. The row is assumed to be within the current partition
-  */
-  void move_to(ha_rows rownum) { tbl_cursor.move_to(rownum); }
+  }
 
   /*
     This returns -1 when end of partition was reached.
   */
-  int get_next()
+  int next()
   {
     int res;
     if (end_of_partition)
       return -1;
-    if ((res= tbl_cursor.get_next()))
+
+    if ((res= Table_read_cursor::next()) ||
+        (res= fetch()))
       return res;
 
     if (bound_tracker.compare_with_cache())
     {
+      /* This row is part of a new partition, don't move
+         forward any more untill we get informed of a new partition. */
+      Table_read_cursor::prev();
       end_of_partition= true;
       return -1;
     }
     return 0;
   }
 
-  bool restore_last_row()
-  {
-    return tbl_cursor.restore_last_row();
-  }
+private:
+  Group_bound_tracker bound_tracker;
+  bool end_of_partition;
 };
 
 /////////////////////////////////////////////////////////////////////////////
 
-
 /*
   Window frame bound cursor. Abstract interface.
-  
+
   @detail
     The cursor moves within the partition that the current row is in.
     It may be ahead or behind the current row.
@@ -775,11 +757,14 @@ public:
 class Frame_cursor : public Sql_alloc
 {
 public:
-  virtual void init(THD *thd, READ_RECORD *info, 
-                    SQL_I_List<ORDER> *partition_list,
-                    SQL_I_List<ORDER> *order_list)
-  {}
+  Frame_cursor() : sum_functions(), perform_no_action(false) {}
 
+  virtual void init(READ_RECORD *info) {};
+
+  bool add_sum_func(Item_sum* item)
+  {
+    return sum_functions.push_back(item);
+  }
   /*
     Current row has moved to the next partition and is positioned on the first
     row there. Position the frame bound accordingly.
@@ -796,19 +781,119 @@ public:
       - The callee may move tbl->file and tbl->record[0] to point to some other
         row.
   */
-  virtual void pre_next_partition(ha_rows rownum, Item_sum* item){};
-  virtual void next_partition(ha_rows rownum, Item_sum* item)=0;
-  
+  virtual void pre_next_partition(ha_rows rownum) {};
+  virtual void next_partition(ha_rows rownum)=0;
+
   /*
     The current row has moved one row forward.
     Move this frame bound accordingly, and update the value of aggregate
     function as necessary.
   */
-  virtual void pre_next_row(Item_sum* item){};
-  virtual void next_row(Item_sum* item)=0;
-  
-  virtual ~Frame_cursor(){}
+  virtual void pre_next_row() {};
+  virtual void next_row()=0;
+
+  virtual bool is_outside_computation_bounds() const { return false; };
+
+  virtual ~Frame_cursor() {}
+
+  /*
+     Regular frame cursors add or remove values from the sum functions they
+     manage. By calling this method, they will only perform the required
+     movement within the table, but no adding/removing will happen.
+  */
+  void set_no_action()
+  {
+    perform_no_action= true;
+  }
+
+  /* Retrieves the row number that this cursor currently points at. */
+  virtual ha_rows get_curr_rownum() const= 0;
+
+protected:
+  inline void add_value_to_items()
+  {
+    if (perform_no_action)
+      return;
+
+    List_iterator_fast<Item_sum> it(sum_functions);
+    Item_sum *item_sum;
+    while ((item_sum= it++))
+    {
+      item_sum->add();
+    }
+  }
+
+  inline void remove_value_from_items()
+  {
+    if (perform_no_action)
+      return;
+
+    List_iterator_fast<Item_sum> it(sum_functions);
+    Item_sum *item_sum;
+    while ((item_sum= it++))
+    {
+      item_sum->remove();
+    }
+  }
+
+  /* Sum functions that this cursor handles. */
+  List<Item_sum> sum_functions;
+
+private:
+  bool perform_no_action;
 };
+
+/*
+  A class that owns cursor objects associated with a specific window function.
+*/
+class Cursor_manager
+{
+public:
+  bool add_cursor(Frame_cursor *cursor)
+  {
+    return cursors.push_back(cursor);
+  }
+
+  void initialize_cursors(READ_RECORD *info)
+  {
+    List_iterator_fast<Frame_cursor> iter(cursors);
+    Frame_cursor *fc;
+    while ((fc= iter++))
+      fc->init(info);
+  }
+
+  void notify_cursors_partition_changed(ha_rows rownum)
+  {
+    List_iterator_fast<Frame_cursor> iter(cursors);
+    Frame_cursor *cursor;
+    while ((cursor= iter++))
+      cursor->pre_next_partition(rownum);
+
+    iter.rewind();
+    while ((cursor= iter++))
+      cursor->next_partition(rownum);
+  }
+
+  void notify_cursors_next_row()
+  {
+    List_iterator_fast<Frame_cursor> iter(cursors);
+    Frame_cursor *cursor;
+    while ((cursor= iter++))
+      cursor->pre_next_row();
+
+    iter.rewind();
+    while ((cursor= iter++))
+      cursor->next_row();
+  }
+
+  ~Cursor_manager() { cursors.delete_elements(); }
+
+private:
+  /* List of the cursors that this manager owns. */
+  List<Frame_cursor> cursors;
+};
+
+
 
 //////////////////////////////////////////////////////////////////////////////
 // RANGE-type frames
@@ -827,7 +912,7 @@ public:
 
 class Frame_range_n_top : public Frame_cursor
 {
-  Table_read_cursor cursor;
+  Partition_read_cursor cursor;
 
   Cached_item_item *range_expr;
 
@@ -835,22 +920,22 @@ class Frame_range_n_top : public Frame_cursor
   Item *item_add;
 
   const bool is_preceding;
+
+  bool end_of_partition;
+
   /*
      1  when order_list uses ASC ordering
     -1  when order_list uses DESC ordering
   */
   int order_direction;
 public:
-  Frame_range_n_top(bool is_preceding_arg, Item *n_val_arg) :
-    n_val(n_val_arg), item_add(NULL), is_preceding(is_preceding_arg)
-  {}
-
-  void init(THD *thd, READ_RECORD *info,
-            SQL_I_List<ORDER> *partition_list,
-            SQL_I_List<ORDER> *order_list)
+  Frame_range_n_top(THD *thd,
+                    SQL_I_List<ORDER> *partition_list,
+                    SQL_I_List<ORDER> *order_list,
+                    bool is_preceding_arg, Item *n_val_arg) :
+    cursor(thd, partition_list), n_val(n_val_arg), item_add(NULL),
+    is_preceding(is_preceding_arg)
   {
-    cursor.init(info);
-
     DBUG_ASSERT(order_list->elements == 1);
     Item *src_expr= order_list->first->item[0];
     if (order_list->first->direction == ORDER::ORDER_ASC)
@@ -872,49 +957,82 @@ public:
     item_add->fix_fields(thd, &item_add);
   }
 
-  void pre_next_partition(ha_rows rownum, Item_sum* item)
+  void init(READ_RECORD *info)
+  {
+    cursor.init(info);
+  }
+
+  void pre_next_partition(ha_rows rownum)
   {
     // Save the value of FUNC(current_row)
     range_expr->fetch_value_from(item_add);
+
+    cursor.on_next_partition(rownum);
+    end_of_partition= false;
   }
 
-  void next_partition(ha_rows rownum, Item_sum* item)
+  void next_partition(ha_rows rownum)
   {
-    cursor.move_to(rownum);
-    walk_till_non_peer(item);
+    walk_till_non_peer();
   }
 
-  void pre_next_row(Item_sum* item)
+  void pre_next_row()
   {
+    if (end_of_partition)
+      return;
     range_expr->fetch_value_from(item_add);
   }
 
-  void next_row(Item_sum* item)
+  void next_row()
   {
+    if (end_of_partition)
+      return;
     /*
       Ok, our cursor is at the first row R where
         (prev_row + n) >= R
       We need to check about the current row.
     */
-    if (cursor.restore_last_row())
-    {
-      if (order_direction * range_expr->cmp_read_only() <= 0)
-        return;
-      item->remove();
-    }
-    walk_till_non_peer(item);
+    walk_till_non_peer();
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    return cursor.get_rownum();
+  }
+
+  bool is_outside_computation_bounds() const
+  {
+    if (end_of_partition)
+      return true;
+    return false;
   }
 
 private:
-  void walk_till_non_peer(Item_sum* item)
+  void walk_till_non_peer()
   {
-    while (!cursor.get_next())
+    if (cursor.fetch()) // ERROR
+      return;
+    // Current row is not a peer.
+    if (order_direction * range_expr->cmp_read_only() <= 0)
+      return;
+    remove_value_from_items();
+
+    int res;
+    while (!(res= cursor.next()))
     {
+      /* Note, no need to fetch the value explicitly here. The partition
+         read cursor will fetch it to check if the partition has changed.
+         TODO(cvicentiu) make this piece of information not necessary by
+         reimplementing Partition_read_cursor.
+      */
       if (order_direction * range_expr->cmp_read_only() <= 0)
         break;
-      item->remove();
+      remove_value_from_items();
     }
+    if (res)
+      end_of_partition= true;
   }
+
 };
 
 
@@ -950,16 +1068,13 @@ class Frame_range_n_bottom: public Frame_cursor
   */
   int order_direction;
 public:
-  Frame_range_n_bottom(bool is_preceding_arg, Item *n_val_arg) :
-    n_val(n_val_arg), item_add(NULL), is_preceding(is_preceding_arg)
-  {}
-
-  void init(THD *thd, READ_RECORD *info,
-            SQL_I_List<ORDER> *partition_list,
-            SQL_I_List<ORDER> *order_list)
+  Frame_range_n_bottom(THD *thd,
+                       SQL_I_List<ORDER> *partition_list,
+                       SQL_I_List<ORDER> *order_list,
+                       bool is_preceding_arg, Item *n_val_arg) :
+    cursor(thd, partition_list), n_val(n_val_arg), item_add(NULL),
+    is_preceding(is_preceding_arg), added_values(false)
   {
-    cursor.init(thd, info, partition_list);
-
     DBUG_ASSERT(order_list->elements == 1);
     Item *src_expr= order_list->first->item[0];
 
@@ -982,29 +1097,35 @@ public:
     item_add->fix_fields(thd, &item_add);
   }
 
-  void pre_next_partition(ha_rows rownum, Item_sum* item)
+  void init(READ_RECORD *info)
+  {
+    cursor.init(info);
+  }
+
+  void pre_next_partition(ha_rows rownum)
   {
     // Save the value of FUNC(current_row)
     range_expr->fetch_value_from(item_add);
 
     cursor.on_next_partition(rownum);
     end_of_partition= false;
+    added_values= false;
   }
 
-  void next_partition(ha_rows rownum, Item_sum* item)
+  void next_partition(ha_rows rownum)
   {
     cursor.move_to(rownum);
-    walk_till_non_peer(item);
+    walk_till_non_peer();
   }
 
-  void pre_next_row(Item_sum* item)
+  void pre_next_row()
   {
     if (end_of_partition)
       return;
     range_expr->fetch_value_from(item_add);
   }
 
-  void next_row(Item_sum* item)
+  void next_row()
   {
     if (end_of_partition)
       return;
@@ -1013,24 +1134,42 @@ public:
         (prev_row + n) >= R
       We need to check about the current row.
     */
-    if (cursor.restore_last_row())
-    {
-      if (order_direction * range_expr->cmp_read_only() < 0)
-        return;
-      item->add();
-    }
-    walk_till_non_peer(item);
+    walk_till_non_peer();
+  }
+
+  bool is_outside_computation_bounds() const
+  {
+    if (!added_values)
+      return true;
+    return false;
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    if (end_of_partition)
+      return cursor.get_rownum(); // Cursor does not pass over partition bound.
+    else
+      return cursor.get_rownum() - 1; // Cursor is placed on first non peer.
   }
 
 private:
-  void walk_till_non_peer(Item_sum* item)
+  bool added_values;
+
+  void walk_till_non_peer()
   {
+    cursor.fetch();
+    // Current row is not a peer.
+    if (order_direction * range_expr->cmp_read_only() < 0)
+      return;
+
+    add_value_to_items(); // Add current row.
+    added_values= true;
     int res;
-    while (!(res= cursor.get_next()))
+    while (!(res= cursor.next()))
     {
       if (order_direction * range_expr->cmp_read_only() < 0)
         break;
-      item->add();
+      add_value_to_items();
     }
     if (res)
       end_of_partition= true;
@@ -1043,11 +1182,11 @@ private:
      ...
    | peer1
    | peer2  <----- current_row
-   | peer3 
+   | peer3
    +-peer4  <----- the cursor points here. peer4 itself is included.
      nonpeer1
      nonpeer2
-  
+
   This bound moves in front of the current_row. It should be a the first row
   that is still a peer of the current row.
 */
@@ -1060,39 +1199,39 @@ class Frame_range_current_row_bottom: public Frame_cursor
 
   bool dont_move;
 public:
-  void init(THD *thd, READ_RECORD *info,
-            SQL_I_List<ORDER> *partition_list,
-            SQL_I_List<ORDER> *order_list)
+  Frame_range_current_row_bottom(THD *thd,
+                                 SQL_I_List<ORDER> *partition_list,
+                                 SQL_I_List<ORDER> *order_list) :
+    cursor(thd, partition_list), peer_tracker(thd, order_list)
   {
-    cursor.init(thd, info, partition_list);
-    peer_tracker.init(thd, order_list);
   }
 
-  void pre_next_partition(ha_rows rownum, Item_sum* item)
+  void init(READ_RECORD *info)
+  {
+    cursor.init(info);
+    peer_tracker.init();
+  }
+
+  void pre_next_partition(ha_rows rownum)
   {
     // Save the value of the current_row
     peer_tracker.check_if_next_group();
     cursor.on_next_partition(rownum);
-    if (rownum != 0)
-    {
-      // Add the current row now because our cursor has already seen it
-      item->add();
-    }
+    // Add the current row now because our cursor has already seen it
+    add_value_to_items();
   }
 
-  void next_partition(ha_rows rownum, Item_sum* item)
+  void next_partition(ha_rows rownum)
   {
-    walk_till_non_peer(item);
+    walk_till_non_peer();
   }
 
-  void pre_next_row(Item_sum* item)
+  void pre_next_row()
   {
     dont_move= !peer_tracker.check_if_next_group();
-    if (!dont_move)
-      item->add();
   }
 
-  void next_row(Item_sum* item)
+  void next_row()
   {
     // Check if our cursor is pointing at a peer of the current row.
     // If not, move forward until that becomes true
@@ -1104,21 +1243,30 @@ public:
       */
       return;
     }
-    walk_till_non_peer(item);
+    walk_till_non_peer();
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    return cursor.get_rownum();
   }
 
 private:
-  void walk_till_non_peer(Item_sum* item)
+  void walk_till_non_peer()
   {
     /*
       Walk forward until we've met first row that's not a peer of the current
       row
     */
-    while (!cursor.get_next())
+    while (!cursor.next())
     {
       if (peer_tracker.compare_with_cache())
+      {
+        cursor.prev(); // Move to our peer.
         break;
-      item->add();
+      }
+
+      add_value_to_items();
     }
   }
 };
@@ -1148,33 +1296,38 @@ class Frame_range_current_row_top : public Frame_cursor
 
   bool move;
 public:
-  void init(THD *thd, READ_RECORD *info,
-            SQL_I_List<ORDER> *partition_list,
-            SQL_I_List<ORDER> *order_list)
+  Frame_range_current_row_top(THD *thd,
+                              SQL_I_List<ORDER> *partition_list,
+                              SQL_I_List<ORDER> *order_list) :
+    bound_tracker(thd, partition_list), cursor(), peer_tracker(thd, order_list),
+    move(false)
+  {}
+
+  void init(READ_RECORD *info)
   {
-    bound_tracker.init(thd, partition_list);
+    bound_tracker.init();
 
     cursor.init(info);
-    peer_tracker.init(thd, order_list);
+    peer_tracker.init();
   }
 
-  void pre_next_partition(ha_rows rownum, Item_sum* item)
+  void pre_next_partition(ha_rows rownum)
   {
     // Fetch the value from the first row
     peer_tracker.check_if_next_group();
-    cursor.move_to(rownum+1);
+    cursor.move_to(rownum);
   }
 
-  void next_partition(ha_rows rownum, Item_sum* item) {}
+  void next_partition(ha_rows rownum) {}
 
-  void pre_next_row(Item_sum* item)
+  void pre_next_row()
   {
     // Check if the new current_row is a peer of the row that our cursor is
     // pointing to.
     move= peer_tracker.check_if_next_group();
   }
 
-  void next_row(Item_sum* item)
+  void next_row()
   {
     if (move)
     {
@@ -1182,24 +1335,29 @@ public:
         Our cursor is pointing at the first row that was a peer of the previous
         current row. Or, it was the first row in the partition.
       */
-      if (cursor.restore_last_row())
-      {
-        // todo: need the following check ?
-        if (!peer_tracker.compare_with_cache())
-          return;
-        item->remove();
-      }
+      if (cursor.fetch())
+        return;
+
+      // todo: need the following check ?
+      if (!peer_tracker.compare_with_cache())
+        return;
+      remove_value_from_items();
 
       do
       {
-        if (cursor.get_next())
+        if (cursor.next() || cursor.fetch())
           return;
         if (!peer_tracker.compare_with_cache())
           return;
-        item->remove();
+        remove_value_from_items();
       }
       while (1);
     }
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    return cursor.get_rownum();
   }
 };
 
@@ -1214,18 +1372,35 @@ public:
 class Frame_unbounded_preceding : public Frame_cursor
 {
 public:
-  void next_partition(ha_rows rownum, Item_sum* item)
+  Frame_unbounded_preceding(THD *thd,
+                            SQL_I_List<ORDER> *partition_list,
+                            SQL_I_List<ORDER> *order_list)
+  {}
+
+  void init(READ_RECORD *info) {}
+
+  void next_partition(ha_rows rownum)
   {
     /*
-      UNBOUNDED PRECEDING frame end just stays on the first row.
-      We are top of the frame, so we don't need to update the sum function.
+      UNBOUNDED PRECEDING frame end just stays on the first row of the
+      partition. We are top of the frame, so we don't need to update the sum
+      function.
     */
+    curr_rownum= rownum;
   }
 
-  void next_row(Item_sum* item)
+  void next_row()
   {
     /* Do nothing, UNBOUNDED PRECEDING frame end doesn't move. */
   }
+
+  ha_rows get_curr_rownum() const
+  {
+    return curr_rownum;
+  }
+
+private:
+  ha_rows curr_rownum;
 };
 
 
@@ -1239,37 +1414,42 @@ protected:
   Partition_read_cursor cursor;
 
 public:
-  void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list,
-            SQL_I_List<ORDER> *order_list)
+  Frame_unbounded_following(THD *thd,
+      SQL_I_List<ORDER> *partition_list,
+      SQL_I_List<ORDER> *order_list) :
+    cursor(thd, partition_list) {}
+
+  void init(READ_RECORD *info)
   {
-    cursor.init(thd, info, partition_list);
+    cursor.init(info);
   }
 
-  void pre_next_partition(ha_rows rownum, Item_sum* item)
+  void pre_next_partition(ha_rows rownum)
   {
     cursor.on_next_partition(rownum);
   }
 
-  void next_partition(ha_rows rownum, Item_sum* item)
+  void next_partition(ha_rows rownum)
   {
-    if (!rownum)
-    {
-      /* Read the first row */
-      if (cursor.get_next())
-        return;
-    }
-    item->add();
+    /* Activate the first row */
+    cursor.fetch();
+    add_value_to_items();
 
     /* Walk to the end of the partition, updating the SUM function */
-    while (!cursor.get_next())
+    while (!cursor.next())
     {
-      item->add();
+      add_value_to_items();
     }
   }
 
-  void next_row(Item_sum* item)
+  void next_row()
   {
     /* Do nothing, UNBOUNDED FOLLOWING frame end doesn't move */
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    return cursor.get_rownum();
   }
 };
 
@@ -1277,28 +1457,35 @@ public:
 class Frame_unbounded_following_set_count : public Frame_unbounded_following
 {
 public:
-  // pre_next_partition is inherited
+  Frame_unbounded_following_set_count(
+      THD *thd,
+      SQL_I_List<ORDER> *partition_list, SQL_I_List<ORDER> *order_list) :
+    Frame_unbounded_following(thd, partition_list, order_list) {}
 
-  void next_partition(ha_rows rownum, Item_sum* item)
+  void next_partition(ha_rows rownum)
   {
     ha_rows num_rows_in_partition= 0;
-    if (!rownum)
-    {
-      /* Read the first row */
-      if (cursor.get_next())
-        return;
-    }
+    if (cursor.fetch())
+      return;
     num_rows_in_partition++;
 
     /* Walk to the end of the partition, find how many rows there are. */
-    while (!cursor.get_next())
-    {
+    while (!cursor.next())
       num_rows_in_partition++;
-    }
 
-    Item_sum_window_with_row_count* item_with_row_count =
-      static_cast<Item_sum_window_with_row_count *>(item);
-    item_with_row_count->set_row_count(num_rows_in_partition);
+    List_iterator_fast<Item_sum> it(sum_functions);
+    Item_sum* item;
+    while ((item= it++))
+    {
+      Item_sum_window_with_row_count* item_with_row_count =
+        static_cast<Item_sum_window_with_row_count *>(item);
+      item_with_row_count->set_row_count(num_rows_in_partition);
+    }
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    return cursor.get_rownum();
   }
 };
 
@@ -1316,28 +1503,28 @@ class Frame_n_rows_preceding : public Frame_cursor
   const ha_rows n_rows;
 
   /* Number of rows that we need to skip before our cursor starts moving */
-  ha_rows n_rows_to_skip;
+  ha_rows n_rows_behind;
 
   Table_read_cursor cursor;
 public:
   Frame_n_rows_preceding(bool is_top_bound_arg, ha_rows n_rows_arg) :
-    is_top_bound(is_top_bound_arg), n_rows(n_rows_arg)
+    is_top_bound(is_top_bound_arg), n_rows(n_rows_arg), n_rows_behind(0)
   {}
 
-  void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list,
-            SQL_I_List<ORDER> *order_list)
+  void init(READ_RECORD *info)
   {
     cursor.init(info);
   }
 
-  void next_partition(ha_rows rownum, Item_sum* item)
+  void next_partition(ha_rows rownum)
   {
     /*
       Position our cursor to point at the first row in the new partition
       (for rownum=0, it is already there, otherwise, it lags behind)
     */
-    if (rownum != 0)
-      cursor.move_to(rownum);
+    cursor.move_to(rownum);
+    /* Cursor is in the same spot as current row. */
+    n_rows_behind= 0;
 
     /*
       Suppose the bound is ROWS 2 PRECEDING, and current row is row#n:
@@ -1351,32 +1538,65 @@ public:
         - bottom bound should add row #(n-2) into the window function
         - top bound should remove row (#n-3) from the window function.
     */
-    n_rows_to_skip= n_rows + (is_top_bound? 1:0) - 1;
+    move_cursor_if_possible();
 
-    /* Bottom bound "ROWS 0 PRECEDING" is a special case: */
-    if (n_rows_to_skip == ha_rows(-1))
-    {
-      cursor.get_next();
-      item->add();
-      n_rows_to_skip= 0;
-    }
   }
 
-  void next_row(Item_sum* item)
+  void next_row()
   {
-    if (n_rows_to_skip)
+    n_rows_behind++;
+    move_cursor_if_possible();
+  }
+
+  bool is_outside_computation_bounds() const
+  {
+    /* As a bottom boundary, rows have not yet been added. */
+    if (!is_top_bound && n_rows - n_rows_behind)
+      return true;
+    return false;
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    return cursor.get_rownum();
+  }
+
+private:
+  void move_cursor_if_possible()
+  {
+    int rows_difference= n_rows - n_rows_behind;
+    if (rows_difference > 0) /* We still have to wait. */
+      return;
+
+      /* The cursor points to the first row in the frame. */
+    if (rows_difference == 0)
     {
-      n_rows_to_skip--;
+      if (!is_top_bound)
+      {
+        cursor.fetch();
+        add_value_to_items();
+      }
+      /* For top bound we don't have to remove anything as nothing was added. */
       return;
     }
 
-    if (cursor.get_next())
-      return;  // this is not expected to happen.
+    /* We need to catch up by one row. */
+    DBUG_ASSERT(rows_difference == -1);
 
-    if (is_top_bound) // this is frame start endpoint
-      item->remove();
+    if (is_top_bound)
+    {
+      cursor.fetch();
+      remove_value_from_items();
+      cursor.next();
+    }
     else
-      item->add();
+    {
+      cursor.next();
+      cursor.fetch();
+      add_value_to_items();
+    }
+    /* We've advanced one row. We are no longer behind. */
+    n_rows_behind--;
   }
 };
 
@@ -1391,17 +1611,35 @@ public:
 class Frame_rows_current_row_bottom : public Frame_cursor
 {
 public:
-  void pre_next_partition(ha_rows rownum, Item_sum* item)
+
+  Frame_rows_current_row_bottom() : curr_rownum(0) {}
+
+  void pre_next_partition(ha_rows rownum)
   {
-    item->add();
+    add_value_to_items();
+    curr_rownum= rownum;
   }
-  void next_partition(ha_rows rownum, Item_sum* item) {}
-  void pre_next_row(Item_sum* item)
+
+  void next_partition(ha_rows rownum) {}
+
+  void pre_next_row()
   {
     /* Temp table's current row is current_row. Add it to the window func */
-    item->add();
+    add_value_to_items();
   }
-  void next_row(Item_sum* item) {};
+
+  void next_row()
+  {
+    curr_rownum++;
+  };
+
+  ha_rows get_curr_rownum() const
+  {
+    return curr_rownum;
+  }
+
+private:
+  ha_rows curr_rownum;
 };
 
 
@@ -1443,69 +1681,218 @@ class Frame_n_rows_following : public Frame_cursor
   Partition_read_cursor cursor;
   bool at_partition_end;
 public:
-  Frame_n_rows_following(bool is_top_bound_arg, ha_rows n_rows_arg) :
-    is_top_bound(is_top_bound_arg), n_rows(n_rows_arg)
+  Frame_n_rows_following(THD *thd,
+            SQL_I_List<ORDER> *partition_list,
+            SQL_I_List<ORDER> *order_list,
+            bool is_top_bound_arg, ha_rows n_rows_arg) :
+    is_top_bound(is_top_bound_arg), n_rows(n_rows_arg),
+    cursor(thd, partition_list)
   {
     DBUG_ASSERT(n_rows > 0);
   }
 
-  void init(THD *thd, READ_RECORD *info, SQL_I_List<ORDER> *partition_list,
-            SQL_I_List<ORDER> *order_list)
+  void init(READ_RECORD *info)
   {
-    cursor.init(thd, info, partition_list);
+    cursor.init(info);
     at_partition_end= false;
   }
 
-  void pre_next_partition(ha_rows rownum, Item_sum* item)
+  void pre_next_partition(ha_rows rownum)
   {
     at_partition_end= false;
 
     cursor.on_next_partition(rownum);
-
-    if (rownum != 0)
-    {
-      // This is only needed for "FOLLOWING 1". It is one row behind
-      cursor.move_to(rownum+1);
-
-      // Current row points at the first row in the partition
-      if (is_top_bound) // this is frame top endpoint
-        item->remove();
-      else
-        item->add();
-    }
   }
 
   /* Move our cursor to be n_rows ahead.  */
-  void next_partition(ha_rows rownum, Item_sum* item)
+  void next_partition(ha_rows rownum)
   {
-    ha_rows i_end= n_rows + ((rownum==0)?1:0)- is_top_bound;
-    for (ha_rows i= 0; i < i_end; i++)
-    {
-      if (next_row_intern(item))
-        break;
-    }
+    if (is_top_bound)
+      next_part_top(rownum);
+    else
+      next_part_bottom(rownum);
   }
 
-  void next_row(Item_sum* item)
+  void next_row()
   {
-    if (at_partition_end)
-      return;
-    next_row_intern(item);
+    if (is_top_bound)
+      next_row_top();
+    else
+      next_row_bottom();
+  }
+
+  bool is_outside_computation_bounds() const
+  {
+    /*
+       The top bound can go over the current partition. In this case,
+       the sum function has 0 values added to it.
+    */
+    if (at_partition_end && is_top_bound)
+      return true;
+    return false;
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    return cursor.get_rownum();
   }
 
 private:
-  bool next_row_intern(Item_sum *item)
+  void next_part_top(ha_rows rownum)
   {
-    if (!cursor.get_next())
+    for (ha_rows i= 0; i < n_rows; i++)
     {
-      if (is_top_bound) // this is frame start endpoint
-        item->remove();
-      else
-        item->add();
+      if (cursor.fetch())
+        break;
+      remove_value_from_items();
+      if (cursor.next())
+        at_partition_end= true;
     }
-    else
+  }
+
+  void next_part_bottom(ha_rows rownum)
+  {
+    if (cursor.fetch())
+      return;
+    add_value_to_items();
+
+    for (ha_rows i= 0; i < n_rows; i++)
+    {
+      if (cursor.next())
+      {
+        at_partition_end= true;
+        break;
+      }
+      add_value_to_items();
+    }
+    return;
+  }
+
+  void next_row_top()
+  {
+    if (cursor.fetch()) // PART END OR FAILURE
+    {
       at_partition_end= true;
-    return at_partition_end;
+      return;
+    }
+    remove_value_from_items();
+    if (cursor.next())
+    {
+      at_partition_end= true;
+      return;
+    }
+  }
+
+  void next_row_bottom()
+  {
+    if (at_partition_end)
+      return;
+
+    if (cursor.next())
+    {
+      at_partition_end= true;
+      return;
+    }
+
+    add_value_to_items();
+
+  }
+};
+
+/*
+  A cursor that performs a table scan between two indices. The indices
+  are provided by the two cursors representing the top and bottom bound
+  of the window function's frame definition.
+
+  Each scan clears the sum function.
+
+  NOTE:
+    The cursor does not alter the top and bottom cursors.
+    This type of cursor is expensive computational wise. This is only to be
+    used when the sum functions do not support removal.
+*/
+class Frame_scan_cursor : public Frame_cursor
+{
+public:
+  Frame_scan_cursor(const Frame_cursor &top_bound,
+                    const Frame_cursor &bottom_bound) :
+    top_bound(top_bound), bottom_bound(bottom_bound) {}
+
+  void init(READ_RECORD *info)
+  {
+    cursor.init(info);
+  }
+
+  void pre_next_partition(ha_rows rownum)
+  {
+    /* TODO(cvicentiu) Sum functions get cleared on next partition anyway during
+       the window function computation algorithm. Either perform this only in
+       cursors, or remove it from pre_next_partition.
+    */
+    curr_rownum= rownum;
+    clear_sum_functions();
+  }
+
+  void next_partition(ha_rows rownum)
+  {
+    compute_values_for_current_row();
+  }
+
+  void pre_next_row()
+  {
+    clear_sum_functions();
+  }
+
+  void next_row()
+  {
+    curr_rownum++;
+    compute_values_for_current_row();
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    return curr_rownum;
+  }
+
+private:
+  const Frame_cursor &top_bound;
+  const Frame_cursor &bottom_bound;
+  Table_read_cursor cursor;
+  ha_rows curr_rownum;
+
+  /* Clear all sum functions handled by this cursor. */
+  void clear_sum_functions()
+  {
+    List_iterator_fast<Item_sum> iter_sum_func(sum_functions);
+    Item_sum *sum_func;
+    while ((sum_func= iter_sum_func++))
+    {
+      sum_func->clear();
+    }
+  }
+
+  /* Scan the rows between the top bound and bottom bound. Add all the values
+     between them, top bound row  and bottom bound row inclusive. */
+  void compute_values_for_current_row()
+  {
+    if (top_bound.is_outside_computation_bounds() ||
+        bottom_bound.is_outside_computation_bounds())
+      return;
+
+    ha_rows start_rownum= top_bound.get_curr_rownum();
+    ha_rows bottom_rownum= bottom_bound.get_curr_rownum();
+    DBUG_PRINT("info", ("COMPUTING (%llu %llu)", start_rownum, bottom_rownum));
+
+    cursor.move_to(start_rownum);
+
+    for (ha_rows idx= start_rownum; idx <= bottom_rownum; idx++)
+    {
+      if (cursor.fetch()) //EOF
+        break;
+      add_value_to_items();
+      if (cursor.next()) // EOF
+        break;
+    }
   }
 };
 
@@ -1513,8 +1900,9 @@ private:
 /*
   Get a Frame_cursor for a frame bound. This is a "factory function".
 */
-Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
+Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
 {
+  Window_frame *frame= spec->window_frame;
   if (!frame)
   {
     /*
@@ -1536,9 +1924,13 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
         so again the same frame bounds can be used.
     */
     if (is_top_bound)
-      return new Frame_unbounded_preceding;
+      return new Frame_unbounded_preceding(thd,
+                                           spec->partition_list,
+                                           spec->order_list);
     else
-      return new Frame_range_current_row_bottom;
+      return new Frame_range_current_row_bottom(thd,
+                                                spec->partition_list,
+                                                spec->order_list);
   }
 
   Window_frame_bound *bound= is_top_bound? frame->top_bound :
@@ -1554,9 +1946,13 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
     {
       /* The following serve both RANGE and ROWS: */
       if (is_preceding)
-        return new Frame_unbounded_preceding;
-      else
-        return new Frame_unbounded_following;
+        return new Frame_unbounded_preceding(thd,
+                                             spec->partition_list,
+                                             spec->order_list);
+
+      return new Frame_unbounded_following(thd,
+                                           spec->partition_list,
+                                           spec->order_list);
     }
 
     if (frame->units == Window_frame::UNITS_ROWS)
@@ -1567,15 +1963,21 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
       DBUG_ASSERT((longlong) n_rows >= 0);
       if (is_preceding)
         return new Frame_n_rows_preceding(is_top_bound, n_rows);
-      else
-        return new Frame_n_rows_following(is_top_bound, n_rows);
+
+      return new Frame_n_rows_following(
+          thd, spec->partition_list, spec->order_list,
+          is_top_bound, n_rows);
     }
     else
     {
       if (is_top_bound)
-        return new Frame_range_n_top(is_preceding, bound->offset);
-      else
-        return new Frame_range_n_bottom(is_preceding, bound->offset);
+        return new Frame_range_n_top(
+            thd, spec->partition_list, spec->order_list,
+            is_preceding, bound->offset);
+
+      return new Frame_range_n_bottom(thd,
+          spec->partition_list, spec->order_list,
+          is_preceding, bound->offset);
     }
   }
 
@@ -1585,67 +1987,179 @@ Frame_cursor *get_frame_cursor(Window_frame *frame, bool is_top_bound)
     {
       if (is_top_bound)
         return new Frame_rows_current_row_top;
-      else
-        return new Frame_rows_current_row_bottom;
+
+      return new Frame_rows_current_row_bottom;
     }
     else
     {
       if (is_top_bound)
-        return new Frame_range_current_row_top;
-      else
-        return new Frame_range_current_row_bottom;
+        return new Frame_range_current_row_top(
+            thd, spec->partition_list, spec->order_list);
+
+      return new Frame_range_current_row_bottom(
+          thd, spec->partition_list, spec->order_list);
     }
   }
   return NULL;
 }
 
-void add_extra_frame_cursors(List<Frame_cursor> *cursors,
-                             const Item_sum *window_func)
+void add_extra_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
+                             Item_window_func *window_func)
 {
-  switch (window_func->sum_func())
+  Window_spec *spec= window_func->window_spec;
+  Item_sum *item_sum= window_func->window_func();
+  Frame_cursor *fc;
+  switch (item_sum->sum_func())
   {
     case Item_sum::CUME_DIST_FUNC:
-      cursors->push_back(new Frame_unbounded_preceding);
-      cursors->push_back(new Frame_range_current_row_bottom);
+      fc= new Frame_unbounded_preceding(thd,
+                                        spec->partition_list,
+                                        spec->order_list);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      fc= new Frame_range_current_row_bottom(thd,
+                                             spec->partition_list,
+                                             spec->order_list);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
       break;
     default:
-      cursors->push_back(new Frame_unbounded_preceding);
-      cursors->push_back(new Frame_rows_current_row_bottom);
+      fc= new Frame_unbounded_preceding(
+              thd, spec->partition_list, spec->order_list);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+
+      fc= new Frame_rows_current_row_bottom;
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
   }
 }
 
-void get_window_func_required_cursors(
-    List<Frame_cursor> *result, const Item_window_func* item_win)
-{
-  if (item_win->requires_partition_size())
-    result->push_back(new Frame_unbounded_following_set_count);
 
-  /*
-    If it is not a regular window function that follows frame specifications,
-    specific cursors are required.
-  */
-  if (item_win->is_frame_prohibited())
+static bool is_computed_with_remove(Item_sum::Sumfunctype sum_func)
+{
+  switch (sum_func)
   {
-    add_extra_frame_cursors(result, item_win->window_func());
-    return;
+    case Item_sum::CUME_DIST_FUNC:
+    case Item_sum::ROW_NUMBER_FUNC:
+    case Item_sum::RANK_FUNC:
+    case Item_sum::DENSE_RANK_FUNC:
+    case Item_sum::NTILE_FUNC:
+      return false;
+    default:
+      return true;
+  }
+}
+/*
+   Create required frame cursors for the list of window functions.
+   Register all functions to their appropriate cursors.
+   If the window functions share the same frame specification,
+   those window functions will be registered to the same cursor.
+*/
+void get_window_functions_required_cursors(
+    THD *thd,
+    List<Item_window_func>& window_functions,
+    List<Cursor_manager> *cursor_managers)
+{
+  List_iterator_fast<Item_window_func> it(window_functions);
+  Item_window_func* item_win_func;
+  Item_sum *sum_func;
+  while ((item_win_func= it++))
+  {
+    Cursor_manager *cursor_manager = new Cursor_manager();
+    sum_func = item_win_func->window_func();
+    Frame_cursor *fc;
+    /*
+      Some window functions require the partition size for computing values.
+      Add a cursor that retrieves it as the first one in the list if necessary.
+    */
+    if (item_win_func->requires_partition_size())
+    {
+      fc= new Frame_unbounded_following_set_count(thd,
+                item_win_func->window_spec->partition_list,
+                item_win_func->window_spec->order_list);
+      fc->add_sum_func(sum_func);
+      cursor_manager->add_cursor(fc);
+    }
+
+    /*
+      If it is not a regular window function that follows frame specifications,
+      specific cursors are required. ROW_NUM, RANK, NTILE and others follow
+      such rules. Check is_frame_prohibited check for the full list.
+    */
+    if (item_win_func->is_frame_prohibited())
+    {
+      add_extra_frame_cursors(thd, cursor_manager, item_win_func);
+      cursor_managers->push_back(cursor_manager);
+      continue;
+    }
+
+    Frame_cursor *frame_bottom= get_frame_cursor(thd,
+        item_win_func->window_spec, false);
+    Frame_cursor *frame_top= get_frame_cursor(thd,
+        item_win_func->window_spec, true);
+
+    frame_bottom->add_sum_func(sum_func);
+    frame_top->add_sum_func(sum_func);
+
+    /*
+       The order of these cursors is important. A sum function
+       must first add values (via frame_bottom) then remove them via
+       frame_top. Removing items first doesn't make sense in the case of all
+       window functions.
+    */
+    cursor_manager->add_cursor(frame_bottom);
+    cursor_manager->add_cursor(frame_top);
+    if (is_computed_with_remove(sum_func->sum_func()) &&
+        !sum_func->supports_removal())
+    {
+      frame_bottom->set_no_action();
+      frame_top->set_no_action();
+      Frame_cursor *scan_cursor= new Frame_scan_cursor(*frame_top,
+                                                       *frame_bottom);
+      scan_cursor->add_sum_func(sum_func);
+      cursor_manager->add_cursor(scan_cursor);
+
+    }
+    cursor_managers->push_back(cursor_manager);
+  }
+}
+
+/**
+  Helper function that takes a list of window functions and writes
+  their values in the current table record.
+*/
+static
+bool save_window_function_values(List<Item_window_func>& window_functions,
+                                 TABLE *tbl, uchar *rowid_buf)
+{
+  List_iterator_fast<Item_window_func> iter(window_functions);
+  tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
+  store_record(tbl, record[1]);
+  while (Item_window_func *item_win= iter++)
+  {
+    int err;
+    item_win->save_in_field(item_win->result_field, true);
+    // TODO check if this can be placed outside the loop.
+    err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
+    if (err && err != HA_ERR_RECORD_IS_THE_SAME)
+      return true;
   }
 
-  /* A regular window function follows the frame specification. */
-  result->push_back(get_frame_cursor(item_win->window_spec->window_frame,
-                                     false));
-  result->push_back(get_frame_cursor(item_win->window_spec->window_frame,
-                                     true));
+  return false;
 }
 
 /*
+  TODO(cvicentiu) update this comment to reflect the new execution.
+
   Streamed window function computation with window frames.
 
   We make a single pass over the ordered temp.table, but we're using three
-  cursors: 
+  cursors:
    - current row - the row that we're computing window func value for)
    - start_bound - the start of the frame
    - bottom_bound   - the end of the frame
-   
+
   All three cursors move together.
 
   @todo
@@ -1655,7 +2169,7 @@ void get_window_func_required_cursors(
   @detail
     ROWS BETWEEN 3 PRECEDING  -- frame start
               AND 3 FOLLOWING  -- frame end
-     
+
                                     /------ frame end (aka BOTTOM)
     Dataset start                   |
      --------====*=======[*]========*========-------->> dataset end
@@ -1663,7 +2177,7 @@ void get_window_func_required_cursors(
                  |         +-------- current row
                  |
                  \-------- frame start ("TOP")
-  
+
     - frame_end moves forward and adds rows into the aggregate function.
     - frame_start follows behind and removes rows from the aggregate function.
     - current_row is the row where the value of aggregate function is stored.
@@ -1672,97 +2186,90 @@ void get_window_func_required_cursors(
   condition (Others can catch up by counting rows?)
 
 */
-
-bool compute_window_func_with_frames(Item_window_func *item_win,
-                                     TABLE *tbl, READ_RECORD *info)
+bool compute_window_func(THD *thd,
+                         List<Item_window_func>& window_functions,
+                         List<Cursor_manager>& cursor_managers,
+                         TABLE *tbl,
+                         SORT_INFO *filesort_result)
 {
-  THD *thd= tbl->in_use;
-  int err= 0;
+  List_iterator_fast<Item_window_func> iter_win_funcs(window_functions);
+  List_iterator_fast<Cursor_manager> iter_cursor_managers(cursor_managers);
+  uint err;
 
-  Item_sum *sum_func= item_win->window_func();
-  /* This algorithm doesn't support DISTINCT aggregator */
-  sum_func->set_aggregator(Aggregator::SIMPLE_AGGREGATOR);
+  READ_RECORD info;
 
-  List<Frame_cursor> cursors;
-  get_window_func_required_cursors(&cursors, item_win);
+  if (init_read_record(&info, current_thd, tbl, NULL/*select*/, filesort_result,
+                       0, 1, FALSE))
+    return true;
 
-  List_iterator_fast<Frame_cursor> it(cursors);
-  Frame_cursor *c;
-  while((c= it++))
+  Cursor_manager *cursor_manager;
+  while ((cursor_manager= iter_cursor_managers++))
+    cursor_manager->initialize_cursors(&info);
+
+  /* One partition tracker for each window function. */
+  List<Group_bound_tracker> partition_trackers;
+  Item_window_func *win_func;
+  while ((win_func= iter_win_funcs++))
   {
-    c->init(thd, info, item_win->window_spec->partition_list,
-            item_win->window_spec->order_list);
+    Group_bound_tracker *tracker= new Group_bound_tracker(thd,
+                                        win_func->window_spec->partition_list);
+    // TODO(cvicentiu) This should be removed and placed in constructor.
+    tracker->init();
+    partition_trackers.push_back(tracker);
   }
 
-  bool is_error= false;
+  List_iterator_fast<Group_bound_tracker> iter_part_trackers(partition_trackers);
   ha_rows rownum= 0;
   uchar *rowid_buf= (uchar*) my_malloc(tbl->file->ref_length, MYF(0));
 
   while (true)
   {
-    /* Move the current_row */
-    if ((err=info->read_record(info)))
-    {
-      break; /* End of file */
-    }
-    bool partition_changed= item_win->check_if_partition_changed();
+    if ((err= info.read_record(&info)))
+      break; // End of file.
 
+    /* Remember current row so that we can restore it before computing
+       each window function. */
     tbl->file->position(tbl->record[0]);
     memcpy(rowid_buf, tbl->file->ref, tbl->file->ref_length);
 
-    if (partition_changed || (rownum == 0))
-    {
-      sum_func->clear();
-      /*
-        pre_XXX functions assume that tbl->record[0] contains current_row, and 
-        they may not change it.
-      */
-      it.rewind();
-      while ((c= it++))
-        c->pre_next_partition(rownum, sum_func);
-      /*
-        We move bottom_bound first, because we want rows to be added into the
-        aggregate before top_bound attempts to remove them.
-      */
-      it.rewind();
-      while ((c= it++))
-        c->next_partition(rownum, sum_func);
-    }
-    else
-    {
-      /* Again, both pre_XXX function can find current_row in tbl->record[0] */
-      it.rewind();
-      while ((c= it++))
-        c->pre_next_row(sum_func);
+    iter_win_funcs.rewind();
+    iter_part_trackers.rewind();
+    iter_cursor_managers.rewind();
 
-      /* These make no assumptions about tbl->record[0] and may change it */
-      it.rewind();
-      while ((c= it++))
-        c->next_row(sum_func);
+    Group_bound_tracker *tracker;
+    while ((win_func= iter_win_funcs++) &&
+           (tracker= iter_part_trackers++) &&
+           (cursor_manager= iter_cursor_managers++))
+    {
+      if (tracker->check_if_next_group() || (rownum == 0))
+      {
+        /* TODO(cvicentiu)
+           Clearing window functions should happen through cursors. */
+        win_func->window_func()->clear();
+        cursor_manager->notify_cursors_partition_changed(rownum);
+      }
+      else
+      {
+        cursor_manager->notify_cursors_next_row();
+      }
+      /* Return to current row after notifying cursors for each window
+         function. */
+      tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
     }
+
+    /* We now have computed values for each window function. They can now
+       be saved in the current row. */
+    save_window_function_values(window_functions, tbl, rowid_buf);
+
     rownum++;
-
-    /*
-      Frame cursors may have made tbl->record[0] to point to some record other
-      than current_row. This applies to tbl->file's internal state, too.
-      Fix this by reading the current row again.
-    */
-    tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
-    store_record(tbl,record[1]);
-    item_win->save_in_field(item_win->result_field, true);
-    err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
-    if (err && err != HA_ERR_RECORD_IS_THE_SAME)
-    {
-      is_error= true;
-      break;
-    }
   }
 
   my_free(rowid_buf);
-  cursors.delete_elements();
-  return is_error? true: false;
-}
+  partition_trackers.delete_elements();
+  end_read_record(&info);
 
+  return false;
+}
 
 /* Make a list that is a concation of two lists of ORDER elements */
 
@@ -1799,69 +2306,62 @@ static ORDER* concat_order_lists(MEM_ROOT *mem_root, ORDER *list1, ORDER *list2)
   return res;
 }
 
-
-bool Window_func_runner::setup(THD *thd)
+bool Window_func_runner::add_function_to_run(Item_window_func *win_func)
 {
-  win_func->setup_partition_border_check(thd);
+
+  Item_sum *sum_func= win_func->window_func();
+  sum_func->setup_window_func(current_thd, win_func->window_spec);
 
   Item_sum::Sumfunctype type= win_func->window_func()->sum_func();
-  switch (type) 
+
+  switch (type)
   {
-    case Item_sum::ROW_NUMBER_FUNC:
-    case Item_sum::RANK_FUNC:
-    case Item_sum::DENSE_RANK_FUNC:
-    {
-      /*
-        One-pass window function computation, walk through the rows and
-        assign values.
-      */
-      compute_func= compute_window_func_values;
-      break;
-    }
-    case Item_sum::COUNT_FUNC:
-    case Item_sum::SUM_BIT_FUNC:
-    case Item_sum::SUM_FUNC:
-    case Item_sum::AVG_FUNC:
-    case Item_sum::PERCENT_RANK_FUNC:
-    case Item_sum::CUME_DIST_FUNC:
-    case Item_sum::NTILE_FUNC:
-    {
-      /*
-        Frame-aware window function computation. It does one pass, but
-        uses three cursors -frame_start, current_row, and frame_end.
-      */
-      compute_func= compute_window_func_with_frames;
-      break;
-    }
-    default:
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "This aggregate as window function"); 
+    /* Distinct is not yet supported. */
+    case Item_sum::GROUP_CONCAT_FUNC:
+    case Item_sum::SUM_DISTINCT_FUNC:
+    case Item_sum::AVG_DISTINCT_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "This aggregate as window function");
       return true;
+    default:
+      break;
   }
 
-  return false;
+  return window_functions.push_back(win_func);
 }
 
 
 /*
   Compute the value of window function for all rows.
 */
-bool Window_func_runner::exec(TABLE *tbl, SORT_INFO *filesort_result)
+bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
 {
-  THD *thd= current_thd;
-  win_func->set_phase_to_computation();
+  List_iterator_fast<Item_window_func> it(window_functions);
+  Item_window_func *win_func;
+  while ((win_func= it++))
+  {
+    win_func->set_phase_to_computation();
+    // TODO(cvicentiu) Setting the aggregator should probably be done during
+    // setup of Window_funcs_sort.
+    win_func->window_func()->set_aggregator(Aggregator::SIMPLE_AGGREGATOR);
+  }
+  it.rewind();
+
+  List<Cursor_manager> cursor_managers;
+  get_window_functions_required_cursors(thd, window_functions,
+                                        &cursor_managers);
 
   /* Go through the sorted array and compute the window function */
-  READ_RECORD info;
+  bool is_error= compute_window_func(thd,
+                                     window_functions,
+                                     cursor_managers,
+                                     tbl, filesort_result);
+  while ((win_func= it++))
+  {
+    win_func->set_phase_to_retrieval();
+  }
 
-  if (init_read_record(&info, thd, tbl, NULL/*select*/, filesort_result,
-                       0, 1, FALSE))
-    return true;
-
-  bool is_error= compute_func(win_func, tbl, &info);
-
-  win_func->set_phase_to_retrieval();
-
-  end_read_record(&info);
+  cursor_managers.delete_elements();
 
   return is_error;
 }
@@ -1872,21 +2372,15 @@ bool Window_funcs_sort::exec(JOIN *join)
   THD *thd= join->thd;
   JOIN_TAB *join_tab= &join->join_tab[join->top_join_tab_count];
 
+  /* Sort the table based on the most specific sorting criteria of
+     the window functions. */
   if (create_sort_index(thd, join, join_tab, filesort))
     return true;
 
   TABLE *tbl= join_tab->table;
   SORT_INFO *filesort_result= join_tab->filesort_result;
 
-  bool is_error= false;
-  List_iterator<Window_func_runner> it(runners);
-  Window_func_runner *runner;
-
-  while ((runner= it++))
-  {
-    if ((is_error= runner->exec(tbl, filesort_result)))
-      break;
-  }
+  bool is_error= runner.exec(thd, tbl, filesort_result);
 
   delete join_tab->filesort_result;
   join_tab->filesort_result= NULL;
@@ -1894,30 +2388,32 @@ bool Window_funcs_sort::exec(JOIN *join)
 }
 
 
-bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel, 
-                             List_iterator<Item_window_func> &it)
+bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
+                              List_iterator<Item_window_func> &it)
 {
   Item_window_func *win_func= it.peek();
   Item_window_func *prev_win_func;
 
+  /* The iterator should point to a valid function at the start of execution. */
+  DBUG_ASSERT(win_func);
   do
   {
-    Window_func_runner *runner;
-    if (!(runner= new Window_func_runner(win_func)) ||
-        runner->setup(thd))
-    {
+    if (runner.add_function_to_run(win_func))
       return true;
-    }
-    runners.push_back(runner);
     it++;
     prev_win_func= win_func;
-  } while ((win_func= it.peek()) && !(win_func->marker & SORTORDER_CHANGE_FLAG));
-  
+  } while ((win_func= it.peek()) &&
+           !(win_func->marker & SORTORDER_CHANGE_FLAG));
+
   /*
     The sort criteria must be taken from the last win_func in the group of
-    adjacent win_funcs that do not have SORTORDER_CHANGE_FLAG.
+    adjacent win_funcs that do not have SORTORDER_CHANGE_FLAG. This is
+    because the sort order must be the most specific sorting criteria defined
+    within the window function group. This ensures that we sort the table
+    in a way that the result is valid for all window functions belonging to
+    this Window_funcs_sort.
   */
-  Window_spec *spec = prev_win_func->window_spec;
+  Window_spec *spec= prev_win_func->window_spec;
 
   ORDER* sort_order= concat_order_lists(thd->mem_root, 
                                         spec->partition_list->first,
@@ -1932,8 +2428,8 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
 
 
 bool Window_funcs_computation::setup(THD *thd,
-                                          List<Item_window_func> *window_funcs,
-                                          JOIN_TAB *tab)
+                                     List<Item_window_func> *window_funcs,
+                                     JOIN_TAB *tab)
 {
   order_window_funcs_by_window_specs(window_funcs);
 

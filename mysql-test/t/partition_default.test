@@ -453,3 +453,70 @@ create table t1 (a int, b int)
 show create table t1;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-10765: Wrong result - query does not retrieve values from
+--echo # default partition on a table partitioned by list columns
+--echo #
+
+create table t1 (i int, j int) partition by list columns(i,j) (partition p1 values in ((10,10)), partition p2 default);
+insert into t1 values (10,1);
+select * from t1 where i = 10;
+explain partitions
+select * from t1 where i = 10;
+select * from t1 where i = 10 and j=1;
+explain partitions
+select * from t1 where i = 10 and j=1;
+insert into t1 values (10,10);
+select * from t1 where i = 10 and j=10;
+explain partitions
+select * from t1 where i = 10 and j=10;
+drop table t1;
+
+create table t1
+( 
+  a int not null,
+  b int not null,
+  c int
+)
+partition by list columns(a,b) 
+(
+  partition p1 values in ((10,10)), 
+  partition p2 values in ((10,20)), 
+  partition p3 values in ((10,30)),
+  partition p4 values in ((10,40)), 
+  partition p5 values in ((10,50)) 
+);
+
+insert into t1 values 
+  (10,10,1234), 
+  (10,20,1234), 
+  (10,30,1234),
+  (10,40,1234), 
+  (10,50,1234);
+
+explain partitions 
+select * from t1 
+where a>=10  and (a <=10 and b <=30);
+drop table t1;
+
+--echo #
+--echo # MDEV-10763: Wrong result - server does not return NULL values
+--echo # from default list partition after ALTER table
+--echo #
+create table t1 (i int) partition by list (i) ( partition p1 default);
+insert into t1 values (null);
+select * from t1 where i is null;
+alter table t1 partition by list (i) ( partition p1 values in (1), partition p2 default);
+select * from t1 where i is null;
+explain partitions 
+select * from t1 where i is null;
+alter table t1 partition by list (i) (
+  partition p0 values in (NULL),
+  partition p1 values in (1),
+  partition p2 default);
+select * from t1 where i is null;
+explain partitions 
+select * from t1 where i is null;
+
+drop table t1;

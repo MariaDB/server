@@ -1712,3 +1712,77 @@ SELECT
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-10317 EXCTACT(MINUTE_MICROSECOND) truncates data
+--echo #
+
+let $query=
+SELECT
+  a,
+  EXTRACT(YEAR FROM a),
+  EXTRACT(YEAR_MONTH FROM a),
+  EXTRACT(QUARTER FROM a),
+  EXTRACT(MONTH FROM a),
+  EXTRACT(WEEK FROM a),
+  EXTRACT(DAY FROM a),
+  EXTRACT(DAY_HOUR FROM a),
+  EXTRACT(DAY_MINUTE FROM a),
+  EXTRACT(DAY_SECOND FROM a),
+  EXTRACT(HOUR FROM a),
+  EXTRACT(HOUR_MINUTE FROM a),
+  EXTRACT(HOUR_SECOND FROM a),
+  EXTRACT(MINUTE FROM a),
+  EXTRACT(MINUTE_SECOND FROM a),
+  EXTRACT(SECOND FROM a),
+  EXTRACT(MICROSECOND FROM a),
+  EXTRACT(DAY_MICROSECOND FROM a),
+  EXTRACT(HOUR_MICROSECOND FROM a),
+  EXTRACT(MINUTE_MICROSECOND FROM a),
+  EXTRACT(SECOND_MICROSECOND FROM a)
+FROM t1;
+
+
+CREATE TABLE t1 (a DATETIME(6));
+INSERT INTO t1 VALUES ('1999-12-31 23:59:59.999999');
+
+--vertical_results
+--enable_metadata
+--disable_ps_protocol
+--eval $query
+--enable_ps_protocol
+--disable_metadata
+--horizontal_results
+
+--eval CREATE TABLE t2 AS $query
+--vertical_results
+SELECT * FROM t2;
+--horizontal_results
+SHOW CREATE TABLE t2;
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES ('-838:59:59.999999'),('838:59:59.999999');
+
+--vertical_results
+--enable_metadata
+--disable_ps_protocol
+--eval $query
+--enable_ps_protocol
+--disable_metadata
+--horizontal_results
+
+--eval CREATE TABLE t2 AS $query
+--vertical_results
+SELECT * FROM t2;
+--horizontal_results
+SHOW CREATE TABLE t2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

@@ -50,6 +50,7 @@ struct wsrep_thd_shadow {
   ulong                tx_isolation;
   char                 *db;
   size_t               db_length;
+  my_hrtime_t          user_time;
 };
 
 // Global wsrep parameters
@@ -168,8 +169,13 @@ extern void wsrep_prepend_PATH (const char* path);
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
 
-#define WSREP_ON \
+#define WSREP_ON                         \
   (global_system_variables.wsrep_on)
+
+#define WSREP_ON_NEW                     \
+  ((global_system_variables.wsrep_on) && \
+   wsrep_provider                     && \
+   strcmp(wsrep_provider, WSREP_NONE))
 
 #define WSREP(thd) \
   (WSREP_ON && wsrep && (thd && thd->variables.wsrep_on))
@@ -307,6 +313,8 @@ void wsrep_replay_transaction(THD *thd);
 bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
                              TABLE_LIST* src_table,
 	                     HA_CREATE_INFO *create_info);
+bool wsrep_node_is_donor();
+bool wsrep_node_is_synced();
 
 #else /* WITH_WSREP */
 

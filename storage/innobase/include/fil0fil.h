@@ -1261,6 +1261,14 @@ fil_space_flags(
 /*===========*/
 	fil_space_t*	space);	/*!< in: space */
 
+/*******************************************************************//**
+Returns a pointer to the file_space_t that is in the memory cache
+associated with a space id.
+@return	file_space_t pointer, NULL if space not found */
+fil_space_t*
+fil_space_get(
+/*==========*/
+	ulint	id);	/*!< in: space id */
 #endif /* !UNIV_INNOCHECKSUM */
 
 /****************************************************************//**

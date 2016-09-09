@@ -1397,6 +1397,28 @@ fil_space_free(
 
 /*******************************************************************//**
 Returns a pointer to the file_space_t that is in the memory cache
+associated with a space id.
+@return	file_space_t pointer, NULL if space not found */
+fil_space_t*
+fil_space_get(
+/*==========*/
+	ulint	id)	/*!< in: space id */
+{
+	fil_space_t*	space;
+
+	ut_ad(fil_system);
+
+	mutex_enter(&fil_system->mutex);
+
+	space = fil_space_get_by_id(id);
+
+	mutex_exit(&fil_system->mutex);
+
+	return (space);
+}
+
+/*******************************************************************//**
+Returns a pointer to the file_space_t that is in the memory cache
 associated with a space id. The caller must lock fil_system->mutex.
 @return	file_space_t pointer, NULL if space not found */
 UNIV_INLINE

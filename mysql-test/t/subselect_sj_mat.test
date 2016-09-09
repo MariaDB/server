@@ -1925,3 +1925,15 @@ EXECUTE stmt;
 
 DROP TABLE t1,t2,t3;
 
+--echo #
+--echo # MDEV-10389: Query returns different results on a debug vs non-debug build of the same revision
+--echo #
+CREATE TABLE t1 (i1 INT, i2 INT NOT NULL);
+INSERT INTO t1 VALUES (1,4),(2,6);
+
+SELECT * FROM t1 AS alias1
+WHERE alias1.i1 IN (
+    SELECT i1 FROM t1 WHERE alias1.i2 IN ( SELECT i2 FROM t1 HAVING i2 <> 7 )
+);
+DROP TABLE t1;
+

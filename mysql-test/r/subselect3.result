@@ -124,6 +124,7 @@ Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	41
@@ -889,6 +890,7 @@ ERROR 42S22: Unknown column 'c' in 'field list'
 SHOW WARNINGS;
 Level	Code	Message
 Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #2
+Note	1981	Aggregate function 'count()' of SELECT #3 belongs to SELECT #2
 Note	1276	Field or reference 'test.t1.c' of SELECT #3 was resolved in SELECT #2
 Error	1054	Unknown column 'c' in 'field list'
 DROP TABLE t1;

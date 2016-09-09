@@ -9,9 +9,6 @@ SELECT 1 = 1 FROM t1;
 SELECT COUNT(*) = 1 FROM mysql.slow_log WHERE sql_text = 'SELECT 1 = 1 FROM t1';
 COUNT(*) = 1
 1
-SELECT COUNT(*) > 0 FROM mysql.general_log WHERE argument = 'CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB';
-COUNT(*) > 0
-1
 SELECT 2 = 2 FROM t1;
 2 = 2
 1

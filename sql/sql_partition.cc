@@ -7723,6 +7723,7 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
   bool can_match_multiple_values;
   uint32 nparts;
   get_col_endpoint_func  UNINIT_VAR(get_col_endpoint);
+  uint full_length= 0;
   DBUG_ENTER("get_part_iter_for_interval_cols_via_map");
 
   if (part_info->part_type == RANGE_PARTITION)
@@ -7740,9 +7741,14 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
   else
     assert(0);
 
+  for (uint32 i= 0; i < part_info->num_columns; i++)
+    full_length+= store_length_array[i];
+
   can_match_multiple_values= ((flags &
                                (NO_MIN_RANGE | NO_MAX_RANGE | NEAR_MIN |
                                 NEAR_MAX)) ||
+                              (min_len != max_len) ||
+                              (min_len != full_length) ||
                               memcmp(min_value, max_value, min_len));
   DBUG_ASSERT(can_match_multiple_values || (flags & EQ_RANGE) || flags == 0);
   if (can_match_multiple_values && part_info->has_default_partititon())
@@ -7954,8 +7960,19 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
         /* col = x and F(x) = NULL -> only search NULL partition */
         part_iter->part_nums.cur= part_iter->part_nums.start= 0;
         part_iter->part_nums.end= 0;
-        part_iter->ret_null_part= part_iter->ret_null_part_orig= TRUE;
-        DBUG_RETURN(1);
+        /*
+          if NULL partition exists:
+            for RANGE it is the first partition (always exists);
+            for LIST should be indicator that it is present
+        */
+        if (part_info->part_type == RANGE_PARTITION ||
+            part_info->has_null_value)
+        {
+          part_iter->ret_null_part= part_iter->ret_null_part_orig= TRUE;
+          DBUG_RETURN(1);
+        }
+        // If no NULL partition look up in DEFAULT or there is no such value
+        goto not_found;
       }
       part_iter->part_nums.cur= part_iter->part_nums.start;
       if (check_zero_dates && !part_info->part_expr->null_value)

@@ -230,7 +230,7 @@ innobase_need_rebuild(
 		    & Alter_inplace_info::ADD_INDEX) ||
 	     (ha_alter_info->handler_flags
 		     & Alter_inplace_info::ADD_FOREIGN_KEY))) {
-		for (ulint i = 0; i < ha_alter_info->key_count; i++) {
+		for (ulint i = 0; i < ha_alter_info->index_add_count; i++) {
 			const KEY* key = &ha_alter_info->key_info_buffer[
 				ha_alter_info->index_add_buffer[i]];
 
@@ -241,13 +241,13 @@ innobase_need_rebuild(
 				/* Field used on added index is renamed on
 				this same alter table. We need table
 				rebuild. */
-				if (field->flags & FIELD_IS_RENAMED) {
+				if (field && field->flags & FIELD_IS_RENAMED) {
 					return (true);
 				}
 			}
 		}
 	}
-	
+
 	return(!!(ha_alter_info->handler_flags & INNOBASE_ALTER_REBUILD));
 }
 

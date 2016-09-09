@@ -1018,7 +1018,7 @@ CHECK_STRUCT_HAS_MEMBER("struct timespec" tv_sec "time.h" STRUCT_TIMESPEC_HAS_TV
 CHECK_STRUCT_HAS_MEMBER("struct timespec" tv_nsec "time.h" STRUCT_TIMESPEC_HAS_TV_NSEC)
 
 IF(NOT MSVC)
-  CHECK_C_SOURCE_RUNS(
+  CHECK_C_SOURCE_COMPILES(
   "
   #define _GNU_SOURCE
   #include <fcntl.h>

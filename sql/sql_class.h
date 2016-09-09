@@ -730,9 +730,11 @@ typedef struct system_status_var
   ulong ha_read_key_count;
   ulong ha_read_next_count;
   ulong ha_read_prev_count;
+  ulong ha_read_retry_count;
   ulong ha_read_rnd_count;
   ulong ha_read_rnd_next_count;
   ulong ha_read_rnd_deleted_count;
+
   /*
     This number doesn't include calls to the default implementation and
     calls made by range access. The intent is to count only calls made by
@@ -766,6 +768,8 @@ typedef struct system_status_var
   ulong select_range_count_;
   ulong select_range_check_count_;
   ulong select_scan_count_;
+  ulong update_scan_count;
+  ulong delete_scan_count;
   ulong executed_triggers;
   ulong long_query_count;
   ulong filesort_merge_passes_;
@@ -1525,7 +1529,8 @@ enum enum_thread_type
   SYSTEM_THREAD_EVENT_SCHEDULER= 8,
   SYSTEM_THREAD_EVENT_WORKER= 16,
   SYSTEM_THREAD_BINLOG_BACKGROUND= 32,
-  SYSTEM_THREAD_SLAVE_INIT= 64
+  SYSTEM_THREAD_SLAVE_INIT= 64,
+  SYSTEM_THREAD_SLAVE_BACKGROUND= 128
 };
 
 inline char const *
@@ -3183,12 +3188,12 @@ public:
     set_start_time();
     start_utime= utime_after_lock= microsecond_interval_timer();
   }
-  inline void	set_time(my_hrtime_t t)
+  inline void set_time(my_hrtime_t t)
   {
     user_time= t;
     set_time();
   }
-  inline void	set_time(my_time_t t, ulong sec_part)
+  inline void set_time(my_time_t t, ulong sec_part)
   {
     my_hrtime_t hrtime= { hrtime_from_time(t) + sec_part };
     set_time(hrtime);
@@ -4209,6 +4214,7 @@ public:
   */
   bool                      wsrep_ignore_table;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
+  ulong                     wsrep_affected_rows;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */

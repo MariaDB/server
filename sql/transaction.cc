@@ -38,6 +38,9 @@ static void trans_track_end_trx(THD *thd)
      thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER))->end_trx(thd);
   }
 }
+#else
+#define trans_track_end_trx(A) do{}while(0)
+#endif //EMBEDDED_LIBRARY
 
 
 /**
@@ -46,6 +49,7 @@ static void trans_track_end_trx(THD *thd)
 */
 void trans_reset_one_shot_chistics(THD *thd)
 {
+#ifndef EMBEDDED_LIBRARY
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
   {
     Transaction_state_tracker *tst= (Transaction_state_tracker *)
@@ -54,13 +58,10 @@ void trans_reset_one_shot_chistics(THD *thd)
     tst->set_read_flags(thd, TX_READ_INHERIT);
     tst->set_isol_level(thd, TX_ISOL_INHERIT);
   }
-
+#endif //EMBEDDED_LIBRARY
   thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
   thd->tx_read_only= thd->variables.tx_read_only;
 }
-#else
-#define trans_track_end_trx(A) do{}while(0)
-#endif //EMBEDDED_LIBRARY
 
 /* Conditions under which the transaction state must not change. */
 static bool trans_check(THD *thd)
