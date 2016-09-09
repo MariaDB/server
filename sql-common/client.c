@@ -3118,7 +3118,6 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     DBUG_RETURN(0);
 
   mysql->methods= &client_methods;
-  net->vio = 0;				/* If something goes wrong */
   mysql->client_flag=0;			/* For handshake */
 
   /* use default options */
