@@ -543,7 +543,8 @@ public:
   virtual void clear()= 0;
   virtual bool add()= 0;
   virtual bool setup(THD *thd) { return false; }
-  
+
+  virtual bool supports_removal() const { return false; }
   virtual void remove() { DBUG_ASSERT(0); }
 
   virtual void cleanup();
@@ -771,6 +772,11 @@ public:
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_sum>(thd, mem_root, this); }
 
+  bool supports_removal() const
+  {
+    return true;
+  }
+
 private:
   void add_helper(bool perform_removal);
   ulonglong count;
@@ -829,6 +835,11 @@ class Item_sum_count :public Item_sum_int
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_count>(thd, mem_root, this); }
+
+  bool supports_removal() const
+  {
+    return true;
+  }
 };
 
 
@@ -878,6 +889,11 @@ public:
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_avg>(thd, mem_root, this); }
+
+  bool supports_removal() const
+  {
+    return true;
+  }
 };
 
 
@@ -1087,6 +1103,11 @@ public:
     }
     // Unless we're counting bits, we can not remove anything.
     DBUG_ASSERT(0);
+  }
+
+  bool supports_removal() const
+  {
+    return true;
   }
 
 protected:
