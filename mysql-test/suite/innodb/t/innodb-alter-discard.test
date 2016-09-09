@@ -3,6 +3,8 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: .*");
+
 let $MYSQLD_DATADIR=`select @@datadir`;
 SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t(a INT)ENGINE=InnoDB;

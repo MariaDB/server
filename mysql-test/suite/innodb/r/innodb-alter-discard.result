@@ -1,3 +1,4 @@
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: .*");
 SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE t(a INT)ENGINE=InnoDB;
 call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation.");
