@@ -57,6 +57,17 @@ bool cmp_items(Item *a, Item *b)
 }
 
 
+/**
+  Set max_sum_func_level if it is needed
+*/
+inline void set_max_sum_func_level(THD *thd, SELECT_LEX *select)
+{
+  if (thd->lex->in_sum_func &&
+      thd->lex->in_sum_func->nest_level >= select->nest_level)
+    set_if_bigger(thd->lex->in_sum_func->max_sum_func_level,
+                  select->nest_level - 1);
+}
+
 /*****************************************************************************
 ** Item functions
 *****************************************************************************/
@@ -5031,6 +5042,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     if (rf->fix_fields(thd, reference) || rf->check_cols(1))
       return -1;
 
+    /*
+      We can not "move" aggregate function in the place where
+      its arguments are not defined.
+    */
+    set_max_sum_func_level(thd, select);
     mark_as_dependent(thd, last_checked_context->select_lex,
                       context->select_lex, rf,
                       rf);
@@ -5039,6 +5055,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   }
   else
   {
+    /*
+      We can not "move" aggregate function in the place where
+      its arguments are not defined.
+    */
+    set_max_sum_func_level(thd, select);
     mark_as_dependent(thd, last_checked_context->select_lex,
                       context->select_lex,
                       this, (Item_ident*)*reference);
@@ -5170,6 +5191,11 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               return(1);
             }
 
+            /*
+              We can not "move" aggregate function in the place where
+              its arguments are not defined.
+            */
+            set_max_sum_func_level(thd, thd->lex->current_select);
             set_field(new_field);
             return 0;
           }
@@ -5194,6 +5220,11 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
                                   select->parsing_place == IN_GROUP_BY && 
 				  alias_name_used  ?  *rf->ref : rf);
 
+            /*
+              We can not "move" aggregate function in the place where
+              its arguments are not defined.
+            */
+            set_max_sum_func_level(thd, thd->lex->current_select);
             return FALSE;
           }
         }

@@ -222,7 +222,8 @@ then
         [ "$OS" == "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
         [ "$OS" == "Darwin" -o "$OS" == "FreeBSD" ] && count=$(sysctl -n hw.ncpu)
 
-        find . -maxdepth 1 -mindepth 1 -type d -print0 | xargs -I{} -0 -P $count \
+        find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" -print0 | \
+             xargs -I{} -0 -P $count \
              rsync --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
              $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \

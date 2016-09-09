@@ -1021,13 +1021,6 @@ public:
   { return get_item_copy<Item_func_cot>(thd, mem_root, this); }
 };
 
-class Item_func_integer :public Item_int_func
-{
-public:
-  inline Item_func_integer(THD *thd, Item *a): Item_int_func(thd, a) {}
-  void fix_length_and_dec();
-};
-
 
 class Item_func_int_val :public Item_func_num1
 {

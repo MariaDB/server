@@ -20,6 +20,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	5
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -39,6 +40,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	1
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -60,6 +62,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -81,6 +84,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -102,6 +106,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	6
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -123,6 +128,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	1
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -146,6 +152,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	6
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -169,6 +176,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	3
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -188,6 +196,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	6
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -207,6 +216,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -228,6 +238,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	6
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -249,6 +260,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -270,6 +282,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	5
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -291,6 +304,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -317,6 +331,7 @@ Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	9
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	9
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -343,6 +358,7 @@ Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	2
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	2
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -370,6 +386,7 @@ Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	9
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	9
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -397,6 +414,7 @@ Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	3
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	3
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -422,6 +440,7 @@ Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	9
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	3
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -447,6 +466,7 @@ Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	3
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	3
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -477,6 +497,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	294
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -507,6 +528,7 @@ Handler_read_key	21
 Handler_read_last	1
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -529,6 +551,7 @@ Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	1230
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -551,6 +574,7 @@ Handler_read_key	6
 Handler_read_last	1
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -581,6 +605,7 @@ Handler_read_key	3
 Handler_read_last	0
 Handler_read_next	26
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -610,6 +635,7 @@ Handler_read_key	3
 Handler_read_last	0
 Handler_read_next	3
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -807,6 +833,7 @@ Handler_read_key	10
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	11
@@ -828,6 +855,7 @@ Handler_read_key	10
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	11
@@ -1040,5 +1068,70 @@ a
 1
 drop table t1, t2;
 set optimizer_switch=@save_optimizer_switch;
+# 
+# MDEV-10325: Queries examines all rows of a tables when it should not
+# 
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+pk int not null,
+col1 varchar(32),
+filler varchar(100),
+key idx1(col1(10)),
+primary key (pk)
+)engine=innodb;
+insert into t1 
+select
+A.a + 10*B.a + 100*C.a,
+concat('1234567890-', 1000+ A.a + 10*B.a + 100*C.a),
+repeat('filler-data-', 4)
+from 
+t0 A, t0 B, t0 C;
+drop table t0,t1;
+# 
+# MDEV-10360: Extended keys: index properties depend on index order
+# 
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+index_id bigint(20) unsigned NOT NULL,
+index_class varchar(265) COLLATE latin1_general_ci DEFAULT NULL ,
+index_object_id int(10) unsigned NOT NULL DEFAULT '0' ,
+index_date_updated int(10) unsigned DEFAULT NULL ,
+PRIMARY KEY (index_id),
+KEY object (index_class(181),index_object_id),
+KEY index_date_updated (index_date_updated)
+) engine=innodb;
+create table t2 (
+index_id bigint(20) unsigned NOT NULL,
+index_class varchar(265) COLLATE latin1_general_ci DEFAULT NULL ,
+index_object_id int(10) unsigned NOT NULL DEFAULT '0' ,
+index_date_updated int(10) unsigned DEFAULT NULL ,
+PRIMARY KEY (index_id),
+KEY index_date_updated (index_date_updated),
+KEY object (index_class(181),index_object_id)
+) engine=innodb;
+insert into t1 select 
+@a:=A.a + 10*B.a + 100*C.a,
+concat('val-', @a),
+123456,
+A.a + 10*B.a
+from 
+t0 A, t0 B, t0 C;
+insert into t2 select * from t1;
+# This must have the same query plan as the query below it:
+# type=range, key=index_date_updated, key_len=13
+explain 
+select * from t1 force index(index_date_updated) 
+where index_date_updated= 10 and index_id < 800;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	index_date_updated	index_date_updated	13	NULL	#	Using index condition
+# This used to work from the start:
+explain 
+select * from t2 force index(index_date_updated) 
+where index_date_updated= 10 and index_id < 800;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	index_date_updated	index_date_updated	13	NULL	#	Using index condition
+drop table t0,t1,t2;
 set optimizer_switch=@save_ext_key_optimizer_switch;
 SET SESSION STORAGE_ENGINE=DEFAULT;

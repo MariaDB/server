@@ -479,20 +479,13 @@ os_atomic_test_and_set(volatile lock_word_t* ptr)
 }
 
 /** Do an atomic release.
-
-In theory __sync_lock_release should be used to release the lock.
-Unfortunately, it does not work properly alone. The workaround is
-that more conservative __sync_lock_test_and_set is used instead.
-
-Performance regression was observed at some conditions for Intel
-architecture. Disable release barrier on Intel architecture for now.
 @param[in,out]	ptr		Memory location to write to
 @return the previous value */
 inline
-lock_word_t
+void
 os_atomic_clear(volatile lock_word_t* ptr)
 {
-	return(__sync_lock_test_and_set(ptr, 0));
+	__sync_lock_release(ptr);
 }
 
 # elif defined(HAVE_IB_GCC_ATOMIC_TEST_AND_SET)
@@ -856,15 +849,7 @@ for synchronization */
 	} while (0);
 
 /** barrier definitions for memory ordering */
-#ifdef IB_STRONG_MEMORY_MODEL
-/* Performance regression was observed at some conditions for Intel
-architecture. Disable memory barrier for Intel architecture for now. */
-# define os_rmb do { } while(0)
-# define os_wmb do { } while(0)
-# define os_isync do { } while(0)
-# define IB_MEMORY_BARRIER_STARTUP_MSG \
-	"Memory barrier is not used"
-#elif defined(HAVE_IB_GCC_ATOMIC_THREAD_FENCE)
+#if defined(HAVE_IB_GCC_ATOMIC_THREAD_FENCE)
 # define HAVE_MEMORY_BARRIER
 # define os_rmb	__atomic_thread_fence(__ATOMIC_ACQUIRE)
 # define os_wmb	__atomic_thread_fence(__ATOMIC_RELEASE)

@@ -1746,5 +1746,3 @@ DROP TABLE t1;
 --error ER_DUP_CONSTRAINT_NAME
 CREATE TABLE t1(a INT, b INT, CONSTRAINT min check (a>5),
                               CONSTRAINT min check (b>5));
-
-

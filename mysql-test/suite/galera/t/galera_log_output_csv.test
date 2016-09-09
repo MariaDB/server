@@ -17,9 +17,6 @@ SELECT COUNT(*) = 1 FROM mysql.slow_log WHERE sql_text = 'SELECT 1 = 1 FROM t1';
 
 --connection node_2
 
-# CREATE TABLE from master is also present in the slave query log, but is logged twice, mysql-wsrep#44
-SELECT COUNT(*) > 0 FROM mysql.general_log WHERE argument = 'CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB';
-
 SELECT 2 = 2 FROM t1;
 SELECT COUNT(*) = 1 FROM mysql.slow_log WHERE sql_text = 'SELECT 2 = 2 FROM t1';
 

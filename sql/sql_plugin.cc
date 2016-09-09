@@ -2977,6 +2977,70 @@ static st_bookmark *register_var(const char *plugin, const char *name,
   return result;
 }
 
+
+void sync_dynamic_session_variables(THD* thd, bool global_lock)
+{
+  uint idx;
+
+  thd->variables.dynamic_variables_ptr= (char*)
+    my_realloc(thd->variables.dynamic_variables_ptr,
+               global_variables_dynamic_size,
+               MYF(MY_WME | MY_FAE | MY_ALLOW_ZERO_PTR));
+
+  if (global_lock)
+    mysql_mutex_lock(&LOCK_global_system_variables);
+
+  mysql_mutex_assert_owner(&LOCK_global_system_variables);
+
+  memcpy(thd->variables.dynamic_variables_ptr +
+           thd->variables.dynamic_variables_size,
+         global_system_variables.dynamic_variables_ptr +
+           thd->variables.dynamic_variables_size,
+         global_system_variables.dynamic_variables_size -
+           thd->variables.dynamic_variables_size);
+
+  /*
+    now we need to iterate through any newly copied 'defaults'
+    and if it is a string type with MEMALLOC flag, we need to strdup
+  */
+  for (idx= 0; idx < bookmark_hash.records; idx++)
+  {
+    sys_var_pluginvar *pi;
+    sys_var *var;
+    st_bookmark *v= (st_bookmark*) my_hash_element(&bookmark_hash,idx);
+
+    if (v->version <= thd->variables.dynamic_variables_version)
+      continue; /* already in thd->variables */
+
+    if (!(var= intern_find_sys_var(v->key + 1, v->name_len)) ||
+        !(pi= var->cast_pluginvar()) ||
+        v->key[0] != plugin_var_bookmark_key(pi->plugin_var->flags))
+      continue;
+
+    /* Here we do anything special that may be required of the data types */
+
+    if ((pi->plugin_var->flags & PLUGIN_VAR_TYPEMASK) == PLUGIN_VAR_STR &&
+        pi->plugin_var->flags & PLUGIN_VAR_MEMALLOC)
+    {
+      int offset= ((thdvar_str_t *)(pi->plugin_var))->offset;
+      char **pp= (char**) (thd->variables.dynamic_variables_ptr + offset);
+      if (*pp)
+        *pp= my_strdup(*pp, MYF(MY_WME|MY_FAE));
+    }
+  }
+
+  if (global_lock)
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+
+  thd->variables.dynamic_variables_version=
+         global_system_variables.dynamic_variables_version;
+  thd->variables.dynamic_variables_head=
+         global_system_variables.dynamic_variables_head;
+  thd->variables.dynamic_variables_size=
+         global_system_variables.dynamic_variables_size;
+}
+
+
 /*
   returns a pointer to the memory which holds the thd-local variable or
   a pointer to the global variable if thd==null.
@@ -2998,67 +3062,8 @@ static uchar *intern_sys_var_ptr(THD* thd, int offset, bool global_lock)
   if (!thd->variables.dynamic_variables_ptr ||
       (uint)offset > thd->variables.dynamic_variables_head)
   {
-    uint idx;
-
     mysql_rwlock_rdlock(&LOCK_system_variables_hash);
-
-    thd->variables.dynamic_variables_ptr= (char*)
-      my_realloc(thd->variables.dynamic_variables_ptr,
-                 global_variables_dynamic_size,
-                 MYF(MY_WME | MY_FAE | MY_ALLOW_ZERO_PTR));
-
-    if (global_lock)
-      mysql_mutex_lock(&LOCK_global_system_variables);
-
-    mysql_mutex_assert_owner(&LOCK_global_system_variables);
-
-    memcpy(thd->variables.dynamic_variables_ptr +
-             thd->variables.dynamic_variables_size,
-           global_system_variables.dynamic_variables_ptr +
-             thd->variables.dynamic_variables_size,
-           global_system_variables.dynamic_variables_size -
-             thd->variables.dynamic_variables_size);
-
-    /*
-      now we need to iterate through any newly copied 'defaults'
-      and if it is a string type with MEMALLOC flag, we need to strdup
-    */
-    for (idx= 0; idx < bookmark_hash.records; idx++)
-    {
-      sys_var_pluginvar *pi;
-      sys_var *var;
-      st_bookmark *v= (st_bookmark*) my_hash_element(&bookmark_hash,idx);
-
-      if (v->version <= thd->variables.dynamic_variables_version)
-        continue; /* already in thd->variables */
-
-      if (!(var= intern_find_sys_var(v->key + 1, v->name_len)) ||
-          !(pi= var->cast_pluginvar()) ||
-          v->key[0] != plugin_var_bookmark_key(pi->plugin_var->flags))
-        continue;
-
-      /* Here we do anything special that may be required of the data types */
-
-      if ((pi->plugin_var->flags & PLUGIN_VAR_TYPEMASK) == PLUGIN_VAR_STR &&
-          pi->plugin_var->flags & PLUGIN_VAR_MEMALLOC)
-      {
-        int offset= ((thdvar_str_t *)(pi->plugin_var))->offset;
-        char **pp= (char**) (thd->variables.dynamic_variables_ptr + offset);
-        if (*pp)
-          *pp= my_strdup(*pp, MYF(MY_WME|MY_FAE));
-      }
-    }
-
-    if (global_lock)
-      mysql_mutex_unlock(&LOCK_global_system_variables);
-
-    thd->variables.dynamic_variables_version=
-           global_system_variables.dynamic_variables_version;
-    thd->variables.dynamic_variables_head=
-           global_system_variables.dynamic_variables_head;
-    thd->variables.dynamic_variables_size=
-           global_system_variables.dynamic_variables_size;
-
+    sync_dynamic_session_variables(thd, global_lock);
     mysql_rwlock_unlock(&LOCK_system_variables_hash);
   }
   DBUG_RETURN((uchar*)thd->variables.dynamic_variables_ptr + offset);
@@ -3592,6 +3597,7 @@ void plugin_opt_set_limits(struct my_option *options,
   case PLUGIN_VAR_BOOL:
     options->var_type= GET_BOOL;
     options->def_value= ((sysvar_bool_t*) opt)->def_val;
+    options->typelib= &bool_typelib;
     break;
   case PLUGIN_VAR_STR:
     options->var_type= ((opt->flags & PLUGIN_VAR_MEMALLOC) ?
@@ -3640,6 +3646,7 @@ void plugin_opt_set_limits(struct my_option *options,
   case PLUGIN_VAR_BOOL | PLUGIN_VAR_THDLOCAL:
     options->var_type= GET_BOOL;
     options->def_value= ((thdvar_bool_t*) opt)->def_val;
+    options->typelib= &bool_typelib;
     break;
   case PLUGIN_VAR_STR | PLUGIN_VAR_THDLOCAL:
     options->var_type= ((opt->flags & PLUGIN_VAR_MEMALLOC) ?

@@ -330,6 +330,8 @@ void Single_line_formatting_helper::flush_on_one_line()
     ptr++;
   }
   owner->output.append(']');
+  /* We've printed out the contents of the buffer, mark it as empty */
+  buf_ptr= buffer;
 }
 
 

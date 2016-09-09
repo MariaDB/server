@@ -1,0 +1,42 @@
+#
+# MW-252 - Check that FTWRL causes the node to become desynced
+# and not subject to flow control
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+FLUSH TABLES WITH READ LOCK;
+
+# Node #1 is now desynced
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Donor/Desynced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment'
+--source include/wait_condition.inc
+
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# Node #2 can issue updates without flow control kicking in
+--connection node_2
+
+--let $count = 100
+--disable_query_log
+while ($count)
+{
+  INSERT INTO t1 VALUES (1);
+  --dec $count
+}
+--enable_query_log
+
+# Restore cluster
+--connection node_1
+UNLOCK TABLES;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment'
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 100 FROM t1
+--source include/wait_condition.inc
+
+DROP TABLE t1;

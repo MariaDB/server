@@ -3144,6 +3144,22 @@ const char *MYSQL_LOG::generate_name(const char *log_name,
 }
 
 
+/*
+  Print some additional information about addition/removal of
+  XID list entries.
+  TODO: Remove once MDEV-9510 is fixed.
+*/
+#ifdef WITH_WSREP
+#define WSREP_XID_LIST_ENTRY(X, Y)                    \
+  if (wsrep_debug)                                    \
+  {                                                   \
+    char buf[FN_REFLEN];                              \
+    strmake(buf, Y->binlog_name, Y->binlog_name_len); \
+    WSREP_DEBUG(X, buf, Y->binlog_id);                \
+  }
+#else
+#define WSREP_XID_LIST_ENTRY(X, Y) do { } while(0)
+#endif
 
 MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
   :reset_master_pending(0), mark_xid_done_waiting(0),
@@ -3212,6 +3228,8 @@ void MYSQL_BIN_LOG::cleanup()
       */
       DBUG_ASSERT(b->xid_count == 0);
       DBUG_ASSERT(!binlog_xid_count_list.head());
+      WSREP_XID_LIST_ENTRY("MYSQL_BIN_LOG::cleanup(): Removing xid_list_entry "
+                           "for %s (%lu)", b);
       my_free(b);
     }
 
@@ -3702,7 +3720,14 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
     new_xid_list_entry->binlog_id= current_binlog_id;
     /* Remove any initial entries with no pending XIDs.  */
     while ((b= binlog_xid_count_list.head()) && b->xid_count == 0)
+    {
+      WSREP_XID_LIST_ENTRY("MYSQL_BIN_LOG::open(): Removing xid_list_entry for "
+                           "%s (%lu)", b);
       my_free(binlog_xid_count_list.get());
+    }
+    mysql_cond_broadcast(&COND_xid_list);
+    WSREP_XID_LIST_ENTRY("MYSQL_BIN_LOG::open(): Adding new xid_list_entry for "
+                         "%s (%lu)", new_xid_list_entry);
     binlog_xid_count_list.push_back(new_xid_list_entry);
     mysql_mutex_unlock(&LOCK_xid_list);
 
@@ -4237,8 +4262,11 @@ err:
       if (b->binlog_id == current_binlog_id)
         break;
       DBUG_ASSERT(b->xid_count == 0);
+      WSREP_XID_LIST_ENTRY("MYSQL_BIN_LOG::reset_logs(): Removing "
+                           "xid_list_entry for %s (%lu)", b);
       my_free(binlog_xid_count_list.get());
     }
+    mysql_cond_broadcast(&COND_xid_list);
     reset_master_pending--;
     mysql_mutex_unlock(&LOCK_xid_list);
   }
@@ -4246,6 +4274,26 @@ err:
   mysql_mutex_unlock(&LOCK_index);
   mysql_mutex_unlock(&LOCK_log);
   DBUG_RETURN(error);
+}
+
+
+void MYSQL_BIN_LOG::wait_for_last_checkpoint_event()
+{
+  mysql_mutex_lock(&LOCK_xid_list);
+  for (;;)
+  {
+    if (binlog_xid_count_list.is_last(binlog_xid_count_list.head()))
+      break;
+    mysql_cond_wait(&COND_xid_list, &LOCK_xid_list);
+  }
+  mysql_mutex_unlock(&LOCK_xid_list);
+
+  /*
+    LOCK_xid_list and LOCK_log are chained, so the LOCK_log will only be
+    obtained after mark_xid_done() has written the last checkpoint event.
+  */
+  mysql_mutex_lock(&LOCK_log);
+  mysql_mutex_unlock(&LOCK_log);
 }
 
 
@@ -7699,7 +7747,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       last= current->next == NULL;
       if (!current->error &&
           RUN_HOOK(binlog_storage, after_sync,
-                   (current->thd, log_file_name,
+                   (current->thd, current->cache_mngr->last_commit_pos_file,
                     current->cache_mngr->last_commit_pos_offset,
                     first, last)))
       {
@@ -9405,7 +9453,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
   */
   if (unlikely(reset_master_pending))
   {
-    mysql_cond_signal(&COND_xid_list);
+    mysql_cond_broadcast(&COND_xid_list);
     mysql_mutex_unlock(&LOCK_xid_list);
     DBUG_VOID_RETURN;
   }
@@ -9443,8 +9491,7 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
   mysql_mutex_lock(&LOCK_log);
   mysql_mutex_lock(&LOCK_xid_list);
   --mark_xid_done_waiting;
-  if (unlikely(reset_master_pending))
-    mysql_cond_signal(&COND_xid_list);
+  mysql_cond_broadcast(&COND_xid_list);
   /* We need to reload current_binlog_id due to release/re-take of lock. */
   current= current_binlog_id;
 
@@ -9459,6 +9506,8 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
     DBUG_ASSERT(b);
     if (b->binlog_id == current || b->xid_count > 0)
       break;
+    WSREP_XID_LIST_ENTRY("TC_LOG_BINLOG::mark_xid_done(): Removing "
+                         "xid_list_entry for %s (%lu)", b);
     my_free(binlog_xid_count_list.get());
   }
 

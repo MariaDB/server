@@ -52,6 +52,17 @@ Group=mysql
 # To allow memlock to be used as non-root user if set in configuration
 CapabilityBoundingSet=CAP_IPC_LOCK
 
+# Prevent writes to /usr, /boot, and /etc
+ProtectSystem=full
+
+# Doesn't yet work properly with SELinux enabled
+# NoNewPrivileges=true
+
+PrivateDevices=true
+
+# Prevent accessing /home, /root and /run/user
+ProtectHome=true
+
 # Execute pre and post scripts as root, otherwise it does it as User=
 PermissionsStartOnly=true
 
@@ -59,16 +70,19 @@ PermissionsStartOnly=true
 # galera_recovery simply returns an empty string. In any case, however,
 # the script is not expected to return with a non-zero status.
 # It is always safe to unset _WSREP_START_POSITION%I environment variable.
+# Do not panic if galera_recovery script is not available. (MDEV-10538)
 ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
-ExecStartPre=/bin/sh -c "VAR=`/usr/bin/galera_recovery             \
-  --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf`; [ $? -eq 0 ] && \
-  systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
+
+ExecStartPre=/bin/sh -c "[ ! -e /usr/bin/galera_recovery ] && VAR= || \
+ VAR=`/usr/bin/galera_recovery --defaults-file=@INSTALL_SYSCONF2DIR@/my%I.cnf`; [ $? -eq 0 ] \
+ && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
+
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
 #
-#ExecStartPre=/bin/sh -c "VAR=`/usr/bin/galera_recovery \
-# --defaults-group-suffix=%I`; [ $? -eq 0 ] &&          \
-# systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
+#ExecStartPre=/bin/sh -c "[ ! -e /usr/bin/galera_recovery ] && VAR= || \
+# VAR=`/usr/bin/galera_recovery --defaults-group-suffix=%I`; [ $? -eq 0 ] \
+# && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
 
 # Needed to create system tables etc.
 # ExecStartPre=/usr/bin/mysql_install_db -u mysql
