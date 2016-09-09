@@ -2138,8 +2138,9 @@ dict_index_t*
 dict_table_get_index_on_first_col(
 /*==============================*/
 	const dict_table_t*	table,		/*!< in: table */
-	ulint			col_index);	/*!< in: position of column
+	ulint			col_index,	/*!< in: position of column
 						in table */
+	const char*		field_name);	/*!< in: field name */
 /** Check if a column is a virtual column
 @param[in]	col	column
 @return true if it is a virtual column, false otherwise */

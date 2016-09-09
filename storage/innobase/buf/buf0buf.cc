@@ -809,6 +809,8 @@ buf_page_is_corrupted(
 	ulint		checksum_field1;
 	ulint		checksum_field2;
 
+	DBUG_EXECUTE_IF("buf_page_is_corrupt_failure", return(TRUE); );
+
 	if (!page_encrypted && !page_size.is_compressed()
 	    && memcmp(read_buf + FIL_PAGE_LSN + 4,
 		      read_buf + page_size.logical()
@@ -5984,6 +5986,17 @@ buf_page_io_complete(
 
 			/* Not a real corruption if it was triggered by
 			error injection */
+			DBUG_EXECUTE_IF("buf_page_is_corrupt_failure",
+				if (bpage->space > TRX_SYS_SPACE
+				    && buf_mark_space_corrupt(bpage)) {
+					ib::info() <<
+						"Simulated page corruption";
+					return(true);
+				}
+				goto page_not_corrupt_1;
+				;);
+			/* Not a real corruption if it was triggered by
+			error injection */
 			DBUG_EXECUTE_IF(
 				"buf_page_import_corrupt_failure",
 				if (bpage->id.space() > TRX_SYS_SPACE
@@ -6063,6 +6076,9 @@ corrupt:
 
 		DBUG_EXECUTE_IF("buf_page_import_corrupt_failure",
 				page_not_corrupt:  bpage = bpage; );
+
+		DBUG_EXECUTE_IF("buf_page_is_corrupt_failure",
+				page_not_corrupt_1:  bpage = bpage; );
 
 		if (recv_recovery_is_on()) {
 			/* Pages must be uncompressed for crash recovery. */

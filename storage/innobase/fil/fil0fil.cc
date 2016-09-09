@@ -1459,7 +1459,8 @@ fil_space_get_space(
 		/* We are still holding the fil_system->mutex. Check if
 		the space is still in memory cache. */
 		space = fil_space_get_by_id(id);
-		if (space == NULL) {
+
+		if (space == NULL || UT_LIST_GET_LEN(space->chain) == 0) {
 			return(NULL);
 		}
 

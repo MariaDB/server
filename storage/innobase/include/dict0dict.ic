@@ -1919,8 +1919,9 @@ dict_index_t*
 dict_table_get_index_on_first_col(
 /*==============================*/
         const dict_table_t*     table,		/*!< in: table */
-        ulint                   col_index)	/*!< in: position of column
+        ulint                   col_index,	/*!< in: position of column
 						in table */
+	const char*             field_name)     /*!< in: field name */
 {
 	ut_ad(col_index < table->n_cols);
 
@@ -1931,6 +1932,14 @@ dict_table_get_index_on_first_col(
 
 		if (index->fields[0].col == column) {
 			return(index);
+		}
+	}
+
+	/* If not yet found use field_name */
+	for (dict_index_t* index = dict_table_get_first_index(table);
+		index != NULL; index = dict_table_get_next_index(index)) {
+		if (!strcmp(index->fields[0].name, field_name)) {
+			return (index);
 		}
 	}
 	ut_error;

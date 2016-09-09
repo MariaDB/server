@@ -7600,7 +7600,8 @@ commit_get_autoinc(
 			old_table->found_next_number_field;
 
 		dict_index_t*	index = dict_table_get_index_on_first_col(
-			ctx->old_table, autoinc_field->field_index);
+			ctx->old_table, autoinc_field->field_index,
+			autoinc_field->field_name);
 
 		max_autoinc = ha_alter_info->create_info->auto_increment_value;
 
