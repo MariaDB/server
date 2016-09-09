@@ -712,7 +712,12 @@ struct rpl_group_info
     */
     SPECULATE_WAIT
   } speculation;
-  bool killed_for_retry;
+  enum enum_retry_killed {
+    RETRY_KILL_NONE = 0,
+    RETRY_KILL_PENDING,
+    RETRY_KILL_KILLED
+  };
+  uchar killed_for_retry;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
