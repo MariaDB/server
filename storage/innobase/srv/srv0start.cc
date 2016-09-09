@@ -1511,7 +1511,11 @@ innobase_start_or_create_for_mysql(void)
 	ib::info() << "Compiler hints enabled.";
 #endif /* defined(COMPILER_HINTS_ENABLED) */
 
-	ib::info() << IB_ATOMICS_STARTUP_MSG;
+#ifdef _WIN32
+	ib::info() << "Mutexes and rw_locks use Windows interlocked functions";
+#else
+	ib::info() << "Mutexes and rw_locks use GCC atomic builtins";
+#endif
 	ib::info() << MUTEX_TYPE;
 	ib::info() << IB_MEMORY_BARRIER_STARTUP_MSG;
 

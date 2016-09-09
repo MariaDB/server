@@ -613,8 +613,8 @@ Use MONITOR_INC if appropriate mutex protection exists.
 # define MONITOR_ATOMIC_INC(monitor)					\
 	if (MONITOR_IS_ON(monitor)) {					\
 		ib_uint64_t	value;					\
-		value  = os_atomic_increment_uint64(			\
-			(ib_uint64_t*) &MONITOR_VALUE(monitor),	 1);	\
+		value  = my_atomic_add64(				\
+			(int64*) &MONITOR_VALUE(monitor), 1) + 1;	\
 		/* Note: This is not 100% accurate because of the	\
 		inherent race, we ignore it due to performance. */	\
 		if (value > (ib_uint64_t) MONITOR_MAX_VALUE(monitor)) {	\
@@ -628,8 +628,8 @@ Use MONITOR_DEC if appropriate mutex protection exists.
 # define MONITOR_ATOMIC_DEC(monitor)					\
 	if (MONITOR_IS_ON(monitor)) {					\
 		ib_uint64_t	value;					\
-		value = os_atomic_decrement_uint64(			\
-			(ib_uint64_t*) &MONITOR_VALUE(monitor), 1);	\
+		value = my_atomic_add64(				\
+			(int64*) &MONITOR_VALUE(monitor), -1) - 1;	\
 		/* Note: This is not 100% accurate because of the	\
 		inherent race, we ignore it due to performance. */	\
 		if (value < (ib_uint64_t) MONITOR_MIN_VALUE(monitor)) {	\

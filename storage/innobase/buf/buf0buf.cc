@@ -4292,7 +4292,7 @@ loop:
 				mutex_enter(pmutex);
 
 				ut_ad(buf_pool->n_pend_reads > 0);
-				os_atomic_decrement_ulint(&buf_pool->n_pend_reads, 1);
+				my_atomic_addlint(&buf_pool->n_pend_reads, -1);
 				buf_page_set_io_fix(bpage, BUF_IO_NONE);
 				mutex_exit(pmutex);
 				buf_LRU_free_page(bpage, true);
@@ -4339,7 +4339,7 @@ loop:
 				mutex_enter(pmutex);
 
 				ut_ad(buf_pool->n_pend_reads > 0);
-				os_atomic_decrement_ulint(&buf_pool->n_pend_reads, 1);
+				my_atomic_addlint(&buf_pool->n_pend_reads, -1);
  				buf_page_set_io_fix(bpage, BUF_IO_NONE);
 				mutex_exit(pmutex);
 				buf_LRU_free_page(bpage, true);
@@ -5199,8 +5199,7 @@ buf_page_init(
 
 		ut_a(buf_fix_count > 0);
 
-		os_atomic_increment_uint32(&block->page.buf_fix_count,
-					   buf_fix_count);
+		my_atomic_add32((int32*) &block->page.buf_fix_count, buf_fix_count);
 
 		buf_pool_watch_remove(buf_pool, hash_page);
 	} else {
@@ -5439,8 +5438,7 @@ buf_page_init_for_read(
 
 			ut_a(buf_fix_count > 0);
 
-			os_atomic_increment_uint32(
-				&bpage->buf_fix_count, buf_fix_count);
+			my_atomic_add32((int32*) &bpage->buf_fix_count, buf_fix_count);
 
 			ut_ad(buf_pool_watch_is_sentinel(buf_pool, watch_page));
 			buf_pool_watch_remove(buf_pool, watch_page);

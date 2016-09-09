@@ -203,8 +203,7 @@ trx_init(
 
 	if (!TrxInInnoDB::is_async_rollback(trx)) {
 
-		os_thread_id_t	thread_id = trx->killed_by;
-		os_compare_and_swap_thread_id(&trx->killed_by, thread_id, 0);
+		my_atomic_storelong(&trx->killed_by, 0);
 
 		/* Note: Do not set to 0, the ref count is decremented inside
 		the TrxInInnoDB() destructor. We only need to clear the flags. */
@@ -3400,9 +3399,7 @@ trx_kill_blocking(trx_t* trx)
 		version++;
 		ut_ad(victim_trx->version == version);
 
-		os_thread_id_t	thread_id = victim_trx->killed_by;
-		os_compare_and_swap_thread_id(&victim_trx->killed_by,
-					      thread_id, 0);
+		my_atomic_storelong(&victim_trx->killed_by, 0);
 
 		victim_trx->in_innodb &= TRX_FORCE_ROLLBACK_MASK;
 

@@ -46,12 +46,6 @@ typedef CRITICAL_SECTION	sys_mutex_t;
 typedef pthread_mutex_t		sys_mutex_t;
 #endif /* _WIN32 */
 
-/** The new (C++11) syntax allows the following and we should use it when it
-is available on platforms that we support.
-
-	enum class mutex_state_t : lock_word_t { ... };
-*/
-
 /** Mutex states. */
 enum mutex_state_t {
 	/** Mutex is free */
@@ -1261,5 +1255,17 @@ enum rw_lock_flag_t {
 #endif /* UNIV_DBEUG */
 
 #endif /* UNIV_INNOCHECKSUM */
+
+#ifdef _WIN64
+#define my_atomic_addlint(A,B) my_atomic_add64((int64*) (A), (B))
+#define my_atomic_storelint(A,B) my_atomic_store64((int64*) (A), (B))
+#define my_atomic_loadlint(A) my_atomic_load64((int64*) (A))
+#define my_atomic_caslint(A,B,C) my_atomic_cas64((int64*) (A), (int64*) (B), (C))
+#else
+#define my_atomic_addlint my_atomic_addlong
+#define my_atomic_storelint my_atomic_storelong
+#define my_atomic_loadlint my_atomic_loadlong
+#define my_atomic_caslint my_atomic_caslong
+#endif
 
 #endif /* sync0types_h */

@@ -143,8 +143,8 @@ srv_conc_enter_innodb_with_atomics(
 
 			if (notified_mysql) {
 
-				(void) os_atomic_decrement_lint(
-					&srv_conc.n_waiting, 1);
+				(void) my_atomic_addlint(
+					&srv_conc.n_waiting, -1);
 
 				thd_wait_end(trx->mysql_thd);
 			}
@@ -156,8 +156,8 @@ srv_conc_enter_innodb_with_atomics(
 
 			if (notified_mysql) {
 
-				(void) os_atomic_decrement_lint(
-					&srv_conc.n_waiting, 1);
+				(void) my_atomic_addlint(
+					&srv_conc.n_waiting, -1);
 
 				thd_wait_end(trx->mysql_thd);
 			}
@@ -169,8 +169,8 @@ srv_conc_enter_innodb_with_atomics(
 			ulint	n_active;
 
 			/* Check if there are any free tickets. */
-			n_active = os_atomic_increment_lint(
-				&srv_conc.n_active, 1);
+			n_active = my_atomic_addlint(
+				&srv_conc.n_active, 1) + 1;
 
 			if (n_active <= srv_thread_concurrency) {
 
@@ -178,8 +178,8 @@ srv_conc_enter_innodb_with_atomics(
 
 				if (notified_mysql) {
 
-					(void) os_atomic_decrement_lint(
-						&srv_conc.n_waiting, 1);
+					(void) my_atomic_addlint(
+						&srv_conc.n_waiting, -1);
 
 					thd_wait_end(trx->mysql_thd);
 				}
@@ -202,12 +202,12 @@ srv_conc_enter_innodb_with_atomics(
 			/* Since there were no free seats, we relinquish
 			the overbooked ticket. */
 
-			(void) os_atomic_decrement_lint(
-				&srv_conc.n_active, 1);
+			(void) my_atomic_addlint(
+				&srv_conc.n_active, -1);
 		}
 
 		if (!notified_mysql) {
-			(void) os_atomic_increment_lint(
+			(void) my_atomic_addlint(
 				&srv_conc.n_waiting, 1);
 
 			/* Release possible search system latch this
@@ -259,7 +259,7 @@ srv_conc_exit_innodb_with_atomics(
 	trx->n_tickets_to_enter_innodb = 0;
 	trx->declared_to_be_inside_innodb = FALSE;
 
-	(void) os_atomic_decrement_lint(&srv_conc.n_active, 1);
+	(void) my_atomic_addlint(&srv_conc.n_active, -1);
 }
 
 /*********************************************************************//**
@@ -307,7 +307,7 @@ srv_conc_force_enter_innodb(
 
 	ut_ad(srv_conc.n_active >= 0);
 
-	(void) os_atomic_increment_lint(&srv_conc.n_active, 1);
+	(void) my_atomic_addlint(&srv_conc.n_active, 1);
 
 	trx->n_tickets_to_enter_innodb = 1;
 	trx->declared_to_be_inside_innodb = TRUE;

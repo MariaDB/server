@@ -44,6 +44,8 @@ extern my_bool srv_instrument_semaphores;
 
 #endif /* !UNIV_HOTBACKUP */
 
+# define INNODB_RW_LOCKS_USE_ATOMICS
+
 /** Counters for RW locks. */
 struct rw_lock_stats_t {
 	typedef ib_counter_t<int64_t, IB_N_SLOTS> int64_counter_t;
