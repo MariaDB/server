@@ -1623,3 +1623,12 @@ n
 3
 4
 5
+#
+# MDEV-10736: recursive definition with anchor over a table with blob
+#
+CREATE TABLE t1 (f VARCHAR(1024));
+WITH RECURSIVE cte(f) AS
+(SELECT t1.f FROM t1 UNION ALL SELECT cte.f FROM cte) 
+SELECT * FROM cte as t;
+f
+DROP TABLE t1;

@@ -480,10 +480,6 @@ unconditional_materialization:
   derived->set_materialized_derived();
   if (!derived->table || !derived->table->is_created())
     res= mysql_derived_create(thd, lex, derived);
-#if 0
-  if (!res)
-    res= mysql_derived_fill(thd, lex, derived);
-#endif
   goto exit_merge;
 }
 
@@ -920,7 +916,7 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   if (table->is_created())
     DBUG_RETURN(FALSE);
-  select_union *result= (select_union*)unit->result;
+  select_union *result= derived->derived_result;
   if (table->s->db_type() == TMP_ENGINE_HTON)
   {
     result->tmp_table_param.keyinfo= table->s->key_info;
