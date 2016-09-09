@@ -745,6 +745,24 @@ select
                 as cnt
 from t1;
 
+select
+  pk, c,
+  sum(c) over (partition by c
+                 order by pk
+                 rows between 1 preceding
+                          and 2 preceding)
+                as sum
+from t1;
+
+select
+  pk, c,
+  sum(c) over (partition by c
+                 order by pk
+                 rows between 2 following
+                          and 1 following)
+                as sum
+from t1;
+
 
 select
   pk, c,
@@ -1089,14 +1107,8 @@ from
 
 drop table t1;
 
---echo #
---echo # MDEV-9894: Assertion `0' failed in Window_func_runner::setup
---echo #  return ER_NOT_SUPPORTED_YET for aggregates that are not yet supported
---echo #  as window functions.
---echo #
 create table t1 (i int);
 insert into t1 values (1),(2);
---error ER_NOT_SUPPORTED_YET
 SELECT MAX(i) OVER (PARTITION BY (i)) FROM t1;
 drop table t1;
 
