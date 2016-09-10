@@ -28,6 +28,7 @@ Created 25/5/2010 Sunny Bains
 
 #include "ha_prototypes.h"
 #include <mysql/service_thd_wait.h>
+#include <mysql/service_wsrep.h>
 
 #include "srv0mon.h"
 #include "que0que.h"
@@ -35,7 +36,6 @@ Created 25/5/2010 Sunny Bains
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "lock0priv.h"
-#include "wsrep_thd.h"
 
 /*********************************************************************//**
 Print the contents of the lock_sys_t::waiting_threads array. */

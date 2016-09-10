@@ -58,7 +58,7 @@ Created 5/7/1996 Heikki Tuuri
 #include <set>
 
 #ifdef WITH_WSREP
-#include "wsrep_thd.h"
+#include <mysql/service_wsrep.h>
 #endif /* WITH_WSREP */
 
 /** Total number of cached record locks */

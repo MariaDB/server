@@ -598,7 +598,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	    || srv_sys_space.created_new_raw()
 	    || srv_force_recovery) {
 		ha_alter_info->unsupported_reason = (srv_force_recovery)?
-			innobase_get_err_msg(ER_INNODB_FORCED_RECOVERY):
+			"Operation not allowed when innodb_forced_recovery > 0." :
 			innobase_get_err_msg(ER_READ_ONLY_MODE);
 
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -7985,7 +7985,8 @@ commit_try_rebuild(
 		/* Normally, n_ref_count must be 1, because purge
 		cannot be executing on this very table as we are
 		holding dict_operation_lock X-latch. */
-		my_error(ER_TABLE_REFERENCED,MYF(0));
+		my_printf_error(ER_ILLEGAL_HA, "Cannot complete the operation "
+			"because table is referenced by another connection.", MYF(0));
 		DBUG_RETURN(true);
 	}
 
@@ -9000,7 +9001,8 @@ foreign_fail:
 
 			row_mysql_unlock_data_dictionary(trx);
 			trx_free_for_mysql(trx);
-			my_error(ER_TABLE_REFERENCED,MYF(0));
+			my_printf_error(ER_ILLEGAL_HA, "Cannot complete the operation "
+				"because table is referenced by another connection.", MYF(0));
 			DBUG_RETURN(true);
 		}
 

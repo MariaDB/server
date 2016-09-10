@@ -633,19 +633,19 @@ trx_undo_write_xid(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	mlog_write_ulint(log_hdr + TRX_UNDO_XA_FORMAT,
-			 static_cast<ulint>(xid->get_format_id()),
+			 static_cast<ulint>(xid->formatID),
 			 MLOG_4BYTES, mtr);
 
 	mlog_write_ulint(log_hdr + TRX_UNDO_XA_TRID_LEN,
-			 static_cast<ulint>(xid->get_gtrid_length()),
+			 static_cast<ulint>(xid->gtrid_length),
 			 MLOG_4BYTES, mtr);
 
 	mlog_write_ulint(log_hdr + TRX_UNDO_XA_BQUAL_LEN,
-			 static_cast<ulint>(xid->get_bqual_length()),
+			 static_cast<ulint>(xid->bqual_length),
 			 MLOG_4BYTES, mtr);
 
 	mlog_write_string(log_hdr + TRX_UNDO_XA_XID,
-			  reinterpret_cast<const byte*>(xid->get_data()),
+			  reinterpret_cast<const byte*>(xid->data),
 			  XIDDATASIZE, mtr);
 }
 
@@ -658,16 +658,16 @@ trx_undo_read_xid(
 	trx_ulogf_t*	log_hdr,/*!< in: undo log header */
 	XID*		xid)	/*!< out: X/Open XA Transaction Identification */
 {
-	xid->set_format_id(static_cast<long>(mach_read_from_4(
-		log_hdr + TRX_UNDO_XA_FORMAT)));
+	xid->formatID=static_cast<long>(mach_read_from_4(
+		log_hdr + TRX_UNDO_XA_FORMAT));
 
-	xid->set_gtrid_length(static_cast<long>(mach_read_from_4(
-		log_hdr + TRX_UNDO_XA_TRID_LEN)));
+	xid->gtrid_length=static_cast<long>(mach_read_from_4(
+		log_hdr + TRX_UNDO_XA_TRID_LEN));
 
-	xid->set_bqual_length(static_cast<long>(mach_read_from_4(
-		log_hdr + TRX_UNDO_XA_BQUAL_LEN)));
+	xid->bqual_length=static_cast<long>(mach_read_from_4(
+		log_hdr + TRX_UNDO_XA_BQUAL_LEN));
 
-	xid->set_data(log_hdr + TRX_UNDO_XA_XID, XIDDATASIZE);
+	memcpy(xid->data, log_hdr + TRX_UNDO_XA_XID, XIDDATASIZE);
 }
 
 /***************************************************************//**
@@ -1338,7 +1338,7 @@ trx_undo_mem_create_at_db_start(
 
 	/* Read X/Open XA transaction identification if it exists, or
 	set it to NULL. */
-	xid.reset();
+	xid.null();
 
 	if (xid_exists == TRUE) {
 		trx_undo_read_xid(undo_header, &xid);

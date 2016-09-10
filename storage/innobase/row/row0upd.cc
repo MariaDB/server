@@ -62,10 +62,6 @@ Created 12/27/1996 Heikki Tuuri
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
 
-#ifdef WITH_WSREP
-extern my_bool wsrep_debug;
-#endif
-
 /* What kind of latch and lock can we assume when the control comes to
    -------------------------------------------------------------------
 an update node?

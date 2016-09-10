@@ -748,7 +748,7 @@ ER_NOT_KEYFILE
         cze "Nesprávný klíč pro tabulku '%-.200s'; pokuste se ho opravit"
         dan "Fejl i indeksfilen til tabellen '%-.200s'; prøv at reparere den"
         nla "Verkeerde zoeksleutel file voor tabel: '%-.200s'; probeer het te repareren"
-        eng "Incorrect key file for table '%-.200s'; try to repair it"
+        eng "Index for table '%-.200s' is corrupt; try to repair it"
         est "Tabeli '%-.200s' võtmefail on vigane; proovi seda parandada"
         fre "Index corrompu dans la table: '%-.200s'; essayez de le réparer"
         ger "Fehlerhafte Index-Datei für Tabelle '%-.200s'; versuche zu reparieren"
@@ -7150,6 +7150,8 @@ skip-to-error-number 3000
 
 ER_MYSQL_57_TEST
         eng "5.7 test"
+ER_CANNOT_DISCARD_TEMPORARY_TABLE
+        eng "Cannot DISCARD/IMPORT tablespace associated with temporary table"
 
 # MariaDB extra error numbers starts from 4000
 skip-to-error-number 4000
@@ -7214,21 +7216,3 @@ ER_CALCULATING_DEFAULT_VALUE
         eng "Got an error when calculating default value for %`s"
 ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
         eng "Expression for field %`-.64s is refering to uninitialized field %`s"
-ER_BUFPOOL_RESIZE_INPROGRESS
-        eng "Another buffer pool resize is already in progress."
-ER_CANNOT_DISCARD_TEMPORARY_TABLE
-        eng "Cannot DISCARD/IMPORT tablespace associated with temporary table"
-ER_FK_DEPTH_EXCEEDED
-        eng "Foreign key cascade delete/update exceeds max depth of %d."
-ER_INNODB_FORCED_RECOVERY
-        eng "Operation not allowed when innodb_forced_recovery > 0."
-ER_TABLE_REFERENCED
-        eng "Cannot complete the operation because table is referenced by another connection."
-ER_TABLESPACE_IS_NOT_EMPTY
-        eng "Tablespace `%-.192s` is not empty."
-ER_MISSING_HA_CREATE_OPTION
-        eng "Table storage engine '%-.64s' found required create option missing"
-ER_ENGINE_OUT_OF_MEMORY
-        eng "Out of memory in storage engine '%-.64s'."
-ER_WRONG_FILE_NAME
-        eng "Incorrect File Name '%s'."

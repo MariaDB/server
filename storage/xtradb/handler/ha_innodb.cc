@@ -8540,8 +8540,6 @@ ha_innobase::write_row(
 		++trx->will_lock;
 	}
 
-	ha_statistic_increment(&SSV::ha_write_count);
-
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
 			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
@@ -9313,8 +9311,6 @@ ha_innobase::update_row(
 		}
 	}
 
-	ha_statistic_increment(&SSV::ha_update_count);
-
 	if (share->ib_table != prebuilt->table) {
 		fprintf(stderr,
 			"InnoDB: Warning: share->ib_table %p prebuilt->table %p table %s is_corrupt %lu.",
@@ -9471,8 +9467,6 @@ ha_innobase::delete_row(
 	} else if (!trx_is_started(trx)) {
 		++trx->will_lock;
 	}
-
-	ha_statistic_increment(&SSV::ha_delete_count);
 
 	if (UNIV_UNLIKELY(share && share->ib_table
 			  && share->ib_table->is_corrupt)) {
@@ -9771,8 +9765,6 @@ ha_innobase::index_read(
 
 	ut_a(prebuilt->trx == thd_to_trx(user_thd));
 	ut_ad(key_len != 0 || find_flag != HA_READ_KEY_EXACT);
-
-	ha_statistic_increment(&SSV::ha_read_key_count);
 
 	if (UNIV_UNLIKELY(srv_pass_corrupt_table <= 1 && share
 			  && share->ib_table && share->ib_table->is_corrupt)) {
@@ -20427,7 +20419,7 @@ static MYSQL_SYSVAR_BOOL(buffer_pool_load_abort, innodb_buffer_pool_load_abort,
 static MYSQL_SYSVAR_BOOL(buffer_pool_load_at_startup, srv_buffer_pool_load_at_startup,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Load the buffer pool from a file named @@innodb_buffer_pool_filename",
-  NULL, NULL, TRUE);
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(defragment, srv_defragment,
   PLUGIN_VAR_RQCMDARG,

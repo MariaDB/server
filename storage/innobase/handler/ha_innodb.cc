@@ -2151,8 +2151,6 @@ convert_error_code_to_mysql(
 				    "depth of %d. Please "
 				    "drop extra constraints and try "
 				    "again", DICT_FK_MAX_RECURSIVE_LOAD);
-
-		my_error(ER_FK_DEPTH_EXCEEDED, MYF(0), FK_MAX_CASCADE_DEL);
 		return(HA_ERR_FK_DEPTH_EXCEEDED);
 
 	case DB_CANT_CREATE_GEOMETRY_OBJECT:
@@ -2322,9 +2320,9 @@ convert_error_code_to_mysql(
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE);
 	case DB_WRONG_FILE_NAME:
-		return(HA_ERR_WRONG_FILE_NAME);
+		return(HA_ERR_GENERIC); // when can this happen?
 	case DB_COMPUTE_VALUE_FAILED:
-		return(HA_ERR_COMPUTE_FAILED);
+		return(HA_ERR_GENERIC); // impossible
 	}
 }
 
@@ -9068,8 +9066,6 @@ ha_innobase::write_row(
 		++trx->will_lock;
 	}
 
-	ha_statistic_increment(&SSV::ha_write_count);
-
 	/* Step-2: Intermediate commit if original operation involves ALTER
 	table with algorithm = copy. Intermediate commit ease pressure on
 	recovery if server crashes while ALTER is active. */
@@ -9996,8 +9992,6 @@ ha_innobase::update_row(
 		}
 	}
 
-	ha_statistic_increment(&SSV::ha_update_count);
-
 	upd_t*		uvect;
 
 	if (m_prebuilt->upd_node) {
@@ -10152,8 +10146,6 @@ ha_innobase::delete_row(
 	} else if (!trx_is_started(trx)) {
 		++trx->will_lock;
 	}
-
-	ha_statistic_increment(&SSV::ha_delete_count);
 
 	if (!m_prebuilt->upd_node) {
 		row_get_prebuilt_update_vector(m_prebuilt);
@@ -10470,8 +10462,6 @@ ha_innobase::index_read(
 
 	ut_a(m_prebuilt->trx == thd_to_trx(m_user_thd));
 	ut_ad(key_len != 0 || find_flag != HA_READ_KEY_EXACT);
-
-	ha_statistic_increment(&SSV::ha_read_key_count);
 
 	dict_index_t*	index = m_prebuilt->index;
 
@@ -10964,8 +10954,6 @@ ha_innobase::index_next(
 	uchar*		buf)	/*!< in/out: buffer for next row in MySQL
 				format */
 {
-	ha_statistic_increment(&SSV::ha_read_next_count);
-
 	return(general_fetch(buf, ROW_SEL_NEXT, 0));
 }
 
@@ -10980,8 +10968,6 @@ ha_innobase::index_next_same(
 	const uchar*	key,	/*!< in: key value */
 	uint		keylen)	/*!< in: key value length */
 {
-	ha_statistic_increment(&SSV::ha_read_next_count);
-
 	return(general_fetch(buf, ROW_SEL_NEXT, m_last_match_mode));
 }
 
@@ -10995,8 +10981,6 @@ ha_innobase::index_prev(
 /*====================*/
 	uchar*	buf)	/*!< in/out: buffer for previous row in MySQL format */
 {
-	ha_statistic_increment(&SSV::ha_read_prev_count);
-
 	return(general_fetch(buf, ROW_SEL_PREV, 0));
 }
 
@@ -11011,8 +10995,6 @@ ha_innobase::index_first(
 	uchar*	buf)	/*!< in/out: buffer for the row */
 {
 	DBUG_ENTER("index_first");
-
-	ha_statistic_increment(&SSV::ha_read_first_count);
 
 	int	error = index_read(buf, NULL, 0, HA_READ_AFTER_KEY);
 
@@ -11036,8 +11018,6 @@ ha_innobase::index_last(
 	uchar*	buf)	/*!< in/out: buffer for the row */
 {
 	DBUG_ENTER("index_last");
-
-	ha_statistic_increment(&SSV::ha_read_last_count);
 
 	int	error = index_read(buf, NULL, 0, HA_READ_BEFORE_KEY);
 
@@ -11116,8 +11096,6 @@ ha_innobase::rnd_next(
 
 	DBUG_ENTER("rnd_next");
 
-	ha_statistic_increment(&SSV::ha_read_rnd_next_count);
-
 	if (m_start_of_scan) {
 		error = index_first(buf);
 
@@ -11148,8 +11126,6 @@ ha_innobase::rnd_pos(
 {
 	DBUG_ENTER("rnd_pos");
 	DBUG_DUMP("key", pos, ref_length);
-
-	ha_statistic_increment(&SSV::ha_read_rnd_count);
 
 	ut_a(m_prebuilt->trx == thd_to_trx(ha_thd()));
 
@@ -12193,7 +12169,6 @@ create_table_info_t::create_table_def()
 	ulint		long_true_varchar;
 	ulint		charset_no;
 	ulint		i;
-	ulint		j = 0;
 	ulint		doc_id_col = 0;
 	ibool		has_doc_id_col = FALSE;
 	mem_heap_t*	heap;
@@ -12459,6 +12434,7 @@ err_col:
 	}
 #ifdef MYSQL_VIRTUAL_COLUMNS
 	if (num_v) {
+		ulint		j = 0;
 		for (i = 0; i < n_cols; i++) {
 			dict_v_col_t*	v_col;
 
@@ -14366,7 +14342,7 @@ create_table_info_t::prepare_create_table(
 	}
 
 	if (high_level_read_only && !is_intrinsic_temp_table()) {
-		DBUG_RETURN(HA_ERR_INNODB_READ_ONLY);
+		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
 
 	DBUG_RETURN(parse_table_name(name));
@@ -23994,7 +23970,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(master_thread_disabled_debug),
   MYSQL_SYSVAR(sync_debug),
 #endif /* UNIV_DEBUG */
-  MYSQL_SYSVAR(tmpdir),
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
   /* Table page compression feature */
@@ -24853,7 +24828,8 @@ innodb_buffer_pool_size_validate(
 
 	if (srv_buf_pool_old_size != srv_buf_pool_size) {
 		buf_pool_mutex_exit_all();
-		my_error(ER_BUFPOOL_RESIZE_INPROGRESS, MYF(0));
+		my_printf_error(ER_WRONG_ARGUMENTS,
+			"Another buffer pool resize is already in progress.", MYF(0));
 		return(1);
 	}
 

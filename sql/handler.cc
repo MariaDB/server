@@ -370,17 +370,8 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_TABLE_IN_FK_CHECK,	ER_DEFAULT(ER_TABLE_IN_FK_CHECK));
   SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
   SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
-  SETMSG(HA_ERR_FK_DEPTH_EXCEEDED,      ER_DEFAULT(ER_FK_DEPTH_EXCEEDED));
-  SETMSG(HA_MISSING_CREATE_OPTION,      ER_DEFAULT(ER_MISSING_HA_CREATE_OPTION));
-  SETMSG(HA_ERR_SE_OUT_OF_MEMORY,       ER_DEFAULT(ER_ENGINE_OUT_OF_MEMORY));
-  SETMSG(HA_ERR_TABLE_CORRUPT,          ER_DEFAULT(ER_TABLE_CORRUPT));
-  SETMSG(HA_ERR_QUERY_INTERRUPTED,      ER_DEFAULT(ER_QUERY_INTERRUPTED));
+  SETMSG(HA_ERR_FK_DEPTH_EXCEEDED,      "Foreign key cascade delete/update exceeds");
   SETMSG(HA_ERR_TABLESPACE_MISSING,     ER_DEFAULT(ER_TABLESPACE_MISSING));
-  SETMSG(HA_ERR_TABLESPACE_IS_NOT_EMPTY,ER_DEFAULT(ER_TABLESPACE_IS_NOT_EMPTY));
-  SETMSG(HA_ERR_WRONG_FILE_NAME,        ER_DEFAULT(ER_WRONG_FILE_NAME));
-  SETMSG(HA_ERR_NOT_ALLOWED_COMMAND,    ER_DEFAULT(ER_NOT_ALLOWED_COMMAND));
-  SETMSG(HA_ERR_COMPUTE_FAILED,         "Compute virtual column value failed");
-  SETMSG(HA_ERR_INNODB_READ_ONLY,       ER_DEFAULT(ER_INNODB_READ_ONLY));
 
   /* Register the error messages for use with my_error(). */
   return my_error_register(get_handler_errmsgs, HA_ERR_FIRST, HA_ERR_LAST);
@@ -5820,8 +5811,6 @@ int handler::ha_external_lock(THD *thd, int lock_type)
                                  table_share->table_name.str);
     }
   }
-
-  ha_statistic_increment(&SSV::ha_external_lock_count);
 
   /*
     We cache the table flags if the locking succeeded. Otherwise, we

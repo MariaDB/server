@@ -622,12 +622,7 @@ Used when writing either a prepare or commit record to the log
 buffer.
 @return the durability property. */
 
-/* JAN: TODO: missing 5.7 header */
-#ifdef HAVE_DUR_PROP_H
 #include <dur_prop.h>
-#else
-#include <my_base.h>
-#endif
 
 enum durability_properties
 thd_requested_durability(

@@ -3028,7 +3028,7 @@ trx_get_trx_by_xid_low(
 
 			/* Invalidate the XID, so that subsequent calls
 			will not find it. */
-			trx->xid->reset();
+			trx->xid->null();
 			break;
 		}
 	}

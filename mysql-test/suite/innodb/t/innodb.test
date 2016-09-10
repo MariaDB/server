@@ -1141,10 +1141,10 @@ insert into t1 values
 (244, 243), (245, 244), (246, 245), (247, 246),
 (248, 247), (249, 248), (250, 249), (251, 250),
 (252, 251), (253, 252), (254, 253), (255, 254);
---error 4029,1451
+--error ER_GET_ERRMSG,ER_ROW_IS_REFERENCED_2
 delete from t1 where id=0;
 delete from t1 where id=255;
---error 0,1451
+--error 0,ER_ROW_IS_REFERENCED_2
 delete from t1 where id=0;
 
 drop table t1;
@@ -1636,10 +1636,10 @@ INSERT INTO t2 VALUES(2);
 INSERT INTO t1 VALUES(1);
 INSERT INTO t2 VALUES(1);
 
---error 1451
+--error ER_ROW_IS_REFERENCED_2
 DELETE FROM t1 WHERE id = 1;
 
---error 1451, 1217
+--error ER_ROW_IS_REFERENCED_2, 1217
 DROP TABLE t1;
 
 SET FOREIGN_KEY_CHECKS=0;
@@ -1765,11 +1765,11 @@ insert into t2 values(2);
 insert into t4 values(2);
 insert into t2 values(1);
 insert into t4 values(1);
--- error 1451
+-- error ER_ROW_IS_REFERENCED_2
 update t1 set a=2;
 -- error 1452
 update t2 set a=2;
--- error 1451
+-- error ER_ROW_IS_REFERENCED_2
 update t3 set a=2;
 -- error 1452
 update t4 set a=2;
@@ -1838,11 +1838,11 @@ insert into t2 values(0x41);
 select hex(s1) from t2;
 update t1 set s1=0x123456 where a=2;
 select hex(s1) from t2;
--- error 1451
+-- error ER_ROW_IS_REFERENCED_2
 update t1 set s1=0x12 where a=1;
--- error 1451
+-- error ER_ROW_IS_REFERENCED_2
 update t1 set s1=0x12345678 where a=1;
--- error 1451
+-- error ER_ROW_IS_REFERENCED_2
 update t1 set s1=0x123457 where a=1;
 update t1 set s1=0x1220 where a=1;
 select hex(s1) from t2;
@@ -1850,11 +1850,11 @@ update t1 set s1=0x1200 where a=1;
 select hex(s1) from t2;
 update t1 set s1=0x4200 where a=1;
 select hex(s1) from t2;
--- error 1451
+-- error ER_ROW_IS_REFERENCED_2
 delete from t1 where a=1;
 delete from t1 where a=2;
 update t2 set s1=0x4120;
--- error 1451
+-- error ER_ROW_IS_REFERENCED_2
 delete from t1;
 delete from t1 where a!=3;
 select a,hex(s1) from t1;
@@ -1873,7 +1873,7 @@ select hex(s1) from t2;
 update t1 set s1=0x12 where a=2;
 select hex(s1) from t2;
 delete from t1 where a=1;
--- error 1451
+-- error ER_ROW_IS_REFERENCED_2
 delete from t1 where a=2;
 select a,hex(s1) from t1;
 select hex(s1) from t2;

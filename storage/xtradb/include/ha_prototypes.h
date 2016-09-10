@@ -32,6 +32,7 @@ Created 5/11/2006 Osku Salerma
 #include "my_sys.h"
 #include "m_string.h"
 #include "my_base.h"
+#include "dur_prop.h"
 
 #ifndef UNIV_INNOCHECKSUM
 #include "mysqld_error.h"
