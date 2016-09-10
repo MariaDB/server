@@ -218,6 +218,9 @@ SETA(CPACK_RPM_test_PACKAGE_PROVIDES
   "perl(mtr_io.pl)"
   "perl(mtr_match)"
   "perl(mtr_misc.pl)"
+  "perl(mtr_gcov.pl)"
+  "perl(mtr_gprof.pl)"
+  "perl(mtr_process.pl)"
   "perl(mtr_report)"
   "perl(mtr_results)"
   "perl(mtr_unique)")
