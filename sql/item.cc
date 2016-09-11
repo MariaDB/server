@@ -10126,7 +10126,7 @@ table_map Item_ref_null_helper::used_tables() const
 #ifndef DBUG_OFF
 
 /* Debugger help function */
-static char dbug_item_print_buf[256];
+static char dbug_item_print_buf[2048];
 
 const char *dbug_print_item(Item *item)
 {
@@ -10141,6 +10141,50 @@ const char *dbug_print_item(Item *item)
   thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
 
   item->print(&str ,QT_EXPLAIN);
+
+  thd->variables.option_bits= save_option_bits;
+
+  if (str.c_ptr() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+
+const char *dbug_print_select(SELECT_LEX *sl)
+{
+  char *buf= dbug_item_print_buf;
+  String str(buf, sizeof(dbug_item_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!sl)
+    return "(SELECT_LEX*)NULL";
+
+  THD *thd= current_thd;
+  ulonglong save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
+
+  sl->print(thd, &str, QT_EXPLAIN);
+
+  thd->variables.option_bits= save_option_bits;
+
+  if (str.c_ptr() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+
+const char *dbug_print_unit(SELECT_LEX_UNIT *un)
+{
+  char *buf= dbug_item_print_buf;
+  String str(buf, sizeof(dbug_item_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!un)
+    return "(SELECT_LEX_UNIT*)NULL";
+
+  THD *thd= current_thd;
+  ulonglong save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
+
+  un->print(&str, QT_EXPLAIN);
 
   thd->variables.option_bits= save_option_bits;
 
