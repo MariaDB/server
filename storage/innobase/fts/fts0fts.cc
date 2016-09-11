@@ -5037,7 +5037,7 @@ fts_tokenize_document_internal(
 		{ FT_TOKEN_WORD, 0, 0, 0, 0, 0, ' ', 0 };
 	*/
 	MYSQL_FTPARSER_BOOLEAN_INFO bool_info =
-		{ FT_TOKEN_WORD, 0, 0, 0, 0, 0, (char *)" "};
+		{ FT_TOKEN_WORD, 0, 0, 0, 0, ' ', 0};
 
 	ut_ad(len >= 0);
 
