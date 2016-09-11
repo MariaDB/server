@@ -1746,8 +1746,7 @@ DECLARE_THREAD(srv_monitor_thread)(
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 #ifdef UNIV_PFS_THREAD
-	// JAN: TODO: MySQL 5.7
-	// pfs_register_thread(srv_monitor_thread_key);
+	pfs_register_thread(srv_monitor_thread_key);
 #endif /* UNIV_PFS_THREAD */
 	srv_monitor_active = TRUE;
 
@@ -1930,8 +1929,7 @@ DECLARE_THREAD(srv_error_monitor_thread)(
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 #ifdef UNIV_PFS_THREAD
-	// JAN: TODO: MySQL 5.7
-	// pfs_register_thread(srv_error_monitor_thread_key);
+	pfs_register_thread(srv_error_monitor_thread_key);
 #endif /* UNIV_PFS_THREAD */
 	srv_error_monitor_active = TRUE;
 
@@ -2620,8 +2618,7 @@ DECLARE_THREAD(srv_master_thread)(
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 #ifdef UNIV_PFS_THREAD
-	// JAN: TODO: MySQL 5.7 PSI
-	// pfs_register_thread(srv_master_thread_key);
+	pfs_register_thread(srv_master_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
 	srv_main_thread_process_no = os_proc_get_number();
@@ -3040,8 +3037,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	rw_lock_x_unlock(&purge_sys->latch);
 
 #ifdef UNIV_PFS_THREAD
-	// JAN: TODO: MYSQL 5.7
-	// pfs_register_thread(srv_purge_thread_key);
+	pfs_register_thread(srv_purge_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
 #ifdef UNIV_DEBUG_THREAD_CREATION

@@ -1196,18 +1196,6 @@ innobase_close_connection(
 	THD*		thd);		/*!< in: MySQL thread handle for
 					which to close the connection */
 
-#ifdef MYSQL_KILL_CONNECTION
-/*****************************************************************//**
-Cancel any pending lock request associated with the current THD. */
-static
-void
-innobase_kill_connection(
-/*=====================*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
-	THD*		thd);		/*!< in: MySQL thread handle for
-					which to close the connection */
-#endif /* MYSQL_KILL_CONNECTION */
-
 static void innobase_kill_query(handlerton *hton, THD* thd, enum thd_kill_levels level);
 static void innobase_commit_ordered(handlerton *hton, THD* thd, bool all);
 
@@ -1621,7 +1609,7 @@ innobase_create_handler(
 	TABLE_SHARE*	table,
 	MEM_ROOT*	mem_root)
 {
-#ifdef MYSQL_INNODB_PARTITIONS
+#ifdef MYSQL_INNODB_PARTITIONING
 	/* If the table:
 	1) have type InnoDB (not the generic partition handlerton)
 	2) have partitioning defined
@@ -1709,6 +1697,7 @@ thd_trx_is_read_only(
 	return(thd != 0 && thd_tx_is_read_only(thd));
 }
 
+#if 0
 /**
 Check if the transaction can be rolled back
 @param[in] requestor	Session requesting the lock
@@ -1725,10 +1714,7 @@ thd_trx_arbitrate(THD* requestor, THD* holder)
 	ut_a(holder != NULL);
 	ut_a(holder != requestor);
 
-	/* JAN: TODO: MySQL 5.7
 	THD*	victim = thd_tx_arbitrate(requestor, holder);
-	*/
-	THD* victim = NULL;
 
 	ut_a(victim == NULL || victim == requestor || victim == holder);
 
@@ -1742,11 +1728,9 @@ thd_trx_arbitrate(THD* requestor, THD* holder)
 int
 thd_trx_priority(THD* thd)
 {
-	/* JAN: TODO: MySQL 5.7
 	return(thd == NULL ? 0 : thd_tx_priority(thd));
-	*/
-	return (0);
 }
+#endif
 
 #ifdef UNIV_DEBUG
 /**
@@ -2136,9 +2120,6 @@ convert_error_code_to_mysql(
 		return(0);
 
 	case DB_INTERRUPTED:
-		/* JAN: TODO: MySQL 5.7
-		thd_set_kill_status(thd != NULL ? thd : current_thd);
-		return(HA_ERR_GENERIC);*/
 		return(HA_ERR_ABORTED_BY_USER);
 
 	case DB_FOREIGN_EXCEED_MAX_CASCADE:
@@ -3345,18 +3326,11 @@ ha_innobase::ha_innobase(
 			  | HA_CAN_FULLTEXT
 			  | HA_CAN_FULLTEXT_EXT
 		/* JAN: TODO: MySQL 5.7
-		| HA_CAN_FULLTEXT_HINTS
+			  | HA_CAN_FULLTEXT_HINTS
 		*/
 			  | HA_CAN_EXPORT
 			  | HA_CAN_RTREEKEYS
-                          | HA_CONCURRENT_OPTIMIZE
-		/* JAN: TODO: MySQL 5.7
-			  | HA_HAS_RECORDS
-			  | HA_NO_READ_LOCAL_LOCK
-			  | HA_GENERATED_COLUMNS
-			  | HA_ATTACHABLE_TRX_COMPATIBLE
-			  | HA_CAN_INDEX_VIRTUAL_GENERATED_COLUMN
-		*/
+			  | HA_CONCURRENT_OPTIMIZE
 			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
 		  ),
 	m_start_of_scan(),
@@ -3440,7 +3414,10 @@ innobase_register_trx(
 	THD*		thd,	/* in: MySQL thd (connection) object */
 	trx_t*		trx)	/* in: transaction to register */
 {
-	/* JAN: TODO: MySQL 5.7
+	/* JAN: TODO: MySQL 5.7 PSI
+	const ulonglong	trx_id = static_cast<const ulonglong>(
+		trx_get_id_for_print(trx));
+
 	trans_register_ha(thd, FALSE, hton, &trx_id);
 	*/
 	trans_register_ha(thd, FALSE, hton);
@@ -3921,50 +3898,6 @@ innobase_init_abort()
 }
 
 
-/*****************************************************************//**
-This function checks if the given db.tablename is a system table
-supported by Innodb and is used as an initializer for the data member
-is_supported_system_table of InnoDB storage engine handlerton.
-Currently we support only plugin, servers,  help- and time_zone- related
-system tables in InnoDB. Please don't add any SE-specific system tables here.
-
-@param db				database name to check.
-@param table_name			table name to check.
-@param is_sql_layer_system_table	if the supplied db.table_name is a SQL
-					layer system table.
-*/
-
-#ifdef MYSQL_IS_SUPPORTED_SYSTEM_TABLE
-static bool innobase_is_supported_system_table(const char *db,
-						const char *table_name,
-						bool is_sql_layer_system_table)
-{
-	static const char* supported_system_tables[]= { "help_topic",
-							"help_category",
-							"help_relation",
-							"help_keyword",
-							"plugin",
-							"servers",
-							"time_zone",
-							"time_zone_leap_second",
-							"time_zone_name",
-							"time_zone_transition",
-							"time_zone_transition_type",
-							(const char *)NULL };
-
-	if (!is_sql_layer_system_table)
-		return false;
-
-	for (unsigned i= 0; supported_system_tables[i] != NULL; ++i)
-	{
-		if (!strcmp(table_name, supported_system_tables[i]))
-			return true;
-	}
-
-	return false;
-}
-#endif /* MYSQL_IS_SUPPORTED_SYSTEM_TABLE */
-
 #ifdef MYSQL_ENCRYPTION
 /* mutex protecting the master_key_id */
 ib_mutex_t	master_key_id_mutex;
@@ -4101,9 +4034,6 @@ innobase_init(
 	innobase_hton->db_type = DB_TYPE_INNODB;
 	innobase_hton->savepoint_offset = sizeof(trx_named_savept_t);
 	innobase_hton->close_connection = innobase_close_connection;
-	// JAN: TODO: MySQL 5.7:
-	// innobase_hton->kill_connection = innobase_kill_connection;
-	//
 	innobase_hton->kill_query = innobase_kill_query;
 	innobase_hton->savepoint_set = innobase_savepoint;
 	innobase_hton->savepoint_rollback = innobase_rollback_to_savepoint;
@@ -4172,11 +4102,6 @@ innobase_init(
 	innobase_hton->table_options = innodb_table_option_list;
 
 	innodb_remember_check_sysvar_funcs();
-
-#ifdef MYSQL_IS_SUPPORTED_SYSTEM_TABLE
-	innobase_hton->is_supported_system_table=
-		innobase_is_supported_system_table;
-#endif
 
 #ifdef MYSQL_ENCRYPTION
 	innobase_hton->rotate_encryption_master_key =
@@ -4721,8 +4646,6 @@ innobase_change_buffering_inited_ok:
 	run with --help --verbose options. */
 	/* JAN: TODO: MySQL 5.7 has opt_verbose
 	if (opt_help && opt_verbose
-	*/
-	if (opt_help
 	    && srv_buf_pool_size > srv_buf_pool_def_size) {
 		ib::warn() << "Setting innodb_buf_pool_size to "
 			<< srv_buf_pool_def_size << " for fast startup, "
@@ -4730,6 +4653,7 @@ innobase_change_buffering_inited_ok:
 		srv_buf_pool_size_org = srv_buf_pool_size;
 		srv_buf_pool_size = srv_buf_pool_def_size;
 	}
+	*/
 
 	/* Since we in this module access directly the fields of a trx
 	struct, and due to different headers and flags it might happen that
@@ -5262,14 +5186,9 @@ innobase_rollback(
 #ifdef UNIV_DEBUG
 			char	buffer[1024];
 
-			/* JAN: TODO: MySQL 5.7
 			ib::info() << "Forced rollback : "
-				<< thd_security_context(thd, buffer,
-							sizeof(buffer),
-				512);
-			*/
-			thd_get_error_context_description(thd, buffer,
-				sizeof(buffer), 512);
+				<< thd_get_error_context_description(thd,
+						buffer, sizeof(buffer), 512);
 #endif /* UNIV_DEBUG */
 
 			trx->state = TRX_STATE_NOT_STARTED;
@@ -5711,37 +5630,6 @@ innobase_close_connection(
 
 	DBUG_RETURN(0);
 }
-
-#ifdef MYSQL_KILL_CONNECTION
-/*****************************************************************//**
-Cancel any pending lock request associated with the current THD. */
-static
-void
-innobase_kill_connection(
-/*======================*/
-	handlerton*    hton,   /*!< in:  innobase handlerton */
-	THD*		thd)    /*!< in: handle to the MySQL thread being
-				killed */
-{
-	DBUG_ENTER("innobase_kill_connection");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	trx_t*	trx = thd_to_trx(thd);
-
-	if (trx != NULL) {
-
-		/* Cancel a pending lock request if there are any */
-		dberr_t err = lock_trx_handle_wait(trx, false, false);
-
-		if (err != DB_SUCCESS && err != DB_LOCK_WAIT) {
-			ib::warn() << "Killing connection failed " << ut_strerr(err) << "("<<err<<")";
-		}
-
-	}
-
-	DBUG_VOID_RETURN;
-}
-#endif /* MYSQL_KILL_CONNECTION */
 
 UNIV_INTERN void lock_cancel_waiting_and_release(lock_t* lock);
 
@@ -6828,9 +6716,6 @@ ha_innobase::innobase_initialize_autoinc()
 	const Field*	field = table->found_next_number_field;
 
 	if (field != NULL) {
-		/* JAN: TODO: MySQL 5.7
-		auto_inc = field->get_max_int_value();
-		*/
 		auto_inc = innobase_get_int_col_max_value(field);
 		ut_ad(!innobase_is_v_fld(field));
 
@@ -6892,9 +6777,6 @@ ha_innobase::innobase_initialize_autoinc()
 		case DB_SUCCESS: {
 			ulonglong	col_max_value;
 
-			/* JAN: TODO: MySQL 5.7
-			col_max_value = field->get_max_int_value();
-			*/
 			col_max_value =  innobase_get_int_col_max_value(field);
 
 			/* At the this stage we do not know the increment
@@ -7358,7 +7240,7 @@ ha_innobase::open(
 
 	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 
-#ifdef MYSQL_COMPRESSION // MySQL 5.7 Compression
+#ifdef MYSQL_COMPRESSION
 	dberr_t	err = fil_set_compression(m_prebuilt->table,
 					  table->s->compress.str);
 
@@ -7963,10 +7845,6 @@ get_innobase_type_from_mysql_type(
 	case MYSQL_TYPE_BLOB:
 	case MYSQL_TYPE_LONG_BLOB:
 		return(DATA_BLOB);
-	/* JAN: TODO: MySQL 5.7 JSON
-        case MYSQL_TYPE_JSON:   // JSON fields are stored as BLOBs
-		return(DATA_BLOB);
-	*/
 	case MYSQL_TYPE_NULL:
 		/* MySQL currently accepts "NULL" datatype, but will
 		reject such datatype in the next release. We will cope
@@ -9257,9 +9135,6 @@ no_commit:
 		/* We need the upper limit of the col type to check for
 		whether we update the table autoinc counter or not. */
 		col_max_value = innobase_get_int_col_max_value(table->next_number_field);
-			/* JAN: TODO: MySQL 5.7
-			table->next_number_field->get_max_int_value();
-			*/
 
 		/* Get the value that MySQL attempted to store in the table. */
 		auto_inc = table->next_number_field->val_int();
@@ -10048,9 +9923,6 @@ ha_innobase::update_row(
 
 		/* We need the upper limit of the col type to check for
 		whether we update the table autoinc counter or not. */
-			/* JAN: TODO: MySQL 5.7
-			table->next_number_field->get_max_int_value();
-			*/
 		col_max_value =
 			innobase_get_int_col_max_value(table->next_number_field);
 
@@ -10372,10 +10244,6 @@ convert_search_mode_to_innobase(
 		return(PAGE_CUR_MBR_EQUAL);
 	case HA_READ_PREFIX:
 		return(PAGE_CUR_UNSUPP);
-	/* JAN: TODO: MySQL 5.7
-	case HA_READ_INVALID:
-		return(PAGE_CUR_UNSUPP);
-		*/
 	/* do not use "default:" in order to produce a gcc warning:
 	enumeration value '...' not handled in switch
 	(if -Wswitch or -Wall is used) */
@@ -12109,7 +11977,7 @@ innodb_base_col_setup(
 }
 #endif /* MYSQL_VIRTUAL_COLUMNS */
 
-#ifdef MYSQL_BASE_COLUMN
+#ifdef MYSQL_VIRTUAL_COLUMNS
 /** Set up base columns for stored column
 @param[in]	table	InnoDB table
 @param[in]	field	MySQL field
@@ -12422,7 +12290,7 @@ err_col:
 #endif
 	}
 
-#ifdef MYSQL_STORED_BASE_COLUMNS
+#ifdef MYSQL_VIRTUAL_COLUMNS
 		if (is_stored) {
 			ut_ad(!is_virtual);
 			/* Added stored column in m_s_cols list. */
@@ -12549,7 +12417,7 @@ err_col:
 	} else {
 		const char*     algorithm = NULL;
 
-#if MYSQL_COMPRESSION_ENCRYPTION
+#if MYSQL_COMPRESSION
 		const char*     algorithm = m_create_info->compress.str;
 
 		if (!(m_flags2 & DICT_TF2_USE_FILE_PER_TABLE)
@@ -12607,7 +12475,7 @@ err_col:
 						  DICT_TF2_ENCRYPTION);
 			}
 		}
-#endif /* MYSQL_COMPRESSION_ENCRYPTION */
+#endif /* MYSQL_COMPRESSION */
 
 		if (err == DB_SUCCESS) {
 			err = row_create_table_for_mysql(
@@ -12967,6 +12835,15 @@ create_table_info_t::create_option_data_directory_is_valid()
 	return(is_valid);
 }
 
+
+#define IDENT_NAME_OK 0
+static int check_tablespace_name(const char *name)
+{
+  CHARSET_INFO *cs= system_charset_info;
+  return cs->cset->numchars(cs, name, name + strlen(name)) > NAME_CHAR_LEN;
+}
+
+
 /** Validate the tablespace name provided for a tablespace DDL
 @param[in]	name		A proposed tablespace name
 @param[in]	for_table	Caller is putting a table here
@@ -12982,11 +12859,9 @@ validate_tablespace_name(
 	/* This prefix is reserved by InnoDB for use in internal tablespace names. */
 	const char reserved_space_name_prefix[] = "innodb_";
 
-	/* JAN: TODO: MySQL 5.7
 	if (check_tablespace_name(name) != IDENT_NAME_OK) {
 		err = HA_WRONG_CREATE_OPTION;
 	}
-	*/
 
 	/* The tablespace name cannot start with `innodb_`. */
 	if (strlen(name) >= sizeof(reserved_space_name_prefix) - 1
@@ -13001,9 +12876,7 @@ validate_tablespace_name(
 			table into one of these by CREATE/ALTER TABLE */
 			if (!for_table) {
 				my_printf_error(
-					ER_WRONG_NAME_FOR_CATALOG,
-					// JAN: TODO: MySQL 5.7
-					//ER_WRONG_TABLESPACE_NAME,
+					ER_WRONG_TABLESPACE_NAME,
 					"InnoDB: `%s` is a reserved"
 					" tablespace name.",
 					MYF(0), name);
@@ -13011,9 +12884,7 @@ validate_tablespace_name(
 			}
 		} else {
 			my_printf_error(
-				ER_WRONG_NAME_FOR_CATALOG,
-				// JAN: TODO: MYSQL 5.7
-				//ER_WRONG_TABLESPACE_NAME,
+				ER_WRONG_TABLESPACE_NAME,
 					"InnoDB: A general tablespace"
 					" name cannot start with `%s`.",
 					MYF(0), reserved_space_name_prefix);
@@ -13023,9 +12894,7 @@ validate_tablespace_name(
 
 	/* The tablespace name cannot contain a '/'. */
 	if (memchr(name, '/', strlen(name)) != NULL) {
-			my_printf_error(
-				ER_WRONG_NAME_FOR_CATALOG,
-		//		my_printf_error(ER_WRONG_TABLESPACE_NAME,
+				my_printf_error(ER_WRONG_TABLESPACE_NAME,
 			"InnoDB: A general tablespace name cannot"
 			" contain '/'.", MYF(0));
 		err = HA_WRONG_CREATE_OPTION;
@@ -13428,7 +13297,7 @@ create_table_info_t::create_options_are_invalid()
 		}
 	}
 
-#ifdef MYSQL_COMPRESSION_ENCRYPTION
+#ifdef MYSQL_COMPRESSION
 	/* Validate the page compression parameter. */
 	if (!create_option_compression_is_valid()) {
 		return("COMPRESSION");
@@ -13830,10 +13699,6 @@ create_table_info_t::innobase_table_flags()
 			}
 		} else if (key->flags & HA_SPATIAL) {
 			if (m_create_info->options & HA_LEX_CREATE_TMP_TABLE
-				/* JAN: TODO: MySQL 5.7
-			    && m_create_info->options
-			       & HA_LEX_CREATE_INTERNAL_TMP_TABLE
-				*/
 			    && !m_use_file_per_table) {
 				my_error(ER_TABLE_CANT_HANDLE_SPKEYS, MYF(0));
 				DBUG_RETURN(false);
@@ -14974,9 +14839,7 @@ ha_innobase::truncate()
 			ER_TABLESPACE_DISCARDED : ER_TABLESPACE_MISSING),
 			table->s->table_name.str);
 		table->status = STATUS_NOT_FOUND;
-		// JAN: TODO: MySQL 5.7
-		// error = HA_ERR_TABLESPACE_MISSING;
-		error = HA_ERR_NO_SUCH_TABLE;
+		error = HA_ERR_TABLESPACE_MISSING;
 		break;
 
 	default:
@@ -15929,16 +15792,13 @@ ha_innobase::records(ha_rows* num_rows)
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 
 	} else if (m_prebuilt->table->ibd_file_missing) {
-		// JAN: TODO: MySQL 5.7
 		ib_senderrf(
 			m_user_thd, IB_LOG_LEVEL_ERROR,
-			ER_TABLESPACE_DISCARDED,
-			//ER_TABLESPACE_MISSING,
+			ER_TABLESPACE_MISSING,
 			table->s->table_name.str);
 
 		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-		//DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
+		DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
 
 	} else if (m_prebuilt->table->corrupted) {
 		ib_errf(m_user_thd, IB_LOG_LEVEL_WARN,
@@ -15987,9 +15847,7 @@ ha_innobase::records(ha_rows* num_rows)
 		break;
 	case DB_INTERRUPTED:
 		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(ER_QUERY_INTERRUPTED);
-		// JAN: TODO: MySQL 5.7
-		//DBUG_RETURN(HA_ERR_QUERY_INTERRUPTED);
+		DBUG_RETURN(HA_ERR_QUERY_INTERRUPTED);
 		break;
 	default:
 		/* No other error besides the three below is returned from
@@ -16002,9 +15860,7 @@ ha_innobase::records(ha_rows* num_rows)
 
 	if (thd_killed(m_user_thd)) {
 		*num_rows = HA_POS_ERROR;
-		DBUG_RETURN(ER_QUERY_INTERRUPTED);
-		// JAN: TODO: MySQL 5.7
-		// DBUG_RETURN(HA_ERR_QUERY_INTERRUPTED);
+		DBUG_RETURN(HA_ERR_QUERY_INTERRUPTED);
 	}
 
 	DBUG_RETURN(0);
@@ -16261,13 +16117,6 @@ ha_innobase::read_time(
 		/* Not clustered */
 		return(handler::read_time(index, ranges, rows));
 	}
-
-#ifdef MYSQL_ROWS
-	if (rows <= 2) {
-
-		return((double) rows);
-	}
-#endif
 
 	/* Assume that the read time is proportional to the scan time for all
 	rows + at most one seek per range. */
@@ -16747,14 +16596,7 @@ ha_innobase::info_low(
 
 			KEY*	key = &table->key_info[i];
 
-			/* Check if this index supports index statistics. */
-			// JAN: TODO: MySQL 5.7 index statistics
-			// if (!key->supports_records_per_key()) {
-			//	continue;
-			// }
-			// for (j = 0; j < key->actual_key_parts; j++) {
-
-			for (j = 0; j < table->key_info[i].ext_key_parts; j++) {
+			for (j = 0; j < key->ext_key_parts; j++) {
 
 				if ((key->flags & HA_FULLTEXT)
 				    || (key->flags & HA_SPATIAL)) {
@@ -16798,20 +16640,6 @@ ha_innobase::info_low(
 				index->table->stat_n_rows could have been
 				calculated at different time. This is
 				acceptable. */
-
-#ifdef MYSQL_REC_PER_KEY
-				const rec_per_key_t	rec_per_key
-					= innodb_rec_per_key(
-						index, j,
-						index->table->stat_n_rows);
-
-				key->set_records_per_key(j, rec_per_key);
-#endif /* MYSQL_REC_PER_KEY */
-
-				/* The code below is legacy and should be
-				removed together with this comment once we
-				are sure the new floating point rec_per_key,
-				set via set_records_per_key(), works fine. */
 
 				ulong	rec_per_key_int = static_cast<ulong>(
 					innodb_rec_per_key(index, j,
@@ -17228,11 +17056,6 @@ ha_innobase::check(
 		/* Now that the table is already marked as corrupted,
 		there is no need to check any index of this table */
 		m_prebuilt->trx->op_info = "";
-		/* JAN: TODO: MySQL 5.7
-		if (thd_killed(m_user_thd)) {
-			thd_set_kill_status(m_user_thd);
-		}
-		*/
 
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
 	}
@@ -17412,10 +17235,6 @@ ha_innobase::check(
 	}
 #endif /* defined UNIV_AHI_DEBUG || defined UNIV_DEBUG */
 	m_prebuilt->trx->op_info = "";
-	//if (thd_killed(m_user_thd)) {
-	if (thd_kill_level(m_user_thd)) {
-		// thd_set_kill_status(m_user_thd);
-	}
 
 	DBUG_RETURN(is_ok ? HA_ADMIN_OK : HA_ADMIN_CORRUPT);
 }
@@ -17787,7 +17606,6 @@ get_table_name_info(
 	st_handler_tablename*	f_key_info,
 	const dict_foreign_t*	foreign)
 {
-	// JAN: TODO: MySQL 5.7 include/mysql_com.h
 #define FILENAME_CHARSET_MBMAXLEN 5
 	char	tmp_buff[NAME_CHAR_LEN * FILENAME_CHARSET_MBMAXLEN + 1];
 	char	name_buff[NAME_CHAR_LEN * FILENAME_CHARSET_MBMAXLEN + 1];
@@ -19493,9 +19311,6 @@ ha_innobase::get_auto_increment(
 	/* We need the upper limit of the col type to check for
 	whether we update the table autoinc counter or not. */
 	ulonglong	col_max_value = innobase_get_int_col_max_value(table->next_number_field);
-	/* JAN: TODO: MySQL 5.7
-		table->next_number_field->get_max_int_value();
-	*/
 
 	/* Called for the first time ? */
 	if (trx->n_autoinc_rows == 0) {
@@ -19513,12 +19328,6 @@ ha_innobase::get_auto_increment(
 	/* Not in the middle of a mult-row INSERT. */
 	} else if (m_prebuilt->autoinc_last_value == 0) {
 		set_if_bigger(*first_value, autoinc);
-		/* Check for -ve values. */
-		/* JAN: TODO: MySQL 5.7 : */
-		// } else if (*first_value > col_max_value && trx->n_autoinc_rows > 0) {
-		/* Set to next logical value. */
-		// ut_a(autoinc > trx->n_autoinc_rows);
-		//*first_value = (autoinc - trx->n_autoinc_rows) - 1;
 	}
 
 	if (*first_value > col_max_value) {

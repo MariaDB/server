@@ -926,7 +926,7 @@ os_aio_windows_handler(
 	IORequest*	type);
 #endif /* WIN_ASYNC_IO */
 
-#ifdef MYSQL_COMPRESSION_ENCRYPTION
+#ifdef MYSQL_COMPRESSION
 /** Allocate a page for sync IO
 @return pointer to page */
 static
@@ -995,7 +995,7 @@ os_free_block(Block* block)
 		ut_free(block);
 	}
 }
-#endif /* MYSQL_COMPRESSION_ENCRYPTION */
+#endif /* MYSQL_COMPRESSION */
 
 /** Generic AIO Handler methods. Currently handles IO post processing. */
 class AIOHandler {
@@ -1239,7 +1239,7 @@ AIOHandler::check_read(Slot* slot, ulint n_bytes)
 		err = DB_FAIL;
 	}
 
-#ifdef MYSQL_COMPRESSION_ENCRYPTION
+#ifdef MYSQL_COMPRESSION
 	if (slot->buf_block != NULL) {
 		os_free_block(slot->buf_block);
 		slot->buf_block = NULL;
@@ -1749,7 +1749,7 @@ os_file_io_complete(
 	ulint		offset,
 	ulint		len)
 {
-#ifdef MYSQL_ENCRYPTION_COMPRESSION
+#ifdef MYSQL_ENCRYPTION
 	/* We never compress/decompress the first page */
 	ut_a(offset > 0);
 	ut_ad(type.validate());
@@ -1805,7 +1805,7 @@ os_file_io_complete(
 	}
 
 	ut_ad(!type.is_log());
-#endif /* MYSQL_ENCRYPTION_COMPRESSION */
+#endif /* MYSQL_ENCRYPTION */
 
 	return(DB_SUCCESS);
 }

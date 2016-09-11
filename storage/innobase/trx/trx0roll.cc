@@ -868,8 +868,7 @@ DECLARE_THREAD(trx_rollback_or_clean_all_recovered)(
 	ut_ad(!srv_read_only_mode);
 
 #ifdef UNIV_PFS_THREAD
-	// JAN: TODO: MYSQL 5.7 PSI
-	// pfs_register_thread(trx_rollback_clean_thread_key);
+	pfs_register_thread(trx_rollback_clean_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
 	trx_rollback_or_clean_recovered(TRUE);

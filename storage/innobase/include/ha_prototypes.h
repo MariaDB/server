@@ -39,6 +39,22 @@ class Field;
 struct fts_string_t;
 //typedef struct charset_info_st CHARSET_INFO;
 
+// JAN: TODO missing features:
+#undef MYSQL_57_SELECT_COUNT_OPTIMIZATION
+#undef MYSQL_COMPRESSION
+#undef MYSQL_ENCRYPTION
+#undef MYSQL_FTS_PARSER
+#undef MYSQL_FT_INIT_EXT
+#undef MYSQL_INNODB_API_CB
+#undef MYSQL_INNODB_PARTITIONING
+#undef MYSQL_PFS
+#undef MYSQL_RENAME_INDEX
+#undef MYSQL_REPLACE_TRX_IN_THD
+#undef MYSQL_SPATIAL_INDEX
+#undef MYSQL_STORE_FTS_DOC_ID
+#undef MYSQL_TABLESPACES
+#undef MYSQL_VIRTUAL_COLUMNS
+
 /*********************************************************************//**
 Wrapper around MySQL's copy_and_convert function.
 @return number of bytes copied to 'to' */
@@ -387,6 +403,7 @@ thd_trx_is_read_only(
 /*=================*/
 	THD*	thd);	/*!< in/out: thread handle */
 
+#if 0
 /**
 Check if the transaction can be rolled back
 @param[in] requestor	Session requesting the lock
@@ -403,6 +420,10 @@ thd_trx_arbitrate(THD* requestor, THD* holder);
 int
 thd_trx_priority(THD* thd);
 
+#else
+static inline THD* thd_trx_arbitrate(THD*, THD*) { return NULL; }
+static inline int thd_trx_priority(THD*) { return 0; }
+#endif
 /******************************************************************//**
 Check if the transaction is an auto-commit transaction. TRUE also
 implies that it is a SELECT (read-only) transaction.
@@ -606,8 +627,6 @@ normalize_table_name_c_low(
 InnoDB index push-down condition check defined in ha_innodb.cc
 @return ICP_NO_MATCH, ICP_MATCH, or ICP_OUT_OF_RANGE */
 
-/* JAN: TODO: missing 5.7 header */
-//#include <my_icp.h>
 #include <my_compare.h>
 
 ICP_RESULT

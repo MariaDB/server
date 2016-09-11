@@ -2832,14 +2832,11 @@ dict_stats_fetch_index_stats_step(
 #define PFX	"n_diff_pfx"
 #define PFX_LEN	10
 
-	/** JAN: TODO: MySQL 5.7 native_strncasecmp() */
 	if (stat_name_len == 4 /* strlen("size") */
-		//	    && native_strncasecmp("size", stat_name, stat_name_len) == 0) {
 	    && strncasecmp("size", stat_name, stat_name_len) == 0) {
 		index->stat_index_size = (ulint) stat_value;
 		arg->stats_were_modified = true;
 	} else if (stat_name_len == 12 /* strlen("n_leaf_pages") */
-		// && native_strncasecmp("n_leaf_pages", stat_name, stat_name_len)
 		   && strncasecmp("n_leaf_pages", stat_name, stat_name_len)
 		   == 0) {
 		index->stat_n_leaf_pages = (ulint) stat_value;
@@ -2855,7 +2852,6 @@ dict_stats_fetch_index_stats_step(
 		index->stat_defrag_n_pages_freed = (ulint) stat_value;
 		arg->stats_were_modified = true;
 	} else if (stat_name_len > PFX_LEN /* e.g. stat_name=="n_diff_pfx01" */
-		// && native_strncasecmp(PFX, stat_name, PFX_LEN) == 0) {
 		   && strncasecmp(PFX, stat_name, PFX_LEN) == 0) {
 
 		const char*	num_ptr;

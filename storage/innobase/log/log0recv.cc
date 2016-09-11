@@ -919,8 +919,7 @@ DECLARE_THREAD(recv_writer_thread)(
 	ut_ad(!srv_read_only_mode);
 
 #ifdef UNIV_PFS_THREAD
-	// JAN: TODO: MYSQL 5.7 PSI
-	//	pfs_register_thread(recv_writer_thread_key);
+	pfs_register_thread(recv_writer_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
 #ifdef UNIV_DEBUG_THREAD_CREATION

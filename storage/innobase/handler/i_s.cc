@@ -1772,22 +1772,10 @@ i_s_cmp_per_index_fill_low(
 		fields[IDX_UNCOMPRESS_TIME]->store(
 			   iter->second.decompressed_usec / 1000000, true);
 
-#ifdef MYSQL_SCHEMA_TABLE_STORE_RECORD2
-		int	error;
-		if ((error = schema_table_store_record2(thd, table, false))) {
-			mutex_exit(&dict_sys->mutex);
-			if (convert_heap_table_to_ondisk(thd, table, error) != 0) {
-				status = 1;
-				goto err;
-			}
-			mutex_enter(&dict_sys->mutex);
-		}
-#else
 		if (schema_table_store_record(thd, table)) {
 			status = 1;
 			break;
 		}
-#endif
 		/* Release and reacquire the dict mutex to allow other
 		threads to proceed. This could eventually result in the
 		contents of INFORMATION_SCHEMA.innodb_cmp_per_index being

@@ -7224,7 +7224,7 @@ fil_no_punch_hole(fil_node_t* node)
 	node->punch_hole = false;
 }
 
-#ifdef MYSQL_COMPRESSION_ENCRYPTION
+#ifdef MYSQL_COMPRESSION
 
 /** Set the compression type for the tablespace of a table
 @param[in]	table		The table that should be compressed
@@ -7412,7 +7412,7 @@ fil_encryption_rotate()
 
 	return(true);
 }
-#endif /* MYSQL_COMPRESSION_ENCRYPTION */
+#endif /* MYSQL_COMPRESSION */
 
 /** Build the basic folder name from the path and length provided
 @param[in]	path	pathname (may also include the file basename)

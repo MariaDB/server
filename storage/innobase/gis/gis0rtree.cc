@@ -1988,11 +1988,9 @@ rtr_estimate_n_rows_in_range(
 	mtr_commit(&mtr);
 	mem_heap_free(heap);
 
-	/* JAN: TODO MYSQL 5.7 GIS
 	if (my_isinf(area) || my_isnan(area)) {
 		return(HA_POS_ERROR);
 	}
-	*/
 
 	return(static_cast<int64_t>(dict_table_get_n_rows(index->table)
 				    * area / n_recs));

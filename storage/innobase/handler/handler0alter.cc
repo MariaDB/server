@@ -68,8 +68,6 @@ Smart ALTER TABLE
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ONLINE_CREATE
 	= Alter_inplace_info::ADD_INDEX
 	| Alter_inplace_info::ADD_UNIQUE_INDEX;
-	// JAN: TODO: MySQL 5.7
-	//	| Alter_inplace_info::ADD_SPATIAL_INDEX;
 
 /** Operations for rebuilding a table in place */
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
@@ -82,7 +80,7 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
 	| Alter_inplace_info::ALTER_COLUMN_ORDER
 	| Alter_inplace_info::DROP_COLUMN
 	| Alter_inplace_info::ADD_COLUMN
-#ifdef MYSQL_STORED_COLUMNS
+#ifdef MYSQL_VIRTUAL_COLUMNS
 	| Alter_inplace_info::ALTER_STORED_COLUMN_ORDER
 	| Alter_inplace_info::DROP_STORED_COLUMN
 	| Alter_inplace_info::ADD_STORED_BASE_COLUMN
@@ -660,7 +658,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		| INNOBASE_ALTER_NOREBUILD
 		| INNOBASE_ALTER_REBUILD)) {
 
-#ifdef MYSQL_STORED_COLUMNS
+#ifdef MYSQL_VIRTUAL_COLUMNS
 		if (ha_alter_info->handler_flags
 		    & Alter_inplace_info::ALTER_STORED_COLUMN_TYPE) {
 			ha_alter_info->unsupported_reason = innobase_get_err_msg(
@@ -1358,7 +1356,7 @@ next_rec:
 	return(NULL);
 }
 
-#ifdef MYSQL_STORED_COLUMNS
+#ifdef MYSQL_VIRTUAL_COLUMNS
 
 /** Check whether given column is a base of stored column.
 @param[in]	col_name	column name
@@ -1421,7 +1419,7 @@ innobase_check_fk_stored(
 
 	return(false);
 }
-#endif /* MYSQL_STORED_COLUMNS */
+#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 /** Create InnoDB foreign key structure from MySQL alter_info
 @param[in]	ha_alter_info	alter table info
@@ -1669,7 +1667,7 @@ innobase_get_foreign_key_info(
 			goto err_exit;
 		}
 
-#ifdef MYSQL_STORED_BASE_COLUMNS
+#ifdef MYSQL_VIRTUAL_COLUMNS
 		if (innobase_check_fk_stored(
 			add_fk[num_fk], table, s_cols)) {
 			my_error(ER_CANNOT_ADD_FOREIGN_BASE_COL_STORED, MYF(0));
@@ -5605,7 +5603,7 @@ rename_indexes_in_cache(
 }
 #endif /* MYSQL_RENAME_INDEX */
 
-#ifdef MYSQL_STORED_COLUMNS
+#ifdef MYSQL_VIRTUAL_COLUMNS
 /** Fill the stored column information in s_cols list.
 @param[in]	altered_table	mysql table object
 @param[in]	table		innodb table object
@@ -5653,7 +5651,7 @@ alter_fill_stored_column(
 		(*s_cols)->push_back(s_col);
 	}
 }
-#endif /* MYSQL_STORED_COLUMNS */
+#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 /** Allows InnoDB to update internal structures with concurrent
 writes blocked (provided that check_if_supported_inplace_alter()
@@ -6232,7 +6230,7 @@ check_if_can_drop_indexes:
 	    & Alter_inplace_info::ADD_FOREIGN_KEY) {
 		ut_ad(!m_prebuilt->trx->check_foreigns);
 
-#ifdef MYSQL_STORED_COLUMNS
+#ifdef MYSQL_VIRTUAL_COLUMNS
 		alter_fill_stored_column(altered_table, m_prebuilt->table,
 					 &s_cols, &s_heap);
 #endif

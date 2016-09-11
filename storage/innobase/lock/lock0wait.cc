@@ -521,8 +521,7 @@ DECLARE_THREAD(lock_wait_timeout_thread)(
 	ut_ad(!srv_read_only_mode);
 
 #ifdef UNIV_PFS_THREAD
-	// JAN: TODO: MySQL 5.7 PSI
-//	pfs_register_thread(srv_lock_timeout_thread_key);
+	pfs_register_thread(srv_lock_timeout_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
 	lock_sys->timeout_thread_active = true;

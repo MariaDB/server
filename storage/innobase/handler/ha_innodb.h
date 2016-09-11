@@ -226,9 +226,6 @@ public:
 
 	void position(uchar *record);
 
-	// MySQL 5.7 Select count optimization
-	// int records(ha_rows* num_rows);
-
 	ha_rows records_in_range(
 		uint			inx,
 		key_range*		min_key,

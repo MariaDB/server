@@ -302,7 +302,6 @@ DECLARE_THREAD(io_handler_thread)(
 		<< os_thread_pf(os_thread_get_curr_id());
 #endif
 
-#ifdef JAN //JAN: TODO: MySQL 5.7 PSI == UNIV_PFS_THREAD
 	/* For read only mode, we don't need ibuf and log I/O thread.
 	Please see innobase_start_or_create_for_mysql() */
 	ulint   start = (srv_read_only_mode) ? 0 : 2;
@@ -326,7 +325,6 @@ DECLARE_THREAD(io_handler_thread)(
 	} else {
 		pfs_register_thread(io_handler_thread_key);
 	}
-#endif /* UNIV_PFS_THREAD */
 
 	while (srv_shutdown_state != SRV_SHUTDOWN_EXIT_THREADS
 	       || buf_page_cleaner_is_active

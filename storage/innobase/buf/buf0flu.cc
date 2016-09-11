@@ -3139,9 +3139,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 
 	my_thread_init();
 #ifdef UNIV_PFS_THREAD
-	/* JAN: TODO: MySQL 5.7 PSI
 	pfs_register_thread(page_cleaner_thread_key);
-	*/
 #endif /* UNIV_PFS_THREAD */
 
 #ifdef UNIV_DEBUG_THREAD_CREATION

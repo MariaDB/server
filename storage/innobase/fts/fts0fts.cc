@@ -4840,9 +4840,7 @@ fts_check_token(
 		n_chars = 0;
 
 		while (next < end) {
-			/* TODO: JAN: MySQL 5.7 used my_mbcharlen_ptr here
-			char_len = my_mbcharlen_ptr(cs, next, end);*/
-			char_len = cs->cset->charlen(cs, (const uchar*)next, (const uchar*)end);
+			char_len = my_charlen(cs, next, end);
 
 			if (next + char_len > end || char_len == 0) {
 				break;
@@ -4875,9 +4873,7 @@ fts_check_token(
 				}
 
 				/* Move a char forward */
-				/* JAN: TODO: MySQL 5.7
-				start += my_mbcharlen_ptr(cs, start, end); */
-				start += cs->cset->charlen(cs, (const uchar*)next, (const uchar*)end);
+				start += my_charlen(cs, start, end);
 				n_chars = ngram_token_size - 1;
 			}
 		}
@@ -5031,8 +5027,6 @@ int
 fts_tokenize_document_internal(
 /*===========================*/
 	MYSQL_FTPARSER_PARAM*	param,	/*!< in: parser parameter */
-	/* JAN: TODO: MySQL 5.7
-	char*			doc,*/
 	const char*		doc,/*!< in/out: document */
 	int			len)	/*!< in: document length */
 {

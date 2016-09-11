@@ -365,11 +365,9 @@ mbr_join_square(
 	} while (a != end);
 
 	/* Check for infinity or NaN, so we don't get NaN in calculations */
-	/* JAN: TODO: MYSQL 5.7 GIS
 	if (my_isinf(square) || my_isnan(square)) {
 		return DBL_MAX;
 	}
-	*/
 
 	return square;
 }
