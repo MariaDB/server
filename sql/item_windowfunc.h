@@ -198,8 +198,11 @@ public:
   void cleanup()
   {
     if (peer_tracker)
+    {
       peer_tracker->cleanup();
-    delete peer_tracker;
+      delete peer_tracker;
+      peer_tracker= NULL;
+    }
     Item_sum_int::cleanup();
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -268,6 +271,7 @@ class Item_sum_dense_rank: public Item_sum_int
     {
       peer_tracker->cleanup();
       delete peer_tracker;
+      peer_tracker= NULL;
     }
     Item_sum_int::cleanup();
   }
@@ -379,6 +383,7 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
     {
       peer_tracker->cleanup();
       delete peer_tracker;
+      peer_tracker= NULL;
     }
     Item_sum_num::cleanup();
   }
