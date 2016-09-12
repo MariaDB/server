@@ -46,6 +46,7 @@ struct show_table_contributors_st show_table_contributors[]= {
   {"Auttomattic", "https://automattic.com", "Bronze Sponsor of the MariaDB Foundation"},
   {"Verkkokauppa.com", "https://virtuozzo.com", "Bronze Sponsor of the MariaDB Foundation"},
   {"Virtuozzo", "https://virtuozzo.com/", "Bronze Sponsor of the MariaDB Foundation"},
+  {"Tencent Game DBA", "http://tencentdba.com/about/", "Bronze Sponsor of the MariaDB Foundation"},
 
   /* Sponsors of important features */
   {"Google", "USA", "Sponsoring encryption, parallel replication and GTID"},
