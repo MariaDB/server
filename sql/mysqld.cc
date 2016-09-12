@@ -10301,7 +10301,8 @@ PSI_stage_info *all_server_stages[]=
   & stage_master_gtid_wait,
   & stage_gtid_wait_other_connection,
   & stage_slave_background_process_request,
-  & stage_slave_background_wait_request
+  & stage_slave_background_wait_request,
+  & stage_waiting_for_deadlock_kill
 };
 
 PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;

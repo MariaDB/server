@@ -366,6 +366,7 @@ handle_slave_background(void *arg __attribute__((unused)))
 
   delete thd;
   thread_safe_decrement32(&service_thread_count);
+  signal_thd_deleted();
 
   my_thread_end();
   return 0;
