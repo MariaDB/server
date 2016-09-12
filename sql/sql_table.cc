@@ -4213,7 +4213,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
               my_strcasecmp(system_charset_info,
                             check->name.str, dup_check->name.str) == 0)
           {
-            my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name);
+            my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
             DBUG_RETURN(TRUE);
           }
         }
