@@ -2296,10 +2296,16 @@ Item* Item_func_or_sum::build_clone(THD *thd, MEM_ROOT *mem_root)
   if (!copy)
     return 0;
   if (arg_count > 2)
+  {
     copy->args= 
       (Item**) alloc_root(mem_root, sizeof(Item*) * arg_count);
+    if (!copy->args)
+      return 0;
+  }
   else if (arg_count > 0)
     copy->args= copy->tmp_arg;
+
+   
   for (uint i= 0; i < arg_count; i++)
   {
     Item *arg_clone= args[i]->build_clone(thd, mem_root);
@@ -2332,6 +2338,10 @@ Item* Item_ref::build_clone(THD *thd, MEM_ROOT *mem_root)
   Item_ref *copy= (Item_ref *) get_copy(thd, mem_root);
   if (!copy)
     return 0;
+  copy->ref= 
+      (Item**) alloc_root(mem_root, sizeof(Item*));
+  if (!copy->ref)
+      return 0;
   Item *item_clone= (* ref)->build_clone(thd, mem_root);
   if (!item_clone)
     return 0;

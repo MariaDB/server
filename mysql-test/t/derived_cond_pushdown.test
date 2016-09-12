@@ -877,4 +877,26 @@ eval explain format=json $query;
 drop view v1,v2,v3,v4;
 drop view v_union,v2_union,v3_union,v4_union;
 drop view v_double,v_char,v_decimal;
-drop table t1,t2,t1_double,t2_double,t1_char,t2_char,t1_decimal,t2_decimal;    
+drop table t1,t2,t1_double,t2_double,t1_char,t2_char,t1_decimal,t2_decimal;  
+
+--echo #
+--echo # MDEV-10782: condition extracted from a multiple equality
+--echo #             pushed into HAVING
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2);
+EXPLAIN EXTENDED
+SELECT *
+  FROM ( SELECT * FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
+    WHERE f = 8;
+SELECT *
+  FROM ( SELECT * FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
+    WHERE f = 8;
+SELECT *
+  FROM ( SELECT * FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
+    WHERE f = 1;
+DROP TABLE t1;
+
+
+  

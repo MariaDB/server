@@ -8057,8 +8057,12 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
     {
       if (!(item->used_tables() == tab_map))
 	continue;
-      Item_func_eq *eq= 
-	new (thd->mem_root) Item_func_eq(thd, item, left_item);
+      Item_func_eq *eq= 0;
+      Item *left_item_clone= left_item->build_clone(thd, thd->mem_root);
+      Item *right_item_clone= item->build_clone(thd, thd->mem_root);
+      if (left_item_clone && right_item_clone)
+	eq= new (thd->mem_root) Item_func_eq(thd, right_item_clone,
+                                         left_item_clone);
       if (eq)
       {
 	i++;
@@ -8071,10 +8075,13 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
 	  new_cond= new (thd->mem_root) Item_cond_and(thd, new_cond, eq);
 	  break;
 	default:
-	  ((Item_cond_and*)new_cond)->argument_list()->push_back(eq, thd->mem_root);
+	  ((Item_cond_and*)new_cond)->argument_list()->push_back(eq,
+                                                                 thd->mem_root);
 	}
       }
     }
+    if (new_cond)
+      new_cond->fix_fields(thd, &new_cond);
     return new_cond;
   }
   else if (cond->get_extraction_flag() != NO_EXTRACTION_FL)
