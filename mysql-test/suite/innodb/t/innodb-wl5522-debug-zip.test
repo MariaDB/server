@@ -22,6 +22,7 @@ call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* becau
 call mtr.add_suppression("InnoDB: Error: Tablespace flags .* corrupted unused .*");
 call mtr.add_suppression("InnoDB: Tablespace flags: .* corrupted  in file: .* ");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
+flush tables;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
