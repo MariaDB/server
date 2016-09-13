@@ -1006,6 +1006,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         remember_name remember_end opt_db remember_tok_start
         wild_and_where
         field_length opt_field_length opt_field_length_default_1
+        colon_with_pos
 
 %type <const_simple_string>
         opt_place
@@ -8074,6 +8075,13 @@ select_item:
           }
         ;
 
+colon_with_pos:
+          ':'
+          {
+            $$= (char *) YYLIP->get_tok_start();
+          }
+        ;
+
 remember_tok_start:
           {
             $$= (char*) YYLIP->get_tok_start();
@@ -13142,17 +13150,22 @@ hex_or_bin_String:
 param_marker:
           PARAM_MARKER
           {
-            LEX *lex= thd->lex;
-            Lex_input_stream *lip= YYLIP;
-            Item_param *item;
-            if (! lex->parsing_options.allows_variable)
-              my_yyabort_error((ER_VIEW_SELECT_VARIABLE, MYF(0)));
-            const char *query_start= lex->sphead ? lex->sphead->m_tmp_query
-                                                 : thd->query();
-            item= new (thd->mem_root) Item_param(thd, lip->get_tok_start() -
-                                                      query_start);
-            if (!($$= item) || lex->param_list.push_back(item, thd->mem_root))
-              my_yyabort_error((ER_OUT_OF_RESOURCES, MYF(0)));
+            if (!($$= Lex->add_placeholder(thd, (char *) "?",
+                                           YYLIP->get_tok_start(),
+                                           YYLIP->get_tok_start() + 1)))
+              MYSQL_YYABORT;
+          }
+        | colon_with_pos ident
+          {
+            if (!($$= Lex->add_placeholder(thd, NULL,
+                                           $1, YYLIP->get_tok_end())))
+              MYSQL_YYABORT;
+          }
+        | colon_with_pos NUM
+          {
+            if (!($$= Lex->add_placeholder(thd, NULL,
+                                           $1, YYLIP->get_ptr())))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -13538,7 +13551,7 @@ simple_ident_q:
                 MYSQL_YYABORT;
             }
           }
-        | ':' ident '.' ident
+        | colon_with_pos ident '.' ident
           {
             LEX *lex= Lex;
             if (lex->is_trigger_new_or_old_reference($2))
@@ -14691,7 +14704,7 @@ internal_variable_name_directly_assignable:
             if (Lex->init_default_internal_variable(&$$, $3))
               MYSQL_YYABORT;
           }
-        | ':' ident_directly_assignable '.' ident
+        | colon_with_pos ident_directly_assignable '.' ident
           {
             if (!Lex->is_trigger_new_or_old_reference($2))
             {

@@ -5876,6 +5876,33 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd, const char *name,
 }
 
 
+Item_param *LEX::add_placeholder(THD *thd, char *name,
+                                 uint pos_in_query, uint len_in_query)
+{
+  if (!parsing_options.allows_variable)
+  {
+    my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
+    return NULL;
+  }
+  Item_param *item= new (thd->mem_root) Item_param(thd, name,
+                                                   pos_in_query, len_in_query);
+  if (!item || param_list.push_back(item, thd->mem_root))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+  return item;
+}
+
+
+Item_param *LEX::add_placeholder(THD *thd, char *name,
+                                 const char *pos, const char *end)
+{
+  const char *query_start= sphead ? sphead->m_tmp_query : thd->query();
+  return add_placeholder(thd, name, pos - query_start, end - pos);
+}
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 

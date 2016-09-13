@@ -13464,17 +13464,10 @@ hex_or_bin_String:
 param_marker:
           PARAM_MARKER
           {
-            LEX *lex= thd->lex;
-            Lex_input_stream *lip= YYLIP;
-            Item_param *item;
-            if (! lex->parsing_options.allows_variable)
-              my_yyabort_error((ER_VIEW_SELECT_VARIABLE, MYF(0)));
-            const char *query_start= lex->sphead ? lex->sphead->m_tmp_query
-                                                 : thd->query();
-            item= new (thd->mem_root) Item_param(thd, lip->get_tok_start() -
-                                                      query_start);
-            if (!($$= item) || lex->param_list.push_back(item, thd->mem_root))
-              my_yyabort_error((ER_OUT_OF_RESOURCES, MYF(0)));
+            if (!($$= Lex->add_placeholder(thd, (char *) "?",
+                                           YYLIP->get_tok_start(),
+                                           YYLIP->get_tok_start() + 1)))
+              MYSQL_YYABORT;
           }
         ;
 

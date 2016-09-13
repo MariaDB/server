@@ -1,0 +1,25 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10801 sql_mode: dynamic SQL placeholders
+--echo #
+
+SET @a=10, @b=20;
+PREPARE stmt FROM 'SELECT ?,?';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :a,:b';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :aaa,:bbb';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :"a",:"b"';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :"aaa",:"bbb"';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :1,:2';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :222,:111';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :0,:65535';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :65535,:0';
+EXECUTE stmt USING @a, @b;

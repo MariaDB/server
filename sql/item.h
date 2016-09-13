@@ -2813,7 +2813,8 @@ public:
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
 
-  Item_param(THD *thd, uint pos_in_query_arg);
+  Item_param(THD *thd, char *name_arg,
+             uint pos_in_query_arg, uint len_in_query_arg);
 
   enum Type type() const
   {
