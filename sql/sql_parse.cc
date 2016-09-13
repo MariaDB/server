@@ -7485,8 +7485,22 @@ mysql_new_select(LEX *lex, bool move_down)
       DBUG_RETURN(TRUE);
     }
 
-    // SELECT 1 FROM t1 PROCEDURE ANALYSE() UNION ...  --    not possible
-    DBUG_ASSERT(lex->proc_list.elements == 0);
+    /*
+      This type of query is not possible in the grammar:
+        SELECT 1 FROM t1 PROCEDURE ANALYSE() UNION ... ;
+
+      But this type of query is still possible:
+        (SELECT 1 FROM t1 PROCEDURE ANALYSE()) UNION ... ;
+      and it's not easy to disallow this grammatically,
+      because there can be any parenthesis nest level:
+        (((SELECT 1 FROM t1 PROCEDURE ANALYSE()))) UNION ... ;
+    */
+    if (lex->proc_list.elements!=0)
+    {
+      my_error(ER_WRONG_USAGE, MYF(0), "UNION",
+               "SELECT ... PROCEDURE ANALYSE()");
+      DBUG_RETURN(TRUE);
+    }
     // SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 -- not possible
     DBUG_ASSERT(!lex->current_select->order_list.first ||
                 lex->current_select->braces);
