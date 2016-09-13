@@ -7366,10 +7366,20 @@ os_aio_windows_handler(
 			srv_set_io_thread_op_info(orig_seg, "wait Windows aio");
 		}
 
+		DWORD handle_count = (DWORD)array->slots_per_segment();
+		HANDLE *handle_array = array->handles(segment);
 		pos = WaitForMultipleObjects(
-			(DWORD) array->slots_per_segment(),
-			array->handles(segment),
+			handle_count,
+			handle_array,
 			FALSE, INFINITE);
+		if (pos == WAIT_FAILED) {
+			DWORD last_error = GetLastError();
+			ib::error()
+			<< "WaitForMultipleObjects() failed with error "
+			<< last_error;
+			ut_error;
+
+		}
 	}
 
 	array->acquire();
