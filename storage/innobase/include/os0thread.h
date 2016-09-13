@@ -42,7 +42,7 @@ can wait inside InnoDB */
 #define OS_THREAD_PRIORITY_ABOVE_NORMAL	3
 
 #ifdef _WIN32
-typedef void*			os_thread_t;
+typedef DWORD			os_thread_t;
 typedef DWORD			os_thread_id_t;	/*!< In Windows the thread id
 						is an unsigned long int */
 extern "C"  {

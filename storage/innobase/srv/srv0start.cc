@@ -2857,34 +2857,6 @@ innobase_shutdown_for_mysql(void)
 	/* Cleanup data for datafile scrubbing */
 	btr_scrub_cleanup();
 
-#ifdef __WIN__
-	/* MDEV-361: ha_innodb.dll leaks handles on Windows
-	MDEV-7403: should not pass recv_writer_thread_handle to
-	CloseHandle().
-
-	On Windows we should call CloseHandle() for all
-	open thread handles. */
-	if (os_thread_count == 0) {
-		for (int i = 0; i < SRV_MAX_N_IO_THREADS + 6 + 32; ++i) {
-			if (thread_started[i]) {
-				CloseHandle(thread_handles[i]);
-			}
-		}
-
-		if (buf_flush_page_cleaner_thread_started) {
-			CloseHandle(buf_flush_page_cleaner_thread_handle);
-		}
-
-		if (buf_dump_thread_started) {
-			CloseHandle(buf_dump_thread_handle);
-		}
-
-		if (dict_stats_thread_started) {
-			CloseHandle(dict_stats_thread_handle);
-		}
-	}
-#endif /* __WIN __ */
-
 	/* This must be disabled before closing the buffer pool
 	and closing the data dictionary.  */
 	btr_search_disable(true);

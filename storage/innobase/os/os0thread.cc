@@ -45,16 +45,6 @@ SysMutex	thread_mutex;
 /** Number of threads active. */
 ulint	os_thread_count;
 
-#ifdef _WIN32
-typedef std::map<
-	DWORD,
-	HANDLE,
-	std::less<DWORD>,
-	ut_allocator<std::pair<const DWORD, HANDLE> > >	WinThreadMap;
-/** This STL map remembers the initial handle returned by CreateThread
-so that it can be closed when the thread exits. */
-static WinThreadMap	win_thread_map;
-#endif /* _WIN32 */
 
 /***************************************************************//**
 Compares two thread ids for equality.
@@ -145,22 +135,15 @@ os_thread_create_func(
 		ib::fatal() << "CreateThread returned " << GetLastError();
 	}
 
+	CloseHandle(handle);
+
 	mutex_enter(&thread_mutex);
-
-	std::pair<WinThreadMap::iterator, bool> ret;
-
-	ret = win_thread_map.insert(
-		std::pair<DWORD, HANDLE>(new_thread_id, handle));
-
-	ut_ad((*ret.first).first == new_thread_id);
-	ut_ad((*ret.first).second == handle);
-	ut_a(ret.second == true);	/* true means thread_id was new */
 
 	os_thread_count++;
 
 	mutex_exit(&thread_mutex);
 
-	return((os_thread_t)handle);
+	return((os_thread_t)new_thread_id);
 #else /* _WIN32 else */
 
 	pthread_attr_t	attr;
@@ -208,12 +191,6 @@ os_thread_exit()
 	os_thread_count--;
 
 #ifdef _WIN32
-	DWORD win_thread_id = GetCurrentThreadId();
-	HANDLE handle = win_thread_map[win_thread_id];
-	CloseHandle(handle);
-	size_t ret = win_thread_map.erase(win_thread_id);
-	ut_a(ret == 1);
-
 	mutex_exit(&thread_mutex);
 
 	ExitThread(0);
