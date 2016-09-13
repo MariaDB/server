@@ -41,7 +41,7 @@ Item_window_func::resolve_window_name(THD *thd)
     return true;
   }
 
-  return false;                      
+  return false;
 }
 
 
@@ -154,7 +154,7 @@ void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 
 
 /*
-  This must be called before advance_window() can be called.
+  This must be called before attempting to compute the window function values.
 
   @detail
     If we attempt to do it in fix_fields(), partition_fields will refer
@@ -162,30 +162,25 @@ void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
     We need it to refer to temp.table columns.
 */
 
-void Item_window_func::setup_partition_border_check(THD *thd)
-{
-  partition_tracker.init(thd, window_spec->partition_list);
-  window_func()->setup_window_func(thd, window_spec);
-}
-
-
 void Item_sum_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   /* TODO: move this into Item_window_func? */
-  peer_tracker.init(thd, window_spec->order_list);
+  peer_tracker = new Group_bound_tracker(thd, window_spec->order_list);
+  peer_tracker->init();
   clear();
 }
 
 void Item_sum_dense_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   /* TODO: consider moving this && Item_sum_rank's implementation */
-  peer_tracker.init(thd, window_spec->order_list);
+  peer_tracker = new Group_bound_tracker(thd, window_spec->order_list);
+  peer_tracker->init();
   clear();
 }
 
 bool Item_sum_dense_rank::add()
 {
-  if (peer_tracker.check_if_next_group() || first_add)
+  if (peer_tracker->check_if_next_group() || first_add)
   {
     first_add= false;
     dense_rank++;
@@ -198,7 +193,7 @@ bool Item_sum_dense_rank::add()
 bool Item_sum_rank::add()
 {
   row_number++;
-  if (peer_tracker.check_if_next_group())
+  if (peer_tracker->check_if_next_group())
   {
     /* Row value changed */
     cur_rank= row_number;
@@ -206,25 +201,10 @@ bool Item_sum_rank::add()
   return false; 
 }
 
-bool Item_window_func::check_if_partition_changed()
-{
-  return partition_tracker.check_if_next_group();
-}
-
-void Item_window_func::advance_window()
-{
-  if (check_if_partition_changed())
-  {
-    /* Next partition */
-    window_func()->clear();
-  }
-  window_func()->add();
-}
-
 bool Item_sum_percent_rank::add()
 {
   row_number++;
-  if (peer_tracker.check_if_next_group())
+  if (peer_tracker->check_if_next_group())
   {
     /* Row value changed. */
     cur_rank= row_number;
@@ -235,8 +215,7 @@ bool Item_sum_percent_rank::add()
 void Item_sum_percent_rank::setup_window_func(THD *thd, Window_spec *window_spec)
 {
   /* TODO: move this into Item_window_func? */
-  peer_tracker.init(thd, window_spec->order_list);
+  peer_tracker = new Group_bound_tracker(thd, window_spec->order_list);
+  peer_tracker->init();
   clear();
 }
-
-

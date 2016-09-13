@@ -634,7 +634,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
 
     if (add_expr_length(thd, &field->vcol_info, &expression_length))
       DBUG_RETURN(1);
-    if (field->has_default_expression())
+    if (field->default_value && field->default_value->expr_str.length)
       if (add_expr_length(thd, &field->default_value, &expression_length))
 	DBUG_RETURN(1);
     if (add_expr_length(thd, &field->check_constraint, &expression_length))
@@ -735,7 +735,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
       n_length+int_length+com_length+expression_length > 65535L ||
       int_count > 255)
   {
-    my_message(ER_TOO_MANY_FIELDS, ER_THD(thd, ER_TOO_MANY_FIELDS), MYF(0));
+    my_message(ER_TOO_MANY_FIELDS, "Table definition is too large", MYF(0));
     DBUG_RETURN(1);
   }
 
@@ -983,7 +983,7 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
       if (field->vcol_info)
         pack_expression(&buff, field->vcol_info, field_nr,
                         field->vcol_info->stored_in_db ? 1 : 0);
-      if (field->has_default_expression())
+      if (field->default_value && field->default_value->expr_str.length)
         pack_expression(&buff, field->default_value, field_nr, 2);
       if (field->check_constraint)
         pack_expression(&buff, field->check_constraint, field_nr, 3);
@@ -1039,7 +1039,10 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
                                 field->sql_type,
                                 field->charset,
                                 field->geom_type, field->srid,
-                                field->unireg_check,
+                          field->unireg_check == Field::TIMESTAMP_DNUN_FIELD
+                          ? Field::TIMESTAMP_UN_FIELD
+                          : field->unireg_check == Field::TIMESTAMP_DN_FIELD
+                          ? Field::NONE : field->unireg_check,
                                 field->save_interval ? field->save_interval :
                                 field->interval, 
                                 field->field_name);

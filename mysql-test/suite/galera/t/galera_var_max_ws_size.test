@@ -16,6 +16,29 @@ SET GLOBAL wsrep_max_ws_size = 1024;
 INSERT INTO t1 VALUES (DEFAULT, REPEAT('X', 1024));
 SELECT COUNT(*) = 0 FROM t1;
 
+#
+# Changing repl.max_ws_size also changes wsrep_max_ws_size
+#
+
+SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=10000';
+SELECT @@wsrep_max_ws_size = 10000;
+
+
+#
+# Changing wsrep_max_ws_size is equivalent to changing repl.max_ws_size
+#
+
+SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=20000';
+--let $provider_options = `SELECT @@wsrep_provider_options`
+SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=10000';
+
+SET GLOBAL wsrep_max_ws_size = 20000;
+--let $provider_options_updated = `SELECT @@wsrep_provider_options`
+
+--disable_query_log
+--eval SELECT STRCMP('$provider_options', '$provider_options_updated') = 0 AS provider_options_match
+--enable_query_log
+
 --disable_query_log
 --eval SET GLOBAL wsrep_max_ws_size = $wsrep_max_ws_size_orig
 --enable_query_log

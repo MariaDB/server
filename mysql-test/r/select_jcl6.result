@@ -4362,6 +4362,7 @@ Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	10
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	10
 Handler_read_rnd_deleted	1
 Handler_read_rnd_next	6

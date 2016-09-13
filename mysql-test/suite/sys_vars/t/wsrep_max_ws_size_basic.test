@@ -4,9 +4,6 @@
 --echo # wsrep_max_ws_size
 --echo #
 
---echo # save the initial value
-SET @wsrep_max_ws_size_global_saved = @@global.wsrep_max_ws_size;
-
 --echo # default
 SELECT @@global.wsrep_max_ws_size;
 
@@ -14,17 +11,22 @@ SELECT @@global.wsrep_max_ws_size;
 --echo # scope
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.wsrep_max_ws_size;
+--error ER_WRONG_ARGUMENTS
 SET @@global.wsrep_max_ws_size=1;
 SELECT @@global.wsrep_max_ws_size;
 
 --echo
 --echo # valid values
+--error ER_WRONG_ARGUMENTS
 SET @@global.wsrep_max_ws_size=1073741824;
 SELECT @@global.wsrep_max_ws_size;
+--error ER_WRONG_ARGUMENTS
 SET @@global.wsrep_max_ws_size=1073741825;
 SELECT @@global.wsrep_max_ws_size;
+--error ER_WRONG_ARGUMENTS
 SET @@global.wsrep_max_ws_size=0;
 SELECT @@global.wsrep_max_ws_size;
+--error ER_WRONG_ARGUMENTS
 SET @@global.wsrep_max_ws_size=default;
 SELECT @global.wsrep_max_ws_size;
 
@@ -35,11 +37,8 @@ SET @@global.wsrep_max_ws_size=NULL;
 --error ER_WRONG_TYPE_FOR_VAR
 SET @@global.wsrep_max_ws_size='junk';
 SELECT @global.wsrep_max_ws_size;
+--error ER_WRONG_ARGUMENTS
 SET @@global.wsrep_max_ws_size=-1;
 SELECT @global.wsrep_max_ws_size;
-
---echo
---echo # restore the initial value
-SET @@global.wsrep_max_ws_size = @wsrep_max_ws_size_global_saved;
 
 --echo # End of test

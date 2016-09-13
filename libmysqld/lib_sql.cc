@@ -334,6 +334,12 @@ static int emb_stmt_execute(MYSQL_STMT *stmt)
   THD *thd;
   my_bool res;
 
+  if (stmt->param_count && !stmt->bind_param_done)
+  {
+    set_stmt_error(stmt, CR_PARAMS_NOT_BOUND, unknown_sqlstate, NULL);
+    DBUG_RETURN(1);
+  }
+
   int4store(header, stmt->stmt_id);
   header[4]= (uchar) stmt->flags;
   thd= (THD*)stmt->mysql->thd;
@@ -1172,7 +1178,7 @@ bool
 net_send_ok(THD *thd,
             uint server_status, uint statement_warn_count,
             ulonglong affected_rows, ulonglong id, const char *message,
-            bool unused __attribute__((unused)))
+            bool, bool)
 {
   DBUG_ENTER("emb_net_send_ok");
   MYSQL_DATA *data;

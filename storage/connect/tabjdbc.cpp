@@ -96,7 +96,7 @@ bool ExactInfo(void);
 /***********************************************************************/
 JDBCDEF::JDBCDEF(void)
 {
-	Driver = Url = Tabname = Tabschema = Username = Colpat = NULL;
+	Driver = Url = Wrapname =Tabname = Tabschema = Username = Colpat = NULL;
 	Password = Tabcat = Tabtype = Srcdef = Qchar = Qrystr = Sep = NULL;
 	Options = Quoted = Maxerr = Maxres = Memory = 0;
 	Scrollable = Xsrc = false;
@@ -233,6 +233,7 @@ bool JDBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL)))
 		Read_Only = true;
 
+	Wrapname = GetStringCatInfo(g, "Wrapper", NULL);
 	Tabcat = GetStringCatInfo(g, "Qualifier", NULL);
 	Tabcat = GetStringCatInfo(g, "Catalog", Tabcat);
 	Tabschema = GetStringCatInfo(g, "Dbname", NULL);
@@ -331,6 +332,7 @@ TDBJDBC::TDBJDBC(PJDBCDEF tdp) : TDBASE(tdp)
 	if (tdp) {
 		Ops.Driver = tdp->Driver;
 		Ops.Url = tdp->Url;
+		WrapName = tdp->Wrapname;
 		TableName = tdp->Tabname;
 		Schema = tdp->Tabschema;
 		Ops.User = tdp->Username;
@@ -347,6 +349,7 @@ TDBJDBC::TDBJDBC(PJDBCDEF tdp) : TDBASE(tdp)
 		Memory = tdp->Memory;
 		Ops.Scrollable = tdp->Scrollable;
 	} else {
+		WrapName = NULL;
 		TableName = NULL;
 		Schema = NULL;
 		Ops.Driver = NULL;
@@ -392,6 +395,7 @@ TDBJDBC::TDBJDBC(PTDBJDBC tdbp) : TDBASE(tdbp)
 {
 	Jcp = tdbp->Jcp;            // is that right ?
 	Cnp = tdbp->Cnp;
+	WrapName = tdbp->WrapName;
 	TableName = tdbp->TableName;
 	Schema = tdbp->Schema;
 	Ops = tdbp->Ops;
@@ -518,9 +522,10 @@ bool TDBJDBC::MakeSQL(PGLOBAL g, bool cnt)
 	if (Catalog && *Catalog)
 		catp = Catalog;
 
-	if (tablep->GetSchema())
-		schmp = (char*)tablep->GetSchema();
-	else if (Schema && *Schema)
+	//if (tablep->GetSchema())
+	//	schmp = (char*)tablep->GetSchema();
+	//else 
+	if (Schema && *Schema)
 		schmp = Schema;
 
 	if (catp) {
@@ -602,9 +607,10 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 	if (catp)
 		len += strlen(catp) + 1;
 
-	if (tablep->GetSchema())
-		schmp = (char*)tablep->GetSchema();
-	else if (Schema && *Schema)
+	//if (tablep->GetSchema())
+	//	schmp = (char*)tablep->GetSchema();
+	//else
+	if (Schema && *Schema)
 		schmp = Schema;
 
 	if (schmp)

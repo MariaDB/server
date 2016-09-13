@@ -17,9 +17,9 @@
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
 @@ -903,6 +903,9 @@
-  files within specified directory
-  --server-id=#       Uniquely identifies the server instance in the community
-  of replication partners
+  characteristics (isolation level, read only/read
+  write,snapshot - but not any work done / data modified
+  within the transaction).
 + --shared-memory     Enable the shared memory
 + --shared-memory-base-name=name 
 + Base name of shared memory
@@ -42,9 +42,9 @@
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
 + --standalone        Dummy option to start as a standalone program (NT).
-  --stored-program-cache=# 
-  The soft upper limit for number of cached stored routines
-  for one connection.
+  --standards-compliant-cte 
+  Allow only standards compiant CTE
+  (Defaults to on; use --skip-standards-compliant-cte to disable.)
 @@ -1070,25 +1078,11 @@
   --thread-cache-size=# 
   How many threads we should keep in a cache for reuse.
@@ -101,9 +101,9 @@
  net-read-timeout 30
  net-retry-count 10
 @@ -1387,6 +1381,8 @@
- secure-auth TRUE
- secure-file-priv (No default value)
- server-id 0
+ session-track-state-change FALSE
+ session-track-system-variables 
+ session-track-transaction-info OFF
 +shared-memory FALSE
 +shared-memory-base-name MYSQL
  show-slave-auth-info FALSE

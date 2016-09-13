@@ -143,6 +143,9 @@ static void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
   shadow->wsrep_exec_mode = thd->wsrep_exec_mode;
   shadow->vio           = thd->net.vio;
 
+  // Disable general logging on applier threads
+  thd->variables.option_bits |= OPTION_LOG_OFF;
+  // Enable binlogging if opt_log_slave_updates is set
   if (opt_log_slave_updates)
     thd->variables.option_bits|= OPTION_BIN_LOG;
   else
@@ -164,6 +167,7 @@ static void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
 
   shadow->db            = thd->db;
   shadow->db_length     = thd->db_length;
+  shadow->user_time     = thd->user_time;
   thd->reset_db(NULL, 0);
 }
 
@@ -174,6 +178,7 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   thd->wsrep_exec_mode        = shadow->wsrep_exec_mode;
   thd->net.vio                = shadow->vio;
   thd->variables.tx_isolation = shadow->tx_isolation;
+  thd->user_time              = shadow->user_time;
   thd->reset_db(shadow->db, shadow->db_length);
 
   delete thd->system_thread_info.rpl_sql_info;
@@ -187,6 +192,7 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
 
 void wsrep_replay_transaction(THD *thd)
 {
+  DBUG_ENTER("wsrep_replay_transaction");
   /* checking if BF trx must be replayed */
   if (thd->wsrep_conflict_state== MUST_REPLAY) {
     DBUG_ASSERT(wsrep_thd_trx_seqno(thd));
@@ -195,6 +201,13 @@ void wsrep_replay_transaction(THD *thd)
       {
         WSREP_ERROR("replay issue, thd has reported status already");
       }
+
+      /*
+        PS reprepare observer should have been removed already.
+        open_table() will fail if we have dangling observer here.
+      */
+      DBUG_ASSERT(thd->m_reprepare_observer == NULL);
+
       thd->get_stmt_da()->reset_diagnostics_area();
 
       thd->wsrep_conflict_state= REPLAYING;
@@ -301,6 +314,7 @@ void wsrep_replay_transaction(THD *thd)
       mysql_mutex_unlock(&LOCK_wsrep_replaying);
     }
   }
+  DBUG_VOID_RETURN;
 }
 
 static void wsrep_replication_process(THD *thd)

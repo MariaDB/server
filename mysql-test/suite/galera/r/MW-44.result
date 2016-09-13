@@ -1,0 +1,14 @@
+TRUNCATE TABLE mysql.general_log;
+TRUNCATE TABLE mysql.general_log;
+SET SESSION wsrep_osu_method=TOI;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_osu_method=RSU;
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+SET SESSION wsrep_osu_method=TOI;
+SELECT COUNT(*) = 2 FROM mysql.general_log WHERE argument LIKE 'CREATE%' OR argument LIKE 'ALTER%';
+COUNT(*) = 2
+1
+SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument NOT LIKE 'SELECT%';
+COUNT(*) = 0
+1
+DROP TABLE t1;

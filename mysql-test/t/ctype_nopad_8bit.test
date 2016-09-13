@@ -1,0 +1,239 @@
+#
+# Tests with the nopad 8 bit character sets
+#
+
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+SET character_set_connection=dec8;
+let $coll='dec8_swedish_nopad_ci';
+let $coll_pad='dec8_swedish_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='dec8_nopad_bin';
+let $coll_pad='dec8_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=cp850;
+let $coll='cp850_general_nopad_ci';
+let $coll_pad='cp850_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='cp850_nopad_bin';
+let $coll_pad='cp850_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=hp8;
+let $coll='hp8_english_nopad_ci';
+let $coll_pad='hp8_english_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='hp8_nopad_bin';
+let $coll_pad='hp8_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=koi8r;
+let $coll='koi8r_general_nopad_ci';
+let $coll_pad='koi8r_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='koi8r_nopad_bin';
+let $coll_pad='koi8r_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=latin2;
+let $coll='latin2_general_nopad_ci';
+let $coll_pad='latin2_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='latin2_nopad_bin';
+let $coll_pad='latin2_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=swe7;
+let $coll='swe7_swedish_nopad_ci';
+let $coll_pad='swe7_swedish_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='swe7_nopad_bin';
+let $coll_pad='swe7_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=ascii;
+let $coll='ascii_general_nopad_ci';
+let $coll_pad='ascii_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='ascii_nopad_bin';
+let $coll_pad='ascii_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=hebrew;
+let $coll='hebrew_general_nopad_ci';
+let $coll_pad='hebrew_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='hebrew_nopad_bin';
+let $coll_pad='hebrew_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=koi8u;
+let $coll='koi8u_general_nopad_ci';
+let $coll_pad='koi8u_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='koi8u_nopad_bin';
+let $coll_pad='koi8u_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=greek;
+let $coll='greek_general_nopad_ci';
+let $coll_pad='greek_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='greek_nopad_bin';
+let $coll_pad='greek_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=cp1250;
+let $coll='cp1250_general_nopad_ci';
+let $coll_pad='cp1250_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='cp1250_nopad_bin';
+let $coll_pad='cp1250_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=cp1257;
+let $coll='cp1257_general_nopad_ci';
+let $coll_pad='cp1257_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='cp1257_nopad_bin';
+let $coll_pad='cp1257_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=latin5;
+let $coll='latin5_turkish_nopad_ci';
+let $coll_pad='latin5_turkish_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='latin5_nopad_bin';
+let $coll_pad='latin5_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=armscii8;
+let $coll='armscii8_general_nopad_ci';
+let $coll_pad='armscii8_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='armscii8_nopad_bin';
+let $coll_pad='armscii8_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=cp866;
+let $coll='cp866_general_nopad_ci';
+let $coll_pad='cp866_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='cp866_nopad_bin';
+let $coll_pad='cp866_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=keybcs2;
+let $coll='keybcs2_general_nopad_ci';
+let $coll_pad='keybcs2_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='keybcs2_nopad_bin';
+let $coll_pad='keybcs2_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=macce;
+let $coll='macce_general_nopad_ci';
+let $coll_pad='macce_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='macce_nopad_bin';
+let $coll_pad='macce_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=macroman;
+let $coll='macroman_general_nopad_ci';
+let $coll_pad='macroman_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='macroman_nopad_bin';
+let $coll_pad='macroman_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=cp852;
+let $coll='cp852_general_nopad_ci';
+let $coll_pad='cp852_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='cp852_nopad_bin';
+let $coll_pad='cp852_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=latin7;
+let $coll='latin7_general_nopad_ci';
+let $coll_pad='latin7_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='latin7_nopad_bin';
+let $coll_pad='latin7_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=cp1251;
+let $coll='cp1251_general_nopad_ci';
+let $coll_pad='cp1251_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='cp1251_nopad_bin';
+let $coll_pad='cp1251_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=cp1256;
+let $coll='cp1256_general_nopad_ci';
+let $coll_pad='cp1256_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='cp1256_nopad_bin';
+let $coll_pad='cp1256_bin';
+--source include/ctype_pad_all_engines.inc
+
+
+SET character_set_connection=geostd8;
+let $coll='geostd8_general_nopad_ci';
+let $coll_pad='geostd8_general_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='geostd8_nopad_bin';
+let $coll_pad='geostd8_bin';
+--source include/ctype_pad_all_engines.inc
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

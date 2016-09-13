@@ -392,9 +392,9 @@ const LEX_STRING command_name[257]={
   { 0, 0 }, //248
   { 0, 0 }, //249
   { 0, 0 }, //250
-  { 0, 0 }, //251
-  { 0, 0 }, //252
-  { 0, 0 }, //253
+  { C_STRING_WITH_LEN("Slave_worker") }, //251
+  { C_STRING_WITH_LEN("Slave_IO") }, //252
+  { C_STRING_WITH_LEN("Slave_SQL") }, //253
   { C_STRING_WITH_LEN("Com_multi") }, //254
   { C_STRING_WITH_LEN("Error") }  // Last command number 255
 };
@@ -768,6 +768,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_INSERT_SELECT]|=   CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_DELETE]|=          CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_DELETE_MULTI]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_RENAME_TABLE]|=    CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_REPLACE_SELECT]|=  CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_SELECT]|=          CF_PREOPEN_TMP_TABLES;
   sql_command_flags[SQLCOM_SET_OPTION]|=      CF_PREOPEN_TMP_TABLES;
@@ -1081,9 +1082,20 @@ void do_handle_bootstrap(THD *thd)
 end:
   in_bootstrap= FALSE;
   delete thd;
+  if (!opt_bootstrap)
+  {
+    /*
+      We need to wake up main thread in case of read_init_file().
+      This is not done by THD::~THD() when there are other threads running
+      (binlog background thread, for example). So do it here again.
+    */
+    mysql_mutex_lock(&LOCK_thread_count);
+    mysql_cond_broadcast(&COND_thread_count);
+    mysql_mutex_unlock(&LOCK_thread_count);
+  }
 
 #ifndef EMBEDDED_LIBRARY
-  DBUG_ASSERT(thread_count == 0);
+  DBUG_ASSERT(!opt_bootstrap || thread_count == 0);
   my_thread_end();
   pthread_exit(0);
 #endif
@@ -1476,13 +1488,16 @@ uint maria_multi_check(THD *thd, char *packet, uint packet_length)
   DBUG_ENTER("maria_multi_check");
   while (packet_length)
   {
+    char *packet_start= packet;
+    size_t subpacket_length= net_field_length((uchar **)&packet_start);
+    uint length_length= packet_start - packet;
     // length of command + 3 bytes where that length was stored
-    uint subpacket_length= (uint3korr(packet) + 3);
-    DBUG_PRINT("info", ("sub-packet length: %d  command: %x",
-                        subpacket_length, packet[3]));
+    DBUG_PRINT("info", ("sub-packet length: %ld + %d  command: %x",
+                        (ulong)subpacket_length, length_length,
+                        packet_start[3]));
 
-    if (subpacket_length == 3 ||
-        subpacket_length > packet_length)
+    if (subpacket_length == 0 ||
+        (subpacket_length + length_length) > packet_length)
     {
       my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                  MYF(0));
@@ -1490,8 +1505,8 @@ uint maria_multi_check(THD *thd, char *packet, uint packet_length)
     }
 
     counter++;
-    packet+= subpacket_length;
-    packet_length-= subpacket_length;
+    packet= packet_start + subpacket_length;
+    packet_length-= (subpacket_length + length_length);
   }
   DBUG_RETURN(counter);
 }
@@ -2231,8 +2246,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
 
     {
+      char *packet_start= packet;
       /* We have to store next length because it will be destroyed by '\0' */
-      uint next_subpacket_length= uint3korr(packet);
+      size_t next_subpacket_length= net_field_length((uchar **)&packet_start);
+      uint next_length_length= packet_start - packet;
       unsigned char *readbuff= net->buff;
 
       if (net_allocate_new_packet(net, thd, MYF(0)))
@@ -2246,13 +2263,19 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       while (packet_length)
       {
         current_com++;
-        uint subpacket_length= next_subpacket_length + 3;
+        size_t subpacket_length= next_subpacket_length + next_length_length;
+        uint length_length= next_length_length;
         if (subpacket_length < packet_length)
-          next_subpacket_length= uint3korr(packet + subpacket_length);
+        {
+          packet_start= packet + subpacket_length;
+          next_subpacket_length= net_field_length((uchar**)&packet_start);
+          next_length_length= packet_start - (packet + subpacket_length);
+        }
         /* safety like in do_command() */
         packet[subpacket_length]= '\0';
 
-        enum enum_server_command subcommand= fetch_command(thd, (packet + 3));
+        enum enum_server_command subcommand=
+          fetch_command(thd, (packet + length_length));
 
         if (server_command_flags[subcommand] & CF_NO_COM_MULTI)
         {
@@ -2260,8 +2283,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
           goto com_multi_end;
         }
 
-        if (dispatch_command(subcommand, thd, packet + (1 + 3),
-                             subpacket_length - (1 + 3), TRUE,
+        if (dispatch_command(subcommand, thd, packet + (1 + length_length),
+                             subpacket_length - (1 + length_length), TRUE,
                              (current_com != counter)))
         {
           DBUG_ASSERT(thd->is_error());
@@ -3852,6 +3875,12 @@ mysql_execute_command(THD *thd)
         /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
         if (create_info.tmp_table())
           thd->variables.option_bits|= OPTION_KEEP_LOG;
+        /* in case of create temp tables if @@session_track_state_change is
+           ON then send session state notification in OK packet */
+        if(create_info.options & HA_LEX_CREATE_TMP_TABLE)
+        {
+          SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+        }
         my_ok(thd);
       }
     }
@@ -4608,6 +4637,13 @@ end_with_restore_list:
     
     /* DDL and binlog write order are protected by metadata locks. */
     res= mysql_rm_table(thd, first_table, lex->if_exists(), lex->tmp_table());
+
+    /* when dropping temporary tables if @@session_track_state_change is ON then
+       send the boolean tracker in the OK packet */
+    if(!res && (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE))
+    {
+      SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+    }
     break;
   }
   case SQLCOM_SHOW_PROCESSLIST:
@@ -5419,8 +5455,7 @@ end_with_restore_list:
     else
     {
       /* Reset the isolation level and access mode if no chaining transaction.*/
-      thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
-      thd->tx_read_only= thd->variables.tx_read_only;
+      trans_reset_one_shot_chistics(thd);
     }
     /* Disconnect the current client connection. */
     if (tx_release)
@@ -5467,8 +5502,7 @@ end_with_restore_list:
     else
     {
       /* Reset the isolation level and access mode if no chaining transaction.*/
-      thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
-      thd->tx_read_only= thd->variables.tx_read_only;
+      trans_reset_one_shot_chistics(thd);
     }
     /* Disconnect the current client connection. */
     if (tx_release)
@@ -5953,8 +5987,7 @@ end_with_restore_list:
       We've just done a commit, reset transaction
       isolation level and access mode to the session default.
     */
-    thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
-    thd->tx_read_only= thd->variables.tx_read_only;
+    trans_reset_one_shot_chistics(thd);
     my_ok(thd);
     break;
   }
@@ -5972,8 +6005,7 @@ end_with_restore_list:
       We've just done a rollback, reset transaction
       isolation level and access mode to the session default.
     */
-    thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
-    thd->tx_read_only= thd->variables.tx_read_only;
+    trans_reset_one_shot_chistics(thd);
     my_ok(thd);
     break;
   }
@@ -6191,6 +6223,9 @@ finish:
   {
     thd->mdl_context.release_statement_locks();
   }
+
+  TRANSACT_TRACKER(add_trx_state_from_thd(thd));
+
   WSREP_TO_ISOLATION_END;
 
 #ifdef WITH_WSREP
@@ -7209,6 +7244,7 @@ bool check_stack_overrun(THD *thd, long margin,
   if ((stack_used=used_stack(thd->thread_stack,(char*) &stack_used)) >=
       (long) (my_thread_stack_size - margin))
   {
+    thd->is_fatal_error= 1;
     /*
       Do not use stack for the message buffer to ensure correct
       behaviour in cases we have close to no stack left.
@@ -7297,10 +7333,13 @@ void THD::reset_for_next_command()
   /*
     Autoinc variables should be adjusted only for locally executed
     transactions. Appliers and replayers are either processing ROW
-    events or get autoinc variable values from Query_log_event.
+    events or get autoinc variable values from Query_log_event and
+    mysql slave may be processing STATEMENT format events, but he should
+    use autoinc values passed in binlog events, not the values forced by
+    the cluster.
   */
   if (WSREP(thd) && thd->wsrep_exec_mode == LOCAL_STATE &&
-      wsrep_auto_increment_control)
+      !thd->slave_thread && wsrep_auto_increment_control)
   {
     thd->variables.auto_increment_offset=
       global_system_variables.auto_increment_offset;
@@ -7445,22 +7484,30 @@ mysql_new_select(LEX *lex, bool move_down)
       my_error(ER_WRONG_USAGE, MYF(0), "UNION", "INTO");
       DBUG_RETURN(TRUE);
     }
+
+    /*
+      This type of query is not possible in the grammar:
+        SELECT 1 FROM t1 PROCEDURE ANALYSE() UNION ... ;
+
+      But this type of query is still possible:
+        (SELECT 1 FROM t1 PROCEDURE ANALYSE()) UNION ... ;
+      and it's not easy to disallow this grammatically,
+      because there can be any parenthesis nest level:
+        (((SELECT 1 FROM t1 PROCEDURE ANALYSE()))) UNION ... ;
+    */
     if (lex->proc_list.elements!=0)
     {
       my_error(ER_WRONG_USAGE, MYF(0), "UNION",
                "SELECT ... PROCEDURE ANALYSE()");
       DBUG_RETURN(TRUE);
     }
-    if (lex->current_select->order_list.first && !lex->current_select->braces)
-    {
-      my_error(ER_WRONG_USAGE, MYF(0), "UNION", "ORDER BY");
-      DBUG_RETURN(1);
-    }
-    if (lex->current_select->explicit_limit && !lex->current_select->braces)
-    {
-      my_error(ER_WRONG_USAGE, MYF(0), "UNION", "LIMIT");
-      DBUG_RETURN(1);
-    }
+    // SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 -- not possible
+    DBUG_ASSERT(!lex->current_select->order_list.first ||
+                lex->current_select->braces);
+    // SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1;   -- not possible
+    DBUG_ASSERT(!lex->current_select->explicit_limit ||
+                lex->current_select->braces);
+
     select_lex->include_neighbour(lex->current_select);
     SELECT_LEX_UNIT *unit= select_lex->master_unit();                              
     if (!unit->fake_select_lex && unit->add_fake_select_lex(lex->thd))
@@ -7721,10 +7768,9 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
             PROCESSLIST.
           */
           if (found_semicolon && (ulong) (found_semicolon - thd->query()))
-            thd->set_query_inner(thd->query(),
-                                 (uint32) (found_semicolon -
-                                           thd->query() - 1),
-                                 thd->charset());
+            thd->set_query(thd->query(),
+                           (uint32) (found_semicolon - thd->query() - 1),
+                           thd->charset());
           /* Actually execute the query */
           if (found_semicolon)
           {

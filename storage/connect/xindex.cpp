@@ -1198,7 +1198,7 @@ bool XINDEX::MapInit(PGLOBAL g)
   const char *ftype;
   BYTE   *mbase;
   char    fn[_MAX_PATH];
-  int    *nv, k, n, id = -1;
+  int    *nv, nv0, k, n, id = -1;
   bool    estim;
   PCOL    colp;
   PXCOL   prev = NULL, kcp = NULL;
@@ -1288,25 +1288,26 @@ bool XINDEX::MapInit(PGLOBAL g)
   if (nv[0] >= MAX_INDX) {
     // New index format
     Srtd = nv[7] != 0;
-    nv[0] -= MAX_INDX;
+    nv0 = nv[0] - MAX_INDX;
     mbase += NZ * sizeof(int);
   } else {
     Srtd = false;
     mbase += (NZ - 1) * sizeof(int);
+		nv0 = nv[0];
   } // endif nv
 
   if (trace)
     htrc("nv=%d %d %d %d %d %d %d %d\n",
-          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6], Srtd);
+          nv0, nv[1], nv[2], nv[3], nv[4], nv[5], nv[6], Srtd);
 
   // The test on ID was suppressed because MariaDB can change an index ID
   // when other indexes are added or deleted
-  if (/*nv[0] != ID ||*/ nv[1] != Nk) {
+  if (/*nv0 != ID ||*/ nv[1] != Nk) {
     // Not this index
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
 
     if (trace)
-      htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
+      htrc("nv0=%d ID=%d nv[1]=%d Nk=%d\n", nv0, ID, nv[1], Nk);
 
     goto err;
     } // endif nv

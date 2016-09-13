@@ -37,6 +37,22 @@ static wsrep_log_cb_t logger = default_logger;
  * Library loader
  **************************************************************************/
 
+static int wsrep_check_iface_version(const char* found, const char* iface_ver)
+{
+    const size_t msg_len = 128;
+    char msg[128];
+
+    if (strcmp(found, iface_ver)) {
+        snprintf (msg, msg_len,
+                  "provider interface version mismatch: need '%s', found '%s'",
+                  iface_ver, found);
+        logger (WSREP_LOG_ERROR, msg);
+        return EINVAL;
+    }
+
+    return 0;
+}
+
 static int verify(const wsrep_t *wh, const char *iface_ver)
 {
     char msg[128];
@@ -50,13 +66,8 @@ static int verify(const wsrep_t *wh, const char *iface_ver)
     VERIFY(wh);
     VERIFY(wh->version);
 
-    if (strcmp(wh->version, iface_ver)) {
-        snprintf (msg, sizeof(msg),
-                  "provider interface version mismatch: need '%s', found '%s'",
-                  iface_ver, wh->version);
-        logger (WSREP_LOG_ERROR, msg);
+    if (wsrep_check_iface_version(wh->version, iface_ver))
         return EINVAL;
-    }
 
     VERIFY(wh->init);
     VERIFY(wh->options_set);
@@ -107,6 +118,15 @@ static wsrep_loader_fun wsrep_dlf(void *dlh, const char *sym)
     return alias.dlfun;
 }
 
+static int wsrep_check_version_symbol(void *dlh)
+{
+    char** dlversion = NULL;
+    dlversion = (char**) dlsym(dlh, "wsrep_interface_version");
+    if (dlversion == NULL)
+        return 0;
+    return wsrep_check_iface_version(*dlversion, WSREP_INTERFACE_VERSION);
+}
+
 extern int wsrep_dummy_loader(wsrep_t *w);
 
 int wsrep_load(const char *spec, wsrep_t **hptr, wsrep_log_cb_t log_cb)
@@ -148,6 +168,11 @@ int wsrep_load(const char *spec, wsrep_t **hptr, wsrep_log_cb_t log_cb)
     }
 
     if (!(dlfun = wsrep_dlf(dlh, "wsrep_loader"))) {
+        ret = EINVAL;
+        goto out;
+    }
+
+    if (wsrep_check_version_symbol(dlh) != 0) {
         ret = EINVAL;
         goto out;
     }

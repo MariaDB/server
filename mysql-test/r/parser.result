@@ -1239,3 +1239,44 @@ a
 20
 1
 DROP TABLE t1;
+#
+# MDEV-10779 Failing assertion lex->proc_list.elements == 0 or syntax error on PROCEDURE ANALYSE in UNION
+#
+CREATE TABLE t1 (i INT);
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10));
+ERROR HY000: Incorrect usage of UNION and SELECT ... PROCEDURE ANALYSE()
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10);
+ERROR HY000: Incorrect usage of UNION and SELECT ... PROCEDURE ANALYSE()
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+(SELECT 1);
+ERROR HY000: Incorrect usage of UNION and SELECT ... PROCEDURE ANALYSE()
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+SELECT 1;
+ERROR HY000: Incorrect usage of UNION and SELECT ... PROCEDURE ANALYSE()
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))' at line 2
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)' at line 2
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+(SELECT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+(SELECT 1)' at line 2
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+SELECT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+SELECT 1' at line 2
+DROP TABLE t1;

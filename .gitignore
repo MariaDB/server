@@ -198,6 +198,7 @@ storage/tokudb/PerconaFT/tools/tokudb_load
 storage/tokudb/PerconaFT/tools/tokuftdump
 storage/tokudb/PerconaFT/tools/tokuft_logprint
 storage/tokudb/PerconaFT/xz/
+strings/conf_to_src
 support-files/MySQL-shared-compat.spec
 support-files/binary-configure
 support-files/config.huge.ini

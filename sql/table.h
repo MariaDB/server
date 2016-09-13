@@ -681,10 +681,10 @@ struct TABLE_SHARE
   bool can_cmp_whole_record;
   bool table_creation_was_logged;
   bool non_determinstic_insert;
+  bool vcols_need_refixing;
   bool virtual_stored_fields;
   bool check_set_initialized;
   bool has_update_default_function;
-  bool has_insert_default_function;
   ulong table_map_id;                   /* for row-based replication */
 
   /*
@@ -1310,18 +1310,6 @@ public:
   void mark_columns_used_by_check_constraints(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
-  /**
-     Check if a table has a default function either for INSERT or UPDATE-like
-     operation
-     @retval true  there is a default function
-     @retval false there is no default function
-  */
-  inline bool has_default_function(bool is_update)
-  {
-    return (is_update ?
-            s->has_update_default_function :
-            s->has_insert_default_function);
-  }
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)
   {
@@ -1441,6 +1429,8 @@ public:
 
   inline Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
+
+  bool insert_all_rows_into(THD *thd, TABLE *dest, bool with_cleanup);
 };
 
 
@@ -1893,7 +1883,10 @@ struct TABLE_LIST
      derived tables. Use TABLE_LIST::is_anonymous_derived_table().
   */
   st_select_lex_unit *derived;		/* SELECT_LEX_UNIT of derived table */
-  With_element *with;                   /* With element of with_table */
+  With_element *with;          /* With element defining this table (if any) */
+  /* Bitmap of the defining with element */
+  table_map with_internal_reference_map; 
+  bool block_handle_derived;
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;
   /*
@@ -2263,6 +2256,10 @@ struct TABLE_LIST
     return (derived_type & DTYPE_TABLE);
   }
   bool is_with_table();
+  bool is_recursive_with_table();
+  bool is_with_table_recursive_reference();
+  bool fill_recursive(THD *thd);
+
   inline void set_view()
   {
     derived_type= DTYPE_VIEW;
@@ -2347,6 +2344,8 @@ struct TABLE_LIST
     return false;
   } 
   void set_lock_type(THD* thd, enum thr_lock_type lock);
+  void check_pushable_cond_for_table(Item *cond);
+  Item *build_pushable_cond_for_table(THD *thd, Item *cond); 
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
@@ -2631,6 +2630,9 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        const char *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
                        bool is_create_table);
+bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
+bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
+                                    Virtual_column_info *vcol);
 Virtual_column_info *unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
                                                TABLE *table,
                                                Field *field,

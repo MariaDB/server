@@ -23,3 +23,7 @@ SELECT COUNT(*) = 0 FROM t1;
 
 DROP TABLE t1;
 
+CALL mtr.add_suppression("Maximum writeset size exceeded by");
+CALL mtr.add_suppression("transaction size limit");
+CALL mtr.add_suppression("transaction size exceeded");
+CALL mtr.add_suppression("rbr write fail");

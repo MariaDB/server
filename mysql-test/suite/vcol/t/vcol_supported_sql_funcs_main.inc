@@ -1179,3 +1179,33 @@ let $values1 = 'a',default;
 let $rows = 1;
 --source suite/vcol/inc/vcol_supported_sql_funcs.inc
 
+--echo # MONTHNAME()
+let $cols = a date, b varchar(100) as (monthname(a));
+let $values1 = '2010-10-10',default;
+let $rows = 1;
+--source suite/vcol/inc/vcol_supported_sql_funcs.inc
+
+--echo # DAYNAME()
+let $cols = a date, b varchar(100) as (dayname(a));
+let $values1 = '2011-11-11',default;
+let $rows = 1;
+--source suite/vcol/inc/vcol_supported_sql_funcs.inc
+
+--echo # DATE_FORMAT()
+let $cols = a date, b varchar(100) as (date_format(a, '%W %a %M %b'));
+let $values1 = '2012-12-12',default;
+let $rows = 1;
+--source suite/vcol/inc/vcol_supported_sql_funcs.inc
+
+--echo # CURRENT_USER()
+let $cols = a char, b varchar(32) as (current_user());
+let $values1 = 'a', default;
+let $rows = 1;
+--source suite/vcol/inc/vcol_supported_sql_funcs.inc
+
+--echo # TIME_FORMAT()
+let $cols = a datetime, b varchar(10) as (time_format(a,"%d.%m.%Y"));
+let $values1 = '2001-01-01 02:02:02',default;
+let $rows = 1;
+--source suite/vcol/inc/vcol_supported_sql_funcs.inc
+

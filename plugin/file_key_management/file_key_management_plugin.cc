@@ -192,6 +192,6 @@ maria_declare_plugin(file_key_management)
   NULL,	/* status variables */
   settings,
   "1.0",
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;

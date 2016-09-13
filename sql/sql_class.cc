@@ -870,7 +870,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    is_fatal_sub_stmt_error(false),
    rand_used(0),
    time_zone_used(0),
-   in_lock_tables(0), in_stored_expression(0),
+   in_lock_tables(0),
    bootstrap(0),
    derived_tables_processing(FALSE),
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
@@ -1018,6 +1018,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   wsrep_TOI_pre_query_len = 0;
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
+  wsrep_affected_rows     = 0;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1448,6 +1449,7 @@ void THD::init(void)
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
+  wsrep_affected_rows     = 0;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -1465,6 +1467,11 @@ void THD::init(void)
   /* Initialize the Debug Sync Facility. See debug_sync.cc. */
   debug_sync_init_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
+
+#ifndef EMBEDDED_LIBRARY
+  session_tracker.enable(this);
+#endif //EMBEDDED_LIBRARY
+
   apc_target.init(&LOCK_thd_data);
   DBUG_VOID_RETURN;
 }
@@ -1661,7 +1668,9 @@ void THD::free_connection()
   /* close all prepared statements, to save memory */
   stmt_map.reset();
   free_connection_done= 1;
+#if defined(ENABLED_PROFILING)
   profiling.restart();                          // Reset profiling
+#endif
 }
 
 /*
@@ -1686,7 +1695,9 @@ void THD::reset_for_reuse()
   abort_on_warning= 0;
   free_connection_done= 0;
   m_command= COM_CONNECT;
+#if defined(ENABLED_PROFILING)
   profiling.reset();
+#endif
 #ifdef SIGNAL_WITH_VIO_CLOSE
   active_vio = 0;
 #endif
@@ -1759,6 +1770,12 @@ THD::~THD()
     lf_hash_put_pins(xid_hash_pins);
   /* Ensure everything is freed */
   status_var.local_memory_used-= sizeof(THD);
+
+  /* trick to make happy memory accounting system */
+#ifndef EMBEDDED_LIBRARY
+  session_tracker.deinit();
+#endif //EMBEDDED_LIBRARY
+
   if (status_var.local_memory_used != 0)
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
@@ -2296,6 +2313,8 @@ void THD::cleanup_after_query()
 
 #ifdef WITH_WSREP
   wsrep_sync_wait_gtid= WSREP_GTID_UNDEFINED;
+  if (!in_active_multi_stmt_transaction())
+    wsrep_affected_rows= 0;
 #endif /* WITH_WSREP */
 
   DBUG_VOID_RETURN;
@@ -2334,7 +2353,7 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
   to->length= copy_and_convert((char*) to->str, new_length, to_cs,
 			       from, from_length, from_cs, &errors);
   to->str[to->length]= 0;                       // Safety
-  if (errors && in_stored_expression)
+  if (errors && lex->parse_vcol_expr)
   {
     my_error(ER_BAD_DATA, MYF(0),
              ErrConvString(from, from_length, from_cs).ptr(),
@@ -4665,10 +4684,85 @@ thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd)
     cause replication to rollback (and later re-try) the other transaction,
     releasing the lock for this transaction so replication can proceed.
   */
-  other_rgi->killed_for_retry= true;
+  other_rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
   mysql_mutex_lock(&other_thd->LOCK_thd_data);
   other_thd->awake(KILL_CONNECTION);
   mysql_mutex_unlock(&other_thd->LOCK_thd_data);
+}
+
+/*
+  Used by storage engines (currently TokuDB) to report that one transaction
+  THD is about to go to wait for a transactional lock held by another
+  transactions OTHER_THD.
+
+  This is used for parallel replication, where transactions are required to
+  commit in the same order on the slave as they did on the master. If the
+  transactions on the slave encounter lock conflicts on the slave that did not
+  exist on the master, this can cause deadlocks. This is primarily used in
+  optimistic (and aggressive) modes.
+
+  Normally, such conflicts will not occur in conservative mode, because the
+  same conflict would have prevented the two transactions from committing in
+  parallel on the master, thus preventing them from running in parallel on the
+  slave in the first place. However, it is possible in case when the optimizer
+  chooses a different plan on the slave than on the master (eg. table scan
+  instead of index scan).
+
+  InnoDB/XtraDB reports lock waits using this call. If a lock wait causes a
+  deadlock with the pre-determined commit order, we kill the later transaction,
+  and later re-try it, to resolve the deadlock.
+
+  This call need only receive reports about waits for locks that will remain
+  until the holding transaction commits. InnoDB/XtraDB auto-increment locks,
+  for example, are released earlier, and so need not be reported. (Such false
+  positives are not harmful, but could lead to unnecessary kill and retry, so
+  best avoided).
+
+  Returns 1 if the OTHER_THD will be killed to resolve deadlock, 0 if not. The
+  actual kill will happen later, asynchronously from another thread. The
+  caller does not need to take any actions on the return value if the
+  handlerton kill_query method is implemented to abort the to-be-killed
+  transaction.
+*/
+extern "C" int
+thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
+{
+  rpl_group_info *rgi;
+  rpl_group_info *other_rgi;
+
+  if (!thd)
+    return 0;
+  DEBUG_SYNC(thd, "thd_report_wait_for");
+  thd->transaction.stmt.mark_trans_did_wait();
+  if (!other_thd)
+    return 0;
+  binlog_report_wait_for(thd, other_thd);
+  rgi= thd->rgi_slave;
+  other_rgi= other_thd->rgi_slave;
+  if (!rgi || !other_rgi)
+    return 0;
+  if (!rgi->is_parallel_exec)
+    return 0;
+  if (rgi->rli != other_rgi->rli)
+    return 0;
+  if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id)
+    return 0;
+  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
+    return 0;
+  if (rgi->gtid_sub_id > other_rgi->gtid_sub_id)
+    return 0;
+  /*
+    This transaction is about to wait for another transaction that is required
+    by replication binlog order to commit after. This would cause a deadlock.
+
+    So send a kill to the other transaction, with a temporary error; this will
+    cause replication to rollback (and later re-try) the other transaction,
+    releasing the lock for this transaction so replication can proceed.
+  */
+#ifdef HAVE_REPLICATION
+  slave_background_kill_request(other_thd);
+#endif
+  return 1;
 }
 
 /*
@@ -5267,7 +5361,11 @@ void THD::get_definer(LEX_USER *definer, bool role)
 {
   binlog_invoker(role);
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+#ifdef WITH_WSREP
+  if ((wsrep_applier || slave_thread) && has_invoker())
+#else
   if (slave_thread && has_invoker())
+#endif
   {
     definer->user = invoker_user;
     definer->host= invoker_host;

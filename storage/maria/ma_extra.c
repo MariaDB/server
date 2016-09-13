@@ -316,10 +316,10 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     /* Fall trough */
   case HA_EXTRA_PREPARE_FOR_RENAME:
   {
-    DBUG_ASSERT(!share->temporary);
     my_bool do_flush= MY_TEST(function != HA_EXTRA_PREPARE_FOR_DROP);
     my_bool save_global_changed;
     enum flush_type type;
+    DBUG_ASSERT(!share->temporary);
     /*
       This share, to have last_version=0, needs to save all its data/index
       blocks to disk if this is not for a DROP TABLE. Otherwise they would be

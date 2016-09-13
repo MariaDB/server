@@ -302,7 +302,7 @@ MATCH a,b AGAINST ('support') ;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `id` int(10) unsigned NOT NULL DEFAULT '0'
+  `id` int(10) unsigned NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SELECT id FROM t2;
 id
@@ -314,7 +314,7 @@ MATCH a,b AGAINST("+support +collections" IN BOOLEAN MODE);
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `id` int(10) unsigned NOT NULL DEFAULT '0'
+  `id` int(10) unsigned NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SELECT id FROM t2;
 id
@@ -325,7 +325,7 @@ MATCH a,b AGAINST ('"proximity search"@10' IN BOOLEAN MODE);
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `id` int(10) unsigned NOT NULL DEFAULT '0'
+  `id` int(10) unsigned NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SELECT id FROM t2;
 id

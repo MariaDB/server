@@ -226,6 +226,7 @@
 #define OPTIMIZER_SWITCH_EXTENDED_KEYS             (1ULL << 27)
 #define OPTIMIZER_SWITCH_EXISTS_TO_IN              (1ULL << 28)
 #define OPTIMIZER_SWITCH_ORDERBY_EQ_PROP           (1ULL << 29)
+#define OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED (1ULL << 30)
 
 #define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                     OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
@@ -249,7 +250,8 @@
                                     OPTIMIZER_SWITCH_SEMIJOIN | \
                                     OPTIMIZER_SWITCH_FIRSTMATCH | \
                                     OPTIMIZER_SWITCH_LOOSE_SCAN | \
-                                    OPTIMIZER_SWITCH_EXISTS_TO_IN)
+                                    OPTIMIZER_SWITCH_EXISTS_TO_IN | \
+                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED)
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
   use strictly more than 64 bits by adding one more define above, you should

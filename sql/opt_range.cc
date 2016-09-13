@@ -2428,8 +2428,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     scan_time= read_time= DBL_MAX;
   if (limit < records)
     read_time= (double) records + scan_time + 1; // Force to use index
-  else if (read_time <= 2.0 && !force_quick_range)
-    DBUG_RETURN(0);				/* No need for quick select */
   
   possible_keys.clear_all();
 
@@ -2698,7 +2696,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     thd->mem_root= param.old_root;
     thd->no_errors=0;
   }
-
 
   DBUG_EXECUTE("info", print_quick(quick, &needed_reg););
 
@@ -10377,8 +10374,10 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
       KEY *table_key=quick->head->key_info+quick->index;
       flag=EQ_RANGE;
       if ((table_key->flags & HA_NOSAME) &&
+          min_part == key_tree->part &&
           key_tree->part == table_key->user_defined_key_parts-1)
       {
+        DBUG_ASSERT(min_part == max_part);
         if ((table_key->flags & HA_NULL_PART_KEY) &&
             null_part_in_key(key,
                              param->min_key,
@@ -11904,8 +11903,6 @@ void QUICK_ROR_UNION_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
 *******************************************************************************/
 
 static inline uint get_field_keypart(KEY *index, Field *field);
-static inline SEL_ARG * get_index_range_tree(uint index, SEL_TREE* range_tree,
-                                             PARAM *param, uint *param_idx);
 static bool get_sel_arg_for_keypart(Field *field, SEL_ARG *index_range_tree,
                                     SEL_ARG **cur_range);
 static bool get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
@@ -12179,8 +12176,6 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     (GA1,GA2) are all TRUE. If there is more than one such index, select the
     first one. Here we set the variables: group_prefix_len and index_info.
   */
-  KEY *cur_index_info= table->key_info;
-  KEY *cur_index_info_end= cur_index_info + table->s->keys;
   /* Cost-related variables for the best index so far. */
   double best_read_cost= DBL_MAX;
   ha_rows best_records= 0;
@@ -12192,11 +12187,12 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   uint max_key_part;  
   SEL_ARG *cur_index_tree= NULL;
   ha_rows cur_quick_prefix_records= 0;
-  uint cur_param_idx=MAX_KEY;
 
-  for (uint cur_index= 0 ; cur_index_info != cur_index_info_end ;
-       cur_index_info++, cur_index++)
+  // We go through allowed indexes
+  for (uint cur_param_idx= 0; cur_param_idx < param->keys ; ++cur_param_idx)
   {
+    const uint cur_index= param->real_keynr[cur_param_idx];
+    KEY *const cur_index_info= &table->key_info[cur_index];
     KEY_PART_INFO *cur_part;
     KEY_PART_INFO *end_part; /* Last part for loops. */
     /* Last index part. */
@@ -12219,7 +12215,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       (was also: "Exclude UNIQUE indexes ..." but this was removed because 
       there are cases Loose Scan over a multi-part index is useful).
     */
-    if (!table->covering_keys.is_set(cur_index))
+    if (!table->covering_keys.is_set(cur_index) ||
+        !table->keys_in_use_for_group_by.is_set(cur_index))
       continue;
     
     /*
@@ -12398,9 +12395,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     {
       if (tree)
       {
-        uint dummy;
-        SEL_ARG *index_range_tree= get_index_range_tree(cur_index, tree, param,
-                                                        &dummy);
+        SEL_ARG *index_range_tree= tree->keys[cur_param_idx];
         if (!get_constant_key_infix(cur_index_info, index_range_tree,
                                     first_non_group_part, min_max_arg_part,
                                     last_part, thd, cur_key_infix, 
@@ -12464,9 +12459,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     */
     if (tree && min_max_arg_item)
     {
-      uint dummy;
-      SEL_ARG *index_range_tree= get_index_range_tree(cur_index, tree, param,
-                                                      &dummy);
+      SEL_ARG *index_range_tree= tree->keys[cur_param_idx];
       SEL_ARG *cur_range= NULL;
       if (get_sel_arg_for_keypart(min_max_arg_part->field,
                                   index_range_tree, &cur_range) ||
@@ -12484,9 +12477,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     /* Compute the cost of using this index. */
     if (tree)
     {
-      /* Find the SEL_ARG sub-tree that corresponds to the chosen index. */
-      cur_index_tree= get_index_range_tree(cur_index, tree, param,
-                                           &cur_param_idx);
+      cur_index_tree= tree->keys[cur_param_idx];
       /* Check if this range tree can be used for prefix retrieval. */
       Cost_estimate dummy_cost;
       uint mrr_flags= HA_MRR_USE_DEFAULT_IMPL;
@@ -13016,44 +13007,6 @@ get_field_keypart(KEY *index, Field *field)
       return part - index->key_part + 1;
   }
   return 0;
-}
-
-
-/*
-  Find the SEL_ARG sub-tree that corresponds to the chosen index.
-
-  SYNOPSIS
-    get_index_range_tree()
-    index     [in]  The ID of the index being looked for
-    range_tree[in]  Tree of ranges being searched
-    param     [in]  PARAM from SQL_SELECT::test_quick_select
-    param_idx [out] Index in the array PARAM::key that corresponds to 'index'
-
-  DESCRIPTION
-
-    A SEL_TREE contains range trees for all usable indexes. This procedure
-    finds the SEL_ARG sub-tree for 'index'. The members of a SEL_TREE are
-    ordered in the same way as the members of PARAM::key, thus we first find
-    the corresponding index in the array PARAM::key. This index is returned
-    through the variable param_idx, to be used later as argument of
-    check_quick_select().
-
-  RETURN
-    Pointer to the SEL_ARG subtree that corresponds to index.
-*/
-
-SEL_ARG * get_index_range_tree(uint index, SEL_TREE* range_tree, PARAM *param,
-                               uint *param_idx)
-{
-  uint idx= 0; /* Index nr in param->key_parts */
-  while (idx < param->keys)
-  {
-    if (index == param->real_keynr[idx])
-      break;
-    idx++;
-  }
-  *param_idx= idx;
-  return(range_tree->keys[idx]);
 }
 
 

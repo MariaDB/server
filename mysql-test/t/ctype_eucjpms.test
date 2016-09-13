@@ -568,7 +568,7 @@ DROP TABLE t1;
 --echo #
 
 --echo #
---echo # End of 10.2 tests
+--echo # Start of 10.2 tests
 --echo #
 
 --echo #
@@ -578,6 +578,18 @@ CREATE TABLE t1 (a TEXT CHARACTER SET eucjpms);
 LOAD DATA INFILE '../../std_data/loaddata/mdev9823.ujis.txt' INTO TABLE t1 CHARACTER SET eucjpms IGNORE 4 LINES;
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+SET character_set_connection=eucjpms;
+let $coll='eucjpms_japanese_nopad_ci';
+let $coll_pad='eucjpms_japanese_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='eucjpms_nopad_bin';
+let $coll_pad='eucjpms_bin';
+--source include/ctype_pad_all_engines.inc
 
 --echo #
 --echo # End of 10.2 tests

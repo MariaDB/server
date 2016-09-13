@@ -77,8 +77,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -557,8 +557,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -1053,8 +1053,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -1566,8 +1566,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -2061,8 +2061,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -2566,8 +2566,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -3096,8 +3096,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -3606,8 +3606,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -4110,8 +4110,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -4590,8 +4590,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -5086,8 +5086,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -5599,8 +5599,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -6094,8 +6094,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -6597,8 +6597,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -7127,8 +7127,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -7637,8 +7637,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
@@ -8145,8 +8145,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -8678,8 +8678,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -9227,8 +9227,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -9793,8 +9793,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -10341,8 +10341,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -10899,8 +10899,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -11482,8 +11482,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -12045,8 +12045,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -12606,8 +12606,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -13139,8 +13139,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -13688,8 +13688,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -14254,8 +14254,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -14802,8 +14802,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -15358,8 +15358,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -15941,8 +15941,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -16504,8 +16504,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -17061,8 +17061,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -17587,8 +17587,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -18131,8 +18131,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -18684,8 +18684,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -19222,8 +19222,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -19773,8 +19773,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,
@@ -20316,8 +20316,8 @@ create_command
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f_int1` int(11) DEFAULT '0',
-  `f_int2` int(11) DEFAULT '0',
+  `f_int1` int(11) DEFAULT 0,
+  `f_int2` int(11) DEFAULT 0,
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL,

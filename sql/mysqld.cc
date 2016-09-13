@@ -383,7 +383,7 @@ static bool binlog_format_used= false;
 LEX_STRING opt_init_connect, opt_init_slave;
 mysql_cond_t COND_thread_cache;
 static mysql_cond_t COND_flush_thread_cache;
-mysql_cond_t COND_slave_init;
+mysql_cond_t COND_slave_background;
 static DYNAMIC_ARRAY all_options;
 
 /* Global variables */
@@ -400,7 +400,6 @@ bool opt_error_log= IF_WIN(1,0);
 bool opt_disable_networking=0, opt_skip_show_db=0;
 bool opt_skip_name_resolve=0;
 my_bool opt_character_set_client_handshake= 1;
-bool server_id_supplied = 0;
 bool opt_endinfo, using_udf_functions;
 my_bool locked_in_memory;
 bool opt_using_transactions;
@@ -530,7 +529,7 @@ ulong extra_max_connections;
 uint max_digest_length= 0;
 ulong slave_retried_transactions;
 ulonglong slave_skipped_errors;
-ulong feature_files_opened_with_delayed_keys;
+ulong feature_files_opened_with_delayed_keys= 0, feature_check_constraint= 0;
 ulonglong denied_connections;
 my_decimal decimal_zero;
 
@@ -691,6 +690,14 @@ THD *next_global_thread(THD *thd)
 }
 
 struct system_variables global_system_variables;
+/**
+  Following is just for options parsing, used with a difference against
+  global_system_variables.
+
+  TODO: something should be done to get rid of following variables
+*/
+const char *current_dbug_option="";
+
 struct system_variables max_system_variables;
 struct system_status_var global_status_var;
 
@@ -747,7 +754,7 @@ mysql_mutex_t
   LOCK_crypt,
   LOCK_global_system_variables,
   LOCK_user_conn, LOCK_slave_list, LOCK_active_mi,
-  LOCK_connection_count, LOCK_error_messages, LOCK_slave_init;
+  LOCK_connection_count, LOCK_error_messages, LOCK_slave_background;
 
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
@@ -930,7 +937,7 @@ PSI_mutex_key key_LOCK_gtid_waiting;
 
 PSI_mutex_key key_LOCK_after_binlog_sync;
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
-  key_LOCK_slave_init;
+  key_LOCK_slave_background;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
 
 static PSI_mutex_info all_server_mutexes[]=
@@ -996,7 +1003,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_after_binlog_sync, "LOCK_after_binlog_sync", PSI_FLAG_GLOBAL},
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
-  { &key_LOCK_slave_init, "LOCK_slave_init", PSI_FLAG_GLOBAL},
+  { &key_LOCK_slave_background, "LOCK_slave_background", PSI_FLAG_GLOBAL},
   { &key_LOG_INFO_lock, "LOG_INFO::lock", 0},
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
@@ -1053,7 +1060,7 @@ PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
-  key_COND_prepare_ordered, key_COND_slave_init;
+  key_COND_prepare_ordered, key_COND_slave_background;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
 static PSI_cond_info all_server_conds[]=
@@ -1103,7 +1110,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
   { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
-  { &key_COND_slave_init, "COND_slave_init", 0},
+  { &key_COND_slave_background, "COND_slave_background", 0},
   { &key_COND_start_thread, "COND_start_thread", PSI_FLAG_GLOBAL},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
   { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0}
@@ -1112,7 +1119,7 @@ static PSI_cond_info all_server_conds[]=
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
-  key_thread_slave_init, key_rpl_parallel_thread;
+  key_thread_slave_background, key_rpl_parallel_thread;
 
 static PSI_thread_info all_server_threads[]=
 {
@@ -1138,7 +1145,7 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_main, "main", PSI_FLAG_GLOBAL},
   { &key_thread_one_connection, "one_connection", 0},
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
-  { &key_thread_slave_init, "slave_init", PSI_FLAG_GLOBAL},
+  { &key_thread_slave_background, "slave_background", PSI_FLAG_GLOBAL},
   { &key_rpl_parallel_thread, "rpl_parallel_thread", 0}
 };
 
@@ -1464,7 +1471,6 @@ my_bool plugins_are_initialized= FALSE;
 #ifndef DBUG_OFF
 static const char* default_dbug_option;
 #endif
-const char *current_dbug_option="";
 #ifdef HAVE_LIBWRAP
 const char *libwrapName= NULL;
 int allow_severity = LOG_INFO;
@@ -2345,8 +2351,8 @@ static void clean_up_mutexes()
   mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_after_binlog_sync);
   mysql_mutex_destroy(&LOCK_commit_ordered);
-  mysql_mutex_destroy(&LOCK_slave_init);
-  mysql_cond_destroy(&COND_slave_init);
+  mysql_mutex_destroy(&LOCK_slave_background);
+  mysql_cond_destroy(&COND_slave_background);
   DBUG_VOID_RETURN;
 }
 
@@ -2755,26 +2761,17 @@ static void network_init(void)
     saPipeSecurity.lpSecurityDescriptor = &sdPipeDescriptor;
     saPipeSecurity.bInheritHandle = FALSE;
     if ((hPipe= CreateNamedPipe(pipe_name,
-				PIPE_ACCESS_DUPLEX|FILE_FLAG_OVERLAPPED,
-				PIPE_TYPE_BYTE |
-				PIPE_READMODE_BYTE |
-				PIPE_WAIT,
-				PIPE_UNLIMITED_INSTANCES,
-				(int) global_system_variables.net_buffer_length,
-				(int) global_system_variables.net_buffer_length,
-				NMPWAIT_USE_DEFAULT_WAIT,
-				&saPipeSecurity)) == INVALID_HANDLE_VALUE)
-      {
-	LPVOID lpMsgBuf;
-	int error=GetLastError();
-	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-		      FORMAT_MESSAGE_FROM_SYSTEM,
-		      NULL, error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		      (LPTSTR) &lpMsgBuf, 0, NULL );
-	sql_perror((char *)lpMsgBuf);
-	LocalFree(lpMsgBuf);
-	unireg_abort(1);
-      }
+        PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED | FILE_FLAG_FIRST_PIPE_INSTANCE,
+        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+        PIPE_UNLIMITED_INSTANCES,
+        (int) global_system_variables.net_buffer_length,
+        (int) global_system_variables.net_buffer_length,
+        NMPWAIT_USE_DEFAULT_WAIT,
+        &saPipeSecurity)) == INVALID_HANDLE_VALUE)
+    {
+      sql_perror("Create named pipe failed");
+      unireg_abort(1);
+    }
   }
 #endif
 
@@ -4334,11 +4331,23 @@ static int init_common_variables()
 
   if (get_options(&remaining_argc, &remaining_argv))
     return 1;
-  set_server_version();
+  if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
+    set_server_version(server_version, sizeof(server_version));
 
   if (!opt_abort)
-    sql_print_information("%s (mysqld %s) starting as process %lu ...",
-                          my_progname, server_version, (ulong) getpid());
+  {
+    if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
+      sql_print_information("%s (mysqld %s) starting as process %lu ...",
+                            my_progname, server_version, (ulong) getpid());
+    else
+    {
+      char real_server_version[SERVER_VERSION_LENGTH];
+      set_server_version(real_server_version, sizeof(real_server_version));
+      sql_print_information("%s (mysqld %s as %s) starting as process %lu ...",
+                            my_progname, real_server_version, server_version,
+                            (ulong) getpid());
+    }
+  }
 
 #ifndef EMBEDDED_LIBRARY
   if (opt_abort && !opt_verbose)
@@ -4729,9 +4738,9 @@ static int init_thread_environment()
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
-  mysql_mutex_init(key_LOCK_slave_init, &LOCK_slave_init,
+  mysql_mutex_init(key_LOCK_slave_background, &LOCK_slave_background,
                    MY_MUTEX_INIT_SLOW);
-  mysql_cond_init(key_COND_slave_init, &COND_slave_init, NULL);
+  mysql_cond_init(key_COND_slave_background, &COND_slave_background, NULL);
 
 #ifdef HAVE_OPENSSL
   mysql_mutex_init(key_LOCK_des_key_file,
@@ -5278,6 +5287,17 @@ static int init_server_components()
     unireg_abort(1);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
+
+#ifndef EMBEDDED_LIBRARY
+  {
+    if (Session_tracker::server_boot_verify(system_charset_info))
+    {
+      sql_print_error("The variable session_track_system_variables has "
+		      "invalid values.");
+      unireg_abort(1);
+    }
+  }
+#endif //EMBEDDED_LIBRARY
 
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)
@@ -5830,17 +5850,6 @@ int mysqld_main(int argc, char **argv)
 
   if (WSREP_ON && wsrep_check_opts())
     global_system_variables.wsrep_on= 0;
-
-  if (opt_bin_log && !global_system_variables.server_id)
-  {
-    SYSVAR_AUTOSIZE(global_system_variables.server_id, ::server_id= 1);
-#ifdef EXTRA_DEBUG
-    sql_print_warning("You have enabled the binary log, but you haven't set "
-                      "server-id to a non-zero value: we force server id to 1; "
-                      "updates will be logged to the binary log, but "
-                      "connections from slaves will not be accepted.");
-#endif
-  }
 
   /* 
    The subsequent calls may take a long time : e.g. innodb log read.
@@ -7753,7 +7762,10 @@ static int show_slaves_running(THD *thd, SHOW_VAR *var, char *buff)
   var->value= buff;
   mysql_mutex_lock(&LOCK_active_mi);
 
-  *((longlong *)buff)= master_info_index->any_slave_sql_running();
+  if (master_info_index)
+    *((longlong *)buff)= master_info_index->any_slave_sql_running();
+  else
+    *((longlong *)buff)= 0;
 
   mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
@@ -8387,9 +8399,11 @@ SHOW_VAR status_vars[]= {
   {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_LONG},
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
   {"Delayed_writes",           (char*) &delayed_insert_writes,  SHOW_LONG},
+  {"Delete_scan",	       (char*) offsetof(STATUS_VAR, delete_scan_count), SHOW_LONG_STATUS},
   {"Empty_queries",            (char*) offsetof(STATUS_VAR, empty_queries), SHOW_LONG_STATUS},
   {"Executed_events",          (char*) &executed_events, SHOW_LONG_NOFLUSH },
   {"Executed_triggers",        (char*) offsetof(STATUS_VAR, executed_triggers), SHOW_LONG_STATUS},
+  {"Feature_check_constraint", (char*) &feature_check_constraint, SHOW_LONG },
   {"Feature_delay_key_write",  (char*) &feature_files_opened_with_delayed_keys, SHOW_LONG },
   {"Feature_dynamic_columns",  (char*) offsetof(STATUS_VAR, feature_dynamic_columns), SHOW_LONG_STATUS},
   {"Feature_fulltext",         (char*) offsetof(STATUS_VAR, feature_fulltext), SHOW_LONG_STATUS},
@@ -8415,6 +8429,7 @@ SHOW_VAR status_vars[]= {
   {"Handler_read_last",        (char*) offsetof(STATUS_VAR, ha_read_last_count), SHOW_LONG_STATUS},
   {"Handler_read_next",        (char*) offsetof(STATUS_VAR, ha_read_next_count), SHOW_LONG_STATUS},
   {"Handler_read_prev",        (char*) offsetof(STATUS_VAR, ha_read_prev_count), SHOW_LONG_STATUS},
+  {"Handler_read_retry",       (char*) offsetof(STATUS_VAR, ha_read_retry_count), SHOW_LONG_STATUS},
   {"Handler_read_rnd",         (char*) offsetof(STATUS_VAR, ha_read_rnd_count), SHOW_LONG_STATUS},
   {"Handler_read_rnd_deleted", (char*) offsetof(STATUS_VAR, ha_read_rnd_deleted_count), SHOW_LONG_STATUS},
   {"Handler_read_rnd_next",    (char*) offsetof(STATUS_VAR, ha_read_rnd_next_count), SHOW_LONG_STATUS},
@@ -8536,6 +8551,7 @@ SHOW_VAR status_vars[]= {
   {"Threads_connected",        (char*) &connection_count,       SHOW_INT},
   {"Threads_created",	       (char*) &thread_created,		SHOW_LONG_NOFLUSH},
   {"Threads_running",          (char*) &thread_running,         SHOW_INT},
+  {"Update_scan",	       (char*) offsetof(STATUS_VAR, update_scan_count), SHOW_LONG_STATUS},
   {"Uptime",                   (char*) &show_starttime,         SHOW_SIMPLE_FUNC},
 #ifdef ENABLED_PROFILING
   {"Uptime_since_flush_status",(char*) &show_flushstatustime,   SHOW_SIMPLE_FUNC},
@@ -8564,7 +8580,8 @@ static bool add_many_options(DYNAMIC_ARRAY *options, my_option *list,
 #ifndef EMBEDDED_LIBRARY
 static void print_version(void)
 {
-  set_server_version();
+  if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
+    set_server_version(server_version, sizeof(server_version));
 
   printf("%s  Ver %s for %s on %s (%s)\n",my_progname,
 	 server_version,SYSTEM_TYPE,MACHINE_TYPE, MYSQL_COMPILATION_COMMENT);
@@ -8706,7 +8723,6 @@ static int mysql_init_variables(void)
   mqh_used= 0;
   kill_in_progress= 0;
   cleanup_done= 0;
-  server_id_supplied= 0;
   test_flags= select_errors= dropping_tables= ha_open_options=0;
   thread_count= thread_running= kill_cached_threads= wake_thread= 0;
   service_thread_count= 0;
@@ -9175,7 +9191,6 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     opt_noacl=opt_bootstrap=1;
     break;
   case OPT_SERVER_ID:
-    server_id_supplied = 1;
     ::server_id= global_system_variables.server_id;
     break;
   case OPT_LOWER_CASE_TABLE_NAMES:
@@ -9675,24 +9690,17 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   (MYSQL_SERVER_SUFFIX is set by the compilation environment)
 */
 
-void set_server_version(void)
+void set_server_version(char *buf, size_t size)
 {
-  if (!IS_SYSVAR_AUTOSIZE(&server_version_ptr))
-    return;
-  char *version_end= server_version+sizeof(server_version)-1;
-  char *end= strxnmov(server_version, sizeof(server_version)-1,
-                      MYSQL_SERVER_VERSION,
-                      MYSQL_SERVER_SUFFIX_STR, NullS);
-#ifdef EMBEDDED_LIBRARY
-  end= strnmov(end, "-embedded", (version_end-end));
-#endif
-#ifndef DBUG_OFF
-  if (!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"))
-    end= strnmov(end, "-debug", (version_end-end));
-#endif
-  if (opt_log || global_system_variables.sql_log_slow || opt_bin_log)
-    strnmov(end, "-log", (version_end-end)); // This may slow down system
-  *end= 0;
+  bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
+  bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
+  strxnmov(buf, size - 1,
+           MYSQL_SERVER_VERSION,
+           MYSQL_SERVER_SUFFIX_STR,
+           IF_EMBEDDED("-embedded", ""),
+           is_debug ? "-debug" : "",
+           is_log ? "-log" : "",
+           NullS);
 }
 
 
@@ -10150,11 +10158,6 @@ PSI_stage_info stage_waiting_for_the_next_event_in_relay_log= { 0, "Waiting for 
 PSI_stage_info stage_waiting_for_the_slave_thread_to_advance_position= { 0, "Waiting for the slave SQL thread to advance position", 0};
 PSI_stage_info stage_waiting_to_finalize_termination= { 0, "Waiting to finalize termination", 0};
 PSI_stage_info stage_waiting_to_get_readlock= { 0, "Waiting to get readlock", 0};
-PSI_stage_info stage_slave_waiting_workers_to_exit= { 0, "Waiting for workers to exit", 0};
-PSI_stage_info stage_slave_waiting_worker_to_release_partition= { 0, "Waiting for Slave Worker to release partition", 0};
-PSI_stage_info stage_slave_waiting_worker_to_free_events= { 0, "Waiting for Slave Workers to free pending events", 0};
-PSI_stage_info stage_slave_waiting_worker_queue= { 0, "Waiting for Slave Worker queue", 0};
-PSI_stage_info stage_slave_waiting_event_from_coordinator= { 0, "Waiting for an event from Coordinator", 0};
 PSI_stage_info stage_binlog_waiting_background_tasks= { 0, "Waiting for background binlog tasks", 0};
 PSI_stage_info stage_binlog_processing_checkpoint_notify= { 0, "Processing binlog checkpoint notification", 0};
 PSI_stage_info stage_binlog_stopping_background_thread= { 0, "Stopping binlog background thread", 0};
@@ -10169,6 +10172,9 @@ PSI_stage_info stage_waiting_for_rpl_thread_pool= { 0, "Waiting while replicatio
 PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
 PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
 PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master connection to process GTID received on multiple master connections", 0};
+PSI_stage_info stage_slave_background_process_request= { 0, "Processing requests", 0};
+PSI_stage_info stage_slave_background_wait_request= { 0, "Waiting for requests", 0};
+PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel replication deadlock handling to complete", 0};
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -10250,11 +10256,6 @@ PSI_stage_info *all_server_stages[]=
   & stage_setup,
   & stage_show_explain,
   & stage_slave_has_read_all_relay_log,
-  & stage_slave_waiting_event_from_coordinator,
-  & stage_slave_waiting_worker_queue,
-  & stage_slave_waiting_worker_to_free_events,
-  & stage_slave_waiting_worker_to_release_partition,
-  & stage_slave_waiting_workers_to_exit,
   & stage_sorting,
   & stage_sorting_for_group,
   & stage_sorting_for_order,
@@ -10298,7 +10299,10 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_to_get_readlock,
   & stage_master_gtid_wait_primary,
   & stage_master_gtid_wait,
-  & stage_gtid_wait_other_connection
+  & stage_gtid_wait_other_connection,
+  & stage_slave_background_process_request,
+  & stage_slave_background_wait_request,
+  & stage_waiting_for_deadlock_kill
 };
 
 PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;

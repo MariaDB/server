@@ -35,6 +35,7 @@
 #include "sp_cache.h"
 #include "datadict.h"   // dd_frm_is_view()
 #include "sql_derived.h"
+#include "sql_cte.h"    // check_dependencies_in_with_clauses()
 
 #define MD5_BUFF_LENGTH 33
 
@@ -428,6 +429,21 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
+
+  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
+  {
+    res= TRUE;
+    goto err;
+  }
+
+  /*
+    ignore lock specs for CREATE statement
+  */
+  if (lex->current_select->lock_type != TL_READ_DEFAULT)
+  {
+    lex->current_select->set_lock_for_tables(TL_READ_DEFAULT);
+    view->mdl_request.set_type(MDL_EXCLUSIVE);
+  }
 
   if (thd->open_temporary_tables(lex->query_tables) ||
       open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
@@ -1383,6 +1399,9 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     TABLE_LIST *tbl;
     Security_context *security_ctx= 0;
 
+    if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
+      goto err;
+
     /*
       Check rights to run commands (ANALYZE SELECT, EXPLAIN SELECT &
       SHOW CREATE) which show underlying tables.
@@ -1612,7 +1631,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       sl->context.error_processor_data= (void *)table;
     }
 
-    table->select_lex->master_unit()->is_view= true;
+    view_select->master_unit()->is_view= true;
 
     /*
       check MERGE algorithm ability

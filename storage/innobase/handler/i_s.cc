@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2015, Oracle and/or its affiliates.
+Copyright (c) 2007, 2016, Oracle and/or its affiliates.
 Copyrigth (c) 2014, 2016, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
@@ -783,7 +783,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_trx =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_locks */
@@ -1043,7 +1043,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_locks =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_lock_waits */
@@ -1226,7 +1226,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_lock_waits =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /*******************************************************************//**
@@ -1562,7 +1562,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmp =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmp_reset =
@@ -1612,7 +1612,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmp_reset =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic tables
@@ -1912,7 +1912,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmp_per_index =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmp_per_index_reset =
@@ -1962,7 +1962,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmp_per_index_reset =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table information_schema.innodb_cmpmem. */
@@ -2205,7 +2205,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmpmem =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmpmem_reset =
@@ -2255,7 +2255,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmpmem_reset =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_metrics */
@@ -2779,7 +2779,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_metrics =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_ft_default_stopword */
 static ST_FIELD_INFO	i_s_stopword_fields_info[] =
@@ -2892,7 +2892,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_default_stopword =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_FT_DELETED
@@ -2941,14 +2941,25 @@ i_s_fts_deleted_generic_fill(
 		DBUG_RETURN(0);
 	}
 
-	deleted = fts_doc_ids_create();
+	/* Prevent DDL to drop fts aux tables. */
+	rw_lock_s_lock(&dict_operation_lock);
 
 	user_table = dict_table_open_on_name(
 		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (!user_table) {
+		rw_lock_s_unlock(&dict_operation_lock);
+
+		DBUG_RETURN(0);
+	} else if (!dict_table_has_fts_index(user_table)) {
+		dict_table_close(user_table, FALSE, FALSE);
+
+		rw_lock_s_unlock(&dict_operation_lock);
+
 		DBUG_RETURN(0);
 	}
+
+	deleted = fts_doc_ids_create();
 
 	trx = trx_allocate_for_background();
 	trx->op_info = "Select for FTS DELETE TABLE";
@@ -2976,6 +2987,8 @@ i_s_fts_deleted_generic_fill(
 	fts_doc_ids_free(deleted);
 
 	dict_table_close(user_table, FALSE, FALSE);
+
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(0);
 }
@@ -3060,7 +3073,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_deleted =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /*******************************************************************//**
@@ -3143,7 +3156,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_being_deleted =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHED and
@@ -3350,6 +3363,12 @@ i_s_fts_index_cache_fill(
 		DBUG_RETURN(0);
 	}
 
+	if (user_table->fts == NULL || user_table->fts->cache == NULL) {
+		dict_table_close(user_table, FALSE, FALSE);
+
+		DBUG_RETURN(0);
+	}
+
 	cache = user_table->fts->cache;
 
 	ut_a(cache);
@@ -3432,7 +3451,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_index_cache =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /*******************************************************************//**
@@ -3784,10 +3803,15 @@ i_s_fts_index_table_fill(
 		DBUG_RETURN(0);
 	}
 
+	/* Prevent DDL to drop fts aux tables. */
+	rw_lock_s_lock(&dict_operation_lock);
+
 	user_table = dict_table_open_on_name(
 		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (!user_table) {
+		rw_lock_s_unlock(&dict_operation_lock);
+
 		DBUG_RETURN(0);
 	}
 
@@ -3799,6 +3823,8 @@ i_s_fts_index_table_fill(
 	}
 
 	dict_table_close(user_table, FALSE, FALSE);
+
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(0);
 }
@@ -3867,7 +3893,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_index_table =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_FT_CONFIG */
@@ -3935,13 +3961,20 @@ i_s_fts_config_fill(
 
 	fields = table->field;
 
+	/* Prevent DDL to drop fts aux tables. */
+	rw_lock_s_lock(&dict_operation_lock);
+
 	user_table = dict_table_open_on_name(
 		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (!user_table) {
+		rw_lock_s_unlock(&dict_operation_lock);
+
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)) {
 		dict_table_close(user_table, FALSE, FALSE);
+
+		rw_lock_s_unlock(&dict_operation_lock);
 
 		DBUG_RETURN(0);
 	}
@@ -3997,6 +4030,8 @@ i_s_fts_config_fill(
 	trx_free_for_background(trx);
 
 	dict_table_close(user_table, FALSE, FALSE);
+
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(0);
 }
@@ -4065,7 +4100,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_config =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INNODB_BUFFER_POOL_STATS. */
@@ -4614,7 +4649,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_stats =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INNODB_BUFFER_POOL_PAGE. */
@@ -5326,7 +5361,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_page =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
@@ -5873,7 +5908,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_page_lru =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /*******************************************************************//**
@@ -6167,7 +6202,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_tables =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_TABLESTATS  ***********************************************/
@@ -6457,7 +6492,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_tablestats =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_INDEXES  **************************************************/
@@ -6709,7 +6744,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_indexes =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_COLUMNS  **************************************************/
@@ -6946,7 +6981,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_columns =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_FIELDS  ***************************************************/
@@ -7156,7 +7191,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_fields =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_FOREIGN        ********************************************/
@@ -7381,7 +7416,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_foreign =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_FOREIGN_COLS   ********************************************/
@@ -7598,7 +7633,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_foreign_cols =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_TABLESPACES    ********************************************/
@@ -7866,7 +7901,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_tablespaces =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_DATAFILES  ************************************************/
@@ -8055,7 +8090,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_datafiles =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  TABLESPACES_ENCRYPTION    ********************************************/
@@ -8349,7 +8384,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_tablespaces_encryption =
 
 	/* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA)
+	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE)
 };
 
 /**  TABLESPACES_SCRUBBING    ********************************************/
@@ -8648,7 +8683,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_tablespaces_scrubbing =
 
 	/* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA)
+	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE)
 };
 
 /**  INNODB_MUTEXES  *********************************************/
@@ -8862,7 +8897,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_mutexes =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_SEMAPHORE_WAITS  ************************************************/
@@ -9139,5 +9174,5 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_semaphore_waits =
 
         /* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_GAMMA),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };

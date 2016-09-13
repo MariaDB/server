@@ -1,13 +1,19 @@
+package wrappers;
+
 import java.math.*;
 import java.sql.*;
-//import java.util.Arrays;
 import java.util.Collections;
+import java.util.Hashtable;
 import java.util.List;
-//import java.io.File;
-//import java.lang.reflect.Field;
+
+import javax.sql.DataSource;
 
 public class JdbcInterface {
+	// This is used by DS classes
+    static Hashtable<String,DataSource> dst = null;
+    
 	boolean           DEBUG = false;
+	boolean           CatisSchema = false;
 	String            Errmsg = "No error";
 	Connection        conn = null;
 	DatabaseMetaData  dbmd = null;
@@ -18,14 +24,14 @@ public class JdbcInterface {
     
     // === Constructors/finalize  =========================================
     public JdbcInterface() {
-    	this(true);
+    	this(false);
     } // end of default constructor
 
     public JdbcInterface(boolean b) {
     	DEBUG = b;
     } // end of constructor
     
-    private void SetErrmsg(Exception e) {
+    protected void SetErrmsg(Exception e) {
         if (DEBUG)
     		System.out.println(e.getMessage());
       	
@@ -38,6 +44,22 @@ public class JdbcInterface {
       Errmsg = "No error";
       return err;
     } // end of GetErrmsg
+    
+    protected void CheckURL(String url, String vendor) throws Exception {
+      if (url == null)
+    	throw new Exception("URL cannot be null");
+      
+      String[] tk = url.split(":", 3);
+      
+      if (!tk[0].equals("jdbc") || tk[1] == null)
+    	throw new Exception("Invalid URL");
+      
+      if (vendor != null && !tk[1].equals(vendor))
+    	throw new Exception("Wrong URL for this wrapper");
+    	  
+      // Some drivers use Catalog as Schema
+      CatisSchema = tk[1].equals("mysql") || tk[1].equals("mariadb");
+    } // end of CatalogIsSchema
 
     public int JdbcConnect(String[] parms, int fsize, boolean scrollable) {
       int rc = 0;
@@ -58,6 +80,8 @@ public class JdbcInterface {
 			
 	    if (DEBUG)
 		  System.out.println("URL=" + parms[1]);
+	    
+	    CheckURL(parms[1], null);
 	      
     	if (parms[2] != null && !parms[2].isEmpty()) {
   	      if (DEBUG)
@@ -74,27 +98,7 @@ public class JdbcInterface {
 	    dbmd = conn.getMetaData();
 	    
 	    // Get a statement from the connection
-	    if (scrollable)
-		  stmt = conn.createStatement(java.sql.ResultSet.TYPE_SCROLL_INSENSITIVE, java.sql.ResultSet.CONCUR_READ_ONLY);
-	    else
-		  stmt = conn.createStatement(java.sql.ResultSet.TYPE_FORWARD_ONLY, java.sql.ResultSet.CONCUR_READ_ONLY);
-
-		if (DEBUG)
-		  System.out.println("Statement type = " + stmt.getResultSetType()
-			                 + " concurrency = " + stmt.getResultSetConcurrency());
-		  
-        if (DEBUG)   // Get the fetch size of a statement
-		  System.out.println("Default fetch size = " + stmt.getFetchSize());
-
-        if (fsize != 0) {
-	      // Set the fetch size
-	      stmt.setFetchSize(fsize);
-	      
-		  if (DEBUG)
-			System.out.println("New fetch size = " + stmt.getFetchSize());
-			      
-        } // endif fsize
-	      
+	    stmt = GetStmt(fsize, scrollable);
 	  } catch(ClassNotFoundException e) {
 		SetErrmsg(e);
 	    rc = -1; 
@@ -108,6 +112,34 @@ public class JdbcInterface {
       
       return rc;
     } // end of JdbcConnect
+    
+    protected Statement GetStmt(int fsize, boolean scrollable) throws SQLException, Exception {
+    	Statement stmt = null;
+    	
+    	if (scrollable)
+    		stmt = conn.createStatement(java.sql.ResultSet.TYPE_SCROLL_INSENSITIVE, java.sql.ResultSet.CONCUR_READ_ONLY);
+    	else
+    		stmt = conn.createStatement(java.sql.ResultSet.TYPE_FORWARD_ONLY, java.sql.ResultSet.CONCUR_READ_ONLY);
+
+    	if (DEBUG)
+    		System.out.println("Statement type = " + stmt.getResultSetType()
+   							   + " concurrency = " + stmt.getResultSetConcurrency());
+    			  
+   	    if (DEBUG)   // Get the fetch size of a statement
+   	    	System.out.println("Default fetch size = " + stmt.getFetchSize());
+
+   	    if (fsize != 0) {
+   	    	// Set the fetch size
+   		    stmt.setFetchSize(fsize);
+    		      
+   			if (DEBUG)
+   				System.out.println("New fetch size = " + stmt.getFetchSize());
+    				      
+   	    } // endif fsize
+
+        return stmt;
+    } // end of GetStmt
+    
     
     public int CreatePrepStmt(String sql) {
     	int rc = 0;
@@ -227,7 +259,9 @@ public class JdbcInterface {
       // Cancel pending statement
 	  if (stmt != null)
 		try {
-		  System.out.println("Cancelling statement");
+		  if (DEBUG)
+		    System.out.println("Cancelling statement");
+		  
 		  stmt.cancel();
 		} catch(SQLException se) {
 		  SetErrmsg(se);
@@ -311,7 +345,11 @@ public class JdbcInterface {
       
       try {
   		if (rs != null) rs.close();
-    	rs = dbmd.getColumns(parms[0], parms[1], parms[2], parms[3]);
+  		
+  		if (CatisSchema)
+  	      rs = dbmd.getColumns(parms[1], null, parms[2], parms[3]);
+  		else	
+    	  rs = dbmd.getColumns(parms[0], parms[1], parms[2], parms[3]);
     	
 		if (rs != null) {
 		  rsmd = rs.getMetaData();
@@ -326,7 +364,7 @@ public class JdbcInterface {
     } // end of GetColumns
     
     public int GetTables(String[] parms) {
-        int ncol = 0;
+        int ncol = -1;
         String[] typ = null;
         
         if (parms[3] != null) {
@@ -336,7 +374,11 @@ public class JdbcInterface {
         
         try {
     	  if (rs != null) rs.close();
-      	  rs = dbmd.getTables(parms[0], parms[1], parms[2], typ);
+    	  
+    	  if (CatisSchema)
+            rs = dbmd.getTables(parms[1], null, parms[2], typ);
+    	  else
+      	    rs = dbmd.getTables(parms[0], parms[1], parms[2], typ);
       	
   		  if (rs != null) {
   		    rsmd = rs.getMetaData();
@@ -599,40 +641,43 @@ public class JdbcInterface {
 	  return false;  
 	} // end of BooleanField
 	    
-    public Date DateField(int n, String name) {
+    public int DateField(int n, String name) {
 	  if (rs == null) {
 		System.out.println("No result set");
 	  } else try {
-	    return (n > 0) ? rs.getDate(n) : rs.getDate(name);
+	    Date d = (n > 0) ? rs.getDate(n) : rs.getDate(name);
+	    return (d != null) ? (int)(d.getTime() / 1000) : 0;
 	  } catch (SQLException se) {
 		SetErrmsg(se);
 	  } //end try/catch
 	    	  
-	  return null;  
+	  return 0;  
 	} // end of DateField
 	    
-    public Time TimeField(int n, String name) {
+    public int TimeField(int n, String name) {
 	  if (rs == null) {
 		System.out.println("No result set");
 	  } else try {
-	    return (n > 0) ? rs.getTime(n) : rs.getTime(name);
+	    Time t = (n > 0) ? rs.getTime(n) : rs.getTime(name);
+	    return (t != null) ? (int)(t.getTime() / 1000) : 0;
 	  } catch (SQLException se) {
 		SetErrmsg(se);
 	  } //end try/catch
 	    	  
-	  return null;  
+	  return 0;  
 	} // end of TimeField
 	    
-    public Timestamp TimestampField(int n, String name) {
+    public int TimestampField(int n, String name) {
 	  if (rs == null) {
 		System.out.println("No result set");
 	  } else try {
-	    return (n > 0) ? rs.getTimestamp(n) : rs.getTimestamp(name);
+	    Timestamp ts = (n > 0) ? rs.getTimestamp(n) : rs.getTimestamp(name);
+	    return (ts != null) ? (int)(ts.getTime() / 1000) : 0;
 	  } catch (SQLException se) {
 		SetErrmsg(se);
 	  } //end try/catch
 	    	  
-	  return null;  
+	  return 0;  
 	} // end of TimestampField
     
     public String ObjectField(int n, String name) {
@@ -710,3 +755,4 @@ public class JdbcInterface {
     */   
 	    
 } // end of class JdbcInterface
+

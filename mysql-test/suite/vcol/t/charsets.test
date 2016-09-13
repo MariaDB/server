@@ -1,0 +1,19 @@
+#
+# vcol definition, table charset, current connection charset
+#
+set names utf8;
+create table t1 (
+  a int,
+  b varchar(100) as (if(a,collation('й'),hex('ю')))
+) character set koi8r;
+insert t1 (a) values (0),(1);
+select * from t1;
+set names latin1;
+select * from t1;
+flush tables;
+select * from t1;
+set names koi8r;
+select * from t1;
+flush tables;
+select * from t1;
+drop table t1;

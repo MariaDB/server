@@ -10,7 +10,7 @@ COLLATE latin1_bin;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` int(11) DEFAULT '12' COMMENT 'column1',
+  `c1` int(11) DEFAULT 12 COMMENT 'column1',
   `c2` int(11) DEFAULT NULL COMMENT 'column2',
   `c3` int(11) NOT NULL COMMENT 'column3',
   `c4` varchar(255) CHARACTER SET utf8 NOT NULL DEFAULT 'a',
@@ -21,7 +21,7 @@ CREATE TABLE t2 AS SELECT * FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` int(11) DEFAULT '12' COMMENT 'column1',
+  `c1` int(11) DEFAULT 12 COMMENT 'column1',
   `c2` int(11) DEFAULT NULL COMMENT 'column2',
   `c3` int(11) NOT NULL COMMENT 'column3',
   `c4` varchar(255) CHARACTER SET utf8 NOT NULL DEFAULT 'a',

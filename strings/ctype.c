@@ -88,6 +88,8 @@ struct my_cs_file_section_st
 #define _CS_CL_SUPPRESS_CONTRACTIONS    101
 #define _CS_CL_OPTIMIZE                 102
 #define _CS_CL_SHIFT_AFTER_METHOD       103
+#define _CS_CL_RULES_IMPORT             104
+#define _CS_CL_RULES_IMPORT_SOURCE      105
 
 
 /* Collation Settings */
@@ -188,6 +190,8 @@ static const struct my_cs_file_section_st sec[] =
   {_CS_CL_SUPPRESS_CONTRACTIONS, "charsets/charset/collation/suppress_contractions"},
   {_CS_CL_OPTIMIZE,              "charsets/charset/collation/optimize"},
   {_CS_CL_SHIFT_AFTER_METHOD,    "charsets/charset/collation/shift-after-method"},
+  {_CS_CL_RULES_IMPORT,          "charsets/charset/collation/rules/import"},
+  {_CS_CL_RULES_IMPORT_SOURCE,   "charsets/charset/collation/rules/import/source"},
 
   /* Collation Settings */
   {_CS_ST_SETTINGS,              "charsets/charset/collation/settings"},
@@ -614,6 +618,8 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
       i->cs.state|= MY_CS_BINSORT;
     else if (!strncmp("compiled",attr,len))
       i->cs.state|= MY_CS_COMPILED;
+    else if (!strncmp("nopad",attr,len))
+      i->cs.state|= MY_CS_NOPAD;
     break;
   case _CS_UPPERMAP:
     fill_uchar(i->to_upper,MY_CS_TO_UPPER_TABLE_SIZE,attr,len);
@@ -639,6 +645,10 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
   /* Special purpose commands */
   case _CS_UCA_VERSION:
     rc= tailoring_append(st, "[version %.*s]", len, attr);
+    break;
+
+  case _CS_CL_RULES_IMPORT_SOURCE:
+    rc= tailoring_append(st, "[import %.*s]", len, attr);
     break;
 
   case _CS_CL_SUPPRESS_CONTRACTIONS:
@@ -970,48 +980,6 @@ my_charset_is_ascii_based(CHARSET_INFO *cs)
   return 
     (cs->mbmaxlen == 1 && cs->tab_to_uni && cs->tab_to_uni['{'] == '{') ||
     (cs->mbminlen == 1 && cs->mbmaxlen > 1);
-}
-
-
-/*
-  Detect if a character set is 8bit,
-  and it is pure ascii, i.e. doesn't have
-  characters outside U+0000..U+007F
-  This functions is shared between "conf_to_src"
-  and dynamic charsets loader in "mysqld".
-*/
-my_bool
-my_charset_is_8bit_pure_ascii(CHARSET_INFO *cs)
-{
-  size_t code;
-  if (!cs->tab_to_uni)
-    return 0;
-  for (code= 0; code < 256; code++)
-  {
-    if (cs->tab_to_uni[code] > 0x7F)
-      return 0;
-  }
-  return 1;
-}
-
-
-/*
-  Shared function between conf_to_src and mysys.
-  Check if a 8bit character set is compatible with
-  ascii on the range 0x00..0x7F.
-*/
-my_bool
-my_charset_is_ascii_compatible(CHARSET_INFO *cs)
-{
-  uint i;
-  if (!cs->tab_to_uni)
-    return 1;
-  for (i= 0; i < 128; i++)
-  {
-    if (cs->tab_to_uni[i] != i)
-      return 0;
-  }
-  return 1;
 }
 
 

@@ -165,10 +165,6 @@ static COND *optimize_cond(JOIN *join, COND *conds,
                            int flags= 0);
 bool const_expression_in_where(COND *conds,Item *item, Item **comp_item);
 static int do_select(JOIN *join, Procedure *procedure);
-static bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
-                                  MARIA_COLUMNDEF *start_recinfo,
-                                  MARIA_COLUMNDEF **recinfo, 
-                                  ulonglong options);
 
 static enum_nested_loop_state evaluate_join_record(JOIN *, JOIN_TAB *, int);
 static enum_nested_loop_state
@@ -699,7 +695,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   DBUG_ENTER("JOIN::prepare");
 
   // to prevent double initialization on EXPLAIN
-  if (optimized)
+  if (optimization_state != JOIN::NOT_OPTIMIZED)
     DBUG_RETURN(0);
 
   conds= conds_init;
@@ -858,6 +854,13 @@ JOIN::prepare(TABLE_LIST *tables_init,
   With_clause *with_clause=select_lex->get_with_clause();
   if (with_clause && with_clause->prepare_unreferenced_elements(thd))
     DBUG_RETURN(1);
+
+  With_element *with_elem= select_lex->get_with_element();
+  if (with_elem &&
+      select_lex->check_unrestricted_recursive(
+                      thd->variables.only_standards_compliant_cte))
+    DBUG_RETURN(-1);
+  select_lex->check_subqueries_with_recursive_references();
   
   int res= check_and_do_in_subquery_rewrites(this);
 
@@ -1065,24 +1068,13 @@ err:
 
 int JOIN::optimize()
 {
-  bool was_optimized= optimized;
+  // to prevent double initialization on EXPLAIN
+  if (optimization_state != JOIN::NOT_OPTIMIZED)
+    return FALSE;
+  optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+
   int res= optimize_inner();
-  /*
-    If we're inside a non-correlated subquery, this function may be 
-    called for the second time after the subquery has been executed
-    and deleted. The second call will not produce a valid query plan, it will
-    short-circuit because optimized==TRUE.
-
-    "was_optimized != optimized" is here to handle this case:
-      - first optimization starts, gets an error (from a const. cheap
-        subquery), returns 1
-      - another JOIN::optimize() call made, and now join->optimize() will
-        return 0, even though we never had a query plan.
-
-    Can have QEP_NOT_PRESENT_YET for degenerate queries (for example,
-    SELECT * FROM tbl LIMIT 0)
-  */
-  if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
+  if (!res && have_query_plan != QEP_DELETED)
   {
     create_explain_query_if_not_exists(thd->lex, thd->mem_root);
     have_query_plan= QEP_AVAILABLE;
@@ -1109,6 +1101,7 @@ int JOIN::optimize()
     }
     
   }
+  optimization_state= JOIN::OPTIMIZATION_DONE;
   return res;
 }
 
@@ -1128,26 +1121,21 @@ int JOIN::optimize()
 int
 JOIN::optimize_inner()
 {
+/*
+    if (conds) { Item *it_clone= conds->build_clone(thd,thd->mem_root); }
+*/
   ulonglong select_opts_for_readinfo;
   uint no_jbuf_after;
   JOIN_TAB *tab;
   DBUG_ENTER("JOIN::optimize");
-
   do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
-  // to prevent double initialization on EXPLAIN
-  if (optimized)
-    DBUG_RETURN(0);
-  optimized= 1;
+
   DEBUG_SYNC(thd, "before_join_optimize");
 
   THD_STAGE_INFO(thd, stage_optimizing);
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
-
-  /* Run optimize phase for all derived tables/views used in this SELECT. */
-  if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
-    DBUG_RETURN(1);
 
   if (select_lex->first_cond_optimization)
   {
@@ -1260,9 +1248,32 @@ JOIN::optimize_inner()
   
   if (setup_jtbm_semi_joins(this, join_list, &conds))
     DBUG_RETURN(1);
-
+  
   conds= optimize_cond(this, conds, join_list, FALSE,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
+  
+  if (thd->lex->sql_command == SQLCOM_SELECT &&
+      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
+  {
+    TABLE_LIST *tbl;
+    List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
+    while ((tbl= li++))
+    {
+      if (tbl->is_materialized_derived())
+      {
+        if (pushdown_cond_for_derived(thd, conds, tbl))
+	  DBUG_RETURN(1);
+	if (mysql_handle_single_derived(thd->lex, tbl, DT_OPTIMIZE))
+	  DBUG_RETURN(1);
+      }
+    }
+  }
+  else
+  {
+    /* Run optimize phase for all derived tables/views used in this SELECT. */
+    if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
+      DBUG_RETURN(1);
+  }
      
   if (thd->is_error())
   {
@@ -3166,6 +3177,7 @@ void JOIN::exec_inner()
 {
   List<Item> *columns_list= &fields_list;
   DBUG_ENTER("JOIN::exec_inner");
+  DBUG_ASSERT(optimization_state == JOIN::OPTIMIZATION_DONE);
 
   THD_STAGE_INFO(thd, stage_executing);
 
@@ -3668,6 +3680,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     s->checked_keys.init();
     s->needed_reg.init();
     table_vector[i]=s->table=table=tables->table;
+    s->tab_list= tables;
     table->pos_in_table_list= tables;
     error= tables->fetch_number_of_rows();
     set_statistics_for_table(join->thd, table);
@@ -8357,6 +8370,8 @@ JOIN_TAB *first_explain_order_tab(JOIN* join)
 {
   JOIN_TAB* tab;
   tab= join->join_tab;
+  if (!tab)
+    return NULL; /* Can happen when when the tables were optimized away */
   return (tab->bush_children) ? tab->bush_children->start : tab;
 }
 
@@ -11419,6 +11434,11 @@ bool error_if_full_join(JOIN *join)
 void JOIN_TAB::cleanup()
 {
   DBUG_ENTER("JOIN_TAB::cleanup");
+  
+  if (tab_list && tab_list->is_with_table_recursive_reference() &&
+    tab_list->with->is_cleaned())
+  DBUG_VOID_RETURN;
+
   DBUG_PRINT("enter", ("tab: %p  table %s.%s",
                        this,
                        (table ? table->s->db.str : "?"),
@@ -11588,7 +11608,8 @@ bool JOIN_TAB::preread_init()
   }
 
   /* Materialize derived table/view. */
-  if (!derived->get_unit()->executed &&
+  if ((!derived->get_unit()->executed  ||
+       derived->is_recursive_with_table()) &&
       mysql_handle_single_derived(join->thd->lex,
                                     derived, DT_CREATE | DT_FILL))
       return TRUE;
@@ -15745,7 +15766,7 @@ Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
       Field_double(max_length, maybe_null, name, decimals, TRUE);
     break;
   case INT_RESULT:
-    /* 
+    /*
       Select an integer type with the minimal fit precision.
       convert_int_length is sign inclusive, don't consider the sign.
     */
@@ -15761,7 +15782,6 @@ Field *Item::create_tmp_field(bool group, TABLE *table, uint convert_int_length)
     break;
   case STRING_RESULT:
     DBUG_ASSERT(collation.collation);
-  
     /*
       GEOMETRY fields have STRING_RESULT result type.
       To preserve type they needed to be handled separately.
@@ -17943,7 +17963,6 @@ int rr_sequential_and_unpack(READ_RECORD *info)
      TRUE  - Error
 */
 
-static
 bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
                            MARIA_COLUMNDEF *start_recinfo,
                            MARIA_COLUMNDEF **recinfo, 
@@ -19218,7 +19237,7 @@ int join_init_read_record(JOIN_TAB *tab)
     report_error(tab->table, error);
     return 1;
   }
-  if (!tab->preread_init_done && tab->preread_init())
+  if (!tab->preread_init_done  && tab->preread_init())
     return 1;
   if (init_read_record(&tab->read_record, tab->join->thd, tab->table,
                        tab->select, tab->filesort_result, 1,1, FALSE))
@@ -19451,8 +19470,6 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 
   if (!end_of_records)
   {
-#if 0    
-#endif
     if (join->table_count &&
         join->join_tab->is_using_loose_index_scan())
     {
@@ -24321,7 +24338,8 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
     In case this is a derived table, here we remember the number of 
     subselect that used to produce it.
   */
-  eta->derived_select_number= table->derived_select_number;
+  if (!(table_list && table_list->is_with_table_recursive_reference()))
+    eta->derived_select_number= table->derived_select_number;
 
   /* The same for non-merged semi-joins */
   eta->non_merged_sjm_number = get_non_merged_semijoin_select();
@@ -24537,11 +24555,14 @@ int JOIN::save_explain_data_intern(Explain_query *output,
       (1) they are not parts of ON clauses that were eliminated by table 
           elimination.
       (2) they are not merged derived tables
+      (3) they are not unreferenced CTE
     */
     if (!(tmp_unit->item && tmp_unit->item->eliminated) &&    // (1)
         (!tmp_unit->derived ||
-         tmp_unit->derived->is_materialized_derived()))       // (2)
-    {
+         tmp_unit->derived->is_materialized_derived()) &&     // (2)
+        !(tmp_unit->with_element && 
+          !tmp_unit->with_element->is_referenced()))          // (3)
+   {
       explain->add_child(tmp_unit->first_select()->select_number);
     }
   }
@@ -24601,9 +24622,11 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       Save plans for child subqueries, when
       (1) they are not parts of eliminated WHERE/ON clauses.
       (2) they are not VIEWs that were "merged for INSERT".
+      (3) they are not unreferenced CTE.
     */
-    if (!(unit->item && unit->item->eliminated) &&             // (1)
-        !(unit->derived && unit->derived->merged_for_insert))  // (2)
+    if (!(unit->item && unit->item->eliminated) &&                     // (1)
+        !(unit->derived && unit->derived->merged_for_insert) &&        // (2)
+        !(unit->with_element && !unit->with_element->is_referenced())) // (3)  
     {
       if (mysql_explain_union(thd, unit, result))
         DBUG_VOID_RETURN;
@@ -24627,7 +24650,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   if (unit->is_union())
   {
-    if (unit->union_needs_tmp_table())
+    if (unit->union_needs_tmp_table() && unit->fake_select_lex)
     {
       unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // just for initialization
       unit->fake_select_lex->type= "UNION RESULT";
@@ -25146,6 +25169,12 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 
   // limit
   print_limit(thd, str, query_type);
+
+  // lock type
+  if (lock_type == TL_READ_WITH_SHARED_LOCKS)
+    str->append(" lock in share mode");
+  else if (lock_type == TL_WRITE)
+    str->append(" for update");
 
   // PROCEDURE unsupported here
 }
@@ -26191,6 +26220,61 @@ AGGR_OP::end_send()
   return rc;
 }
 
+
+/**
+  @brief
+  Remove marked top conjuncts of a condition
+    
+  @param thd    The thread handle
+  @param cond   The condition which subformulas are to be removed    
+
+  @details
+    The function removes all top conjuncts marked with the flag
+    FULL_EXTRACTION_FL from the condition 'cond'. The resulting
+    formula is returned a the result of the function
+    If 'cond' s marked with such flag the function returns 0. 
+    The function clear the extraction flags for the removed
+    formulas
+
+   @retval
+     condition without removed subformulas
+     0 if the whole 'cond' is removed
+*/ 
+
+Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
+{
+  if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
+  {
+    cond->clear_extraction_flag();
+    return 0; 
+  }
+  if (cond->type() == Item::COND_ITEM)
+  {
+    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
+    {
+      List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+      Item *item;
+      while ((item= li++))
+      {
+	if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
+	{
+	  item->clear_extraction_flag();
+	  li.remove();
+	}
+      }
+      switch (((Item_cond*) cond)->argument_list()->elements) 
+      {
+      case 0:
+	return 0;			
+      case 1:
+	return ((Item_cond*) cond)->argument_list()->head();
+      default:
+	return cond;
+      }
+    }
+  }
+  return cond;
+}
 
 /**
   @} (end of group Query_Optimizer)

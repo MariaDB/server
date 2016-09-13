@@ -327,6 +327,7 @@ class Explain_union : public Explain_node
 public:
   Explain_union(MEM_ROOT *root, bool is_analyze) : 
     Explain_node(root),
+    is_recursive_cte(false),
     fake_select_lex_explain(root, is_analyze)
   {}
 
@@ -362,6 +363,7 @@ public:
   const char *fake_select_type;
   bool using_filesort;
   bool using_tmp;
+  bool is_recursive_cte;
   
   /*
     Explain data structure for "fake_select_lex" (i.e. for the degenerate

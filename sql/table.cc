@@ -41,6 +41,7 @@
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 #include "sql_view.h"
 #include "rpl_filter.h"
+#include "sql_cte.h"
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -66,7 +67,7 @@ LEX_STRING SLOW_LOG_NAME= {C_STRING_WITH_LEN("slow_log")};
   Keyword added as a prefix when parsing the defining expression for a
   virtual column read from the column definition saved in the frm file
 */
-LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
+static LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
 
 static int64 last_table_id;
 
@@ -1431,48 +1432,38 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   DBUG_PRINT("info",("i_count: %d  i_parts: %d  index: %d  n_length: %d  int_length: %d  com_length: %d  vcol_screen_length: %d", interval_count,interval_parts, keys,n_length,int_length, com_length, vcol_screen_length));
 
+  if (!multi_alloc_root(&share->mem_root,
+                        &share->field, (uint)(share->fields+1)*sizeof(Field*),
+                        &share->intervals, (uint)interval_count*sizeof(TYPELIB),
+                        &share->check_constraints, (uint) share->table_check_constraints * sizeof(Virtual_column_info*),
+                        &interval_array, (uint) (share->fields+interval_parts+ keys+3)*sizeof(char *),
+                        &names, (uint) (n_length+int_length),
+                        &comment_pos, (uint) com_length,
+                        &vcol_screen_pos, vcol_screen_length,
+                        NullS))
 
-  if (!(field_ptr = (Field **)
-	alloc_root(&share->mem_root,
-		   (uint) ((share->fields+1)*sizeof(Field*)+
-			   interval_count*sizeof(TYPELIB)+
-                           share->table_check_constraints *
-                           sizeof(Virtual_column_info*)+
-			   (share->fields+interval_parts+
-			    keys+3)*sizeof(char *)+
-			   (n_length+int_length+com_length+
-			       vcol_screen_length)))))
-    goto err;                           /* purecov: inspected */
+    goto err;
 
-  share->field= field_ptr;
+  field_ptr= share->field;
+  table_check_constraints= share->check_constraints;
   read_length=(uint) (share->fields * field_pack_length +
 		      pos+ (uint) (n_length+int_length+com_length+
 		                   vcol_screen_length));
   strpos= disk_buff+pos;
 
-  share->intervals= (TYPELIB*) (field_ptr+share->fields+1);
-  share->check_constraints= ((Virtual_column_info**)
-                             (share->intervals+interval_count));
-  table_check_constraints= share->check_constraints;
-  interval_array= (const char **) (table_check_constraints+
-                                   share->table_check_constraints);
-  names= (char*) (interval_array+share->fields+interval_parts+keys+3);
   if (!interval_count)
     share->intervals= 0;			// For better debugging
-  memcpy((char*) names, strpos+(share->fields*field_pack_length),
-	 (uint) (n_length+int_length));
-  comment_pos= names+(n_length+int_length);
+
+  memcpy(names, strpos+(share->fields*field_pack_length), n_length+int_length);
   memcpy(comment_pos, disk_buff+read_length-com_length-vcol_screen_length, 
          com_length);
-  vcol_screen_pos= (uchar*) (names+(n_length+int_length+com_length));
   memcpy(vcol_screen_pos, disk_buff+read_length-vcol_screen_length, 
          vcol_screen_length);
 
   fix_type_pointers(&interval_array, &share->fieldnames, 1, &names);
   if (share->fieldnames.count != share->fields)
     goto err;
-  fix_type_pointers(&interval_array, share->intervals, interval_count,
-		    &names);
+  fix_type_pointers(&interval_array, share->intervals, interval_count, &names);
 
   {
     /* Set ENUM and SET lengths */
@@ -1561,6 +1552,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     LEX_STRING comment;
     Virtual_column_info *vcol_info= 0;
     uint gis_length, gis_decimals, srid= 0;
+    Field::utype unireg_check;
 
     if (new_frm_ver >= 3)
     {
@@ -1776,21 +1768,35 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
     }
 
+    /* Convert pre-10.2.2 timestamps to use Field::default_value */
+    unireg_check= (Field::utype) MTYP_TYPENR(unireg_type);
+    if (unireg_check == Field::TIMESTAMP_DNUN_FIELD)
+      unireg_check= Field::TIMESTAMP_UN_FIELD;
+    if (unireg_check == Field::TIMESTAMP_DN_FIELD)
+      unireg_check= Field::NONE;
+
     *field_ptr= reg_field=
-      make_field(share, &share->mem_root, record+recpos,
-		 (uint32) field_length,
-		 null_pos, null_bit_pos,
-		 pack_flag,
-		 field_type,
-		 charset,
-		 geom_type, srid,
-		 (Field::utype) MTYP_TYPENR(unireg_type),
-		 (interval_nr ?
-		  share->intervals+interval_nr-1 :
-		  (TYPELIB*) 0),
+      make_field(share, &share->mem_root, record+recpos, (uint32) field_length,
+		 null_pos, null_bit_pos, pack_flag, field_type, charset,
+		 geom_type, srid, unireg_check,
+		 (interval_nr ? share->intervals+interval_nr-1 : NULL),
 		 share->fieldnames.type_names[i]);
     if (!reg_field)				// Not supported field type
       goto err;
+
+    if (unireg_check != (Field::utype) MTYP_TYPENR(unireg_type))
+    {
+      char buf[32];
+      if (reg_field->decimals())
+        my_snprintf(buf, sizeof(buf), "CURRENT_TIMESTAMP(%d)", reg_field->decimals());
+      else
+        strmov(buf, "CURRENT_TIMESTAMP");
+
+      reg_field->default_value= new (&share->mem_root) Virtual_column_info();
+      reg_field->default_value->stored_in_db= 1;
+      thd->make_lex_string(&reg_field->default_value->expr_str, buf, strlen(buf));
+      share->default_expressions++;
+    }
 
     reg_field->field_index= i;
     reg_field->comment=comment;
@@ -1831,13 +1837,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if (share->stored_rec_length>=recpos)
         share->stored_rec_length= recpos-1;
     }
-    if (reg_field->has_insert_default_function())
-      has_insert_default_function= 1;
     if (reg_field->has_update_default_function())
+    {
       has_update_default_function= 1;
-    if (reg_field->has_insert_default_function() ||
-        reg_field->has_update_default_function())
-      share->default_fields++;
+      if (!reg_field->default_value)
+        share->default_fields++;
+    }
   }
   *field_ptr=0;					// End marker
   /* Sanity checks: */
@@ -1943,6 +1948,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
+        uint add_keyparts_for_this_key= add_first_key_parts;
 
         /* 
           Do not extend the key that contains a component
@@ -1954,19 +1960,20 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           if (share->field[fieldnr-1]->key_length() !=
               keyinfo->key_part[i].length)
 	  {
-            add_first_key_parts= 0;
+            add_keyparts_for_this_key= 0;
             break;
           }
         }
 
-        if (add_first_key_parts < keyinfo->ext_key_parts-keyinfo->user_defined_key_parts)
+        if (add_keyparts_for_this_key < (keyinfo->ext_key_parts -
+                                        keyinfo->user_defined_key_parts))
 	{
           share->ext_key_parts-= keyinfo->ext_key_parts;
           key_part_map ext_key_part_map= keyinfo->ext_key_part_map;
           keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
           keyinfo->ext_key_flags= keyinfo->flags;
 	  keyinfo->ext_key_part_map= 0; 
-          for (i= 0; i < add_first_key_parts; i++)
+          for (i= 0; i < add_keyparts_for_this_key; i++)
 	  {
             if (ext_key_part_map & 1<<i)
 	    {
@@ -2223,16 +2230,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
       case 1:                                   // Generated stored field
         vcol_info->stored_in_db= 1;
+        DBUG_ASSERT(!reg_field->vcol_info);
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
         share->virtual_stored_fields++;         // For insert/load data
         break;
       case 2:                                   // Default expression
         vcol_info->stored_in_db= 1;
+        DBUG_ASSERT(!reg_field->default_value);
         reg_field->default_value=    vcol_info;
         share->default_expressions++;
         break;
       case 3:                                   // Field check constraint
+        DBUG_ASSERT(!reg_field->check_constraint);
         reg_field->check_constraint= vcol_info;
         share->field_check_constraints++;
         break;
@@ -2299,6 +2309,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   bitmap_count= 1;
   if (share->table_check_constraints)
   {
+    feature_check_constraint++;
     if (!(share->check_set= (MY_BITMAP*)
           alloc_root(&share->mem_root, sizeof(*share->check_set))))
       goto err;
@@ -2512,6 +2523,68 @@ void TABLE_SHARE::free_frm_image(const uchar *frm)
 }
 
 
+static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
+{
+  DBUG_ENTER("fix_vcol_expr");
+
+  const enum enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
+  thd->mark_used_columns= MARK_COLUMNS_NONE;
+
+  const char *save_where= thd->where;
+  thd->where= "virtual column function";
+
+  int error= vcol->expr_item->fix_fields(thd, &vcol->expr_item);
+
+  thd->mark_used_columns= save_mark_used_columns;
+  thd->where= save_where;
+
+  if (unlikely(error))
+  {
+    my_error(ER_ERROR_EVALUATING_EXPRESSION, MYF(0), vcol->expr_str);
+    DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
+/** rerun fix_fields for vcols that returns time- or session- dependent values
+
+    @note this is done for all vcols for INSERT/UPDATE/DELETE,
+    and only as needed for SELECTs.
+*/
+bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol)
+{
+  DBUG_ENTER("fix_session_vcol_expr");
+  if (!(vcol->flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC)))
+    DBUG_RETURN(0);
+
+  vcol->expr_item->cleanup();
+  DBUG_ASSERT(!vcol->expr_item->fixed);
+  DBUG_RETURN(fix_vcol_expr(thd, vcol));
+}
+
+
+/** invoke fix_session_vcol_expr for a vcol
+
+    @note this is called for generated column or a DEFAULT expression from
+    their corresponding fix_fields on SELECT.
+*/
+bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
+                                    Virtual_column_info *vcol)
+{
+  DBUG_ENTER("fix_session_vcol_expr_for_read");
+  TABLE_LIST *tl= field->table->pos_in_table_list;
+  if (!tl || tl->lock_type >= TL_WRITE_ALLOW_WRITE)
+    DBUG_RETURN(0);
+  Security_context *save_security_ctx= thd->security_ctx;
+  if (tl->security_ctx)
+    thd->security_ctx= tl->security_ctx;
+  bool res= fix_session_vcol_expr(thd, vcol);
+  thd->security_ctx= save_security_ctx;
+  DBUG_RETURN(res);
+}
+
+
 /*
   @brief 
     Perform semantic analysis of the defining expression for a virtual column
@@ -2539,53 +2612,31 @@ void TABLE_SHARE::free_frm_image(const uchar *frm)
     FALSE          Otherwise
 */
 
-static bool fix_vcol_expr(THD *thd, TABLE *table, Field *field,
-                          Virtual_column_info *vcol)
+static bool fix_and_check_vcol_expr(THD *thd, TABLE *table, Field *field,
+                                    Virtual_column_info *vcol)
 {
   Item* func_expr= vcol->expr_item;
-  bool result= TRUE;
-  TABLE_LIST tables;
-  int error= 0;
-  const char *save_where;
-  enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
-  DBUG_ENTER("fix_vcol_expr");
+  DBUG_ENTER("fix_and_check_vcol_expr");
   DBUG_PRINT("info", ("vcol: %p", vcol));
   DBUG_ASSERT(func_expr);
 
-  thd->mark_used_columns= MARK_COLUMNS_NONE;
+  if (func_expr->fixed)
+    DBUG_RETURN(0); // nothing to do
 
-  save_where= thd->where;
-  thd->where= "virtual column function";
+  if (fix_vcol_expr(thd, vcol))
+    DBUG_RETURN(1);
 
-  /* Fix fields referenced to by the virtual column function */
-  thd->in_stored_expression= 1;
-  if (!func_expr->fixed)
-    error= func_expr->fix_fields(thd, &vcol->expr_item);
-  thd->in_stored_expression= 0;
+  if (vcol->flags)
+    DBUG_RETURN(0); // already checked, no need to do it again
 
-  if (unlikely(error))
-  {
-    DBUG_PRINT("info",
-    ("Field in virtual column expression does not belong to the table"));
-    my_error(ER_ERROR_EVALUATING_EXPRESSION, MYF(0), vcol->expr_str);
-    goto end;
-  }
   /* fix_fields could've changed the expression */
   func_expr= vcol->expr_item;
 
-  /* Number of columns will be checked later */
-  thd->where= save_where;
+  /* this was checked in check_expression(), but the frm could be mangled... */
   if (unlikely(func_expr->result_type() == ROW_RESULT))
   {
-     my_error(ER_ROW_EXPR_FOR_VCOL, MYF(0));
-     goto end;
-  }
-
-  /* Check that we are not refering to any not yet initialized fields */
-  if (field)
-  {
-    if (func_expr->walk(&Item::check_field_expression_processor, 0, field))
-      goto end;
+    my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
+    DBUG_RETURN(1);
   }
 
   /*
@@ -2595,30 +2646,28 @@ static bool fix_vcol_expr(THD *thd, TABLE *table, Field *field,
   Item::vcol_func_processor_result res;
   res.errors= 0;
 
-  error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
+  int error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
   if (error || (res.errors & VCOL_IMPOSSIBLE))
-  {
+  { // this can only happen if the frm was corrupted
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             "???", field->field_name);
-    goto end;
+             "???", field ? field->field_name : "?????");
+    DBUG_RETURN(1);
   }
   vcol->flags= res.errors;
 
   /*
     Mark what kind of default / virtual fields the table has
   */
-  if (vcol->stored_in_db && vcol->flags & VCOL_NON_DETERMINISTIC)
-    table->s->non_determinstic_insert= 1;
+  if (vcol->stored_in_db &&
+      vcol->flags & (VCOL_NON_DETERMINISTIC | VCOL_SESSION_FUNC))
+    table->s->non_determinstic_insert= true;
 
-  result= FALSE;
+  if (vcol->flags & VCOL_SESSION_FUNC)
+    table->s->vcols_need_refixing= true;
 
-end:
-
-  thd->mark_used_columns= save_mark_used_columns;
-  table->map= 0; //Restore old value
- 
- DBUG_RETURN(result);
+  DBUG_RETURN(0);
 }
+
 
 /*
   @brief
@@ -2639,7 +2688,7 @@ end:
     pointer to this item is placed into in a Virtual_column_info object
     that is created. After this the function performs
     semantic analysis of the item by calling the the function
-    fix_vcol_expr().  Since the defining expression is part of the table
+    fix_and_check_vcol_expr().  Since the defining expression is part of the table
     definition the item for it is created in table->memroot within the
     special arena TABLE::expr_arena or in the thd memroot for INSERT DELAYED
 
@@ -2690,14 +2739,10 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
                                           vcol_expr->length + 
                                           parse_vcol_keyword.length + 3)))
     DBUG_RETURN(0);
-  memcpy(vcol_expr_str,
-         (char*) parse_vcol_keyword.str,
-         parse_vcol_keyword.length);
+  memcpy(vcol_expr_str, parse_vcol_keyword.str, parse_vcol_keyword.length);
   str_len= parse_vcol_keyword.length;
   vcol_expr_str[str_len++]= '(';
-  memcpy(vcol_expr_str + str_len, 
-         (char*) vcol_expr->str, 
-         vcol_expr->length);
+  memcpy(vcol_expr_str + str_len, vcol_expr->str, vcol_expr->length);
   str_len+= vcol_expr->length;
   vcol_expr_str[str_len++]= ')';
   vcol_expr_str[str_len++]= 0;
@@ -2740,21 +2785,14 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
     thd->update_charset(&my_charset_utf8mb4_general_ci,
                         table->s->table_charset);
   }
-  thd->in_stored_expression= 1;
   error= parse_sql(thd, &parser_state, NULL);
-  thd->in_stored_expression= 0;
   if (error)
     goto err;
 
-  /*
-    mark if expression will be stored in the table. This is also used by
-    fix_vcol_expr() to mark if we are using non deterministic functions.
-  */
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
   vcol_storage.vcol_info->name=              vcol->name;
   vcol_storage.vcol_info->utf8=              vcol->utf8;
-  /* Validate the Item tree. */
-  if (!fix_vcol_expr(thd, table, field, vcol_storage.vcol_info))
+  if (!fix_and_check_vcol_expr(thd, table, field, vcol_storage.vcol_info))
   {
     vcol_info= vcol_storage.vcol_info;          // Expression ok
     goto end;
@@ -2772,6 +2810,14 @@ end:
     thd->update_charset(save_character_set_client, save_collation);
 
   DBUG_RETURN(vcol_info);
+}
+
+static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol)
+{
+  bool res= vcol &&
+            vcol->expr_item->walk(&Item::check_field_expression_processor, 0,
+                                  field);
+  return res;
 }
 
 /*
@@ -3038,33 +3084,28 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
           goto err;
         }
         field->default_value= vcol;
-        if (is_create_table &&
-            !(vcol->flags & (VCOL_UNKNOWN | VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC)))
-        {
-          enum_check_fields old_count_cuted_fields= thd->count_cuted_fields;
-          thd->count_cuted_fields= CHECK_FIELD_WARN;    // To find wrong default values
-          my_ptrdiff_t off= share->default_values - outparam->record[0];
-          field->move_field_offset(off);
-          int res= vcol->expr_item->save_in_field(field, 1);
-          field->move_field_offset(-off);
-          thd->count_cuted_fields= old_count_cuted_fields;
-          if (res != 0 && res != 3)
-          {
-            my_error(ER_INVALID_DEFAULT, MYF(0), field->field_name);
-            error= OPEN_FRM_CORRUPTED;
-            goto err;
-          }
-        }
         *(dfield_ptr++)= *field_ptr;
       }
       else
-        if ((field->has_insert_default_function() ||
-             field->has_update_default_function()))
+        if (field->has_update_default_function())
           *(dfield_ptr++)= *field_ptr;
 
     }
     *vfield_ptr= 0;                            // End marker
     *dfield_ptr= 0;                            // End marker
+
+    /* Check that expressions aren't refering to not yet initialized fields */
+    for (field_ptr= outparam->field; *field_ptr; field_ptr++)
+    {
+      Field *field= *field_ptr;
+      if (check_vcol_forward_refs(field, field->vcol_info) ||
+          check_vcol_forward_refs(field, field->check_constraint) ||
+          check_vcol_forward_refs(field, field->default_value))
+      {
+        error= OPEN_FRM_CORRUPTED;
+        goto err;
+      }
+    }
 
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
@@ -6275,7 +6316,7 @@ void TABLE::mark_columns_needed_for_update()
     to compare records and detect data change.
   */
   if ((file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) &&
-      default_field && has_default_function(true))
+      default_field && s->has_update_default_function)
     bitmap_union(read_set, write_set);
   DBUG_VOID_RETURN;
 }
@@ -6573,17 +6614,13 @@ void TABLE::mark_default_fields_for_write(bool is_insert)
   for (field_ptr= default_field; *field_ptr; field_ptr++)
   {
     field= (*field_ptr);
-    if (field->default_value)
+    if (is_insert && field->default_value)
     {
-      if (is_insert)
-      {
-        bitmap_set_bit(write_set, field->field_index);
-        field->default_value->expr_item->
-          walk(&Item::register_field_in_read_map, 1, 0);
-      }
+      bitmap_set_bit(write_set, field->field_index);
+      field->default_value->expr_item->
+        walk(&Item::register_field_in_read_map, 1, 0);
     }
-    else if ((is_insert && field->has_insert_default_function()) ||
-             (!is_insert && field->has_update_default_function()))
+    else if (!is_insert && field->has_update_default_function())
       bitmap_set_bit(write_set, field->field_index);
   }
   DBUG_VOID_RETURN;
@@ -7314,7 +7351,8 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
     {
       if (!update_command)
       {
-        if (field->default_value)
+        if (field->default_value &&
+            (field->default_value->flags || field->flags & BLOB_FLAG))
           res|= (field->default_value->expr_item->save_in_field(field, 0) < 0);
         else
           res|= field->evaluate_insert_default_function();
@@ -7451,7 +7489,7 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
         /*
           We're here if:
           - validate_value_in_record_with_warn() failed and
-            strict mode converted WARN to ERROR
+            strict mo validate_default_values_of_unset_fieldsde converted WARN to ERROR
           - or the connection was killed, or closed unexpectedly
         */
         DBUG_RETURN(true);
@@ -7460,6 +7498,59 @@ bool TABLE::validate_default_values_of_unset_fields(THD *thd) const
   }
   DBUG_RETURN(false);
 }
+
+
+bool TABLE::insert_all_rows_into(THD *thd, TABLE *dest, bool with_cleanup)
+{
+  int write_err= 0;
+
+  DBUG_ENTER("TABLE::insert_all_rows_into");
+
+  if (with_cleanup)
+  {
+   if ((write_err= dest->file->ha_delete_all_rows()))
+      goto err;
+  }
+   
+  if (file->indexes_are_disabled())
+    dest->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
+  file->ha_index_or_rnd_end();
+
+  if (file->ha_rnd_init_with_error(1))
+    DBUG_RETURN(1);
+
+  if (dest->no_rows)
+    dest->file->extra(HA_EXTRA_NO_ROWS);
+  else
+  {
+    /* update table->file->stats.records */
+    file->info(HA_STATUS_VARIABLE);
+    dest->file->ha_start_bulk_insert(file->stats.records);
+  }
+
+  while (!file->ha_rnd_next(dest->record[1]))
+  {
+    write_err= dest->file->ha_write_tmp_row(dest->record[1]);
+    if (write_err)
+      goto err;
+    if (thd->check_killed())
+    {
+      thd->send_kill_message();
+      goto err_killed;
+    }
+  }
+  if (!dest->no_rows && dest->file->ha_end_bulk_insert())
+    goto err;
+  DBUG_RETURN(0);
+
+err:
+  DBUG_PRINT("error",("Got error: %d",write_err));
+  file->print_error(write_err, MYF(0));
+err_killed:
+  (void) file->ha_rnd_end();
+  DBUG_RETURN(1);
+}
+
 
 
 /*
@@ -7502,19 +7593,23 @@ void TABLE_LIST::reset_const_table()
 
 bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
 {
-  SELECT_LEX_UNIT *unit;
+  SELECT_LEX_UNIT *unit= get_unit();
   DBUG_ENTER("handle_derived");
   DBUG_PRINT("enter", ("phases: 0x%x", phases));
-  if ((unit= get_unit()))
+
+  if (unit)
   {
-    for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
-      if (sl->handle_derived(lex, phases))
-        DBUG_RETURN(TRUE);
-    DBUG_RETURN(mysql_handle_single_derived(lex, this, phases));
+    if (!is_with_table_recursive_reference())
+    {
+      for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+        if (sl->handle_derived(lex, phases))
+          DBUG_RETURN(TRUE);
+    }
+    if (mysql_handle_single_derived(lex, this, phases))
+      DBUG_RETURN(TRUE);
   }
   DBUG_RETURN(FALSE);
 }
-
 
 /**
   @brief
@@ -7623,7 +7718,8 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) &&
         !thd->lex->can_not_use_merged() &&
         !(thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-          thd->lex->sql_command == SQLCOM_DELETE_MULTI))
+          thd->lex->sql_command == SQLCOM_DELETE_MULTI) &&
+        !is_recursive_with_table())
       set_merged_derived();
     else
       set_materialized_derived();
@@ -7793,6 +7889,7 @@ bool TABLE_LIST::is_with_table()
   return derived && derived->with_element;
 }
 
+
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {
   return use_ext_keys &&
@@ -7807,4 +7904,187 @@ double KEY::actual_rec_per_key(uint i)
     return 0;
   return (is_statistics_from_stat_tables ?
           read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
+}
+
+
+/**
+  @brief
+  Mark subformulas of a condition unusable for the condition pushed into table
+  
+  @param cond The condition whose subformulas are to be marked
+  
+  @details
+    This method recursively traverses the AND-OR condition cond and for each subformula
+    of the codition it checks whether it can be usable for the extraction of a condition
+    that can be pushed into this table. The subformulas that are not usable are
+    marked with the flag NO_EXTRACTION_FL.
+  @note
+    This method is called before any call of TABLE_LIST::build_pushable_cond_for_table.
+    The flag NO_EXTRACTION_FL set in a subformula allows to avoid building clone
+    for the subformula when extracting the pushable condition.
+*/ 
+
+void TABLE_LIST::check_pushable_cond_for_table(Item *cond)
+{
+  table_map tab_map= table->map;
+  cond->clear_extraction_flag();
+  if (cond->type() == Item::COND_ITEM)
+  {
+    bool and_cond= ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC;
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    uint count= 0;
+    Item *item;
+    while ((item=li++))
+    {
+      check_pushable_cond_for_table(item);
+      if (item->get_extraction_flag() !=  NO_EXTRACTION_FL)
+        count++;
+      else if (!and_cond)
+        break;
+    }
+    if ((and_cond && count == 0) || item)
+    {
+      cond->set_extraction_flag(NO_EXTRACTION_FL);
+      if (and_cond)
+        li.rewind();
+      while ((item= li++))
+        item->clear_extraction_flag();
+    }
+  }
+  else if (cond->walk(&Item::exclusive_dependence_on_table_processor,
+                      0, (void *) &tab_map))
+    cond->set_extraction_flag(NO_EXTRACTION_FL);
+}
+
+
+/**
+  @brief
+  Build condition extractable from the given one depended only on this table
+ 
+  @param thd   The thread handle
+  @param cond  The condition from which the pushable one is to be extracted
+  
+  @details
+    For the given condition cond this method finds out what condition depended
+    only  on this table can be extracted from cond. If such condition C exists
+    the method builds the item for it.
+    The method uses the flag NO_EXTRACTION_FL set by the preliminary call of
+    the method TABLE_LIST::check_pushable_cond_for_table to figure out whether
+    a subformula depends only on this table or not.
+  @note
+    The built condition C is always implied by the condition cond
+    (cond => C). The method tries to build the most restictive such
+    condition (i.e. for any other condition C' such that cond => C'
+    we have C => C').
+   @note
+    The build item is not ready for usage: substitution for the field items
+    has to be done and it has to be re-fixed.
+ 
+ @retval
+    the built condition pushable into this table if such a condition exists
+    NULL if there is no such a condition
+*/ 
+
+Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond) 
+{
+  table_map tab_map= table->map;
+  bool is_multiple_equality= cond->type() == Item::FUNC_ITEM && 
+  ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC;
+  if (cond->get_extraction_flag() == NO_EXTRACTION_FL)
+    return 0;
+  if (cond->type() == Item::COND_ITEM)
+  {
+    bool cond_and= false;
+    Item_cond *new_cond;
+    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
+    {
+      cond_and= true;
+      new_cond=new (thd->mem_root) Item_cond_and(thd);
+    }
+    else
+      new_cond= new (thd->mem_root) Item_cond_or(thd);
+    if (!new_cond)
+      return 0;		
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    Item *item;
+    while ((item=li++))
+    {
+      if (item->get_extraction_flag() == NO_EXTRACTION_FL)
+      {
+	if (!cond_and)
+	  return 0;
+	continue;
+      }
+      Item *fix= build_pushable_cond_for_table(thd, item);
+      if (!fix && !cond_and)
+	return 0;
+      if (!fix) 
+	continue;
+      new_cond->argument_list()->push_back(fix, thd->mem_root);
+    }
+    switch (new_cond->argument_list()->elements) 
+    {
+    case 0:
+      return 0;			
+    case 1:
+      return new_cond->argument_list()->head();
+    default:
+      return new_cond;
+    }
+  }
+  else if (is_multiple_equality)
+  {
+    if (!(cond->used_tables() & tab_map))
+      return 0;
+    Item *new_cond= NULL;
+    int i= 0;
+    Item_equal *item_equal= (Item_equal *) cond;
+    Item *left_item = item_equal->get_const();
+    Item_equal_fields_iterator it(*item_equal);
+    Item *item;
+    if (!left_item)
+    {
+      while ((item=it++))
+      if (item->used_tables() == tab_map)
+      {
+        left_item= item;
+        break;
+      }
+    }
+    if (!left_item)
+      return 0;
+    while ((item=it++))
+    {
+      if (!(item->used_tables() == tab_map))
+	continue;
+      Item_func_eq *eq= 0;
+      Item *left_item_clone= left_item->build_clone(thd, thd->mem_root);
+      Item *right_item_clone= item->build_clone(thd, thd->mem_root);
+      if (left_item_clone && right_item_clone)
+	eq= new (thd->mem_root) Item_func_eq(thd, right_item_clone,
+                                         left_item_clone);
+      if (eq)
+      {
+	i++;
+	switch (i)
+	{
+	case 1:
+	  new_cond= eq;
+	  break;
+	case 2:
+	  new_cond= new (thd->mem_root) Item_cond_and(thd, new_cond, eq);
+	  break;
+	default:
+	  ((Item_cond_and*)new_cond)->argument_list()->push_back(eq,
+                                                                 thd->mem_root);
+	}
+      }
+    }
+    if (new_cond)
+      new_cond->fix_fields(thd, &new_cond);
+    return new_cond;
+  }
+  else if (cond->get_extraction_flag() != NO_EXTRACTION_FL)
+    return cond->build_clone(thd, thd->mem_root);
+  return 0;
 }

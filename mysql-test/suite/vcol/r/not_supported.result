@@ -14,12 +14,6 @@ create table t4 (a int, b int, v int as (@a:=a));
 ERROR HY000: Function or expression '@a' cannot be used in the GENERATED ALWAYS AS clause of `v`
 create table t4 (a int, b int, v int as (@a:=a) PERSISTENT);
 ERROR HY000: Function or expression '@a' cannot be used in the GENERATED ALWAYS AS clause of `v`
-create table t5 (a int, b int, v varchar(100) as (monthname(a)));
-ERROR HY000: Function or expression 'monthname()' cannot be used in the GENERATED ALWAYS AS clause of `v`
-create table t6 (a int, b int, v varchar(100) as (dayname(a)));
-ERROR HY000: Function or expression 'dayname()' cannot be used in the GENERATED ALWAYS AS clause of `v`
-create table t7 (a int, b int, v varchar(100) as (date_format(a, '%W %a %M %b')));
-ERROR HY000: Function or expression 'date_format()' cannot be used in the GENERATED ALWAYS AS clause of `v`
 create table t8 (a int, b int, v varchar(100) as (from_unixtime(a)));
 insert t1 (a,b) values (1,2);
 insert t8 (a,b) values (1234567890,2);

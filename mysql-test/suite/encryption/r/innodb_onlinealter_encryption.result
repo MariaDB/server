@@ -59,7 +59,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
-  `b` int(11) DEFAULT '2',
+  `b` int(11) DEFAULT 2,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`)
@@ -69,7 +69,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
-  `b` int(11) DEFAULT '2',
+  `b` int(11) DEFAULT 2,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`)
@@ -79,7 +79,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `id` int(11) DEFAULT NULL,
   `a` varchar(255) DEFAULT NULL,
-  `c` int(11) DEFAULT '5',
+  `c` int(11) DEFAULT 5,
   KEY `a` (`a`),
   KEY `c` (`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes
@@ -88,7 +88,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `id` int(11) DEFAULT NULL,
   `a` varchar(255) DEFAULT NULL,
-  `c` int(11) DEFAULT '5',
+  `c` int(11) DEFAULT 5,
   KEY `a` (`a`),
   KEY `c` (`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -116,7 +116,7 @@ Table	Create Table
 t7	CREATE TABLE `t7` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
-  `b` int(11) DEFAULT '2',
+  `b` int(11) DEFAULT 2,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`)

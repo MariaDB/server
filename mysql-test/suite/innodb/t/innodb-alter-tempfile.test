@@ -20,6 +20,13 @@
 --echo # in-place ALTERs of the same table will not be blocked due to
 --echo # temporary tablename.
 
+# As we intentionally crash below, there could be partially written
+# pages that are then recovered from the doublewrite buffer
+call mtr.add_suppression("InnoDB: Warning: database page corruption or a failed
+");
+call mtr.add_suppression("InnoDB: file read of space .* page .*");
+call mtr.add_suppression("InnoDB: Trying to recover it from the doublewrite buffer.");
+
 let datadir= `select @@datadir`;
 
 --let $_server_id= `SELECT @@server_id`

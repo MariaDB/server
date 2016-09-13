@@ -19,8 +19,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(20) NOT NULL,
-  `group` int(11) NOT NULL DEFAULT '1',
-  `a\\b` int(11) NOT NULL DEFAULT '2',
+  `group` int(11) NOT NULL DEFAULT 1,
+  `a\\b` int(11) NOT NULL DEFAULT 2,
   `a\\` int(10) unsigned DEFAULT NULL,
   `name` varchar(32) DEFAULT 'name',
   PRIMARY KEY (`id`)

@@ -1015,7 +1015,7 @@ CREATE TABLE t1 (col1 INT NOT NULL default 99, col2 CHAR(6) NOT NULL);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "col1" int(11) NOT NULL DEFAULT '99',
+  "col1" int(11) NOT NULL DEFAULT 99,
   "col2" char(6) NOT NULL
 )
 INSERT INTO t1 VALUES (1, 'hello');

@@ -37,6 +37,8 @@ public:
     maybe_null= 1;
     unsigned_flag= 1;
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_inet_aton>(thd, mem_root, this); }
 };
 
 
@@ -57,6 +59,8 @@ public:
     fix_length_and_charset(3 * 8 + 7, default_charset());
     maybe_null= 1;
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_inet_ntoa>(thd, mem_root, this); }
 };
 
 
@@ -124,6 +128,8 @@ public:
     fix_length_and_charset(16, &my_charset_bin);
     maybe_null= 1;
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_inet6_aton>(thd, mem_root, this); }
 
 protected:
   virtual bool calc_value(String *arg, String *buffer);
@@ -156,6 +162,8 @@ public:
 
     maybe_null= 1;
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_inet6_ntoa>(thd, mem_root, this); }
 
 protected:
   virtual bool calc_value(String *arg, String *buffer);
@@ -176,6 +184,8 @@ public:
 public:
   virtual const char *func_name() const
   { return "is_ipv4"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_is_ipv4>(thd, mem_root, this); }
 
 protected:
   virtual bool calc_value(const String *arg);
@@ -196,6 +206,8 @@ public:
 public:
   virtual const char *func_name() const
   { return "is_ipv6"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_is_ipv6>(thd, mem_root, this); }
 
 protected:
   virtual bool calc_value(const String *arg);
@@ -216,6 +228,8 @@ public:
 public:
   virtual const char *func_name() const
   { return "is_ipv4_compat"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_is_ipv4_compat>(thd, mem_root, this); }
 
 protected:
   virtual bool calc_value(const String *arg);
@@ -236,6 +250,8 @@ public:
 public:
   virtual const char *func_name() const
   { return "is_ipv4_mapped"; }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_is_ipv4_mapped>(thd, mem_root, this); }
 
 protected:
   virtual bool calc_value(const String *arg);

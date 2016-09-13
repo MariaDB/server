@@ -12,25 +12,19 @@ int test_if_group_changed(List<Cached_item> &list);
 /* A wrapper around test_if_group_changed */
 class Group_bound_tracker
 {
-  List<Cached_item> group_fields;
-  /*
-    During the first check_if_next_group, the list of cached_items is not
-    initialized. The compare function will return that the items match if
-    the field's value is the same as the Cached_item's default value (0).
-    This flag makes sure that we always return true during the first check.
-
-    XXX This is better to be implemented within test_if_group_changed, but
-    since it is used in other parts of the codebase, we keep it here for now.
-  */
-   bool first_check;
 public:
-  void init(THD *thd, SQL_I_List<ORDER> *list)
+
+  Group_bound_tracker(THD *thd, SQL_I_List<ORDER> *list)
   {
     for (ORDER *curr = list->first; curr; curr=curr->next) 
     {
       Cached_item *tmp= new_Cached_item(thd, curr->item[0], TRUE);
       group_fields.push_back(tmp);
     }
+  }
+
+  void init()
+  {
     first_check= true;
   }
 
@@ -76,6 +70,19 @@ public:
     }
     return 0;
   }
+
+private:
+  List<Cached_item> group_fields;
+  /*
+    During the first check_if_next_group, the list of cached_items is not
+    initialized. The compare function will return that the items match if
+    the field's value is the same as the Cached_item's default value (0).
+    This flag makes sure that we always return true during the first check.
+
+    XXX This is better to be implemented within test_if_group_changed, but
+    since it is used in other parts of the codebase, we keep it here for now.
+  */
+   bool first_check;
 };
 
 /*
@@ -92,19 +99,22 @@ class Item_sum_row_number: public Item_sum_int
   longlong count;
 
 public:
+
+  Item_sum_row_number(THD *thd)
+    : Item_sum_int(thd),  count(0) {}
+
   void clear()
   {
     count= 0;
   }
-  bool add() 
+
+  bool add()
   {
     count++;
-    return false; 
+    return false;
   }
-  void update_field() {}
 
-  Item_sum_row_number(THD *thd)
-    : Item_sum_int(thd),  count(0) {}
+  void update_field() {}
 
   enum Sumfunctype sum_func() const
   {
@@ -119,7 +129,9 @@ public:
   {
     return "row_number(";
   }
-  
+
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_row_number>(thd, mem_root, this); }
 };
 
 
@@ -145,9 +157,12 @@ class Item_sum_rank: public Item_sum_int
 protected:
   longlong row_number; // just ROW_NUMBER()
   longlong cur_rank;   // current value
-  
-  Group_bound_tracker peer_tracker;
+
+  Group_bound_tracker *peer_tracker;
 public:
+
+  Item_sum_rank(THD *thd) : Item_sum_int(thd), peer_tracker(NULL) {}
+
   void clear()
   {
     /* This is called on partition start */
@@ -168,10 +183,6 @@ public:
     TODO: ^^ what does this do ? It is not called ever?
   */
 
-public:
-  Item_sum_rank(THD *thd)
-    : Item_sum_int(thd) {}
-
   enum Sumfunctype sum_func () const
   {
     return RANK_FUNC;
@@ -183,11 +194,19 @@ public:
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
+
   void cleanup()
   {
-    peer_tracker.cleanup();
+    if (peer_tracker)
+    {
+      peer_tracker->cleanup();
+      delete peer_tracker;
+      peer_tracker= NULL;
+    }
     Item_sum_int::cleanup();
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_rank>(thd, mem_root, this); }
 };
 
 
@@ -214,7 +233,7 @@ class Item_sum_dense_rank: public Item_sum_int
 {
   longlong dense_rank;
   bool first_add;
-  Group_bound_tracker peer_tracker;
+  Group_bound_tracker *peer_tracker;
  public:
   /*
      XXX(cvicentiu) This class could potentially be implemented in the rank
@@ -233,7 +252,7 @@ class Item_sum_dense_rank: public Item_sum_int
   }
 
   Item_sum_dense_rank(THD *thd)
-    : Item_sum_int(thd), dense_rank(0), first_add(true) {}
+    : Item_sum_int(thd), dense_rank(0), first_add(true), peer_tracker(NULL) {}
   enum Sumfunctype sum_func () const
   {
     return DENSE_RANK_FUNC;
@@ -248,9 +267,16 @@ class Item_sum_dense_rank: public Item_sum_int
 
   void cleanup()
   {
-    peer_tracker.cleanup();
+    if (peer_tracker)
+    {
+      peer_tracker->cleanup();
+      delete peer_tracker;
+      peer_tracker= NULL;
+    }
     Item_sum_int::cleanup();
   }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_dense_rank>(thd, mem_root, this); }
 };
 
 /*
@@ -289,7 +315,7 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
 {
  public:
   Item_sum_percent_rank(THD *thd)
-    : Item_sum_window_with_row_count(thd), cur_rank(1) {}
+    : Item_sum_window_with_row_count(thd), cur_rank(1), peer_tracker(NULL) {}
 
   longlong val_int()
   {
@@ -342,16 +368,23 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_percent_rank>(thd, mem_root, this); }
 
  private:
   longlong cur_rank;   // Current rank of the current row.
   longlong row_number; // Value if this were ROW_NUMBER() function.
 
-  Group_bound_tracker peer_tracker;
+  Group_bound_tracker *peer_tracker;
 
   void cleanup()
   {
-    peer_tracker.cleanup();
+    if (peer_tracker)
+    {
+      peer_tracker->cleanup();
+      delete peer_tracker;
+      peer_tracker= NULL;
+    }
     Item_sum_num::cleanup();
   }
 };
@@ -419,6 +452,9 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
   }
+  
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_cume_dist>(thd, mem_root, this); }
 
  private:
   ulonglong current_row_count_;
@@ -487,6 +523,9 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_ntile>(thd, mem_root, this); }
 
  private:
   longlong get_num_quantiles() { return args[0]->val_int(); }
@@ -502,12 +541,6 @@ public:
 public:
   Window_spec *window_spec;
   
-  /*
-    This stores the data about the partition we're currently in.
-    advance_window() uses this to tell when we've left one partition and
-    entered another
-  */
-  Group_bound_tracker partition_tracker;
 public:
   Item_window_func(THD *thd, Item_sum *win_func, LEX_STRING *win_name)
     : Item_func_or_sum(thd, (Item *) win_func),
@@ -599,9 +632,6 @@ public:
     TODO: consoder merging these with class Group_bound_tracker.
   */
   void setup_partition_border_check(THD *thd);
-
-  void advance_window();
-  bool check_if_partition_changed();
 
   enum_field_types field_type() const
   { 
@@ -751,6 +781,8 @@ public:
   bool fix_fields(THD *thd, Item **ref);
 
   bool resolve_window_name(THD *thd);
+  
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
 };
 
