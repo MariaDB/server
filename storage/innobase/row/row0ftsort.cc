@@ -1149,10 +1149,6 @@ fts_parallel_merge(
 	os_event_set(psort_info->psort_common->merge_event);
 	psort_info->child_status = FTS_CHILD_EXITING;
 
-#ifdef __WIN__
-	CloseHandle((HANDLE)psort_info->thread_hdl);
-#endif /*__WIN__ */
-
 	os_thread_exit();
 
 	OS_THREAD_DUMMY_RETURN;
