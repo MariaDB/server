@@ -1,0 +1,37 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10801 sql_mode: dynamic SQL placeholders
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+SET @a=10, @b=20;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (?,?)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:a,:b)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:aaa,:bbb)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:"a",:"b")';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:"aaa",:"bbb")';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:1,:2)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:222,:111)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:0,:65535)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:65535,:0)';
+EXECUTE stmt USING @a, @b;
+SELECT * FROM t1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+DROP TABLE t1;

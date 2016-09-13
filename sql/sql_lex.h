@@ -3138,6 +3138,11 @@ public:
   bool sp_while_loop_expression(THD *thd, Item *expr);
   bool sp_while_loop_finalize(THD *thd);
 
+  Item_param *add_placeholder(THD *thd, char *name,
+                              uint pos_in_query, uint len_in_query);
+  Item_param *add_placeholder(THD *thd, char *name,
+                              const char *pos, const char *end);
+
   sp_variable *sp_add_for_loop_variable(THD *thd, const LEX_STRING name,
                                         Item *value);
   sp_variable *sp_add_for_loop_upper_bound(THD *thd, Item *value)
