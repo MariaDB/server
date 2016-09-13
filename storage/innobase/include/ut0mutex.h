@@ -97,8 +97,6 @@ typedef BlockSyncArrayMutex ib_bpmutex_t;
 #error "ib_mutex_t type is unknown"
 #endif /* MUTEX_FUTEX */
 
-#include "ut0mutex.ic"
-
 extern ulong	srv_spin_wait_delay;
 extern ulong	srv_n_spin_wait_rounds;
 

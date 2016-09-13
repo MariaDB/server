@@ -28,6 +28,7 @@ Created 9/5/1995 Heikki Tuuri
 
 #include <vector>
 #include <iostream>
+#include <my_atomic.h>
 
 #include "ut0new.h"
 #include "ut0counter.h"
