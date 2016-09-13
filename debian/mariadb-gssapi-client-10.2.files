@@ -1,1 +1,1 @@
-usr/lib/mysql/plugin/auth_gssapi_client.so
+usr/lib/mariadb/plugin/auth_gssapi_client.so
