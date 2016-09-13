@@ -1688,7 +1688,6 @@ public:
     is_top_bound(is_top_bound_arg), n_rows(n_rows_arg),
     cursor(thd, partition_list)
   {
-    DBUG_ASSERT(n_rows > 0);
   }
 
   void init(READ_RECORD *info)
