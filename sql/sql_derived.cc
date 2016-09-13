@@ -1144,6 +1144,10 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   if (!any_select_allows_cond_pushdown)
     return false; 
 
+  /* Do not push conditions into constant derived */
+  if (derived->fill_me)
+    return false;
+
   /* Do not push conditions into recursive with tables */
   if (derived->is_recursive_with_table())
     return false;

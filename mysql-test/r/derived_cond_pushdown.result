@@ -7007,3 +7007,12 @@ WHERE f = 1;
 f
 1
 DROP TABLE t1;
+#
+# MDEV-10783: pushdown into constant view
+#
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+CREATE VIEW v AS SELECT 5;
+SELECT * FROM t1 WHERE 1 IN ( SELECT * FROM v );
+i
+DROP VIEW v;
+DROP TABLE t1;
