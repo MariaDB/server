@@ -1145,7 +1145,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     return false; 
 
   /* Do not push conditions into constant derived */
-  if (derived->fill_me)
+  if (unit->executed)
     return false;
 
   /* Do not push conditions into recursive with tables */
@@ -1191,18 +1191,8 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
                                  (uchar*) sl);
       if (extracted_cond_copy)
       {
-        /*
-          Create the conjunction of the existing where condition of sl
-          and the pushed condition, take it as the new where condition of sl
-          and fix this new condition
-        */
-        extracted_cond_copy->walk(&Item::cleanup_processor, 0, 0);
-        thd->change_item_tree(&sl->join->conds,
-                              and_conds(thd, sl->join->conds,
-                                        extracted_cond_copy));
-    
-        if (sl->join->conds->fix_fields(thd, &sl->join->conds))
-          goto err;
+       extracted_cond_copy->walk(&Item::cleanup_processor, 0, 0);
+       sl->cond_pushed_into_where= extracted_cond_copy;
       }      
   
       continue;
@@ -1236,19 +1226,9 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
       */
       extracted_cond_copy= remove_pushed_top_conjuncts(thd, extracted_cond_copy);
   
-      /*
-        Create the conjunction of the existing where condition of sl
-        and the pushed condition, take it as the new where condition of sl
-        and fix this new condition
-      */
       cond_over_grouping_fields->walk(&Item::cleanup_processor, 0, 0);
-      thd->change_item_tree(&sl->join->conds,
-                            and_conds(thd, sl->join->conds,
-                                      cond_over_grouping_fields));
-    
-      if (sl->join->conds->fix_fields(thd, &sl->join->conds))
-        goto err;
-           
+      sl->cond_pushed_into_where= cond_over_grouping_fields;
+
       if (!extracted_cond_copy)
         continue;
     }
@@ -1268,13 +1248,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
       and fix this new condition
     */
     extracted_cond_copy->walk(&Item::cleanup_processor, 0, 0);
-    thd->change_item_tree(&sl->join->having,
-    and_conds(thd, sl->join->having,
-    extracted_cond_copy));
-    sl->having_fix_field= 1;
-    if (sl->join->having->fix_fields(thd, &sl->join->having))
-      return true;
-    sl->having_fix_field= 0;
+    sl->cond_pushed_into_having= extracted_cond_copy;
   }
   thd->lex->current_select= save_curr_select;
   return false;

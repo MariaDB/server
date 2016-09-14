@@ -2093,6 +2093,7 @@ void st_select_lex::init_query()
   item_list.empty();
   join= 0;
   having= prep_having= where= prep_where= 0;
+  cond_pushed_into_where= cond_pushed_into_having= 0;
   olap= UNSPECIFIED_OLAP_TYPE;
   having_fix_field= 0;
   context.select_lex= this;

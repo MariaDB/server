@@ -7016,3 +7016,19 @@ SELECT * FROM t1 WHERE 1 IN ( SELECT * FROM v );
 i
 DROP VIEW v;
 DROP TABLE t1;
+#
+# MDEV-10785: second execution of a query with condition
+#             pushed into view
+#
+CREATE TABLE t1 (i int);
+CREATE VIEW v1 AS SELECT i FROM t1 WHERE i < 5;
+CREATE FUNCTION f (in1 int) RETURNS int RETURN in1;
+CREATE VIEW v2 AS SELECT * FROM v1 GROUP BY i;
+PREPARE stmt FROM "SELECT * FROM v2 WHERE f(0) <> 2";
+EXECUTE stmt;
+i
+EXECUTE stmt;
+i
+DROP FUNCTION f;
+DROP VIEW v2,v1;
+DROP TABLE t1;

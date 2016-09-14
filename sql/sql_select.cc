@@ -1248,6 +1248,24 @@ JOIN::optimize_inner()
   
   if (setup_jtbm_semi_joins(this, join_list, &conds))
     DBUG_RETURN(1);
+
+  if (select_lex->cond_pushed_into_where)
+  {
+    conds= and_conds(thd, conds, select_lex->cond_pushed_into_where);
+    if (conds && conds->fix_fields(thd, &conds))
+      DBUG_RETURN(1);
+  }
+  if (select_lex->cond_pushed_into_having)
+  {
+    having= and_conds(thd, having, select_lex->cond_pushed_into_having);
+    if (having)
+    {
+      select_lex->having_fix_field= 1;
+      if (having->fix_fields(thd, &having))
+        DBUG_RETURN(1);
+      select_lex->having_fix_field= 0;
+    }
+  }
   
   conds= optimize_cond(this, conds, join_list, FALSE,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
