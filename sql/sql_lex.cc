@@ -4923,6 +4923,7 @@ void binlog_unsafe_map_init()
 
 void st_select_lex::collect_grouping_fields(THD *thd) 
 {
+  grouping_tmp_fields.empty();
   List_iterator<Item> li(join->fields_list);
   Item *item= li++;
   for (uint i= 0; i < master_unit()->derived->table->s->fields; i++, (item=li++))

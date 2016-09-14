@@ -1242,18 +1242,11 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
                          (uchar*) sl);
     if (!extracted_cond_copy)
       continue;
-    /*
-      Create the conjunction of the existing having condition of sl
-      and the pushed condition, take it as the new having condition of sl
-      and fix this new condition
-    */
+
     extracted_cond_copy->walk(&Item::cleanup_processor, 0, 0);
     sl->cond_pushed_into_having= extracted_cond_copy;
   }
   thd->lex->current_select= save_curr_select;
   return false;
-err:
-  thd->lex->current_select= save_curr_select;
-  return true;
 }
 
