@@ -2248,7 +2248,6 @@ innobase_create_index_def(
 				  | HA_BINARY_PACK_KEY)));
 		index->ind_type = DICT_FTS;
 
-#ifdef MYSQL_FTS_PARSER
 		/* Note: key->parser is only parser name,
 			 we need to get parser from altered_table instead */
 
@@ -2279,7 +2278,6 @@ innobase_create_index_def(
 				index->parser = &fts_default_parser;);
 			ut_ad(index->parser);
 		}
-#endif /* MYSQL_FTS_PARSER */
 	} else if (key->flags & HA_SPATIAL) {
 		DBUG_ASSERT(!(key->flags & HA_NOSAME));
 		index->ind_type = DICT_SPATIAL;

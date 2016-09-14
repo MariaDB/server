@@ -7215,7 +7215,6 @@ ha_innobase::open(
 		dict_table_autoinc_unlock(m_prebuilt->table);
 	}
 
-#if MYSQL_PLUGIN_FULLTEXT_PARSER
 	/* Set plugin parser for fulltext index */
 	for (uint i = 0; i < table->s->keys; i++) {
 		if (table->key_info[i].flags & HA_USES_PARSER) {
@@ -7236,7 +7235,6 @@ ha_innobase::open(
 				index->parser = &fts_default_parser;);
 		}
 	}
-#endif
 
 	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 
@@ -11148,6 +11146,8 @@ ha_innobase::ft_init_ext(
 	const byte*	q = reinterpret_cast<const byte*>(
 		const_cast<char*>(query));
 
+	// JAN: TODO: support for ft_init_ext_with_hints(), remove the line below
+	m_prebuilt->m_fts_limit= ULONG_UNDEFINED;
 	dberr_t	error = fts_query(trx, index, flags, q, query_len, &result,
 				  m_prebuilt->m_fts_limit);
 

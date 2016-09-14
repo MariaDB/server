@@ -1,18 +1,12 @@
+--source include/have_innodb.inc
+
 #------------------------------------------------------------------------------
 # FTS with FK and update cascade
 #-------------------------------------------------------------------------------
---source include/have_innodb.inc
-
-if (`select plugin_auth_version <= "5.6.10" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in InnoDB 5.6.10 or earlier
-}
-
---disable_warnings
-drop table if exists t2,t1;
---enable_warnings
-
 set names utf8;
+
+call mtr.add_suppression("\\[Warning\\] InnoDB: A new Doc ID must be supplied while updating FTS indexed columns.");
+call mtr.add_suppression("\\[Warning\\] InnoDB: FTS Doc ID must be larger than [0-9]+ for table `test`.`t1`");
 
 # Create FTS table
 CREATE TABLE t1 (
@@ -63,14 +57,17 @@ INSERT INTO t2 (a2,b2) VALUES
 --error 1451
 DELETE FROM t1;
 
-SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial') ;
-SELECT id2 FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial') ;
+ANALYZE TABLE t1; 
+ANALYZE TABLE t2;
 
-SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN BOOLEAN MODE) ;
-SELECT id2 FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN BOOLEAN MODE) ;
+SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial') ORDER BY id1;
+SELECT id2 FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial') ORDER BY id2;
 
-SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial' WITH QUERY EXPANSION) ;
-SELECT id2 FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial' WITH QUERY EXPANSION) ;
+SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN BOOLEAN MODE) ORDER BY id1;
+SELECT id2 FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN BOOLEAN MODE) ORDER BY id2;
+
+SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial' WITH QUERY EXPANSION) ORDER BY id1;
+SELECT id2 FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial' WITH QUERY EXPANSION) ORDER BY id2;
 
 
 SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('"dbms database"@4' IN BOOLEAN MODE) ;
@@ -89,10 +86,10 @@ SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN
 SELECT id2 FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN BOOLEAN MODE) ;
 
 # it shows updated record
-SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('+update +cascade' IN BOOLEAN MODE) ;
+SELECT id1 FROM t1 WHERE MATCH (a1,b1) AGAINST ('+update +cascade' IN BOOLEAN MODE) ORDER BY id1;
 # InnoDB:Error child table does not show the expected record
-SELECT id2 FROM t2 WHERE MATCH (a2,b2) AGAINST ('+update +cascade' IN BOOLEAN MODE) ;
-SELECT id2 FROM t2 WHERE a2 LIKE '%UPDATE CASCADE%';
+SELECT id2 FROM t2 WHERE MATCH (a2,b2) AGAINST ('+update +cascade' IN BOOLEAN MODE) ORDER BY id2;
+SELECT id2 FROM t2 WHERE a2 LIKE '%UPDATE CASCADE%' ORDER BY id2;
 
 DROP TABLE t2 , t1;
 
@@ -220,11 +217,8 @@ DROP TABLE t2 , t1;
 #------------------------------------------------------------------------------
 # FTS with FK+transactions and UPDATE casecade with transaction
 #-------------------------------------------------------------------------------
---disable_warnings
-DROP TABLE IF EXISTS t2,t1;
---enable_warnings
 
-SET NAMES utf8;
+call mtr.add_suppression("\\[ERROR\\] InnoDB: FTS Doc ID must be larger than 3 for table `test`.`t2`");
 
 # Create FTS table
 CREATE TABLE t1 (
@@ -277,12 +271,12 @@ INSERT INTO t2 (a2,b2) VALUES
 DELETE FROM t1;
 
 # records expected
-SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial') ;
-SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial') ;
-SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN BOOLEAN MODE) ;
-SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN BOOLEAN MODE) ;
-SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial' WITH QUERY EXPANSION) ;
-SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial' WITH QUERY EXPANSION) ;
+SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial') ORDER BY id1;
+SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial') ORDER BY id2;
+SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN BOOLEAN MODE) ORDER BY id1;
+SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN BOOLEAN MODE) ORDER BY id2;
+SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial' WITH QUERY EXPANSION) ORDER BY id1;
+SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial' WITH QUERY EXPANSION) ORDER BY id2;
 SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('"dbms database"@4' IN BOOLEAN MODE) ;
 SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('"dbms database"@4' IN BOOLEAN MODE) ;
 
@@ -296,8 +290,8 @@ SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('root' WITH QUERY EXPANSION) ;
 SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('"database comparison"@02' IN BOOLEAN MODE) ;
 SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('"database comparison"@02' IN BOOLEAN MODE) ;
 
-SELECT * FROM t1;
-SELECT * FROM t2;
+SELECT * FROM t1 ORDER BY id1;
+SELECT * FROM t2 ORDER BY id2;
 
 COMMIT;
 
@@ -312,9 +306,9 @@ SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN B
 SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('tutorial (+mysql -VÐƷWİ)' IN BOOLEAN MODE) ;
 
 # it shows updated record
-SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('+UPDATE +cascade' IN BOOLEAN MODE) ;
-SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('+UPDATE +cascade' IN BOOLEAN MODE) ;
-SELECT * FROM t2 WHERE a2 LIKE '%UPDATE CASCADE%';
+SELECT * FROM t1 WHERE MATCH (a1,b1) AGAINST ('+UPDATE +cascade' IN BOOLEAN MODE) ORDER BY id1;
+SELECT * FROM t2 WHERE MATCH (a2,b2) AGAINST ('+UPDATE +cascade' IN BOOLEAN MODE) ORDER BY id2;
+SELECT * FROM t2 WHERE a2 LIKE '%UPDATE CASCADE%' ORDER BY id2;
 
 DROP TABLE t2 , t1;
 
@@ -434,18 +428,9 @@ DROP TABLE t2 , t1;
 #------------------------------------------------------------------------------
 
 # Save innodb variables
---disable_query_log
-let $innodb_file_format_orig=`select @@innodb_file_format`;
 let $innodb_file_per_table_orig=`select @@innodb_file_per_table`;
-let $innodb_file_format_max_orig=`select @@innodb_file_format_max`;
-let $innodb_large_prefix_orig=`select @@innodb_large_prefix`;
---enable_query_log
 
-# Set Innodb file format as feature works for Barracuda file format
-set global innodb_file_format="Barracuda";
 set global innodb_file_per_table=1;
-set global innodb_large_prefix=1;
-set names utf8;
 
 # Create FTS table
 CREATE TABLE t1 (
@@ -464,6 +449,9 @@ INSERT INTO t1 (a,b) VALUES
 ALTER TABLE t1 ADD FULLTEXT INDEX idx (a,b);
 EVAL SHOW CREATE TABLE t1;
 
+# Check whether individual space id created for AUX tables
+SELECT count(*) FROM information_schema.innodb_sys_tables WHERE name LIKE "%FTS_%" AND space !=0;
+
 # Insert rows
 INSERT INTO t1 (a,b) VALUES
         ('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
@@ -476,20 +464,20 @@ ANALYZE TABLE t1;
 
 # Select word "tutorial" in the table
 SELECT * FROM t1 WHERE MATCH (a,b)
-        AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+        AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE) ORDER BY id;
 
 # boolean mode
 select * from t1 where MATCH(a,b) AGAINST("+tutorial +VÐƷWİ" IN BOOLEAN MODE);
 --error ER_PARSE_ERROR
 select * from t1 where MATCH(a,b) AGAINST("+-VÐƷWİ" IN BOOLEAN MODE);
 select * from t1 where MATCH(a,b) AGAINST("+Mysql +(tricks never)" IN BOOLEAN MODE);
-select * from t1 where MATCH(a,b) AGAINST("+mysql -(tricks never)" IN BOOLEAN MODE);
-select *, MATCH(a,b) AGAINST("mysql stands" IN BOOLEAN MODE) as x from t1;
+select * from t1 where MATCH(a,b) AGAINST("+mysql -(tricks never)" IN BOOLEAN MODE) ORDER BY id;
+select *, MATCH(a,b) AGAINST("mysql stands" IN BOOLEAN MODE) as x from t1 ORDER BY id;
 select * from t1 where MATCH a,b AGAINST ("+database* +VÐƷW*" IN BOOLEAN MODE);
 select * from t1 where MATCH a,b AGAINST ('"security mysql"' IN BOOLEAN MODE);
 
 # query expansion
-select * from t1 where MATCH(a,b) AGAINST ("VÐƷWİ" WITH QUERY EXPANSION);
+select * from t1 where MATCH(a,b) AGAINST ("VÐƷWİ" WITH QUERY EXPANSION) ORDER BY id;
 
 # Drop index 
 ALTER TABLE t1 DROP INDEX idx;
@@ -505,20 +493,20 @@ ANALYZE TABLE t1;
 
 # Select word "tutorial" in the table
 SELECT * FROM t1 WHERE MATCH (a,b)
-        AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+        AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE) ORDER BY id;
 
 # boolean mode
 select * from t1 where MATCH(a,b) AGAINST("+tutorial +VÐƷWİ" IN BOOLEAN MODE);
 select * from t1 where MATCH(a,b) AGAINST("+dbms" IN BOOLEAN MODE);
 select * from t1 where MATCH(a,b) AGAINST("+Mysql +(tricks never)" IN BOOLEAN MODE);
-select * from t1 where MATCH(a,b) AGAINST("+mysql -(tricks never)" IN BOOLEAN MODE);
-select *, MATCH(a,b) AGAINST("mysql VÐƷWİ" IN BOOLEAN MODE) as x from t1;
+select * from t1 where MATCH(a,b) AGAINST("+mysql -(tricks never)" IN BOOLEAN MODE) ORDER BY id;
+select *, MATCH(a,b) AGAINST("mysql VÐƷWİ" IN BOOLEAN MODE) as x from t1 ORDER BY id;
 # Innodb:Assert eval0eval.c line 148
 #select * from t1 where MATCH a,b AGAINST ("+database* +VÐƷWİ*" IN BOOLEAN MODE);
 select * from t1 where MATCH a,b AGAINST ('"security mysql"' IN BOOLEAN MODE);
 
 # query expansion
-select * from t1 where MATCH(a,b) AGAINST ("VÐƷWİ" WITH QUERY EXPANSION);
+select * from t1 where MATCH(a,b) AGAINST ("VÐƷWİ" WITH QUERY EXPANSION) ORDER BY id;
 
 
 # insert for proximity search 
@@ -549,12 +537,12 @@ SELECT * FROM t1
 # This give you all three documents
 SELECT * FROM t1
         WHERE MATCH (a,b)
-        AGAINST ('"proximity search"@3' IN BOOLEAN MODE);
+        AGAINST ('"proximity search"@3' IN BOOLEAN MODE) ORDER BY id;
 
 # Similar boundary testing for the words
 SELECT * FROM t1
         WHERE MATCH (a,b)
-        AGAINST ('"test proximity"@5' IN BOOLEAN MODE);
+        AGAINST ('"test proximity"@5' IN BOOLEAN MODE) ORDER BY id;
 
 # Test with more word The last document will return, please notice there
 # is no ordering requirement for proximity search.
@@ -579,7 +567,7 @@ select * from t1 where MATCH(a,b) AGAINST("+tutorial +dbms" IN BOOLEAN MODE);
 select * from t1 where MATCH(a,b) AGAINST("+VÐƷWİ" IN BOOLEAN MODE);
 
 SELECT * FROM t1 WHERE MATCH (a,b)
-        AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+        AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE) ORDER BY id;
 
 DELETE FROM t1 WHERE MATCH (a,b) AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
 DELETE FROM t1 WHERE MATCH (a,b) AGAINST ('"proximity search"@14' IN BOOLEAN MODE);
@@ -588,20 +576,14 @@ DELETE FROM t1 WHERE MATCH (a,b) AGAINST ('"proximity search"@14' IN BOOLEAN MOD
 SELECT * FROM t1 WHERE MATCH (a,b)
         AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
 
-SELECT * FROM t1;
+SELECT * FROM t1 ORDER BY id;
 
 DROP TABLE t1;
---disable_query_log
-eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;
 eval SET GLOBAL innodb_file_per_table=$innodb_file_per_table_orig;
-eval SET GLOBAL innodb_file_format_max=$innodb_file_format_max_orig;
-eval SET GLOBAL innodb_large_prefix=$innodb_large_prefix_orig;
---enable_query_log
 
 #------------------------------------------------------------------------------
 # FTS index with utf8 character testcase
 #------------------------------------------------------------------------------
-set names utf8;
 
 # Create FTS table
 EVAL CREATE TABLE t1 (
@@ -631,10 +613,10 @@ INSERT INTO t1 (a,b) VALUES
 CREATE FULLTEXT INDEX idx on t1 (a,b);
 
 # FTS Queries
-SELECT * FROM t1 WHERE MATCH(a,b) AGAINST ("вредит χωρὶς");
+SELECT * FROM t1 WHERE MATCH(a,b) AGAINST ("вредит χωρὶς") ORDER BY id;
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST ("оно" WITH QUERY EXPANSION);
 
-SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("вред*" IN BOOLEAN MODE);
+SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("вред*" IN BOOLEAN MODE) ORDER BY id;
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("+γυαλιὰ +tutorial" IN BOOLEAN MODE);
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("+tutorial +(Мога τίποτα)" IN BOOLEAN MODE);
 
@@ -682,14 +664,14 @@ DELETE FROM t1 WHERE MATCH(a,b) AGAINST("+Sævör +úlpan" IN BOOLEAN MODE);
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST ("あさきゆめみじ　ゑひもせず");
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST ("łódź osiem");
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("вред*" IN BOOLEAN MODE);
-SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("фальшив*" IN BOOLEAN MODE);
+SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("фальшив*" IN BOOLEAN MODE) ORDER BY id;
 SELECT * FROM t1 WHERE MATCH(a,b) AGAINST("+Sævör +úlpan" IN BOOLEAN MODE);
 
 SELECT * FROM t1
         WHERE MATCH (a,b)
         AGAINST ('"łódź jeża"@2' IN BOOLEAN MODE);
 
-SELECT * FROM t1;
+SELECT * FROM t1 ORDER BY id;
 DROP TABLE t1;
 
 # This is to test the update operation on FTS indexed and non-indexed
