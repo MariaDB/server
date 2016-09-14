@@ -1247,7 +1247,6 @@ loop:
 	(flush_to_disk == true) case, because the log_mutex
 	contention also works as the arbitrator for write-IO
 	(fsync) bandwidth between log files and data files. */
-	os_rmb;
 	if (!flush_to_disk && log_sys->write_lsn >= lsn) {
 		return;
 	}
