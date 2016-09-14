@@ -152,19 +152,6 @@ srv_conc_enter_innodb_with_atomics(
 			return;
 		}
 
-		if (srv_thread_concurrency == 0) {
-
-			if (notified_mysql) {
-
-				(void) my_atomic_addlint(
-					&srv_conc.n_waiting, -1);
-
-				thd_wait_end(trx->mysql_thd);
-			}
-
-			return;
-		}
-
 		if (srv_conc.n_active < (lint) srv_thread_concurrency) {
 			ulint	n_active;
 

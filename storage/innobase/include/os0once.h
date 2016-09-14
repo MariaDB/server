@@ -29,7 +29,6 @@ Created Feb 20, 2014 Vasil Dimov
 
 #include "univ.i"
 
-#include "os0atomic.h"
 #include "ut0ut.h"
 
 /** Execute a given function exactly once in a multi-threaded environment

@@ -32,7 +32,6 @@ extern ulong	srv_spin_wait_delay;
 extern ulong	srv_n_spin_wait_rounds;
 extern ulong	srv_force_recovery_crash;
 
-#include "os0atomic.h"
 #include "sync0policy.h"
 #include "ib0mutex.h"
 #include <set>
@@ -45,25 +44,6 @@ extern ulong	srv_force_recovery_crash;
 
 typedef OSMutex EventMutex;
 
-#ifndef UNIV_DEBUG
-
-# ifdef HAVE_IB_LINUX_FUTEX
-UT_MUTEX_TYPE(TTASFutexMutex, GenericPolicy, FutexMutex);
-UT_MUTEX_TYPE(TTASFutexMutex, BlockMutexPolicy, BlockFutexMutex);
-# endif /* HAVE_IB_LINUX_FUTEX */
-
-UT_MUTEX_TYPE(TTASMutex, GenericPolicy, SpinMutex);
-UT_MUTEX_TYPE(TTASMutex, BlockMutexPolicy, BlockSpinMutex);
-
-
-UT_MUTEX_TYPE(OSTrackMutex, GenericPolicy, SysMutex);
-UT_MUTEX_TYPE(OSTrackMutex, BlockMutexPolicy, BlockSysMutex);
-
-UT_MUTEX_TYPE(TTASEventMutex, GenericPolicy, SyncArrayMutex);
-UT_MUTEX_TYPE(TTASEventMutex, BlockMutexPolicy, BlockSyncArrayMutex);
-
-#else /* !UNIV_DEBUG */
-
 # ifdef HAVE_IB_LINUX_FUTEX
 UT_MUTEX_TYPE(TTASFutexMutex, GenericPolicy, FutexMutex);
 UT_MUTEX_TYPE(TTASFutexMutex, BlockMutexPolicy, BlockFutexMutex);
@@ -77,8 +57,6 @@ UT_MUTEX_TYPE(OSTrackMutex, BlockMutexPolicy, BlockSysMutex);
 
 UT_MUTEX_TYPE(TTASEventMutex, GenericPolicy, SyncArrayMutex);
 UT_MUTEX_TYPE(TTASEventMutex, BlockMutexPolicy, BlockSyncArrayMutex);
-
-#endif /* !UNIV_DEBUG */
 
 #ifdef MUTEX_FUTEX
 /** The default mutex type. */
