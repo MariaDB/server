@@ -42,7 +42,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`pk`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `PAGE_COMPRESSED`=1 `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=4
 SELECT * FROM t1;
-ERROR HY000: Tablespace has been discarded for table 't1'
+ERROR HY000: Tablespace has been discarded for table `t1`
 # Tablespaces should be still encrypted
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobar/ in t1.ibd

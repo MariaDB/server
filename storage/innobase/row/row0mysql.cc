@@ -4042,12 +4042,8 @@ row_discard_tablespace_for_mysql(
 		err = DB_DECRYPTION_FAILED;
 	} else if (dict_table_is_temporary(table)) {
 
-		/* JAN: TODO: MySQL 5.7
 		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			    ER_CANNOT_DISCARD_TEMPORARY_TABLE);
-		*/
-		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			    ER_TABLESPACE_DISCARDED);
 
 		err = DB_ERROR;
 

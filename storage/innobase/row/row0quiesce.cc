@@ -872,11 +872,7 @@ row_quiesce_set_state(
 	} else if (dict_table_is_temporary(table)) {
 
 		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_WARN,
-			ER_TABLESPACE_DISCARDED, table->name);
-		/* JAN: TODO: MySQL 5.7
-		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_WARN,
 			    ER_CANNOT_DISCARD_TEMPORARY_TABLE);
-		*/
 
 		return(DB_UNSUPPORTED);
 	} else if (table->space == srv_sys_space.space_id()) {
