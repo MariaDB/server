@@ -29,6 +29,7 @@ select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 select * from information_schema.innodb_sys_tablespaces;
 select * from information_schema.innodb_sys_datafiles;
+--error 0,1109
 select * from information_schema.innodb_changed_pages;
 select * from information_schema.innodb_tablespaces_encryption;
 select * from information_schema.innodb_tablespaces_scrubbing;
