@@ -10,5 +10,4 @@
 #
 ##############################################################################
 
-innodb.auto_increment_dup : MDEV-10548
 innodb_defragment_fill_factor : MDEV-10771
