@@ -6297,7 +6297,8 @@ int mysqld_main(int argc, char **argv)
 
 /**
   Execute all commands from a file. Used by the mysql_install_db script to
-  create MySQL privilege tables without having to start a full MySQL server.
+  create MySQL privilege tables without having to start a full MySQL server
+  and by read_init_file() if mysqld was started with the option --init-file.
 */
 
 static void bootstrap(MYSQL_FILE *file)
