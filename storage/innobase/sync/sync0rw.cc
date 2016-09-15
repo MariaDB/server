@@ -573,6 +573,8 @@ rw_lock_x_lock_low(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
+	ibool local_recursive= lock->recursive;
+
 	if (rw_lock_lock_word_decr(lock, X_LOCK_DECR, X_LOCK_HALF_DECR)) {
 
 
@@ -592,9 +594,12 @@ rw_lock_x_lock_low(
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
 
 		/* Decrement failed: An X or SX lock is held by either
-		this thread or another. Try to relock. */
-		if (!pass
-		    && lock->recursive
+		this thread or another. Try to relock.
+		Note: recursive must be loaded before writer_thread see
+		comment for rw_lock_set_writer_id_and_recursion_flag().
+		To achieve this we load it before rw_lock_lock_word_decr(),
+		which implies full memory barrier in current implementation. */
+		if (!pass && local_recursive
 		    && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* Other s-locks can be allowed. If it is request x
 			recursively while holding sx lock, this x lock should
@@ -656,6 +661,8 @@ rw_lock_sx_lock_low(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
+	ibool local_recursive= lock->recursive;
+
 	if (rw_lock_lock_word_decr(lock, X_LOCK_HALF_DECR, X_LOCK_HALF_DECR)) {
 
 		/* lock->recursive also tells us if the writer_thread
@@ -674,8 +681,12 @@ rw_lock_sx_lock_low(
 
 		/* Decrement failed: It already has an X or SX lock by this
 		thread or another thread. If it is this thread, relock,
-		else fail. */
-		if (!pass && lock->recursive
+		else fail.
+		Note: recursive must be loaded before writer_thread see
+		comment for rw_lock_set_writer_id_and_recursion_flag().
+		To achieve this we load it before rw_lock_lock_word_decr(),
+		which implies full memory barrier in current implementation. */
+		if (!pass && local_recursive
 		    && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* This thread owns an X or SX lock */
 			if (lock->sx_recursive++ == 0) {
