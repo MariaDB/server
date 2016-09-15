@@ -6455,7 +6455,7 @@ static void create_new_thread(CONNECT *connect)
     mysql_mutex_unlock(&LOCK_connection_count);
     statistic_increment(denied_connections, &LOCK_status);
     statistic_increment(connection_errors_max_connection, &LOCK_status);
-    connect->close_with_error(0, NullS, ER_CON_COUNT_ERROR);
+    connect->close_with_error(0, NullS, abort_loop ? ER_SERVER_SHUTDOWN : ER_CON_COUNT_ERROR);
     DBUG_VOID_RETURN;
   }
 

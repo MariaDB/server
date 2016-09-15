@@ -61,9 +61,8 @@ connection slave;
 # '2003' CR_CONN_HOST_ERROR 
 # '2002' CR_CONNECTION_ERROR 
 # '2006' CR_SERVER_GONE_ERROR 
-# '1040' ER_CON_COUNT_ERROR 
 # '1053' ER_SERVER_SHUTDOWN
-let $slave_io_errno= 1040, 1053, 2002, 2003, 2006, 2013;
+let $slave_io_errno= 1053, 2002, 2003, 2006, 2013;
 --let $slave_io_error_is_nonfatal= 1
 source include/wait_for_slave_io_error.inc;
 
