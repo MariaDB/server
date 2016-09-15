@@ -611,8 +611,6 @@ btr_defragment_n_pages(
 	/* It doesn't make sense to call this function with n_pages = 1. */
 	ut_ad(n_pages > 1);
 
-	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-				MTR_MEMO_X_LOCK));
 	space = dict_index_get_space(index);
 	if (space == 0) {
 		/* Ignore space 0. */
@@ -801,9 +799,8 @@ DECLARE_THREAD(btr_defragment_thread)(
 		cursor = btr_pcur_get_btr_cur(pcur);
 		index = btr_cur_get_index(cursor);
 		first_block = btr_cur_get_block(cursor);
-
-		mtr_x_lock(dict_index_get_lock(index), &mtr);
 		mtr.set_named_space(index->space);
+
 		last_block = btr_defragment_n_pages(first_block, index,
 						    srv_defragment_n_pages,
 						    &mtr);
