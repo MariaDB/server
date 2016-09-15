@@ -6359,7 +6359,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
   }
   /* Count number of empty select queries */
-  if (!thd->get_sent_row_count())
+  if (!thd->get_sent_row_count() && !res)
     status_var_increment(thd->status_var.empty_queries);
   else
     status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());

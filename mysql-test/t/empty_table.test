@@ -10,6 +10,15 @@ create table t1 (nr int(5) not null auto_increment,b blob,str char(10), primary 
 select count(*) from t1;
 select * from t1;
 select * from t1 limit 0;
+show status like "Empty_queries";
 drop table t1;
+
+#
+# Accessing a non existing table should not increase Empty_queries
+#
+
+--error 1146
+select * from t2;
+show status like "Empty_queries";
 
 # End of 4.1 tests
