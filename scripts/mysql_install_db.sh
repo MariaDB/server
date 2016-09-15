@@ -473,7 +473,7 @@ else
 fi
 
 s_echo "Creating OpenGIS required SP-s..."
-if { echo "use test;"; cat "$maria_add_gis_sp"; } | mysqld_install_cmd_line > /dev/null
+if { echo "use mysql;"; cat "$maria_add_gis_sp"; } | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else
