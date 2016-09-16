@@ -1099,9 +1099,10 @@ insert into t1 values
   (2,2),
   (3,1);
 
-select 
-  rank() over (order by a) -
-  rank() over (order by b)
+select
+  a, b,
+  rank() over (order by a), rank() over (order by b),
+  rank() over (order by a) - rank() over (order by b) as diff
 from
   t1;
 
@@ -1337,3 +1338,22 @@ select
 from t1;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-10815: Window Function Expressions Wrong Results
+--echo #
+create table t(a decimal(35,10), b int);
+insert into t(a,b) values(1,1);
+insert into t(a,b) values(2,1);
+insert into t(a,b) values(0,1);
+insert into t(a,b) values(1,  2);
+insert into t(a,b) values(1.5,2);
+insert into t(a,b) values(3,  2);
+insert into t(a,b) values(4.5,2);
+select a, b,
+       sum(t.a) over (partition by t.b order by a) as simple_sum,
+       sum(t.a) over (partition by t.b order by a) + 1 as sum_and_const,
+       sum(t.b) over (partition by t.b order by a) + sum(t.a) over (partition by t.b order by a) as sum_and_sum
+from t
+order by t.b, t.a;
+drop table t;

@@ -1876,7 +1876,11 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
       Skip the else part, window functions are very special functions: 
       they need to have their own fields in the temp. table, but they
       need to be proceessed differently than regular aggregate functions
+
+      Call split_sum_func here so that each argument gets its fields to
+      point to the temporary table.
     */
+    split_sum_func(thd, ref_pointer_array, fields, split_flags);
   }
   else
   {

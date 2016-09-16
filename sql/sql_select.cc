@@ -26228,7 +26228,22 @@ AGGR_OP::end_send()
       rc= NESTED_LOOP_KILLED;
     }
     else
+    {
+      /*
+         In case we have window functions present, an extra step is required
+         to compute all the fields from the temporary table.
+         In case we have a compound expression such as: expr + expr,
+         where one of the terms has a window function inside it, only
+         after computing window function values we actually know the true
+         final result of the compounded expression.
+
+         Go through all the func items and save their values once again in the
+         corresponding temp table fields. Do this for each row in the table.
+      */
+      if (join_tab->window_funcs_step)
+        copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd);
       rc= evaluate_join_record(join, join_tab, 0);
+    }
   }
 
   // Finish rnd scn after sending records
