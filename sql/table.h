@@ -1023,7 +1023,7 @@ private:
   TABLE *share_all_next, **share_all_prev;
   TABLE *global_free_next, **global_free_prev;
   friend struct All_share_tables;
-  friend class Table_cache_instance;
+  friend struct Table_cache_instance;
 
 public:
 
