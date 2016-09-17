@@ -1870,7 +1870,7 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
         ((Item_sum *) this)->ref_by)
       return;
   }
-  else if (type() == WINDOW_FUNC_ITEM)
+  else if (type() == WINDOW_FUNC_ITEM || with_window_func)
   {
     /*
       Skip the else part, window functions are very special functions: 

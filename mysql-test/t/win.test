@@ -1357,3 +1357,17 @@ select a, b,
 from t
 order by t.b, t.a;
 drop table t;
+
+--echo #
+--echo # MDEV-10669: Crash in SELECT with window function used
+--echo #
+create table t(a decimal(35,10), b int);
+insert into t(a,b) values(1,1);
+insert into t(a,b) values(2,1);
+insert into t(a,b) values(0,1);
+SELECT (CASE WHEN sum(t.a) over (partition by t.b)=0 THEN null ELSE null END) AS a FROM t;
+SELECT ifnull(((t.a) / CASE WHEN sum(t.a) over(partition by t.b) =0 then null else null end) ,0) from t;
+SELECT sum(t.a) over (partition by t.b order by a),
+       sqrt(ifnull((sum(t.a) over (partition by t.b order by a)), 0))
+from t;
+drop table t;
