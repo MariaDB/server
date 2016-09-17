@@ -50,7 +50,7 @@ MACRO (RUN_BISON input_yy output_cc output_h)
     ADD_CUSTOM_COMMAND(
       OUTPUT ${output_cc}
              ${output_h}
-      COMMAND ${BISON_EXECUTABLE}  -y -p MYSQL 
+      COMMAND ${BISON_EXECUTABLE}  -y
        --output=${output_cc}
        --defines=${output_h}
         ${input_yy}
