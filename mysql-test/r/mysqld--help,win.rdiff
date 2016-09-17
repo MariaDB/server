@@ -8,7 +8,7 @@
   --lc-messages=name  Set the language used for the error messages.
   -L, --lc-messages-dir=name 
   Directory where error messages are
-@@ -517,6 +516,7 @@
+@@ -520,6 +519,7 @@
   Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
   DATETIME, TIMESTAMP columns.
   (Defaults to on; use --skip-mysql56-temporal-format to disable.)
@@ -16,7 +16,7 @@
   --net-buffer-length=# 
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
-@@ -903,6 +903,9 @@
+@@ -927,6 +927,9 @@
   characteristics (isolation level, read only/read
   write,snapshot - but not any work done / data modified
   within the transaction).
@@ -26,7 +26,7 @@
   --show-slave-auth-info 
   Show user and password in SHOW SLAVE HOSTS on this
   master.
-@@ -1015,6 +1018,10 @@
+@@ -1039,6 +1042,10 @@
   Log slow queries to given log file. Defaults logging to
   'hostname'-slow.log. Must be enabled to activate other
   slow log options
@@ -37,7 +37,7 @@
   --socket=name       Socket file to use for connection
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
-@@ -1033,6 +1040,7 @@
+@@ -1057,6 +1064,7 @@
   NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
@@ -45,7 +45,7 @@
   --standards-compliant-cte 
   Allow only standards compiant CTE
   (Defaults to on; use --skip-standards-compliant-cte to disable.)
-@@ -1070,25 +1078,11 @@
+@@ -1099,25 +1107,11 @@
   --thread-cache-size=# 
   How many threads we should keep in a cache for reuse.
   These are freed after 5 minutes of idle time
@@ -73,7 +73,7 @@
   --thread-stack=#    The stack size for each thread
   --time-format=name  The TIME format (ignored)
   --timed-mutexes     Specify whether to time mutexes. Deprecated, has no
-@@ -1097,8 +1091,8 @@
+@@ -1126,8 +1120,8 @@
   size, MySQL will automatically convert it to an on-disk
   MyISAM or Aria table
   -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
@@ -84,7 +84,7 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -1225,7 +1219,6 @@
+@@ -1252,7 +1246,6 @@
  key-cache-division-limit 100
  key-cache-file-hash-size 512
  key-cache-segments 0
@@ -92,7 +92,7 @@
  lc-messages en_US
  lc-messages-dir MYSQL_SHAREDIR/
  lc-time-names en_US
-@@ -1291,6 +1284,7 @@
+@@ -1319,6 +1312,7 @@
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
  mysql56-temporal-format TRUE
@@ -100,7 +100,7 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1387,6 +1381,8 @@
+@@ -1419,6 +1413,8 @@
  session-track-state-change FALSE
  session-track-system-variables 
  session-track-transaction-info OFF
@@ -109,7 +109,7 @@
  show-slave-auth-info FALSE
  silent-startup FALSE
  skip-grant-tables TRUE
-@@ -1411,6 +1407,7 @@
+@@ -1443,6 +1439,7 @@
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
@@ -117,7 +117,7 @@
  sort-buffer-size 2097152
  sql-mode NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  stack-trace TRUE
-@@ -1423,15 +1420,13 @@
+@@ -1456,16 +1453,14 @@
  sync-relay-log 10000
  sync-relay-log-info 10000
  sysdate-is-now FALSE
@@ -126,6 +126,7 @@
  table-definition-cache 400
 -table-open-cache 431
 +table-open-cache 2000
+ table-open-cache-instances 8
  tc-heuristic-recover OFF
  thread-cache-size 151
 -thread-pool-idle-timeout 60
