@@ -212,6 +212,22 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
 }
 
 
+inline
+int TABLE::delete_row()
+{
+  int error;
+  if (!versioned())
+    error= file->ha_delete_row(record[0]);
+  else
+  {
+    store_record(this, record[1]);
+    vers_end_field()->set_time();
+    error= file->ha_update_row(record[1], record[0]);
+  }
+  return error;
+}
+
+
 /**
   Implement DELETE SQL word.
 
@@ -587,15 +603,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         break;
       }
 
-      if (!table->versioned())
-        error= table->file->ha_delete_row(table->record[0]);
-      else
-      {
-        store_record(table,record[1]);
-        table->vers_end_field()->set_time();
-        error= table->file->ha_update_row(table->record[1],
-                                          table->record[0]);
-      }
+      error= table->delete_row();
       if (!error)
       {
 	deleted++;
@@ -1086,15 +1094,8 @@ int multi_delete::send_data(List<Item> &values)
                                             TRG_ACTION_BEFORE, FALSE))
         DBUG_RETURN(1);
       table->status|= STATUS_DELETED;
-      if (!table->versioned())
-        error= table->file->ha_delete_row(table->record[0]);
-      else
-      {
-        store_record(table,record[1]);
-        table->vers_end_field()->set_time();
-        error= table->file->ha_update_row(table->record[1],
-                                          table->record[0]);
-      }
+
+      error= table->delete_row();
       if (!error)
       {
         deleted++;
@@ -1275,15 +1276,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       break;
     }
 
-    if (!table->versioned())
-      local_error= table->file->ha_delete_row(table->record[0]);
-    else
-    {
-      store_record(table,record[1]);
-      table->vers_end_field()->set_time();
-      local_error= table->file->ha_update_row(table->record[1],
-                                              table->record[0]);
-    }
+    local_error= table->delete_row();
     if (local_error && !ignore)
     {
       table->file->print_error(local_error, MYF(0));
