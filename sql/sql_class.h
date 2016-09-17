@@ -3872,6 +3872,37 @@ public:
   */
   void raise_note_printf(uint code, ...);
 
+  /**
+    @brief Push an error message into MySQL error stack with line
+    and position information.
+
+    This function provides semantic action implementers with a way
+    to push the famous "You have a syntax error near..." error
+    message into the error stack, which is normally produced only if
+    a parse error is discovered internally by the Bison generated
+    parser.
+  */
+  void parse_error(const char *err_text, const char *yytext)
+  {
+    Lex_input_stream *lip= &m_parser_state->m_lip;
+    if (!yytext)
+    {
+      if (!(yytext= lip->get_tok_start()))
+        yytext= "";
+    }
+    /* Push an error into the error stack */
+    ErrConvString err(yytext, strlen(yytext), variables.character_set_client);
+    my_printf_error(ER_PARSE_ERROR,  ER_THD(this, ER_PARSE_ERROR), MYF(0),
+                    err_text, err.ptr(), lip->yylineno);
+  }
+  void parse_error(uint err_number, const char *yytext= 0)
+  {
+    return parse_error(ER_THD(this, err_number), yytext);
+  }
+  void parse_error()
+  {
+    return parse_error(ER_SYNTAX_ERROR);
+  }
 private:
   /*
     Only the implementation of the SIGNAL and RESIGNAL statements
