@@ -256,7 +256,7 @@ IF(compat53 AND compat101)
     MESSAGE("Using ${compat_rpm} to build MariaDB-compat")
     INSTALL(CODE "EXECUTE_PROCESS(
                    COMMAND rpm2cpio ${CMAKE_SOURCE_DIR}/${compat_rpm}
-                   COMMAND cpio --extract --make-directories */libmysqlclient*.so* -
+                   COMMAND cpio --extract --make-directories */libmysqlclient*.so.* -
                    WORKING_DIRECTORY \$ENV{DESTDIR})
                   EXECUTE_PROCESS(
                    COMMAND chmod -R a+rX .
