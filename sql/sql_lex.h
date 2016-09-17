@@ -3319,6 +3319,7 @@ extern void lex_end_stage2(LEX *lex);
 void end_lex_with_single_table(THD *thd, TABLE *table, LEX *old_lex);
 int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
 extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);
+extern int ORAlex(union YYSTYPE *yylval, THD *thd);
 
 extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str,
                             uint *prefix_removed);
@@ -3332,5 +3333,8 @@ extern bool is_lex_native_function(const LEX_STRING *name);
 void my_missing_function_error(const LEX_STRING &token, const char *name);
 bool is_keyword(const char *name, uint len);
 
+Virtual_column_info *add_virtual_expression(THD *thd, Item *expr);
+Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
+                                       Item *expr);
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

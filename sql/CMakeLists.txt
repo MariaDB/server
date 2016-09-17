@@ -48,6 +48,8 @@ ${WSREP_INCLUDES}
 SET(GEN_SOURCES
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h 
 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
+${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.h
+${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
 ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h 
 )
 SET(GEN_DIGEST_SOURCES
@@ -279,6 +281,12 @@ RUN_BISON(
   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h
 )
 
+RUN_BISON(
+  ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc_ora.yy
+  ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+  ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.h
+)
+
 # Gen_lex_hash
 IF(NOT CMAKE_CROSSCOMPILING)
   ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
@@ -329,6 +337,7 @@ CONFIGURE_FILE(
 ADD_CUSTOM_TARGET(dist 
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/make_dist.cmake
   DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc.h
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.h
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 

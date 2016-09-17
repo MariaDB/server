@@ -1281,6 +1281,11 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
   return token;
 }
 
+int ORAlex(YYSTYPE *yylval, THD *thd)
+{
+  return MYSQLlex(yylval, thd);
+}
+
 static int lex_one_token(YYSTYPE *yylval, THD *thd)
 {
   reg1	uchar UNINIT_VAR(c);
