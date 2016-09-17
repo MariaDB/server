@@ -342,6 +342,22 @@ DROP TABLE begin;
 CREATE TABLE end (end INT);
 DROP TABLE end;
 
+--echo # Testing ELSIF
+DELIMITER /;
+CREATE FUNCTION f1(a INT) RETURN CLOB
+AS
+BEGIN
+  IF a=1 THEN RETURN 'a is 1';
+  ELSIF a=2 THEN RETURN 'a is 2';
+  ELSE RETURN 'a is unknown';
+  END IF;
+END;
+/
+DELIMITER ;/
+SELECT f1(2) FROM DUAL;
+DROP FUNCTION f1;
+
+
 
 --echo # Testing top-level declarations
 DELIMITER /;

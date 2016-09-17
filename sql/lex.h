@@ -203,6 +203,7 @@ static SYMBOL symbols[] = {
   { "EACH",             SYM(EACH_SYM)},
   { "ELSE",             SYM(ELSE)},
   { "ELSEIF",           SYM(ELSEIF_SYM)},
+  { "ELSIF",            SYM(ELSIF_SYM)},
   { "ENABLE",		SYM(ENABLE_SYM)},
   { "ENCLOSED",		SYM(ENCLOSED)},
   { "END",		SYM(END)},

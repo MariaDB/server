@@ -326,6 +326,20 @@ CREATE TABLE begin (begin INT);
 DROP TABLE begin;
 CREATE TABLE end (end INT);
 DROP TABLE end;
+# Testing ELSIF
+CREATE FUNCTION f1(a INT) RETURN CLOB
+AS
+BEGIN
+IF a=1 THEN RETURN 'a is 1';
+ELSIF a=2 THEN RETURN 'a is 2';
+ELSE RETURN 'a is unknown';
+END IF;
+END;
+/
+SELECT f1(2) FROM DUAL;
+f1(2)
+a is 2
+DROP FUNCTION f1;
 # Testing top-level declarations
 CREATE PROCEDURE p1 (p1 OUT VARCHAR2(10))
 AS
