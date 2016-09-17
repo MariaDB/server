@@ -442,6 +442,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  EACH_SYM                      /* SQL-2003-R */
 %token  ELSE                          /* SQL-2003-R */
 %token  ELSEIF_SYM
+%token  ELSIF_SYM                     /* Oracle, reserved in PL/SQL*/
 %token  ENABLE_SYM
 %token  ENCLOSED
 %token  END                           /* SQL-2003-R */
@@ -3131,7 +3132,7 @@ sp_if:
 
 sp_elseifs:
           /* Empty */
-        | ELSEIF_SYM sp_if
+        | ELSIF_SYM sp_if
         | ELSE sp_proc_stmts1
         ;
 
