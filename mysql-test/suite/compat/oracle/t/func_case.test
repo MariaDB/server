@@ -1,0 +1,9 @@
+#
+# Testing CASE and its abbreviations
+#
+
+SET sql_mode=ORACLE;
+
+SELECT NVL(NULL, 'a'), NVL('a', 'b');
+
+SELECT NVL2(NULL, 'a', 'b'), NVL2('a', 'b', 'c');
