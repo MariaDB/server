@@ -31,6 +31,13 @@
 #include "sql_select.h"
 #include "sql_cte.h"
 
+
+void LEX::parse_error()
+{
+  thd->parse_error();
+}
+
+
 static int lex_one_token(YYSTYPE *yylval, THD *thd);
 
 /*

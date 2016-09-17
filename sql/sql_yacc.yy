@@ -99,7 +99,7 @@ int yylex(void *yylval, void *yythd);
 #define MYSQL_YYABORT_UNLESS(A)                  \
   if (!(A))                                      \
   {                                              \
-    my_parse_error(thd, ER_SYNTAX_ERROR);        \
+    thd->parse_error();                          \
     MYSQL_YYABORT;                               \
   }
 
@@ -111,43 +111,6 @@ int yylex(void *yylval, void *yythd);
 #else
 #define YYDEBUG 0
 #endif
-
-/**
-  @brief Push an error message into MySQL error stack with line
-  and position information.
-
-  This function provides semantic action implementers with a way
-  to push the famous "You have a syntax error near..." error
-  message into the error stack, which is normally produced only if
-  a parse error is discovered internally by the Bison generated
-  parser.
-*/
-
-static void my_parse_error_intern(THD *thd, const char *err_text,
-                                  const char *yytext)
-{
-  Lex_input_stream *lip= &thd->m_parser_state->m_lip;
-  if (!yytext)
-  {
-    if (!(yytext= lip->get_tok_start()))
-      yytext= "";
-  }
-  /* Push an error into the error stack */
-  ErrConvString err(yytext, strlen(yytext),
-                    thd->variables.character_set_client);
-  my_error(ER_PARSE_ERROR, MYF(0), err_text, err.ptr(), lip->yylineno);
-}
-
-
-static void my_parse_error(THD *thd, uint err_number, const char *yytext=0)
-{
-  return my_parse_error_intern(thd, ER_THD(thd, err_number), yytext);
-}
-
-void LEX::parse_error()
-{
-  my_parse_error(thd, ER_SYNTAX_ERROR);
-}
 
 
 /**
@@ -165,7 +128,7 @@ void LEX::parse_error()
 
   This function is not for use in semantic actions and is internal to
   the parser, as it performs some pre-return cleanup. 
-  In semantic actions, please use my_parse_error or my_error to
+  In semantic actions, please use thd->parse_error() or my_error to
   push an error into the error stack and MYSQL_YYABORT
   to abort from the parser.
 */
@@ -182,7 +145,7 @@ void MYSQLerror(THD *thd, const char *s)
   /* "parse error" changed into "syntax error" between bison 1.75 and 1.875 */
   if (strcmp(s,"parse error") == 0 || strcmp(s,"syntax error") == 0)
     s= ER_THD(thd, ER_SYNTAX_ERROR);
-  my_parse_error_intern(thd, s, 0);
+  thd->parse_error(s, 0);
 }
 
 
@@ -674,7 +637,7 @@ bool LEX::add_select_to_union_list(bool is_union_distinct,
   }
   if (current_select->linkage == GLOBAL_OPTIONS_TYPE)
   {
-    my_parse_error(thd, ER_SYNTAX_ERROR);
+    thd->parse_error();
     return TRUE;
   }
   if (!is_union_distinct && (type == INTERSECT_TYPE || type == EXCEPT_TYPE))
@@ -717,7 +680,6 @@ bool LEX::add_select_to_union_list(bool is_union_distinct,
     DBUG_ASSERT(type == UNION_TYPE);
   return FALSE;
 }
-
 
 
 /**
@@ -3422,7 +3384,7 @@ signal_allowed_expr:
                     SIGNAL/RESIGNAL ...
                     SET <signal condition item name> = @foo := expr
                 */
-                my_parse_error(thd, ER_SYNTAX_ERROR);
+                thd->parse_error();
                 MYSQL_YYABORT;
               }
             }
@@ -4915,7 +4877,7 @@ partition_entry:
             LEX *lex= Lex;
             if (!lex->part_info)
             {
-              my_parse_error(thd, ER_PARTITION_ENTRY_ERROR);
+              thd->parse_error(ER_PARTITION_ENTRY_ERROR);
               MYSQL_YYABORT;
             }
             /*
@@ -4972,7 +4934,7 @@ opt_key_algo:
               Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_55;
               break;
             default:
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
           }
@@ -5088,7 +5050,7 @@ part_func_expr:
           {
             if (!Lex->safe_to_cache_query)
             {
-              my_parse_error(thd, ER_WRONG_EXPR_IN_PARTITION_FUNC_ERROR);
+              thd->parse_error(ER_WRONG_EXPR_IN_PARTITION_FUNC_ERROR);
               MYSQL_YYABORT;
             }
             $$=$1;
@@ -5128,7 +5090,7 @@ part_defs:
               if (part_info->num_parts !=
                   count_curr_parts)
               {
-                my_parse_error(thd, ER_PARTITION_WRONG_NO_PART_ERROR);
+                thd->parse_error(ER_PARTITION_WRONG_NO_PART_ERROR);
                 MYSQL_YYABORT;
               }
             }
@@ -5258,7 +5220,7 @@ part_func_max:
                 part_info->num_columns != 1U)
             {
               part_info->print_debug("Kilroy II", NULL);
-              my_parse_error(thd, ER_PARTITION_COLUMN_LIST_ERROR);
+              thd->parse_error(ER_PARTITION_COLUMN_LIST_ERROR);
               MYSQL_YYABORT;
             }
             else
@@ -5289,7 +5251,7 @@ part_values_in:
                   part_info->num_columns > MAX_REF_PARTS)
               {
                 part_info->print_debug("Kilroy III", NULL);
-                my_parse_error(thd, ER_PARTITION_COLUMN_LIST_ERROR);
+                thd->parse_error(ER_PARTITION_COLUMN_LIST_ERROR);
                 MYSQL_YYABORT;
               }
               /*
@@ -5310,7 +5272,7 @@ part_values_in:
             partition_info *part_info= Lex->part_info;
             if (part_info->num_columns < 2U)
             {
-              my_parse_error(thd, ER_ROW_SINGLE_PARTITION_FIELD_ERROR);
+              thd->parse_error(ER_ROW_SINGLE_PARTITION_FIELD_ERROR);
               MYSQL_YYABORT;
             }
           }
@@ -5351,7 +5313,7 @@ part_value_item:
                 error.
               */
               part_info->print_debug("Kilroy I", NULL);
-              my_parse_error(thd, ER_PARTITION_COLUMN_LIST_ERROR);
+              thd->parse_error(ER_PARTITION_COLUMN_LIST_ERROR);
               MYSQL_YYABORT;
             }
             part_info->curr_list_object= 0;
@@ -5369,7 +5331,7 @@ part_value_expr_item:
             partition_info *part_info= Lex->part_info;
             if (part_info->part_type == LIST_PARTITION)
             {
-              my_parse_error(thd, ER_MAXVALUE_IN_VALUES_IN);
+              thd->parse_error(ER_MAXVALUE_IN_VALUES_IN);
               MYSQL_YYABORT;
             }
             if (part_info->add_max_value(thd))
@@ -5385,7 +5347,7 @@ part_value_expr_item:
 
             if (!lex->safe_to_cache_query)
             {
-              my_parse_error(thd, ER_WRONG_EXPR_IN_PARTITION_FUNC_ERROR);
+              thd->parse_error(ER_WRONG_EXPR_IN_PARTITION_FUNC_ERROR);
               MYSQL_YYABORT;
             }
             if (part_info->add_column_list_value(thd, part_expr))
@@ -5407,7 +5369,7 @@ opt_sub_partition:
                 We come here when we have defined subpartitions on the first
                 partition but not on all the subsequent partitions. 
               */
-              my_parse_error(thd, ER_PARTITION_WRONG_NO_SUBPART_ERROR);
+              thd->parse_error(ER_PARTITION_WRONG_NO_SUBPART_ERROR);
               MYSQL_YYABORT;
             }
           }
@@ -5419,7 +5381,7 @@ opt_sub_partition:
               if (part_info->num_subparts !=
                   part_info->count_curr_subparts)
               {
-                my_parse_error(thd, ER_PARTITION_WRONG_NO_SUBPART_ERROR);
+                thd->parse_error(ER_PARTITION_WRONG_NO_SUBPART_ERROR);
                 MYSQL_YYABORT;
               }
             }
@@ -5427,7 +5389,7 @@ opt_sub_partition:
             {
               if (part_info->partitions.elements > 1)
               {
-                my_parse_error(thd, ER_PARTITION_WRONG_NO_SUBPART_ERROR);
+                thd->parse_error(ER_PARTITION_WRONG_NO_SUBPART_ERROR);
                 MYSQL_YYABORT;
               }
               part_info->num_subparts= part_info->count_curr_subparts;
@@ -5462,7 +5424,7 @@ sub_part_definition:
                 the second partition (the current partition processed
                 have already been put into the partitions list.
               */
-              my_parse_error(thd, ER_PARTITION_WRONG_NO_SUBPART_ERROR);
+              thd->parse_error(ER_PARTITION_WRONG_NO_SUBPART_ERROR);
               MYSQL_YYABORT;
             }
             if (!sub_p_elem ||
@@ -5696,7 +5658,7 @@ create_table_option:
                 Lex->create_info.table_options|= HA_OPTION_PACK_KEYS;
                 break;
             default:
-                my_parse_error(thd, ER_SYNTAX_ERROR);
+                thd->parse_error();
                 MYSQL_YYABORT;
             }
             Lex->create_info.used_fields|= HA_CREATE_USED_PACK_KEYS;
@@ -5717,7 +5679,7 @@ create_table_option:
                 Lex->create_info.stats_auto_recalc= HA_STATS_AUTO_RECALC_ON;
                 break;
             default:
-                my_parse_error(thd, ER_SYNTAX_ERROR);
+                thd->parse_error();
                 MYSQL_YYABORT;
             }
             Lex->create_info.used_fields|= HA_CREATE_USED_STATS_AUTO_RECALC;
@@ -5737,7 +5699,7 @@ create_table_option:
                 Lex->create_info.table_options|= HA_OPTION_STATS_PERSISTENT;
                 break;
             default:
-                my_parse_error(thd, ER_SYNTAX_ERROR);
+                thd->parse_error();
                 MYSQL_YYABORT;
             }
             Lex->create_info.used_fields|= HA_CREATE_USED_STATS_PERSISTENT;
@@ -5760,7 +5722,7 @@ create_table_option:
             we can store the higher bits from stats_sample_pages in .frm too. */
             if ($3 == 0 || $3 > 0xffff)
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             Lex->create_info.stats_sample_pages=$3;
@@ -6755,7 +6717,7 @@ ws_nweights:
         {
           if ($2 == 0)
           {
-            my_parse_error(thd, ER_SYNTAX_ERROR);
+            thd->parse_error();
             MYSQL_YYABORT;
           }
         }
@@ -7249,7 +7211,7 @@ alter:
           {
             if (!($7 || $8 || $9 || $10 || $11))
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             /*
@@ -7888,7 +7850,7 @@ start:
             if (($3 & MYSQL_START_TRANS_OPT_READ_WRITE) &&
                 ($3 & MYSQL_START_TRANS_OPT_READ_ONLY))
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             lex->start_transaction_opt= $3;
@@ -10142,7 +10104,7 @@ function_call_generic:
             {
               if (lex->current_select->inc_in_sum_expr())
               {
-                my_parse_error(thd, ER_SYNTAX_ERROR);
+                thd->parse_error();
                 MYSQL_YYABORT;
               }
             }
@@ -10625,7 +10587,7 @@ variable_aux:
             /* disallow "SELECT @@global.global.variable" */
             if ($3.str && $4.str && check_reserved_words(&$3))
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             if (!($$= get_system_var(thd, $2, $3, $4)))
@@ -10668,7 +10630,7 @@ in_sum_expr:
             LEX *lex= Lex;
             if (lex->current_select->inc_in_sum_expr())
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
           }
@@ -10787,7 +10749,7 @@ table_ref:
             LEX *lex= Lex;
             if (!($$= lex->current_select->nest_last_join(thd)))
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
           }
@@ -11064,7 +11026,7 @@ table_primary_derived:
                 Tables with or without joins within parentheses cannot
                 have aliases, and we ruled out derived tables above.
               */
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             else
@@ -11129,7 +11091,7 @@ select_derived_union:
           {
             if ($1)
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
           }
@@ -11137,7 +11099,7 @@ select_derived_union:
           {
             if ($1)
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
           }
@@ -11193,7 +11155,7 @@ select_derived:
               MYSQL_YYABORT;
             if (!$2 && $$)
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
           }
@@ -11220,7 +11182,7 @@ select_derived2:
             if (!lex->expr_allows_subselect ||
                 lex->sql_command == (int)SQLCOM_PURGE)
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             if (lex->current_select->linkage == GLOBAL_OPTIONS_TYPE ||
@@ -11882,8 +11844,8 @@ delete_limit_clause:
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
             sel->explicit_limit= 1;
           }
-       | LIMIT ROWS_SYM EXAMINED_SYM { my_parse_error(thd, ER_SYNTAX_ERROR); MYSQL_YYABORT; }
-       | LIMIT limit_option ROWS_SYM EXAMINED_SYM { my_parse_error(thd, ER_SYNTAX_ERROR); MYSQL_YYABORT; }
+       | LIMIT ROWS_SYM EXAMINED_SYM { thd->parse_error(); MYSQL_YYABORT; }
+       | LIMIT limit_option ROWS_SYM EXAMINED_SYM { thd->parse_error(); MYSQL_YYABORT; }
         ;
 
 int_num:
@@ -11927,7 +11889,7 @@ real_ulonglong_num:
 
 dec_num_error:
           dec_num
-          { my_parse_error(thd, ER_ONLY_INTEGERS_ALLOWED); }
+          { thd->parse_error(ER_ONLY_INTEGERS_ALLOWED); }
         ;
 
 dec_num:
@@ -13081,12 +13043,12 @@ show_param:
              ST_SCHEMA_TABLE *table= find_schema_table(thd, $1.str, &in_plugin);
              if (!table || !table->old_format || !in_plugin)
              {
-               my_parse_error(thd, ER_SYNTAX_ERROR, $2);
+               thd->parse_error(ER_SYNTAX_ERROR, $2);
                MYSQL_YYABORT;
              }
              if (lex->wild && table->idx_field1 < 0)
              {
-               my_parse_error(thd, ER_SYNTAX_ERROR, $3);
+               thd->parse_error(ER_SYNTAX_ERROR, $3);
                MYSQL_YYABORT;
              }
              if (make_schema_select(thd, Lex->current_select, table))
@@ -13287,7 +13249,7 @@ flush_lock:
           {
             if (Lex->query_tables == NULL) // Table list can't be empty
             {
-              my_parse_error(thd, ER_NO_TABLES_USED);
+              thd->parse_error(ER_NO_TABLES_USED);
               MYSQL_YYABORT;
             } 
             Lex->type|= REFRESH_FOR_EXPORT;
@@ -13352,7 +13314,7 @@ flush_option:
              ST_SCHEMA_TABLE *table= find_schema_table(thd, $1.str);
              if (!table || !table->reset_table)
              {
-               my_parse_error(thd, ER_SYNTAX_ERROR, $2);
+               thd->parse_error(ER_SYNTAX_ERROR, $2);
                MYSQL_YYABORT;
              }
              Lex->view_list.push_back((LEX_STRING*)
@@ -15080,7 +15042,7 @@ option_value_following_option_type:
                 Not in trigger assigning value to new row,
                 and option_type preceding local variable is illegal.
               */
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
           }
@@ -15162,7 +15124,7 @@ option_value_no_option_type:
             if (spc && spc->find_variable(names, false))
               my_error(ER_SP_BAD_VAR_SHADOW, MYF(0), names.str);
             else
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
 
             MYSQL_YYABORT;
           }
@@ -15269,7 +15231,7 @@ internal_variable_name:
             LEX *lex= Lex;
             if (check_reserved_words(&$1))
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             if (lex->sphead && lex->sphead->m_type == TYPE_ENUM_TRIGGER &&
@@ -15594,7 +15556,7 @@ revoke_command:
             LEX *lex= Lex;
             if (lex->columns.elements)
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             lex->sql_command= SQLCOM_REVOKE;
@@ -15605,7 +15567,7 @@ revoke_command:
             LEX *lex= Lex;
             if (lex->columns.elements)
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             lex->sql_command= SQLCOM_REVOKE;
@@ -15656,7 +15618,7 @@ grant_command:
             LEX *lex= Lex;
             if (lex->columns.elements)
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             lex->sql_command= SQLCOM_GRANT;
@@ -15668,7 +15630,7 @@ grant_command:
             LEX *lex= Lex;
             if (lex->columns.elements)
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             lex->sql_command= SQLCOM_GRANT;
@@ -16317,7 +16279,7 @@ subselect_start:
             if (!lex->expr_allows_subselect ||
                lex->sql_command == (int)SQLCOM_PURGE)
             {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
+              thd->parse_error();
               MYSQL_YYABORT;
             }
             /* 
