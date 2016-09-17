@@ -1319,3 +1319,12 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `id` (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+#
+# MDEV-10343 Providing compatibility for basic SQL data types
+#
+CREATE TABLE clob (clob int);
+DROP TABLE clob;
+CREATE TABLE raw (raw int);
+DROP TABLE raw;
+CREATE TABLE varchar2 (varchar2 int);
+DROP TABLE varchar2;

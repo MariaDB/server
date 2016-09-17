@@ -1,0 +1,8 @@
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a DATE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" datetime DEFAULT NULL
+)
+DROP TABLE t1;
