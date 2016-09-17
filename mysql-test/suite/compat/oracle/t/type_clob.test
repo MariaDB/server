@@ -1,0 +1,10 @@
+SET sql_mode=ORACLE;
+
+# CLOB is not a reserved word even in sql_mode=ORACLE
+CREATE TABLE clob (clob INT);
+SHOW CREATE TABLE clob;
+DROP TABLE clob;
+
+CREATE TABLE t1 (a CLOB);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

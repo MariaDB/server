@@ -1,0 +1,15 @@
+SET sql_mode=ORACLE;
+CREATE TABLE raw (raw INT);
+SHOW CREATE TABLE raw;
+Table	Create Table
+raw	CREATE TABLE "raw" (
+  "raw" int(11) DEFAULT NULL
+)
+DROP TABLE raw;
+CREATE TABLE t1 (a RAW(10));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" varbinary(10) DEFAULT NULL
+)
+DROP TABLE t1;

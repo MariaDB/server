@@ -1,0 +1,15 @@
+SET sql_mode=ORACLE;
+CREATE TABLE clob (clob INT);
+SHOW CREATE TABLE clob;
+Table	Create Table
+clob	CREATE TABLE "clob" (
+  "clob" int(11) DEFAULT NULL
+)
+DROP TABLE clob;
+CREATE TABLE t1 (a CLOB);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" longtext DEFAULT NULL
+)
+DROP TABLE t1;

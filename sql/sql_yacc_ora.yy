@@ -434,6 +434,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  CLASS_ORIGIN_SYM              /* SQL-2003-N */
 %token  CLIENT_SYM
 %token  CLOSE_SYM                     /* SQL-2003-R */
+%token  CLOB                          /* SQL-2003-R */
 %token  COALESCE                      /* SQL-2003-N */
 %token  CODE_SYM
 %token  COLLATE_SYM                   /* SQL-2003-R */
@@ -811,6 +812,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  QUICK
 %token  RANGE_SYM                     /* SQL-2003-R */
 %token  RANK_SYM        
+%token  RAW                           /* Oracle */
 %token  READS_SYM                     /* SQL-2003-R */
 %token  READ_ONLY_SYM
 %token  READ_SYM                      /* SQL-2003-N */
@@ -1003,6 +1005,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  VALUE_SYM                     /* SQL-2003-R */
 %token  VARBINARY
 %token  VARCHAR                       /* SQL-2003-R */
+%token  VARCHAR2                      /* Oracle */
 %token  VARIABLES
 %token  VARIANCE_SYM
 %token  VARYING                       /* SQL-2003-R */
@@ -5649,6 +5652,10 @@ field_type:
           {
             $$.set(MYSQL_TYPE_VARCHAR, $2);
           }
+        | VARCHAR2 field_length opt_binary
+          {
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
+          }
         | nvarchar field_length opt_bin_mod
           {
             $$.set(MYSQL_TYPE_VARCHAR, $2);
@@ -5657,6 +5664,11 @@ field_type:
         | VARBINARY field_length
           {
             Lex->charset=&my_charset_bin;
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
+          }
+        | RAW field_length
+          {
+            Lex->charset= &my_charset_bin;
             $$.set(MYSQL_TYPE_VARCHAR, $2);
           }
         | YEAR_SYM opt_field_length field_options
@@ -5678,7 +5690,8 @@ field_type:
             $$.set(MYSQL_TYPE_YEAR, $2);
           }
         | DATE_SYM
-          { $$.set(MYSQL_TYPE_DATE); }
+          { $$.set(opt_mysql56_temporal_format ?
+                   MYSQL_TYPE_DATETIME2 : MYSQL_TYPE_DATETIME, 0); }
         | TIME_SYM opt_field_length
           { $$.set(opt_mysql56_temporal_format ?
                    MYSQL_TYPE_TIME2 : MYSQL_TYPE_TIME, $2); }
@@ -5710,7 +5723,7 @@ field_type:
         | BLOB_SYM opt_field_length
           {
             Lex->charset=&my_charset_bin;
-            $$.set(MYSQL_TYPE_BLOB, $2);
+            $$.set(MYSQL_TYPE_LONG_BLOB);
           }
         | spatial_type float_options srid_option
           {
@@ -5748,10 +5761,17 @@ field_type:
           { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
         | LONGTEXT opt_binary
           { $$.set(MYSQL_TYPE_LONG_BLOB); }
+        | CLOB opt_binary
+          { $$.set(MYSQL_TYPE_LONG_BLOB); }
         | DECIMAL_SYM float_options field_options
           { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
         | NUMBER_SYM float_options field_options
-          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
+          {
+            if ($2.length() != 0)
+              $$.set(MYSQL_TYPE_NEWDECIMAL, $2);
+            else
+              $$.set(MYSQL_TYPE_DOUBLE);
+          }
         | NUMERIC_SYM float_options field_options
           { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
         | FIXED_SYM float_options field_options
@@ -13950,6 +13970,7 @@ keyword_sp:
         | CIPHER_SYM               {}
         | CLIENT_SYM               {}
         | CLASS_ORIGIN_SYM         {}
+        | CLOB                     {}
         | COALESCE                 {}
         | CODE_SYM                 {}
         | COLLATION_SYM            {}
@@ -14136,6 +14157,7 @@ keyword_sp:
         | QUARTER_SYM              {}
         | QUERY_SYM                {}
         | QUICK                    {}
+        | RAW                      {}
         | READ_ONLY_SYM            {}
         | REBUILD_SYM              {}
         | RECOVER_SYM              {}
@@ -14222,6 +14244,7 @@ keyword_sp:
         | UNTIL_SYM                {}
         | USER_SYM                 {}
         | USE_FRM                  {}
+        | VARCHAR2                 {}
         | VARIABLES                {}
         | VIEW_SYM                 {}
         | VIRTUAL_SYM              {}
