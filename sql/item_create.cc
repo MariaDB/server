@@ -711,6 +711,19 @@ protected:
 #endif
 
 
+class Create_func_nvl2 : public Create_func_arg3
+{
+public:
+  virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3);
+
+  static Create_func_nvl2 s_singleton;
+
+protected:
+  Create_func_nvl2() {}
+  virtual ~Create_func_nvl2() {}
+};
+
+
 class Create_func_conv : public Create_func_arg3
 {
 public:
@@ -3931,6 +3944,15 @@ Create_func_contains::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 #endif
 
 
+Create_func_nvl2 Create_func_nvl2::s_singleton;
+
+Item*
+Create_func_nvl2::create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3)
+{
+  return new (thd->mem_root) Item_func_nvl2(thd, arg1, arg2, arg3);
+}
+
+
 Create_func_conv Create_func_conv::s_singleton;
 
 Item*
@@ -6884,6 +6906,8 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("MULTIPOLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
   { { C_STRING_WITH_LEN("MULTIPOLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
   { { C_STRING_WITH_LEN("NAME_CONST") }, BUILDER(Create_func_name_const)},
+  { { C_STRING_WITH_LEN("NVL") }, BUILDER(Create_func_ifnull)},
+  { { C_STRING_WITH_LEN("NVL2") }, BUILDER(Create_func_nvl2)},
   { { C_STRING_WITH_LEN("NULLIF") }, BUILDER(Create_func_nullif)},
   { { C_STRING_WITH_LEN("NUMGEOMETRIES") }, GEOM_BUILDER(Create_func_numgeometries)},
   { { C_STRING_WITH_LEN("NUMINTERIORRINGS") }, GEOM_BUILDER(Create_func_numinteriorring)},
