@@ -7568,18 +7568,9 @@ bool TABLE::vers_update_fields()
 {
   DBUG_ENTER("vers_update_fields");
 
-  if (!versioned())
-    DBUG_RETURN(FALSE);
-
-  if (vers_start_field()->set_time())
-  {
-    DBUG_RETURN(TRUE);
-  }
-
-  if (vers_end_field()->set_max_timestamp())
-  {
-    DBUG_RETURN(TRUE);
-  }
+  DBUG_ASSERT(versioned());
+  DBUG_ASSERT(!vers_start_field()->set_time());
+  DBUG_ASSERT(!vers_end_field()->set_max_timestamp());
 
   bitmap_set_bit(write_set, vers_start_field()->field_index);
   bitmap_set_bit(write_set, vers_end_field()->field_index);
