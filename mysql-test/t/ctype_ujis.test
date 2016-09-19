@@ -1399,7 +1399,7 @@ SELECT HEX(a) FROM t1 ORDER BY a;DROP TABLE t1;
 
 
 --echo #
---echo # End of 10.2 tests
+--echo # Start of 10.2 tests
 --echo #
 
 --echo #
@@ -1409,6 +1409,18 @@ CREATE TABLE t1 (a TEXT CHARACTER SET ujis);
 LOAD DATA INFILE '../../std_data/loaddata/mdev9823.ujis.txt' INTO TABLE t1 CHARACTER SET ujis IGNORE 4 LINES;
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+SET character_set_connection=ujis;
+let $coll='ujis_japanese_nopad_ci';
+let $coll_pad='ujis_japanese_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='ujis_nopad_bin';
+let $coll_pad='ujis_bin';
+--source include/ctype_pad_all_engines.inc
 
 --echo #
 --echo # End of 10.2 tests

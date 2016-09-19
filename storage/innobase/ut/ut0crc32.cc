@@ -118,7 +118,22 @@ ut_crc32_swap_byteorder(
 
 /* Flag that tells whether the CPU supports CRC32 or not */
 bool	ut_crc32_sse2_enabled = false;
-UNIV_INTERN bool    ut_crc32_power8_enabled = false;
+UNIV_INTERN bool	ut_crc32_power8_enabled = false;
+
+#ifdef HAVE_CRC32_VPMSUM
+extern "C" {
+unsigned int crc32c_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
+};
+UNIV_INLINE
+ib_uint32_t
+ut_crc32_power8(
+/*===========*/
+		const byte*		buf,		/*!< in: data over which to calculate CRC32 */
+		ulint			len)		/*!< in: data length */
+{
+	return crc32c_vpmsum(0, buf, len);
+}
+#endif
 
 #if defined(__GNUC__) && defined(__x86_64__)
 /********************************************************************//**
@@ -432,6 +447,7 @@ static bool	ut_crc32_slice8_table_initialized = false;
 /********************************************************************//**
 Initializes the table that is used to generate the CRC32 if the CPU does
 not have support for it. */
+#ifndef HAVE_CRC32_VPMSUM
 static
 void
 ut_crc32_slice8_table_init()
@@ -461,6 +477,7 @@ ut_crc32_slice8_table_init()
 
 	ut_crc32_slice8_table_initialized = true;
 }
+#endif
 
 /** Calculate CRC32 over 8-bit data using a software implementation.
 @param[in,out]	crc	crc32 checksum so far when this function is called,
@@ -728,7 +745,12 @@ ut_crc32_init()
 
 #endif /* defined(__GNUC__) && defined(__x86_64__) */
 
-	if (!ut_crc32_sse2_enabled) {
+#ifdef HAVE_CRC32_VPMSUM
+	ut_crc32_power8_enabled = true;
+	ut_crc32 = ut_crc32_power8;
+#endif
+
+	if (!ut_crc32_sse2_enabled && !ut_crc32_power8_enabled) {
 		ut_crc32_slice8_table_init();
 		ut_crc32 = ut_crc32_sw;
 		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_sw;

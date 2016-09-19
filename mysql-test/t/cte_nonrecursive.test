@@ -152,6 +152,28 @@ select * from (select * from t1 where b >= 'c') as r1,
 with t(c) as (select a from t1 where b >= 'c')
   select * from t r1, t r2 where r1.c=r2.c;
 
+--echo # t two references of t used in different parts of a union
+with t as (select a from t1 where b >= 'c')
+  select * from t where a < 2
+  union
+  select * from t where a >= 4;
+select * from (select a from t1 where b >= 'c') as t
+  where t.a < 2
+union
+select * from (select a from t1 where b >= 'c') as t
+  where t.a >= 4;
+explain
+with t as (select a from t1 where b >= 'c')
+  select * from t where a < 2
+  union
+  select * from t where a >= 4;
+explain
+select * from (select a from t1 where b >= 'c') as t
+  where t.a < 2
+union
+select * from (select a from t1 where b >= 'c') as t
+  where t.a >= 4;
+
 --echo # specification of t contains union
 with t as (select a from t1 where b >= 'f' 
            union
@@ -366,7 +388,7 @@ with t as (select * from t2 where c>3),
      t as (select a from t1 where a>2)
  select * from t,t1 where t1.a=t.c;
 
---ERROR ER_WRONG_ORDER_IN_WITH_CLAUSE
+--ERROR ER_NO_SUCH_TABLE
 with t as (select a from s where a<5),
      s as (select a from t1 where b>='d')
   select * from t,s where t.a=s.a;
@@ -376,31 +398,35 @@ with recursive
      s as (select a from t1 where b>='d')
   select * from t,s where t.a=s.a;
 
---ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
 with recursive t as (select * from s where a>2),
                s as (select a from t1,r where t1.a>r.c), 
                r as (select c from t,t2 where t.a=t2.c) 
   select * from r where r.c<7;
 
---ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
-with t as (select * from s where a>2),
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive
+     t as (select * from s where a>2),
      s as (select a from t1,r where t1.a>r.c), 
      r as (select c from t,t2 where t.a=t2.c) 
   select * from r where r.c<7;
 
---ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
-with t as (select * from t1
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive
+     t as (select * from t1
              where a in (select c from s where b<='ccc') and  b>'b'),
      s as (select * from t1,t2
              where t1.a=t2.c and t1.c in (select a from t where a<5))
  select * from s where s.b>'aaa';
 
---ERROR ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
-with t as (select * from t1 where b>'aaa' and b <='d') 
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive 
+  t as (select * from t1 where b>'aaa' and b <='d') 
   select t.b from t,t2
     where t.a=t2.c and
-          t2.c in (with s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
-                     select * from s);
+          t2.c in (with recursive
+                   s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
+                   select * from s);
 --echo #erroneous definition of unreferenced with table t
 --ERROR ER_BAD_FIELD_ERROR
 with t as (select count(*) from t1 where d>='f' group by a)
@@ -432,6 +458,30 @@ with t(f) as (select * from t1 where b >= 'c')
 --ERROR ER_DUP_FIELDNAME
 with t(f1,f1) as (select * from t1 where b >= 'c') 
   select t1.b from t2,t1 where t1.a = t2.c;
+
+--echo # explain for query with unreferenced with table
+
+explain 
+with t as (select a from t1 where b >= 'c') 
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+explain 
+with t as (select a, count(*) from t1 where b >= 'c' group by a)
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+--echo # too many with elements in with clause
+let $m= 65;
+let $i= $m;
+dec $i;
+let $q= with s$m as (select * from t1);
+while ($i)
+{
+  let $q= $q, s$i as (select * from t1) ;
+  dec $i;
+ }
+let $q= $q select * from s$m;
+--ERROR ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE
+eval $q;
 
 drop table t1,t2;
 
@@ -467,3 +517,62 @@ SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT * FROM t2 NATURAL JOIN t3) AS
 
 DROP TABLE t1,t2,t3;
 
+--echo #
+--echo # Bug mdev-10344: the WITH clause of the query refers to a view that uses 
+--echo #     a base table with the same name as a  CTE table from the clause 
+--echo #
+
+
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+ 
+create table one_k(a int primary key);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+ 
+create view v1 as select * from ten;
+
+select * from v1;
+
+drop view v1;
+drop table ten, one_k;
+
+--echo #
+--echo # MDEV-10057 : Crash with EXPLAIN + WITH + constant query
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT 1) AS t1;
+EXPLAIN SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT 1) AS t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10058: Suspicious EXPLAIN output for a derived table + WITH + joined table	
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE TABLE t3 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+INSERT INTO t2 VALUES (1),(2),(3);
+INSERT INTO t3 VALUES (1),(2),(3);
+--error ER_PARSE_ERROR
+EXPLAIN SELECT * FROM (WITH a AS (SELECT * FROM t1) (t2 NATURAL JOIN t3));
+explain SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT * FROM t2 NATURAL JOIN t3) AS d1;
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-10729: Server crashes in st_select_lex::set_explain_type
+--echo #
+CREATE TABLE t1 (i1 INT, KEY(i1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4),(8);
+                        
+CREATE TABLE t2 (a2 INT, b2 INT, KEY(b2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8,7);
+            
+CREATE TABLE t3 (i3 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (2),(6);
+ 
+SELECT * FROM t1, t2 WHERE a2 = i1 and b2 >= i1 AND i1 IN ( SELECT i3 FROM t3 )
+UNION
+SELECT * FROM t1, t2 WHERE a2 = i1 and b2 >= i1 AND i1 IN ( SELECT i3 FROM t3 )
+;
+DROP TABLE t1,t2,t3;

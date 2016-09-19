@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
    Copyright (c) 2010, 2016, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -638,6 +638,8 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                           ha_extra_function extra,
                           TABLE *skip_table)
 {
+  DBUG_ASSERT(!share->tmp_table);
+
   char key[MAX_DBKEY_LENGTH];
   uint key_length= share->table_cache_key.length;
   const char *db= key;
@@ -876,8 +878,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     Do this *before* entering the TABLE_SHARE::tdc.LOCK_table_share
     critical section.
   */
-  if (table->file != NULL)
-    MYSQL_UNBIND_TABLE(table->file);
+  MYSQL_UNBIND_TABLE(table->file);
 
   tc_release_table(table);
   DBUG_VOID_RETURN;
@@ -1173,6 +1174,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
                               enum ha_extra_function function)
 {
   DBUG_ENTER("wait_while_table_is_used");
+  DBUG_ASSERT(!table->s->tmp_table);
   DBUG_PRINT("enter", ("table: '%s'  share: 0x%lx  db_stat: %u  version: %lu",
                        table->s->table_name.str, (ulong) table->s,
                        table->db_stat, table->s->tdc->version));
@@ -2090,6 +2092,9 @@ Locked_tables_list::init_locked_tables(THD *thd)
       return TRUE;
     }
   }
+
+  TRANSACT_TRACKER(add_trx_state(thd, TX_LOCKED_TABLES));
+
   thd->enter_locked_tables_mode(LTM_LOCK_TABLES);
 
   return FALSE;
@@ -2129,6 +2134,8 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
       table_list->table->pos_in_locked_tables= NULL;
   }
   thd->leave_locked_tables_mode();
+
+  TRANSACT_TRACKER(clear_trx_state(thd, TX_LOCKED_TABLES));
 
   DBUG_ASSERT(thd->transaction.stmt.is_empty());
   close_thread_tables(thd);
@@ -4203,6 +4210,15 @@ handle_view(THD *thd, Query_tables_list *prelocking_ctx,
                                  &table_list->view->sroutines_list,
                                  table_list->top_table());
   }
+
+  /*
+    If a trigger was defined on one of the associated tables then assign the
+    'trg_event_map' value of the view to the next table in table_list. When a
+    Stored function is invoked, all the associated tables including the tables
+    associated with the trigger are prelocked.
+  */
+  if (table_list->trg_event_map && table_list->next_global)
+    table_list->next_global->trg_event_map= table_list->trg_event_map;
   return FALSE;
 }
 
@@ -4351,6 +4367,13 @@ static bool check_lock_and_start_stmt(THD *thd,
     table_list->table->file->print_error(error, MYF(0));
     DBUG_RETURN(1);
   }
+
+  /*
+    Record in transaction state tracking
+  */
+  TRANSACT_TRACKER(add_trx_state(thd, lock_type,
+                                 table_list->table->file->has_transactions()));
+
   DBUG_RETURN(0);
 }
 
@@ -4684,6 +4707,45 @@ static void mark_real_tables_as_free_for_reuse(TABLE_LIST *table_list)
 }
 
 
+static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
+{
+  Security_context *save_security_ctx= thd->security_ctx;
+  TABLE_LIST *first_not_own= thd->lex->first_not_own_table();
+  DBUG_ENTER("fix_session_vcol_expr");
+
+  for (TABLE_LIST *table= tables; table && table != first_not_own;
+       table= table->next_global)
+  {
+    TABLE *t= table->table;
+    if (!table->placeholder() && t->s->vcols_need_refixing &&
+         table->lock_type >= TL_WRITE_ALLOW_WRITE)
+    {
+      if (table->security_ctx)
+        thd->security_ctx= table->security_ctx;
+
+      for (Field **vf= t->vfield; vf && *vf; vf++)
+        if (fix_session_vcol_expr(thd, (*vf)->vcol_info))
+          goto err;
+
+      for (Field **df= t->default_field; df && *df; df++)
+        if ((*df)->default_value &&
+            fix_session_vcol_expr(thd, (*df)->default_value))
+          goto err;
+
+        for (Virtual_column_info **cc= t->check_constraints; cc && *cc; cc++)
+          if (fix_session_vcol_expr(thd, (*cc)))
+            goto err;
+
+      thd->security_ctx= save_security_ctx;
+    }
+  }
+  DBUG_RETURN(0);
+err:
+  thd->security_ctx= save_security_ctx;
+  DBUG_RETURN(1);
+}
+
+
 /**
   Lock all tables in a list.
 
@@ -4845,7 +4907,11 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
     }
   }
 
-  DBUG_RETURN(thd->decide_logging_format(tables));
+  bool res= fix_all_session_vcol_exprs(thd, tables);
+  if (!res)
+    res= thd->decide_logging_format(tables);
+
+  DBUG_RETURN(res);
 }
 
 

@@ -29,6 +29,6 @@ insert t1 () values ();
 insert t1 (a) values (10);
 select default(a),default(b),default(c),default(d),default(e),default(f) from t1;
 default(a)	default(b)	default(c)	default(d)	default(e)	default(f)
-1	2	foo	bar	2001-01-01 10:20:30	2001-01-01 10:20:30.123456
-1	11	foo	bar	2001-01-01 10:20:30	2001-01-01 10:20:30.123456
+1	2	foo	bar	2001-01-01 10:20:30	2001-01-01 10:20:30.120000
+1	11	foo	bar	2001-01-01 10:20:30	2001-01-01 10:20:30.120000
 drop table t1;

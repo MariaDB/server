@@ -1634,20 +1634,11 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
                                     bool quoted)
 {
   bool has_default;
-  bool has_now_default;
   enum enum_field_types field_type= field->type();
-
-  /*
-     We are using CURRENT_TIMESTAMP instead of NOW because it is
-     more standard
-  */
-  has_now_default= field->has_insert_default_function();
 
   has_default= (field->default_value ||
                 (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
-                 field->unireg_check != Field::NEXT_NUMBER &&
-                 !((thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
-                   && has_now_default)));
+                 field->unireg_check != Field::NEXT_NUMBER));
 
   def_value->length(0);
   if (has_default)
@@ -1662,16 +1653,13 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
                           field->default_value->expr_str.length);
         def_value->append(')');
       }
+      else if (field->unireg_check)
+        def_value->append(field->default_value->expr_str.str,
+                          field->default_value->expr_str.length);
       else
         def_value->set(field->default_value->expr_str.str,
                        field->default_value->expr_str.length,
                        &my_charset_utf8mb4_general_ci);
-    }
-    else if (has_now_default)
-    {
-      def_value->append(STRING_WITH_LEN("CURRENT_TIMESTAMP"));
-      if (field->decimals() > 0)
-        def_value->append_parenthesized(field->decimals());
     }
     else if (!field->is_null())
     {                                             // Not null by default
@@ -1689,7 +1677,11 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
         quoted= 0;
       }
       else
+      {
         field->val_str(&type);
+        if (!field->str_needs_quotes())
+          quoted= 0;
+      }
       if (type.length())
       {
         String def_val;
@@ -1700,13 +1692,13 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
         if (quoted)
           append_unescaped(def_value, def_val.ptr(), def_val.length());
         else
-          def_value->append(def_val.ptr(), def_val.length());
+          def_value->move(def_val);
       }
       else if (quoted)
-        def_value->append(STRING_WITH_LEN("''"));
+        def_value->set(STRING_WITH_LEN("''"), system_charset_info);
     }
     else if (field->maybe_null() && quoted)
-      def_value->append(STRING_WITH_LEN("NULL"));    // Null as default
+      def_value->set(STRING_WITH_LEN("NULL"), system_charset_info);    // Null as default
     else
       return 0;
 
@@ -1793,8 +1785,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   List<Item> field_list;
   char tmp[MAX_FIELD_WIDTH], *for_str, buff[128], def_value_buf[MAX_FIELD_WIDTH];
   const char *alias;
-  String type(tmp, sizeof(tmp), system_charset_info);
-  String def_value(def_value_buf, sizeof(def_value_buf), system_charset_info);
+  String type;
+  String def_value;
   Field **ptr,*field;
   uint primary_key;
   KEY *key_info;
@@ -1887,12 +1879,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     packet->append(STRING_WITH_LEN("  "));
     append_identifier(thd,packet,field->field_name, strlen(field->field_name));
     packet->append(' ');
-    // check for surprises from the previous call to Field::sql_type()
-    if (type.ptr() != tmp)
-      type.set(tmp, sizeof(tmp), system_charset_info);
-    else
-      type.set_charset(system_charset_info);
 
+    type.set(tmp, sizeof(tmp), system_charset_info);
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);
 
@@ -1939,6 +1927,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         packet->append(STRING_WITH_LEN(" NULL"));
       }
 
+      def_value.set(def_value_buf, sizeof(def_value_buf), system_charset_info);
       if (get_field_default_value(thd, field, &def_value, 1))
       {
         packet->append(STRING_WITH_LEN(" DEFAULT "));
@@ -3223,6 +3212,132 @@ void remove_status_vars(SHOW_VAR *list)
 }
 
 
+/**
+  @brief Returns the value of a system or a status variable.
+
+  @param thd         [in]     The handle of the current THD.
+  @param variable    [in]     Details of the variable.
+  @param value_type  [in]     Variable type.
+  @param show_type   [in]     Variable show type.
+  @param charset     [out]    Character set of the value.
+  @param buff        [in,out] Buffer to store the value.
+                              (Needs to have enough memory
+                              to hold the value of variable.)
+  @param length      [out]    Length of the value.
+
+  @return                     Pointer to the value buffer.
+*/
+
+const char* get_one_variable(THD *thd,
+                             const SHOW_VAR *variable,
+                             enum_var_type value_type, SHOW_TYPE show_type,
+                             system_status_var *status_var,
+                             const CHARSET_INFO **charset, char *buff,
+                             size_t *length)
+{
+  void *value= variable->value;
+  const char *pos= buff;
+  const char *end= buff;
+
+
+  if (show_type == SHOW_SYS)
+  {
+    sys_var *var= (sys_var *) value;
+    show_type= var->show_type();
+    value= var->value_ptr(thd, value_type, &null_lex_str);
+    *charset= var->charset(thd);
+  }
+
+  /*
+    note that value may be == buff. All SHOW_xxx code below
+    should still work in this case
+  */
+  switch (show_type) {
+  case SHOW_DOUBLE_STATUS:
+    value= ((char *) status_var + (intptr) value);
+    /* fall through */
+  case SHOW_DOUBLE:
+    /* 6 is the default precision for '%f' in sprintf() */
+    end= buff + my_fcvt(*(double *) value, 6, buff, NULL);
+    break;
+  case SHOW_LONG_STATUS:
+    value= ((char *) status_var + (intptr) value);
+    /* fall through */
+  case SHOW_ULONG:
+  case SHOW_LONG_NOFLUSH: // the difference lies in refresh_status()
+    end= int10_to_str(*(long*) value, buff, 10);
+    break;
+  case SHOW_LONGLONG_STATUS:
+    value= ((char *) status_var + (intptr) value);
+    /* fall through */
+  case SHOW_ULONGLONG:
+    end= longlong10_to_str(*(longlong*) value, buff, 10);
+    break;
+  case SHOW_HA_ROWS:
+    end= longlong10_to_str((longlong) *(ha_rows*) value, buff, 10);
+    break;
+  case SHOW_BOOL:
+    end= strmov(buff, *(bool*) value ? "ON" : "OFF");
+    break;
+  case SHOW_MY_BOOL:
+    end= strmov(buff, *(my_bool*) value ? "ON" : "OFF");
+    break;
+  case SHOW_UINT:
+    end= int10_to_str((long) *(uint*) value, buff, 10);
+    break;
+  case SHOW_SINT:
+    end= int10_to_str((long) *(int*) value, buff, -10);
+    break;
+  case SHOW_SLONG:
+    end= int10_to_str(*(long*) value, buff, -10);
+    break;
+  case SHOW_SLONGLONG:
+    end= longlong10_to_str(*(longlong*) value, buff, -10);
+    break;
+  case SHOW_HAVE:
+    {
+      SHOW_COMP_OPTION tmp= *(SHOW_COMP_OPTION*) value;
+      pos= show_comp_option_name[(int) tmp];
+      end= strend(pos);
+      break;
+    }
+  case SHOW_CHAR:
+    {
+      if (!(pos= (char*)value))
+        pos= "";
+      end= strend(pos);
+      break;
+    }
+  case SHOW_CHAR_PTR:
+    {
+      if (!(pos= *(char**) value))
+        pos= "";
+
+      end= strend(pos);
+      break;
+    }
+  case SHOW_LEX_STRING:
+    {
+      LEX_STRING *ls=(LEX_STRING*)value;
+      if (!(pos= ls->str))
+        end= pos= "";
+      else
+        end= pos + ls->length;
+      break;
+    }
+  case SHOW_UNDEF:
+    break;                                        // Return empty string
+  case SHOW_SYS:                                  // Cannot happen
+  default:
+    DBUG_ASSERT(0);
+    break;
+  }
+
+  *length= (size_t) (end - pos);
+  return pos;
+}
+
+
 static bool show_status_array(THD *thd, const char *wild,
                               SHOW_VAR *variables,
                               enum enum_var_type scope,
@@ -3335,108 +3450,20 @@ static bool show_status_array(THD *thd, const char *wild,
                                                  name_buffer, wild))) &&
           (!cond || cond->val_int()))
       {
-        void *value=var->value;
-        const char *pos, *end;                  // We assign a lot of const's
+        const char *pos;                  // We assign a lot of const's
+        size_t length;
 
         if (show_type == SHOW_SYS)
-        {
-          sys_var *var= (sys_var *) value;
-          show_type= var->show_type();
           mysql_mutex_lock(&LOCK_global_system_variables);
-          value= var->value_ptr(thd, scope, &null_lex_str);
-          charset= var->charset(thd);
-        }
+        pos= get_one_variable(thd, var, scope, show_type, status_var,
+                              &charset, buff, &length);
 
-        pos= end= buff;
-        /*
-          note that value may be == buff. All SHOW_xxx code below
-          should still work in this case
-        */
-        switch (show_type) {
-        case SHOW_DOUBLE_STATUS:
-          value= ((char *) status_var + (intptr) value);
-          /* fall through */
-        case SHOW_DOUBLE:
-          /* 6 is the default precision for '%f' in sprintf() */
-          end= buff + my_fcvt(*(double *) value, 6, buff, NULL);
-          break;
-        case SHOW_LONG_STATUS:
-          value= ((char *) status_var + (intptr) value);
-          /* fall through */
-        case SHOW_ULONG:
-        case SHOW_LONG_NOFLUSH: // the difference lies in refresh_status()
-          end= int10_to_str(*(long*) value, buff, 10);
-          break;
-        case SHOW_LONGLONG_STATUS:
-          value= ((char *) status_var + (intptr) value);
-          /* fall through */
-        case SHOW_ULONGLONG:
-          end= longlong10_to_str(*(longlong*) value, buff, 10);
-          break;
-        case SHOW_HA_ROWS:
-          end= longlong10_to_str((longlong) *(ha_rows*) value, buff, 10);
-          break;
-        case SHOW_BOOL:
-          end= strmov(buff, *(bool*) value ? "ON" : "OFF");
-          break;
-        case SHOW_MY_BOOL:
-          end= strmov(buff, *(my_bool*) value ? "ON" : "OFF");
-          break;
-        case SHOW_UINT:
-          end= int10_to_str((long) *(uint*) value, buff, 10);
-          break;
-        case SHOW_SINT:
-          end= int10_to_str((long) *(int*) value, buff, -10);
-          break;
-        case SHOW_SLONG:
-          end= int10_to_str(*(long*) value, buff, -10);
-          break;
-        case SHOW_SLONGLONG:
-          end= longlong10_to_str(*(longlong*) value, buff, -10);
-          break;
-        case SHOW_HAVE:
-        {
-          SHOW_COMP_OPTION tmp= *(SHOW_COMP_OPTION*) value;
-          pos= show_comp_option_name[(int) tmp];
-          end= strend(pos);
-          break;
-        }
-        case SHOW_CHAR:
-        {
-          if (!(pos= (char*)value))
-            pos= "";
-          end= strend(pos);
-          break;
-        }
-       case SHOW_CHAR_PTR:
-        {
-          if (!(pos= *(char**) value))
-            pos= "";
-
-          end= strend(pos);
-          break;
-        }
-        case SHOW_LEX_STRING:
-        {
-          LEX_STRING *ls=(LEX_STRING*)value;
-          if (!(pos= ls->str))
-            end= pos= "";
-          else
-            end= pos + ls->length;
-          break;
-        }
-        case SHOW_UNDEF:
-          break;                                        // Return empty string
-        case SHOW_SYS:                                  // Cannot happen
-        default:
-          DBUG_ASSERT(0);
-          break;
-        }
-        table->field[1]->store(pos, (uint32) (end - pos), charset);
+        table->field[1]->store(pos, (uint32) length, charset);
+        thd->count_cuted_fields= CHECK_FIELD_IGNORE;
         table->field[1]->set_notnull();
-
-        if (var->type == SHOW_SYS)
+        if (show_type == SHOW_SYS)
           mysql_mutex_unlock(&LOCK_global_system_variables);
+
 
         if (schema_table_store_record(thd, table))
         {
@@ -7234,6 +7261,17 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
   COND *partial_cond= make_cond_for_info_schema(thd, cond, tables);
 
   mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+
+  /*
+    Avoid recursive LOCK_system_variables_hash acquisition in
+    intern_sys_var_ptr() by pre-syncing dynamic session variables.
+  */
+  if (scope == OPT_SESSION &&
+      (!thd->variables.dynamic_variables_ptr ||
+       global_system_variables.dynamic_variables_head >
+       thd->variables.dynamic_variables_head))
+    sync_dynamic_session_variables(thd, true);
+
   res= show_status_array(thd, wild, enumerate_sys_vars(thd, sorted_vars, scope),
                          scope, NULL, "", tables->table,
                          upper_case_names, partial_cond);

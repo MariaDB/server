@@ -4064,21 +4064,21 @@ ER_LOCK_OR_ACTIVE_TRANSACTION
         swe "Kan inte utföra kommandot emedan du har en låst tabell eller an aktiv transaktion"
         ukr "Не можу виконати подану команду тому, що таблиця заблокована або виконується транзакція"
 ER_UNKNOWN_SYSTEM_VARIABLE  
-        cze "Neznámá systémová proměnná '%-.64s'"
-        dan "Ukendt systemvariabel '%-.64s'"
-        nla "Onbekende systeem variabele '%-.64s'"
-        eng "Unknown system variable '%-.64s'"
-        est "Tundmatu süsteemne muutuja '%-.64s'"
-        fre "Variable système '%-.64s' inconnue"
-        ger "Unbekannte Systemvariable '%-.64s'"
-        ita "Variabile di sistema '%-.64s' sconosciuta"
-        jpn "'%-.64s' は不明なシステム変数です。"
-        por "Variável de sistema '%-.64s' desconhecida"
-        rus "Неизвестная системная переменная '%-.64s'"
-        serbian "Nepoznata sistemska promenljiva '%-.64s'"
-        spa "Desconocida variable de sistema '%-.64s'"
-        swe "Okänd systemvariabel: '%-.64s'"
-        ukr "Невідома системна змінна '%-.64s'"
+        cze "Neznámá systémová proměnná '%-.*s'"
+        dan "Ukendt systemvariabel '%-.*s'"
+        nla "Onbekende systeem variabele '%-.*s'"
+        eng "Unknown system variable '%-.*s'"
+        est "Tundmatu süsteemne muutuja '%-.*s'"
+        fre "Variable système '%-.*s' inconnue"
+        ger "Unbekannte Systemvariable '%-.*s'"
+        ita "Variabile di sistema '%-.*s' sconosciuta"
+        jpn "'%-.*s' は不明なシステム変数です。"
+        por "Variável de sistema '%-.*s' desconhecida"
+        rus "Неизвестная системная переменная '%-.*s'"
+        serbian "Nepoznata sistemska promenljiva '%-.*s'"
+        spa "Desconocida variable de sistema '%-.*s'"
+        swe "Okänd systemvariabel: '%-.*s'"
+        ukr "Невідома системна змінна '%-.*s'"
 ER_CRASHED_ON_USAGE  
         cze "Tabulka '%-.192s' je označena jako porušená a měla by být opravena"
         dan "Tabellen '%-.192s' er markeret med fejl og bør repareres"
@@ -6762,8 +6762,8 @@ ER_FK_CANNOT_OPEN_PARENT
 ER_FK_INCORRECT_OPTION
         eng "Failed to add the foreign key constraint on table '%s'. Incorrect options in FOREIGN KEY constraint '%s'"
 
-ER_FK_DUP_NAME
-	eng "Duplicate foreign key constraint name '%s'"
+ER_DUP_CONSTRAINT_NAME
+       eng "Duplicate %s constraint name '%s'"
 
 ER_PASSWORD_FORMAT
   eng "The password hash doesn't have the expected format. Check if the correct password algorithm is being used with the PASSWORD() function."
@@ -7139,6 +7139,9 @@ ER_KILL_QUERY_DENIED_ERROR
 ER_NO_EIS_FOR_FIELD
         eng "Engine-independent statistics are not collected for column '%s'"
         ukr "Незалежна від типу таблиці статистика не збирається для стовбця '%s'"
+ER_WARN_AGGFUNC_DEPENDENCE
+        eng "Aggregate function '%-.192s)' of SELECT #%d belongs to SELECT #%d"
+        ukr "Агрегатна функція '%-.192s)' з SELECTу #%d належить до SELECTу #%d"
 
 #
 # Internal errors, not used
@@ -7167,14 +7170,20 @@ ER_BAD_COMMAND_IN_MULTI
         ukr "Команда '%s' не дозволена для COM_MULTI"
 ER_WITH_COL_WRONG_LIST
         eng "WITH column list and SELECT field list have different column counts"
+ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE
+        eng "Too many WITH elements in WITH clause"
 ER_DUP_QUERY_NAME
         eng "Duplicate query name in WITH clause"
-ER_WRONG_ORDER_IN_WITH_CLAUSE
-        eng "The definition of the table '%s' refers to the table '%s' defined later in a non-recursive WITH clause"
-ER_RECURSIVE_QUERY_IN_WITH_CLAUSE
-        eng "Recursive queries in WITH clause are not supported yet"
+ER_RECURSIVE_WITHOUT_ANCHORS
+        eng "No anchors for recursive WITH element '%s'"
+ER_UNACCEPTABLE_MUTUAL_RECURSION
+        eng "Unacceptable mutual recursion with anchored table '%s'"
+ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
+        eng "Reference to recursive WITH table '%s' in materialized derived"
+ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+        eng "Restrictions imposed on recursive definitions are violated for table '%s'"R_WRONG_WINDOW_SPEC_NAME
 ER_WRONG_WINDOW_SPEC_NAME
-        eng "Window specification with name '%s' is not defined"
+       eng "Window specification with name '%s' is not defined"
 ER_DUP_WINDOW_NAME
         eng "Multiple window specifications with the same name '%s'"
 ER_PARTITION_LIST_IN_REFERENCING_WINDOW_SPEC
@@ -7218,3 +7227,6 @@ ER_CALCULATING_DEFAULT_VALUE
         eng "Got an error when calculating default value for %`s"
 ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
         eng "Expression for field %`-.64s is refering to uninitialized field %`s"
+ER_PARTITION_DEFAULT_ERROR
+        eng "Only one DEFAULT partition allowed"
+        ukr "Припустимо мати тільки один DEFAULT розділ" 

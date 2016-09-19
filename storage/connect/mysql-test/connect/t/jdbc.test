@@ -1,4 +1,5 @@
 -- source jdbconn.inc
+SET GLOBAL time_zone='+1:00';
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 --copy_file $MTR_SUITE_DIR/std_data/girls.txt $MYSQLD_DATADIR/test/girls.txt
@@ -80,7 +81,7 @@ CREATE TABLE t3 (
   name CHAR(9) NOT NULL,
   city CHAR(12) NOT NULL,
   age INT(2))
-engine=CONNECT table_type=FIX file_name='girls.txt';
+ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='girls.txt' ENDING=1;
 SELECT g.name, b.name, g.city FROM t3 g STRAIGHT_JOIN connect.boys b where g.city = b.city;
 SELECT g.name, b.name, g.city FROM t3 g STRAIGHT_JOIN t1 b where g.city = b.city;
 DROP TABLE t1, t3, connect.boys;
@@ -102,9 +103,12 @@ CREATE TABLE emp (
 ENGINE=connect TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
 SELECT * FROM emp;
 
+--echo #
+--echo # Option Driver is required to find the Driver class inside the executable jar file
+--echo #
 USE test;
 --replace_result $PORT PORT
---eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=emp CONNECTION='jdbc:mariadb://localhost:$PORT/connect?user=root'
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=emp CONNECTION='jdbc:mariadb://localhost:$PORT/connect?user=root' OPTION_LIST='Driver=org.mariadb.jdbc.Driver'
 --replace_result $PORT PORT
 --eval SHOW CREATE TABLE t1
 SELECT * FROM t1;
@@ -113,7 +117,7 @@ SELECT name, title, salary FROM t1 WHERE sex = 1;
 DROP TABLE t1, connect.emp;
 
 #
-# Testing remote command execution
+# Testing remote command execution (Driver option is no more necessary)
 #
 --replace_result $PORT PORT
 --eval CREATE TABLE t2 (command varchar(128) not null,number int(5) not null flag=1,message varchar(255) flag=2) ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='jdbc:mariadb://localhost:$PORT/connect' OPTION_LIST='User=root,Execsrc=1'
@@ -139,5 +143,5 @@ DROP TABLE connect.tx1;
 --remove_file $MYSQLD_DATADIR/connect/employee.dat
 DROP DATABASE connect;
 --remove_file $MYSQLD_DATADIR/test/girls.txt
-
+SET GLOBAL time_zone=SYSTEM;
 -- source jdbconn_cleanup.inc

@@ -32,6 +32,8 @@
 #define DBUG_ASSERT(A) assert(A)
 #endif
 
+#define MY_NOPAD_ID(x)  ((x)+0x400)
+
 /* SPACE_INT is a word that contains only spaces */
 #if SIZEOF_INT == 4
 #define SPACE_INT 0x20202020
@@ -100,6 +102,11 @@ static inline const uchar *skip_trailing_space(const uchar *ptr,size_t len)
     end--;
   return (end);
 }
+
+
+uint my_8bit_charset_flags_from_data(CHARSET_INFO *cs);
+uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs);
+
 
 /* Macros for hashing characters */
 

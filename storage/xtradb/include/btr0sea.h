@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -69,7 +69,7 @@ btr_search_t*
 btr_search_get_info(
 /*================*/
 	dict_index_t*	index)	/*!< in: index */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 /*****************************************************************//**
 Creates and initializes a search info struct.
 @return	own: search info struct */
@@ -200,7 +200,7 @@ hash_table_t*
 btr_search_get_hash_table(
 /*======================*/
 	const dict_index_t*	index)	/*!< in: index */
-	__attribute__((pure,warn_unused_result));
+	MY_ATTRIBUTE((pure,warn_unused_result));
 
 /********************************************************************//**
 Returns the adaptive hash index latch for a given index key.
@@ -210,7 +210,7 @@ prio_rw_lock_t*
 btr_search_get_latch(
 /*=================*/
 	const dict_index_t*	index)	/*!< in: index */
-	__attribute__((pure,warn_unused_result));
+	MY_ATTRIBUTE((pure,warn_unused_result));
 
 /*********************************************************************//**
 Returns the AHI partition number corresponding to a given index ID. */
@@ -219,7 +219,7 @@ ulint
 btr_search_get_key(
 /*===============*/
 	index_id_t	index_id)	/*!< in: index ID */
-	__attribute__((pure,warn_unused_result));
+	MY_ATTRIBUTE((pure,warn_unused_result));
 
 /*********************************************************************//**
 Initializes AHI-related fields in a newly created index. */
@@ -228,7 +228,7 @@ void
 btr_search_index_init(
 /*===============*/
 	dict_index_t*	index)	/*!< in: index */
-	__attribute__((nonnull));
+	MY_ATTRIBUTE((nonnull));
 
 /********************************************************************//**
 Latches all adaptive hash index latches in exclusive mode.  */
@@ -256,7 +256,7 @@ bool
 btr_search_own_all(
 /*===============*/
 	ulint lock_type)
-	__attribute__((warn_unused_result));
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Checks if the thread owns any adaptive hash latches in either S or X mode.
 @return	true if the thread owns at least one latch in any mode. */
@@ -264,7 +264,7 @@ UNIV_INLINE
 bool
 btr_search_own_any(void)
 /*=====================*/
-	 __attribute__((warn_unused_result));
+	 MY_ATTRIBUTE((warn_unused_result));
 #endif
 
 /** The search info struct in an index */

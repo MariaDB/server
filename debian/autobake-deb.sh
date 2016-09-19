@@ -10,10 +10,16 @@ set -e
 # Debug script and command lines
 #set -x
 
-# Don't run the mysql-test-run test suite as part of build.
+# On Buildbot, don't run the mysql-test-run test suite as part of build.
 # It takes a lot of time, and we will do a better test anyway in
 # Buildbot, running the test suite from installed .debs on a clean VM.
-export DEB_BUILD_OPTIONS="nocheck"
+# On Travis-CI we want to simulate the full build, including tests.
+# Also on Travis-CI it is useful not to override the DEB_BUILD_OPTIONS
+# at this stage at all.
+if [[ ! $TRAVIS ]]
+then
+  export DEB_BUILD_OPTIONS="nocheck"
+fi
 
 export MARIADB_OPTIONAL_DEBS=""
 
@@ -32,8 +38,8 @@ LOGSTRING="MariaDB build"
 CODENAME="$(lsb_release -sc)"
 
 # add libcrack2 (>= 2.9.0) as a build dependency
-# but only where the distribution can possibly satisfy it
-if apt-cache madison cracklib2|grep 'cracklib2 *| *2\.[0-8]\.' >/dev/null 2>&1
+# but only where the distribution can possibly satisfy it and if not on Travis-CI
+if $TRAVIS || apt-cache madison cracklib2|grep 'cracklib2 *| *2\.[0-8]\.' >/dev/null 2>&1
 then
   # Anything in MARIADB_OPTIONAL_DEBS is omitted from the resulting
   # packages by snipped in rules file

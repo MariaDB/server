@@ -52,3 +52,5 @@ INSERT INTO t1 VALUES (2);
 --error 192
 select * from t1;
 drop table t1;
+--remove_file $MYSQLTEST_VARDIR/keys1.txt
+--remove_file $MYSQLTEST_VARDIR/keys2.txt

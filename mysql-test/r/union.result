@@ -629,7 +629,7 @@ a
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` decimal(3,1) NOT NULL DEFAULT '0.0'
+  `a` decimal(3,1) NOT NULL DEFAULT 0.0
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t2 (it1 tinyint, it2 tinyint not null, i int not null, ib bigint, f float, d double, y year, da date, dt datetime, sc char(10), sv varchar(10), b blob, tx text);
@@ -653,7 +653,7 @@ it2
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `it2` int(11) NOT NULL DEFAULT '0'
+  `it2` int(11) NOT NULL DEFAULT 0
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 SELECT i from t2 UNION select f from t2;
@@ -852,7 +852,7 @@ select * from t1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `1` bigint(20) NOT NULL DEFAULT '0'
+  `1` bigint(20) NOT NULL DEFAULT 0
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 select _latin1"test" union select _latin2"testt" ;

@@ -398,7 +398,7 @@ wsrep_row_upd_check_foreign_constraints(
 					dict_table_open_on_name(
 					  foreign->referenced_table_name_lookup,
 					  FALSE, FALSE, DICT_ERR_IGNORE_NONE);
-				opened = TRUE;
+				opened = (foreign->referenced_table) ? TRUE : FALSE;
 			}
 
 			/* NOTE that if the thread ends up waiting for a lock
@@ -411,7 +411,7 @@ wsrep_row_upd_check_foreign_constraints(
 
 			if (foreign->referenced_table) {
 				if (opened == TRUE) {
-					dict_table_close(foreign->referenced_table, TRUE, FALSE);
+					dict_table_close(foreign->referenced_table, FALSE, FALSE);
 					opened = FALSE;
 				}
 			}

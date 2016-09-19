@@ -27,3 +27,23 @@ DROP TABLE t1;
 SET @@character_set_client= @old_character_set_client;
 SET @@character_set_connection= @old_character_set_connection;
 SET @@character_set_results= @old_character_set_results;
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+SET character_set_connection=cp932;
+let $coll='cp932_japanese_nopad_ci';
+let $coll_pad='cp932_japanese_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='cp932_nopad_bin';
+let $coll_pad='cp932_bin';
+--source include/ctype_pad_all_engines.inc
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

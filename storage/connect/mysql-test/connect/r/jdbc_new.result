@@ -1,3 +1,4 @@
+SET GLOBAL time_zone='+1:00';
 CREATE TABLE t1 (a int, b char(10));
 INSERT INTO t1 VALUES (NULL,NULL),(0,'test00'),(1,'test01'),(2,'test02'),(3,'test03');
 SELECT * FROM t1;
@@ -10,6 +11,7 @@ NULL	NULL
 #
 # Testing errors
 #
+SET GLOBAL time_zone='+1:00';
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=unknown';
 SELECT * FROM t1;
@@ -32,15 +34,13 @@ t1	CREATE TABLE `t1` (
   `y` char(10) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root' `TABLE_TYPE`=JDBC
 SELECT * FROM t1;
-ERROR HY000: Got error 174 'ExecuteQuery: java.sql.SQLSyntaxErrorException: Unknown column 'x' in 'field list'
-Query is : SELECT x, y FROM t1' from CONNECT
+ERROR HY000: Got error 174 'ExecuteQuery: java.sql.SQLSyntaxErrorException: Unknown column 'x' in 'field list'' from CONNECT
 DROP TABLE t1;
 CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=JDBC
 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
 ALTER TABLE t1 RENAME t1backup;
 SELECT * FROM t1;
-ERROR HY000: Got error 174 'ExecuteQuery: java.sql.SQLSyntaxErrorException: Table 'test.t1' doesn't exist
-Query is : SELECT a, b FROM t1' from CONNECT
+ERROR HY000: Got error 174 'ExecuteQuery: java.sql.SQLSyntaxErrorException: Table 'test.t1' doesn't exist' from CONNECT
 ALTER TABLE t1backup RENAME t1;
 DROP TABLE t1;
 #
@@ -201,16 +201,15 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL,
-  `b` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `b` datetime DEFAULT NULL,
   `c` time DEFAULT NULL,
-  `d` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
-  `e` date DEFAULT NULL
+  `d` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `e` year(4) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root' `TABLE_TYPE`='JDBC'
 SELECT * FROM t1;
 a	b	c	d	e
-2003-05-27	2003-05-27 10:45:23	10:45:23	2003-05-27 10:45:23	1970-01-01
+2003-05-27	2003-05-27 11:45:23	10:45:23	2003-05-27 10:45:23	2003
 DROP TABLE t1;
 DROP TABLE t1;
-SET GLOBAL connect_jvm_path=NULL;
-SET GLOBAL connect_class_path=NULL;
-SET GLOBAL time_zone = SYSTEM;
+SET GLOBAL time_zone=SYSTEM;
+SET GLOBAL time_zone=SYSTEM;

@@ -295,7 +295,6 @@ create or replace table t1 (a int not null, b int default (a+1));
 
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create or replace table t1 (a int default a);
---error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create or replace table t1 (a int default b, b int default (1+1));
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
@@ -817,29 +816,6 @@ INSERT INTO t1 VALUES ();
 SELECT * FROM t1;
 DROP TABLE t1;
 
-
---echo #
---echo # Miscelaneous SQL standard <default option> variants
---echo #
-
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_USER);
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-CREATE TABLE t1 (a VARCHAR(30) DEFAULT CURRENT_ROLE);
-
---echo #
---echo # Other Item_func_sysconst derived functions
---echo #
-CREATE TABLE t1 (a VARCHAR(30) DEFAULT DATABASE());
-SHOW CREATE TABLE t1;
-INSERT INTO t1 VALUES ();
-USE INFORMATION_SCHEMA;
-INSERT INTO test.t1 VALUES ();
-USE test;
-INSERT INTO t1 VALUES ();
-SELECT * FROM t1;
-DROP TABLE t1;
-
 --echo #
 --echo # Check DEFAULT() function
 --echo #
@@ -1009,9 +985,6 @@ SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES ('01,5,2013','%d,%m,%Y', DEFAULT);
 SELECT * FROM t1;
 DROP TABLE t1;
-
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-CREATE TABLE t1 (a VARCHAR(30), b VARCHAR(30) DEFAULT DATE_FORMAT(a,'%W %M %Y'));
 
 --echo # Item_datefunc
 
@@ -1221,7 +1194,6 @@ INSERT INTO t1 (a) VALUES ('1987-01-01');
 SELECT * FROM t1;
 DROP TABLE t1;
 
-# QQ: this depends on @@default_week_format.
 CREATE TABLE t1 (a DATE, b INT DEFAULT WEEK(a));
 SHOW CREATE TABLE t1;
 INSERT INTO t1 (a) VALUES ('1987-02-01');
@@ -1239,12 +1211,6 @@ SHOW CREATE TABLE t1;
 INSERT INTO t1 (a) VALUES ('2008-04-01');
 SELECT * FROM t1;
 DROP TABLE t1;
-
-# QQ: this depends on @@lc_time_names
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-CREATE TABLE t1 (a DATE, b VARCHAR(30) DEFAULT DAYNAME(a));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-CREATE TABLE t1 (a DATE, b VARCHAR(30) DEFAULT MONTHNAME(a));
 
 CREATE TABLE t1 (a DATE, b INT DEFAULT EXTRACT(YEAR FROM a));
 SHOW CREATE TABLE t1;
@@ -1596,7 +1562,6 @@ INSERT INTO t1 (a) VALUES (64);
 SELECT * FROM t1;
 DROP TABLE t1;
 
-# QQ: this depends on @@lc_time_names
 CREATE TABLE t1 (a INT, b INT, c VARCHAR(30) DEFAULT FORMAT(a,b));
 SHOW CREATE TABLE t1;
 INSERT INTO t1 (a,b) VALUES (10000,3);
@@ -1844,7 +1809,7 @@ DROP TABLE t1;
 #
 # Order of evaluation:
 #
-create table t1 (a int default 1, b int default (1+1), c int);
+create table t1 (a int default 1, b int default (rand()*0+2), c int);
 insert t1 (c) values (a);
 insert t1 (c) values (b);
 select * from t1;
@@ -1861,3 +1826,13 @@ alter table t1 alter a set default (2+3), alter b set default 4,
 alter table t1 alter a set default 1+2;
 show create table t1;
 drop table t1;
+
+#
+# CREATE ... SELECT
+#
+create table t1 (a int default 5 check (a>10), b int default (5+5), c int as (a+b));
+create table t2 as select a, b, c from t1;
+create table t3 as select max(a), max(b), max(c) from t1;
+show create table t2;
+show create table t3;
+drop table t1, t2, t3;

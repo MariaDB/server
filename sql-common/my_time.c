@@ -224,7 +224,7 @@ my_bool check_datetime_range(const MYSQL_TIME *ltime)
     ltime->minute > 59 || ltime->second > 59 ||
     ltime->second_part > TIME_MAX_SECOND_PART ||
     (ltime->hour >
-     (ltime->time_type == MYSQL_TIMESTAMP_TIME ? TIME_MAX_HOUR : 23));
+     (uint) (ltime->time_type == MYSQL_TIMESTAMP_TIME ? TIME_MAX_HOUR : 23));
 }
 
 
@@ -237,7 +237,7 @@ static void get_microseconds(ulong *val, MYSQL_TIME_STATUS *status,
   if (get_digits(&tmp, number_of_fields, str, end, 6))
     status->warnings|= MYSQL_TIME_WARN_TRUNCATED;
   if ((status->precision= (*str - start)) < 6)
-    *val= tmp * log_10_int[6 - (*str - start)];
+    *val= (ulong) (tmp * log_10_int[6 - (*str - start)]);
   else
     *val= tmp;
   if (skip_digits(str, end))

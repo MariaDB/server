@@ -3,14 +3,24 @@ SHOW COLLATION;
 Collation	Charset	Id	Default	Compiled	Sortlen
 big5_chinese_ci	big5	1	Yes	#	#
 big5_bin	big5	84		#	#
+big5_chinese_nopad_ci	big5	1025		#	#
+big5_nopad_bin	big5	1108		#	#
 dec8_swedish_ci	dec8	3	Yes	#	#
 dec8_bin	dec8	69		#	#
+dec8_swedish_nopad_ci	dec8	1027		#	#
+dec8_nopad_bin	dec8	1093		#	#
 cp850_general_ci	cp850	4	Yes	#	#
 cp850_bin	cp850	80		#	#
+cp850_general_nopad_ci	cp850	1028		#	#
+cp850_nopad_bin	cp850	1104		#	#
 hp8_english_ci	hp8	6	Yes	#	#
 hp8_bin	hp8	72		#	#
+hp8_english_nopad_ci	hp8	1030		#	#
+hp8_nopad_bin	hp8	1096		#	#
 koi8r_general_ci	koi8r	7	Yes	#	#
 koi8r_bin	koi8r	74		#	#
+koi8r_general_nopad_ci	koi8r	1031		#	#
+koi8r_nopad_bin	koi8r	1098		#	#
 latin1_german1_ci	latin1	5		#	#
 latin1_swedish_ci	latin1	8	Yes	#	#
 latin1_danish_ci	latin1	15		#	#
@@ -19,42 +29,74 @@ latin1_bin	latin1	47		#	#
 latin1_general_ci	latin1	48		#	#
 latin1_general_cs	latin1	49		#	#
 latin1_spanish_ci	latin1	94		#	#
+latin1_swedish_nopad_ci	latin1	1032		#	#
+latin1_nopad_bin	latin1	1071		#	#
 latin2_czech_cs	latin2	2		#	#
 latin2_general_ci	latin2	9	Yes	#	#
 latin2_hungarian_ci	latin2	21		#	#
 latin2_croatian_ci	latin2	27		#	#
 latin2_bin	latin2	77		#	#
+latin2_general_nopad_ci	latin2	1033		#	#
+latin2_nopad_bin	latin2	1101		#	#
 swe7_swedish_ci	swe7	10	Yes	#	#
 swe7_bin	swe7	82		#	#
+swe7_swedish_nopad_ci	swe7	1034		#	#
+swe7_nopad_bin	swe7	1106		#	#
 ascii_general_ci	ascii	11	Yes	#	#
 ascii_bin	ascii	65		#	#
+ascii_general_nopad_ci	ascii	1035		#	#
+ascii_nopad_bin	ascii	1089		#	#
 ujis_japanese_ci	ujis	12	Yes	#	#
 ujis_bin	ujis	91		#	#
+ujis_japanese_nopad_ci	ujis	1036		#	#
+ujis_nopad_bin	ujis	1115		#	#
 sjis_japanese_ci	sjis	13	Yes	#	#
 sjis_bin	sjis	88		#	#
+sjis_japanese_nopad_ci	sjis	1037		#	#
+sjis_nopad_bin	sjis	1112		#	#
 hebrew_general_ci	hebrew	16	Yes	#	#
 hebrew_bin	hebrew	71		#	#
+hebrew_general_nopad_ci	hebrew	1040		#	#
+hebrew_nopad_bin	hebrew	1095		#	#
 tis620_thai_ci	tis620	18	Yes	#	#
 tis620_bin	tis620	89		#	#
+tis620_thai_nopad_ci	tis620	1042		#	#
+tis620_nopad_bin	tis620	1113		#	#
 euckr_korean_ci	euckr	19	Yes	#	#
 euckr_bin	euckr	85		#	#
+euckr_korean_nopad_ci	euckr	1043		#	#
+euckr_nopad_bin	euckr	1109		#	#
 koi8u_general_ci	koi8u	22	Yes	#	#
 koi8u_bin	koi8u	75		#	#
+koi8u_general_nopad_ci	koi8u	1046		#	#
+koi8u_nopad_bin	koi8u	1099		#	#
 gb2312_chinese_ci	gb2312	24	Yes	#	#
 gb2312_bin	gb2312	86		#	#
+gb2312_chinese_nopad_ci	gb2312	1048		#	#
+gb2312_nopad_bin	gb2312	1110		#	#
 greek_general_ci	greek	25	Yes	#	#
 greek_bin	greek	70		#	#
+greek_general_nopad_ci	greek	1049		#	#
+greek_nopad_bin	greek	1094		#	#
 cp1250_general_ci	cp1250	26	Yes	#	#
 cp1250_czech_cs	cp1250	34		#	#
 cp1250_croatian_ci	cp1250	44		#	#
 cp1250_bin	cp1250	66		#	#
 cp1250_polish_ci	cp1250	99		#	#
+cp1250_general_nopad_ci	cp1250	1050		#	#
+cp1250_nopad_bin	cp1250	1090		#	#
 gbk_chinese_ci	gbk	28	Yes	#	#
 gbk_bin	gbk	87		#	#
+gbk_chinese_nopad_ci	gbk	1052		#	#
+gbk_nopad_bin	gbk	1111		#	#
 latin5_turkish_ci	latin5	30	Yes	#	#
 latin5_bin	latin5	78		#	#
+latin5_turkish_nopad_ci	latin5	1054		#	#
+latin5_nopad_bin	latin5	1102		#	#
 armscii8_general_ci	armscii8	32	Yes	#	#
 armscii8_bin	armscii8	64		#	#
+armscii8_general_nopad_ci	armscii8	1056		#	#
+armscii8_nopad_bin	armscii8	1088		#	#
 utf8_general_ci	utf8	33	Yes	#	#
 utf8_bin	utf8	83		#	#
 utf8_unicode_ci	utf8	192		#	#
@@ -85,6 +127,8 @@ utf8_general_mysql500_ci	utf8	223		#	#
 utf8_croatian_ci	utf8	576		#	#
 utf8_myanmar_ci	utf8	577		#	#
 utf8_thai_520_w2	utf8	578		#	#
+utf8_general_nopad_ci	utf8	1057		#	#
+utf8_nopad_bin	utf8	1107		#	#
 ucs2_general_ci	ucs2	35	Yes	#	#
 ucs2_bin	ucs2	90		#	#
 ucs2_unicode_ci	ucs2	128		#	#
@@ -115,20 +159,34 @@ ucs2_general_mysql500_ci	ucs2	159		#	#
 ucs2_croatian_ci	ucs2	640		#	#
 ucs2_myanmar_ci	ucs2	641		#	#
 ucs2_thai_520_w2	ucs2	642		#	#
+ucs2_general_nopad_ci	ucs2	1059		#	#
+ucs2_nopad_bin	ucs2	1114		#	#
 cp866_general_ci	cp866	36	Yes	#	#
 cp866_bin	cp866	68		#	#
+cp866_general_nopad_ci	cp866	1060		#	#
+cp866_nopad_bin	cp866	1092		#	#
 keybcs2_general_ci	keybcs2	37	Yes	#	#
 keybcs2_bin	keybcs2	73		#	#
+keybcs2_general_nopad_ci	keybcs2	1061		#	#
+keybcs2_nopad_bin	keybcs2	1097		#	#
 macce_general_ci	macce	38	Yes	#	#
 macce_bin	macce	43		#	#
+macce_general_nopad_ci	macce	1062		#	#
+macce_nopad_bin	macce	1067		#	#
 macroman_general_ci	macroman	39	Yes	#	#
 macroman_bin	macroman	53		#	#
+macroman_general_nopad_ci	macroman	1063		#	#
+macroman_nopad_bin	macroman	1077		#	#
 cp852_general_ci	cp852	40	Yes	#	#
 cp852_bin	cp852	81		#	#
+cp852_general_nopad_ci	cp852	1064		#	#
+cp852_nopad_bin	cp852	1105		#	#
 latin7_estonian_cs	latin7	20		#	#
 latin7_general_ci	latin7	41	Yes	#	#
 latin7_general_cs	latin7	42		#	#
 latin7_bin	latin7	79		#	#
+latin7_general_nopad_ci	latin7	1065		#	#
+latin7_nopad_bin	latin7	1103		#	#
 utf8mb4_general_ci	utf8mb4	45	Yes	#	#
 utf8mb4_bin	utf8mb4	46		#	#
 utf8mb4_unicode_ci	utf8mb4	224		#	#
@@ -158,11 +216,15 @@ utf8mb4_vietnamese_ci	utf8mb4	247		#	#
 utf8mb4_croatian_ci	utf8mb4	608		#	#
 utf8mb4_myanmar_ci	utf8mb4	609		#	#
 utf8mb4_thai_520_w2	utf8mb4	610		#	#
+utf8mb4_general_nopad_ci	utf8mb4	1069		#	#
+utf8mb4_nopad_bin	utf8mb4	1070		#	#
 cp1251_bulgarian_ci	cp1251	14		#	#
 cp1251_ukrainian_ci	cp1251	23		#	#
 cp1251_bin	cp1251	50		#	#
 cp1251_general_ci	cp1251	51	Yes	#	#
 cp1251_general_cs	cp1251	52		#	#
+cp1251_nopad_bin	cp1251	1074		#	#
+cp1251_general_nopad_ci	cp1251	1075		#	#
 utf16_general_ci	utf16	54	Yes	#	#
 utf16_bin	utf16	55		#	#
 utf16_unicode_ci	utf16	101		#	#
@@ -192,13 +254,21 @@ utf16_vietnamese_ci	utf16	124		#	#
 utf16_croatian_ci	utf16	672		#	#
 utf16_myanmar_ci	utf16	673		#	#
 utf16_thai_520_w2	utf16	674		#	#
+utf16_general_nopad_ci	utf16	1078		#	#
+utf16_nopad_bin	utf16	1079		#	#
 utf16le_general_ci	utf16le	56	Yes	#	#
 utf16le_bin	utf16le	62		#	#
+utf16le_general_nopad_ci	utf16le	1080		#	#
+utf16le_nopad_bin	utf16le	1086		#	#
 cp1256_general_ci	cp1256	57	Yes	#	#
 cp1256_bin	cp1256	67		#	#
+cp1256_general_nopad_ci	cp1256	1081		#	#
+cp1256_nopad_bin	cp1256	1091		#	#
 cp1257_lithuanian_ci	cp1257	29		#	#
 cp1257_bin	cp1257	58		#	#
 cp1257_general_ci	cp1257	59	Yes	#	#
+cp1257_nopad_bin	cp1257	1082		#	#
+cp1257_general_nopad_ci	cp1257	1083		#	#
 utf32_general_ci	utf32	60	Yes	#	#
 utf32_bin	utf32	61		#	#
 utf32_unicode_ci	utf32	160		#	#
@@ -228,13 +298,21 @@ utf32_vietnamese_ci	utf32	183		#	#
 utf32_croatian_ci	utf32	736		#	#
 utf32_myanmar_ci	utf32	737		#	#
 utf32_thai_520_w2	utf32	738		#	#
+utf32_general_nopad_ci	utf32	1084		#	#
+utf32_nopad_bin	utf32	1085		#	#
 binary	binary	63	Yes	#	#
 geostd8_general_ci	geostd8	92	Yes	#	#
 geostd8_bin	geostd8	93		#	#
+geostd8_general_nopad_ci	geostd8	1116		#	#
+geostd8_nopad_bin	geostd8	1117		#	#
 cp932_japanese_ci	cp932	95	Yes	#	#
 cp932_bin	cp932	96		#	#
+cp932_japanese_nopad_ci	cp932	1119		#	#
+cp932_nopad_bin	cp932	1120		#	#
 eucjpms_japanese_ci	eucjpms	97	Yes	#	#
 eucjpms_bin	eucjpms	98		#	#
+eucjpms_japanese_nopad_ci	eucjpms	1121		#	#
+eucjpms_nopad_bin	eucjpms	1122		#	#
 CREATE DATABASE d10 DEFAULT CHARACTER SET utf8;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH

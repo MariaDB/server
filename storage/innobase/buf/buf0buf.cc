@@ -7087,10 +7087,10 @@ buf_print_io_instance(
 		fprintf(file,
 			"Buffer pool hit rate %lu / 1000,"
 			" young-making rate %lu / 1000 not %lu / 1000\n",
-			(ulong) hit_rate,
-			(ulong) (1000 * pool_info->young_making_delta
+			(ulint) hit_rate,
+			(ulint) (1000 * pool_info->young_making_delta
 				 / pool_info->n_page_get_delta),
-			(ulong) (1000 * pool_info->not_young_making_delta
+			(ulint) (1000 * pool_info->not_young_making_delta
 				 / pool_info->n_page_get_delta));
 	} else {
 		fputs("No buffer pool page gets since the last printout\n",

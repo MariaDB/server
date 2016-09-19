@@ -61,7 +61,7 @@ maria_declare_plugin(userstat)
   NULL,
   NULL,
   "2.0",
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 },
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
@@ -76,7 +76,7 @@ maria_declare_plugin(userstat)
   NULL,
   NULL,
   "2.0",
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 

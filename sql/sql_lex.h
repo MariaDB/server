@@ -30,6 +30,7 @@
 #include "sql_alter.h"                // Alter_info
 #include "sql_window.h"
 
+
 /* YACC and LEX Definitions */
 
 /* These may not be declared yet */
@@ -530,7 +531,6 @@ public:
   virtual st_select_lex* outer_select()= 0;
   virtual st_select_lex* return_after_parsing()= 0;
 
-  virtual bool set_braces(bool value);
   virtual bool inc_in_sum_expr();
   virtual uint get_in_sum_expr();
   virtual TABLE_LIST* get_table_list();
@@ -546,6 +546,16 @@ public:
                                         LEX_STRING *option= 0);
   virtual void set_lock_for_tables(thr_lock_type lock_type) {}
   void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
+  void move_node(st_select_lex_node *where_to_move)
+  {
+    if (where_to_move == this)
+      return;
+    if (next)
+      next->prev= prev;
+    *prev= next;
+    *where_to_move->prev= this;
+    next= where_to_move;
+  }
   st_select_lex_node *insert_chain_before(st_select_lex_node **ptr_pos_to_insert,
                                           st_select_lex_node *end_chain_node);
   friend class st_select_lex_unit;
@@ -601,6 +611,8 @@ public:
     optimized, // optimize phase already performed for UNION (unit)
     executed, // already executed
     cleaned;
+
+  bool optimize_started;
 
   // list of fields which points to temporary table for union
   List<Item> item_list;
@@ -682,7 +694,7 @@ public:
   {
     return reinterpret_cast<st_select_lex*>(slave);
   }
-  void set_with_clause(With_clause *with_cl) { with_clause= with_cl; }
+  void set_with_clause(With_clause *with_cl);
   st_select_lex_unit* next_unit()
   {
     return reinterpret_cast<st_select_lex_unit*>(next);
@@ -695,6 +707,7 @@ public:
   bool prepare(THD *thd, select_result *result, ulong additional_options);
   bool optimize();
   bool exec();
+  bool exec_recursive();
   bool cleanup();
   inline void unclean() { cleaned= 0; }
   void reinit_exec_mechanism();
@@ -726,6 +739,21 @@ public:
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
 typedef Bounds_checked_array<Item*> Ref_ptr_array;
 
+
+/*
+  Structure which consists of the field and the item which 
+  produces this field.
+*/
+
+class Grouping_tmp_field :public Sql_alloc
+{
+public:
+  Field *tmp_field;
+  Item *producing_item;
+  Grouping_tmp_field(Field *fld, Item *item) 
+     :tmp_field(fld), producing_item(item) {}
+};
+
 /*
   SELECT_LEX - store information of parsed SELECT statment
 */
@@ -737,6 +765,8 @@ public:
   Item *where, *having;                         /* WHERE & HAVING clauses */
   Item *prep_where; /* saved WHERE clause for prepared statement processing */
   Item *prep_having;/* saved HAVING clause for prepared statement processing */
+  Item *cond_pushed_into_where;  /* condition pushed into the select's WHERE  */
+  Item *cond_pushed_into_having; /* condition pushed into the select's HAVING */
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
   /* point on lex in which it was created, used in view subquery detection */
@@ -910,6 +940,12 @@ public:
 
   /* namp of nesting SELECT visibility (for aggregate functions check) */
   nesting_map name_visibility_map;
+  
+  table_map with_dep;
+  List<Grouping_tmp_field> grouping_tmp_fields;
+
+  /* it is for correct printing SELECT options */
+  thr_lock_type lock_type;
 
   void init_query();
   void init_select();
@@ -936,7 +972,10 @@ public:
 
   bool mark_as_dependent(THD *thd, st_select_lex *last, Item *dependency);
 
-  bool set_braces(bool value);
+  void set_braces(bool value)
+  {
+    braces= value;
+  }
   bool inc_in_sum_expr();
   uint get_in_sum_expr();
 
@@ -1084,10 +1123,7 @@ public:
 
   void set_non_agg_field_used(bool val) { m_non_agg_field_used= val; }
   void set_agg_func_used(bool val)      { m_agg_func_used= val; }
-  void set_with_clause(With_clause *with_clause)
-  {
-    master_unit()->with_clause= with_clause;
-  }
+  void set_with_clause(With_clause *with_clause);
   With_clause *get_with_clause()
   {
     return master_unit()->with_clause;
@@ -1097,7 +1133,14 @@ public:
     return master_unit()->with_element;
   }
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
-
+  bool check_unrestricted_recursive(bool only_standards_compliant); 
+  bool check_subqueries_with_recursive_references();
+  void collect_grouping_fields(THD *thd); 
+  void check_cond_extraction_for_grouping_fields(Item *cond,
+                                                 Item_processor processor);
+  Item *build_cond_for_grouping_fields(THD *thd, Item *cond,
+				       bool no_to_clones);
+  
   List<Window_spec> window_specs;
   void prepare_add_window_spec(THD *thd);
   bool add_window_def(THD *thd, LEX_STRING *win_name, LEX_STRING *win_ref,
@@ -1116,6 +1159,9 @@ public:
 
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
 
+  bool cond_pushdown_is_allowed() const
+  { return !have_window_funcs() && !olap; }
+  
 private:
   bool m_non_agg_field_used;
   bool m_agg_func_used;
@@ -2472,7 +2518,7 @@ struct LEX: public Query_tables_list
   SELECT_LEX *all_selects_list;
   /* current with clause in parsing if any, otherwise 0*/
   With_clause *curr_with_clause;  
-  /* pointer to the first with clause in the current statemant */
+  /* pointer to the first with clause in the current statement */
   With_clause *with_clauses_list;
   /*
     (*with_clauses_list_last_next) contains a pointer to the last
@@ -2985,9 +3031,12 @@ public:
     return false;
   }
   // Add a constraint as a part of CREATE TABLE or ALTER TABLE
-  bool add_constraint(LEX_STRING *name, Virtual_column_info *constr)
+  bool add_constraint(LEX_STRING *name, Virtual_column_info *constr,
+                      bool if_not_exists)
   {
     constr->name= *name;
+    constr->flags= if_not_exists ?
+                   Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS : 0;
     alter_info.check_constraint_list.push_back(constr);
     return false;
   }
@@ -3207,6 +3256,7 @@ public:
     m_yacc.reset();
   }
 };
+
 
 extern sql_digest_state *
 digest_add_token(sql_digest_state *state, uint token, LEX_YYSTYPE yylval);

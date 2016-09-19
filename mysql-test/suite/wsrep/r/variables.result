@@ -160,7 +160,7 @@ SELECT @@global.wsrep_slave_threads;
 1
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
-NULL
+
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
 Threads_connected	1
@@ -173,7 +173,7 @@ SELECT @@global.wsrep_provider;
 libgalera_smm.so
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
-NULL
+
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
 Threads_connected	1

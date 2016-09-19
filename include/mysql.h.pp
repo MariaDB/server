@@ -10,7 +10,10 @@ enum enum_server_command
   COM_STMT_PREPARE, COM_STMT_EXECUTE, COM_STMT_SEND_LONG_DATA, COM_STMT_CLOSE,
   COM_STMT_RESET, COM_SET_OPTION, COM_STMT_FETCH, COM_DAEMON,
   COM_MDB_GAP_BEG,
-  COM_MDB_GAP_END=253,
+  COM_MDB_GAP_END=250,
+  COM_SLAVE_WORKER,
+  COM_SLAVE_IO,
+  COM_SLAVE_SQL,
   COM_MULTI,
   COM_END
 };
@@ -30,7 +33,7 @@ typedef struct st_net {
   char save_char;
   char net_skip_rest_factor;
   my_bool thread_specific_malloc;
-  my_bool compress;
+  unsigned char compress;
   my_bool unused3;
   void *thd;
   unsigned int last_errno;
@@ -83,6 +86,16 @@ enum enum_mysql_set_option
 {
   MYSQL_OPTION_MULTI_STATEMENTS_ON,
   MYSQL_OPTION_MULTI_STATEMENTS_OFF
+};
+enum enum_session_state_type
+{
+  SESSION_TRACK_SYSTEM_VARIABLES,
+  SESSION_TRACK_SCHEMA,
+  SESSION_TRACK_STATE_CHANGE,
+  SESSION_TRACK_GTIDS,
+  SESSION_TRACK_TRANSACTION_CHARACTERISTICS,
+  SESSION_TRACK_TRANSACTION_STATE,
+  SESSION_TRACK_always_at_the_end
 };
 my_bool my_net_init(NET *net, Vio* vio, void *thd, unsigned int my_flags);
 void my_net_local_init(NET *net);

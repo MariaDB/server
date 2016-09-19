@@ -1313,6 +1313,7 @@ wsrep_kill_victim(
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(lock->trx));
 
+	/* quit for native mysql */
 	if (!wsrep_on(trx->mysql_thd)) {
 		return;
 	}
@@ -1770,7 +1771,9 @@ RecLock::create(
 	}
 
 #ifdef WITH_WSREP
-	if (c_lock && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+	if (c_lock                      &&
+	    wsrep_on(trx->mysql_thd)    &&
+	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		lock_t *hash	= (lock_t *)c_lock->hash;
 		lock_t *prev	= NULL;
 

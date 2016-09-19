@@ -17,7 +17,6 @@
 #include "wsrep_priv.h"
 #include "wsrep_utils.h"
 
-const char* wsrep_notify_cmd="";
 
 static const char* _status_str(wsrep_member_status_t status)
 {

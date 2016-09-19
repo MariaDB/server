@@ -381,6 +381,16 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
       sl->master_unit()->item->with_sum_func= 1;
   }
   thd->lex->current_select->mark_as_dependent(thd, aggr_sel, NULL);
+
+  if ((thd->lex->describe & DESCRIBE_EXTENDED) && aggr_sel)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_WARN_AGGFUNC_DEPENDENCE,
+                        ER_THD(thd, ER_WARN_AGGFUNC_DEPENDENCE),
+                        func_name(),
+                        thd->lex->current_select->select_number,
+                        aggr_sel->select_number);
+  }
   return FALSE;
 }
 
@@ -1342,10 +1352,14 @@ void Item_sum_sum::add_helper(bool perform_removal)
     {
       if (perform_removal)
       {
-        DBUG_ASSERT(count > 0);
-        my_decimal_sub(E_DEC_FATAL_ERROR, dec_buffs + (curr_dec_buff ^ 1),
-                       dec_buffs + curr_dec_buff, val);
-        count--;
+        if (count > 0)
+        {
+          my_decimal_sub(E_DEC_FATAL_ERROR, dec_buffs + (curr_dec_buff ^ 1),
+                         dec_buffs + curr_dec_buff, val);
+          count--;
+        }
+        else
+          DBUG_VOID_RETURN;
       }
       else
       {
@@ -1359,7 +1373,7 @@ void Item_sum_sum::add_helper(bool perform_removal)
   }
   else
   {
-    if (perform_removal)
+    if (perform_removal && count > 0)
       sum-= aggr->arg_val_real();
     else
       sum+= aggr->arg_val_real();
@@ -1367,8 +1381,10 @@ void Item_sum_sum::add_helper(bool perform_removal)
     {
       if (perform_removal)
       {
-        DBUG_ASSERT(count > 0);
-        count--;
+        if (count > 0)
+        {
+          count--;
+        }
       }
       else
         count++;
@@ -1422,7 +1438,7 @@ my_decimal *Item_sum_sum::val_decimal(my_decimal *val)
   if (aggr)
     aggr->endup();
   if (Item_sum_sum::result_type() == DECIMAL_RESULT)
-    return (dec_buffs + curr_dec_buff);
+    return null_value ? NULL : (dec_buffs + curr_dec_buff);
   return val_decimal_from_real(val);
 }
 
@@ -1588,7 +1604,8 @@ void Item_sum_count::remove()
   DBUG_ASSERT(aggr->Aggrtype() == Aggregator::SIMPLE_AGGREGATOR);
   if (aggr->arg_is_null(false))
     return;
-  count--;
+  if (count > 0)
+    count--;
 }
 
 longlong Item_sum_count::val_int()
@@ -1692,8 +1709,8 @@ void Item_sum_avg::remove()
   Item_sum_sum::remove();
   if (!aggr->arg_is_null(true))
   {
-    DBUG_ASSERT(count > 0);
-    count--;
+    if (count > 0)
+      count--;
   }
 }
 
@@ -1756,6 +1773,8 @@ double Item_sum_std::val_real()
 {
   DBUG_ASSERT(fixed == 1);
   double nr= Item_sum_variance::val_real();
+  if (my_isinf(nr))
+    return DBL_MAX;
   DBUG_ASSERT(nr >= 0.0);
   return sqrt(nr);
 }
@@ -2178,6 +2197,9 @@ bool Item_sum_bit::clear_as_window()
 bool Item_sum_bit::remove_as_window(ulonglong value)
 {
   DBUG_ASSERT(as_window_function);
+  if (num_values_added == 0)
+    return 0; // Nothing to remove.
+
   for (int i= 0; i < NUM_BIT_COUNTERS; i++)
   {
     if (!bit_counters[i])
@@ -2188,7 +2210,7 @@ bool Item_sum_bit::remove_as_window(ulonglong value)
     }
     bit_counters[i]-= (value & (1 << i)) ? 1 : 0;
   }
-  DBUG_ASSERT(num_values_added > 0);
+
   // Prevent overflow;
   num_values_added = std::min(num_values_added, num_values_added - 1);
   set_bits_from_counters();

@@ -55,6 +55,7 @@
 #include "transaction.h"
 #include "sql_audit.h"
 
+
 #ifdef __WIN__
 #include <io.h>
 #endif
@@ -2686,14 +2687,15 @@ bool log_drop_table(THD *thd, const char *db_name, size_t db_name_length,
 */
 
 bool quick_rm_table(THD *thd, handlerton *base, const char *db,
-                    const char *table_name, uint flags)
+                    const char *table_name, uint flags, const char *table_path)
 {
   char path[FN_REFLEN + 1];
   bool error= 0;
   DBUG_ENTER("quick_rm_table");
 
-  uint path_length= build_table_filename(path, sizeof(path) - 1,
-                                         db, table_name, reg_ext, flags);
+  uint path_length= table_path ?
+    (strxnmov(path, sizeof(path) - 1, table_path, reg_ext, NullS) - path) :
+    build_table_filename(path, sizeof(path)-1, db, table_name, reg_ext, flags);
   if (mysql_file_delete(key_file_frm, path, MYF(0)))
     error= 1; /* purecov: inspected */
   path[path_length - reg_ext_length]= '\0'; // Remove reg_ext
@@ -3255,35 +3257,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	!(sql_field->charset= find_bin_collation(sql_field->charset)))
       DBUG_RETURN(TRUE);
 
-    /*
-      Convert the default value from client character
-      set into the column character set if necessary.
-      We can only do this for constants as we have not yet run fix_fields.
-    */
-    if (sql_field->default_value &&
-        sql_field->default_value->expr_item->basic_const_item() &&
-        save_cs != sql_field->default_value->expr_item->collation.collation &&
-        (sql_field->sql_type == MYSQL_TYPE_VAR_STRING ||
-         sql_field->sql_type == MYSQL_TYPE_STRING ||
-         sql_field->sql_type == MYSQL_TYPE_SET ||
-         sql_field->sql_type == MYSQL_TYPE_TINY_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_MEDIUM_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_LONG_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_BLOB ||
-         sql_field->sql_type == MYSQL_TYPE_ENUM))
-    {
-      Item *item;
-      if (!(item= sql_field->default_value->expr_item->
-            safe_charset_converter(thd, save_cs)))
-      {
-        /* Could not convert */
-        my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
-        DBUG_RETURN(TRUE);
-      }
-      /* Fix for prepare statement */
-      thd->change_item_tree(&sql_field->default_value->expr_item, item);
-    }
-
     if (sql_field->sql_type == MYSQL_TYPE_SET ||
         sql_field->sql_type == MYSQL_TYPE_ENUM)
     {
@@ -3349,37 +3322,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (sql_field->sql_type == MYSQL_TYPE_SET)
       {
         uint32 field_length;
-        if (sql_field->default_value &&
-            sql_field->default_value->expr_item->basic_const_item())
-        {
-          char *not_used;
-          uint not_used2;
-          bool not_found= 0;
-          String str, *def= sql_field->default_value->expr_item->val_str(&str);
-          if (def == NULL) /* SQL "NULL" maps to NULL */
-          {
-            if ((sql_field->flags & NOT_NULL_FLAG) != 0)
-            {
-              my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
-              DBUG_RETURN(TRUE);
-            }
-
-            /* else, NULL is an allowed value */
-            (void) find_set(interval, NULL, 0,
-                            cs, &not_used, &not_used2, &not_found);
-          }
-          else /* not NULL */
-          {
-            (void) find_set(interval, def->ptr(), def->length(),
-                            cs, &not_used, &not_used2, &not_found);
-          }
-
-          if (not_found)
-          {
-            my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
-            DBUG_RETURN(TRUE);
-          }
-        }
         calculate_interval_lengths(cs, interval, &dummy, &field_length);
         sql_field->length= field_length + (interval->count - 1);
       }
@@ -3387,30 +3329,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       {
         uint32 field_length;
         DBUG_ASSERT(sql_field->sql_type == MYSQL_TYPE_ENUM);
-        if (sql_field->default_value &&
-            sql_field->default_value->expr_item->basic_const_item())
-        {
-          String str, *def= sql_field->default_value->expr_item->val_str(&str);
-          if (def == NULL) /* SQL "NULL" maps to NULL */
-          {
-            if ((sql_field->flags & NOT_NULL_FLAG) != 0)
-            {
-              my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
-              DBUG_RETURN(TRUE);
-            }
-
-            /* else, the defaults yield the correct length for NULLs. */
-          } 
-          else /* not NULL */
-          {
-            def->length(cs->cset->lengthsp(cs, def->ptr(), def->length()));
-            if (find_type2(interval, def->ptr(), def->length(), cs) == 0) /* not found */
-            {
-              my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
-              DBUG_RETURN(TRUE);
-            }
-          }
-        }
         calculate_interval_lengths(cs, interval, &field_length, &dummy);
         sql_field->length= field_length;
       }
@@ -3429,6 +3347,112 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     sql_field->create_length_to_internal_length();
     if (prepare_blob_field(thd, sql_field))
       DBUG_RETURN(TRUE);
+
+    if (sql_field->default_value)
+    {
+      Virtual_column_info *def= sql_field->default_value;
+
+      if (!sql_field->has_default_expression())
+        def->expr_str= null_lex_str;
+
+      if (!def->expr_item->basic_const_item() && !def->flags)
+      {
+        Item *expr= def->expr_item;
+        int err= !expr->fixed && // may be already fixed if ALTER TABLE
+                  expr->fix_fields(thd, &expr);
+        if (!err)
+        {
+          if (expr->result_type() == REAL_RESULT)
+          { // don't convert floats to string and back, it can be lossy
+            double res= expr->val_real();
+            if (expr->null_value)
+              expr= new (thd->mem_root) Item_null(thd);
+            else
+              expr= new (thd->mem_root) Item_float(thd, res, expr->decimals);
+          }
+          else
+          {
+            StringBuffer<MAX_FIELD_WIDTH> buf;
+            String *res= expr->val_str(&buf);
+            if (expr->null_value)
+              expr= new (thd->mem_root) Item_null(thd);
+            else
+            {
+              char *str= (char*) thd->strmake(res->ptr(), res->length());
+              expr= new (thd->mem_root) Item_string(thd, str, res->length(), res->charset());
+            }
+          }
+          thd->change_item_tree(&def->expr_item, expr);
+        }
+      }
+    }
+
+    /*
+      Convert the default value from client character
+      set into the column character set if necessary.
+      We can only do this for constants as we have not yet run fix_fields.
+    */
+    if (sql_field->default_value &&
+        sql_field->default_value->expr_item->basic_const_item() &&
+        save_cs != sql_field->default_value->expr_item->collation.collation &&
+        (sql_field->sql_type == MYSQL_TYPE_VAR_STRING ||
+         sql_field->sql_type == MYSQL_TYPE_STRING ||
+         sql_field->sql_type == MYSQL_TYPE_SET ||
+         sql_field->sql_type == MYSQL_TYPE_TINY_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_MEDIUM_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_LONG_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_BLOB ||
+         sql_field->sql_type == MYSQL_TYPE_ENUM))
+    {
+      Item *item;
+      if (!(item= sql_field->default_value->expr_item->
+            safe_charset_converter(thd, save_cs)))
+      {
+        /* Could not convert */
+        my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
+        DBUG_RETURN(TRUE);
+      }
+      /* Fix for prepare statement */
+      thd->change_item_tree(&sql_field->default_value->expr_item, item);
+    }
+
+    if (sql_field->default_value &&
+        sql_field->default_value->expr_item->basic_const_item() &&
+        (sql_field->sql_type == MYSQL_TYPE_SET ||
+         sql_field->sql_type == MYSQL_TYPE_ENUM))
+    {
+      StringBuffer<MAX_FIELD_WIDTH> str;
+      String *def= sql_field->default_value->expr_item->val_str(&str);
+      bool not_found;
+      if (def == NULL) /* SQL "NULL" maps to NULL */
+      {
+        not_found= sql_field->flags & NOT_NULL_FLAG;
+      }
+      else
+      {
+        not_found= false;
+        if (sql_field->sql_type == MYSQL_TYPE_SET)
+        {
+          char *not_used;
+          uint not_used2;
+          find_set(sql_field->interval, def->ptr(), def->length(),
+                   sql_field->charset, &not_used, &not_used2, &not_found);
+        }
+        else /* MYSQL_TYPE_ENUM */
+        {
+          def->length(sql_field->charset->cset->lengthsp(sql_field->charset,
+                                                  def->ptr(), def->length()));
+          not_found= !find_type2(sql_field->interval, def->ptr(),
+                                 def->length(), sql_field->charset);
+        }
+      }
+
+      if (not_found)
+      {
+        my_error(ER_INVALID_DEFAULT, MYF(0), sql_field->field_name);
+        DBUG_RETURN(TRUE);
+      }
+    }
 
     if (!(sql_field->flags & NOT_NULL_FLAG))
       null_fields++;
@@ -4178,6 +4202,22 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         make_unique_constraint_name(thd, &check->name,
                                     &alter_info->check_constraint_list,
                                     &nr);
+      {
+        /* Check that there's no repeating constraint names. */
+        List_iterator_fast<Virtual_column_info>
+          dup_it(alter_info->check_constraint_list);
+        Virtual_column_info *dup_check;
+        while ((dup_check= dup_it++) && dup_check != check)
+        {
+          if (check->name.length == dup_check->name.length &&
+              my_strcasecmp(system_charset_info,
+                            check->name.str, dup_check->name.str) == 0)
+          {
+            my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
+            DBUG_RETURN(TRUE);
+          }
+        }
+      }
 
       if (check_string_char_length(&check->name, 0, NAME_CHAR_LEN,
                                    system_charset_info, 1))
@@ -6129,6 +6169,39 @@ remove_key:
     }
   }
 #endif /*WITH_PARTITION_STORAGE_ENGINE*/
+
+  /* ADD CONSTRAINT IF NOT EXISTS. */
+  {
+    List_iterator<Virtual_column_info> it(alter_info->check_constraint_list);
+    Virtual_column_info *check;
+    TABLE_SHARE *share= table->s;
+    uint c;
+    while ((check=it++))
+    {
+      if (!(check->flags & Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS) &&
+          check->name.length)
+        continue;
+      check->flags= 0;
+      for (c= share->field_check_constraints;
+           c < share->table_check_constraints ; c++)
+      {
+        Virtual_column_info *dup= table->check_constraints[c];
+        if (dup->name.length == check->name.length &&
+            my_strcasecmp(system_charset_info,
+                          check->name.str, dup->name.str) == 0)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+            ER_DUP_CONSTRAINT_NAME, ER_THD(thd, ER_DUP_CONSTRAINT_NAME),
+            "CHECK", check->name.str);
+          it.remove();
+          if (alter_info->check_constraint_list.elements == 0)
+            alter_info->flags&= ~Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+
+          break;
+        }
+      }
+    }
+  }
 
   DBUG_VOID_RETURN;
 }
@@ -8257,6 +8330,72 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
   DBUG_RETURN(false);
 }
 
+/**
+  Rename temporary table and/or turn indexes on/off without touching .FRM.
+  Its a variant of simple_rename_or_index_change() to be used exclusively
+  for temporary tables.
+
+  @param thd            Thread handler
+  @param table_list     TABLE_LIST for the table to change
+  @param keys_onoff     ENABLE or DISABLE KEYS?
+  @param alter_ctx      ALTER TABLE runtime context.
+
+  @return Operation status
+    @retval false           Success
+    @retval true            Failure
+*/
+static bool
+simple_tmp_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
+                                  Alter_info::enum_enable_or_disable keys_onoff,
+                                  Alter_table_ctx *alter_ctx)
+{
+  DBUG_ENTER("simple_tmp_rename_or_index_change");
+
+  TABLE *table= table_list->table;
+  bool error= false;
+
+  DBUG_ASSERT(table->s->tmp_table);
+
+  if (keys_onoff != Alter_info::LEAVE_AS_IS)
+  {
+    THD_STAGE_INFO(thd, stage_manage_keys);
+    error= alter_table_manage_keys(table, table->file->indexes_are_disabled(),
+                                   keys_onoff);
+  }
+
+  if (!error && alter_ctx->is_table_renamed())
+  {
+    THD_STAGE_INFO(thd, stage_rename);
+
+    /*
+      If THD::rename_temporary_table() fails, there is no need to rename it
+      back to the original name (unlike the case for non-temporary tables),
+      as it was an allocation error and the table was not renamed.
+    */
+    error= thd->rename_temporary_table(table, alter_ctx->new_db,
+                                       alter_ctx->new_alias);
+  }
+
+  if (!error)
+  {
+    int res= 0;
+    /*
+      We do not replicate alter table statement on temporary tables under
+      ROW-based replication.
+    */
+    if (!thd->is_current_stmt_binlog_format_row())
+    {
+      res= write_bin_log(thd, true, thd->query(), thd->query_length());
+    }
+    if (res != 0)
+      error= true;
+    else
+      my_ok(thd);
+  }
+
+  DBUG_RETURN(error);
+}
+
 
 /**
   Rename table and/or turn indexes on/off without touching .FRM
@@ -8293,6 +8432,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     if (lock_tables(thd, table_list, alter_ctx->tables_opened, 0))
       DBUG_RETURN(true);
 
+    THD_STAGE_INFO(thd, stage_manage_keys);
     error= alter_table_manage_keys(table,
                                    table->file->indexes_are_disabled(),
                                    keys_onoff);
@@ -8671,29 +8811,48 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                 thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, 0L, 0L, alter_ctx.tmp_name);
 
-    if (write_bin_log(thd, true, thd->query(), thd->query_length()))
-      DBUG_RETURN(true);
+    /* We don't replicate alter table statement on temporary tables */
+    if (table->s->tmp_table == NO_TMP_TABLE ||
+        !thd->is_current_stmt_binlog_format_row())
+    {
+      if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+        DBUG_RETURN(true);
+    }
 
     DBUG_RETURN(false);
   }
 
+  /*
+     Test if we are only doing RENAME or KEYS ON/OFF. This works
+     as we are testing if flags == 0 above.
+  */
   if (!(alter_info->flags & ~(Alter_info::ALTER_RENAME |
                               Alter_info::ALTER_KEYS_ONOFF)) &&
       alter_info->requested_algorithm !=
-      Alter_info::ALTER_TABLE_ALGORITHM_COPY &&
-      !table->s->tmp_table) // no need to touch frm
+      Alter_info::ALTER_TABLE_ALGORITHM_COPY)   // No need to touch frm.
   {
-    // This requires X-lock, no other lock levels supported.
-    if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_DEFAULT &&
-        alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
+    bool res;
+
+    if (!table->s->tmp_table)
     {
-      my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
-               "LOCK=NONE/SHARED", "LOCK=EXCLUSIVE");
-      DBUG_RETURN(true);
+      // This requires X-lock, no other lock levels supported.
+      if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_DEFAULT &&
+          alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
+      {
+        my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
+                 "LOCK=NONE/SHARED", "LOCK=EXCLUSIVE");
+        DBUG_RETURN(true);
+      }
+      res= simple_rename_or_index_change(thd, table_list,
+                                         alter_info->keys_onoff,
+                                         &alter_ctx);
     }
-    bool res= simple_rename_or_index_change(thd, table_list,
-                                            alter_info->keys_onoff,
-                                            &alter_ctx);
+    else
+    {
+      res= simple_tmp_rename_or_index_change(thd, table_list,
+                                             alter_info->keys_onoff,
+                                             &alter_ctx);
+    }
     DBUG_RETURN(res);
   }
 
@@ -9123,6 +9282,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     {
       goto err_new_table_cleanup;
     }
+    /* in case of alter temp table send the tracker in OK packet */
+    SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
   }
 
 
@@ -9383,7 +9544,8 @@ err_new_table_cleanup:
   else
     (void) quick_rm_table(thd, new_db_type,
                           alter_ctx.new_db, alter_ctx.tmp_name,
-                          (FN_IS_TMP | (no_ha_table ? NO_HA_TABLE : 0)));
+                          (FN_IS_TMP | (no_ha_table ? NO_HA_TABLE : 0)),
+                          alter_ctx.get_tmp_path());
 
   /*
     No default value was provided for a DATE/DATETIME field, the
@@ -9424,6 +9586,9 @@ err_new_table_cleanup:
 
 err_with_mdl_after_alter:
   /* the table was altered. binlog the operation */
+  DBUG_ASSERT(!(mysql_bin_log.is_open() &&
+                thd->is_current_stmt_binlog_format_row() &&
+                (create_info->tmp_table())));
   write_bin_log(thd, true, thd->query(), thd->query_length());
 
 err_with_mdl:
@@ -9562,8 +9727,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         Old fields keep their current values, and therefore should not be
         present in the set of autoupdate fields.
       */
-      if ((*ptr)->default_value ||
-          ((*ptr)->has_insert_default_function()))
+      if ((*ptr)->default_value)
       {
         *(dfield_ptr++)= *ptr;
         ++to->s->default_fields;
@@ -9740,7 +9904,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   THD_STAGE_INFO(thd, stage_enabling_keys);
   thd_progress_next_stage(thd);
 
-  if (error > 0)
+  if (error > 0 && !from->s->tmp_table)
   {
     /* We are going to drop the temporary table */
     to->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
@@ -9769,7 +9933,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   to->file->ha_release_auto_increment();
   if (to->file->ha_external_lock(thd,F_UNLCK))
     error=1;
-  if (error < 0 && to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))
+  if (error < 0 && !from->s->tmp_table &&
+      to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))
     error= 1;
   thd_progress_end(thd);
   DBUG_RETURN(error > 0 ? -1 : 0);

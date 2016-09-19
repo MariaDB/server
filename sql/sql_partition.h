@@ -177,6 +177,10 @@ typedef struct st_partition_iter
     iterator also produce id of the partition that contains NULL value.
   */
   bool ret_null_part, ret_null_part_orig;
+  /*
+    We should return DEFAULT partition.
+  */
+  bool ret_default_part, ret_default_part_orig;
   struct st_part_num_range
   {
     uint32 start;

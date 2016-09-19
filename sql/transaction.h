@@ -44,4 +44,6 @@ bool trans_xa_prepare(THD *thd);
 bool trans_xa_commit(THD *thd);
 bool trans_xa_rollback(THD *thd);
 
+void trans_reset_one_shot_chistics(THD *thd);
+
 #endif /* TRANSACTION_H */

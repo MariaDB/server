@@ -1,0 +1,2 @@
+ENABLE_LANGUAGE(ASM)
+ADD_CONVENIENCE_LIBRARY(${CRC32_VPMSUM_LIBRARY} crc32c.S crc32c_wrapper.c crc32ieee.S crc32ieee_wrapper.c)

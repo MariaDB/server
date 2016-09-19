@@ -122,23 +122,23 @@ user	CREATE TABLE `user` (
   `ssl_cipher` blob NOT NULL,
   `x509_issuer` blob NOT NULL,
   `x509_subject` blob NOT NULL,
-  `max_questions` int(11) unsigned NOT NULL DEFAULT '0',
-  `max_updates` int(11) unsigned NOT NULL DEFAULT '0',
-  `max_connections` int(11) unsigned NOT NULL DEFAULT '0',
-  `max_user_connections` int(11) NOT NULL DEFAULT '0',
+  `max_questions` int(11) unsigned NOT NULL DEFAULT 0,
+  `max_updates` int(11) unsigned NOT NULL DEFAULT 0,
+  `max_connections` int(11) unsigned NOT NULL DEFAULT 0,
+  `max_user_connections` int(11) NOT NULL DEFAULT 0,
   `plugin` char(64) CHARACTER SET latin1 NOT NULL DEFAULT '',
   `authentication_string` text COLLATE utf8_bin NOT NULL,
   `password_expired` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   `is_role` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   `default_role` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `max_statement_time` decimal(12,6) NOT NULL DEFAULT '0.000000',
+  `max_statement_time` decimal(12,6) NOT NULL DEFAULT 0.000000,
   PRIMARY KEY (`Host`,`User`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Users and global privileges'
 show create table func;
 Table	Create Table
 func	CREATE TABLE `func` (
   `name` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `ret` tinyint(1) NOT NULL DEFAULT '0',
+  `ret` tinyint(1) NOT NULL DEFAULT 0,
   `dl` char(128) COLLATE utf8_bin NOT NULL DEFAULT '',
   `type` enum('function','aggregate') CHARACTER SET utf8 NOT NULL,
   PRIMARY KEY (`name`)
@@ -191,7 +191,7 @@ servers	CREATE TABLE `servers` (
   `Db` char(64) NOT NULL DEFAULT '',
   `Username` char(80) NOT NULL DEFAULT '',
   `Password` char(64) NOT NULL DEFAULT '',
-  `Port` int(4) NOT NULL DEFAULT '0',
+  `Port` int(4) NOT NULL DEFAULT 0,
   `Socket` char(64) NOT NULL DEFAULT '',
   `Wrapper` char(64) NOT NULL DEFAULT '',
   `Owner` char(64) NOT NULL DEFAULT '',

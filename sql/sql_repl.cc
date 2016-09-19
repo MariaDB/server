@@ -2116,12 +2116,6 @@ static int init_binlog_sender(binlog_send_info *info,
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
     return 1;
   }
-  if (!server_id_supplied)
-  {
-    info->errmsg= "Misconfigured master - server id was not set";
-    info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-    return 1;
-  }
 
   char search_file_name[FN_REFLEN];
   const char *name=search_file_name;
@@ -3072,12 +3066,6 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
     if (init_master_info(mi,master_info_file_tmp,relay_log_info_file_tmp, 0,
 			 thread_mask))
       slave_errno=ER_MASTER_INFO;
-    else if (!server_id_supplied)
-    {
-      slave_errno= ER_BAD_SLAVE; net_report= 0;
-      my_message(slave_errno, "Misconfigured slave: server_id was not set; Fix in config file",
-                   MYF(0));
-    }
     else if (!*mi->host)
     {
       slave_errno= ER_BAD_SLAVE; net_report= 0;

@@ -96,7 +96,6 @@ enum charset_enum {IN_SYSTEM_CHARSET, IN_FS_CHARSET};
 
 static const char *bool_values[3]= {"OFF", "ON", 0};
 TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
-extern const char *encrypt_algorithm_names[];
 
 /**
   A small wrapper class to pass getopt arguments as a pair
@@ -438,10 +437,10 @@ public:
   does not destroy individual members of SV, there's no way to free
   allocated string variables for every thread.
 */
-class Sys_var_charptr: public sys_var
+class Sys_var_charptr_base: public sys_var
 {
 public:
-  Sys_var_charptr(const char *name_arg,
+  Sys_var_charptr_base(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
           enum charset_enum is_os_charset_arg,
@@ -463,8 +462,6 @@ public:
     */
     option.var_type|= (flags & ALLOCATED) ? GET_STR_ALLOC : GET_STR;
     global_var(const char*)= def_val;
-    SYSVAR_ASSERT(scope() == GLOBAL);
-    SYSVAR_ASSERT(size == sizeof(char *));
   }
   void cleanup()
   {
@@ -503,31 +500,35 @@ public:
   }
   bool do_check(THD *thd, set_var *var)
   { return do_string_check(thd, var, charset(thd)); }
-  bool session_update(THD *thd, set_var *var)
-  {
-    DBUG_ASSERT(FALSE);
-    return true;
-  }
-  bool global_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var)= 0;
+  char *global_update_prepare(THD *thd, set_var *var)
   {
     char *new_val, *ptr= var->save_result.string_value.str;
     size_t len=var->save_result.string_value.length;
     if (ptr)
     {
       new_val= (char*)my_memdup(ptr, len+1, MYF(MY_WME));
-      if (!new_val) return true;
+      if (!new_val) return 0;
       new_val[len]=0;
     }
     else
       new_val= 0;
+    return new_val;
+  }
+  void global_update_finish(char *new_val)
+  {
     if (flags & ALLOCATED)
       my_free(global_var(char*));
     flags|= ALLOCATED;
     global_var(char*)= new_val;
-    return false;
   }
-  void session_save_default(THD *thd, set_var *var)
-  { DBUG_ASSERT(FALSE); }
+  bool global_update(THD *thd, set_var *var)
+  {
+    char *new_val= global_update_prepare(thd, var);
+    global_update_finish(new_val);
+    return (new_val == 0 && var->save_result.string_value.str != 0);
+  }
+  void session_save_default(THD *thd, set_var *var)= 0;
   void global_save_default(THD *thd, set_var *var)
   {
     char *ptr= (char*)(intptr)option.def_value;
@@ -535,6 +536,104 @@ public:
     var->save_result.string_value.length= ptr ? strlen(ptr) : 0;
   }
 };
+
+class Sys_var_charptr: public Sys_var_charptr_base
+{
+public:
+  Sys_var_charptr(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt,
+          enum charset_enum is_os_charset_arg,
+          const char *def_val, PolyLock *lock=0,
+          enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
+          on_check_function on_check_func=0,
+          on_update_function on_update_func=0,
+          const char *substitute=0) :
+    Sys_var_charptr_base(name_arg, comment, flag_args, off, size, getopt,
+                         is_os_charset_arg, def_val, lock, binlog_status_arg,
+                         on_check_func, on_update_func, substitute)
+  {
+    SYSVAR_ASSERT(scope() == GLOBAL);
+    SYSVAR_ASSERT(size == sizeof(char *));
+  }
+
+  bool session_update(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+  void session_save_default(THD *thd, set_var *var)
+  { DBUG_ASSERT(FALSE); }
+};
+
+#ifndef EMBEDDED_LIBRARY
+class Sys_var_sesvartrack: public Sys_var_charptr_base
+{
+public:
+  Sys_var_sesvartrack(const char *name_arg,
+                      const char *comment,
+                      CMD_LINE getopt,
+                      enum charset_enum is_os_charset_arg,
+                      const char *def_val, PolyLock *lock) :
+    Sys_var_charptr_base(name_arg, comment,
+                         SESSION_VAR(session_track_system_variables),
+                         getopt, is_os_charset_arg, def_val, lock,
+                         VARIABLE_NOT_IN_BINLOG, 0, 0, 0)
+    {}
+  bool do_check(THD *thd, set_var *var)
+  {
+     if (Sys_var_charptr_base::do_check(thd, var) ||
+         sysvartrack_validate_value(thd, var->save_result.string_value.str,
+                                    var->save_result.string_value.length))
+       return TRUE;
+     return FALSE;
+  }
+  bool global_update(THD *thd, set_var *var)
+  {
+    char *new_val= global_update_prepare(thd, var);
+    if (new_val)
+    {
+      if (sysvartrack_reprint_value(thd, new_val,
+                                    var->save_result.string_value.length))
+        new_val= 0;
+    }
+    global_update_finish(new_val);
+    return (new_val == 0 && var->save_result.string_value.str != 0);
+  }
+  bool session_update(THD *thd, set_var *var)
+  {
+    return sysvartrack_update(thd, var);
+  }
+  void session_save_default(THD *thd, set_var *var)
+  {
+     var->save_result.string_value.str= global_var(char*);
+     var->save_result.string_value.length=
+       strlen(var->save_result.string_value.str);
+     /* parse and feel list with default values */
+     if (thd)
+     {
+       bool res=
+         sysvartrack_validate_value(thd,
+                                    var->save_result.string_value.str,
+                                    var->save_result.string_value.length);
+       DBUG_ASSERT(res == 0);
+     }
+  }
+  uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
+  {
+    DBUG_ASSERT(thd != NULL);
+    size_t len= sysvartrack_value_len(thd);
+    char *res= (char *)thd->alloc(len + sizeof(char *));
+    if (res)
+    {
+      char *buf= res + sizeof(char *);
+      *((char**) res)= buf;
+      sysvartrack_value_construct(thd, buf, len);
+    }
+    return (uchar *)res;
+  }
+};
+#endif //EMBEDDED_LIBRARY
 
 
 class Sys_var_proxy_user: public sys_var
@@ -1978,7 +2077,47 @@ public:
     if (var->type == OPT_SESSION && Sys_var_enum::session_update(thd, var))
       return TRUE;
     if (var->type == OPT_DEFAULT || !thd->in_active_multi_stmt_transaction())
+    {
+#ifndef EMBEDDED_LIBRARY
+      Transaction_state_tracker *tst= NULL;
+
+      if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+        tst= (Transaction_state_tracker *)
+          thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
+#endif //EMBEDDED_LIBRARY
+
       thd->tx_isolation= (enum_tx_isolation) var->save_result.ulonglong_value;
+
+#ifndef EMBEDDED_LIBRARY
+      if (var->type == OPT_DEFAULT)
+      {
+        enum enum_tx_isol_level l;
+        switch (thd->tx_isolation) {
+        case ISO_READ_UNCOMMITTED:
+          l=  TX_ISOL_UNCOMMITTED;
+          break;
+        case ISO_READ_COMMITTED:
+          l=  TX_ISOL_COMMITTED;
+          break;
+        case ISO_REPEATABLE_READ:
+          l= TX_ISOL_REPEATABLE;
+          break;
+        case ISO_SERIALIZABLE:
+          l= TX_ISOL_SERIALIZABLE;
+          break;
+        default:
+          DBUG_ASSERT(0);
+          return TRUE;
+        }
+        if (tst)
+          tst->set_isol_level(thd, l);
+      }
+      else if (tst)
+      {
+        tst->set_isol_level(thd, TX_ISOL_INHERIT);
+      }
+#endif //EMBEDDED_LIBRARY
+    }
     return FALSE;
   }
 };

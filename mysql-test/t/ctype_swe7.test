@@ -17,3 +17,24 @@ let $ctype_unescape_combinations=selected;
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+SET character_set_connection=swe7;
+let $coll='swe7_swedish_nopad_ci';
+let $coll_pad='swe7_swedish_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='swe7_nopad_bin';
+let $coll_pad='swe7_bin';
+--source include/ctype_pad_all_engines.inc
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

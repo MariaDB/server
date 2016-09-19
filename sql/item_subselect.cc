@@ -54,7 +54,7 @@ Item_subselect::Item_subselect(THD *thd_arg):
   have_to_be_excluded(0),
   inside_first_fix_fields(0), done_first_fix_fields(FALSE), 
   expr_cache(0), forced_const(FALSE), substitution(0), engine(0), eliminated(FALSE),
-  changed(0), is_correlated(FALSE)
+  changed(0), is_correlated(FALSE), with_recursive_reference(0)
 {
   DBUG_ENTER("Item_subselect::Item_subselect");
   DBUG_PRINT("enter", ("this: 0x%lx", (ulong) this));
@@ -564,6 +564,21 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
 bool Item_subselect::is_expensive()
 {
   double examined_rows= 0;
+  bool all_are_simple= true;
+
+  /* check extremely simple select */
+  if (!unit->first_select()->next_select()) // no union
+  {
+    /*
+      such single selects works even without optimization because
+      can not makes loops
+    */
+    SELECT_LEX *sl= unit->first_select();
+    JOIN *join = sl->join;
+    if (join && !join->tables_list && !sl->first_inner_unit())
+      return false;
+  }
+
 
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
   {
@@ -573,23 +588,27 @@ bool Item_subselect::is_expensive()
     if (!cur_join)
       return true;
 
-    /* very simple subquery */
-    if (!cur_join->tables_list && !sl->first_inner_unit())
-      return false;
-
     /*
       If the subquery is not optimised or in the process of optimization
       it supposed to be expensive
     */
-    if (!cur_join->optimized)
+    if (cur_join->optimization_state != JOIN::OPTIMIZATION_DONE)
       return true;
+
+    if (!cur_join->tables_list && !sl->first_inner_unit())
+      continue;
 
     /*
       Subqueries whose result is known after optimization are not expensive.
       Such subqueries have all tables optimized away, thus have no join plan.
     */
     if ((cur_join->zero_result_cause || !cur_join->tables_list))
-      return false;
+      continue;
+
+    /*
+      This is not simple SELECT in union so we can not go by simple condition
+    */
+    all_are_simple= false;
 
     /*
       If a subquery is not optimized we cannot estimate its cost. A subquery is
@@ -610,7 +629,8 @@ bool Item_subselect::is_expensive()
     examined_rows+= cur_join->get_examined_rows();
   }
 
-  return (examined_rows > thd->variables.expensive_subquery_limit);
+  return !all_are_simple &&
+    (examined_rows > thd->variables.expensive_subquery_limit);
 }
 
 
@@ -785,7 +805,8 @@ bool Item_subselect::expr_cache_is_needed(THD *thd)
           engine->cols() == 1 &&
           optimizer_flag(thd, OPTIMIZER_SWITCH_SUBQUERY_CACHE) &&
           !(engine->uncacheable() & (UNCACHEABLE_RAND |
-                                     UNCACHEABLE_SIDEEFFECT)));
+                                     UNCACHEABLE_SIDEEFFECT)) &&
+          !with_recursive_reference);
 }
 
 
@@ -824,7 +845,8 @@ bool Item_in_subselect::expr_cache_is_needed(THD *thd)
 {
   return (optimizer_flag(thd, OPTIMIZER_SWITCH_SUBQUERY_CACHE) &&
           !(engine->uncacheable() & (UNCACHEABLE_RAND |
-                                     UNCACHEABLE_SIDEEFFECT)));
+                                     UNCACHEABLE_SIDEEFFECT)) &&
+          !with_recursive_reference);
 }
 
 
@@ -3678,7 +3700,7 @@ int subselect_single_select_engine::exec()
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
 
-  if (!join->optimized)
+  if (join->optimization_state == JOIN::NOT_OPTIMIZED)
   {
     SELECT_LEX_UNIT *unit= select_lex->master_unit();
 
@@ -3828,7 +3850,7 @@ int subselect_uniquesubquery_engine::scan_table()
   }
 
   table->file->extra_opt(HA_EXTRA_CACHE,
-                         current_thd->variables.read_buff_size);
+                         get_thd()->variables.read_buff_size);
   table->null_row= 0;
   for (;;)
   {
@@ -4266,7 +4288,7 @@ table_map subselect_union_engine::upper_select_const_tables()
 void subselect_single_select_engine::print(String *str,
                                            enum_query_type query_type)
 {
-  select_lex->print(thd, str, query_type);
+  select_lex->print(get_thd(), str, query_type);
 }
 
 
@@ -4797,6 +4819,7 @@ my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
 
 bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
 {
+  THD *thd= get_thd();
   select_union *result_sink;
   /* Options to create_tmp_table. */
   ulonglong tmp_create_options= thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS;
@@ -5319,7 +5342,8 @@ int subselect_hash_sj_engine::exec()
   */
   thd->lex->current_select= materialize_engine->select_lex;
   /* The subquery should be optimized, and materialized only once. */
-  DBUG_ASSERT(materialize_join->optimized && !is_materialized);
+  DBUG_ASSERT(materialize_join->optimization_state == JOIN::OPTIMIZATION_DONE &&
+              !is_materialized);
   materialize_join->exec();
   if ((res= MY_TEST(materialize_join->error || thd->is_fatal_error ||
                     thd->is_error())))
@@ -6030,6 +6054,7 @@ bool
 subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
                                    MY_BITMAP *partial_match_key_parts)
 {
+  THD *thd= get_thd();
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tmp_table->file->ref_length;
   ha_rows row_count= tmp_table->file->stats.records;
@@ -6568,7 +6593,7 @@ bool subselect_table_scan_engine::partial_match()
   }
 
   tmp_table->file->extra_opt(HA_EXTRA_CACHE,
-                             current_thd->variables.read_buff_size);
+                             get_thd()->variables.read_buff_size);
   for (;;)
   {
     error= tmp_table->file->ha_rnd_next(tmp_table->record[0]);

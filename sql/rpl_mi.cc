@@ -1233,8 +1233,6 @@ Master_info_index::get_master_info(const LEX_STRING *connection_name,
               connection_name->str));
 
   mysql_mutex_assert_owner(&LOCK_active_mi);
-  if (!this) // master_info_index is set to NULL on server shutdown
-    DBUG_RETURN(NULL);
 
   /* Make name lower case for comparison */
   res= strmake(buff, connection_name->str, connection_name->length);
@@ -1388,8 +1386,6 @@ bool Master_info_index::give_error_if_slave_running()
 {
   DBUG_ENTER("give_error_if_slave_running");
   mysql_mutex_assert_owner(&LOCK_active_mi);
-  if (!this) // master_info_index is set to NULL on server shutdown
-    DBUG_RETURN(TRUE);
 
   for (uint i= 0; i< master_info_hash.records; ++i)
   {
@@ -1420,8 +1416,7 @@ uint Master_info_index::any_slave_sql_running()
 {
   uint count= 0;
   DBUG_ENTER("any_slave_sql_running");
-  if (!this) // master_info_index is set to NULL on server shutdown
-    DBUG_RETURN(count);
+  mysql_mutex_assert_owner(&LOCK_active_mi);
 
   for (uint i= 0; i< master_info_hash.records; ++i)
   {

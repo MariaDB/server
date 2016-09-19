@@ -1311,6 +1311,7 @@ Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	385
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	377
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -1339,6 +1340,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	59
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -1368,6 +1370,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	59
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0

@@ -20,7 +20,7 @@ SET @@global.wsrep_desync=ON;
 Got one of the listed errors
 SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
-1
+0
 
 # valid values
 SET @@global.wsrep_desync='OFF';
@@ -31,7 +31,7 @@ SET @@global.wsrep_desync=ON;
 Got one of the listed errors
 SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
-1
+0
 SET @@global.wsrep_desync=default;
 SELECT @@global.wsrep_desync;
 @@global.wsrep_desync

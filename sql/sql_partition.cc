@@ -2311,6 +2311,15 @@ static int add_partition_values(File fptr, partition_info *part_info,
   {
     uint i;
     List_iterator<part_elem_value> list_val_it(p_elem->list_val_list);
+
+    if (p_elem->max_value)
+    {
+      DBUG_ASSERT(part_info->defined_max_value ||
+                  current_thd->lex->sql_command == SQLCOM_ALTER_TABLE);
+      err+= add_string(fptr, " DEFAULT");
+      return err;
+    }
+
     err+= add_string(fptr, " VALUES IN ");
     uint num_items= p_elem->list_val_list.elements;
 
@@ -3070,6 +3079,11 @@ int get_partition_id_list_col(partition_info *part_info,
     }
   }
 notfound:
+  if (part_info->defined_max_value)
+  {
+    *part_id= part_info->default_partition_id;
+    DBUG_RETURN(0);
+  }
   *part_id= 0;
   DBUG_RETURN(HA_ERR_NO_PARTITION_FOUND);
 }
@@ -3123,6 +3137,11 @@ int get_partition_id_list(partition_info *part_info,
     }
   }
 notfound:
+  if (part_info->defined_max_value)
+  {
+    *part_id= part_info->default_partition_id;
+    DBUG_RETURN(0);
+  }
   *part_id= 0;
   DBUG_RETURN(HA_ERR_NO_PARTITION_FOUND);
 }
@@ -4691,9 +4710,26 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
     DBUG_RETURN(TRUE);
   }
 
-  thd->work_part_info= thd->lex->part_info;
+  partition_info *alt_part_info= thd->lex->part_info;
+  /*
+    This variable is TRUE in very special case when we add only DEFAULT
+    partition to the existing table
+  */
+  bool only_default_value_added=
+    (alt_part_info &&
+     alt_part_info->current_partition &&
+     alt_part_info->current_partition->list_val_list.elements == 1 &&
+     alt_part_info->current_partition->list_val_list.head()->
+     added_items >= 1 &&
+     alt_part_info->current_partition->list_val_list.head()->
+     col_val_array[0].max_value) &&
+    alt_part_info->part_type == LIST_PARTITION &&
+    (alter_info->flags & Alter_info::ALTER_ADD_PARTITION);
+  if (only_default_value_added &&
+      !thd->lex->part_info->num_columns)
+    thd->lex->part_info->num_columns= 1; // to make correct clone
 
-  if (thd->work_part_info &&
+  if ((thd->work_part_info= thd->lex->part_info) &&
       !(thd->work_part_info= thd->lex->part_info->get_clone(thd)))
     DBUG_RETURN(TRUE);
 
@@ -4709,12 +4745,12 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
        Alter_info::ALTER_REBUILD_PARTITION))
   {
     partition_info *tab_part_info;
-    partition_info *alt_part_info= thd->work_part_info;
     uint flags= 0;
     bool is_last_partition_reorged= FALSE;
     part_elem_value *tab_max_elem_val= NULL;
     part_elem_value *alt_max_elem_val= NULL;
     longlong tab_max_range= 0, alt_max_range= 0;
+    alt_part_info= thd->work_part_info;
 
     if (!table->part_info)
     {
@@ -4805,7 +4841,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       my_error(ER_PARTITION_FUNCTION_FAILURE, MYF(0));
       goto err;
     }
-    if ((flags & (HA_FAST_CHANGE_PARTITION | HA_PARTITION_ONE_PHASE)) != 0)
+    if ((flags & (HA_FAST_CHANGE_PARTITION | HA_PARTITION_ONE_PHASE)) != 0 &&
+        !tab_part_info->has_default_partititon())
     {
       /*
         "Fast" change of partitioning is supported in this case.
@@ -4879,14 +4916,16 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         }
       }
       if ((tab_part_info->column_list &&
-          alt_part_info->num_columns != tab_part_info->num_columns) ||
+          alt_part_info->num_columns != tab_part_info->num_columns &&
+          !only_default_value_added) ||
           (!tab_part_info->column_list &&
             (tab_part_info->part_type == RANGE_PARTITION ||
              tab_part_info->part_type == LIST_PARTITION) &&
-            alt_part_info->num_columns != 1U) ||
+            alt_part_info->num_columns != 1U &&
+             !only_default_value_added) ||
           (!tab_part_info->column_list &&
             tab_part_info->part_type == HASH_PARTITION &&
-            alt_part_info->num_columns != 0))
+            (alt_part_info->num_columns != 0)))
       {
         my_error(ER_PARTITION_COLUMN_LIST_ERROR, MYF(0));
         goto err;
@@ -4919,9 +4958,13 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         my_error(ER_NO_BINLOG_ERROR, MYF(0));
         goto err;
       }
-      if (tab_part_info->defined_max_value)
+      if (tab_part_info->defined_max_value &&
+          (tab_part_info->part_type == RANGE_PARTITION ||
+           alt_part_info->defined_max_value))
       {
-        my_error(ER_PARTITION_MAXVALUE_ERROR, MYF(0));
+        my_error((tab_part_info->part_type == RANGE_PARTITION ?
+                  ER_PARTITION_MAXVALUE_ERROR :
+                  ER_PARTITION_DEFAULT_ERROR), MYF(0));
         goto err;
       }
       if (num_new_partitions == 0)
@@ -7677,8 +7720,10 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
                                             uint flags,
                                             PARTITION_ITERATOR *part_iter)
 {
+  bool can_match_multiple_values;
   uint32 nparts;
   get_col_endpoint_func  UNINIT_VAR(get_col_endpoint);
+  uint full_length= 0;
   DBUG_ENTER("get_part_iter_for_interval_cols_via_map");
 
   if (part_info->part_type == RANGE_PARTITION)
@@ -7695,6 +7740,19 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
   }
   else
     assert(0);
+
+  for (uint32 i= 0; i < part_info->num_columns; i++)
+    full_length+= store_length_array[i];
+
+  can_match_multiple_values= ((flags &
+                               (NO_MIN_RANGE | NO_MAX_RANGE | NEAR_MIN |
+                                NEAR_MAX)) ||
+                              (min_len != max_len) ||
+                              (min_len != full_length) ||
+                              memcmp(min_value, max_value, min_len));
+  DBUG_ASSERT(can_match_multiple_values || (flags & EQ_RANGE) || flags == 0);
+  if (can_match_multiple_values && part_info->has_default_partititon())
+    part_iter->ret_default_part= part_iter->ret_default_part_orig= TRUE;
 
   if (flags & NO_MIN_RANGE)
     part_iter->part_nums.start= part_iter->part_nums.cur= 0;
@@ -7731,7 +7789,15 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
                                                nparts);
   }
   if (part_iter->part_nums.start == part_iter->part_nums.end)
+  {
+    // No matching partition found.
+    if (part_info->has_default_partititon())
+    {
+      part_iter->ret_default_part= part_iter->ret_default_part_orig= TRUE;
+      DBUG_RETURN(1);
+    }
     DBUG_RETURN(0);
+  }
   DBUG_RETURN(1);
 }
 
@@ -7792,6 +7858,7 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
   (void)min_len;
   (void)max_len;
   part_iter->ret_null_part= part_iter->ret_null_part_orig= FALSE;
+  part_iter->ret_default_part= part_iter->ret_default_part_orig= FALSE;
 
   if (part_info->part_type == RANGE_PARTITION)
   {
@@ -7828,8 +7895,13 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
   else
     MY_ASSERT_UNREACHABLE();
 
-  can_match_multiple_values= (flags || !min_value || !max_value ||
+  can_match_multiple_values= ((flags &
+                               (NO_MIN_RANGE | NO_MAX_RANGE | NEAR_MIN |
+                                NEAR_MAX)) ||
                               memcmp(min_value, max_value, field_len));
+  DBUG_ASSERT(can_match_multiple_values || (flags & EQ_RANGE) || flags == 0);
+  if (can_match_multiple_values && part_info->has_default_partititon())
+    part_iter->ret_default_part= part_iter->ret_default_part_orig= TRUE;
   if (can_match_multiple_values &&
       (part_info->part_type == RANGE_PARTITION ||
        part_info->has_null_value))
@@ -7859,6 +7931,12 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
     {
       /* The right bound is X <= NULL, i.e. it is a "X IS NULL" interval */
       part_iter->part_nums.end= 0;
+      /*
+        It is something like select * from tbl where col IS NULL
+        and we have partition with NULL to catch it, so we do not need
+        DEFAULT partition
+      */
+      part_iter->ret_default_part= part_iter->ret_default_part_orig= FALSE;
       DBUG_RETURN(1);
     }
   }
@@ -7882,8 +7960,19 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
         /* col = x and F(x) = NULL -> only search NULL partition */
         part_iter->part_nums.cur= part_iter->part_nums.start= 0;
         part_iter->part_nums.end= 0;
-        part_iter->ret_null_part= part_iter->ret_null_part_orig= TRUE;
-        DBUG_RETURN(1);
+        /*
+          if NULL partition exists:
+            for RANGE it is the first partition (always exists);
+            for LIST should be indicator that it is present
+        */
+        if (part_info->part_type == RANGE_PARTITION ||
+            part_info->has_null_value)
+        {
+          part_iter->ret_null_part= part_iter->ret_null_part_orig= TRUE;
+          DBUG_RETURN(1);
+        }
+        // If no NULL partition look up in DEFAULT or there is no such value
+        goto not_found;
       }
       part_iter->part_nums.cur= part_iter->part_nums.start;
       if (check_zero_dates && !part_info->part_expr->null_value)
@@ -7900,7 +7989,7 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
         }
       }
       if (part_iter->part_nums.start == max_endpoint_val)
-        DBUG_RETURN(0); /* No partitions */
+        goto not_found;
     }
   }
 
@@ -7937,9 +8026,17 @@ int get_part_iter_for_interval_via_mapping(partition_info *part_info,
     }
     if (part_iter->part_nums.start >= part_iter->part_nums.end &&
         !part_iter->ret_null_part)
-      DBUG_RETURN(0); /* No partitions */
+      goto not_found;
   }
   DBUG_RETURN(1); /* Ok, iterator initialized */
+
+not_found:
+  if (part_info->has_default_partititon())
+  {
+    part_iter->ret_default_part= part_iter->ret_default_part_orig= TRUE;
+    DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0); /* No partitions */
 }
 
 
@@ -8003,6 +8100,8 @@ int get_part_iter_for_interval_via_walking(partition_info *part_info,
   (void)max_len;
 
   part_iter->ret_null_part= part_iter->ret_null_part_orig= FALSE;
+  part_iter->ret_default_part= part_iter->ret_default_part_orig= FALSE;
+
   if (is_subpart)
   {
     field= part_info->subpart_field_array[0];
@@ -8134,6 +8233,9 @@ uint32 get_next_partition_id_range(PARTITION_ITERATOR* part_iter)
       part_iter->ret_null_part= FALSE;
       return 0;                    /* NULL always in first range partition */
     }
+    // we do not have default partition in RANGE partitioning
+    DBUG_ASSERT(!part_iter->ret_default_part);
+
     part_iter->part_nums.cur= part_iter->part_nums.start;
     part_iter->ret_null_part= part_iter->ret_null_part_orig;
     return NOT_A_PARTITION_ID;
@@ -8171,8 +8273,15 @@ uint32 get_next_partition_id_list(PARTITION_ITERATOR *part_iter)
       part_iter->ret_null_part= FALSE;
       return part_iter->part_info->has_null_part_id;
     }
+    if (part_iter->ret_default_part)
+    {
+      part_iter->ret_default_part= FALSE;
+      return part_iter->part_info->default_partition_id;
+    }
+    /* Reset partition for next read */
     part_iter->part_nums.cur= part_iter->part_nums.start;
     part_iter->ret_null_part= part_iter->ret_null_part_orig;
+    part_iter->ret_default_part= part_iter->ret_default_part_orig;
     return NOT_A_PARTITION_ID;
   }
   else

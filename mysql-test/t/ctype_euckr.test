@@ -197,3 +197,23 @@ set collation_connection=euckr_bin;
 --echo # End of 5.6 tests
 --echo #
 
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+SET character_set_connection=euckr;
+let $coll='euckr_korean_nopad_ci';
+let $coll_pad='euckr_korean_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='euckr_nopad_bin';
+let $coll_pad='euckr_bin';
+--source include/ctype_pad_all_engines.inc
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

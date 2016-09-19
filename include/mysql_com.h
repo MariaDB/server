@@ -73,6 +73,14 @@
 #define TABLE_PARTITION_COMMENT_MAXLEN 1024
 
 /*
+  Maximum length of protocol packet.
+  OK packet length limit also restricted to this value as any length greater
+  than this value will have first byte of OK packet to be 254 thus does not
+  provide a means to identify if this is OK or EOF packet.
+*/
+#define MAX_PACKET_LENGTH (256L*256L*256L-1)
+
+/*
   USER_HOST_BUFF_SIZE -- length of string buffer, that is enough to contain
   username and hostname parts of the user identifier with trailing zero in
   MySQL standard format:
@@ -105,7 +113,10 @@ enum enum_server_command
   COM_STMT_RESET, COM_SET_OPTION, COM_STMT_FETCH, COM_DAEMON,
   /* don't forget to update const char *command_name[] in sql_parse.cc */
   COM_MDB_GAP_BEG,
-  COM_MDB_GAP_END=253,
+  COM_MDB_GAP_END=250,
+  COM_SLAVE_WORKER,
+  COM_SLAVE_IO,
+  COM_SLAVE_SQL,
   COM_MULTI,
   /* Must be last */
   COM_END
@@ -218,6 +229,14 @@ enum enum_server_command
 /* Don't close the connection for a connection with expired password. */
 #define CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS (1UL << 22)
 
+/**
+  Capable of handling server state change information. Its a hint to the
+  server to include the state change information in Ok packet.
+*/
+#define CLIENT_SESSION_TRACK (1UL << 23)
+/* Client no longer needs EOF packet */
+#define CLIENT_DEPRECATE_EOF (1UL << 24)
+
 #define CLIENT_PROGRESS_OBSOLETE  (1UL << 29)
 #define CLIENT_SSL_VERIFY_SERVER_CERT (1UL << 30)
 /*
@@ -273,6 +292,8 @@ enum enum_server_command
                            MARIADB_CLIENT_PROGRESS | \
                            CLIENT_PLUGIN_AUTH | \
                            CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA | \
+                           CLIENT_SESSION_TRACK |\
+                           CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
                            MARIADB_CLIENT_COM_MULTI)
 
@@ -337,6 +358,11 @@ enum enum_server_command
 */
 #define SERVER_STATUS_IN_TRANS_READONLY 8192
 
+/**
+  This status flag, when on, implies that one of the state information has
+  changed on the server because of the execution of the last statement.
+*/
+#define SERVER_SESSION_STATE_CHANGED (1UL << 14)
 
 /**
   Server status flags that must be cleared when starting
@@ -353,7 +379,8 @@ enum enum_server_command
                                  SERVER_QUERY_WAS_SLOW |\
                                  SERVER_STATUS_DB_DROPPED |\
                                  SERVER_STATUS_CURSOR_EXISTS|\
-                                 SERVER_STATUS_LAST_ROW_SENT)
+                                 SERVER_STATUS_LAST_ROW_SENT|\
+                                 SERVER_SESSION_STATE_CHANGED)
 
 #define MYSQL_ERRMSG_SIZE	512
 #define NET_READ_TIMEOUT	30		/* Timeout on read */
@@ -391,7 +418,7 @@ typedef struct st_net {
   char save_char;
   char net_skip_rest_factor;
   my_bool thread_specific_malloc;
-  my_bool compress;
+  unsigned char compress;
   my_bool unused3; /* Please remove with the next incompatible ABI change. */
   /*
     Pointer to query object in query cache, do not equal NULL (0) for
@@ -520,6 +547,26 @@ enum enum_mysql_set_option
   MYSQL_OPTION_MULTI_STATEMENTS_OFF
 };
 
+/*
+  Type of state change information that the server can include in the Ok
+  packet.
+*/
+enum enum_session_state_type
+{
+  SESSION_TRACK_SYSTEM_VARIABLES,             /* Session system variables */
+  SESSION_TRACK_SCHEMA,                       /* Current schema */
+  SESSION_TRACK_STATE_CHANGE,                 /* track session state changes */
+  SESSION_TRACK_GTIDS,
+  SESSION_TRACK_TRANSACTION_CHARACTERISTICS,  /* Transaction chistics */
+  SESSION_TRACK_TRANSACTION_STATE,            /* Transaction state */
+  SESSION_TRACK_always_at_the_end             /* must be last */
+};
+
+#define SESSION_TRACK_BEGIN SESSION_TRACK_SYSTEM_VARIABLES
+
+#define IS_SESSION_STATE_TYPE(T) \
+  (((int)(T) >= SESSION_TRACK_BEGIN) && ((T) < SESSION_TRACK_always_at_the_end))
+
 #define net_new_transaction(net) ((net)->pkt_nr=0)
 
 #ifdef __cplusplus
@@ -638,6 +685,7 @@ my_ulonglong net_field_length_ll(uchar **packet);
 my_ulonglong safe_net_field_length_ll(uchar **packet, size_t packet_len);
 uchar *net_store_length(uchar *pkg, ulonglong length);
 uchar *safe_net_store_length(uchar *pkg, size_t pkg_len, ulonglong length);
+unsigned int net_length_size(ulonglong num);
 #endif
 
 #ifdef __cplusplus

@@ -976,8 +976,8 @@ f1 decimal (0,0) zerofill not null default 0);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `f0` decimal(30,30) unsigned zerofill NOT NULL DEFAULT '0.000000000000000000000000000000',
-  `f1` decimal(10,0) unsigned zerofill NOT NULL DEFAULT '0000000000'
+  `f0` decimal(30,30) unsigned zerofill NOT NULL DEFAULT 0.000000000000000000000000000000,
+  `f1` decimal(10,0) unsigned zerofill NOT NULL DEFAULT 0000000000
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 drop table t1;
 drop procedure if exists wg2;

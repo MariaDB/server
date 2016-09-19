@@ -5041,6 +5041,7 @@ innobase_commit(
 					ended */
 {
 	DBUG_ENTER("innobase_commit");
+	DBUG_PRINT("enter", ("commit_trx: %d", commit_trx));
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 	DBUG_PRINT("trans", ("ending transaction"));
 
@@ -19079,6 +19080,7 @@ ha_innobase::store_lock(
 		/* Use consistent read for checksum table */
 
 		if (sql_command == SQLCOM_CHECKSUM
+                    || (sql_command == SQLCOM_ANALYZE && lock_type == TL_READ)
 		    || ((srv_locks_unsafe_for_binlog
 			|| trx->isolation_level <= TRX_ISO_READ_COMMITTED)
 			&& trx->isolation_level != TRX_ISO_SERIALIZABLE
@@ -23823,7 +23825,7 @@ maria_declare_plugin(innobase)
   innodb_status_variables_export,/* status variables             */
   innobase_system_variables, /* system variables */
   INNODB_VERSION_STR,         /* string version */
-  MariaDB_PLUGIN_MATURITY_GAMMA /* maturity */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 },
 i_s_innodb_trx,
 i_s_innodb_locks,

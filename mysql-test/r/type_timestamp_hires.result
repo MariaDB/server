@@ -272,33 +272,64 @@ select * from t1;
 a
 2011-01-01 01:01:01.12345
 drop table t1;
-create table t1 (a timestamp(5) default current_timestamp);
+create or replace table t1 (a timestamp(5) default current_timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` timestamp(5) NOT NULL DEFAULT CURRENT_TIMESTAMP(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-drop table t1;
-create table t1 (a timestamp(5) default current_timestamp());
-drop table t1;
-create table t1 (a timestamp(5) default current_timestamp(2));
+create or replace table t1 (a timestamp(5) default current_timestamp());
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` timestamp(5) NOT NULL DEFAULT CURRENT_TIMESTAMP(5)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-drop table t1;
-create table t1 (a timestamp(5) default current_timestamp(5));
-drop table t1;
-create table t1 (a timestamp(5) default current_timestamp(6));
-drop table t1;
-create table t1 (a timestamp(5) on update current_timestamp);
-drop table t1;
-create table t1 (a timestamp(5) on update current_timestamp());
-drop table t1;
-create table t1 (a timestamp(5) on update current_timestamp(3));
+create or replace table t1 (a timestamp(5) default current_timestamp(2));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(2)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t1 () values ();
+select * from t1;
+a
+2011-01-01 01:01:01.12000
+create or replace table t1 (a timestamp(5) default current_timestamp(5));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp(5) NOT NULL DEFAULT CURRENT_TIMESTAMP(5)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a timestamp(5) default current_timestamp(6));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp(5) NOT NULL DEFAULT CURRENT_TIMESTAMP(5)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a timestamp(5) on update current_timestamp);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE CURRENT_TIMESTAMP(5)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a timestamp(5) on update current_timestamp());
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE CURRENT_TIMESTAMP(5)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a timestamp(5) on update current_timestamp(3));
 ERROR HY000: Invalid ON UPDATE clause for 'a' column
-create table t1 (a timestamp(5) on update current_timestamp(5));
-drop table t1;
-create table t1 (a timestamp(5) on update current_timestamp(6));
+create or replace table t1 (a timestamp(5) on update current_timestamp(5));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE CURRENT_TIMESTAMP(5)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a timestamp(5) on update current_timestamp(6));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE CURRENT_TIMESTAMP(5)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;

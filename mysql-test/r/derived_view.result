@@ -79,6 +79,7 @@ Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -93,6 +94,7 @@ Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	12
@@ -166,6 +168,7 @@ Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -180,6 +183,7 @@ Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	12
@@ -232,6 +236,7 @@ Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -248,6 +253,7 @@ Handler_read_key	11
 Handler_read_last	0
 Handler_read_next	3
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	11
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	36
@@ -323,6 +329,7 @@ Handler_read_key	22
 Handler_read_last	0
 Handler_read_next	22
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	60
@@ -340,6 +347,7 @@ Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
@@ -356,6 +364,7 @@ Handler_read_key	11
 Handler_read_last	0
 Handler_read_next	3
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	11
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	36
@@ -363,9 +372,51 @@ explain extended select * from v1 join v4 on f1=f2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.f2	2	100.00	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using temporary; Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	select `v1`.`f1` AS `f1`,`v1`.`f11` AS `f11`,`test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f22` AS `f22` from `test`.`v1` join `test`.`t2` where ((`v1`.`f1` = `test`.`t2`.`f2`) and (`test`.`t2`.`f2` in (2,3)))
+explain format=json select * from v1 join v4 on f1=f2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 11,
+      "filtered": 100,
+      "attached_condition": "((t2.f2 in (2,3)) and (t2.f2 is not null))"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["f1"],
+      "ref": ["test.t2.f2"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "filesort": {
+            "sort_key": "t1.f1",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 11,
+                "filtered": 100,
+                "attached_condition": "(t1.f1 in (2,3))"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
 select * from v1 join v4 on f1=f2;
 f1	f11	f2	f22
 3	3	3	3
@@ -389,7 +440,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
-Note	1003	select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where (`test`.`t1`.`f1` < 7) group by `test`.`t1`.`f1`) `tt` where (`tt`.`f1` > 2)
+Note	1003	select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where ((`test`.`t1`.`f1` < 7) and (`test`.`t1`.`f1` > 2)) group by `test`.`t1`.`f1`) `tt` where (`tt`.`f1` > 2)
 select * from (select * from 
 (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) zz;
 f1	f11
@@ -416,7 +467,55 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
-Note	1003	select `zz`.`f1` AS `f1`,`zz`.`f11` AS `f11` from (select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where (`test`.`t1`.`f1` < 7) group by `test`.`t1`.`f1`) `tt` where (`tt`.`f1` > 2) group by `tt`.`f1`) `zz`
+Note	1003	select `zz`.`f1` AS `f1`,`zz`.`f11` AS `f11` from (select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where ((`test`.`t1`.`f1` < 7) and (`test`.`t1`.`f1` > 2)) group by `test`.`t1`.`f1`) `tt` where (`tt`.`f1` > 2) group by `tt`.`f1`) `zz`
+explain format=json  select * from (select * from 
+(select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) zz;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 11,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "filesort": {
+            "sort_key": "tt.f1",
+            "temporary_table": {
+              "table": {
+                "table_name": "<derived3>",
+                "access_type": "ALL",
+                "rows": 11,
+                "filtered": 100,
+                "attached_condition": "(tt.f1 > 2)",
+                "materialized": {
+                  "query_block": {
+                    "select_id": 3,
+                    "filesort": {
+                      "sort_key": "t1.f1",
+                      "temporary_table": {
+                        "table": {
+                          "table_name": "t1",
+                          "access_type": "ALL",
+                          "rows": 11,
+                          "filtered": 100,
+                          "attached_condition": "((t1.f1 < 7) and (t1.f1 > 2))"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
 select * from (select * from 
 (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) zz;
 f1	f11
@@ -434,7 +533,70 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
-Note	1003	select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11`,`tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where (`test`.`t1`.`f1` < 7) group by `test`.`t1`.`f1`) `tt` join (select `t1`.`f1` AS `f1`,`t1`.`f11` AS `f11` from `test`.`t1` where (`t1`.`f1` < 7) group by `t1`.`f1`) `tt` where ((`tt`.`f1` = `tt`.`f1`) and (`tt`.`f1` > 2) and (`tt`.`f1` > 2))
+Note	1003	select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11`,`tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where ((`test`.`t1`.`f1` < 7) and (`test`.`t1`.`f1` > 2) and (`test`.`t1`.`f1` > 2)) group by `test`.`t1`.`f1`) `tt` join (select `t1`.`f1` AS `f1`,`t1`.`f11` AS `f11` from `test`.`t1` where ((`t1`.`f1` < 7) and (`t1`.`f1` > 2) and (`t1`.`f1` > 2)) group by `t1`.`f1`) `tt` where ((`tt`.`f1` = `tt`.`f1`) and (`tt`.`f1` > 2) and (`tt`.`f1` > 2))
+explain format=json  select * from 
+(select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) x
+join 
+(select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) z
+on x.f1 = z.f1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 11,
+      "filtered": 100,
+      "attached_condition": "((tt.f1 > 2) and (tt.f1 > 2) and (tt.f1 is not null))",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "filesort": {
+            "sort_key": "t1.f1",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 11,
+                "filtered": 100,
+                "attached_condition": "((t1.f1 < 7) and (t1.f1 > 2) and (t1.f1 > 2))"
+              }
+            }
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived5>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["f1"],
+      "ref": ["tt.f1"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 5,
+          "filesort": {
+            "sort_key": "t1.f1",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 11,
+                "filtered": 100,
+                "attached_condition": "((t1.f1 < 7) and (t1.f1 > 2) and (t1.f1 > 2))"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
 flush status;
 select * from 
 (select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) x
@@ -451,9 +613,10 @@ Handler_read_key	2
 Handler_read_last	0
 Handler_read_next	2
 Handler_read_prev	0
-Handler_read_rnd	8
+Handler_read_retry	0
+Handler_read_rnd	4
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	39
+Handler_read_rnd_next	33
 flush status;
 merged in merged derived join merged in merged derived
 explain extended  select * from 
@@ -495,7 +658,106 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
-Note	1003	select `x`.`f1` AS `f1`,`x`.`f11` AS `f11`,`z`.`f1` AS `f1`,`z`.`f11` AS `f11` from (select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where (`test`.`t1`.`f1` < 7) group by `test`.`t1`.`f1`) `tt` where (`tt`.`f1` > 2) group by `tt`.`f1`) `x` join (select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (select `t1`.`f1` AS `f1`,`t1`.`f11` AS `f11` from `test`.`t1` where (`t1`.`f1` < 7) group by `t1`.`f1`) `tt` where (`tt`.`f1` > 2) group by `tt`.`f1`) `z` where (`z`.`f1` = `x`.`f1`)
+Note	1003	select `x`.`f1` AS `f1`,`x`.`f11` AS `f11`,`z`.`f1` AS `f1`,`z`.`f11` AS `f11` from (select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f11` AS `f11` from `test`.`t1` where ((`test`.`t1`.`f1` < 7) and (`test`.`t1`.`f1` > 2)) group by `test`.`t1`.`f1`) `tt` where (`tt`.`f1` > 2) group by `tt`.`f1`) `x` join (select `tt`.`f1` AS `f1`,`tt`.`f11` AS `f11` from (select `t1`.`f1` AS `f1`,`t1`.`f11` AS `f11` from `test`.`t1` where ((`t1`.`f1` < 7) and (`t1`.`f1` > 2)) group by `t1`.`f1`) `tt` where (`tt`.`f1` > 2) group by `tt`.`f1`) `z` where (`z`.`f1` = `x`.`f1`)
+explain format=json select * from 
+(select * from 
+(select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) x
+join 
+(select * from 
+(select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) z
+on x.f1 = z.f1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 11,
+      "filtered": 100,
+      "attached_condition": "(x.f1 is not null)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "filesort": {
+            "sort_key": "tt.f1",
+            "temporary_table": {
+              "table": {
+                "table_name": "<derived3>",
+                "access_type": "ALL",
+                "rows": 11,
+                "filtered": 100,
+                "attached_condition": "(tt.f1 > 2)",
+                "materialized": {
+                  "query_block": {
+                    "select_id": 3,
+                    "filesort": {
+                      "sort_key": "t1.f1",
+                      "temporary_table": {
+                        "table": {
+                          "table_name": "t1",
+                          "access_type": "ALL",
+                          "rows": 11,
+                          "filtered": 100,
+                          "attached_condition": "((t1.f1 < 7) and (t1.f1 > 2))"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived4>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["f1"],
+      "ref": ["x.f1"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 4,
+          "filesort": {
+            "sort_key": "tt.f1",
+            "temporary_table": {
+              "table": {
+                "table_name": "<derived5>",
+                "access_type": "ALL",
+                "rows": 11,
+                "filtered": 100,
+                "attached_condition": "(tt.f1 > 2)",
+                "materialized": {
+                  "query_block": {
+                    "select_id": 5,
+                    "filesort": {
+                      "sort_key": "t1.f1",
+                      "temporary_table": {
+                        "table": {
+                          "table_name": "t1",
+                          "access_type": "ALL",
+                          "rows": 11,
+                          "filtered": 100,
+                          "attached_condition": "((t1.f1 < 7) and (t1.f1 > 2))"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
 select * from 
 (select * from 
 (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) x
@@ -523,9 +785,41 @@ explain extended
 select * from ( select * from v1 where f1 < 7) tt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using temporary; Using filesort
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	select `v1`.`f1` AS `f1`,`v1`.`f11` AS `f11` from `test`.`v1` where (`v1`.`f1` < 7)
+explain format=json 
+select * from ( select * from v1 where f1 < 7) tt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 11,
+      "filtered": 100,
+      "attached_condition": "(v1.f1 < 7)",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "filesort": {
+            "sort_key": "t1.f1",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 11,
+                "filtered": 100,
+                "attached_condition": "(t1.f1 < 7)"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
 select * from ( select * from v1 where f1 < 7) tt;
 f1	f11
 1	1
@@ -570,9 +864,51 @@ explain extended select * from v6 join v7 on f2=f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
 1	PRIMARY	<derived5>	ref	key0	key0	5	test.t2.f2	2	100.00	
-5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using temporary; Using filesort
+5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	select `test`.`t2`.`f2` AS `f2`,`test`.`t2`.`f22` AS `f22`,`v1`.`f1` AS `f1`,`v1`.`f11` AS `f11` from `test`.`t2` join `test`.`v1` where ((`v1`.`f1` = `test`.`t2`.`f2`) and (`test`.`t2`.`f2` < 7) and (`test`.`t2`.`f2` in (2,3)))
+explain format=json select * from v6 join v7 on f2=f1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 11,
+      "filtered": 100,
+      "attached_condition": "((t2.f2 < 7) and (t2.f2 in (2,3)) and (t2.f2 is not null))"
+    },
+    "table": {
+      "table_name": "<derived5>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["f1"],
+      "ref": ["test.t2.f2"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 5,
+          "filesort": {
+            "sort_key": "t1.f1",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 11,
+                "filtered": 100,
+                "attached_condition": "(t1.f1 in (2,3))"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
 select * from v6 join v7 on f2=f1;
 f2	f22	f1	f11
 3	3	3	3
@@ -2354,7 +2690,7 @@ ON p.id = g.p_random
 ORDER BY gallery_name ASC 
 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using filesort
 1	PRIMARY	p	eq_ref	PRIMARY	PRIMARY	4	g.p_random	1	Using where
 2	DERIVED	gal	ALL	NULL	NULL	NULL	NULL	10	
 3	DEPENDENT SUBQUERY	pi	ref	gallery_id	gallery_id	4	test.gal.id	4	Using temporary; Using filesort
