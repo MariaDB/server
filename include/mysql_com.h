@@ -424,6 +424,7 @@ typedef struct st_net {
     Pointer to query object in query cache, do not equal NULL (0) for
     queries in cache that have not stored its results yet
   */
+  unsigned long real_network_read_len; // the my_real_read length for each package
 #endif
   void *thd; 	   /* Used by MariaDB server to avoid calling current_thd */
   unsigned int last_errno;
