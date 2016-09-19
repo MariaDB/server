@@ -1,0 +1,9 @@
+--eval CREATE FUNCTION f1(param $type) RETURN $type AS BEGIN RETURN param; END;
+SHOW CREATE FUNCTION f1;
+
+--eval SELECT LENGTH(f1(REPEAT('a',$length)));
+--eval CREATE TABLE t1 AS SELECT f1(REPEAT('a',$length)) AS a;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+DROP FUNCTION f1;
