@@ -131,3 +131,34 @@ ulonglong my_getcputime()
 #endif /* CLOCK_THREAD_CPUTIME_ID */
   return 0;
 }
+
+/**
+  Return time in microseconds.
+
+  @remark This function is to be used to measure performance in
+          micro seconds. As it's not defined whats the start time
+          for the clock, this function us only useful to measure
+          time between two moments.
+
+  @retval Value in microseconds from some undefined point in time.
+*/
+
+ulonglong my_micro_time()
+{
+#ifdef _WIN32
+  ulonglong newtime;
+  GetSystemTimeAsFileTime((FILETIME*)&newtime);
+  newtime-= OFFSET_TO_EPOC;
+  return (newtime/10);
+#else
+  ulonglong newtime;
+  struct timeval t;
+  /*
+    The following loop is here because gettimeofday may fail on some systems
+  */
+  while (gettimeofday(&t, NULL) != 0)
+  {}
+  newtime= (ulonglong)t.tv_sec * 1000000 + t.tv_usec;
+  return newtime;
+#endif
+}
