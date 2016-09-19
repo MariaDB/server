@@ -77,18 +77,20 @@ CREATE TABLE t1(
 --connect(con1, localhost, root)
 --connect(con2, localhost, root)
 
+--send SET DEBUG_SYNC='now WAIT_FOR write_row_done'
 --connection con1
 --echo #
 --echo # Connection 1
 --echo #
-SET DEBUG_SYNC=IF(@@innodb_autoinc_lock_mode > 0, 'ha_write_row_end WAIT_FOR continue', 'RESET');
+SET DEBUG_SYNC='ha_write_row_end SIGNAL write_row_done WAIT_FOR continue';
 --send INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1'
 --connection con2
 --echo #
 --echo # Connection 2
 --echo #
-SET DEBUG_SYNC=IF(@@innodb_autoinc_lock_mode > 0, 'execute_command_after_close_tables SIGNAL continue', 'RESET');
---error 1205
+--reap
+SET DEBUG_SYNC='execute_command_after_close_tables SIGNAL continue';
+--error ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
 
 --connection con1
