@@ -572,7 +572,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   uint i;
   str->length(0);
   char numbuf[32];
-  const uchar *p= (uchar*)res->c_ptr();
+  const uchar *p= (uchar*)res->c_ptr_safe();
   for (i= 0; i < res->length(); i++)
   {
     double val;

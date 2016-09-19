@@ -445,9 +445,10 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   bool is_union_select;
   bool instantiate_tmp_table= false;
   DBUG_ENTER("st_select_lex_unit::prepare");
-  DBUG_ASSERT(thd == thd_arg && thd == current_thd);
+  DBUG_ASSERT(thd == thd_arg);
+  DBUG_ASSERT(thd == current_thd);
 
-  describe= MY_TEST(additional_options & SELECT_DESCRIBE);
+  describe= additional_options & SELECT_DESCRIBE;
 
   /*
     Save fake_select_lex in case we don't need it for anything but

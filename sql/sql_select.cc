@@ -2648,7 +2648,7 @@ bool JOIN::make_aggr_tables_info()
     */
     DBUG_PRINT("info",("Sorting for order by/group by"));
     ORDER *order_arg= group_list ?  group_list : order;
-    if (join_tab &&
+    if (top_join_tab_count + aggr_tables > const_tables &&
         ordered_index_usage !=
         (group_list ? ordered_index_group_by : ordered_index_order_by) &&
         curr_tab->type != JT_CONST &&
