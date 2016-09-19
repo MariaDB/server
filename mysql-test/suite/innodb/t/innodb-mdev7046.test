@@ -12,6 +12,7 @@
 call mtr.add_suppression("InnoDB: File ./test/t1*");
 call mtr.add_suppression("InnoDB: Error number*");
 call mtr.add_suppression("InnoDB: File ./test/t1#p#p1#sp#p1sp0.ibd: 'rename' returned OS error*");
+call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation.");
 
 # MDEV-7046: MySQL#74480 - Failing assertion: os_file_status(newpath, &exists, &type) 
 # after Operating system error number 36 in a file operation

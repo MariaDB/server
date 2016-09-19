@@ -16,8 +16,12 @@ select @@session.innodb_ft_user_stopword_table;
 show global variables like 'innodb_ft_user_stopword_table';
 show session variables like 'innodb_ft_user_stopword_table';
 
+--disable_warnings
 select * from information_schema.global_variables where variable_name='innodb_ft_user_stopword_table';
 select * from information_schema.session_variables where variable_name='innodb_ft_user_stopword_table';
+--enable_warnings
+
+call mtr.add_suppression("\\[ERROR\\] InnoDB: user stopword table Salmon does not exist.");
 
 --error ER_WRONG_VALUE_FOR_VAR
 set session innodb_ft_user_stopword_table='Salmon';
@@ -35,4 +39,3 @@ set global innodb_ft_user_stopword_table=1e1;
 --error ER_WRONG_VALUE_FOR_VAR
 set global innodb_ft_user_stopword_table='Salmon';
 
-SET @@session.innodb_ft_user_stopword_table=@start_global_value;

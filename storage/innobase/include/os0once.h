@@ -29,7 +29,7 @@ Created Feb 20, 2014 Vasil Dimov
 
 #include "univ.i"
 
-#include "os0sync.h"
+#include "os0atomic.h"
 #include "ut0ut.h"
 
 /** Execute a given function exactly once in a multi-threaded environment
@@ -67,7 +67,6 @@ public:
 	/** Finished execution. */
 	static const state_t	DONE = 2;
 
-#ifdef HAVE_ATOMIC_BUILTINS
 	/** Call a given function or wait its execution to complete if it is
 	already called by another thread.
 	@param[in,out]	state		control variable
@@ -119,7 +118,6 @@ public:
 			}
 		}
 	}
-#endif /* HAVE_ATOMIC_BUILTINS */
 };
 
 #endif /* os0once_h */

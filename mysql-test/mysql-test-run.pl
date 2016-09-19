@@ -4395,7 +4395,6 @@ sub extract_warning_lines ($$) {
      qr/Slave SQL thread retried transaction/,
      qr/Slave \(additional info\)/,
      qr/Incorrect information in file/,
-     qr/Incorrect key file for table .*crashed.*/,
      qr/Slave I\/O: Get master SERVER_ID failed with error:.*/,
      qr/Slave I\/O: Get master clock failed with error:.*/,
      qr/Slave I\/O: Get master COLLATION_SERVER failed with error:.*/,
@@ -4451,7 +4450,14 @@ sub extract_warning_lines ($$) {
      qr|nnoDB: fix the corruption by dumping, dropping, and reimporting|,
      qr|InnoDB: the corrupt table. You can use CHECK|,
      qr|InnoDB: TABLE to scan your table for corruption|,
-     qr/InnoDB: See also */
+     qr/InnoDB: See also */,
+     qr/InnoDB: Cannot open .*ib_buffer_pool.* for reading: No such file or directory*/,
+     qr/InnoDB: Upgrading redo log:*/,
+     qr|InnoDB: Starting to delete and rewrite log files.|,
+     qr/InnoDB: New log files created, LSN=*/,
+     qr|InnoDB: Creating foreign key constraint system tables.|,
+     qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
+     qr/InnoDB: User stopword table .* does not exist./
 
     );
 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1998, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1998, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,8 +31,7 @@ Created 1/20/1998 Heikki Tuuri
 
 /**********************************************************************//**
 Performs an execution step of an if-statement node.
-@return	query thread to run next or NULL */
-UNIV_INTERN
+@return query thread to run next or NULL */
 que_thr_t*
 if_step(
 /*====*/
@@ -108,8 +107,7 @@ if_step(
 
 /**********************************************************************//**
 Performs an execution step of a while-statement node.
-@return	query thread to run next or NULL */
-UNIV_INTERN
+@return query thread to run next or NULL */
 que_thr_t*
 while_step(
 /*=======*/
@@ -144,8 +142,7 @@ while_step(
 
 /**********************************************************************//**
 Performs an execution step of an assignment statement node.
-@return	query thread to run next or NULL */
-UNIV_INTERN
+@return query thread to run next or NULL */
 que_thr_t*
 assign_step(
 /*========*/
@@ -171,8 +168,7 @@ assign_step(
 
 /**********************************************************************//**
 Performs an execution step of a for-loop node.
-@return	query thread to run next or NULL */
-UNIV_INTERN
+@return query thread to run next or NULL */
 que_thr_t*
 for_step(
 /*=====*/
@@ -233,8 +229,7 @@ for_step(
 
 /**********************************************************************//**
 Performs an execution step of an exit statement node.
-@return	query thread to run next or NULL */
-UNIV_INTERN
+@return query thread to run next or NULL */
 que_thr_t*
 exit_step(
 /*======*/
@@ -265,8 +260,7 @@ exit_step(
 
 /**********************************************************************//**
 Performs an execution step of a return-statement node.
-@return	query thread to run next or NULL */
-UNIV_INTERN
+@return query thread to run next or NULL */
 que_thr_t*
 return_step(
 /*========*/

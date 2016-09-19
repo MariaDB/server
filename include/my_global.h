@@ -817,6 +817,7 @@ static inline bool isfinite(double x) { return std::isfinite(x); }
 #ifndef HAVE_ISNAN
 #define isnan(x) ((x) != (x))
 #endif
+#define my_isnan(x) isnan(x)
 
 #ifdef HAVE_ISINF
 #define my_isinf(X) isinf(X)

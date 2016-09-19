@@ -3,6 +3,8 @@
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
+call mtr.add_suppression("InnoDB: Table .* does not exist in the InnoDB internal data dictionary .*");
+
 --echo #
 --echo # Bug#11766879/Bug#60106: DIFF BETWEEN # OF INDEXES IN MYSQL VS INNODB,
 --echo #                         PARTITONING, ON INDEX CREATE

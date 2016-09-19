@@ -23,6 +23,8 @@ call mtr.add_suppression(".*");
 # create the table with compressed pages of size 8K.
 CREATE TABLE t1(id INT AUTO_INCREMENT PRIMARY KEY, msg VARCHAR(255), KEY msg_i(msg)) ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 
+SHOW CREATE TABLE t1;
+
 # percentage of compressions that will be forced to fail
 SET GLOBAL innodb_simulate_comp_failures = 25;
 
@@ -35,16 +37,16 @@ let $commit_iterations=50;
 while ($num_inserts_ind)
 {
   let $repeat = `select floor(rand() * 10)`;
-  eval
-INSERT INTO t1(id, msg)
-VALUES ($num_inserts_ind, REPEAT('abcdefghijklmnopqrstuvwxyz', $repeat));
+  eval INSERT INTO t1(id, msg)
+       VALUES ($num_inserts_ind, REPEAT('abcdefghijklmnopqrstuvwxyz', $repeat));
   dec $num_inserts_ind;
 }
 
 --enable_query_log
 --enable_result_log
 
-SELECT COUNT(*) FROM t1;
+COMMIT;
+SELECT COUNT(id) FROM t1;
 
 --disable_query_log
 --disable_result_log

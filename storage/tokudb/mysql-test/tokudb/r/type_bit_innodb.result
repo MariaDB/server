@@ -258,7 +258,7 @@ a+0	b+0
 127	403
 explain select a+0, b+0 from t1 where a > 40 and a < 70 order by 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	2	NULL	8	Using where; Using index; Using filesort
+1	SIMPLE	t1	range	a	a	2	NULL	9	Using where; Using index; Using filesort
 select a+0, b+0 from t1 where a > 40 and a < 70 order by 2;
 a+0	b+0
 57	135

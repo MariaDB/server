@@ -1,6 +1,5 @@
+call mtr.add_suppression("In ALTER TABLE .* has or is referenced in foreign key constraints which are not compatible with the new table definition.");
 create table t1 (f1 integer primary key) engine innodb;
 alter table t1 add constraint c1 foreign key (f1) references t1(f1);
 ERROR HY000: Error on rename of '#sql-temporary' to './test/t1' (errno: 150 "Foreign key constraint is incorrectly formed")
-InnoDB: has or is referenced in foreign key constraints
-InnoDB: which are not compatible with the new table definition.
 drop table t1;

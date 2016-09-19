@@ -1,5 +1,11 @@
+call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
 SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET GLOBAL innodb_file_per_table = ON;
+SET GLOBAL innodb_large_prefix = OFF;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_page_size';
@@ -224,6 +230,8 @@ table_name	row_format	create_options
 t1	Compressed	row_format=COMPRESSED
 DROP TABLE t1;
 SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 CREATE TABLE t2(d varchar(17) PRIMARY KEY) ENGINE=innodb DEFAULT CHARSET=utf8;
 CREATE TABLE t3(a int PRIMARY KEY) ENGINE=innodb;
 INSERT INTO t3 VALUES (22),(44),(33),(55),(66);
@@ -368,11 +376,6 @@ UPDATE t1 SET s=@e;
 CREATE INDEX t1t ON t1 (t(767));
 UPDATE t1 SET t=@e;
 ERROR HY000: Undo log record is too big.
-CREATE INDEX t1u ON t1 (u(767));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-CREATE INDEX t1ut ON t1 (u(767), t(767));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
-CREATE INDEX t1st ON t1 (s(767), t(767));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -416,11 +419,12 @@ t1	CREATE TABLE `t1` (
   KEY `t1q` (`q`(767)),
   KEY `t1r` (`r`(767)),
   KEY `t1s` (`s`(767)),
-  KEY `t1t` (`t`(767)),
-  KEY `t1st` (`s`(767),`t`(767))
+  KEY `t1t` (`t`(767))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 DROP TABLE t1;
 SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET GLOBAL innodb_file_per_table = ON;
 Test an assertion failure on purge.
 CREATE TABLE t1_purge (
@@ -464,6 +468,8 @@ DELETE FROM t3_purge;
 DELETE FROM t4_purge;
 SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_file_format='Barracuda';
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET @r=REPEAT('a',500);
 CREATE TABLE tlong(a int,
 v1 varchar(500), v2 varchar(500), v3 varchar(500),
@@ -552,7 +558,7 @@ SHOW WARNINGS;
 Level	Code	Message
 Error	1713	Undo log record is too big.
 DROP TABLE bug12547647;
-SET SESSION innodb_strict_mode = off;
+SET SESSION innodb_strict_mode = on;
 CREATE TABLE t1(
 c text NOT NULL, d text NOT NULL,
 PRIMARY KEY (c(767),d(767)))
@@ -977,3 +983,7 @@ COL196 TEXT,
 COL197 TEXT)
 row_format=compact,ENGINE=INNODB;
 ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

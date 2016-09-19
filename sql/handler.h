@@ -573,7 +573,7 @@ struct xid_t {
   long bqual_length;
   char data[XIDDATASIZE];  // not \0-terminated !
 
-  xid_t() {}                                /* Remove gcc warning */  
+  xid_t() {}                                /* Remove gcc warning */
   bool eq(struct xid_t *xid)
   { return !xid->is_null() && eq(xid->gtrid_length, xid->bqual_length, xid->data); }
   bool eq(long g, long b, const char *d)
@@ -3885,9 +3885,6 @@ public:
   TABLE* get_table() { return table; }
   TABLE_SHARE* get_table_share() { return table_share; }
 protected:
-  /* deprecated, don't use in new engines */
-  inline void ha_statistic_increment(ulong SSV::*offset) const { }
-
   /* Service methods for use by storage engines. */
   void **ha_data(THD *) const;
   THD *ha_thd(void) const;

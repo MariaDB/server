@@ -21,4 +21,4 @@ SET GLOBAL innodb_stats_persistent=123;
 ERROR 42000: Variable 'innodb_stats_persistent' can't be set to the value of '123'
 SET GLOBAL innodb_stats_persistent='foo';
 ERROR 42000: Variable 'innodb_stats_persistent' can't be set to the value of 'foo'
-SET GLOBAL innodb_stats_persistent=off;
+SET GLOBAL innodb_stats_persistent=OFF;
