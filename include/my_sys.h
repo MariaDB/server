@@ -939,6 +939,7 @@ void my_time_init(void);
 extern my_hrtime_t my_hrtime(void);
 extern ulonglong my_interval_timer(void);
 extern ulonglong my_getcputime(void);
+extern ulonglong my_micro_time();
 
 #define microsecond_interval_timer()    (my_interval_timer()/1000)
 #define hrtime_to_time(X)               ((X).val/HRTIME_RESOLUTION)
