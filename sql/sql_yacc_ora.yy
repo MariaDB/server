@@ -1007,6 +1007,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         wild_and_where
         field_length opt_field_length opt_field_length_default_1
         colon_with_pos
+        opt_field_length_default_sp_param_char
+        opt_field_length_default_sp_param_varchar
 
 %type <const_simple_string>
         opt_place
@@ -1017,6 +1019,14 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <field_type> int_type real_type
 
 %type <Lex_field_type> type_with_opt_collate field_type
+        sp_param_type_with_opt_collate
+        sp_param_field_type
+        sp_param_field_type_string
+        field_type_numeric
+        field_type_string
+        field_type_lob
+        field_type_temporal
+        field_type_misc
 
 %type <Lex_dyncol_type> opt_dyncol_type dyncol_type
         numeric_dyncol_type temporal_dyncol_type string_dyncol_type
@@ -2267,7 +2277,7 @@ sp_param_name:
         ;
 
 sp_param_name_and_type:
-          sp_param_name type_with_opt_collate
+          sp_param_name sp_param_type_with_opt_collate
           {
             if (Lex->sp_param_fill_definition($$= $1))
               MYSQL_YYABORT;
@@ -2286,7 +2296,7 @@ sp_pdparams:
         ;
 
 sp_pdparam:
-          sp_param_name sp_opt_inout type_with_opt_collate
+          sp_param_name sp_opt_inout sp_param_type_with_opt_collate
           {
             $1->mode= $2;
             if (Lex->sp_param_fill_definition($1))
@@ -5611,6 +5621,24 @@ column_default_expr:
         ;
 
 field_type:
+          field_type_numeric
+        | field_type_temporal
+        | field_type_string
+        | field_type_lob
+        | field_type_misc
+        ;
+
+
+sp_param_field_type:
+          field_type_numeric
+        | field_type_temporal
+        | sp_param_field_type_string
+        | field_type_lob
+        | field_type_misc
+        ;
+
+
+field_type_numeric:
           int_type opt_field_length field_options { $$.set($1, $2); }
         | real_type opt_precision field_options   { $$.set($1, $2); }
         | FLOAT_SYM float_options field_options
@@ -5641,7 +5669,24 @@ field_type:
           {
             $$.set(MYSQL_TYPE_TINY, "1");
           }
-        | char opt_field_length_default_1 opt_binary
+        | DECIMAL_SYM float_options field_options
+          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
+        | NUMBER_SYM float_options field_options
+          {
+            if ($2.length() != 0)
+              $$.set(MYSQL_TYPE_NEWDECIMAL, $2);
+            else
+              $$.set(MYSQL_TYPE_DOUBLE);
+          }
+        | NUMERIC_SYM float_options field_options
+          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
+        | FIXED_SYM float_options field_options
+          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
+        ;
+
+
+field_type_string:
+          char opt_field_length_default_1 opt_binary
           {
             $$.set(MYSQL_TYPE_STRING, $2);
           }
@@ -5678,7 +5723,52 @@ field_type:
             Lex->charset= &my_charset_bin;
             $$.set(MYSQL_TYPE_VARCHAR, $2);
           }
-        | YEAR_SYM opt_field_length field_options
+        ;
+
+
+sp_param_field_type_string:
+          char opt_field_length_default_sp_param_char opt_binary
+          {
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
+          }
+        | nchar opt_field_length_default_sp_param_char opt_bin_mod
+          {
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
+            bincmp_collation(national_charset_info, $3);
+          }
+        | BINARY opt_field_length_default_sp_param_char
+          {
+            Lex->charset=&my_charset_bin;
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
+          }
+        | varchar opt_field_length_default_sp_param_varchar opt_binary
+          {
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
+          }
+        | VARCHAR2 opt_field_length_default_sp_param_varchar opt_binary
+          {
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
+          }
+        | nvarchar opt_field_length_default_sp_param_varchar opt_bin_mod
+          {
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
+            bincmp_collation(national_charset_info, $3);
+          }
+        | VARBINARY opt_field_length_default_sp_param_varchar
+          {
+            Lex->charset= &my_charset_bin;
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
+          }
+        | RAW opt_field_length_default_sp_param_varchar
+          {
+            Lex->charset= &my_charset_bin;
+            $$.set(MYSQL_TYPE_VARCHAR, $2);
+          }
+        ;
+
+
+field_type_temporal:
+          YEAR_SYM opt_field_length field_options
           {
             if ($2)
             {
@@ -5722,7 +5812,11 @@ field_type:
         | DATETIME opt_field_length
           { $$.set(opt_mysql56_temporal_format ?
                    MYSQL_TYPE_DATETIME2 : MYSQL_TYPE_DATETIME, $2); }
-        | TINYBLOB
+        ;
+
+
+field_type_lob:
+          TINYBLOB
           {
             Lex->charset=&my_charset_bin;
             $$.set(MYSQL_TYPE_TINY_BLOB);
@@ -5770,25 +5864,16 @@ field_type:
           { $$.set(MYSQL_TYPE_LONG_BLOB); }
         | CLOB opt_binary
           { $$.set(MYSQL_TYPE_LONG_BLOB); }
-        | DECIMAL_SYM float_options field_options
-          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
-        | NUMBER_SYM float_options field_options
-          {
-            if ($2.length() != 0)
-              $$.set(MYSQL_TYPE_NEWDECIMAL, $2);
-            else
-              $$.set(MYSQL_TYPE_DOUBLE);
-          }
-        | NUMERIC_SYM float_options field_options
-          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
-        | FIXED_SYM float_options field_options
-          { $$.set(MYSQL_TYPE_NEWDECIMAL, $2);}
-        | ENUM '(' string_list ')' opt_binary
+        | LONG_SYM opt_binary
+          { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
+        ;
+
+
+field_type_misc:
+          ENUM '(' string_list ')' opt_binary
           { $$.set(MYSQL_TYPE_ENUM); }
         | SET '(' string_list ')' opt_binary
           { $$.set(MYSQL_TYPE_SET); }
-        | LONG_SYM opt_binary
-          { $$.set(MYSQL_TYPE_MEDIUM_BLOB); }
         ;
 
 spatial_type:
@@ -5894,6 +5979,33 @@ opt_field_length_default_1:
           /* empty */  { $$= (char*) "1"; }
         | field_length { $$= $1; }
 
+
+/*
+  In sql_mode=ORACLE, a VARCHAR with no length is used
+  in SP parameters and return values and it's translated to VARCHAR(4000),
+  where 4000 is the maximum possible size for VARCHAR.
+
+  In MariaDB the limit for VARCHAR is 65535 bytes.
+  We could translate VARCHAR with no length to VARCHAR(65535), but
+  it would mean that for multi-byte character sets we'd have to translate
+  VARCHAR to MEDIUMTEXT, to guarantee 65535 characters.
+
+  Also we could translate VARCHAR to VARCHAR(16383), where 16383 is
+  the maximum possible length in characters in case of mbmaxlen=4
+  (e.g. utf32, utf16, utf8mb4). However, we'll have character sets with
+  mbmaxlen=5 soon (e.g. gb18030).
+
+  Let's translate VARCHAR to VARCHAR(4000), which covert all possible Oracle
+  values.
+*/
+opt_field_length_default_sp_param_varchar:
+          /* empty */  { $$= (char*) "4000"; }
+        | field_length { $$= $1; }
+
+opt_field_length_default_sp_param_char:
+          /* empty */  { $$= (char*) "2000"; }
+        | field_length { $$= $1; }
+
 opt_precision:
           /* empty */    { $$.set(0, 0); }
         | precision      { $$= $1; }
@@ -5992,6 +6104,19 @@ type_with_opt_collate:
         {
           $$= $1;
 
+          if ($2)
+          {
+            if (!(Lex->charset= merge_charset_and_collation(Lex->charset, $2)))
+              MYSQL_YYABORT;
+          }
+          Lex->last_field->set_attributes($1, Lex->charset);
+        }
+        ;
+
+sp_param_type_with_opt_collate:
+        sp_param_field_type opt_collate
+        {
+          $$= $1;
           if ($2)
           {
             if (!(Lex->charset= merge_charset_and_collation(Lex->charset, $2)))
@@ -16116,7 +16241,7 @@ sf_tail:
             lex->init_last_field(&lex->sphead->m_return_field_def, NULL,
                                  thd->variables.collation_database);
           }
-          type_with_opt_collate /* $8 */
+          sp_param_type_with_opt_collate /* $8 */
           { /* $9 */
             if (Lex->sphead->fill_field_definition(thd, Lex->last_field))
               MYSQL_YYABORT;
