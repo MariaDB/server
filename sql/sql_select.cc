@@ -2699,6 +2699,8 @@ bool JOIN::make_aggr_tables_info()
     if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs,
                                            curr_tab))
       DBUG_RETURN(true);
+    /* Count that we're using window functions. */
+    status_var_increment(thd->status_var.feature_window_functions);
   }
 
   fields= curr_fields_list;

@@ -789,6 +789,7 @@ typedef struct system_status_var
   ulong feature_timezone;	    /* +1 when XPATH is used */
   ulong feature_trigger;	    /* +1 opening a table with triggers */
   ulong feature_xml;		    /* +1 when XPATH is used */
+  ulong feature_window_functions;   /* +1 when window functions are used */
 
   /* From MASTER_GTID_WAIT usage */
   ulonglong master_gtid_wait_timeouts;          /* Number of timeouts */
