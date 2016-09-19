@@ -1,0 +1,33 @@
+SET sql_mode=ORACLE;
+SELECT DECODE(10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT DECODE(10,10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT DECODE(10,10,'x10');
+DECODE(10,10,'x10')
+x10
+SELECT DECODE(11,10,'x10');
+DECODE(11,10,'x10')
+NULL
+SELECT DECODE(10,10,'x10','def');
+DECODE(10,10,'x10','def')
+x10
+SELECT DECODE(11,10,'x10','def');
+DECODE(11,10,'x10','def')
+def
+SELECT DECODE(10,10,'x10',11,'x11','def');
+DECODE(10,10,'x10',11,'x11','def')
+x10
+SELECT DECODE(11,10,'x10',11,'x11','def');
+DECODE(11,10,'x10',11,'x11','def')
+x11
+SELECT DECODE(12,10,'x10',11,'x11','def');
+DECODE(12,10,'x10',11,'x11','def')
+def
+EXPLAIN EXTENDED SELECT DECODE(12,10,'x10',11,'x11','def');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select (case 12 when 10 then 'x10' when 11 then 'x11' else 'def' end) AS "DECODE(12,10,'x10',11,'x11','def')"
+CREATE TABLE decode (decode int);
+DROP TABLE decode;

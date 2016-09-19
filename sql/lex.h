@@ -703,6 +703,7 @@ static SYMBOL sql_functions[] = {
   { "CURTIME",		SYM(CURTIME)},
   { "DATE_ADD",		SYM(DATE_ADD_INTERVAL)},
   { "DATE_SUB",		SYM(DATE_SUB_INTERVAL)},
+  { "DECODE",           SYM(DECODE_SYM)},
   { "DENSE_RANK",       SYM(DENSE_RANK_SYM)},
   { "EXTRACT",		SYM(EXTRACT_SYM)},
   { "FIRST_VALUE",      SYM(FIRST_VALUE_SYM)},
