@@ -1041,6 +1041,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  DECIMAL_NUM
 %token  DECIMAL_SYM                   /* SQL-2003-R */
 %token  DECLARE_SYM                   /* SQL-2003-R */
+%token  DECODE_SYM                    /* Oracle function, non-reserved */
 %token  DEFAULT                       /* SQL-2003-R */
 %token  DEFINER_SYM
 %token  DELAYED_SYM
@@ -9370,6 +9371,12 @@ function_call_nonkeyword:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
+        | DECODE_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_decode(thd, $3, $5);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
         | EXTRACT_SYM '(' interval FROM expr ')'
           {
             $$=new (thd->mem_root) Item_extract(thd, $3, $5);
@@ -14279,6 +14286,7 @@ keyword_sp:
         | DATETIME                 {}
         | DATE_SYM                 {}
         | DAY_SYM                  {}
+        | DECODE_SYM               {}
         | DEFINER_SYM              {}
         | DELAY_KEY_WRITE_SYM      {}
         | DES_KEY_FILE             {}

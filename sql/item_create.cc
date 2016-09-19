@@ -882,19 +882,6 @@ protected:
 };
 
 
-class Create_func_decode : public Create_func_arg2
-{
-public:
-  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
-
-  static Create_func_decode s_singleton;
-
-protected:
-  Create_func_decode() {}
-  virtual ~Create_func_decode() {}
-};
-
-
 class Create_func_degrees : public Create_func_arg1
 {
 public:
@@ -4067,15 +4054,6 @@ Create_func_dayofyear::create_1_arg(THD *thd, Item *arg1)
 }
 
 
-Create_func_decode Create_func_decode::s_singleton;
-
-Item*
-Create_func_decode::create_2_arg(THD *thd, Item *arg1, Item *arg2)
-{
-  return new (thd->mem_root) Item_func_decode(thd, arg1, arg2);
-}
-
-
 Create_func_degrees Create_func_degrees::s_singleton;
 
 Item*
@@ -6772,7 +6750,6 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("DAYOFMONTH") }, BUILDER(Create_func_dayofmonth)},
   { { C_STRING_WITH_LEN("DAYOFWEEK") }, BUILDER(Create_func_dayofweek)},
   { { C_STRING_WITH_LEN("DAYOFYEAR") }, BUILDER(Create_func_dayofyear)},
-  { { C_STRING_WITH_LEN("DECODE") }, BUILDER(Create_func_decode)},
   { { C_STRING_WITH_LEN("DEGREES") }, BUILDER(Create_func_degrees)},
   { { C_STRING_WITH_LEN("DECODE_HISTOGRAM") }, BUILDER(Create_func_decode_histogram)},
   { { C_STRING_WITH_LEN("DES_DECRYPT") }, BUILDER(Create_func_des_decrypt)},

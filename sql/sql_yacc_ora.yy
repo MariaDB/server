@@ -415,6 +415,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  DECIMAL_NUM
 %token  DECIMAL_SYM                   /* SQL-2003-R */
 %token  DECLARE_SYM                   /* SQL-2003-R */
+%token  DECODE_SYM                    /* Oracle function, non-reserved */
 %token  DEFAULT                       /* SQL-2003-R */
 %token  DEFINER_SYM
 %token  DELAYED_SYM
@@ -1118,6 +1119,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <item_list>
         expr_list opt_udf_expr_list udf_expr_list when_list
         ident_list ident_list_arg opt_expr_list
+        decode_when_list
 
 %type <var_type>
         option_type opt_var_type opt_var_ident_type
@@ -8850,6 +8852,36 @@ column_default_non_parenthesized_expr:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
+        | DECODE_SYM '(' expr ',' decode_when_list ')'
+          {
+            if (($5->elements % 2) == 0)
+            {
+              // No default expression
+              $$= new (thd->mem_root) Item_func_case(thd, *$5, $3, NULL);
+            }
+            else
+            {
+              /*
+                There is a default expression at the end of the list $5.
+                Create a new list without the default expression.
+              */
+              List<Item> tmp;
+              List_iterator_fast<Item> it(*$5);
+              for (uint i= 0; i < $5->elements - 1; i++) // copy all but last
+              {
+                Item *item= it++;
+                tmp.push_back(item);
+              }
+              /*
+                Now the new list "tmp" contains only WHEN-THEN pairs,
+                The default expression is pointed by the iterator "it"
+                and will be returned by the next call for it++ below.
+              */
+              $$= new (thd->mem_root) Item_func_case(thd, tmp, $3, it++);
+            }
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
         | DEFAULT '(' simple_ident ')'
           {
             Item_splocal *il= $3->get_item_splocal();
@@ -10245,6 +10277,24 @@ when_list:
             $$= $1;
           }
         ;
+
+
+decode_when_list:
+          expr ',' expr
+          {
+            $$= new (thd->mem_root) List<Item>;
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+            $$->push_back($1, thd->mem_root);
+            $$->push_back($3, thd->mem_root);
+          }
+        | decode_when_list ',' expr
+          {
+            $$= $1;
+            $$->push_back($3, thd->mem_root);
+          }
+        ;
+
 
 /* Equivalent to <table reference> in the SQL:2003 standard. */
 /* Warning - may return NULL in case of incomplete SELECT */
@@ -14190,6 +14240,7 @@ keyword_sp:
         | DATETIME                 {}
         | DATE_SYM                 {}
         | DAY_SYM                  {}
+        | DECODE_SYM               {}
         | DEFINER_SYM              {}
         | DELAY_KEY_WRITE_SYM      {}
         | DES_KEY_FILE             {}

@@ -346,3 +346,5 @@ CREATE TABLE raw (raw int);
 DROP TABLE raw;
 CREATE TABLE varchar2 (varchar2 int);
 DROP TABLE varchar2;
+CREATE TABLE decode (decode int);
+DROP TABLE decode;
