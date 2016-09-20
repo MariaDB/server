@@ -276,9 +276,7 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_STRING name,
   {
     sp_condition *p= m_conditions.at(i);
 
-    if (my_strnncoll(system_charset_info,
-		     (const uchar *) name.str, name.length,
-		     (const uchar *) p->name.str, p->name.length) == 0)
+    if (p->eq_name(name))
     {
       return p->value;
     }
@@ -287,6 +285,32 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_STRING name,
   return (!current_scope_only && m_parent) ?
     m_parent->find_condition(name, false) :
     NULL;
+}
+
+
+static sp_condition_value
+  cond_no_data_found(ER_SP_FETCH_NO_DATA),
+  cond_dup_val_on_index(ER_DUP_ENTRY),
+  cond_too_many_rows(ER_TOO_MANY_ROWS);
+
+
+static sp_condition sp_predefined_conditions[3]=
+{
+  sp_condition(C_STRING_WITH_LEN("NO_DATA_FOUND"), &cond_no_data_found),
+  sp_condition(C_STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index),
+  sp_condition(C_STRING_WITH_LEN("TOO_MANY_ROWS"), &cond_too_many_rows)
+};
+
+
+sp_condition_value *
+sp_pcontext::find_predefined_condition(const LEX_STRING name) const
+{
+  for (uint i= 0; i < array_elements(sp_predefined_conditions) ; i++)
+  {
+    if (sp_predefined_conditions[i].eq_name(name))
+      return sp_predefined_conditions[i].value;
+  }
+  return NULL;
 }
 
 

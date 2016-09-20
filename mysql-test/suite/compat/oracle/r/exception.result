@@ -1,0 +1,53 @@
+SET sql_mode=ORACLE;
+#
+# sql_mode=ORACLE: Predefined exceptions: TOO_MANY_ROWS, NO_DATA_FOUND, DUP_VAL_ON_INDEX
+#
+#
+# Testing NO_DATA_FOUND and TOO_MANY_ROWS
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+SELECT a INTO a FROM t1 LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN res:='--- too_many_rows cought ---';
+WHEN NO_DATA_FOUND THEN res:='--- no_data_found cought ---';
+END;
+$$
+SET @res='';
+CALL p1(0, @res);
+SELECT @res;
+@res
+--- no_data_found cought ---
+CALL p1(2, @res);
+SELECT @res;
+@res
+--- too_many_rows cought ---
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing DUP_VAL_ON_INDEX
+#
+CREATE TABLE t1 (a INT PRIMARY KEY);
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+BEGIN
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (10);
+EXCEPTION
+WHEN DUP_VAL_ON_INDEX THEN res:='--- dup_val_on_index cought ---';
+END;
+$$
+SET @res='';
+CALL p1(@res);
+SELECT @res;
+@res
+--- dup_val_on_index cought ---
+SELECT * FROM t1;
+a
+10
+DROP PROCEDURE p1;
+DROP TABLE t1;
