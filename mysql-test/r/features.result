@@ -12,6 +12,7 @@ Feature_locale	0
 Feature_subquery	0
 Feature_timezone	0
 Feature_trigger	0
+Feature_window_functions	0
 Feature_xml	0
 #
 # Feature GIS
