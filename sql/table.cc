@@ -1226,7 +1226,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (*extra2 != '/')   // old frm had '/' there
   {
     const uchar *e2end= extra2 + len;
-    while (extra2 + 3 < e2end)
+    while (extra2 + 3 <= e2end)
     {
       uchar type= *extra2++;
       size_t length= *extra2++;
