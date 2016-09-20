@@ -280,6 +280,77 @@ class Item_sum_dense_rank: public Item_sum_int
 };
 
 /*
+   This item will remember the first value added to it. It will not update
+   the value unless it is cleared.
+
+   TODO(cvicentiu) Item_sum_hybrid is a pretty heavyweight class. It holds
+   logic that allows comparing values. It was generally thought out for MIN/MAX
+   functions, but we can use it here as well.
+   Refactor Item_sum_hybrid to only include basic field handling and
+   make a more specialized class for min/max. It might be useful if we'd like
+   to optimize how min/max is computed as a window function. We can potentially
+   implement a PQ within the specialized class to support removal.
+*/
+class Item_sum_first_value : public Item_sum_hybrid
+{
+ public:
+  Item_sum_first_value(THD* thd, Item* arg_expr) :
+    Item_sum_hybrid(thd, arg_expr, -1 /* This cmp parameter is not needed */),
+    value_added(false) {}
+
+  bool add();
+
+  void clear()
+  {
+    value_added= false;
+    Item_sum_hybrid::clear();
+  }
+
+  enum Sumfunctype sum_func () const
+  {
+    return FIRST_VALUE_FUNC;
+  }
+
+  const char*func_name() const
+  {
+    return "first_value";
+  }
+
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_first_value>(thd, mem_root, this); }
+
+ private:
+  bool value_added;
+};
+
+/*
+   This item will remember the last value added to it.
+
+   This item does not support removal, and can be cleared only by calling
+   clear().
+*/
+class Item_sum_last_value : public Item_sum_hybrid
+{
+ public:
+  Item_sum_last_value(THD* thd, Item* arg_expr) :
+    Item_sum_hybrid(thd, arg_expr, -1 /* This cmp parameter is not needed */) {}
+
+  bool add();
+  enum Sumfunctype sum_func () const
+  {
+    return LAST_VALUE_FUNC;
+  }
+
+  const char*func_name() const
+  {
+    return "last_value";
+  }
+
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_last_value>(thd, mem_root, this); }
+};
+
+/*
   A base window function (aggregate) that also holds a counter for the number
   of rows.
 */

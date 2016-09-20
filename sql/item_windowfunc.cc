@@ -219,3 +219,26 @@ void Item_sum_percent_rank::setup_window_func(THD *thd, Window_spec *window_spec
   peer_tracker->init();
   clear();
 }
+
+bool Item_sum_first_value::add()
+{
+  if (value_added)
+    return false;
+
+  /* TODO(cvicentiu) This is done like this due to how Item_sum_hybrid works.
+     For this usecase we can actually get rid of arg_cache. arg_cache is just
+     for running a comparison function. */
+  value_added= true;
+  arg_cache->cache_value();
+  value->store(arg_cache);
+  null_value= arg_cache->null_value;
+  return false;
+}
+
+bool Item_sum_last_value::add()
+{
+  arg_cache->cache_value();
+  value->store(arg_cache);
+  null_value= arg_cache->null_value;
+  return false;
+}
