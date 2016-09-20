@@ -1310,7 +1310,7 @@
 }
 
 {
-g   codership/mysql-wsrep/issues#176
+   codership/mysql-wsrep/issues#176
    Memcheck:Leak
    fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
 }
