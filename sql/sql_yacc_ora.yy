@@ -2515,7 +2515,7 @@ sp_hcond:
           }
         | ident /* CONDITION name */
           {
-            $$= Lex->spcont->find_condition($1, false);
+            $$= Lex->spcont->find_declared_or_predefined_condition($1);
             if ($$ == NULL)
               my_yyabort_error((ER_SP_COND_MISMATCH, MYF(0), $1.str));
           }

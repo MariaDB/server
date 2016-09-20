@@ -198,6 +198,19 @@ public:
     name(_name),
     value(_value)
   { }
+  sp_condition(const char *name_arg, size_t name_length_arg,
+               sp_condition_value *value_arg)
+   :value(value_arg)
+  {
+    name.str= (char *) name_arg;
+    name.length= name_length_arg;
+  }
+  bool eq_name(const LEX_STRING str) const
+  {
+    return my_strnncoll(system_charset_info,
+                        (const uchar *) name.str, name.length,
+                        (const uchar *) str.str, str.length) == 0;
+  }
 };
 
 ///////////////////////////////////////////////////////////////////////////
@@ -454,6 +467,16 @@ public:
   /// See comment for find_variable() above.
   sp_condition_value *find_condition(const LEX_STRING name,
                                      bool current_scope_only) const;
+
+  sp_condition_value *
+  find_declared_or_predefined_condition(const LEX_STRING name) const
+  {
+    sp_condition_value *p= find_condition(name, false);
+    if (p)
+      return p;
+    return find_predefined_condition(name);
+  }
+
   bool declare_condition(THD *thd, const LEX_STRING name,
                                    sp_condition_value *val)
   {
@@ -539,6 +562,8 @@ private:
   /* Prevent use of these */
   sp_pcontext(const sp_pcontext &);
   void operator=(sp_pcontext &);
+
+  sp_condition_value *find_predefined_condition(const LEX_STRING name) const;
 
 private:
   /// m_max_var_index -- number of variables (including all types of arguments)
