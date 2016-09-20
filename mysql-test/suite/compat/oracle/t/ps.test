@@ -23,3 +23,101 @@ PREPARE stmt FROM 'SELECT :0,:65535';
 EXECUTE stmt USING @a, @b;
 PREPARE stmt FROM 'SELECT :65535,:0';
 EXECUTE stmt USING @a, @b;
+
+--echo #
+--echo # MDEV-10709 Expressions as parameters to Dynamic SQL
+--echo #
+
+--echo #
+--echo # Using a user variable as a EXECUTE..USING out parameter
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(a OUT INT)
+AS
+BEGIN
+  a:= 10;
+END;
+/
+DELIMITER ;/
+SET @a=1;
+CALL p1(@a);
+SELECT @a;
+SET @a=2;
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING @a;
+SELECT @a;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using an SP variable as a EXECUTE..USING out parameter
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1 (a OUT INT)
+AS
+BEGIN
+  a:=10;
+END;
+/
+CREATE PROCEDURE p2 (a OUT INT)
+AS
+BEGIN
+  PREPARE stmt FROM 'CALL p1(?)';
+  EXECUTE stmt USING a;
+END;
+/
+DELIMITER ;/
+SET @a= 1;
+CALL p2(@a);
+SELECT @a;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using a trigger field as a EXECUTE..USING out parameter
+--echo #
+DELIMITER /;
+CREATE PROCEDURE p1 (a OUT INT)
+AS
+BEGIN
+ a:= 10;
+END;
+/
+DELIMITER ;/
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW CALL p1(:NEW.a);
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Testing re-prepare on a table metadata update between PREPARE and EXECUTE
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER /;
+CREATE PROCEDURE p1(a IN INT)
+AS
+BEGIN
+  INSERT INTO t1 VALUES (a);
+END;
+/
+DELIMITER ;/
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING 10;
+SELECT * FROM t1;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW NEW.a:=NEW.a+1;
+EXECUTE stmt USING 20;
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of MDEV-10709 Expressions as parameters to Dynamic SQL
+--echo #
