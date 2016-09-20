@@ -630,18 +630,6 @@ public:
     return table->file->ha_rnd_pos(record, curr_rowid);
   }
 
-  bool fetch_prev_row()
-  {
-    uchar *p;
-    if ((p= get_prev_rowid()))
-    {
-      int rc= table->file->ha_rnd_pos(record, p);
-      if (!rc)
-        return true; // restored ok
-    }
-    return false; // didn't restore
-  }
-
 private:
   /* The table that is acccesed by this cursor. */
   TABLE *table;
@@ -2136,14 +2124,11 @@ bool save_window_function_values(List<Item_window_func>& window_functions,
   tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
   store_record(tbl, record[1]);
   while (Item_window_func *item_win= iter++)
-  {
-    int err;
     item_win->save_in_field(item_win->result_field, true);
-    // TODO check if this can be placed outside the loop.
-    err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
-    if (err && err != HA_ERR_RECORD_IS_THE_SAME)
-      return true;
-  }
+
+  int err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
+  if (err && err != HA_ERR_RECORD_IS_THE_SAME)
+    return true;
 
   return false;
 }
