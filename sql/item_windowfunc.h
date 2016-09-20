@@ -657,6 +657,8 @@ public:
     case Item_sum::PERCENT_RANK_FUNC:
     case Item_sum::CUME_DIST_FUNC:
     case Item_sum::NTILE_FUNC:
+    case Item_sum::FIRST_VALUE_FUNC:
+    case Item_sum::LAST_VALUE_FUNC:
       return true;
     default: 
       return false;

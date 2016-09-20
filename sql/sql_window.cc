@@ -824,6 +824,17 @@ protected:
     }
   }
 
+  /* Clear all sum functions handled by this cursor. */
+  void clear_sum_functions()
+  {
+    List_iterator_fast<Item_sum> iter_sum_func(sum_functions);
+    Item_sum *sum_func;
+    while ((sum_func= iter_sum_func++))
+    {
+      sum_func->clear();
+    }
+  }
+
   /* Sum functions that this cursor handles. */
   List<Item_sum> sum_functions;
 
@@ -1847,17 +1858,6 @@ private:
   Table_read_cursor cursor;
   ha_rows curr_rownum;
 
-  /* Clear all sum functions handled by this cursor. */
-  void clear_sum_functions()
-  {
-    List_iterator_fast<Item_sum> iter_sum_func(sum_functions);
-    Item_sum *sum_func;
-    while ((sum_func= iter_sum_func++))
-    {
-      sum_func->clear();
-    }
-  }
-
   /* Scan the rows between the top bound and bottom bound. Add all the values
      between them, top bound row  and bottom bound row inclusive. */
   void compute_values_for_current_row()
@@ -1881,6 +1881,55 @@ private:
         break;
     }
   }
+};
+
+/* A cursor that follows a target cursor. Each time a new row is added,
+   the window functions are cleared and only have the row at which the target
+   is point at added to them.
+*/
+class Frame_positional_cursor : public Frame_cursor
+{
+ public:
+  Frame_positional_cursor(const Frame_cursor &position_cursor) :
+    position_cursor(position_cursor) {}
+
+  void init(READ_RECORD *info)
+  {
+    cursor.init(info);
+  }
+
+  void pre_next_partition(ha_rows rownum)
+  {
+    clear_sum_functions();
+  }
+
+  void next_partition(ha_rows rownum)
+  {
+    cursor.move_to(position_cursor.get_curr_rownum());
+    add_value_to_items();
+  }
+
+  void pre_next_row()
+  {
+  }
+
+  void next_row()
+  {
+    if (position_cursor.is_outside_computation_bounds())
+      clear_sum_functions();
+
+    cursor.move_to(position_cursor.get_curr_rownum());
+    add_value_to_items();
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    return position_cursor.get_curr_rownum();
+  }
+
+private:
+  const Frame_cursor &position_cursor;
+  Table_read_cursor cursor;
 };
 
 
@@ -1990,8 +2039,9 @@ Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
   return NULL;
 }
 
-void add_extra_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
-                             Item_window_func *window_func)
+static
+void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
+                               Item_window_func *window_func)
 {
   Window_spec *spec= window_func->window_spec;
   Item_sum *item_sum= window_func->window_func();
@@ -2007,6 +2057,19 @@ void add_extra_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       fc= new Frame_range_current_row_bottom(thd,
                                              spec->partition_list,
                                              spec->order_list);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    case Item_sum::FIRST_VALUE_FUNC:
+      fc= get_frame_cursor(thd, spec, true);
+      fc->set_no_action();
+      cursor_manager->add_cursor(fc);
+      fc= new Frame_positional_cursor(*fc);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    case Item_sum::LAST_VALUE_FUNC:
+      fc= get_frame_cursor(thd, spec, false);
       fc->add_sum_func(item_sum);
       cursor_manager->add_cursor(fc);
       break;
@@ -2032,6 +2095,8 @@ static bool is_computed_with_remove(Item_sum::Sumfunctype sum_func)
     case Item_sum::RANK_FUNC:
     case Item_sum::DENSE_RANK_FUNC:
     case Item_sum::NTILE_FUNC:
+    case Item_sum::FIRST_VALUE_FUNC:
+    case Item_sum::LAST_VALUE_FUNC:
       return false;
     default:
       return true;
@@ -2071,12 +2136,20 @@ void get_window_functions_required_cursors(
 
     /*
       If it is not a regular window function that follows frame specifications,
-      specific cursors are required. ROW_NUM, RANK, NTILE and others follow
-      such rules. Check is_frame_prohibited check for the full list.
+      and/or specific cursors are required. ROW_NUM, RANK, NTILE and others
+      follow such rules. Check is_frame_prohibited check for the full list.
+
+      TODO(cvicentiu) This approach is messy. Every time a function allows
+      computation in a certain way, we have to add an extra method to this
+      factory function. It is better to have window functions output
+      their own cursors, as needed. This way, the logic is bound
+      only to the implementation of said window function. Regular aggregate
+      functions can keep the default frame generating code, overwrite it or
+      add to it.
     */
     if (item_win_func->is_frame_prohibited())
     {
-      add_extra_frame_cursors(thd, cursor_manager, item_win_func);
+      add_special_frame_cursors(thd, cursor_manager, item_win_func);
       cursor_managers->push_back(cursor_manager);
       continue;
     }
