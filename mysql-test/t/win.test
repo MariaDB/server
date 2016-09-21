@@ -1230,3 +1230,35 @@ SELECT o_custkey, avg(o_custkey) OVER (PARTITION BY abs(o_custkey)
                                        RANGE BETWEEN 15 FOLLOWING
                                                  AND 15 FOLLOWING) from orders;
 DROP table orders;
+
+--echo #
+--echo # MDEV-10842: window functions with the same order column 
+--echo #             but different directions
+--echo #
+
+create table t1 (
+  pk int primary key,
+  a int,
+  b int,
+  c char(10)
+);
+
+insert into t1 values
+( 1, 0, 1, 'one'),
+( 2, 0, 2, 'two'),
+( 3, 0, 3, 'three'),
+( 4, 1, 1, 'one'),
+( 5, 1, 1, 'two'),
+( 6, 1, 2, 'three'),
+( 7, 2, NULL, 'n_one'),
+( 8, 2, 1,    'n_two'),
+( 9, 2, 2,    'n_three'),
+(10, 2, 0,    'n_four'),
+(11, 2, 10,   NULL);
+
+select pk,
+      row_number() over (order by pk desc) as r_desc,
+      row_number() over (order by pk asc) as r_asc
+from t1;
+
+drop table t1;
