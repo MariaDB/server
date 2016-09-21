@@ -1,0 +1,13 @@
+SELECT @@wsrep_provider_options LIKE '%ist.recv_bind = 127.0.0.1%';
+@@wsrep_provider_options LIKE '%ist.recv_bind = 127.0.0.1%'
+1
+SELECT @@wsrep_provider_options LIKE '%ist.recv_bind = 127.0.0.1%';
+@@wsrep_provider_options LIKE '%ist.recv_bind = 127.0.0.1%'
+1
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+SET SESSION wsrep_on = OFF;
+SET SESSION wsrep_on = ON;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+DROP TABLE t1;

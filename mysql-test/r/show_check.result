@@ -332,7 +332,7 @@ index(type_short)
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `type_bool` tinyint(1) NOT NULL DEFAULT '0',
+  `type_bool` tinyint(1) NOT NULL DEFAULT 0,
   `type_tiny` tinyint(4) NOT NULL AUTO_INCREMENT,
   `type_short` smallint(3) DEFAULT NULL,
   `type_mediumint` mediumint(9) DEFAULT NULL,

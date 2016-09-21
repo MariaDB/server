@@ -76,12 +76,13 @@
 /* Line 268 of yacc.c  */
 #line 26 "fts0pars.y"
 
-
+#include "ha_prototypes.h"
 #include "mem0mem.h"
 #include "fts0ast.h"
 #include "fts0blex.h"
 #include "fts0tlex.h"
 #include "fts0pars.h"
+#include <my_sys.h>
 
 extern	int fts_lexer(YYSTYPE*, fts_lexer_t*);
 extern	int fts_blexer(YYSTYPE*, yyscan_t);
@@ -271,8 +272,6 @@ YYID (yyi)
 #    define YYSTACK_ALLOC __builtin_alloca
 #   elif defined __BUILTIN_VA_ARG_INCR
 #    include <alloca.h> /* INFRINGES ON USER NAME SPACE */
-#   elif defined _AIX
-#    define YYSTACK_ALLOC __alloca
 #   elif defined _MSC_VER
 #    include <malloc.h> /* INFRINGES ON USER NAME SPACE */
 #    define alloca _alloca
@@ -1541,7 +1540,7 @@ yyreduce:
 /* Line 1806 of yacc.c  */
 #line 141 "fts0pars.y"
     {
-		fts_ast_term_set_distance((yyvsp[(1) - (3)].node), fts_ast_string_to_ul((yyvsp[(3) - (3)].token), 10));
+		fts_ast_text_set_distance((yyvsp[(1) - (3)].node), fts_ast_string_to_ul((yyvsp[(3) - (3)].token), 10));
 		fts_ast_string_free((yyvsp[(3) - (3)].token));
 	}
     break;
@@ -1574,7 +1573,7 @@ yyreduce:
     {
 		(yyval.node) = fts_ast_create_node_list(state, (yyvsp[(1) - (4)].node));
 		fts_ast_add_node((yyval.node), (yyvsp[(2) - (4)].node));
-		fts_ast_term_set_distance((yyvsp[(2) - (4)].node), fts_ast_string_to_ul((yyvsp[(4) - (4)].token), 10));
+		fts_ast_text_set_distance((yyvsp[(2) - (4)].node), fts_ast_string_to_ul((yyvsp[(4) - (4)].token), 10));
 		fts_ast_string_free((yyvsp[(4) - (4)].token));
 	}
     break;
@@ -1933,7 +1932,6 @@ ftserror(
 
 /********************************************************************
 Create a fts_lexer_t instance.*/
-
 fts_lexer_t*
 fts_lexer_create(
 /*=============*/
@@ -1942,7 +1940,7 @@ fts_lexer_create(
 	ulint		query_len)
 {
 	fts_lexer_t*	fts_lexer = static_cast<fts_lexer_t*>(
-		ut_malloc(sizeof(fts_lexer_t)));
+		ut_malloc_nokey(sizeof(fts_lexer_t)));
 
 	if (boolean_mode) {
 		fts0blex_init(&fts_lexer->yyscanner);
@@ -1984,7 +1982,6 @@ fts_lexer_free(
 
 /********************************************************************
 Call the appropaiate scanner.*/
-
 int
 fts_lexer(
 /*======*/

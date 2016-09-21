@@ -17,6 +17,7 @@
 #include "sql_class.h"
 #include "debug_sync.h"
 #include "sql_array.h"
+#include "rpl_rli.h"
 #include <lf.h>
 #include <mysqld_error.h>
 #include <mysql/plugin.h>
@@ -505,6 +506,10 @@ public:
 
   bitmap_t hog_lock_types_bitmap() const
   { return m_strategy->hog_lock_types_bitmap(); }
+
+#ifndef DBUG_OFF
+  bool check_if_conflicting_replication_locks(MDL_context *ctx);
+#endif
 
   /** List of granted tickets for this lock. */
   Ticket_list m_granted;
@@ -1977,6 +1982,55 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
 
 
 /**
+  Check if there is any conflicting lock that could cause this thread
+  to wait for another thread which is not ready to commit.
+  This is always an error, as the upper level of parallel replication
+  should not allow a scheduling of a conflicting DDL until all earlier
+  transactions has commited.
+
+  This function is only called for a slave using parallel replication
+  and trying to get an exclusive lock for the table.
+*/
+
+#ifndef DBUG_OFF
+bool MDL_lock::check_if_conflicting_replication_locks(MDL_context *ctx)
+{
+  Ticket_iterator it(m_granted);
+  MDL_ticket *conflicting_ticket;
+  rpl_group_info *rgi_slave= ctx->get_thd()->rgi_slave;
+
+  if (!rgi_slave->gtid_sub_id)
+    return 0;
+
+  while ((conflicting_ticket= it++))
+  {
+    if (conflicting_ticket->get_ctx() != ctx)
+    {
+      MDL_context *conflicting_ctx= conflicting_ticket->get_ctx();
+      rpl_group_info *conflicting_rgi_slave;
+      conflicting_rgi_slave= conflicting_ctx->get_thd()->rgi_slave;
+
+      /*
+        If the conflicting thread is another parallel replication
+        thread for the same master and it's not in commit stage, then
+        the current transaction has started too early and something is
+        seriously wrong.
+      */
+      if (conflicting_rgi_slave &&
+          conflicting_rgi_slave->gtid_sub_id &&
+          conflicting_rgi_slave->rli == rgi_slave->rli &&
+          conflicting_rgi_slave->current_gtid.domain_id ==
+          rgi_slave->current_gtid.domain_id &&
+          !conflicting_rgi_slave->did_mark_start_commit)
+        return 1;                               // Fatal error
+    }
+  }
+  return 0;
+}
+#endif
+
+
+/**
   Acquire one lock with waiting for conflicting locks to go away if needed.
 
   @param mdl_request [in/out] Lock request object for lock to be acquired
@@ -2035,6 +2089,19 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
   */
   if (lock->needs_notification(ticket) && lock_wait_timeout)
     lock->notify_conflicting_locks(this);
+
+  /*
+    Ensure that if we are trying to get an exclusive lock for a slave
+    running parallel replication, then we are not blocked by another
+    parallel slave thread that is not committed. This should never happen as
+    the parallel replication scheduler should never schedule a DDL while
+    DML's are still running.
+  */
+  DBUG_ASSERT((mdl_request->type != MDL_INTENTION_EXCLUSIVE &&
+               mdl_request->type != MDL_EXCLUSIVE) ||
+              !(get_thd()->rgi_slave &&
+                get_thd()->rgi_slave->is_parallel_exec &&
+                lock->check_if_conflicting_replication_locks(this)));
 
   mysql_prlock_unlock(&lock->m_rwlock);
 

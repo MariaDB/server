@@ -22,6 +22,8 @@ call mtr.add_suppression(".*InnoDB: Cannot open table test/.* from the internal 
 call mtr.add_suppression("InnoDB: .ibd file is missing for table test/.*");
 call mtr.add_suppression("mysqld: File .*");
 call mtr.add_suppression("InnoDB: Tablespace id .* is encrypted but encryption service or used key_id .* is not available. Can't continue opening tablespace.");
+call mtr.add_suppression("InnoDB: InnoDB: Page may be an index page where index id is .*");
+
 --echo
 --echo # Start server with keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt

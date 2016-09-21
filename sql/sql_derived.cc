@@ -30,6 +30,7 @@
 #include "sql_base.h"
 #include "sql_view.h"                         // check_duplicate_names
 #include "sql_acl.h"                          // SELECT_ACL
+#include "sql_class.h"
 #include "sql_cte.h"
 
 typedef bool (*dt_processor)(THD *thd, LEX *lex, TABLE_LIST *derived);
@@ -479,8 +480,6 @@ unconditional_materialization:
   derived->set_materialized_derived();
   if (!derived->table || !derived->table->is_created())
     res= mysql_derived_create(thd, lex, derived);
-  if (!res)
-    res= mysql_derived_fill(thd, lex, derived);
   goto exit_merge;
 }
 
@@ -631,6 +630,7 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
     true   Error
 */
 
+
 bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   SELECT_LEX_UNIT *unit= derived->get_unit();
@@ -638,24 +638,70 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   bool res= FALSE;
   DBUG_PRINT("enter", ("unit 0x%lx", (ulong) unit));
 
+  if (!unit)
+    DBUG_RETURN(FALSE);
+
+  SELECT_LEX *first_select= unit->first_select();
+
+  if (unit->prepared && derived->is_recursive_with_table() &&
+      !derived->table)
+  {
+    /* 
+      Here 'derived' is either a non-recursive table reference to a recursive
+      with table or a recursive table reference to a recursvive table whose
+      specification has been already prepared (a secondary recursive table
+      reference.
+    */ 
+    if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
+      DBUG_RETURN(TRUE); // out of memory
+    thd->create_tmp_table_for_derived= TRUE;
+    res= derived->derived_result->create_result_table(
+                                  thd, &unit->types, FALSE,
+                                  (first_select->options |
+                                   thd->variables.option_bits |
+                                   TMP_TABLE_ALL_COLUMNS),
+                                  derived->alias, FALSE, FALSE);
+    thd->create_tmp_table_for_derived= FALSE;
+
+    if (!res && !derived->table)
+    {
+      derived->derived_result->set_unit(unit);
+      derived->table= derived->derived_result->table;
+      if (derived->is_with_table_recursive_reference())
+      {
+        /* Here 'derived" is a secondary recursive table reference */
+        unit->with_element->rec_result->rec_tables.push_back(derived->table);
+      }
+    }
+    DBUG_ASSERT(derived->table || res);
+    goto exit;
+  }
+
   // Skip already prepared views/DT
-  if (!unit || unit->prepared ||
+  if (unit->prepared ||
       (derived->merged_for_insert && 
        !(derived->is_multitable() &&
          (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
           thd->lex->sql_command == SQLCOM_DELETE_MULTI))))
     DBUG_RETURN(FALSE);
 
-  SELECT_LEX *first_select= unit->first_select();
-
   /* prevent name resolving out of derived table */
   for (SELECT_LEX *sl= first_select; sl; sl= sl->next_select())
   {
     sl->context.outer_context= 0;
-    // Prepare underlying views/DT first.
-    if ((res= sl->handle_derived(lex, DT_PREPARE)))
-      goto exit;
-
+    if (!derived->is_with_table_recursive_reference() ||
+        (!derived->with->with_anchor && 
+         !derived->with->is_with_prepared_anchor()))
+    {
+      /* 
+        Prepare underlying views/DT first unless 'derived' is a recursive
+        table reference and either the anchors from the specification of
+        'derived' has been already prepared or there no anchor in this
+        specification
+      */  
+      if ((res= sl->handle_derived(lex, DT_PREPARE)))
+        goto exit;
+    }
     if (derived->outer_join && sl->first_cond_optimization)
     {
       /* Mark that table is part of OUTER JOIN and fields may be NULL */
@@ -701,19 +747,21 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     SELECT is last SELECT of UNION).
   */
   thd->create_tmp_table_for_derived= TRUE;
-  if (derived->derived_result->create_result_table(thd, &unit->types, FALSE,
-                                                (first_select->options |
-                                                 thd->variables.option_bits |
-                                                 TMP_TABLE_ALL_COLUMNS),
-                                                derived->alias,
-                                                FALSE, FALSE))
+  if (!(derived->table) &&
+      derived->derived_result->create_result_table(thd, &unit->types, FALSE,
+                                                   (first_select->options |
+                                                   thd->variables.option_bits |
+                                                   TMP_TABLE_ALL_COLUMNS),
+                                                   derived->alias,
+                                                   FALSE, FALSE, FALSE))
   { 
     thd->create_tmp_table_for_derived= FALSE;
     goto exit;
   }
   thd->create_tmp_table_for_derived= FALSE;
 
-  derived->table= derived->derived_result->table;
+  if (!derived->table)
+    derived->table= derived->derived_result->table;
   DBUG_ASSERT(derived->table);
   if (derived->is_derived() && derived->is_merged_derived())
     first_select->mark_as_belong_to_derived(derived);
@@ -740,7 +788,7 @@ exit:
   */
   if (res)
   {
-    if (derived->table)
+    if (derived->table && !derived->is_with_table_recursive_reference())
       free_tmp_table(thd, derived->table);
     delete derived->derived_result;
   }
@@ -760,8 +808,11 @@ exit:
     }
 #endif
     /* Add new temporary table to list of open derived tables */
-    table->next= thd->derived_tables;
-    thd->derived_tables= table;
+    if (!derived->is_with_table_recursive_reference())
+    {
+      table->next= thd->derived_tables;
+      thd->derived_tables= table;
+    }
 
     /* If table is used by a left join, mark that any column may be null */
     if (derived->outer_join)
@@ -865,7 +916,7 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   if (table->is_created())
     DBUG_RETURN(FALSE);
-  select_union *result= (select_union*)unit->result;
+  select_union *result= derived->derived_result;
   if (table->s->db_type() == TMP_ENGINE_HTON)
   {
     result->tmp_table_param.keyinfo= table->s->key_info;
@@ -884,6 +935,45 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 }
 
 
+/**
+  @brief
+    Fill the recursive with table 
+
+  @param thd  The thread handle
+
+  @details
+    The method is called only for recursive with tables. 
+    The method executes the recursive part of the specification
+    of this with table until no more rows are added to the table
+    or the number of the performed iteration reaches the allowed
+    maximum. 
+
+  @retval
+    false   on success
+    true    on failure 
+*/
+
+bool TABLE_LIST::fill_recursive(THD *thd)
+{
+  bool rc= false;
+  st_select_lex_unit *unit= get_unit();
+  rc= with->instantiate_tmp_tables();
+  while (!rc && !with->all_are_stabilized())
+  {
+    if (with->level > thd->variables.max_recursive_iterations)
+      break;
+    with->prepare_for_next_iteration();
+    rc= unit->exec_recursive();
+  }
+  if (!rc)
+  {
+    TABLE *src= with->rec_result->table;
+    rc =src->insert_all_rows_into(thd, table, true);
+  } 
+  return rc;
+}
+
+
 /*
   Execute subquery of a materialized derived table/view and fill the result
   table.
@@ -894,9 +984,10 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   @details
   Execute subquery of given 'derived' table/view and fill the result
-  table. After result table is filled, if this is not the EXPLAIN statement,
-  the entire unit / node is deleted. unit is deleted if UNION is used
-  for derived table and node is deleted is it is a simple SELECT.
+  table. After result table is filled, if this is not the EXPLAIN statement
+  and the table is not specified with a recursion the entire unit / node
+  is deleted. unit is deleted if UNION is used  for derived table and node
+  is deleted is it is a simple SELECT.
   'lex' is unused and 'thd' is passed as an argument to an underlying function.
 
   @note
@@ -907,26 +998,43 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
   @return TRUE   Error
 */
 
+
 bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   DBUG_ENTER("mysql_derived_fill");
   SELECT_LEX_UNIT *unit= derived->get_unit();
+  bool derived_is_recursive= derived->is_recursive_with_table();
   bool res= FALSE;
 
-  if (unit->executed && !unit->uncacheable && !unit->describe)
+  if (unit->executed && !unit->uncacheable && !unit->describe &&
+      !derived_is_recursive)
     DBUG_RETURN(FALSE);
   /*check that table creation passed without problems. */
   DBUG_ASSERT(derived->table && derived->table->is_created());
-  SELECT_LEX *first_select= unit->first_select();
   select_union *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
-  if (unit->is_union())
+  
+  if (derived_is_recursive)
+  {
+    if (derived->is_with_table_recursive_reference())
+    {
+      /* Here only one iteration step is performed */
+      res= unit->exec_recursive();
+    }
+    else
+    {
+      /* In this case all iteration are performed */
+      res= derived->fill_recursive(thd);
+    }
+  }
+  else if (unit->is_union())
   {
     // execute union without clean up
     res= unit->exec();
   }
   else
   {
+    SELECT_LEX *first_select= unit->first_select();
     unit->set_limit(unit->global_parameters());
     if (unit->select_limit_cnt == HA_POS_ERROR)
       first_select->options&= ~OPTION_FOUND_ROWS;
@@ -946,13 +1054,13 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
                       derived_result, unit, first_select);
   }
 
-  if (!res)
+  if (!res && !derived_is_recursive)
   {
     if (derived_result->flush())
       res= TRUE;
     unit->executed= TRUE;
   }
-  if (res || !lex->describe) 
+  if (res || (!lex->describe && !derived_is_recursive)) 
     unit->cleanup();
   lex->current_select= save_current_select;
 
@@ -990,3 +1098,155 @@ bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived)
   unit->set_thd(thd);
   DBUG_RETURN(FALSE);
 }
+
+
+/**
+  @brief
+  Extract the condition depended on derived table/view and pushed it there 
+   
+  @param thd       The thread handle
+  @param cond      The condition from which to extract the pushed condition 
+  @param derived   The reference to the derived table/view
+
+  @details
+   This functiom builds the most restrictive condition depending only on
+   the derived table/view that can be extracted from the condition cond. 
+   The built condition is pushed into the having clauses of the
+   selects contained in the query specifying the derived table/view.
+   The function also checks for each select whether any condition depending
+   only on grouping fields can be extracted from the pushed condition.
+   If so, it pushes the condition over grouping fields into the where
+   clause of the select.
+  
+  @retval
+    true    if an error is reported 
+    false   otherwise
+*/
+
+bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
+{
+  if (!cond)
+    return false;
+
+  st_select_lex_unit *unit= derived->get_unit();
+  st_select_lex *sl= unit->first_select();
+
+  /* Check whether any select of 'unit' allows condition pushdown */
+  bool any_select_allows_cond_pushdown= false;
+  for (; sl; sl= sl->next_select())
+  {
+    if (sl->cond_pushdown_is_allowed())
+    {
+      any_select_allows_cond_pushdown= true;
+      break;
+    }
+  }
+  if (!any_select_allows_cond_pushdown)
+    return false; 
+
+  /* Do not push conditions into constant derived */
+  if (unit->executed)
+    return false;
+
+  /* Do not push conditions into recursive with tables */
+  if (derived->is_recursive_with_table())
+    return false;
+
+  /*
+    Build the most restrictive condition extractable from 'cond'
+    that can be pushed into the derived table 'derived'.
+    All subexpressions of this condition are cloned from the
+    subexpressions of 'cond'.
+    This condition has to be fixed yet.
+  */
+  Item *extracted_cond;
+  derived->check_pushable_cond_for_table(cond);
+  extracted_cond= derived->build_pushable_cond_for_table(thd, cond);
+  if (!extracted_cond)
+  {
+    /* Nothing can be pushed into the derived table */
+    return false;
+  }
+  /* Push extracted_cond into every select of the unit specifying 'derived' */
+  st_select_lex *save_curr_select= thd->lex->current_select;
+  for (; sl; sl= sl->next_select())
+  {
+    if (!sl->cond_pushdown_is_allowed())
+      continue;
+    thd->lex->current_select= sl;
+    /*
+      For each select of the unit except the last one
+      create a clone of extracted_cond
+    */
+    Item *extracted_cond_copy= !sl->next_select() ? extracted_cond :
+                               extracted_cond->build_clone(thd, thd->mem_root);
+    if (!extracted_cond_copy)
+      continue;
+
+    if (!sl->join->group_list && !sl->with_sum_func)
+    {
+      /* extracted_cond_copy is pushed into where of sl */
+      extracted_cond_copy= extracted_cond_copy->transform(thd,
+                                 &Item::derived_field_transformer_for_where,
+                                 (uchar*) sl);
+      if (extracted_cond_copy)
+      {
+       extracted_cond_copy->walk(&Item::cleanup_processor, 0, 0);
+       sl->cond_pushed_into_where= extracted_cond_copy;
+      }      
+  
+      continue;
+    }
+
+    /*
+      Figure out what can be extracted from the pushed condition
+      that could be pushed into the where clause of sl
+    */
+    Item *cond_over_grouping_fields;
+    sl->collect_grouping_fields(thd);
+    sl->check_cond_extraction_for_grouping_fields(extracted_cond_copy,
+              &Item::exclusive_dependence_on_grouping_fields_processor);
+    cond_over_grouping_fields=
+      sl->build_cond_for_grouping_fields(thd, extracted_cond_copy, true);
+  
+    /*
+      Transform the references to the 'derived' columns from the condition
+      pushed into the where clause of sl to make them usable in the new context
+    */
+    if (cond_over_grouping_fields)
+      cond_over_grouping_fields= cond_over_grouping_fields->transform(thd,
+                         &Item::derived_grouping_field_transformer_for_where,
+                         (uchar*) sl);
+     
+    if (cond_over_grouping_fields)
+    {
+      /*
+        In extracted_cond_copy remove top conjuncts that
+        has been pushed into the where clause of sl
+      */
+      extracted_cond_copy= remove_pushed_top_conjuncts(thd, extracted_cond_copy);
+  
+      cond_over_grouping_fields->walk(&Item::cleanup_processor, 0, 0);
+      sl->cond_pushed_into_where= cond_over_grouping_fields;
+
+      if (!extracted_cond_copy)
+        continue;
+    }
+    
+    /*
+      Transform the references to the 'derived' columns from the condition
+      pushed into the having clause of sl to make them usable in the new context
+    */
+    extracted_cond_copy= extracted_cond_copy->transform(thd,
+                         &Item::derived_field_transformer_for_having,
+                         (uchar*) sl);
+    if (!extracted_cond_copy)
+      continue;
+
+    extracted_cond_copy->walk(&Item::cleanup_processor, 0, 0);
+    sl->cond_pushed_into_having= extracted_cond_copy;
+  }
+  thd->lex->current_select= save_curr_select;
+  return false;
+}
+

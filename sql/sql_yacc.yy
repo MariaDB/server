@@ -714,34 +714,6 @@ bool add_select_to_union_list(LEX *lex, bool is_union_distinct,
   return FALSE;
 }
 
-/**
-   @brief Initializes a SELECT_LEX for a query within parentheses (aka
-   braces).
-
-   @return false if successful, true if an error was reported. In the latter
-   case parsing should stop.
- */
-bool setup_select_in_parentheses(LEX *lex) 
-{
-  SELECT_LEX * sel= lex->current_select;
-  /*
-  if (sel->set_braces(1))
-  {
-    my_parse_error(lex->thd, ER_SYNTAX_ERROR);
-    return TRUE;
-  }
-  */
-  DBUG_ASSERT(sel->braces);
-  if (sel->linkage == UNION_TYPE &&
-      !sel->master_unit()->first_select()->braces &&
-      sel->master_unit()->first_select()->linkage ==
-      UNION_TYPE)
-  {
-    my_parse_error(lex->thd, ER_SYNTAX_ERROR);
-    return TRUE;
-  }
-  return FALSE;
-}
 
 static bool add_create_index_prepare(LEX *lex, Table_ident *table)
 {
@@ -1000,6 +972,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, const char *txt,
   List<Item> *item_list;
   List<Statement_information_item> *stmt_info_list;
   List<String> *string_list;
+  List<LEX_STRING> *lex_str_list;
   Statement_information_item *stmt_info_item;
   String *string;
   TABLE_LIST *table_list;
@@ -2080,6 +2053,8 @@ END_OF_INPUT
 %type <with_clause> opt_with_clause with_clause
 
 %type <lex_str_ptr> query_name
+
+%type <lex_str_list> opt_with_column_list
 
 %%
 
@@ -5242,6 +5217,27 @@ opt_part_values:
               part_info->part_type= LIST_PARTITION;
           }
           part_values_in {}
+        | DEFAULT
+         {
+            LEX *lex= Lex;
+            partition_info *part_info= lex->part_info;
+            if (! lex->is_partition_management())
+            {
+              if (part_info->part_type != LIST_PARTITION)
+                my_yyabort_error((ER_PARTITION_WRONG_VALUES_ERROR, MYF(0),
+                                  "LIST", "DEFAULT"));
+            }
+            else
+              part_info->part_type= LIST_PARTITION;
+            if (part_info->init_column_part(thd))
+            {
+              MYSQL_YYABORT;
+            }
+            if (part_info->add_max_value(thd))
+            {
+              MYSQL_YYABORT;
+            }
+         }
         ;
 
 part_func_max:
@@ -6070,7 +6066,7 @@ key_def:
 constraint_def:
          opt_constraint check_constraint
          {
-           Lex->add_constraint(&$1, $2);
+           Lex->add_constraint(&$1, $2, FALSE);
          }
        ;
 
@@ -7557,6 +7553,11 @@ alter_list_item:
           {
             Lex->alter_info.flags|= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
 	  }
+        | ADD CONSTRAINT IF_SYM not EXISTS field_ident check_constraint
+         {
+           Lex->alter_info.flags|= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+           Lex->add_constraint(&$6, $7, TRUE);
+         }
         | CHANGE opt_column opt_if_exists_table_element field_ident
           field_spec opt_place
           {
@@ -8390,8 +8391,7 @@ select_paren:
           SELECT_SYM select_options_and_item_list select_part3
           opt_select_lock_type
           {
-            if (setup_select_in_parentheses(Lex))
-              MYSQL_YYABORT;
+            DBUG_ASSERT(Lex->current_select->braces);
           }
         | '(' select_paren ')'
         ;
@@ -8407,8 +8407,7 @@ select_paren_union_query_term:
           SELECT_SYM select_options_and_item_list select_part3_union_query_term
           opt_select_lock_type
           {
-            if (setup_select_in_parentheses(Lex))
-              MYSQL_YYABORT;
+            DBUG_ASSERT(Lex->current_select->braces);
           }
         | '(' select_paren_union_query_term ')'
         ;
@@ -8424,8 +8423,7 @@ select_paren_view:
           SELECT_SYM select_options_and_item_list select_part3_view
           opt_select_lock_type
           {
-            if (setup_select_in_parentheses(Lex))
-              MYSQL_YYABORT;
+            DBUG_ASSERT(Lex->current_select->braces);
           }
         | '(' select_paren_view ')'
         ;
@@ -8441,8 +8439,7 @@ select_paren_derived:
           opt_limit_clause
           opt_select_lock_type
           {
-            if (setup_select_in_parentheses(Lex))
-              MYSQL_YYABORT;
+            DBUG_ASSERT(Lex->current_select->braces);
             $$= Lex->current_select->master_unit()->first_select();
           }
         | '(' select_paren_derived ')'  { $$= $2; }
@@ -8642,12 +8639,14 @@ opt_select_lock_type:
         | FOR_SYM UPDATE_SYM
           {
             LEX *lex=Lex;
+            lex->current_select->lock_type= TL_WRITE;
             lex->current_select->set_lock_for_tables(TL_WRITE);
             lex->safe_to_cache_query=0;
           }
         | LOCK_SYM IN_SYM SHARE_SYM MODE_SYM
           {
             LEX *lex=Lex;
+            lex->current_select->lock_type= TL_READ_WITH_SHARED_LOCKS;
             lex->current_select->
               set_lock_for_tables(TL_READ_WITH_SHARED_LOCKS);
             lex->safe_to_cache_query=0;
@@ -11066,12 +11065,7 @@ union_list_derived:
 select_init2_derived:
           select_part2_derived
           {
-            LEX *lex= Lex;
-            if (lex->current_select->set_braces(0))
-            {
-              my_parse_error(thd, ER_SYNTAX_ERROR);
-              MYSQL_YYABORT;
-            }
+            Select->set_braces(0);
           }
         ;
 
@@ -11116,16 +11110,8 @@ select_derived:
 derived_query_specification:
           SELECT_SYM select_derived_init select_derived2
           {
-            LEX *lex= Lex;
-            SELECT_LEX *sel= lex->current_select;
             if ($2)
-            {
-              if (sel->set_braces(1))
-              {
-                my_parse_error(thd, ER_SYNTAX_ERROR);
-                MYSQL_YYABORT;
-              }
-            }
+              Select->set_braces(1);
             $$= NULL;
           }
         ;
@@ -13924,13 +13910,18 @@ with_list:
 with_list_element:
 	  query_name
 	  opt_with_column_list 
+          {
+            $2= new List<LEX_STRING> (Lex->with_column_list);
+            if ($2 == NULL)
+              MYSQL_YYABORT;
+            Lex->with_column_list.empty();
+          }
           AS '(' remember_name subselect remember_end ')'
  	  {
-            With_element *elem= new With_element($1, Lex->with_column_list, $6->master_unit());
+            With_element *elem= new With_element($1, *$2, $7->master_unit());
 	    if (elem == NULL || Lex->curr_with_clause->add_with_element(elem))
 	      MYSQL_YYABORT;
-	    Lex->with_column_list.empty();
-	    if (elem->set_unparsed_spec(thd, $5+1, $7))
+	    if (elem->set_unparsed_spec(thd, $6+1, $8))
               MYSQL_YYABORT;
 	  }
 	;
@@ -13938,8 +13929,9 @@ with_list_element:
 
 opt_with_column_list:
           /* empty */
-          {}
+          { $$= NULL; }
         | '(' with_column_list ')'
+          { $$= NULL; }
         ;
 
 

@@ -1,1 +1,1 @@
---init-file=$MYSQL_TEST_DIR/std_data/init_file.dat
+--init-file=$MYSQL_TEST_DIR/std_data/init_file.dat --log-bin=mariadb-bin

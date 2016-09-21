@@ -221,6 +221,26 @@ static const uchar sort_order_eucjpms[]=
 #include "strcoll.ic"
 
 
+#define DEFINE_STRNNCOLLSP_NOPAD
+#define MY_FUNCTION_NAME(x)  my_ ## x ## _eucjpms_japanese_nopad_ci
+#define WEIGHT_ILSEQ(x)      (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)        ((int) sort_order_eucjpms[(uchar) (x)])
+#define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
+                             (((uint) (uchar) (y)) <<  8))
+#define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#include "strcoll.ic"
+
+
+#define DEFINE_STRNNCOLLSP_NOPAD
+#define MY_FUNCTION_NAME(x)  my_ ## x ## _eucjpms_nopad_bin
+#define WEIGHT_ILSEQ(x)      (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)        ((int) (uchar) (x))
+#define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
+                             (((uint) (uchar) (y)) <<  8))
+#define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#include "strcoll.ic"
+
+
 /* Case info pages for JIS-X-0208 range */
 
 static MY_UNICASE_CHARACTER cA2[256]=
@@ -67502,6 +67522,38 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_bin_handler =
 };
 
 
+static MY_COLLATION_HANDLER my_collation_eucjpms_japanese_nopad_ci_handler =
+{
+    NULL,		/* init */
+    my_strnncoll_eucjpms_japanese_ci,
+    my_strnncollsp_eucjpms_japanese_nopad_ci,
+    my_strnxfrm_mb_nopad,	/* strnxfrm     */
+    my_strnxfrmlen_simple,
+    my_like_range_mb,   /* like_range   */
+    my_wildcmp_mb,	/* wildcmp      */
+    my_strcasecmp_mb,
+    my_instr_mb,
+    my_hash_sort_simple_nopad,
+    my_propagate_simple
+};
+
+
+static MY_COLLATION_HANDLER my_collation_eucjpms_nopad_bin_handler =
+{
+    NULL,		/* init */
+    my_strnncoll_eucjpms_bin,
+    my_strnncollsp_eucjpms_nopad_bin,
+    my_strnxfrm_mb_nopad,
+    my_strnxfrmlen_simple,
+    my_like_range_mb,
+    my_wildcmp_mb_bin,
+    my_strcasecmp_mb_bin,
+    my_instr_mb,
+    my_hash_sort_mb_nopad_bin,
+    my_propagate_simple
+};
+
+
 static MY_CHARSET_HANDLER my_charset_handler=
 {
     NULL,		/* init */
@@ -67600,6 +67652,72 @@ struct charset_info_st my_charset_eucjpms_bin=
     1,                  /* levels_for_order   */
     &my_charset_handler,
     &my_collation_eucjpms_bin_handler
+};
+
+
+struct charset_info_st my_charset_eucjpms_japanese_nopad_ci=
+{
+    MY_NOPAD_ID(97),0,0, /* number           */
+    MY_CS_COMPILED|MY_CS_NOPAD,/* state      */
+    "eucjpms",           /* cs name          */
+    "eucjpms_japanese_nopad_ci", /* name     */
+    "",                  /* comment          */
+    NULL,                /* tailoring        */
+    ctype_eucjpms,
+    to_lower_eucjpms,
+    to_upper_eucjpms,
+    sort_order_eucjpms,
+    NULL,                /* uca              */
+    NULL,                /* tab_to_uni       */
+    NULL,                /* tab_from_uni     */
+    &my_caseinfo_eucjpms,/* caseinfo         */
+    NULL,                /* state_map        */
+    NULL,                /* ident_map        */
+    1,                   /* strxfrm_multiply */
+    1,                   /* caseup_multiply  */
+    2,                   /* casedn_multiply  */
+    1,                   /* mbminlen         */
+    3,                   /* mbmaxlen         */
+    0,                   /* min_sort_char    */
+    0xFEFE,              /* max_sort_char    */
+    ' ',                 /* pad_char         */
+    0,                   /* escape_with_backslash_is_dangerous */
+    1,                   /* levels_for_order */
+    &my_charset_handler,
+    &my_collation_eucjpms_japanese_nopad_ci_handler
+};
+
+
+struct charset_info_st my_charset_eucjpms_nopad_bin=
+{
+    MY_NOPAD_ID(98),0,0, /* number           */
+    MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
+    "eucjpms",           /* cs name          */
+    "eucjpms_nopad_bin", /* name             */
+    "",                  /* comment          */
+    NULL,                /* tailoring        */
+    ctype_eucjpms,
+    to_lower_eucjpms,
+    to_upper_eucjpms,
+    NULL,                /* sort_order       */
+    NULL,                /* uca              */
+    NULL,                /* tab_to_uni       */
+    NULL,                /* tab_from_uni     */
+    &my_caseinfo_eucjpms,/* caseinfo         */
+    NULL,                /* state_map        */
+    NULL,                /* ident_map        */
+    1,                   /* strxfrm_multiply */
+    1,                   /* caseup_multiply  */
+    2,                   /* casedn_multiply  */
+    1,                   /* mbminlen         */
+    3,                   /* mbmaxlen         */
+    0,                   /* min_sort_char    */
+    0xFEFE,              /* max_sort_char    */
+    ' ',                 /* pad_char         */
+    0,                   /* escape_with_backslash_is_dangerous */
+    1,                   /* levels_for_order */
+    &my_charset_handler,
+    &my_collation_eucjpms_nopad_bin_handler
 };
 
 

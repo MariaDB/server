@@ -8,17 +8,19 @@ SET @@global.server_id = 500000;
 SET @@global.server_id = DEFAULT;
 SELECT @@global.server_id;
 @@global.server_id
-0
+1
 '#--------------------FN_DYNVARS_144_02-------------------------#'
 SET @@global.server_id = DEFAULT;
-SELECT @@global.server_id = 0;
-@@global.server_id = 0
+SELECT @@global.server_id = 1;
+@@global.server_id = 1
 1
 '#--------------------FN_DYNVARS_144_03-------------------------#'
 SET @@global.server_id = 0;
+Warnings:
+Warning	1292	Truncated incorrect server_id value: '0'
 SELECT @@global.server_id;
 @@global.server_id
-0
+1
 SET @@global.server_id = 1;
 SELECT @@global.server_id;
 @@global.server_id
@@ -62,13 +64,13 @@ Warnings:
 Warning	1292	Truncated incorrect server_id value: '-1'
 SELECT @@global.server_id;
 @@global.server_id
-0
+1
 SET @@global.server_id = -2147483648;
 Warnings:
 Warning	1292	Truncated incorrect server_id value: '-2147483648'
 SELECT @@global.server_id;
 @@global.server_id
-0
+1
 SET @@global.server_id = 2147483649*2;
 Warnings:
 Warning	1292	Truncated incorrect server_id value: '4294967298'
@@ -102,9 +104,11 @@ SELECT @@global.server_id;
 @@global.server_id
 1
 SET @@global.server_id = FALSE;
+Warnings:
+Warning	1292	Truncated incorrect server_id value: '0'
 SELECT @@global.server_id;
 @@global.server_id
-0
+1
 '#---------------------FN_DYNVARS_001_09----------------------#'
 SET @@global.server_id = 512;
 SELECT @@server_id = @@global.server_id;

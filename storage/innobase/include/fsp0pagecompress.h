@@ -51,7 +51,7 @@ fsp_header_get_compression_level(
 Determine if the tablespace is page compressed from dict_table_t::flags.
 @return	TRUE if page compressed, FALSE if not compressed */
 UNIV_INLINE
-ibool
+bool
 fsp_flags_is_page_compressed(
 /*=========================*/
 	ulint	flags);	/*!< in: tablespace flags */

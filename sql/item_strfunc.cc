@@ -572,7 +572,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   uint i;
   str->length(0);
   char numbuf[32];
-  const uchar *p= (uchar*)res->c_ptr();
+  const uchar *p= (uchar*)res->c_ptr_safe();
   for (i= 0; i < res->length(); i++)
   {
     double val;
@@ -2343,18 +2343,6 @@ void Item_func_decode::crypto_transform(String *res)
   sql_crypt.decode((char*) res->ptr(),res->length());
 }
 
-Item *Item_func_sysconst::safe_charset_converter(THD *thd,
-                                                 CHARSET_INFO *tocs)
-{
-  /*
-    In default, virtual functions or constraint expressions, the value
-    of a sysconst is not constant
-  */
-  if (thd->in_stored_expression)
-    return Item_str_func::safe_charset_converter(thd, tocs);
-  return const_charset_converter(thd, tocs, true, fully_qualified_func_name());
-}
-
 
 String *Item_func_database::val_str(String *str)
 {
@@ -2376,69 +2364,55 @@ String *Item_func_database::val_str(String *str)
   BUG#28086) binlog_format=MIXED, but is incorrectly replicated to ''
   if binlog_format=STATEMENT.
 */
-
-bool Item_func_user::init(THD *thd, const char *user, const char *host)
+bool Item_func_user::init(const char *user, const char *host)
 {
-  DBUG_ENTER("Item_func_user::init");
   DBUG_ASSERT(fixed == 1);
-
-  /* Check if we have already calculated the value for this thread */
-  if (thd->query_id == last_query_id)
-    DBUG_RETURN(FALSE);
-  DBUG_PRINT("enter", ("user: '%s'  host: '%s'", user,host));
-
-  last_query_id= thd->query_id;
-  null_value= 0;
 
   // For system threads (e.g. replication SQL thread) user may be empty
   if (user)
   {
-    CHARSET_INFO *cs= system_charset_info;
+    CHARSET_INFO *cs= str_value.charset();
     size_t res_length= (strlen(user)+strlen(host)+2) * cs->mbmaxlen;
 
-    if (cached_value.alloc((uint) res_length))
+    if (str_value.alloc((uint) res_length))
     {
       null_value=1;
-      DBUG_RETURN(TRUE);
+      return TRUE;
     }
 
-    cached_value.set_charset(cs);
-    res_length=cs->cset->snprintf(cs, (char*)cached_value.ptr(),
-                                  (uint) res_length,
+    res_length=cs->cset->snprintf(cs, (char*)str_value.ptr(), (uint) res_length,
                                   "%s@%s", user, host);
-    cached_value.length((uint) res_length);
-    cached_value.mark_as_const();
+    str_value.length((uint) res_length);
+    str_value.mark_as_const();
   }
-  else
-    cached_value.set("", 0, system_charset_info);
-  DBUG_RETURN(FALSE);
+  return FALSE;
 }
 
-String *Item_func_user::val_str(String *str)
+
+bool Item_func_user::fix_fields(THD *thd, Item **ref)
 {
-  THD *thd= current_thd;
-  init(thd, thd->main_security_ctx.user, thd->main_security_ctx.host_or_ip);
-  return null_value ? 0 : &cached_value;
+  return (Item_func_sysconst::fix_fields(thd, ref) ||
+          init(thd->main_security_ctx.user,
+               thd->main_security_ctx.host_or_ip));
 }
 
-String *Item_func_current_user::val_str(String *str)
+
+bool Item_func_current_user::fix_fields(THD *thd, Item **ref)
 {
-  THD *thd= current_thd;
-  Security_context *ctx= (context->security_ctx ?
-                          context->security_ctx : thd->security_ctx);
-  init(thd, ctx->priv_user, ctx->priv_host);
-  return null_value ? 0 : &cached_value;
-}
+  if (Item_func_sysconst::fix_fields(thd, ref))
+    return TRUE;
 
+  Security_context *ctx= context && context->security_ctx
+                          ? context->security_ctx : thd->security_ctx;
+  return init(ctx->priv_user, ctx->priv_host);
+}
 
 bool Item_func_current_role::fix_fields(THD *thd, Item **ref)
 {
-  return Item_func_sysconst::fix_fields(thd,ref) || init(thd);
-}
+  if (Item_func_sysconst::fix_fields(thd, ref))
+    return 1;
 
-bool Item_func_current_role::init(THD *thd)
-{
-  Security_context *ctx= context->security_ctx
+  Security_context *ctx= context && context->security_ctx
                           ? context->security_ctx : thd->security_ctx;
 
   if (ctx->priv_role[0])
@@ -2447,20 +2421,12 @@ bool Item_func_current_role::init(THD *thd)
                        system_charset_info))
       return 1;
 
+    null_value= maybe_null= 0;
+    str_value.mark_as_const();
     return 0;
   }
-  null_value= 1;
+  null_value= maybe_null= 1;
   return 0;
-}
-
-String *Item_func_current_role::val_str(String *)
-{
-  return (null_value ? 0 : &str_value);
-}
-
-int Item_func_current_role::save_in_field(Field *field, bool no_conversions)
-{
-  return save_str_value_in_field(field, &str_value);
 }
 
 void Item_func_soundex::fix_length_and_dec()

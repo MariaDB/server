@@ -4856,6 +4856,43 @@ void Item_cond::neg_arguments(THD *thd)
 }
 
 
+/**
+  @brief
+    Building clone for Item_cond
+    
+  @param thd        thread handle
+  @param mem_root   part of the memory for the clone   
+
+  @details
+    This method gets copy of the current item and also 
+    build clones for its elements. For this elements 
+    build_copy is called again.
+      
+   @retval
+     clone of the item
+     0 if an error occured
+*/ 
+
+Item *Item_cond::build_clone(THD *thd, MEM_ROOT *mem_root)
+{
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  Item_cond *copy= (Item_cond *) get_copy(thd, mem_root);
+  if (!copy)
+    return 0;
+  copy->list.empty();
+  while ((item= li++))
+  {
+    Item *arg_clone= item->build_clone(thd, mem_root);
+    if (!arg_clone)
+      return 0;
+    if (copy->list.push_back(arg_clone, mem_root))
+      return 0;
+  }
+  return copy;
+}
+
+
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {
   List_iterator<Item> li(list);

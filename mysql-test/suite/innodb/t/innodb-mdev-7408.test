@@ -1,5 +1,7 @@
 --source include/have_innodb.inc
 
+call mtr.add_suppression("InnoDB: User stopword table .* does not exist.");
+
 select @@global.innodb_ft_server_stopword_table;
 CREATE TABLE `stop_it-IT` ENGINE = InnoDB SELECT * FROM information_schema.INNODB_FT_DEFAULT_STOPWORD;
 --error 1231

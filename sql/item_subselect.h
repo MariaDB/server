@@ -126,7 +126,14 @@ public:
   bool changed;
 
   /* TRUE <=> The underlying SELECT is correlated w.r.t some ancestor select */
-  bool is_correlated; 
+  bool is_correlated;
+
+  /* 
+    TRUE <=> the subquery contains a recursive reference in the FROM list
+    of one of its selects. In this case some of subquery optimization
+    strategies cannot be applied for the subquery;
+  */
+  bool with_recursive_reference; 
 
   enum subs_type {UNKNOWN_SUBS, SINGLEROW_SUBS,
 		  EXISTS_SUBS, IN_SUBS, ALL_SUBS, ANY_SUBS};
@@ -250,6 +257,9 @@ public:
   }
 
   void init_expr_cache_tracker(THD *thd);
+  
+  Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
 
   friend class select_result_interceptor;
@@ -755,7 +765,8 @@ public:
                          ROWID_MERGE_ENGINE, TABLE_SCAN_ENGINE};
 
   subselect_engine(Item_subselect *si,
-                   select_result_interceptor *res)
+                   select_result_interceptor *res):
+    thd(NULL)
   {
     result= res;
     item= si;
@@ -771,7 +782,7 @@ public:
     Should be called before prepare().
   */
   void set_thd(THD *thd_arg);
-  THD * get_thd() { return thd; }
+  THD * get_thd() { return thd ? thd : current_thd; }
   virtual int prepare(THD *)= 0;
   virtual void fix_length_and_dec(Item_cache** row)= 0;
   /*

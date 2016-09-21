@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -108,23 +108,23 @@ dictionary */
 
 /** Bit mask of the POST_ANTELOPE field */
 #define FSP_FLAGS_MASK_POST_ANTELOPE				\
-		((~(~0 << FSP_FLAGS_WIDTH_POST_ANTELOPE))	\
+		((~(~0U << FSP_FLAGS_WIDTH_POST_ANTELOPE))	\
 		<< FSP_FLAGS_POS_POST_ANTELOPE)
 /** Bit mask of the ZIP_SSIZE field */
 #define FSP_FLAGS_MASK_ZIP_SSIZE				\
-		((~(~0 << FSP_FLAGS_WIDTH_ZIP_SSIZE))		\
+		((~(~0U << FSP_FLAGS_WIDTH_ZIP_SSIZE))		\
 		<< FSP_FLAGS_POS_ZIP_SSIZE)
 /** Bit mask of the ATOMIC_BLOBS field */
 #define FSP_FLAGS_MASK_ATOMIC_BLOBS				\
-		((~(~0 << FSP_FLAGS_WIDTH_ATOMIC_BLOBS))	\
+		((~(~0U << FSP_FLAGS_WIDTH_ATOMIC_BLOBS))	\
 		<< FSP_FLAGS_POS_ATOMIC_BLOBS)
 /** Bit mask of the PAGE_SSIZE field */
 #define FSP_FLAGS_MASK_PAGE_SSIZE				\
-		((~(~0 << FSP_FLAGS_WIDTH_PAGE_SSIZE))		\
+		((~(~0U << FSP_FLAGS_WIDTH_PAGE_SSIZE))		\
 		<< FSP_FLAGS_POS_PAGE_SSIZE)
 /** Bit mask of the DATA_DIR field */
 #define FSP_FLAGS_MASK_DATA_DIR					\
-		((~(~0 << FSP_FLAGS_WIDTH_DATA_DIR))		\
+		((~(~0U << FSP_FLAGS_WIDTH_DATA_DIR))		\
 		<< FSP_FLAGS_POS_DATA_DIR)
 /** Bit mask of the DATA_DIR field */
 #define FSP_FLAGS_MASK_DATA_DIR_ORACLE				\
@@ -581,7 +581,7 @@ fseg_alloc_free_page_general(
 				in which the page should be initialized.
 				If init_mtr!=mtr, but the page is already
 				latched in mtr, do not initialize the page. */
-	__attribute__((warn_unused_result, nonnull));
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
 /**********************************************************************//**
 Reserves free pages from a tablespace. All mini-transactions which may
 use several pages from the tablespace should call this function beforehand
@@ -650,7 +650,7 @@ fseg_page_is_free(
 	fseg_header_t*	seg_header,	/*!< in: segment header */
 	ulint		space,		/*!< in: space id */
 	ulint		page)		/*!< in: page offset */
-	__attribute__((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /**********************************************************************//**
 Frees part of a segment. This function can be used to free a segment
 by repeatedly calling this function in different mini-transactions.
@@ -746,7 +746,7 @@ bool
 fsp_flags_is_valid(
 /*===============*/
 	ulint	flags)		/*!< in: tablespace flags */
-	__attribute__((warn_unused_result, const));
+	MY_ATTRIBUTE((warn_unused_result, const));
 /********************************************************************//**
 Determine if the tablespace is compressed from dict_table_t::flags.
 @return	TRUE if compressed, FALSE if not compressed */

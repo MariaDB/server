@@ -58,6 +58,7 @@ public:
     DBUG_ASSERT(0); // impossible
     return mark_unsupported_function("proc", arg, VCOL_IMPOSSIBLE);
   }
+  Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 };
 
 class Item_proc_real :public Item_proc

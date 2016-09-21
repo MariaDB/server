@@ -1,4 +1,6 @@
 SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET GLOBAL innodb_file_per_table = ON;
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
 CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB;
@@ -59,7 +61,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
-  `b` int(11) DEFAULT '2',
+  `b` int(11) DEFAULT 2,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`)
@@ -69,7 +71,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
-  `b` int(11) DEFAULT '2',
+  `b` int(11) DEFAULT 2,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`)
@@ -79,7 +81,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `id` int(11) DEFAULT NULL,
   `a` varchar(255) DEFAULT NULL,
-  `c` int(11) DEFAULT '5',
+  `c` int(11) DEFAULT 5,
   KEY `a` (`a`),
   KEY `c` (`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes
@@ -88,7 +90,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `id` int(11) DEFAULT NULL,
   `a` varchar(255) DEFAULT NULL,
-  `c` int(11) DEFAULT '5',
+  `c` int(11) DEFAULT 5,
   KEY `a` (`a`),
   KEY `c` (`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -116,7 +118,7 @@ Table	Create Table
 t7	CREATE TABLE `t7` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
-  `b` int(11) DEFAULT '2',
+  `b` int(11) DEFAULT 2,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
   KEY `b` (`b`)
@@ -174,3 +176,5 @@ NOT FOUND /mangled/ in t6.ibd
 NOT FOUND /mysql/ in t7.ibd
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1, t2, t3, t4, t5, t6, t7;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

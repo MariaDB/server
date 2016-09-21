@@ -24,12 +24,6 @@ create table t3 (a int, b int, v int as (a+@@error_count) PERSISTENT);
 create table t4 (a int, b int, v int as (@a:=a));
 --error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t4 (a int, b int, v int as (@a:=a) PERSISTENT);
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create table t5 (a int, b int, v varchar(100) as (monthname(a)));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create table t6 (a int, b int, v varchar(100) as (dayname(a)));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
-create table t7 (a int, b int, v varchar(100) as (date_format(a, '%W %a %M %b')));
 create table t8 (a int, b int, v varchar(100) as (from_unixtime(a)));
 
 insert t1 (a,b) values (1,2);

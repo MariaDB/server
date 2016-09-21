@@ -485,6 +485,7 @@ EXPLAIN
       "materialized": {
         "query_block": {
           "select_id": 2,
+          "having_condition": "(cnt > 0)",
           "filesort": {
             "sort_key": "t1.a",
             "temporary_table": {

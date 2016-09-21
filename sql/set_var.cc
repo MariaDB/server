@@ -115,6 +115,9 @@ void sys_var_end()
   DBUG_VOID_RETURN;
 }
 
+
+static bool static_test_load= TRUE;
+
 /**
   sys_var constructor
 
@@ -184,6 +187,8 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   else
     chain->first= this;
   chain->last= this;
+
+  test_load= &static_test_load;
 }
 
 bool sys_var::update(THD *thd, set_var *var)
@@ -204,8 +209,28 @@ bool sys_var::update(THD *thd, set_var *var)
       (on_update && on_update(this, thd, OPT_GLOBAL));
   }
   else
-    return session_update(thd, var) ||
+  {
+    bool ret= session_update(thd, var) ||
       (on_update && on_update(this, thd, OPT_SESSION));
+
+    /*
+      Make sure we don't session-track variables that are not actually
+      part of the session. tx_isolation and and tx_read_only for example
+      exist as GLOBAL, SESSION, and one-shot ("for next transaction only").
+    */
+    if ((var->type == OPT_SESSION) && (!ret))
+    {
+      SESSION_TRACKER_CHANGED(thd, SESSION_SYSVARS_TRACKER,
+                              (LEX_CSTRING*)var->var);
+      /*
+        Here MySQL sends variable name to avoid reporting change of
+        the tracker itself, but we decided that it is not needed
+      */
+      SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+    }
+
+    return ret;
+  }
 }
 
 uchar *sys_var::session_value_ptr(THD *thd, const LEX_STRING *base)
@@ -867,6 +892,8 @@ int set_var_user::update(THD *thd)
                MYF(0));
     return -1;
   }
+
+  SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
   return 0;
 }
 
@@ -914,7 +941,11 @@ int set_var_role::check(THD *thd)
 int set_var_role::update(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  return acl_setrole(thd, role.str, access);
+  int res= acl_setrole(thd, role.str, access);
+  if (!res)
+    thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
+                                         NULL);
+  return res;
 #else
   return 0;
 #endif
@@ -968,6 +999,33 @@ int set_var_collation_client::update(THD *thd)
 {
   thd->update_charset(character_set_client, collation_connection,
                       character_set_results);
+
+  /* Mark client collation variables as changed */
+#ifndef EMBEDDED_LIBRARY
+  if (thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->is_enabled())
+  {
+    sys_var *svar;
+    mysql_mutex_lock(&LOCK_plugin);
+    if ((svar= find_sys_var_ex(thd, "character_set_client",
+                               sizeof("character_set_client") - 1,
+                               false, true)))
+      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+        mark_as_changed(thd, (LEX_CSTRING*)svar);
+    if ((svar= find_sys_var_ex(thd, "character_set_results",
+                             sizeof("character_set_results") - 1,
+                               false, true)))
+      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+        mark_as_changed(thd, (LEX_CSTRING*)svar);
+    if ((svar= find_sys_var_ex(thd, "character_set_connection",
+                                sizeof("character_set_connection") - 1,
+                               false, true)))
+      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+        mark_as_changed(thd, (LEX_CSTRING*)svar);
+    mysql_mutex_unlock(&LOCK_plugin);
+  }
+  thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+#endif //EMBEDDED_LIBRARY
+
   thd->protocol_text.init(thd);
   thd->protocol_binary.init(thd);
   return 0;

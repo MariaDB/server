@@ -1,4 +1,2 @@
 create table innodb_table_monitor (a int) engine=InnoDB;
-Warnings:
-Warning	131	Using the table name innodb_table_monitor to enable diagnostic output is deprecated and may be removed in future releases. Use INFORMATION_SCHEMA or PERFORMANCE_SCHEMA tables or SET GLOBAL innodb_status_output=ON.
 drop table innodb_table_monitor;

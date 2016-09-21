@@ -1232,7 +1232,7 @@ t1	CREATE TABLE `t1` (
   `f` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `g` timestamp NULL DEFAULT NULL,
   `h` int(11) DEFAULT NULL,
-  `i` int(11) NOT NULL DEFAULT '42'
+  `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 LOAD DATA INFILE "file1.dat" INTO table t1;
 Warnings:
@@ -1284,7 +1284,7 @@ t1	CREATE TABLE `t1` (
   `f` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `g` timestamp NULL DEFAULT NULL,
   `h` int(11) DEFAULT NULL,
-  `i` int(11) NOT NULL DEFAULT '42'
+  `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 LOAD DATA INFILE "file1.dat" INTO table t1;
 Warnings:
@@ -1351,7 +1351,7 @@ t1	CREATE TABLE `t1` (
   `f` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `g` timestamp NULL DEFAULT NULL,
   `h` int(11) DEFAULT NULL,
-  `i` int(11) NOT NULL DEFAULT '42'
+  `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 LOAD DATA INFILE "file2.dat" INTO table t1;
 Warnings:
@@ -1389,7 +1389,7 @@ t1	CREATE TABLE `t1` (
   `f` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `g` timestamp NULL DEFAULT NULL,
   `h` int(11) DEFAULT NULL,
-  `i` int(11) NOT NULL DEFAULT '42'
+  `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 LOAD DATA INFILE "file2.dat" INTO table t1;
 Warnings:
@@ -2778,7 +2778,7 @@ t1	CREATE TABLE `t1` (
   `f` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `g` timestamp(6) NULL DEFAULT NULL,
   `h` int(11) DEFAULT NULL,
-  `i` int(11) NOT NULL DEFAULT '42'
+  `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 LOAD DATA INFILE "file1.dat" INTO table t1;
 Warnings:
@@ -2830,7 +2830,7 @@ t1	CREATE TABLE `t1` (
   `f` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `g` timestamp(6) NULL DEFAULT NULL,
   `h` int(11) DEFAULT NULL,
-  `i` int(11) NOT NULL DEFAULT '42'
+  `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 LOAD DATA INFILE "file1.dat" INTO table t1;
 Warnings:
@@ -2897,7 +2897,7 @@ t1	CREATE TABLE `t1` (
   `f` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `g` timestamp(6) NULL DEFAULT NULL,
   `h` int(11) DEFAULT NULL,
-  `i` int(11) NOT NULL DEFAULT '42'
+  `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 LOAD DATA INFILE "file2.dat" INTO table t1;
 Warnings:
@@ -2935,7 +2935,7 @@ t1	CREATE TABLE `t1` (
   `f` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `g` timestamp(6) NULL DEFAULT NULL,
   `h` int(11) DEFAULT NULL,
-  `i` int(11) NOT NULL DEFAULT '42'
+  `i` int(11) NOT NULL DEFAULT 42
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 LOAD DATA INFILE "file2.dat" INTO table t1;
 Warnings:

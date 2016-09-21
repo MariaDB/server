@@ -67,6 +67,12 @@ To make maintaining easier please:
   <collation name="latin2_hungarian_ci"		id="21"	order="Hungarian"/>
   <collation name="latin2_croatian_ci"		id="27"	order="Croatian"/>
   <collation name="latin2_bin"	id="77"	order="Binary"	flag="binary"/>
+  <collation name="latin2_general_nopad_ci" id="1033" flag="nopad">
+    <rules>
+      <import source="latin2_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="latin2_nopad_bin" id="1101" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="dec8">
@@ -83,6 +89,12 @@ To make maintaining easier please:
     <order>Portuguese</order>
     <order>Spanish</order>
   </collation>
+  <collation name="dec8_swedish_nopad_ci" id="1027" flag="nopad">
+    <rules>
+      <import source="dec8_swedish_ci"/>
+    </rules>
+  </collation>
+  <collation name="dec8_nopad_bin" id="1093" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="cp850">
@@ -102,6 +114,12 @@ To make maintaining easier please:
     <order>Spanish</order>
   </collation>
   <collation name="cp850_bin"	id="80"	order="Binary"	flag="binary"/>
+  <collation name="cp850_general_nopad_ci" id="1028" flag="nopad">
+    <rules>
+      <import source="cp850_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="cp850_nopad_bin" id="1104" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="latin1">
@@ -163,6 +181,12 @@ To make maintaining easier please:
     <order>Portuguese</order>
     <order>Spanish</order>
   </collation>
+  <collation name="hp8_english_nopad_ci" id="1030" flag="nopad">
+    <rules>
+      <import source="hp8_english_ci"/>
+    </rules>
+  </collation>
+  <collation name="hp8_nopad_bin" id="1096" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="koi8r">
@@ -172,6 +196,12 @@ To make maintaining easier please:
   <alias>cskoi8r</alias>
   <collation name="koi8r_general_ci"	id="7"	order="Russian"	flag="primary"/>
   <collation name="koi8r_bin"		id="74"	order="Binary"	flag="binary"/>
+  <collation name="koi8r_general_nopad_ci" id="1031" flag="nopad">
+    <rules>
+      <import source="koi8r_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="koi8r_nopad_bin" id="1098" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="swe7">
@@ -180,6 +210,12 @@ To make maintaining easier please:
   <alias>iso-646-se</alias>
   <collation name="swe7_swedish_ci"	id="10"	order="Swedish"	flag="primary"/>
   <collation name="swe7_bin"		id="82"	order="Binary"	flag="binary"/>
+  <collation name="swe7_swedish_nopad_ci" id="1034" flag="nopad">
+    <rules>
+      <import source="swe7_swedish_ci"/>
+    </rules>
+  </collation>
+  <collation name="swe7_nopad_bin" id="1106" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="ascii">
@@ -192,6 +228,12 @@ To make maintaining easier please:
   <alias>iso646-us</alias>
   <collation name="ascii_general_ci"	id="11"	order="English"	flag="primary"/>
   <collation name="ascii_bin"		id="65"	order="Binary"	flag="binary"/>
+  <collation name="ascii_general_nopad_ci" id="1035" flag="nopad">
+    <rules>
+      <import source="ascii_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="ascii_nopad_bin" id="1089" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="ujis">
@@ -259,6 +301,12 @@ To make maintaining easier please:
     <order>Mongolian</order>
     <order>Ukrainian</order>
   </collation>
+  <collation name="cp1251_general_nopad_ci" id="1075" flag="nopad">
+    <rules>
+      <import source="cp1251_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="cp1251_nopad_bin" id="1074" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="hebrew">
@@ -269,6 +317,12 @@ To make maintaining easier please:
   <alias>iso-ir-138</alias>
   <collation name="hebrew_general_ci"	id="16"	order="Hebrew"	flag="primary"/>
   <collation name="hebrew_bin"		id="71"	order="Binary"	flag="binary"/>
+  <collation name="hebrew_general_nopad_ci" id="1040" flag="nopad">
+    <rules>
+      <import source="hebrew_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="hebrew_nopad_bin" id="1095" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="tis620">
@@ -319,6 +373,12 @@ To make maintaining easier please:
     <order>Lithuanian</order>
   </collation>
   <collation name="latin7_bin"	id="79"	order="Binary"	flag="binary"/>
+  <collation name="latin7_general_nopad_ci" id="1065" flag="nopad">
+    <rules>
+      <import source="latin7_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="latin7_nopad_bin" id="1103" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="koi8u">
@@ -327,6 +387,12 @@ To make maintaining easier please:
   <alias>koi8-u</alias>
   <collation name="koi8u_general_ci"	id="22"	order="Ukranian"	flag="primary"/>
   <collation name="koi8u_bin"		id="75"	order="Binary"	flag="binary"/>
+  <collation name="koi8u_general_nopad_ci" id="1046" flag="nopad">
+    <rules>
+      <import source="koi8u_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="koi8u_nopad_bin" id="1099" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="gb2312">
@@ -354,6 +420,12 @@ To make maintaining easier please:
   <alias>iso-ir-126</alias>
   <collation name="greek_general_ci" 	id="25"	order="Greek"	flag="primary"/>
   <collation name="greek_bin"		id="70"	order="Binary"	flag="binary"/>
+  <collation name="greek_general_nopad_ci" id="1049" flag="nopad">
+    <rules>
+      <import source="greek_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="greek_nopad_bin" id="1094" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="cp1250">
@@ -380,6 +452,12 @@ To make maintaining easier please:
     <flag>compiled</flag>
   </collation>
   <collation name="cp1250_bin"		id="66"	order="Binary"	flag="binary"/>
+  <collation name="cp1250_general_nopad_ci" id="1050" flag="nopad">
+    <rules>
+      <import source="cp1250_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="cp1250_nopad_bin" id="1090" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="gbk">
@@ -407,6 +485,12 @@ To make maintaining easier please:
     <order>Latvian</order>
     <order>Lithuanian</order>
   </collation>
+  <collation name="cp1257_general_nopad_ci" id="1083" flag="nopad">
+    <rules>
+      <import source="cp1257_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="cp1257_nopad_bin" id="1082" flag="binary" flag="nopad"/>
   <!--collation name="cp1257_ci"		id="60"/-->
   <!--collation name="cp1257_cs"		id="61"/-->
 </charset>
@@ -422,6 +506,12 @@ To make maintaining easier please:
   <alias>turkish</alias>
   <collation name="latin5_turkish_ci"	id="30"	order="Turkish"	flag="primary"/>
   <collation name="latin5_bin"		id="78"	order="Binary"	flag="binary"/>
+  <collation name="latin5_turkish_nopad_ci" id="1054" flag="nopad">
+    <rules>
+      <import source="latin5_turkish_ci"/>
+    </rules>
+  </collation>
+  <collation name="latin5_nopad_bin" id="1102" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="armscii8">
@@ -430,6 +520,12 @@ To make maintaining easier please:
   <alias>armscii-8</alias>
   <collation name="armscii8_general_ci"	id="32"	order="Armenian"	flag="primary"/>
   <collation name="armscii8_bin"	id="64"	order="Binary"		flag="binary"/>
+  <collation name="armscii8_general_nopad_ci" id="1056" flag="nopad">
+    <rules>
+      <import source="armscii8_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="armscii8_nopad_bin" id="1088" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="utf8">
@@ -468,6 +564,12 @@ To make maintaining easier please:
   <alias>DOSCyrillicRussian</alias>
   <collation name="cp866_general_ci"	id="36"	order="Russian"	flag="primary"/>
   <collation name="cp866_bin"		id="68"	order="Binary"	flag="binary"/>
+  <collation name="cp866_general_nopad_ci" id="1060" flag="nopad">
+    <rules>
+      <import source="cp866_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="cp866_nopad_bin" id="1092" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="keybcs2">
@@ -475,6 +577,12 @@ To make maintaining easier please:
   <description>DOS Kamenicky Czech-Slovak</description>
   <collation name="keybcs2_general_ci"	id="37"	order="Czech"	flag="primary"/>
   <collation name="keybcs2_bin"		id="73"	order="Binary"	flag="binary"/>
+  <collation name="keybcs2_general_nopad_ci" id="1061" flag="nopad">
+    <rules>
+      <import source="keybcs2_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="keybcs2_nopad_bin" id="1097" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="macce">
@@ -491,6 +599,12 @@ To make maintaining easier please:
     <order>Sorbian</order>
   </collation>
   <collation name="macce_bin"	id="43"	order="Binary"	flag="binary"/>
+  <collation name="macce_general_nopad_ci" id="1062" flag="nopad">
+    <rules>
+      <import source="macce_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="macce_nopad_bin" id="1067" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="macroman">
@@ -513,6 +627,12 @@ To make maintaining easier please:
   <!--collation name="macroman_ci"	id="54"/-->
   <!--collation name="macroman_ci_ai"	id="55"/-->
   <!--collation name="macroman_cs"	id="56"/-->
+  <collation name="macroman_general_nopad_ci" id="1063" flag="nopad">
+    <rules>
+      <import source="macroman_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="macroman_nopad_bin" id="1077" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="cp852">
@@ -531,6 +651,12 @@ To make maintaining easier please:
     <order>Sorbian</order>
   </collation>
   <collation name="cp852_bin"	id="81"	order="Binary"	flag="binary"/>
+  <collation name="cp852_general_nopad_ci" id="1064" flag="nopad">
+    <rules>
+      <import source="cp852_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="cp852_nopad_bin" id="1105" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="cp1256">
@@ -545,6 +671,12 @@ To make maintaining easier please:
     <order>Pakistani</order>
     <order>Urdu</order>
   </collation>
+  <collation name="cp1256_general_nopad_ci" id="1081" flag="nopad">
+    <rules>
+      <import source="cp1256_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="cp1256_nopad_bin" id="1091" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="geostd8">
@@ -552,6 +684,12 @@ To make maintaining easier please:
   <description>GEOSTD8 Georgian</description>
   <collation name="geostd8_general_ci"	id="92"	order="Georgian"	flag="primary"/>
   <collation name="geostd8_bin"		id="93"	order="Binary"		flag="binary"/>
+  <collation name="geostd8_general_nopad_ci" id="1116" flag="nopad">
+    <rules>
+      <import source="geostd8_general_ci"/>
+    </rules>
+  </collation>
+  <collation name="geostd8_nopad_bin" id="1117" flag="binary" flag="nopad"/>
 </charset>
 
 <charset name="binary">
@@ -596,4 +734,3 @@ To make maintaining easier please:
 </charset>
 
 </charsets>
-

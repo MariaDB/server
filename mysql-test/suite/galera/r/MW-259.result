@@ -1,0 +1,12 @@
+CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+SET GLOBAL wsrep_desync=0;
+Warnings:
+Warning	1231	'wsrep_desync' is already OFF.
+SET wsrep_OSU_method=RSU;
+SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;;
+SET GLOBAL wsrep_desync=1;;
+SET DEBUG_SYNC= 'now SIGNAL continue';
+DROP TABLE t1;
+SET GLOBAL wsrep_desync=0;
+SET DEBUG_SYNC= 'RESET';

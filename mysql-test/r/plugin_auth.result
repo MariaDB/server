@@ -25,7 +25,7 @@ proxies_priv	CREATE TABLE `proxies_priv` (
   `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Proxied_host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Proxied_user` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `With_grant` tinyint(1) NOT NULL DEFAULT '0',
+  `With_grant` tinyint(1) NOT NULL DEFAULT 0,
   `Grantor` char(141) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`Host`,`User`,`Proxied_host`,`Proxied_user`),

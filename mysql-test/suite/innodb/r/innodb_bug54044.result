@@ -19,5 +19,5 @@ CREATE TABLE t1 (a VARCHAR(3)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES ('foo'),('bar');
 FLUSH TABLES;
 CREATE TEMPORARY TABLE tmp ENGINE=InnoDB AS SELECT VALUES(a) FROM t1;
-ERROR HY000: Can't create table `test`.`tmp` (errno: -1 "Internal error < 0 (Not system error)")
+ERROR HY000: Can't create table `test`.`tmp` (errno: 168 "Unknown (generic) error from engine")
 DROP TABLE t1;

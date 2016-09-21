@@ -230,7 +230,7 @@ VARIABLE_COMMENT	Run fast part of group commit in a single thread, to optimize k
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
+ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_ROW_IMAGE
@@ -2179,6 +2179,20 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	MAX_RECURSIVE_ITERATIONS
+SESSION_VALUE	4294967295
+GLOBAL_VALUE	4294967295
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	4294967295
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Maximum number of iterations when executing recursive queries
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	MAX_RELAY_LOG_SIZE
 SESSION_VALUE	1073741824
 GLOBAL_VALUE	1073741824
@@ -2484,7 +2498,7 @@ VARIABLE_COMMENT	Use memory mapping for reading and writing MyISAM tables
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
+ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NONE
 VARIABLE_NAME	MYSQL56_TEMPORAL_FORMAT
@@ -2656,17 +2670,17 @@ ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_SWITCH
-SESSION_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=off
-GLOBAL_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=off
+SESSION_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=off,condition_pushdown_for_derived=on
+GLOBAL_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=off,condition_pushdown_for_derived=on
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=off
+DEFAULT_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=off,condition_pushdown_for_derived=on
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	FLAGSET
 VARIABLE_COMMENT	Fine-tune the optimizer behavior
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,engine_condition_pushdown,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,default
+ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,engine_condition_pushdown,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,default
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_USE_CONDITION_SELECTIVITY
@@ -3007,9 +3021,9 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PERFORMANCE_SCHEMA_MAX_STATEMENT_CLASSES
 SESSION_VALUE	NULL
-GLOBAL_VALUE	181
+GLOBAL_VALUE	184
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	181
+DEFAULT_VALUE	184
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Maximum number of statement instruments.
@@ -3779,14 +3793,70 @@ VARIABLE_NAME	SERVER_ID
 SESSION_VALUE	1
 GLOBAL_VALUE	1
 GLOBAL_VALUE_ORIGIN	CONFIG
-DEFAULT_VALUE	0
+DEFAULT_VALUE	1
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Uniquely identifies the server instance in the community of replication partners
-NUMERIC_MIN_VALUE	0
+NUMERIC_MIN_VALUE	1
 NUMERIC_MAX_VALUE	4294967295
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SESSION_TRACK_SCHEMA
+SESSION_VALUE	ON
+GLOBAL_VALUE	ON
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	ON
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Track changes to the default schema.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	SESSION_TRACK_STATE_CHANGE
+SESSION_VALUE	OFF
+GLOBAL_VALUE	OFF
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Track changes to the session state.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	SESSION_TRACK_SYSTEM_VARIABLES
+SESSION_VALUE	
+GLOBAL_VALUE	
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Track changes in registered system variables. For compatibility with MySQL defaults this variable should be set to "autocommit, character_set_client, character_set_connection, character_set_results, time_zone"
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SESSION_TRACK_TRANSACTION_INFO
+SESSION_VALUE	OFF
+GLOBAL_VALUE	OFF
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Track changes to the transaction attributes. OFF to disable; STATE to track just transaction state (Is there an active transaction? Does it have any data? etc.); CHARACTERISTICS to track transaction state and report all statements needed to start a transaction withthe same characteristics (isolation level, read only/read write,snapshot - but not any work done / data modified within the transaction).
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,STATE,CHARACTERISTICS
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SKIP_EXTERNAL_LOCKING
@@ -4433,6 +4503,20 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	STANDARDS_COMPLIANT_CTE
+SESSION_VALUE	ON
+GLOBAL_VALUE	ON
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	ON
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Allow only standards compiant CTE
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	STORAGE_ENGINE
 SESSION_VALUE	MyISAM
 GLOBAL_VALUE	MyISAM
@@ -4572,6 +4656,20 @@ NUMERIC_MAX_VALUE	524288
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	TABLE_OPEN_CACHE_INSTANCES
+SESSION_VALUE	NULL
+GLOBAL_VALUE	8
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	8
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Maximum number of table cache instances
+NUMERIC_MIN_VALUE	1
+NUMERIC_MAX_VALUE	64
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	THREAD_CACHE_SIZE
 SESSION_VALUE	NULL

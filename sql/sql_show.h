@@ -131,6 +131,12 @@ bool get_schema_tables_result(JOIN *join,
 enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table);
 TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list);
 
+const char* get_one_variable(THD *thd, const SHOW_VAR *variable,
+                             enum_var_type value_type, SHOW_TYPE show_type,
+                             system_status_var *status_var,
+                             const CHARSET_INFO **charset, char *buff,
+                             size_t *length);
+
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
 int get_quote_char_for_identifier(THD *thd, const char *name, uint length);
 THD *find_thread_by_id(longlong id, bool query_id= false);

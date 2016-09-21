@@ -31,7 +31,7 @@
 #include "sql_base.h"                           // close_mysql_tables
 #include "key.h"             // key_copy, key_cmp_if_same, key_restore
 #include "sql_show.h"        // append_identifier
-#include "sql_table.h"                         // build_table_filename
+#include "sql_table.h"                         // write_bin_log
 #include "hash_filo.h"
 #include "sql_parse.h"                          // check_access
 #include "sql_view.h"                           // VIEW_ANY_ACL
@@ -2009,8 +2009,7 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
       sctx->master_access= acl_role->access;
 
       if (acl_role->user.str)
-        strmake_buf(sctx->priv_user, user);
-      sctx->priv_host[0]= 0;
+        strmake_buf(sctx->priv_role, user);
     }
   }
 
@@ -2796,7 +2795,7 @@ bool change_password(THD *thd, LEX_USER *user)
 
   if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
   {
-    thd->set_query_inner(buff, query_length, system_charset_info);
+    thd->set_query(buff, query_length, system_charset_info);
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
   }
 
@@ -2857,7 +2856,7 @@ error: // this label is used in WSREP_TO_ISOLATION_BEGIN
   {
     WSREP_TO_ISOLATION_END;
 
-    thd->set_query_inner(query_save);
+    thd->set_query(query_save);
     thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */
@@ -2921,7 +2920,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
 
   if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
   {
-    thd->set_query_inner(buff, query_length, system_charset_info);
+    thd->set_query(buff, query_length, system_charset_info);
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
   }
 
@@ -3008,7 +3007,7 @@ error: // this label is used in WSREP_TO_ISOLATION_END
   {
     WSREP_TO_ISOLATION_END;
 
-    thd->set_query_inner(query_save);
+    thd->set_query(query_save);
     thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */
@@ -7162,7 +7161,7 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
   GRANT_INFO *grant;
   const char *db_name;
   const char *table_name;
-  Security_context *sctx= MY_TEST(table_ref->security_ctx) ?
+  Security_context *sctx= table_ref->security_ctx ?
                           table_ref->security_ctx : thd->security_ctx;
 
   if (table_ref->view || table_ref->field_translation)
@@ -11078,7 +11077,7 @@ void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
   /* global privileges */
   grant->privilege= sctx->master_access;
 
-  if (!sctx->priv_user[0])
+  if (!sctx->priv_user[0] && !sctx->priv_role[0])
   {
     DBUG_PRINT("info", ("privilege 0x%lx", grant->privilege));
     DBUG_VOID_RETURN;                         // it is slave

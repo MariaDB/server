@@ -48,6 +48,7 @@ struct sys_var_chain
 int mysql_add_sys_var_chain(sys_var *chain);
 int mysql_del_sys_var_chain(sys_var *chain);
 
+
 /**
   A class representing one system variable - that is something
   that can be accessed as @@global.variable_name or @@session.variable_name,
@@ -60,6 +61,7 @@ class sys_var: protected Value_source // for double_from_string_with_check
 public:
   sys_var *next;
   LEX_CSTRING name;
+  bool *test_load;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096,
                    NO_SET_STATEMENT=8192, AUTO_SET=16384};
@@ -240,6 +242,9 @@ protected:
 
   uchar *global_var_ptr()
   { return ((uchar*)&global_system_variables) + offset; }
+
+  friend class Session_sysvars_tracker;
+  friend class Session_tracker;
 };
 
 #include "sql_plugin.h"                    /* SHOW_HA_ROWS, SHOW_MY_BOOL */
@@ -385,7 +390,7 @@ extern SHOW_COMP_OPTION have_openssl;
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
 
-sys_var *find_sys_var(THD *thd, const char *str, uint length=0);
+sys_var *find_sys_var(THD *thd, const char *str, size_t length=0);
 int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
 
 #define SYSVAR_AUTOSIZE(VAR,VAL)                        \

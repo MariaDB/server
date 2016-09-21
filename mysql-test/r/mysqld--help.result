@@ -108,9 +108,6 @@ The following options may be given as the first argument:
  --bulk-insert-buffer-size=# 
  Size of tree cache used in bulk insert optimisation. Note
  that this is a limit per thread!
- --changed-page-bitmaps[=name] 
- Enable or disable CHANGED_PAGE_BITMAPS plugin. One of:
- ON, OFF, FORCE (don't start if the plugin fails to load).
  --character-set-client-handshake 
  Don't ignore client side character set value sent during
  handshake.
@@ -450,6 +447,9 @@ The following options may be given as the first argument:
  max_allowed_packet instead.
  --max-prepared-stmt-count=# 
  Maximum number of prepared statements in the server
+ --max-recursive-iterations[=#] 
+ Maximum number of iterations when executing recursive
+ queries
  --max-relay-log-size=# 
  relay log will be rotated automatically when the size
  exceeds this value.  If 0 at startup, it's set to
@@ -577,7 +577,8 @@ The following options may be given as the first argument:
  semijoin_with_cache, join_cache_incremental, 
  join_cache_hashed, join_cache_bka, 
  optimize_join_buffer_size, table_elimination, 
- extended_keys, exists_to_in, orderby_uses_equalities
+ extended_keys, exists_to_in, orderby_uses_equalities, 
+ condition_pushdown_for_derived
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial
@@ -903,6 +904,26 @@ The following options may be given as the first argument:
  files within specified directory
  --server-id=#       Uniquely identifies the server instance in the community
  of replication partners
+ --session-track-schema 
+ Track changes to the default schema.
+ (Defaults to on; use --skip-session-track-schema to disable.)
+ --session-track-state-change 
+ Track changes to the session state.
+ --session-track-system-variables=name 
+ Track changes in registered system variables. For
+ compatibility with MySQL defaults this variable should be
+ set to "autocommit, character_set_client,
+ character_set_connection, character_set_results,
+ time_zone"
+ --session-track-transaction-info=name 
+ Track changes to the transaction attributes. OFF to
+ disable; STATE to track just transaction state (Is there
+ an active transaction? Does it have any data? etc.);
+ CHARACTERISTICS to track transaction state and report all
+ statements needed to start a transaction withthe same
+ characteristics (isolation level, read only/read
+ write,snapshot - but not any work done / data modified
+ within the transaction).
  --show-slave-auth-info 
  Show user and password in SHOW SLAVE HOSTS on this
  master.
@@ -1033,6 +1054,9 @@ The following options may be given as the first argument:
  NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
  --stack-trace       Print a symbolic stack trace on failure
  (Defaults to on; use --skip-stack-trace to disable.)
+ --standards-compliant-cte 
+ Allow only standards compiant CTE
+ (Defaults to on; use --skip-standards-compliant-cte to disable.)
  --stored-program-cache=# 
  The soft upper limit for number of cached stored routines
  for one connection.
@@ -1064,6 +1088,8 @@ The following options may be given as the first argument:
  The number of cached table definitions
  --table-open-cache=# 
  The number of cached open tables
+ --table-open-cache-instances=# 
+ Maximum number of table cache instances
  --tc-heuristic-recover=name 
  Decision to use in heuristic recover process. One of: OFF,
  COMMIT, ROLLBACK
@@ -1153,7 +1179,6 @@ binlog-row-event-max-size 1024
 binlog-row-image FULL
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
-changed-page-bitmaps ON
 character-set-client-handshake TRUE
 character-set-filesystem binary
 character-sets-dir MYSQL_CHARSETSDIR/
@@ -1265,6 +1290,7 @@ max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-long-data-size 4194304
 max-prepared-stmt-count 16382
+max-recursive-iterations 18446744073709551615
 max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
 max-sort-length 1024
@@ -1301,7 +1327,7 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=off,condition_pushdown_for_derived=on
 optimizer-use-condition-selectivity 1
 performance-schema FALSE
 performance-schema-accounts-size -1
@@ -1339,7 +1365,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 181
+performance-schema-max-statement-classes 184
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
@@ -1384,7 +1410,11 @@ rowid-merge-buff-size 8388608
 safe-user-create FALSE
 secure-auth TRUE
 secure-file-priv (No default value)
-server-id 0
+server-id 1
+session-track-schema TRUE
+session-track-state-change FALSE
+session-track-system-variables 
+session-track-transaction-info OFF
 show-slave-auth-info FALSE
 silent-startup FALSE
 skip-grant-tables TRUE
@@ -1412,6 +1442,7 @@ slow-query-log FALSE
 sort-buffer-size 2097152
 sql-mode NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
 stack-trace TRUE
+standards-compliant-cte TRUE
 stored-program-cache 256
 strict-password-validation TRUE
 symbolic-links FALSE
@@ -1424,6 +1455,7 @@ sysdate-is-now FALSE
 table-cache 431
 table-definition-cache 400
 table-open-cache 431
+table-open-cache-instances 8
 tc-heuristic-recover OFF
 thread-cache-size 151
 thread-pool-idle-timeout 60

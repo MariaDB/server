@@ -1,24 +1,26 @@
 MariaDB is brought to you by the MariaDB Foundation, a non profit
 organization registered in the USA.
 
-The current main members and sponsors of the MariaDB Foundation are:
+The current main sponsors of the MariaDB Foundation are:
 
-MariaDB Corporation	http://www.mariadb.com  (2013 - 2016)
-Booking.com		http://www.booking.com (2013 - 2016)
-Parallels       	http://www.parallels.com/products/plesk  (2013 - 2016)
-Automattic              http://automattic.com  (2014 - 2016)
-Verkkokauppa.com	http://verkkokauppa.com (2015 - 2016)
-Visma			http://visma.com/ (2015 - 2016)
-Webyog			http://webyog.com (2015 - 2016)
-Wikimedia Foundation    http://wikimedia.org (2015 - 2016)
-Acronis			http://acronis.com (2016)
+Booking.com			http://www.booking.com (2013 - 2016)
+Development Bank of Singapore   http://dbs.com (2016)
+MariaDB Corporation		https://www.mariadb.com  (2013 - 2016)
+Visma                           http://visma.com (2015 - 2016)
+Acronis                         http://acronis.com (2016)
+Nexedi				https://www.nexedi.com (2016)
+Automattic              	https://automattic.com  (2014 - 2016)
+Verkkokauppa.com		https://www.verkkokauppa.com (2015 - 2016)
+Virtuozzo                       https://virtuozzo.com (2016)
 
-For a full list of supporters and sponsors see
+For a full list of sponsors, see
 https://mariadb.org/about/supporters/
+and for individual contributors, see
+https://mariadb.org/donate/individual-sponsors/
 
-You can also do this by running SHOW CONTRIBUTORS.
+You can also get the list of sponsors by running SHOW CONTRIBUTORS.
 
-For all corporate memberships and sponsorships please contact the
+For all corporate sponsorships please contact the
 MariaDB Foundation Board via foundation@mariadb.org.
 
 The MariaDB Foundation is responsible for the MariaDB source
@@ -38,7 +40,7 @@ following services to the MariaDB community:
 To be able to do the above we need help from corporations and individuals!
 
 You can help support MariaDB by becoming a MariaDB developer or a
-member or sponsor of the MariaDB Foundation. To donate or sponsor, 
+sponsor of the MariaDB Foundation. To donate or sponsor, 
 go to https://mariadb.org/donate/
 
 You can get a list of all the main authors of MariaDB / MySQL by running 

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyrigth (c) 2014, 2015, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
@@ -50,6 +50,7 @@ extern struct st_maria_plugin	i_s_innodb_ft_config;
 extern struct st_maria_plugin	i_s_innodb_buffer_page;
 extern struct st_maria_plugin	i_s_innodb_buffer_page_lru;
 extern struct st_maria_plugin	i_s_innodb_buffer_stats;
+extern struct st_maria_plugin	i_s_innodb_temp_table_info;
 extern struct st_maria_plugin	i_s_innodb_sys_tables;
 extern struct st_maria_plugin	i_s_innodb_sys_tablestats;
 extern struct st_maria_plugin	i_s_innodb_sys_indexes;
@@ -60,9 +61,21 @@ extern struct st_maria_plugin	i_s_innodb_sys_foreign_cols;
 extern struct st_maria_plugin	i_s_innodb_sys_tablespaces;
 extern struct st_maria_plugin	i_s_innodb_sys_datafiles;
 extern struct st_maria_plugin	i_s_innodb_mutexes;
+extern struct st_maria_plugin	i_s_innodb_sys_virtual;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_scrubbing;
 extern struct st_maria_plugin	i_s_innodb_sys_semaphore_waits;
+
+/** Fill handlerton based INFORMATION_SCHEMA.FILES table.
+@param[in,out]	thd	thread/connection descriptor
+@param[in,out]	tables	information schema tables to fill
+@retval 0 for success
+@retval HA_ERR_OUT_OF_MEM when running out of memory
+@return nonzero for failure */
+int
+i_s_files_table_fill(
+	THD		*thd,
+	TABLE_LIST	*tables);
 
 /** maximum number of buffer page info we would cache. */
 #define MAX_BUF_INFO_CACHED		10000

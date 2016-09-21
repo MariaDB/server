@@ -10,7 +10,8 @@
 # MDEV-8770: Incorrect error message when importing page compressed tablespace
 #
 
-call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded");
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
 
 --disable_query_log
 let $innodb_file_format_orig = `SELECT @@innodb_file_format`;

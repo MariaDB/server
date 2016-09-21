@@ -4271,6 +4271,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	17
@@ -4294,6 +4295,7 @@ Handler_read_key	1
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
+Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	17
@@ -5561,6 +5563,21 @@ test.v1	check	Error	'test.v1' is not BASE TABLE
 test.v1	check	status	Operation failed
 drop view v1;
 drop table t1;
+#
+# MDEV-10419: crash in mariadb 10.1.16-MariaDB-1~trusty
+#
+CREATE TABLE t1 (c1 CHAR(13));
+CREATE TABLE t2 (c2 CHAR(13));
+CREATE FUNCTION f() RETURNS INT RETURN 0;
+CREATE OR REPLACE VIEW v1 AS select f() from t1 where c1 in (select c2 from t2);
+DROP FUNCTION f;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `f`() AS `f()` from `t1` where `test`.`t1`.`c1` in (select `test`.`t2`.`c2` from `t2`)	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop view v1;
+drop table t1,t2;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------
@@ -6235,6 +6252,31 @@ i	j
 2	NULL
 DROP VIEW v1;
 DROP TABLE t1, t2, t3;
+#
+# MDEV-10035: DBUG_ASSERT on CREATE VIEW v1 AS SELECT * FROM t1
+# FOR UPDATE
+#
+CREATE TABLE t1 (a INT);
+insert into t1 values (1),(2);
+CREATE VIEW v1 AS SELECT * FROM t1 FOR UPDATE;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` for update	latin1	latin1_swedish_ci
+select * from v1;
+a
+1
+2
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT * FROM t1 LOCK IN SHARE MODE;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` lock in share mode	latin1	latin1_swedish_ci
+select * from v1;
+a
+1
+2
+DROP VIEW v1;
+DROP TABLE t1;
 #
 # End of 10.2 tests
 #

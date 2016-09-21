@@ -17,9 +17,11 @@ SET wsrep_OSU_method=RSU;
 SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
 --send ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 
---connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
---connection node_1a
 
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+--connection node_1a
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: alter_table_before_open_tables'
 --source include/wait_condition.inc
 
@@ -44,23 +46,31 @@ CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
 SET GLOBAL wsrep_desync=0;
 SET wsrep_OSU_method=RSU;
 
-SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
+SET DEBUG_SYNC = 'alter_table_before_create_table_no_lock WAIT_FOR continue';
 --send ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 
 --connection node_1a
 
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: alter_table_before_open_tables'
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: alter_table_before_create_table_no_lock'
 --source include/wait_condition.inc
 
-# This transition is currently not allowed
---error ER_CANNOT_USER
-SET GLOBAL wsrep_desync=1;
-SET GLOBAL wsrep_desync=0;
+# wsrep_desync=1 will block
+--send SET GLOBAL wsrep_desync=1;
+
+
+--connection node_1b
+--sleep 2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'SET GLOBAL wsrep_desync=1'
+--source include/wait_condition.inc
 
 SET DEBUG_SYNC= 'now SIGNAL continue';
 
 --connection node_1
 --reap
+
+--connection node_1a
+--reap
+SET GLOBAL wsrep_desync=0;
 
 SHOW CREATE TABLE t1;
 
@@ -74,5 +84,3 @@ CALL mtr.add_suppression("desync failed");
 
 --connection node_2
 CALL mtr.add_suppression("Protocol violation");
-
-

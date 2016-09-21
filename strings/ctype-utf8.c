@@ -111,7 +111,9 @@
 #define MY_UTF8MB3_BIN        MY_UTF8MB3 "_bin"
 #define MY_UTF8MB4_GENERAL_CI MY_UTF8MB4 "_general_ci"
 #define MY_UTF8MB4_GENERAL_CS MY_UTF8MB4 "_general_cs"
+#define MY_UTF8MB4_GENERAL_NOPAD_CI MY_UTF8MB4 "_general_nopad_ci"
 #define MY_UTF8MB4_BIN        MY_UTF8MB4 "_bin"
+#define MY_UTF8MB4_NOPAD_BIN  MY_UTF8MB4 "_nopad_bin"
 
 
 
@@ -4692,6 +4694,35 @@ my_strxfrm_pad_unicode(uchar *str, uchar *strend)
 }
 
 
+size_t my_strnxfrm_unicode_internal(CHARSET_INFO *cs,
+                                    uchar *dst, uchar *de, uint *nweights,
+                                    const uchar *src, const uchar *se)
+{
+  my_wc_t UNINIT_VAR(wc);
+  int res;
+  uchar *dst0= dst;
+  MY_UNICASE_INFO *uni_plane= (cs->state & MY_CS_BINSORT) ?
+                               NULL : cs->caseinfo;
+
+  DBUG_ASSERT(src || !se);
+
+  for (; dst < de && *nweights; (*nweights)--)
+  {
+    if ((res= cs->cset->mb_wc(cs, &wc, src, se)) <= 0)
+      break;
+    src+= res;
+
+    if (uni_plane)
+      my_tosort_unicode(uni_plane, &wc, cs->state);
+
+    *dst++= (uchar) (wc >> 8);
+    if (dst < de)
+      *dst++= (uchar) (wc & 0xFF);
+  }
+  return dst - dst0;
+}
+
+
 /*
   Store sorting weights using 2 bytes per character.
 
@@ -4706,28 +4737,11 @@ my_strnxfrm_unicode(CHARSET_INFO *cs,
                     uchar *dst, size_t dstlen, uint nweights,
                     const uchar *src, size_t srclen, uint flags)
 {
-  my_wc_t UNINIT_VAR(wc);
-  int res;
   uchar *dst0= dst;
   uchar *de= dst + dstlen;
-  const uchar *se= src + srclen;
-  MY_UNICASE_INFO *uni_plane= (cs->state & MY_CS_BINSORT) ?
-                               NULL : cs->caseinfo;
-  DBUG_ASSERT(!srclen || src);
-
-  for (; dst < de && nweights; nweights--)
-  {
-    if ((res= cs->cset->mb_wc(cs, &wc, src, se)) <= 0)
-      break;
-    src+= res;
-
-    if (uni_plane)
-      my_tosort_unicode(uni_plane, &wc, cs->state);
-
-    *dst++= (uchar) (wc >> 8);
-    if (dst < de)
-      *dst++= (uchar) (wc & 0xFF);
-  }
+  dst+= my_strnxfrm_unicode_internal(cs, dst, de, &nweights,
+                                         src, src + srclen);
+  DBUG_ASSERT(dst <= de); /* Safety */
 
   if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
     dst+= my_strxfrm_pad_nweights_unicode(dst, de, nweights);
@@ -4740,6 +4754,35 @@ my_strnxfrm_unicode(CHARSET_INFO *cs,
 }
 
 
+size_t
+my_strnxfrm_unicode_nopad(CHARSET_INFO *cs,
+                          uchar *dst, size_t dstlen, uint nweights,
+                          const uchar *src, size_t srclen, uint flags)
+{
+  uchar *dst0= dst;
+  uchar *de= dst + dstlen;
+  dst+= my_strnxfrm_unicode_internal(cs, dst, de, &nweights,
+                                         src, src + srclen);
+  DBUG_ASSERT(dst <= de); /* Safety */
+
+  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  {
+    size_t len= de - dst;
+    set_if_smaller(len, nweights * 2);
+    memset(dst, 0x00, len);
+    dst+= len;
+  }
+
+  my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
+
+  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
+  {
+    memset(dst, 0x00, de - dst);
+    dst= de;
+  }
+  return dst - dst0;
+}
+
 /*
   For BMP-only collations that use 2 bytes per weight.
 */
@@ -4750,24 +4793,18 @@ my_strnxfrmlen_unicode(CHARSET_INFO *cs, size_t len)
   return ((len + cs->mbmaxlen - 1) / cs->mbmaxlen) * 2;
 }
 
-/*
-  Store sorting weights using 3 bytes per character.
-  This function is shared between utf8mb4_bin, utf16_bin, utf32_bin.
-*/
 size_t
-my_strnxfrm_unicode_full_bin(CHARSET_INFO *cs,
-                             uchar *dst, size_t dstlen, uint nweights,
-                             const uchar *src, size_t srclen, uint flags)
+my_strnxfrm_unicode_full_bin_internal(CHARSET_INFO *cs,
+                                      uchar *dst, uchar *de, uint *nweights,
+                                      const uchar *src, const uchar *se)
 {
   my_wc_t UNINIT_VAR(wc);
   uchar *dst0= dst;
-  uchar *de= dst + dstlen;
-  const uchar *se = src + srclen;
 
-  DBUG_ASSERT(!srclen || src);
+  DBUG_ASSERT(src || !se);
   DBUG_ASSERT(cs->state & MY_CS_BINSORT);
 
-  for ( ; dst < de && nweights; nweights--)
+  for (; dst < de && *nweights; (*nweights)--)
   {
     int res;
     if ((res= cs->cset->mb_wc(cs, &wc, src, se)) <= 0)
@@ -4781,6 +4818,26 @@ my_strnxfrm_unicode_full_bin(CHARSET_INFO *cs,
         *dst++= (uchar) (wc & 0xFF);
     }
   }
+  return dst - dst0;
+}
+
+
+/*
+  Store sorting weights using 3 bytes per character.
+  This function is shared between utf8mb4_bin, utf16_bin, utf32_bin.
+*/
+size_t
+my_strnxfrm_unicode_full_bin(CHARSET_INFO *cs,
+                             uchar *dst, size_t dstlen, uint nweights,
+                             const uchar *src, size_t srclen, uint flags)
+{
+  my_wc_t UNINIT_VAR(wc);
+  uchar *dst0= dst;
+  uchar *de= dst + dstlen;
+
+  dst+= my_strnxfrm_unicode_full_bin_internal(cs, dst, de, &nweights,
+                                                  src, src + srclen);
+  DBUG_ASSERT(dst <= de); /* Safety */
 
   if (flags & MY_STRXFRM_PAD_WITH_SPACE)
   {
@@ -4795,7 +4852,7 @@ my_strnxfrm_unicode_full_bin(CHARSET_INFO *cs,
       }
     }
   }
-  
+
   my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
 
   if (flags & MY_STRXFRM_PAD_TO_MAXLEN)
@@ -4810,6 +4867,38 @@ my_strnxfrm_unicode_full_bin(CHARSET_INFO *cs,
           *dst++= 0x20;
       }
     }
+  }
+  return dst - dst0;
+}
+
+
+size_t
+my_strnxfrm_unicode_full_nopad_bin(CHARSET_INFO *cs,
+                                   uchar *dst, size_t dstlen, uint nweights,
+                                   const uchar *src, size_t srclen, uint flags)
+{
+  my_wc_t UNINIT_VAR(wc);
+  uchar *dst0= dst;
+  uchar *de= dst + dstlen;
+
+  dst+= my_strnxfrm_unicode_full_bin_internal(cs, dst, de, &nweights,
+                                                  src, src + srclen);
+  DBUG_ASSERT(dst <= de); /* Safety */
+
+  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+  {
+    size_t len= de - dst;
+    set_if_smaller(len, nweights * 3);
+    memset(dst, 0x00, len);
+    dst+= len;
+  }
+
+  my_strxfrm_desc_and_reverse(dst0, dst, flags, 0);
+
+  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
+  {
+    memset(dst, 0x00, de - dst);
+    dst= de;
   }
   return dst - dst0;
 }
@@ -5092,30 +5181,37 @@ static size_t my_caseup_utf8(CHARSET_INFO *cs, char *src, size_t srclen,
 }
 
 
-static void my_hash_sort_utf8(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                              ulong *nr1, ulong *nr2)
+static void my_hash_sort_utf8_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
+                                    ulong *nr1, ulong *nr2)
 {
   my_wc_t wc;
   int res;
-  const uchar *e=s+slen;
+  const uchar *e= s+slen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   register ulong m1= *nr1, m2= *nr2;
 
+  while ((s < e) && (res=my_utf8_uni(cs,&wc, (uchar *)s, (uchar*)e))>0 )
+  {
+    my_tosort_unicode(uni_plane, &wc, cs->state);
+    MY_HASH_ADD_16(m1, m2, wc);
+    s+= res;
+  }
+  *nr1= m1;
+  *nr2= m2;
+}
+
+
+static void my_hash_sort_utf8(CHARSET_INFO *cs, const uchar *s, size_t slen,
+                              ulong *nr1, ulong *nr2)
+{
+  const uchar *e= s+slen;
   /*
     Remove end space. We have to do this to be able to compare
     'A ' and 'A' as identical
   */
   while (e > s && e[-1] == ' ')
     e--;
-
-  while ((s < e) && (res=my_utf8_uni(cs,&wc, (uchar *)s, (uchar*)e))>0 )
-  {
-    my_tosort_unicode(uni_plane, &wc, cs->state);
-    MY_HASH_ADD_16(m1, m2, wc);
-    s+=res;
-  }
-  *nr1= m1;
-  *nr2= m2;
+  my_hash_sort_utf8_nopad(cs, s, e - s, nr1, nr2);
 }
 
 
@@ -5387,6 +5483,15 @@ static inline int my_weight_mb3_utf8_general_ci(uchar b0, uchar b1, uchar b2)
 #include "strcoll.ic"
 
 
+#define DEFINE_STRNNCOLLSP_NOPAD
+#define MY_FUNCTION_NAME(x)    my_ ## x ## _utf8_general_nopad_ci
+#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)          my_weight_mb1_utf8_general_ci(x)
+#define WEIGHT_MB2(x,y)        my_weight_mb2_utf8_general_ci(x,y)
+#define WEIGHT_MB3(x,y,z)      my_weight_mb3_utf8_general_ci(x,y,z)
+#include "strcoll.ic"
+
+
 static inline int my_weight_mb1_utf8_general_mysql500_ci(uchar b)
 {
   return (int) plane00_mysql500[b & 0xFF].sort;
@@ -5425,6 +5530,14 @@ my_weight_mb3_utf8_general_mysql500_ci(uchar b0, uchar b1, uchar b2)
 #define WEIGHT_MB3(x,y,z)      ((int) UTF8MB3_CODE(x,y,z))
 #include "strcoll.ic"
 
+
+#define DEFINE_STRNNCOLLSP_NOPAD
+#define MY_FUNCTION_NAME(x)    my_ ## x ## _utf8_nopad_bin
+#define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(x)          ((int) (uchar) (x))
+#define WEIGHT_MB2(x,y)        ((int) UTF8MB2_CODE(x,y))
+#define WEIGHT_MB3(x,y,z)      ((int) UTF8MB3_CODE(x,y,z))
+#include "strcoll.ic"
 
 /*
   TODO-10.2: join this with pad_max_char() in ctype-mb.c
@@ -5504,6 +5617,39 @@ static MY_COLLATION_HANDLER my_collation_utf8_bin_handler =
     my_hash_sort_mb_bin,
     my_propagate_simple
 };
+
+
+static MY_COLLATION_HANDLER my_collation_utf8_general_nopad_ci_handler =
+{
+  NULL,               /* init */
+  my_strnncoll_utf8_general_ci,
+  my_strnncollsp_utf8_general_nopad_ci,
+  my_strnxfrm_unicode_nopad,
+  my_strnxfrmlen_unicode,
+  my_like_range_mb,
+  my_wildcmp_utf8,
+  my_strcasecmp_utf8,
+  my_instr_mb,
+  my_hash_sort_utf8_nopad,
+  my_propagate_complex
+};
+
+
+static MY_COLLATION_HANDLER my_collation_utf8_nopad_bin_handler =
+{
+  NULL,		/* init */
+  my_strnncoll_utf8_bin,
+  my_strnncollsp_utf8_nopad_bin,
+  my_strnxfrm_unicode_nopad,
+  my_strnxfrmlen_unicode,
+  my_like_range_mb,
+  my_wildcmp_mb_bin,
+  my_strcasecmp_mb_bin,
+  my_instr_mb,
+  my_hash_sort_mb_nopad_bin,
+  my_propagate_simple
+};
+
 
 MY_CHARSET_HANDLER my_charset_utf8_handler=
 {
@@ -5637,6 +5783,73 @@ struct charset_info_st my_charset_utf8_bin=
     &my_charset_utf8_handler,
     &my_collation_utf8_bin_handler
 };
+
+
+struct charset_info_st my_charset_utf8_general_nopad_ci=
+{
+    MY_NOPAD_ID(33),0,0,      /* number           */
+    MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NOPAD, /* state */
+    "utf8",                   /* cs name          */
+    "utf8_general_nopad_ci",  /* name             */
+    "",                       /* comment          */
+    NULL,                     /* tailoring        */
+    ctype_utf8,               /* ctype            */
+    to_lower_utf8,            /* to_lower         */
+    to_upper_utf8,            /* to_upper         */
+    to_upper_utf8,            /* sort_order       */
+    NULL,                     /* uca              */
+    NULL,                     /* tab_to_uni       */
+    NULL,                     /* tab_from_uni     */
+    &my_unicase_default,      /* caseinfo         */
+    NULL,                     /* state_map        */
+    NULL,                     /* ident_map        */
+    1,                        /* strxfrm_multiply */
+    1,                        /* caseup_multiply  */
+    1,                        /* casedn_multiply  */
+    1,                        /* mbminlen         */
+    3,                        /* mbmaxlen         */
+    0,                        /* min_sort_char    */
+    0xFFFF,                   /* max_sort_char    */
+    ' ',                      /* pad char         */
+    0,                        /* escape_with_backslash_is_dangerous */
+    1,                        /* levels_for_order */
+    &my_charset_utf8_handler,
+    &my_collation_utf8_general_nopad_ci_handler
+};
+
+
+struct charset_info_st my_charset_utf8_nopad_bin=
+{
+    MY_NOPAD_ID(83),0,0,/* number           */
+    MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_BINSORT|MY_CS_UNICODE|MY_CS_NOPAD,
+    "utf8",             /* cs name          */
+    "utf8_nopad_bin",   /* name             */
+    "",                 /* comment          */
+    NULL,               /* tailoring        */
+    ctype_utf8,         /* ctype            */
+    to_lower_utf8,      /* to_lower         */
+    to_upper_utf8,      /* to_upper         */
+    NULL,               /* sort_order       */
+    NULL,               /* uca              */
+    NULL,               /* tab_to_uni       */
+    NULL,               /* tab_from_uni     */
+    &my_unicase_default,/* caseinfo         */
+    NULL,               /* state_map        */
+    NULL,               /* ident_map        */
+    1,                  /* strxfrm_multiply */
+    1,                  /* caseup_multiply  */
+    1,                  /* casedn_multiply  */
+    1,                  /* mbminlen         */
+    3,                  /* mbmaxlen         */
+    0,                  /* min_sort_char    */
+    0xFFFF,             /* max_sort_char    */
+    ' ',                /* pad char         */
+    0,                  /* escape_with_backslash_is_dangerous */
+    1,                  /* levels_for_order */
+    &my_charset_utf8_handler,
+    &my_collation_utf8_nopad_bin_handler
+};
+
 
 #ifdef HAVE_UTF8_GENERAL_CS
 
@@ -7427,7 +7640,7 @@ my_caseup_utf8mb4(CHARSET_INFO *cs, char *src, size_t srclen,
 
 
 static void
-my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
+my_hash_sort_utf8mb4_nopad(CHARSET_INFO *cs, const uchar *s, size_t slen,
                      ulong *nr1, ulong *nr2)
 {
   my_wc_t wc;
@@ -7435,13 +7648,6 @@ my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
   const uchar *e= s + slen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   register ulong m1= *nr1, m2= *nr2;
-
-  /*
-    Remove end space. We do this to be able to compare
-    'A ' and 'A' as identical
-  */
-  while (e > s && e[-1] == ' ')
-    e--;
 
   while ((res= my_mb_wc_utf8mb4(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
@@ -7462,6 +7668,21 @@ my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
   }
   *nr1= m1;
   *nr2= m2;
+}
+
+
+static void
+my_hash_sort_utf8mb4(CHARSET_INFO *cs, const uchar *s, size_t slen,
+                     ulong *nr1, ulong *nr2)
+{
+  const uchar *e= s + slen;
+  /*
+    Remove end space. We do this to be able to compare
+    'A ' and 'A' as identical
+  */
+  while (e > s && e[-1] == ' ')
+    e--;
+  my_hash_sort_utf8mb4_nopad(cs, s, e - s, nr1, nr2);
 }
 
 
@@ -7719,6 +7940,30 @@ size_t my_well_formed_len_utf8mb4(CHARSET_INFO *cs,
 #include "strcoll.ic"
 
 
+#define DEFINE_STRNNCOLLSP_NOPAD
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8mb4_general_nopad_ci
+#define IS_MB4_CHAR(b0,b1,b2,b3) IS_UTF8MB4_STEP3(b0,b1,b2,b3)
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(b0)           my_weight_mb1_utf8_general_ci(b0)
+#define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf8_general_ci(b0,b1)
+#define WEIGHT_MB3(b0,b1,b2)     my_weight_mb3_utf8_general_ci(b0,b1,b2)
+/*
+  All non-BMP characters have the same weight.
+*/
+#define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
+#include "strcoll.ic"
+
+
+#define DEFINE_STRNNCOLLSP_NOPAD
+#define MY_FUNCTION_NAME(x)      my_ ## x ## _utf8mb4_nopad_bin
+#define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
+#define WEIGHT_MB1(b0)           ((int) (uchar) (b0))
+#define WEIGHT_MB2(b0,b1)        ((int) UTF8MB2_CODE(b0,b1))
+#define WEIGHT_MB3(b0,b1,b2)     ((int) UTF8MB3_CODE(b0,b1,b2))
+#define WEIGHT_MB4(b0,b1,b2,b3)  ((int) UTF8MB4_CODE(b0,b1,b2,b3))
+#include "strcoll.ic"
+
+
 static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
 {
   NULL,               /* init */
@@ -7737,7 +7982,7 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_general_ci_handler=
 
 static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
 {
-    NULL,		/* init */
+    NULL,              /* init */
     my_strnncoll_utf8mb4_bin,
     my_strnncollsp_utf8mb4_bin,
     my_strnxfrm_unicode_full_bin,
@@ -7748,6 +7993,38 @@ static MY_COLLATION_HANDLER my_collation_utf8mb4_bin_handler =
     my_instr_mb,
     my_hash_sort_mb_bin,
     my_propagate_simple
+};
+
+
+static MY_COLLATION_HANDLER my_collation_utf8mb4_general_nopad_ci_handler=
+{
+  NULL,               /* init */
+  my_strnncoll_utf8mb4_general_ci,
+  my_strnncollsp_utf8mb4_general_nopad_ci,
+  my_strnxfrm_unicode_nopad,
+  my_strnxfrmlen_unicode,
+  my_like_range_mb,
+  my_wildcmp_utf8mb4,
+  my_strcasecmp_utf8mb4,
+  my_instr_mb,
+  my_hash_sort_utf8mb4_nopad,
+  my_propagate_complex
+};
+
+
+static MY_COLLATION_HANDLER my_collation_utf8mb4_nopad_bin_handler =
+{
+  NULL,		/* init */
+  my_strnncoll_utf8mb4_bin,
+  my_strnncollsp_utf8mb4_nopad_bin,
+  my_strnxfrm_unicode_full_nopad_bin,
+  my_strnxfrmlen_unicode_full_bin,
+  my_like_range_mb,
+  my_wildcmp_mb_bin,
+  my_strcasecmp_mb_bin,
+  my_instr_mb,
+  my_hash_sort_mb_nopad_bin,
+  my_propagate_simple
 };
 
 
@@ -7850,6 +8127,74 @@ struct charset_info_st my_charset_utf8mb4_bin=
   1,                  /* levels_for_order   */
   &my_charset_utf8mb4_handler,
   &my_collation_utf8mb4_bin_handler
+};
+
+
+struct charset_info_st my_charset_utf8mb4_general_nopad_ci=
+{
+  MY_NOPAD_ID(45),0,0,/* number       */
+  MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_UNICODE_SUPPLEMENT|
+  MY_CS_NOPAD,        /* state            */
+  MY_UTF8MB4,         /* cs name          */
+  MY_UTF8MB4_GENERAL_NOPAD_CI,/* name     */
+  "UTF-8 Unicode",    /* comment          */
+  NULL,               /* tailoring        */
+  ctype_utf8mb4,      /* ctype            */
+  to_lower_utf8mb4,   /* to_lower         */
+  to_upper_utf8mb4,   /* to_upper         */
+  to_upper_utf8mb4,   /* sort_order       */
+  NULL,               /* uca              */
+  NULL,               /* tab_to_uni       */
+  NULL,               /* tab_from_uni     */
+  &my_unicase_default,/* caseinfo         */
+  NULL,               /* state_map        */
+  NULL,               /* ident_map        */
+  1,                  /* strxfrm_multiply */
+  1,                  /* caseup_multiply  */
+  1,                  /* casedn_multiply  */
+  1,                  /* mbminlen         */
+  4,                  /* mbmaxlen         */
+  0,                  /* min_sort_char    */
+  0xFFFF,             /* max_sort_char    */
+  ' ',                /* pad char         */
+  0,                  /* escape_with_backslash_is_dangerous */
+  1,                  /* levels_for_order */
+  &my_charset_utf8mb4_handler,
+  &my_collation_utf8mb4_general_nopad_ci_handler
+};
+
+
+struct charset_info_st my_charset_utf8mb4_nopad_bin=
+{
+  MY_NOPAD_ID(46),0,0, /* number          */
+  MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_STRNXFRM|MY_CS_UNICODE|
+  MY_CS_UNICODE_SUPPLEMENT|MY_CS_NOPAD, /* state  */
+  MY_UTF8MB4,         /* cs name          */
+  MY_UTF8MB4_NOPAD_BIN, /* name           */
+  "UTF-8 Unicode",    /* comment          */
+  NULL,               /* tailoring        */
+  ctype_utf8mb4,      /* ctype            */
+  to_lower_utf8mb4,   /* to_lower         */
+  to_upper_utf8mb4,   /* to_upper         */
+  NULL,               /* sort_order       */
+  NULL,               /* uca              */
+  NULL,               /* tab_to_uni       */
+  NULL,               /* tab_from_uni     */
+  &my_unicase_default,/* caseinfo         */
+  NULL,               /* state_map        */
+  NULL,               /* ident_map        */
+  1,                  /* strxfrm_multiply */
+  1,                  /* caseup_multiply  */
+  1,                  /* casedn_multiply  */
+  1,                  /* mbminlen         */
+  4,                  /* mbmaxlen         */
+  0,                  /* min_sort_char    */
+  0xFFFF,             /* max_sort_char    */
+  ' ',                /* pad char         */
+  0,                  /* escape_with_backslash_is_dangerous */
+  1,                  /* levels_for_order */
+  &my_charset_utf8mb4_handler,
+  &my_collation_utf8mb4_nopad_bin_handler
 };
 
 #endif /* HAVE_CHARSET_utf8mb4 */

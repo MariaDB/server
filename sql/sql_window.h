@@ -154,9 +154,7 @@ int setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 // Classes that make window functions computation a part of SELECT's query plan
 //////////////////////////////////////////////////////////////////////////////
 
-typedef bool (*window_compute_func_t)(Item_window_func *item_win,
-                                      TABLE *tbl, READ_RECORD *info);
-
+class Frame_cursor;
 /*
   This handles computation of one window function.
 
@@ -165,21 +163,17 @@ typedef bool (*window_compute_func_t)(Item_window_func *item_win,
 
 class Window_func_runner : public Sql_alloc
 {
-  Item_window_func *win_func;
-
-  /* The function to use for computation*/
-  window_compute_func_t compute_func;
-
 public:
-  Window_func_runner(Item_window_func *win_func_arg) :
-    win_func(win_func_arg)
-  {}
+  /* Add the function to be computed during the execution pass  */
+  bool add_function_to_run(Item_window_func *win_func);
 
-  // Set things up. Create filesort structures, etc
-  bool setup(THD *thd);
- 
-  // This sorts and runs the window function.
-  bool exec(TABLE *tbl, SORT_INFO *filesort_result);
+  /* Compute and fill the fields in the table. */
+  bool exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result);
+
+private:
+  /* A list of window functions for which this Window_func_runner will compute
+     values during the execution phase. */
+  List<Item_window_func> window_functions;
 };
 
 
@@ -191,21 +185,24 @@ public:
 
 class Window_funcs_sort : public Sql_alloc
 {
-  List<Window_func_runner> runners;
-
-  /* Window functions can be computed over this sorting */
-  Filesort *filesort;
 public:
   bool setup(THD *thd, SQL_SELECT *sel, List_iterator<Item_window_func> &it);
   bool exec(JOIN *join);
   void cleanup() { delete filesort; }
 
   friend class Window_funcs_computation;
+
+private:
+  Window_func_runner runner;
+
+  /* Window functions can be computed over this sorting */
+  Filesort *filesort;
 };
 
 
 struct st_join_table;
 class Explain_aggr_window_funcs;
+
 /*
   This is a "window function computation phase": a single object of this class
   takes care of computing all window functions in a SELECT.

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -23,7 +23,6 @@ The transaction lock system
 Created 5/7/1996 Heikki Tuuri
 *******************************************************/
 
-#include "sync0sync.h"
 #include "srv0srv.h"
 #include "dict0dict.h"
 #include "row0row.h"
@@ -41,7 +40,7 @@ Created 5/7/1996 Heikki Tuuri
 /*********************************************************************//**
 Calculates the fold value of a page file address: used in inserting or
 searching for a lock in the hash table.
-@return	folded value */
+@return folded value */
 UNIV_INLINE
 ulint
 lock_rec_fold(
@@ -55,7 +54,7 @@ lock_rec_fold(
 /*********************************************************************//**
 Calculates the hash value of a page file address: used in inserting or
 searching for a lock in the hash table.
-@return	hashed value */
+@return hashed value */
 UNIV_INLINE
 ulint
 lock_rec_hash(
@@ -69,7 +68,7 @@ lock_rec_hash(
 
 /*********************************************************************//**
 Gets the heap_no of the smallest user record on a page.
-@return	heap_no of smallest user record, or PAGE_HEAP_NO_SUPREMUM */
+@return heap_no of smallest user record, or PAGE_HEAP_NO_SUPREMUM */
 UNIV_INLINE
 ulint
 lock_get_min_heap_no(
@@ -90,3 +89,43 @@ lock_get_min_heap_no(
 						   FALSE)));
 	}
 }
+
+/*************************************************************//**
+Moves the locks of a record to another record and resets the lock bits of
+the donating record. */
+UNIV_INLINE
+void
+lock_rec_move(
+/*==========*/
+	const buf_block_t*	receiver,       /*!< in: buffer block containing
+						the receiving record */
+	const buf_block_t*	donator,        /*!< in: buffer block containing
+						the donating record */
+	ulint			receiver_heap_no,/*!< in: heap_no of the record
+						which gets the locks; there
+						must be no lock requests
+						on it! */
+	ulint			donator_heap_no)/*!< in: heap_no of the record
+                                                which gives the locks */
+{
+	lock_rec_move_low(lock_sys->rec_hash, receiver, donator,
+			  receiver_heap_no, donator_heap_no);
+}
+
+/*************************************************************//**
+Get the lock hash table */
+UNIV_INLINE
+hash_table_t*
+lock_hash_get(
+/*==========*/
+	ulint	mode)	/*!< in: lock mode */
+{
+	if (mode & LOCK_PREDICATE) {
+		return(lock_sys->prdt_hash);
+	} else if (mode & LOCK_PRDT_PAGE) {
+		return(lock_sys->prdt_page_hash);
+	} else {
+		return(lock_sys->rec_hash);
+	}
+}
+

@@ -82,6 +82,8 @@ INSERT INTO t1 VALUES (51), (52), (53), (54), (55);
 --connection node_3
 --source include/wait_until_connected_again.inc
 
+sleep 5;
+
 # Final checks 
 --connection node_2
 SELECT COUNT(*) = 30 FROM t1;

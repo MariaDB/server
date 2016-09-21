@@ -2489,8 +2489,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
         (*field)->default_value= vcol;
         *dfield_ptr++= *field;
       }
-      if ((*field)->has_insert_default_function() ||
-          (*field)->has_update_default_function())
+      else
+      if ((*field)->has_update_default_function())
         *dfield_ptr++= *field;
     }
     if (vfield)
@@ -3348,6 +3348,7 @@ bool Delayed_insert::handle_inserts(void)
   max_rows= 0;                                  // For DBUG output
 #endif
   /* Remove all not used rows */
+  mysql_mutex_lock(&mutex);
   while ((row=rows.get()))
   {
     if (table->s->blob_fields)
@@ -3364,7 +3365,6 @@ bool Delayed_insert::handle_inserts(void)
   }
   DBUG_PRINT("error", ("dropped %lu rows after an error", max_rows));
   thread_safe_increment(delayed_insert_errors, &LOCK_delayed_status);
-  mysql_mutex_lock(&mutex);
   DBUG_RETURN(1);
 }
 #endif /* EMBEDDED_LIBRARY */

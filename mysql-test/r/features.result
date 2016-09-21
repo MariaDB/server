@@ -3,6 +3,7 @@ set sql_mode="";
 flush status;
 show status like "feature%";
 Variable_name	Value
+Feature_check_constraint	0
 Feature_delay_key_write	0
 Feature_dynamic_columns	0
 Feature_fulltext	0
@@ -158,3 +159,9 @@ drop table t1;
 show status like "feature_delay_key_write";
 Variable_name	Value
 Feature_delay_key_write	2
+create table t1 (a int check (a > 5));
+create table t2 (b int, constraint foo check (b < 10));
+drop table t1, t2;
+show status like "feature_check_constraint";
+Variable_name	Value
+Feature_check_constraint	2

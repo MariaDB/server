@@ -21,6 +21,7 @@
 /* Classes in mysql */
 
 #include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
 #include <mysql/plugin_audit.h>
@@ -45,6 +46,7 @@
 #include <mysql/psi/mysql_idle.h>
 #include <mysql/psi/mysql_table.h>
 #include <mysql_com_server.h>
+#include "session_tracker.h"
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -565,6 +567,7 @@ typedef struct system_variables
   ulong max_allowed_packet;
   ulong max_error_count;
   ulong max_length_for_sort_data;
+  ulong max_recursive_iterations;
   ulong max_sort_length;
   ulong max_tmp_tables;
   ulong max_insert_delayed_threads;
@@ -635,6 +638,7 @@ typedef struct system_variables
   my_bool old_alter_table;
   my_bool old_passwords;
   my_bool big_tables;
+  my_bool only_standards_compliant_cte;
   my_bool query_cache_strip_comments;
   my_bool sql_log_slow;
   my_bool sql_log_bin;
@@ -688,6 +692,11 @@ typedef struct system_variables
 
   my_bool pseudo_slave_mode;
 
+  char *session_track_system_variables;
+  ulong session_track_transaction_info;
+  my_bool session_track_schema;
+  my_bool session_track_state_change;
+
 } SV;
 
 /**
@@ -722,9 +731,11 @@ typedef struct system_status_var
   ulong ha_read_key_count;
   ulong ha_read_next_count;
   ulong ha_read_prev_count;
+  ulong ha_read_retry_count;
   ulong ha_read_rnd_count;
   ulong ha_read_rnd_next_count;
   ulong ha_read_rnd_deleted_count;
+
   /*
     This number doesn't include calls to the default implementation and
     calls made by range access. The intent is to count only calls made by
@@ -758,6 +769,8 @@ typedef struct system_status_var
   ulong select_range_count_;
   ulong select_range_check_count_;
   ulong select_scan_count_;
+  ulong update_scan_count;
+  ulong delete_scan_count;
   ulong executed_triggers;
   ulong long_query_count;
   ulong filesort_merge_passes_;
@@ -823,8 +836,7 @@ typedef struct system_status_var
   Global status variables
 */
 
-extern ulong feature_files_opened_with_delayed_keys;
-
+extern ulong feature_files_opened_with_delayed_keys, feature_check_constraint;
 
 void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 
@@ -1518,7 +1530,7 @@ enum enum_thread_type
   SYSTEM_THREAD_EVENT_SCHEDULER= 8,
   SYSTEM_THREAD_EVENT_WORKER= 16,
   SYSTEM_THREAD_BINLOG_BACKGROUND= 32,
-  SYSTEM_THREAD_SLAVE_INIT= 64
+  SYSTEM_THREAD_SLAVE_BACKGROUND= 64
 };
 
 inline char const *
@@ -1533,7 +1545,7 @@ show_system_thread(enum_thread_type thread)
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_SQL);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_SCHEDULER);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_WORKER);
-    RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_INIT);
+    RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_BACKGROUND);
   default:
     sprintf(buf, "<UNKNOWN SYSTEM THREAD: %d>", thread);
     return buf;
@@ -2858,7 +2870,7 @@ public:
   bool       query_start_sec_part_used;
   /* for IS NULL => = last_insert_id() fix in remove_eq_conds() */
   bool       substitute_null_with_insert_id;
-  bool	     in_lock_tables, in_stored_expression;
+  bool	     in_lock_tables;
   bool       bootstrap, cleanup_done, free_connection_done;
 
   /**  is set if some thread specific value(s) used in a statement. */
@@ -3176,12 +3188,12 @@ public:
     set_start_time();
     start_utime= utime_after_lock= microsecond_interval_timer();
   }
-  inline void	set_time(my_hrtime_t t)
+  inline void set_time(my_hrtime_t t)
   {
     user_time= t;
     set_time();
   }
-  inline void	set_time(my_time_t t, ulong sec_part)
+  inline void set_time(my_time_t t, ulong sec_part)
   {
     my_hrtime_t hrtime= { hrtime_from_time(t) + sec_part };
     set_time(hrtime);
@@ -3194,6 +3206,12 @@ public:
   }
   ulonglong current_utime()  { return microsecond_interval_timer(); }
 
+  /* Tell SHOW PROCESSLIST to show time from this point */
+  inline void set_time_for_next_stage()
+  {
+    utime_after_query= current_utime();
+  }
+
   /**
    Update server status after execution of a top level statement.
    Currently only checks if a query was slow, and assigns
@@ -3203,7 +3221,7 @@ public:
   */
   void update_server_status()
   {
-    utime_after_query= current_utime();
+    set_time_for_next_stage();
     if (utime_after_query > utime_after_lock + variables.long_query_time)
       server_status|= SERVER_QUERY_WAS_SLOW;
   }
@@ -4049,6 +4067,9 @@ private:
   LEX_STRING invoker_host;
 
 public:
+#ifndef EMBEDDED_LIBRARY
+  Session_tracker session_tracker;
+#endif //EMBEDDED_LIBRARY
   /*
     Flag, mutex and condition for a thread to wait for a signal from another
     thread.
@@ -4193,6 +4214,7 @@ public:
   */
   bool                      wsrep_ignore_table;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
+  ulong                     wsrep_affected_rows;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */
@@ -4282,6 +4304,8 @@ my_eof(THD *thd)
 {
   thd->set_row_count_func(-1);
   thd->get_stmt_da()->set_eof_status(thd);
+
+  TRANSACT_TRACKER(add_trx_state(thd, TX_RESULT_SET));
 }
 
 #define tmp_disable_binlog(A)                                              \
@@ -4366,6 +4390,7 @@ protected:
   /* Something used only by the parser: */
 public:
   select_result(THD *thd_arg): select_result_sink(thd_arg) {}
+  void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
   virtual ~select_result() {};
   /**
     Change wrapped select_result.
@@ -4810,6 +4835,7 @@ public:
   }
 };
 
+
 class select_union :public select_result_interceptor
 {
 public:
@@ -4846,6 +4872,30 @@ public:
   TMP_TABLE_PARAM *get_tmp_table_param() { return &tmp_table_param; }
 };
 
+
+class select_union_recursive :public select_union
+{
+ public:
+  /* The temporary table with the new records generated by one iterative step */
+  TABLE *incr_table;
+  /* One of tables from the list rec_tables (determined dynamically) */
+  TABLE *first_rec_table_to_update;
+  /* The temporary tables used for recursive table references */
+  List<TABLE> rec_tables;
+
+  select_union_recursive(THD *thd_arg):
+    select_union(thd_arg),
+    incr_table(0), first_rec_table_to_update(0) {};
+
+  int send_data(List<Item> &items);
+  bool create_result_table(THD *thd, List<Item> *column_types,
+                           bool is_distinct, ulonglong options,
+                           const char *alias, 
+                           bool bit_fields_as_long,
+                           bool create_table,
+                           bool keep_row_order= FALSE);
+  void cleanup();
+};
 
 /**
   UNION result that is passed directly to the receiving select_result

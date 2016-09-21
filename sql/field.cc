@@ -4920,12 +4920,12 @@ void Field_double::sql_type(String &res) const
     field has NOW() as default and is updated when row changes, else it is 
     field which has 0 as default value and is not automatically updated.
   TIMESTAMP_DN_FIELD - field with NOW() as default but not set on update
-    automatically (TIMESTAMP DEFAULT NOW())
+    automatically (TIMESTAMP DEFAULT NOW()), not used in Field since 10.2.2
   TIMESTAMP_UN_FIELD - field which is set on update automatically but has not 
     NOW() as default (but it may has 0 or some other const timestamp as 
     default) (TIMESTAMP ON UPDATE NOW()).
   TIMESTAMP_DNUN_FIELD - field which has now() as default and is auto-set on 
-    update. (TIMESTAMP DEFAULT NOW() ON UPDATE NOW())
+    update. (TIMESTAMP DEFAULT NOW() ON UPDATE NOW()), not used in Field since 10.2.2
   NONE - field which is not auto-set on update with some other than NOW() 
     default value (TIMESTAMP DEFAULT 0).
 
@@ -4956,8 +4956,8 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
       this field will be automaticly updated on insert.
     */
     flags|= TIMESTAMP_FLAG;
-    if (unireg_check != TIMESTAMP_DN_FIELD)
-      flags|= ON_UPDATE_NOW_FLAG;
+    flags|= ON_UPDATE_NOW_FLAG;
+    DBUG_ASSERT(unireg_check == TIMESTAMP_UN_FIELD);
   }
 }
 
@@ -9801,10 +9801,11 @@ bool check_expression(Virtual_column_info *vcol, const char *type,
   ret= vcol->expr_item->walk(&Item::check_vcol_func_processor, 0, &res);
   vcol->flags= res.errors;
 
-  if (ret ||
-      (res.errors &
-       (VCOL_IMPOSSIBLE |
-        (must_be_determinstic ? VCOL_NON_DETERMINISTIC | VCOL_TIME_FUNC: 0))))
+  uint filter= VCOL_IMPOSSIBLE;
+  if (must_be_determinstic)
+    filter|= VCOL_NOT_STRICTLY_DETERMINISTIC;
+
+  if (ret || (res.errors & filter))
   {
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
              type, name);
@@ -9862,59 +9863,43 @@ bool Column_definition::check(THD *thd)
       }
     }
   }
+
   if (default_value && (flags & AUTO_INCREMENT_FLAG))
   {
     my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
     DBUG_RETURN(1);
   }
 
-  if (default_value && !default_value->expr_item->basic_const_item())
+  if (default_value && !default_value->expr_item->basic_const_item() &&
+      mysql_type_to_time_type(sql_type) == MYSQL_TIMESTAMP_DATETIME &&
+      default_value->expr_item->type() == Item::FUNC_ITEM)
   {
-    Item *def_expr= default_value->expr_item;
-
-    unireg_check= Field::NONE;
     /*
-      NOW() for TIMESTAMP and DATETIME fields are handled as in MariaDB 10.1
-      by marking them in unireg_check.
+      Special case: NOW() for TIMESTAMP and DATETIME fields are handled
+      as in MariaDB 10.1 by marking them in unireg_check.
     */
-    if (def_expr->type() == Item::FUNC_ITEM &&
-        (static_cast<Item_func*>(def_expr)->functype() ==
-         Item_func::NOW_FUNC &&
-         (mysql_type_to_time_type(sql_type) == MYSQL_TIMESTAMP_DATETIME)))
+    Item_func *fn= static_cast<Item_func*>(default_value->expr_item);
+    if (fn->functype() == Item_func::NOW_FUNC &&
+        (fn->decimals == 0 || fn->decimals >= length))
     {
-      /*
-        We are not checking the number of decimals for timestamps
-        to allow one to write (for historical reasons)
-        TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
-        Instead we are going to use the number of decimals specifed by the
-        column.
-      */
       default_value= 0;
-      unireg_check= (on_update ?
-                     Field::TIMESTAMP_DNUN_FIELD : // for insertions and for updates.
-                     Field::TIMESTAMP_DN_FIELD);   // only for insertions.
+      unireg_check= Field::TIMESTAMP_DN_FIELD;
     }
-    else if (on_update)
-      unireg_check= Field::TIMESTAMP_UN_FIELD; // function default for updates
-  }
-  else
-  {
-    /* No function default for insertions. Either NULL or a constant. */
-    if (on_update)
-      unireg_check= Field::TIMESTAMP_UN_FIELD; // function default for updates
-    else
-      unireg_check= ((flags & AUTO_INCREMENT_FLAG) ?
-                     Field::NEXT_NUMBER : // Automatic increment.
-                     Field::NONE);
   }
 
-  if (on_update &&
-      (mysql_type_to_time_type(sql_type) != MYSQL_TIMESTAMP_DATETIME ||
-       on_update->decimals < length))
+  if (on_update)
   {
-    my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name);
-    DBUG_RETURN(TRUE);
+    if (mysql_type_to_time_type(sql_type) != MYSQL_TIMESTAMP_DATETIME ||
+        on_update->decimals < length)
+    {
+      my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name);
+      DBUG_RETURN(TRUE);
+    }
+    unireg_check= unireg_check == Field::NONE ? Field::TIMESTAMP_UN_FIELD
+                                              : Field::TIMESTAMP_DNUN_FIELD;
   }
+  else if (flags & AUTO_INCREMENT_FLAG)
+    unireg_check= Field::NEXT_NUMBER;
 
   sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
 
@@ -10497,8 +10482,8 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   comment=    old_field->comment;
   decimals=   old_field->decimals();
   vcol_info=  old_field->vcol_info;
-  default_value=    old_field->default_value;
-  check_constraint= old_field->check_constraint;
+  default_value= orig_field ? orig_field->default_value : 0;
+  check_constraint= orig_field ? orig_field->check_constraint : 0;
   option_list= old_field->option_list;
 
   switch (sql_type) {
@@ -10576,40 +10561,24 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     - The column didn't have a default expression
   */
   if (!(flags & (NO_DEFAULT_VALUE_FLAG | BLOB_FLAG)) &&
-      old_field->ptr != NULL &&
-      orig_field != NULL &&
-      !default_value)
+      old_field->ptr != NULL && orig_field != NULL)
   {
-    bool default_now= false;
-    if (real_type_with_now_as_default(sql_type))
-    {
-      // The SQL type of the new field allows a function default:
-      default_now= orig_field->has_insert_default_function();
-      bool update_now= orig_field->has_update_default_function();
+    if (orig_field->has_update_default_function())
+      unireg_check= Field::TIMESTAMP_UN_FIELD;
 
-      if (default_now && update_now)
-        unireg_check= Field::TIMESTAMP_DNUN_FIELD;
-      else if (default_now)
-        unireg_check= Field::TIMESTAMP_DN_FIELD;
-      else if (update_now)
-        unireg_check= Field::TIMESTAMP_UN_FIELD;
-    }
-    if (!default_now)                           // Give a constant default
+    /* Get the value from default_values */
+    const uchar *dv= orig_field->table->s->default_values;
+    if (!default_value && !orig_field->is_null_in_record(dv))
     {
-      /* Get the value from default_values */
-      const uchar *dv= orig_field->table->s->default_values;
-      if (!orig_field->is_null_in_record(dv))
-      {
-        StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
-        String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
-        char *pos= (char*) thd->strmake(res->ptr(), res->length());
-        default_value= new (thd->mem_root) Virtual_column_info();
-        default_value->expr_str.str= pos;
-        default_value->expr_str.length= res->length();
-        default_value->expr_item=
-          new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
-        default_value->utf8= 0;
-      }
+      StringBuffer<MAX_FIELD_WIDTH> tmp(charset);
+      String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
+      char *pos= (char*) thd->strmake(res->ptr(), res->length());
+      default_value= new (thd->mem_root) Virtual_column_info();
+      default_value->expr_str.str= pos;
+      default_value->expr_str.length= res->length();
+      default_value->expr_item=
+        new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
+      default_value->utf8= 0;
     }
   }
 }

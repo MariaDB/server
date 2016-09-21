@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,27 +38,19 @@ Created 8/22/1994 Heikki Tuuri
 /*************************************************************//**
 Creates a hash table with at least n array cells.  The actual number
 of cells is chosen to be a prime number slightly bigger than n.
-@return	own: created table */
-UNIV_INTERN
+@return own: created table */
 hash_table_t*
-ha_create_func(
-/*===========*/
-	ulint	n,		/*!< in: number of array cells */
-#ifdef UNIV_SYNC_DEBUG
-	ulint	sync_level,	/*!< in: level of the mutexes or rw_locks
-				in the latching order: this is used in the
-				 debug version */
-#endif /* UNIV_SYNC_DEBUG */
-	ulint	n_sync_obj,	/*!< in: number of mutexes or rw_locks
-				to protect the hash table: must be a
-				power of 2, or 0 */
-	ulint	type)		/*!< in: type of datastructure for which
-				the memory heap is going to be used e.g.:
-				MEM_HEAP_FOR_BTR_SEARCH or
+ib_create(
+/*======*/
+	ulint		n,	/*!< in: number of array cells */
+	latch_id_t	id,	/*!< in: latch ID */
+	ulint		n_sync_obj,
+				/*!< in: number of mutexes to protect the
+				hash table: must be a power of 2, or 0 */
+	ulint		type)	/*!< in: type of datastructure for which
 				MEM_HEAP_FOR_PAGE_HASH */
 {
 	hash_table_t*	table;
-	ulint		i;
 
 	ut_a(type == MEM_HEAP_FOR_BTR_SEARCH
 	     || type == MEM_HEAP_FOR_PAGE_HASH);
@@ -71,7 +63,10 @@ ha_create_func(
 
 	if (n_sync_obj == 0) {
 		table->heap = mem_heap_create_typed(
-			ut_min(4096, MEM_MAX_ALLOC_IN_BUF), type);
+			ut_min(static_cast<ulint>(4096),
+				MEM_MAX_ALLOC_IN_BUF / 2
+				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
+			type);
 		ut_a(table->heap);
 
 		return(table);
@@ -80,61 +75,101 @@ ha_create_func(
 	if (type == MEM_HEAP_FOR_PAGE_HASH) {
 		/* We create a hash table protected by rw_locks for
 		buf_pool->page_hash. */
-		hash_create_sync_obj(table, HASH_TABLE_SYNC_RW_LOCK,
-				     n_sync_obj, sync_level);
+		hash_create_sync_obj(
+			table, HASH_TABLE_SYNC_RW_LOCK, id, n_sync_obj);
 	} else {
-		hash_create_sync_obj(table, HASH_TABLE_SYNC_MUTEX,
-				     n_sync_obj, sync_level);
+		hash_create_sync_obj(
+			table, HASH_TABLE_SYNC_MUTEX, id, n_sync_obj);
 	}
 
 	table->heaps = static_cast<mem_heap_t**>(
-		mem_alloc(n_sync_obj * sizeof(void*)));
+		ut_malloc_nokey(n_sync_obj * sizeof(void*)));
 
-	for (i = 0; i < n_sync_obj; i++) {
-		table->heaps[i] = mem_heap_create_typed(4096, type);
+	for (ulint i = 0; i < n_sync_obj; i++) {
+		table->heaps[i] = mem_heap_create_typed(
+			ut_min(static_cast<ulint>(4096),
+				MEM_MAX_ALLOC_IN_BUF / 2
+				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
+			type);
 		ut_a(table->heaps[i]);
 	}
 
 	return(table);
 }
 
+/** Recreate a hash table with at least n array cells. The actual number
+of cells is chosen to be a prime number slightly bigger than n.
+The new cells are all cleared. The heaps are recreated.
+The sync objects are reused.
+@param[in,out]	table	hash table to be resuzed (to be freed later)
+@param[in]	n	number of array cells
+@return	resized new table */
+hash_table_t*
+ib_recreate(
+	hash_table_t*	table,
+	ulint		n)
+{
+	/* This function is for only page_hash for now */
+	ut_ad(table->type == HASH_TABLE_SYNC_RW_LOCK);
+	ut_ad(table->n_sync_obj > 0);
+
+	hash_table_t*	new_table = hash_create(n);
+
+	new_table->type = table->type;
+	new_table->n_sync_obj = table->n_sync_obj;
+	new_table->sync_obj = table->sync_obj;
+
+	for (ulint i = 0; i < table->n_sync_obj; i++) {
+		mem_heap_free(table->heaps[i]);
+	}
+	ut_free(table->heaps);
+
+	new_table->heaps = static_cast<mem_heap_t**>(
+		ut_malloc_nokey(new_table->n_sync_obj * sizeof(void*)));
+
+	for (ulint i = 0; i < new_table->n_sync_obj; i++) {
+		new_table->heaps[i] = mem_heap_create_typed(
+			ut_min(static_cast<ulint>(4096),
+				MEM_MAX_ALLOC_IN_BUF / 2
+				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
+			MEM_HEAP_FOR_PAGE_HASH);
+		ut_a(new_table->heaps[i]);
+	}
+
+	return(new_table);
+}
+
 /*************************************************************//**
 Empties a hash table and frees the memory heaps. */
-UNIV_INTERN
 void
 ha_clear(
 /*=====*/
 	hash_table_t*	table)	/*!< in, own: hash table */
 {
-	ulint	i;
-	ulint	n;
-
-	ut_ad(table);
 	ut_ad(table->magic_n == HASH_TABLE_MAGIC_N);
-#ifdef UNIV_SYNC_DEBUG
-	ut_ad(!table->adaptive
-	       || rw_lock_own(&btr_search_latch, RW_LOCK_EXCLUSIVE));
-#endif /* UNIV_SYNC_DEBUG */
+	ut_ad(!table->adaptive || btr_search_own_all(RW_LOCK_X));
 
-	/* Free the memory heaps. */
-	n = table->n_sync_obj;
-
-	for (i = 0; i < n; i++) {
+	for (ulint i = 0; i < table->n_sync_obj; i++) {
 		mem_heap_free(table->heaps[i]);
 	}
 
-	if (table->heaps) {
-		mem_free(table->heaps);
-	}
+	ut_free(table->heaps);
 
 	switch (table->type) {
 	case HASH_TABLE_SYNC_MUTEX:
-		mem_free(table->sync_obj.mutexes);
+		for (ulint i = 0; i < table->n_sync_obj; ++i) {
+			mutex_destroy(&table->sync_obj.mutexes[i]);
+		}
+		ut_free(table->sync_obj.mutexes);
 		table->sync_obj.mutexes = NULL;
 		break;
 
 	case HASH_TABLE_SYNC_RW_LOCK:
-		mem_free(table->sync_obj.rw_locks);
+		for (ulint i = 0; i < table->n_sync_obj; ++i) {
+			rw_lock_free(&table->sync_obj.rw_locks[i]);
+		}
+
+		ut_free(table->sync_obj.rw_locks);
 		table->sync_obj.rw_locks = NULL;
 		break;
 
@@ -148,9 +183,9 @@ ha_clear(
 
 
 	/* Clear the hash table. */
-	n = hash_get_n_cells(table);
+	ulint	n = hash_get_n_cells(table);
 
-	for (i = 0; i < n; i++) {
+	for (ulint i = 0; i < n; i++) {
 		hash_get_nth_cell(table, i)->node = NULL;
 	}
 }
@@ -160,8 +195,7 @@ Inserts an entry into a hash table. If an entry with the same fold number
 is found, its node is updated to point to the new data, and no new node
 is inserted. If btr_search_enabled is set to FALSE, we will only allow
 updating existing nodes, but no new node is allowed to be added.
-@return	TRUE if succeed, FALSE if no more memory could be allocated */
-UNIV_INTERN
+@return TRUE if succeed, FALSE if no more memory could be allocated */
 ibool
 ha_insert_for_fold_func(
 /*====================*/
@@ -262,9 +296,27 @@ ha_insert_for_fold_func(
 	return(TRUE);
 }
 
+#ifdef UNIV_DEBUG
+/** Verify if latch corresponding to the hash table is x-latched
+@param[in]	table		hash table */
+static
+void
+ha_btr_search_latch_x_locked(const hash_table_t* table)
+{
+	ulint	i;
+	for (i = 0; i < btr_ahi_parts; ++i) {
+		if (btr_search_sys->hash_tables[i] == table) {
+			break;
+		}
+	}
+
+	ut_ad(i < btr_ahi_parts);
+	ut_ad(rw_lock_own(btr_search_latches[i], RW_LOCK_X));
+}
+#endif /* UNIV_DEBUG */
+
 /***********************************************************//**
 Deletes a hash node. */
-UNIV_INTERN
 void
 ha_delete_hash_node(
 /*================*/
@@ -273,9 +325,7 @@ ha_delete_hash_node(
 {
 	ut_ad(table);
 	ut_ad(table->magic_n == HASH_TABLE_MAGIC_N);
-#ifdef UNIV_SYNC_DEBUG
-	ut_ad(rw_lock_own(&btr_search_latch, RW_LOCK_EX));
-#endif /* UNIV_SYNC_DEBUG */
+	ut_d(ha_btr_search_latch_x_locked(table));
 	ut_ad(btr_search_enabled);
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	if (table->adaptive) {
@@ -292,7 +342,6 @@ ha_delete_hash_node(
 Looks for an element when we know the pointer to the data, and updates
 the pointer to data, if found.
 @return TRUE if found */
-UNIV_INTERN
 ibool
 ha_search_and_update_if_found_func(
 /*===============================*/
@@ -312,9 +361,8 @@ ha_search_and_update_if_found_func(
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	ut_a(new_block->frame == page_align(new_data));
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-#ifdef UNIV_SYNC_DEBUG
-	ut_ad(rw_lock_own(&btr_search_latch, RW_LOCK_EX));
-#endif /* UNIV_SYNC_DEBUG */
+
+	ut_d(ha_btr_search_latch_x_locked(table));
 
 	if (!btr_search_enabled) {
 		return(FALSE);
@@ -343,7 +391,6 @@ ha_search_and_update_if_found_func(
 /*****************************************************************//**
 Removes from the chain determined by fold all nodes whose data pointer
 points to the page given. */
-UNIV_INTERN
 void
 ha_remove_all_nodes_to_page(
 /*========================*/
@@ -386,14 +433,13 @@ ha_remove_all_nodes_to_page(
 
 		node = ha_chain_get_next(node);
 	}
-#endif
+#endif /* UNIV_DEBUG */
 }
 
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 /*************************************************************//**
 Validates a given range of the cells in hash table.
-@return	TRUE if ok */
-UNIV_INTERN
+@return TRUE if ok */
 ibool
 ha_validate(
 /*========*/
@@ -421,12 +467,9 @@ ha_validate(
 		     node = node->next) {
 
 			if (hash_calc_hash(node->fold, table) != i) {
-				ut_print_timestamp(stderr);
-				fprintf(stderr,
-					"InnoDB: Error: hash table node"
-					" fold value %lu does not\n"
-					"InnoDB: match the cell number %lu.\n",
-					(ulong) node->fold, (ulong) i);
+				ib::error() << "Hash table node fold value "
+					<< node->fold << " does not match the"
+					" cell number " << i << ".";
 
 				ok = FALSE;
 			}
@@ -439,7 +482,6 @@ ha_validate(
 
 /*************************************************************//**
 Prints info of a hash table. */
-UNIV_INTERN
 void
 ha_print_info(
 /*==========*/

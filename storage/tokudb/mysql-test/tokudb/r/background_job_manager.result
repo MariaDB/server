@@ -17,7 +17,7 @@ set global tokudb_debug_pause_background_job_manager=TRUE;
 show create table information_schema.tokudb_background_job_status;
 Table	Create Table
 TokuDB_background_job_status	CREATE TEMPORARY TABLE `TokuDB_background_job_status` (
-  `id` bigint(0) NOT NULL DEFAULT '0',
+  `id` bigint(0) NOT NULL DEFAULT 0,
   `database_name` varchar(256) NOT NULL DEFAULT '',
   `table_name` varchar(256) NOT NULL DEFAULT '',
   `job_type` varchar(256) NOT NULL DEFAULT '',

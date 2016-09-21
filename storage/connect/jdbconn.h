@@ -24,7 +24,7 @@
 //efine MAX_FNAME_LEN    256    // Max size of field names
 //efine MAX_STRING_INFO  256    // Max size of string from SQLGetInfo
 //efine MAX_DNAME_LEN    256    // Max size of Recordset names
-#define MAX_CONNECT_LEN  512    // Max size of Connect string
+//efine MAX_CONNECT_LEN  512    // Max size of Connect string
 //efine MAX_CURSOR_NAME  18     // Max size of a cursor name
 #define DEFAULT_FIELD_TYPE 0    // TYPE_NULL
 
@@ -169,12 +169,15 @@ protected:
 	jmethodID intfldid;									// The IntField method ID
 	jmethodID dblfldid;									// The DoubleField method ID
 	jmethodID fltfldid;									// The FloatField method ID
-	jmethodID datfldid;									// The TimestampField method ID
+	jmethodID datfldid;									// The DateField method ID
+	jmethodID timfldid;									// The TimeField method ID
+	jmethodID tspfldid;									// The TimestampField method ID
 	jmethodID bigfldid;									// The BigintField method ID
 	//DWORD     m_LoginTimeout;
 //DWORD     m_QueryTimeout;
 //DWORD     m_UpdateOptions;
 	char     *Msg;
+	char     *m_Wrap;
 	char      m_IDQuoteChar[2];
 	PSZ       m_Driver;
 	PSZ       m_Url;

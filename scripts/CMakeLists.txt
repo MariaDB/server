@@ -242,6 +242,14 @@ ELSE()
       wsrep_sst_xtrabackup-v2
     )
   ENDIF()
+  IF (NOT WITHOUT_SERVER)
+    SET(SERVER_SCRIPTS
+      mysql_fix_extensions
+      mysqld_multi
+      mysqld_safe
+      mysqldumpslow
+    )
+  ENDIF()
   # Configure this one, for testing, but do not install it.
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysql_config.pl.in
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_config.pl ESCAPE_QUOTES @ONLY)
@@ -249,7 +257,6 @@ ELSE()
   SET(BIN_SCRIPTS
     msql2mysql
     mysql_config
-    mysql_fix_extensions
     mysql_setpermission
     mysql_secure_installation
     mysqlaccess
@@ -257,9 +264,7 @@ ELSE()
     mysql_find_rows
     mytop
     mysqlhotcopy
-    mysqldumpslow
-    mysqld_multi
-    mysqld_safe
+    ${SERVER_SCRIPTS}
     ${WSREP_BINARIES}
     ${SYSTEMD_SCRIPTS}
   )

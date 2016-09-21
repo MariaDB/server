@@ -359,7 +359,7 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_NO_CONNECTION,          "Could not connect to storage engine");
   SETMSG(HA_ERR_TABLE_DEF_CHANGED,      ER_DEFAULT(ER_TABLE_DEF_CHANGED));
   SETMSG(HA_ERR_FOREIGN_DUPLICATE_KEY,  "FK constraint would lead to duplicate key");
-  SETMSG(HA_ERR_TABLE_NEEDS_UPGRADE,    "Table upgrade required. Please do \"REPAIR TABLE %`\" or dump/reload to fix it");
+  SETMSG(HA_ERR_TABLE_NEEDS_UPGRADE,    ER_DEFAULT(ER_TABLE_NEEDS_UPGRADE));
   SETMSG(HA_ERR_TABLE_READONLY,         ER_DEFAULT(ER_OPEN_AS_READONLY));
   SETMSG(HA_ERR_AUTOINC_READ_FAILED,    ER_DEFAULT(ER_AUTOINC_READ_FAILED));
   SETMSG(HA_ERR_AUTOINC_ERANGE,         ER_DEFAULT(ER_WARN_DATA_OUT_OF_RANGE));
@@ -370,6 +370,8 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_TABLE_IN_FK_CHECK,	ER_DEFAULT(ER_TABLE_IN_FK_CHECK));
   SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
   SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
+  SETMSG(HA_ERR_FK_DEPTH_EXCEEDED,      "Foreign key cascade delete/update exceeds");
+  SETMSG(HA_ERR_TABLESPACE_MISSING,     ER_DEFAULT(ER_TABLESPACE_MISSING));
 
   /* Register the error messages for use with my_error(). */
   return my_error_register(get_handler_errmsgs, HA_ERR_FIRST, HA_ERR_LAST);
@@ -1357,7 +1359,8 @@ int ha_commit_trans(THD *thd, bool all)
 
   uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
   /* rw_trans is TRUE when we in a transaction changing data */
-  bool rw_trans= is_real_trans && (rw_ha_count > 0);
+  bool rw_trans= is_real_trans &&
+                 (rw_ha_count > !thd->is_current_stmt_binlog_disabled());
   MDL_request mdl_request;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
@@ -2733,6 +2736,15 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
   return result;
 }
 
+
+bool handler::ha_was_semi_consistent_read()
+{
+  bool result= was_semi_consistent_read();
+  if (result)
+    increment_statistics(&SSV::ha_read_retry_count);
+  return result;
+}
+
 /* Initialize handler for random reading, with error handling */
 
 int handler::ha_rnd_init_with_error(bool scan)
@@ -3525,9 +3537,10 @@ void handler::print_error(int error, myf errflag)
     DBUG_VOID_RETURN;
   }
   case HA_ERR_TABLE_NEEDS_UPGRADE:
+    textno= ER_TABLE_NEEDS_UPGRADE;
     my_error(ER_TABLE_NEEDS_UPGRADE, errflag,
              "TABLE", table_share->table_name.str);
-    break;
+    DBUG_VOID_RETURN;
   case HA_ERR_NO_PARTITION_FOUND:
     textno=ER_WRONG_PARTITION_NAME;
     break;
@@ -5809,8 +5822,6 @@ int handler::ha_external_lock(THD *thd, int lock_type)
     }
   }
 
-  ha_statistic_increment(&SSV::ha_external_lock_count);
-
   /*
     We cache the table flags if the locking succeeded. Otherwise, we
     keep them as they were when they were fetched in ha_open().
@@ -5876,6 +5887,26 @@ int handler::ha_reset()
 }
 
 
+static int check_wsrep_max_ws_rows()
+{
+#ifdef WITH_WSREP
+  if (wsrep_max_ws_rows)
+  {
+    THD *thd= current_thd;
+    thd->wsrep_affected_rows++;
+    if (thd->wsrep_exec_mode != REPL_RECV &&
+        thd->wsrep_affected_rows > wsrep_max_ws_rows)
+    {
+      trans_rollback_stmt(thd) || trans_rollback(thd);
+      my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
+      return ER_ERROR_DURING_COMMIT;
+    }
+  }
+#endif /* WITH_WSREP */
+  return 0;
+}
+
+
 int handler::ha_write_row(uchar *buf)
 {
   int error;
@@ -5899,7 +5930,7 @@ int handler::ha_write_row(uchar *buf)
     error= binlog_log_row(table, 0, buf, log_func);
   }
   DEBUG_SYNC_C("ha_write_row_end");
-  DBUG_RETURN(error);
+  DBUG_RETURN(error ? error : check_wsrep_max_ws_rows());
 }
 
 
@@ -5930,7 +5961,7 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
     rows_changed++;
     error= binlog_log_row(table, old_data, new_data, log_func);
   }
-  return error;
+  return error ? error : check_wsrep_max_ws_rows();
 }
 
 int handler::ha_delete_row(const uchar *buf)
@@ -5957,7 +5988,7 @@ int handler::ha_delete_row(const uchar *buf)
     rows_changed++;
     error= binlog_log_row(table, buf, 0, log_func);
   }
-  return error;
+  return error ? error : check_wsrep_max_ws_rows();
 }
 
 
@@ -6088,7 +6119,10 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
     DBUG_RETURN(0);
   }
 
-  THD_TRANS *trans= &victim_thd->transaction.all;
+  /* Try statement transaction if standard one is not set. */
+  THD_TRANS *trans= (victim_thd->transaction.all.ha_list) ?
+    &victim_thd->transaction.all : &victim_thd->transaction.stmt;
+
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
 
   for (; ha_info; ha_info= ha_info_next)
@@ -6096,8 +6130,8 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
     handlerton *hton= ha_info->ht();
     if (!hton->abort_transaction)
     {
-      /* Skip warning for binlog SE */
-      if (hton->db_type != DB_TYPE_BINLOG)
+      /* Skip warning for binlog & wsrep. */
+      if (hton->db_type != DB_TYPE_BINLOG && hton != wsrep_hton)
       {
         WSREP_WARN("Cannot abort transaction.");
       }

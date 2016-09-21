@@ -305,6 +305,7 @@ if ($opt_lock_tables)
 if (!$opt_skip_delete)
 {
   do_query($dbh,"drop table elim_facts, elim_attr1, elim_attr2" . $server->{'drop_attr'});
+  $dbh->do("drop view elim_current_facts");
 }
 
 if ($opt_fast && defined($server->{vacuum}))

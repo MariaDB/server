@@ -57,6 +57,17 @@ bool cmp_items(Item *a, Item *b)
 }
 
 
+/**
+  Set max_sum_func_level if it is needed
+*/
+inline void set_max_sum_func_level(THD *thd, SELECT_LEX *select)
+{
+  if (thd->lex->in_sum_func &&
+      thd->lex->in_sum_func->nest_level >= select->nest_level)
+    set_if_bigger(thd->lex->in_sum_func->max_sum_func_level,
+                  select->nest_level - 1);
+}
+
 /*****************************************************************************
 ** Item functions
 *****************************************************************************/
@@ -487,6 +498,7 @@ Item::Item(THD *thd):
       thd->lex->current_select->select_n_having_items++;
   }
 }
+
 
 /**
   Constructor used by Item_field, Item_ref & aggregate (sum)
@@ -956,8 +968,7 @@ bool Item_field::check_field_expression_processor(void *arg)
 {
   if (field->flags & NO_DEFAULT_VALUE_FLAG)
     return 0;
-  if ((field->default_value || field->has_insert_default_function() ||
-       field->vcol_info))
+  if ((field->default_value && field->default_value->flags) || field->vcol_info)
   {
     Field *org_field= (Field*) arg;
     if (field == org_field ||
@@ -2079,6 +2090,9 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
         set(0, DERIVATION_NONE, 0);
         return 1;
       }
+      if (collation->state & MY_CS_BINSORT &&
+          dt.collation->state & MY_CS_BINSORT)
+        return 1;
       if (collation->state & MY_CS_BINSORT)
         return 0;
       if (dt.collation->state & MY_CS_BINSORT)
@@ -2256,6 +2270,83 @@ bool Item_func_or_sum::agg_item_set_converter(const DTCollation &coll,
   if (arena)
     thd->restore_active_arena(arena, &backup);
   return res;
+}
+
+
+/**
+  @brief
+    Building clone for Item_func_or_sum
+    
+  @param thd        thread handle
+  @param mem_root   part of the memory for the clone   
+
+  @details
+    This method gets copy of the current item and also 
+    build clones for its referencies. For the referencies 
+    build_copy is called again.
+      
+   @retval
+     clone of the item
+     0 if an error occured
+*/ 
+
+Item* Item_func_or_sum::build_clone(THD *thd, MEM_ROOT *mem_root)
+{
+  Item_func_or_sum *copy= (Item_func_or_sum *) get_copy(thd, mem_root);
+  if (!copy)
+    return 0;
+  if (arg_count > 2)
+  {
+    copy->args= 
+      (Item**) alloc_root(mem_root, sizeof(Item*) * arg_count);
+    if (!copy->args)
+      return 0;
+  }
+  else if (arg_count > 0)
+    copy->args= copy->tmp_arg;
+
+   
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Item *arg_clone= args[i]->build_clone(thd, mem_root);
+    if (!arg_clone)
+      return 0;
+    copy->args[i]= arg_clone;
+  }
+  return copy;
+}
+
+
+/**
+  @brief
+    Building clone for Item_ref
+    
+  @param thd        thread handle
+  @param mem_root   part of the memory for the clone   
+
+  @details
+    This method gets copy of the current item and also 
+    builds clone for its reference. 
+      
+   @retval
+     clone of the item
+     0 if an error occured
+*/ 
+
+Item* Item_ref::build_clone(THD *thd, MEM_ROOT *mem_root)
+{
+  Item_ref *copy= (Item_ref *) get_copy(thd, mem_root);
+  if (!copy)
+    return 0;
+  copy->ref= 
+      (Item**) alloc_root(mem_root, sizeof(Item*));
+  if (!copy->ref)
+      return 0;
+  Item *item_clone= (* ref)->build_clone(thd, mem_root);
+  if (!item_clone)
+    return 0;
+  *copy->ref= item_clone;
+  return copy;
 }
 
 
@@ -4961,6 +5052,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     if (rf->fix_fields(thd, reference) || rf->check_cols(1))
       return -1;
 
+    /*
+      We can not "move" aggregate function in the place where
+      its arguments are not defined.
+    */
+    set_max_sum_func_level(thd, select);
     mark_as_dependent(thd, last_checked_context->select_lex,
                       context->select_lex, rf,
                       rf);
@@ -4969,6 +5065,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   }
   else
   {
+    /*
+      We can not "move" aggregate function in the place where
+      its arguments are not defined.
+    */
+    set_max_sum_func_level(thd, select);
     mark_as_dependent(thd, last_checked_context->select_lex,
                       context->select_lex,
                       this, (Item_ident*)*reference);
@@ -5100,6 +5201,11 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               return(1);
             }
 
+            /*
+              We can not "move" aggregate function in the place where
+              its arguments are not defined.
+            */
+            set_max_sum_func_level(thd, thd->lex->current_select);
             set_field(new_field);
             return 0;
           }
@@ -5124,6 +5230,11 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
                                   select->parsing_place == IN_GROUP_BY && 
 				  alias_name_used  ?  *rf->ref : rf);
 
+            /*
+              We can not "move" aggregate function in the place where
+              its arguments are not defined.
+            */
+            set_max_sum_func_level(thd, thd->lex->current_select);
             return FALSE;
           }
         }
@@ -5220,6 +5331,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   fixed= 1;
+  if (field->vcol_info)
+    fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
       !outer_fixed && !thd->lex->in_sum_func &&
       thd->lex->current_select->cur_pos_in_select_list != UNDEF_POS &&
@@ -6702,6 +6815,121 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
       Item_ref(thd, &select->context, &ref_pointer_array[el],
                table_name, field_name);
     return ref;
+  }
+  return this;
+}
+
+
+Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
+{
+  st_select_lex *sl= (st_select_lex *)arg;
+  table_map map= sl->master_unit()->derived->table->map;
+  if (!((Item_field*)this)->item_equal)
+  {
+    if (used_tables() == map)
+    {
+      Item_ref *rf= 
+	new (thd->mem_root) Item_ref(thd, &sl->context, 
+	  	   	             NullS, NullS,
+				   ((Item_field*) this)->field_name);
+      if (!rf)
+	return 0;
+      return rf;
+    }
+  }
+  else
+  {
+    Item_equal *cond= (Item_equal *) ((Item_field*)this)->item_equal;
+    Item_equal_fields_iterator li(*cond);
+    Item *item;
+    while ((item=li++))
+    {
+      if (item->used_tables() == map && item->real_item()->type() == FIELD_ITEM)
+      {
+	Item_ref *rf= 
+	  new (thd->mem_root) Item_ref(thd, &sl->context, 
+				       NullS, NullS,
+			      ((Item_field*) (item->real_item()))->field_name);
+	if (!rf)
+	  return 0;
+	return rf;
+      }
+    }
+  }
+  return this;
+}
+
+
+Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
+{
+  Item *producing_item;
+  st_select_lex *sl= (st_select_lex *)arg;
+  List_iterator_fast<Item> li(sl->item_list);
+  table_map map= sl->master_unit()->derived->table->map;
+  if (used_tables() == map)
+  {
+    uint field_no= ((Item_field*) this)->field->field_index;
+    for (uint i= 0; i <= field_no; i++)
+      producing_item= li++;
+    return producing_item->build_clone(thd, thd->mem_root);
+  }
+  else if (((Item_field*)this)->item_equal)
+  {
+    Item_equal *cond= (Item_equal *) ((Item_field*)this)->item_equal;
+    Item_equal_fields_iterator it(*cond);
+    Item *item;
+    while ((item=it++))
+    {
+      if (item->used_tables() == map && item->real_item()->type() == FIELD_ITEM)
+      {   
+	Item_field *field_item= (Item_field *) (item->real_item());
+	li.rewind();
+        uint field_no= field_item->field->field_index;
+        for (uint i= 0; i <= field_no; i++)
+          producing_item= li++;
+        return producing_item->build_clone(thd, thd->mem_root);
+      }
+    }
+  }
+  return this;
+}
+
+
+Item *Item_field::derived_grouping_field_transformer_for_where(THD *thd,
+                                                               uchar *arg)
+{
+  st_select_lex *sl= (st_select_lex *)arg;
+  List_iterator<Grouping_tmp_field> li(sl->grouping_tmp_fields);
+  Grouping_tmp_field *field;
+  table_map map= sl->master_unit()->derived->table->map;
+  if (used_tables() == map)
+  {
+    while ((field=li++))
+    {
+      if (((Item_field*) this)->field == field->tmp_field)
+	return field->producing_item->build_clone(thd, thd->mem_root);
+    }
+  }
+  else if (((Item_field*)this)->item_equal)
+  {
+    Item_equal *cond= (Item_equal *) ((Item_field*)this)->item_equal;
+    Item_equal_fields_iterator it(*cond);
+    Item *item;
+    while ((item=it++))
+    {
+      if (item->used_tables() == map && item->real_item()->type() == FIELD_ITEM)
+      {   
+	Item_field *field_item= (Item_field *) (item->real_item());
+	li.rewind();
+        while ((field=li++))
+        {
+	  if (field_item->field == field->tmp_field)
+	  {
+	    return field->producing_item->build_clone(thd, thd->mem_root);
+	  }
+        }  
+      }
+    }
   }
   return this;
 }
@@ -8232,7 +8460,8 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   set_field(def_field);
   if (field->default_value)
   {
-    if (field->default_value->expr_item) // it's NULL during CREATE TABLE
+    fix_session_vcol_expr_for_read(thd, field, field->default_value);
+    if (thd->mark_used_columns != MARK_COLUMNS_NONE)
       field->default_value->expr_item->walk(&Item::register_field_in_read_map, 1, 0);
     IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
   }
@@ -8258,7 +8487,7 @@ void Item_default_value::print(String *str, enum_query_type query_type)
 
 void Item_default_value::calculate()
 {
-  if (field->default_value || field->has_insert_default_function())
+  if (field->default_value)
     field->set_default();
 }
 
@@ -9907,7 +10136,7 @@ table_map Item_ref_null_helper::used_tables() const
 #ifndef DBUG_OFF
 
 /* Debugger help function */
-static char dbug_item_print_buf[256];
+static char dbug_item_print_buf[2048];
 
 const char *dbug_print_item(Item *item)
 {
@@ -9931,5 +10160,97 @@ const char *dbug_print_item(Item *item)
     return "Couldn't fit into buffer";
 }
 
+const char *dbug_print_select(SELECT_LEX *sl)
+{
+  char *buf= dbug_item_print_buf;
+  String str(buf, sizeof(dbug_item_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!sl)
+    return "(SELECT_LEX*)NULL";
+
+  THD *thd= current_thd;
+  ulonglong save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
+
+  sl->print(thd, &str, QT_EXPLAIN);
+
+  thd->variables.option_bits= save_option_bits;
+
+  if (str.c_ptr() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+
+const char *dbug_print_unit(SELECT_LEX_UNIT *un)
+{
+  char *buf= dbug_item_print_buf;
+  String str(buf, sizeof(dbug_item_print_buf), &my_charset_bin);
+  str.length(0);
+  if (!un)
+    return "(SELECT_LEX_UNIT*)NULL";
+
+  THD *thd= current_thd;
+  ulonglong save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
+
+  un->print(&str, QT_EXPLAIN);
+
+  thd->variables.option_bits= save_option_bits;
+
+  if (str.c_ptr() == buf)
+    return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+
+
 #endif /*DBUG_OFF*/
 
+bool Item_field::exclusive_dependence_on_table_processor(void *map)
+{
+  table_map tab_map= *((table_map *) map);
+  return !((used_tables() == tab_map || 
+         (item_equal && item_equal->used_tables() & tab_map))); 
+}
+
+bool Item_field::exclusive_dependence_on_grouping_fields_processor(void *arg)
+{
+  st_select_lex *sl= (st_select_lex *)arg;
+  List_iterator<Grouping_tmp_field> li(sl->grouping_tmp_fields);
+  Grouping_tmp_field *field;
+  table_map map= sl->master_unit()->derived->table->map;
+  if (used_tables() == map)
+  {
+    while ((field=li++))
+    {
+      if (((Item_field*) this)->field == field->tmp_field)
+        return false;
+    }
+  }
+  else if (((Item_field*)this)->item_equal)
+  {
+    Item_equal *cond= (Item_equal *) ((Item_field*)this)->item_equal;
+    Item_equal_fields_iterator it(*cond);
+    Item *item;
+    while ((item=it++))
+    {
+      if (item->used_tables() == map && item->real_item()->type() == FIELD_ITEM)
+      {
+	li.rewind();
+        while ((field=li++))
+        {
+	  if (((Item_field *)(item->real_item()))->field == field->tmp_field)
+	    return false;
+	}
+      }
+    }
+  }
+  return true;
+}
+
+void Item::register_in(THD *thd)
+{
+  next= thd->free_list;
+  thd->free_list= this;
+}

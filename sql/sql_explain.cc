@@ -547,7 +547,12 @@ void Explain_union::print_explain_json(Explain_query *query,
   bool started_object= print_explain_json_cache(writer, is_analyze);
 
   writer->add_member("query_block").start_object();
-  writer->add_member("union_result").start_object();
+  
+  if (is_recursive_cte)
+    writer->add_member("recursive_union").start_object();
+  else
+    writer->add_member("union_result").start_object();
+
   // using_temporary_table
   make_union_table_name(table_name_buffer);
   writer->add_member("table_name").add_str(table_name_buffer);

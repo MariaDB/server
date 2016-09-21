@@ -1,26 +1,19 @@
-#
-# Bug#34300 Tinyblob & tinytext fields currupted after export/import and alter in 5.1
-# http://bugs.mysql.com/34300
-#
+--echo #
+--echo # Bug#34300 Tinyblob & tinytext fields currupted after export/import and alter in 5.1
+--echo #
 
 -- source include/have_innodb.inc
 
-if (`select plugin_auth_version <= "5.6.22-MariaDB-72.0" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in XtraDB as of 5.6.22-MariaDB-72.0 or earlier
-}
-
 -- disable_query_log
--- disable_result_log
-
-call mtr.add_suppression("InnoDB: The total blob data length");
+call mtr.add_suppression("InnoDB: Warning: a long semaphore wait:");
+call mtr.add_suppression("The age of the last checkpoint is");
 
 # set packet size and reconnect 
 let $max_packet=`select @@global.max_allowed_packet`;
+-- enable_query_log
+
 SET @@global.max_allowed_packet=16777216;
 --connect (newconn, localhost, root,,)
-
---enable_result_log
 
 CREATE TABLE bug34300 (
   f4 TINYTEXT,
@@ -28,8 +21,6 @@ CREATE TABLE bug34300 (
   f8 TINYBLOB
 ) ENGINE=InnoDB;
 
---replace_regex /\(> [0-9]*\)/(> ####)/
---error ER_TOO_BIG_ROWSIZE
 INSERT INTO bug34300 VALUES ('xxx', repeat('a', 8459264), 'zzz');
 
 SELECT f4, f8 FROM bug34300;
@@ -38,5 +29,10 @@ ALTER TABLE bug34300 ADD COLUMN (f10 INT);
 
 SELECT f4, f8 FROM bug34300;
 
+--echo # Cleanup
 DROP TABLE bug34300;
+
+-- disable_query_log
 EVAL SET @@global.max_allowed_packet=$max_packet;
+-- enable_query_log
+

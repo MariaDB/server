@@ -512,6 +512,7 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
         (Subquery is correlated to the immediate outer query &&
          Subquery !contains {GROUP BY, ORDER BY [LIMIT],
          aggregate functions}) && subquery predicate is not under "NOT IN"))
+    5. Subquery does not contain recursive references
 
   A note about prepared statements: we want the if-branch to be taken on
   PREPARE and each EXECUTE. The rewrites are only done once, but we need 
@@ -528,7 +529,8 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
                         OPTIMIZER_SWITCH_PARTIAL_MATCH_ROWID_MERGE) || //3
          optimizer_flag(thd,
                         OPTIMIZER_SWITCH_PARTIAL_MATCH_TABLE_SCAN)) && //3
-        !in_subs->is_correlated)                                       //4
+        !in_subs->is_correlated &&                                     //4
+        !in_subs->with_recursive_reference)                            //5
    {
      return TRUE;
    }
@@ -1558,7 +1560,12 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   {
     tl->set_tablenr(table_no);
     if (tl->is_jtbm())
+    {
       tl->jtbm_table_no= table_no;
+      Item *dummy= tl->jtbm_subselect;
+      tl->jtbm_subselect->fix_after_pullout(parent_lex, &dummy);
+      DBUG_ASSERT(dummy == tl->jtbm_subselect);
+    }
     SELECT_LEX *old_sl= tl->select_lex;
     tl->select_lex= parent_join->select_lex; 
     for (TABLE_LIST *emb= tl->embedding;
