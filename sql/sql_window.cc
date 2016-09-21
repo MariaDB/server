@@ -1891,7 +1891,15 @@ class Frame_positional_cursor : public Frame_cursor
 {
  public:
   Frame_positional_cursor(const Frame_cursor &position_cursor) :
-    position_cursor(position_cursor) {}
+    position_cursor(position_cursor), bound(NULL), offset(NULL),
+    negative_offset(false) {}
+
+  Frame_positional_cursor(const Frame_cursor &position_cursor,
+                          const Frame_cursor &bound,
+                          Item &offset,
+                          bool negative_offset) :
+    position_cursor(position_cursor), bound(&bound), offset(&offset),
+    negative_offset(negative_offset) {}
 
   void init(READ_RECORD *info)
   {
@@ -1905,8 +1913,13 @@ class Frame_positional_cursor : public Frame_cursor
 
   void next_partition(ha_rows rownum)
   {
-    cursor.move_to(position_cursor.get_curr_rownum());
-    add_value_to_items();
+    ha_rows position= get_current_position();
+    if (position_is_within_bounds(position))
+    {
+      cursor.move_to(position);
+      cursor.fetch();
+      add_value_to_items();
+    }
   }
 
   void pre_next_row()
@@ -1915,11 +1928,15 @@ class Frame_positional_cursor : public Frame_cursor
 
   void next_row()
   {
-    if (position_cursor.is_outside_computation_bounds())
+    ha_rows position= get_current_position();
+    if (!position_is_within_bounds(position))
       clear_sum_functions();
-
-    cursor.move_to(position_cursor.get_curr_rownum());
-    add_value_to_items();
+    else
+    {
+      cursor.move_to(position_cursor.get_curr_rownum());
+      cursor.fetch();
+      add_value_to_items();
+    }
   }
 
   ha_rows get_curr_rownum() const
@@ -1928,8 +1945,53 @@ class Frame_positional_cursor : public Frame_cursor
   }
 
 private:
+  /* Check if a our position is within bounds.
+   * The position is passed as a parameter to avoid recalculating it. */
+  bool position_is_within_bounds(ha_rows position)
+  {
+    if (!offset)
+      return !position_cursor.is_outside_computation_bounds();
+
+    /* No valid bound to compare to. */
+    if (position_cursor.is_outside_computation_bounds() ||
+        bound->is_outside_computation_bounds())
+      return false;
+
+    if (negative_offset)
+    {
+      if (position_cursor.get_curr_rownum() < position)
+        return false; /* Overflow below 0. */
+      if (position < bound->get_curr_rownum()) /* We are over the bound. */
+        return false;
+    }
+    else
+    {
+      if (position_cursor.get_curr_rownum() > position)
+        return false; /* Overflow over MAX_HA_ROWS. */
+      if (position > bound->get_curr_rownum()) /* We are over the bound. */
+        return false;
+    }
+
+    return true;
+  }
+
+  /* Get the current position, accounting for the offset value, if present.
+     NOTE: This function does not check over/underflow.
+  */
+  ha_rows get_current_position()
+  {
+    ha_rows position = position_cursor.get_curr_rownum();
+    if (offset)
+      position += offset->val_int() * (negative_offset ? -1 : 1);
+    return position;
+  }
+
   const Frame_cursor &position_cursor;
+  const Frame_cursor *bound;
+  Item *offset;
   Table_read_cursor cursor;
+
+  bool negative_offset;
 };
 
 
