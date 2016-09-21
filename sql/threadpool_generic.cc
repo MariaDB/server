@@ -22,6 +22,17 @@
 
 #ifdef HAVE_POOL_OF_THREADS
 
+#ifdef _WIN32
+/* AIX may define this, too ?*/
+#define HAVE_IOCP 
+#endif
+
+#ifdef HAVE_IOCP
+#define OPTIONAL_IO_POLL_READ_PARAM &overlapped
+#else 
+#define OPTIONAL_IO_POLL_READ_PARAM 0
+#endif
+
 #include <sql_connect.h>
 #include <mysqld.h>
 #include <debug_sync.h>
@@ -38,9 +49,22 @@ typedef struct kevent native_event;
 #elif defined (__sun)
 #include <port.h>
 typedef port_event_t native_event;
+#elif defined (HAVE_IOCP)
+typedef OVERLAPPED_ENTRY native_event;
 #else
 #error threadpool is not available on this platform
 #endif
+
+
+static void io_poll_close(int fd)
+{
+#ifdef _WIN32
+  CloseHandle((HANDLE)fd);
+#else
+  close(fd);
+#endif
+}
+
 
 /** Maximum number of native events a listener can read in one go */
 #define MAX_EVENTS 1024
@@ -108,32 +132,45 @@ typedef I_P_List<worker_thread_t, I_P_List_adapter<worker_thread_t,
                  >
 worker_list_t;
 
-struct connection_t
+struct TP_connection_generic:public TP_connection
 {
+  TP_connection_generic(CONNECT *c);
+  ~TP_connection_generic();
+ 
+  virtual int init(){ return 0; };
+  virtual void set_io_timeout(int sec);
+  virtual int  start_io();
+  virtual void wait_begin(int type);
+  virtual void wait_end();
 
-  THD *thd;
   thread_group_t *thread_group;
-  connection_t *next_in_queue;
-  connection_t **prev_in_queue;
+  TP_connection_generic *next_in_queue;
+  TP_connection_generic **prev_in_queue;
   ulonglong abs_wait_timeout;
-  CONNECT* connect;
-  bool logged_in;
+  ulonglong dequeue_time;
   bool bound_to_poll_descriptor;
-  bool waiting;
+  int waiting;
+#ifdef HAVE_IOCP
+  OVERLAPPED overlapped;
+#endif
 };
 
-typedef I_P_List<connection_t,
-                     I_P_List_adapter<connection_t,
-                                      &connection_t::next_in_queue,
-                                      &connection_t::prev_in_queue>,
+typedef TP_connection_generic TP_connection_generic;
+
+typedef I_P_List<TP_connection_generic,
+                     I_P_List_adapter<TP_connection_generic,
+                                      &TP_connection_generic::next_in_queue,
+                                      &TP_connection_generic::prev_in_queue>,
                      I_P_List_null_counter,
-                     I_P_List_fast_push_back<connection_t> >
+                     I_P_List_fast_push_back<TP_connection_generic> >
 connection_queue_t;
+
+const int NQUEUES=2; /* We have high and low priority queues*/
 
 struct thread_group_t 
 {
   mysql_mutex_t mutex;
-  connection_queue_t queue;
+  connection_queue_t queues[NQUEUES];
   worker_list_t waiting_threads; 
   worker_thread_t *listener;
   pthread_attr_t *pthread_attr;
@@ -147,9 +184,8 @@ struct thread_group_t
   ulonglong last_thread_creation_time;
   int  shutdown_pipe[2];
   bool shutdown;
-  bool stalled;
-  
-} MY_ALIGNED(512);
+  bool stalled; 
+} MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE);
 
 static thread_group_t *all_groups;
 static uint group_count;
@@ -175,15 +211,13 @@ struct pool_timer_t
 
 static pool_timer_t pool_timer;
 
-static void queue_put(thread_group_t *thread_group, connection_t *connection);
+static void queue_put(thread_group_t *thread_group, TP_connection_generic *connection);
+static void queue_put(thread_group_t *thread_group, native_event *ev, int cnt);
 static int  wake_thread(thread_group_t *thread_group);
-static void handle_event(connection_t *connection);
 static int  wake_or_create_thread(thread_group_t *thread_group);
 static int  create_worker(thread_group_t *thread_group);
 static void *worker_main(void *param);
 static void check_stall(thread_group_t *thread_group);
-static void connection_abort(connection_t *connection);
-static void set_wait_timeout(connection_t *connection);
 static void set_next_timeout_check(ulonglong abstime);
 static void print_pool_blocked_message(bool);
 
@@ -194,12 +228,12 @@ static void print_pool_blocked_message(bool);
  This maps to different APIs on different Unixes.
  
  Supported are currently Linux with epoll, Solaris with event ports,
- OSX and BSD with kevent. All those API's are used with one-shot flags
+ OSX and BSD with kevent, Windows with IOCP. All those API's are used with one-shot flags
  (the event is signalled once client has written something into the socket, 
  then socket is removed from the "poll-set" until the  command is finished,
  and we need to re-arm/re-register socket)
  
- No implementation for poll/select/AIO is currently provided.
+ No implementation for poll/select is currently provided.
  
  The API closely resembles all of the above mentioned platform APIs 
  and consists of following functions. 
@@ -208,7 +242,7 @@ static void print_pool_blocked_message(bool);
  Creates an io_poll descriptor 
  On Linux: epoll_create()
  
- - io_poll_associate_fd(int poll_fd, int fd, void *data)
+ - io_poll_associate_fd(int poll_fd, int fd, void *data, void *opt)
  Associate file descriptor with io poll descriptor 
  On Linux : epoll_ctl(..EPOLL_CTL_ADD))
  
@@ -217,7 +251,7 @@ static void print_pool_blocked_message(bool);
   On Linux: epoll_ctl(..EPOLL_CTL_DEL)
  
  
- - io_poll_start_read(int poll_fd,int fd, void *data)
+ - io_poll_start_read(int poll_fd,int fd, void *data, void *opt)
  The same as io_poll_associate_fd(), but cannot be used before 
  io_poll_associate_fd() was called.
  On Linux : epoll_ctl(..EPOLL_CTL_MOD)
@@ -245,7 +279,7 @@ static int io_poll_create()
 }
 
 
-int io_poll_associate_fd(int pollfd, int fd, void *data)
+int io_poll_associate_fd(int pollfd, int fd, void *data, void*)
 {
   struct epoll_event ev;
   ev.data.u64= 0; /* Keep valgrind happy */
@@ -256,7 +290,7 @@ int io_poll_associate_fd(int pollfd, int fd, void *data)
 
 
 
-int io_poll_start_read(int pollfd, int fd, void *data)
+int io_poll_start_read(int pollfd, int fd, void *data, void *)
 {
   struct epoll_event ev;
   ev.data.u64= 0; /* Keep valgrind happy */
@@ -315,7 +349,7 @@ int io_poll_create()
   return kqueue();
 }
 
-int io_poll_start_read(int pollfd, int fd, void *data)
+int io_poll_start_read(int pollfd, int fd, void *data,void *)
 {
   struct kevent ke;
   MY_EV_SET(&ke, fd, EVFILT_READ, EV_ADD|EV_ONESHOT, 
@@ -324,12 +358,12 @@ int io_poll_start_read(int pollfd, int fd, void *data)
 }
 
 
-int io_poll_associate_fd(int pollfd, int fd, void *data)
+int io_poll_associate_fd(int pollfd, int fd, void *data,void *)
 {
   struct kevent ke;
   MY_EV_SET(&ke, fd, EVFILT_READ, EV_ADD|EV_ONESHOT, 
          0, 0, data);
-  return io_poll_start_read(pollfd,fd, data); 
+  return io_poll_start_read(pollfd,fd, data, 0); 
 }
 
 
@@ -371,14 +405,14 @@ static int io_poll_create()
   return port_create();
 }
 
-int io_poll_start_read(int pollfd, int fd, void *data)
+int io_poll_start_read(int pollfd, int fd, void *data, void *)
 {
   return port_associate(pollfd, PORT_SOURCE_FD, fd, POLLIN, data);
 }
 
-static int io_poll_associate_fd(int pollfd, int fd, void *data)
+static int io_poll_associate_fd(int pollfd, int fd, void *data, void *)
 {
-  return io_poll_start_read(pollfd, fd, data);
+  return io_poll_start_read(pollfd, fd, data, 0);
 }
 
 int io_poll_disassociate_fd(int pollfd, int fd)
@@ -410,23 +444,115 @@ static void* native_event_get_userdata(native_event *event)
 {
   return event->portev_user;
 }
+
+#elif defined(HAVE_IOCP)
+
+static int io_poll_create()
+{
+  HANDLE h= CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
+  return (int)h;
+}
+
+
+int io_poll_start_read(int pollfd, int fd, void *, void *opt)
+{
+  DWORD num_bytes = 0;
+  static char c;
+
+  WSABUF buf;
+  buf.buf= &c;
+  buf.len= 0;
+  DWORD flags=0;
+  
+  if (WSARecv((SOCKET)fd, &buf, 1, &num_bytes, &flags, (OVERLAPPED *)opt, NULL) == 0)
+    return 0;
+
+  if (GetLastError() == ERROR_IO_PENDING)
+    return 0;
+
+  return 1;
+}
+
+
+static int io_poll_associate_fd(int pollfd, int fd, void *data, void *opt)
+{
+  HANDLE h= CreateIoCompletionPort((HANDLE)fd, (HANDLE)pollfd, (ULONG_PTR)data, 0);
+  if (!h) 
+    return -1;
+  return io_poll_start_read(pollfd,fd, 0, opt); 
+}
+
+
+int io_poll_disassociate_fd(int pollfd, int fd)
+{
+  /* Not possible to unbind/rebind file descriptor in IOCP. */
+  return 0;
+}
+
+
+int io_poll_wait(int pollfd, native_event *events, int maxevents, int timeout_ms)
+{
+  ULONG n;
+  BOOL ok = GetQueuedCompletionStatusEx((HANDLE)pollfd, events, 
+     maxevents, &n, timeout_ms, FALSE);
+ 
+  return ok ? (int)n : -1;
+}
+
+
+static void* native_event_get_userdata(native_event *event)
+{
+  return (void *)event->lpCompletionKey;
+}
+
 #endif
 
 
 /* Dequeue element from a workqueue */
 
-static connection_t *queue_get(thread_group_t *thread_group)
+static TP_connection_generic *queue_get(thread_group_t *thread_group)
 {
   DBUG_ENTER("queue_get");
   thread_group->queue_event_count++;
-  connection_t *c= thread_group->queue.front();
-  if (c)
+  TP_connection_generic *c;
+  for (int i=0; i < NQUEUES;i++)
   {
-    thread_group->queue.remove(c);
+    c= thread_group->queues[i].pop_front();
+    if (c)
+      DBUG_RETURN(c);
   }
-  DBUG_RETURN(c);  
+  DBUG_RETURN(0);  
 }
 
+static bool is_queue_empty(thread_group_t *thread_group)
+{
+  for (int i=0; i < NQUEUES; i++)
+  {
+    if (!thread_group->queues[i].is_empty())
+      return false;
+  }
+  return true;
+}
+
+
+static void queue_init(thread_group_t *thread_group)
+{
+  for (int i=0; i < NQUEUES; i++)
+  {
+    thread_group->queues[i].empty();
+  }
+}
+
+static void queue_put(thread_group_t *thread_group, native_event *ev, int cnt)
+{
+  ulonglong now= pool_timer.current_microtime;
+  for(int i=0; i < cnt; i++)
+  {
+    TP_connection_generic *c = (TP_connection_generic *)native_event_get_userdata(&ev[i]);
+    c->dequeue_time= now;
+    thread_group->queues[c->priority].push_back(c);
+  }
+}
 
 /* 
   Handle wait timeout : 
@@ -450,7 +576,7 @@ static void timeout_check(pool_timer_t *timer)
     if (thd->net.reading_or_writing != 1)
       continue;
  
-    connection_t *connection= (connection_t *)thd->event_scheduler.data;
+    TP_connection_generic *connection= (TP_connection_generic *)thd->event_scheduler.data;
     if (!connection)
     {
       /* 
@@ -462,11 +588,7 @@ static void timeout_check(pool_timer_t *timer)
 
     if(connection->abs_wait_timeout < timer->current_microtime)
     {
-      /* Wait timeout exceeded, kill connection. */
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      thd->killed = KILL_CONNECTION;
-      post_kill_notification(thd);
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      tp_timeout_handler(connection);
     }
     else 
     {
@@ -545,10 +667,23 @@ static void* timer_thread(void *param)
 
 void check_stall(thread_group_t *thread_group)
 {
-  if (mysql_mutex_trylock(&thread_group->mutex) != 0)
+  mysql_mutex_lock(&thread_group->mutex);
+
+  /*
+   Bump priority for the low priority connections that spent too much
+   time in low prio queue.
+  */
+  TP_connection_generic *c;
+  for (;;)
   {
-    /* Something happens. Don't disturb */
-    return;
+    c= thread_group->queues[TP_PRIORITY_LOW].front();
+    if (c && pool_timer.current_microtime - c->dequeue_time > 1000ULL * threadpool_prio_kickup_timer)
+    {
+      thread_group->queues[TP_PRIORITY_LOW].remove(c);
+      thread_group->queues[TP_PRIORITY_HIGH].push_back(c);
+    }
+    else
+      break;
   }
 
   /*
@@ -593,7 +728,7 @@ void check_stall(thread_group_t *thread_group)
     do wait and indicate that via thd_wait_begin/end callbacks, thread creation
     will be faster.
   */
-  if (!thread_group->queue.is_empty() && !thread_group->queue_event_count)
+  if (!is_queue_empty(thread_group) && !thread_group->queue_event_count)
   {
     thread_group->stalled= true;
     wake_or_create_thread(thread_group);
@@ -636,11 +771,11 @@ static void stop_timer(pool_timer_t *timer)
   
   @return a ready connection, or NULL on shutdown
 */
-static connection_t * listener(worker_thread_t *current_thread, 
+static TP_connection_generic * listener(worker_thread_t *current_thread, 
                                thread_group_t *thread_group)
 {
   DBUG_ENTER("listener");
-  connection_t *retval= NULL;
+  TP_connection_generic *retval= NULL;
 
   for(;;)
   {
@@ -707,28 +842,17 @@ static connection_t * listener(worker_thread_t *current_thread,
      and wake a worker.
      
      NOTE: Currently nothing is done to detect or prevent long queuing times. 
-     A solutionc for the future would be to give up "one active thread per 
+     A solution for the future would be to give up "one active thread per 
      group" principle, if events stay  in the queue for too long, and just wake 
      more workers.
     */
     
-    bool listener_picks_event= thread_group->queue.is_empty();
-    
-    /* 
-      If listener_picks_event is set, listener thread will handle first event, 
-      and put the rest into the queue. If listener_pick_event is not set, all 
-      events go to the queue.
-    */
-    for(int i=(listener_picks_event)?1:0; i < cnt ; i++)
-    {
-      connection_t *c= (connection_t *)native_event_get_userdata(&ev[i]);
-      thread_group->queue.push_back(c);
-    }
-    
+    bool listener_picks_event=is_queue_empty(thread_group);
+    queue_put(thread_group, ev, cnt);
     if (listener_picks_event)
     {
       /* Handle the first event. */
-      retval= (connection_t *)native_event_get_userdata(&ev[0]);
+      retval= queue_get(thread_group);
       mysql_mutex_unlock(&thread_group->mutex);
       break;
     }
@@ -914,7 +1038,7 @@ int thread_group_init(thread_group_t *thread_group, pthread_attr_t* thread_attr)
   thread_group->pollfd= -1;
   thread_group->shutdown_pipe[0]= -1;
   thread_group->shutdown_pipe[1]= -1;
-  thread_group->queue.empty();
+  queue_init(thread_group);
   DBUG_RETURN(0);
 }
 
@@ -924,9 +1048,10 @@ void thread_group_destroy(thread_group_t *thread_group)
   mysql_mutex_destroy(&thread_group->mutex);
   if (thread_group->pollfd != -1)
   {
-    close(thread_group->pollfd);
+    io_poll_close(thread_group->pollfd);
     thread_group->pollfd= -1;
   }
+#ifndef HAVE_IOCP
   for(int i=0; i < 2; i++)
   {
     if(thread_group->shutdown_pipe[i] != -1)
@@ -935,6 +1060,8 @@ void thread_group_destroy(thread_group_t *thread_group)
       thread_group->shutdown_pipe[i]= -1;
     }
   }
+#endif
+
   if (my_atomic_add32(&shutdown_group_count, -1) == 1)
     my_free(all_groups);
 }
@@ -957,7 +1084,32 @@ static int wake_thread(thread_group_t *thread_group)
   DBUG_RETURN(1); /* no thread in waiter list => missed wakeup */
 }
 
+/* 
+   Wake listener thread (during shutdown)
+   Self-pipe trick is used in most cases,except IOCP.
+*/
+static int wake_listener(thread_group_t *thread_group)
+{
+#ifndef HAVE_IOCP
+  if (pipe(thread_group->shutdown_pipe))
+  {
+    return -1;
+  }
 
+  /* Wake listener */
+  if (io_poll_associate_fd(thread_group->pollfd,
+    thread_group->shutdown_pipe[0], NULL, NULL))
+  {
+    return -1;
+  }
+  char c= 0;
+  if (write(thread_group->shutdown_pipe[1], &c, 1) < 0)
+    return -1;
+#else
+  PostQueuedCompletionStatus((HANDLE)thread_group->pollfd, 0, 0, 0);
+#endif
+  return 0;
+}
 /**
   Initiate shutdown for thread group.
 
@@ -981,20 +1133,7 @@ static void thread_group_close(thread_group_t *thread_group)
   thread_group->shutdown= true; 
   thread_group->listener= NULL;
 
-  if (pipe(thread_group->shutdown_pipe))
-  {
-    DBUG_VOID_RETURN;
-  }
-  
-  /* Wake listener */
-  if (io_poll_associate_fd(thread_group->pollfd, 
-      thread_group->shutdown_pipe[0], NULL))
-  {
-    DBUG_VOID_RETURN;
-  }
-  char c= 0;
-  if (write(thread_group->shutdown_pipe[1], &c, 1) < 0)
-    DBUG_VOID_RETURN;
+  wake_listener(thread_group);
 
   /* Wake all workers. */
   while(wake_thread(thread_group) == 0) 
@@ -1015,17 +1154,15 @@ static void thread_group_close(thread_group_t *thread_group)
 
 */
 
-static void queue_put(thread_group_t *thread_group, connection_t *connection)
+static void queue_put(thread_group_t *thread_group, TP_connection_generic *connection)
 {
   DBUG_ENTER("queue_put");
 
-  mysql_mutex_lock(&thread_group->mutex);
-  thread_group->queue.push_back(connection);
+  connection->dequeue_time= pool_timer.current_microtime;
+  thread_group->queues[connection->priority].push_back(connection);
 
   if (thread_group->active_thread_count == 0)
     wake_or_create_thread(thread_group);
-
-  mysql_mutex_unlock(&thread_group->mutex);
 
   DBUG_VOID_RETURN;
 }
@@ -1061,18 +1198,19 @@ static bool too_many_threads(thread_group_t *thread_group)
   NULL is returned if timeout has expired,or on shutdown.
 */
 
-connection_t *get_event(worker_thread_t *current_thread, 
+TP_connection_generic *get_event(worker_thread_t *current_thread, 
   thread_group_t *thread_group,  struct timespec *abstime)
 { 
   DBUG_ENTER("get_event");
-  connection_t *connection = NULL;
-  int err=0;
+  TP_connection_generic *connection = NULL;
+
 
   mysql_mutex_lock(&thread_group->mutex);
   DBUG_ASSERT(thread_group->active_thread_count >= 0);
 
   for(;;) 
   {
+    int err=0;
     bool oversubscribed = too_many_threads(thread_group); 
     if (thread_group->shutdown)
      break;
@@ -1100,21 +1238,26 @@ connection_t *get_event(worker_thread_t *current_thread,
       thread_group->listener= NULL;
       break;
     }
-    
+ 
+
     /* 
       Last thing we try before going to sleep is to 
-      pick a single event via epoll, without waiting (timeout 0)
+      non-blocking event poll, i.e with timeout = 0.
+      If this returns events, pick one
     */
     if (!oversubscribed)
     {
-      native_event nev;
-      if (io_poll_wait(thread_group->pollfd,&nev,1, 0) == 1)
+
+      native_event ev[MAX_EVENTS];
+      int cnt = io_poll_wait(thread_group->pollfd, ev, MAX_EVENTS, 0);
+      if (cnt > 0)
       {
-        thread_group->io_event_count++;
-        connection = (connection_t *)native_event_get_userdata(&nev);
+        queue_put(thread_group, ev, cnt);
+        connection= queue_get(thread_group);
         break;
       }
     }
+
 
     /* And now, finally sleep */ 
     current_thread->woken = false; /* wake() sets this to true */
@@ -1173,9 +1316,9 @@ void wait_begin(thread_group_t *thread_group)
   
   DBUG_ASSERT(thread_group->active_thread_count >=0);
   DBUG_ASSERT(thread_group->connection_count > 0);
- 
+
   if ((thread_group->active_thread_count == 0) && 
-     (thread_group->queue.is_empty() || !thread_group->listener))
+     (is_queue_empty(thread_group) || !thread_group->listener))
   {
     /* 
       Group might stall while this thread waits, thus wake 
@@ -1202,103 +1345,47 @@ void wait_end(thread_group_t *thread_group)
 }
 
 
-/**
-  Allocate/initialize a new connection structure.
-*/
 
-connection_t *alloc_connection()
+
+TP_connection * TP_pool_generic::new_connection(CONNECT *c)
 {
-  connection_t* connection;
-  DBUG_ENTER("alloc_connection");
-  DBUG_EXECUTE_IF("simulate_failed_connection_1", DBUG_RETURN(0); );
-  
-  if ((connection = (connection_t *)my_malloc(sizeof(connection_t),0)))
-  {
-    connection->waiting= false;
-    connection->logged_in= false;
-    connection->bound_to_poll_descriptor= false;
-    connection->abs_wait_timeout= ULONGLONG_MAX;
-    connection->thd= 0;
-  }
-  DBUG_RETURN(connection);
+  return new (std::nothrow) TP_connection_generic(c);
 }
-
-
 
 /**
   Add a new connection to thread pool..
 */
 
-void tp_add_connection(CONNECT *connect)
+void TP_pool_generic::add(TP_connection *c)
 {
-  connection_t *connection;
   DBUG_ENTER("tp_add_connection");
 
-  connection=  alloc_connection();
-  if (!connection)
-  {
-    connect->close_and_delete();
-    DBUG_VOID_RETURN;
-  }
-  connection->connect= connect;
-
-  /* Assign connection to a group. */
-  thread_group_t *group= 
-    &all_groups[connect->thread_id%group_count];
-
-  connection->thread_group=group;
-      
-  mysql_mutex_lock(&group->mutex);
-  group->connection_count++;
-  mysql_mutex_unlock(&group->mutex);
-    
+  TP_connection_generic *connection=(TP_connection_generic *)c;
+  thread_group_t *thread_group= connection->thread_group;
   /*
     Add connection to the work queue.Actual logon 
     will be done by a worker thread.
   */
-  queue_put(group, connection);
+  mysql_mutex_lock(&thread_group->mutex);
+  queue_put(thread_group, connection);
+  mysql_mutex_unlock(&thread_group->mutex);
   DBUG_VOID_RETURN;
 }
 
-
-/**
-  Terminate connection.
-*/
-
-static void connection_abort(connection_t *connection)
-{
-  DBUG_ENTER("connection_abort");
-  thread_group_t *group= connection->thread_group;
-
-  if (connection->thd)
-  {
-    threadpool_remove_connection(connection->thd);
-  }
-
-  mysql_mutex_lock(&group->mutex);
-  group->connection_count--;
-  mysql_mutex_unlock(&group->mutex);
-  
-  my_free(connection);
-  DBUG_VOID_RETURN;
-}
 
 
 /**
   MySQL scheduler callback: wait begin
 */
 
-void tp_wait_begin(THD *thd, int type)
+void TP_connection_generic::wait_begin(int type)
 {
-  DBUG_ENTER("tp_wait_begin");
-  DBUG_ASSERT(thd);
-  connection_t *connection = (connection_t *)thd->event_scheduler.data;
-  if (connection)
-  {
-    DBUG_ASSERT(!connection->waiting);
-    connection->waiting= true;
-    wait_begin(connection->thread_group);
-  }
+  DBUG_ENTER("wait_begin");
+
+  DBUG_ASSERT(!waiting);
+  waiting++;
+  if (waiting == 1)
+    ::wait_begin(thread_group);
   DBUG_VOID_RETURN;
 }
 
@@ -1307,18 +1394,13 @@ void tp_wait_begin(THD *thd, int type)
   MySQL scheduler callback: wait end
 */
 
-void tp_wait_end(THD *thd) 
+void TP_connection_generic::wait_end() 
 { 
-  DBUG_ENTER("tp_wait_end");
-  DBUG_ASSERT(thd);
-
-  connection_t *connection = (connection_t *)thd->event_scheduler.data;
-  if (connection)
-  {
-    DBUG_ASSERT(connection->waiting);
-    connection->waiting = false;
-    wait_end(connection->thread_group);
-  }
+  DBUG_ENTER("wait_end");
+  DBUG_ASSERT(waiting);
+  waiting--;
+  if (waiting == 0)
+    ::wait_end(thread_group);
   DBUG_VOID_RETURN;
 }
 
@@ -1335,12 +1417,41 @@ static void set_next_timeout_check(ulonglong abstime)
   DBUG_VOID_RETURN;
 }
 
+TP_connection_generic::TP_connection_generic(CONNECT *c):
+  TP_connection(c),
+  thread_group(0),
+  next_in_queue(0),
+  prev_in_queue(0),
+  abs_wait_timeout(ULONGLONG_MAX),
+  bound_to_poll_descriptor(false),
+  waiting(false)
+#ifdef HAVE_IOCP
+, overlapped()
+#endif
+{
+  /* Assign connection to a group. */
+  thread_group_t *group=
+    &all_groups[c->thread_id%group_count];
+
+  thread_group=group;
+
+  mysql_mutex_lock(&group->mutex);
+  group->connection_count++;
+  mysql_mutex_unlock(&group->mutex);
+}
+
+TP_connection_generic::~TP_connection_generic()
+{
+  mysql_mutex_lock(&thread_group->mutex);
+  thread_group->connection_count--;
+  mysql_mutex_unlock(&thread_group->mutex);
+}
 
 /**
   Set wait timeout for connection. 
 */
 
-static void set_wait_timeout(connection_t *c)
+void TP_connection_generic::set_io_timeout(int timeout_sec)
 {
   DBUG_ENTER("set_wait_timeout");
   /* 
@@ -1351,11 +1462,11 @@ static void set_wait_timeout(connection_t *c)
     one tick interval.
   */
 
-  c->abs_wait_timeout= pool_timer.current_microtime +
+  abs_wait_timeout= pool_timer.current_microtime +
     1000LL*pool_timer.tick_interval +
-    1000000LL*c->thd->variables.net_wait_timeout;
+    1000000LL*timeout_sec;
 
-  set_next_timeout_check(c->abs_wait_timeout);
+  set_next_timeout_check(abs_wait_timeout);
   DBUG_VOID_RETURN;
 }
 
@@ -1367,7 +1478,7 @@ static void set_wait_timeout(connection_t *c)
   after thread_pool_size setting. 
 */
 
-static int change_group(connection_t *c, 
+static int change_group(TP_connection_generic *c, 
  thread_group_t *old_group,
  thread_group_t *new_group)
 { 
@@ -1398,10 +1509,11 @@ static int change_group(connection_t *c,
 }
 
 
-static int start_io(connection_t *connection)
+int TP_connection_generic::start_io()
 { 
-  int fd = mysql_socket_getfd(connection->thd->net.vio->mysql_socket);
+  int fd= mysql_socket_getfd(thd->net.vio->mysql_socket);
 
+#ifndef HAVE_IOCP
   /*
     Usually, connection will stay in the same group for the entire
     connection's life. However, we do allow group_count to
@@ -1413,56 +1525,25 @@ static int start_io(connection_t *connection)
     on thread_id and current group count, and migrate if necessary.
   */ 
   thread_group_t *group = 
-    &all_groups[connection->thd->thread_id%group_count];
+    &all_groups[thd->thread_id%group_count];
 
-  if (group != connection->thread_group)
+  if (group != thread_group)
   {
-    if (change_group(connection, connection->thread_group, group))
+    if (change_group(this, thread_group, group))
       return -1;
   }
-    
+#endif
+
   /* 
     Bind to poll descriptor if not yet done. 
   */ 
-  if (!connection->bound_to_poll_descriptor)
+  if (!bound_to_poll_descriptor)
   {
-    connection->bound_to_poll_descriptor= true;
-    return io_poll_associate_fd(group->pollfd, fd, connection);
+    bound_to_poll_descriptor= true;
+    return io_poll_associate_fd(thread_group->pollfd, fd, this, OPTIONAL_IO_POLL_READ_PARAM);
   }
   
-  return io_poll_start_read(group->pollfd, fd, connection);
-}
-
-
-
-static void handle_event(connection_t *connection)
-{
-
-  DBUG_ENTER("handle_event");
-  int err;
-
-  if (!connection->logged_in)
-  {
-    connection->thd = threadpool_add_connection(connection->connect, connection);
-    err= (connection->thd == NULL);
-    connection->logged_in= true;
-  }
-  else 
-  {
-    err= threadpool_process_request(connection->thd);
-  }
-
-  if(err)
-    goto end;
-
-  set_wait_timeout(connection);
-  err= start_io(connection);
-
-end:
-  if (err)
-    connection_abort(connection);
-
-  DBUG_VOID_RETURN;
+  return io_poll_start_read(thread_group->pollfd, fd, this, OPTIONAL_IO_POLL_READ_PARAM);
 }
 
 
@@ -1490,14 +1571,14 @@ static void *worker_main(void *param)
   /* Run event loop */
   for(;;)
   {
-    connection_t *connection;
+    TP_connection_generic *connection;
     struct timespec ts;
     set_timespec(ts,threadpool_idle_timeout);
     connection = get_event(&this_thread, thread_group, &ts);
     if (!connection)
       break;
     this_thread.event_count++;
-    handle_event(connection);
+    tp_callback(connection);
   }
 
   /* Thread shutdown: cleanup per-worker-thread structure. */
@@ -1518,30 +1599,33 @@ static void *worker_main(void *param)
 }
 
 
-bool tp_init()
+TP_pool_generic::TP_pool_generic()
+{}
+
+int TP_pool_generic::init()
 {
-  DBUG_ENTER("tp_init");
+  DBUG_ENTER("TP_pool_generic::TP_pool_generic");
   threadpool_max_size= MY_MAX(threadpool_size, 128);
   all_groups= (thread_group_t *)
     my_malloc(sizeof(thread_group_t) * threadpool_max_size, MYF(MY_WME|MY_ZEROFILL));
   if (!all_groups)
   {
     threadpool_max_size= 0;
-    DBUG_RETURN(1);
+    sql_print_error("Allocation failed");
+    DBUG_RETURN(-1);
   }
-  threadpool_started= true;
   scheduler_init();
-
+  threadpool_started= true;
   for (uint i= 0; i < threadpool_max_size; i++)
   {
     thread_group_init(&all_groups[i], get_connection_attrib());  
   }
-  tp_set_threadpool_size(threadpool_size);
+  set_pool_size(threadpool_size);
   if(group_count == 0)
   {
     /* Something went wrong */
     sql_print_error("Can't set threadpool size to %d",threadpool_size);
-    DBUG_RETURN(1);
+    DBUG_RETURN(-1);
   }
   PSI_register(mutex);
   PSI_register(cond);
@@ -1552,7 +1636,7 @@ bool tp_init()
   DBUG_RETURN(0);
 }
 
-void tp_end()
+TP_pool_generic::~TP_pool_generic()
 {
   DBUG_ENTER("tp_end");
   
@@ -1571,13 +1655,10 @@ void tp_end()
 
 
 /** Ensure that poll descriptors are created when threadpool_size changes */
-
-void tp_set_threadpool_size(uint size)
+int TP_pool_generic::set_pool_size(uint size)
 {
   bool success= true;
-  if (!threadpool_started)
-    return;
-
+ 
   for(uint i=0; i< size; i++)
   {
     thread_group_t *group= &all_groups[i];
@@ -1596,20 +1677,20 @@ void tp_set_threadpool_size(uint size)
     if (!success)
     {
       group_count= i;
-      return;
+      return -1;
     }
   }
   group_count= size;
+  return 0;
 }
 
-void tp_set_threadpool_stall_limit(uint limit)
+int TP_pool_generic::set_stall_limit(uint limit)
 {
-  if (!threadpool_started)
-    return;
   mysql_mutex_lock(&(pool_timer.mutex));
   pool_timer.tick_interval= limit;
   mysql_mutex_unlock(&(pool_timer.mutex));
   mysql_cond_signal(&(pool_timer.cond));
+  return 0;
 }
 
 
@@ -1620,7 +1701,7 @@ void tp_set_threadpool_stall_limit(uint limit)
  Don't do any locking, it is not required for stats.
 */
 
-int tp_get_idle_thread_count()
+int TP_pool_generic::get_idle_thread_count()
 {
   int sum=0;
   for (uint i= 0; i < threadpool_max_size && all_groups[i].pollfd >= 0; i++)

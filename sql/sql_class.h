@@ -697,6 +697,7 @@ typedef struct system_variables
   my_bool session_track_schema;
   my_bool session_track_state_change;
 
+  ulong threadpool_priority;
 } SV;
 
 /**
