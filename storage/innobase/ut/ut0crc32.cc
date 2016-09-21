@@ -447,12 +447,12 @@ static bool	ut_crc32_slice8_table_initialized = false;
 /********************************************************************//**
 Initializes the table that is used to generate the CRC32 if the CPU does
 not have support for it. */
-#ifndef HAVE_CRC32_VPMSUM
 static
 void
 ut_crc32_slice8_table_init()
 /*========================*/
 {
+#ifndef HAVE_CRC32_VPMSUM
 	/* bit-reversed poly 0x1EDC6F41 (from SSE42 crc32 instruction) */
 	static const uint32_t	poly = 0x82f63b78;
 	uint32_t		n;
@@ -476,8 +476,8 @@ ut_crc32_slice8_table_init()
 	}
 
 	ut_crc32_slice8_table_initialized = true;
-}
 #endif
+}
 
 /** Calculate CRC32 over 8-bit data using a software implementation.
 @param[in,out]	crc	crc32 checksum so far when this function is called,
