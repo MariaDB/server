@@ -2147,7 +2147,8 @@ void get_window_functions_required_cursors(
       functions can keep the default frame generating code, overwrite it or
       add to it.
     */
-    if (item_win_func->is_frame_prohibited())
+    if (item_win_func->is_frame_prohibited() ||
+        item_win_func->requires_special_cursors())
     {
       add_special_frame_cursors(thd, cursor_manager, item_win_func);
       cursor_managers->push_back(cursor_manager);
