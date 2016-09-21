@@ -1683,6 +1683,9 @@ struct System_versioning_info
     set_period_for_system_time(NULL, NULL);
   }
 
+  /** Returns true on failure */
+  bool add_implicit_fields(THD *thd, Alter_info *alter_info);
+
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
   bool declared_system_versioning;
 
@@ -1777,11 +1780,17 @@ struct Table_scope_and_contents_source_st
                          : ha_default_handlerton(thd);
   }
 
-  bool versioned()
+  bool versioned() const
   {
     return system_versioning_info.versioned;
   }
-  const System_versioning_info *get_system_versioning_info()
+  const System_versioning_info *get_system_versioning_info() const
+  {
+    if (!versioned())
+      return NULL;
+    return &system_versioning_info;
+  }
+  System_versioning_info *get_system_versioning_info()
   {
     if (!versioned())
       return NULL;

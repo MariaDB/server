@@ -5852,10 +5852,9 @@ create_table_option:
 	  }
         | WITH SYSTEM VERSIONING
           {
-            System_versioning_info *info = Lex->vers_get_info();
-            if (!info)
-              MYSQL_YYABORT;
-            info->declared_system_versioning = true;
+            System_versioning_info &info= Lex->vers_get_info();
+            info.declared_system_versioning= true;
+            info.versioned= true;
           }
         ;
 
@@ -6060,15 +6059,14 @@ period_for_system_time:
           // If FOR_SYM is followed by SYSTEM_TIME_SYM then they are merged to: FOR_SYSTEM_TIME_SYM .
           PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
           {
-            System_versioning_info *info = Lex->vers_get_info();
-            if (!info)
-              MYSQL_YYABORT;
+            System_versioning_info &info= Lex->vers_get_info();
             if (!my_strcasecmp(system_charset_info, $4->c_ptr(), $6->c_ptr()))
             {
               my_error(ER_SYS_START_AND_SYS_END_SAME, MYF(0), $4->c_ptr());
               MYSQL_YYABORT;
             }
-            info->set_period_for_system_time($4, $6);
+            info.set_period_for_system_time($4, $6);
+            info.versioned= true;
           }
         ;
 
@@ -6168,26 +6166,24 @@ field_def:
           vcol_opt_specifier vcol_opt_attribute
         | opt_generated_always AS ROW_SYM start_or_end
           {
-            System_versioning_info *info =
-              Lex->vers_get_info();
-            if (!info)
-              MYSQL_YYABORT;
-            String *field_name = new (thd->mem_root)
+            System_versioning_info &info= Lex->vers_get_info();
+            info.versioned= true;
+            String *field_name= new (thd->mem_root)
               String((const char*)Lex->last_field->field_name, system_charset_info);
             if (!field_name)
               MYSQL_YYABORT;
 
-            String **p = NULL;
-            int err_nr = 0;
+            String **p= NULL;
+            int err_nr= 0;
             switch ($4)
             {
             case 1:
-              p = &info->generated_as_row.start;
-              err_nr = ER_SYS_START_MORE_THAN_ONCE;
+              p= &info.generated_as_row.start;
+              err_nr= ER_SYS_START_MORE_THAN_ONCE;
               break;
             case 0:
-              p = &info->generated_as_row.end;
-              err_nr = ER_SYS_END_MORE_THAN_ONCE;
+              p= &info.generated_as_row.end;
+              err_nr= ER_SYS_END_MORE_THAN_ONCE;
               break;
             default:
               /* Not Reachable */
@@ -6199,7 +6195,7 @@ field_def:
               my_error(err_nr, MYF(0), field_name->c_ptr());
               MYSQL_YYABORT;
             }
-            *p = field_name;
+            *p= field_name;
           }
         ;
 

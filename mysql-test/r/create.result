@@ -1949,6 +1949,19 @@ t1	CREATE TABLE `t1` (
   PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop table if exists t1;
+# Versioning fields are set implicitly.
+create table t1 (
+XNo INT UNSIGNED
+) WITH SYSTEM VERSIONING;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `XNo` int(10) unsigned DEFAULT NULL,
+  `sys_trx_start` timestamp(6) NULL GENERATED AS ROW START,
+  `sys_trx_end` timestamp(6) NULL GENERATED AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table if exists t1;
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,

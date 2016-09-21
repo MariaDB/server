@@ -1799,6 +1799,14 @@ SHOW CREATE TABLE t1;
 
 drop table if exists t1;
 
+--echo # Versioning fields are set implicitly.
+create table t1 (
+  XNo INT UNSIGNED
+) WITH SYSTEM VERSIONING;
+SHOW CREATE TABLE t1;
+
+drop table if exists t1;
+
 --error ER_SYS_START_MORE_THAN_ONCE
 create table t1 (
   XNo INT UNSIGNED,

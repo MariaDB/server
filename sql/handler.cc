@@ -6552,3 +6552,53 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
   mysql_mutex_unlock(&LOCK_global_index_stats);
   DBUG_RETURN(res);
 }
+
+static bool create_string(MEM_ROOT *mem_root, String **s, const char *value)
+{
+  *s= new (mem_root) String(value, system_charset_info);
+  return *s == NULL;
+}
+
+static bool create_sys_trx_field_if_missing(THD *thd, const char *field_name,
+                                            Alter_info *alter_info, String **s)
+{
+  Create_field *f= new (thd->mem_root) Create_field();
+  if (!f)
+    return true;
+
+  f->field_name= field_name;
+  f->charset= system_charset_info;
+  f->sql_type= MYSQL_TYPE_TIMESTAMP;
+  f->length= 6;
+  f->decimals= 0;
+
+  if (f->check(thd))
+    return true;
+
+  if (create_string(thd->mem_root, s, field_name))
+    return true;
+
+  alter_info->create_list.push_back(f);
+  return false;
+}
+
+bool System_versioning_info::add_implicit_fields(THD *thd,
+                                                 Alter_info *alter_info)
+{
+  if (!declared_system_versioning)
+    return false;
+
+  // If user specified some of these he must specify the others too. Do nothing.
+  if (generated_as_row.start || generated_as_row.end ||
+      period_for_system_time.start || period_for_system_time.end)
+    return false;
+
+  return create_sys_trx_field_if_missing(thd, "sys_trx_start", alter_info,
+                                         &generated_as_row.start) ||
+         create_sys_trx_field_if_missing(thd, "sys_trx_end", alter_info,
+                                         &generated_as_row.end) ||
+         create_string(thd->mem_root, &period_for_system_time.start,
+                       "sys_trx_start") ||
+         create_string(thd->mem_root, &period_for_system_time.end,
+                       "sys_trx_end");
+}

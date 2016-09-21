@@ -3849,16 +3849,19 @@ mysql_execute_command(THD *thd)
       copy.
     */
     Alter_info alter_info(lex->alter_info, thd->mem_root);
-
-    if (check_system_versioning(&create_info))
-      goto end_with_restore_list;
-
     if (thd->is_fatal_error)
     {
       /* If out of memory when creating a copy of alter_info. */
       res= 1;
       goto end_with_restore_list;
     }
+
+    if (System_versioning_info *info= create_info.get_system_versioning_info())
+      if (info->add_implicit_fields(thd, &alter_info))
+        goto end_with_restore_list;
+
+    if (check_system_versioning(&create_info))
+      goto end_with_restore_list;
 
     /* Check privileges */
     if ((res= create_table_precheck(thd, select_tables, create_table)))
