@@ -96,40 +96,63 @@ public:
 };
 
 
-class Item_func_md5 :public Item_str_ascii_func
+/**
+  Functions returning a checksum or a hash of the argument.
+*/
+class Item_str_ascii_checksum_func: public Item_str_ascii_func
+{
+public:
+  Item_str_ascii_checksum_func(THD *thd, Item *a)
+   :Item_str_ascii_func(thd, a) { }
+  Item_str_ascii_checksum_func(THD *thd, Item *a, Item *b)
+   :Item_str_ascii_func(thd, a, b) { }
+  bool eq(const Item *item, bool binary_cmp) const
+  {
+    // Always use binary argument comparison: MD5('x') != MD5('X')
+    return Item_func::eq(item, true);
+  }
+};
+
+
+class Item_func_md5 :public Item_str_ascii_checksum_func
 {
   String tmp_value;
 public:
-  Item_func_md5(THD *thd, Item *a): Item_str_ascii_func(thd, a) {}
+  Item_func_md5(THD *thd, Item *a): Item_str_ascii_checksum_func(thd, a) {}
   String *val_str_ascii(String *);
-  void fix_length_and_dec();
+  void fix_length_and_dec()
+  {
+    fix_length_and_charset(32, default_charset());
+  }
   const char *func_name() const { return "md5"; }
 };
 
 
-class Item_func_sha :public Item_str_ascii_func
+class Item_func_sha :public Item_str_ascii_checksum_func
 {
 public:
-  Item_func_sha(THD *thd, Item *a): Item_str_ascii_func(thd, a) {}
+  Item_func_sha(THD *thd, Item *a): Item_str_ascii_checksum_func(thd, a) {}
   String *val_str_ascii(String *);    
   void fix_length_and_dec();      
   const char *func_name() const { return "sha"; }	
 };
 
-class Item_func_sha2 :public Item_str_ascii_func
+class Item_func_sha2 :public Item_str_ascii_checksum_func
 {
 public:
-  Item_func_sha2(THD *thd, Item *a, Item *b): Item_str_ascii_func(thd, a, b) {}
+  Item_func_sha2(THD *thd, Item *a, Item *b)
+   :Item_str_ascii_checksum_func(thd, a, b) {}
   String *val_str_ascii(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "sha2"; }
 };
 
-class Item_func_to_base64 :public Item_str_ascii_func
+class Item_func_to_base64 :public Item_str_ascii_checksum_func
 {
   String tmp_value;
 public:
-  Item_func_to_base64(THD *thd, Item *a): Item_str_ascii_func(thd, a) {}
+  Item_func_to_base64(THD *thd, Item *a)
+   :Item_str_ascii_checksum_func(thd, a) {}
   String *val_str_ascii(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "to_base64"; }
@@ -431,7 +454,7 @@ public:
   authentication procedure works, see comments in password.c.
 */
 
-class Item_func_password :public Item_str_ascii_func
+class Item_func_password :public Item_str_ascii_checksum_func
 {
 public:
   enum PW_Alg {OLD, NEW};
@@ -441,9 +464,9 @@ private:
   bool deflt;
 public:
   Item_func_password(THD *thd, Item *a):
-    Item_str_ascii_func(thd, a), alg(NEW), deflt(1) {}
+    Item_str_ascii_checksum_func(thd, a), alg(NEW), deflt(1) {}
   Item_func_password(THD *thd, Item *a, PW_Alg al):
-    Item_str_ascii_func(thd, a), alg(al), deflt(0) {}
+    Item_str_ascii_checksum_func(thd, a), alg(al), deflt(0) {}
   String *val_str_ascii(String *str);
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
@@ -803,12 +826,12 @@ public:
 };
 
 
-class Item_func_hex :public Item_str_ascii_func
+class Item_func_hex :public Item_str_ascii_checksum_func
 {
   String tmp_value;
 public:
   Item_func_hex(THD *thd, Item *a):
-    Item_str_ascii_func(thd, a) {}
+    Item_str_ascii_checksum_func(thd, a) {}
   const char *func_name() const { return "hex"; }
   String *val_str_ascii(String *);
   void fix_length_and_dec()

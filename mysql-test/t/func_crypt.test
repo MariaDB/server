@@ -70,3 +70,17 @@ SELECT OLD_PASSWORD(c1), PASSWORD(c1) FROM t1;
 DROP TABLE t1;
 
 --echo End of 5.0 tests
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--let func=password
+--source include/func_str_ascii_checksum.inc
+--let func=old_password
+--source include/func_str_ascii_checksum.inc
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
