@@ -1781,9 +1781,7 @@ thd_start_time_in_secs(
 /*===================*/
 	THD*	thd)	/*!< in: thread handle, or NULL */
 {
-	// FIXME: This function should be added to the server code.
-	//return(thd_start_time(thd));
-	return(ulint(ut_time()));
+	return(thd_start_time(thd));
 }
 
 /** Enter InnoDB engine after checking the max number of user threads
@@ -12855,6 +12853,10 @@ index_bad:
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
 			m_flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
 
+	if (m_create_info->options & HA_VERSIONED_TABLE) {
+		m_flags2 |= DICT_TF2_VERSIONED;
+	}
+
 	DBUG_RETURN(true);
 }
 
@@ -22000,7 +22002,8 @@ i_s_innodb_sys_virtual,
 i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption,
-i_s_innodb_tablespaces_scrubbing
+i_s_innodb_tablespaces_scrubbing,
+i_s_innodb_vtq
 maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.

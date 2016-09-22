@@ -4627,6 +4627,12 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
   return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
 }
 
+/* Returns high resolution timestamp for the start
+  of the current query. */
+extern "C" time_t thd_start_time(const MYSQL_THD thd)
+{
+  return thd->start_time;
+}
 
 /* Returns high resolution timestamp for the start
   of the current query. */

@@ -494,6 +494,8 @@ typedef uint64_t ib_uint64_t;
 typedef uint32_t ib_uint32_t;
 #endif /* _WIN32 */
 
+typedef ib_uint64_t		ullong;
+
 #ifdef _WIN64
 typedef unsigned __int64	ulint;
 typedef __int64			lint;

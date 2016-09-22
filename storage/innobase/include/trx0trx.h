@@ -1267,6 +1267,7 @@ struct trx_t {
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */
 
+	bool		vtq_notified;
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */

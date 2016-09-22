@@ -1349,14 +1349,21 @@ trx_start_low(
 		}
 	}
 
-	if (trx->mysql_thd != NULL) {
-		trx->start_time = thd_start_time_in_secs(trx->mysql_thd);
-		trx->start_time_micro = thd_query_start_micro(trx->mysql_thd);
+	ut_usectime((ulong *)&trx->start_time,
+		(ulong *)&trx->start_time_micro);
 
-	} else {
-		trx->start_time = ut_time();
-		trx->start_time_micro = 0;
+	if (trx->mysql_thd != NULL) {
+		time_t start_time = thd_start_time_in_secs(trx->mysql_thd);
+		ib_uint64_t start_utime = thd_query_start_micro(trx->mysql_thd);
+		if (start_time < trx->start_time ||
+			(start_time == trx->start_time && start_utime < trx->start_time_micro))
+		{
+			trx->start_time = start_time;
+			trx->start_time_micro = start_utime;
+		}
 	}
+
+	trx->vtq_notified = false;
 
 	ut_a(trx->error_state == DB_SUCCESS);
 

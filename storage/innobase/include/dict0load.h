@@ -52,6 +52,7 @@ enum dict_system_id_t {
 	SYS_TABLESPACES,
 	SYS_DATAFILES,
 	SYS_VIRTUAL,
+	SYS_VTQ,
 
 	/* This must be last item. Defines the number of system tables. */
 	SYS_NUM_SYSTEM_TABLES
@@ -314,6 +315,20 @@ dict_process_sys_datafiles(
 	const rec_t*	rec,		/*!< in: current SYS_DATAFILES rec */
 	ulint*		space,		/*!< out: pace id */
 	const char**	path);		/*!< out: datafile path */
+/********************************************************************//**
+This function parses a SYS_VTQ record, extracts necessary
+information from the record and returns it to the caller.
+@return error message, or NULL on success */
+UNIV_INTERN
+const char*
+dict_process_sys_vtq(
+/*=======================*/
+mem_heap_t*	heap,		/*!< in/out: heap memory */
+const rec_t*	rec,		/*!< in: current rec */
+ullong*		col_trx_id,	/*!< out: field values */
+ullong*		col_begin_ts,
+ullong*		col_commit_ts,
+ullong*		col_concurr_trx);
 
 /** Update the record for space_id in SYS_TABLESPACES to this filepath.
 @param[in]	space_id	Tablespace ID
@@ -337,5 +352,10 @@ dict_replace_tablespace_and_filepath(
 	const char*	name,
 	const char*	filepath,
 	ulint		fsp_flags);
+
+
+UNIV_INTERN
+dict_table_t*
+get_vtq_table();
 
 #endif

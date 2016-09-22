@@ -325,6 +325,23 @@ enum dict_fld_sys_datafiles_enum {
 	DICT_FLD__SYS_DATAFILES__PATH			= 3,
 	DICT_NUM_FIELDS__SYS_DATAFILES			= 4
 };
+/* The columns in SYS_VTQ */
+enum dict_col_sys_vtq_enum
+{
+	DICT_COL__SYS_VTQ__TRX_ID			= 0,
+	DICT_NUM_COLS__SYS_VTQ				= 1
+};
+/* The field numbers in the SYS_VTQ clustered index */
+enum dict_fld_sys_vtq_enum
+{
+	DICT_FLD__SYS_VTQ__TRX_ID			= 0,
+	DICT_FLD__SYS_VTQ__DB_TRX_ID			= 1,
+	DICT_FLD__SYS_VTQ__DB_ROLL_PTR			= 2,
+	DICT_FLD__SYS_VTQ__BEGIN_TS			= 3,
+	DICT_FLD__SYS_VTQ__COMMIT_TS			= 4,
+	DICT_FLD__SYS_VTQ__CONCURR_TRX			= 5,
+	DICT_NUM_FIELDS__SYS_VTQ			= 6
+};
 
 /* The columns in SYS_VIRTUAL */
 enum dict_col_sys_virtual_enum {

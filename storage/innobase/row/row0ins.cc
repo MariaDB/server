@@ -3798,3 +3798,67 @@ error_handling:
 
 	return(thr);
 }
+
+inline
+void set_row_field_8(dtuple_t* row, int field_num, ib_uint64_t data, mem_heap_t* heap)
+{
+	dfield_t* dfield = dtuple_get_nth_field(row, field_num);
+	byte* buf = static_cast<byte*>(mem_heap_alloc(heap, 8));
+	mach_write_to_8(buf, data);
+	dfield_set_data(dfield, buf, 8);
+}
+
+#include "my_time.h"
+#include "sql_time.h"
+
+/***********************************************************//**
+Inserts a row to SYS_VTQ table.
+@return	error state */
+UNIV_INTERN
+dberr_t
+vers_notify_vtq(que_thr_t* thr, mem_heap_t* heap)
+{
+	dberr_t		err;
+	trx_t*		trx = thr_get_trx(thr);
+	dict_table_t*	sys_vtq = dict_sys->sys_vtq;
+	ins_node_t*	node = ins_node_create(INS_DIRECT, sys_vtq, heap);
+
+	node->select = NULL;
+	node->values_list = NULL; // for INS_VALUES
+
+	dtuple_t* row = dtuple_create(heap, dict_table_get_n_cols(sys_vtq));
+	dict_table_copy_types(row, sys_vtq);
+
+	struct tm unix_time;
+	MYSQL_TIME mysql_time;
+	localtime_r(&trx->start_time, &unix_time);
+	localtime_to_TIME(&mysql_time, &unix_time);
+	mysql_time.second_part = trx->start_time_micro;
+	ullong start_time = pack_time(&mysql_time);
+
+	set_row_field_8(row, DICT_FLD__SYS_VTQ__TRX_ID, trx->id, heap);
+	set_row_field_8(row, DICT_FLD__SYS_VTQ__BEGIN_TS - 2, start_time, heap);
+	set_row_field_8(row, DICT_FLD__SYS_VTQ__COMMIT_TS - 2, start_time, heap);
+	set_row_field_8(row, DICT_FLD__SYS_VTQ__CONCURR_TRX - 2, 3, heap);
+
+	ins_node_set_new_row(node, row);
+
+	trx_write_trx_id(node->trx_id_buf, trx->id);
+	err = lock_table(0, node->table, LOCK_IX, thr);
+	DBUG_EXECUTE_IF("ib_row_ins_ix_lock_wait",
+		err = DB_LOCK_WAIT;);
+
+	if (err != DB_SUCCESS) {
+		goto end_func;
+	}
+
+	node->trx_id = trx->id;
+	node->state = INS_NODE_ALLOC_ROW_ID;
+	err = row_ins(node, thr);
+
+end_func:
+	trx->error_state = err;
+	if (err != DB_SUCCESS)
+		fprintf(stderr, "InnoDB: failed to insert VTQ record (see SQL error message)\n");
+	return err;
+}

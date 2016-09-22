@@ -180,6 +180,11 @@ row_ins_step(
 /*=========*/
 	que_thr_t*	thr);	/*!< in: query thread */
 
+/***********************************************************//**
+Inserts a row to SYS_VTQ table.
+@return	error state */
+dberr_t vers_notify_vtq(que_thr_t * thr, mem_heap_t * heap);
+
 /* Insert node structure */
 
 struct ins_node_t{
