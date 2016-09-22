@@ -2205,10 +2205,14 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
       DBUG_ASSERT(item_sum->fixed);
+      Item *int_item= new (thd->mem_root) Item_int(thd, 1);
+      Item *offset_func= new (thd->mem_root)
+                              Item_func_minus(thd, item_sum->get_arg(1),
+                                              int_item);
+      offset_func->fix_fields(thd, &offset_func);
       fc= new Frame_positional_cursor(*top_bound,
                                       *top_bound, *bottom_bound,
-                                      *item_sum->get_arg(1),
-                                      false);
+                                      *offset_func, false);
       fc->add_sum_func(item_sum);
       cursor_manager->add_cursor(fc);
       break;

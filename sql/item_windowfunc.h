@@ -385,36 +385,11 @@ class Item_sum_last_value : public Item_sum_hybrid_simple
   { return get_item_copy<Item_sum_last_value>(thd, mem_root, this); }
 };
 
-class Item_sum_nth_value : public Item_sum_last_value
+class Item_sum_nth_value : public Item_sum_hybrid_simple
 {
  public:
   Item_sum_nth_value(THD *thd, Item *arg_expr, Item* offset_expr) :
-    Item_sum_last_value(thd, arg_expr) {
-    /* TODO(cvicentiu) This is messy. Item_args starts with 2 args by chance.
-       Clean this up by pulling out the common code from Item_sum_hybrid! */
-    arg_count= 2;
-    args[1]= offset_expr;
-  }
-
-  bool fix_fields(THD *thd, Item **ref)
-  {
-    Item *offset= args[1];
-    if (offset->fix_fields(thd, args))
-      return true;
-    /* Fix fields for the second argument as well. */
-    orig_args[1]= offset;
-    /* Item_sum_last_value fixes fields for first argument only. */
-    if (Item_sum_last_value::fix_fields(thd, ref))
-     return true;
-
-    return false;
-  }
-
-  bool add()
-  {
-    Item_sum_last_value::add();
-    return false;
-  }
+    Item_sum_hybrid_simple(thd, arg_expr, offset_expr) {}
 
   enum Sumfunctype sum_func() const
   {
@@ -788,6 +763,7 @@ public:
     switch (window_func()->sum_func()) {
     case Item_sum::FIRST_VALUE_FUNC:
     case Item_sum::LAST_VALUE_FUNC:
+    case Item_sum::NTH_VALUE_FUNC:
     case Item_sum::LAG_FUNC:
     case Item_sum::LEAD_FUNC:
       return true;
