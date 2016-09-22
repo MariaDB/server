@@ -2509,7 +2509,8 @@ bool Window_funcs_sort::exec(JOIN *join)
 
 
 bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
-                              List_iterator<Item_window_func> &it)
+                              List_iterator<Item_window_func> &it,
+                              JOIN_TAB *join_tab)
 {
   Window_spec *spec;
   Item_window_func *win_func= it.peek();  
@@ -2547,6 +2548,27 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
   ORDER* sort_order= concat_order_lists(thd->mem_root, 
                                         spec->partition_list->first,
                                         spec->order_list->first);
+  if (sort_order == NULL) // No partition or order by clause.
+  {
+    /* TODO(cvicentiu) This is used as a way to allow an empty OVER ()
+       clause for window functions. However, a better approach is
+       to not call Filesort at all in this case and just read whatever order
+       the temporary table has.
+       Due to cursors not working for out_of_memory cases (yet!), we have to run
+       filesort to generate a sort buffer of the results.
+       In this case we sort by the first field of the temporary table.
+       We should have this field available, even if it is a window_function
+       field. We don't care of the particular sorting result in this case.
+     */
+    ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
+    memset(order, 0, sizeof(*order));
+    Item *item= new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
+    order->item= (Item **)alloc_root(thd->mem_root, 2 * sizeof(Item *));
+    order->item[1]= NULL;
+    order->item[0]= item;
+    order->field= join_tab->table->field[0];
+    sort_order= order;
+  }
   filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, true, NULL);
 
   /* Apply the same condition that the subsequent sort has. */
@@ -2574,7 +2596,7 @@ bool Window_funcs_computation::setup(THD *thd,
   while (iter.peek())
   {
     if (!(srt= new Window_funcs_sort()) ||
-        srt->setup(thd, sel, iter))
+        srt->setup(thd, sel, iter, tab))
     {
       return true;
     }
