@@ -43,11 +43,15 @@ sub start_test {
   my (@ctest_list)= `cd .. && ctest $opt_vs_config --show-only --verbose`;
   return "No ctest" if $?;
 
-  my ($command, %tests);
+  my ($command, %tests, $prefix);
   for (@ctest_list) {
     chomp;
-    $command= $' if /^\d+: Test command: +/;
-    $tests{$'}=$command if /^ +Test +#\d+: +/;
+    if (/^\d+: Test command: +/) {
+      $command= $';
+      $prefix= /libmariadb/ ? 'conc_' : '';
+    } elsif (/^ +Test +#\d+: +/) {
+      $tests{$prefix.$'}=$command;
+    }
   }
   bless { ctests => { %tests } };
 }

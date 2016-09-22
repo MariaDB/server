@@ -1354,7 +1354,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   ulong data_len;
   char buf[LOG_EVENT_MINIMAL_HEADER_LEN];
   uchar ev_offset= packet->length();
-#ifndef max_allowed_packet
+#if !defined(MYSQL_CLIENT)
   THD *thd=current_thd;
   ulong max_allowed_packet= thd ? thd->slave_thread ? slave_max_allowed_packet
                                                     : thd->variables.max_allowed_packet
@@ -2771,7 +2771,7 @@ void Log_event::print_base64(IO_CACHE* file,
   uint32 size= uint4korr(ptr + EVENT_LEN_OFFSET);
   DBUG_ENTER("Log_event::print_base64");
 
-  size_t const tmp_str_sz= base64_needed_encoded_length((int) size);
+  size_t const tmp_str_sz= my_base64_needed_encoded_length((int) size);
   char *const tmp_str= (char *) my_malloc(tmp_str_sz, MYF(MY_WME));
   if (!tmp_str) {
     fprintf(stderr, "\nError: Out of memory. "
@@ -2779,7 +2779,7 @@ void Log_event::print_base64(IO_CACHE* file,
     DBUG_VOID_RETURN;
   }
 
-  if (base64_encode(ptr, (size_t) size, tmp_str))
+  if (my_base64_encode(ptr, (size_t) size, tmp_str))
   {
     DBUG_ASSERT(0);
   }

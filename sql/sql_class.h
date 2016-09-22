@@ -21,6 +21,7 @@
 /* Classes in mysql */
 
 #include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
 #include <mysql/plugin_audit.h>
@@ -696,6 +697,7 @@ typedef struct system_variables
   my_bool session_track_schema;
   my_bool session_track_state_change;
 
+  ulong threadpool_priority;
 } SV;
 
 /**

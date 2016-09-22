@@ -56,6 +56,11 @@ SELECT @@global.innodb_flush_log_at_trx_commit;
 # Check if variable can be accessed with and without @@ sign                  #
 ###############################################################################
 
+--Error ER_GLOBAL_VARIABLE
+SET innodb_flush_log_at_trx_commit = 1;
+SELECT @@innodb_flush_log_at_trx_commit;
+
+
 --Error ER_UNKNOWN_TABLE
 SELECT local.innodb_flush_log_at_trx_commit;
 
@@ -96,18 +101,35 @@ SELECT @@global.innodb_flush_log_at_trx_commit;
 
 SET @@global.innodb_flush_log_at_trx_commit = 1001;
 SELECT @@global.innodb_flush_log_at_trx_commit;
+ 
+SET @@global.innodb_flush_log_at_trx_commit = 100156787;
+SELECT @@global.innodb_flush_log_at_trx_commit;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_flush_log_at_trx_commit = " ";
+SELECT @@global.innodb_flush_log_at_trx_commit;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_flush_log_at_trx_commit = 1.1;
+SELECT @@global.innodb_flush_log_at_trx_commit;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_flush_log_at_trx_commit = ' ';
+SELECT @@global.innodb_flush_log_at_trx_commit;
 
 --echo '#----------------------FN_DYNVARS_046_05------------------------#'
 ######################################################################### 
 #     Check if the value in GLOBAL Table matches value in variable      #
 #########################################################################
 
+--disable_warnings
 SELECT @@global.innodb_flush_log_at_trx_commit =
  VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
   WHERE VARIABLE_NAME='innodb_flush_log_at_trx_commit';
+--enable_warnings
 SELECT @@global.innodb_flush_log_at_trx_commit;
+--disable_warnings
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
  WHERE VARIABLE_NAME='innodb_flush_log_at_trx_commit';
+--enable_warnings
 
 --echo '#---------------------FN_DYNVARS_046_06-------------------------#'
 ################################################################### 

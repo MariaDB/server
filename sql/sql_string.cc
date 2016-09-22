@@ -1158,18 +1158,3 @@ uint convert_to_printable(char *to, size_t to_len,
     *t= '\0';
   return t - to;
 }
-
-void String::q_net_store_length(ulonglong length)
-{
-  DBUG_ASSERT(Alloced_length >= (str_length + net_length_size(length)));
-  char *pos= (char *) net_store_length((uchar *)(Ptr + str_length), length);
-  str_length= pos - Ptr;
-}
-
-void String::q_net_store_data(const uchar *from, size_t length)
-{
-  DBUG_ASSERT(Alloced_length >= (str_length + length +
-				 net_length_size(length)));
-  q_net_store_length(length);
-  q_append((const char *)from, length);
-}

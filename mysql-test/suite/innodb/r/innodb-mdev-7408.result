@@ -1,3 +1,4 @@
+call mtr.add_suppression("InnoDB: User stopword table .* does not exist.");
 select @@global.innodb_ft_server_stopword_table;
 @@global.innodb_ft_server_stopword_table
 NULL

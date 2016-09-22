@@ -28,4 +28,4 @@ SET GLOBAL innodb_stats_persistent=123;
 SET GLOBAL innodb_stats_persistent='foo';
 
 # restore the environment
-SET GLOBAL innodb_stats_persistent=off;
+SET GLOBAL innodb_stats_persistent=OFF;

@@ -748,7 +748,7 @@ ER_NOT_KEYFILE
         cze "Nesprávný klíč pro tabulku '%-.200s'; pokuste se ho opravit"
         dan "Fejl i indeksfilen til tabellen '%-.200s'; prøv at reparere den"
         nla "Verkeerde zoeksleutel file voor tabel: '%-.200s'; probeer het te repareren"
-        eng "Incorrect key file for table '%-.200s'; try to repair it"
+        eng "Index for table '%-.200s' is corrupt; try to repair it"
         est "Tabeli '%-.200s' võtmefail on vigane; proovi seda parandada"
         fre "Index corrompu dans la table: '%-.200s'; essayez de le réparer"
         ger "Fehlerhafte Index-Datei für Tabelle '%-.200s'; versuche zu reparieren"
@@ -6710,7 +6710,7 @@ ER_TABLE_SCHEMA_MISMATCH
   eng "Schema mismatch (%s)"
 
 ER_TABLE_IN_SYSTEM_TABLESPACE
-  eng "Table '%-.192s' in system tablespace"
+  eng "Table %-.192s in system tablespace"
 
 ER_IO_READ_ERROR
   eng "IO Read error: (%lu, %s) %s"
@@ -6725,7 +6725,7 @@ ER_TABLESPACE_EXISTS
   eng "Tablespace for table '%-.192s' exists. Please DISCARD the tablespace before IMPORT."
 
 ER_TABLESPACE_DISCARDED
-  eng "Tablespace has been discarded for table '%-.192s'"
+  eng "Tablespace has been discarded for table %`s"
 
 ER_INTERNAL_ERROR
   eng "Internal error: %-.192s"
@@ -6773,8 +6773,8 @@ ER_FK_COLUMN_CANNOT_DROP
         ger "Kann Spalte '%-.192s' nicht löschen: wird für eine Fremdschlüsselbeschränkung '%-.192s' benötigt"
 
 ER_FK_COLUMN_CANNOT_DROP_CHILD
-        eng "Cannot drop column '%-.192s': needed in a foreign key constraint '%-.192s' of table '%-.192s'"
-        ger "Kann Spalte '%-.192s' nicht löschen: wird für eine Fremdschlüsselbeschränkung '%-.192s' der Tabelle '%-.192s' benötigt"
+        eng "Cannot drop column '%-.192s': needed in a foreign key constraint '%-.192s' of table %-.192s"
+        ger "Kann Spalte '%-.192s' nicht löschen: wird für eine Fremdschlüsselbeschränkung '%-.192s' der Tabelle %-.192s benötigt"
 
 ER_FK_COLUMN_NOT_NULL
         eng "Column '%-.192s' cannot be NOT NULL: needed in a foreign key constraint '%-.192s' SET NULL"
@@ -7153,6 +7153,10 @@ skip-to-error-number 3000
 
 ER_MYSQL_57_TEST
         eng "5.7 test"
+ER_WRONG_TABLESPACE_NAME 42000
+        eng "Incorrect tablespace name %`-.192s"
+ER_CANNOT_DISCARD_TEMPORARY_TABLE
+        eng "Cannot DISCARD/IMPORT tablespace associated with temporary table"
 
 # MariaDB extra error numbers starts from 4000
 skip-to-error-number 4000

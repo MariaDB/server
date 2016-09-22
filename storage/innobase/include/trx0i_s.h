@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +31,6 @@ Created July 17, 2007 Vasil Dimov
 #include "univ.i"
 #include "trx0types.h"
 #include "dict0types.h"
-#include "ut0ut.h"
 
 /** The maximum amount of memory that can be consumed by innodb_trx,
 innodb_locks and innodb_lock_waits information schema tables. */
@@ -134,13 +133,11 @@ struct i_s_trx_row_t {
 					in innodb_locks if trx
 					is waiting, or NULL */
 	ib_time_t	trx_wait_started; /*!< trx_t::wait_started */
-	ullint		trx_weight;	/*!< TRX_WEIGHT() */
+	uintmax_t	trx_weight;	/*!< TRX_WEIGHT() */
 	ulint		trx_mysql_thread_id; /*!< thd_get_thread_id() */
 	const char*	trx_query;	/*!< MySQL statement being
 					executed in the transaction */
-	struct charset_info_st*	trx_query_cs;
-					/*!< charset encode the MySQL
-					statement */
+	CHARSET_INFO*	trx_query_cs;	/*!< the charset of trx_query */
 	const char*	trx_operation_state; /*!< trx_t::op_info */
 	ulint		trx_tables_in_use;/*!< n_mysql_tables_in_use in
 					 trx_t */
@@ -153,7 +150,7 @@ struct i_s_trx_row_t {
 					/*!< mem_heap_get_size(
 					trx->lock_heap) */
 	ulint		trx_rows_locked;/*!< lock_number_of_rows_locked() */
-	ullint		trx_rows_modified;/*!< trx_t::undo_no */
+	uintmax_t	trx_rows_modified;/*!< trx_t::undo_no */
 	ulint		trx_concurrency_tickets;
 					/*!< n_tickets_to_enter_innodb in
 					trx_t */
@@ -167,8 +164,6 @@ struct i_s_trx_row_t {
 					/*!< detailed_error in trx_t */
 	ibool		trx_has_search_latch;
 					/*!< has_search_latch in trx_t */
-	ulint		trx_search_latch_timeout;
-					/*!< search_latch_timeout in trx_t */
 	ulint		trx_is_read_only;
 					/*!< trx_t::read_only */
 	ulint		trx_is_autocommit_non_locking;
@@ -200,14 +195,12 @@ extern trx_i_s_cache_t*	trx_i_s_cache;
 
 /*******************************************************************//**
 Initialize INFORMATION SCHEMA trx related cache. */
-UNIV_INTERN
 void
 trx_i_s_cache_init(
 /*===============*/
 	trx_i_s_cache_t*	cache);	/*!< out: cache to init */
 /*******************************************************************//**
 Free the INFORMATION SCHEMA trx related cache. */
-UNIV_INTERN
 void
 trx_i_s_cache_free(
 /*===============*/
@@ -215,7 +208,6 @@ trx_i_s_cache_free(
 
 /*******************************************************************//**
 Issue a shared/read lock on the tables cache. */
-UNIV_INTERN
 void
 trx_i_s_cache_start_read(
 /*=====================*/
@@ -223,7 +215,6 @@ trx_i_s_cache_start_read(
 
 /*******************************************************************//**
 Release a shared/read lock on the tables cache. */
-UNIV_INTERN
 void
 trx_i_s_cache_end_read(
 /*===================*/
@@ -231,7 +222,6 @@ trx_i_s_cache_end_read(
 
 /*******************************************************************//**
 Issue an exclusive/write lock on the tables cache. */
-UNIV_INTERN
 void
 trx_i_s_cache_start_write(
 /*======================*/
@@ -239,7 +229,6 @@ trx_i_s_cache_start_write(
 
 /*******************************************************************//**
 Release an exclusive/write lock on the tables cache. */
-UNIV_INTERN
 void
 trx_i_s_cache_end_write(
 /*====================*/
@@ -249,8 +238,7 @@ trx_i_s_cache_end_write(
 /*******************************************************************//**
 Retrieves the number of used rows in the cache for a given
 INFORMATION SCHEMA table.
-@return	number of rows */
-UNIV_INTERN
+@return number of rows */
 ulint
 trx_i_s_cache_get_rows_used(
 /*========================*/
@@ -260,8 +248,7 @@ trx_i_s_cache_get_rows_used(
 /*******************************************************************//**
 Retrieves the nth row in the cache for a given INFORMATION SCHEMA
 table.
-@return	row */
-UNIV_INTERN
+@return row */
 void*
 trx_i_s_cache_get_nth_row(
 /*======================*/
@@ -271,8 +258,7 @@ trx_i_s_cache_get_nth_row(
 
 /*******************************************************************//**
 Update the transactions cache if it has not been read for some time.
-@return	0 - fetched, 1 - not */
-UNIV_INTERN
+@return 0 - fetched, 1 - not */
 int
 trx_i_s_possibly_fetch_data_into_cache(
 /*===================================*/
@@ -281,13 +267,11 @@ trx_i_s_possibly_fetch_data_into_cache(
 /*******************************************************************//**
 Returns TRUE if the data in the cache is truncated due to the memory
 limit posed by TRX_I_S_MEM_LIMIT.
-@return	TRUE if truncated */
-UNIV_INTERN
+@return TRUE if truncated */
 ibool
 trx_i_s_cache_is_truncated(
 /*=======================*/
 	trx_i_s_cache_t*	cache);	/*!< in: cache */
-
 /** The maximum length of a resulting lock_id_size in
 trx_i_s_create_lock_id(), not including the terminating NUL.
 ":%lu:%lu:%lu" -> 63 chars */
@@ -298,8 +282,7 @@ Crafts a lock id string from a i_s_locks_row_t object. Returns its
 second argument. This function aborts if there is not enough space in
 lock_id. Be sure to provide at least TRX_I_S_LOCK_ID_MAX_LEN + 1 if you
 want to be 100% sure that it will not abort.
-@return	resulting lock id */
-UNIV_INTERN
+@return resulting lock id */
 char*
 trx_i_s_create_lock_id(
 /*===================*/

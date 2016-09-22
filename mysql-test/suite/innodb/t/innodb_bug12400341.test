@@ -14,10 +14,8 @@ if (`select count(*)=0 from information_schema.global_variables where variable_n
 # undo slots of the previous test might exist still
 --source include/not_windows.inc
 
-# Previous undo slots cause unnecessary failures
---source include/not_windows.inc
-
 call mtr.add_suppression("InnoDB: Warning: cannot find a free slot for an undo log. Do you have too*");
+call mtr.add_suppression("\\[Warning\\] InnoDB: Cannot find a free slot for an undo log. Do you have too");
 
 --disable_query_log
 set @old_innodb_trx_rseg_n_slots_debug = @@innodb_trx_rseg_n_slots_debug;

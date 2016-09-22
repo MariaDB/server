@@ -1,3 +1,4 @@
+set global session_track_schema=FALSE;
 # The logging of commands and result sets is mostly disabled.
 # There are some messages which help to observe the progress of the test.
 # In case some check fails
@@ -218,3 +219,4 @@ connection default;
 TRUNCATE TABLE performance_schema.socket_summary_by_instance;
 # 6. Cleanup
 connection default;
+set global session_track_schema=DEFAULT;

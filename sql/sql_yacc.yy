@@ -4810,16 +4810,22 @@ create_like:
 
 opt_create_select:
           /* empty */ {}
-        | opt_duplicate opt_as create_select_query_expression_body
+        | opt_duplicate opt_as create_select_query_expression
         ;
 
-create_select_query_expression_body:
-          SELECT_SYM create_select_part2 opt_table_expression
+create_select_query_expression:
+          opt_with_clause SELECT_SYM create_select_part2 opt_table_expression
           create_select_part4
-          { Select->set_braces(0);}
+          { 
+            Select->set_braces(0);
+            Select->set_with_clause($1);
+          }
           union_clause
-        | SELECT_SYM create_select_part2 create_select_part3_union_not_ready
-          create_select_part4
+        | opt_with_clause SELECT_SYM create_select_part2 
+          create_select_part3_union_not_ready create_select_part4
+          {
+            Select->set_with_clause($1);
+          }
         | '(' create_select_query_specification ')'
         | '(' create_select_query_specification ')'
           { Select->set_braces(1);} union_list {}
@@ -5519,7 +5525,11 @@ opt_part_option:
 */
 
 create_select_query_specification:
-          SELECT_SYM create_select_part2 create_select_part3 create_select_part4
+          SELECT_SYM opt_with_clause create_select_part2 create_select_part3
+          create_select_part4
+          {
+            Select->set_with_clause($2);
+          }
         ;
 
 create_select_part2:
@@ -12308,7 +12318,7 @@ fields:
 insert_values:
           VALUES values_list {}
         | VALUE_SYM values_list {}
-        | create_select_query_expression_body {}
+        | create_select_query_expression {}
         ;
 
 values_list:

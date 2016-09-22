@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,7 +39,7 @@ if (btr_cur_limit_optimistic_insert_debug > 1\
 #ifdef UNIV_DEBUG
 /*********************************************************//**
 Returns the page cursor component of a tree cursor.
-@return	pointer to page cursor component */
+@return pointer to page cursor component */
 UNIV_INLINE
 page_cur_t*
 btr_cur_get_page_cur(
@@ -51,7 +51,7 @@ btr_cur_get_page_cur(
 
 /*********************************************************//**
 Returns the buffer block on which the tree cursor is positioned.
-@return	pointer to buffer block */
+@return pointer to buffer block */
 UNIV_INLINE
 buf_block_t*
 btr_cur_get_block(
@@ -63,7 +63,7 @@ btr_cur_get_block(
 
 /*********************************************************//**
 Returns the record pointer of a tree cursor.
-@return	pointer to record */
+@return pointer to record */
 UNIV_INLINE
 rec_t*
 btr_cur_get_rec(
@@ -76,7 +76,7 @@ btr_cur_get_rec(
 
 /*********************************************************//**
 Returns the compressed page on which the tree cursor is positioned.
-@return	pointer to compressed page, or NULL if the page is not compressed */
+@return pointer to compressed page, or NULL if the page is not compressed */
 UNIV_INLINE
 page_zip_des_t*
 btr_cur_get_page_zip(
@@ -87,19 +87,8 @@ btr_cur_get_page_zip(
 }
 
 /*********************************************************//**
-Invalidates a tree cursor by setting record pointer to NULL. */
-UNIV_INLINE
-void
-btr_cur_invalidate(
-/*===============*/
-	btr_cur_t*	cursor)	/*!< in: tree cursor */
-{
-	page_cur_invalidate(&(cursor->page_cur));
-}
-
-/*********************************************************//**
 Returns the page of a tree cursor.
-@return	pointer to page */
+@return pointer to page */
 UNIV_INLINE
 page_t*
 btr_cur_get_page(
@@ -130,7 +119,7 @@ btr_cur_position(
 /*********************************************************************//**
 Checks if compressing an index page where a btr cursor is placed makes
 sense.
-@return	TRUE if compression is recommended */
+@return TRUE if compression is recommended */
 UNIV_INLINE
 ibool
 btr_cur_compress_recommendation(
@@ -140,15 +129,17 @@ btr_cur_compress_recommendation(
 {
 	const page_t*	page;
 
-	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
-				MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr_is_block_fix(
+		mtr, btr_cur_get_block(cursor),
+		MTR_MEMO_PAGE_X_FIX, cursor->index->table));
 
 	page = btr_cur_get_page(cursor);
 
 	LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page) * 2,
 				      return(FALSE));
 
-	if ((page_get_data_size(page) < BTR_CUR_PAGE_COMPRESS_LIMIT)
+	if ((page_get_data_size(page)
+	     < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index))
 	    || ((btr_page_get_next(page, mtr) == FIL_NULL)
 		&& (btr_page_get_prev(page, mtr) == FIL_NULL))) {
 
@@ -167,7 +158,7 @@ btr_cur_compress_recommendation(
 /*********************************************************************//**
 Checks if the record on which the cursor is placed can be deleted without
 making tree compression necessary (or, recommended).
-@return	TRUE if can be deleted without recommended compression */
+@return TRUE if can be deleted without recommended compression */
 UNIV_INLINE
 ibool
 btr_cur_can_delete_without_compress(
@@ -183,7 +174,8 @@ btr_cur_can_delete_without_compress(
 
 	page = btr_cur_get_page(cursor);
 
-	if ((page_get_data_size(page) - rec_size < BTR_CUR_PAGE_COMPRESS_LIMIT)
+	if ((page_get_data_size(page) - rec_size
+	     < BTR_CUR_PAGE_COMPRESS_LIMIT(cursor->index))
 	    || ((btr_page_get_next(page, mtr) == FIL_NULL)
 		&& (btr_page_get_prev(page, mtr) == FIL_NULL))
 	    || (page_get_n_recs(page) < 2)) {
@@ -211,6 +203,7 @@ btr_blob_op_is_update(
 {
 	switch (op) {
 	case BTR_STORE_INSERT:
+	case BTR_STORE_INSERT_BULK:
 		return(FALSE);
 	case BTR_STORE_INSERT_UPDATE:
 	case BTR_STORE_UPDATE:
@@ -220,4 +213,23 @@ btr_blob_op_is_update(
 	ut_ad(0);
 	return(FALSE);
 }
+
+/******************************************************//**
+The following function is used to set the deleted bit of a record. */
+UNIV_INLINE
+void
+btr_rec_set_deleted_flag(
+/*=====================*/
+	rec_t*		rec,	/*!< in/out: physical record */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page (or NULL) */
+	ulint		flag)	/*!< in: nonzero if delete marked */
+{
+	if (page_rec_is_comp(rec)) {
+		rec_set_deleted_flag_new(rec, page_zip, flag);
+	} else {
+		ut_ad(!page_zip);
+		rec_set_deleted_flag_old(rec, flag);
+	}
+}
+
 #endif /* !UNIV_HOTBACKUP */

@@ -48,6 +48,20 @@ MariaDB bug reports should be submitted through https://jira.mariadb.org
 
 ")
 
+SET(CPACK_RPM_shared_PACKAGE_VENDOR "MariaDB Corporation Ab")
+SET(CPACK_RPM_shared_PACKAGE_LICENSE "LGPLv2.1")
+SET(CPACK_RPM_shared_PACKAGE_SUMMARY "LGPL MariaDB client library")
+SET(CPACK_RPM_shared_PACKAGE_DESCRIPTION "
+This is LGPL MariaDB client library that can be used to connect to MySQL
+or MariaDB.
+
+This code is based on the LGPL libmysql client library from MySQL 3.23
+and PHP's mysqlnd extension.
+
+This product includes PHP software, freely available from
+<http://www.php.net/software/>
+")
+
 SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define mysql_vendor ${CPACK_PACKAGE_VENDOR}
 %define mysqlversion ${MYSQL_NO_DASH_VERSION}
@@ -108,15 +122,13 @@ ENDMACRO(SETA)
 
 SETA(CPACK_RPM_client_PACKAGE_OBSOLETES
   "mysql-client"
-  "MySQL-client"
-  "MySQL-OurDelta-client")
+  "MySQL-client")
 SETA(CPACK_RPM_client_PACKAGE_PROVIDES
   "MySQL-client"
   "mysql-client")
 
 SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
-  "MySQL-devel"
-  "MySQL-OurDelta-devel")
+  "MySQL-devel")
 SETA(CPACK_RPM_devel_PACKAGE_PROVIDES
   "MySQL-devel")
 
@@ -125,8 +137,7 @@ SETA(CPACK_RPM_server_PACKAGE_OBSOLETES
   "MySQL"
   "mysql-server"
   "MySQL-server"
-  "MariaDB-Galera-server"
-  "MySQL-OurDelta-server")
+  "MariaDB-Galera-server")
 SETA(CPACK_RPM_server_PACKAGE_PROVIDES
   "MariaDB"
   "MySQL"
@@ -134,22 +145,20 @@ SETA(CPACK_RPM_server_PACKAGE_PROVIDES
   "msqlormysql"
   "mysql-server")
 
-SETA(CPACK_RPM_shared_PACKAGE_OBSOLETES
+SETA(CPACK_RPM_compat_PACKAGE_OBSOLETES
   "mysql-shared"
   "MySQL-shared-standard"
   "MySQL-shared-pro"
   "MySQL-shared-pro-cert"
   "MySQL-shared-pro-gpl"
   "MySQL-shared-pro-gpl-cert"
-  "MySQL-shared"
-  "MySQL-OurDelta-shared")
-SETA(CPACK_RPM_shared_PACKAGE_PROVIDES
+  "MySQL-shared")
+SETA(CPACK_RPM_compat_PACKAGE_PROVIDES
   "MySQL-shared"
   "mysql-shared")
 
 SETA(CPACK_RPM_test_PACKAGE_OBSOLETES
-  "MySQL-test"
-  "MySQL-OurDelta-test")
+  "MySQL-test")
 SETA(CPACK_RPM_test_PACKAGE_PROVIDES
   "MySQL-test")
 
@@ -169,6 +178,8 @@ SET(CPACK_RPM_server_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/
 SET(CPACK_RPM_server_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-postun.sh)
 SET(CPACK_RPM_shared_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
 SET(CPACK_RPM_shared_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
+SET(CPACK_RPM_compat_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
+SET(CPACK_RPM_compat_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
 
 MACRO(ALTERNATIVE_NAME real alt)
   SET(ver "%{version}-%{release}")
@@ -236,18 +247,32 @@ SETA(CPACK_RPM_test_PACKAGE_PROVIDES
 
 # If we want to build build MariaDB-shared-compat,
 # extract compat libraries from MariaDB-shared-5.3 rpm
-FILE(GLOB compat_rpm RELATIVE ${CMAKE_SOURCE_DIR}
+FILE(GLOB compat53 RELATIVE ${CMAKE_SOURCE_DIR}
     "${CMAKE_SOURCE_DIR}/../MariaDB-shared-5.3.*.rpm")
-IF (compat_rpm)
-  MESSAGE("Using ${compat_rpm} to build MariaDB-compat")
-  INSTALL(CODE "EXECUTE_PROCESS(
-                 COMMAND rpm2cpio ${CMAKE_SOURCE_DIR}/${compat_rpm}
-                 COMMAND cpio --extract --make-directories */libmysqlclient*.so.* -
-                 WORKING_DIRECTORY \$ENV{DESTDIR})
-                EXECUTE_PROCESS(
-                 COMMAND chmod -R a+rX .
-                 WORKING_DIRECTORY \$ENV{DESTDIR})"
-                 COMPONENT Compat)
+FILE(GLOB compat101 RELATIVE ${CMAKE_SOURCE_DIR}
+    "${CMAKE_SOURCE_DIR}/../MariaDB-shared-10.1.*.rpm")
+IF(compat53 AND compat101)
+  FOREACH(compat_rpm "${compat53}" "${compat101}")
+    MESSAGE("Using ${compat_rpm} to build MariaDB-compat")
+    INSTALL(CODE "EXECUTE_PROCESS(
+                   COMMAND rpm2cpio ${CMAKE_SOURCE_DIR}/${compat_rpm}
+                   COMMAND cpio --extract --make-directories */libmysqlclient*.so.* -
+                   WORKING_DIRECTORY \$ENV{DESTDIR})
+                  EXECUTE_PROCESS(
+                   COMMAND chmod -R a+rX .
+                   WORKING_DIRECTORY \$ENV{DESTDIR})"
+                   COMPONENT Compat)
+  ENDFOREACH()
+
+  EXECUTE_PROCESS(
+    COMMAND rpm -q --provides -p "${CMAKE_SOURCE_DIR}/${compat101}"
+    COMMAND grep "=.*10\\.1"
+    ERROR_QUIET
+    OUTPUT_VARIABLE compat_provides)
+
+  STRING(REPLACE "\n" " " compat_provides "${compat_provides}")
+  SETA(CPACK_RPM_compat_PACKAGE_PROVIDES "${compat_provides}")
+
   SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} Compat)
 
   # RHEL6/CentOS6 install Postfix by default, and it requires
@@ -258,10 +283,7 @@ IF (compat_rpm)
   IF(RPM MATCHES "(rhel|centos)6")
     SET(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-compat")
   ENDIF()
-ENDIF(compat_rpm)
-
-SET(CPACK_RPM_compat_PACKAGE_PROVIDES "mysql-libs = 5.3.5") # exact version doesn't matter as long as it greater than 5.1
-SET(CPACK_RPM_compat_PACKAGE_OBSOLETES "mysql-libs < 5.3.5")
+ENDIF()
 
 ENDIF(RPM)
 

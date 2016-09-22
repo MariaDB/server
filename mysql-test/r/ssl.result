@@ -2176,7 +2176,7 @@ still connected?
 connection default;
 disconnect ssl_con;
 create user mysqltest_1@localhost;
-grant usage on mysqltest.* to mysqltest_1@localhost require cipher "EDH-RSA-DES-CBC3-SHA";
+grant usage on mysqltest.* to mysqltest_1@localhost require cipher "AES256-SHA";
 Variable_name	Value
-Ssl_cipher	EDH-RSA-DES-CBC3-SHA
+Ssl_cipher	AES256-SHA
 drop user mysqltest_1@localhost;

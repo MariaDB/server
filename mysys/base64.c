@@ -26,22 +26,22 @@ static char base64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                              "0123456789+/";
 
 /**
- * Maximum length base64_needed_encoded_length()
+ * Maximum length my_base64_needed_encoded_length()
  * can handle without signed integer overflow.
  */
 int
-base64_encode_max_arg_length()
+my_base64_encode_max_arg_length()
 {
   /*
-    base64_needed_encoded_length(1589695686) ->  2147483646 (7FFFFFFE)
-    base64_needed_encoded_length(1589695687) -> -2147483645
+    my_base64_needed_encoded_length(1589695686) ->  2147483646 (7FFFFFFE)
+    my_base64_needed_encoded_length(1589695687) -> -2147483645
   */
   return 0x5EC0D4C6; /* 1589695686 */
 }
 
 
 int
-base64_needed_encoded_length(int length_of_data)
+my_base64_needed_encoded_length(int length_of_data)
 {
   int nb_base64_chars;
   nb_base64_chars= (length_of_data + 2) / 3 * 4;
@@ -54,17 +54,17 @@ base64_needed_encoded_length(int length_of_data)
 
 
 /**
- * Maximum length supported by base64_decode().
+ * Maximum length supported by my_base64_decode().
  */
 int
-base64_decode_max_arg_length()
+my_base64_decode_max_arg_length()
 {
   return 0x7FFFFFFF;
 }
 
 
 int
-base64_needed_decoded_length(int length_of_encoded_data)
+my_base64_needed_decoded_length(int length_of_encoded_data)
 {
   return (int) ((longlong) length_of_encoded_data + 3) / 4 * 3;
 }
@@ -74,7 +74,7 @@ base64_needed_decoded_length(int length_of_encoded_data)
   Encode a data as base64.
 
   Note: We require that dst is pre-allocated to correct size.
-        See base64_needed_encoded_length().
+        See my_base64_needed_encoded_length().
 
   Note: We add line separators every 76 characters.
   
@@ -83,7 +83,7 @@ base64_needed_decoded_length(int length_of_encoded_data)
 */
 
 int
-base64_encode(const void *src, size_t src_len, char *dst)
+my_base64_encode(const void *src, size_t src_len, char *dst)
 {
   const unsigned char *s= (const unsigned char*)src;
   size_t i= 0;
@@ -299,7 +299,7 @@ my_base64_decoder_getch(MY_BASE64_DECODER *decoder)
  * the last read character, even in the presence of error.
  *
  * Note: 'dst' must have sufficient space to store the decoded data.
- * Use base64_needed_decoded_length() to calculate the correct space size.
+ * Use my_base64_needed_decoded_length() to calculate the correct space size.
  *
  * Note: we allow spaces and line separators at any position.
  *
@@ -313,7 +313,7 @@ my_base64_decoder_getch(MY_BASE64_DECODER *decoder)
  * @return Number of bytes written at 'dst', or -1 in case of failure
  */
 int
-base64_decode(const char *src_base, size_t len,
+my_base64_decode(const char *src_base, size_t len,
               void *dst, const char **end_ptr, int flags)
 {
   char *d= (char*) dst;
@@ -397,18 +397,18 @@ main(void)
     }
 
     /* Encode */
-    needed_length= base64_needed_encoded_length(src_len);
+    needed_length= my_base64_needed_encoded_length(src_len);
     str= (char *) malloc(needed_length);
     require(str);
     for (k= 0; k < needed_length; k++)
       str[k]= 0xff; /* Fill memory to check correct NUL termination */
-    require(base64_encode(src, src_len, str) == 0);
+    require(my_base64_encode(src, src_len, str) == 0);
     require(needed_length == strlen(str) + 1);
 
     /* Decode */
-    dst= (char *) malloc(base64_needed_decoded_length(strlen(str)));
+    dst= (char *) malloc(my_base64_needed_decoded_length(strlen(str)));
     require(dst);
-    dst_len= base64_decode(str, strlen(str), dst, NULL);
+    dst_len= my_base64_decode(str, strlen(str), dst, NULL);
     require(dst_len == src_len);
 
     if (memcmp(src, dst, src_len) != 0)

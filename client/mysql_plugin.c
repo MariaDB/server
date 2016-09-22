@@ -20,6 +20,7 @@
 #include <mysql.h>
 #include <my_getopt.h>
 #include <my_dir.h>
+#include <mysql_version.h>
 
 #define SHOW_VERSION "1.0.0"
 #define PRINT_VERSION do { printf("%s  Ver %s Distrib %s\n",    \

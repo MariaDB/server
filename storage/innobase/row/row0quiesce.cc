@@ -23,16 +23,22 @@ Quiesce a tablespace.
 Created 2012-02-08 by Sunny Bains.
 *******************************************************/
 
-#include "row0quiesce.h"
-#include "row0mysql.h"
+#include "ha_prototypes.h"
 
+#include "row0quiesce.h"
 #ifdef UNIV_NONINL
 #include "row0quiesce.ic"
 #endif
 
+#include "row0mysql.h"
 #include "ibuf0ibuf.h"
 #include "srv0start.h"
 #include "trx0purge.h"
+#include "fsp0sysspace.h"
+
+#ifdef HAVE_MY_AES_H
+#include <my_aes.h>
+#endif
 
 /*********************************************************************//**
 Write the meta data (index user fields) config file.
@@ -326,8 +332,7 @@ row_quiesce_write_header(
 	if (hostname == 0) {
 		static const char	NullHostname[] = "Hostname unknown";
 
-		ib_logf(IB_LOG_LEVEL_WARN,
-			"Unable to determine server hostname.");
+		ib::warn() << "Unable to determine server hostname.";
 
 		hostname = NullHostname;
 	}
@@ -350,8 +355,8 @@ row_quiesce_write_header(
 	}
 
 	/* The table name includes the NUL byte. */
-	ut_a(table->name != 0);
-	len = static_cast<ib_uint32_t>(strlen(table->name) + 1);
+	ut_a(table->name.m_name != NULL);
+	len = static_cast<ib_uint32_t>(strlen(table->name.m_name) + 1);
 
 	/* Write the table name. */
 	mach_write_to_4(value, len);
@@ -359,7 +364,7 @@ row_quiesce_write_header(
 	DBUG_EXECUTE_IF("ib_export_io_write_failure_6", close(fileno(file)););
 
 	if (fwrite(&value, 1,  sizeof(value), file) != sizeof(value)
-	    || fwrite(table->name, 1,  len, file) != len) {
+	    || fwrite(table->name.m_name, 1,  len, file) != len) {
 
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
@@ -428,7 +433,7 @@ row_quiesce_write_cfg(
 
 	srv_get_meta_data_filename(table, name, sizeof(name));
 
-	ib_logf(IB_LOG_LEVEL_INFO, "Writing table metadata to '%s'", name);
+	ib::info() << "Writing table metadata to '" << name << "'";
 
 	FILE*	file = fopen(name, "w+b");
 
@@ -475,6 +480,210 @@ row_quiesce_write_cfg(
 	return(err);
 }
 
+#ifdef MYSQL_ENCRYPTION
+
+/** Write the transfer key to CFP file.
+@param[in]	table		write the data for this table
+@param[in]	file		file to write to
+@param[in]	thd		session
+@return DB_SUCCESS or error code. */
+static	MY_ATTRIBUTE((nonnull, warn_unused_result))
+dberr_t
+row_quiesce_write_transfer_key(
+	const dict_table_t*	table,
+	FILE*			file,
+	THD*			thd)
+{
+	byte		key_size[sizeof(ib_uint32_t)];
+	byte		row[ENCRYPTION_KEY_LEN * 3];
+	byte*		ptr = row;
+	byte*		transfer_key = ptr;
+	lint		elen;
+
+	ut_ad(table->encryption_key != NULL
+	      && table->encryption_iv != NULL);
+
+	/* Write the encryption key size. */
+	mach_write_to_4(key_size, ENCRYPTION_KEY_LEN);
+
+	if (fwrite(&key_size, 1,  sizeof(key_size), file)
+		!= sizeof(key_size)) {
+		ib_senderrf(
+			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
+			errno, strerror(errno),
+			"while writing key size.");
+
+		return(DB_IO_ERROR);
+	}
+
+	/* Generate and write the transfer key. */
+	Encryption::random_value(transfer_key);
+	if (fwrite(transfer_key, 1, ENCRYPTION_KEY_LEN, file)
+		!= ENCRYPTION_KEY_LEN) {
+		ib_senderrf(
+			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
+			errno, strerror(errno),
+			"while writing transfer key.");
+
+		return(DB_IO_ERROR);
+	}
+
+	ptr += ENCRYPTION_KEY_LEN;
+
+	/* Encrypt tablespace key. */
+	elen = my_aes_encrypt(
+		reinterpret_cast<unsigned char*>(table->encryption_key),
+		ENCRYPTION_KEY_LEN,
+		ptr,
+		reinterpret_cast<unsigned char*>(transfer_key),
+		ENCRYPTION_KEY_LEN,
+		my_aes_256_ecb,
+		NULL, false);
+
+	if (elen == MY_AES_BAD_DATA) {
+		ib_senderrf(
+			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
+			errno, strerror(errno),
+			"while encrypt tablespace key.");
+		return(DB_ERROR);
+	}
+
+	/* Write encrypted tablespace key */
+	if (fwrite(ptr, 1, ENCRYPTION_KEY_LEN, file)
+		!= ENCRYPTION_KEY_LEN) {
+		ib_senderrf(
+			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
+			errno, strerror(errno),
+			"while writing encrypted tablespace key.");
+
+		return(DB_IO_ERROR);
+	}
+	ptr += ENCRYPTION_KEY_LEN;
+
+	/* Encrypt tablespace iv. */
+	elen = my_aes_encrypt(
+		reinterpret_cast<unsigned char*>(table->encryption_iv),
+		ENCRYPTION_KEY_LEN,
+		ptr,
+		reinterpret_cast<unsigned char*>(transfer_key),
+		ENCRYPTION_KEY_LEN,
+		my_aes_256_ecb,
+		NULL, false);
+
+	if (elen == MY_AES_BAD_DATA) {
+		ib_senderrf(
+			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
+			errno, strerror(errno),
+			"while encrypt tablespace iv.");
+		return(DB_ERROR);
+	}
+
+	/* Write encrypted tablespace iv */
+	if (fwrite(ptr, 1, ENCRYPTION_KEY_LEN, file)
+		!= ENCRYPTION_KEY_LEN) {
+		ib_senderrf(
+			thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
+			errno, strerror(errno),
+			"while writing encrypted tablespace iv.");
+
+		return(DB_IO_ERROR);
+	}
+
+	return(DB_SUCCESS);
+}
+
+/** Write the encryption data after quiesce.
+@param[in]	table		write the data for this table
+@param[in]	thd		session
+@return DB_SUCCESS or error code */
+static	MY_ATTRIBUTE((nonnull, warn_unused_result))
+dberr_t
+row_quiesce_write_cfp(
+	dict_table_t*	table,
+	THD*		thd)
+{
+	dberr_t			err;
+	char			name[OS_FILE_MAX_PATH];
+
+	/* If table is not encrypted, return. */
+	if (!dict_table_is_encrypted(table)) {
+		return(DB_SUCCESS);
+	}
+
+	/* Get the encryption key and iv from space */
+	/* For encrypted table, before we discard the tablespace,
+	we need save the encryption information into table, otherwise,
+	this information will be lost in fil_discard_tablespace along
+	with fil_space_free(). */
+	if (table->encryption_key == NULL) {
+		table->encryption_key =
+			static_cast<byte*>(mem_heap_alloc(table->heap,
+							  ENCRYPTION_KEY_LEN));
+
+		table->encryption_iv =
+			static_cast<byte*>(mem_heap_alloc(table->heap,
+							  ENCRYPTION_KEY_LEN));
+
+		fil_space_t*	space = fil_space_get(table->space);
+		ut_ad(space != NULL && FSP_FLAGS_GET_ENCRYPTION(space->flags));
+
+		memcpy(table->encryption_key,
+		       space->encryption_key,
+		       ENCRYPTION_KEY_LEN);
+		memcpy(table->encryption_iv,
+		       space->encryption_iv,
+		       ENCRYPTION_KEY_LEN);
+	}
+
+	srv_get_encryption_data_filename(table, name, sizeof(name));
+
+	ib::info() << "Writing table encryption data to '" << name << "'";
+
+	FILE*	file = fopen(name, "w+b");
+
+	if (file == NULL) {
+		ib_errf(thd, IB_LOG_LEVEL_WARN, ER_CANT_CREATE_FILE,
+			 name, errno, strerror(errno));
+
+		err = DB_IO_ERROR;
+	} else {
+		err = row_quiesce_write_transfer_key(table, file, thd);
+
+		if (fflush(file) != 0) {
+
+			char	msg[BUFSIZ];
+
+			ut_snprintf(msg, sizeof(msg), "%s flush() failed",
+				    name);
+
+			ib_senderrf(
+				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
+				errno, strerror(errno), msg);
+
+			err = DB_IO_ERROR;
+		}
+
+		if (fclose(file) != 0) {
+			char	msg[BUFSIZ];
+
+			ut_snprintf(msg, sizeof(msg), "%s flose() failed",
+				    name);
+
+			ib_senderrf(
+				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
+				errno, strerror(errno), msg);
+			err = DB_IO_ERROR;
+		}
+	}
+
+	/* Clean the encryption information */
+	table->encryption_key = NULL;
+	table->encryption_iv = NULL;
+
+	return(err);
+}
+#endif /* MYSQL_ENCRYPTION */
+
 /*********************************************************************//**
 Check whether a table has an FTS index defined on it.
 @return true if an FTS index exists on the table */
@@ -505,7 +714,6 @@ row_quiesce_table_has_fts_index(
 
 /*********************************************************************//**
 Quiesce the tablespace that the table resides in. */
-UNIV_INTERN
 void
 row_quiesce_table_start(
 /*====================*/
@@ -516,15 +724,10 @@ row_quiesce_table_start(
 	ut_a(srv_n_purge_threads > 0);
 	ut_ad(!srv_read_only_mode);
 
-	char		table_name[MAX_FULL_NAME_LEN + 1];
-
 	ut_a(trx->mysql_thd != 0);
 
-	innobase_format_name(
-		table_name, sizeof(table_name), table->name, FALSE);
-
-	ib_logf(IB_LOG_LEVEL_INFO,
-		"Sync to disk of '%s' started.", table_name);
+	ut_ad(fil_space_get(table->space) != NULL);
+	ib::info() << "Sync to disk of " << table->name << " started.";
 
 	if (trx_purge_state() != PURGE_STATE_DISABLED) {
 		trx_purge_stop();
@@ -535,32 +738,51 @@ row_quiesce_table_start(
 	     && !trx_is_interrupted(trx);
 	     ++count) {
 		if (!(count % 20)) {
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"Merging change buffer entries for '%s'",
-				table_name);
+			ib::info() << "Merging change buffer entries for "
+				<< table->name;
 		}
 	}
 
 	if (!trx_is_interrupted(trx)) {
+		extern	ib_mutex_t	master_key_id_mutex;
+
+#ifdef MYSQL_ENCRYPTION
+		if (dict_table_is_encrypted(table)) {
+			/* Require the mutex to block key rotation. */
+			mutex_enter(&master_key_id_mutex);
+		}
+#endif /* MYSQL_ENCRYPTION */
+
 		buf_LRU_flush_or_remove_pages(
 			table->space, BUF_REMOVE_FLUSH_WRITE, trx);
 
+#ifdef MYSQL_ENCRYPTION
+		if (dict_table_is_encrypted(table)) {
+			mutex_exit(&master_key_id_mutex);
+		}
+#endif /* MYSQL_ENCRYPTION */
+
 		if (trx_is_interrupted(trx)) {
 
-			ib_logf(IB_LOG_LEVEL_WARN, "Quiesce aborted!");
+			ib::warn() << "Quiesce aborted!";
 
 		} else if (row_quiesce_write_cfg(table, trx->mysql_thd)
 			   != DB_SUCCESS) {
 
-			ib_logf(IB_LOG_LEVEL_WARN,
-				"There was an error writing to the "
-				"meta data file");
+			ib::warn() << "There was an error writing to the"
+				" meta data file";
+#ifdef MYSQL_ENCRYPTION
+		} else if (row_quiesce_write_cfp(table, trx->mysql_thd)
+			   != DB_SUCCESS) {
+			ib::warn() << "There was an error writing to the"
+				" encryption info file";
+#endif /* MYSQL_ENCRYPTION */
 		} else {
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"Table '%s' flushed to disk", table_name);
+			ib::info() << "Table " << table->name
+				<< " flushed to disk";
 		}
 	} else {
-		ib_logf(IB_LOG_LEVEL_WARN, "Quiesce aborted!");
+		ib::warn() << "Quiesce aborted!";
 	}
 
 	dberr_t	err = row_quiesce_set_state(table, QUIESCE_COMPLETE, trx);
@@ -569,7 +791,6 @@ row_quiesce_table_start(
 
 /*********************************************************************//**
 Cleanup after table quiesce. */
-UNIV_INTERN
 void
 row_quiesce_table_complete(
 /*=======================*/
@@ -577,12 +798,8 @@ row_quiesce_table_complete(
 	trx_t*		trx)		/*!< in/out: transaction/session */
 {
 	ulint		count = 0;
-	char		table_name[MAX_FULL_NAME_LEN + 1];
 
 	ut_a(trx->mysql_thd != 0);
-
-	innobase_format_name(
-		table_name, sizeof(table_name), table->name, FALSE);
 
 	/* We need to wait for the operation to complete if the
 	transaction has been killed. */
@@ -591,9 +808,8 @@ row_quiesce_table_complete(
 
 		/* Print a warning after every minute. */
 		if (!(count % 60)) {
-			ib_logf(IB_LOG_LEVEL_WARN,
-				"Waiting for quiesce of '%s' to complete",
-				table_name);
+			ib::warn() << "Waiting for quiesce of " << table->name
+				<< " to complete";
 		}
 
 		/* Sleep for a second. */
@@ -609,10 +825,22 @@ row_quiesce_table_complete(
 
 	srv_get_meta_data_filename(table, cfg_name, sizeof(cfg_name));
 
-	os_file_delete_if_exists(innodb_file_data_key, cfg_name);
+	os_file_delete_if_exists(innodb_data_file_key, cfg_name, NULL);
 
-	ib_logf(IB_LOG_LEVEL_INFO,
-		"Deleting the meta-data file '%s'", cfg_name);
+	ib::info() << "Deleting the meta-data file '" << cfg_name << "'";
+
+	if (dict_table_is_encrypted(table)) {
+		char		cfp_name[OS_FILE_MAX_PATH];
+
+		srv_get_encryption_data_filename(table,
+						 cfp_name,
+						 sizeof(cfp_name));
+
+		os_file_delete_if_exists(innodb_data_file_key, cfp_name, NULL);
+
+		ib::info() << "Deleting the meta-data file '"
+			<< cfp_name << "'";
+	}
 
 	if (trx_purge_state() != PURGE_STATE_DISABLED) {
 		trx_purge_run();
@@ -625,7 +853,6 @@ row_quiesce_table_complete(
 /*********************************************************************//**
 Set a table's quiesce state.
 @return DB_SUCCESS or error code. */
-UNIV_INTERN
 dberr_t
 row_quiesce_set_state(
 /*==================*/
@@ -642,23 +869,39 @@ row_quiesce_set_state(
 
 		return(DB_UNSUPPORTED);
 
-	} else if (table->space == TRX_SYS_SPACE) {
+	} else if (dict_table_is_temporary(table)) {
+
+		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_WARN,
+			    ER_CANNOT_DISCARD_TEMPORARY_TABLE);
+
+		return(DB_UNSUPPORTED);
+	} else if (table->space == srv_sys_space.space_id()) {
 
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 
 		innobase_format_name(
-			table_name, sizeof(table_name), table->name, FALSE);
+			table_name, sizeof(table_name),
+			table->name.m_name);
 
 		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_WARN,
 			    ER_TABLE_IN_SYSTEM_TABLESPACE, table_name);
+
+		return(DB_UNSUPPORTED);
+
+	} else if (DICT_TF_HAS_SHARED_SPACE(table->flags)) {
+		std::ostringstream err_msg;
+		err_msg << "FLUSH TABLES FOR EXPORT on table " << table->name
+			<< " in a general tablespace.";
+		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_WARN,
+			    ER_NOT_SUPPORTED_YET, err_msg.str().c_str());
 
 		return(DB_UNSUPPORTED);
 	} else if (row_quiesce_table_has_fts_index(table)) {
 
 		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_WARN,
 			    ER_NOT_SUPPORTED_YET,
-			    "FLUSH TABLES on tables that have an FTS index. "
-			    "FTS auxiliary tables will not be flushed.");
+			    "FLUSH TABLES on tables that have an FTS index."
+			    " FTS auxiliary tables will not be flushed.");
 
 	} else if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID)) {
 		/* If this flag is set then the table may not have any active
@@ -666,10 +909,10 @@ row_quiesce_set_state(
 
 		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_WARN,
 			    ER_NOT_SUPPORTED_YET,
-			    "FLUSH TABLES on a table that had an FTS index, "
-			    "created on a hidden column, the "
-			    "auxiliary tables haven't been dropped as yet. "
-			    "FTS auxiliary tables will not be flushed.");
+			    "FLUSH TABLES on a table that had an FTS index,"
+			    " created on a hidden column, the"
+			    " auxiliary tables haven't been dropped as yet."
+			    " FTS auxiliary tables will not be flushed.");
 	}
 
 	row_mysql_lock_data_dictionary(trx);

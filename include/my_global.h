@@ -817,6 +817,7 @@ static inline bool isfinite(double x) { return std::isfinite(x); }
 #ifndef HAVE_ISNAN
 #define isnan(x) ((x) != (x))
 #endif
+#define my_isnan(x) isnan(x)
 
 #ifdef HAVE_ISINF
 #define my_isinf(X) isinf(X)
@@ -1248,6 +1249,15 @@ static inline double rint(double x)
   #else
     #define CPU_LEVEL1_DCACHE_LINESIZE 64
   #endif
+#endif
+
+#define FLOATING_POINT_DECIMALS 31
+
+/* Keep client compatible with earlier versions */
+#ifdef MYSQL_SERVER
+#define NOT_FIXED_DEC           DECIMAL_NOT_SPECIFIED
+#else
+#define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
 #endif
 
 #endif /* my_global_h */

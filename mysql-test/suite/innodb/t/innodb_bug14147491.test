@@ -1,41 +1,29 @@
 #
 # Test opening a corrupted table.
 #
-
--- source include/not_encrypted.inc
-
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed.*");
-
-# Don't test under valgrind, memory leaks will occur
+# Valgrind can hang or return spurious messages on DBUG_SUICIDE
 source include/not_valgrind.inc;
 # Avoid CrashReporter popup on Mac
 source include/not_crashrep.inc;
-# Don't test under embedded
+# Restarting is not supported under embedded
 source include/not_embedded.inc;
 # Require InnoDB
 source include/have_innodb.inc;
 # Require Debug for SET DEBUG
 source include/have_debug.inc;
+# Not encrypted tables
+source include/not_encrypted.inc;
 # Test could open crash reporter on Windows 
 # if compiler set up
 source include/not_windows.inc;
 
-CALL mtr.add_suppression("InnoDB: Error: Unable to read tablespace .* page no .* into the buffer pool after 100 attempts");
-CALL mtr.add_suppression("InnoDB: Warning: database page corruption or a failed");
-CALL mtr.add_suppression("InnoDB: Database page corruption on disk or a failed");
-CALL mtr.add_suppression("InnoDB: Space .* file test/t1 read of page .*");
-CALL mtr.add_suppression("InnoDB: You may have to recover from a backup.");
-CALL mtr.add_suppression("InnoDB: It is also possible that your operatingsystem has corrupted its own file cache.");
-CALL mtr.add_suppression("InnoDB: and rebooting your computer removes the error.");
-CALL mtr.add_suppression("InnoDB: If the corrupt page is an index page you can also try to");
-CALL mtr.add_suppression("InnoDB: fix the corruption by dumping, dropping, and reimporting");
-CALL mtr.add_suppression("InnoDB: the corrupt table. You can use CHECK");
-CALL mtr.add_suppression("InnoDB: TABLE to scan your table for corruption.");
-CALL mtr.add_suppression("InnoDB: See also .* about forcing recovery.");
+--disable_query_log
+CALL mtr.add_suppression("\\[ERROR\\] \\[FATAL\\] InnoDB: Unable to read page \\[page id: space=.*, page number=.*\\] into the buffer pool after 100 attempts");
+CALL mtr.add_suppression("\\[ERROR\\] InnoDB: Database page corruption on disk or a failed");
+--enable_query_log
 
 
---echo # Create and populate the table to be corrupted
-CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ROW_FORMAT=COMPACT ENGINE=InnoDB;
 INSERT INTO t1 (b) VALUES ('corrupt me');
 --disable_query_log
 --let $i = 10
@@ -50,17 +38,7 @@ INSERT INTO t1 (b) VALUES ('corrupt me');
 let $MYSQLD_DATADIR=`select @@datadir`;
 let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
 
---echo # Write file to make mysql-test-run.pl expect the "crash", but don't
---echo # start it until it's told to
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-
---echo # We give 30 seconds to do a clean shutdown because we do not want
---echo # to redo apply the pages of t1.ibd at the time of recovery.
---echo # We want SQL to initiate the first access to t1.ibd.
-shutdown_server 30;
-
---echo # Wait until disconnected.
---source include/wait_until_disconnected.inc
+--source include/shutdown_mysqld.inc
 
 --echo # Backup the t1.ibd before corrupting
 --copy_file $t1_IBD $MYSQLD_DATADIR/test/t1.ibd.backup
@@ -92,10 +70,7 @@ while ($len = sysread IBD_FILE, $chunk, 1024)
 close IBD_FILE;
 EOF
 
---echo # Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---enable_reconnect
---source include/wait_until_connected_again.inc
+--source include/start_mysqld.inc
 
 SET DEBUG_DBUG = '+d,innodb_page_corruption_retries';
 
@@ -117,10 +92,7 @@ SLEEP 1;
 --remove_file $MYSQLD_DATADIR/test/t1.ibd
 --move_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
 
---echo # Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---enable_reconnect
---source include/wait_until_connected_again.inc
+--source include/start_mysqld.inc
 
 # Note SET DEBUG = '-d,innodb_page_corruption_retries' is not required
 # because the session information is lost after server restart

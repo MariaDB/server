@@ -123,7 +123,7 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
     conv_name_end= conv_string + res;
   }
 
-  quote = thd ? get_quote_char_for_identifier(thd, conv_name, res - 1) : '"';
+  quote = thd ? get_quote_char_for_identifier(thd, conv_name, res - 1) : '`';
 
   if (quote != EOF && (end_p - to_p > 2))
   {
@@ -8251,11 +8251,14 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       DBUG_RETURN(true);
     case FK_COLUMN_DROPPED:
     {
-      char buff[NAME_LEN*2+2];
-      strxnmov(buff, sizeof(buff)-1, f_key->foreign_db->str, ".",
-               f_key->foreign_table->str, NullS);
+      StringBuffer<NAME_LEN*2+2> buff(system_charset_info);
+      LEX_STRING *db= f_key->foreign_db, *tbl= f_key->foreign_table;
+
+      append_identifier(thd, &buff, db->str, db->length);
+      buff.append('.');
+      append_identifier(thd, &buff, tbl->str,tbl->length);
       my_error(ER_FK_COLUMN_CANNOT_DROP_CHILD, MYF(0), bad_column_name,
-               f_key->foreign_id->str, buff);
+               f_key->foreign_id->str, buff.c_ptr());
       DBUG_RETURN(true);
     }
     default:

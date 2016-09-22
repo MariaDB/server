@@ -3,7 +3,7 @@
 --source include/not_windows.inc
 
 --disable_query_log
-CALL mtr.add_suppression("\\[Warning\\] InnoDB: Failed to set O_DIRECT on file ./ibdata1: OPEN: Invalid argument, continuing anyway. O_DIRECT is known to result in 'Invalid argument' on Linux on tmpfs, see MySQL Bug#26662.");
+CALL mtr.add_suppression(".*Failed to set O_DIRECT on file.*");
 
 # The below mtr suppression to avoid failure in solaris platform.
 CALL mtr.add_suppression("\\[ERROR\\] InnoDB: Failed to set DIRECTIO_ON on file.*");

@@ -128,7 +128,7 @@ WHERE MATCH (a,b)
 AGAINST ('"mysql use"@1' IN BOOLEAN MODE);
 id	a	b
 INSERT INTO t1 (a,b) VALUES   ('XYZ, long blob', repeat("a", 9000));
-INSERT INTO t1 (a,b) VALUES   (repeat("b", 9000), 'XYZ, long blob');
+INSERT IGNORE INTO t1 (a,b) VALUES   (repeat("b", 9000), 'XYZ, long blob');
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 SELECT count(*) FROM t1
@@ -137,7 +137,6 @@ AGAINST ('"xyz blob"@3' IN BOOLEAN MODE);
 count(*)
 2
 DROP TABLE t1;
-set global innodb_file_format="Barracuda";
 set global innodb_file_per_table=1;
 CREATE TABLE t1 (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -225,5 +224,4 @@ AGAINST ('"very blob"@3' IN BOOLEAN MODE);
 count(*)
 1
 DROP TABLE t1;
-SET GLOBAL innodb_file_format=Antelope;
 SET GLOBAL innodb_file_per_table=1;

@@ -2138,35 +2138,6 @@ sub have_maria_support () {
   return defined $maria_var;
 }
 
-#
-# Set environment to be used by childs of this process for
-# things that are constant during the whole lifetime of mysql-test-run
-#
-
-sub find_plugin($$)
-{
-  my ($plugin, $location)  = @_;
-  my $plugin_filename;
-
-  if (IS_WINDOWS)
-  {
-     $plugin_filename = $plugin.".dll"; 
-  }
-  else 
-  {
-     $plugin_filename = $plugin.".so";
-  }
-
-  my $lib_plugin=
-    mtr_file_exists(vs_config_dirs($location,$plugin_filename),
-                    "$basedir/lib/plugin/".$plugin_filename,
-                    "$basedir/lib64/plugin/".$plugin_filename,
-                    "$basedir/$location/.libs/".$plugin_filename,
-                    "$basedir/lib/mysql/plugin/".$plugin_filename,
-                    "$basedir/lib64/mysql/plugin/".$plugin_filename,
-                    );
-  return $lib_plugin;
-}
 
 sub environment_setup {
 
@@ -2588,6 +2559,7 @@ sub setup_vardir() {
       {
         for (<$bindir/storage/*$opt_vs_config/*.dll>,
              <$bindir/plugin/*$opt_vs_config/*.dll>,
+             <$bindir/libmariadb/plugins/*$opt_vs_config/*.dll>,
              <$bindir/sql$opt_vs_config/*.dll>)
         {
           my $pname=basename($_);
@@ -2605,12 +2577,9 @@ sub setup_vardir() {
         unlink "$plugindir/symlink_test";
       }
 
-      for (<../storage/*/.libs/*.so>,
-           <../plugin/*/.libs/*.so>,
-           <../plugin/*/*/.libs/*.so>,
-           <../sql/.libs/*.so>,
-           <$bindir/storage/*/*.so>,
+      for (<$bindir/storage/*/*.so>,
            <$bindir/plugin/*/*.so>,
+           <$bindir/libmariadb/plugins/*/*.so>,
            <$bindir/sql/*.so>)
       {
         my $pname=basename($_);
@@ -2632,6 +2601,8 @@ sub setup_vardir() {
     # hm, what paths work for debs and for rpms ?
     for (<$bindir/lib64/mysql/plugin/*.so>,
          <$bindir/lib/mysql/plugin/*.so>,
+         <$bindir/lib64/mariadb/plugin/*.so>,
+         <$bindir/lib/mariadb/plugin/*.so>,
          <$bindir/lib/plugin/*.so>,             # bintar
          <$bindir/lib/plugin/*.dll>)
     {
@@ -4395,7 +4366,6 @@ sub extract_warning_lines ($$) {
      qr/Slave SQL thread retried transaction/,
      qr/Slave \(additional info\)/,
      qr/Incorrect information in file/,
-     qr/Incorrect key file for table .*crashed.*/,
      qr/Slave I\/O: Get master SERVER_ID failed with error:.*/,
      qr/Slave I\/O: Get master clock failed with error:.*/,
      qr/Slave I\/O: Get master COLLATION_SERVER failed with error:.*/,
@@ -4451,7 +4421,14 @@ sub extract_warning_lines ($$) {
      qr|nnoDB: fix the corruption by dumping, dropping, and reimporting|,
      qr|InnoDB: the corrupt table. You can use CHECK|,
      qr|InnoDB: TABLE to scan your table for corruption|,
-     qr/InnoDB: See also */
+     qr/InnoDB: See also */,
+     qr/InnoDB: Cannot open .*ib_buffer_pool.* for reading: No such file or directory*/,
+     qr/InnoDB: Upgrading redo log:*/,
+     qr|InnoDB: Starting to delete and rewrite log files.|,
+     qr/InnoDB: New log files created, LSN=*/,
+     qr|InnoDB: Creating foreign key constraint system tables.|,
+     qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
+     qr/InnoDB: User stopword table .* does not exist./
 
     );
 

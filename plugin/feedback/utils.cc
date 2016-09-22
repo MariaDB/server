@@ -422,8 +422,8 @@ int calculate_server_uid(char *dest)
 
   compute_sha1_hash((uint8*) shabuf, (char*) rawbuf, sizeof(rawbuf));
 
-  assert(base64_needed_encoded_length(sizeof(shabuf)) <= SERVER_UID_SIZE);
-  base64_encode(shabuf, sizeof(shabuf), dest);
+  assert(my_base64_needed_encoded_length(sizeof(shabuf)) <= SERVER_UID_SIZE);
+  my_base64_encode(shabuf, sizeof(shabuf), dest);
 
   return 0;
 }

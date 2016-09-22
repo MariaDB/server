@@ -4425,7 +4425,7 @@ static int init_common_variables()
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
 
-#if defined(HAVE_POOL_OF_THREADS) && !defined(_WIN32)
+#if defined(HAVE_POOL_OF_THREADS)
   if (IS_SYSVAR_AUTOSIZE(&threadpool_size))
     SYSVAR_AUTOSIZE(threadpool_size, my_getncpus());
 #endif
@@ -6464,7 +6464,7 @@ static void create_new_thread(CONNECT *connect)
     mysql_mutex_unlock(&LOCK_connection_count);
     statistic_increment(denied_connections, &LOCK_status);
     statistic_increment(connection_errors_max_connection, &LOCK_status);
-    connect->close_with_error(0, NullS, ER_CON_COUNT_ERROR);
+    connect->close_with_error(0, NullS, abort_loop ? ER_SERVER_SHUTDOWN : ER_CON_COUNT_ERROR);
     DBUG_VOID_RETURN;
   }
 

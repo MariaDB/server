@@ -238,7 +238,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 static
 int compare_order_elements(ORDER *ord1, ORDER *ord2)
 {
-  if (*ord1->item == *ord2->item)
+  if (*ord1->item == *ord2->item && ord1->direction == ord2->direction)
     return CMP_EQ;
   Item *item1= (*ord1->item)->real_item();
   Item *item2= (*ord2->item)->real_item();

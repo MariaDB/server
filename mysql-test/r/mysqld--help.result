@@ -108,9 +108,6 @@ The following options may be given as the first argument:
  --bulk-insert-buffer-size=# 
  Size of tree cache used in bulk insert optimisation. Note
  that this is a limit per thread!
- --changed-page-bitmaps[=name] 
- Enable or disable CHANGED_PAGE_BITMAPS plugin. One of:
- ON, OFF, FORCE (don't start if the plugin fails to load).
  --character-set-client-handshake 
  Don't ignore client side character set value sent during
  handshake.
@@ -1108,6 +1105,15 @@ The following options may be given as the first argument:
  --thread-pool-oversubscribe=# 
  How many additional active worker threads in a group are
  allowed.
+ --thread-pool-prio-kickup-timer=# 
+ The number of milliseconds before a dequeued low-priority
+ statement is moved to the high-priority queue
+ --thread-pool-priority=name 
+ Threadpool priority. High priority connections usually
+ start executing earlier than low priority.If priority set
+ to 'auto', the the actual priority(low or high) is
+ determined based on whether or not connection is inside
+ transaction.
  --thread-pool-size=# 
  Number of thread groups in the pool. This parameter is
  roughly equivalent to maximum number of concurrently
@@ -1182,7 +1188,6 @@ binlog-row-event-max-size 1024
 binlog-row-image FULL
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
-changed-page-bitmaps ON
 character-set-client-handshake TRUE
 character-set-filesystem binary
 character-sets-dir MYSQL_CHARSETSDIR/
@@ -1465,6 +1470,8 @@ thread-cache-size 151
 thread-pool-idle-timeout 60
 thread-pool-max-threads 1000
 thread-pool-oversubscribe 3
+thread-pool-prio-kickup-timer 1000
+thread-pool-priority auto
 thread-pool-stall-limit 500
 thread-stack 297984
 time-format %H:%i:%s
