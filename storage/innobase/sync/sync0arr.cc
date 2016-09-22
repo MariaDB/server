@@ -501,9 +501,7 @@ void
 sync_array_cell_print(
 /*==================*/
 	FILE*		file,		/*!< in: file where to print */
-	sync_cell_t*	cell,		/*!< in: sync cell */
-	os_thread_id_t* reserver)	/*!< out: write reserver or
-					0 */
+	sync_cell_t*	cell)		/*!< in: sync cell */
 {
 	rw_lock_t*	rwlock;
 	ulint		type;
@@ -601,7 +599,6 @@ sync_array_cell_print(
 				writer == RW_LOCK_X ? " exclusive\n"
 				: writer == RW_LOCK_SX ? " SX\n"
 					: " wait exclusive\n");
-				*reserver = rwlock->writer_thread;
 			}
 
 			fprintf(file,
@@ -715,7 +712,7 @@ sync_array_report_error(
 	sync_cell_t* 		cell)
 {
 	fprintf(stderr, "rw-lock %p ", (void*) lock);
-	sync_array_cell_print(stderr, cell, 0);
+	sync_array_cell_print(stderr, cell);
 	rw_lock_debug_print(stderr, debug);
 }
 
@@ -788,7 +785,7 @@ sync_array_detect_deadlock(
 					<< " file " << name << " line "
 					<< policy.get_enter_line();
 
-				sync_array_cell_print(stderr, cell, 0);
+				sync_array_cell_print(stderr, cell);
 
 				return(true);
 			}
@@ -1152,7 +1149,7 @@ sync_array_print_long_waits_low(
 
 		if (diff > SYNC_ARRAY_TIMEOUT) {
 			ib::warn() << "A long semaphore wait:";
-			sync_array_cell_print(stderr, cell, 0);
+			sync_array_cell_print(stderr, cell);
 			*noticed = TRUE;
 		}
 
@@ -1167,14 +1164,12 @@ sync_array_print_long_waits_low(
 		}
 	}
 
-	/* We found a long semaphore wait, wait all threads that are
+	/* We found a long semaphore wait, print all threads that are
 	waiting for a semaphore. */
 	if (*noticed) {
 		for (i = 0; i < arr->n_cells; i++) {
 			void*	wait_object;
-			os_thread_id_t reserver=(os_thread_id_t)ULINT_UNDEFINED;
 			sync_cell_t*	cell;
-			ulint loop = 0;
 
 			cell = sync_array_get_nth_cell(arr, i);
 
@@ -1185,41 +1180,8 @@ sync_array_print_long_waits_low(
 				continue;
 			}
 
-			fputs("InnoDB: Warning: semaphore wait:\n",
-			      stderr);
-			sync_array_cell_print(stderr, cell, 0);
-
-			/* Try to output cell information for writer recursive way */
-			while (reserver != (os_thread_id_t)ULINT_UNDEFINED) {
-				sync_cell_t* reserver_wait;
-
-				reserver_wait = sync_array_find_thread(arr, reserver);
-
-				if (reserver_wait &&
-					reserver_wait->latch.mutex != NULL &&
-					reserver_wait->waiting) {
-					fputs("InnoDB: Warning: Writer thread is waiting this semaphore:\n",
-						stderr);
-					reserver = (os_thread_id_t)ULINT_UNDEFINED;
-					sync_array_cell_print(stderr, reserver_wait, &reserver);
-					loop++;
-
-					/* TODO: FIXME:
-					if (reserver_wait->thread == reserver) {
-						reserver = (os_thread_id_t)ULINT_UNDEFINED;
-					}
-					*/
-				} else {
-					reserver = (os_thread_id_t)ULINT_UNDEFINED;
-				}
-
-				/* This is protection against loop */
-				if (loop > 100) {
-					fputs("InnoDB: Warning: Too many waiting threads.\n", stderr);
-					break;
-				}
-
-			}
+			ib::info() << "A semaphore wait:";
+			sync_array_cell_print(stderr, cell);
 		}
 	}
 
@@ -1314,7 +1276,7 @@ sync_array_print_info_low(
 
 		if (cell->latch.mutex != 0) {
 			count++;
-			sync_array_cell_print(file, cell, 0);
+			sync_array_cell_print(file, cell);
 		}
 	}
 }
@@ -1404,8 +1366,6 @@ sync_array_print_innodb(void)
 	for (i = 0; i < arr->n_cells; i++) {
 		void*	wait_object;
 		sync_cell_t*	cell;
-		os_thread_id_t reserver=(os_thread_id_t)ULINT_UNDEFINED;
-		ulint loop=0;
 
 		cell = sync_array_get_nth_cell(arr, i);
 
@@ -1418,36 +1378,7 @@ sync_array_print_innodb(void)
 
 		fputs("InnoDB: Warning: semaphore wait:\n",
 			      stderr);
-		sync_array_cell_print(stderr, cell, &reserver);
-
-		/* Try to output cell information for writer recursive way */
-		while (reserver != (os_thread_id_t)ULINT_UNDEFINED) {
-			sync_cell_t* reserver_wait;
-
-			reserver_wait = sync_array_find_thread(arr, reserver);
-
-			if (reserver_wait &&
-				reserver_wait->latch.mutex != NULL &&
-				reserver_wait->waiting) {
-				fputs("InnoDB: Warning: Writer thread is waiting this semaphore:\n",
-					stderr);
-				sync_array_cell_print(stderr, reserver_wait, &reserver);
-
-				/* JAN: FIXME:
-				if (reserver_wait->thread == reserver) {
-					reserver = (os_thread_id_t)ULINT_UNDEFINED;
-				}
-				*/
-			} else {
-				reserver = (os_thread_id_t)ULINT_UNDEFINED;
-			}
-
-			/* This is protection against loop */
-			if (loop > 100) {
-				fputs("InnoDB: Warning: Too many waiting threads.\n", stderr);
-				break;
-			}
-		}
+		sync_array_cell_print(stderr, cell);
 	}
 
 	fputs("InnoDB: Semaphore wait debug output ended:\n", stderr);
