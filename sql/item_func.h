@@ -2599,6 +2599,25 @@ public:
 };
 
 
+class Item_func_oracle_sql_rowcount :public Item_int_func
+{
+public:
+  Item_func_oracle_sql_rowcount(THD *thd): Item_int_func(thd) {}
+  longlong val_int();
+  const char *func_name() const { return "SQL%%ROWCOUNT"; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(func_name());
+  }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+  }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_oracle_sql_rowcount>(thd, mem_root, this); }
+};
+
+
 void uuid_short_init();
 
 class Item_func_uuid_short :public Item_int_func

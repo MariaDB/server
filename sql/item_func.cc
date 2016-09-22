@@ -6632,6 +6632,21 @@ longlong Item_func_found_rows::val_int()
 }
 
 
+longlong Item_func_oracle_sql_rowcount::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  THD *thd= current_thd;
+  /*
+    In case when a query like this:
+      INSERT a INTO @va FROM t1;
+    returns multiple rows, SQL%ROWCOUNT should report 1 rather than -1.
+  */
+  longlong rows= thd->get_row_count_func();
+  return rows != -1 ? rows :                   // ROW_COUNT()
+                      thd->found_rows();       // FOUND_ROWS()
+}
+
+
 /**
   @brief Checks if requested access to function can be granted to user.
     If function isn't found yet, it searches function first.
