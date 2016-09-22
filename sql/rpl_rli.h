@@ -42,7 +42,7 @@ class Rpl_filter;
 
   Relay_log_info is initialized from the slave.info file if such
   exists.  Otherwise, data members are intialized with defaults. The
-  initialization is done with init_relay_log_info() call.
+  initialization is done with Relay_log_info::init() call.
 
   The format of slave.info file:
 
@@ -536,7 +536,7 @@ private:
     MASTER_DELAY=X.  Read by SQL thread and by client threads
     executing SHOW SLAVE STATUS.  Note: must not be written while the
     slave SQL thread is running, since the SQL thread reads it without
-    a lock when executing flush_relay_log_info().
+    a lock when executing Relay_log_info::flush().
   */
   int sql_delay;
 
@@ -952,17 +952,6 @@ public:
   void cached_charset_invalidate();
   bool cached_charset_compare(char *charset) const;
 };
-
-
-/**
-  Reads the relay_log.info file.
-
-  @todo This is a wrapper around Relay_log_info::init(). It's only
-  kept for historical reasons. It would be good if we removed this
-  function and replaced all calls to it by calls to
-  Relay_log_info::init(). /SVEN
-*/
-int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
 
 
 extern struct rpl_slave_state *rpl_global_gtid_slave_state;

@@ -6402,7 +6402,7 @@ bool Rotate_log_event::write()
   The NOTES below is a wrong comment which will disappear when 4.1 is merged.
 
   This must only be called from the Slave SQL thread, since it calls
-  flush_relay_log_info().
+  Relay_log_info::flush().
 
   @retval
     0	ok
@@ -6457,7 +6457,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
                         (ulong) rli->group_master_log_pos));
     mysql_mutex_unlock(&rli->data_lock);
     rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
-    flush_relay_log_info(rli);
+    rli->flush();
     
     /*
       Reset thd->variables.option_bits and sql_mode etc, because this could
@@ -8228,7 +8228,7 @@ void Stop_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   here, the master was sane.
 
   This must only be called from the Slave SQL thread, since it calls
-  flush_relay_log_info().
+  Relay_log_info::flush().
 */
 
 int Stop_log_event::do_update_pos(rpl_group_info *rgi)
@@ -8248,7 +8248,7 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
   {
     rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
     rli->inc_group_relay_log_pos(0, rgi);
-    flush_relay_log_info(rli);
+    rli->flush();
   }
   DBUG_RETURN(0);
 }

@@ -100,7 +100,7 @@ static int check_event_type(int type, Relay_log_info *rli)
     /*
       It is not meaningful to execute other events than row-events and
       FD events. It would even be dangerous to execute Stop_log_event
-      and Rotate_log_event since they call flush_relay_log_info, which
+      and Rotate_log_event since they call Relay_log_info::flush(), which
       is not allowed to call by other threads than the slave SQL
       thread when the slave SQL thread is running.
     */

@@ -738,7 +738,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
     DBUG_PRINT("info",("Flushing relay-log info file."));
     if (current_thd)
       THD_STAGE_INFO(current_thd, stage_flushing_relay_log_info_file);
-    if (flush_relay_log_info(&mi->rli))
+    if (mi->rli.flush())
       DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
     
     if (my_sync(mi->rli.info_fd, MYF(MY_WME)))
@@ -5124,7 +5124,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   {
     ulong domain_count;
 
-    flush_relay_log_info(rli);
+    rli->flush();
     if (mi->using_parallel())
     {
       /*
@@ -6708,88 +6708,6 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
 }
 #endif
 
-/**
-  Store the file and position where the slave's SQL thread are in the
-  relay log.
-
-  Notes:
-
-  - This function should be called either from the slave SQL thread,
-    or when the slave thread is not running.  (It reads the
-    group_{relay|master}_log_{pos|name} and delay fields in the rli
-    object.  These may only be modified by the slave SQL thread or by
-    a client thread when the slave SQL thread is not running.)
-
-  - If there is an active transaction, then we do not update the
-    position in the relay log.  This is to ensure that we re-execute
-    statements if we die in the middle of an transaction that was
-    rolled back.
-
-  - As a transaction never spans binary logs, we don't have to handle
-    the case where we do a relay-log-rotation in the middle of the
-    transaction.  If transactions could span several binlogs, we would
-    have to ensure that we do not delete the relay log file where the
-    transaction started before switching to a new relay log file.
-
-  - Error can happen if writing to file fails or if flushing the file
-    fails.
-
-  @param rli The object representing the Relay_log_info.
-
-  @todo Change the log file information to a binary format to avoid
-  calling longlong2str.
-
-  @todo Move the member function into rpl_rli.cc and get rid of the
-  global function. /SVEN
-
-  @return 0 on success, 1 on error.
-*/
-bool flush_relay_log_info(Relay_log_info* rli)
-{
-  return rli->flush();
-}
-
-bool Relay_log_info::flush()
-{
-  bool error=0;
-
-  DBUG_ENTER("Relay_log_info::flush()");
-
-  IO_CACHE *file = &info_file;
-  // 2*file name, 2*long long, 2*unsigned long, 6*'\n'
-  char buff[FN_REFLEN * 2 + 22 * 2 + 10 * 2 + 6], *pos;
-  my_b_seek(file, 0L);
-  pos= longlong10_to_str(LINES_IN_RELAY_LOG_INFO_WITH_DELAY, buff, 10);
-  *pos++='\n';
-  pos=strmov(pos, group_relay_log_name);
-  *pos++='\n';
-  pos=longlong10_to_str(group_relay_log_pos, pos, 10);
-  *pos++='\n';
-  pos=strmov(pos, group_master_log_name);
-  *pos++='\n';
-  pos=longlong10_to_str(group_master_log_pos, pos, 10);
-  *pos++='\n';
-  pos= longlong10_to_str(sql_delay, pos, 10);
-  *pos++= '\n';
-  if (my_b_write(file, (uchar*) buff, (size_t) (pos-buff)))
-    error=1;
-  if (flush_io_cache(file))
-    error=1;
-  if (sync_relayloginfo_period &&
-      !error &&
-      ++sync_counter >= sync_relayloginfo_period)
-  {
-    if (my_sync(info_fd, MYF(MY_WME)))
-      error=1;
-    sync_counter= 0;
-  }
-  /* 
-    Flushing the relay log is done by the slave I/O thread 
-    or by the user on STOP SLAVE. 
-   */
-  DBUG_RETURN(error);
-}
-
 
 /*
   Called when we notice that the current "hot" log got rotated under our feet.
@@ -7146,7 +7064,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         }
         rli->event_relay_log_pos = BIN_LOG_HEADER_SIZE;
         strmake_buf(rli->event_relay_log_name,rli->linfo.log_file_name);
-        flush_relay_log_info(rli);
+        rli->flush();
       }
 
       /*

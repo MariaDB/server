@@ -647,7 +647,7 @@ file '%s')", fname);
                             (ulong) mi->master_log_pos));
 
   mi->rli.mi= mi;
-  if (init_relay_log_info(&mi->rli, slave_info_fname))
+  if (mi->rli.init(slave_info_fname))
     goto err;
 
   mi->inited = 1;

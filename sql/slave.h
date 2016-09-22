@@ -183,7 +183,6 @@ extern const char *relay_log_basename;
 int init_slave();
 int init_recovery(Master_info* mi, const char** errmsg);
 void init_slave_skip_errors(const char* arg);
-bool flush_relay_log_info(Relay_log_info* rli);
 int register_slave_on_master(MYSQL* mysql);
 int terminate_slave_threads(Master_info* mi, int thread_mask,
 			     bool skip_lock = 0);

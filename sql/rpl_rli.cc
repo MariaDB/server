@@ -111,19 +111,6 @@ Relay_log_info::~Relay_log_info()
 
 
 /**
-  Wrapper around Relay_log_info::init(const char *).
-
-  @todo Remove this and replace all calls to it by calls to
-  Relay_log_info::init(const char *). /SVEN
-*/
-int init_relay_log_info(Relay_log_info* rli,
-			const char* info_fname)
-{
-  return rli->init(info_fname);
-}
-
-
-/**
   Read the relay_log.info file.
 
   @param info_fname The name of the file to read from.
@@ -135,7 +122,7 @@ int Relay_log_info::init(const char* info_fname)
   char fname[FN_REFLEN+128];
   const char* msg = 0;
   int error = 0;
-  DBUG_ENTER("init_relay_log_info");
+  DBUG_ENTER("Relay_log_info::init");
 
   if (inited)                       // Set if this function called
     DBUG_RETURN(0);
@@ -242,7 +229,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
                        max_relay_log_size, 1, TRUE))
     {
       mysql_mutex_unlock(&data_lock);
-      sql_print_error("Failed when trying to open logs for '%s' in init_relay_log_info(). Error: %M", ln, my_errno);
+      sql_print_error("Failed when trying to open logs for '%s' in Relay_log_info::init(). Error: %M", ln, my_errno);
       DBUG_RETURN(1);
     }
   }
@@ -409,10 +396,10 @@ Failed to open the existing relay log info file '%s' (errno %d)",
 
   /*
     Now change the cache from READ to WRITE - must do this
-    before flush_relay_log_info
+    before Relay_log_info::flush()
   */
   reinit_io_cache(&info_file, WRITE_CACHE,0L,0,1);
-  if ((error= flush_relay_log_info(this)))
+  if ((error= flush()))
   {
     msg= "Failed to flush relay log info file";
     goto err;
@@ -1108,10 +1095,10 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     Indeed, rli->inited==0 does not imply that they already are empty.
     It could be that slave's info initialization partly succeeded :
     for example if relay-log.info existed but *relay-bin*.*
-    have been manually removed, init_relay_log_info reads the old
-    relay-log.info and fills rli->master_log_*, then init_relay_log_info
+    have been manually removed, Relay_log_info::init() reads the old
+    relay-log.info and fills rli->master_log_*, then Relay_log_info::init()
     checks for the existence of the relay log, this fails and
-    init_relay_log_info leaves rli->inited to 0.
+    Relay_log_info::init() leaves rli->inited to 0.
     In that pathological case, rli->master_log_pos* will be properly reinited
     at the next START SLAVE (as RESET SLAVE or CHANGE
     MASTER, the callers of purge_relay_logs, will delete bogus *.info files
@@ -1349,7 +1336,7 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
     }
     DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
     if (mi->using_gtid == Master_info::USE_GTID_NO)
-      flush_relay_log_info(this);
+      flush();
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
   }
   DBUG_VOID_RETURN;
@@ -2008,6 +1995,81 @@ bool rpl_sql_thread_info::cached_charset_compare(char *charset) const
     DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
+}
+
+
+/**
+  Store the file and position where the slave's SQL thread are in the
+  relay log.
+
+  Notes:
+
+  - This function should be called either from the slave SQL thread,
+    or when the slave thread is not running.  (It reads the
+    group_{relay|master}_log_{pos|name} and delay fields in the rli
+    object.  These may only be modified by the slave SQL thread or by
+    a client thread when the slave SQL thread is not running.)
+
+  - If there is an active transaction, then we do not update the
+    position in the relay log.  This is to ensure that we re-execute
+    statements if we die in the middle of an transaction that was
+    rolled back.
+
+  - As a transaction never spans binary logs, we don't have to handle
+    the case where we do a relay-log-rotation in the middle of the
+    transaction.  If transactions could span several binlogs, we would
+    have to ensure that we do not delete the relay log file where the
+    transaction started before switching to a new relay log file.
+
+  - Error can happen if writing to file fails or if flushing the file
+    fails.
+
+  @param rli The object representing the Relay_log_info.
+
+  @todo Change the log file information to a binary format to avoid
+  calling longlong2str.
+
+  @return 0 on success, 1 on error.
+*/
+bool Relay_log_info::flush()
+{
+  bool error=0;
+
+  DBUG_ENTER("Relay_log_info::flush()");
+
+  IO_CACHE *file = &info_file;
+  // 2*file name, 2*long long, 2*unsigned long, 6*'\n'
+  char buff[FN_REFLEN * 2 + 22 * 2 + 10 * 2 + 6], *pos;
+  my_b_seek(file, 0L);
+  pos= longlong10_to_str(LINES_IN_RELAY_LOG_INFO_WITH_DELAY, buff, 10);
+  *pos++='\n';
+  pos=strmov(pos, group_relay_log_name);
+  *pos++='\n';
+  pos=longlong10_to_str(group_relay_log_pos, pos, 10);
+  *pos++='\n';
+  pos=strmov(pos, group_master_log_name);
+  *pos++='\n';
+  pos=longlong10_to_str(group_master_log_pos, pos, 10);
+  *pos++='\n';
+  pos= longlong10_to_str(sql_delay, pos, 10);
+  *pos++= '\n';
+  if (my_b_write(file, (uchar*) buff, (size_t) (pos-buff)))
+    error=1;
+  if (flush_io_cache(file))
+    error=1;
+  if (sync_relayloginfo_period &&
+      !error &&
+      ++sync_counter >= sync_relayloginfo_period)
+  {
+    if (my_sync(info_fd, MYF(MY_WME)))
+      error=1;
+    sync_counter= 0;
+  }
+  /* 
+    Flushing the relay log is done by the slave I/O thread 
+    or by the user on STOP SLAVE. 
+   */
+  DBUG_RETURN(error);
 }
 
 #endif
