@@ -40,6 +40,7 @@ buffer_pages_written	disabled
 buffer_index_pages_written	disabled
 buffer_non_index_pages_written	disabled
 buffer_pages_read	disabled
+buffer_pages0_read	disabled
 buffer_index_sec_rec_cluster_reads	disabled
 buffer_index_sec_rec_cluster_reads_avoided	disabled
 buffer_data_reads	disabled

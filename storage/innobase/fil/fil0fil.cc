@@ -669,6 +669,7 @@ fil_node_open_file(
 		page = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
 
 		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE);
+		srv_stats.page0_read.add(1);
 
 		space_id = fsp_header_get_space_id(page);
 		flags = fsp_header_get_flags(page);
@@ -7244,30 +7245,27 @@ fil_space_get_crypt_data(
 
 	space = fil_space_get_by_id(id);
 
+	mutex_exit(&fil_system->mutex);
+
 	if (space != NULL) {
 		/* If we have not yet read the page0
 		of this tablespace we will do it now. */
 		if (!space->crypt_data && !space->page_0_crypt_read) {
-			ulint flags;
-			ulint space_id;
-			lsn_t min_flushed_lsn;
-			lsn_t max_flushed_lsn;
+			ulint space_id = space->id;
 			fil_node_t*	node;
 
 			ut_a(space->crypt_data == NULL);
 			node = UT_LIST_GET_FIRST(space->chain);
 
-			fil_node_prepare_for_io(node, fil_system, space);
-
-			const char* msg = fil_read_first_page(node->handle,
-				false,
-				&flags,
-				&space_id,
-				&min_flushed_lsn,
-				&max_flushed_lsn,
-				&space->crypt_data);
-
-			fil_node_complete_io(node, fil_system, OS_FILE_READ);
+			byte *buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
+			byte *page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+			fil_read(true, space_id, 0, 0, 0, UNIV_PAGE_SIZE, page,
+				NULL, NULL);
+			ulint flags = fsp_header_get_flags(page);
+			ulint offset = fsp_header_get_crypt_offset(
+				fsp_flags_get_zip_size(flags), NULL);
+			space->crypt_data = fil_space_read_crypt_data(space_id, page, offset);
+			ut_free(buf);
 
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Read page 0 from tablespace for space %lu name %s key_id %u encryption %d handle %d\n",
@@ -7286,8 +7284,6 @@ fil_space_get_crypt_data(
 
 		ut_ad(space->page_0_crypt_read);
 	}
-
-	mutex_exit(&fil_system->mutex);
 
 	return(crypt_data);
 }
