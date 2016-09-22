@@ -18,7 +18,7 @@
 #include "sql_priv.h"
 #include <my_dir.h>
 #include "rpl_mi.h"
-#include "slave.h"                              // SLAVE_MAX_HEARTBEAT_PERIOD
+#include "slave.h"
 #include "strfunc.h"
 #include "sql_repl.h"
 
