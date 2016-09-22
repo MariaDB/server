@@ -12,6 +12,9 @@ truncate table events_statements_history_long;
 # -----------------------------------------------------------------------
 # Test to show how the digest behaves with low value of 
 #  - performance_schema_max_digest_length
+#
+# Note that the digest values in the .result file will need updating
+# whenever eg. a new keyword is added to the parser.
 # -----------------------------------------------------------------------
 SELECT 1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1;
 

@@ -6768,10 +6768,10 @@ bool Relay_log_info::flush()
   pos=strmov(pos, group_master_log_name);
   *pos++='\n';
   pos=longlong10_to_str(group_master_log_pos, pos, 10);
-  *pos='\n';
+  *pos++='\n';
   pos= longlong10_to_str(sql_delay, pos, 10);
-  *pos= '\n';
-  if (my_b_write(file, (uchar*) buff, (size_t) (pos-buff)+1))
+  *pos++= '\n';
+  if (my_b_write(file, (uchar*) buff, (size_t) (pos-buff)))
     error=1;
   if (flush_io_cache(file))
     error=1;

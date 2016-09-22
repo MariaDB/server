@@ -73,6 +73,9 @@ static int check_event_type(int type, Relay_log_info *rli)
     return 0;
     
   case TABLE_MAP_EVENT:
+  case WRITE_ROWS_EVENT_V1:
+  case UPDATE_ROWS_EVENT_V1:
+  case DELETE_ROWS_EVENT_V1:
   case WRITE_ROWS_EVENT:
   case UPDATE_ROWS_EVENT:
   case DELETE_ROWS_EVENT:
