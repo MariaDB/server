@@ -1556,6 +1556,54 @@ EXPLAIN
     }
   }
 }
+create table my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+select father from folks where name = 'Me'
+  union
+select mother from folks where name = 'Me'
+  union
+select father from folks, ancestor_ids a  where folks.id = a.id
+union
+select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+select * from my_ancestors;
+id	name	dob	father	mother
+20	Dad	1970-02-02	10	9
+30	Mom	1975-03-03	8	7
+10	Grandpa Bill	1940-04-05	NULL	NULL
+9	Grandma Ann	1941-10-15	NULL	NULL
+7	Grandma Sally	1943-08-23	NULL	6
+8	Grandpa Ben	1940-10-21	NULL	NULL
+6	Grandgrandma Martha	1923-05-17	NULL	NULL
+delete from my_ancestors;
+insert into my_ancestors 
+with recursive
+ancestor_ids (id)
+as
+(
+select father from folks where name = 'Me'
+  union
+select mother from folks where name = 'Me'
+  union
+select father from folks, ancestor_ids a  where folks.id = a.id
+union
+select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+select * from my_ancestors;
+id	name	dob	father	mother
+20	Dad	1970-02-02	10	9
+30	Mom	1975-03-03	8	7
+10	Grandpa Bill	1940-04-05	NULL	NULL
+9	Grandma Ann	1941-10-15	NULL	NULL
+7	Grandma Sally	1943-08-23	NULL	6
+8	Grandpa Ben	1940-10-21	NULL	NULL
+6	Grandgrandma Martha	1923-05-17	NULL	NULL
+drop table my_ancestors;
 drop table folks;
 #
 # MDEV-10372: [bb-10.2-mdev9864 tree] EXPLAIN with recursive CTE enters endless recursion
