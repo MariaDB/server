@@ -1465,7 +1465,7 @@ public:
   int update_virtual_field(Field *vf);
   int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
   int update_default_fields(bool update, bool ignore_errors);
-  bool vers_update_fields();
+  void vers_update_fields();
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 

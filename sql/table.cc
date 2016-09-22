@@ -7564,18 +7564,21 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
   DBUG_RETURN(res);
 }
 
-bool TABLE::vers_update_fields()
+void TABLE::vers_update_fields()
 {
   DBUG_ENTER("vers_update_fields");
 
   DBUG_ASSERT(versioned());
-  DBUG_ASSERT(!vers_start_field()->set_time());
-  DBUG_ASSERT(!vers_end_field()->set_max_timestamp());
+  bool res= !vers_start_field()->set_time();
+  DBUG_ASSERT(res);
+  res= !vers_end_field()->set_max_timestamp();
+  DBUG_ASSERT(res);
+  (void)res;
 
   bitmap_set_bit(write_set, vers_start_field()->field_index);
   bitmap_set_bit(write_set, vers_end_field()->field_index);
 
-  DBUG_RETURN(FALSE);
+  DBUG_VOID_RETURN;
 }
 
 /**
