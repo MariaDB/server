@@ -166,5 +166,23 @@ old_password(CONVERT('foo' USING latin1))
 DEALLOCATE PREPARE stmt;
 # End of func_str_ascii_checksum.inc
 #
+# MDEV-10864 Wrong result for WHERE .. (f2=COMPRESS('test') OR f2=COMPRESS('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(64), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',encrypt('test','key')), ('TEST', encrypt('TEST','key'));
+SELECT f1 FROM t1 ignore index(k1) WHERE f1='test' AND (f2= encrypt('test','key') OR f2= encrypt('TEST','key'));
+f1
+test
+TEST
+SELECT f1 FROM t1                  WHERE f1='test' AND (f2= encrypt('test','key') OR f2= encrypt('TEST','key'));
+f1
+TEST
+test
+SELECT f1 FROM t1                  WHERE f1='test' AND (f2= encrypt('TEST','key') OR f2= encrypt('test','key'));
+f1
+TEST
+test
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
