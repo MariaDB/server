@@ -130,3 +130,9 @@ DROP TABLE t1;
 #
 # End of MDEV-10709 Expressions as parameters to Dynamic SQL
 #
+#
+# MDEV-10585 EXECUTE IMMEDIATE statement
+#
+EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING 10;
+:1
+10
