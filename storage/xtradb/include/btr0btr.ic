@@ -60,7 +60,9 @@ btr_block_get_func(
 		NULL, BUF_GET, file, line, mtr, &err);
 
 	if (err == DB_DECRYPTION_FAILED) {
-		index->table->is_encrypted = true;
+		if (index && index->table) {
+			index->table->is_encrypted = true;
+		}
 	}
 
 	if (block) {

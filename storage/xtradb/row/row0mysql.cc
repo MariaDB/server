@@ -3293,7 +3293,7 @@ fil_wait_crypt_bg_threads(
 	uint last = start;
 
 	if (table->space != 0) {
-		fil_space_crypt_mark_space_closing(table->space);
+		fil_space_crypt_mark_space_closing(table->space, table->crypt_data);
 	}
 
 	while (table->n_ref_count > 0) {
@@ -4223,6 +4223,12 @@ row_drop_table_for_mysql(
 		/* Mark the index unusable. */
 		index->page = FIL_NULL;
 		rw_lock_x_unlock(dict_index_get_lock(index));
+	}
+
+	/* If table has not yet have crypt_data, try to read it to
+	make freeing the table easier. */
+	if (!table->crypt_data) {
+		table->crypt_data = fil_space_get_crypt_data(table->space);
 	}
 
 	/* We use the private SQL parser of Innobase to generate the

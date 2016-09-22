@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation
+Copyright (c) 2013, 2016, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -675,7 +675,8 @@ create_log_files(
 		logfilename, SRV_LOG_SPACE_FIRST_ID,
 		fsp_flags_set_page_size(0, UNIV_PAGE_SIZE),
 		FIL_LOG,
-		NULL /* no encryption yet */);
+		NULL /* no encryption yet */,
+		true /* this is create */);
 	ut_a(fil_validate());
 
 	logfile0 = fil_node_create(
@@ -813,7 +814,7 @@ open_or_create_data_files(
 	ulint		space;
 	ulint		rounded_size_pages;
 	char		name[10000];
-	fil_space_crypt_t*    crypt_data;
+	fil_space_crypt_t*    crypt_data=NULL;
 
 	if (srv_n_data_files >= 1000) {
 
@@ -1150,18 +1151,20 @@ check_first_page:
 			}
 
 			*sum_of_new_sizes += srv_data_file_sizes[i];
-
-			crypt_data = fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 		}
 
 		ret = os_file_close(files[i]);
 		ut_a(ret);
 
 		if (i == 0) {
+			if (!crypt_data) {
+				crypt_data = fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
+			}
+
 			flags = fsp_flags_set_page_size(0, UNIV_PAGE_SIZE);
+
 			fil_space_create(name, 0, flags, FIL_TABLESPACE,
-					 crypt_data);
-			crypt_data = NULL;
+					crypt_data, (*create_new_db) == true);
 		}
 
 		ut_a(fil_validate());
@@ -1308,7 +1311,8 @@ srv_undo_tablespace_open(
 		/* Set the compressed page size to 0 (non-compressed) */
 		flags = fsp_flags_set_page_size(0, UNIV_PAGE_SIZE);
 		fil_space_create(name, space, flags, FIL_TABLESPACE,
-				 NULL /* no encryption */);
+				NULL /* no encryption */,
+				true /* create */);
 
 		ut_a(fil_validate());
 
@@ -2293,7 +2297,8 @@ innobase_start_or_create_for_mysql(void)
 				 SRV_LOG_SPACE_FIRST_ID,
 				 fsp_flags_set_page_size(0, UNIV_PAGE_SIZE),
 				 FIL_LOG,
-				 NULL /* no encryption yet */);
+				 NULL /* no encryption yet */,
+				 true /* create */);
 
 		ut_a(fil_validate());
 
@@ -2315,7 +2320,7 @@ innobase_start_or_create_for_mysql(void)
 		/* Create the file space object for archived logs. Under
 		MySQL, no archiving ever done. */
 		fil_space_create("arch_log_space", SRV_LOG_SPACE_FIRST_ID + 1,
-				 0, FIL_LOG);
+			0, FIL_LOG, NULL, true);
 #endif /* UNIV_LOG_ARCHIVE */
 		log_group_init(0, i, srv_log_file_size * UNIV_PAGE_SIZE,
 			       SRV_LOG_SPACE_FIRST_ID,

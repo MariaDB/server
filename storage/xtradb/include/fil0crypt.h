@@ -316,7 +316,8 @@ UNIV_INTERN
 void
 fil_space_crypt_mark_space_closing(
 /*===============================*/
-	ulint space);          /*!< in: tablespace id */
+	ulint			space,		/*!< in: tablespace id */
+	fil_space_crypt_t*	crypt_data);	/*!< in: crypt_data or NULL */
 
 /*********************************************************************
 Wait for crypt threads to stop accessing space */

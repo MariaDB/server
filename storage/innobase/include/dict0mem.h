@@ -1030,6 +1030,8 @@ struct dict_table_t{
 	mem_heap_t*	heap;	/*!< memory heap */
 	char*		name;	/*!< table name */
 	void*		thd;		/*!< thd */
+	bool		page_0_read; /*!< true if page 0 has
+				     been already read */
 	fil_space_crypt_t *crypt_data; /*!< crypt data if present */
 	const char*	dir_path_of_temp_table;/*!< NULL or the directory path
 				where a TEMPORARY table that was explicitly

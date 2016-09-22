@@ -1154,11 +1154,14 @@ loop:
 					space_id, name);
 			}
 
-			/* We need to read page 0 to get (optional) IV
-			regardless if encryptions is turned on or not,
-			since if it's off we should decrypt a potentially
-			already encrypted table */
-			bool read_page_0 = true;
+			/* We could read page 0 to get (optional) IV
+			if encryption is turned on, if it's off
+			we will read the page 0 later and find out
+			if we should decrypt a potentially
+			already encrypted table
+			bool read_page_0 = srv_encrypt_tables; */
+
+			bool read_page_0 = false;
 
 			/* We set the 2nd param (fix_dict = true)
 			here because we already have an x-lock on

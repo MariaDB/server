@@ -1116,6 +1116,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_pages_created,		  SHOW_LONG},
   {"pages_read",
   (char*) &export_vars.innodb_pages_read,		  SHOW_LONG},
+  {"pages0_read",
+  (char*) &export_vars.innodb_page0_read,		  SHOW_LONG},
   {"pages_written",
   (char*) &export_vars.innodb_pages_written,		  SHOW_LONG},
   {"purge_trx_id",
