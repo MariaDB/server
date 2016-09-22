@@ -121,3 +121,8 @@ DROP TABLE t1;
 --echo #
 --echo # End of MDEV-10709 Expressions as parameters to Dynamic SQL
 --echo #
+
+--echo #
+--echo # MDEV-10585 EXECUTE IMMEDIATE statement
+--echo #
+EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING 10;
