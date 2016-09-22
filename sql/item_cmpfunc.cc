@@ -4507,7 +4507,8 @@ Item_cond::fix_fields(THD *thd, Item **ref)
         was:    <field>
         become: <field> = 1
     */
-    if (item->type() == FIELD_ITEM)
+    Item::Type type= item->type();
+    if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
       Query_arena backup, *arena;
       Item *new_item;
