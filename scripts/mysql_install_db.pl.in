@@ -508,7 +508,7 @@ if ( open(PIPE, "| $mysqld_install_cmd_line") )
   # FIXME  > /dev/null ?
   if ( open(PIPE, "| $mysqld_install_cmd_line") )
   {
-    print PIPE "use test;\n";
+    print PIPE "use mysql;\n";
     while ( <SQL> )
     {
       print PIPE $_;
