@@ -19,9 +19,11 @@ insert into t2 values
 ( 5, 1, 1, 'two'),
 ( 6, 1, 2, 'three');
 
+--disable_warnings
 --echo # First try some invalid queries.
 select std(c) over (order by a)
 from t2;
+--enable_warnings
 
 --echo # Empty frame.
 select std(b) over (order by a rows between 2 following and 1 following)

@@ -26,34 +26,6 @@ std(c) over (order by a)
 0
 0
 0
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'one       '
-Warning	1292	Truncated incorrect DOUBLE value: 'two       '
-Warning	1292	Truncated incorrect DOUBLE value: 'three     '
-Warning	1292	Truncated incorrect DOUBLE value: 'one       '
-Warning	1292	Truncated incorrect DOUBLE value: 'two       '
-Warning	1292	Truncated incorrect DOUBLE value: 'three     '
-Warning	1292	Truncated incorrect DOUBLE value: 'one       '
-Warning	1292	Truncated incorrect DOUBLE value: 'two       '
-Warning	1292	Truncated incorrect DOUBLE value: 'three     '
-Warning	1292	Truncated incorrect DOUBLE value: 'one       '
-Warning	1292	Truncated incorrect DOUBLE value: 'two       '
-Warning	1292	Truncated incorrect DOUBLE value: 'three     '
-Warning	1292	Truncated incorrect DOUBLE value: 'one       '
-Warning	1292	Truncated incorrect DOUBLE value: 'two       '
-Warning	1292	Truncated incorrect DOUBLE value: 'three     '
-Warning	1292	Truncated incorrect DOUBLE value: 'one       '
-Warning	1292	Truncated incorrect DOUBLE value: 'two       '
-Warning	1292	Truncated incorrect DOUBLE value: 'three     '
-Warning	1292	Truncated incorrect DOUBLE value: 'one       '
-Warning	1292	Truncated incorrect DOUBLE value: 'two       '
-Warning	1292	Truncated incorrect DOUBLE value: 'three     '
-Warning	1292	Truncated incorrect DOUBLE value: 'one       '
-Warning	1292	Truncated incorrect DOUBLE value: 'two       '
-Warning	1292	Truncated incorrect DOUBLE value: 'three     '
-Warning	1292	Truncated incorrect DOUBLE value: 'one       '
-Warning	1292	Truncated incorrect DOUBLE value: 'two       '
-Warning	1292	Truncated incorrect DOUBLE value: 'three     '
 # Empty frame.
 select std(b) over (order by a rows between 2 following and 1 following)
 from t2;
