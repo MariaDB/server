@@ -279,23 +279,59 @@ class Item_sum_dense_rank: public Item_sum_int
   { return get_item_copy<Item_sum_dense_rank>(thd, mem_root, this); }
 };
 
+class Item_sum_hybrid_simple : public Item_sum,
+                               public Type_handler_hybrid_field_type
+{
+ public:
+  Item_sum_hybrid_simple(THD *thd, Item *arg):
+   Item_sum(thd, arg),
+   Type_handler_hybrid_field_type(MYSQL_TYPE_LONGLONG),
+   value(NULL)
+  { collation.set(&my_charset_bin); }
+
+  Item_sum_hybrid_simple(THD *thd, Item *arg1, Item *arg2):
+   Item_sum(thd, arg1, arg2),
+   Type_handler_hybrid_field_type(MYSQL_TYPE_LONGLONG),
+   value(NULL)
+  { collation.set(&my_charset_bin); }
+
+  bool add();
+  bool fix_fields(THD *, Item **);
+  void setup_hybrid(THD *thd, Item *item);
+  double val_real();
+  longlong val_int();
+  my_decimal *val_decimal(my_decimal *);
+  void reset_field();
+  String *val_str(String *);
+  /* TODO(cvicentiu) copied from Item_sum_hybrid, what does it do? */
+  bool keep_field_type(void) const { return 1; }
+  enum Item_result result_type() const
+  { return Type_handler_hybrid_field_type::result_type(); }
+  enum Item_result cmp_type() const
+  { return Type_handler_hybrid_field_type::cmp_type(); }
+  enum enum_field_types field_type() const
+  { return Type_handler_hybrid_field_type::field_type(); }
+  void update_field();
+  Field *create_tmp_field(bool group, TABLE *table);
+  void clear()
+  {
+    value->clear();
+    null_value= 1;
+  }
+
+ private:
+  Item_cache *value;
+};
+
 /*
    This item will remember the first value added to it. It will not update
    the value unless it is cleared.
-
-   TODO(cvicentiu) Item_sum_hybrid is a pretty heavyweight class. It holds
-   logic that allows comparing values. It was generally thought out for MIN/MAX
-   functions, but we can use it here as well.
-   Refactor Item_sum_hybrid to only include basic field handling and
-   make a more specialized class for min/max. It might be useful if we'd like
-   to optimize how min/max is computed as a window function. We can potentially
-   implement a PQ within the specialized class to support removal.
 */
-class Item_sum_first_value : public Item_sum_hybrid
+class Item_sum_first_value : public Item_sum_hybrid_simple
 {
  public:
   Item_sum_first_value(THD* thd, Item* arg_expr) :
-    Item_sum_hybrid(thd, arg_expr, -1 /* This cmp parameter is not needed */),
+    Item_sum_hybrid_simple(thd, arg_expr),
     value_added(false) {}
 
   bool add();
@@ -303,7 +339,7 @@ class Item_sum_first_value : public Item_sum_hybrid
   void clear()
   {
     value_added= false;
-    Item_sum_hybrid::clear();
+    Item_sum_hybrid_simple::clear();
   }
 
   enum Sumfunctype sum_func () const
@@ -329,14 +365,13 @@ class Item_sum_first_value : public Item_sum_hybrid
    This item does not support removal, and can be cleared only by calling
    clear().
 */
-class Item_sum_last_value : public Item_sum_hybrid
+class Item_sum_last_value : public Item_sum_hybrid_simple
 {
  public:
   Item_sum_last_value(THD* thd, Item* arg_expr) :
-    Item_sum_hybrid(thd, arg_expr, -1 /* This cmp parameter is not needed */) {}
+    Item_sum_hybrid_simple(thd, arg_expr) {}
 
-  bool add();
-  enum Sumfunctype sum_func () const
+  enum Sumfunctype sum_func() const
   {
     return LAST_VALUE_FUNC;
   }
@@ -348,6 +383,91 @@ class Item_sum_last_value : public Item_sum_hybrid
 
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_last_value>(thd, mem_root, this); }
+};
+
+class Item_sum_nth_value : public Item_sum_last_value
+{
+ public:
+  Item_sum_nth_value(THD *thd, Item *arg_expr, Item* offset_expr) :
+    Item_sum_last_value(thd, arg_expr) {
+    /* TODO(cvicentiu) This is messy. Item_args starts with 2 args by chance.
+       Clean this up by pulling out the common code from Item_sum_hybrid! */
+    arg_count= 2;
+    args[1]= offset_expr;
+  }
+
+  bool fix_fields(THD *thd, Item **ref)
+  {
+    Item *offset= args[1];
+    if (offset->fix_fields(thd, args))
+      return true;
+    /* Fix fields for the second argument as well. */
+    orig_args[1]= offset;
+    /* Item_sum_last_value fixes fields for first argument only. */
+    if (Item_sum_last_value::fix_fields(thd, ref))
+     return true;
+
+    return false;
+  }
+
+  bool add()
+  {
+    Item_sum_last_value::add();
+    return false;
+  }
+
+  enum Sumfunctype sum_func() const
+  {
+    return NTH_VALUE_FUNC;
+  }
+
+  const char*func_name() const
+  {
+    return "nth_value";
+  }
+
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_nth_value>(thd, mem_root, this); }
+};
+
+class Item_sum_lead : public Item_sum_hybrid_simple
+{
+ public:
+  Item_sum_lead(THD *thd, Item *arg_expr, Item* offset_expr) :
+    Item_sum_hybrid_simple(thd, arg_expr, offset_expr) {}
+
+  enum Sumfunctype sum_func() const
+  {
+    return LEAD_FUNC;
+  }
+
+  const char*func_name() const
+  {
+    return "lead";
+  }
+
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_lead>(thd, mem_root, this); }
+};
+
+class Item_sum_lag : public Item_sum_hybrid_simple
+{
+ public:
+  Item_sum_lag(THD *thd, Item *arg_expr, Item* offset_expr) :
+    Item_sum_hybrid_simple(thd, arg_expr, offset_expr) {}
+
+  enum Sumfunctype sum_func() const
+  {
+    return LAG_FUNC;
+  }
+
+  const char*func_name() const
+  {
+    return "lag";
+  }
+
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_sum_lag>(thd, mem_root, this); }
 };
 
 /*
@@ -668,6 +788,8 @@ public:
     switch (window_func()->sum_func()) {
     case Item_sum::FIRST_VALUE_FUNC:
     case Item_sum::LAST_VALUE_FUNC:
+    case Item_sum::LAG_FUNC:
+    case Item_sum::LEAD_FUNC:
       return true;
     default:
       return false;

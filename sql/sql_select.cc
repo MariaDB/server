@@ -26243,7 +26243,15 @@ AGGR_OP::end_send()
          corresponding temp table fields. Do this for each row in the table.
       */
       if (join_tab->window_funcs_step)
-        copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd);
+      {
+        Item **func_ptr= join_tab->tmp_table_param->items_to_copy;
+        Item *func;
+        for (; (func = *func_ptr) ; func_ptr++)
+        {
+          if (func->with_window_func)
+            func->save_in_result_field(true);
+        }
+      }
       rc= evaluate_join_record(join, join_tab, 0);
     }
   }

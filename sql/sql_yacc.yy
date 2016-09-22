@@ -1245,7 +1245,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  FAULTS_SYM
 %token  FETCH_SYM                     /* SQL-2003-R */
 %token  FILE_SYM
-%token  FIRST_VALUE_SYM               /* SQL-2012 */
+%token  FIRST_VALUE_SYM               /* SQL-2011 */
 %token  FIRST_SYM                     /* SQL-2003-N */
 %token  FIXED_SYM
 %token  FLOAT_NUM
@@ -1273,6 +1273,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  GRANTS
 %token  GROUP_SYM                     /* SQL-2003-R */
 %token  GROUP_CONCAT_SYM
+%token  LAG_SYM                       /* SQL-2011 */
+%token  LEAD_SYM                      /* SQL-2011 */
 %token  HANDLER_SYM
 %token  HARD_SYM
 %token  HASH_SYM
@@ -1431,6 +1433,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NUM
 %token  NUMBER_SYM                    /* SQL-2003-N */
 %token  NUMERIC_SYM                   /* SQL-2003-R */
+%token  NTH_VALUE_SYM                 /* SQL-2011 */
 %token  NVARCHAR_SYM
 %token  OFFSET_SYM
 %token  OLD_PASSWORD_SYM
@@ -10518,7 +10521,50 @@ simple_window_func:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-         ;
+        |
+          NTH_VALUE_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_nth_value(thd, $3, $5);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          LEAD_SYM '(' expr ')'
+          {
+            /* No second argument defaults to 1. */
+            Item* item_offset= new (thd->mem_root) Item_uint(thd, 1);
+            if (item_offset == NULL)
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_sum_lead(thd, $3, item_offset);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          LEAD_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_lead(thd, $3, $5);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          LAG_SYM '(' expr ')'
+          {
+            /* No second argument defaults to 1. */
+            Item* item_offset= new (thd->mem_root) Item_uint(thd, 1);
+            if (item_offset == NULL)
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_sum_lag(thd, $3, item_offset);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          LAG_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_lag(thd, $3, $5);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        ;
 
 window_name:
           ident
