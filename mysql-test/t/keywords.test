@@ -244,3 +244,6 @@ DROP TABLE varchar2;
 
 CREATE TABLE decode (decode int);
 DROP TABLE decode;
+
+CREATE TABLE rowcount (rowcount int);
+DROP TABLE rowcount;

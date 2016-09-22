@@ -652,19 +652,19 @@ Pos	Instruction
 0	set total@4 0
 1	set ia@5 1
 2	set [upper_bound]@6 a@0
-3	jump_if_not 17(17) (ia@5 <= [upper_bound]@6)
-4	set total@4 (total@4 + 1000)
+3	jump_if_not 17(17) ia@5 <= [upper_bound]@6
+4	set total@4 total@4 + 1000
 5	set ib@7 1
 6	set [upper_bound]@8 b@2
-7	jump_if_not 15(15) (ib@7 <= [upper_bound]@8)
-8	set total@4 (total@4 + 1)
-9	jump_if_not 11(0) (ib@7 = limitb@3)
+7	jump_if_not 15(15) ib@7 <= [upper_bound]@8
+8	set total@4 total@4 + 1
+9	jump_if_not 11(0) ib@7 = limitb@3
 10	jump 15
-11	jump_if_not 13(0) (ia@5 = limita@1)
+11	jump_if_not 13(0) ia@5 = limita@1
 12	jump 17
-13	set ib@7 (ib@7 + 1)
+13	set ib@7 ib@7 + 1
 14	jump 7
-15	set ia@5 (ia@5 + 1)
+15	set ia@5 ia@5 + 1
 16	jump 3
 17	freturn 3 total@4
 SELECT f1(2, 1, 2, 2) FROM DUAL;
@@ -699,13 +699,13 @@ Pos	Instruction
 0	set total@1 0
 1	set i@2 1
 2	set [upper_bound]@3 a@0
-3	jump_if_not 11(11) (i@2 <= [upper_bound]@3)
-4	set total@1 (total@1 + 1000)
-5	jump_if_not 8(8) (i@2 = 5)
-6	set i@2 (i@2 + 1)
+3	jump_if_not 11(11) i@2 <= [upper_bound]@3
+4	set total@1 total@1 + 1000
+5	jump_if_not 8(8) i@2 = 5
+6	set i@2 i@2 + 1
 7	jump 3
-8	set total@1 (total@1 + 1)
-9	set i@2 (i@2 + 1)
+8	set total@1 total@1 + 1
+9	set i@2 i@2 + 1
 10	jump 3
 11	freturn 3 total@1
 SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
@@ -736,18 +736,18 @@ Pos	Instruction
 0	set total@1 0
 1	set i@2 1
 2	set [upper_bound]@3 a@0
-3	jump_if_not 16(16) (i@2 <= [upper_bound]@3)
+3	jump_if_not 16(16) i@2 <= [upper_bound]@3
 4	set j@4 1
 5	set [upper_bound]@5 2
-6	jump_if_not 14(14) (j@4 <= [upper_bound]@5)
-7	set total@1 (total@1 + 1000)
-8	jump_if_not 11(11) (i@2 = 5)
-9	set i@2 (i@2 + 1)
+6	jump_if_not 14(14) j@4 <= [upper_bound]@5
+7	set total@1 total@1 + 1000
+8	jump_if_not 11(11) i@2 = 5
+9	set i@2 i@2 + 1
 10	jump 3
-11	set total@1 (total@1 + 1)
-12	set j@4 (j@4 + 1)
+11	set total@1 total@1 + 1
+12	set j@4 j@4 + 1
 13	jump 6
-14	set i@2 (i@2 + 1)
+14	set i@2 i@2 + 1
 15	jump 3
 16	freturn 3 total@1
 SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
@@ -779,18 +779,18 @@ Pos	Instruction
 0	set total@1 0
 1	set j@2 1
 2	set [upper_bound]@3 2
-3	jump_if_not 16(16) (j@2 <= [upper_bound]@3)
+3	jump_if_not 16(16) j@2 <= [upper_bound]@3
 4	set i@4 1
 5	set [upper_bound]@5 a@0
-6	jump_if_not 14(14) (i@4 <= [upper_bound]@5)
-7	set total@1 (total@1 + 1000)
-8	jump_if_not 11(11) (i@4 = 5)
-9	set i@4 (i@4 + 1)
+6	jump_if_not 14(14) i@4 <= [upper_bound]@5
+7	set total@1 total@1 + 1000
+8	jump_if_not 11(11) i@4 = 5
+9	set i@4 i@4 + 1
 10	jump 6
-11	set total@1 (total@1 + 1)
-12	set i@4 (i@4 + 1)
+11	set total@1 total@1 + 1
+12	set i@4 i@4 + 1
 13	jump 6
-14	set j@2 (j@2 + 1)
+14	set j@2 j@2 + 1
 15	jump 3
 16	freturn 3 total@1
 SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
@@ -815,12 +815,12 @@ Pos	Instruction
 0	set total@1 0
 1	set i@2 1
 2	set [upper_bound]@3 a@0
-3	jump_if_not 10(10) (i@2 <= [upper_bound]@3)
-4	jump_if_not 7(0) (i@2 = 5)
-5	set i@2 (i@2 + 1)
+3	jump_if_not 10(10) i@2 <= [upper_bound]@3
+4	jump_if_not 7(0) i@2 = 5
+5	set i@2 i@2 + 1
 6	jump 3
-7	set total@1 (total@1 + 1)
-8	set i@2 (i@2 + 1)
+7	set total@1 total@1 + 1
+8	set i@2 i@2 + 1
 9	jump 3
 10	freturn 3 total@1
 SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;

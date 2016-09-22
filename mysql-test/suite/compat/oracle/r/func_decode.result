@@ -28,6 +28,6 @@ EXPLAIN EXTENDED SELECT DECODE(12,10,'x10',11,'x11','def');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select (case 12 when 10 then 'x10' when 11 then 'x11' else 'def' end) AS "DECODE(12,10,'x10',11,'x11','def')"
+Note	1003	select case 12 when 10 then 'x10' when 11 then 'x11' else 'def' end AS "DECODE(12,10,'x10',11,'x11','def')"
 CREATE TABLE decode (decode int);
 DROP TABLE decode;
