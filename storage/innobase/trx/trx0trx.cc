@@ -505,6 +505,7 @@ trx_free(trx_t*& trx)
 	assert_trx_is_free(trx);
 
 	trx->mysql_thd = 0;
+	trx->mysql_log_file_name = 0;
 
 	// FIXME: We need to avoid this heap free/alloc for each commit.
 	if (trx->autoinc_locks != NULL) {
