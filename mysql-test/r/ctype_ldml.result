@@ -465,6 +465,7 @@ ascii2_nopad_bin	ascii2	325			1
 utf8mb4_test_ci	utf8mb4	326			8
 utf16_test_ci	utf16	327			8
 utf8mb4_test_400_ci	utf8mb4	328			8
+utf8mb4_test_520_nopad_ci	utf8mb4	329			8
 latin1_test2	latin1	332			1
 latin1_test2_cs	latin1	333			1
 latin1_swedish_nopad2_ci	latin1	334			1
@@ -493,6 +494,7 @@ utf8_test_ci	utf8	353			8
 ucs2_test_ci	ucs2	358			8
 utf8mb4_test_ci	utf8mb4	326			8
 utf8mb4_test_400_ci	utf8mb4	328			8
+utf8mb4_test_520_nopad_ci	utf8mb4	329			8
 utf16_test_ci	utf16	327			8
 utf32_test_ci	utf32	391			8
 show collation like 'ucs2_vn_ci';
@@ -1288,4 +1290,39 @@ a	1	0	61	a	A	a
 a 	0	1	6120	a 	A 	a 
 A	1	0	41	a	A	A
 A 	0	1	4120	a 	A 	A 
+DROP TABLE t1;
+#
+# MDEV-10877 xxx_unicode_nopad_ci collations
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_test_520_nopad_ci);
+INSERT INTO t1 VALUES ('a'),('b'),('a '),('b ');
+SELECT
+HEX(a),
+WEIGHT_STRING(a)=WEIGHT_STRING(a COLLATE utf8mb4_unicode_ci) AS is_400,
+WEIGHT_STRING(a)=WEIGHT_STRING(a COLLATE utf8mb4_unicode_520_ci) AS is_520
+FROM t1
+ORDER BY a;
+HEX(a)	is_400	is_520
+61	0	1
+6120	0	1
+62	0	1
+6220	0	1
+SELECT COUNT(DISTINCT a) FROM t1;
+COUNT(DISTINCT a)
+4
+SELECT HEX(a), REPLACE(a,' ','<SP>') FROM t1 WHERE a='a';
+HEX(a)	REPLACE(a,' ','<SP>')
+61	a
+SELECT HEX(a), REPLACE(a,' ','<SP>') FROM t1 ORDER BY a;
+HEX(a)	REPLACE(a,' ','<SP>')
+61	a
+6120	a<SP>
+62	b
+6220	b<SP>
+SELECT HEX(a), REPLACE(a,' ','<SP>') FROM t1 ORDER BY a DESC;
+HEX(a)	REPLACE(a,' ','<SP>')
+6220	b<SP>
+62	b
+6120	a<SP>
+61	a
 DROP TABLE t1;

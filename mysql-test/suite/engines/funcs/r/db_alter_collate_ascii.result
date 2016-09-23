@@ -129,6 +129,8 @@ utf8_myanmar_ci	utf8	577		#	#
 utf8_thai_520_w2	utf8	578		#	#
 utf8_general_nopad_ci	utf8	1057		#	#
 utf8_nopad_bin	utf8	1107		#	#
+utf8_unicode_nopad_ci	utf8	1216		#	#
+utf8_unicode_520_nopad_ci	utf8	1238		#	#
 ucs2_general_ci	ucs2	35	Yes	#	#
 ucs2_bin	ucs2	90		#	#
 ucs2_unicode_ci	ucs2	128		#	#
@@ -161,6 +163,8 @@ ucs2_myanmar_ci	ucs2	641		#	#
 ucs2_thai_520_w2	ucs2	642		#	#
 ucs2_general_nopad_ci	ucs2	1059		#	#
 ucs2_nopad_bin	ucs2	1114		#	#
+ucs2_unicode_nopad_ci	ucs2	1152		#	#
+ucs2_unicode_520_nopad_ci	ucs2	1174		#	#
 cp866_general_ci	cp866	36	Yes	#	#
 cp866_bin	cp866	68		#	#
 cp866_general_nopad_ci	cp866	1060		#	#
@@ -218,6 +222,8 @@ utf8mb4_myanmar_ci	utf8mb4	609		#	#
 utf8mb4_thai_520_w2	utf8mb4	610		#	#
 utf8mb4_general_nopad_ci	utf8mb4	1069		#	#
 utf8mb4_nopad_bin	utf8mb4	1070		#	#
+utf8mb4_unicode_nopad_ci	utf8mb4	1248		#	#
+utf8mb4_unicode_520_nopad_ci	utf8mb4	1270		#	#
 cp1251_bulgarian_ci	cp1251	14		#	#
 cp1251_ukrainian_ci	cp1251	23		#	#
 cp1251_bin	cp1251	50		#	#
@@ -256,6 +262,8 @@ utf16_myanmar_ci	utf16	673		#	#
 utf16_thai_520_w2	utf16	674		#	#
 utf16_general_nopad_ci	utf16	1078		#	#
 utf16_nopad_bin	utf16	1079		#	#
+utf16_unicode_nopad_ci	utf16	1125		#	#
+utf16_unicode_520_nopad_ci	utf16	1147		#	#
 utf16le_general_ci	utf16le	56	Yes	#	#
 utf16le_bin	utf16le	62		#	#
 utf16le_general_nopad_ci	utf16le	1080		#	#
@@ -300,6 +308,8 @@ utf32_myanmar_ci	utf32	737		#	#
 utf32_thai_520_w2	utf32	738		#	#
 utf32_general_nopad_ci	utf32	1084		#	#
 utf32_nopad_bin	utf32	1085		#	#
+utf32_unicode_nopad_ci	utf32	1184		#	#
+utf32_unicode_520_nopad_ci	utf32	1206		#	#
 binary	binary	63	Yes	#	#
 geostd8_general_ci	geostd8	92	Yes	#	#
 geostd8_bin	geostd8	93		#	#
