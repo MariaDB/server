@@ -270,7 +270,8 @@ then
   extra_bindir="$basedir/extra"
   mysqld="$basedir/sql/mysqld"
   langdir="$basedir/sql/share/english"
-  pkgdatadir="$srcdir/scripts"
+  srcpkgdatadir="$srcdir/scripts"
+  buildpkgdatadir="$builddir/scripts"
   scriptdir="$srcdir/scripts"
 elif test -n "$basedir"
 then
@@ -288,7 +289,8 @@ then
     cannot_find_file errmsg.sys $basedir/share/english $basedir/share/mysql/english
     exit 1
   fi
-  pkgdatadir=`find_in_basedir --dir fill_help_tables.sql share share/mysql`
+  srcpkgdatadir=`find_in_basedir --dir fill_help_tables.sql share share/mysql`
+  buildpkgdatadir=$srcpkgdatadir
   if test -z "$pkgdatadir"
   then
     cannot_find_file fill_help_tables.sql $basedir/share $basedir/share/mysql
@@ -300,16 +302,17 @@ else
   bindir="@bindir@"
   extra_bindir="$bindir"
   mysqld="@libexecdir@/mysqld"
-  pkgdatadir="@pkgdatadir@"
+  srcpkgdatadir="@pkgdatadir@"
+  buildpkgdatadir="@pkgdatadir@"
   scriptdir="@scriptdir@"
 fi
 
 # Set up paths to SQL scripts required for bootstrap
-fill_help_tables="$pkgdatadir/fill_help_tables.sql"
-create_system_tables="$pkgdatadir/mysql_system_tables.sql"
-create_system_tables2="$pkgdatadir/mysql_performance_tables.sql"
-fill_system_tables="$pkgdatadir/mysql_system_tables_data.sql"
-maria_add_gis_sp="$pkgdatadir/maria_add_gis_sp_bootstrap.sql"
+fill_help_tables="$srcpkgdatadir/fill_help_tables.sql"
+create_system_tables="$srcpkgdatadir/mysql_system_tables.sql"
+create_system_tables2="$srcpkgdatadir/mysql_performance_tables.sql"
+fill_system_tables="$srcpkgdatadir/mysql_system_tables_data.sql"
+maria_add_gis_sp="$buildpkgdatadir/maria_add_gis_sp_bootstrap.sql"
 
 for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp"
 do
