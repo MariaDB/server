@@ -2391,19 +2391,28 @@ bool Window_funcs_sort::exec(JOIN *join)
 bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
                               List_iterator<Item_window_func> &it)
 {
-  Item_window_func *win_func= it.peek();
-  Item_window_func *prev_win_func;
+  Window_spec *spec;
+  Item_window_func *win_func= it.peek();  
+  Item_window_func *win_func_with_longest_order= NULL;
+  uint longest_order_elements= 0;
 
   /* The iterator should point to a valid function at the start of execution. */
   DBUG_ASSERT(win_func);
   do
   {
+    spec= win_func->window_spec;
+    uint win_func_order_elements= spec->partition_list->elements +
+                                  spec->order_list->elements;
+    if (win_func_order_elements > longest_order_elements)
+    {
+      win_func_with_longest_order= win_func;
+      longest_order_elements= win_func_order_elements;
+    }
     if (runner.add_function_to_run(win_func))
       return true;
     it++;
-    prev_win_func= win_func;
-  } while ((win_func= it.peek()) &&
-           !(win_func->marker & SORTORDER_CHANGE_FLAG));
+    win_func= it.peek();
+  } while (win_func && !(win_func->marker & SORTORDER_CHANGE_FLAG));
 
   /*
     The sort criteria must be taken from the last win_func in the group of
@@ -2413,7 +2422,7 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     in a way that the result is valid for all window functions belonging to
     this Window_funcs_sort.
   */
-  Window_spec *spec= prev_win_func->window_spec;
+  spec= win_func_with_longest_order->window_spec;
 
   ORDER* sort_order= concat_order_lists(thd->mem_root, 
                                         spec->partition_list->first,

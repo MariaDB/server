@@ -2054,3 +2054,91 @@ pk	r_desc	r_asc
 10	2	10
 11	1	11
 drop table t1;
+#
+# MDEV-10874: two window functions with ccompatible sorting 
+#
+create table t1 (
+pk int primary key,
+a int,
+b int,
+c char(10),
+d decimal(10, 3),
+e real
+);
+insert into t1 values
+( 1, 0, 1,    'one',    0.1,  0.001),
+( 2, 0, 2,    'two',    0.2,  0.002),
+( 3, 0, 3,    'three',  0.3,  0.003),
+( 4, 1, 2,    'three',  0.4,  0.004),
+( 5, 1, 1,    'two',    0.5,  0.005),
+( 6, 1, 1,    'one',    0.6,  0.006),
+( 7, 2, NULL, 'n_one',  0.5,  0.007),
+( 8, 2, 1,    'n_two',  NULL, 0.008),
+( 9, 2, 2,    NULL,     0.7,  0.009),
+(10, 2, 0,    'n_four', 0.8,  0.010),
+(11, 2, 10,   NULL,     0.9,  NULL);
+select pk, a, d,
+sum(d) over (partition by a order by pk
+ROWS between 1 preceding and current row) as sum_1, 
+sum(d) over (order by a 
+ROWS BETWEEN 1 preceding and 2 following) as sum_2
+from t1;
+pk	a	d	sum_1	sum_2
+1	0	0.100	0.100	0.600
+2	0	0.200	0.300	1.000
+3	0	0.300	0.500	1.400
+4	1	0.400	0.400	1.800
+5	1	0.500	0.900	2.000
+6	1	0.600	1.100	1.600
+7	2	0.500	0.500	1.800
+8	2	NULL	0.500	2.000
+9	2	0.700	0.700	2.400
+10	2	0.800	1.500	2.400
+11	2	0.900	1.700	1.700
+explain format=json
+select pk, a, d,
+sum(d) over (partition by a order by pk
+ROWS between 1 preceding and current row) as sum_1, 
+sum(d) over (order by a 
+ROWS BETWEEN 1 preceding and 2 following) as sum_2
+from t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "t1.a, t1.pk"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 11,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+select pk, a, d,
+sum(d) over (partition by a order by pk desc
+ROWS between 1 preceding and current row) as sum_1, 
+sum(d) over (order by a 
+ROWS BETWEEN 1 preceding and 2 following) as sum_2
+from t1;
+pk	a	d	sum_1	sum_2
+1	0	0.100	0.300	1.400
+2	0	0.200	0.500	1.200
+3	0	0.300	0.300	0.600
+4	1	0.400	0.900	2.600
+5	1	0.500	1.100	2.400
+6	1	0.600	0.600	1.600
+7	2	0.500	0.500	0.500
+8	2	NULL	0.700	1.200
+9	2	0.700	1.500	2.000
+10	2	0.800	1.700	2.400
+11	2	0.900	0.900	2.800
+drop table t1;
