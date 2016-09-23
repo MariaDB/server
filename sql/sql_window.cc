@@ -641,7 +641,7 @@ public:
     {
       seek_io_cache(io_cache, row_number * ref_length);
       rownum= row_number;
-      next();
+      Rowid_seq_cursor::next();
     }
     else
     {
