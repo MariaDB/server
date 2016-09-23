@@ -4167,6 +4167,8 @@ static int init_common_variables()
     return 1;
   }
 
+  opt_log_basename= const_cast<char *>("mysql");
+
   if (gethostname(glob_hostname,sizeof(glob_hostname)) < 0)
   {
     /*
@@ -4176,9 +4178,8 @@ static int init_common_variables()
     strmake(glob_hostname, STRING_WITH_LEN("localhost"));
     sql_print_warning("gethostname failed, using '%s' as hostname",
                         glob_hostname);
-    opt_log_basename= const_cast<char *>("mysql");
   }
-  else
+  else if (is_filename_allowed(glob_hostname, strlen(glob_hostname), FALSE))
     opt_log_basename= glob_hostname;
 
   strmake(pidfile_name, opt_log_basename, sizeof(pidfile_name)-5);
@@ -8970,9 +8971,10 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   case (int) OPT_LOG_BASENAME:
   {
     if (opt_log_basename[0] == 0 || strchr(opt_log_basename, FN_EXTCHAR) ||
-        strchr(opt_log_basename,FN_LIBCHAR))
+        strchr(opt_log_basename,FN_LIBCHAR) ||
+        !is_filename_allowed(opt_log_basename, strlen(opt_log_basename), FALSE))
     {
-      sql_print_error("Wrong argument for --log-basename. It can't be empty or contain '.' or '" FN_DIRSEP "'");
+      sql_print_error("Wrong argument for --log-basename. It can't be empty or contain '.' or '" FN_DIRSEP "'. It must be valid filename.");
       return 1;
     }
     if (log_error_file_ptr != disabled_my_option)
