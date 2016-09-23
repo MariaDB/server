@@ -94,7 +94,6 @@ static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
 {
   Relay_log_info* rli= new Relay_log_info(false);
 
-  rli->no_storage= true;
   if (!rli->relay_log.description_event_for_exec)
   {
     rli->relay_log.description_event_for_exec=
