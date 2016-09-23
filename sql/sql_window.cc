@@ -515,17 +515,6 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
 // note: make rr_from_pointers static again when not need it here anymore
 int rr_from_pointers(READ_RECORD *info);
 
-/*
-  A temporary way to clone READ_RECORD structures until Monty provides the real
-  one.
-*/
-bool clone_read_record(const READ_RECORD *src, READ_RECORD *dst)
-{
-  //DBUG_ASSERT(src->table->sort.record_pointers);
-  DBUG_ASSERT(src->read_record == rr_from_pointers);
-  memcpy(dst, src, sizeof(READ_RECORD));
-  return false;
-}
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -540,68 +529,145 @@ bool clone_read_record(const READ_RECORD *src, READ_RECORD *dst)
 class Rowid_seq_cursor
 {
 public:
-  virtual ~Rowid_seq_cursor() {}
+  Rowid_seq_cursor() : io_cache(NULL), ref_buffer(0) {}
+  virtual ~Rowid_seq_cursor()
+  {
+    if (ref_buffer)
+      my_free(ref_buffer);
+    if (io_cache)
+    {
+      end_slave_io_cache(io_cache);
+      my_free(io_cache);
+      io_cache= NULL;
+    }
+  }
+
+private:
+  /* Length of one rowid element */
+  size_t ref_length;
+
+  /* If io_cache=!NULL, use it */
+  IO_CACHE *io_cache;
+  uchar *ref_buffer;   /* Buffer for the last returned rowid */
+  uint rownum;     /* Number of the rowid that is about to be returned */
+  bool cache_eof; /* whether we've reached EOF */
+  
+  /* The following are used when we are reading from an array of pointers */
+  uchar *cache_start;
+  uchar *cache_pos;
+  uchar *cache_end;
+public:
 
   void init(READ_RECORD *info)
   {
-    cache_start= info->cache_pos;
-    cache_pos=   info->cache_pos;
-    cache_end=   info->cache_end;
     ref_length= info->ref_length;
+    if (info->read_record == rr_from_pointers)
+    {
+      io_cache= NULL;
+      cache_start= info->cache_pos;
+      cache_pos=   info->cache_pos;
+      cache_end=   info->cache_end;
+    }
+    else
+    {
+      //DBUG_ASSERT(info->read_record == rr_from_tempfile);
+      rownum= 0;
+      cache_eof= false;
+      io_cache= (IO_CACHE*)my_malloc(sizeof(IO_CACHE), MYF(0));
+      init_slave_io_cache(info->io_cache, io_cache);
+
+      ref_buffer= (uchar*)my_malloc(ref_length, MYF(0));
+    }
   }
 
   virtual int next()
   {
-    /* Allow multiple next() calls in EOF state. */
-    if (cache_pos == cache_end)
-      return -1;
+    if (io_cache)
+    {
+      if (cache_eof)
+        return 1;
 
-    cache_pos+= ref_length;
-    DBUG_ASSERT(cache_pos <= cache_end);
-
+      if (my_b_read(io_cache,ref_buffer,ref_length))
+      {
+        cache_eof= 1; // TODO: remove cache_eof
+        return -1;
+      }
+      rownum++;
+      return 0;
+    }
+    else
+    {
+      /* Allow multiple next() calls in EOF state. */
+      if (cache_pos == cache_end)
+        return -1;
+      cache_pos+= ref_length;
+      DBUG_ASSERT(cache_pos <= cache_end);
+    }
     return 0;
   }
 
   virtual int prev()
   {
-    /* Allow multiple prev() calls when positioned at the start. */
-    if (cache_pos == cache_start)
-      return -1;
-    cache_pos-= ref_length;
-    DBUG_ASSERT(cache_pos >= cache_start);
+    if (io_cache)
+    {
+      if (rownum == 0)
+        return -1;
 
-    return 0;
+      move_to(rownum - 1);
+      return 0;
+    }
+    else
+    {
+      /* Allow multiple prev() calls when positioned at the start. */
+      if (cache_pos == cache_start)
+        return -1;
+      cache_pos-= ref_length;
+      DBUG_ASSERT(cache_pos >= cache_start);
+      return 0;
+    }
   }
 
   ha_rows get_rownum() const
   {
-    return (cache_pos - cache_start) / ref_length;
+    if (io_cache)
+      return rownum;
+    else
+      return (cache_pos - cache_start) / ref_length;
   }
 
   void move_to(ha_rows row_number)
   {
-    cache_pos= MY_MIN(cache_end, cache_start + row_number * ref_length);
-    DBUG_ASSERT(cache_pos <= cache_end);
+    if (io_cache)
+    {
+      seek_io_cache(io_cache, row_number * ref_length);
+      rownum= row_number;
+      next();
+    }
+    else
+    {
+      cache_pos= MY_MIN(cache_end, cache_start + row_number * ref_length);
+      DBUG_ASSERT(cache_pos <= cache_end);
+    }
   }
 
 protected:
-  bool at_eof() { return (cache_pos == cache_end); }
-
-  uchar *get_prev_rowid()
+  bool at_eof()
   {
-    if (cache_pos == cache_start)
-      return NULL;
+    if (io_cache)
+    {
+      return cache_eof;
+    }
     else
-      return cache_pos - ref_length;
+      return (cache_pos == cache_end);
   }
 
-  uchar *get_curr_rowid() { return cache_pos; }
-
-private:
-  uchar *cache_start;
-  uchar *cache_pos;
-  uchar *cache_end;
-  uint ref_length;
+  uchar *get_curr_rowid()
+  {
+    if (io_cache)
+      return ref_buffer;
+    else
+      return cache_pos;
+  }
 };
 
 
