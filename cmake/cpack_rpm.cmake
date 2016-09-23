@@ -100,8 +100,8 @@ SET(ignored
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/aclocal"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/doc"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man"
-  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1"
-  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1*"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8*"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/pkgconfig"
   )
 
@@ -144,18 +144,6 @@ SETA(CPACK_RPM_server_PACKAGE_PROVIDES
   "MySQL-server"
   "msqlormysql"
   "mysql-server")
-
-SETA(CPACK_RPM_compat_PACKAGE_OBSOLETES
-  "mysql-shared"
-  "MySQL-shared-standard"
-  "MySQL-shared-pro"
-  "MySQL-shared-pro-cert"
-  "MySQL-shared-pro-gpl"
-  "MySQL-shared-pro-gpl-cert"
-  "MySQL-shared")
-SETA(CPACK_RPM_compat_PACKAGE_PROVIDES
-  "MySQL-shared"
-  "mysql-shared")
 
 SETA(CPACK_RPM_test_PACKAGE_OBSOLETES
   "MySQL-test")
@@ -215,7 +203,6 @@ ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
   ALTERNATIVE_NAME("shared" "mariadb-libs")
   ALTERNATIVE_NAME("shared" "mysql-libs")
   ALTERNATIVE_NAME("test"   "mariadb-test")
-  SET(CPACK_RPM_common_PACKAGE_CONFLICTS "mariadb-libs < 1:%{version}-%{release}") 
 ENDIF()
 
 # workaround for lots of perl dependencies added by rpmbuild
@@ -266,12 +253,17 @@ IF(compat53 AND compat101)
 
   EXECUTE_PROCESS(
     COMMAND rpm -q --provides -p "${CMAKE_SOURCE_DIR}/${compat101}"
-    COMMAND grep "=.*10\\.1"
     ERROR_QUIET
     OUTPUT_VARIABLE compat_provides)
+  EXECUTE_PROCESS(
+    COMMAND rpm -q --obsoletes -p "${CMAKE_SOURCE_DIR}/${compat101}"
+    ERROR_QUIET
+    OUTPUT_VARIABLE compat_obsoletes)
 
   STRING(REPLACE "\n" " " compat_provides "${compat_provides}")
+  STRING(REPLACE "\n" " " compat_obsoletes "${compat_obsoletes}")
   SETA(CPACK_RPM_compat_PACKAGE_PROVIDES "${compat_provides}")
+  SETA(CPACK_RPM_compat_PACKAGE_OBSOLETES "${compat_obsoletes}")
 
   SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} Compat)
 
@@ -280,8 +272,9 @@ IF(compat53 AND compat101)
   # And the latter conflicts with our rpms.
   # Make sure that for these distribuions all our rpms require
   # MariaDB-compat, that will replace mysql-libs-5.1
-  IF(RPM MATCHES "(rhel|centos)6")
+  IF(RPM MATCHES "(rhel|centos)[67]")
     SET(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-compat")
+    SET(CPACK_RPM_compat_PACKAGE_CONFLICTS "mariadb-libs < 1:10.1.0")
   ENDIF()
 ENDIF()
 
