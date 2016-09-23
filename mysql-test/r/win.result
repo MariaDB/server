@@ -2142,3 +2142,46 @@ pk	a	d	sum_1	sum_2
 10	2	0.800	1.700	2.400
 11	2	0.900	0.900	2.800
 drop table t1;
+#
+# MDEV-9941: two window functions with compatible partitions 
+#
+create table t1 (
+a int,
+b int,
+c int
+);
+insert into t1 values 
+(10, 1, 1),
+(10, 3, 10),
+(10, 1, 10),
+(10, 3, 100),
+(10, 5, 1000),
+(10, 1, 100);
+explain format=json
+select 
+a,b,c,
+row_number() over (partition by a),
+row_number() over (partition by a, b)
+from t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "t1.a, t1.b"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 6,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+drop table t1;

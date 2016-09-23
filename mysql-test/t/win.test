@@ -1310,3 +1310,30 @@ select pk, a, d,
 from t1;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-9941: two window functions with compatible partitions 
+--echo #
+
+create table t1 (
+  a int,
+  b int,
+  c int
+);
+ 
+insert into t1 values 
+ (10, 1, 1),
+ (10, 3, 10),
+ (10, 1, 10),
+ (10, 3, 100),
+ (10, 5, 1000),
+ (10, 1, 100);
+
+explain format=json
+select 
+  a,b,c,
+  row_number() over (partition by a),
+  row_number() over (partition by a, b)
+from t1;
+
+drop table t1;
