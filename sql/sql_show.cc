@@ -7730,7 +7730,8 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
       if (!(item=new (mem_root)
             Item_return_date_time(thd, fields_info->field_name,
                                   strlen(fields_info->field_name),
-                                  fields_info->field_type)))
+                                  fields_info->field_type,
+                                  fields_info->field_length)))
         DBUG_RETURN(0);
       item->decimals= fields_info->field_length;
       break;
