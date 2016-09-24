@@ -2055,7 +2055,7 @@ pk	r_desc	r_asc
 11	1	11
 drop table t1;
 #
-# MDEV-10874: two window functions with compatible sorting
+# MDEV-10874: two window functions with ccompatible sorting 
 #
 create table t1 (
 pk int primary key,
