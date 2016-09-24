@@ -1296,12 +1296,14 @@ fil_space_create(
 		space->page_0_crypt_read = true;
 	}
 
+#ifdef UNIV_DEBUG
 	ib_logf(IB_LOG_LEVEL_INFO,
-		"Created tablespace for space %lu name %s key_id %u encryption %d\n",
+		"Created tablespace for space %lu name %s key_id %u encryption %d.",
 		space->id,
 		space->name,
 		space->crypt_data ? space->crypt_data->key_id : 0,
 		space->crypt_data ? space->crypt_data->encryption : 0);
+#endif
 
 	UT_LIST_ADD_LAST(space_list, fil_system->space_list, space);
 
@@ -7365,13 +7367,15 @@ fil_space_get_crypt_data(
 			space->crypt_data = fil_space_read_crypt_data(space_id, page, offset);
 			ut_free(buf);
 
+#ifdef UNIV_DEBUG
 			ib_logf(IB_LOG_LEVEL_INFO,
-				"Read page 0 from tablespace for space %lu name %s key_id %u encryption %d handle %d\n",
+				"Read page 0 from tablespace for space %lu name %s key_id %u encryption %d handle %d.",
 				space_id,
 				space->name,
 				space->crypt_data ? space->crypt_data->key_id : 0,
 				space->crypt_data ? space->crypt_data->encryption : 0,
 				node->handle);
+#endif
 
 			ut_a(space->id == space_id);
 
