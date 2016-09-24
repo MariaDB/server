@@ -2663,14 +2663,14 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
   Window_spec *spec;
   Item_window_func *win_func= it.peek();  
   Item_window_func *win_func_with_longest_order= NULL;
-  uint longest_order_elements= 0;
+  int longest_order_elements= -1;
 
   /* The iterator should point to a valid function at the start of execution. */
   DBUG_ASSERT(win_func);
   do
   {
     spec= win_func->window_spec;
-    uint win_func_order_elements= spec->partition_list->elements +
+    int win_func_order_elements= spec->partition_list->elements +
                                   spec->order_list->elements;
     if (win_func_order_elements > longest_order_elements)
     {
