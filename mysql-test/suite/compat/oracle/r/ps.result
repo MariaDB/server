@@ -43,6 +43,24 @@ EXECUTE stmt USING @a, @b;
 # MDEV-10709 Expressions as parameters to Dynamic SQL
 #
 #
+# Testing disallowed expressions in USING
+#
+PREPARE stmt FROM 'SELECT :1 FROM DUAL';
+EXECUTE stmt USING (SELECT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
+DEALLOCATE PREPARE stmt;
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+BEGIN
+RETURN 'test';
+END;
+$$
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+EXECUTE stmt USING f1();
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+DEALLOCATE PREPARE stmt;
+DROP FUNCTION f1;
+#
 # Using a user variable as a EXECUTE..USING out parameter
 #
 CREATE PROCEDURE p1(a OUT INT)
@@ -132,6 +150,23 @@ DROP TABLE t1;
 #
 #
 # MDEV-10585 EXECUTE IMMEDIATE statement
+#
+#
+# Testing disallowed expressions in USING
+#
+EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING (SELECT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+BEGIN
+RETURN 'test';
+END;
+$$
+EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING f1();
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+DROP FUNCTION f1;
+#
+# Testing simple expressions
 #
 EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING 10;
 :1
