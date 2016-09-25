@@ -1223,6 +1223,54 @@ select p.* from folks as p, ancestor_ids as a where p.id = a.id;
 execute stmt;
 deallocate prepare stmt;
 
+--echo #
+--echo # MDEV-10881: execution of prepared statement from
+--echo #             CREATE ... SELECT, INSERT ... SELECT       
+--echo #
+
+prepare stmt from"
+create table my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+select * from my_ancestors;
+
+delete from my_ancestors;
+
+prepare stmt from"
+insert into my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+select * from my_ancestors;
+
+drop table my_ancestors;
 
 drop table folks;
 
