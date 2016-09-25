@@ -1635,7 +1635,7 @@ id	name	dob	father	mother
 deallocate prepare stmt;
 #
 # MDEV-10881: execution of prepared statement from
-#             CREATE ... SELECT, INSERT ... SELECT        
+#             CREATE ... SELECT, INSERT ... SELECT       
 #
 prepare stmt from"
 create table my_ancestors
