@@ -453,6 +453,66 @@ btr_pcur_move_to_next_page(
 }
 
 /*********************************************************//**
+Moves the persistent cursor to the last record on the previous page. Releases the
+latch on the current page, and bufferunfixes it. Note that there must not be
+modifications on the current page, as then the x-latch can be released only in
+mtr_commit. */
+UNIV_INTERN
+void
+btr_pcur_move_to_prev_page(
+/*=======================*/
+	btr_pcur_t*	cursor,	/*!< in: persistent cursor; must be on the
+				last record of the current page */
+	mtr_t*		mtr)	/*!< in: mtr */
+{
+	ulint		prev_page_no;
+	page_t*		page;
+	buf_block_t*	prev_block;
+	page_t*		prev_page;
+	ulint		mode;
+
+	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
+	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
+	ut_ad(btr_pcur_is_before_first_on_page(cursor));
+
+	cursor->old_stored = false;
+
+	page = btr_pcur_get_page(cursor);
+	prev_page_no = btr_page_get_prev(page, mtr);
+
+	ut_ad(prev_page_no != FIL_NULL);
+
+        mode = cursor->latch_mode;
+	switch (mode) {
+	case BTR_SEARCH_TREE:
+		mode = BTR_SEARCH_LEAF;
+		break;
+	case BTR_MODIFY_TREE:
+		mode = BTR_MODIFY_LEAF;
+	}
+
+	buf_block_t*	block = btr_pcur_get_block(cursor);
+
+	prev_block = btr_block_get(
+		page_id_t(block->page.id.space(), prev_page_no),
+		block->page.size, mode,
+		btr_pcur_get_btr_cur(cursor)->index, mtr);
+
+	prev_page = buf_block_get_frame(prev_block);
+#ifdef UNIV_BTR_DEBUG
+	ut_a(page_is_comp(prev_page) == page_is_comp(page));
+	ut_a(btr_page_get_next(prev_page, mtr)
+	     == btr_pcur_get_block(cursor)->page.id.page_no());
+#endif /* UNIV_BTR_DEBUG */
+
+	btr_leaf_page_release(btr_pcur_get_block(cursor), mode, mtr);
+
+	page_cur_set_after_last(prev_block, btr_pcur_get_page_cur(cursor));
+
+	page_check_dir(prev_page);
+}
+
+/*********************************************************//**
 Moves the persistent cursor backward if it is on the first record of the page.
 Commits mtr. Note that to prevent a possible deadlock, the operation
 first stores the position of the cursor, commits mtr, acquires the necessary
@@ -461,7 +521,7 @@ alphabetical position of the cursor is guaranteed to be sensible on
 return, but it may happen that the cursor is not positioned on the last
 record of any page, because the structure of the tree may have changed
 during the time when the cursor had no latches. */
-static
+UNIV_INTERN
 void
 btr_pcur_move_backward_from_page(
 /*=============================*/

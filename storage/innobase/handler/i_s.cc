@@ -9690,10 +9690,11 @@ static ST_FIELD_INFO	innodb_vtq_fields_info[] =
 
 #define SYS_VTQ_CONCURR_TRX 3
 	{ STRUCT_FLD(field_name,	"concurr_trx"),
-	STRUCT_FLD(field_length,	120),
-	STRUCT_FLD(field_type,		MYSQL_TYPE_MEDIUM_BLOB),
+	// 3 for "..." if list is truncated
+	STRUCT_FLD(field_length,	I_S_MAX_CONCURR_TRX * (TRX_ID_MAX_LEN + 1) + 3),
+	STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
 	STRUCT_FLD(value,		0),
-	STRUCT_FLD(field_flags,		0),
+	STRUCT_FLD(field_flags,		MY_I_S_MAYBE_NULL),
 	STRUCT_FLD(old_name,		""),
 	STRUCT_FLD(open_method,		SKIP_OPEN_TABLE) },
 
@@ -9712,7 +9713,7 @@ i_s_dict_fill_vtq(
 	ullong		col_trx_id,	/*!< in: table fields */
 	ullong		col_begin_ts,
 	ullong		col_commit_ts,
-	ullong		col_concurr_trx,
+	char*		col_concurr_trx,
 	TABLE*		table_to_fill)	/*!< in/out: fill this table */
 {
 	Field**		fields;
@@ -9723,7 +9724,7 @@ i_s_dict_fill_vtq(
 	OK(field_store_ullong(fields[SYS_VTQ_TRX_ID], col_trx_id));
 	OK(field_store_packed_ts(fields[SYS_VTQ_BEGIN_TS], col_begin_ts));
 	OK(field_store_packed_ts(fields[SYS_VTQ_COMMIT_TS], col_commit_ts));
-	OK(field_store_ullong(fields[SYS_VTQ_CONCURR_TRX], col_concurr_trx));
+	OK(field_store_string(fields[SYS_VTQ_CONCURR_TRX], col_concurr_trx));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -9736,7 +9737,7 @@ Loop through each record in SYS_VTQ, and extract the column
 information and fill the INFORMATION_SCHEMA.INNODB_SYS_VTQ table.
 @return 0 on success */
 
-static const int I_S_SYS_VTQ_LIMIT = 1000; // maximum number of records in I_S.INNODB_SYS_VTQ
+static const int I_S_SYS_VTQ_LIMIT = 10000; // maximum number of records in I_S.INNODB_SYS_VTQ
 
 static
 int
@@ -9764,16 +9765,16 @@ i_s_sys_vtq_fill_table(
 	mutex_enter(&dict_sys->mutex);
 	mtr_start(&mtr);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_VTQ);
+	rec = dict_startscan_system(&pcur, &mtr, SYS_VTQ, false);
 
 	for (int i = 0; rec && i < I_S_SYS_VTQ_LIMIT; ++i) {
 		const char*	err_msg;
-		ullong		col_trx_id;
+		trx_id_t	col_trx_id;
 		ullong		col_begin_ts;
 		ullong		col_commit_ts;
-		ullong		col_concurr_trx;
+		char*		col_concurr_trx;
 
-		/* Extract necessary information from a SYS_VTQ row */
+		/* Extract necessary information from SYS_VTQ row */
 		err_msg = dict_process_sys_vtq(
 			heap,
 			rec,

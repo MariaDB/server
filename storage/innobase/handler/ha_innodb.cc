@@ -4816,6 +4816,11 @@ innobase_commit(
 
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
+		/* Notify VTQ on System Versioned tables update */
+		if (trx->vtq_notify_on_commit) {
+			vers_notify_vtq(trx);
+			trx->vtq_notify_on_commit = false;
+		}
 
 		DBUG_EXECUTE_IF("crash_innodb_before_commit",
 				DBUG_SUICIDE(););

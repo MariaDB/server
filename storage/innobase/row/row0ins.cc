@@ -50,6 +50,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "fts0types.h"
 #include "m_string.h"
 #include "gis0geo.h"
+#include "sql_time.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -2042,7 +2043,8 @@ row_ins_scan_sec_index_for_duplicate(
 	que_thr_t*	thr,	/*!< in: query thread */
 	bool		s_latch,/*!< in: whether index->lock is being held */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	mem_heap_t*	offsets_heap)
+	mem_heap_t*	offsets_heap,
+	trx_t*		trx = 0)
 				/*!< in/out: memory heap that can be emptied */
 {
 	ulint		n_unique;
@@ -2054,6 +2056,10 @@ row_ins_scan_sec_index_for_duplicate(
 	ulint*		offsets		= NULL;
 	DBUG_ENTER("row_ins_scan_sec_index_for_duplicate");
 
+
+	ut_ad(thr || (trx && flags & BTR_NO_LOCKING_FLAG));
+	if (!trx)
+		trx = thr_get_trx(thr);
 
 	ut_ad(s_latch == rw_lock_own_flagged(
 			&index->lock, RW_LOCK_FLAG_S | RW_LOCK_FLAG_SX));
@@ -2086,7 +2092,7 @@ row_ins_scan_sec_index_for_duplicate(
 		      : BTR_SEARCH_LEAF,
 		      &pcur, mtr);
 
-	allow_duplicates = thr_get_trx(thr)->duplicates;
+	allow_duplicates = trx->duplicates;
 
 	/* Scan index records and check if there is a duplicate */
 
@@ -2142,7 +2148,7 @@ row_ins_scan_sec_index_for_duplicate(
 							index, offsets)) {
 				err = DB_DUPLICATE_KEY;
 
-				thr_get_trx(thr)->error_info = index;
+				trx->error_info = index;
 
 				/* If the duplicate is on hidden FTS_DOC_ID,
 				state so in the error log */
@@ -2528,9 +2534,10 @@ row_ins_clust_index_entry_low(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
+	bool		dup_chk_only,
 				/*!< in: if true, just do duplicate check
 				and return. don't execute actual insert. */
+	trx_t*		trx)
 {
 	btr_pcur_t	pcur;
 	btr_cur_t*	cursor;
@@ -2545,11 +2552,15 @@ row_ins_clust_index_entry_low(
 
 	DBUG_ENTER("row_ins_clust_index_entry_low");
 
+	ut_ad(thr || trx);
+	if (!trx)
+		trx = thr_get_trx(thr);
+
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!dict_index_is_unique(index)
 	      || n_uniq == dict_index_get_n_unique(index));
 	ut_ad(!n_uniq || n_uniq == dict_index_get_n_unique(index));
-	ut_ad(!thr_get_trx(thr)->in_rollback);
+	ut_ad(!trx->in_rollback);
 
 	mtr_start(&mtr);
 
@@ -2612,7 +2623,10 @@ row_ins_clust_index_entry_low(
 
 		if (flags
 		    == (BTR_CREATE_FLAG | BTR_NO_LOCKING_FLAG
-			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG)) {
+			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG) || !thr) {
+			// thr == 0 for SYS_VTQ table
+			ut_ad(thr || flags &
+				(BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG));
 			/* Set no locks when applying log
 			in online table rebuild. Only check for duplicates. */
 			err = row_ins_duplicate_error_in_clust_online(
@@ -2627,7 +2641,7 @@ row_ins_clust_index_entry_low(
 				/* fall through */
 			case DB_SUCCESS_LOCKED_REC:
 			case DB_DUPLICATE_KEY:
-				thr_get_trx(thr)->error_info = cursor->index;
+				trx->error_info = cursor->index;
 			}
 		} else {
 			/* Note that the following may return also
@@ -2716,7 +2730,7 @@ err_exit:
 					LSN_MAX, TRUE););
 			err = row_ins_index_entry_big_rec(
 				entry, big_rec, offsets, &offsets_heap, index,
-				thr_get_trx(thr)->mysql_thd);
+				trx->mysql_thd);
 			dtuple_convert_back_big_rec(index, entry, big_rec);
 		} else {
 			if (err == DB_SUCCESS
@@ -2810,9 +2824,10 @@ row_ins_sec_index_entry_low(
 	trx_id_t	trx_id,	/*!< in: PAGE_MAX_TRX_ID during
 				row_log_table_apply(), or 0 */
 	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
+	bool		dup_chk_only,
 				/*!< in: if true, just do duplicate check
 				and return. don't execute actual insert. */
+	trx_t*		trx)
 {
 	DBUG_ENTER("row_ins_sec_index_entry_low");
 
@@ -2825,6 +2840,10 @@ row_ins_sec_index_entry_low(
 	ulint*          offsets         = offsets_;
 	rec_offs_init(offsets_);
 	rtr_info_t	rtr_info;
+
+	ut_ad(thr || trx);
+	if (!trx)
+		trx = thr_get_trx(thr);
 
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(mode == BTR_MODIFY_LEAF || mode == BTR_MODIFY_TREE);
@@ -2867,7 +2886,7 @@ row_ins_sec_index_entry_low(
 		}
 
 		if (row_log_online_op_try(
-			    index, entry, thr_get_trx(thr)->id)) {
+			    index, entry, trx->id)) {
 			goto func_exit;
 		}
 	}
@@ -2876,7 +2895,7 @@ row_ins_sec_index_entry_low(
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
 
-	if (!thr_get_trx(thr)->check_unique_secondary) {
+	if (!trx->check_unique_secondary) {
 		search_mode |= BTR_IGNORE_SEC_UNIQUE;
 	}
 
@@ -2919,8 +2938,6 @@ row_ins_sec_index_entry_low(
 	}
 
 	if (err != DB_SUCCESS) {
-		trx_t* trx = thr_get_trx(thr);
-
 		if (err == DB_DECRYPTION_FAILED) {
 			ib_push_warning(trx->mysql_thd,
 				DB_DECRYPTION_FAILED,
@@ -2964,7 +2981,7 @@ row_ins_sec_index_entry_low(
 		}
 
 		err = row_ins_scan_sec_index_for_duplicate(
-			flags, index, entry, thr, check, &mtr, offsets_heap);
+			flags, index, entry, thr, check, &mtr, offsets_heap, trx);
 
 		mtr_commit(&mtr);
 
@@ -2973,7 +2990,7 @@ row_ins_sec_index_entry_low(
 			break;
 		case DB_DUPLICATE_KEY:
 			if (!index->is_committed()) {
-				ut_ad(!thr_get_trx(thr)
+				ut_ad(!trx
 				      ->dict_operation_lock_mode);
 				mutex_enter(&dict_sys->mutex);
 				dict_set_corrupted_index_cache_only(index);
@@ -3016,8 +3033,8 @@ row_ins_sec_index_entry_low(
 
 	if (!(flags & BTR_NO_LOCKING_FLAG)
 	    && dict_index_is_unique(index)
-	    && thr_get_trx(thr)->duplicates
-	    && thr_get_trx(thr)->isolation_level >= TRX_ISO_REPEATABLE_READ) {
+	    && trx->duplicates
+	    && trx->isolation_level >= TRX_ISO_REPEATABLE_READ) {
 
 		/* When using the REPLACE statement or ON DUPLICATE clause, a
 		gap lock is taken on the position of the to-be-inserted record,
@@ -3040,7 +3057,7 @@ row_ins_sec_index_entry_low(
 		switch (err) {
 		case DB_SUCCESS:
 		case DB_SUCCESS_LOCKED_REC:
-			if (thr_get_trx(thr)->error_state != DB_DUPLICATE_KEY) {
+			if (trx->error_state != DB_DUPLICATE_KEY) {
 				break;
 			}
 			/* Fall through (skip actual insert) after we have
@@ -3050,7 +3067,7 @@ row_ins_sec_index_entry_low(
 		}
 	}
 
-	ut_ad(thr_get_trx(thr)->error_state == DB_SUCCESS);
+	ut_ad(trx->error_state == DB_SUCCESS);
 
 	if (dup_chk_only) {
 		goto func_exit;
@@ -3802,63 +3819,134 @@ error_handling:
 inline
 void set_row_field_8(dtuple_t* row, int field_num, ib_uint64_t data, mem_heap_t* heap)
 {
+	static const ulint fsize = 8;
 	dfield_t* dfield = dtuple_get_nth_field(row, field_num);
-	byte* buf = static_cast<byte*>(mem_heap_alloc(heap, 8));
+	ut_ad(dfield->type.len == fsize);
+	byte* buf = static_cast<byte*>(mem_heap_alloc(heap, fsize));
 	mach_write_to_8(buf, data);
-	dfield_set_data(dfield, buf, 8);
+	dfield_set_data(dfield, buf, fsize);
 }
 
-#include "my_time.h"
-#include "sql_time.h"
+/***********************************************************//**
+Inserts a row to SYS_VTQ, low level.
+@return DB_SUCCESS if operation successfully completed, else error
+code */
+static __attribute__((nonnull, warn_unused_result))
+dberr_t
+vers_row_ins_vtq_low(trx_t* trx, mem_heap_t* heap, dtuple_t* row)
+{
+	dberr_t		err;
+	dtuple_t*	entry;
+	ulint		n_index = 0;
+	dict_index_t*	index	= dict_table_get_first_index(dict_sys->sys_vtq);
+	static const ulint flags
+		= (BTR_KEEP_SYS_FLAG
+			| BTR_NO_LOCKING_FLAG
+			| BTR_NO_UNDO_LOG_FLAG);
+
+	entry = row_build_index_entry(row, NULL, index, heap);
+
+	dfield_t* dfield = dtuple_get_nth_field(entry, DATA_TRX_ID);
+	ut_ad(dfield->type.len == DATA_TRX_ID_LEN);
+	dfield_set_data(dfield, mem_heap_alloc(heap, DATA_TRX_ID_LEN), DATA_TRX_ID_LEN);
+	row_upd_index_entry_sys_field(entry, index, DATA_TRX_ID, trx->id);
+
+	err = row_ins_clust_index_entry_low(
+		flags, BTR_MODIFY_TREE, index, index->n_uniq, entry, 0, NULL, false, trx);
+
+	switch (err) {
+	case DB_SUCCESS:
+		break;
+	case DB_SUCCESS_LOCKED_REC:
+		/* The row had already been copied to the table. */
+		fprintf(stderr, "InnoDB: duplicate VTQ record!\n");
+		return DB_SUCCESS;
+	default:
+		return err;
+	}
+
+	mem_heap_t* offsets_heap = mem_heap_create(1024);
+
+	do {
+		n_index++;
+
+		if (!(index = dict_table_get_next_index(index))) {
+			break;
+		}
+
+		if (index->type & DICT_FTS) {
+			continue;
+		}
+
+		entry = row_build_index_entry(row, NULL, index, heap);
+		err = row_ins_sec_index_entry_low(
+			flags, BTR_MODIFY_TREE,
+			index, offsets_heap, heap, entry, trx->id, NULL, false, trx);
+
+		///* Report correct index name for duplicate key error. */
+		// No need to report on commit phase?
+		//if (err == DB_DUPLICATE_KEY) {
+		//	trx->error_key_num = n_index;
+		//}
+	} while (err == DB_SUCCESS);
+
+	mem_heap_free(offsets_heap);
+	return err;
+}
 
 /***********************************************************//**
 Inserts a row to SYS_VTQ table.
 @return	error state */
-UNIV_INTERN
-dberr_t
-vers_notify_vtq(que_thr_t* thr, mem_heap_t* heap)
+void vers_notify_vtq(trx_t* trx)
 {
-	dberr_t		err;
-	trx_t*		trx = thr_get_trx(thr);
-	dict_table_t*	sys_vtq = dict_sys->sys_vtq;
-	ins_node_t*	node = ins_node_create(INS_DIRECT, sys_vtq, heap);
+	dberr_t err;
+	mem_heap_t* heap = mem_heap_create(1024);
+	dtuple_t* row = dtuple_create(heap, dict_table_get_n_cols(dict_sys->sys_vtq));
 
-	node->select = NULL;
-	node->values_list = NULL; // for INS_VALUES
+	ulint now_secs, now_usecs;
+	ut_usectime(&now_secs, &now_usecs);
+	ullong begin_ts = unix_time_to_packed(trx->start_time, trx->start_time_micro);
+	ullong commit_ts = unix_time_to_packed(now_secs, now_usecs);
 
-	dtuple_t* row = dtuple_create(heap, dict_table_get_n_cols(sys_vtq));
-	dict_table_copy_types(row, sys_vtq);
-
-	struct tm unix_time;
-	MYSQL_TIME mysql_time;
-	localtime_r(&trx->start_time, &unix_time);
-	localtime_to_TIME(&mysql_time, &unix_time);
-	mysql_time.second_part = trx->start_time_micro;
-	ullong start_time = pack_time(&mysql_time);
-
+	dict_table_copy_types(row, dict_sys->sys_vtq);
 	set_row_field_8(row, DICT_FLD__SYS_VTQ__TRX_ID, trx->id, heap);
-	set_row_field_8(row, DICT_FLD__SYS_VTQ__BEGIN_TS - 2, start_time, heap);
-	set_row_field_8(row, DICT_FLD__SYS_VTQ__COMMIT_TS - 2, start_time, heap);
-	set_row_field_8(row, DICT_FLD__SYS_VTQ__CONCURR_TRX - 2, 3, heap);
+	set_row_field_8(row, DICT_FLD__SYS_VTQ__BEGIN_TS - 2, begin_ts, heap);
+	set_row_field_8(row, DICT_FLD__SYS_VTQ__COMMIT_TS - 2, commit_ts, heap);
 
-	ins_node_set_new_row(node, row);
+	dfield_t* dfield = dtuple_get_nth_field(row, DICT_FLD__SYS_VTQ__CONCURR_TRX - 2);
+	mutex_enter(&trx_sys->mutex);
+	trx_ut_list_t &rw_list = trx_sys->rw_trx_list;
+	if (rw_list.count > 1) {
+		byte* buf = static_cast<byte*>(mem_heap_alloc(heap, rw_list.count * 8));
+		byte* ptr = buf;
+		ulint count = 0;
 
-	trx_write_trx_id(node->trx_id_buf, trx->id);
-	err = lock_table(0, node->table, LOCK_IX, thr);
-	DBUG_EXECUTE_IF("ib_row_ins_ix_lock_wait",
-		err = DB_LOCK_WAIT;);
+		for (trx_t* ctrx = UT_LIST_GET_FIRST(rw_list);
+			ctrx != NULL;
+			ctrx = UT_LIST_GET_NEXT(trx_list, ctrx))
+		{
+			if (ctrx == trx || ctrx->state == TRX_STATE_NOT_STARTED)
+				continue;
 
-	if (err != DB_SUCCESS) {
-		goto end_func;
+			mach_write_to_8(ptr, ctrx->id);
+			++count;
+			ptr += 8;
+		}
+
+		if (count)
+			dfield_set_data(dfield, buf, count * 8);
+		else
+			dfield_set_data(dfield, NULL, 0);
+	} else {
+		// there must be at least current transaction
+		ut_ad(rw_list.count == 1 && UT_LIST_GET_FIRST(rw_list) == trx);
+		dfield_set_data(dfield, NULL, 0);
 	}
+	mutex_exit(&trx_sys->mutex);
 
-	node->trx_id = trx->id;
-	node->state = INS_NODE_ALLOC_ROW_ID;
-	err = row_ins(node, thr);
+	err = vers_row_ins_vtq_low(trx, heap, row);
+	if (DB_SUCCESS != err)
+		fprintf(stderr, "InnoDB: failed to insert VTQ record (error %d)\n", err);
 
-end_func:
-	trx->error_state = err;
-	if (err != DB_SUCCESS)
-		fprintf(stderr, "InnoDB: failed to insert VTQ record (see SQL error message)\n");
-	return err;
+	mem_heap_free(heap);
 }

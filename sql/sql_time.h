@@ -171,6 +171,16 @@ bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
                     int lsign, MYSQL_TIME *l_time3, ulonglong fuzzydate);
 int my_time_compare(const MYSQL_TIME *a, const MYSQL_TIME *b);
 void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
+void unix_time_to_TIME(MYSQL_TIME *to, time_t secs, suseconds_t usecs);
+
+inline
+longlong unix_time_to_packed(time_t secs, suseconds_t usecs)
+{
+  MYSQL_TIME mysql_time;
+  unix_time_to_TIME(&mysql_time, secs, usecs);
+  return pack_time(&mysql_time);
+}
+
 void calc_time_from_sec(MYSQL_TIME *to, long seconds, long microseconds);
 uint calc_week(MYSQL_TIME *l_time, uint week_behaviour, uint *year);
 
