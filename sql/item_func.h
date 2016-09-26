@@ -2604,7 +2604,7 @@ class Item_func_oracle_sql_rowcount :public Item_int_func
 public:
   Item_func_oracle_sql_rowcount(THD *thd): Item_int_func(thd) {}
   longlong val_int();
-  const char *func_name() const { return "SQL%%ROWCOUNT"; }
+  const char *func_name() const { return "SQL%ROWCOUNT"; }
   void print(String *str, enum_query_type query_type)
   {
     str->append(func_name());
