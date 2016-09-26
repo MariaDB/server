@@ -7,16 +7,15 @@ sub skip_combinations {
   my @combinations;
 
   # disable innodb/xtradb combinatons for configurations that were not built
-  push @combinations, 'innodb_plugin' unless $ENV{HA_INNODB_SO};
+  push @combinations, 'innodb_plugin'; # unless $ENV{HA_INNODB_SO};
 
-  push @combinations, qw(xtradb innodb) unless $::mysqld_variables{'innodb'} eq "ON";
-
-  # unconditionally, for now in 10.2. Later it could check for xtradb I_S plugins
-  push @combinations, 'xtradb';
+  # if something is compiled in, it's xtradb. innodb is MODULE_ONLY:
+  push @combinations, 'xtradb'; # unless $::mysqld_variables{'innodb'} eq "ON";
+  # push @combinations, 'innodb';
 
   # XtraDB is RECOMPILE_FOR_EMBEDDED, ha_xtradb.so cannot work with embedded server
-  push @combinations, 'xtradb_plugin' if not $ENV{HA_XTRADB_SO}
-                                          or $::opt_embedded_server;
+  push @combinations, 'xtradb_plugin'; # if not $ENV{HA_XTRADB_SO}
+                                       #   or $::opt_embedded_server;
 
   my %skip = ( 'include/have_innodb.combinations' => [ @combinations ],
                'include/have_xtradb.combinations' => [ @combinations ]);
