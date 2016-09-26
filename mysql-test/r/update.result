@@ -771,6 +771,7 @@ x	y
 8	8000
 9	9000
 DROP TABLE t1;
+select ifnull(max(trx_id), 0) into @start_trx_id from information_schema.innodb_vtq;
 CREATE TABLE t1(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING ENGINE=InnoDB;
 INSERT INTO t1(x, y) VALUES
 (1, 1000),
@@ -819,3 +820,8 @@ x	y
 8	8000
 9	9000
 DROP TABLE t1;
+SET @i = 0;
+SELECT @i:=@i+1 AS No, trx_id > 0 AS A, begin_ts > '2015-1-1 0:0:0' AS B, commit_ts > begin_ts AS C, concurr_trx IS NULL AS D FROM INFORMATION_SCHEMA.INNODB_VTQ WHERE trx_id > @start_trx_id;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
