@@ -88,6 +88,24 @@ check_pid_and_port()
         [ $(cat $pid_file) -eq $rsync_pid ]
 }
 
+is_local_ip()
+{
+  local address="$1"
+  local wherebin=`which ifconfig`
+  if [ -z "$wherebin" ]
+  then
+    wherebin=`which ip`
+    wherebin="$wherebin address show"
+    # Add an slash at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
+    address="${address}/"
+  else
+    # Add an space at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
+    address="$address "
+  fi
+
+  $wherebin | grep "$address" > /dev/null
+}
+
 MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
 rm -rf "$MAGIC_FILE"
 
@@ -311,8 +329,16 @@ EOF
 
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around
 
-    # listen only in the IP specified
-    rsync --daemon --no-detach --address $RSYNC_ADDR --port $RSYNC_PORT --config "$RSYNC_CONF" &
+    # If the IP is local listen only in it
+    if is_local_ip $RSYNC_ADDR
+    then
+      rsync --daemon --no-detach --address $RSYNC_ADDR --port $RSYNC_PORT --config "$RSYNC_CONF" &
+    else
+      # Not local, possibly a NAT, listen in all interface
+      rsync --daemon --no-detach --port $RSYNC_PORT --config "$RSYNC_CONF" &
+      # Overwrite address with all
+      RSYNC_ADDR="*"
+    fi
     RSYNC_REAL_PID=$!
 
     until check_pid_and_port $RSYNC_PID $RSYNC_REAL_PID $RSYNC_ADDR $RSYNC_PORT
