@@ -923,3 +923,31 @@ EXECUTE stmt;
 DROP FUNCTION f;
 DROP VIEW v2,v1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10884: condition pushdown into derived specified by
+--echo #             1. unit with  SELECT containing ORDER BY ... LIMIT
+--echo #             2. unit containing global ORDER BY ... LIMIT
+--echo #
+
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+select a from t1 order by a limit 5;
+
+set statement optimizer_switch='condition_pushdown_for_derived=off' for
+select * from (select a from t1 order by a limit 5) t where t.a not in (1,2,3);
+set statement optimizer_switch='condition_pushdown_for_derived=on' for 
+select * from (select a from t1 order by a limit 5) t where t.a not in (1,2,3);
+
+select a from t1 where a < 4 union select a from t1 where a > 5
+  order by a limit 5;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for
+select * from 
+(select a from t1 where a < 4 union select a from t1 where a > 5
+ order by a limit 5) t where t.a not in (2,9);
+set statement optimizer_switch='condition_pushdown_for_derived=on' for 
+select * from 
+(select a from t1 where a < 4 union select a from t1 where a > 5
+ order by a limit 5) t where t.a not in (2,9);
+
+drop table t1;

@@ -1160,7 +1160,7 @@ public:
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
 
   bool cond_pushdown_is_allowed() const
-  { return !have_window_funcs() && !olap; }
+  { return !have_window_funcs() && !olap && !explicit_limit; }
   
 private:
   bool m_non_agg_field_used;
