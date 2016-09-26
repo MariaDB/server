@@ -1106,7 +1106,7 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
 					        table_map &unrestricted, 
 						table_map &encountered)
 {
-  /* Check conditions 1-for restricted specification*/
+  /* Check conditions 1 for restricted specification*/
   List_iterator<TABLE_LIST> ti(sel->leaf_tables);
   TABLE_LIST *tbl;
   while ((tbl= ti++))
@@ -1141,7 +1141,7 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
         encountered|= with_elem->get_elem_map();
     }
   } 
-  for (With_element *with_elem= sel->get_with_element()->owner->with_list.first;
+  for (With_element *with_elem= owner->with_list.first;
        with_elem;
        with_elem= with_elem->next)
   {
