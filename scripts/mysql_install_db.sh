@@ -291,7 +291,7 @@ then
   fi
   srcpkgdatadir=`find_in_basedir --dir fill_help_tables.sql share share/mysql`
   buildpkgdatadir=$srcpkgdatadir
-  if test -z "$pkgdatadir"
+  if test -z "$srcpkgdatadir"
   then
     cannot_find_file fill_help_tables.sql $basedir/share $basedir/share/mysql
     exit 1
