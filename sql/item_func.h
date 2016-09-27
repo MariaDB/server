@@ -724,6 +724,76 @@ public:
 };
 
 
+class Item_func_cursor_int_attr: public Item_int_func
+{
+protected:
+  LEX_STRING m_cursor_name;
+  uint m_cursor_offset;
+  class sp_cursor *get_open_cursor_or_error();
+public:
+  Item_func_cursor_int_attr(THD *thd, const LEX_STRING name, uint offset)
+   :Item_int_func(thd), m_cursor_name(name), m_cursor_offset(offset)
+  { }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), arg, VCOL_SESSION_FUNC);
+  }
+  void print(String *str, enum_query_type query_type);
+};
+
+
+class Item_func_cursor_isopen: public Item_func_cursor_int_attr
+{
+public:
+  Item_func_cursor_isopen(THD *thd, const LEX_STRING name, uint offset)
+   :Item_func_cursor_int_attr(thd, name, offset) { }
+  const char *func_name() const { return "%ISOPEN"; }
+  void fix_length_and_dec() { max_length= 1; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_isopen>(thd, mem_root, this); }
+};
+
+
+class Item_func_cursor_found: public Item_func_cursor_int_attr
+{
+public:
+  Item_func_cursor_found(THD *thd, const LEX_STRING name, uint offset)
+   :Item_func_cursor_int_attr(thd, name, offset) { }
+  const char *func_name() const { return "%FOUND"; }
+  void fix_length_and_dec() { max_length= 1; maybe_null= true; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_found>(thd, mem_root, this); }
+};
+
+
+class Item_func_cursor_notfound: public Item_func_cursor_int_attr
+{
+public:
+  Item_func_cursor_notfound(THD *thd, const LEX_STRING name, uint offset)
+   :Item_func_cursor_int_attr(thd, name, offset) { }
+  const char *func_name() const { return "%NOTFOUND"; }
+  void fix_length_and_dec() { max_length= 1; maybe_null= true; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_notfound>(thd, mem_root, this); }
+};
+
+
+class Item_func_cursor_rowcount: public Item_func_cursor_int_attr
+{
+public:
+  Item_func_cursor_rowcount(THD *thd, const LEX_STRING name, uint offset)
+   :Item_func_cursor_int_attr(thd, name, offset) { }
+  const char *func_name() const { return "%ROWCOUNT"; }
+  longlong val_int();
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_cursor_rowcount>(thd, mem_root, this); }
+};
+
+
+
 class Item_func_connection_id :public Item_int_func
 {
   longlong value;
