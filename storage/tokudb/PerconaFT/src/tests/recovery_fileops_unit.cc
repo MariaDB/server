@@ -156,7 +156,7 @@ do_args(int argc, char * const argv[]) {
         choices[i] = -1;
     }
 
-    char c;
+    int c;
     while ((c = getopt(argc, argv, "vqhcrO:A:B:C:D:E:F:G:H:I:X:")) != -1) {
 	switch(c) {
         case 'v':

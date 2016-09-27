@@ -369,17 +369,17 @@ void TOKUDB_SHARE::update_row_count(
         pct_of_rows_changed_to_trigger = ((_rows * auto_threshold) / 100);
         if (_row_delta_activity >= pct_of_rows_changed_to_trigger) {
             char msg[200];
-            snprintf(
-                msg,
-                sizeof(msg),
-                "TokuDB: Auto %s background analysis for %s, delta_activity "
-                "%llu is greater than %llu percent of %llu rows.",
-                tokudb::sysvars::analyze_in_background(thd) > 0 ?
-                    "scheduling" : "running",
-                full_table_name(),
-                _row_delta_activity,
-                auto_threshold,
-                (ulonglong)(_rows));
+            snprintf(msg,
+                     sizeof(msg),
+                     "TokuDB: Auto %s analysis for %s, delta_activity %llu is "
+                     "greater than %llu percent of %llu rows.",
+                     tokudb::sysvars::analyze_in_background(thd) > 0
+                         ? "scheduling background"
+                         : "running foreground",
+                     full_table_name(),
+                     _row_delta_activity,
+                     auto_threshold,
+                     (ulonglong)(_rows));
 
             // analyze_standard will unlock _mutex regardless of success/failure
             int ret = analyze_standard(thd, NULL);
@@ -4096,7 +4096,7 @@ int ha_tokudb::write_row(uchar * record) {
             goto cleanup; 
         }
         if (curr_num_DBs == 1) {
-            error = insert_row_to_main_dictionary(record,&prim_key, &row, txn);
+            error = insert_row_to_main_dictionary(record, &prim_key, &row, txn);
             if (error) { goto cleanup; }
         } else {
             error = insert_rows_to_dictionaries_mult(&prim_key, &row, txn, thd);
@@ -6130,7 +6130,7 @@ int ha_tokudb::info(uint flag) {
             // we should always have a primary key
             assert_always(share->file != NULL);
 
-            error = estimate_num_rows(share->file,&num_rows, txn);
+            error = estimate_num_rows(share->file, &num_rows, txn);
             if (error == 0) {
                 share->set_row_count(num_rows, false);
                 stats.records = num_rows;

@@ -7,7 +7,7 @@ This file is part of TokuDB
 
 Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
-    TokuDBis is free software: you can redistribute it and/or modify
+    TokuDB is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License, version 2,
     as published by the Free Software Foundation.
 
@@ -232,8 +232,11 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 // mysql 5.6.15 removed the test macro, so we define our own
 #define tokudb_test(e) ((e) ? 1 : 0)
 
-inline const char* tokudb_thd_get_proc_info(const THD *thd) {
+inline const char* tokudb_thd_get_proc_info(const THD* thd) {
     return thd->proc_info;
+}
+inline void tokudb_thd_set_proc_info(THD* thd, const char* proc_info) {
+    thd_proc_info(thd, proc_info);
 }
 
 // uint3korr reads 4 bytes and valgrind reports an error, so we use this function instead

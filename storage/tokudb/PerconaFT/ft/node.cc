@@ -373,52 +373,48 @@ find_bounds_within_message_tree(
     }
 }
 
-/**
- * For each message in the ancestor's buffer (determined by childnum) that
- * is key-wise between lower_bound_exclusive and upper_bound_inclusive,
- * apply the message to the basement node.  We treat the bounds as minus
- * or plus infinity respectively if they are NULL.  Do not mark the node
- * as dirty (preserve previous state of 'dirty' bit).
- */
+// For each message in the ancestor's buffer (determined by childnum) that
+// is key-wise between lower_bound_exclusive and upper_bound_inclusive,
+// apply the message to the basement node.  We treat the bounds as minus
+// or plus infinity respectively if they are NULL.  Do not mark the node
+// as dirty (preserve previous state of 'dirty' bit).
 static void bnc_apply_messages_to_basement_node(
-    FT_HANDLE t,             // used for comparison function
-    BASEMENTNODE bn,   // where to apply messages
+    FT_HANDLE t,      // used for comparison function
+    BASEMENTNODE bn,  // where to apply messages
     FTNODE ancestor,  // the ancestor node where we can find messages to apply
-    int childnum,      // which child buffer of ancestor contains messages we want
-    const pivot_bounds &bounds,  // contains pivot key bounds of this basement node
-    txn_gc_info* gc_info,
-    bool* msgs_applied) {
-
+    int childnum,  // which child buffer of ancestor contains messages we want
+    const pivot_bounds &
+        bounds,  // contains pivot key bounds of this basement node
+    txn_gc_info *gc_info,
+    bool *msgs_applied) {
     int r;
     NONLEAF_CHILDINFO bnc = BNC(ancestor, childnum);
 
     // Determine the offsets in the message trees between which we need to
     // apply messages from this buffer
-    STAT64INFO_S stats_delta = {0,0};
+    STAT64INFO_S stats_delta = {0, 0};
     uint64_t workdone_this_ancestor = 0;
     int64_t logical_rows_delta = 0;
 
     uint32_t stale_lbi, stale_ube;
     if (!bn->stale_ancestor_messages_applied) {
-        find_bounds_within_message_tree(
-            t->ft->cmp,
-            bnc->stale_message_tree,
-            &bnc->msg_buffer,
-            bounds,
-            &stale_lbi,
-            &stale_ube);
+        find_bounds_within_message_tree(t->ft->cmp,
+                                        bnc->stale_message_tree,
+                                        &bnc->msg_buffer,
+                                        bounds,
+                                        &stale_lbi,
+                                        &stale_ube);
     } else {
         stale_lbi = 0;
         stale_ube = 0;
     }
     uint32_t fresh_lbi, fresh_ube;
-    find_bounds_within_message_tree(
-        t->ft->cmp,
-        bnc->fresh_message_tree,
-        &bnc->msg_buffer,
-        bounds,
-        &fresh_lbi,
-        &fresh_ube);
+    find_bounds_within_message_tree(t->ft->cmp,
+                                    bnc->fresh_message_tree,
+                                    &bnc->msg_buffer,
+                                    bounds,
+                                    &fresh_lbi,
+                                    &fresh_ube);
 
     // We now know where all the messages we must apply are, so one of the
     // following 4 cases will do the application, depending on which of
@@ -432,44 +428,53 @@ static void bnc_apply_messages_to_basement_node(
         // We have messages in multiple trees, so we grab all
         // the relevant messages' offsets and sort them by MSN, then apply
         // them in MSN order.
-        const int buffer_size = ((stale_ube - stale_lbi) +
-                                 (fresh_ube - fresh_lbi) +
-                                 bnc->broadcast_list.size());
+        const int buffer_size =
+            ((stale_ube - stale_lbi) + (fresh_ube - fresh_lbi) +
+             bnc->broadcast_list.size());
         toku::scoped_malloc offsets_buf(buffer_size * sizeof(int32_t));
         int32_t *offsets = reinterpret_cast<int32_t *>(offsets_buf.get());
-        struct store_msg_buffer_offset_extra sfo_extra = { .offsets = offsets, .i = 0 };
+        struct store_msg_buffer_offset_extra sfo_extra = {.offsets = offsets,
+                                                          .i = 0};
 
         // Populate offsets array with offsets to stale messages
-        r = bnc->stale_message_tree.iterate_on_range<struct store_msg_buffer_offset_extra, store_msg_buffer_offset>(stale_lbi, stale_ube, &sfo_extra);
+        r = bnc->stale_message_tree
+                .iterate_on_range<struct store_msg_buffer_offset_extra,
+                                  store_msg_buffer_offset>(
+                    stale_lbi, stale_ube, &sfo_extra);
         assert_zero(r);
 
         // Then store fresh offsets, and mark them to be moved to stale later.
-        r = bnc->fresh_message_tree.iterate_and_mark_range<struct store_msg_buffer_offset_extra, store_msg_buffer_offset>(fresh_lbi, fresh_ube, &sfo_extra);
+        r = bnc->fresh_message_tree
+                .iterate_and_mark_range<struct store_msg_buffer_offset_extra,
+                                        store_msg_buffer_offset>(
+                    fresh_lbi, fresh_ube, &sfo_extra);
         assert_zero(r);
 
         // Store offsets of all broadcast messages.
-        r = bnc->broadcast_list.iterate<struct store_msg_buffer_offset_extra, store_msg_buffer_offset>(&sfo_extra);
+        r = bnc->broadcast_list.iterate<struct store_msg_buffer_offset_extra,
+                                        store_msg_buffer_offset>(&sfo_extra);
         assert_zero(r);
         invariant(sfo_extra.i == buffer_size);
 
         // Sort by MSN.
-        toku::sort<int32_t, message_buffer, msg_buffer_offset_msn_cmp>::mergesort_r(offsets, buffer_size, bnc->msg_buffer);
+        toku::sort<int32_t, message_buffer, msg_buffer_offset_msn_cmp>::
+            mergesort_r(offsets, buffer_size, bnc->msg_buffer);
 
         // Apply the messages in MSN order.
         for (int i = 0; i < buffer_size; ++i) {
             *msgs_applied = true;
-            do_bn_apply_msg(
-                t,
-                bn,
-                &bnc->msg_buffer,
-                offsets[i],
-                gc_info,
-                &workdone_this_ancestor,
-                &stats_delta,
-                &logical_rows_delta);
+            do_bn_apply_msg(t,
+                            bn,
+                            &bnc->msg_buffer,
+                            offsets[i],
+                            gc_info,
+                            &workdone_this_ancestor,
+                            &stats_delta,
+                            &logical_rows_delta);
         }
     } else if (stale_lbi == stale_ube) {
-        // No stale messages to apply, we just apply fresh messages, and mark them to be moved to stale later.
+        // No stale messages to apply, we just apply fresh messages, and mark
+        // them to be moved to stale later.
         struct iterate_do_bn_apply_msg_extra iter_extra = {
             .t = t,
             .bn = bn,
@@ -477,16 +482,20 @@ static void bnc_apply_messages_to_basement_node(
             .gc_info = gc_info,
             .workdone = &workdone_this_ancestor,
             .stats_to_update = &stats_delta,
-            .logical_rows_delta = &logical_rows_delta
-        };
-        if (fresh_ube - fresh_lbi > 0) *msgs_applied = true;
-        r = bnc->fresh_message_tree.iterate_and_mark_range<struct iterate_do_bn_apply_msg_extra, iterate_do_bn_apply_msg>(fresh_lbi, fresh_ube, &iter_extra);
+            .logical_rows_delta = &logical_rows_delta};
+        if (fresh_ube - fresh_lbi > 0)
+            *msgs_applied = true;
+        r = bnc->fresh_message_tree
+                .iterate_and_mark_range<struct iterate_do_bn_apply_msg_extra,
+                                        iterate_do_bn_apply_msg>(
+                    fresh_lbi, fresh_ube, &iter_extra);
         assert_zero(r);
     } else {
         invariant(fresh_lbi == fresh_ube);
         // No fresh messages to apply, we just apply stale messages.
 
-        if (stale_ube - stale_lbi > 0) *msgs_applied = true;
+        if (stale_ube - stale_lbi > 0)
+            *msgs_applied = true;
         struct iterate_do_bn_apply_msg_extra iter_extra = {
             .t = t,
             .bn = bn,
@@ -494,22 +503,26 @@ static void bnc_apply_messages_to_basement_node(
             .gc_info = gc_info,
             .workdone = &workdone_this_ancestor,
             .stats_to_update = &stats_delta,
-            .logical_rows_delta = &logical_rows_delta
-        };
+            .logical_rows_delta = &logical_rows_delta};
 
-        r = bnc->stale_message_tree.iterate_on_range<struct iterate_do_bn_apply_msg_extra, iterate_do_bn_apply_msg>(stale_lbi, stale_ube, &iter_extra);
+        r = bnc->stale_message_tree
+                .iterate_on_range<struct iterate_do_bn_apply_msg_extra,
+                                  iterate_do_bn_apply_msg>(
+                    stale_lbi, stale_ube, &iter_extra);
         assert_zero(r);
     }
     //
     // update stats
     //
     if (workdone_this_ancestor > 0) {
-        (void) toku_sync_fetch_and_add(&BP_WORKDONE(ancestor, childnum), workdone_this_ancestor);
+        (void)toku_sync_fetch_and_add(&BP_WORKDONE(ancestor, childnum),
+                                      workdone_this_ancestor);
     }
     if (stats_delta.numbytes || stats_delta.numrows) {
         toku_ft_update_stats(&t->ft->in_memory_stats, stats_delta);
     }
     toku_ft_adjust_logical_row_count(t->ft, logical_rows_delta);
+    bn->logical_rows_delta += logical_rows_delta;
 }
 
 static void

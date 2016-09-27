@@ -217,8 +217,8 @@ int deserialize_ft_versioned(int fd, struct rbuf *rb, FT *ftp, uint32_t version)
             // translation table itself won't fit in main memory.
             ssize_t readsz = toku_os_pread(fd, tbuf, size_to_read,
                                            translation_address_on_disk);
-            assert(readsz >= translation_size_on_disk);
-            assert(readsz <= (ssize_t)size_to_read);
+            invariant(readsz >= translation_size_on_disk);
+            invariant(readsz <= (ssize_t)size_to_read);
         }
         // Create table and read in data.
         r = ft->blocktable.create_from_buffer(fd,
@@ -411,73 +411,90 @@ exit:
     return r;
 }
 
-static size_t
-serialize_ft_min_size (uint32_t version) {
+static size_t serialize_ft_min_size(uint32_t version) {
     size_t size = 0;
 
-    switch(version) {
-    case FT_LAYOUT_VERSION_29:
-        size += sizeof(uint64_t); // logrows in ft
-    case FT_LAYOUT_VERSION_28:
-        size += sizeof(uint32_t); // fanout in ft
-    case FT_LAYOUT_VERSION_27:
-    case FT_LAYOUT_VERSION_26:
-    case FT_LAYOUT_VERSION_25:
-    case FT_LAYOUT_VERSION_24:
-    case FT_LAYOUT_VERSION_23:
-    case FT_LAYOUT_VERSION_22:
-    case FT_LAYOUT_VERSION_21:
-        size += sizeof(MSN);       // max_msn_in_ft
-    case FT_LAYOUT_VERSION_20:
-    case FT_LAYOUT_VERSION_19:
-        size += 1; // compression method
-        size += sizeof(MSN);       // highest_unused_msn_for_upgrade
-    case FT_LAYOUT_VERSION_18:
-        size += sizeof(uint64_t);  // time_of_last_optimize_begin
-        size += sizeof(uint64_t);  // time_of_last_optimize_end
-        size += sizeof(uint32_t);  // count_of_optimize_in_progress
-        size += sizeof(MSN);       // msn_at_start_of_last_completed_optimize
-        size -= 8;                 // removed num_blocks_to_upgrade_14
-        size -= 8;                 // removed num_blocks_to_upgrade_13
-    case FT_LAYOUT_VERSION_17:
-        size += 16;
-        invariant(sizeof(STAT64INFO_S) == 16);
-    case FT_LAYOUT_VERSION_16:
-    case FT_LAYOUT_VERSION_15:
-        size += 4;  // basement node size
-        size += 8;  // num_blocks_to_upgrade_14 (previously num_blocks_to_upgrade, now one int each for upgrade from 13, 14
-        size += 8;  // time of last verification
-    case FT_LAYOUT_VERSION_14:
-        size += 8;  //TXNID that created
-    case FT_LAYOUT_VERSION_13:
-        size += ( 4 // build_id
-                  +4 // build_id_original
-                  +8 // time_of_creation
-                  +8 // time_of_last_modification
-            );
+    switch (version) {
+        case FT_LAYOUT_VERSION_29:
+            size += sizeof(uint64_t);  // logrows in ft
+        case FT_LAYOUT_VERSION_28:
+            size += sizeof(uint32_t);  // fanout in ft
+        case FT_LAYOUT_VERSION_27:
+        case FT_LAYOUT_VERSION_26:
+        case FT_LAYOUT_VERSION_25:
+        case FT_LAYOUT_VERSION_24:
+        case FT_LAYOUT_VERSION_23:
+        case FT_LAYOUT_VERSION_22:
+        case FT_LAYOUT_VERSION_21:
+            size += sizeof(MSN);  // max_msn_in_ft
+        case FT_LAYOUT_VERSION_20:
+        case FT_LAYOUT_VERSION_19:
+            size += 1;            // compression method
+            size += sizeof(MSN);  // highest_unused_msn_for_upgrade
+        case FT_LAYOUT_VERSION_18:
+            size += sizeof(uint64_t);  // time_of_last_optimize_begin
+            size += sizeof(uint64_t);  // time_of_last_optimize_end
+            size += sizeof(uint32_t);  // count_of_optimize_in_progress
+            size += sizeof(MSN);  // msn_at_start_of_last_completed_optimize
+            size -= 8;            // removed num_blocks_to_upgrade_14
+            size -= 8;            // removed num_blocks_to_upgrade_13
+        case FT_LAYOUT_VERSION_17:
+            size += 16;
+            invariant(sizeof(STAT64INFO_S) == 16);
+        case FT_LAYOUT_VERSION_16:
+        case FT_LAYOUT_VERSION_15:
+            size += 4;  // basement node size
+            size += 8;  // num_blocks_to_upgrade_14 (previously
+                        // num_blocks_to_upgrade, now one int each for upgrade
+                        // from 13, 14
+            size += 8;  // time of last verification
+        case FT_LAYOUT_VERSION_14:
+            size += 8;  // TXNID that created
+        case FT_LAYOUT_VERSION_13:
+            size += (4  // build_id
+                     +
+                     4  // build_id_original
+                     +
+                     8  // time_of_creation
+                     +
+                     8  // time_of_last_modification
+                     );
         // fall through
-    case FT_LAYOUT_VERSION_12:
-        size += (+8 // "tokudata"
-                 +4 // version
-                 +4 // original_version
-                 +4 // size
-                 +8 // byte order verification
-                 +8 // checkpoint_count
-                 +8 // checkpoint_lsn
-                 +4 // tree's nodesize
-                 +8 // translation_size_on_disk
-                 +8 // translation_address_on_disk
-                 +4 // checksum
-                 +8 // Number of blocks in old version.
-                 +8 // diskoff
-                 +4 // flags
-            );
-        break;
-    default:
-        abort();
+        case FT_LAYOUT_VERSION_12:
+            size += (+8  // "tokudata"
+                     +
+                     4  // version
+                     +
+                     4  // original_version
+                     +
+                     4  // size
+                     +
+                     8  // byte order verification
+                     +
+                     8  // checkpoint_count
+                     +
+                     8  // checkpoint_lsn
+                     +
+                     4  // tree's nodesize
+                     +
+                     8  // translation_size_on_disk
+                     +
+                     8  // translation_address_on_disk
+                     +
+                     4  // checksum
+                     +
+                     8  // Number of blocks in old version.
+                     +
+                     8  // diskoff
+                     +
+                     4  // flags
+                     );
+            break;
+        default:
+            abort();
     }
 
-    lazy_assert(size <= block_allocator::BLOCK_ALLOCATOR_HEADER_RESERVE);
+    lazy_assert(size <= BlockAllocator::BLOCK_ALLOCATOR_HEADER_RESERVE);
     return size;
 }
 
@@ -486,7 +503,7 @@ int deserialize_ft_from_fd_into_rbuf(int fd,
                                      struct rbuf *rb,
                                      uint64_t *checkpoint_count,
                                      LSN *checkpoint_lsn,
-                                     uint32_t * version_p)
+                                     uint32_t *version_p)
 // Effect: Read and parse the header of a fractalal tree
 //
 //  Simply reading the raw bytes of the header into an rbuf is insensitive
@@ -496,18 +513,18 @@ int deserialize_ft_from_fd_into_rbuf(int fd,
 //  file AND the header is useless
 {
     int r = 0;
-    const int64_t prefix_size = 8 + // magic ("tokudata")
-                                4 + // version
-                                4 + // build_id
-                                4;  // size
+    const int64_t prefix_size = 8 +  // magic ("tokudata")
+                                4 +  // version
+                                4 +  // build_id
+                                4;   // size
     const int64_t read_size = roundup_to_multiple(512, prefix_size);
     unsigned char *XMALLOC_N_ALIGNED(512, read_size, prefix);
     rb->buf = NULL;
     int64_t n = toku_os_pread(fd, prefix, read_size, offset_of_header);
     if (n != read_size) {
-        if (n==0) {
+        if (n == 0) {
             r = TOKUDB_DICTIONARY_NO_HEADER;
-        } else if (n<0) {
+        } else if (n < 0) {
             r = get_error_errno();
         } else {
             r = EINVAL;
@@ -518,95 +535,102 @@ int deserialize_ft_from_fd_into_rbuf(int fd,
 
     rbuf_init(rb, prefix, prefix_size);
 
-    //Check magic number
+    // Check magic number
     const void *magic;
     rbuf_literal_bytes(rb, &magic, 8);
-    if (memcmp(magic,"tokudata",8)!=0) {
-        if ((*(uint64_t*)magic) == 0) {
+    if (memcmp(magic, "tokudata", 8) != 0) {
+        if ((*(uint64_t *)magic) == 0) {
             r = TOKUDB_DICTIONARY_NO_HEADER;
         } else {
-            r = EINVAL; //Not a tokudb file! Do not use.
+            r = EINVAL;  // Not a tokudb file! Do not use.
         }
         goto exit;
     }
 
-    //Version MUST be in network order regardless of disk order.
+    // Version MUST be in network order regardless of disk order.
     uint32_t version;
     version = rbuf_network_int(rb);
     *version_p = version;
     if (version < FT_LAYOUT_MIN_SUPPORTED_VERSION) {
-        r = TOKUDB_DICTIONARY_TOO_OLD; //Cannot use
+        r = TOKUDB_DICTIONARY_TOO_OLD;  // Cannot use
         goto exit;
     } else if (version > FT_LAYOUT_VERSION) {
-        r = TOKUDB_DICTIONARY_TOO_NEW; //Cannot use
+        r = TOKUDB_DICTIONARY_TOO_NEW;  // Cannot use
         goto exit;
     }
 
-    //build_id MUST be in network order regardless of disk order.
+    // build_id MUST be in network order regardless of disk order.
     uint32_t build_id __attribute__((__unused__));
     build_id = rbuf_network_int(rb);
     int64_t min_header_size;
     min_header_size = serialize_ft_min_size(version);
 
-    //Size MUST be in network order regardless of disk order.
+    // Size MUST be in network order regardless of disk order.
     uint32_t size;
     size = rbuf_network_int(rb);
-    //If too big, it is corrupt.  We would probably notice during checksum
-    //but may have to do a multi-gigabyte malloc+read to find out.
-    //If its too small reading rbuf would crash, so verify.
-    if (size > block_allocator::BLOCK_ALLOCATOR_HEADER_RESERVE || size < min_header_size) {
+    // If too big, it is corrupt.  We would probably notice during checksum
+    // but may have to do a multi-gigabyte malloc+read to find out.
+    // If its too small reading rbuf would crash, so verify.
+    if (size > BlockAllocator::BLOCK_ALLOCATOR_HEADER_RESERVE ||
+        size < min_header_size) {
         r = TOKUDB_DICTIONARY_NO_HEADER;
         goto exit;
     }
 
-    lazy_assert(rb->ndone==prefix_size);
+    lazy_assert(rb->ndone == prefix_size);
     rb->size = size;
     {
         toku_free(rb->buf);
         uint32_t size_to_read = roundup_to_multiple(512, size);
         XMALLOC_N_ALIGNED(512, size_to_read, rb->buf);
 
-        assert(offset_of_header%512==0);
+        invariant(offset_of_header % 512 == 0);
         n = toku_os_pread(fd, rb->buf, size_to_read, offset_of_header);
         if (n != size_to_read) {
             if (n < 0) {
                 r = get_error_errno();
             } else {
-                r = EINVAL; //Header might be useless (wrong size) or could be a disk read error.
+                r = EINVAL;  // Header might be useless (wrong size) or could be
+                             // a disk read error.
             }
             goto exit;
         }
     }
-    //It's version 14 or later.  Magic looks OK.
-    //We have an rbuf that represents the header.
-    //Size is within acceptable bounds.
+    // It's version 14 or later.  Magic looks OK.
+    // We have an rbuf that represents the header.
+    // Size is within acceptable bounds.
 
-    //Verify checksum (FT_LAYOUT_VERSION_13 or later, when checksum function changed)
+    // Verify checksum (FT_LAYOUT_VERSION_13 or later, when checksum function
+    // changed)
     uint32_t calculated_x1764;
-    calculated_x1764 = toku_x1764_memory(rb->buf, rb->size-4);
+    calculated_x1764 = toku_x1764_memory(rb->buf, rb->size - 4);
     uint32_t stored_x1764;
-    stored_x1764 = toku_dtoh32(*(int*)(rb->buf+rb->size-4));
+    stored_x1764 = toku_dtoh32(*(int *)(rb->buf + rb->size - 4));
     if (calculated_x1764 != stored_x1764) {
-        r = TOKUDB_BAD_CHECKSUM; //Header useless
-        fprintf(stderr, "Header checksum failure: calc=0x%08x read=0x%08x\n", calculated_x1764, stored_x1764);
+        r = TOKUDB_BAD_CHECKSUM;  // Header useless
+        fprintf(stderr,
+                "Header checksum failure: calc=0x%08x read=0x%08x\n",
+                calculated_x1764,
+                stored_x1764);
         goto exit;
     }
 
-    //Verify byte order
+    // Verify byte order
     const void *tmp_byte_order_check;
     lazy_assert((sizeof toku_byte_order_host) == 8);
-    rbuf_literal_bytes(rb, &tmp_byte_order_check, 8); //Must not translate byte order
+    rbuf_literal_bytes(
+        rb, &tmp_byte_order_check, 8);  // Must not translate byte order
     int64_t byte_order_stored;
-    byte_order_stored = *(int64_t*)tmp_byte_order_check;
+    byte_order_stored = *(int64_t *)tmp_byte_order_check;
     if (byte_order_stored != toku_byte_order_host) {
-        r = TOKUDB_DICTIONARY_NO_HEADER; //Cannot use dictionary
+        r = TOKUDB_DICTIONARY_NO_HEADER;  // Cannot use dictionary
         goto exit;
     }
 
-    //Load checkpoint count
+    // Load checkpoint count
     *checkpoint_count = rbuf_ulonglong(rb);
     *checkpoint_lsn = rbuf_LSN(rb);
-    //Restart at beginning during regular deserialization
+    // Restart at beginning during regular deserialization
     rb->ndone = 0;
 
 exit:
@@ -620,11 +644,7 @@ exit:
 // Read ft from file into struct.  Read both headers and use one.
 // We want the latest acceptable header whose checkpoint_lsn is no later
 // than max_acceptable_lsn.
-int
-toku_deserialize_ft_from(int fd,
-                         LSN max_acceptable_lsn,
-                         FT *ft)
-{
+int toku_deserialize_ft_from(int fd, LSN max_acceptable_lsn, FT *ft) {
     struct rbuf rb_0;
     struct rbuf rb_1;
     uint64_t checkpoint_count_0 = 0;
@@ -638,13 +658,23 @@ toku_deserialize_ft_from(int fd,
     int r0, r1, r;
 
     toku_off_t header_0_off = 0;
-    r0 = deserialize_ft_from_fd_into_rbuf(fd, header_0_off, &rb_0, &checkpoint_count_0, &checkpoint_lsn_0, &version_0);
+    r0 = deserialize_ft_from_fd_into_rbuf(fd,
+                                          header_0_off,
+                                          &rb_0,
+                                          &checkpoint_count_0,
+                                          &checkpoint_lsn_0,
+                                          &version_0);
     if (r0 == 0 && checkpoint_lsn_0.lsn <= max_acceptable_lsn.lsn) {
         h0_acceptable = true;
     }
 
-    toku_off_t header_1_off = block_allocator::BLOCK_ALLOCATOR_HEADER_RESERVE;
-    r1 = deserialize_ft_from_fd_into_rbuf(fd, header_1_off, &rb_1, &checkpoint_count_1, &checkpoint_lsn_1, &version_1);
+    toku_off_t header_1_off = BlockAllocator::BLOCK_ALLOCATOR_HEADER_RESERVE;
+    r1 = deserialize_ft_from_fd_into_rbuf(fd,
+                                          header_1_off,
+                                          &rb_1,
+                                          &checkpoint_count_1,
+                                          &checkpoint_lsn_1,
+                                          &version_1);
     if (r1 == 0 && checkpoint_lsn_1.lsn <= max_acceptable_lsn.lsn) {
         h1_acceptable = true;
     }
@@ -655,24 +685,29 @@ toku_deserialize_ft_from(int fd,
         // We were unable to read either header or at least one is too
         // new.  Certain errors are higher priority than others. Order of
         // these if/else if is important.
-        if (r0 == TOKUDB_DICTIONARY_TOO_NEW || r1 == TOKUDB_DICTIONARY_TOO_NEW) {
+        if (r0 == TOKUDB_DICTIONARY_TOO_NEW ||
+            r1 == TOKUDB_DICTIONARY_TOO_NEW) {
             r = TOKUDB_DICTIONARY_TOO_NEW;
-        } else if (r0 == TOKUDB_DICTIONARY_TOO_OLD || r1 == TOKUDB_DICTIONARY_TOO_OLD) {
+        } else if (r0 == TOKUDB_DICTIONARY_TOO_OLD ||
+                   r1 == TOKUDB_DICTIONARY_TOO_OLD) {
             r = TOKUDB_DICTIONARY_TOO_OLD;
         } else if (r0 == TOKUDB_BAD_CHECKSUM && r1 == TOKUDB_BAD_CHECKSUM) {
             fprintf(stderr, "Both header checksums failed.\n");
             r = TOKUDB_BAD_CHECKSUM;
-        } else if (r0 == TOKUDB_DICTIONARY_NO_HEADER || r1 == TOKUDB_DICTIONARY_NO_HEADER) {
+        } else if (r0 == TOKUDB_DICTIONARY_NO_HEADER ||
+                   r1 == TOKUDB_DICTIONARY_NO_HEADER) {
             r = TOKUDB_DICTIONARY_NO_HEADER;
         } else {
-            r = r0 ? r0 : r1; //Arbitrarily report the error from the
-                              //first header, unless it's readable
+            r = r0 ? r0 : r1;  // Arbitrarily report the error from the
+            // first header, unless it's readable
         }
 
-        // it should not be possible for both headers to be later than the max_acceptable_lsn
-        invariant(!((r0==0 && checkpoint_lsn_0.lsn > max_acceptable_lsn.lsn) &&
-                    (r1==0 && checkpoint_lsn_1.lsn > max_acceptable_lsn.lsn)));
-        invariant(r!=0);
+        // it should not be possible for both headers to be later than the
+        // max_acceptable_lsn
+        invariant(
+            !((r0 == 0 && checkpoint_lsn_0.lsn > max_acceptable_lsn.lsn) &&
+              (r1 == 0 && checkpoint_lsn_1.lsn > max_acceptable_lsn.lsn)));
+        invariant(r != 0);
         goto exit;
     }
 
@@ -682,8 +717,7 @@ toku_deserialize_ft_from(int fd,
             invariant(version_0 >= version_1);
             rb = &rb_0;
             version = version_0;
-        }
-        else {
+        } else {
             invariant(checkpoint_count_1 == checkpoint_count_0 + 1);
             invariant(version_1 >= version_0);
             rb = &rb_1;
@@ -692,14 +726,18 @@ toku_deserialize_ft_from(int fd,
     } else if (h0_acceptable) {
         if (r1 == TOKUDB_BAD_CHECKSUM) {
             // print something reassuring
-            fprintf(stderr, "Header 2 checksum failed, but header 1 ok.  Proceeding.\n");
+            fprintf(
+                stderr,
+                "Header 2 checksum failed, but header 1 ok.  Proceeding.\n");
         }
         rb = &rb_0;
         version = version_0;
     } else if (h1_acceptable) {
         if (r0 == TOKUDB_BAD_CHECKSUM) {
             // print something reassuring
-            fprintf(stderr, "Header 1 checksum failed, but header 2 ok.  Proceeding.\n");
+            fprintf(
+                stderr,
+                "Header 1 checksum failed, but header 2 ok.  Proceeding.\n");
         }
         rb = &rb_1;
         version = version_1;
@@ -718,14 +756,12 @@ exit:
     return r;
 }
 
-
-size_t toku_serialize_ft_size (FT_HEADER h) {
+size_t toku_serialize_ft_size(FT_HEADER h) {
     size_t size = serialize_ft_min_size(h->layout_version);
-    //There is no dynamic data.
-    lazy_assert(size <= block_allocator::BLOCK_ALLOCATOR_HEADER_RESERVE);
+    // There is no dynamic data.
+    lazy_assert(size <= BlockAllocator::BLOCK_ALLOCATOR_HEADER_RESERVE);
     return size;
 }
-
 
 void toku_serialize_ft_to_wbuf (
     struct wbuf *wbuf, 
@@ -771,52 +807,60 @@ void toku_serialize_ft_to_wbuf (
 }
 
 void toku_serialize_ft_to(int fd, FT_HEADER h, block_table *bt, CACHEFILE cf) {
-    lazy_assert(h->type==FT_CHECKPOINT_INPROGRESS);
+    lazy_assert(h->type == FT_CHECKPOINT_INPROGRESS);
     struct wbuf w_translation;
     int64_t size_translation;
     int64_t address_translation;
 
     // Must serialize translation first, to get address,size for header.
-    bt->serialize_translation_to_wbuf(fd, &w_translation,
-                                      &address_translation,
-                                      &size_translation);
-    assert(size_translation == w_translation.ndone);
+    bt->serialize_translation_to_wbuf(
+        fd, &w_translation, &address_translation, &size_translation);
+    invariant(size_translation == w_translation.ndone);
 
-    // the number of bytes available in the buffer is 0 mod 512, and those last bytes are all initialized.
-    assert(w_translation.size % 512 == 0);
+    // the number of bytes available in the buffer is 0 mod 512, and those last
+    // bytes are all initialized.
+    invariant(w_translation.size % 512 == 0);
 
     struct wbuf w_main;
-    size_t size_main       = toku_serialize_ft_size(h);
+    size_t size_main = toku_serialize_ft_size(h);
     size_t size_main_aligned = roundup_to_multiple(512, size_main);
-    assert(size_main_aligned<block_allocator::BLOCK_ALLOCATOR_HEADER_RESERVE);
+    invariant(size_main_aligned <
+              BlockAllocator::BLOCK_ALLOCATOR_HEADER_RESERVE);
     char *XMALLOC_N_ALIGNED(512, size_main_aligned, mainbuf);
-    for (size_t i=size_main; i<size_main_aligned; i++) mainbuf[i]=0; // initialize the end of the buffer with zeros
+    for (size_t i = size_main; i < size_main_aligned; i++)
+        mainbuf[i] = 0;  // initialize the end of the buffer with zeros
     wbuf_init(&w_main, mainbuf, size_main);
-    toku_serialize_ft_to_wbuf(&w_main, h, address_translation, size_translation);
+    toku_serialize_ft_to_wbuf(
+        &w_main, h, address_translation, size_translation);
     lazy_assert(w_main.ndone == size_main);
 
     // Actually write translation table
-    // This write is guaranteed to read good data at the end of the buffer, since the
+    // This write is guaranteed to read good data at the end of the buffer,
+    // since the
     // w_translation.buf is padded with zeros to a 512-byte boundary.
-    toku_os_full_pwrite(fd, w_translation.buf, roundup_to_multiple(512, size_translation), address_translation);
+    toku_os_full_pwrite(fd,
+                        w_translation.buf,
+                        roundup_to_multiple(512, size_translation),
+                        address_translation);
 
-    //Everything but the header MUST be on disk before header starts.
-    //Otherwise we will think the header is good and some blocks might not
-    //yet be on disk.
-    //If the header has a cachefile we need to do cachefile fsync (to
-    //prevent crash if we redirected to dev null)
-    //If there is no cachefile we still need to do an fsync.
+    // Everything but the header MUST be on disk before header starts.
+    // Otherwise we will think the header is good and some blocks might not
+    // yet be on disk.
+    // If the header has a cachefile we need to do cachefile fsync (to
+    // prevent crash if we redirected to dev null)
+    // If there is no cachefile we still need to do an fsync.
     if (cf) {
         toku_cachefile_fsync(cf);
-    }
-    else {
+    } else {
         toku_file_fsync(fd);
     }
 
-    //Alternate writing header to two locations:
+    // Alternate writing header to two locations:
     //   Beginning (0) or BLOCK_ALLOCATOR_HEADER_RESERVE
     toku_off_t main_offset;
-    main_offset = (h->checkpoint_count & 0x1) ? 0 : block_allocator::BLOCK_ALLOCATOR_HEADER_RESERVE;
+    main_offset = (h->checkpoint_count & 0x1)
+                      ? 0
+                      : BlockAllocator::BLOCK_ALLOCATOR_HEADER_RESERVE;
     toku_os_full_pwrite(fd, w_main.buf, size_main_aligned, main_offset);
     toku_free(w_main.buf);
     toku_free(w_translation.buf);

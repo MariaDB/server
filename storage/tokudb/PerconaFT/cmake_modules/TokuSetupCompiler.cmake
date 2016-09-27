@@ -101,6 +101,7 @@ set_cflags_if_supported(
   -Wno-pointer-bool-conversion
   -fno-rtti
   -fno-exceptions
+  -Wno-error=nonnull-compare
   )
 ## set_cflags_if_supported_named("-Weffc++" -Weffcpp)
 
