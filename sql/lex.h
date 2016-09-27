@@ -474,6 +474,7 @@ static SYMBOL symbols[] = {
   { "QUARTER",          SYM(QUARTER_SYM)},
   { "QUERY",		SYM(QUERY_SYM)},
   { "QUICK",	        SYM(QUICK)},
+  { "RAISE",            SYM(RAISE_SYM)},
   { "RANGE",            SYM(RANGE_SYM)},
   { "RAW",              SYM(RAW)},
   { "READ",		SYM(READ_SYM)},

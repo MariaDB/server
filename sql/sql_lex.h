@@ -3153,6 +3153,9 @@ public:
   bool sp_for_loop_index_and_bounds(THD *thd, const Lex_for_loop_st &loop);
   bool sp_for_loop_finalize(THD *thd, const Lex_for_loop_st &loop);
 
+  bool add_signal_statement(THD *thd, const class sp_condition_value *value);
+  bool add_resignal_statement(THD *thd, const class sp_condition_value *value);
+
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
   {

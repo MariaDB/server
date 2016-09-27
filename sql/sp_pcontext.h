@@ -129,6 +129,10 @@ public:
 
 class sp_condition_value : public Sql_alloc
 {
+  void init_sql_state()
+  {
+    sql_state[0]= '\0';
+  }
 public:
   enum enum_type
   {
@@ -153,11 +157,21 @@ public:
    :Sql_alloc(),
     type(ERROR_CODE),
     mysqlerr(_mysqlerr)
-  { }
+  { init_sql_state(); }
+
+  sp_condition_value(uint _mysqlerr, const char *_sql_state)
+   :Sql_alloc(),
+    type(ERROR_CODE),
+    mysqlerr(_mysqlerr)
+  {
+    memcpy(sql_state, _sql_state, SQLSTATE_LENGTH);
+    sql_state[SQLSTATE_LENGTH]= 0;
+  }
 
   sp_condition_value(const char *_sql_state)
    :Sql_alloc(),
-    type(SQLSTATE)
+    type(SQLSTATE),
+    mysqlerr(0)
   {
     memcpy(sql_state, _sql_state, SQLSTATE_LENGTH);
     sql_state[SQLSTATE_LENGTH]= 0;
@@ -165,9 +179,11 @@ public:
 
   sp_condition_value(enum_type _type)
    :Sql_alloc(),
-    type(_type)
+    type(_type),
+    mysqlerr(0)
   {
     DBUG_ASSERT(type != ERROR_CODE && type != SQLSTATE);
+    init_sql_state();
   }
 
   /// Check if two instances of sp_condition_value are equal or not.
@@ -176,6 +192,8 @@ public:
   ///
   /// @return true if the instances are equal, false otherwise.
   bool equals(const sp_condition_value *cv) const;
+
+  bool has_sql_state() const { return sql_state[0] != '\0'; }
 };
 
 ///////////////////////////////////////////////////////////////////////////
