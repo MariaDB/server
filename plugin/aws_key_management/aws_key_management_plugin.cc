@@ -34,6 +34,7 @@
 #include <sstream>
 #include <fstream>
 
+#include <aws/core/Aws.h>
 #include <aws/core/client/AWSError.h>
 #include <aws/core/utils/logging/AWSLogging.h>
 #include <aws/core/utils/logging/ConsoleLogSystem.h>
@@ -79,6 +80,7 @@ static char* master_key_id;
 static unsigned long key_spec;
 static unsigned long log_level;
 static int rotate_key;
+static int request_timeout;
 
 /* AWS functionality*/
 static int aws_decrypt_key(const char *path, KEY_INFO *info);
@@ -138,6 +140,7 @@ protected:
   }
 };
 
+Aws::SDKOptions sdkOptions;
 
 /* 
   Plugin initialization.
@@ -148,13 +151,30 @@ protected:
 static int plugin_init(void *p)
 {
   DBUG_ENTER("plugin_init");
-  client = new KMSClient();
+
+#ifdef HAVE_YASSL
+  sdkOptions.cryptoOptions.initAndCleanupOpenSSL = true;
+#else
+  /* Server initialized OpenSSL already, thus AWS must skip it */
+  sdkOptions.cryptoOptions.initAndCleanupOpenSSL = false;
+#endif
+
+  Aws::InitAPI(sdkOptions);
+  InitializeAWSLogging(Aws::MakeShared<MySQLLogSystem>("aws_key_management_plugin", (Aws::Utils::Logging::LogLevel) log_level));
+
+  Aws::Client::ClientConfiguration clientConfiguration;
+  if (request_timeout)
+  {
+     clientConfiguration.requestTimeoutMs= request_timeout;
+     clientConfiguration.connectTimeoutMs= request_timeout;
+  }
+  client = new KMSClient(clientConfiguration);
   if (!client)
   {
     sql_print_error("Can not initialize KMS client");
     DBUG_RETURN(-1);
   }
-  InitializeAWSLogging(Aws::MakeShared<MySQLLogSystem>("aws_key_management_plugin", (Aws::Utils::Logging::LogLevel) log_level));
+  
 #ifdef HAVE_PSI_INTERFACE
   mysql_mutex_register("aws_key_management", &mtx_info, 1);
 #endif
@@ -189,6 +209,8 @@ static int plugin_deinit(void *p)
   mysql_mutex_destroy(&mtx);
   delete client;
   ShutdownAWSLogging();
+
+  Aws::ShutdownAPI(sdkOptions);
   DBUG_RETURN(0);
 }
 
@@ -557,11 +579,19 @@ static MYSQL_SYSVAR_INT(rotate_key, rotate_key,
   "Set this variable to key id to perform rotation of the key. Specify -1 to rotate all keys",
   NULL, update_rotate, 0, -1, INT_MAX, 1);
 
+
+static MYSQL_SYSVAR_INT(request_timeout, request_timeout,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Timeout in milliseconds for create HTTPS connection or execute AWS request. Specify 0 to use SDK default.",
+  NULL, NULL, 0, 0, INT_MAX, 1);
+
+
 static struct st_mysql_sys_var* settings[]= {
   MYSQL_SYSVAR(master_key_id),
   MYSQL_SYSVAR(key_spec),
   MYSQL_SYSVAR(rotate_key),
   MYSQL_SYSVAR(log_level),
+  MYSQL_SYSVAR(request_timeout),
   NULL
 };
 
