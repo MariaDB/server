@@ -51,3 +51,153 @@ a
 10
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# MDEV-10840 sql_mode=ORACLE: RAISE statement for predefined exceptions
+#
+#
+# RAISE outside of an SP context
+#
+RAISE NO_DATA_FOUND;
+ERROR 42000: Undefined CONDITION: NO_DATA_FOUND
+RAISE INVALID_CURSOR;
+ERROR 42000: Undefined CONDITION: INVALID_CURSOR
+RAISE DUP_VAL_ON_INDEX;
+ERROR 42000: Undefined CONDITION: DUP_VAL_ON_INDEX
+RAISE TOO_MANY_ROWS;
+ERROR 42000: Undefined CONDITION: TOO_MANY_ROWS
+RAISE;
+ERROR 0K000: RESIGNAL when handler not active
+#
+# RAISE for an undefinite exception
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+RAISE xxx;
+END;
+$$
+ERROR 42000: Undefined CONDITION: xxx
+#
+# RAISE for predefined exceptions
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+RAISE no_data_found;
+END;
+$$
+CALL p1();
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+BEGIN
+RAISE invalid_cursor;
+END;
+$$
+CALL p1();
+ERROR 24000: Cursor is not open
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+BEGIN
+RAISE dup_val_on_index;
+END;
+$$
+CALL p1();
+ERROR 23000: Duplicate entry '%-.192s' for key %d
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+BEGIN
+raise too_many_rows;
+END;
+$$
+CALL p1();
+ERROR 42000: Result consisted of more than one row
+DROP PROCEDURE p1;
+#
+# RAISE with no exception name (resignal)
+#
+CREATE PROCEDURE p1()
+AS
+BEGIN
+RAISE;
+END;
+$$
+CALL p1();
+ERROR 0K000: RESIGNAL when handler not active
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1(lim INT)
+AS
+a INT;
+BEGIN
+SELECT a INTO a FROM t1 LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN RAISE;
+WHEN NO_DATA_FOUND THEN RAISE;
+END;
+$$
+CALL p1(0);
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(2);
+ERROR 42000: Result consisted of more than one row
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1(lim INT)
+AS
+a INT;
+BEGIN
+SELECT a INTO a FROM t1 LIMIT lim;
+EXCEPTION
+WHEN OTHERS THEN RAISE;
+END;
+$$
+CALL p1(0);
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(2);
+ERROR 42000: Result consisted of more than one row
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+AS
+a INT;
+CURSOR c IS SELECT a FROM t1;
+BEGIN
+FETCH c INTO a;
+EXCEPTION
+WHEN INVALID_CURSOR THEN RAISE;
+END;
+$$
+CALL p1();
+ERROR 24000: Cursor is not open
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+AS
+a INT;
+CURSOR c IS SELECT a FROM t1;
+BEGIN
+FETCH c INTO a;
+EXCEPTION
+WHEN OTHERS THEN RAISE;
+END;
+$$
+CALL p1();
+ERROR 24000: Cursor is not open
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# End of MDEV-10840 sql_mode=ORACLE: RAISE statement for predefined exceptions
+#

@@ -1362,6 +1362,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  QUARTER_SYM
 %token  QUERY_SYM
 %token  QUICK
+%token  RAISE_SYM                     /* Oracle-PLSQL-R */
 %token  RANGE_SYM                     /* SQL-2003-R */
 %token  RANK_SYM        
 %token  RAW                           /* Oracle */
@@ -3124,13 +3125,7 @@ sp_hcond:
 signal_stmt:
           SIGNAL_SYM signal_value opt_set_signal_information
           {
-            LEX *lex= thd->lex;
-            Yacc_state *state= & thd->m_parser_state->m_yacc;
-
-            lex->sql_command= SQLCOM_SIGNAL;
-            lex->m_sql_cmd=
-              new (thd->mem_root) Sql_cmd_signal($2, state->m_set_signal_info);
-            if (lex->m_sql_cmd == NULL)
+            if (Lex->add_signal_statement(thd, $2))
               MYSQL_YYABORT;
           }
         ;
@@ -3251,14 +3246,7 @@ signal_condition_information_item_name:
 resignal_stmt:
           RESIGNAL_SYM opt_signal_value opt_set_signal_information
           {
-            LEX *lex= thd->lex;
-            Yacc_state *state= & thd->m_parser_state->m_yacc;
-
-            lex->sql_command= SQLCOM_RESIGNAL;
-            lex->m_sql_cmd=
-              new (thd->mem_root) Sql_cmd_resignal($2,
-                                                   state->m_set_signal_info);
-            if (lex->m_sql_cmd == NULL)
+            if (Lex->add_resignal_statement(thd, $2))
               MYSQL_YYABORT;
           }
         ;
@@ -14449,6 +14437,7 @@ keyword_sp:
         | QUARTER_SYM              {}
         | QUERY_SYM                {}
         | QUICK                    {}
+        | RAISE_SYM                {}
         | RAW                      {}
         | READ_ONLY_SYM            {}
         | REBUILD_SYM              {}

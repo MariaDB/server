@@ -354,3 +354,5 @@ CREATE TABLE isopen (isopen int);
 DROP TABLE isopen;
 CREATE TABLE notfound (notfound int);
 DROP TABLE notfound;
+CREATE TABLE raise (raise int);
+DROP TABLE raise;

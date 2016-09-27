@@ -102,7 +102,7 @@ void Sql_cmd_common_signal::eval_defaults(THD *thd, Sql_condition *cond)
     /*
       SIGNAL is restricted in sql_yacc.yy to only signal SQLSTATE conditions.
     */
-    DBUG_ASSERT(m_cond->type == sp_condition_value::SQLSTATE);
+    DBUG_ASSERT(m_cond->has_sql_state());
     sqlstate= m_cond->sql_state;
     cond->set_sqlstate(sqlstate);
   }
@@ -117,19 +117,25 @@ void Sql_cmd_common_signal::eval_defaults(THD *thd, Sql_condition *cond)
   {
     /* SQLSTATE class "01": warning. */
     assign_defaults(cond, set_defaults,
-                    Sql_condition::WARN_LEVEL_WARN, ER_SIGNAL_WARN);
+                    Sql_condition::WARN_LEVEL_WARN,
+                    m_cond && m_cond->mysqlerr ? m_cond->mysqlerr :
+                                                 ER_SIGNAL_WARN);
   }
   else if ((sqlstate[0] == '0') && (sqlstate[1] == '2'))
   {
     /* SQLSTATE class "02": not found. */
     assign_defaults(cond, set_defaults,
-                    Sql_condition::WARN_LEVEL_ERROR, ER_SIGNAL_NOT_FOUND);
+                    Sql_condition::WARN_LEVEL_ERROR,
+                    m_cond && m_cond->mysqlerr ? m_cond->mysqlerr :
+                                                 ER_SIGNAL_NOT_FOUND);
   }
   else
   {
     /* other SQLSTATE classes : error. */
     assign_defaults(cond, set_defaults,
-                    Sql_condition::WARN_LEVEL_ERROR, ER_SIGNAL_EXCEPTION);
+                    Sql_condition::WARN_LEVEL_ERROR,
+                    m_cond && m_cond->mysqlerr ? m_cond->mysqlerr :
+                                                 ER_SIGNAL_EXCEPTION);
   }
 }
 

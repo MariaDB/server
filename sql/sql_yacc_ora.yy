@@ -741,6 +741,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  QUARTER_SYM
 %token  QUERY_SYM
 %token  QUICK
+%token  RAISE_SYM                     /* Oracle-PLSQL-R */
 %token  RANGE_SYM                     /* SQL-2003-R */
 %token  RANK_SYM        
 %token  RAW                           /* Oracle */
@@ -1311,7 +1312,7 @@ END_OF_INPUT
 %type <num> index_hint_clause normal_join inner_join
 %type <filetype> data_or_xml
 
-%type <NONE> signal_stmt resignal_stmt
+%type <NONE> signal_stmt resignal_stmt raise_stmt
 %type <diag_condition_item_name> signal_condition_information_item_name
 
 %type <trg_execution_order> trigger_follows_precedes_clause;
@@ -1460,6 +1461,7 @@ statement:
         | preload
         | prepare
         | purge
+        | raise_stmt
         | release
         | rename
         | repair
@@ -2549,16 +2551,24 @@ sp_hcond:
           }
         ;
 
+
+raise_stmt:
+          RAISE_SYM opt_set_signal_information
+          {
+            if (Lex->add_resignal_statement(thd, NULL))
+              MYSQL_YYABORT;
+          }
+        | RAISE_SYM signal_value opt_set_signal_information
+          {
+            if (Lex->add_signal_statement(thd, $2))
+              MYSQL_YYABORT;
+          }
+        ;
+
 signal_stmt:
           SIGNAL_SYM signal_value opt_set_signal_information
           {
-            LEX *lex= thd->lex;
-            Yacc_state *state= & thd->m_parser_state->m_yacc;
-
-            lex->sql_command= SQLCOM_SIGNAL;
-            lex->m_sql_cmd=
-              new (thd->mem_root) Sql_cmd_signal($2, state->m_set_signal_info);
-            if (lex->m_sql_cmd == NULL)
+            if (Lex->add_signal_statement(thd, $2))
               MYSQL_YYABORT;
           }
         ;
@@ -2572,10 +2582,10 @@ signal_value:
             /* SIGNAL foo cannot be used outside of stored programs */
             if (lex->spcont == NULL)
               my_yyabort_error((ER_SP_COND_MISMATCH, MYF(0), $1.str));
-            cond= lex->spcont->find_condition($1, false);
+            cond= lex->spcont->find_declared_or_predefined_condition($1);
             if (cond == NULL)
               my_yyabort_error((ER_SP_COND_MISMATCH, MYF(0), $1.str));
-            if (cond->type != sp_condition_value::SQLSTATE)
+            if (!cond->has_sql_state())
               my_yyabort_error((ER_SIGNAL_BAD_CONDITION_TYPE, MYF(0)));
             $$= cond;
           }
@@ -2679,14 +2689,7 @@ signal_condition_information_item_name:
 resignal_stmt:
           RESIGNAL_SYM opt_signal_value opt_set_signal_information
           {
-            LEX *lex= thd->lex;
-            Yacc_state *state= & thd->m_parser_state->m_yacc;
-
-            lex->sql_command= SQLCOM_RESIGNAL;
-            lex->m_sql_cmd=
-              new (thd->mem_root) Sql_cmd_resignal($2,
-                                                   state->m_set_signal_info);
-            if (lex->m_sql_cmd == NULL)
+            if (Lex->add_resignal_statement(thd, $2))
               MYSQL_YYABORT;
           }
         ;

@@ -30,6 +30,7 @@
 #include "sp.h"
 #include "sql_select.h"
 #include "sql_cte.h"
+#include "sql_signal.h"
 
 
 void LEX::parse_error()
@@ -5900,6 +5901,24 @@ Item_param *LEX::add_placeholder(THD *thd, char *name,
 {
   const char *query_start= sphead ? sphead->m_tmp_query : thd->query();
   return add_placeholder(thd, name, pos - query_start, end - pos);
+}
+
+
+bool LEX::add_signal_statement(THD *thd, const sp_condition_value *v)
+{
+  Yacc_state *state= &thd->m_parser_state->m_yacc;
+  sql_command= SQLCOM_SIGNAL;
+  m_sql_cmd= new (thd->mem_root) Sql_cmd_signal(v, state->m_set_signal_info);
+  return m_sql_cmd == NULL;
+}
+
+
+bool LEX::add_resignal_statement(THD *thd, const sp_condition_value *v)
+{
+  Yacc_state *state= &thd->m_parser_state->m_yacc;
+  sql_command= SQLCOM_RESIGNAL;
+  m_sql_cmd= new (thd->mem_root) Sql_cmd_resignal(v, state->m_set_signal_info);
+  return m_sql_cmd == NULL;
 }
 
 
