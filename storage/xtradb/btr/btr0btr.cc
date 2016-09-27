@@ -78,7 +78,7 @@ btr_corruption_report(
 			       buf_block_get_zip_size(block),
 			       BUF_PAGE_PRINT_NO_CRASH);
 	}
-	buf_page_print(buf_block_get_frame(block), 0, 0);
+	buf_page_print(buf_nonnull_block_get_frame(block), 0, 0);
 }
 
 #ifndef UNIV_HOTBACKUP
@@ -804,8 +804,10 @@ btr_height_get(
 
         /* S latches the page */
         root_block = btr_root_block_get(index, RW_S_LATCH, mtr);
+	ut_ad(root_block); // The index must not be corrupted
 
-        height = btr_page_get_level(buf_block_get_frame(root_block), mtr);
+	height = btr_page_get_level(buf_nonnull_block_get_frame(root_block),
+				    mtr);
 
         /* Release the S latch on the root page. */
         mtr_memo_release(mtr, root_block, MTR_MEMO_PAGE_S_FIX);
@@ -1231,7 +1233,7 @@ btr_get_size(
 	SRV_CORRUPT_TABLE_CHECK(root,
 	{
 		mtr_commit(mtr);
-		return(0);
+		return(ULINT_UNDEFINED);
 	});
 
 	if (flag == BTR_N_LEAF_PAGES) {
@@ -2756,7 +2758,7 @@ btr_attach_half_pages(
 	}
 
 	/* Get the level of the split pages */
-	level = btr_page_get_level(buf_block_get_frame(block), mtr);
+	level = btr_page_get_level(buf_nonnull_block_get_frame(block), mtr);
 	ut_ad(level
 	      == btr_page_get_level(buf_block_get_frame(new_block), mtr));
 
@@ -4133,8 +4135,10 @@ btr_discard_page(
 
 	/* Decide the page which will inherit the locks */
 
-	left_page_no = btr_page_get_prev(buf_block_get_frame(block), mtr);
-	right_page_no = btr_page_get_next(buf_block_get_frame(block), mtr);
+	left_page_no = btr_page_get_prev(buf_nonnull_block_get_frame(block),
+					 mtr);
+	right_page_no = btr_page_get_next(buf_nonnull_block_get_frame(block),
+					  mtr);
 
 	if (left_page_no != FIL_NULL) {
 		merge_block = btr_block_get(space, zip_size, left_page_no,

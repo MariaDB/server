@@ -938,7 +938,7 @@ ibuf_set_free_bits_low(
 	ulint	space;
 	ulint	page_no;
 
-	if (!page_is_leaf(buf_block_get_frame(block))) {
+	if (!page_is_leaf(buf_nonnull_block_get_frame(block))) {
 
 		return;
 	}
@@ -1113,7 +1113,7 @@ ibuf_update_free_bits_zip(
 	page_no = buf_block_get_page_no(block);
 	zip_size = buf_block_get_zip_size(block);
 
-	ut_a(page_is_leaf(buf_block_get_frame(block)));
+	ut_a(page_is_leaf(buf_nonnull_block_get_frame(block)));
 	ut_a(zip_size);
 
 	bitmap_page = ibuf_bitmap_get_map_page(space, page_no, zip_size, mtr);

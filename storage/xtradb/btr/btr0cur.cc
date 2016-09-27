@@ -1751,7 +1751,7 @@ btr_cur_pessimistic_insert(
 		}
 		if (!page_rec_is_infimum(btr_cur_get_rec(cursor))
 		    || btr_page_get_prev(
-			buf_block_get_frame(
+			buf_nonnull_block_get_frame(
 				btr_cur_get_block(cursor)), mtr)
 		       == FIL_NULL) {
 			/* split and inserted need to call
@@ -2220,7 +2220,7 @@ func_exit:
 	if (page_zip
 	    && !(flags & BTR_KEEP_IBUF_BITMAP)
 	    && !dict_index_is_clust(index)
-	    && page_is_leaf(buf_block_get_frame(block))) {
+	    && page_is_leaf(buf_nonnull_block_get_frame(block))) {
 		/* Update the free bits in the insert buffer. */
 		ibuf_update_free_bits_zip(block, mtr);
 	}

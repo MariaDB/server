@@ -184,6 +184,9 @@ UNIV_INTERN char**	srv_data_file_names = NULL;
 /* size in database pages */
 UNIV_INTERN ulint*	srv_data_file_sizes = NULL;
 
+/** Whether the redo log tracking is currently enabled. Note that it is
+possible for the log tracker thread to be running and the tracking to be
+disabled */
 UNIV_INTERN my_bool	srv_track_changed_pages = FALSE;
 
 UNIV_INTERN ulonglong	srv_max_bitmap_file_size = 100 * 1024 * 1024;
@@ -749,6 +752,9 @@ UNIV_INTERN os_event_t	srv_checkpoint_completed_event;
 
 UNIV_INTERN os_event_t	srv_redo_log_tracked_event;
 
+/** Whether the redo log tracker thread has been started. Does not take into
+account whether the tracking is currently enabled (see srv_track_changed_pages
+for that) */
 UNIV_INTERN bool	srv_redo_log_thread_started = false;
 
 /*********************************************************************//**
@@ -2324,13 +2330,8 @@ DECLARE_THREAD(srv_redo_log_follow_thread)(
 		os_event_wait(srv_checkpoint_completed_event);
 		os_event_reset(srv_checkpoint_completed_event);
 
-#ifdef UNIV_DEBUG
-		if (!srv_track_changed_pages) {
-			continue;
-		}
-#endif
-
-		if (srv_shutdown_state < SRV_SHUTDOWN_LAST_PHASE) {
+		if (srv_track_changed_pages
+		    && srv_shutdown_state < SRV_SHUTDOWN_LAST_PHASE) {
 			if (!log_online_follow_redo_log()) {
 				/* TODO: sync with I_S log tracking status? */
 				ib_logf(IB_LOG_LEVEL_ERROR,

@@ -379,12 +379,6 @@ recv_sys_init(
 	}
 
 #ifndef UNIV_HOTBACKUP
-	/* Initialize red-black tree for fast insertions into the
-	flush_list during recovery process.
-	As this initialization is done while holding the buffer pool
-	mutex we perform it before acquiring recv_sys->mutex. */
-	buf_flush_init_flush_rbt();
-
 	mutex_enter(&(recv_sys->mutex));
 
 	recv_sys->heap = mem_heap_create_typed(256,
@@ -474,9 +468,6 @@ recv_sys_debug_free(void)
 	recv_sys->last_block_buf_start = NULL;
 
 	mutex_exit(&(recv_sys->mutex));
-
-	/* Free up the flush_rbt. */
-	buf_flush_free_flush_rbt();
 }
 # endif /* UNIV_LOG_DEBUG */
 
@@ -3118,6 +3109,11 @@ recv_recovery_from_checkpoint_start_func(
 	byte*		log_hdr_buf_base = static_cast<byte *>
 		(alloca(LOG_FILE_HDR_SIZE + OS_FILE_LOG_BLOCK_SIZE));
 	dberr_t		err;
+
+	/* Initialize red-black tree for fast insertions into the
+	flush_list during recovery process. */
+	buf_flush_init_flush_rbt();
+
 	ut_when_dtor<recv_dblwr_t> tmp(recv_sys->dblwr);
 
 	log_hdr_buf = static_cast<byte *>
@@ -3537,6 +3533,9 @@ recv_recovery_from_checkpoint_finish(void)
 #ifndef UNIV_LOG_DEBUG
 	recv_sys_debug_free();
 #endif
+	/* Free up the flush_rbt. */
+	buf_flush_free_flush_rbt();
+
 	/* Roll back any recovered data dictionary transactions, so
 	that the data dictionary tables will be free of any locks.
 	The data dictionary latch should guarantee that there is at
