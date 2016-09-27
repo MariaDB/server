@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2958,14 +2958,25 @@ i_s_fts_deleted_generic_fill(
 		DBUG_RETURN(0);
 	}
 
-	deleted = fts_doc_ids_create();
+	/* Prevent DDL to drop fts aux tables. */
+	rw_lock_s_lock(&dict_operation_lock);
 
 	user_table = dict_table_open_on_name(
 		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (!user_table) {
+		rw_lock_s_unlock(&dict_operation_lock);
+
+		DBUG_RETURN(0);
+	} else if (!dict_table_has_fts_index(user_table)) {
+		dict_table_close(user_table, FALSE, FALSE);
+
+		rw_lock_s_unlock(&dict_operation_lock);
+
 		DBUG_RETURN(0);
 	}
+
+	deleted = fts_doc_ids_create();
 
 	trx = trx_allocate_for_background();
 	trx->op_info = "Select for FTS DELETE TABLE";
@@ -2993,6 +3004,8 @@ i_s_fts_deleted_generic_fill(
 	fts_doc_ids_free(deleted);
 
 	dict_table_close(user_table, FALSE, FALSE);
+
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(0);
 }
@@ -3362,6 +3375,12 @@ i_s_fts_index_cache_fill(
 		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (!user_table) {
+		DBUG_RETURN(0);
+	}
+
+	if (user_table->fts == NULL || user_table->fts->cache == NULL) {
+		dict_table_close(user_table, FALSE, FALSE);
+
 		DBUG_RETURN(0);
 	}
 
@@ -3798,10 +3817,15 @@ i_s_fts_index_table_fill(
 		DBUG_RETURN(0);
 	}
 
+	/* Prevent DDL to drop fts aux tables. */
+	rw_lock_s_lock(&dict_operation_lock);
+
 	user_table = dict_table_open_on_name(
 		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (!user_table) {
+		rw_lock_s_unlock(&dict_operation_lock);
+
 		DBUG_RETURN(0);
 	}
 
@@ -3813,6 +3837,8 @@ i_s_fts_index_table_fill(
 	}
 
 	dict_table_close(user_table, FALSE, FALSE);
+
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(0);
 }
@@ -3948,13 +3974,20 @@ i_s_fts_config_fill(
 
 	fields = table->field;
 
+	/* Prevent DDL to drop fts aux tables. */
+	rw_lock_s_lock(&dict_operation_lock);
+
 	user_table = dict_table_open_on_name(
 		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	if (!user_table) {
+		rw_lock_s_unlock(&dict_operation_lock);
+
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)) {
 		dict_table_close(user_table, FALSE, FALSE);
+
+		rw_lock_s_unlock(&dict_operation_lock);
 
 		DBUG_RETURN(0);
 	}
@@ -4010,6 +4043,8 @@ i_s_fts_config_fill(
 	trx_free_for_background(trx);
 
 	dict_table_close(user_table, FALSE, FALSE);
+
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(0);
 }
