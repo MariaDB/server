@@ -598,15 +598,12 @@ void toku_ftnode_checkpoint_complete_callback(void *value_data) {
     }
 }
 
-void toku_ftnode_clone_callback(
-    void* value_data,
-    void** cloned_value_data,
-    long* clone_size,
-    PAIR_ATTR* new_attr,
-    bool for_checkpoint,
-    void* write_extraargs
-    )
-{
+void toku_ftnode_clone_callback(void *value_data,
+                                void **cloned_value_data,
+                                long *clone_size,
+                                PAIR_ATTR *new_attr,
+                                bool for_checkpoint,
+                                void *write_extraargs) {
     FTNODE node = static_cast<FTNODE>(value_data);
     toku_ftnode_assert_fully_in_memory(node);
     FT ft = static_cast<FT>(write_extraargs);
@@ -618,13 +615,16 @@ void toku_ftnode_clone_callback(
         toku_ftnode_leaf_rebalance(node, ft->h->basementnodesize);
     }
 
-    cloned_node->oldest_referenced_xid_known = node->oldest_referenced_xid_known;
-    cloned_node->max_msn_applied_to_node_on_disk = node->max_msn_applied_to_node_on_disk;
+    cloned_node->oldest_referenced_xid_known =
+        node->oldest_referenced_xid_known;
+    cloned_node->max_msn_applied_to_node_on_disk =
+        node->max_msn_applied_to_node_on_disk;
     cloned_node->flags = node->flags;
     cloned_node->blocknum = node->blocknum;
     cloned_node->layout_version = node->layout_version;
     cloned_node->layout_version_original = node->layout_version_original;
-    cloned_node->layout_version_read_from_disk = node->layout_version_read_from_disk;
+    cloned_node->layout_version_read_from_disk =
+        node->layout_version_read_from_disk;
     cloned_node->build_id = node->build_id;
     cloned_node->height = node->height;
     cloned_node->dirty = node->dirty;
@@ -649,38 +649,39 @@ void toku_ftnode_clone_callback(
     // set new pair attr if necessary
     if (node->height == 0) {
         *new_attr = make_ftnode_pair_attr(node);
-    }
-    else {
+        for (int i = 0; i < node->n_children; i++) {
+            BLB(node, i)->logical_rows_delta = 0;
+            BLB(cloned_node, i)->logical_rows_delta = 0;
+        }
+    } else {
         new_attr->is_valid = false;
     }
     *clone_size = ftnode_memory_size(cloned_node);
     *cloned_value_data = cloned_node;
 }
 
-void toku_ftnode_flush_callback(
-    CACHEFILE UU(cachefile),
-    int fd,
-    BLOCKNUM blocknum,
-    void *ftnode_v,
-    void** disk_data,
-    void *extraargs,
-    PAIR_ATTR size __attribute__((unused)),
-    PAIR_ATTR* new_size,
-    bool write_me,
-    bool keep_me,
-    bool for_checkpoint,
-    bool is_clone
-    )
-{
-    FT ft = (FT) extraargs;
-    FTNODE ftnode = (FTNODE) ftnode_v;
-    FTNODE_DISK_DATA* ndd = (FTNODE_DISK_DATA*)disk_data;
+void toku_ftnode_flush_callback(CACHEFILE UU(cachefile),
+                                int fd,
+                                BLOCKNUM blocknum,
+                                void *ftnode_v,
+                                void **disk_data,
+                                void *extraargs,
+                                PAIR_ATTR size __attribute__((unused)),
+                                PAIR_ATTR *new_size,
+                                bool write_me,
+                                bool keep_me,
+                                bool for_checkpoint,
+                                bool is_clone) {
+    FT ft = (FT)extraargs;
+    FTNODE ftnode = (FTNODE)ftnode_v;
+    FTNODE_DISK_DATA *ndd = (FTNODE_DISK_DATA *)disk_data;
     assert(ftnode->blocknum.b == blocknum.b);
     int height = ftnode->height;
     if (write_me) {
         toku_ftnode_assert_fully_in_memory(ftnode);
         if (height > 0 && !is_clone) {
-            // cloned nodes already had their stale messages moved, see toku_ftnode_clone_callback()
+            // cloned nodes already had their stale messages moved, see
+            // toku_ftnode_clone_callback()
             toku_move_ftnode_messages_to_stale(ft, ftnode);
         } else if (height == 0) {
             toku_ftnode_leaf_run_gc(ft, ftnode);
@@ -688,7 +689,8 @@ void toku_ftnode_flush_callback(
                 toku_ftnode_update_disk_stats(ftnode, ft, for_checkpoint);
             }
         }
-        int r = toku_serialize_ftnode_to(fd, ftnode->blocknum, ftnode, ndd, !is_clone, ft, for_checkpoint);
+        int r = toku_serialize_ftnode_to(
+            fd, ftnode->blocknum, ftnode, ndd, !is_clone, ft, for_checkpoint);
         assert_zero(r);
         ftnode->layout_version_read_from_disk = FT_LAYOUT_VERSION;
     }
@@ -703,20 +705,22 @@ void toku_ftnode_flush_callback(
                 FT_STATUS_INC(FT_FULL_EVICTIONS_NONLEAF_BYTES, node_size);
             }
             toku_free(*disk_data);
-        }
-        else {
+        } else {
             if (ftnode->height == 0) {
                 for (int i = 0; i < ftnode->n_children; i++) {
-                    if (BP_STATE(ftnode,i) == PT_AVAIL) {
+                    if (BP_STATE(ftnode, i) == PT_AVAIL) {
                         BASEMENTNODE bn = BLB(ftnode, i);
-                        toku_ft_decrease_stats(&ft->in_memory_stats, bn->stat64_delta);
+                        toku_ft_decrease_stats(&ft->in_memory_stats,
+                                               bn->stat64_delta);
+                        if (!ftnode->dirty)
+                            toku_ft_adjust_logical_row_count(
+                                ft, -bn->logical_rows_delta);
                     }
                 }
             }
         }
         toku_ftnode_free(&ftnode);
-    }
-    else {
+    } else {
         *new_size = make_ftnode_pair_attr(ftnode);
     }
 }
@@ -845,10 +849,13 @@ static void compress_internal_node_partition(FTNODE node, int i, enum toku_compr
 }
 
 // callback for partially evicting a node
-int toku_ftnode_pe_callback(void *ftnode_pv, PAIR_ATTR old_attr, void *write_extraargs,
-                            void (*finalize)(PAIR_ATTR new_attr, void *extra), void *finalize_extra) {
-    FTNODE node = (FTNODE) ftnode_pv;
-    FT ft = (FT) write_extraargs;
+int toku_ftnode_pe_callback(void *ftnode_pv,
+                            PAIR_ATTR old_attr,
+                            void *write_extraargs,
+                            void (*finalize)(PAIR_ATTR new_attr, void *extra),
+                            void *finalize_extra) {
+    FTNODE node = (FTNODE)ftnode_pv;
+    FT ft = (FT)write_extraargs;
     int num_partial_evictions = 0;
 
     // Hold things we intend to destroy here.
@@ -866,7 +873,8 @@ int toku_ftnode_pe_callback(void *ftnode_pv, PAIR_ATTR old_attr, void *write_ext
     }
     // Don't partially evict nodes whose partitions can't be read back
     // from disk individually
-    if (node->layout_version_read_from_disk < FT_FIRST_LAYOUT_VERSION_WITH_BASEMENT_NODES) {
+    if (node->layout_version_read_from_disk <
+        FT_FIRST_LAYOUT_VERSION_WITH_BASEMENT_NODES) {
         goto exit;
     }
     //
@@ -874,77 +882,77 @@ int toku_ftnode_pe_callback(void *ftnode_pv, PAIR_ATTR old_attr, void *write_ext
     //
     if (node->height > 0) {
         for (int i = 0; i < node->n_children; i++) {
-            if (BP_STATE(node,i) == PT_AVAIL) {
-                if (BP_SHOULD_EVICT(node,i)) {
+            if (BP_STATE(node, i) == PT_AVAIL) {
+                if (BP_SHOULD_EVICT(node, i)) {
                     NONLEAF_CHILDINFO bnc = BNC(node, i);
                     if (ft_compress_buffers_before_eviction &&
-                        // We may not serialize and compress a partition in memory if its
-                        // in memory layout version is different than what's on disk (and
-                        // therefore requires upgrade).
+                        // We may not serialize and compress a partition in
+                        // memory if its in memory layout version is different
+                        // than what's on disk (and therefore requires upgrade).
                         //
-                        // Auto-upgrade code assumes that if a node's layout version read
-                        // from disk is not current, it MUST require upgrade. Breaking
-                        // this rule would cause upgrade code to upgrade this partition
-                        // again after we serialize it as the current version, which is bad.
-                        node->layout_version == node->layout_version_read_from_disk) {
+                        // Auto-upgrade code assumes that if a node's layout
+                        // version read from disk is not current, it MUST
+                        // require upgrade.
+                        // Breaking this rule would cause upgrade code to
+                        // upgrade this partition again after we serialize it as
+                        // the current version, which is bad.
+                        node->layout_version ==
+                            node->layout_version_read_from_disk) {
                         toku_ft_bnc_move_messages_to_stale(ft, bnc);
                         compress_internal_node_partition(
                             node,
                             i,
                             // Always compress with quicklz
-                            TOKU_QUICKLZ_METHOD
-                            );
+                            TOKU_QUICKLZ_METHOD);
                     } else {
                         // We're not compressing buffers before eviction. Simply
-                        // detach the buffer and set the child's state to on-disk.
+                        // detach the buffer and set the child's state to
+                        // on-disk.
                         set_BNULL(node, i);
                         BP_STATE(node, i) = PT_ON_DISK;
                     }
                     buffers_to_destroy[num_buffers_to_destroy++] = bnc;
                     num_partial_evictions++;
+                } else {
+                    BP_SWEEP_CLOCK(node, i);
                 }
-                else {
-                    BP_SWEEP_CLOCK(node,i);
-                }
-            }
-            else {
+            } else {
                 continue;
             }
         }
-    }
-    //
-    // partial eviction strategy for basement nodes:
-    //  if the bn is compressed, evict it
-    //  else: check if it requires eviction, if it does, evict it, if not, sweep the clock count
-    //
-    else {
+    } else {
+        //
+        // partial eviction strategy for basement nodes:
+        //  if the bn is compressed, evict it
+        //  else: check if it requires eviction, if it does, evict it, if not,
+        //  sweep the clock count
+        //
         for (int i = 0; i < node->n_children; i++) {
             // Get rid of compressed stuff no matter what.
-            if (BP_STATE(node,i) == PT_COMPRESSED) {
+            if (BP_STATE(node, i) == PT_COMPRESSED) {
                 SUB_BLOCK sb = BSB(node, i);
                 pointers_to_free[num_pointers_to_free++] = sb->compressed_ptr;
                 pointers_to_free[num_pointers_to_free++] = sb;
                 set_BNULL(node, i);
-                BP_STATE(node,i) = PT_ON_DISK;
+                BP_STATE(node, i) = PT_ON_DISK;
                 num_partial_evictions++;
-            }
-            else if (BP_STATE(node,i) == PT_AVAIL) {
-                if (BP_SHOULD_EVICT(node,i)) {
+            } else if (BP_STATE(node, i) == PT_AVAIL) {
+                if (BP_SHOULD_EVICT(node, i)) {
                     BASEMENTNODE bn = BLB(node, i);
                     basements_to_destroy[num_basements_to_destroy++] = bn;
-                    toku_ft_decrease_stats(&ft->in_memory_stats, bn->stat64_delta);
+                    toku_ft_decrease_stats(&ft->in_memory_stats,
+                                           bn->stat64_delta);
+                    toku_ft_adjust_logical_row_count(ft,
+                                                     -bn->logical_rows_delta);
                     set_BNULL(node, i);
                     BP_STATE(node, i) = PT_ON_DISK;
                     num_partial_evictions++;
+                } else {
+                    BP_SWEEP_CLOCK(node, i);
                 }
-                else {
-                    BP_SWEEP_CLOCK(node,i);
-                }
-            }
-            else if (BP_STATE(node,i) == PT_ON_DISK) {
+            } else if (BP_STATE(node, i) == PT_ON_DISK) {
                 continue;
-            }
-            else {
+            } else {
                 abort();
             }
         }
@@ -2378,12 +2386,16 @@ ft_send_update_msg(FT_HANDLE ft_h, const ft_msg &msg, TOKUTXN txn) {
     toku_ft_root_put_msg(ft_h->ft, msg, &gc_info);
 }
 
-void toku_ft_maybe_update(FT_HANDLE ft_h, const DBT *key, const DBT *update_function_extra,
-                      TOKUTXN txn, bool oplsn_valid, LSN oplsn,
-                      bool do_logging) {
+void toku_ft_maybe_update(FT_HANDLE ft_h,
+                          const DBT *key,
+                          const DBT *update_function_extra,
+                          TOKUTXN txn,
+                          bool oplsn_valid,
+                          LSN oplsn,
+                          bool do_logging) {
     TXNID_PAIR xid = toku_txn_get_txnid(txn);
     if (txn) {
-        BYTESTRING keybs = { key->size, (char *) key->data };
+        BYTESTRING keybs = {key->size, (char *)key->data};
         toku_logger_save_rollback_cmdupdate(
             txn, toku_cachefile_filenum(ft_h->ft->cf), &keybs);
         toku_txn_maybe_note_ft(txn, ft_h->ft);
@@ -2392,22 +2404,33 @@ void toku_ft_maybe_update(FT_HANDLE ft_h, const DBT *key, const DBT *update_func
     TOKULOGGER logger;
     logger = toku_txn_logger(txn);
     if (do_logging && logger) {
-        BYTESTRING keybs = {.len=key->size, .data=(char *) key->data};
-        BYTESTRING extrabs = {.len=update_function_extra->size,
-                              .data = (char *) update_function_extra->data};
-        toku_log_enq_update(logger, NULL, 0, txn,
-                                toku_cachefile_filenum(ft_h->ft->cf),
-                                xid, keybs, extrabs);
+        BYTESTRING keybs = {.len = key->size, .data = (char *)key->data};
+        BYTESTRING extrabs = {.len = update_function_extra->size,
+                              .data = (char *)update_function_extra->data};
+        toku_log_enq_update(logger,
+                            NULL,
+                            0,
+                            txn,
+                            toku_cachefile_filenum(ft_h->ft->cf),
+                            xid,
+                            keybs,
+                            extrabs);
     }
 
     LSN treelsn;
-    if (oplsn_valid && oplsn.lsn <= (treelsn = toku_ft_checkpoint_lsn(ft_h->ft)).lsn) {
+    if (oplsn_valid &&
+        oplsn.lsn <= (treelsn = toku_ft_checkpoint_lsn(ft_h->ft)).lsn) {
         // do nothing
     } else {
-        XIDS message_xids = txn ? toku_txn_get_xids(txn) : toku_xids_get_root_xids();
-        ft_msg msg(key, update_function_extra, FT_UPDATE, ZERO_MSN, message_xids);
+        XIDS message_xids =
+            txn ? toku_txn_get_xids(txn) : toku_xids_get_root_xids();
+        ft_msg msg(
+            key, update_function_extra, FT_UPDATE, ZERO_MSN, message_xids);
         ft_send_update_msg(ft_h, msg, txn);
     }
+    // updates get converted to insert messages, which should do a -1 on the
+    // logical row count when the messages are permanently applied
+    toku_ft_adjust_logical_row_count(ft_h->ft, 1);
 }
 
 void toku_ft_maybe_update_broadcast(FT_HANDLE ft_h, const DBT *update_function_extra,

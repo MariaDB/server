@@ -587,8 +587,8 @@ bool toku_le_worth_running_garbage_collection(
 //                by new txns.
 //            2.) There is only one committed entry, but the outermost
 //                provisional entry is older than the oldest known referenced
-//                xid, so it must have commited. Therefor we can promote it to
-//                committed and get rid of the old commited entry.
+//                xid, so it must have committed. Therefor we can promote it to
+//                committed and get rid of the old committed entry.
     if (le->type != LE_MVCC) {
         return false;
     }
