@@ -178,6 +178,11 @@ void ORAerror(THD *thd, const char *s)
   Lex_field_type_st Lex_field_type;
   Lex_dyncol_type_st Lex_dyncol_type;
   Lex_for_loop_st for_loop;
+  struct
+  {
+    LEX_STRING name;
+    uint offset;
+  } sp_cursor_name_and_offset;
 
   /* pointers */
   Create_field *create_field;
@@ -555,6 +560,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  IPC_SYM
 %token  IS                            /* SQL-2003-R */
 %token  ISOLATION                     /* SQL-2003-R */
+%token  ISOPEN_SYM                    /* Oracle-N   */
 %token  ISSUER_SYM
 %token  ITERATE_SYM
 %token  JOIN_SYM                      /* SQL-2003-R */
@@ -664,6 +670,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NONE_SYM                      /* SQL-2003-R */
 %token  NOT2_SYM
 %token  NOT_SYM                       /* SQL-2003-R */
+%token  NOTFOUND_SYM                  /* Oracle-R   */
 %token  NOW_SYM
 %token  NO_SYM                        /* SQL-2003-R */
 %token  NO_WAIT_SYM
@@ -975,7 +982,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %left   '&'
 %left   SHIFT_LEFT SHIFT_RIGHT
 %left   '-' '+'
-%left   '*' '/' '%' DIV_SYM MOD_SYM
+%left   '*' '/' DIV_SYM MOD_SYM
 %left   '^'
 %left   NEG '~'
 %right  NOT_SYM NOT2_SYM
@@ -1103,6 +1110,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         window_func_expr
         window_func
         simple_window_func
+        explicit_cursor_attr
         function_call_keyword
         function_call_nonkeyword
         function_call_generic
@@ -1291,6 +1299,7 @@ END_OF_INPUT
 %type <spblock> sp_decl_body sp_decl_body_list opt_sp_decl_body_list
 %type <spblock_handlers> sp_block_statements_and_exceptions
 %type <sp_instr_addr> sp_instr_addr
+%type <sp_cursor_name_and_offset> sp_cursor_name_and_offset
 %type <num> opt_exception_clause exception_handlers
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
@@ -8598,12 +8607,6 @@ bit_expr:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | bit_expr '%' bit_expr %prec '%'
-          {
-            $$= new (thd->mem_root) Item_func_mod(thd, $1, $3);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
         | bit_expr DIV_SYM bit_expr %prec DIV_SYM
           {
             $$= new (thd->mem_root) Item_func_int_div(thd, $1, $3);
@@ -8739,6 +8742,44 @@ dyncall_create_list:
          $$= $1;
        }
    ;
+
+sp_cursor_name_and_offset:
+          ident
+          {
+            LEX *lex= Lex;
+            $$.name= $1;
+            if (!lex->spcont ||
+                !lex->spcont->find_cursor($1, &$$.offset, false))
+              my_yyabort_error((ER_SP_CURSOR_MISMATCH, MYF(0), $1.str));
+          }
+        ;
+
+explicit_cursor_attr:
+          sp_cursor_name_and_offset '%' ISOPEN_SYM
+          {
+            if (!($$= new (thd->mem_root)
+                      Item_func_cursor_isopen(thd, $1.name, $1.offset)))
+              MYSQL_YYABORT;
+          }
+        | sp_cursor_name_and_offset '%' FOUND_SYM
+          {
+            if (!($$= new (thd->mem_root)
+                      Item_func_cursor_found(thd, $1.name, $1.offset)))
+              MYSQL_YYABORT;
+          }
+        | sp_cursor_name_and_offset '%' NOTFOUND_SYM
+          {
+            if (!($$= new (thd->mem_root)
+                      Item_func_cursor_notfound(thd, $1.name, $1.offset)))
+              MYSQL_YYABORT;
+          }
+        | sp_cursor_name_and_offset '%' ROWCOUNT_SYM
+          {
+            if (!($$= new (thd->mem_root)
+                      Item_func_cursor_rowcount(thd, $1.name, $1.offset)))
+              MYSQL_YYABORT;
+          }
+        ;
 
 /*
   Expressions that the parser allows in a column DEFAULT clause
@@ -8904,6 +8945,7 @@ column_default_non_parenthesized_expr:
 
 simple_expr:
           column_default_non_parenthesized_expr
+        | explicit_cursor_attr
         | simple_expr COLLATE_SYM ident_or_text %prec NEG
           {
             Item *i1= new (thd->mem_root) Item_string(thd, $3.str,
@@ -14306,6 +14348,7 @@ keyword_sp:
         | IO_SYM                   {}
         | IPC_SYM                  {}
         | ISOLATION                {}
+        | ISOPEN_SYM               {}
         | ISSUER_SYM               {}
         | JSON_SYM                 {}
         | INSERT_METHOD            {}
@@ -14375,6 +14418,7 @@ keyword_sp:
         | NO_WAIT_SYM              {}
         | NODEGROUP_SYM            {}
         | NONE_SYM                 {}
+        | NOTFOUND_SYM             {}
         | NUMBER_SYM               {}
         | NVARCHAR_SYM             {}
         | OFFSET_SYM               {}

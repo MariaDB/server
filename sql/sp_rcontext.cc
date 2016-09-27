@@ -425,7 +425,10 @@ sp_cursor::sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper, sp_instr_cpush *i)
    result(thd_arg),
    m_lex_keeper(lex_keeper),
    server_side_cursor(NULL),
-   m_i(i)
+   m_i(i),
+   m_fetch_count(0),
+   m_row_count(0),
+   m_found(false)
 {
   /*
     currsor can't be stored in QC, so we should prevent opening QC for
@@ -470,6 +473,8 @@ int sp_cursor::close(THD *thd)
                MYF(0));
     return -1;
   }
+  m_row_count= m_fetch_count= 0;
+  m_found= false;
   destroy();
   return 0;
 }
@@ -497,6 +502,7 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
     return -1;
   }
 
+  m_fetch_count++;
   DBUG_EXECUTE_IF("bug23032_emit_warning",
                   push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                ER_UNKNOWN_ERROR,
@@ -514,10 +520,15 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
   */
   if (! server_side_cursor->is_open())
   {
+    m_found= false;
+    if (thd->variables.sql_mode & MODE_ORACLE)
+      return 0;
     my_message(ER_SP_FETCH_NO_DATA, ER_THD(thd, ER_SP_FETCH_NO_DATA), MYF(0));
     return -1;
   }
 
+  m_found= true;
+  m_row_count++;
   return 0;
 }
 

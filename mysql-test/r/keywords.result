@@ -350,3 +350,7 @@ CREATE TABLE decode (decode int);
 DROP TABLE decode;
 CREATE TABLE rowcount (rowcount int);
 DROP TABLE rowcount;
+CREATE TABLE isopen (isopen int);
+DROP TABLE isopen;
+CREATE TABLE notfound (notfound int);
+DROP TABLE notfound;

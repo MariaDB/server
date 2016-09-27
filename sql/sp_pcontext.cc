@@ -289,13 +289,15 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_STRING name,
 
 
 static sp_condition_value
+  cond_invalid_cursor(ER_SP_CURSOR_NOT_OPEN),
   cond_no_data_found(ER_SP_FETCH_NO_DATA),
   cond_dup_val_on_index(ER_DUP_ENTRY),
   cond_too_many_rows(ER_TOO_MANY_ROWS);
 
 
-static sp_condition sp_predefined_conditions[3]=
+static sp_condition sp_predefined_conditions[]=
 {
+  sp_condition(C_STRING_WITH_LEN("INVALID_CURSOR"), &cond_invalid_cursor),
   sp_condition(C_STRING_WITH_LEN("NO_DATA_FOUND"), &cond_no_data_found),
   sp_condition(C_STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index),
   sp_condition(C_STRING_WITH_LEN("TOO_MANY_ROWS"), &cond_too_many_rows)

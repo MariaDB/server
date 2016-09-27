@@ -452,6 +452,15 @@ public:
   my_bool is_open()
   { return MY_TEST(server_side_cursor); }
 
+  bool found() const
+  { return m_found; }
+
+  ulonglong row_count() const
+  { return m_row_count; }
+
+  ulonglong fetch_count() const
+  { return m_fetch_count; }
+
   int fetch(THD *, List<sp_variable> *vars);
 
   sp_instr_cpush *get_instr()
@@ -461,7 +470,10 @@ private:
   Select_fetch_into_spvars result;
   sp_lex_keeper *m_lex_keeper;
   Server_side_cursor *server_side_cursor;
-  sp_instr_cpush *m_i;		// My push instruction
+  sp_instr_cpush *m_i;     // My push instruction
+  ulonglong m_fetch_count; // Number of FETCH commands since last OPEN
+  ulonglong m_row_count;   // Number of successful FETCH since last OPEN
+  bool m_found;            // If last FETCH fetched a row
   void destroy();
 
 }; // class sp_cursor : public Sql_alloc
