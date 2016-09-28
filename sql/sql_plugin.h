@@ -182,6 +182,7 @@ sys_var *find_plugin_sysvar(st_plugin_int *plugin, st_mysql_sys_var *var);
 void plugin_opt_set_limits(struct my_option *, const struct st_mysql_sys_var *);
 extern SHOW_COMP_OPTION plugin_status(const char *name, size_t len, int type);
 extern bool check_valid_path(const char *path, size_t length);
+extern void plugin_mutex_init();
 
 typedef my_bool (plugin_foreach_func)(THD *thd,
                                       plugin_ref plugin,
@@ -199,3 +200,9 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
 
 extern void sync_dynamic_session_variables(THD* thd, bool global_lock);
 #endif
+
+#ifdef WITH_WSREP
+extern void wsrep_plugins_pre_init();
+extern void wsrep_plugins_post_init();
+#endif /* WITH_WSREP */
+
