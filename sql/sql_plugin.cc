@@ -1548,9 +1548,6 @@ int plugin_init(int *argc, char **argv, int flags)
                    get_bookmark_hash_key, NULL, HASH_UNIQUE))
       goto err;
 
-
-  mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_FAST);
-
   if (my_init_dynamic_array(&plugin_dl_array,
                             sizeof(struct st_plugin_dl *), 16, 16, MYF(0)) ||
       my_init_dynamic_array(&plugin_array,
@@ -3098,28 +3095,19 @@ void plugin_thdvar_init(THD *thd)
   thd->variables.dynamic_variables_size= 0;
   thd->variables.dynamic_variables_ptr= 0;
 
-  if (IF_WSREP((!WSREP(thd) || !thd->wsrep_applier),1))
-  {
-    mysql_mutex_lock(&LOCK_plugin);
-    thd->variables.table_plugin=
-        intern_plugin_lock(NULL, global_system_variables.table_plugin);
-    if (global_system_variables.tmp_table_plugin)
-      thd->variables.tmp_table_plugin=
-            intern_plugin_lock(NULL, global_system_variables.tmp_table_plugin);
-    if (global_system_variables.enforced_table_plugin)
-      thd->variables.enforced_table_plugin=
-            intern_plugin_lock(NULL, global_system_variables.enforced_table_plugin);
-    intern_plugin_unlock(NULL, old_table_plugin);
-    intern_plugin_unlock(NULL, old_tmp_table_plugin);
-    intern_plugin_unlock(NULL, old_enforced_table_plugin);
-    mysql_mutex_unlock(&LOCK_plugin);
-  }
-  else
-  {
-    thd->variables.table_plugin= NULL;
-    thd->variables.tmp_table_plugin= NULL;
-    thd->variables.enforced_table_plugin= NULL;
-  }
+  mysql_mutex_lock(&LOCK_plugin);
+  thd->variables.table_plugin=
+      intern_plugin_lock(NULL, global_system_variables.table_plugin);
+  if (global_system_variables.tmp_table_plugin)
+    thd->variables.tmp_table_plugin=
+          intern_plugin_lock(NULL, global_system_variables.tmp_table_plugin);
+  if (global_system_variables.enforced_table_plugin)
+    thd->variables.enforced_table_plugin=
+          intern_plugin_lock(NULL, global_system_variables.enforced_table_plugin);
+  intern_plugin_unlock(NULL, old_table_plugin);
+  intern_plugin_unlock(NULL, old_tmp_table_plugin);
+  intern_plugin_unlock(NULL, old_enforced_table_plugin);
+  mysql_mutex_unlock(&LOCK_plugin);
 
   DBUG_VOID_RETURN;
 }
@@ -4243,3 +4231,51 @@ int thd_setspecific(MYSQL_THD thd, MYSQL_THD_KEY_T key, void *value)
   return 0;
 }
 
+void plugin_mutex_init()
+{
+  mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_FAST);
+}
+
+#ifdef WITH_WSREP
+
+/*
+  Placeholder for global_system_variables.table_plugin required during
+  initialization of startup wsrep threads.
+*/
+static st_plugin_int wsrep_dummy_plugin;
+static st_plugin_int *wsrep_dummy_plugin_ptr;
+
+/*
+  Initialize wsrep_dummy_plugin and assign it to
+  global_system_variables.table_plugin.
+*/
+void wsrep_plugins_pre_init()
+{
+  wsrep_dummy_plugin_ptr= &wsrep_dummy_plugin;
+  wsrep_dummy_plugin.state= PLUGIN_IS_DISABLED;
+  global_system_variables.table_plugin=
+    plugin_int_to_ref(wsrep_dummy_plugin_ptr);
+}
+
+/*
+  This function is intended to be called after the plugins and related
+  global system variables are initialized. It re-initializes some data
+  members of wsrep startup threads with correct values, as these value
+  were not available at the time these threads were created.
+*/
+void wsrep_plugins_post_init()
+{
+  THD *thd;
+  I_List_iterator<THD> it(threads);
+
+  while ((thd= it++))
+  {
+    if (IF_WSREP(thd->wsrep_applier,1))
+    {
+      plugin_thdvar_init(thd);
+    }
+  }
+
+  return;
+}
+#endif /* WITH_WSREP */
