@@ -3102,7 +3102,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
       if (! write_error)
       {
         write_error= 1;
-        sql_print_error(ER_THD(thd, ER_ERROR_ON_WRITE), name, error);
+        sql_print_error(ER_THD(thd, ER_ERROR_ON_WRITE), name, tmp_errno);
       }
     }
   }

@@ -903,6 +903,9 @@ void toku_ft_adjust_logical_row_count(FT ft, int64_t delta) {
     // must be returned in toku_ft_stat64.
     if (delta != 0 && ft->in_memory_logical_rows != (uint64_t)-1) {
         toku_sync_fetch_and_add(&(ft->in_memory_logical_rows), delta);
+        if (ft->in_memory_logical_rows == (uint64_t)-1) {
+            toku_sync_fetch_and_add(&(ft->in_memory_logical_rows), 1);
+        }
     }
 }
 

@@ -123,7 +123,8 @@ test_main(int argc, char *const argv[]) {
             continue;
         }
     }
-    if (verbose>0) printf("%s", __FILE__); if (verbose>1) printf("\n");
+    if (verbose>0) printf("%s", __FILE__);
+    if (verbose>1) printf("\n");
     for (i=1; i<100; i++) 
         test_txn_abort(i);
     if (verbose>1) printf("%s OK\n", __FILE__);

@@ -114,7 +114,7 @@ struct __toku_db_env_internal {
 
     char *real_data_dir;                                // data dir used when the env is opened (relative to cwd, or absolute with leading /)
     char *real_log_dir;                                 // log dir used when the env is opened  (relative to cwd, or absolute with leading /)
-    char *real_tmp_dir;                                 // tmp dir used for temporary files (relative to cwd, or absoulte with leading /)
+    char *real_tmp_dir;                                 // tmp dir used for temporary files (relative to cwd, or absolute with leading /)
 
     fs_redzone_state fs_state;
     uint64_t fs_seq;                                    // how many times has fs_poller run?

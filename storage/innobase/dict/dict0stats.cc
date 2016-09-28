@@ -736,7 +736,7 @@ dict_stats_copy(
 				if (dst_idx->type & DICT_FTS) {
 					continue;
 				}
-				dict_stats_empty_index(dst_idx);
+				dict_stats_empty_index(dst_idx, true);
 			} else {
 				continue;
 			}

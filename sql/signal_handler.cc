@@ -64,13 +64,13 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   struct tm tm;
 #ifdef HAVE_STACKTRACE
   THD *thd;
-#endif
   /*
      This flag remembers if the query pointer was found invalid.
      We will try and print the query at the end of the signal handler, in case
      we're wrong.
   */
   bool print_invalid_query_pointer= false;
+#endif
 
   if (segfaulted)
   {
@@ -276,6 +276,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
       "\"mlockall\" bugs.\n");
   }
 
+#ifdef HAVE_STACKTRACE
   if (print_invalid_query_pointer)
   {
     my_safe_printf_stderr(
@@ -285,6 +286,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     my_write_stderr(thd->query(), MY_MIN(65536U, thd->query_length()));
     my_safe_printf_stderr("\n\n");
   }
+#endif
 
 #ifdef HAVE_WRITE_CORE
   if (test_flags & TEST_CORE_ON_SIGNAL)

@@ -192,6 +192,7 @@ static void dump_header(FT ft) {
     dump_descriptor(&ft->descriptor);
     printf(" estimated numrows=%" PRId64 "\n", ft->in_memory_stats.numrows);
     printf(" estimated numbytes=%" PRId64 "\n", ft->in_memory_stats.numbytes);
+    printf(" logical row count=%" PRId64 "\n", ft->in_memory_logical_rows);
 }
 
 static int64_t getRootNode(FT ft) {
