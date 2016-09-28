@@ -2839,9 +2839,10 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
   int error;
   uint locked_tables;
   DYNAMIC_ARRAY used_tables;
+  extern my_bool plugins_are_initialized;
   
   DBUG_ENTER("ha_maria::implicit_commit");
-  if (!maria_hton || !(trn= THD_TRN))
+  if (!maria_hton || !plugins_are_initialized || !(trn= THD_TRN))
     DBUG_RETURN(0);
   if (!new_trn && (thd->locked_tables_mode == LTM_LOCK_TABLES ||
                    thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES))
