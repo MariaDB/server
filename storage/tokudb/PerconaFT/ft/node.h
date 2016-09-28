@@ -199,6 +199,7 @@ struct ftnode_leaf_basement_node {
     MSN max_msn_applied;            // max message sequence number applied
     bool stale_ancestor_messages_applied;
     STAT64INFO_S stat64_delta;      // change in stat64 counters since basement was last written to disk
+    int64_t logical_rows_delta;
 };
 typedef struct ftnode_leaf_basement_node *BASEMENTNODE;
 

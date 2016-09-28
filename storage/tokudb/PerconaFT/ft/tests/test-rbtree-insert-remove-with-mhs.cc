@@ -36,30 +36,62 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
-#pragma once
+#include "ft/serialize/rbtree_mhs.h"
+#include "test.h"
+#include <algorithm>
+#include <vector>
+#include <ctime>
+#include <cstdlib>
 
-#include <db.h>
+static void test_insert_remove(void) {
+    uint64_t i;
+    MhsRbTree::Tree *tree = new MhsRbTree::Tree();
+    verbose = 0;
 
-#include "ft/serialize/block_allocator.h"
+    tree->Insert({0, 100});
 
-// Block allocation strategy implementations
+    for (i = 0; i < 10; i++) {
+        tree->Remove(3);
+        tree->Remove(2);
+    }
+    tree->ValidateBalance();
+    tree->ValidateMhs();
 
-class block_allocator_strategy {
-public:
-    static struct block_allocator::blockpair *
-    first_fit(struct block_allocator::blockpair *blocks_array,
-              uint64_t n_blocks, uint64_t size, uint64_t alignment);
+    for (i = 0; i < 10; i++) {
+        tree->Insert({5 * i, 3});
+    }
+    tree->ValidateBalance();
+    tree->ValidateMhs();
 
-    static struct block_allocator::blockpair *
-    best_fit(struct block_allocator::blockpair *blocks_array,
-             uint64_t n_blocks, uint64_t size, uint64_t alignment);
+    uint64_t offset = tree->Remove(2);
+    invariant(offset == 0);
+    offset = tree->Remove(10);
+    invariant(offset == 50);
+    offset = tree->Remove(3);
+    invariant(offset == 5);
+    tree->ValidateBalance();
+    tree->ValidateMhs();
 
-    static struct block_allocator::blockpair *
-    padded_fit(struct block_allocator::blockpair *blocks_array,
-               uint64_t n_blocks, uint64_t size, uint64_t alignment);
+    tree->Insert({48, 2});
+    tree->Insert({50, 10});
 
-    static struct block_allocator::blockpair *
-    heat_zone(struct block_allocator::blockpair *blocks_array,
-              uint64_t n_blocks, uint64_t size, uint64_t alignment,
-              uint64_t heat);
-};
+    tree->ValidateBalance();
+    tree->ValidateMhs();
+
+    tree->Insert({3, 7});
+    offset = tree->Remove(10);
+    invariant(offset == 2);
+    tree->ValidateBalance();
+    tree->ValidateMhs();
+    tree->Dump();
+    delete tree;
+}
+
+int test_main(int argc, const char *argv[]) {
+    default_parse_args(argc, argv);
+
+    test_insert_remove();
+    if (verbose)
+        printf("test ok\n");
+    return 0;
+}
