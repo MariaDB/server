@@ -4341,14 +4341,13 @@ bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 
 
 static bool
-prepare_keys_for_sys_ver(THD *thd,
+vers_prepare_keys(THD *thd,
                          HA_CREATE_INFO *create_info,
                          Alter_info *alter_info,
                          KEY **key_info,
                          uint key_count)
 {
-  if (!create_info->versioned())
-    return false;
+  DBUG_ASSERT(create_info->versioned());
 
   const System_versioning_info *versioning_info=
     create_info->get_system_versioning_info();
@@ -4645,7 +4644,7 @@ handler *mysql_create_frm_image(THD *thd,
         goto err;
       }
     }
-    if(prepare_keys_for_sys_ver(thd, create_info, alter_info, key_info,
+    if(vers_prepare_keys(thd, create_info, alter_info, key_info,
                                 *key_count))
       goto err;
   }
