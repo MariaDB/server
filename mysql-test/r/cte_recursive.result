@@ -1770,7 +1770,7 @@ SELECT * FROM cte as t;
 f
 DROP TABLE t1;
 #
-# MDEV-10889: mergeable derived in the spec of recursive CTE
+# MDEV-10899: mergeable derived in the spec of recursive CTE
 #
 create table t1 (a int);
 insert into t1 values

@@ -1306,7 +1306,7 @@ SELECT * FROM cte as t;
 DROP TABLE t1;
 
 --echo #
---echo # MDEV-10889: mergeable derived in the spec of recursive CTE
+--echo # MDEV-10899: mergeable derived in the spec of recursive CTE
 --echo #
 
 create table t1 (a int);
