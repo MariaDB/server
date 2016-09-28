@@ -5881,6 +5881,10 @@ static int check_wsrep_max_ws_rows()
   if (wsrep_max_ws_rows)
   {
     THD *thd= current_thd;
+
+    if (!WSREP(thd))
+      return 0;
+
     thd->wsrep_affected_rows++;
     if (thd->wsrep_exec_mode != REPL_RECV &&
         thd->wsrep_affected_rows > wsrep_max_ws_rows)

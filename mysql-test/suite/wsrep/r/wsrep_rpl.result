@@ -1,0 +1,22 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-10714: Could not execute Delete_rows event on table;
+# wsrep_max_ws_rows exceeded. Error_Code 1180
+#
+CREATE TABLE t1(i INT) ENGINE = INNODB;
+SET @@GLOBAL.wsrep_max_ws_rows = 1;
+INSERT INTO t1 VALUES(1), (2);
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+SET @@GLOBAL.wsrep_max_ws_rows = 1;
+DELETE FROM t1;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+DROP TABLE t1;
+SET @@GLOBAL.wsrep_max_ws_rows = 0;
+SET @@GLOBAL.wsrep_max_ws_rows = 0;
+include/rpl_end.inc
+# End of test.
