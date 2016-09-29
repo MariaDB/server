@@ -1779,7 +1779,7 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "filesort": {
-      "sort_key": "X",
+      "sort_key": "row_number() over ( order by t1.s1,t1.s2)",
       "window_functions_computation": {
         "sorts": {
           "filesort": {
@@ -2236,3 +2236,117 @@ sum(t.a) over (partition by t.b order by a)	sqrt(ifnull((sum(t.a) over (partitio
 3.0000000000	1.7320508075688772
 0.0000000000	0
 drop table t;
+#
+# MDEV-10868: view definitions with window functions
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (pk int, c int);
+insert into t1 select a+1,1 from t0;
+update t1 set c=2 where pk not in (1,2,3,4);
+select * from t1;
+pk	c
+1	1
+2	1
+3	1
+4	1
+5	2
+6	2
+7	2
+8	2
+9	2
+10	2
+select pk, c, c/count(*) over (partition by c order by pk
+rows between 1 preceding and 2 following) as CNT
+from t1;
+pk	c	CNT
+1	1	0.3333
+2	1	0.2500
+3	1	0.3333
+4	1	0.5000
+5	2	0.6667
+6	2	0.5000
+7	2	0.5000
+8	2	0.5000
+9	2	0.6667
+10	2	1.0000
+create view v1 as select pk, c, c/count(*) over (partition by c order by pk
+rows between 1 preceding and 2 following) as CNT
+from t1;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`pk` AS `pk`,`t1`.`c` AS `c`,(`t1`.`c` / count(0) over ( partition by `t1`.`c` order by `t1`.`pk` rows between 1 preceding  and 2 following )) AS `CNT` from `t1`	latin1	latin1_swedish_ci
+select * from v1;
+pk	c	CNT
+1	1	0.3333
+2	1	0.2500
+3	1	0.3333
+4	1	0.5000
+5	2	0.6667
+6	2	0.5000
+7	2	0.5000
+8	2	0.5000
+9	2	0.6667
+10	2	1.0000
+select pk, c, c/count(*) over w1 as CNT from t1
+window w1 as (partition by c order by pk rows between 1 preceding and 2 following);
+pk	c	CNT
+1	1	0.3333
+2	1	0.2500
+3	1	0.3333
+4	1	0.5000
+5	2	0.6667
+6	2	0.5000
+7	2	0.5000
+8	2	0.5000
+9	2	0.6667
+10	2	1.0000
+create view v2 as select pk, c, c/count(*) over w1 as CNT from t1
+window w1 as (partition by c order by pk rows between 1 preceding and 2 following);
+show create view v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`pk` AS `pk`,`t1`.`c` AS `c`,(`t1`.`c` / count(0) over ( partition by `t1`.`c` order by `t1`.`pk` rows between 1 preceding  and 2 following )) AS `CNT` from `t1`	latin1	latin1_swedish_ci
+select * from v2;
+pk	c	CNT
+1	1	0.3333
+2	1	0.2500
+3	1	0.3333
+4	1	0.5000
+5	2	0.6667
+6	2	0.5000
+7	2	0.5000
+8	2	0.5000
+9	2	0.6667
+10	2	1.0000
+select pk, c, c/count(*) over w1 as CNT from t1
+window w1 as (partition by c order by pk rows unbounded preceding);
+pk	c	CNT
+1	1	1.0000
+2	1	0.5000
+3	1	0.3333
+4	1	0.2500
+5	2	2.0000
+6	2	1.0000
+7	2	0.6667
+8	2	0.5000
+9	2	0.4000
+10	2	0.3333
+create view v3 as select pk, c, c/count(*) over w1 as CNT from t1
+window w1 as (partition by c order by pk rows unbounded preceding);
+show create view v3;
+View	Create View	character_set_client	collation_connection
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`pk` AS `pk`,`t1`.`c` AS `c`,(`t1`.`c` / count(0) over ( partition by `t1`.`c` order by `t1`.`pk` rows between  unbounded  preceding  and  current row )) AS `CNT` from `t1`	latin1	latin1_swedish_ci
+select * from v3;
+pk	c	CNT
+1	1	1.0000
+2	1	0.5000
+3	1	0.3333
+4	1	0.2500
+5	2	2.0000
+6	2	1.0000
+7	2	0.6667
+8	2	0.5000
+9	2	0.4000
+10	2	0.3333
+drop view v1,v2,v3;
+drop table t0,t1;

@@ -446,3 +446,10 @@ void Item_sum_hybrid_simple::update_field()
 {
   DBUG_ASSERT(0);
 }
+
+void Item_window_func::print(String *str, enum_query_type query_type)
+{
+  window_func()->print(str, query_type);
+  str->append(" over ");
+  window_spec->print(str, query_type);
+}

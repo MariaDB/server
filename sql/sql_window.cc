@@ -61,6 +61,25 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
   return false;
 }
 
+void
+Window_spec::print(String *str, enum_query_type query_type)
+{
+  str->append('(');
+  if (partition_list->first)
+  {
+    str->append(STRING_WITH_LEN(" partition by "));
+    st_select_lex::print_order(str, partition_list->first, query_type);
+  }
+  if (order_list->first)
+  {
+    str->append(STRING_WITH_LEN(" order by "));
+    st_select_lex::print_order(str, order_list->first, query_type);
+  }
+  if (window_frame)
+    window_frame->print(str, query_type);
+  str->append(')');
+}
+
 bool
 Window_frame::check_frame_bounds()
 {
@@ -80,6 +99,65 @@ Window_frame::check_frame_bounds()
   return false;
 }
 
+
+void
+Window_frame::print(String *str, enum_query_type query_type)
+{
+  switch (units) {
+  case UNITS_ROWS:
+    str->append(STRING_WITH_LEN(" rows "));
+    break;
+  case UNITS_RANGE: str->append(STRING_WITH_LEN(" range "));
+  }
+
+  str->append(STRING_WITH_LEN("between "));
+  top_bound->print(str, query_type);
+  str->append(STRING_WITH_LEN(" and "));
+  bottom_bound->print(str, query_type);
+ 
+  if (exclusion != EXCL_NONE)
+  {
+     str->append(STRING_WITH_LEN(" exclude ")); 
+     switch (exclusion) {
+     case EXCL_CURRENT_ROW: 
+       str->append(STRING_WITH_LEN(" current row "));
+       break;
+     case EXCL_GROUP: 
+       str->append(STRING_WITH_LEN(" group "));
+       break;
+     case EXCL_TIES: 
+       str->append(STRING_WITH_LEN(" ties "));
+       break;
+     default: 
+       ;
+     }
+  } 
+}
+
+
+void
+Window_frame_bound::print(String *str, enum_query_type query_type)
+{
+  if (precedence_type == CURRENT)
+  {
+    str->append(STRING_WITH_LEN(" current row "));
+    return;
+  }
+  if (is_unbounded())
+    str->append(STRING_WITH_LEN(" unbounded "));
+  else
+    offset->print(str ,query_type);  
+  switch (precedence_type) {
+  case PRECEDING:
+    str->append(STRING_WITH_LEN(" preceding "));
+    break;
+  case FOLLOWING:
+    str->append(STRING_WITH_LEN(" following "));
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+}
 
 /*
   Setup window functions in a select

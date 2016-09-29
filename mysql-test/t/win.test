@@ -1373,3 +1373,46 @@ SELECT sum(t.a) over (partition by t.b order by a),
        sqrt(ifnull((sum(t.a) over (partition by t.b order by a)), 0))
 from t;
 drop table t;
+
+--echo #
+--echo # MDEV-10868: view definitions with window functions
+--echo #
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (pk int, c int);
+insert into t1 select a+1,1 from t0;
+update t1 set c=2 where pk not in (1,2,3,4);
+select * from t1;
+
+let $q=
+select pk, c, c/count(*) over (partition by c order by pk
+                               rows between 1 preceding and 2 following) as CNT
+from t1;
+
+eval $q;
+eval create view v1 as $q;
+show create view v1;
+select * from v1;
+
+let $q=
+select pk, c, c/count(*) over w1 as CNT from t1
+  window w1 as (partition by c order by pk rows between 1 preceding and 2 following);
+
+eval $q;
+eval create view v2 as $q;
+show create view v2;
+select * from v2;
+
+let $q=
+select pk, c, c/count(*) over w1 as CNT from t1
+  window w1 as (partition by c order by pk rows unbounded preceding);
+
+eval $q;
+eval create view v3 as $q;
+show create view v3;
+select * from v3;
+
+drop view v1,v2,v3;
+drop table t0,t1;

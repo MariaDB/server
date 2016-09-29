@@ -963,7 +963,9 @@ public:
 
   bool resolve_window_name(THD *thd);
   
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  void print(String *str, enum_query_type query_type);
+
+ Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
 };
 
