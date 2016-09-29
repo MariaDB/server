@@ -1536,10 +1536,6 @@ int plugin_init(int *argc, char **argv, int flags)
 
   dlopen_count =0;
 
-#ifdef HAVE_PSI_INTERFACE
-  init_plugin_psi_keys();
-#endif
-
   init_alloc_root(&plugin_mem_root, 4096, 4096, MYF(0));
   init_alloc_root(&plugin_vars_mem_root, 4096, 4096, MYF(0));
   init_alloc_root(&tmp_root, 4096, 4096, MYF(0));
@@ -4233,6 +4229,9 @@ int thd_setspecific(MYSQL_THD thd, MYSQL_THD_KEY_T key, void *value)
 
 void plugin_mutex_init()
 {
+#ifdef HAVE_PSI_INTERFACE
+  init_plugin_psi_keys();
+#endif
   mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_FAST);
 }
 
