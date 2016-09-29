@@ -4396,9 +4396,8 @@ sub extract_warning_lines ($$) {
      qr|Aborted connection|,
      qr|table.*is full|,
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
-     qr|Error: io_setup\(\) failed|,
-     qr|Warning: io_setup\(\) failed|,
-     qr|Warning: io_setup\(\) attempt|,
+     qr|InnoDB: io_setup\(\) attempt|,
+     qr|InnoDB: io_setup\(\) failed with EAGAIN|,
      qr|setrlimit could not change the size of core files to 'infinity';|,
      qr|feedback plugin: failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,
