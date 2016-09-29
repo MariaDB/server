@@ -5316,8 +5316,10 @@ static int init_server_components()
     initialized. This initialization was not possible before, as plugins
     (and thus some global system variables) are initialized after wsrep
     startup threads are created.
+    Note: This only needs to be done for rsync, xtrabackup based SST methods.
   */
-  wsrep_plugins_post_init();
+  if (wsrep_before_SE())
+    wsrep_plugins_post_init();
 
   if (WSREP_ON && !opt_bin_log)
   {
