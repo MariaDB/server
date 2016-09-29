@@ -15,15 +15,30 @@ INSERT INTO t1 SELECT * from t1;
 INSERT INTO t1 SELECT * from t1;
 INSERT INTO t1 SELECT * from t1;
 # stop the server
+
+Variables (--variable-name=value)
+and boolean options {FALSE|TRUE}  Value (after reading options)
+--------------------------------- ----------------------------------------
+verbose                           TRUE
+debug                             FALSE
+count                             FALSE
+start-page                        0
+end-page                          0
+page                              0
+strict-check                      crc32
+no-check                          FALSE
+allow-mismatches                  0
+write                             crc32
+page-type-summary                 FALSE
+page-type-dump                    /dev/shm/tmp/dump.txt
+log                               (No default value)
+leaf                              FALSE
+merge                             0
 [1]:# check the both short and long options for "help"
 [2]:# Run the innochecksum when file isn't provided.
 # It will print the innochecksum usage similar to --help option.
 innochecksum Ver #.#.#
-Copyright (c) YEAR, YEAR , Oracle and/or its affiliates. All rights reserved.
-
-Oracle is a registered trademark of Oracle Corporation and/or its
-affiliates. Other names may be trademarks of their respective
-owners.
+Copyright (c) YEAR, YEAR , Oracle, MariaDB Corporation Ab and others.
 
 InnoDB offline file checksum utility.
 Usage: innochecksum [-c] [-s <start page>] [-e <end page>] [-p <page>] [-v]  [-a <allow mismatches>] [-n] [-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] [-l <log>] <filename or [-]>
@@ -36,16 +51,21 @@ Usage: innochecksum [-c] [-s <start page>] [-e <end page>] [-p <page>] [-v]  [-a
   -e, --end-page=#    End at this page number (0 based).
   -p, --page=#        Check only this page (0 based).
   -C, --strict-check=name 
-                      Specify the strict checksum algorithm by the user.
+                      Specify the strict checksum algorithm by the user.. One
+                      of: crc32, crc32, innodb, innodb, none, none
   -n, --no-check      Ignore the checksum verification.
   -a, --allow-mismatches=# 
                       Maximum checksum mismatch allowed.
-  -w, --write=name    Rewrite the checksum algorithm by the user.
+  -w, --write=name    Rewrite the checksum algorithm by the user.. One of: 
+                      crc32, crc32, innodb, innodb, none, none
   -S, --page-type-summary 
                       Display a count of each page type in a tablespace.
   -D, --page-type-dump=name 
                       Dump the page type info for each page in a tablespace.
   -l, --log=name      log output.
+  -l, --leaf          Examine leaf index pages
+  -m, --merge=#       leaf page count if merge given number of consecutive
+                      pages
 
 Variables (--variable-name=value)
 and boolean options {FALSE|TRUE}  Value (after reading options)
@@ -62,12 +82,13 @@ write                             crc32
 page-type-summary                 FALSE
 page-type-dump                    (No default value)
 log                               (No default value)
+leaf                              FALSE
+merge                             0
 [3]:# check the both short and long options for "count" and exit
 Number of pages:#
 Number of pages:#
 [4]:# Print the version of innochecksum and exit
 innochecksum Ver #.#.## Restart the DB server
-# restart
 DROP TABLE t1;
 [5]:# Check the innochecksum for compressed table t1 with different key_block_size
 # Test for KEY_BLOCK_SIZE=1
@@ -76,7 +97,6 @@ CREATE TABLE t1(id INT AUTO_INCREMENT PRIMARY KEY, msg VARCHAR(255)) ENGINE=INNO
 insert into t1 values(1,"I");
 insert into t1 values(2,"AM");
 insert into t1 values(3,"COMPRESSED");
-# restart
 select * from t1;
 id	msg
 1	I
@@ -89,7 +109,6 @@ CREATE TABLE t1(id INT AUTO_INCREMENT PRIMARY KEY, msg VARCHAR(255)) ENGINE=INNO
 insert into t1 values(1,"I");
 insert into t1 values(2,"AM");
 insert into t1 values(3,"COMPRESSED");
-# restart
 select * from t1;
 id	msg
 1	I
@@ -102,7 +121,6 @@ CREATE TABLE t1(id INT AUTO_INCREMENT PRIMARY KEY, msg VARCHAR(255)) ENGINE=INNO
 insert into t1 values(1,"I");
 insert into t1 values(2,"AM");
 insert into t1 values(3,"COMPRESSED");
-# restart
 select * from t1;
 id	msg
 1	I
@@ -116,7 +134,6 @@ CREATE TABLE t1(id INT AUTO_INCREMENT PRIMARY KEY, msg VARCHAR(255)) ENGINE=INNO
 insert into t1 values(1,"I");
 insert into t1 values(2,"AM");
 insert into t1 values(3,"COMPRESSED");
-# restart
 select * from t1;
 id	msg
 1	I
@@ -130,7 +147,6 @@ CREATE TABLE t1(id INT AUTO_INCREMENT PRIMARY KEY, msg VARCHAR(255)) ENGINE=INNO
 insert into t1 values(1,"I");
 insert into t1 values(2,"AM");
 insert into t1 values(3,"COMPRESSED");
-# restart
 select * from t1;
 id	msg
 1	I

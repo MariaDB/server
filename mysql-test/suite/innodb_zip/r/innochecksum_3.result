@@ -39,7 +39,6 @@ SELECT * FROM tab2 ORDER BY col_7;
 # stop the server
 [1(a)]: Rewrite into new checksum=InnoDB for all *.ibd file and ibdata1
 : start the server with innodb_checksum_algorithm=strict_innodb
-# restart
 INSERT INTO tab1 (pk, linestring_key, linestring_nokey)
 VALUES (2, ST_GeomFromText('LINESTRING(10 10,20 20,30 30)'), ST_GeomFromText('LINESTRING(10 10,20 20,30 30)'));
 SET @col_1 = repeat('a', 5);
@@ -56,7 +55,6 @@ SELECT * FROM tab2 ORDER BY col_7;
 # stop the server
 [1(b)]: Rewrite into new checksum=crc32 for all *.ibd file and ibdata1
 # start the server with innodb_checksum_algorithm=strict_crc32
-# restart
 INSERT INTO tab1 (pk, linestring_key, linestring_nokey)
 VALUES (3, ST_GeomFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))'),
 ST_GeomFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))'));
@@ -73,7 +71,6 @@ FROM tab1 ORDER BY pk;
 SELECT * FROM tab2 ORDER BY col_7;
 # stop the server
 [1(c)]: Rewrite into new checksum=none for all *.ibd file and ibdata1
-# restart: --innodb_checksum_algorithm=strict_none --default_storage_engine=InnoDB
 INSERT INTO tab1 (pk, linestring_key, linestring_nokey)
 VALUES (4, ST_GeomFromText('MULTIPOINT(0 0,5 5,10 10,20 20) '), ST_GeomFromText('MULTIPOINT(0 0,5 5,10 10,20 20) '));
 SET @col_1 = repeat('m', 5);
@@ -106,11 +103,22 @@ File::tab#.ibd
        #	Extent descriptor page
        #	BLOB page
        #	Compressed BLOB page
+       #	Page compressed page
+       #	Page compressed encrypted page
        #	Other type of page
 ===============================================
 Additional information:
 Undo page type: # insert, # update, # other
 Undo page state: # active, # cached, # to_free, # to_purge, # prepared, # other
+index_id	#pages		#leaf_pages	#recs_per_page	#bytes_per_page
+#		#		#		#		#
+#		#		#		#		#
+#		#		#		#		#
+
+index_id	page_data_bytes_histgram(empty,...,oversized)
+#		#	#	#	#	#	#	#	#	#	#	#	#
+#		#	#	#	#	#	#	#	#	#	#	#	#
+#		#	#	#	#	#	#	#	#	#	#	#	#
 [3]: Check the page type summary with longform for tab1.ibd
 
 File::tab#.ibd
@@ -129,11 +137,22 @@ File::tab#.ibd
        #	Extent descriptor page
        #	BLOB page
        #	Compressed BLOB page
+       #	Page compressed page
+       #	Page compressed encrypted page
        #	Other type of page
 ===============================================
 Additional information:
 Undo page type: # insert, # update, # other
 Undo page state: # active, # cached, # to_free, # to_purge, # prepared, # other
+index_id	#pages		#leaf_pages	#recs_per_page	#bytes_per_page
+#		#		#		#		#
+#		#		#		#		#
+#		#		#		#		#
+
+index_id	page_data_bytes_histgram(empty,...,oversized)
+#		#	#	#	#	#	#	#	#	#	#	#	#
+#		#	#	#	#	#	#	#	#	#	#	#	#
+#		#	#	#	#	#	#	#	#	#	#	#	#
 [4]: Page type dump for  with longform for tab1.ibd
 # Print the contents stored in dump.txt
 
@@ -145,11 +164,30 @@ Filename::tab#.ibd
 #::       #		|		File Space Header		|	-
 #::       #		|		Insert Buffer Bitmap		|	-
 #::       #		|		Inode page			|	-
-#::       #		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
-#::       #		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
-#::       #		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
-#::       #		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
+#::       #		|		Index page			|	index id=#, page level=# leaf #, No. of records=#, garbage=#, n_recs=#, -
+#::       #		|		Index page			|	index id=#, page level=# leaf #, No. of records=#, garbage=#, n_recs=#, -
+#::       #		|		Index page			|	index id=#, page level=# leaf #, No. of records=#, garbage=#, n_recs=#, -
+#::       #		|		Index page			|	index id=#, page level=# leaf #, No. of records=#, garbage=#, n_recs=#, -
 #::       #		|		Freshly allocated page		|	-
+
+Variables (--variable-name=value)
+and boolean options {FALSE|TRUE}  Value (after reading options)
+--------------------------------- ----------------------------------------
+verbose                           TRUE
+debug                             FALSE
+count                             FALSE
+start-page                        0
+end-page                          0
+page                              0
+strict-check                      crc32
+no-check                          FALSE
+allow-mismatches                  0
+write                             crc32
+page-type-summary                 FALSE
+page-type-dump                    MYSQLTEST_VARDIR/tmp/dump.txt
+log                               (No default value)
+leaf                              FALSE
+merge                             0
 [5]: Page type dump for with shortform for tab1.ibd
 
 
@@ -160,25 +198,30 @@ Filename::tab#.ibd
 #::       #		|		File Space Header		|	-
 #::       #		|		Insert Buffer Bitmap		|	-
 #::       #		|		Inode page			|	-
-#::       #		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
-#::       #		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
-#::       #		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
-#::       #		|		Index page			|	index id=#, page level=#, No. of records=#, garbage=#, -
+#::       #		|		Index page			|	index id=#, page level=# leaf #, No. of records=#, garbage=#, n_recs=#, -
+#::       #		|		Index page			|	index id=#, page level=# leaf #, No. of records=#, garbage=#, n_recs=#, -
+#::       #		|		Index page			|	index id=#, page level=# leaf #, No. of records=#, garbage=#, n_recs=#, -
+#::       #		|		Index page			|	index id=#, page level=# leaf #, No. of records=#, garbage=#, n_recs=#, -
 #::       #		|		Freshly allocated page		|	-
 [6]: check the valid lower bound values for option
 # allow-mismatches,page,start-page,end-page
-[7]: check the negative values for option
-# allow-mismatches,page,start-page,end-page.
-# They will reset to zero for negative values.
-# check the invalid lower bound values
-[8]: check the valid upper bound values for
-# both short and long options "allow-mismatches" and "end-page"
 [9]: check the both short and long options "page" and "start-page" when
 # seek value is larger than file size.
+NOT FOUND /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
+NOT FOUND /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
+NOT FOUND /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
+NOT FOUND /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
 [34]: check the invalid upper bound values for options, allow-mismatches, end-page, start-page and page.
 # innochecksum will fail with error code: 1
+NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
+NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
+NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
+NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
+NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
+NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
+NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
+NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err
 # Restart the server
-# restart: --innodb_checksum_algorithm=strict_none --default_storage_engine=InnoDB
 DROP TABLE tab1;
 DROP TABLE tab2;
 SET GLOBAL innodb_file_per_table=default;

@@ -89,6 +89,14 @@ fil_get_page_type_name(
 		return (const char*)"ZBLOB2";
 	case FIL_PAGE_COMPRESSED:
 		return (const char*)"ORACLE PAGE COMPRESSED";
+	case FIL_PAGE_ENCRYPTED:
+		return (const char*)"ORACLE PAGE ENCRYPTED";
+	case FIL_PAGE_COMPRESSED_AND_ENCRYPTED:
+		return (const char*)"ORACLE PAGE COMPRESSED AND ENCRYPTED";
+	case FIL_PAGE_ENCRYPTED_RTREE:
+		return (const char*)"ORACLE RTREE ENCRYPTED";
+	case FIL_PAGE_TYPE_UNKNOWN:
+		return (const char*)"OLD UNKOWN PAGE TYPE";
 	default:
 		return (const char*)"PAGE TYPE CORRUPTED";
 	}
@@ -133,7 +141,12 @@ fil_page_type_validate(
 		page_type == FIL_PAGE_TYPE_XDES ||
 		page_type == FIL_PAGE_TYPE_BLOB ||
 		page_type == FIL_PAGE_TYPE_ZBLOB ||
-		page_type == FIL_PAGE_COMPRESSED))) {
+		page_type == FIL_PAGE_TYPE_ZBLOB2 ||
+		page_type == FIL_PAGE_COMPRESSED ||
+		page_type == FIL_PAGE_TYPE_UNKNOWN ||
+		page_type == FIL_PAGE_ENCRYPTED ||
+		page_type == FIL_PAGE_COMPRESSED_AND_ENCRYPTED ||
+		page_type == FIL_PAGE_ENCRYPTED_RTREE))) {
 
 		uint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 		bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED);
@@ -167,7 +180,13 @@ fil_page_type_validate(
 			page_type == FIL_PAGE_TYPE_XDES ||
 			page_type == FIL_PAGE_TYPE_BLOB ||
 			page_type == FIL_PAGE_TYPE_ZBLOB ||
-			page_type == FIL_PAGE_COMPRESSED);
+			page_type == FIL_PAGE_TYPE_ZBLOB2 ||
+			page_type == FIL_PAGE_COMPRESSED ||
+			page_type == FIL_PAGE_TYPE_UNKNOWN ||
+			page_type == FIL_PAGE_ENCRYPTED ||
+			page_type == FIL_PAGE_COMPRESSED_AND_ENCRYPTED ||
+			page_type == FIL_PAGE_ENCRYPTED_RTREE);
+
 		return false;
 	}
 

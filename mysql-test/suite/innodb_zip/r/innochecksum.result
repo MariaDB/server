@@ -11,16 +11,20 @@ insert into t1 values(2,"am");
 insert into t1 values(3,"compressed table");
 # Shutdown the Server
 # Server Default checksum = innodb
-[1a]: check the innochecksum when file doesn't exists
 [1b]: check the innochecksum without --strict-check
 [2]: check the innochecksum with full form --strict-check=crc32
 [3]: check the innochecksum with short form -C crc32
 [4]: check the innochecksum with --no-check ignores algorithm check, warning is expected
+FOUND /Error: --no-check must be associated with --write option./ in my_restart.err
 [5]: check the innochecksum with short form --no-check ignores algorithm check, warning is expected
+FOUND /Error: --no-check must be associated with --write option./ in my_restart.err
 [6]: check the innochecksum with full form strict-check & no-check , an error is expected
+FOUND /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
 [7]: check the innochecksum with short form strict-check & no-check , an error is expected
+FOUND /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
 [8]: check the innochecksum with short & full form combination
 # strict-check & no-check, an error is expected
+FOUND /Error: --strict-check option cannot be used together with --no-check option./ in my_restart.err
 [9]: check the innochecksum with full form --strict-check=innodb
 [10]: check the innochecksum with full form --strict-check=none
 # when server Default checksum=crc32
@@ -29,12 +33,21 @@ insert into t1 values(3,"compressed table");
 [12]: check the innochecksum with short form -C none
 # when server Default checksum=crc32
 [13]: check strict-check with invalid values
+FOUND /Error while setting value \'strict_innodb\' to \'strict-check\'/ in my_restart.err
+FOUND /Error while setting value \'strict_innodb\' to \'strict-check\'/ in my_restart.err
+FOUND /Error while setting value \'strict_crc32\' to \'strict-check\'/ in my_restart.err
+FOUND /Error while setting value \'strict_crc32\' to \'strict-check\'/ in my_restart.err
+FOUND /Error while setting value \'strict_none\' to \'strict-check\'/ in my_restart.err
+FOUND /Error while setting value \'strict_none\' to \'strict-check\'/ in my_restart.err
+FOUND /Error while setting value \'InnoBD\' to \'strict-check\'/ in my_restart.err
+FOUND /Error while setting value \'InnoBD\' to \'strict-check\'/ in my_restart.err
+FOUND /Error while setting value \'crc\' to \'strict-check\'/ in my_restart.err
+FOUND /Error while setting value \'no\' to \'strict-check\'/ in my_restart.err
 [14a]: when server default checksum=crc32 rewrite new checksum=crc32 with innochecksum
 # Also check the long form of write option.
 [14b]: when server default checksum=crc32 rewrite new checksum=innodb with innochecksum
 # Also check the long form of write option.
 # start the server with innodb_checksum_algorithm=InnoDB
-# restart
 INSERT INTO tab1 VALUES(2, 'Innochecksum CRC32');
 SELECT c1,c2 FROM tab1 order by c1,c2;
 c1	c2
@@ -44,7 +57,6 @@ c1	c2
 [15]: when server default checksum=crc32 rewrite new checksum=none with innochecksum
 # Also check the short form of write option.
 # Start the server with checksum algorithm=none
-# restart
 INSERT INTO tab1 VALUES(3, 'Innochecksum None');
 SELECT c1,c2 FROM tab1 order by c1,c2;
 c1	c2
@@ -55,7 +67,6 @@ DROP TABLE t1;
 # Stop the server
 [16]: rewrite into new checksum=crc32 with innochecksum
 # Restart the DB server with  innodb_checksum_algorithm=crc32
-# restart
 SELECT * FROM tab1;
 c1	c2
 1	Innochecksum InnoDB1
@@ -69,14 +80,15 @@ c1	c2
 # Stop server
 [17]: rewrite into new checksum=InnoDB
 # Restart the DB server with innodb_checksum_algorithm=InnoDB
-# restart
 DELETE FROM tab1 where c1=2;
 SELECT * FROM tab1;
 c1	c2
 1	Innochecksum InnoDB1
 # Stop server
 [18]:check Innochecksum with invalid write options
+FOUND /Error while setting value \'strict_crc32\' to \'write\'/ in my_restart.err
+FOUND /Error while setting value \'strict_innodb\' to \'write\'/ in my_restart.err
+FOUND /Error while setting value \'crc23\' to \'write\'/ in my_restart.err
 # Restart the server
-# restart
 DROP TABLE tab1;
 SET GLOBAL innodb_file_per_table=default;
