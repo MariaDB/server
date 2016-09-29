@@ -222,7 +222,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                table_list->view_db.str, table_list->view_name.str);
       DBUG_RETURN(-1);
     }
-    if (values.elements != table->user_fields())
+    if (values.elements != table->vers_user_fields())
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
@@ -1029,7 +1029,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         }
       }
 
-      if (table->versioned())
+      if (table->versioned_by_sql())
         table->vers_update_fields();
 
       if ((res= table_list->view_check_option(thd,
@@ -1558,7 +1558,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   if (!table)
     table= table_list->table;
 
-  if (table->versioned() && duplic == DUP_REPLACE)
+  if (table->versioned_by_sql() && duplic == DUP_REPLACE)
   {
     // Additional memory may be required to create historical items.
     if (table_list->set_insert_values(thd->mem_root))
@@ -1622,22 +1622,16 @@ static int last_uniq_key(TABLE *table,uint keynr)
  sets Sys_end to now() and calls ha_write_row() .
 */
 
-int vers_insert_history_row(TABLE *table, ha_rows *inserted)
+int vers_insert_history_row(TABLE *table)
 {
-  DBUG_ASSERT(table->versioned());
+  DBUG_ASSERT(table->versioned_by_sql());
   restore_record(table,record[1]);
 
   // Set Sys_end to now()
   if (table->vers_end_field()->set_time())
-  {
-    return 1;
-  }
+    DBUG_ASSERT(0);
 
-  const int error= table->file->ha_write_row(table->record[0]);
-  if (!error)
-    ++*inserted;
-
-  return error;
+  return table->file->ha_write_row(table->record[0]);
 }
 
 /*
@@ -1846,9 +1840,20 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (error != HA_ERR_RECORD_IS_THE_SAME)
           {
             info->updated++;
-            if (table->versioned() &&
-              (error=vers_insert_history_row(table, &info->copied)))
-              goto err;
+            if (table->versioned())
+            {
+              if (table->versioned_by_sql())
+              {
+                store_record(table, record[2]);
+                if ((error= vers_insert_history_row(table)))
+                {
+                  restore_record(table, record[2]);
+                  goto err;
+                }
+                restore_record(table, record[2]);
+              }
+              info->copied++;
+            }
           }
           else
             error= 0;
@@ -1907,7 +1912,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         if (last_uniq_key(table,key_nr) &&
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()) &&
-            !table->versioned())
+            !table->versioned_by_sql())
         {
           if ((error=table->file->ha_update_row(table->record[1],
                                                 table->record[0])) &&
@@ -1931,7 +1936,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
 
-          if (!table->versioned())
+          if (!table->versioned_by_sql())
             error= table->file->ha_delete_row(table->record[1]);
           else
           {
@@ -1949,7 +1954,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           }
           if (error)
             goto err;
-          if (!table->versioned())
+          if (!table->versioned_by_sql())
             info->deleted++;
           else
             info->updated++;
@@ -2040,7 +2045,9 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry, TABLE_LIST *t
   for (Field **field=entry->field ; *field ; field++)
   {
     if (!bitmap_is_set(write_set, (*field)->field_index) &&
-        has_no_default_value(thd, *field, table_list))
+        has_no_default_value(thd, *field, table_list) &&
+        !((*field)->flags & (GENERATED_ROW_START_FLAG | GENERATED_ROW_END_FLAG)) &&
+        ((*field)->real_type() != MYSQL_TYPE_ENUM))
       err=1;
   }
   return thd->abort_on_warning ? err : 0;
@@ -3795,7 +3802,7 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(0);
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
-  if (table->versioned())
+  if (table->versioned_by_sql())
     table->vers_update_fields();
   store_values(values);
   if (table->default_field && table->update_default_fields(0, info.ignore))

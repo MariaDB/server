@@ -3848,7 +3848,7 @@ innobase_init(
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags =
-		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS;
+		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS | HTON_SUPPORTS_SYS_VERSIONING;
 
 	innobase_hton->release_temporary_latches =
 		innobase_release_temporary_latches;
@@ -9478,6 +9478,11 @@ ha_innobase::update_row(
 
 	error = row_update_for_mysql((byte*) old_row, m_prebuilt);
 
+	if (error == DB_SUCCESS && DICT_TF2_FLAG_IS_SET(m_prebuilt->table, DICT_TF2_VERSIONED)) {
+		if (trx->id != static_cast<trx_id_t>(table->vers_start_field()->val_int()))
+			error = row_insert_for_mysql((byte*) old_row, m_prebuilt, true);
+	}
+
 	if (error == DB_SUCCESS && autoinc) {
 		/* A value for an AUTO_INCREMENT column
 		was specified in the UPDATE statement. */
@@ -11677,8 +11682,17 @@ create_table_info_t::create_table_def()
 	for (i = 0; i < n_cols; i++) {
 		ulint	is_virtual;
 		bool	is_stored = false;
-
 		Field*	field = m_form->field[i];
+		ulint vers_row_start = 0;
+		ulint vers_row_end = 0;
+
+		if (m_flags2 & DICT_TF2_VERSIONED) {
+			if (i == m_form->s->row_start_field) {
+				vers_row_start = DATA_VERS_ROW_START;
+			} else if (i == m_form->s->row_end_field) {
+				vers_row_end = DATA_VERS_ROW_END;
+			}
+		}
 
 		col_type = get_innobase_type_from_mysql_type(
 			&unsigned_type, field);
@@ -11773,7 +11787,8 @@ err_col:
 				dtype_form_prtype(
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
-					| binary_type | long_true_varchar,
+					| binary_type | long_true_varchar
+					| vers_row_start | vers_row_end,
 					charset_no),
 				col_len);
 		} else {
@@ -11783,6 +11798,7 @@ err_col:
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
 					| binary_type | long_true_varchar
+					| vers_row_start | vers_row_end
 					| is_virtual,
 					charset_no),
 				col_len, i, 0);

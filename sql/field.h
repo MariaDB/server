@@ -677,17 +677,16 @@ public:
   { DBUG_ASSERT(0); }
 
   /**
-     Is used by System Versioning.
+     Used by System Versioning.
    */
-  virtual bool set_max_timestamp() {
-    return true;
-  }
+  virtual bool set_max()
+  { DBUG_ASSERT(0); return false; }
+
   /**
-     Is used by System Versioning.
+     Used by System Versioning.
    */
-  virtual bool is_max_timestamp() {
-    return false;
-  }
+  virtual bool is_max()
+  { DBUG_ASSERT(0); return false; }
 
   uchar		*ptr;			// Position to field in record
   /**
@@ -2173,6 +2172,9 @@ public:
   {
     return unpack_int64(to, from, from_end);
   }
+
+  bool set_max();
+  bool is_max();
 };
 
 
@@ -2582,8 +2584,8 @@ public:
   {
     return memcmp(a_ptr, b_ptr, pack_length());
   }
-  virtual bool set_max_timestamp();
-  virtual bool is_max_timestamp();
+  bool set_max();
+  bool is_max();
   void store_TIME(my_time_t timestamp, ulong sec_part);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   uint size_of() const { return sizeof(*this); }

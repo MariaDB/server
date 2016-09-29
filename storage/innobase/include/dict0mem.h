@@ -329,8 +329,9 @@ use its own tablespace instead of the system tablespace. */
 index tables) of a FTS table are in HEX format. */
 #define DICT_TF2_FTS_AUX_HEX_NAME	64U
 
-
+/** System Versioning bit. */
 #define DICT_TF2_VERSIONED		512
+
 /* @} */
 
 #define DICT_TF2_FLAG_SET(table, flag)		\
@@ -1487,7 +1488,10 @@ struct dict_table_t {
 
 	/** Virtual column names */
 	const char*				v_col_names;
-
+	unsigned	vers_row_start:10;
+				/*!< System Versioning: row start col index */
+	unsigned	vers_row_end:10;
+				/*!< System Versioning: row end col index */
 	bool		is_system_db;
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or

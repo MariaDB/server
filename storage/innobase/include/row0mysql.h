@@ -241,7 +241,10 @@ row_lock_table_for_mysql(
 dberr_t
 row_insert_for_mysql(
 	const byte*		mysql_rec,
-	row_prebuilt_t*		prebuilt)
+	row_prebuilt_t*		prebuilt,
+	bool			historical
+					/*!< in: System Versioning, row is */
+			= false)	/* historical */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**

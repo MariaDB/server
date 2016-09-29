@@ -4356,6 +4356,20 @@ void Field_longlong::sql_type(String &res) const
   add_zerofill_and_unsigned(res);
 }
 
+bool Field_longlong::set_max()
+{
+  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  int8store(ptr, ULONGLONG_MAX);
+  return FALSE;
+}
+
+bool Field_longlong::is_max()
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  ulonglong j;
+  j = sint8korr(ptr);
+  return j == ULONGLONG_MAX;
+}
 
 /*
   Floating-point numbers
@@ -5423,9 +5437,10 @@ void Field_timestampf::store_TIME(my_time_t timestamp, ulong sec_part)
   my_timestamp_to_binary(&tm, ptr, dec);
 }
 
-bool Field_timestampf::set_max_timestamp()
+bool Field_timestampf::set_max()
 {
-  DBUG_ENTER("Field_timestampf::set_max_timestamp");
+  DBUG_ENTER("Field_timestampf::set_max");
+  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
 
   mi_int4store(ptr, 0x7fffffff);
   memset(ptr + 4, 0x0, value_length() - 4);
@@ -5433,9 +5448,10 @@ bool Field_timestampf::set_max_timestamp()
   DBUG_RETURN(FALSE);
 }
 
-bool Field_timestampf::is_max_timestamp()
+bool Field_timestampf::is_max()
 {
-  DBUG_ENTER("Field_timestampf::is_max_timestamp");
+  DBUG_ENTER("Field_timestampf::is_max");
+  ASSERT_COLUMN_MARKED_FOR_READ;
 
   DBUG_RETURN(mi_sint4korr(ptr) == 0x7fffffff);
 }

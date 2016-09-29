@@ -1385,6 +1385,11 @@ struct handlerton
    */
    int (*discover_table_structure)(handlerton *hton, THD* thd,
                                    TABLE_SHARE *share, HA_CREATE_INFO *info);
+
+   /*
+     Engine supports System Versioning
+   */
+   bool versioned();
 };
 
 
@@ -1432,6 +1437,7 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_NO_BINLOG_ROW_OPT       (1 << 9)
 #define HTON_SUPPORTS_EXTENDED_KEYS  (1 <<10) //supports extended keys
+#define HTON_SUPPORTS_SYS_VERSIONING (1 << 11) //Engine supports System Versioning
 
 // MySQL compatibility. Unused.
 #define HTON_SUPPORTS_FOREIGN_KEYS   (1 << 0) //Foreign key constraint supported.
@@ -4485,4 +4491,10 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
+
+inline
+bool handlerton::versioned()
+{
+  return flags & HTON_SUPPORTS_SYS_VERSIONING;
+}
 #endif /* HANDLER_INCLUDED */

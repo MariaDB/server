@@ -27,6 +27,11 @@ Created 4/20/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "row0ins.h"
+
+#ifdef UNIV_NONINL
+#include "row0ins.ic"
+#endif
+
 #include "dict0dict.h"
 #include "dict0boot.h"
 #include "trx0rec.h"
@@ -3814,17 +3819,6 @@ error_handling:
 	}
 
 	return(thr);
-}
-
-inline
-void set_row_field_8(dtuple_t* row, int field_num, ib_uint64_t data, mem_heap_t* heap)
-{
-	static const ulint fsize = 8;
-	dfield_t* dfield = dtuple_get_nth_field(row, field_num);
-	ut_ad(dfield->type.len == fsize);
-	byte* buf = static_cast<byte*>(mem_heap_alloc(heap, fsize));
-	mach_write_to_8(buf, data);
-	dfield_set_data(dfield, buf, fsize);
 }
 
 /***********************************************************//**

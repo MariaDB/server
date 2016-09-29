@@ -1406,7 +1406,8 @@ run_again:
 dberr_t
 row_insert_for_mysql(
 	const byte*	mysql_rec,
-	row_prebuilt_t*	prebuilt)
+	row_prebuilt_t*	prebuilt,
+	bool		historical)
 {
 	trx_savept_t	savept;
 	que_thr_t*	thr;
@@ -1486,6 +1487,16 @@ row_insert_for_mysql(
 	row_mysql_convert_row_to_innobase(node->row, prebuilt, mysql_rec,
 					  &blob_heap);
 
+	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
+		ut_ad(table->vers_row_start != table->vers_row_end);
+		if (historical) {
+			set_row_field_8(node->row, table->vers_row_end, trx->id, node->entry_sys_heap);
+		} else {
+			set_row_field_8(node->row, table->vers_row_start, trx->id, node->entry_sys_heap);
+			set_row_field_8(node->row, table->vers_row_end, IB_UINT64_MAX, node->entry_sys_heap);
+		}
+	}
+
 	savept = trx_savept_take(trx);
 
 	thr = que_fork_get_first_thr(prebuilt->ins_graph);
@@ -1537,7 +1548,7 @@ error_exit:
 
 	node->duplicate = NULL;
 
-	if (!trx->vtq_notify_on_commit && DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
+	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
 		trx->vtq_notify_on_commit = true;
 	}
 
@@ -1935,6 +1946,38 @@ row_update_for_mysql_using_upd_graph(
 					      prebuilt->clust_pcur);
 	}
 
+	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED))
+	{
+		/* System Versioning: update sys_trx_start to current trx_id */
+		upd_t* uvect = node->update;
+		upd_field_t* ufield;
+		dict_col_t* col;
+		if (node->is_delete) {
+			ufield = &uvect->fields[0];
+			uvect->n_fields = 0;
+			node->is_delete = false;
+			col = &table->cols[table->vers_row_end];
+		} else {
+			ut_ad(uvect->n_fields < node->table->n_cols);
+			ufield = &uvect->fields[uvect->n_fields];
+			col = &table->cols[table->vers_row_start];
+		}
+		UNIV_MEM_INVALID(ufield, sizeof *ufield);
+		ufield->field_no = dict_col_get_clust_pos(col, clust_index);
+		ufield->orig_len = 0;
+		ufield->exp = NULL;
+
+		static const ulint fsize = sizeof(trx_id_t);
+		byte* buf = static_cast<byte*>(mem_heap_alloc(node->heap, fsize));
+		mach_write_to_8(buf, trx->id);
+		dfield_t* dfield = &ufield->new_val;
+		dfield_set_data(dfield, buf, fsize);
+		dict_col_copy_type(col, &dfield->type);
+
+		uvect->n_fields++;
+		ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
+	}
+
 	ut_a(node->pcur->rel_pos == BTR_PCUR_ON);
 
 	/* MySQL seems to call rnd_pos before updating each row it
@@ -2132,7 +2175,7 @@ run_again:
 		}
 	}
 
-	if (!trx->vtq_notify_on_commit && DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
+	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
 		trx->vtq_notify_on_commit = true;
 	}
 

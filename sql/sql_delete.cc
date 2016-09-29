@@ -216,7 +216,7 @@ inline
 int TABLE::delete_row()
 {
   int error;
-  if (!versioned())
+  if (!versioned_by_sql())
     error= file->ha_delete_row(record[0]);
   else
   {
@@ -360,7 +360,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (!with_select && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() &&
        !(table->triggers && table->triggers->has_delete_triggers()))
-      && !table->versioned())
+      && !table->versioned_by_sql())
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -576,8 +576,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   while (!(error=info.read_record(&info)) && !thd->killed &&
 	 ! thd->is_error())
   {
-    if (table->versioned() &&
-        !table->vers_end_field()->is_max_timestamp())
+    if (table->versioned() && !table->vers_end_field()->is_max())
     {
       continue;
     }
@@ -1076,8 +1075,7 @@ int multi_delete::send_data(List<Item> &values)
     if (table->status & (STATUS_NULL_ROW | STATUS_DELETED))
       continue;
 
-    if (table->versioned() &&
-        !table->vers_end_field()->is_max_timestamp())
+    if (table->versioned() && !table->vers_end_field()->is_max())
     {
       continue;
     }

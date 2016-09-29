@@ -7531,3 +7531,9 @@ ER_SYS_START_FIELD_MUST_BE_TIMESTAMP
 
 ER_SYS_END_FIELD_MUST_BE_TIMESTAMP
         eng "System end field must be of type TIMESTAMP"
+
+ER_SYS_START_FIELD_MUST_BE_BIGINT
+        eng "System start field must be of type BIGINT UNSIGNED"
+
+ER_SYS_END_FIELD_MUST_BE_BIGINT
+        eng "System end field must be of type BIGINT UNSIGNED"

@@ -1484,7 +1484,7 @@ public:
   bool export_structure(THD *thd, class Row_definition_list *defs);
 
   /**
-    System versioning support.
+    System Versioning support
    */
 
   bool versioned() const
@@ -1492,15 +1492,22 @@ public:
     return s->versioned;
   }
 
+  /* Versioned by SQL layer */
+  bool versioned_by_sql() const
+  {
+    DBUG_ASSERT(s->db_type());
+    return s->versioned && !s->db_type()->versioned();
+  }
+
   Field *vers_start_field() const
   {
-    DBUG_ASSERT(versioned());
+    DBUG_ASSERT(s->versioned);
     return field[s->row_start_field];
   }
 
   Field *vers_end_field() const
   {
-    DBUG_ASSERT(versioned());
+    DBUG_ASSERT(s->versioned);
     return field[s->row_end_field];
   }
 
@@ -1509,9 +1516,9 @@ public:
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
 
-  uint user_fields() const
+  uint vers_user_fields() const
   {
-    return versioned() ?
+    return s->versioned ?
       s->fields - VERSIONING_FIELDS :
       s->fields;
   }

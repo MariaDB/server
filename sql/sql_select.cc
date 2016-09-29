@@ -676,7 +676,7 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
 
   for (table= tables; table; table= table->next_local)
   {
-    if (table->table && table->table->versioned())
+    if (table->table && table->table->versioned_by_sql())
       versioned_tables++;
     else if (table->system_versioning.type != FOR_SYSTEM_TIME_UNSPECIFIED)
     {
@@ -690,7 +690,7 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
 
   for (table= tables; table; table= table->next_local)
   {
-    if (table->table && table->table->versioned())
+    if (table->table && table->table->versioned_by_sql())
     {
       Field *fstart= table->table->vers_start_field();
       Field *fend= table->table->vers_end_field();
