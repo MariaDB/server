@@ -1414,5 +1414,15 @@ eval create view v3 as $q;
 show create view v3;
 select * from v3;
 
-drop view v1,v2,v3;
+let $q=
+select pk, c, c/count(*) over (partition by c order by pk
+                               range between 3 preceding and current row) as CNT
+from t1;
+
+eval $q;
+eval create view v4 as $q;
+show create view v4;
+select * from v4;
+
+drop view v1,v2,v3,v4;
 drop table t0,t1;

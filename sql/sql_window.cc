@@ -107,7 +107,11 @@ Window_frame::print(String *str, enum_query_type query_type)
   case UNITS_ROWS:
     str->append(STRING_WITH_LEN(" rows "));
     break;
-  case UNITS_RANGE: str->append(STRING_WITH_LEN(" range "));
+  case UNITS_RANGE:
+    str->append(STRING_WITH_LEN(" range "));
+    break; 
+  default:
+    DBUG_ASSERT(0);
   }
 
   str->append(STRING_WITH_LEN("between "));
@@ -129,6 +133,7 @@ Window_frame::print(String *str, enum_query_type query_type)
        str->append(STRING_WITH_LEN(" ties "));
        break;
      default: 
+       DBUG_ASSERT(0);
        ;
      }
   } 
