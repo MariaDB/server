@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015. MariaDB Corporation.
+Copyright (c) 2015, 2016 MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -180,16 +180,9 @@ buf_read_page_low(
 
 	IORequest	request(type | IORequest::READ);
 
-	ut_ad(dst != NULL);
-	ut_ad(bpage->zip.data != NULL || ((buf_block_t*)bpage)->frame != NULL);
-
 	*err = fil_io(
 		request, sync, page_id, page_size, 0, page_size.physical(),
 		dst, bpage, NULL);
-
-	ut_ad(dst != NULL);
-	ut_ad(bpage->zip.data != NULL || ((buf_block_t*)bpage)->frame != NULL);
-	ut_ad(bpage->id.space() == page_id.space());
 
 	if (sync) {
 		thd_wait_end(NULL);
@@ -218,8 +211,6 @@ buf_read_page_low(
 	}
 
 	if (sync) {
-		ut_ad(dst != NULL);
-		ut_ad(bpage->zip.data != NULL || ((buf_block_t*)bpage)->frame != NULL);
 		/* The i/o is already completed when we arrive from
 		fil_read */
 
