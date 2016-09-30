@@ -28,6 +28,8 @@ Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 #include "ha_prototypes.h"
 #include <mysql_version.h>
 #include <field.h>
+#include <tztime.h>
+
 #include "univ.i"
 
 #include <sql_acl.h>
@@ -375,22 +377,19 @@ Auxiliary function to store packed timestamp value in MYSQL_TYPE_DATETIME field.
 If the value is ULINT_UNDEFINED then the field it set to NULL.
 @return	0 on success */
 int
-field_store_packed_ts(
+field_store_timeval(
 /*==============*/
 Field*	field,	/*!< in/out: target field for storage */
-ullong	n)	/*!< in: value to store */
+timeval	t,	/*!< in: value to store */
+THD*	thd)
 {
 	int	ret;
 	MYSQL_TIME tmp;
 
-	if (n != UINT64_UNDEFINED) {
-		unpack_time(n, &tmp);
-		ret = field->store_time(&tmp);
-		field->set_notnull();
-	} else {
-		ret = 0; /* success */
-		field->set_null();
-	}
+	thd_get_timezone(thd)->gmt_sec_to_TIME(&tmp, t.tv_sec);
+	tmp.second_part = t.tv_usec;
+	ret = field->store_time(&tmp);
+	field->set_notnull();
 
 	return(ret);
 }
@@ -9711,8 +9710,8 @@ i_s_dict_fill_vtq(
 /*========================*/
 	THD*		thd,		/*!< in: thread */
 	ullong		col_trx_id,	/*!< in: table fields */
-	ullong		col_begin_ts,
-	ullong		col_commit_ts,
+	timeval&	col_begin_ts,
+	timeval&	col_commit_ts,
 	char*		col_concurr_trx,
 	TABLE*		table_to_fill)	/*!< in/out: fill this table */
 {
@@ -9722,8 +9721,8 @@ i_s_dict_fill_vtq(
 	fields = table_to_fill->field;
 
 	OK(field_store_ullong(fields[SYS_VTQ_TRX_ID], col_trx_id));
-	OK(field_store_packed_ts(fields[SYS_VTQ_BEGIN_TS], col_begin_ts));
-	OK(field_store_packed_ts(fields[SYS_VTQ_COMMIT_TS], col_commit_ts));
+	OK(field_store_timeval(fields[SYS_VTQ_BEGIN_TS], col_begin_ts, thd));
+	OK(field_store_timeval(fields[SYS_VTQ_COMMIT_TS], col_commit_ts, thd));
 	OK(field_store_string(fields[SYS_VTQ_CONCURR_TRX], col_concurr_trx));
 
 	OK(schema_table_store_record(thd, table_to_fill));
@@ -9770,8 +9769,8 @@ i_s_sys_vtq_fill_table(
 	for (int i = 0; rec && i < I_S_SYS_VTQ_LIMIT; ++i) {
 		const char*	err_msg;
 		trx_id_t	col_trx_id;
-		ullong		col_begin_ts;
-		ullong		col_commit_ts;
+		timeval		col_begin_ts;
+		timeval		col_commit_ts;
 		char*		col_concurr_trx;
 
 		/* Extract necessary information from SYS_VTQ row */

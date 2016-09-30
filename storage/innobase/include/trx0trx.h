@@ -829,6 +829,12 @@ typedef enum {
 	TRX_WSREP_ABORT  = 1
 } trx_abort_t;
 
+struct vtq_query_t
+{
+	trx_id_t	trx_id;
+	timeval		begin_ts;
+	timeval		commit_ts;
+};
 
 /** Represents an instance of rollback segment along with its state variables.*/
 struct trx_undo_ptr_t {
@@ -1267,7 +1273,12 @@ struct trx_t {
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */
 
-	bool vtq_notify_on_commit;	/*!< Notify VTQ for System Versioned update */
+	/* System Versioning */
+	bool		vtq_notify_on_commit;
+					/*!< Notify VTQ for System Versioned update */
+	vtq_query_t	vtq_query;
+	trx_id_t*	vtq_concurr_trx;
+	ulint		vtq_concurr_n;
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */

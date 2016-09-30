@@ -5621,6 +5621,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       expression to 'reference', i.e. it substitute that expression instead
       of this Item_field
     */
+    DBUG_ASSERT(context);
     if ((from_field= find_field_in_tables(thd, this,
                                           context->first_name_resolution_table,
                                           context->last_name_resolution_table,

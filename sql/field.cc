@@ -5448,7 +5448,7 @@ bool Field_timestampf::set_max()
   DBUG_ENTER("Field_timestampf::set_max");
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
 
-  mi_int4store(ptr, 0x7fffffff);
+  mi_int4store(ptr, TIMESTAMP_MAX_VALUE);
   memset(ptr + 4, 0x0, value_length() - 4);
 
   DBUG_RETURN(FALSE);

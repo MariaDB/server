@@ -1286,4 +1286,26 @@ public:
   { return get_item_copy<Item_func_last_day>(thd, mem_root, this); }
 };
 
+#include "vtq.h"
+
+class Item_func_vtq_ts :public Item_datetimefunc
+{
+  vtq_field_t vtq_field;
+  handlerton *hton;
+public:
+  Item_func_vtq_ts(THD *thd, Item* a, vtq_field_t _vtq_field, handlerton *hton);
+  Item_func_vtq_ts(THD *thd, Item* a, vtq_field_t _vtq_field);
+  const char *func_name() const
+  {
+    if (vtq_field == VTQ_BEGIN_TS)
+    {
+      return "begin_ts";
+    }
+    return "commit_ts";
+  }
+  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_vtq_ts>(thd, mem_root, this); }
+};
+
 #endif /* ITEM_TIMEFUNC_INCLUDED */

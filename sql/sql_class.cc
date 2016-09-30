@@ -706,6 +706,11 @@ extern "C" void thd_kill_timeout(THD* thd)
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
+Time_zone * thd_get_timezone(THD * thd)
+{
+	DBUG_ASSERT(thd && thd->variables.time_zone);
+	return thd->variables.time_zone;
+}
 
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
@@ -3587,6 +3592,7 @@ void Query_arena::set_query_arena(Query_arena *set)
   mem_root=  set->mem_root;
   free_list= set->free_list;
   state= set->state;
+  is_stored_procedure= set->is_stored_procedure;
 }
 
 

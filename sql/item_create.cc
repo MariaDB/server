@@ -6678,6 +6678,92 @@ Create_func_year_week::create_native(THD *thd, LEX_STRING name,
 }
 
 
+/* System Versioning: BEGIN_TS(), COMMIT_TS() */
+
+class Create_func_begin_ts : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_STRING name, List<Item> *item_list);
+
+  static Create_func_begin_ts s_singleton;
+
+protected:
+  Create_func_begin_ts() {}
+  virtual ~Create_func_begin_ts() {}
+};
+
+Create_func_begin_ts Create_func_begin_ts::s_singleton;
+
+Item*
+Create_func_begin_ts::create_native(THD *thd, LEX_STRING name,
+  List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 1:
+  {
+    Item *param_1= item_list->pop();
+    func= new (thd->mem_root) Item_func_vtq_ts(thd, param_1, VTQ_BEGIN_TS);
+    break;
+  }
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+    break;
+  }
+  }
+
+  return func;
+}
+
+class Create_func_commit_ts : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_STRING name, List<Item> *item_list);
+
+  static Create_func_commit_ts s_singleton;
+
+protected:
+  Create_func_commit_ts() {}
+  virtual ~Create_func_commit_ts() {}
+};
+
+Create_func_commit_ts Create_func_commit_ts::s_singleton;
+
+Item*
+Create_func_commit_ts::create_native(THD *thd, LEX_STRING name,
+  List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 1:
+  {
+    Item *param_1= item_list->pop();
+    func= new (thd->mem_root) Item_func_vtq_ts(thd, param_1, VTQ_COMMIT_TS);
+    break;
+  }
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+    break;
+  }
+  }
+
+  return func;
+}
+
+
+
 struct Native_func_registry
 {
   LEX_STRING name;
@@ -6718,6 +6804,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("ASWKT") }, GEOM_BUILDER(Create_func_as_wkt)},
   { { C_STRING_WITH_LEN("ATAN") }, BUILDER(Create_func_atan)},
   { { C_STRING_WITH_LEN("ATAN2") }, BUILDER(Create_func_atan)},
+  { { C_STRING_WITH_LEN("BEGIN_TS") }, BUILDER(Create_func_begin_ts)},
   { { C_STRING_WITH_LEN("BENCHMARK") }, BUILDER(Create_func_benchmark)},
   { { C_STRING_WITH_LEN("BIN") }, BUILDER(Create_func_bin)},
   { { C_STRING_WITH_LEN("BINLOG_GTID_POS") }, BUILDER(Create_func_binlog_gtid_pos)},
@@ -6735,6 +6822,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("COLUMN_EXISTS") }, BUILDER(Create_func_dyncol_exists)},
   { { C_STRING_WITH_LEN("COLUMN_LIST") }, BUILDER(Create_func_dyncol_list)},
   { { C_STRING_WITH_LEN("COLUMN_JSON") }, BUILDER(Create_func_dyncol_json)},
+  { { C_STRING_WITH_LEN("COMMIT_TS") }, BUILDER(Create_func_commit_ts)},
   { { C_STRING_WITH_LEN("COMPRESS") }, BUILDER(Create_func_compress)},
   { { C_STRING_WITH_LEN("CONCAT") }, BUILDER(Create_func_concat)},
   { { C_STRING_WITH_LEN("CONCAT_WS") }, BUILDER(Create_func_concat_ws)},

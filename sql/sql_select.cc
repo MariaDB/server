@@ -55,6 +55,7 @@
 #include "sql_statistics.h"
 #include "sql_cte.h"
 #include "sql_window.h"
+#include "tztime.h"
 
 #include "debug_sync.h"          // DEBUG_SYNC
 #include <m_ctype.h>
@@ -673,10 +674,19 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
 
   TABLE_LIST *table;
   int versioned_tables= 0;
+  Query_arena *arena= 0, backup;
+  bool is_prepare= thd->stmt_arena->is_stmt_prepare();
+
+  if (!thd->stmt_arena->is_conventional()
+    && !is_prepare
+    && !thd->stmt_arena->is_sp_execute())
+  {
+    DBUG_RETURN(0);
+  }
 
   for (table= tables; table; table= table->next_local)
   {
-    if (table->table && table->table->versioned_by_sql())
+    if (table->table && table->table->versioned())
       versioned_tables++;
     else if (table->system_versioning.type != FOR_SYSTEM_TIME_UNSPECIFIED)
     {
@@ -688,50 +698,113 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
   if (versioned_tables == 0)
     DBUG_RETURN(0);
 
+  /* For prepared statements we create items on statement arena,
+     because they must outlive execution phase for multiple executions. */
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  if (select_lex->saved_conds)
+  {
+    DBUG_ASSERT(thd->stmt_arena->is_sp_execute());
+    *conds= select_lex->saved_conds;
+  }
+  else if (thd->stmt_arena->is_sp_execute())
+  {
+    if (thd->stmt_arena->is_stmt_execute())
+      *conds= 0;
+    else if (*conds)
+      select_lex->saved_conds= (*conds)->copy_andor_structure(thd);
+  }
+
   for (table= tables; table; table= table->next_local)
   {
-    if (table->table && table->table->versioned_by_sql())
+    if (table->table && table->table->versioned())
     {
       Field *fstart= table->table->vers_start_field();
       Field *fend= table->table->vers_end_field();
-      Item *istart= new (thd->mem_root) Item_field(thd, fstart);
-      Item *iend= new (thd->mem_root) Item_field(thd, fend);
-      Item *cond1= 0, *cond2= 0, *curr = 0;
+
+      DBUG_ASSERT(select_lex->parent_lex);
+      Name_resolution_context *context= select_lex->parent_lex->current_context();
+      DBUG_ASSERT(context);
+
+      Item *row_start= new (thd->mem_root) Item_field(thd, context, fstart);
+      Item *row_end= new (thd->mem_root) Item_field(thd, context, fend);
+      Item *row_end2= row_end;
+
+      if (!table->table->versioned_by_sql())
+      {
+        DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
+        row_start= new (thd->mem_root) Item_func_vtq_ts(
+          thd,
+          row_start,
+          VTQ_COMMIT_TS,
+          plugin_hton(table->table->s->db_plugin));
+        row_end= new (thd->mem_root) Item_func_vtq_ts(
+          thd,
+          row_end,
+          VTQ_COMMIT_TS,
+          plugin_hton(table->table->s->db_plugin));
+      }
+
+      Item *cond1= 0, *cond2= 0, *curr= 0;
       switch (table->system_versioning.type)
       {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
-          curr= new (thd->mem_root) Item_func_now_local(thd, 6);
-          cond1= new (thd->mem_root) Item_func_le(thd, istart, curr);
-          cond2= new (thd->mem_root) Item_func_gt(thd, iend, curr);
+          if (table->table->versioned_by_sql())
+          {
+            MYSQL_TIME max_time;
+            thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
+            curr= new (thd->mem_root) Item_datetime_literal(thd, &max_time);
+            cond1= new (thd->mem_root) Item_func_eq(thd, row_end, curr);
+          }
+          else
+          {
+            curr= new (thd->mem_root) Item_int(thd, ULONGLONG_MAX);
+            cond1= new (thd->mem_root) Item_func_eq(thd, row_end2, curr);
+          }
           break;
         case FOR_SYSTEM_TIME_AS_OF:
-          cond1= new (thd->mem_root) Item_func_le(thd, istart,
-                                                  table->system_versioning.start);
-          cond2= new (thd->mem_root) Item_func_gt(thd, iend,
-                                                  table->system_versioning.start);
+          cond1= new (thd->mem_root) Item_func_le(thd, row_start,
+            table->system_versioning.start);
+          cond2= new (thd->mem_root) Item_func_gt(thd, row_end,
+            table->system_versioning.start);
           break;
         case FOR_SYSTEM_TIME_FROM_TO:
-          cond1= new (thd->mem_root) Item_func_lt(thd, istart,
+          cond1= new (thd->mem_root) Item_func_lt(thd, row_start,
                                                   table->system_versioning.end);
-          cond2= new (thd->mem_root) Item_func_ge(thd, iend,
+          cond2= new (thd->mem_root) Item_func_ge(thd, row_end,
                                                   table->system_versioning.start);
           break;
         case FOR_SYSTEM_TIME_BETWEEN:
-          cond1= new (thd->mem_root) Item_func_le(thd, istart,
+          cond1= new (thd->mem_root) Item_func_le(thd, row_start,
                                                   table->system_versioning.end);
-          cond2= new (thd->mem_root) Item_func_ge(thd, iend,
+          cond2= new (thd->mem_root) Item_func_ge(thd, row_end,
                                                   table->system_versioning.start);
           break;
         default:
           DBUG_ASSERT(0);
       }
-      if (cond1 && cond2)
+
+      if (cond1)
       {
-        COND *system_time_cond= new (thd->mem_root) Item_cond_and(thd, cond1, cond2);
-        thd->change_item_tree(conds, and_items(thd, *conds, system_time_cond));
+        cond1= and_items(thd,
+          *conds,
+          and_items(thd,
+            cond2,
+            cond1));
+
+        if (arena)
+          *conds= cond1;
+        else
+          thd->change_item_tree(conds, cond1);
+
         table->system_versioning.is_moved_to_where= true;
       }
     }
+  }
+
+  if (arena)
+  {
+    thd->restore_active_arena(arena, &backup);
   }
 
   DBUG_RETURN(0);

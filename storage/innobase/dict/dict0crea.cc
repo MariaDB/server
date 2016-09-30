@@ -1920,7 +1920,7 @@ dict_create_or_check_vtq_table(void)
 		row_drop_table_for_mysql("SYS_VTQ", trx, false, TRUE);
 	}
 
-	ib::warn() <<
+	ib::info() <<
 		"Creating VTQ system table.";
 
 	srv_file_per_table_backup = srv_file_per_table;

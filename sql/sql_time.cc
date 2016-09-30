@@ -476,18 +476,6 @@ void localtime_to_TIME(MYSQL_TIME *to, struct tm *from)
 }
 
 
-/*
-  Convert seconds since Epoch to TIME
-*/
-
-void unix_time_to_TIME(MYSQL_TIME *to, time_t secs, suseconds_t usecs)
-{
-  struct tm tm_time;
-  localtime_r(&secs, &tm_time);
-  localtime_to_TIME(to, &tm_time);
-  to->second_part = usecs;
-}
-
 void calc_time_from_sec(MYSQL_TIME *to, long seconds, long microseconds)
 {
   long t_seconds;

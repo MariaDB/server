@@ -1489,11 +1489,22 @@ row_insert_for_mysql(
 
 	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
 		ut_ad(table->vers_row_start != table->vers_row_end);
+		/* Return back modified fields into mysql_rec, so that
+		   upper logic may benefit from it (f.ex. 'on duplicate key'). */
+		const mysql_row_templ_t* t = &prebuilt->mysql_template[table->vers_row_end];
+		ut_ad(t->mysql_col_len == 8);
+
 		if (historical) {
 			set_row_field_8(node->row, table->vers_row_end, trx->id, node->entry_sys_heap);
-		} else {
-			set_row_field_8(node->row, table->vers_row_start, trx->id, node->entry_sys_heap);
+			int8store(&mysql_rec[t->mysql_col_offset], trx->id);
+		}
+		else {
 			set_row_field_8(node->row, table->vers_row_end, IB_UINT64_MAX, node->entry_sys_heap);
+			int8store(&mysql_rec[t->mysql_col_offset], IB_UINT64_MAX);
+			t = &prebuilt->mysql_template[table->vers_row_start];
+			ut_ad(t->mysql_col_len == 8);
+			set_row_field_8(node->row, table->vers_row_start, trx->id, node->entry_sys_heap);
+			int8store(&mysql_rec[t->mysql_col_offset], trx->id);
 		}
 	}
 
@@ -1948,20 +1959,25 @@ row_update_for_mysql_using_upd_graph(
 
 	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED))
 	{
-		/* System Versioning: update sys_trx_start to current trx_id */
+		/* System Versioning: modify update vector to set
+		   sys_trx_start (or sys_trx_end in case of DELETE)
+		   to current trx_id. */
 		upd_t* uvect = node->update;
 		upd_field_t* ufield;
 		dict_col_t* col;
+		const mysql_row_templ_t* t;
+		unsigned col_idx;
 		if (node->is_delete) {
 			ufield = &uvect->fields[0];
 			uvect->n_fields = 0;
 			node->is_delete = false;
-			col = &table->cols[table->vers_row_end];
+			col_idx = table->vers_row_end;
 		} else {
 			ut_ad(uvect->n_fields < node->table->n_cols);
 			ufield = &uvect->fields[uvect->n_fields];
-			col = &table->cols[table->vers_row_start];
+			col_idx = table->vers_row_start;
 		}
+		col = &table->cols[col_idx];
 		UNIV_MEM_INVALID(ufield, sizeof *ufield);
 		ufield->field_no = dict_col_get_clust_pos(col, clust_index);
 		ufield->orig_len = 0;
@@ -1976,6 +1992,11 @@ row_update_for_mysql_using_upd_graph(
 
 		uvect->n_fields++;
 		ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
+
+		/* Return trx_id back to mysql_rec (for the sake of interface consistency). */
+		t = &prebuilt->mysql_template[col_idx];
+		ut_ad(t->mysql_col_len == 8);
+		int8store(&mysql_rec[t->mysql_col_offset], trx->id);
 	}
 
 	ut_a(node->pcur->rel_pos == BTR_PCUR_ON);

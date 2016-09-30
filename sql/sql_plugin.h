@@ -160,6 +160,8 @@ extern ulong plugin_maturity;
 extern TYPELIB plugin_maturity_values;
 extern const char *plugin_maturity_names[];
 
+extern st_plugin_int* innodb_plugin;
+
 extern int plugin_init(int *argc, char **argv, int init_flags);
 extern void plugin_shutdown(void);
 void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root);

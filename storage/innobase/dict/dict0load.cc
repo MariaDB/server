@@ -846,8 +846,8 @@ dict_process_sys_vtq(
 mem_heap_t*	heap,		/*!< in/out: heap memory */
 const rec_t*	rec,		/*!< in: current rec */
 trx_id_t*	col_trx_id,	/*!< out: field values */
-ullong*		col_begin_ts,
-ullong*		col_commit_ts,
+timeval*	col_begin_ts,
+timeval*	col_commit_ts,
 char**		col_concurr_trx)
 {
 	ulint		len, col, concurr_n;
@@ -877,7 +877,8 @@ char**		col_concurr_trx)
 	if (len != sizeof(ullong))
 		return dict_print_error(heap, col, len, sizeof(ullong));
 
-	*col_begin_ts = mach_read_from_8(field);
+	col_begin_ts->tv_sec = mach_read_from_4(field);
+	col_begin_ts->tv_usec = mach_read_from_4(field + 4);
 	/* COMMIT_TS */
 	field = rec_get_nth_field_old(
 		rec, (col = DICT_FLD__SYS_VTQ__COMMIT_TS), &len);
@@ -885,7 +886,8 @@ char**		col_concurr_trx)
 	if (len != sizeof(ullong))
 		return dict_print_error(heap, col, len, sizeof(ullong));
 
-	*col_commit_ts = mach_read_from_8(field);
+	col_commit_ts->tv_sec = mach_read_from_4(field);
+	col_commit_ts->tv_usec = mach_read_from_4(field + 4);
 	/* CONCURR_TRX */
 	field = rec_get_nth_field_old(
 		rec, (col = DICT_FLD__SYS_VTQ__CONCURR_TRX), &len);

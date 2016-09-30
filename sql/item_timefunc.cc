@@ -3273,3 +3273,71 @@ bool Item_func_last_day::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   ltime->time_type= MYSQL_TIMESTAMP_DATE;
   return (null_value= 0);
 }
+
+Item_func_vtq_ts::Item_func_vtq_ts(
+    THD *thd,
+    Item* a,
+    vtq_field_t _vtq_field,
+    handlerton* _hton) :
+  Item_datetimefunc(thd, a),
+  vtq_field(_vtq_field),
+  hton(_hton)
+{
+  decimals= 6;
+  null_value= true;
+  DBUG_ASSERT(arg_count == 1 && args[0]);
+}
+
+Item_func_vtq_ts::Item_func_vtq_ts(
+    THD *thd,
+    Item* a,
+    vtq_field_t _vtq_field) :
+  Item_datetimefunc(thd, a),
+  vtq_field(_vtq_field),
+  hton(NULL)
+{
+  decimals= 6;
+  null_value= true;
+  DBUG_ASSERT(arg_count == 1 && args[0]);
+}
+
+bool Item_func_vtq_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
+{
+  THD *thd= current_thd; // can it differ from constructor's?
+  DBUG_ASSERT(thd);
+  ulonglong trx_id= args[0]->val_uint();
+  if (trx_id == ULONGLONG_MAX)
+  {
+    null_value= false;
+    thd->variables.time_zone->gmt_sec_to_TIME(res, TIMESTAMP_MAX_VALUE);
+    return false;
+  }
+
+  if (!hton)
+  {
+    if (args[0]->type() == Item::FIELD_ITEM)
+    {
+      Item_field *f=
+        static_cast<Item_field *>(args[0]);
+      DBUG_ASSERT(
+        f->field &&
+        f->field->table &&
+        f->field->table->s &&
+        f->field->table->s->db_plugin);
+      hton= plugin_hton(f->field->table->s->db_plugin);
+      DBUG_ASSERT(hton);
+    }
+    else if (innodb_plugin)
+    {
+      hton= plugin_hton(plugin_int_to_ref(innodb_plugin));
+      DBUG_ASSERT(hton);
+    }
+  }
+
+  if (!hton)
+    return true;
+
+  null_value= !hton->vers_get_vtq_ts(thd, res, trx_id, vtq_field);
+
+  return false;
+}

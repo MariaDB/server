@@ -35,6 +35,7 @@
 #include "structs.h"                            /* SHOW_COMP_OPTION */
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
+#include "vtq.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
 
@@ -1387,9 +1388,10 @@ struct handlerton
                                    TABLE_SHARE *share, HA_CREATE_INFO *info);
 
    /*
-     Engine supports System Versioning
+     System Versioning
    */
-   bool versioned();
+   bool versioned() const;
+   bool (*vers_get_vtq_ts)(THD* thd, MYSQL_TIME *out, ulonglong trx_id, vtq_field_t field);
 };
 
 
@@ -4493,7 +4495,7 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
 
 inline
-bool handlerton::versioned()
+bool handlerton::versioned() const
 {
   return flags & HTON_SUPPORTS_SYS_VERSIONING;
 }

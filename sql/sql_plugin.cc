@@ -233,6 +233,8 @@ static int plugin_array_version=0;
 static bool initialized= 0;
 ulong dlopen_count;
 
+st_plugin_int* innodb_plugin= NULL;
+
 
 /*
   write-lock on LOCK_system_variables_hash is required before modifying
@@ -1421,6 +1423,18 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
     }
   }
   state= PLUGIN_IS_READY; // plugin->init() succeeded
+
+  {
+    static const char * INNODB= "InnoDB";
+    static const uint INNODB_LEN= strlen(INNODB);
+
+    if (!my_strnncoll(&my_charset_latin1,
+      (const uchar *) plugin->name.str, plugin->name.length,
+      (const uchar *) INNODB, INNODB_LEN))
+    {
+      innodb_plugin= plugin;
+    }
+  }
 
   if (plugin->plugin->status_vars)
   {

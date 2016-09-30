@@ -316,6 +316,10 @@ struct TrxFactory {
 		trx->lock.table_locks.~lock_pool_t();
 
 		trx->hit_list.~hit_list_t();
+
+		if (trx->vtq_concurr_trx) {
+			ut_free(trx->vtq_concurr_trx);
+		}
 	}
 
 	/** Enforce any invariants here, this is called before the transaction
@@ -469,8 +473,6 @@ trx_create_low()
 	/* Should have been either just initialized or .clear()ed by
 	trx_free(). */
 	ut_a(trx->mod_tables.size() == 0);
-
-	trx->vtq_notify_on_commit = false;
 
 #ifdef WITH_WSREP
 	trx->wsrep_event = NULL;
@@ -1214,6 +1216,33 @@ trx_t::assign_temp_rseg()
 	return(rseg);
 }
 
+/** Functor to create trx_ids array. */
+struct copy_trx_ids
+{
+	copy_trx_ids(trx_id_t* _array, ulint& _array_size)
+		: array(_array), array_size(_array_size)
+	{
+		array_size = 0;
+	}
+
+	void operator()(trx_t* trx)
+	{
+		ut_ad(mutex_own(&trx_sys->mutex));
+		ut_ad(trx->in_rw_trx_list);
+
+		/* trx->state cannot change from or to NOT_STARTED
+		while we are holding the trx_sys->mutex. It may change
+		from ACTIVE to PREPARED or COMMITTED. */
+
+		if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)) {
+			array[array_size++] = trx->id;
+		}
+	}
+
+	trx_id_t*	array;
+	ulint&		array_size;
+};
+
 /****************************************************************//**
 Starts a transaction. */
 static
@@ -1302,6 +1331,13 @@ trx_start_low(
 		ut_ad(trx->rsegs.m_redo.rseg != 0
 		      || srv_read_only_mode
 		      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+
+		if (UT_LIST_GET_LEN(trx_sys->rw_trx_list) > 0) {
+			trx->vtq_concurr_trx = static_cast<trx_id_t *>(
+				ut_malloc_nokey(UT_LIST_GET_LEN(trx_sys->rw_trx_list) * sizeof(trx_id_t)));
+			copy_trx_ids f(trx->vtq_concurr_trx, trx->vtq_concurr_n);
+			ut_list_map(trx_sys->rw_trx_list, f);
+		}
 
 		UT_LIST_ADD_FIRST(trx_sys->rw_trx_list, trx);
 

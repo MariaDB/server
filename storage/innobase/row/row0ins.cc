@@ -55,7 +55,6 @@ Created 4/20/1996 Heikki Tuuri
 #include "fts0types.h"
 #include "m_string.h"
 #include "gis0geo.h"
-#include "sql_time.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -3876,12 +3875,6 @@ vers_row_ins_vtq_low(trx_t* trx, mem_heap_t* heap, dtuple_t* row)
 		err = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE,
 			index, offsets_heap, heap, entry, trx->id, NULL, false, trx);
-
-		///* Report correct index name for duplicate key error. */
-		// No need to report on commit phase?
-		//if (err == DB_DUPLICATE_KEY) {
-		//	trx->error_key_num = n_index;
-		//}
 	} while (err == DB_SUCCESS);
 
 	mem_heap_free(offsets_heap);
@@ -3897,10 +3890,10 @@ void vers_notify_vtq(trx_t* trx)
 	mem_heap_t* heap = mem_heap_create(1024);
 	dtuple_t* row = dtuple_create(heap, dict_table_get_n_cols(dict_sys->sys_vtq));
 
-	ulint now_secs, now_usecs;
-	ut_usectime(&now_secs, &now_usecs);
-	ullong begin_ts = unix_time_to_packed(trx->start_time, trx->start_time_micro);
-	ullong commit_ts = unix_time_to_packed(now_secs, now_usecs);
+	timeval begin_ts, commit_ts;
+	begin_ts.tv_sec = trx->start_time;
+	begin_ts.tv_usec = trx->start_time_micro;
+	ut_usectime((ulint *)&commit_ts.tv_sec, (ulint *)&commit_ts.tv_usec);
 
 	dict_table_copy_types(row, dict_sys->sys_vtq);
 	set_row_field_8(row, DICT_FLD__SYS_VTQ__TRX_ID, trx->id, heap);
@@ -3908,35 +3901,16 @@ void vers_notify_vtq(trx_t* trx)
 	set_row_field_8(row, DICT_FLD__SYS_VTQ__COMMIT_TS - 2, commit_ts, heap);
 
 	dfield_t* dfield = dtuple_get_nth_field(row, DICT_FLD__SYS_VTQ__CONCURR_TRX - 2);
-	mutex_enter(&trx_sys->mutex);
-	trx_ut_list_t &rw_list = trx_sys->rw_trx_list;
-	if (rw_list.count > 1) {
-		byte* buf = static_cast<byte*>(mem_heap_alloc(heap, rw_list.count * 8));
-		byte* ptr = buf;
-		ulint count = 0;
-
-		for (trx_t* ctrx = UT_LIST_GET_FIRST(rw_list);
-			ctrx != NULL;
-			ctrx = UT_LIST_GET_NEXT(trx_list, ctrx))
-		{
-			if (ctrx == trx || ctrx->state == TRX_STATE_NOT_STARTED)
-				continue;
-
-			mach_write_to_8(ptr, ctrx->id);
-			++count;
+	ulint count = 0;
+	byte* buf = NULL;
+	if (trx->vtq_concurr_n > 0) {
+		buf = static_cast<byte*>(mem_heap_alloc(heap, trx->vtq_concurr_n * 8));
+		for (byte* ptr = buf; count < trx->vtq_concurr_n; ++count) {
+			mach_write_to_8(ptr, trx->vtq_concurr_trx[count]);
 			ptr += 8;
 		}
-
-		if (count)
-			dfield_set_data(dfield, buf, count * 8);
-		else
-			dfield_set_data(dfield, NULL, 0);
-	} else {
-		// there must be at least current transaction
-		ut_ad(rw_list.count == 1 && UT_LIST_GET_FIRST(rw_list) == trx);
-		dfield_set_data(dfield, NULL, 0);
 	}
-	mutex_exit(&trx_sys->mutex);
+	dfield_set_data(dfield, buf, count * 8);
 
 	err = vers_row_ins_vtq_low(trx, heap, row);
 	if (DB_SUCCESS != err)
