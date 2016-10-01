@@ -5529,10 +5529,10 @@ opt_part_option:
 */
 
 create_select_query_specification:
-          SELECT_SYM opt_with_clause create_select_part2 create_select_part3
+          opt_with_clause SELECT_SYM create_select_part2 create_select_part3
           create_select_part4
           {
-            Select->set_with_clause($2);
+            Select->set_with_clause($1);
           }
         ;
 
