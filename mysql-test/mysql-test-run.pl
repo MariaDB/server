@@ -175,6 +175,8 @@ my @DEFAULT_SUITES= qw(
     federated-
     funcs_1-
     funcs_2-
+    galera-
+    galera_3nodes-
     handler-
     heap-
     innodb-
