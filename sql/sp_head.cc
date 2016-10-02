@@ -2413,7 +2413,7 @@ sp_head::do_cont_backpatch()
 
 void
 sp_head::set_info(longlong created, longlong modified,
-                  st_sp_chistics *chistics, ulonglong sql_mode)
+                  st_sp_chistics *chistics, sql_mode_t sql_mode)
 {
   m_created= created;
   m_modified= modified;

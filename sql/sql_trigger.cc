@@ -1388,7 +1388,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
           information about mode in old format.
         */
         sql_mode= ((trg_sql_mode= itm++) ? *trg_sql_mode :
-                   global_system_variables.sql_mode);
+                   (ulonglong) global_system_variables.sql_mode);
 
         trg_create_time= it_create_times++;     // May be NULL if old file
         trg_definer= it_definer++;              // May be NULL if old file
@@ -1871,7 +1871,7 @@ Table_triggers_list::change_table_name_in_triggers(THD *thd,
                                                    LEX_STRING *new_table_name)
 {
   struct change_table_name_param param;
-  ulonglong save_sql_mode= thd->variables.sql_mode;
+  sql_mode_t save_sql_mode= thd->variables.sql_mode;
   char path_buff[FN_REFLEN];
 
   param.thd= thd;

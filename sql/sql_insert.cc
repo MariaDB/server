@@ -1953,7 +1953,7 @@ public:
   enum_duplicates dup;
   my_time_t start_time;
   ulong start_time_sec_part;
-  ulonglong sql_mode;
+  sql_mode_t sql_mode;
   bool auto_increment_field_not_null;
   bool query_start_used, ignore, log_query, query_start_sec_part_used;
   bool stmt_depends_on_first_successful_insert_id_in_prev_stmt;

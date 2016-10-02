@@ -502,8 +502,6 @@ enum killed_type
   KILL_TYPE_QUERY
 };
 
-typedef ulonglong sql_mode_t;
-
 #include "sql_lex.h"				/* Must be here */
 
 class Delayed_insert;

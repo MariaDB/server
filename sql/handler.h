@@ -25,7 +25,9 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
+#include <my_global.h>                          /* For handlers */
 #include "sql_const.h"
+#include "sql_basic_types.h"
 #include "mysqld.h"                             /* server_id */
 #include "sql_plugin.h"        /* plugin_ref, st_plugin_int, plugin */
 #include "thr_lock.h"          /* thr_lock_type, THR_LOCK_DATA */

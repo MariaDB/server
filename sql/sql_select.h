@@ -1757,7 +1757,7 @@ public:
     enum store_key_result result;
     THD *thd= to_field->table->in_use;
     enum_check_fields saved_count_cuted_fields= thd->count_cuted_fields;
-    ulonglong sql_mode= thd->variables.sql_mode;
+    sql_mode_t orig_sql_mode= thd->variables.sql_mode;
     thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
     thd->variables.sql_mode|= MODE_INVALID_DATES;
 
@@ -1766,7 +1766,7 @@ public:
     result= copy_inner();
 
     thd->count_cuted_fields= saved_count_cuted_fields;
-    thd->variables.sql_mode= sql_mode;
+    thd->variables.sql_mode= orig_sql_mode;
 
     return result;
   }

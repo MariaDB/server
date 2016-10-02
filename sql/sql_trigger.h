@@ -109,7 +109,7 @@ public:
   LEX_STRING db_cl_name;
 
   GRANT_INFO subject_table_grants;
-  ulonglong sql_mode;
+  sql_mode_t sql_mode;
   /* Store create time. Can't be mysql_time_t as this holds also sub seconds */
   ulonglong create_time;
   trg_event_type event;

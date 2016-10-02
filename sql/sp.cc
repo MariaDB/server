@@ -41,7 +41,7 @@
 static int
 db_load_routine(THD *thd, stored_procedure_type type, sp_name *name,
                 sp_head **sphp,
-                ulonglong sql_mode, const char *params, const char *returns,
+                sql_mode_t sql_mode, const char *params, const char *returns,
                 const char *body, st_sp_chistics &chistics,
                 LEX_STRING *definer_user_name, LEX_STRING *definer_host_name,
                 longlong created, longlong modified,
@@ -539,7 +539,7 @@ db_find_routine(THD *thd, stored_procedure_type type, sp_name *name,
   char buff[65];
   String str(buff, sizeof(buff), &my_charset_bin);
   bool saved_time_zone_used= thd->time_zone_used;
-  ulonglong sql_mode, saved_mode= thd->variables.sql_mode;
+  sql_mode_t sql_mode, saved_mode= thd->variables.sql_mode;
   Open_tables_backup open_tables_state_backup;
   Stored_program_creation_ctx *creation_ctx;
   char definer_user_name_holder[USERNAME_LENGTH + 1];
@@ -727,11 +727,11 @@ Silence_deprecated_warning::handle_condition(
     @retval   0                     error
 */
 
-static sp_head *sp_compile(THD *thd, String *defstr, ulonglong sql_mode,
+static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
                            Stored_program_creation_ctx *creation_ctx)
 {
   sp_head *sp;
-  ulonglong old_sql_mode= thd->variables.sql_mode;
+  sql_mode_t old_sql_mode= thd->variables.sql_mode;
   ha_rows old_select_limit= thd->variables.select_limit;
   sp_rcontext *old_spcont= thd->spcont;
   Silence_deprecated_warning warning_handler;
@@ -810,7 +810,7 @@ Bad_db_error_handler::handle_condition(THD *thd,
 static int
 db_load_routine(THD *thd, stored_procedure_type type,
                 sp_name *name, sp_head **sphp,
-                ulonglong sql_mode, const char *params, const char *returns,
+                sql_mode_t sql_mode, const char *params, const char *returns,
                 const char *body, st_sp_chistics &chistics,
                 LEX_STRING *definer_user_name, LEX_STRING *definer_host_name,
                 longlong created, longlong modified,
@@ -1024,7 +1024,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
   TABLE *table;
   char definer_buf[USER_HOST_BUFF_SIZE];
   LEX_STRING definer;
-  ulonglong saved_mode= thd->variables.sql_mode;
+  sql_mode_t saved_mode= thd->variables.sql_mode;
   MDL_key::enum_mdl_namespace mdl_type= type == TYPE_ENUM_FUNCTION ?
                                         MDL_key::FUNCTION : MDL_key::PROCEDURE;
 
@@ -2212,9 +2212,9 @@ show_create_sp(THD *thd, String *buf,
               st_sp_chistics *chistics,
               const LEX_STRING *definer_user,
               const LEX_STRING *definer_host,
-              ulonglong sql_mode)
+              sql_mode_t sql_mode)
 {
-  ulonglong old_sql_mode= thd->variables.sql_mode;
+  sql_mode_t old_sql_mode= thd->variables.sql_mode;
   /* Make some room to begin with */
   if (buf->alloc(100 + dblen + 1 + namelen + paramslen + returnslen + bodylen +
 		 chistics->comment.length + 10 /* length of " DEFINER= "*/ +
@@ -2301,7 +2301,8 @@ show_create_sp(THD *thd, String *buf,
 
 sp_head *
 sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
-                               String *name, ulong sql_mode, stored_procedure_type type,
+                               String *name, sql_mode_t sql_mode,
+                               stored_procedure_type type,
                                const char *returns, const char *params,
                                bool *free_sp_head)
 {

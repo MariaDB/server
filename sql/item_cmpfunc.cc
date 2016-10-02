@@ -413,7 +413,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
   if ((*item)->const_item() && !(*item)->is_expensive())
   {
     TABLE *table= field->table;
-    ulonglong orig_sql_mode= thd->variables.sql_mode;
+    sql_mode_t orig_sql_mode= thd->variables.sql_mode;
     enum_check_fields orig_count_cuted_fields= thd->count_cuted_fields;
     my_bitmap_map *old_maps[2];
     ulonglong UNINIT_VAR(orig_field_val); /* original field value if valid */

@@ -2216,7 +2216,7 @@ static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 {
   String log_query;
   sp_head *sp = thd->lex->sphead;
-  ulong saved_mode= thd->variables.sql_mode;
+  sql_mode_t saved_mode= thd->variables.sql_mode;
   String retstr(64);
   retstr.set_charset(system_charset_info);
 

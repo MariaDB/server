@@ -202,7 +202,7 @@ mysql_event_fill_row(THD *thd,
                      TABLE *table,
                      Event_parse_data *et,
                      sp_head *sp,
-                     ulonglong sql_mode,
+                     sql_mode_t sql_mode,
                      my_bool is_update)
 {
   CHARSET_INFO *scs= system_charset_info;
@@ -658,7 +658,7 @@ Event_db_repository::create_event(THD *thd, Event_parse_data *parse_data,
   int ret= 1;
   TABLE *table= NULL;
   sp_head *sp= thd->lex->sphead;
-  ulonglong saved_mode= thd->variables.sql_mode;
+  sql_mode_t saved_mode= thd->variables.sql_mode;
   /*
     Take a savepoint to release only the lock on mysql.event
     table at the end but keep the global read lock and
@@ -787,7 +787,7 @@ Event_db_repository::update_event(THD *thd, Event_parse_data *parse_data,
   CHARSET_INFO *scs= system_charset_info;
   TABLE *table= NULL;
   sp_head *sp= thd->lex->sphead;
-  ulonglong saved_mode= thd->variables.sql_mode;
+  sql_mode_t saved_mode= thd->variables.sql_mode;
   /*
     Take a savepoint to release only the lock on mysql.event
     table at the end but keep the global read lock and

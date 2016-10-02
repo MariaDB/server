@@ -9669,7 +9669,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   List<Item>   all_fields;
   bool auto_increment_field_copied= 0;
   bool init_read_record_done= 0;
-  ulonglong save_sql_mode= thd->variables.sql_mode;
+  sql_mode_t save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
   Field **dfield_ptr= to->default_field;
   DBUG_ENTER("copy_data_between_tables");

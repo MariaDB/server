@@ -3001,7 +3001,7 @@ static Sys_var_ulonglong Sys_sort_buffer(
        VALID_RANGE(MIN_SORT_MEMORY, SIZE_T_MAX), DEFAULT(MAX_SORT_MEMORY),
        BLOCK_SIZE(1));
 
-export ulonglong expand_sql_mode(ulonglong sql_mode)
+export sql_mode_t expand_sql_mode(sql_mode_t sql_mode)
 {
   if (sql_mode & MODE_ANSI)
   {
@@ -3055,7 +3055,7 @@ export ulonglong expand_sql_mode(ulonglong sql_mode)
 static bool check_sql_mode(sys_var *self, THD *thd, set_var *var)
 {
   var->save_result.ulonglong_value=
-    expand_sql_mode(var->save_result.ulonglong_value);
+    (ulonglong) expand_sql_mode(var->save_result.ulonglong_value);
   return false;
 }
 static bool fix_sql_mode(sys_var *self, THD *thd, enum_var_type type)
