@@ -324,8 +324,8 @@ create trigger trg before insert on t2 for each row set @a:=1;
 create trigger trg before insert on t1 for each row set @a:=1;
 --error ER_TRG_ALREADY_EXISTS
 create trigger trg after insert on t1 for each row set @a:=1;
---error ER_NOT_SUPPORTED_YET
 create trigger trg2 before insert on t1 for each row set @a:=1;
+drop trigger trg2;
 --error ER_TRG_ALREADY_EXISTS
 create trigger trg before insert on t3 for each row set @a:=1;
 create trigger trg2 before insert on t3 for each row set @a:=1;
@@ -2238,9 +2238,9 @@ create table t1 (i int, j int);
 create trigger t1_bi before insert on t1 for each row begin end;
 --error ER_TRG_ALREADY_EXISTS
 create trigger t1_bi before insert on t1 for each row begin end;
---error ER_NOT_SUPPORTED_YET
 create trigger t1_bi2 before insert on t1 for each row begin end;
 drop trigger t1_bi;
+drop trigger t1_bi2;
 --error ER_TRG_DOES_NOT_EXIST
 drop trigger t1_bi;
 
@@ -2392,6 +2392,7 @@ CREATE TABLE t2 (a INT);
 
 CREATE TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERT/*!INTO*/t1 VALUES (1);
 --echo # Used to crash
+--replace_column 6 #
 SHOW TRIGGERS IN db1;
 --error ER_PARSE_ERROR
 INSERT INTO t2 VALUES (1);
@@ -2614,8 +2615,11 @@ DROP TABLE t1, t2;
 
 #
 # MDEV-4829 BEFORE INSERT triggers dont issue 1406 error
+# Also check timestamp for trigger
 #
 
+set time_zone="+00:00";
+SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
 CREATE TABLE t1 (c CHAR(1) NOT NULL);
 DELIMITER |;
@@ -2631,6 +2635,42 @@ DELIMITER ;|
 SET @@session.sql_mode = default;
 --error ER_DATA_TOO_LONG
 INSERT INTO t1 VALUES ('a');
+show create trigger t1_bi;
 DROP TRIGGER t1_bi;
 DROP TABLE t1;
+SET TIMESTAMP=DEFAULT;
+set time_zone= @@global.time_zone;
 
+#
+# MDEV-10915 Count number of exceuted triggers
+#
+
+create table t1 (i int);
+create trigger tr1 after insert on t1 for each row set @a=@a+1;
+create trigger tr2 after insert on t1 for each row set @a=@a+1;
+create trigger tr3 after insert on t1 for each row set @a=@a+1;
+flush status;
+show status like 'Executed_triggers';
+set @a=0;
+insert into t1 values (1);
+show status like 'Executed_triggers';
+select @a;
+drop table t1;
+
+#
+# MDEV-10916 In trigger's CREATED time microseconds are misinterpreted
+#
+
+create table t1 (i int);
+set time_zone="+0:00";
+SET TIMESTAMP=UNIX_TIMESTAMP('2016-01-01 10:10:10.33');
+select now(2);
+create or replace trigger tr1 after insert on t1 for each row set @a=@a+1;
+SET TIMESTAMP=UNIX_TIMESTAMP('2016-01-01 10:10:10.99');
+select now(2);
+create or replace trigger tr2 after insert on t1 for each row set @a=@a+1;
+select now(2);
+select trigger_name, action_order, created from information_schema.triggers 
+  where event_object_table = 't1' and trigger_schema='test';
+drop table t1;
+set time_zone= @@global.time_zone;

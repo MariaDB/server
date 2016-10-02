@@ -23,7 +23,6 @@
 #include "key.h"                                // find_ref_key
 #include "sql_table.h"                          // build_table_filename,
                                                 // primary_key_name
-#include "sql_trigger.h"
 #include "sql_parse.h"                          // free_items
 #include "strfunc.h"                            // unhex_type2
 #include "sql_partition.h"       // mysql_unpack_partition,
@@ -31,6 +30,7 @@
 #include "sql_acl.h"             // *_ACL, acl_getroot_no_password
 #include "sql_base.h"
 #include "create_options.h"
+#include "sql_trigger.h"
 #include <m_ctype.h>
 #include "my_md5.h"
 #include "my_bit.h"

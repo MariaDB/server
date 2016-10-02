@@ -420,16 +420,15 @@ let $message= Testcase 3.5.7.4:;
 	--enable_warnings
 
 #Section 3.5.7.5 / 3.5.7.6
-# Test case: Ensure that it is not possible to create multiple BEFORE INSERT triggers
-#            on the same table, even if the triggers have different names / different
-#            triggered actions.
+# Test case: Ensure that it is possible to create multiple BEFORE INSERT
+#	     triggers on the same table
+#
 let $message= Testcase 3.5.7.5 / 3.5.7.6:;
 --source include/show_msg.inc
 
 	Create trigger trg5_1 BEFORE INSERT
 		on tb3 for each row set new.f122='Trigger1 3.5.7.5/6';
 
-	--error ER_NOT_SUPPORTED_YET
 	Create trigger trg5_2 BEFORE INSERT
 		on tb3 for each row set new.f122='Trigger2 3.5.7.5';
 
@@ -441,16 +440,14 @@ let $message= Testcase 3.5.7.5 / 3.5.7.6:;
 #Cleanup
 	--disable_warnings
 	drop trigger trg5_1;
-	--error 0, ER_TRG_DOES_NOT_EXIST
 	drop trigger trg5_2;
 	delete from tb3 where f121='Test 3.5.7.5/6';
 	--enable_warnings
 
 
 #Section 3.5.7.7 / 3.5.7.8
-# Test case: Ensure that it is not possible to create multiple AFTER INSERT triggers
-#            on the same table, even if the triggers have different names / different
-#            triggered actions.
+# Test case: Ensure that it is possible to create multiple AFTER INSERT
+#            triggers on the same table
 let $message= Testcase 3.5.7.7 / 3.5.7.8:;
 --source include/show_msg.inc
 	
@@ -458,7 +455,6 @@ let $message= Testcase 3.5.7.7 / 3.5.7.8:;
 	Create trigger trg6_1 AFTER INSERT
 		on tb3 for each row set @test_var='Trigger1 3.5.7.7/8';
 
-	--error ER_NOT_SUPPORTED_YET
 	Create trigger trg6_2 AFTER INSERT
 		on tb3 for each row set @test_var='Trigger2 3.5.7.7';
 
@@ -473,23 +469,20 @@ let $message= Testcase 3.5.7.7 / 3.5.7.8:;
 #Cleanup
 	--disable_warnings
 	drop trigger trg6_1;
-	--error 0, ER_TRG_DOES_NOT_EXIST
 	drop trigger trg6_2;
 	delete from tb3 where f121='Test 3.5.7.7/8';	
 	--enable_warnings
 
 
 #Section 3.5.7.9 / 3.5.7.10
-# Test case: Ensure that it is not possible to create multiple BEFORE UPDATE triggers
-#            on the same table, even if the triggers have different names / different
-#            triggered actions.
+# Test case: Ensure that it is possible to create multiple BEFORE UPDATE
+#            triggers on the same table
 let $message= Testcase 3.5.7.9/10:;
 --source include/show_msg.inc
 
 	Create trigger trg7_1 BEFORE UPDATE
 		on tb3 for each row set new.f122='Trigger1 3.5.7.9/10';
 
-	--error ER_NOT_SUPPORTED_YET
 	Create trigger trg7_2 BEFORE UPDATE
 		on tb3 for each row set new.f122='Trigger2 3.5.7.9';
 
@@ -501,14 +494,12 @@ let $message= Testcase 3.5.7.9/10:;
 #Cleanup
 	--disable_warnings
 	drop trigger trg7_1;
-	--error 0, ER_TRG_DOES_NOT_EXIST
 	drop trigger trg7_2;
 	delete from tb3 where f121='Test 3.5.7.9/10';	
 
 #Section 3.5.7.11 / 3.5.7.12
-# Test case: Ensure that it is not possible to create multiple AFTER UPDATE triggers
-#            on the same table, even if the triggers have different names / different
-#            triggered actions.
+# Test case: Ensure that it is possible to create multiple AFTER UPDATE
+#            triggers on the same table
 let $message= Testcase 3.5.7.11/12:;
 --source include/show_msg.inc
 
@@ -516,10 +507,8 @@ let $message= Testcase 3.5.7.11/12:;
 	Create trigger trg8_1 AFTER UPDATE
 		on tb3 for each row set @test_var='Trigger 3.5.7.11/12';
 
-	--error ER_NOT_SUPPORTED_YET
 	Create trigger trg8_2 AFTER UPDATE
 		on tb3 for each row set @test_var='Trigger2 3.5.7.11';
-
 
 	select @test_var;
 	Insert into tb3 (f121,f122) values ('Test 3.5.7.11/12','Insert 3.5.7.11/12');
@@ -533,14 +522,12 @@ let $message= Testcase 3.5.7.11/12:;
 #Cleanup
 	--disable_warnings
 	drop trigger trg8_1;
-	--error 0, ER_TRG_DOES_NOT_EXIST
 	drop trigger trg8_2;
 	delete from tb3 where f121='Test 3.5.7.11/12';	
 
 #Section 3.5.7.13 / 3.5.7.14
-# Test case: Ensure that it is not possible to create multiple BEFORE DELETE triggers
-#            on the same table, even if the triggers have different names / different
-#            triggered actions.
+# Test case: Ensure that it is possible to create multiple BEFORE DELETE
+#            triggers on the same table
 let $message= Testcase 3.5.7.13/14:;
 --source include/show_msg.inc
 
@@ -548,7 +535,6 @@ let $message= Testcase 3.5.7.13/14:;
 	Create trigger trg9_1 BEFORE DELETE
 		on tb3 for each row set @test_var=@test_var+1;
 
-	--error ER_NOT_SUPPORTED_YET
 	Create trigger trg9_2 BEFORE DELETE
 		on tb3 for each row set @test_var=@test_var+10;
 
@@ -565,14 +551,12 @@ let $message= Testcase 3.5.7.13/14:;
 #Cleanup
 	--disable_warnings
 	drop trigger trg9_1;
-	--error 0, ER_TRG_DOES_NOT_EXIST
 	drop trigger trg9_2;
 	delete from tb3 where f121='Test 3.5.7.13/14';	
 
 #Section 3.5.7.15 / 3.5.7.16
-# Test case: Ensure that it is not possible to create multiple AFTER DELETE triggers
-#            on the same table, even if the triggers have different names / different
-#            triggered actions.
+# Test case: Ensure that possible to create multiple AFTER DELETE triggers
+#            on the same table
 let $message= Testcase 3.5.7.15/16:;
 --source include/show_msg.inc
 	
@@ -580,7 +564,6 @@ let $message= Testcase 3.5.7.15/16:;
 	Create trigger trg_3_406010_1 AFTER DELETE
 		on tb3 for each row set @test_var=@test_var+5;
 
-	--error ER_NOT_SUPPORTED_YET
 	Create trigger trg_3_406010_2 AFTER DELETE
 		on tb3 for each row set @test_var=@test_var+50;
 
@@ -601,7 +584,6 @@ let $message= Testcase 3.5.7.15/16:;
 #Cleanup
 	--disable_warnings
 	drop trigger trg_3_406010_1;
-	--error 0, ER_TRG_DOES_NOT_EXIST
 	drop trigger trg_3_406010_2;
 	delete from tb3 where f121='Test 3.5.7.15/16';	
 	--enable_warnings

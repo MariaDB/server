@@ -411,7 +411,7 @@ inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 
 ulonglong expand_sql_mode(ulonglong sql_mode);
-bool sql_mode_string_representation(THD *thd, ulonglong sql_mode, LEX_STRING *ls);
+bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode, LEX_STRING *ls);
 int default_regex_flags_pcre(const THD *thd);
 
 extern sys_var *Sys_autocommit_ptr;

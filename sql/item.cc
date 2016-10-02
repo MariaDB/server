@@ -8694,7 +8694,7 @@ void Item_insert_value::print(String *str, enum_query_type query_type)
     this stage we can't say exactly what Field object (corresponding
     to TABLE::record[0] or TABLE::record[1]) should be bound to this
     Item, we only find out index of the Field and then select concrete
-    Field object in fix_fields() (by that time Table_trigger_list::old_field/
+    Field object in fix_fields() (by that time Table_triggers_list::old_field/
     new_field should point to proper array of Fields).
     It also binds Item_trigger_field to Table_triggers_list object for
     table of trigger which uses this item.

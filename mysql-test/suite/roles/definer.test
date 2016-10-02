@@ -138,6 +138,7 @@ create definer=current_role trigger tr1 before insert on t2 for each row
 set role role1;
 create definer=current_role trigger tr1 before insert on t2 for each row
   insert t1 values (111, 222, 333);
+--replace_column 7 #
 show create trigger tr1;
 set role none;
 
@@ -149,6 +150,7 @@ select * from t2;
 # definer=role_name, privileges ok
 create definer=role2 trigger tr2 before delete on t2 for each row
   insert t1 values (111, 222, 333);
+--replace_column 7 #
 show create trigger tr2;
 delete from t2 where a=1;
 select * from t1;
@@ -158,6 +160,7 @@ delete from t1 where a=111;
 # definer=non_existent_role
 create definer=role3 trigger tr3 before update on t2 for each row
   insert t1 values (111, 222, 333);
+--replace_column 7 #
 show create trigger tr3;
 --error ER_NO_SUCH_USER
 update t2 set b=2 where a=2;
@@ -178,6 +181,7 @@ open(F, '>', $f) or die "open(>$f): $!";
 syswrite F, $_ or die "syswrite($f): $!" 
 EOF
 
+--replace_column 7 #
 show create trigger tr2;
 --error ER_NO_SUCH_USER
 delete from t2 where a=2;

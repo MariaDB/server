@@ -2147,7 +2147,10 @@ static void mysqld_exit(int exit_code)
   shutdown_performance_schema();        // we do it as late as possible
 #endif
   set_malloc_size_cb(NULL);
-  DBUG_ASSERT(global_status_var.global_memory_used == 0);
+  if (!opt_debugging)
+  {
+    DBUG_ASSERT(global_status_var.global_memory_used == 0);
+  }
   cleanup_tls();
   DBUG_LEAVE;
   if (opt_endinfo && global_status_var.global_memory_used)

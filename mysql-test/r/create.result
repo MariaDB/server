@@ -1352,7 +1352,6 @@ CREATE TRIGGER f1 BEFORE INSERT ON t1 FOR EACH ROW
 BEGIN 
 UPDATE A SET `pk`=1 WHERE `pk`=0 ; 
 END ;|
-ERROR 42000: This version of MariaDB doesn't yet support 'multiple triggers with the same action time and event for one table'
 DROP TABLE t1;
 DROP TABLE B;
 #

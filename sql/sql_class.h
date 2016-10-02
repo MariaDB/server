@@ -502,6 +502,8 @@ enum killed_type
   KILL_TYPE_QUERY
 };
 
+typedef ulonglong sql_mode_t;
+
 #include "sql_lex.h"				/* Must be here */
 
 class Delayed_insert;
@@ -512,8 +514,6 @@ class Time_zone;
 #define THD_SENTRY_GONE  0xdeadbeef
 
 #define THD_CHECK_SENTRY(thd) DBUG_ASSERT(thd->dbug_sentry == THD_SENTRY_MAGIC)
-
-typedef ulonglong sql_mode_t;
 
 typedef struct system_variables
 {

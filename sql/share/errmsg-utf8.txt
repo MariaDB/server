@@ -7230,3 +7230,5 @@ ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
 ER_PARTITION_DEFAULT_ERROR
         eng "Only one DEFAULT partition allowed"
         ukr "Припустимо мати тільки один DEFAULT розділ" 
+ER_REFERENCED_TRG_DOES_NOT_EXIST
+  eng "Referenced trigger '%s' for the given action time and event type does not exist"

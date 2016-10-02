@@ -8,7 +8,6 @@ SELECT @sum;
 @sum
 60
 CREATE TRIGGER IF NOT EXISTS val_sum_new BEFORE INSERT ON t1 FOR EACH ROW SET @sum = @sum + NEW.val;
-ERROR 42000: This version of MariaDB doesn't yet support 'multiple triggers with the same action time and event for one table'
 CREATE TRIGGER IF NOT EXISTS val_sum AFTER INSERT ON t1 FOR EACH ROW SET @sum = @sum + 1 + NEW.val;
 Warnings:
 Note	1359	Trigger already exists

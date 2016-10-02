@@ -29,7 +29,7 @@
 #include "sql_cmd.h"
 #include "sql_alter.h"                // Alter_info
 #include "sql_window.h"
-
+#include "sql_trigger.h"
 
 /* YACC and LEX Definitions */
 
@@ -1196,10 +1196,16 @@ struct st_sp_chistics
   enum enum_sp_data_access daccess;
 };
 
-struct st_trg_chistics
+
+
+struct st_trg_chistics: public st_trg_execution_order
 {
   enum trg_action_time_type action_time;
   enum trg_event_type event;
+
+  const char *ordering_clause_begin;
+  const char *ordering_clause_end;
+
 };
 
 extern sys_var *trg_new_row_fake_var;
@@ -3278,7 +3284,8 @@ void end_lex_with_single_table(THD *thd, TABLE *table, LEX *old_lex);
 int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
 extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);
 
-extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str);
+extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str,
+                            uint *prefix_removed);
 
 extern bool is_lex_native_function(const LEX_STRING *name);
 
