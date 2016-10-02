@@ -3247,11 +3247,13 @@ static bool fix_tp_max_threads(sys_var *, THD *, enum_var_type)
 }
 
 
+#ifdef _WIN32
 static bool fix_tp_min_threads(sys_var *, THD *, enum_var_type)
 {
   tp_set_min_threads(threadpool_min_threads);
   return false;
 }
+#endif
 
 static bool check_threadpool_size(sys_var *self, THD *thd, set_var *var)
 {

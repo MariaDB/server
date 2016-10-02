@@ -1787,7 +1787,6 @@ i_s_cmp_per_index_fill_low(
 	}
 
 	mutex_exit(&dict_sys->mutex);
-err:
 
 	if (reset) {
 		page_zip_reset_stat_per_index();

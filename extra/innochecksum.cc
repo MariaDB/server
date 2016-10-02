@@ -1500,7 +1500,9 @@ int main(
 	/* bytes read count */
 	ulong		bytes;
 	/* Buffer to decompress page.*/
+#ifdef MYSQL_COMPRESSION
 	byte*		tbuf = NULL;
+#endif
 	/* current time */
 	time_t		now;
 	/* last time */
@@ -1578,8 +1580,9 @@ int main(
 
 	buf = (byte*) malloc(UNIV_PAGE_SIZE_MAX * 2);
 	xdes = (byte *) malloc(UNIV_PAGE_SIZE_MAX *2);
+#ifdef MYSQL_COMPRESSION
 	tbuf = buf + UNIV_PAGE_SIZE_MAX;
-
+#endif
 	/* The file name is not optional. */
 	for (int i = 0; i < argc; ++i) {
 		/* Reset parameters for each file. */

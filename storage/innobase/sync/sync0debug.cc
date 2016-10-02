@@ -1582,6 +1582,7 @@ sync_latch_meta_init()
 }
 
 /** Destroy the latch meta data */
+#ifdef JAN_DISABLED_FOR_NOW_AS_THIS_CAUSES_CRASH
 static
 void
 sync_latch_meta_destroy()
@@ -1595,6 +1596,7 @@ sync_latch_meta_destroy()
 
 	latch_meta.clear();
 }
+#endif
 
 /** Track mutex file creation name and line number. This is to avoid storing
 { const char* name; uint16_t line; } in every instance. This results in the
@@ -1808,6 +1810,8 @@ sync_check_close()
 
 	create_tracker = NULL;
 
-	//	sync_latch_meta_destroy();
+#ifdef JAN_DISABLED_FOR_NOW_AS_THIS_CAUSES_CRASH
+	sync_latch_meta_destroy();
+#endif
 }
 

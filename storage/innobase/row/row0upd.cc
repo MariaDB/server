@@ -2418,8 +2418,9 @@ row_upd_sec_index_entry(
 		if (!rec_get_deleted_flag(
 			    rec, dict_table_is_comp(index->table))) {
 
+#ifdef WITH_WSREP
 			que_node_t *parent = que_node_get_parent(node);
-
+#endif
 			err = btr_cur_del_mark_set_sec_rec(
 				flags, btr_cur, TRUE, thr, &mtr);
 			if (err != DB_SUCCESS) {
