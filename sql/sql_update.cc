@@ -155,6 +155,17 @@ static bool check_fields(THD *thd, List<Item> &items)
   return FALSE;
 }
 
+static bool check_has_vers_fields(List<Item> &items)
+{
+  List_iterator<Item> it(items);
+  while (Item *item= it++)
+  {
+    if (Item_field *item_field= item->field_for_view_update())
+      if (!(item_field->field->flags & WITHOUT_SYSTEM_VERSIONING_FLAG))
+        return true;
+  }
+  return false;
+}
 
 /**
   Re-read record if more columns are needed for error message.
@@ -355,6 +366,7 @@ int mysql_update(THD *thd,
   {
     DBUG_RETURN(1);
   }
+  bool has_vers_fields= check_has_vers_fields(fields);
   if (check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
@@ -763,7 +775,7 @@ int mysql_update(THD *thd,
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
 
-      if (table->versioned_by_sql())
+      if (has_vers_fields && table->versioned_by_sql())
         table->vers_update_fields();
 
       found++;
@@ -835,7 +847,7 @@ int mysql_update(THD *thd,
         {
           updated++;
 
-          if (table->versioned())
+          if (has_vers_fields && table->versioned())
           {
             if (table->versioned_by_sql())
             {
@@ -1671,6 +1683,7 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
    transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0),
    updated_sys_ver(0)
 {
+  has_vers_fields= check_has_vers_fields(*field_list);
 }
 
 
@@ -2176,7 +2189,7 @@ int multi_update::send_data(List<Item> &not_used_values)
         if (table->default_field && table->update_default_fields(1, ignore))
           DBUG_RETURN(1);
 
-        if (table->versioned_by_sql())
+        if (has_vers_fields && table->versioned_by_sql())
           table->vers_update_fields();
 
         if ((error= cur_table->view_check_option(thd, ignore)) !=
@@ -2226,7 +2239,7 @@ int multi_update::send_data(List<Item> &not_used_values)
             error= 0;
             updated--;
           }
-          else if (table->versioned())
+          else if (has_vers_fields && table->versioned())
           {
             if (table->versioned_by_sql())
             {
@@ -2511,7 +2524,7 @@ int multi_update::do_updates()
             goto err2;
           }
         }
-        if (table->versioned_by_sql())
+        if (has_vers_fields && table->versioned_by_sql())
           table->vers_update_fields();
 
         if ((local_error=table->file->ha_update_row(table->record[1],
@@ -2529,7 +2542,7 @@ int multi_update::do_updates()
         {
           updated++;
 
-          if (table->versioned())
+          if (has_vers_fields && table->versioned())
           {
             if (table->versioned_by_sql())
             {

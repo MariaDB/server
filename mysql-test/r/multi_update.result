@@ -1227,3 +1227,35 @@ No	A	B	C	D
 2	1	1	1	1
 3	1	1	1	1
 drop procedure verify_vtq;
+CREATE TABLE t1 (
+id BIGINT PRIMARY KEY,
+name VARCHAR(128) WITH SYSTEM VERSIONING,
+salary BIGINT
+);
+INSERT INTO t1 VALUES (1, "Jeremy", 3000);
+CREATE TABLE t2 (
+id BIGINT PRIMARY KEY,
+name VARCHAR(128) WITH SYSTEM VERSIONING,
+salary BIGINT
+);
+INSERT INTO t2 VALUES (1, "Jeremy", 4000);
+SELECT sys_trx_start INTO @tmp1 FROM t1;
+SELECT sys_trx_start INTO @tmp2 FROM t2;
+UPDATE t1, t2 SET t1.name="Jerry", t2.name="Jerry" WHERE t1.id=t2.id AND t1.name="Jeremy";
+SELECT @tmp1 < sys_trx_start, name FROM t1;
+@tmp1 < sys_trx_start	name
+1	Jerry
+SELECT @tmp2 < sys_trx_start, name FROM t2;
+@tmp2 < sys_trx_start	name
+1	Jerry
+SELECT sys_trx_start INTO @tmp1 FROM t1;
+SELECT sys_trx_start INTO @tmp2 FROM t2;
+UPDATE t1, t2 SET t1.salary=2500, t2.salary=2500 WHERE t1.id=t2.id AND t1.name="Jerry";
+SELECT @tmp1 = sys_trx_start, salary FROM t1;
+@tmp1 = sys_trx_start	salary
+1	2500
+SELECT @tmp2 = sys_trx_start, salary FROM t2;
+@tmp2 = sys_trx_start	salary
+1	2500
+DROP TABLE t1;
+DROP TABLE t2;

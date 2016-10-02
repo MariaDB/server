@@ -1572,6 +1572,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  WINDOW_SYM
 %token  WHILE_SYM
 %token  WITH                          /* SQL-2003-R */
+%token  WITHOUT                       /* SQL-2003-R */
 %token  WITH_CUBE_SYM                 /* INTERNAL */
 %token  WITH_ROLLUP_SYM               /* INTERNAL */
 %token  WORK_SYM                      /* SQL-2003-N */
@@ -5852,7 +5853,7 @@ create_table_option:
           {
             System_versioning_info &info= Lex->vers_get_info();
             info.declared_system_versioning= true;
-            info.versioned= true;
+            Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
         ;
 
@@ -6064,7 +6065,6 @@ period_for_system_time:
               MYSQL_YYABORT;
             }
             info.set_period_for_system_time($4, $6);
-            info.versioned= true;
           }
         ;
 
@@ -6165,7 +6165,6 @@ field_def:
         | opt_generated_always AS ROW_SYM start_or_end
           {
             System_versioning_info &info= Lex->vers_get_info();
-            info.versioned= true;
             String *field_name= new (thd->mem_root)
               String((const char*)Lex->last_field->field_name, system_charset_info);
             if (!field_name)
@@ -6666,6 +6665,16 @@ serial_attribute:
           {
             new (thd->mem_root)
               engine_option_value($1, &Lex->last_field->option_list, &Lex->option_list_last);
+          }
+        | WITH SYSTEM VERSIONING
+          {
+            Lex->last_field->versioning = Column_definition::WITH_VERSIONING;
+            Lex->create_info.system_versioning_info.has_versioned_fields= true;
+          }
+        | WITHOUT SYSTEM VERSIONING
+          {
+            Lex->last_field->versioning = Column_definition::WITHOUT_VERSIONING;
+            Lex->create_info.system_versioning_info.has_unversioned_fields= true;
           }
         ;
 

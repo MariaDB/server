@@ -2989,6 +2989,8 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
     pack_flag|= FIELDFLAG_MAYBE_NULL;
   if (flags & NO_DEFAULT_VALUE_FLAG)
     pack_flag|= FIELDFLAG_NO_DEFAULT;
+  if (flags & WITHOUT_SYSTEM_VERSIONING_FLAG)
+    pack_flag|= FIELDFLAG_WITHOUT_SYSTEM_VERSIONING;
   DBUG_RETURN(false);
 }
 

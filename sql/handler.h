@@ -1671,6 +1671,14 @@ struct Schema_specification_st
 
 struct System_versioning_info
 {
+  System_versioning_info() :
+    period_for_system_time({NULL, NULL}),
+    generated_as_row({NULL, NULL}),
+    declared_system_versioning(false),
+    has_versioned_fields(false),
+    has_unversioned_fields(false)
+  {}
+
   struct
   {
     String *start, *end;
@@ -1693,13 +1701,28 @@ struct System_versioning_info
   }
 
   /** Returns true on failure */
-  bool add_implicit_fields(THD *thd, Alter_info *alter_info);
+  bool add_versioning_info(THD *thd, Alter_info *alter_info);
+
+  /** Returns true on failure */
+  bool check(THD *thd, Alter_info *alter_info);
+
+  /** Returns true if table is versioned */
+  bool versioned() const;
 
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
-  bool declared_system_versioning;
+  bool declared_system_versioning : 1;
 
-  /** Table described by this structure have enabled system versioning */
-  bool versioned;
+  /**
+     At least one field was specified 'WITH SYSTEM VERSIONING'. Useful for
+     error handling.
+  */
+  bool has_versioned_fields : 1;
+
+  /**
+     At least one field was specified 'WITHOUT SYSTEM VERSIONING'. Useful for
+     error handling.
+  */
+  bool has_unversioned_fields : 1;
 };
 
 /**
@@ -1791,7 +1814,7 @@ struct Table_scope_and_contents_source_st
 
   bool versioned() const
   {
-    return system_versioning_info.versioned;
+    return system_versioning_info.versioned();
   }
   const System_versioning_info *get_system_versioning_info() const
   {

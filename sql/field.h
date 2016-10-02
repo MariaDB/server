@@ -3872,6 +3872,13 @@ class Column_definition: public Sql_alloc
     }
   }
 public:
+  enum enum_column_versioning
+  {
+    VERSIONING_NOT_SET,
+    WITH_VERSIONING,
+    WITHOUT_VERSIONING
+  };
+
   const char *field_name;
   LEX_STRING comment;			// Comment for field
   Item *on_update;		        // ON UPDATE NOW()
@@ -3907,6 +3914,8 @@ public:
     *default_value,                  // Default value
     *check_constraint;               // Check constraint
 
+  enum_column_versioning versioning;
+
   Column_definition():
     comment(null_lex_str),
     on_update(NULL), sql_type(MYSQL_TYPE_NULL), length(0), decimals(0),
@@ -3914,7 +3923,8 @@ public:
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
     option_list(NULL), pack_flag(0),
-    vcol_info(0), default_value(0), check_constraint(0)
+    vcol_info(0), default_value(0), check_constraint(0),
+    versioning(VERSIONING_NOT_SET)
   {
     interval_list.empty();
   }
@@ -4276,6 +4286,7 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
 
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096U   /* use Field_bit_as_char */
 #define FIELDFLAG_LONG_DECIMAL          8192U
+#define FIELDFLAG_WITHOUT_SYSTEM_VERSIONING 8192U
 #define FIELDFLAG_NO_DEFAULT		16384U  /* sql */
 #define FIELDFLAG_MAYBE_NULL		32768U	// sql
 #define FIELDFLAG_HEX_ESCAPE		0x10000U
@@ -4302,5 +4313,6 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
 #define f_no_default(x)		((x) & FIELDFLAG_NO_DEFAULT)
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
+#define f_without_system_versioning(x) ((x) & FIELDFLAG_WITHOUT_SYSTEM_VERSIONING)
 
 #endif /* FIELD_INCLUDED */

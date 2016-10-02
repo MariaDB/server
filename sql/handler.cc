@@ -6582,11 +6582,34 @@ static bool create_sys_trx_field_if_missing(THD *thd, const char *field_name,
   return false;
 }
 
-bool System_versioning_info::add_implicit_fields(THD *thd,
+bool System_versioning_info::add_versioning_info(THD *thd,
                                                  Alter_info *alter_info)
 {
-  if (!declared_system_versioning)
+  DBUG_ASSERT(versioned());
+
+  if (!declared_system_versioning && !has_versioned_fields)
     return false;
+
+  bool without_system_versioning_by_default= !declared_system_versioning;
+  List_iterator<Create_field> it(alter_info->create_list);
+  while (Create_field *f= it++)
+  {
+    const char *name= f->field_name;
+    size_t len= strlen(name);
+    if (generated_as_row.start &&
+        !strncmp(name, generated_as_row.start->c_ptr(), len))
+      continue;
+    if (generated_as_row.end &&
+        !strncmp(name, generated_as_row.end->c_ptr(), len))
+      continue;
+
+    if (f->versioning == Column_definition::VERSIONING_NOT_SET &&
+        without_system_versioning_by_default)
+      f->flags|= WITHOUT_SYSTEM_VERSIONING_FLAG;
+
+    else if (f->versioning == Column_definition::WITHOUT_VERSIONING)
+      f->flags|= WITHOUT_SYSTEM_VERSIONING_FLAG;
+  }
 
   // If user specified some of these he must specify the others too. Do nothing.
   if (generated_as_row.start || generated_as_row.end ||
@@ -6601,4 +6624,100 @@ bool System_versioning_info::add_implicit_fields(THD *thd,
                        "sys_trx_start") ||
          create_string(thd->mem_root, &period_for_system_time.end,
                        "sys_trx_end");
+}
+
+bool System_versioning_info::check(THD *thd, Alter_info *alter_info)
+{
+  if (!versioned())
+    return false;
+
+  if (add_versioning_info(thd, alter_info))
+    return true;
+
+  bool r= false;
+
+  {
+    int not_set= 0;
+    int with= 0;
+    List_iterator<Create_field> it(alter_info->create_list);
+    while (const Create_field *f= it++)
+    {
+      const char *name= f->field_name;
+      size_t len= strlen(name);
+      if (generated_as_row.start &&
+          !strncmp(name, generated_as_row.start->c_ptr(), len))
+        continue;
+      if (generated_as_row.end &&
+          !strncmp(name, generated_as_row.end->c_ptr(), len))
+        continue;
+
+      if (f->versioning == Column_definition::VERSIONING_NOT_SET)
+        not_set++;
+      else if (f->versioning == Column_definition::WITH_VERSIONING)
+        with++;
+    }
+
+    bool table_with_system_versioning=
+        declared_system_versioning || generated_as_row.start ||
+        generated_as_row.end || period_for_system_time.start ||
+        period_for_system_time.end;
+
+    if ((table_with_system_versioning && not_set == 0 && with == 0) ||
+        (!table_with_system_versioning && with == 0))
+    {
+      r= true;
+      my_error(ER_NO_VERSIONED_FIELDS_IN_VERSIONED_TABLE, MYF(0));
+    }
+  }
+
+  if (!declared_system_versioning && !has_versioned_fields)
+  {
+    r= true;
+    my_error(ER_MISSING_WITH_SYSTEM_VERSIONING, MYF(0));
+  }
+
+  if (!generated_as_row.start)
+  {
+    r= true;
+    my_error(ER_SYS_START_NOT_SPECIFIED, MYF(0));
+  }
+
+  if (!generated_as_row.end)
+  {
+    r= true;
+    my_error(ER_SYS_END_NOT_SPECIFIED, MYF(0));
+  }
+
+  if (!period_for_system_time.start || !period_for_system_time.end)
+  {
+    r= true;
+    my_error(ER_MISSING_PERIOD_FOR_SYSTEM_TIME, MYF(0));
+  }
+
+  if (!r)
+  {
+    if (my_strcasecmp(system_charset_info, generated_as_row.start->c_ptr(),
+                      period_for_system_time.start->c_ptr()))
+    {
+      r= true;
+      my_error(ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_START_COLUMN, MYF(0));
+    }
+
+    if (my_strcasecmp(system_charset_info, generated_as_row.end->c_ptr(),
+                      period_for_system_time.end->c_ptr()))
+    {
+      r= true;
+      my_error(ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_END_COLUMN, MYF(0));
+    }
+  }
+
+  return r; // false means no error
+}
+
+bool System_versioning_info::versioned() const
+{
+  return has_versioned_fields || has_unversioned_fields ||
+         declared_system_versioning || period_for_system_time.start ||
+         period_for_system_time.end || generated_as_row.start ||
+         generated_as_row.end;
 }

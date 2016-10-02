@@ -2133,6 +2133,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         packet->append(STRING_WITH_LEN(" GENERATED AS ROW END"));
       }
 
+      if (field->is_versioning_disabled())
+      {
+        packet->append(STRING_WITH_LEN(" WITHOUT SYSTEM VERSIONING"));
+      }
+
       if (!limited_mysql_mode &&
           print_on_update_clause(field, &def_value, false))
       {

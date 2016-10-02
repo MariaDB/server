@@ -703,6 +703,7 @@ static SYMBOL symbols[] = {
   { "WHILE",            SYM(WHILE_SYM)},
   { "WINDOW",           SYM(WINDOW_SYM)}, 
   { "WITH",		SYM(WITH)},
+  { "WITHOUT",          SYM(WITHOUT)},
   { "WORK",		SYM(WORK_SYM)},
   { "WRAPPER",		SYM(WRAPPER_SYM)},
   { "WRITE",		SYM(WRITE_SYM)},
