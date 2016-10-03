@@ -967,6 +967,20 @@ ha_innobase::check_if_supported_inplace_alter(
 	DBUG_ASSERT(!m_prebuilt->table->fts || m_prebuilt->table->fts->doc_col
 		    < dict_table_get_n_user_cols(m_prebuilt->table));
 
+       /* Spatial indexes should use copy method for now.
+       TOO: remove this when below ADD_SPATIAL_INDEX supported. */
+       for (uint i = 0; i < ha_alter_info->index_add_count; i++) {
+               const KEY* key =
+                       &ha_alter_info->key_info_buffer[
+                               ha_alter_info->index_add_buffer[i]];
+               if (key->flags & HA_SPATIAL) {
+                       ha_alter_info->unsupported_reason = innobase_get_err_msg(
+                               ER_INNODB_FT_LIMIT);
+
+                       DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+               }
+       }
+
 #ifdef MYSQL_SPATIAL_INDEX
 	if (ha_alter_info->handler_flags
 	    & Alter_inplace_info::ADD_SPATIAL_INDEX) {
