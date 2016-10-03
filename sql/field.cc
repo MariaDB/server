@@ -4359,16 +4359,22 @@ void Field_longlong::sql_type(String &res) const
 bool Field_longlong::set_max()
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
-  int8store(ptr, ULONGLONG_MAX);
+  int8store(ptr, unsigned_flag ? ULONGLONG_MAX : LONGLONG_MAX);
   return FALSE;
 }
 
 bool Field_longlong::is_max()
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  ulonglong j;
-  j = sint8korr(ptr);
-  return j == ULONGLONG_MAX;
+  if (unsigned_flag)
+  {
+    ulonglong j;
+    j= uint8korr(ptr);
+    return j == ULONGLONG_MAX;
+  }
+  longlong j;
+  j= sint8korr(ptr);
+  return j == LONGLONG_MAX;
 }
 
 /*
