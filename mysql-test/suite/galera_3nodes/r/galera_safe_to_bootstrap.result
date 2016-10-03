@@ -1,0 +1,26 @@
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 1']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+SET SESSION wsrep_on = OFF;
+Killing server ...
+safe_to_bootstrap: 1
+safe_to_bootstrap: 0
+safe_to_bootstrap: 0
+CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
+CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
