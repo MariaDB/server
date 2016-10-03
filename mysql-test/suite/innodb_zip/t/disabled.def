@@ -11,5 +11,6 @@
 ##############################################################################
 
 restart : Not supported by MariaDB 10.2 2/9/2016 jplindst
-wl6650  : Not supported by MariaDB 10.2 
+wl6650  : Not supported by MariaDB 10.2
+wl6560  : Very long, timeout
 
