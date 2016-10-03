@@ -1,0 +1,39 @@
+SET sql_mode=oracle;
+#
+# MDEV-10411 Providing compatibility for basic PL/SQL constructs
+# Part 6: Assignment operator
+#
+max_sort_length:=1030;
+SELECT @@max_sort_length;
+@@max_sort_length
+1030
+max_sort_length:=DEFAULT;
+#
+# Testing that SP variables shadow global variables in assignments
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+max_sort_length:=1030;
+DECLARE
+max_sort_length INT DEFAULT 1031;
+BEGIN
+SELECT @@max_sort_length, max_sort_length;
+max_sort_length:=1032;
+SELECT @@max_sort_length, max_sort_length;
+END;
+SELECT @@max_sort_length;
+max_sort_length:= DEFAULT;
+END;
+$$
+CALL p1();
+@@max_sort_length	max_sort_length
+1030	1031
+@@max_sort_length	max_sort_length
+1030	1032
+@@max_sort_length
+1030
+DROP PROCEDURE p1;
+#
+# End of MDEV-10411 Providing compatibility for basic PL/SQL constructs (part 6)
+#

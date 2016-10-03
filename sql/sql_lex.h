@@ -3060,6 +3060,7 @@ public:
                               LEX_STRING dbname, LEX_STRING name);
   bool init_default_internal_variable(struct sys_var_with_base *variable,
                                       LEX_STRING name);
+  bool set_variable(struct sys_var_with_base *variable, Item *item);
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
                                          const Column_definition &cdef,
