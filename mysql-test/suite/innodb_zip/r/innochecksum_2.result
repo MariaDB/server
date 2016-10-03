@@ -30,7 +30,7 @@ no-check                          FALSE
 allow-mismatches                  0
 write                             crc32
 page-type-summary                 FALSE
-page-type-dump                    /dev/shm/tmp/dump.txt
+page-type-dump                    MYSQLTEST_VARDIR/tmp/dump.txt
 log                               (No default value)
 leaf                              FALSE
 merge                             0

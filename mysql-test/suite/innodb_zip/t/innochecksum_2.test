@@ -36,6 +36,7 @@ while ($i > 0) {
 --source include/shutdown_mysqld.inc
 
 # Page_type_dump for t1
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $INNOCHECKSUM -v --page-type-dump $MYSQLTEST_VARDIR/tmp/dump.txt $MYSQLD_DATADIR/test/t1.ibd
 --file_exists $MYSQLTEST_VARDIR/tmp/dump.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/dump.txt
