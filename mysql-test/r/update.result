@@ -531,9 +531,9 @@ CREATE FUNCTION f1() RETURNS INT RETURN f1();
 CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (1);
 UPDATE t1 SET i = 3 WHERE f1();
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 UPDATE t1 SET i = f1();
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 DROP TABLE t1;
 DROP FUNCTION f1;
 End of 5.0 tests

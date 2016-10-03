@@ -2785,14 +2785,14 @@ CREATE TRIGGER tm1_ai AFTER INSERT ON tm1
 FOR EACH ROW INSERT INTO t1 VALUES(11);
 LOCK TABLE tm1 WRITE, t1 WRITE;
 INSERT INTO tm1 VALUES (1);
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 SELECT * FROM tm1;
 c1
 1
 UNLOCK TABLES;
 LOCK TABLE t1 WRITE, tm1 WRITE;
 INSERT INTO tm1 VALUES (1);
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 SELECT * FROM tm1;
 c1
 1
@@ -3711,9 +3711,9 @@ ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as
 insert into m1 (a) values ((select max(a) from tmp, t2));
 ERROR HY000: Table 'm1' is specified twice, both as a target for 'INSERT' and as a separate source for data
 insert into m1 (a) values ((select max(a) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'
 insert into m1 (a) values ((select max(a) from tmp, v1));
-ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation INSERT on table 'm1'
 update m1 set a = ((select max(a) from m1));
 ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from m2));
@@ -3739,9 +3739,9 @@ ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as
 update m1 set a = ((select max(a) from tmp, t2));
 ERROR HY000: Table 'm1' is specified twice, both as a target for 'UPDATE' and as a separate source for data
 update m1 set a = ((select max(a) from v1));
-ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'm1'
 update m1 set a = ((select max(a) from tmp, v1));
-ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation UPDATE on table 'm1'
 delete from m1 where a = (select max(a) from m1);
 ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from m2);
@@ -3767,9 +3767,9 @@ ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as
 delete from m1 where a = (select max(a) from tmp, t2);
 ERROR HY000: Table 'm1' is specified twice, both as a target for 'DELETE' and as a separate source for data
 delete from m1 where a = (select max(a) from v1);
-ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'm1'
 delete from m1 where a = (select max(a) from tmp, v1);
-ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'm1'.
+ERROR HY000: The definition of table 'v1' prevents operation DELETE on table 'm1'
 drop view v1;
 drop temporary table tmp;
 drop table t1, t2, t3, m1, m2;

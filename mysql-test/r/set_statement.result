@@ -924,10 +924,10 @@ RETURN mx;
 END|
 SET STATEMENT myisam_repair_threads=(select max(v1) from t1) FOR
 select 1;
-ERROR 42000: SET STATEMENT does not support subqueries or stored functions.
+ERROR 42000: SET STATEMENT does not support subqueries or stored functions
 SET STATEMENT myisam_repair_threads=myProc() FOR
 select 1;
-ERROR 42000: SET STATEMENT does not support subqueries or stored functions.
+ERROR 42000: SET STATEMENT does not support subqueries or stored functions
 drop function myProc;
 drop table t1;
 set session binlog_format=mixed;

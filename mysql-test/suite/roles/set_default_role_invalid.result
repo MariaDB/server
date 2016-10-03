@@ -10,9 +10,9 @@ GRANT USAGE ON *.* TO 'test_user'@'localhost'
 select user, host, default_role from mysql.user;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
 set default role invalid_role;
-ERROR OP000: Invalid role specification `invalid_role`.
+ERROR OP000: Invalid role specification `invalid_role`
 set default role not_granted_role;
-ERROR OP000: Invalid role specification `not_granted_role`.
+ERROR OP000: Invalid role specification `not_granted_role`
 set default role test_role;
 select user, host, default_role from mysql.user;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
@@ -28,7 +28,7 @@ select user, host, default_role from mysql.user where user='test_user';
 user	host	default_role
 test_user	localhost	test_role
 set default role invalid_role;
-ERROR OP000: Invalid role specification `invalid_role`.
+ERROR OP000: Invalid role specification `invalid_role`
 select user, host, default_role from mysql.user where user='test_user';
 user	host	default_role
 test_user	localhost	test_role

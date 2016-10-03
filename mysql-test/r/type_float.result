@@ -133,7 +133,7 @@ min(a)
 -0.010
 drop table t1;
 create table t1 (a float(200,100), b double(200,100));
-ERROR 42000: Too big scale 100 specified for 'a'. Maximum is 30.
+ERROR 42000: Too big scale 100 specified for 'a'. Maximum is 30
 create table t1 (c20 char);
 insert into t1 values (5000.0);
 Warnings:
@@ -341,9 +341,9 @@ s
 drop table t1;
 End of 4.1 tests
 create table t1 (s1 float(0,2));
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 's1').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 's1')
 create table t1 (s1 float(1,2));
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 's1').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 's1')
 CREATE TABLE t1 (
 f1 real zerofill,
 f2 double zerofill,
@@ -727,7 +727,7 @@ DROP TABLE t1,t2;
 #
 create or replace table t1 (a double(40,30));
 create or replace table t1 (a double(40,31));
-ERROR 42000: Too big scale 31 specified for 'a'. Maximum is 30.
+ERROR 42000: Too big scale 31 specified for 'a'. Maximum is 30
 create or replace table t1 as select 1.01e1;
 show create table t1;
 Table	Create Table

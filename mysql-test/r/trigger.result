@@ -783,7 +783,7 @@ for each row insert into t1 values (new.f2+1);
 set @SAVE_SP_RECURSION_LEVELS=@@max_sp_recursion_depth;
 set @@max_sp_recursion_depth=100;
 insert into t1 values (1);
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 set @@max_sp_recursion_depth=@SAVE_SP_RECURSION_LEVELS;
 select * from t1;
 f1
@@ -796,7 +796,7 @@ drop trigger t2_ai;
 create trigger t1_bu before update on t1
 for each row insert into t1 values (2);
 update t1 set f1= 10;
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 select * from t1;
 f1
 1
@@ -804,7 +804,7 @@ drop trigger t1_bu;
 create trigger t1_bu before update on t1
 for each row delete from t1 where f1=new.f1;
 update t1 set f1= 10;
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 select * from t1;
 f1
 1
@@ -1958,7 +1958,7 @@ DROP TRIGGER t_insert;
 CREATE TRIGGER t_insert AFTER INSERT ON t2 FOR EACH ROW BEGIN UPDATE t1,t2 SET
 date_insert=NOW(),b=b+1 WHERE t1.a=t2.b AND t2.a=NEW.a; END |
 INSERT INTO t2 (a,b) VALUES (3,5);
-ERROR HY000: Can't update table 't2' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't2' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 DROP TABLE t1;
 DROP TRIGGER t_insert;
 DROP TABLE t2;

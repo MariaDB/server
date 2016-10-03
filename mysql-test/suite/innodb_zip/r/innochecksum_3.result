@@ -174,7 +174,6 @@ Variables (--variable-name=value)
 and boolean options {FALSE|TRUE}  Value (after reading options)
 --------------------------------- ----------------------------------------
 verbose                           TRUE
-debug                             FALSE
 count                             FALSE
 start-page                        0
 end-page                          0

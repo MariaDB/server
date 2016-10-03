@@ -1410,7 +1410,7 @@ INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10) VALUES (
 19999999999999999999999999999999999999999999.9999999999
 );
 Warnings:
-Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1264	Out of range value for column 'f' at row 1
 Warning	1264	Out of range value for column 'f0' at row 1
 Warning	1264	Out of range value for column 'r1_1' at row 1

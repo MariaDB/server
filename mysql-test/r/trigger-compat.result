@@ -20,7 +20,7 @@ CREATE TRIGGER wl2818_trg2 AFTER INSERT ON t1
 FOR EACH ROW
 INSERT INTO t2 VALUES(CURRENT_USER());
 Warnings:
-Warning	1454	No definer attribute for trigger 'mysqltest_db1'.'wl2818_trg1'. The trigger will be activated under the authorization of the invoker, which may have insufficient privileges. Please recreate the trigger.
+Warning	1454	No definer attribute for trigger 'mysqltest_db1'.'wl2818_trg1'. The trigger will be activated under the authorization of the invoker, which may have insufficient privileges. Please recreate the trigger
 
 SELECT trigger_name, definer FROM INFORMATION_SCHEMA.TRIGGERS ORDER BY trigger_name;
 trigger_name	definer
@@ -33,7 +33,7 @@ def	mysqltest_db1	wl2818_trg1	INSERT	def	mysqltest_db1	t1	1	NULL	INSERT INTO t2 
 def	mysqltest_db1	wl2818_trg2	INSERT	def	mysqltest_db1	t1	1	NULL	INSERT INTO t2 VALUES(CURRENT_USER())	ROW	AFTER	NULL	NULL	OLD	NEW	#	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	mysqltest_dfn@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
 DROP TRIGGER wl2818_trg1;
 Warnings:
-Warning	1454	No definer attribute for trigger 'mysqltest_db1'.'wl2818_trg1'. The trigger will be activated under the authorization of the invoker, which may have insufficient privileges. Please recreate the trigger.
+Warning	1454	No definer attribute for trigger 'mysqltest_db1'.'wl2818_trg1'. The trigger will be activated under the authorization of the invoker, which may have insufficient privileges. Please recreate the trigger
 DROP TRIGGER wl2818_trg2;
 disconnect wl2818_definer_con;
 connection default;

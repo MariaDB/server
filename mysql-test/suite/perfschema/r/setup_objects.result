@@ -61,7 +61,7 @@ TABLE	db4	%	YES	NO
 TABLE	db4	t1	NO	YES
 update performance_schema.setup_objects
 set OBJECT_TYPE='SOMETHING' where OBJECT_SCHEMA='db1' and OBJECT_NAME='t1';
-ERROR HY000: Invalid performance_schema usage.
+ERROR HY000: Invalid performance_schema usage
 update performance_schema.setup_objects
 set ENABLED='MAYBE' where OBJECT_SCHEMA='db1' and OBJECT_NAME='t1';
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails

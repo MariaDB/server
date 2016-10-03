@@ -222,9 +222,11 @@ open IN_FILE,"<", "$dir/tmp/$file" or die $!;
 open OUT_FILE, ">", "$dir/tmp/tmpfile" or die $!;
 while(<IN_FILE>)
 {
- # Replace the intergers to # and complete file patht to file name only.
+ # Replace the intergers to # and complete file path to file name only.
  $_=~ s/Filename.+/Filename::tab1.ibd/g;
  $_=~ s/\d+/#/g;
+ # Remove debug option, which is not in all builds
+ continue if (/debug/);
  print OUT_FILE $_;
 }
 close(IN_FILE);

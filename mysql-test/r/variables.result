@@ -189,7 +189,7 @@ select @@concurrent_insert;
 AUTO
 set global timed_mutexes=ON;
 Warnings:
-Warning	1287	'@@timed_mutexes' is deprecated and will be removed in a future release.
+Warning	1287	'@@timed_mutexes' is deprecated and will be removed in a future release
 show variables like 'timed_mutexes';
 Variable_name	Value
 timed_mutexes	ON
@@ -198,7 +198,7 @@ VARIABLE_NAME	VARIABLE_VALUE
 TIMED_MUTEXES	ON
 set global timed_mutexes=0;
 Warnings:
-Warning	1287	'@@timed_mutexes' is deprecated and will be removed in a future release.
+Warning	1287	'@@timed_mutexes' is deprecated and will be removed in a future release
 show variables like 'timed_mutexes';
 Variable_name	Value
 timed_mutexes	OFF

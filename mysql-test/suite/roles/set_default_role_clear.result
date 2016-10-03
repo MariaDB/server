@@ -25,7 +25,7 @@ select user, host, default_role from mysql.user where user='test_user';
 user	host	default_role
 test_user	localhost	
 set default role invalid_role;
-ERROR OP000: Invalid role specification `invalid_role`.
+ERROR OP000: Invalid role specification `invalid_role`
 select user, host, default_role from mysql.user where user='test_user';
 user	host	default_role
 test_user	localhost	

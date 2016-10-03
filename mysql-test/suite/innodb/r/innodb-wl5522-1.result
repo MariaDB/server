@@ -415,7 +415,7 @@ ALTER TABLE testdb_wl5522.t1 DISCARD TABLESPACE;
 restore: t1 .ibd and .cfg files
 ALTER TABLE testdb_wl5522.t1 IMPORT TABLESPACE;
 ALTER TABLE testdb_wl5522.t1 IMPORT TABLESPACE;
-ERROR HY000: Tablespace for table 'testdb_wl5522/t1' exists. Please DISCARD the tablespace before IMPORT.
+ERROR HY000: Tablespace for table 'testdb_wl5522/t1' exists. Please DISCARD the tablespace before IMPORT
 SELECT * FROM testdb_wl5522.t1 ORDER BY i;
 i
 100
