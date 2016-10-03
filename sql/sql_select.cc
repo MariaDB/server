@@ -588,7 +588,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
     subq_select_lex->group_list.empty();
     DBUG_PRINT("info", ("GROUP BY removed"));
   }
-  
+
   /*
     TODO: This would prevent processing quries with ORDER BY ... LIMIT
     therefore we disable this optimization for now.
