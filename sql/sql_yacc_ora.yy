@@ -14599,25 +14599,9 @@ set_assign:
           }
           set_expr_or_default
           {
-            if ($1.var == trg_new_row_fake_var)
-            {
-              /* We are in trigger and assigning value to field of new row */
-              if (Lex->set_trigger_new_row(&$1.base_name, $4) ||
-                  Lex->sphead->restore_lex(thd))
-                MYSQL_YYABORT;
-            }
-            else
-            {
-              sp_pcontext *spc= Lex->spcont;
-              sp_variable *spv= spc->find_variable($1.base_name, false);
-
-              /* It is a local variable. */
-              if (Lex->set_local_variable(spv, $4))
-                MYSQL_YYABORT;
-
-              if (sp_create_assignment_instr(thd, yychar == YYEMPTY))
-                MYSQL_YYABORT;
-            }
+            if (Lex->set_variable(&$1, $4) ||
+                sp_create_assignment_instr(thd, yychar == YYEMPTY))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -14755,29 +14739,8 @@ option_value_following_option_type:
 option_value_no_option_type:
           internal_variable_name equal set_expr_or_default
           {
-            LEX *lex= Lex;
-
-            if ($1.var == trg_new_row_fake_var)
-            {
-              /* We are in trigger and assigning value to field of new row */
-              if (lex->set_trigger_new_row(&$1.base_name, $3))
-                MYSQL_YYABORT;
-            }
-            else if ($1.var)
-            {
-              /* It is a system variable. */
-              if (lex->set_system_variable(&$1, lex->option_type, $3))
-                MYSQL_YYABORT;
-            }
-            else
-            {
-              sp_pcontext *spc= lex->spcont;
-              sp_variable *spv= spc->find_variable($1.base_name, false);
-
-              /* It is a local variable. */
-              if (lex->set_local_variable(spv, $3))
-                MYSQL_YYABORT;
-            }
+            if (Lex->set_variable(&$1, $3))
+              MYSQL_YYABORT;
           }
         | '@' ident_or_text equal expr
           {

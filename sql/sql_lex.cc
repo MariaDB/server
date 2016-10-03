@@ -5922,6 +5922,35 @@ bool LEX::add_resignal_statement(THD *thd, const sp_condition_value *v)
 }
 
 
+/*
+  Perform assignment for a trigger, a system variable, or an SP variable.
+  "variable" be previously set by init_internal_variable(variable, name).
+*/
+bool LEX::set_variable(struct sys_var_with_base *variable, Item *item)
+{
+  if (variable->var == trg_new_row_fake_var)
+  {
+    /* We are in trigger and assigning value to field of new row */
+    return set_trigger_new_row(&variable->base_name, item);
+  }
+  if (variable->var)
+  {
+    /* It is a system variable. */
+    return set_system_variable(variable, option_type, item);
+  }
+
+  /*
+    spcont and spv should not be NULL, as the variable
+    was previously checked by init_internal_variable().
+  */
+  DBUG_ASSERT(spcont);
+  sp_variable *spv= spcont->find_variable(variable->base_name, false);
+  DBUG_ASSERT(spv);
+  /* It is a local variable. */
+  return set_local_variable(spv, item);
+}
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 
