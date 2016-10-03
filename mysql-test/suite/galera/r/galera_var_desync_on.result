@@ -33,4 +33,5 @@ COUNT(*) = 11
 1
 CALL mtr.add_suppression("Protocol violation");
 DROP TABLE t1;
+connection node_1;
 CALL mtr.add_suppression("Protocol violation");
