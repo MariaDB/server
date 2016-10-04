@@ -1060,9 +1060,26 @@ end of 10.0 tests
 # System Versioning Support
 #
 #
-CREATE TABLE t1(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING;
-CREATE TABLE t2(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING;
-INSERT INTO t1(x, y) VALUES
+set @@session.time_zone='+00:00';
+select ifnull(max(trx_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+create procedure test_01(
+sys_type varchar(255),
+engine varchar(255),
+fields varchar(255))
+begin
+set @str= concat('(
+    x int unsigned,
+    y int unsigned,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+set @str2= concat('create table t1', @str);
+prepare stmt from @str2; execute stmt; drop prepare stmt;
+set @str2= concat('create table t2', @str);
+prepare stmt from @str2; execute stmt; drop prepare stmt;
+insert into t1(x, y) values
 (1, 1000),
 (2, 2000),
 (3, 3000),
@@ -1072,7 +1089,7 @@ INSERT INTO t1(x, y) VALUES
 (7, 7000),
 (8, 8000),
 (9, 9000);
-INSERT INTO t2(x, y) VALUES
+insert into t2(x, y) values
 (1, 1010),
 (2, 2010),
 (3, 3010),
@@ -1082,8 +1099,15 @@ INSERT INTO t2(x, y) VALUES
 (7, 7010),
 (8, 8010),
 (9, 9010);
-UPDATE t1, t2 SET t1.y = t1.x + t1.y, t2.y = t2.x + t2.y WHERE t1.x > 7 AND t2.x < 7;
-SELECT x, y FROM t1 FOR SYSTEM_TIME BETWEEN TIMESTAMP '0-0-0 0:0:0' AND TIMESTAMP '9999-1-1 0:0:0';
+update t1, t2 set t1.y = t1.x + t1.y, t2.y = t2.x + t2.y where t1.x > 7 and t2.x < 7;
+select x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp '9999-1-1 0:0:0';
+select x, y from t1;
+select x, y from t2 for system_time between timestamp '0-0-0 0:0:0' and timestamp '9999-1-1 0:0:0';
+select x, y from t2;
+drop table t1;
+drop table t2;
+end~~
+call test_01('timestamp(6)', 'myisam', 'sys_end');
 x	y
 1	1000
 2	2000
@@ -1096,7 +1120,6 @@ x	y
 9	9009
 8	8000
 9	9000
-SELECT x, y FROM t1;
 x	y
 1	1000
 2	2000
@@ -1107,7 +1130,6 @@ x	y
 7	7000
 8	8008
 9	9009
-SELECT x, y FROM t2 FOR SYSTEM_TIME BETWEEN TIMESTAMP '0-0-0 0:0:0' AND TIMESTAMP '9999-1-1 0:0:0';
 x	y
 1	1011
 2	2012
@@ -1124,7 +1146,6 @@ x	y
 4	4010
 5	5010
 6	6010
-SELECT x, y FROM t2;
 x	y
 1	1011
 2	2012
@@ -1135,32 +1156,7 @@ x	y
 7	7010
 8	8010
 9	9010
-DROP TABLE t1;
-DROP TABLE t2;
-CREATE TABLE t1(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING ENGINE=InnoDB;
-CREATE TABLE t2(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING ENGINE=InnoDB;
-INSERT INTO t1(x, y) VALUES
-(1, 1000),
-(2, 2000),
-(3, 3000),
-(4, 4000),
-(5, 5000),
-(6, 6000),
-(7, 7000),
-(8, 8000),
-(9, 9000);
-INSERT INTO t2(x, y) VALUES
-(1, 1010),
-(2, 2010),
-(3, 3010),
-(4, 4010),
-(5, 5010),
-(6, 6010),
-(7, 7010),
-(8, 8010),
-(9, 9010);
-UPDATE t1, t2 SET t1.y = t1.x + t1.y, t2.y = t2.x + t2.y WHERE t1.x > 7 AND t2.x < 7;
-SELECT x, y FROM t1 FOR SYSTEM_TIME BETWEEN TIMESTAMP '0-0-0 0:0:0' AND TIMESTAMP '9999-1-1 0:0:0';
+call test_01('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
 x	y
 1	1000
 2	2000
@@ -1173,7 +1169,6 @@ x	y
 9	9009
 8	8000
 9	9000
-SELECT x, y FROM t1;
 x	y
 1	1000
 2	2000
@@ -1184,7 +1179,6 @@ x	y
 7	7000
 8	8008
 9	9009
-SELECT x, y FROM t2 FOR SYSTEM_TIME BETWEEN TIMESTAMP '0-0-0 0:0:0' AND TIMESTAMP '9999-1-1 0:0:0';
 x	y
 1	1011
 2	2012
@@ -1201,7 +1195,6 @@ x	y
 4	4010
 5	5010
 6	6010
-SELECT x, y FROM t2;
 x	y
 1	1011
 2	2012
@@ -1212,5 +1205,25 @@ x	y
 7	7010
 8	8010
 9	9010
-DROP TABLE t1;
-DROP TABLE t2;
+drop procedure test_01;
+create procedure verify_vtq()
+begin
+set @i= 0;
+select
+@i:= @i + 1 as No,
+trx_id > 0 as A,
+begin_ts > '1-1-1 0:0:0' as B,
+commit_ts > begin_ts as C,
+concurr_trx is null as D
+from information_schema.innodb_vtq
+where trx_id > @start_trx_id;
+select ifnull(max(trx_id), 0)
+into @start_trx_id
+from information_schema.innodb_vtq;
+end~~
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+3	1	1	1	1
+drop procedure verify_vtq;

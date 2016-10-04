@@ -721,114 +721,165 @@ DROP TABLE t1;
 # System Versioning Support
 #
 #
-SET @@session.time_zone='+00:00';
+set @@session.time_zone='+00:00';
 select ifnull(max(trx_id), 0) into @start_trx_id from information_schema.innodb_vtq;
-CREATE TABLE t1(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING;
-INSERT INTO t1(x, y) VALUES(3, 4);
-INSERT INTO t1(x, y) VALUES(2, 3);
-INSERT INTO t1 VALUES(40, 33);
-SELECT x, y, Sys_end FROM t1;
-x	y	Sys_end
+create procedure test_01(
+sys_type varchar(255),
+engine varchar(255),
+fields varchar(255))
+begin
+set @str= concat('
+  create table t1(
+    x int unsigned,
+    y int unsigned,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+prepare stmt from @str; execute stmt; drop prepare stmt;
+insert into t1(x, y) values(3, 4);
+insert into t1(x, y) values(2, 3);
+insert into t1 values(40, 33);
+set @str= concat('select x, y, ', fields, ' from t1');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+drop table t1;
+end~~
+call test_01('timestamp(6)', 'myisam', 'sys_end');
+x	y	sys_end
 3	4	2038-01-19 03:14:07.000000
 2	3	2038-01-19 03:14:07.000000
 40	33	2038-01-19 03:14:07.000000
-DROP TABLE t1;
-CREATE TABLE t1(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING ENGINE=InnoDB;
-INSERT INTO t1(x, y) VALUES(3, 4);
-INSERT INTO t1(x, y) VALUES(2, 3);
-INSERT INTO t1 VALUES(40, 33);
-SELECT x, y, Sys_end FROM t1;
-x	y	Sys_end
+call test_01('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+x	y	commit_ts(sys_end)
 3	4	2038-01-19 03:14:07.000000
 2	3	2038-01-19 03:14:07.000000
 40	33	2038-01-19 03:14:07.000000
-DROP TABLE t1;
-CREATE TABLE t1(id INT UNSIGNED NOT NULL AUTO_INCREMENT, x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end), PRIMARY KEY(id)) WITH SYSTEM VERSIONING;
-INSERT INTO t1(x, y) VALUES(33, 44);
-INSERT INTO t1(id, x, y) VALUES(20, 33, 44);
-INSERT INTO t1 VALUES(40, 33, 44);
-SELECT id, x, y, Sys_end FROM t1;
-id	x	y	Sys_end
+drop procedure test_01;
+create procedure test_02(
+sys_type varchar(255),
+engine varchar(255),
+fields varchar(255))
+begin
+set @str= concat('
+  create table t1(
+    id int unsigned auto_increment primary key,
+    x int unsigned,
+    y int unsigned,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+prepare stmt from @str; execute stmt; drop prepare stmt;
+insert into t1(x, y) values(33, 44);
+insert into t1(id, x, y) values(20, 33, 44);
+insert into t1 values(40, 33, 44);
+set @str= concat('select id, x, y, ', fields, ' from t1');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+drop table t1;
+end~~
+call test_02('timestamp(6)', 'myisam', 'sys_end');
+id	x	y	sys_end
 1	33	44	2038-01-19 03:14:07.000000
 20	33	44	2038-01-19 03:14:07.000000
 40	33	44	2038-01-19 03:14:07.000000
-DROP TABLE t1;
-CREATE TABLE t1(id INT UNSIGNED NOT NULL AUTO_INCREMENT, x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end), PRIMARY KEY(id)) WITH SYSTEM VERSIONING ENGINE=InnoDB;
-INSERT INTO t1(x, y) VALUES(33, 44);
-INSERT INTO t1(id, x, y) VALUES(20, 33, 44);
-INSERT INTO t1 VALUES(40, 33, 44);
-SELECT id, x, y, Sys_end FROM t1;
-id	x	y	Sys_end
+call test_02('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+id	x	y	commit_ts(sys_end)
 1	33	44	2038-01-19 03:14:07.000000
 20	33	44	2038-01-19 03:14:07.000000
 40	33	44	2038-01-19 03:14:07.000000
-DROP TABLE t1;
-CREATE TABLE t1(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING;
-CREATE VIEW vt1_1 AS SELECT x, y FROM t1;
-CREATE VIEW vt1_2 AS SELECT x, y, Sys_end FROM t1;
-INSERT INTO t1(x, y) VALUES(8001, 9001);
-INSERT INTO t1(x, y, Sys_end) VALUES(8001, 9001, '2015-1-1 0:0:0');
-ERROR HY000: Generated field for System Versioning cannot be set by user
-INSERT INTO vt1_1(x, y) VALUES(1001, 2001);
-INSERT INTO vt1_1 VALUES(1002, 2002);
-INSERT INTO vt1_2(x, y) VALUES(3001, 4001);
-INSERT INTO vt1_2 VALUES(3002, 4002, '2015-1-1 0:0:0');
-ERROR HY000: Generated field for System Versioning cannot be set by user
-SELECT x, y, Sys_end FROM t1;
-x	y	Sys_end
+drop procedure test_02;
+create procedure test_03(
+sys_type varchar(255),
+engine varchar(255),
+fields varchar(255))
+begin
+set @str= concat('
+  create table t1(
+    x int unsigned,
+    y int unsigned,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+prepare stmt from @str; execute stmt; drop prepare stmt;
+create view vt1_1 as select x, y from t1;
+create view vt1_2 as select x, y, sys_end from t1;
+insert into t1(x, y) values(8001, 9001);
+insert into vt1_1(x, y) values(1001, 2001);
+insert into vt1_1 values(1002, 2002);
+insert into vt1_2(x, y) values(3001, 4001);
+set @str= concat('select x, y, ', fields, ' from t1');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+select x, y from vt1_1;
+set @str= concat('select x, y, ', fields, ' from vt1_2');
+prepare stmt from @str; execute stmt; drop prepare stmt;
+end~~
+call test_03('timestamp(6)', 'myisam', 'sys_end');
+x	y	sys_end
 8001	9001	2038-01-19 03:14:07.000000
 1001	2001	2038-01-19 03:14:07.000000
 1002	2002	2038-01-19 03:14:07.000000
 3001	4001	2038-01-19 03:14:07.000000
-SELECT x, y FROM vt1_1;
 x	y
 8001	9001
 1001	2001
 1002	2002
 3001	4001
-SELECT x, y, Sys_end FROM vt1_2;
-x	y	Sys_end
+x	y	sys_end
 8001	9001	2038-01-19 03:14:07.000000
 1001	2001	2038-01-19 03:14:07.000000
 1002	2002	2038-01-19 03:14:07.000000
 3001	4001	2038-01-19 03:14:07.000000
-DROP TABLE t1;
-DROP VIEW vt1_1;
-DROP VIEW vt1_2;
-CREATE TABLE t1(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING ENGINE=InnoDB;
-CREATE VIEW vt1_1 AS SELECT x, y FROM t1;
-CREATE VIEW vt1_2 AS SELECT x, y, Sys_end FROM t1;
-INSERT INTO t1(x, y) VALUES(8001, 9001);
-INSERT INTO t1(x, y, Sys_end) VALUES(8001, 9001, '2015-1-1 0:0:0');
+insert into t1(x, y, sys_end) values(8001, 9001, '2015-1-1 1:1:1');
 ERROR HY000: Generated field for System Versioning cannot be set by user
-INSERT INTO vt1_1(x, y) VALUES(1001, 2001);
-INSERT INTO vt1_1 VALUES(1002, 2002);
-INSERT INTO vt1_2(x, y) VALUES(3001, 4001);
-INSERT INTO vt1_2 VALUES(3002, 4002, '2015-1-1 0:0:0');
+insert into vt1_2 values(3002, 4002, '2015-2-2 2:2:2');
 ERROR HY000: Generated field for System Versioning cannot be set by user
-SELECT x, y, Sys_end FROM t1;
-x	y	Sys_end
+drop table t1;
+drop view vt1_1;
+drop view vt1_2;
+call test_03('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+x	y	commit_ts(sys_end)
 8001	9001	2038-01-19 03:14:07.000000
 1001	2001	2038-01-19 03:14:07.000000
 1002	2002	2038-01-19 03:14:07.000000
 3001	4001	2038-01-19 03:14:07.000000
-SELECT x, y FROM vt1_1;
 x	y
 8001	9001
 1001	2001
 1002	2002
 3001	4001
-SELECT x, y, Sys_end FROM vt1_2;
-x	y	Sys_end
+x	y	commit_ts(sys_end)
 8001	9001	2038-01-19 03:14:07.000000
 1001	2001	2038-01-19 03:14:07.000000
 1002	2002	2038-01-19 03:14:07.000000
 3001	4001	2038-01-19 03:14:07.000000
-DROP TABLE t1;
-DROP VIEW vt1_1;
-DROP VIEW vt1_2;
-SET @i = 0;
-SELECT @i:=@i+1 AS No, trx_id > 0 AS A, begin_ts > '2015-1-1 0:0:0' AS B, commit_ts > begin_ts AS C, concurr_trx IS NULL AS D FROM INFORMATION_SCHEMA.INNODB_VTQ WHERE trx_id > @start_trx_id;
+insert into t1(x, y, sys_end) values(8001, 9001, 1111111);
+ERROR HY000: Generated field for System Versioning cannot be set by user
+insert into vt1_2 values(3002, 4002, 2222222);
+ERROR HY000: Generated field for System Versioning cannot be set by user
+drop table t1;
+drop view vt1_1;
+drop view vt1_2;
+drop procedure test_03;
+create procedure verify_vtq()
+begin
+set @i= 0;
+select
+@i:= @i + 1 as No,
+trx_id > 0 as A,
+begin_ts > '1-1-1 0:0:0' as B,
+commit_ts > begin_ts as C,
+concurr_trx is null as D
+from information_schema.innodb_vtq
+where trx_id > @start_trx_id;
+select ifnull(max(trx_id), 0)
+into @start_trx_id
+from information_schema.innodb_vtq;
+end~~
+call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1
@@ -840,25 +891,27 @@ No	A	B	C	D
 8	1	1	1	1
 9	1	1	1	1
 10	1	1	1	1
-select ifnull(max(trx_id), 0) into @start_trx_id from information_schema.innodb_vtq;
-CREATE TABLE t1(x INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING ENGINE=InnoDB;
-CREATE TABLE t2(x INT UNSIGNED) ENGINE=InnoDB;
-START TRANSACTION;
-INSERT INTO t1(x) VALUES(1);
-COMMIT;
-SET @i = 0;
-SELECT @i:=@i+1 AS No, trx_id > 0 AS A, begin_ts > '2015-1-1 0:0:0' AS B, commit_ts > begin_ts AS C, concurr_trx IS NULL AS D FROM INFORMATION_SCHEMA.INNODB_VTQ WHERE trx_id > @start_trx_id;
+create table t1(
+x int unsigned,
+sys_start bigint unsigned generated always as row start,
+sys_end bigint unsigned generated always as row end,
+period for system_time (sys_start, sys_end))
+with system versioning engine=innodb;
+create table t2(x int unsigned) engine=innodb;
+start transaction;
+insert into t1(x) values(1);
+commit;
+call verify_vtq;
 No	A	B	C	D
 1	1	1	1	1
-select ifnull(max(trx_id), 0) into @start_trx_id from information_schema.innodb_vtq;
-START TRANSACTION;
-INSERT INTO t2(x) VALUES(1);
-SAVEPOINT a;
-INSERT INTO t1(x) VALUES(1);
-ROLLBACK TO a;
-COMMIT;
-SET @i = 0;
-SELECT @i:=@i+1 AS No, trx_id > 0 AS A, begin_ts > '2015-1-1 0:0:0' AS B, commit_ts > begin_ts AS C, concurr_trx IS NULL AS D FROM INFORMATION_SCHEMA.INNODB_VTQ WHERE trx_id > @start_trx_id;
+start transaction;
+insert into t2(x) values(1);
+savepoint a;
+insert into t1(x) values(1);
+rollback to a;
+commit;
+call verify_vtq;
 No	A	B	C	D
-DROP TABLE t1;
-DROP TABLE t2;
+drop table t1;
+drop table t2;
+drop procedure verify_vtq;

@@ -660,41 +660,69 @@ drop table t1, t2;
 --echo #
 --echo #
 
-CREATE TABLE t1(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING;
-INSERT INTO t1(x, y) VALUES
-  (1, 1000),
-  (2, 2000),
-  (3, 3000),
-  (4, 4000),
-  (5, 5000),
-  (6, 6000),
-  (7, 7000),
-  (8, 8000),
-  (9, 9000);
-SELECT x, y FROM t1;
-UPDATE t1 SET y = y + 1 WHERE x > 7;
-SELECT x, y FROM t1;
-SELECT x, y FROM t1 FOR SYSTEM_TIME BETWEEN TIMESTAMP '0000-0-0 0:0:0' AND TIMESTAMP '2038-01-19 04:14:07';
-DROP TABLE t1;
-
 -- source include/have_innodb.inc
-
+set @@session.time_zone='+00:00';
 select ifnull(max(trx_id), 0) into @start_trx_id from information_schema.innodb_vtq;
-CREATE TABLE t1(x INT UNSIGNED, y INT UNSIGNED, Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START, Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END, PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)) WITH SYSTEM VERSIONING ENGINE=InnoDB;
-INSERT INTO t1(x, y) VALUES
-  (1, 1000),
-  (2, 2000),
-  (3, 3000),
-  (4, 4000),
-  (5, 5000),
-  (6, 6000),
-  (7, 7000),
-  (8, 8000),
-  (9, 9000);
-SELECT x, y FROM t1;
-UPDATE t1 SET y = y + 1 WHERE x > 7;
-SELECT x, y FROM t1;
-SELECT x, y FROM t1 FOR SYSTEM_TIME BETWEEN TIMESTAMP '0000-0-0 0:0:0' AND TIMESTAMP '2038-01-19 04:14:07';
-DROP TABLE t1;
 
-SET @i = 0; SELECT @i:=@i+1 AS No, trx_id > 0 AS A, begin_ts > '2015-1-1 0:0:0' AS B, commit_ts > begin_ts AS C, concurr_trx IS NULL AS D FROM INFORMATION_SCHEMA.INNODB_VTQ WHERE trx_id > @start_trx_id;
+delimiter ~~;
+create procedure test_01(
+  sys_type varchar(255),
+  engine varchar(255),
+  fields varchar(255))
+begin
+  set @str= concat('
+  create table t1(
+    x int unsigned,
+    y int unsigned,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+  prepare stmt from @str; execute stmt; drop prepare stmt;
+  insert into t1(x, y) values
+    (1, 1000),
+    (2, 2000),
+    (3, 3000),
+    (4, 4000),
+    (5, 5000),
+    (6, 6000),
+    (7, 7000),
+    (8, 8000),
+    (9, 9000);
+  select x, y from t1;
+  update t1 set y = y + 1 where x > 7;
+  select x, y from t1;
+  select x, y from t1 for system_time
+  between timestamp '0000-0-0 0:0:0'
+  and timestamp '2038-01-19 04:14:07';
+  drop table t1;
+end~~
+delimiter ;~~
+
+call test_01('timestamp(6)', 'myisam', 'sys_end');
+call test_01('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+drop procedure test_01;
+
+# VTQ test
+
+delimiter ~~;
+create procedure verify_vtq()
+begin
+  set @i= 0;
+  select
+    @i:= @i + 1 as No,
+    trx_id > 0 as A,
+    begin_ts > '1-1-1 0:0:0' as B,
+    commit_ts > begin_ts as C,
+    concurr_trx is null as D
+  from information_schema.innodb_vtq
+  where trx_id > @start_trx_id;
+  select ifnull(max(trx_id), 0)
+  into @start_trx_id
+  from information_schema.innodb_vtq;
+end~~
+delimiter ;~~
+
+call verify_vtq;
+drop procedure verify_vtq;
