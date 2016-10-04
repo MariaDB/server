@@ -2521,7 +2521,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     bitmaps_used++;
     copy->vcol_set= copy->def_vcol_set;
   }
-  if (share->default_fields)
+  if (share->default_fields || share->default_expressions)
   {
     if (!(copy->has_value_set= (MY_BITMAP*) alloc_root(client_thd->mem_root,
                                                        sizeof(MY_BITMAP))))

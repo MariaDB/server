@@ -3668,7 +3668,7 @@ row_merge_insert_index_tuples(
 				((pct_cost * inserted_rows) / table_total_rows);
 
 			/* presenting 10.12% as 1012 integer */;
-			onlineddl_pct_progress = (pct_progress + curr_progress) * 100;
+			onlineddl_pct_progress = (ulint) ((pct_progress + curr_progress) * 100);
 		}
 	}
 

@@ -169,6 +169,7 @@ Filename::tab#.ibd
 #::       #		|		Index page			|	index id=#, page level=# leaf #, No. of records=#, garbage=#, n_recs=#, -
 #::       #		|		Index page			|	index id=#, page level=# leaf #, No. of records=#, garbage=#, n_recs=#, -
 #::       #		|		Freshly allocated page		|	-
+# Variables used by page type dump for ibdata1
 
 Variables (--variable-name=value)
 and boolean options {FALSE|TRUE}  Value (after reading options)

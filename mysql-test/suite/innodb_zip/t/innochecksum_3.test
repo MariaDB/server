@@ -3,7 +3,6 @@
 #************************************************************
 --source include/have_innodb.inc
 --source include/have_innodb_zip.inc
---source include/have_debug.inc
 
 # Valgrind would complain about memory leaks when we crash on purpose.
 --source include/not_valgrind.inc
@@ -219,20 +218,18 @@ opendir(DIR, $dir) or die $!;
 my $file= 'dump.txt';
 # open file in write mode
 open IN_FILE,"<", "$dir/tmp/$file" or die $!;
-open OUT_FILE, ">", "$dir/tmp/tmpfile" or die $!;
+open OUT_FILE, ">", "$dir/tmp/innochecksum_3_tempfile" or die $!;
 while(<IN_FILE>)
 {
  # Replace the intergers to # and complete file path to file name only.
  $_=~ s/Filename.+/Filename::tab1.ibd/g;
  $_=~ s/\d+/#/g;
- # Remove debug option, which is not in all builds
- continue if (/debug/);
  print OUT_FILE $_;
 }
 close(IN_FILE);
 close(OUT_FILE);
 # move the new content from tmp file to the orginal file.
-move ("$dir/tmp/tmpfile", "$dir/tmp/$file");
+move ("$dir/tmp/innochecksum_3_tempfile", "$dir/tmp/$file");
 closedir(DIR);
 EOF
 
@@ -240,11 +237,39 @@ EOF
 cat_file $MYSQLTEST_VARDIR/tmp/dump.txt;
 --remove_file $MYSQLTEST_VARDIR/tmp/dump.txt
 
-# Page type dump for ibdata1
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---exec $INNOCHECKSUM -v --page-type-dump $MYSQLTEST_VARDIR/tmp/dump.txt $MYSQLD_DATADIR/ibdata1
+--echo # Variables used by page type dump for ibdata1
+--exec $INNOCHECKSUM -v --page-type-dump $MYSQLTEST_VARDIR/tmp/dump.txt $MYSQLD_DATADIR/ibdata1 > $MYSQLTEST_VARDIR/tmp/page_verbose_summary.txt
+
 --file_exists $MYSQLTEST_VARDIR/tmp/dump.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/dump.txt
+
+perl;
+use strict;
+use warnings;
+use File::Copy;
+my $dir = $ENV{'MYSQLTEST_VARDIR'};
+opendir(DIR, $dir) or die $!;
+my $file= 'page_verbose_summary.txt';
+# open file in write mode
+open IN_FILE,"<", "$dir/tmp/$file" or die $!;
+open OUT_FILE, ">", "$dir/tmp/innochecksum_3_tempfile" or die $!;
+while(<IN_FILE>)
+{
+ # Replace complete file path to file name only.
+ $_=~ s/$dir/MYSQLTEST_VARDIR/;
+ # Remove debug option, which is not in all builds
+ next if (/debug/);
+ print OUT_FILE $_;
+}
+close(IN_FILE);
+close(OUT_FILE);
+# move the new content from tmp file to the orginal file.
+move ("$dir/tmp/innochecksum_3_tempfile", "$dir/tmp/$file");
+closedir(DIR);
+EOF
+
+cat_file $MYSQLTEST_VARDIR/tmp/page_verbose_summary.txt;
+--remove_file $MYSQLTEST_VARDIR/tmp/page_verbose_summary.txt
 
 --echo [5]: Page type dump for with shortform for tab1.ibd
 --exec $INNOCHECKSUM -D $MYSQLTEST_VARDIR/tmp/dump.txt $MYSQLD_DATADIR/test/tab1.ibd
@@ -258,10 +283,10 @@ opendir(DIR, $dir) or die $!;
 my $file= 'dump.txt';
 # open file in write mode
 open IN_FILE,"<", "$dir/tmp/$file" or die $!;
-open OUT_FILE, ">", "$dir/tmp/tmpfile" or die $!;
+open OUT_FILE, ">", "$dir/tmp/innochecksum_3_tempfile" or die $!;
 while(<IN_FILE>)
 {
- # Replace teh intergers to # and complete file patht to file name only.
+ # Replace the intergers to # and complete file path to file name only.
  $_=~ s/Filename.+/Filename::tab1.ibd/g;
  $_=~ s/\d+/#/g;
  print OUT_FILE $_;
@@ -269,7 +294,7 @@ while(<IN_FILE>)
 close(IN_FILE);
 close(OUT_FILE);
 # move the new content from tmp file to the orginal file.
-move ("$dir/tmp/tmpfile", "$dir/tmp/$file");
+move ("$dir/tmp/innochecksum_3_tempfile", "$dir/tmp/$file");
 closedir(DIR);
 EOF
 

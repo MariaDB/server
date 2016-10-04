@@ -6658,7 +6658,7 @@ i_s_dict_fill_sys_tablestats(
 
 	OK(fields[SYS_TABLESTATS_AUTONINC]->store(table->autoinc, true));
 
-	OK(fields[SYS_TABLESTATS_TABLE_REF_COUNT]->store(static_cast<double>(ref_count), true));
+	OK(fields[SYS_TABLESTATS_TABLE_REF_COUNT]->store(static_cast<double>(ref_count)));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -7598,7 +7598,7 @@ i_s_dict_fill_sys_fields(
 
 	OK(field_store_string(fields[SYS_FIELD_NAME], field->name));
 
-	OK(fields[SYS_FIELD_POS]->store(static_cast<double>(pos), true));
+	OK(fields[SYS_FIELD_POS]->store(static_cast<double>(pos)));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
