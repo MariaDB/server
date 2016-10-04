@@ -6568,7 +6568,7 @@ static bool create_sys_trx_field_if_missing(THD *thd, const char *field_name,
 
   f->field_name= field_name;
   f->charset= system_charset_info;
-  f->sql_type= MYSQL_TYPE_TIMESTAMP;
+  f->sql_type= MYSQL_TYPE_TIMESTAMP2;
   f->length= 6;
   f->decimals= 0;
 
