@@ -174,3 +174,93 @@ DROP FUNCTION f1;
 --echo #
 
 EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING 10;
+
+
+--echo #
+--echo # MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+--echo #
+
+--echo #
+--echo # Testing erroneous and diallowed prepare source
+--echo #
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE IMMEDIATE _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+PREPARE stmt FROM _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE (SELECT 'SELECT 1');
+--error ER_PARSE_ERROR
+PREPARE stmt FROM (SELECT 'SELECT 1');
+
+--error ER_BAD_FIELD_ERROR
+EXECUTE IMMEDIATE a;
+--error ER_BAD_FIELD_ERROR
+PREPARE stmt FROM a;
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE NULL;
+--error ER_PARSE_ERROR
+PREPARE stmt FROM NULL;
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE COALESCE(NULL);
+--error ER_PARSE_ERROR
+PREPARE stmt FROM COALESCE(NULL);
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+BEGIN
+  RETURN 't1';
+END;
+$$
+DELIMITER ;$$
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE IMMEDIATE f1();
+--error ER_SUBQUERIES_NOT_SUPPORTED
+PREPARE stmt FROM f1();
+DROP FUNCTION f1;
+
+--echo #
+--echo # Testing user variables in prepare source
+--echo #
+
+SET @table_name='DUAL';
+EXECUTE IMMEDIATE 'SELECT 1 AS a FROM ' || @table_name;
+PREPARE stmt FROM 'SELECT 1 AS a FROM ' || @table_name;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # Testing SP parameters and variables in prepare source
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(table_name VARCHAR)
+AS
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1 AS c FROM '|| table_name;
+END;
+$$
+DELIMITER ;$$
+CALL p1('DUAL');
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  table_name VARCHAR(64):='DUAL';
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1 AS c FROM ' || table_name;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # End of MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+--echo #
