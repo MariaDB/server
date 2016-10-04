@@ -171,3 +171,79 @@ DROP FUNCTION f1;
 EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING 10;
 :1
 10
+#
+# MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+#
+#
+# Testing erroneous and diallowed prepare source
+#
+EXECUTE IMMEDIATE _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+PREPARE stmt FROM _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+EXECUTE IMMEDIATE (SELECT 'SELECT 1');
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
+PREPARE stmt FROM (SELECT 'SELECT 1');
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
+EXECUTE IMMEDIATE a;
+ERROR 42S22: Unknown column 'a' in 'field list'
+PREPARE stmt FROM a;
+ERROR 42S22: Unknown column 'a' in 'field list'
+EXECUTE IMMEDIATE NULL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+PREPARE stmt FROM NULL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+EXECUTE IMMEDIATE COALESCE(NULL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+PREPARE stmt FROM COALESCE(NULL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+BEGIN
+RETURN 't1';
+END;
+$$
+EXECUTE IMMEDIATE f1();
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
+PREPARE stmt FROM f1();
+ERROR 42000: PREPARE..FROM does not support subqueries or stored functions
+DROP FUNCTION f1;
+#
+# Testing user variables in prepare source
+#
+SET @table_name='DUAL';
+EXECUTE IMMEDIATE 'SELECT 1 AS a FROM ' || @table_name;
+a
+1
+PREPARE stmt FROM 'SELECT 1 AS a FROM ' || @table_name;
+EXECUTE stmt;
+a
+1
+DEALLOCATE PREPARE stmt;
+#
+# Testing SP parameters and variables in prepare source
+#
+CREATE PROCEDURE p1(table_name VARCHAR)
+AS
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1 AS c FROM '|| table_name;
+END;
+$$
+CALL p1('DUAL');
+c
+1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+table_name VARCHAR(64):='DUAL';
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1 AS c FROM ' || table_name;
+END;
+$$
+CALL p1();
+c
+1
+DROP PROCEDURE p1;
+#
+# End of MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+#
