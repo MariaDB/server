@@ -340,6 +340,18 @@ public class JdbcInterface {
       return m;
     } // end of GetMaxValue
     
+    public String GetQuoteString() {
+      String qs = null;
+      
+      try {
+        qs = dbmd.getIdentifierQuoteString();
+      } catch(SQLException se) {
+    	SetErrmsg(se);  
+      } // end try/catch
+      
+      return qs;
+    } // end of GetQuoteString
+    
     public int GetColumns(String[] parms) {
       int ncol = -1;
       
