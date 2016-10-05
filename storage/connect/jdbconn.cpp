@@ -1011,6 +1011,21 @@ int JDBConn::Open(PJPARM sop)
 		return RC_FX;
 	}	// endif Msg
 
+	jmethodID qcid = nullptr;
+
+	if (!gmID(g, qcid, "GetQuoteString", "()Ljava/lang/String;")) {
+		jstring s = (jstring)env->CallObjectMethod(job, qcid);
+
+		if (s != nullptr) {
+			char *qch = (char*)env->GetStringUTFChars(s, (jboolean)false);
+			m_IDQuoteChar[0] = *qch;
+		} else {
+			s = (jstring)env->CallObjectMethod(job, errid);
+			Msg = (char*)env->GetStringUTFChars(s, (jboolean)false);
+		}	// endif s
+
+	}	// endif qcid
+
 	if (gmID(g, typid, "ColumnType", "(ILjava/lang/String;)I"))
 		return RC_FX;
 	else
