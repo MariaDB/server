@@ -931,6 +931,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_buffer_pool_load_status,	  SHOW_CHAR},
   {"buffer_pool_resize_status",
   (char*) &export_vars.innodb_buffer_pool_resize_status,  SHOW_CHAR},
+  {"buffer_pool_load_incomplete",
+  &export_vars.innodb_buffer_pool_load_incomplete,        SHOW_BOOL},
   {"buffer_pool_pages_data",
   (char*) &export_vars.innodb_buffer_pool_pages_data,	  SHOW_LONG},
   {"buffer_pool_bytes_data",
