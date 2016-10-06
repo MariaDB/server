@@ -40,8 +40,7 @@ CODENAME="$(lsb_release -sc)"
 # Add libcrack2 (>= 2.9.0) as a build dependency if available in the distribution
 # This matches Debian Jessie, Stretch and Ubuntu Trusty, Wily, Xenial, Yakkety
 # Update check when version 2.10 or newer is available.
-# On Travis-CI never build cracklib, as it is forbidden on Travis-CI.org
-if [[ ! $TRAVIS ]] && apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
+if apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
 then
   sed 's/Standards-Version/,libcrack2-dev (>= 2.9.0)\nStandards-Version/' debian/control
   cat <<EOT >> debian/control
