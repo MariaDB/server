@@ -1,0 +1,8 @@
+--source include/have_rocksdb.inc
+
+#
+# TEXT column types
+#
+
+--source type_text.inc
+

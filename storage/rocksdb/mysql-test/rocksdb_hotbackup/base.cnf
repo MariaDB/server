@@ -1,0 +1,25 @@
+# Use default setting for mysqld processes
+!include include/default_mysqld.cnf
+!include include/default_client.cnf
+
+[mysqld.1]
+rocksdb
+default-storage-engine=rocksdb
+skip-innodb
+default-tmp-storage-engine=MyISAM
+binlog_format=row
+
+[mysqld.2]
+rocksdb
+default-storage-engine=rocksdb
+skip-innodb
+default-tmp-storage-engine=MyISAM
+binlog_format=row
+
+[ENV]
+MASTER_MYPORT=              @mysqld.1.port
+MASTER_MYSOCK=              @mysqld.1.socket
+
+SLAVE_MYPORT=               @mysqld.2.port
+SLAVE_MYSOCK=               @mysqld.2.socket
+

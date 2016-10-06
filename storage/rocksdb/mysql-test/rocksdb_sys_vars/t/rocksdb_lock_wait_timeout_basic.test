@@ -1,0 +1,16 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(1024);
+
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+
+--let $sys_var=ROCKSDB_LOCK_WAIT_TIMEOUT
+--let $read_only=0
+--let $session=1
+--source suite/sys_vars/inc/rocksdb_sys_var.inc
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

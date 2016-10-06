@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1 (pk int primary key) ENGINE=ROCKSDB;
+CREATE TABLE t2 (pk int primary key) ENGINE=ROCKSDB PARTITION BY KEY(pk) PARTITIONS 4;
+Expect errors that we are missing two .frm files
+ RocksDB: Schema mismatch - Table test.t1 is registered in RocksDB but does not have a .frm file
+ RocksDB: Schema mismatch - Table test.t2 is registered in RocksDB but does not have a .frm file
+Expect an error that we have an extra .frm file
+ RocksDB: Schema mismatch - A .frm file exists for table test.t1_dummy, but that table is not registered in RocksDB
+DROP TABLE t1, t2;

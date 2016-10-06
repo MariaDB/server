@@ -1,0 +1,2 @@
+create table t (id int primary key) engine=rocksdb;
+drop table t;

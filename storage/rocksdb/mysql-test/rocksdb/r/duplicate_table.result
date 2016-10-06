@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS t;
+CREATE TABLE t(id int primary key) engine=rocksdb;
+INSERT INTO t values (1), (2), (3);
+CREATE TABLE t(id int primary key) engine=rocksdb;
+ERROR 42S01: Table 't' already exists
+FLUSH TABLES;
+CREATE TABLE t(id int primary key) engine=rocksdb;
+ERROR HY000: Table 'test.t' does not exist, but metadata information exists inside MyRocks. This is a sign of data inconsistency. Please check if './test/t.frm' exists, and try to restore it if it does not exist.
+FLUSH TABLES;
+SELECT * FROM t;
+id
+1
+2
+3
+DROP TABLE t;

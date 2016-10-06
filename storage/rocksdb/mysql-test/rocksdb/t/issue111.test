@@ -1,0 +1,38 @@
+--source include/have_rocksdb.inc
+
+connect (con2,localhost,root,,);
+connection default;
+
+create table t1 (
+  pk int not null primary key, 
+  col1 int not null, 
+  col2 int not null, 
+  key(col1)
+) engine=rocksdb;
+
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table one_k(a int primary key);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+
+insert into t1 select a,a,a from one_k;
+
+--echo # Start the transaction, get the snapshot
+begin;
+select * from t1 where col1<10;
+
+--echo # Connect with another connection and make a conflicting change
+connection con2;
+
+begin;
+update t1 set col2=123456 where pk=0;
+commit;
+
+connection default;
+
+--error ER_LOCK_DEADLOCK
+update t1 set col2=col2+1 where col1 < 10 limit 5;
+
+disconnect con2;
+drop table t1, ten, one_k;

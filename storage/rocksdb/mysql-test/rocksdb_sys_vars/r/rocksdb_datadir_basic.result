@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_DATADIR;
+SELECT @start_global_value;
+@start_global_value
+./.rocksdb
+"Trying to set variable @@global.ROCKSDB_DATADIR to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_DATADIR   = 444;
+ERROR HY000: Variable 'rocksdb_datadir' is a read only variable

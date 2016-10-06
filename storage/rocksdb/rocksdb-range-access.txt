@@ -1,0 +1,353 @@
+
+This file describes how MySQL index navigation commands are translated into
+RocksDB index navigation commands.
+
+Index tuples are shown as
+
+  ( kv )-aaa-pkN
+
+here
+ * '(kv)' is the 4-byte index number.
+ * '-' is just for readability
+ * everything that follows the '-' is mem-comparable form of the key.
+   In ascii encoding,  aaa < bbb < ccc < xxx.
+
+Tuples that start with '#' do not exist in the database. They are only shown
+to demonstrate where Seek() calls end up with.
+
+== HA_READ_KEY_EXACT, forward CF ==
+
+  (kv-1)-xxx-pk
+# ( kv )-aaa      <-- "kv-aaa" doesn't exist in the database, but it would be
+                       here.
+  ( kv )-aaa-pk   <--- Seek("kv-aaa") will put us here on the next record.
+  ( kv )-aaa-pk2
+  ( kv )-bbb-...
+
+RocksDB calls:
+
+  it->Seek(kv);
+  if (it->Valid() && kd->covers_key(..) && kd->cmp_full_keys(...))
+    return record.
+
+== HA_READ_KEY_EXACT, backward CF ==
+
+When we need to seek to a tuple that is a prefix of a full key:
+
+  (kv+1)-xxx-pk
+  ( kv )-ccc-pk
+  ( kv )-bbb-pk3
+  ( kv )-bbb-pk2
+  ( kv )-bbb-pk1 < -- We need to be here
+# ( kv )-bbb         <---we call Seek(kv-bbb)
+  ( kv )-aaa-pk      ... and end up here.  Should call it->Prev().
+
+There is a special case when (kv)-bbb-pk1 is the last record in the CF, and
+we get invalid iterator. Then, we need to call SeekToLast().
+
+Another kind of special case is when we need to seek to the full value.
+Suppose, the lookup tuple is kv-bbb-pk1:
+
+  (kv+1)-xxx-pk
+  ( kv )-ccc-pk
+  ( kv )-bbb-pk3
+  ( kv )-bbb-pk2
+  ( kv )-bbb-pk1 < -- Seek(kv-bbb-pk1)
+  ( kv )-bbb-pk0
+
+Then, Seek(kv-bbb-pk1) will position us exactly the tuple we need, and we
+won't need to call it->Prev().  If we get an invalid iterator, there is no
+need to call SeekToLast().
+
+RocksDB calls:
+
+  it->Seek(tuple);
+
+  if (!using_full_key)
+  {
+    if (!it->Valid())
+      it->SeekToLast();
+    else
+      it->Prev();
+  }
+
+  if (it->Valid() && kd->covers_key(..) && kd->cmp_full_keys(...))
+    return record.
+
+== HA_READ_KEY_OR_NEXT, forward CF ==
+
+This is finding min(key) such that key >= lookup_tuple.
+
+If lookup tuple is kv-bbb:
+
+  ( kv )-aaa-pk
+# ( kv )-bbb      <-- "kv-bbb" doesn't exist in the database, but it would be
+                       here.
+  ( kv )-bbb-pk1  <--- Seek("kv-bbb") will put us here on the next record.
+  ( kv )-bbb-pk2
+  ( kv )-bbb-...
+
+RocksDB calls:
+
+  Seek(kv);
+  if (it->Valid() && kd->covers_key(..) && kd->cmp_full_keys(...))
+    return record.
+
+== HA_READ_KEY_OR_NEXT, backward CF ==
+
+When specified key tuple is a key prefix:
+
+  (kv+1)-xxx-pk
+  ( kv )-ccc-pk
+  ( kv )-bbb-pk3
+  ( kv )-bbb-pk2
+  ( kv )-bbb-pk1 < -- We need to be here (or above)
+# ( kv )-bbb         <---we call Seek(kv-bbb)
+  ( kv )-aaa-pk      ... and end up here.  Should call it->Prev().
+
+There is a special case when (kv)-bbb-pk1 is the last record in the CF, and
+we get invalid iterator. Then, we need to call SeekToLast().
+
+Another kind of special case is when we need to seek to the full value.
+Suppose, the lookup tuple is kv-bbb-pk1:
+
+  (kv+1)-xxx-pk
+  ( kv )-ccc-pk
+  ( kv )-bbb-pk3
+  ( kv )-bbb-pk2
+  ( kv )-bbb-pk1 < -- Seek(kv-bbb-pk1)
+  ( kv )-bbb-pk0
+
+Then, Seek(kv-bbb-pk1) may position us exactly at the tuple we need, and we
+won't need to call it->Prev().
+If kv-bbb-pk1 is not present in the database, we will be positioned on
+kv-bbb-pk0, and we will need to call it->Prev().
+If we get an invalid iterator, we DO need to call SeekToLast().
+
+RocksDB calls:
+
+  Seek(...);
+
+  if (!it->Valid())
+    it->SeekToLast();
+  else
+  {
+    if (!using_full_key ||
+        !(kd->covers_key(...) || kd->cmp_full_keys(...))
+      it->Prev();
+  }
+
+  if (it->Valid() && kd->covers_key(..))
+    return record.
+
+== HA_READ_AFTER_KEY, forward CF ==
+
+This is finding min(key) such that key > lookup_key.
+
+Suppose lookup_key = kv-bbb
+
+  ( kv )-aaa-pk
+# ( kv )-bbb
+  ( kv )-bbb-pk1  <--- Seek("kv-bbb") will put us here. We need to
+  ( kv )-bbb-pk2       get to the value that is next after 'bbb'.
+  ( kv )-bbb-pk3
+  ( kv )-bbb-pk4
+  ( kv )-bbb-pk5
+  ( kv )-ccc-pkN  <-- That is, we need to be here.
+
+However, we don't know that the next value is kv-ccc. Instead, we seek to the
+first value that strictly greater than 'kv-bbb'. It is Successor(kv-bbb).
+
+It doesn't matter if we're using a full extended key or not.
+
+RocksDB calls:
+
+  Seek(Successor(kv-bbb));
+  if (it->Valid() && kd->covers_key(it.key()))
+    return record;
+
+Note that the code is the same as with HA_READ_KEY_OR_NEXT, except that
+we seek to Successor($lookup_key) instead of $lookup_key itself.
+
+== HA_READ_AFTER_KEY, backward CF ==
+
+Suppose, the lookup key is 'kv-bbb':
+
+  (kv+1)-xxx-pk
+  ( kv )-ccc-pk7
+  ( kv )-ccc-pk6      <-- We need to be here.
+# Successor(kv-bbb)   <-- We get here when we call Seek(Successor(kv-bbb))
+  ( kv )-bbb-pk5          and we will need to call Prev() (*)
+  ( kv )-bbb-pk4
+  ( kv )-bbb-pk3
+  ( kv )-bbb-pk2
+  ( kv )-bbb-pk1
+# ( kv )-bbb          <-- We would get here if we called Seek(kv-bbb).
+  ( kv )-aaa-pk
+
+(*) - unless Successor(kv-bbb)=(kv-ccc), and Seek(kv-ccc) hits the row. In
+that case, we won't need to call Prev().
+
+RocksDB calls:
+
+  Seek(Successor(kv-bbb));
+  if (!it->Valid())
+  {
+    /*
+      We may get EOF if rows with 'kv-bbb' (below the Successor... line in the
+      diagram) do not exist. This doesn't mean that rows with values kv-ccc
+      do not exist.
+    */
+    it->SeekToLast();
+  }
+  else
+  {
+    if (!using_full_key ||
+        !kd->value_matches_prefix(...))
+    {
+      it->Prev();
+    }
+  }
+
+  if (it->Valid() && kd->covers_key(...))
+    return record.
+
+Note that the code is the same as with HA_READ_KEY_OR_NEXT, except that
+we seek to Successor($lookup_key) instead of $lookup_key itself.
+
+
+== HA_READ_BEFORE_KEY, forward CF ==
+
+This is finding max(key) such that key < lookup_tuple.
+
+Suppose, lookup_tuple=kv-bbb.
+
+  ( kv )-aaa-pk1
+  ( kv )-aaa-pk2
+  ( kv )-aaa-pk3  <-- Need to be here.
+# ( kv )-bbb
+  ( kv )-bbb-pk4  <-- Seek("kv-bbb") will put us here.
+  ( kv )-bbb-pk5
+  ( kv )-bbb-pk6
+
+1. Seek(kv-bbb) will put us at kv-bbb-pk4 (or return an invalid iterator
+   if kv-bbb-pk4 and subsequent rows do not exist in the db).
+2. We will need to call Prev() to get to the record before.
+   (if there is no record before kv-bbb, then we can't find a record).
+
+It doesn't matter if we're using a full extended key or not.
+
+RocksDB calls:
+
+  it->Seek(kv-bbb);
+  if (it->Valid())
+    it->Prev();
+  else
+    it->SeekToLast();
+
+  if (it->Valid() && kd->covers_key(...))
+    return record;
+
+
+== HA_READ_BEFORE_KEY, backward CF ==
+
+This is finding max(key) such that key < lookup_tuple.
+Suppose, lookup_tuple=kv-bbb, a prefix of the full key.
+
+  ( kv )-bbb-pk6
+  ( kv )-bbb-pk5
+  ( kv )-bbb-pk4
+# ( kv )-bbb
+  ( kv )-aaa-pk3 <-- Need to be here, and Seek("kv-bbb") will put us here
+  ( kv )-aaa-pk2
+  ( kv )-aaa-pk1
+
+If the lookup tuple is a full key (e.g. kv-bbb-pk4), and the key is present in
+the database, the iterator will be positioned on the key. We will need to call
+Next() to get the next key.
+
+RocksDB calls:
+
+  it->Seek(kv-bbb);
+
+  if (it->Valid() && using_full_key &&
+      kd->value_matches_prefix(...))
+  {
+    /* We are using full key and we've hit an exact match */
+    it->Next();
+  }
+
+  if (it->Valid() && kd->covers_key(...))
+    return record;
+
+== HA_READ_PREFIX_LAST, forward CF ==
+
+Find the last record with the specified index prefix lookup_tuple.
+
+Suppose, lookup_tuple='kv-bbb'
+
+  ( kv )-aaa-pk2
+  ( kv )-aaa-pk3
+# ( kv )-bbb
+  ( kv )-bbb-pk4
+  ( kv )-bbb-pk5
+  ( kv )-bbb-pk6
+  ( kv )-bbb-pk7 <--- Need to be here.
+# ( kv )-ccc
+  ( kv )-ccc-pk8 <-- Seek(Successor(kv-bbb)) will get us here. will need
+  ( kv )-ccc-pk9                               to call Prev().
+
+RocksDB calls:
+
+  Seek(Successor(kv-bbb));
+  if (!it->Valid())
+    it->SeekToLast();
+  else
+    it->Prev();
+
+  if (it->Valid() && kd->covers_key(...))
+  {
+    if (!cmp_full_keys(lookup_tuple))  // not needed in _OR_PREV
+    {
+      // the record's prefix matches lookup_tuple.
+      return record;
+    }
+  }
+
+== HA_READ_PREFIX_LAST, backward CF ==
+
+Suppose, lookup_tuple='kv-bbb'
+
+  ( kv )-ccc-pk9
+  ( kv )-ccc-pk8
+# ( kv )-ccc     <--  2. Seek(Successor(kv-bbb)) will point here
+                         and it will fall down to the next row.
+  ( kv )-bbb-pk7 <--- 1. Need to be here.
+  ( kv )-bbb-pk6
+  ( kv )-bbb-pk5
+  ( kv )-bbb-pk4
+# ( kv )-bbb
+  ( kv )-aaa-pk3
+  ( kv )-aaa-pk2
+
+
+RocksDB calls:
+
+  it->Seek(Successor(kv-bbb));
+
+  if (using_full_key && it->Valid() && !cmp_full_keys(Sucessor(lookup_key)))
+    it->Next();
+
+  if (it->Valid() && kd->covers_key(..))
+  {
+    if (!cmp_full_keys(...)) // not needed in _OR_PREV
+    {
+      // the record's prefix matches lookup_tuple.
+      return record;
+    }
+  }
+
+== HA_READ_PREFIX_LAST_OR_PREV, forward or backward CF ==
+
+This is just like HA_READ_PREFIX_LAST but we don't need to check that the key
+we've got is in the search prefix. (search for "not needed in _OR_PREV" above)

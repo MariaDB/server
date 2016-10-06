@@ -1,0 +1,163 @@
+--source include/have_rocksdb.inc
+--source include/have_debug.inc
+
+--disable_warnings
+drop table if exists t1, t2;
+--enable_warnings
+
+--echo # 
+--echo # Check that DECIMAL PK
+--echo # 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+--echo # First, make the server to create a dataset in the old format:
+set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
+create table t1 (
+  pk1 decimal(32,16), 
+  pk2 decimal(32,16),
+  pk3 decimal(32,16),
+  a smallint not null,
+  primary key(pk1, pk2, pk3)
+);
+insert into t1 
+select 
+  A.a, B.a, C.a, 1234
+from t0 A, t0 B, t0 C;
+
+--echo #
+--echo # Looking at the table size, one can tell that the data is stored using
+--echo # old format:
+--echo #
+set global rocksdb_force_flush_memtable_now=1;
+
+--let $data_length_old = query_get_value("select DATA_LENGTH from information_schema.tables where table_schema=database() and table_name='t1'", DATA_LENGTH, 1)
+
+--echo # Check the format version:
+select table_name,index_name,kv_format_version 
+from information_schema.ROCKSDB_DDL 
+where TABLE_SCHEMA=database() AND table_name='t1';
+
+flush tables;
+ 
+set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
+--source include/restart_mysqld.inc
+
+--echo # Check that the new server reads the data in the old format:
+select * from t1 order by pk1,pk2,pk3 limit 5;
+
+--echo #
+--echo # Ok, now, enable the new data format:
+--echo #
+create table t2 (
+  pk1 decimal(32,16),
+  pk2 decimal(32,16),
+  pk3 decimal(32,16),
+  a smallint not null,
+  primary key(pk1, pk2, pk3)
+);
+insert into t2 
+select 
+  A.a, B.a, C.a, 1234
+from t0 A, t0 B, t0 C;
+set global rocksdb_force_flush_memtable_now=1;
+
+--let $data_length_new = query_get_value("select DATA_LENGTH from information_schema.tables where table_schema=database() and table_name='t2'", DATA_LENGTH, 1)
+--disable_query_log
+--eval select $data_length_old > $data_length_new as "larger"
+--enable_query_log
+
+--echo # This should show the new PK data fromat
+select table_name,index_name,kv_format_version from information_schema.ROCKSDB_DDL 
+where TABLE_SCHEMA=database() AND table_name='t2';
+
+--echo #
+--echo # Check that the server is able to read BOTH the old and the new formats:
+--echo #
+select * from t2 limit 3;
+select * from t1 limit 3;
+
+drop table t1,t2;
+drop table t0;
+
+--echo #
+--echo # Check that DECIMAL datatype supports 'index-only' scans and is decoded correctly.
+--echo #  (Decoding happens from the mem-comparable image in the index, regardless
+--echo #   of whether the value part has original value or not)
+--echo #
+
+create table t1 (
+  pk int not null primary key,
+  col1 decimal (2,1) signed,
+  col2 decimal (2,1) unsigned,
+  filler varchar(100),
+  key key1(col1, col2)
+)engine=rocksdb;
+insert into t1 values 
+(1,-9.1, 0.7, 'filler'),
+(2,-8.2, 1.6, 'filler'),
+(3, 0.3, 2.5, 'filler'),
+(4, 1.4, 3.4, 'filler'),
+(5, 2.5, 4.3, 'filler'),
+(6, 3.3, 5.3, 'filler');
+insert into t1 select pk+100, 9.0, 9.0, 'extra-data' from t1;
+insert into t1 select pk+200, 9.0, 9.0, 'extra-data' from t1;
+insert into t1 select pk+1000, 9.0, 9.0, 'extra-data' from t1;
+insert into t1 select pk+10000, 9.0, 9.0, 'extra-data' from t1;
+insert into t1 select pk+100000, 9.0, 9.0, 'extra-data' from t1;
+analyze table t1;
+
+--echo # The following can't use index-only:
+--replace_column 9 #
+explain select * from t1 where col1 between -8 and 8;
+
+--echo # This will use index-only:
+--replace_column 9 #
+explain
+select col1, col2 from t1 where col1 between -8 and 8;
+select col1, col2 from t1 where col1 between -8 and 8;
+
+insert into t1 values (11, NULL, 0.9, 'row1-with-null');
+insert into t1 values (10, -8.4, NULL, 'row2-with-null');
+--replace_column 9 #
+explain
+select col1, col2 from t1 force index(key1) where col1 is null or col1 < -7;
+select col1, col2 from t1 force index(key1) where col1 is null or col1 < -7;
+
+--echo # Try an UPDATE
+select * from t1 where pk in (3,4);
+update t1 set col2= col2+0.2 where pk in (3,4);
+select * from t1 where pk in (3,4);
+
+drop table t1;
+
+--echo #
+--echo # Try another DECIMAL-based type that takes more space
+--echo #
+create table t1 (
+  pk int not null primary key,
+  col1 decimal (12,6) signed,
+  col2 decimal (12,6) unsigned,
+  filler varchar(100),
+  key key1(col1, col2)
+)engine=rocksdb;
+insert into t1 values 
+(1,-900.001, 000.007, 'filler'),
+(2,-700.002, 100.006, 'filler'),
+(3, 000.003, 200.005, 'filler'),
+(4, 100.004, 300.004, 'filler'),
+(5, 200.005, 400.003, 'filler'),
+(6, 300.003, 500.003, 'filler');
+insert into t1 select pk+100, col1+20000, col2+20000, 'extra-data' from t1;
+insert into t1 select pk+200, col1+20000, col2+20000, 'extra-data' from t1;
+insert into t1 select pk+1000, col1+20000, col2+20000, 'extra-data' from t1;
+insert into t1 select pk+10000, col1+20000, col2+20000, 'extra-data' from t1;
+insert into t1 select pk+100000, col1+20000, col2+20000, 'extra-data' from t1;
+analyze table t1;
+
+--replace_column 9 #
+explain
+select col1, col2 from t1 force index(key1) where col1 between -800 and 800;
+select col1, col2 from t1 force index(key1) where col1 between -800 and 800;
+drop table t1;
+

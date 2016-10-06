@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_WHOLE_KEY_FILTERING;
+SELECT @start_global_value;
+@start_global_value
+1
+"Trying to set variable @@global.ROCKSDB_WHOLE_KEY_FILTERING to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_WHOLE_KEY_FILTERING   = 444;
+ERROR HY000: Variable 'rocksdb_whole_key_filtering' is a read only variable

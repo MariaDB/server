@@ -1,0 +1,1 @@
+--rocksdb_default_cf_options=write_buffer_size=16k --log-bin --binlog_format=row --gtid_mode=ON --enforce_gtid_consistency --log-slave-updates

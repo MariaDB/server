@@ -1,0 +1,8 @@
+--source include/have_rocksdb.inc
+
+#
+# SET column type
+#
+
+--source type_set.inc
+

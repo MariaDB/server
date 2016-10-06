@@ -1,0 +1,1 @@
+--rocksdb_default_cf_options="write_buffer_size=12m;target_file_size_base=1m;max_bytes_for_level_multiplier=10"

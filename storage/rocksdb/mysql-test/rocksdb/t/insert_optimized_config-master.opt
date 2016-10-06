@@ -1,0 +1,6 @@
+--rocksdb_write_disable_wal=1
+--rocksdb_default_cf_options=write_buffer_size=16k;target_file_size_base=16k;level0_file_num_compaction_trigger=4;level0_slowdown_writes_trigger=256;level0_stop_writes_trigger=256;max_write_buffer_number=16;compression_per_level=kNoCompression;memtable=vector:1024
+--rocksdb_override_cf_options=__system__={memtable=skip_list:16}
+--rocksdb_compaction_sequential_deletes=0
+--rocksdb_compaction_sequential_deletes_window=0
+

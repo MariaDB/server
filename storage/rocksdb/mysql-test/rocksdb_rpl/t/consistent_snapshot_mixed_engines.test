@@ -1,0 +1,81 @@
+--source include/have_log_bin.inc
+--source include/have_rocksdb.inc
+--source include/have_innodb.inc
+--enable_connect_log
+-- let $uuid = `select @@server_uuid;`
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+connection con1;
+create table i1 (id int primary key , value int) engine=innodb;
+create table r1 (id int primary key , value int) engine=rocksdb;
+
+
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+# Without setting engine, this takes both InnoDB and RocksDB snapshots
+-- replace_result $uuid uuid
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection con2;
+insert into i1 values (1,1);
+insert into r1 values (1,1);
+
+connection con1;
+select * from i1;
+select * from r1;
+
+# This takes RocksDB snapshot only but both InnoDB participates in transaction.
+-- replace_result $uuid uuid
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+
+connection con2;
+insert into i1 values (2,2);
+insert into r1 values (2,2);
+
+connection con1;
+# takes InnoDB snapshot here so changes after that not visible
+select * from i1;
+select * from r1;
+
+connection con2;
+insert into i1 values (3,2);
+insert into r1 values (3,2);
+
+connection con1;
+select * from i1;
+select * from r1;
+
+# RocksDB also partipates in transaction
+-- replace_result $uuid uuid
+START TRANSACTION WITH CONSISTENT INNODB SNAPSHOT;
+
+connection con2;
+insert into r1 values (4,4);
+
+connection con1;
+# takes RocksDB snapshot here so changes after that are not visible
+select * from r1;
+
+connection con2;
+insert into r1 values (5,5);
+
+connection con1;
+select * from r1;
+
+drop table i1;
+drop table r1;
+
+connection default;
+disconnect con1;
+disconnect con2;
+reset master;
+--source include/wait_until_count_sessions.inc

@@ -1,0 +1,14 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+log_slave_updates
+gtid_mode=ON
+enforce_gtid_consistency=ON
+
+[mysqld.2]
+sync_relay_log_info=100
+relay_log_recovery=1
+relay_log_info_repository=FILE
+log_slave_updates
+gtid_mode=ON
+enforce_gtid_consistency=ON

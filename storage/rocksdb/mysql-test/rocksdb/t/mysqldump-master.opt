@@ -1,0 +1,1 @@
+--force-restart --binlog_format=row

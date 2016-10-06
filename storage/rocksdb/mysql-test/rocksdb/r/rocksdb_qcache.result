@@ -1,0 +1,37 @@
+create table t1 (pk int primary key, c char(8)) engine=RocksDB;
+insert into t1 values (1,'new'),(2,'new');
+select * from t1;
+pk	c
+1	new
+2	new
+connect  con1,localhost,root,,;
+update t1 set c = 'updated';
+connection default;
+flush status;
+show status like 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	0
+show global status like 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	0
+select * from t1;
+pk	c
+1	updated
+2	updated
+select sql_no_cache * from t1;
+pk	c
+1	updated
+2	updated
+select * from t1 where pk = 1;
+pk	c
+1	updated
+show status like 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	0
+show status like 'Qcache_not_cached';
+Variable_name	Value
+Qcache_not_cached	3
+show global status like 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	0
+drop table t1;

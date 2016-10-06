@@ -1,0 +1,52 @@
+--source include/have_rocksdb.inc
+
+# Fixing issue#230 -- Prefix bloom filter + reverse column family misses some rows
+# This test inserts 20,000 rows into t1, then selecting one by one from stored procedure.
+# If the select does not return any row, it is wrong.
+
+CREATE TABLE t1 (
+  `id1` int unsigned NOT NULL DEFAULT '0',
+  `id2` int unsigned NOT NULL DEFAULT '0',
+  `link_type` int unsigned NOT NULL DEFAULT '0',
+  `visibility` tinyint NOT NULL DEFAULT '0',
+  `data` varchar(255) NOT NULL DEFAULT '',
+  `time` int unsigned NOT NULL DEFAULT '0',
+  `version` int unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (id1, link_type, visibility, id2) COMMENT 'rev:cf_link_pk'
+) ENGINE=RocksDB DEFAULT COLLATE=latin1_bin;
+
+DELIMITER //;
+CREATE PROCEDURE select_test()
+BEGIN
+ DECLARE id1_cond INT;
+ SET id1_cond = 1;
+ WHILE id1_cond <= 20000 DO
+   SELECT count(*) AS cnt FROM (SELECT id1 FROM t1 FORCE INDEX (PRIMARY) WHERE id1 = id1_cond AND link_type = 1 AND visibility = 1 ORDER BY id2 DESC) AS t INTO @cnt;
+   IF @cnt < 1 THEN
+     SELECT id1_cond, @cnt;
+   END IF;
+   SET id1_cond = id1_cond + 1;
+ END WHILE;
+END//
+DELIMITER ;//
+
+--disable_query_log
+let $i = 1;
+while ($i <= 20000) {
+  let $insert = INSERT INTO t1 VALUES($i, $i, 1, 1, $i, $i, $i);
+  eval $insert;
+  inc $i;
+}
+--enable_query_log
+
+--echo "Skipping bloom filter"
+SET session rocksdb_skip_bloom_filter_on_read=1;
+CALL select_test();
+
+--echo "Using bloom filter"
+SET session rocksdb_skip_bloom_filter_on_read=0;
+CALL select_test();
+
+DROP PROCEDURE select_test;
+drop table t1;
+

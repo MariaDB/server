@@ -1,0 +1,16 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT AUTO_INCREMENT, KEY(a)) ENGINE=rocksdb;
+INSERT INTO t1 (pk) VALUES (3), (2), (1);
+SELECT * FROM t1;
+
+--source include/restart_mysqld.inc
+
+INSERT INTO t1 (pk) VALUES (4);
+SELECT * FROM t1;
+
+DROP TABLE t1;

@@ -1,0 +1,54 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+drop table if exists t1;
+select @@binlog_format;
+@@binlog_format
+STATEMENT
+create table t1 (pk int primary key) engine=rocksdb;
+insert into t1 values (1),(2),(3);
+ERROR HY000: Can't execute updates on master with binlog_format != ROW.
+set session rocksdb_unsafe_for_binlog=on;
+insert into t1 values (1),(2),(3);
+select * from t1;
+pk
+1
+2
+3
+delete from t1;
+set session rocksdb_unsafe_for_binlog=off;
+insert into t1 values (1),(2),(3);
+ERROR HY000: Can't execute updates on master with binlog_format != ROW.
+set binlog_format=row;
+insert into t1 values (1),(2),(3);
+include/sync_slave_sql_with_master.inc
+select * from t1;
+pk
+1
+2
+3
+drop table t1;
+create table t1 (id int primary key, value int, value2 int, index(value)) engine=rocksdb;
+insert into t1 values (1,1,1);
+insert into t1 values (2,1,1);
+insert into t1 values (3,1,1);
+insert into t1 values (4,1,1);
+insert into t1 values (5,1,1);
+update t1 set value2=100 where id=1;
+update t1 set value2=200 where id=2;
+update t1 set value2=300 where id=3;
+include/sync_slave_sql_with_master.inc
+select * from t1 where id=1;
+id	value	value2
+1	1	100
+select * from t1 where id=2;
+id	value	value2
+2	1	200
+select * from t1 where id=3;
+id	value	value2
+3	1	300
+drop table t1;
+set binlog_format=row;
+include/rpl_end.inc

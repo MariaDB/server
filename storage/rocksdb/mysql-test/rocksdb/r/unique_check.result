@@ -1,0 +1,72 @@
+set debug_sync='RESET';
+drop table if exists t1;
+create table t1 (id int, value int, primary key (id)) engine=rocksdb;
+create table t2 (id int, id2 int, value int, primary key (id), unique key (id2)) engine=rocksdb;
+begin;
+insert into t1 values (1,1);
+set session rocksdb_lock_wait_timeout=50;
+begin;
+insert into t1 values (1,2);
+commit;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+commit;
+select * from t1;
+id	value
+1	1
+truncate table t1;
+begin;
+insert into t2 values (1,1,1);
+begin;
+insert into t2 values (2,1,2);
+commit;
+ERROR 23000: Duplicate entry '1' for key 'id2'
+commit;
+select * from t2;
+id	id2	value
+1	1	1
+truncate table t2;
+begin;
+insert into t1 values (1,1);
+begin;
+insert into t1 values (1,2);
+rollback;
+commit;
+select * from t1;
+id	value
+1	2
+truncate table t1;
+begin;
+insert into t2 values (1,1,1);
+begin;
+insert into t2 values (2,1,2);
+rollback;
+commit;
+select * from t2;
+id	id2	value
+2	1	2
+truncate table t2;
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go1';
+insert into t1 values (1,1);
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go2';
+insert into t2 values (1,1,1);
+set debug_sync='now WAIT_FOR parked1';
+set debug_sync='now WAIT_FOR parked2';
+set session rocksdb_lock_wait_timeout=1;
+insert into t1 values (1,2);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.PRIMARY
+insert into t2 values (2,1,2);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t2.id2
+set debug_sync='now SIGNAL go1';
+set debug_sync='now SIGNAL go2';
+insert into t1 values (1,2);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+insert into t2 values (2,1,2);
+ERROR 23000: Duplicate entry '1' for key 'id2'
+select * from t1;
+id	value
+1	1
+select * from t2;
+id	id2	value
+1	1	1
+set debug_sync='RESET';
+drop table t1, t2;

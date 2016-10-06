@@ -1,0 +1,1 @@
+--log-slow-extra --rocksdb-perf-context-level=2
