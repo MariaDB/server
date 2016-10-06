@@ -359,6 +359,11 @@ buf_dump(
 
 	buf_dump_status(STATUS_NOTICE,
 			"Buffer pool(s) dump completed at %s", now);
+
+	/* Though dumping doesn't really related to an incomplete load,
+	 * we reset this to 0 here to indicate that a shutdown can also perform
+	 * a dump */
+	export_vars.innodb_buffer_pool_load_incomplete = 0;
 }
 
 /*****************************************************************//**
@@ -659,8 +664,23 @@ buf_load()
 
 	ut_sprintf_timestamp(now);
 
-	buf_load_status(STATUS_NOTICE,
+	if (i == dump_n) {
+		buf_load_status(STATUS_NOTICE,
 			"Buffer pool(s) load completed at %s", now);
+		export_vars.innodb_buffer_pool_load_incomplete = 0;
+	} else if (!buf_load_abort_flag) {
+		buf_load_status(STATUS_NOTICE,
+			"Buffer pool(s) load aborted due to user instigated abort at %s",
+			now);
+		/* intentionally don't reset innodb_buffer_pool_load_incomplete
+                   as we don't want a shutdown to saving the buffer pool */
+	} else {
+		buf_load_status(STATUS_NOTICE,
+			"Buffer pool(s) load aborted due to shutdown at %s",
+			now);
+		/* intentionally don't reset innodb_buffer_pool_load_incomplete
+                   as we want to abort without saving the buffer pool */
+	}
 }
 
 /*****************************************************************//**
@@ -716,8 +736,14 @@ DECLARE_THREAD(buf_dump_thread)(
 	}
 
 	if (srv_buffer_pool_dump_at_shutdown && srv_fast_shutdown != 2) {
-		buf_dump(FALSE /* ignore shutdown down flag,
-		keep going even if we are in a shutdown state */);
+		if (export_vars.innodb_buffer_pool_load_incomplete == 1) {
+			buf_dump_status(STATUS_VERBOSE,
+				"Dumping of buffer pool not started"
+				" as load was incomplete");
+		} else {
+			buf_dump(FALSE /* ignore shutdown down flag,
+			keep going even if we are in a shutdown state */);
+		}
 	}
 
 	srv_buf_dump_thread_active = FALSE;
