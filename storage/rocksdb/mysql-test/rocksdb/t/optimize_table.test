@@ -1,0 +1,8 @@
+--source include/have_rocksdb.inc
+
+# 
+# OPTIMIZE TABLE statements
+#
+
+--source optimize_table.inc
+

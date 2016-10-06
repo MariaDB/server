@@ -1,0 +1,2 @@
+--rocksdb_max_subcompactions=1
+--rocksdb_default_cf_options=write_buffer_size=16k;target_file_size_base=16k;level0_slowdown_writes_trigger=-1;level0_stop_writes_trigger=1000;compression_per_level=kNoCompression;

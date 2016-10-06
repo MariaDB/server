@@ -1,0 +1,39 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES('abc');
+INSERT INTO valid_values VALUES('def');
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+SET @start_global_value = @@global.ROCKSDB_COMPACT_CF;
+SELECT @start_global_value;
+@start_global_value
+
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_COMPACT_CF to abc"
+SET @@global.ROCKSDB_COMPACT_CF   = abc;
+SELECT @@global.ROCKSDB_COMPACT_CF;
+@@global.ROCKSDB_COMPACT_CF
+
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_COMPACT_CF = DEFAULT;
+SELECT @@global.ROCKSDB_COMPACT_CF;
+@@global.ROCKSDB_COMPACT_CF
+
+"Trying to set variable @@global.ROCKSDB_COMPACT_CF to def"
+SET @@global.ROCKSDB_COMPACT_CF   = def;
+SELECT @@global.ROCKSDB_COMPACT_CF;
+@@global.ROCKSDB_COMPACT_CF
+
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_COMPACT_CF = DEFAULT;
+SELECT @@global.ROCKSDB_COMPACT_CF;
+@@global.ROCKSDB_COMPACT_CF
+
+"Trying to set variable @@session.ROCKSDB_COMPACT_CF to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_COMPACT_CF   = 444;
+ERROR HY000: Variable 'rocksdb_compact_cf' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+SET @@global.ROCKSDB_COMPACT_CF = @start_global_value;
+SELECT @@global.ROCKSDB_COMPACT_CF;
+@@global.ROCKSDB_COMPACT_CF
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS t1;
+create table t1(
+id bigint not null primary key,
+i1 bigint, #unique
+i2 bigint, #repeating
+c1 varchar(20), #unique
+c2 varchar(20), #repeating
+index t1_2(i1)
+) engine=rocksdb;
+select count(*), sum(id), sum(i1), sum(i2) from t1;
+count(*)	sum(id)	sum(i1)	sum(i2)
+50000	1250025000	1250025000	124980000
+select count(*), sum(id), sum(i1), sum(i2) from t1;
+count(*)	sum(id)	sum(i1)	sum(i2)
+50000	1250025000	1250025000	124980000
+drop table t1;

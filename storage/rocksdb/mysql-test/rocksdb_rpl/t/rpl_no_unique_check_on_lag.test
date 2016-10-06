@@ -1,0 +1,6 @@
+--echo #
+--echo # Ensure skip_unique_check is set when lag exceeds lag_threshold
+--echo #
+
+--source ../include/rpl_no_unique_check_on_lag.inc
+

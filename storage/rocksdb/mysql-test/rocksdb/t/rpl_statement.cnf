@@ -1,0 +1,7 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+binlog_format=statement
+[mysqld.2]
+binlog_format=mixed
+rocksdb_lock_wait_timeout=5

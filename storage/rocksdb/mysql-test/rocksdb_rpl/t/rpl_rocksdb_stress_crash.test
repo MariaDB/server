@@ -1,0 +1,26 @@
+-- source include/big_test.inc
+-- source include/master-slave.inc
+-- source include/not_valgrind.inc
+-- source include/have_gtid.inc
+-- source include/have_rocksdb.inc
+
+connection master;
+call mtr.add_suppression(".*");
+sync_slave_with_master;
+-- source include/stop_slave.inc
+change master to master_auto_position=1;
+-- source include/start_slave.inc
+
+-- let $iter=100
+-- let $databases=30
+-- let $num_crashes=100
+-- let $include_silent=1
+-- let $storage_engine='rocksdb'
+-- source extra/rpl_tests/rpl_parallel_load_innodb.test
+-- let $include_silent=0
+
+-- source include/stop_slave.inc
+change master to master_auto_position=0;
+-- source include/start_slave.inc
+
+-- source include/rpl_end.inc

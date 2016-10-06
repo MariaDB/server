@@ -1,0 +1,93 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES('fatal_level');
+INSERT INTO valid_values VALUES('error_level');
+INSERT INTO valid_values VALUES('warn_level');
+INSERT INTO valid_values VALUES('info_level');
+INSERT INTO valid_values VALUES('debug_level');
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES(5);
+INSERT INTO invalid_values VALUES(6);
+INSERT INTO invalid_values VALUES('foo');
+SET @start_global_value = @@global.ROCKSDB_INFO_LOG_LEVEL;
+SELECT @start_global_value;
+@start_global_value
+error_level
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_INFO_LOG_LEVEL to fatal_level"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL   = fatal_level;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+fatal_level
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+error_level
+"Trying to set variable @@global.ROCKSDB_INFO_LOG_LEVEL to error_level"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL   = error_level;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+error_level
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+error_level
+"Trying to set variable @@global.ROCKSDB_INFO_LOG_LEVEL to warn_level"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL   = warn_level;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+warn_level
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+error_level
+"Trying to set variable @@global.ROCKSDB_INFO_LOG_LEVEL to info_level"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL   = info_level;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+info_level
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+error_level
+"Trying to set variable @@global.ROCKSDB_INFO_LOG_LEVEL to debug_level"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL   = debug_level;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+debug_level
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+error_level
+"Trying to set variable @@session.ROCKSDB_INFO_LOG_LEVEL to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_INFO_LOG_LEVEL   = 444;
+ERROR HY000: Variable 'rocksdb_info_log_level' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_INFO_LOG_LEVEL to 5"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL   = 5;
+Got one of the listed errors
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+error_level
+"Trying to set variable @@global.ROCKSDB_INFO_LOG_LEVEL to 6"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL   = 6;
+Got one of the listed errors
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+error_level
+"Trying to set variable @@global.ROCKSDB_INFO_LOG_LEVEL to foo"
+SET @@global.ROCKSDB_INFO_LOG_LEVEL   = foo;
+Got one of the listed errors
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+error_level
+SET @@global.ROCKSDB_INFO_LOG_LEVEL = @start_global_value;
+SELECT @@global.ROCKSDB_INFO_LOG_LEVEL;
+@@global.ROCKSDB_INFO_LOG_LEVEL
+error_level
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

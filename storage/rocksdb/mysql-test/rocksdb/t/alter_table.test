@@ -1,0 +1,94 @@
+--source include/have_rocksdb.inc
+
+# 
+# Basic ALTER TABLE statements.
+#
+# USAGE of table options in ALTER statements
+#   is covered in tbl_standard_opts and tbl_opt*.tests.
+#
+# Index operations are covered in index* tests.
+#
+# ALTER OFFLINE is not covered as it is not supported, as of 5.5.23
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2;
+--enable_warnings
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, c CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t1 VALUES (1,1,'a'),(2,5,'z');
+
+# Column operations
+
+ALTER TABLE t1 ADD COLUMN b INT;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 ALTER COLUMN a SET DEFAULT '0';
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 ALTER a DROP DEFAULT;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 CHANGE COLUMN b b1 CHAR(8) FIRST;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 CHANGE b1 b INT AFTER c;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 CHANGE b b CHAR(8);
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 MODIFY COLUMN b INT;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 MODIFY COLUMN b CHAR(8) FIRST;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 MODIFY COLUMN b INT AFTER a;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 DROP COLUMN b;
+SHOW CREATE TABLE t1;
+
+
+# Rename table
+
+ALTER TABLE t1 RENAME TO t2;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+
+# ORDER BY
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT) ENGINE=rocksdb;
+INSERT INTO t1 VALUES (1,1,5),(2,2,2),(3,4,3);
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 ORDER BY b ASC, a DESC, pk DESC;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+# Character set, collate
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b CHAR(8), c CHAR(8)) ENGINE=rocksdb CHARACTER SET latin1 COLLATE latin1_general_cs;
+INSERT INTO t1 VALUES (1,5,'z','t');
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 DEFAULT CHARACTER SET = latin1 COLLATE latin1_general_ci;
+SHOW CREATE TABLE t1;
+
+
+# A 'null' ALTER operation
+
+ALTER TABLE t1 FORCE;
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
+

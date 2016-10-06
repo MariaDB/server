@@ -1,0 +1,120 @@
+SELECT * FROM INFORMATION_SCHEMA.INNODB_TRX;
+trx_id	trx_state	trx_started	trx_requested_lock_id	trx_wait_started	trx_weight	trx_mysql_thread_id	trx_query	trx_operation_state	trx_tables_in_use	trx_tables_locked	trx_lock_structs	trx_lock_memory_bytes	trx_rows_locked	trx_rows_modified	trx_concurrency_tickets	trx_isolation_level	trx_unique_checks	trx_foreign_key_checks	trx_last_foreign_key_error	trx_adaptive_hash_latched	trx_adaptive_hash_timeout	trx_is_read_only	trx_autocommit_non_locking
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_TRX but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FILE_STATUS;
+FILE	OPERATION	REQUESTS	SLOW	BYTES	BYTES/R	SVC:SECS	SVC:MSECS/R	SVC:MAX_MSECS	WAIT:SECS	WAIT:MSECS/R	WAIT:MAX_MSECS
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_FILE_STATUS but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_LOCKS;
+lock_id	lock_trx_id	lock_mode	lock_type	lock_table	lock_index	lock_space	lock_page	lock_rec	lock_data
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_LOCKS but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_LOCK_WAITS;
+requesting_trx_id	requested_lock_id	blocking_trx_id	blocking_lock_id
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_LOCK_WAITS but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_CMP;
+page_size	compress_ops	compress_ops_ok	compress_time	compress_ok_time	compress_primary_ops	compress_primary_ops_ok	compress_primary_time	compress_primary_ok_time	compress_secondary_ops	compress_secondary_ops_ok	compress_secondary_time	compress_secondary_ok_time	uncompress_ops	uncompress_time	uncompress_primary_ops	uncompress_primary_time	uncompress_secondary_ops	uncompress_secondary_time
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_CMP but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_CMP_RESET;
+page_size	compress_ops	compress_ops_ok	compress_time	compress_ok_time	compress_primary_ops	compress_primary_ops_ok	compress_primary_time	compress_primary_ok_time	compress_secondary_ops	compress_secondary_ops_ok	compress_secondary_time	compress_secondary_ok_time	uncompress_ops	uncompress_time	uncompress_primary_ops	uncompress_primary_time	uncompress_secondary_ops	uncompress_secondary_time
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_CMP_RESET but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_CMP_PER_INDEX;
+database_name	table_name	index_name	compress_ops	compress_ops_ok	compress_time	uncompress_ops	uncompress_time
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_CMP_PER_INDEX but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_CMP_PER_INDEX_RESET;
+database_name	table_name	index_name	compress_ops	compress_ops_ok	compress_time	uncompress_ops	uncompress_time
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_CMP_PER_INDEX_RESET but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_CMPMEM;
+page_size	buffer_pool_instance	pages_used	pages_free	relocation_ops	relocation_time
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_CMPMEM but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_CMPMEM_RESET;
+page_size	buffer_pool_instance	pages_used	pages_free	relocation_ops	relocation_time
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_CMPMEM_RESET but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_METRICS;
+NAME	SUBSYSTEM	COUNT	MAX_COUNT	MIN_COUNT	AVG_COUNT	COUNT_RESET	MAX_COUNT_RESET	MIN_COUNT_RESET	AVG_COUNT_RESET	TIME_ENABLED	TIME_DISABLED	TIME_ELAPSED	TIME_RESET	STATUS	TYPE	COMMENT
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_METRICS but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_DEFAULT_STOPWORD;
+value
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_FT_DEFAULT_STOPWORD but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_DELETED;
+DOC_ID
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_FT_DELETED but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_BEING_DELETED;
+DOC_ID
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_FT_BEING_DELETED but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE;
+WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE;
+WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_FT_CONFIG;
+KEY	VALUE
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_FT_CONFIG but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS;
+POOL_ID	POOL_SIZE	FREE_BUFFERS	DATABASE_PAGES	OLD_DATABASE_PAGES	MODIFIED_DATABASE_PAGES	PENDING_DECOMPRESS	PENDING_READS	PENDING_FLUSH_LRU	PENDING_FLUSH_LIST	PAGES_MADE_YOUNG	PAGES_NOT_MADE_YOUNG	PAGES_MADE_YOUNG_RATE	PAGES_MADE_NOT_YOUNG_RATE	NUMBER_PAGES_READ	NUMBER_PAGES_CREATED	NUMBER_PAGES_WRITTEN	PAGES_READ_RATE	PAGES_CREATE_RATE	PAGES_WRITTEN_RATE	NUMBER_PAGES_GET	HIT_RATE	YOUNG_MAKE_PER_THOUSAND_GETS	NOT_YOUNG_MAKE_PER_THOUSAND_GETS	NUMBER_PAGES_READ_AHEAD	NUMBER_READ_AHEAD_EVICTED	READ_AHEAD_RATE	READ_AHEAD_EVICTED_RATE	LRU_IO_TOTAL	LRU_IO_CURRENT	UNCOMPRESS_TOTAL	UNCOMPRESS_CURRENT
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_BUFFER_PAGE;
+POOL_ID	BLOCK_ID	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	PAGE_STATE	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_BUFFER_PAGE but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_BUFFER_PAGE_LRU;
+POOL_ID	LRU_POSITION	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	COMPRESSED	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_BUFFER_PAGE_LRU but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES;
+TABLE_ID	NAME	FLAG	N_COLS	SPACE	FILE_FORMAT	ROW_FORMAT	ZIP_PAGE_SIZE
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_SYS_TABLES but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS;
+TABLE_ID	NAME	STATS_INITIALIZED	NUM_ROWS	CLUST_INDEX_SIZE	OTHER_INDEX_SIZE	MODIFIED_COUNTER	AUTOINC	REF_COUNT
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES;
+INDEX_ID	NAME	TABLE_ID	TYPE	N_FIELDS	PAGE_NO	SPACE
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_SYS_INDEXES but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS;
+TABLE_ID	NAME	POS	MTYPE	PRTYPE	LEN
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_SYS_COLUMNS but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS;
+INDEX_ID	NAME	POS
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_SYS_FIELDS but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
+ID	FOR_NAME	REF_NAME	N_COLS	TYPE
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_SYS_FOREIGN but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;
+ID	FOR_COL_NAME	REF_COL_NAME	POS
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES;
+SPACE	NAME	FLAG	FILE_FORMAT	ROW_FORMAT	PAGE_SIZE	ZIP_PAGE_SIZE
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES;
+SPACE	PATH
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_SYS_DATAFILES but the InnoDB storage engine is not installed
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_DOCSTORE_FIELDS;
+INDEX_ID	POS	DOCUMENT_PATH	DOCUMENT_TYPE
+Warnings:
+Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.INNODB_SYS_DOCSTORE_FIELDS but the InnoDB storage engine is not installed

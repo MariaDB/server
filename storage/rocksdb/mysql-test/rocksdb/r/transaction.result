@@ -1,0 +1,936 @@
+create table t1 (id int primary key, value int, value2 varchar(100), index(value)) engine=rocksdb;
+insert into t1 values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(8,8,8),(9,9,9),(10,10,10);
+begin;
+insert into t1 values (11,11,11);
+select * from t1 where id=1;
+id	value	value2
+1	1	1
+select * from t1 where value=1;
+id	value	value2
+1	1	1
+select value from t1 where value=1;
+value
+1
+select * from t1 where value2=1;
+id	value	value2
+1	1	1
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+1	1	1
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+1	1	1
+2	2	2
+select value from t1 where value < 3;
+value
+1
+2
+select * from t1 where value2 < 3;
+id	value	value2
+1	1	1
+2	2	2
+select * from t1;
+id	value	value2
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+11	11	11
+select value from t1;
+value
+1
+2
+3
+4
+5
+6
+8
+9
+10
+11
+rollback;
+begin;
+insert into t1 values (7,7,7);
+select * from t1 where id=1;
+id	value	value2
+1	1	1
+select * from t1 where value=1;
+id	value	value2
+1	1	1
+select value from t1 where value=1;
+value
+1
+select * from t1 where value2=1;
+id	value	value2
+1	1	1
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+1	1	1
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+1	1	1
+2	2	2
+select value from t1 where value < 3;
+value
+1
+2
+select * from t1 where value2 < 3;
+id	value	value2
+1	1	1
+2	2	2
+select * from t1;
+id	value	value2
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+8	8	8
+9	9	9
+10	10	10
+select value from t1;
+value
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+rollback;
+begin;
+update t1 set value2=100 where id=1;
+select * from t1 where id=1;
+id	value	value2
+1	1	100
+select * from t1 where value=1;
+id	value	value2
+1	1	100
+select value from t1 where value=1;
+value
+1
+select * from t1 where value2=1;
+id	value	value2
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+1	1	100
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+1	1	100
+2	2	2
+select value from t1 where value < 3;
+value
+1
+2
+select * from t1 where value2 < 3;
+id	value	value2
+2	2	2
+select * from t1;
+id	value	value2
+1	1	100
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+select value from t1;
+value
+1
+2
+3
+4
+5
+6
+8
+9
+10
+rollback;
+begin;
+update t1 set value=100 where id=1;
+select * from t1 where id=1;
+id	value	value2
+1	100	1
+select * from t1 where value=1;
+id	value	value2
+select value from t1 where value=1;
+value
+select * from t1 where value2=1;
+id	value	value2
+1	100	1
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+1	100	1
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+2	2	2
+select value from t1 where value < 3;
+value
+2
+select * from t1 where value2 < 3;
+id	value	value2
+1	100	1
+2	2	2
+select * from t1;
+id	value	value2
+1	100	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+select value from t1;
+value
+2
+3
+4
+5
+6
+8
+9
+10
+100
+rollback;
+begin;
+update t1 set id=100 where id=1;
+select * from t1 where id=1;
+id	value	value2
+select * from t1 where value=1;
+id	value	value2
+100	1	1
+select value from t1 where value=1;
+value
+1
+select * from t1 where value2=1;
+id	value	value2
+100	1	1
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+100	1	1
+2	2	2
+select value from t1 where value < 3;
+value
+1
+2
+select * from t1 where value2 < 3;
+id	value	value2
+2	2	2
+100	1	1
+select * from t1;
+id	value	value2
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+100	1	1
+select value from t1;
+value
+1
+2
+3
+4
+5
+6
+8
+9
+10
+rollback;
+begin;
+update t1 set value2=100 where value=1;
+select * from t1 where id=1;
+id	value	value2
+1	1	100
+select * from t1 where value=1;
+id	value	value2
+1	1	100
+select value from t1 where value=1;
+value
+1
+select * from t1 where value2=1;
+id	value	value2
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+1	1	100
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+1	1	100
+2	2	2
+select value from t1 where value < 3;
+value
+1
+2
+select * from t1 where value2 < 3;
+id	value	value2
+2	2	2
+select * from t1;
+id	value	value2
+1	1	100
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+select value from t1;
+value
+1
+2
+3
+4
+5
+6
+8
+9
+10
+rollback;
+begin;
+update t1 set value=100 where value=1;
+select * from t1 where id=1;
+id	value	value2
+1	100	1
+select * from t1 where value=1;
+id	value	value2
+select value from t1 where value=1;
+value
+select * from t1 where value2=1;
+id	value	value2
+1	100	1
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+1	100	1
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+2	2	2
+select value from t1 where value < 3;
+value
+2
+select * from t1 where value2 < 3;
+id	value	value2
+1	100	1
+2	2	2
+select * from t1;
+id	value	value2
+1	100	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+select value from t1;
+value
+2
+3
+4
+5
+6
+8
+9
+10
+100
+rollback;
+begin;
+update t1 set id=100 where value=1;
+select * from t1 where id=1;
+id	value	value2
+select * from t1 where value=1;
+id	value	value2
+100	1	1
+select value from t1 where value=1;
+value
+1
+select * from t1 where value2=1;
+id	value	value2
+100	1	1
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+100	1	1
+2	2	2
+select value from t1 where value < 3;
+value
+1
+2
+select * from t1 where value2 < 3;
+id	value	value2
+2	2	2
+100	1	1
+select * from t1;
+id	value	value2
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+100	1	1
+select value from t1;
+value
+1
+2
+3
+4
+5
+6
+8
+9
+10
+rollback;
+begin;
+update t1 set value2=100 where value2=1;
+select * from t1 where id=1;
+id	value	value2
+1	1	100
+select * from t1 where value=1;
+id	value	value2
+1	1	100
+select value from t1 where value=1;
+value
+1
+select * from t1 where value2=1;
+id	value	value2
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+1	1	100
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+1	1	100
+2	2	2
+select value from t1 where value < 3;
+value
+1
+2
+select * from t1 where value2 < 3;
+id	value	value2
+2	2	2
+select * from t1;
+id	value	value2
+1	1	100
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+select value from t1;
+value
+1
+2
+3
+4
+5
+6
+8
+9
+10
+rollback;
+begin;
+update t1 set value=100 where value2=1;
+select * from t1 where id=1;
+id	value	value2
+1	100	1
+select * from t1 where value=1;
+id	value	value2
+select value from t1 where value=1;
+value
+select * from t1 where value2=1;
+id	value	value2
+1	100	1
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+1	100	1
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+2	2	2
+select value from t1 where value < 3;
+value
+2
+select * from t1 where value2 < 3;
+id	value	value2
+1	100	1
+2	2	2
+select * from t1;
+id	value	value2
+1	100	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+select value from t1;
+value
+2
+3
+4
+5
+6
+8
+9
+10
+100
+rollback;
+begin;
+update t1 set id=100 where value2=1;
+select * from t1 where id=1;
+id	value	value2
+select * from t1 where value=1;
+id	value	value2
+100	1	1
+select value from t1 where value=1;
+value
+1
+select * from t1 where value2=1;
+id	value	value2
+100	1	1
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+100	1	1
+2	2	2
+select value from t1 where value < 3;
+value
+1
+2
+select * from t1 where value2 < 3;
+id	value	value2
+2	2	2
+100	1	1
+select * from t1;
+id	value	value2
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+100	1	1
+select value from t1;
+value
+1
+2
+3
+4
+5
+6
+8
+9
+10
+rollback;
+begin;
+delete from t1 where id=1;
+select * from t1 where id=1;
+id	value	value2
+select * from t1 where value=1;
+id	value	value2
+select value from t1 where value=1;
+value
+select * from t1 where value2=1;
+id	value	value2
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+2	2	2
+select value from t1 where value < 3;
+value
+2
+select * from t1 where value2 < 3;
+id	value	value2
+2	2	2
+select * from t1;
+id	value	value2
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+select value from t1;
+value
+2
+3
+4
+5
+6
+8
+9
+10
+rollback;
+begin;
+delete from t1 where value=1;
+select * from t1 where id=1;
+id	value	value2
+select * from t1 where value=1;
+id	value	value2
+select value from t1 where value=1;
+value
+select * from t1 where value2=1;
+id	value	value2
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+2	2	2
+select value from t1 where value < 3;
+value
+2
+select * from t1 where value2 < 3;
+id	value	value2
+2	2	2
+select * from t1;
+id	value	value2
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+select value from t1;
+value
+2
+3
+4
+5
+6
+8
+9
+10
+rollback;
+begin;
+delete from t1 where value2=1;
+select * from t1 where id=1;
+id	value	value2
+select * from t1 where value=1;
+id	value	value2
+select value from t1 where value=1;
+value
+select * from t1 where value2=1;
+id	value	value2
+select * from t1 where id=5;
+id	value	value2
+5	5	5
+select * from t1 where value=5;
+id	value	value2
+5	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+5	5	5
+select * from t1 where id < 3;
+id	value	value2
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+2	2	2
+select value from t1 where value < 3;
+value
+2
+select * from t1 where value2 < 3;
+id	value	value2
+2	2	2
+select * from t1;
+id	value	value2
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+8	8	8
+9	9	9
+10	10	10
+select value from t1;
+value
+2
+3
+4
+5
+6
+8
+9
+10
+rollback;
+begin;
+insert into t1 values (11,11,11);
+insert into t1 values (12,12,12);
+insert into t1 values (13,13,13);
+delete from t1 where id=9;
+delete from t1 where value=8;
+update t1 set id=100 where value2=5;
+update t1 set value=103 where value=4;
+update t1 set id=115 where id=3;
+select * from t1 where id=1;
+id	value	value2
+1	1	1
+select * from t1 where value=1;
+id	value	value2
+1	1	1
+select value from t1 where value=1;
+value
+1
+select * from t1 where value2=1;
+id	value	value2
+1	1	1
+select * from t1 where id=5;
+id	value	value2
+select * from t1 where value=5;
+id	value	value2
+100	5	5
+select value from t1 where value=5;
+value
+5
+select * from t1 where value2=5;
+id	value	value2
+100	5	5
+select * from t1 where id < 3;
+id	value	value2
+1	1	1
+2	2	2
+select * from t1 where value < 3;
+id	value	value2
+1	1	1
+2	2	2
+select value from t1 where value < 3;
+value
+1
+2
+select * from t1 where value2 < 3;
+id	value	value2
+1	1	1
+2	2	2
+select * from t1;
+id	value	value2
+1	1	1
+2	2	2
+4	103	4
+6	6	6
+10	10	10
+11	11	11
+12	12	12
+13	13	13
+100	5	5
+115	3	3
+select value from t1;
+value
+1
+2
+3
+5
+6
+10
+11
+12
+13
+103
+rollback;
+drop table t1;

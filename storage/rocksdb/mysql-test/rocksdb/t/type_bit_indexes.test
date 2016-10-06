@@ -1,0 +1,113 @@
+--source include/have_rocksdb.inc
+
+#
+# BIT columns with indexes
+#
+
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (
+  a BIT,
+  b BIT(20) PRIMARY KEY,
+  c BIT(32),
+  d BIT(64)
+) ENGINE=rocksdb;
+
+SHOW INDEX IN t1;
+
+INSERT INTO t1 (a,b,c,d) VALUES 
+(0,0xFFFFF,0,1),(0,256,0xAAA,0x12345),(1,16,0,0xFFFFFFF),(0,11,12,13),
+(1,100,101,102),(0,12,13,14),(1,13,14,15),(0,101,201,202),(1,1000,1001,1002),
+(1,0xFFFF,0xFFFFFFFF,0xFFFFFFFFFFFFFFFF);
+
+--replace_column 9 #
+EXPLAIN SELECT b+0 FROM t1 ORDER BY b;
+SELECT b+0 FROM t1 ORDER BY b;
+
+DROP TABLE t1;
+
+--echo # TODO: Unique indexes are not enforced
+--disable_parsing
+--error ER_GET_ERRMSG
+CREATE TABLE t1 (
+  a BIT,
+  b BIT(20),
+  c BIT(32),
+  d BIT(64),
+  pk BIT(10) PRIMARY KEY,
+UNIQUE INDEX b_c (b,c)
+) ENGINE=rocksdb;
+
+
+SHOW INDEX IN t1;
+
+INSERT INTO t1 (a,b,c,d,pk) VALUES
+(0,0xFFFFF,0,1,1),(0,256,0xAAA,0x12345,2),(1,16,0,0xFFFFFFF,3),(0,11,12,13,4),
+(1,100,101,102,5),(0,12,13,14,6),(1,13,14,15,7),(0,101,201,202,8),(1,1000,1001,1002,9),
+(1,0xFFFF,0xFFFFFFFF,0xFFFFFFFFFFFFFFFF,10);
+
+--replace_column 9 #
+EXPLAIN SELECT HEX(b+c) FROM t1 WHERE c > 1 OR HEX(b) < 0xFFFFFF;
+--sorted_result
+SELECT HEX(b+c) FROM t1 WHERE c > 1 OR HEX(b) < 0xFFFFFF;
+
+DROP TABLE t1;
+
+--enable_parsing
+
+CREATE TABLE t1 (
+  a BIT,
+  b BIT(20),
+  c BIT(32),
+  d BIT(64),
+  pk BIT(10) PRIMARY KEY,
+  INDEX(a)
+) ENGINE=rocksdb;
+
+SHOW INDEX IN t1;
+
+INSERT INTO t1 (a,b,c,d,pk) VALUES
+(0,0xFFFFF,0,1,1),(0,256,0xAAA,0x12345,2),(1,16,0,0xFFFFFFF,3),(0,11,12,13,4),
+(1,100,101,102,5),(0,12,13,14,6),(1,13,14,15,7),(0,101,201,202,8),(1,1000,1001,1002,9),
+(1,0xFFFF,0xFFFFFFFF,0xFFFFFFFFFFFFFFFF,10);
+
+--replace_column 9 #
+EXPLAIN SELECT DISTINCT a+0 FROM t1 ORDER BY a;
+SELECT DISTINCT a+0 FROM t1 ORDER BY a;
+
+DROP TABLE t1;
+
+--disable_parsing
+--error ER_GET_ERRMSG
+CREATE TABLE t1 (
+  a BIT,
+  b BIT(20),
+  c BIT(32),
+  d BIT(64),
+  pk BIT(10) PRIMARY KEY,
+  UNIQUE INDEX (d)
+) ENGINE=rocksdb;
+
+
+SHOW INDEX IN t1;
+
+INSERT INTO t1 (a,b,c,d,pk) VALUES
+(0,0xFFFFF,0,1,1),(0,256,0xAAA,0x12345,2),(1,16,0,0xFFFFFFF,3),(0,11,12,13,4),
+(1,100,101,102,5),(0,12,13,14,6),(1,13,14,15,7),(0,101,201,202,8),(1,1000,1001,1002,9),
+(1,0xFFFF,0xFFFFFFFF,0xFFFFFFFFFFFFFFFF,10);
+
+--replace_column 9 #
+EXPLAIN SELECT d FROM t1 WHERE d BETWEEN 1 AND 10000;
+--sorted_result
+SELECT d+0 FROM t1 WHERE d BETWEEN 1 AND 10000;
+
+DROP TABLE t1;
+
+--enable_parsing
+
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

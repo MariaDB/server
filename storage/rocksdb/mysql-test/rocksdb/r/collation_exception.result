@@ -1,0 +1,25 @@
+CREATE TABLE `r1.lol` (
+`c1` int(10) NOT NULL DEFAULT '0',
+`c2` int(11) NOT NULL DEFAULT '0',
+`c3` int(1) NOT NULL DEFAULT '0',
+`c4` int(11) NOT NULL DEFAULT '0',
+`c5` int(11) NOT NULL DEFAULT '0',
+`c6` varchar(100) NOT NULL DEFAULT '',
+`c7` varchar(100) NOT NULL DEFAULT '',
+`c8` varchar(255) NOT NULL DEFAULT '',
+`c9` int(10) NOT NULL DEFAULT '125',
+`c10` int(10) NOT NULL DEFAULT '125',
+`c11` text NOT NULL,
+`c12` int(11) NOT NULL DEFAULT '0',
+`c13` int(10) NOT NULL DEFAULT '0',
+`c14` text NOT NULL,
+`c15` blob NOT NULL,
+`c16` int(11) NOT NULL DEFAULT '0',
+`c17` int(11) NOT NULL DEFAULT '0',
+`c18` int(11) NOT NULL DEFAULT '0',
+PRIMARY KEY (`c1`),
+KEY i1 (`c4`),
+KEY i2 (`c7`),
+KEY i3 (`c2`)) ENGINE=RocksDB DEFAULT CHARSET=latin1;
+DROP INDEX i1 ON `r1.lol`;
+DROP TABLE `r1.lol`;

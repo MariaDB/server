@@ -1,0 +1,170 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(0);
+INSERT INTO valid_values VALUES('on');
+INSERT INTO valid_values VALUES('off');
+INSERT INTO valid_values VALUES('true');
+INSERT INTO valid_values VALUES('false');
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+INSERT INTO invalid_values VALUES(2);
+INSERT INTO invalid_values VALUES(1000);
+SET @start_global_value = @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+SELECT @start_global_value;
+@start_global_value
+0
+SET @start_session_value = @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+SELECT @start_session_value;
+@start_session_value
+0
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_LOCK_SCANNED_ROWS to 1"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS   = 1;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@global.ROCKSDB_LOCK_SCANNED_ROWS to 0"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS   = 0;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@global.ROCKSDB_LOCK_SCANNED_ROWS to on"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS   = on;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@global.ROCKSDB_LOCK_SCANNED_ROWS to off"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS   = off;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@global.ROCKSDB_LOCK_SCANNED_ROWS to true"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS   = true;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@global.ROCKSDB_LOCK_SCANNED_ROWS to false"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS   = false;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+'# Setting to valid values in session scope#'
+"Trying to set variable @@session.ROCKSDB_LOCK_SCANNED_ROWS to 1"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS   = 1;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+1
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@session.ROCKSDB_LOCK_SCANNED_ROWS to 0"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS   = 0;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@session.ROCKSDB_LOCK_SCANNED_ROWS to on"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS   = on;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+1
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@session.ROCKSDB_LOCK_SCANNED_ROWS to off"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS   = off;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@session.ROCKSDB_LOCK_SCANNED_ROWS to true"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS   = true;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+1
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@session.ROCKSDB_LOCK_SCANNED_ROWS to false"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS   = false;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS = DEFAULT;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+0
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_LOCK_SCANNED_ROWS to 'aaa'"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@global.ROCKSDB_LOCK_SCANNED_ROWS to 2"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS   = 2;
+Got one of the listed errors
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+"Trying to set variable @@global.ROCKSDB_LOCK_SCANNED_ROWS to 1000"
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS   = 1000;
+Got one of the listed errors
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+SET @@global.ROCKSDB_LOCK_SCANNED_ROWS = @start_global_value;
+SELECT @@global.ROCKSDB_LOCK_SCANNED_ROWS;
+@@global.ROCKSDB_LOCK_SCANNED_ROWS
+0
+SET @@session.ROCKSDB_LOCK_SCANNED_ROWS = @start_session_value;
+SELECT @@session.ROCKSDB_LOCK_SCANNED_ROWS;
+@@session.ROCKSDB_LOCK_SCANNED_ROWS
+0
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

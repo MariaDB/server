@@ -1,0 +1,58 @@
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+a BIT,
+b BIT(20) PRIMARY KEY,
+c BIT(32),
+d BIT(64)
+) ENGINE=rocksdb;
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	b	A	1000	NULL	NULL		LSMTREE		
+INSERT INTO t1 (a,b,c,d) VALUES 
+(0,0xFFFFF,0,1),(0,256,0xAAA,0x12345),(1,16,0,0xFFFFFFF),(0,11,12,13),
+(1,100,101,102),(0,12,13,14),(1,13,14,15),(0,101,201,202),(1,1000,1001,1002),
+(1,0xFFFF,0xFFFFFFFF,0xFFFFFFFFFFFFFFFF);
+EXPLAIN SELECT b+0 FROM t1 ORDER BY b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	3	NULL	#	Using index
+SELECT b+0 FROM t1 ORDER BY b;
+b+0
+11
+12
+13
+16
+100
+101
+256
+1000
+65535
+1048575
+DROP TABLE t1;
+# TODO: Unique indexes are not enforced
+CREATE TABLE t1 (
+a BIT,
+b BIT(20),
+c BIT(32),
+d BIT(64),
+pk BIT(10) PRIMARY KEY,
+INDEX(a)
+) ENGINE=rocksdb;
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
+t1	1	a	1	a	A	500	NULL	NULL	YES	LSMTREE		
+INSERT INTO t1 (a,b,c,d,pk) VALUES
+(0,0xFFFFF,0,1,1),(0,256,0xAAA,0x12345,2),(1,16,0,0xFFFFFFF,3),(0,11,12,13,4),
+(1,100,101,102,5),(0,12,13,14,6),(1,13,14,15,7),(0,101,201,202,8),(1,1000,1001,1002,9),
+(1,0xFFFF,0xFFFFFFFF,0xFFFFFFFFFFFFFFFF,10);
+EXPLAIN SELECT DISTINCT a+0 FROM t1 ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using temporary; Using filesort
+SELECT DISTINCT a+0 FROM t1 ORDER BY a;
+a+0
+0
+1
+DROP TABLE t1;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

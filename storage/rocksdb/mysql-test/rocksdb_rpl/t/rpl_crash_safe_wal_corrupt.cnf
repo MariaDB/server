@@ -1,0 +1,9 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+log_slave_updates
+
+[mysqld.2]
+relay_log_recovery=1
+relay_log_info_repository=TABLE
+log_slave_updates

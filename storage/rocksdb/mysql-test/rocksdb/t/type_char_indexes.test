@@ -1,0 +1,107 @@
+--source include/have_rocksdb.inc
+
+#
+# CHAR and VARCHAR columns with indexes
+#
+
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (
+  c CHAR,
+  c20 CHAR(20) PRIMARY KEY,
+  v16 VARCHAR(16),
+  v128 VARCHAR(128)
+) ENGINE=rocksdb;
+
+SHOW INDEX IN t1;
+
+INSERT INTO t1 (c,c20,v16,v128) VALUES ('a','char1','varchar1a','varchar1b'),('a','char2','varchar2a','varchar2b'),('b','char3','varchar1a','varchar1b'),('c','char4','varchar3a','varchar3b');
+
+--replace_column 9 #
+EXPLAIN SELECT c20 FROM t1 ORDER BY c20;
+SELECT c20 FROM t1 ORDER BY c20;
+
+--replace_column 9 #
+EXPLAIN SELECT c20 FROM t1 FORCE INDEX FOR ORDER BY (PRIMARY) ORDER BY c20;
+SELECT c20 FROM t1 FORCE INDEX FOR ORDER BY (PRIMARY) ORDER BY c20;
+
+DROP TABLE t1;
+
+--disable_parsing
+--error ER_GET_ERRMSG
+CREATE TABLE t1 (
+  c CHAR,
+  c20 CHAR(20),
+  v16 VARCHAR(16),
+  v128 VARCHAR(128),
+  pk CHAR(64) PRIMARY KEY,
+  UNIQUE INDEX c_v (c,v128)
+) ENGINE=rocksdb;
+
+
+SHOW INDEX IN t1;
+
+INSERT INTO t1 (c,c20,v16,v128) VALUES ('a','char1','varchar1a','varchar1b'),('a','char2','varchar2a','varchar2b'),('b','char3','varchar1a','varchar1b'),('c','char4','varchar3a','varchar3b');
+
+--replace_column 9 #
+EXPLAIN SELECT c, v128 FROM t1 WHERE c != 'a' AND v128 > 'varchar';
+--sorted_result
+SELECT c, v128 FROM t1 WHERE c != 'a' AND v128 > 'varchar';
+
+--replace_column 9 #
+EXPLAIN SELECT v128, COUNT(*) FROM t1 GROUP BY v128;
+--sorted_result
+SELECT v128, COUNT(*) FROM t1 GROUP BY v128;
+
+--replace_column 9 #
+EXPLAIN SELECT v128, COUNT(*) FROM t1 USE INDEX FOR GROUP BY (c_v) GROUP BY v128;
+--sorted_result
+SELECT v128, COUNT(*) FROM t1 USE INDEX FOR GROUP BY (c_v) GROUP BY v128;
+
+SET SESSION optimizer_switch = 'engine_condition_pushdown=on';
+--replace_column 9 #
+EXPLAIN SELECT c,c20,v16,v128 FROM t1 WHERE c > 'a';
+--sorted_result
+SELECT c,c20,v16,v128 FROM t1 WHERE c > 'a';
+SET SESSION optimizer_switch = @@global.optimizer_switch;
+
+DROP TABLE t1;
+
+--enable_parsing
+
+CREATE TABLE t1 (
+  c CHAR,
+  c20 CHAR(20),
+  v16 VARCHAR(16),
+  v128 VARCHAR(128),
+  pk VARCHAR(64) PRIMARY KEY,
+  INDEX (v16)
+) ENGINE=rocksdb;
+
+SHOW INDEX IN t1;
+
+INSERT INTO t1 (c,c20,v16,v128,pk) VALUES ('a','char1','varchar1a','varchar1b','1'),('a','char2','varchar2a','varchar2b','2'),('b','char3','varchar1a','varchar1b','3'),('c','char4','varchar3a','varchar3b','4');
+
+--replace_column 9 #
+EXPLAIN SELECT SUBSTRING(v16,0,3) FROM t1 WHERE v16 LIKE 'varchar%';
+--sorted_result
+SELECT SUBSTRING(v16,7,3) FROM t1 WHERE v16 LIKE 'varchar%';
+
+--replace_column 9 #
+EXPLAIN SELECT SUBSTRING(v16,0,3) FROM t1 IGNORE INDEX (v16) WHERE v16 LIKE 'varchar%';
+--sorted_result
+SELECT SUBSTRING(v16,7,3) FROM t1 IGNORE INDEX (v16) WHERE v16 LIKE 'varchar%';
+
+--replace_column 9 #
+EXPLAIN SELECT c,c20,v16,v128 FROM t1 WHERE v16 = 'varchar1a' OR v16 = 'varchar3a' ORDER BY v16;
+--sorted_result
+SELECT c,c20,v16,v128 FROM t1 WHERE v16 = 'varchar1a' OR v16 = 'varchar3a' ORDER BY v16;
+
+DROP TABLE t1;
+
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

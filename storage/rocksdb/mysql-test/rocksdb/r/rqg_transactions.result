@@ -1,0 +1,11 @@
+call mtr.add_suppression("Deadlock found when trying to get lock");
+CREATE DATABASE IF NOT EXISTS rqg_transactions;
+Running test with grammar file transactions.yy
+Running test with grammar file repeatable_read.yy
+Running test with grammar file transaction_durability.yy
+Running test with grammar file transactions-flat.yy
+Running test with grammar file combinations.yy
+Running test with grammar file repeatable_read.yy
+Running test with grammar file transaction_durability.yy
+Running test with grammar file transactions-flat.yy
+DROP DATABASE rqg_transactions;

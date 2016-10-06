@@ -1,0 +1,154 @@
+drop table if exists t1;
+CREATE TABLE t1 (a INT, b INT AUTO_INCREMENT, KEY ka(a), KEY kb(a,b), PRIMARY KEY(b)) ENGINE=rocksdb;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`b`),
+  KEY `ka` (`a`),
+  KEY `kb` (`a`,`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+INSERT INTO t1 (a) VALUES (1);
+INSERT INTO t1 (a) VALUES (3);
+INSERT INTO t1 (a) VALUES (5);
+ALTER TABLE t1 DROP INDEX ka, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`b`),
+  KEY `kb` (`a`,`b`)
+) ENGINE=ROCKSDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+SELECT * FROM t1 FORCE INDEX(ka) where a > 1;
+ERROR 42000: Key 'ka' doesn't exist in table 't1'
+SELECT * FROM t1 FORCE INDEX(kb) where a > 1;
+a	b
+3	2
+5	3
+SELECT * FROM t1 where b > 1;
+a	b
+3	2
+5	3
+DROP TABLE t1;
+CREATE TABLE t1 (a INT AUTO_INCREMENT, b INT, c INT, KEY kb(b), KEY kbc(b,c), KEY kc(c), PRIMARY KEY(a)) ENGINE=rocksdb;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL AUTO_INCREMENT,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `kb` (`b`),
+  KEY `kbc` (`b`,`c`),
+  KEY `kc` (`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+INSERT INTO t1 (b,c) VALUES (1,2);
+INSERT INTO t1 (b,c) VALUES (3,4);
+INSERT INTO t1 (b,c) VALUES (5,6);
+ALTER TABLE t1 DROP INDEX kb, DROP INDEX kbc, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL AUTO_INCREMENT,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `kc` (`c`)
+) ENGINE=ROCKSDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL AUTO_INCREMENT,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `kc` (`c`)
+) ENGINE=ROCKSDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+INSERT INTO t1 (b,c) VALUES (1,2);
+INSERT INTO t1 (b,c) VALUES (3,4);
+INSERT INTO t1 (b,c) VALUES (5,6);
+SELECT * FROM t1 FORCE INDEX(kc) where c > 3;
+a	b	c
+2	3	4
+3	5	6
+5	3	4
+6	5	6
+SELECT * FROM t1 where b > 3;
+a	b	c
+3	5	6
+6	5	6
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT, KEY kb(b), KEY kbc(b,c), KEY kc(c), PRIMARY KEY(a)) ENGINE=rocksdb;
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	a	A	0	NULL	NULL		LSMTREE		
+t1	1	kb	1	b	A	0	NULL	NULL	YES	LSMTREE		
+t1	1	kbc	1	b	A	0	NULL	NULL	YES	LSMTREE		
+t1	1	kbc	2	c	A	0	NULL	NULL	YES	LSMTREE		
+t1	1	kc	1	c	A	0	NULL	NULL	YES	LSMTREE		
+ALTER TABLE t1 DROP INDEX kb, DROP INDEX kbc, ALGORITHM=INPLACE;
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	a	A	0	NULL	NULL		LSMTREE		
+t1	1	kc	1	c	A	0	NULL	NULL	YES	LSMTREE		
+ALTER TABLE t1 DROP PRIMARY KEY;
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	kc	1	c	A	0	NULL	NULL	YES	LSMTREE		
+ALTER TABLE t1 DROP INDEX kc, ALGORITHM=INPLACE;
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+DROP TABLE t1;
+CREATE TABLE t1 (a INT AUTO_INCREMENT, b INT, c INT, PRIMARY KEY(a)) ENGINE=rocksdb;
+ALTER TABLE t1 ADD UNIQUE INDEX kb(b);
+ALTER TABLE t1 ADD UNIQUE INDEX kbc(b,c);
+ALTER TABLE t1 ADD UNIQUE INDEX kc(c);
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	a	A	0	NULL	NULL		LSMTREE		
+t1	0	kb	1	b	A	0	NULL	NULL	YES	LSMTREE		
+t1	0	kbc	1	b	A	0	NULL	NULL	YES	LSMTREE		
+t1	0	kbc	2	c	A	0	NULL	NULL	YES	LSMTREE		
+t1	0	kc	1	c	A	0	NULL	NULL	YES	LSMTREE		
+ALTER TABLE t1 DROP INDEX kb, DROP INDEX kbc;
+SHOW INDEX IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	a	A	0	NULL	NULL		LSMTREE		
+t1	0	kc	1	c	A	0	NULL	NULL	YES	LSMTREE		
+INSERT INTO t1 (b,c) VALUES (1,2);
+INSERT INTO t1 (b,c) VALUES (3,4);
+INSERT INTO t1 (b,c) VALUES (5,6);
+SELECT * FROM t1 FORCE INDEX(kc) where c > 3;
+a	b	c
+2	3	4
+3	5	6
+ALTER TABLE t1 DROP INDEX kc, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL AUTO_INCREMENT,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ROCKSDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE IF NOT EXISTS t1 (col1 INT, col2 INT, col3 INT);
+INSERT INTO t1 (col1,col2,col3) VALUES (1,2,3);
+ALTER TABLE t1 ADD KEY idx ( col1, col2 );
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+ALTER TABLE t1 DROP COLUMN col2;
+ALTER TABLE t1 DROP COLUMN col3;
+DROP TABLE t1;
+CREATE TABLE IF NOT EXISTS t1 (col1 INT, col2 INT, col3 INT);
+INSERT INTO t1 (col1,col2,col3) VALUES (1,2,3);
+ALTER TABLE t1 ADD KEY idx ( col1, col2 );
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+ALTER TABLE t1 DROP COLUMN col2;
+ALTER TABLE t1 DROP COLUMN col3;
+DROP TABLE t1;

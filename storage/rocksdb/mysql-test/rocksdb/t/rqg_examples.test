@@ -1,0 +1,8 @@
+--source include/have_rocksdb.inc
+
+# RQG's examples test
+let $TESTDIR = examples;
+let $GRAMMAR_FILES = example.yy;
+let $DATA_FILE = example.zz;
+
+--source rqg.inc

@@ -1,0 +1,30 @@
+--source include/have_rocksdb.inc
+
+let $ddir = $MYSQL_TMP_DIR/.rocksdb_datadir.test.install.db;
+let $rdb_ddir = $MYSQL_TMP_DIR/.rocksdb_datadir.test;
+let $sql_file = $MYSQL_TMP_DIR/rocksdb_datadir.sql;
+
+--write_file $sql_file
+DROP DATABASE IF EXISTS mysqltest;
+CREATE DATABASE mysqltest;
+USE mysqltest;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES(42);
+SET GLOBAL rocksdb_force_flush_memtable_now = 1;
+SELECT sleep(1);
+DROP TABLE t1;
+EOF
+
+# Must ensure this directory exists before launching mysqld
+mkdir $ddir;
+
+# Launch mysqld with non-standard rocksdb_datadir
+exec $MYSQLD_BOOTSTRAP_CMD --datadir=$ddir --rocksdb_datadir=$rdb_ddir --default-storage-engine=rocksdb --skip-innodb --default-tmp-storage-engine=MyISAM --rocksdb < $sql_file;
+
+--echo Check for the number of MANIFEST files
+exec ls $rdb_ddir/MANIFEST-0000* | wc -l;
+
+# Clean up
+exec rm -rf $ddir;
+remove_files_wildcard $rdb_ddir *;
+remove_file $sql_file;

@@ -1,0 +1,49 @@
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1(pk CHAR(5) PRIMARY KEY, a char(30), b char(30), key(a)) COLLATE 'latin1_bin';
+CREATE TABLE t2(pk CHAR(5) PRIMARY KEY, a char(30), b char(30), key(a)) COLLATE 'latin1_bin';
+CREATE TABLE t3(pk CHAR(5) PRIMARY KEY, a char(30), b char(30), key(a)) COLLATE 'latin1_bin'
+  PARTITION BY KEY() PARTITIONS 4;
+set session transaction isolation level repeatable read;
+select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
+STAT_TYPE	VALUE
+DB_NUM_SNAPSHOTS	0
+start transaction with consistent snapshot;
+select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
+STAT_TYPE	VALUE
+DB_NUM_SNAPSHOTS	1
+set rocksdb_bulk_load=1;
+set rocksdb_bulk_load_size=100000;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+LOAD DATA INFILE <input_file> INTO TABLE t2;
+LOAD DATA INFILE <input_file> INTO TABLE t3;
+set rocksdb_bulk_load=0;
+select count(pk) from t1;
+count(pk)
+10000000
+select count(a) from t1;
+count(a)
+10000000
+select count(b) from t1;
+count(b)
+10000000
+select count(pk) from t2;
+count(pk)
+10000000
+select count(a) from t2;
+count(a)
+10000000
+select count(b) from t2;
+count(b)
+10000000
+select count(pk) from t3;
+count(pk)
+10000000
+select count(a) from t3;
+count(a)
+10000000
+select count(b) from t3;
+count(b)
+10000000
+longfilenamethatvalidatesthatthiswillgetdeleted.bulk_load.tmp
+test.bulk_load.tmp
+DROP TABLE t1, t2, t3;

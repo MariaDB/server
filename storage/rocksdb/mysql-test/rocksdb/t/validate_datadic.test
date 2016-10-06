@@ -1,0 +1,102 @@
+--source include/have_rocksdb.inc
+
+#
+# Validate that the server starts when everything is okay, but detects errors
+# if a table exists in the data dictionary but not as an .frm or vice versa.
+# The default mode causes these failures to keep the server from starting, but
+# this is problematic for the test as a server start failure is not easily
+# trappable.  Instead use the mode where it will detect the problem and report
+# it in the log bug still start:  --rocksdb_validate_tables=2
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2;
+--enable_warnings
+
+CREATE TABLE t1 (pk int primary key) ENGINE=ROCKSDB;
+CREATE TABLE t2 (pk int primary key) ENGINE=ROCKSDB PARTITION BY KEY(pk) PARTITIONS 4;
+
+# Write file to make mysql-test-run.pl expect the "crash", but don't restart the
+# server until it is told to
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--exec echo "wait" >$_expect_file_name
+
+# Send shutdown to the connected server and give it 10 seconds to die before
+# zapping it
+shutdown_server 10;
+
+# Write file to make mysql-test-run.pl start up the server again
+--exec echo "restart" >$_expect_file_name
+--sleep 5
+
+# Turn on reconnect
+--enable_reconnect
+
+# Call script that will poll the server waiting for it to be back online again
+--source include/wait_until_connected_again.inc
+
+# Turn off reconnect again
+--disable_reconnect
+
+# Now shut down again and rename one of the .frm files
+--exec echo "wait" >$_expect_file_name
+shutdown_server 10;
+
+# Clear the log
+--exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
+
+# Rename the file
+--exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm.tmp
+--exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm.tmp
+
+# Attempt to restart the server
+--exec echo "restart:--rocksdb_validate_tables=2" >$_expect_file_name
+--sleep 5
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+# We should now have an error message
+--exec echo "Expect errors that we are missing two .frm files"
+--exec grep "Schema mismatch" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+
+# Now shut down again and rename one the .frm file back and make a copy of it
+--exec echo "wait" >$_expect_file_name
+shutdown_server 10;
+
+# Clear the log
+--exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
+
+# Rename the file
+--exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm
+--exec mv $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm
+--exec cp $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1_dummy.frm
+
+# Attempt to restart the server
+--exec echo "restart:--rocksdb_validate_tables=2" >$_expect_file_name
+--sleep 5
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+# We should now have an error message for the second case
+--exec echo "Expect an error that we have an extra .frm file"
+--exec grep "Schema mismatch" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+
+# Shut down an clean up
+--exec echo "wait" >$_expect_file_name
+shutdown_server 10;
+--exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
+--exec rm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1_dummy.frm
+--exec echo "restart" >$_expect_file_name
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+--disable_warnings
+DROP TABLE t1, t2;
+--enable_warnings
+

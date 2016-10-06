@@ -1,0 +1,7 @@
+drop table if exists t1;
+# Binary must be compiled with debug for this test
+CREATE TABLE t1 (a INT) ENGINE=rocksdb;
+SELECT COUNT(*) from t1;
+COUNT(*)
+400
+DROP TABLE t1;

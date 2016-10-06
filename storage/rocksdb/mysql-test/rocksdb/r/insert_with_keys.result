@@ -1,0 +1,63 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, KEY(b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) VALUES (100,'a'), (6,'f');
+INSERT INTO t1 (a,b) VALUES (30,'m'),(29,'n');
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+INSERT INTO t1 (a,b) VALUES (3,'a'),(0,'');
+SELECT a,b FROM t1;
+a	b
+0	
+1	a
+1	a
+100	a
+12345	z
+2	b
+29	n
+3	a
+3	c
+30	m
+4	d
+5	e
+6	f
+DROP TABLE t1;
+#----------------------------------------
+# UNIQUE KEYS are not supported currently
+#-----------------------------------------
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) VALUES (100,'a'), (6,'f');
+INSERT INTO t1 (a,b) VALUES (30,'m'),(29,'n');
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO t1 (a,b) VALUES (3,'a'),(0,'');
+ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
+INSERT INTO t1 (a,b) VALUES (0,'');
+SELECT a,b FROM t1;
+a	b
+0	
+1	a
+100	a
+2	b
+29	n
+3	c
+30	m
+4	d
+5	e
+6	f
+INSERT IGNORE INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z') ON DUPLICATE KEY UPDATE b = CONCAT(b,b);
+SELECT a,b FROM t1;
+a	b
+0	
+1	aa
+100	a
+12345	zz
+2	b
+29	n
+3	c
+30	m
+4	d
+5	e
+6	f
+DROP TABLE t1;

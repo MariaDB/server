@@ -1,0 +1,71 @@
+--source include/have_rocksdb.inc
+
+#
+# RocksDB-SE tests for reverse-ordered Column Families
+#
+
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  pk int primary key,
+  a int not null,
+  b int not null,
+  key(a) comment 'rev:foo',
+  key(b) comment 'bar'
+) engine=rocksdb;
+
+insert into t1 select a,a,a  from t0;
+insert into t1 select a+10,a+10,a+10  from t0;
+
+--echo # Primary key is not in a reverse-ordered CF, so full table scan
+--echo #   returns rows in ascending order:
+select * from t1;
+
+--replace_column 9 #
+explain 
+select a from t1 order by a limit 5;
+select a from t1 order by a limit 5;
+
+--replace_column 9 #
+explain 
+select b from t1 order by b limit 5;
+select a from t1 order by a limit 5;
+
+--replace_column 9 #
+explain 
+select a from t1 order by a desc limit 5;
+select a from t1 order by a desc limit 5;
+
+--replace_column 9 #
+explain 
+select b from t1 order by b desc limit 5;
+select b from t1 order by b desc limit 5;
+
+drop table t1;
+
+--echo #
+--echo # Try a primary key in a reverse-ordered CF.
+--echo #
+
+create table t2 (
+  pk int,
+  a int not null,
+  primary key(pk) comment 'rev:cf1'
+) engine=rocksdb;
+
+insert into t2 select a,a from t0;
+--echo # Primary key is in a reverse-ordered CF, so full table scan
+--echo #   returns rows in descending order:
+select * from t2;
+
+set autocommit=0;
+begin;
+delete from t2 where a=3 or a=7;
+select * from t2;
+rollback;
+set autocommit=1;
+
+drop table t2;
+drop table t0;
+

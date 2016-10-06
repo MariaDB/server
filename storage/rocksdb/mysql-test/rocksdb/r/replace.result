@@ -1,0 +1,32 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+REPLACE INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+SELECT a,b FROM t1;
+a	b
+1	a
+2	b
+3	c
+4	d
+5	e
+REPLACE t1 (a,b) VALUE (10,'foo'),(10,'foo');
+SELECT a,b FROM t1;
+a	b
+1	a
+10	foo
+10	foo
+2	b
+3	c
+4	d
+5	e
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY (b)) ENGINE=rocksdb;
+REPLACE INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c');
+INSERT INTO t1 (a,b) VALUES (4,'b');
+ERROR 23000: Duplicate entry 'b' for key 'PRIMARY'
+REPLACE INTO t1 (a,b) VALUES (4,'b');
+SELECT a,b FROM t1;
+a	b
+1	a
+3	c
+4	b
+DROP TABLE t1;
