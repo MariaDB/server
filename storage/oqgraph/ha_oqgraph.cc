@@ -87,6 +87,7 @@ static const oqgraph_latch_op_table latch_ops_table[] = {
   { "", oqgraph::NO_SEARCH } ,  // suggested by Arjen, use empty string instead of no_search
   { "dijkstras", oqgraph::DIJKSTRAS } ,
   { "breadth_first", oqgraph::BREADTH_FIRST } ,
+  { "leaves", oqgraph::LEAVES },
   { NULL, -1 }
 };
 

@@ -120,6 +120,100 @@ SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 
 SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 9;
 SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 10;
 
+--echo # Leaves search tests
+#-- We are asking "Are there nodes reachable from origid, from which no other nodes can be reached"
+#-- We return a row for each leaf node that is reachable, with its id in 'linkid'
+#-- and the weight calculated as "How many _directed_ hops to get there"
+#-- If there is no path from origid to another node then there is no row for that linkid
+#-- 'seq' is the counted distance of the search, thus, the loop link will always have seq 1
+#--       if there are two reachable neighbours, they will have seq 2,3 and so on
+#-- linkid is the other end
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 1;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 2;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 3;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 4;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 5;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 6;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 7;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 8;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 9;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 10;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 11;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 12;
+
+#-- now do it in reverse - using destid find originating vertices
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 1;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 2;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 3;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 4;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 5;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 6;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 7;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 8;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 9;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 10;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 11;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 12;
+
+# Add more leaf nodes
+INSERT INTO graph_base(from_id, to_id) VALUES (10,13);
+INSERT INTO graph_base(from_id, to_id) VALUES (11,14);
+INSERT INTO graph_base(from_id, to_id) VALUES (12,15);
+
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 10;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 11;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 12;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 13;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 14;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 15;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 10;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 11;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 12;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 13;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 14;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 15;
+
+DELETE FROM graph_base where from_id=10 and to_id=13;
+DELETE FROM graph_base where from_id=11 and to_id=14;
+DELETE FROM graph_base where from_id=12 and to_id=15;
+
+# Add some root nodes
+INSERT INTO graph_base(from_id, to_id) VALUES (13,10);
+INSERT INTO graph_base(from_id, to_id) VALUES (14,11);
+INSERT INTO graph_base(from_id, to_id) VALUES (15,12);
+INSERT INTO graph_base(from_id, to_id) VALUES (16,1);
+
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 10;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 11;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 12;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 13;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 14;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 15;
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 16;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 10;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 11;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 12;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 13;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 14;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 15;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 1;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 2;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 3;
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 4;
+
+DELETE FROM graph_base where from_id=13 and to_id=10;
+DELETE FROM graph_base where from_id=14 and to_id=11;
+DELETE FROM graph_base where from_id=15 and to_id=12;
+DELETE FROM graph_base where from_id=16 and to_id=1;
+
+# path queries yield no result with "leaves"
+SELECT * FROM graph WHERE latch='leaves' AND origid=1 AND destid=2;
+SELECT * FROM graph WHERE latch='leaves' AND origid=1 AND destid=3;
+SELECT * FROM graph WHERE latch='leaves' AND origid=1 AND destid=4;
+SELECT * FROM graph WHERE latch='leaves' AND origid=6 AND destid=7;
+SELECT * FROM graph WHERE latch='leaves' AND origid=10 AND destid=11;
+SELECT * FROM graph WHERE latch='leaves' AND origid=10 AND destid=12;
+
 --echo # Breadth-first search tests
 #-- We are asking "Is there a path from node 'origid' to (all) other nodes?"
 #-- We return a row for each other node that is reachable, with its id in 'linkid'
