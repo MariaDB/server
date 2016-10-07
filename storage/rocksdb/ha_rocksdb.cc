@@ -21,6 +21,7 @@
 #define MYSQL_SERVER 1
 
 /* The C++ file's header */
+#include <my_config.h>
 #include "./ha_rocksdb.h"
 
 /* C++ standard header files */
@@ -36,7 +37,9 @@
 #include "./sql_table.h"
 #include <mysys_err.h>
 #include <mysql/psi/mysql_table.h>
+#ifdef MARIAROCKS_NOT_YET
 #include <mysql/thread_pool_priv.h>
+#endif
 
 /* RocksDB includes */
 #include "rocksdb/compaction_filter.h"

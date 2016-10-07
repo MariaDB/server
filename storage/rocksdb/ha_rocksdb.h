@@ -29,7 +29,7 @@
 #include "./handler.h"                     /* handler */
 #include "./my_global.h"                   /* ulonglong */
 #include "./sql_string.h"
-#include "./ut0counter.h"
+#include "../storage/innobase/include/ut0counter.h"
 
 /* RocksDB header files */
 #include "rocksdb/cache.h"

@@ -1,8 +1,10 @@
 # TODO: Copyrights
 
-IF (NOT EXISTS "${CMAKE_SOURCE_DIR}/rocksdb/Makefile")
+IF (NOT EXISTS "${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/Makefile")
   MESSAGE(SEND_ERROR "Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
+
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 # get a list of rocksdb library source files
 # run with env -i to avoid passing variables
@@ -15,8 +17,8 @@ EXECUTE_PROCESS(
 STRING(REGEX MATCHALL "[^\n]+" ROCKSDB_LIB_SOURCES ${SCRIPT_OUTPUT})
 
 INCLUDE_DIRECTORIES(
-  ${CMAKE_SOURCE_DIR}/rocksdb
-  ${CMAKE_SOURCE_DIR}/rocksdb/include
+  ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb
+  ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/include
   ${CMAKE_SOURCE_DIR}/rocksdb/third-party/gtest-1.7.0/fused-src
 )
 
@@ -93,14 +95,14 @@ ENDIF()
 IF (WITH_ROCKSDB_SE_STORAGE_ENGINE)
   # TODO: read this file list from src.mk:TOOL_SOURCES
   SET(ROCKSDB_TOOL_SOURCES
-    ${CMAKE_SOURCE_DIR}/rocksdb/tools/ldb_tool.cc
-    ${CMAKE_SOURCE_DIR}/rocksdb/tools/ldb_cmd.cc
-    ${CMAKE_SOURCE_DIR}/rocksdb/tools/sst_dump_tool.cc
+    ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/tools/ldb_tool.cc
+    ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/tools/ldb_cmd.cc
+    ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/tools/sst_dump_tool.cc
   )
-  MYSQL_ADD_EXECUTABLE(sst_dump ${CMAKE_SOURCE_DIR}/rocksdb/tools/sst_dump.cc ${ROCKSDB_TOOL_SOURCES})
+  MYSQL_ADD_EXECUTABLE(sst_dump ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/tools/sst_dump.cc ${ROCKSDB_TOOL_SOURCES})
   TARGET_LINK_LIBRARIES(sst_dump rocksdb_se)
 
-  MYSQL_ADD_EXECUTABLE(ldb ${CMAKE_SOURCE_DIR}/rocksdb/tools/ldb.cc ${ROCKSDB_TOOL_SOURCES})
+  MYSQL_ADD_EXECUTABLE(ldb ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/tools/ldb.cc ${ROCKSDB_TOOL_SOURCES})
   TARGET_LINK_LIBRARIES(ldb rocksdb_se)
 
   MYSQL_ADD_EXECUTABLE(mysql_ldb ${CMAKE_SOURCE_DIR}/storage/rocksdb/tools/mysql_ldb.cc ${ROCKSDB_TOOL_SOURCES})

@@ -19,7 +19,9 @@
 /* MySQL includes */
 #include "./my_global.h"
 #include <mysql/psi/mysql_table.h>
+#ifdef MARIAROCKS_NOT_YET
 #include <mysql/thread_pool_priv.h>
+#endif
 
 /* MyRocks header files */
 #include "./rdb_utils.h"

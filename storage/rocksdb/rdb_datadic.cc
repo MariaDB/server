@@ -18,6 +18,7 @@
 #pragma implementation        // gcc: Class implementation
 #endif
 
+#include <my_config.h>
 /* This C++ file's header file */
 #include "./rdb_datadic.h"
 
