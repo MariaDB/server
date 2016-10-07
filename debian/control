@@ -287,38 +287,6 @@ Description: MariaDB database core server files
  .
  This package includes the core server files, as used by Akonadi.
 
-Package: mariadb-test-10.2
-Architecture: any
-Depends: mariadb-client-10.2 (= ${binary:Version}),
-         mariadb-server-10.2 (= ${binary:Version}),
-         ${misc:Depends},
-         ${shlibs:Depends}
-Suggests: patch
-Conflicts: mariadb-galera-server-5.5 (<< 5.5.33),
-           mariadb-server-5.5 (<< 5.5.33),
-           mariadb-test (<< ${source:Version}),
-           mariadb-test-10.0,
-           mariadb-test-10.1,
-           mariadb-test-5.1,
-           mariadb-test-5.2,
-           mariadb-test-5.3,
-           virtual-mysql-testsuite
-Replaces: mariadb-test (<< ${source:Version}),
-          mariadb-test-10.0,
-          mariadb-test-10.1,
-          mariadb-test-5.1,
-          mariadb-test-5.2,
-          mariadb-test-5.3,
-          virtual-mysql-testsuite
-Provides: virtual-mysql-testsuite
-Description: MariaDB database regression test suite
- MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
- server. SQL (Structured Query Language) is the most popular database query
- language in the world. The main goals of MariaDB are speed, robustness and
- ease of use.
- .
- This package includes the regression test suite.
-
 Package: mariadb-server-10.2
 Architecture: any
 Suggests: mailx, mariadb-test, netcat-openbsd, tinyca
@@ -410,12 +378,36 @@ Description: MariaDB database client (metapackage depending on the latest versio
  you want, as this is the one considered to be in the best shape.
 
 Package: mariadb-test
-Architecture: all
-Depends: mariadb-test-10.2 (= ${source:Version}), ${misc:Depends}
-Description: MariaDB database regression test suite (metapackage for the latest version)
- This is an empty package that depends on the current "best" version of
- mariadb-test (currently mariadb-test-10.2), as determined by the MariaDB
- maintainers.
+Architecture: any
+Depends: mariadb-client-10.2 (= ${binary:Version}),
+        mariadb-server-10.2 (= ${binary:Version}),
+        ${misc:Depends},
+        ${shlibs:Depends}
+Breaks: mariadb-test-10.1,
+       mariadb-test-10.0,
+       mariadb-test-5.5,
+       mysql-testsuite,
+       mysql-testsuite-5.5,
+       mysql-testsuite-5.6,
+       mysql-testsuite-5.7,
+       virtual-mysql-testsuite
+Replaces: mariadb-test-10.1,
+         mariadb-test-10.0,
+         mariadb-test-5.5,
+         mysql-testsuite,
+         mysql-testsuite-5.5,
+         mysql-testsuite-5.6,
+         mysql-testsuite-5.7,
+         virtual-mysql-testsuite
+Provides: virtual-mysql-testsuite
+Suggests: patch
+Description: MariaDB database regression test suite
+ MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
+ server. SQL (Structured Query Language) is the most popular database query
+ language in the world. The main goals of MariaDB are speed, robustness and
+ ease of use.
+ .
+ This package includes the regression test suite.
 
 Package: mariadb-connect-engine-10.2
 Architecture: any
