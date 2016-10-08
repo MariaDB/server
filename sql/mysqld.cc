@@ -6027,11 +6027,26 @@ int mysqld_main(int argc, char **argv)
   }
 
   disable_log_notes= 0; /* Startup done, now we can give notes again */
-  sql_print_information(ER_DEFAULT(ER_STARTUP),my_progname,server_version,
-                        ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
-                         (char*) "" : mysqld_unix_port),
-                         mysqld_port,
-                         MYSQL_COMPILATION_COMMENT);
+
+  if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
+    sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname, server_version,
+                          ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
+                           (char*) "" : mysqld_unix_port),
+                          mysqld_port, MYSQL_COMPILATION_COMMENT);
+  else
+  {
+    char real_server_version[2 * SERVER_VERSION_LENGTH + 10];
+
+    set_server_version(real_server_version, sizeof(real_server_version));
+    strcat(real_server_version, "' as '");
+    strcat(real_server_version, server_version);
+
+    sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname,
+                          real_server_version,
+                          ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
+                           (char*) "" : mysqld_unix_port),
+                          mysqld_port, MYSQL_COMPILATION_COMMENT);
+  }
 
   // try to keep fd=0 busy
   if (!freopen(IF_WIN("NUL","/dev/null"), "r", stdin))
