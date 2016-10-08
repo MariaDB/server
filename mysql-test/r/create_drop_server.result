@@ -35,3 +35,12 @@ SELECT server_name, username, db FROM mysql.servers;
 server_name	username	db
 server_1	mysqltest_1	test4
 DROP SERVER server_1;
+CREATE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'Remote', HOST 'Server.Example.Com', DATABASE 'test');
+SELECT Host FROM mysql.servers WHERE Server_Name = 'server_1';
+Host
+server.example.com
+ALTER SERVER server_1 OPTIONS(HOST 'Server.Example.Org');
+SELECT Host FROM mysql.servers WHERE Server_Name = 'server_1';
+Host
+server.example.org
+DROP SERVER server_1;

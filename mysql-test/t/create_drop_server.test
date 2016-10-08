@@ -23,3 +23,12 @@ CREATE OR REPLACE SERVER IF NOT EXISTS server_1 FOREIGN DATA WRAPPER mysql OPTIO
 CREATE OR REPLACE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test4');
 SELECT server_name, username, db FROM mysql.servers;
 DROP SERVER server_1;
+
+
+# MDEV-726 convert host names to lowercase
+
+CREATE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'Remote', HOST 'Server.Example.Com', DATABASE 'test');
+SELECT Host FROM mysql.servers WHERE Server_Name = 'server_1';
+ALTER SERVER server_1 OPTIONS(HOST 'Server.Example.Org');
+SELECT Host FROM mysql.servers WHERE Server_Name = 'server_1';
+DROP SERVER server_1;
