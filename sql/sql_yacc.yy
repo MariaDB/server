@@ -2223,23 +2223,20 @@ prepare:
           PREPARE_SYM ident FROM prepare_src
           {
             LEX *lex= thd->lex;
+            if (lex->table_or_sp_used())
+              my_yyabort_error((ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+                               "PREPARE..FROM"));
             lex->sql_command= SQLCOM_PREPARE;
             lex->prepared_stmt_name= $2;
           }
         ;
 
 prepare_src:
-          TEXT_STRING_sys
+          { Lex->expr_allows_subselect= false; }
+          expr
           {
-            LEX *lex= thd->lex;
-            lex->prepared_stmt_code= $1;
-            lex->prepared_stmt_code_is_varref= FALSE;
-          }
-        | '@' ident_or_text
-          {
-            LEX *lex= thd->lex;
-            lex->prepared_stmt_code= $2;
-            lex->prepared_stmt_code_is_varref= TRUE;
+            Lex->prepared_stmt_code= $2;
+            Lex->expr_allows_subselect= true;
           }
         ;
 
@@ -2254,6 +2251,9 @@ execute:
           {}
         | EXECUTE_SYM IMMEDIATE_SYM prepare_src
           {
+            if (Lex->table_or_sp_used())
+              my_yyabort_error((ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+                               "EXECUTE IMMEDIATE"));
             Lex->sql_command= SQLCOM_EXECUTE_IMMEDIATE;
           }
           execute_using

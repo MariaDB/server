@@ -4014,5 +4014,27 @@ DROP TABLE t1;
 #
 SET STORAGE_ENGINE=Default;
 #
+# MDEV-10867 PREPARE..EXECUTE is not consistent about non-ASCII characters
+#
+SET NAMES utf8mb4;
+SELECT '😎' AS c;
+c
+😎
+SET @src='SELECT ''😎'' AS c';
+PREPARE stmt FROM @src;
+EXECUTE stmt;
+c
+😎
+EXECUTE IMMEDIATE @src;
+c
+😎
+PREPARE stmt FROM 'SELECT ''😎'' AS c';
+EXECUTE stmt;
+c
+😎
+EXECUTE IMMEDIATE 'SELECT ''😎'' AS c';
+c
+😎
+#
 # End of 10.2 tests
 #

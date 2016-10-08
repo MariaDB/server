@@ -2720,13 +2720,8 @@ public:
   TABLE_LIST *create_last_non_select_table;
   /* Prepared statements SQL syntax:*/
   LEX_STRING prepared_stmt_name; /* Statement name (in all queries) */
-  /*
-    Prepared statement query text or name of variable that holds the
-    prepared statement (in PREPARE ... queries)
-  */
-  LEX_STRING prepared_stmt_code;
-  /* If true, prepared_stmt_code is a name of variable that holds the query */
-  bool prepared_stmt_code_is_varref;
+  /* PREPARE or EXECUTE IMMEDIATE source expression */
+  Item *prepared_stmt_code;
   /* Names of user variables holding parameters (in EXECUTE) */
   List<Item> prepared_stmt_params;
   sp_head *sphead;
@@ -3007,6 +3002,7 @@ public:
   void set_last_field_type(const Lex_field_type_st &type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
 
+  bool get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer);
   bool prepared_stmt_params_fix_fields(THD *thd)
   {
     // Fix Items in the EXECUTE..USING list

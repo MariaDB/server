@@ -6230,7 +6230,60 @@ COLLATION("a")
 ucs2_general_ci
 SET @stmt='SELECT COLLATION("a")';
 EXECUTE IMMEDIATE @stmt;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+COLLATION("a")
+ucs2_general_ci
+#
+# MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+#
+SET NAMES utf8, collation_connection=ucs2_bin;
+SET @stmt='SELECT COLLATION(''a'')';
+EXECUTE IMMEDIATE @stmt;
+COLLATION('a')
+ucs2_bin
+SET NAMES utf8, character_set_connection=ucs2;
+SET @stmt='SELECT COLLATION(''a'')';
+EXECUTE IMMEDIATE @stmt;
+COLLATION('a')
+ucs2_general_ci
+EXECUTE IMMEDIATE CONCAT('SELECT ''a'' FROM DUAL');
+a
+a
+SELECT HEX('aä') FROM DUAL;
+HEX('aä')
+006100E4
+EXECUTE IMMEDIATE 'SELECT HEX(''aä'') FROM DUAL';
+HEX('aä')
+006100E4
+EXECUTE IMMEDIATE CONCAT('SELECT HEX(''aä'') FROM DUAL');
+HEX('aä')
+006100E4
+EXECUTE IMMEDIATE CONCAT('SELECT HEX(''aä'') FROM ', 'DUAL');
+HEX('aä')
+006100E4
+PREPARE stmt FROM 'SELECT HEX(''aä'') FROM DUAL';
+EXECUTE stmt;
+HEX('aä')
+006100E4
+DEALLOCATE PREPARE stmt;
+SET @table='DUAL';
+SELECT HEX(@table);
+HEX(@table)
+004400550041004C
+EXECUTE IMMEDIATE CONCAT('SELECT HEX(''aä'') FROM ', @table);
+HEX('aä')
+006100E4
+EXECUTE IMMEDIATE CONCAT('SELECT HEX(''aä'') FROM ', CONVERT(@table USING utf8));
+HEX('aä')
+006100E4
+SET @stmt='SELECT HEX(''aä'') FROM DUAL';
+EXECUTE IMMEDIATE @stmt;
+HEX('aä')
+006100E4
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+HEX('aä')
+006100E4
+DEALLOCATE PREPARE stmt;
 #
 # End of 10.2 tests
 #

@@ -4502,5 +4502,150 @@ DROP FUNCTION get_status_var;
 # End of MDEV-10585 EXECUTE IMMEDIATE statement
 #
 #
+# MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+#
+#
+# Testing erroneous and diallowed prepare source
+#
+EXECUTE IMMEDIATE CONCAT(_latin1'SELECT 1 AS c FROM ', _latin2 'DUAL');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+PREPARE stmt FROM CONCAT(_latin1'SELECT 1 AS c FROM ', _latin2 'DUAL');
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat'
+EXECUTE IMMEDIATE (SELECT 'SELECT 1');
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
+PREPARE stmt FROM (SELECT 'SELECT 1');
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 'SELECT 1')' at line 1
+EXECUTE IMMEDIATE a;
+ERROR 42S22: Unknown column 'a' in 'field list'
+PREPARE stmt FROM a;
+ERROR 42S22: Unknown column 'a' in 'field list'
+EXECUTE IMMEDIATE NULL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+PREPARE stmt FROM NULL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+EXECUTE IMMEDIATE CONCAT(NULL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+PREPARE stmt FROM CONCAT(NULL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+EXECUTE IMMEDIATE ? USING 'SELECT 1';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '? USING 'SELECT 1'' at line 1
+EXECUTE IMMEDIATE 10;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '10' at line 1
+EXECUTE IMMEDIATE TIME'10:20:30';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '10:20:30' at line 1
+EXECUTE IMMEDIATE ROW('SELECT 1','SELECT 2');
+ERROR 21000: Operand should contain 1 column(s)
+EXECUTE IMMEDIATE MAX('SELECT 1 AS c');
+ERROR HY000: Invalid use of group function
+EXECUTE IMMEDIATE DEFAULT(a);
+ERROR 42S22: Unknown column 'a' in 'field list'
+EXECUTE IMMEDIATE VALUES(a);
+ERROR 42S22: Unknown column 'a' in 'field list'
+CREATE FUNCTION f1() RETURNS VARCHAR(64) RETURN 't1';
+EXECUTE IMMEDIATE f1();
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
+PREPARE stmt FROM f1();
+ERROR 42000: PREPARE..FROM does not support subqueries or stored functions
+DROP FUNCTION f1;
+EXECUTE IMMEDIATE non_existent();
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
+#
+# Testing literals in prepare source
+#
+EXECUTE IMMEDIATE N'SELECT 1 AS c';
+c
+1
+EXECUTE IMMEDIATE _latin1'SELECT 1 AS c';
+c
+1
+EXECUTE IMMEDIATE 'SELECT '  '1'  ' AS c'  ' FROM '  'DUAL';
+c
+1
+EXECUTE IMMEDIATE 0x53454C4543542031 /*This is 'SELECT 1'*/;
+1
+1
+#
+# Testing user variables in prepare source
+#
+SET @stmt='SELECT 1 AS c FROM DUAL';
+EXECUTE IMMEDIATE @stmt;
+c
+1
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+c
+1
+DEALLOCATE PREPARE stmt;
+SET @table_name='DUAL';
+EXECUTE IMMEDIATE CONCAT('SELECT 1 AS a FROM ', @table_name);
+a
+1
+PREPARE stmt FROM CONCAT('SELECT 1 AS a FROM ', @table_name);
+EXECUTE stmt;
+a
+1
+DEALLOCATE PREPARE stmt;
+#
+# Testing SP parameters and variables in prepare source
+#
+CREATE PROCEDURE p1(table_name VARCHAR(64))
+BEGIN
+EXECUTE IMMEDIATE CONCAT('SELECT 1 AS c FROM ', table_name);
+END;
+$$
+CALL p1('DUAL');
+c
+1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE table_name VARCHAR(64) DEFAULT 'DUAL';
+EXECUTE IMMEDIATE CONCAT('SELECT 1 AS c FROM ', table_name);
+END;
+$$
+CALL p1();
+c
+1
+DROP PROCEDURE p1;
+#
+# Testing complex expressions
+#
+EXECUTE IMMEDIATE CONVERT('SELECT 1 AS c' USING utf8);
+c
+1
+EXECUTE IMMEDIATE CAST('SELECT 1 AS c' AS CHAR);
+c
+1
+EXECUTE IMMEDIATE _latin1'SELECT 1 AS c' COLLATE latin1_bin;
+c
+1
+EXECUTE IMMEDIATE (((('SELECT 1 AS c'))));
+c
+1
+EXECUTE IMMEDIATE CASE WHEN 1>2 THEN 'SELECT 1 AS c' ELSE 'SELECT 2 AS c' END;
+c
+2
+EXECUTE IMMEDIATE TRIM('SELECT 1 AS c');
+c
+1
+EXECUTE IMMEDIATE SUBSTRING('SELECT 1 AS c' FROM 1);
+c
+1
+EXECUTE IMMEDIATE COALESCE(NULL, 'SELECT 1 AS c');
+c
+1
+#
+# Testing SET STATEMENT and system variables
+#
+CREATE TABLE t1 (a INT);
+SET STATEMENT max_sort_length=1025 FOR EXECUTE IMMEDIATE CONCAT('INSERT INTO t1 VALUES (', @@max_sort_length, ')');
+SELECT * FROM t1;
+a
+1025
+DROP TABLE t1;
+#
+# End of MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+#
+#
 # End of 10.2 tests
 #

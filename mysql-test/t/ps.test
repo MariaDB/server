@@ -4046,5 +4046,145 @@ DROP FUNCTION get_status_var;
 --echo #
 
 --echo #
+--echo # MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+--echo #
+
+--echo #
+--echo # Testing erroneous and diallowed prepare source
+--echo #
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE IMMEDIATE CONCAT(_latin1'SELECT 1 AS c FROM ', _latin2 'DUAL');
+--error ER_CANT_AGGREGATE_2COLLATIONS
+PREPARE stmt FROM CONCAT(_latin1'SELECT 1 AS c FROM ', _latin2 'DUAL');
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE (SELECT 'SELECT 1');
+--error ER_PARSE_ERROR
+PREPARE stmt FROM (SELECT 'SELECT 1');
+
+--error ER_BAD_FIELD_ERROR
+EXECUTE IMMEDIATE a;
+--error ER_BAD_FIELD_ERROR
+PREPARE stmt FROM a;
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE NULL;
+--error ER_PARSE_ERROR
+PREPARE stmt FROM NULL;
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE CONCAT(NULL);
+--error ER_PARSE_ERROR
+PREPARE stmt FROM CONCAT(NULL);
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE ? USING 'SELECT 1';
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 10;
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE TIME'10:20:30';
+
+--error ER_OPERAND_COLUMNS
+EXECUTE IMMEDIATE ROW('SELECT 1','SELECT 2');
+
+--error ER_INVALID_GROUP_FUNC_USE
+EXECUTE IMMEDIATE MAX('SELECT 1 AS c');
+
+--error ER_BAD_FIELD_ERROR
+EXECUTE IMMEDIATE DEFAULT(a);
+
+--error ER_BAD_FIELD_ERROR
+EXECUTE IMMEDIATE VALUES(a);
+
+
+CREATE FUNCTION f1() RETURNS VARCHAR(64) RETURN 't1';
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE IMMEDIATE f1();
+--error ER_SUBQUERIES_NOT_SUPPORTED
+PREPARE stmt FROM f1();
+DROP FUNCTION f1;
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE IMMEDIATE non_existent();
+
+
+--echo #
+--echo # Testing literals in prepare source
+--echo #
+EXECUTE IMMEDIATE N'SELECT 1 AS c';
+EXECUTE IMMEDIATE _latin1'SELECT 1 AS c';
+EXECUTE IMMEDIATE 'SELECT '  '1'  ' AS c'  ' FROM '  'DUAL';
+EXECUTE IMMEDIATE 0x53454C4543542031 /*This is 'SELECT 1'*/;
+
+--echo #
+--echo # Testing user variables in prepare source
+--echo #
+
+SET @stmt='SELECT 1 AS c FROM DUAL';
+EXECUTE IMMEDIATE @stmt;
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @table_name='DUAL';
+EXECUTE IMMEDIATE CONCAT('SELECT 1 AS a FROM ', @table_name);
+PREPARE stmt FROM CONCAT('SELECT 1 AS a FROM ', @table_name);
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # Testing SP parameters and variables in prepare source
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(table_name VARCHAR(64))
+BEGIN
+  EXECUTE IMMEDIATE CONCAT('SELECT 1 AS c FROM ', table_name);
+END;
+$$
+DELIMITER ;$$
+CALL p1('DUAL');
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE table_name VARCHAR(64) DEFAULT 'DUAL';
+  EXECUTE IMMEDIATE CONCAT('SELECT 1 AS c FROM ', table_name);
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Testing complex expressions
+--echo #
+EXECUTE IMMEDIATE CONVERT('SELECT 1 AS c' USING utf8);
+EXECUTE IMMEDIATE CAST('SELECT 1 AS c' AS CHAR);
+EXECUTE IMMEDIATE _latin1'SELECT 1 AS c' COLLATE latin1_bin;
+EXECUTE IMMEDIATE (((('SELECT 1 AS c'))));
+EXECUTE IMMEDIATE CASE WHEN 1>2 THEN 'SELECT 1 AS c' ELSE 'SELECT 2 AS c' END;
+EXECUTE IMMEDIATE TRIM('SELECT 1 AS c');
+EXECUTE IMMEDIATE SUBSTRING('SELECT 1 AS c' FROM 1);
+EXECUTE IMMEDIATE COALESCE(NULL, 'SELECT 1 AS c');
+
+--echo #
+--echo # Testing SET STATEMENT and system variables
+--echo #
+CREATE TABLE t1 (a INT);
+SET STATEMENT max_sort_length=1025 FOR EXECUTE IMMEDIATE CONCAT('INSERT INTO t1 VALUES (', @@max_sort_length, ')');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+--echo #
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

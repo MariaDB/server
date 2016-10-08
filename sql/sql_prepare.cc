@@ -2601,95 +2601,99 @@ end:
 }
 
 /**
-  Get an SQL statement text from a user variable or from plain text.
+  Get an SQL statement from an item in lex->prepared_stmt_code.
 
-  If the statement is plain text, just assign the
-  pointers, otherwise allocate memory in thd->mem_root and copy
-  the contents of the variable, possibly with character
-  set conversion.
+  This function can return pointers to very different memory classes:
+  - a static string "NULL", if the item returned NULL
+  - the result of prepare_stmt_code->val_str(), if no conversion was needed
+  - a thd->mem_root allocated string with the result of
+    prepare_stmt_code->val_str() converted to @@collation_connection,
+    if conversion was needed
 
-  @param[in]  lex               main lex
-  @param[out] query_len         length of the SQL statement (is set only
-    in case of success)
+  The caller must dispose the result before the life cycle of "buffer" ends.
+  As soon as buffer's destructor is called, the value is not valid any more!
 
-  @retval
-    non-zero  success
-  @retval
-    0         in case of error (out of memory)
+  mysql_sql_stmt_prepare() and mysql_sql_stmt_execute_immediate()
+  call get_dynamic_sql_string() and then call respectively
+  Prepare_statement::prepare() and Prepare_statment::execute_immediate(),
+  who store the returned result into its permanent location using
+  alloc_query(). "buffer" is still not destructed at that time.
+
+  @param[out]   dst        the result is stored here
+  @param[inout] buffer
+
+  @retval       false on success
+  @retval       true on error (out of memory)
 */
 
-static const char *get_dynamic_sql_string(LEX *lex, uint *query_len)
+bool LEX::get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer)
 {
-  THD *thd= lex->thd;
-  char *query_str= 0;
+  if (prepared_stmt_code->fix_fields(thd, NULL) ||
+      prepared_stmt_code->check_cols(1))
+    return true;
 
-  if (lex->prepared_stmt_code_is_varref)
+  const String *str= prepared_stmt_code->val_str(buffer);
+  if (prepared_stmt_code->null_value)
   {
-    /* This is PREPARE stmt FROM or EXECUTE IMMEDIATE @var. */
-    String str;
-    CHARSET_INFO *to_cs= thd->variables.collation_connection;
-    bool needs_conversion;
-    user_var_entry *entry;
-    String *var_value= &str;
-    uint32 unused, len;
     /*
-      Convert @var contents to string in connection character set. Although
-      it is known that int/real/NULL value cannot be a valid query we still
-      convert it for error messages to be uniform.
+      Prepare source was NULL, so we need to set "str" to
+      something reasonable to get a readable error message during parsing
     */
-    if ((entry=
-         (user_var_entry*)my_hash_search(&thd->user_vars,
-                                         (uchar*)lex->prepared_stmt_code.str,
-                                         lex->prepared_stmt_code.length))
-        && entry->value)
-    {
-      bool is_var_null;
-      var_value= entry->val_str(&is_var_null, &str, NOT_FIXED_DEC);
-      /*
-        NULL value of variable checked early as entry->value so here
-        we can't get NULL in normal conditions
-      */
-      DBUG_ASSERT(!is_var_null);
-      if (!var_value)
-        goto end;
-    }
-    else
-    {
-      /*
-        variable absent or equal to NULL, so we need to set variable to
-        something reasonable to get a readable error message during parsing
-      */
-      str.set(STRING_WITH_LEN("NULL"), &my_charset_latin1);
-    }
-
-    needs_conversion= String::needs_conversion(var_value->length(),
-                                               var_value->charset(), to_cs,
-                                               &unused);
-
-    len= (needs_conversion ? var_value->length() * to_cs->mbmaxlen :
-          var_value->length());
-    if (!(query_str= (char*) alloc_root(thd->mem_root, len+1)))
-      goto end;
-
-    if (needs_conversion)
-    {
-      uint dummy_errors;
-      len= copy_and_convert(query_str, len, to_cs, var_value->ptr(),
-                            var_value->length(), var_value->charset(),
-                            &dummy_errors);
-    }
-    else
-      memcpy(query_str, var_value->ptr(), var_value->length());
-    query_str[len]= '\0';                       // Safety (mostly for debug)
-    *query_len= len;
+    dst->str= "NULL";
+    dst->length= 4;
+    return false;
   }
-  else
+
+  /*
+    Character set conversion notes:
+
+    1) When PREPARE or EXECUTE IMMEDIATE are used with string literals:
+          PREPARE stmt FROM 'SELECT ''str''';
+          EXECUTE IMMEDIATE 'SELECT ''str''';
+       it's very unlikely that any conversion will happen below, because
+       @@character_set_client and @@collation_connection are normally
+       set to the same CHARSET_INFO pointer.
+
+       In tricky environments when @@collation_connection is set to something
+       different from @@character_set_client, double conversion may happen:
+       - When the parser scans the string literal
+         (sql_yacc.yy rules "prepare_src" -> "expr" -> ... -> "text_literal")
+         it will convert 'str' from @@character_set_client to
+         @@collation_connection.
+       - Then in the code below will convert 'str' from @@collation_connection
+         back to @@character_set_client.
+
+    2) When PREPARE or EXECUTE IMMEDIATE is used with a user variable,
+        it should work about the same way, because user variables are usually
+        assigned like this:
+          SET @str='str';
+        and thus have the same character set with string literals.
+
+    3) When PREPARE or EXECUTE IMMEDIATE is used with some
+       more complex expression, conversion will depend on this expression.
+       For example, a concatenation of string literals:
+         EXECUTE IMMEDIATE 'SELECT * FROM'||'t1';
+       should work the same way with just a single literal,
+       so no conversion normally.
+  */
+  CHARSET_INFO *to_cs= thd->variables.character_set_client;
+
+  uint32 unused;
+  if (String::needs_conversion(str->length(), str->charset(), to_cs, &unused))
   {
-    query_str= lex->prepared_stmt_code.str;
-    *query_len= lex->prepared_stmt_code.length;
+    if (!(dst->str= sql_strmake_with_convert(thd, str->ptr(), str->length(),
+                                             str->charset(), UINT_MAX32,
+                                             to_cs, &dst->length)))
+    {
+      dst->length= 0;
+      return true;
+    }
+    DBUG_ASSERT(dst->length <= UINT_MAX32);
+    return false;
   }
-end:
-  return query_str;
+  dst->str= str->ptr();
+  dst->length= str->length();
+  return false;
 }
 
 
@@ -2712,8 +2716,7 @@ void mysql_sql_stmt_prepare(THD *thd)
   LEX *lex= thd->lex;
   LEX_STRING *name= &lex->prepared_stmt_name;
   Prepared_statement *stmt;
-  const char *query;
-  uint query_len= 0;
+  LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_prepare");
 
   if ((stmt= (Prepared_statement*) thd->stmt_map.find_by_name(name)))
@@ -2731,7 +2734,12 @@ void mysql_sql_stmt_prepare(THD *thd)
     stmt->deallocate();
   }
 
-  if (! (query= get_dynamic_sql_string(lex, &query_len)) ||
+  /*
+    It's important for "buffer" not to be destructed before stmt->prepare()!
+    See comments in get_dynamic_sql_string().
+  */
+  StringBuffer<256> buffer;
+  if (lex->get_dynamic_sql_string(&query, &buffer) ||
       ! (stmt= new Prepared_statement(thd)))
   {
     DBUG_VOID_RETURN;                           /* out of memory */
@@ -2752,7 +2760,7 @@ void mysql_sql_stmt_prepare(THD *thd)
     DBUG_VOID_RETURN;
   }
 
-  if (stmt->prepare(query, query_len))
+  if (stmt->prepare(query.str, (uint) query.length))
   {
     /* Statement map deletes the statement on erase */
     thd->stmt_map.erase(stmt);
@@ -2771,8 +2779,7 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
 {
   LEX *lex= thd->lex;
   Prepared_statement *stmt;
-  const char *query;
-  uint query_len= 0;
+  LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_execute_immediate");
 
   if (lex->prepared_stmt_params_fix_fields(thd))
@@ -2781,15 +2788,20 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   /*
     Prepared_statement is quite large,
     let's allocate it on the heap rather than on the stack.
+
+    It's important for "buffer" not to be destructed
+    before stmt->execute_immediate().
+    See comments in get_dynamic_sql_string().
   */
-  if (!(query= get_dynamic_sql_string(lex, &query_len)) ||
+  StringBuffer<256> buffer;
+  if (lex->get_dynamic_sql_string(&query, &buffer) ||
       !(stmt= new Prepared_statement(thd)))
     DBUG_VOID_RETURN;                           // out of memory
 
   // See comments on thd->free_list in mysql_sql_stmt_execute()
   Item *free_list_backup= thd->free_list;
   thd->free_list= NULL;
-  (void) stmt->execute_immediate(query, query_len);
+  (void) stmt->execute_immediate(query.str, (uint) query.length);
   thd->free_items();
   thd->free_list= free_list_backup;
 
