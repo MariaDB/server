@@ -3769,7 +3769,7 @@ inline void update_state_of_relay_log(Relay_log_info *rli, Log_event *ev)
   }
 
   /* Check for an event that starts or stops a transaction */
-  if (typ == QUERY_EVENT)
+  if (LOG_EVENT_IS_QUERY(typ))
   {
     Query_log_event *qev= (Query_log_event*) ev;
     /*
@@ -3909,7 +3909,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       */
       DBUG_EXECUTE_IF("incomplete_group_in_relay_log",
                       if ((typ == XID_EVENT) ||
-                          ((typ == QUERY_EVENT) &&
+                          (LOG_EVENT_IS_QUERY(typ) &&
                            strcmp("COMMIT", ((Query_log_event *) ev)->query) == 0))
                       {
                         DBUG_ASSERT(thd->transaction.all.modified_non_trans_table);
@@ -5664,6 +5664,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   bool gtid_skip_enqueue= false;
   bool got_gtid_event= false;
   rpl_gtid event_gtid;
+  bool compressed_event = FALSE;
 
   /*
     FD_q must have been prepared for the first R_a event
@@ -5710,7 +5711,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
               
   // Emulate the network corruption
   DBUG_EXECUTE_IF("corrupt_queue_event",
-    if (buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT)
+    if ((uchar)buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT)
     {
       char *debug_event_buf_c = (char*) buf;
       int debug_cor_pos = rand() % (event_len - BINLOG_CHECKSUM_LEN);
@@ -6144,6 +6145,43 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     inc_pos= event_len;
   }
   break;
+  /*
+    Binlog compressed event should uncompress in IO thread
+  */
+  case QUERY_COMPRESSED_EVENT:
+    inc_pos= event_len;
+    if (query_event_uncompress(rli->relay_log.description_event_for_queue, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32, buf, (char **)&buf, &event_len))
+    {
+      char  llbuf[22];
+      error = ER_BINLOG_UNCOMPRESS_ERROR;
+      error_msg.append(STRING_WITH_LEN("binlog uncompress error, master log_pos: "));
+      llstr(mi->master_log_pos, llbuf);
+      error_msg.append(llbuf, strlen(llbuf));
+      goto err;
+    }
+    compressed_event = true;
+    goto default_action;
+
+  case WRITE_ROWS_COMPRESSED_EVENT:
+  case UPDATE_ROWS_COMPRESSED_EVENT:
+  case DELETE_ROWS_COMPRESSED_EVENT:
+  case WRITE_ROWS_COMPRESSED_EVENT_V1:
+  case UPDATE_ROWS_COMPRESSED_EVENT_V1:
+  case DELETE_ROWS_COMPRESSED_EVENT_V1:
+    inc_pos = event_len;
+    {
+      if (Row_log_event_uncompress(rli->relay_log.description_event_for_queue, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32, buf, (char **)&buf, &event_len))
+      {
+        char  llbuf[22];
+        error = ER_BINLOG_UNCOMPRESS_ERROR;
+        error_msg.append(STRING_WITH_LEN("binlog uncompress error, master log_pos: "));
+        llstr(mi->master_log_pos, llbuf);
+        error_msg.append(llbuf, strlen(llbuf));
+        goto err;
+      }
+    }
+    compressed_event = true;
+    goto default_action;
 
 #ifndef DBUG_OFF
   case XID_EVENT:
@@ -6162,7 +6200,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     DBUG_EXECUTE_IF("kill_slave_io_after_2_events",
                     {
                       if (mi->dbug_do_disconnect &&
-                          (((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT) ||
+                          (LOG_EVENT_IS_QUERY((uchar)buf[EVENT_TYPE_OFFSET]) ||
                            ((uchar)buf[EVENT_TYPE_OFFSET] == TABLE_MAP_EVENT))
                           && (--mi->dbug_event_counter == 0))
                       {
@@ -6175,7 +6213,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     DBUG_EXECUTE_IF("kill_slave_io_before_commit",
                     {
                       if ((uchar)buf[EVENT_TYPE_OFFSET] == XID_EVENT ||
-                          ((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT &&
+                          ((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT &&    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
                            Query_log_event::peek_is_commit_rollback(buf, event_len,
                                                                     checksum_alg)))
                       {
@@ -6195,7 +6233,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
         ++mi->events_queued_since_last_gtid;
     }
 
-    inc_pos= event_len;
+    if (!compressed_event)
+      inc_pos= event_len;
+
     break;
   }
 
@@ -6286,8 +6326,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
        /* everything is filtered out from non-master */
        (s_id != mi->master_id ||
         /* for the master meta information is necessary */
-        (buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT &&
-         buf[EVENT_TYPE_OFFSET] != ROTATE_EVENT))) ||
+        ((uchar)buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT &&
+         (uchar)buf[EVENT_TYPE_OFFSET] != ROTATE_EVENT))) ||
 
       /*
         Check whether it needs to be filtered based on domain_id
@@ -6316,9 +6356,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     */
     if (!(s_id == global_system_variables.server_id &&
           !mi->rli.replicate_same_server_id) ||
-        (buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT &&
-         buf[EVENT_TYPE_OFFSET] != ROTATE_EVENT &&
-         buf[EVENT_TYPE_OFFSET] != STOP_EVENT))
+        ((uchar)buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT &&
+         (uchar)buf[EVENT_TYPE_OFFSET] != ROTATE_EVENT &&
+         (uchar)buf[EVENT_TYPE_OFFSET] != STOP_EVENT))
     {
       mi->master_log_pos+= inc_pos;
       memcpy(rli->ign_master_log_name_end, mi->master_log_name, FN_REFLEN);
@@ -6359,7 +6399,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
                                       buf[EVENT_TYPE_OFFSET])) ||
         (!mi->last_queued_gtid_standalone &&
          ((uchar)buf[EVENT_TYPE_OFFSET] == XID_EVENT ||
-          ((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT &&
+          ((uchar)buf[EVENT_TYPE_OFFSET] == QUERY_EVENT &&    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
            Query_log_event::peek_is_commit_rollback(buf, event_len,
                                                     checksum_alg))))))
     {
@@ -6388,6 +6428,9 @@ err:
   if (error && error != ER_SLAVE_RELAY_LOG_WRITE_FAILURE)
     mi->report(ERROR_LEVEL, error, NULL, ER_DEFAULT(error),
                error_msg.ptr());
+
+  if(compressed_event)
+    my_free((void *)buf);
 
   DBUG_RETURN(error);
 }
