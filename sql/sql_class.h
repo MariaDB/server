@@ -5680,6 +5680,12 @@ void thd_exit_cond(MYSQL_THD thd, const PSI_stage_info *stage,
 #define THD_EXIT_COND(P1, P2) \
   thd_exit_cond(P1, P2, __func__, __FILE__, __LINE__)
 
+inline bool binlog_should_compress(ulong len)
+{
+  return opt_bin_log_compress &&
+    len >= opt_bin_log_compress_min_len;
+}
+
 #endif /* MYSQL_SERVER */
 
 #endif /* SQL_CLASS_INCLUDED */

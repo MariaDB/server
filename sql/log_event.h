@@ -692,10 +692,32 @@ enum Log_event_type
 
   START_ENCRYPTION_EVENT= 164,
 
+  /*
+    Compressed binlog event.
+  */
+  QUERY_COMPRESSED_EVENT = 165,
+  WRITE_ROWS_COMPRESSED_EVENT_V1 = 166,
+  UPDATE_ROWS_COMPRESSED_EVENT_V1 = 167,
+  DELETE_ROWS_COMPRESSED_EVENT_V1 = 168,
+  WRITE_ROWS_COMPRESSED_EVENT = 169,
+  UPDATE_ROWS_COMPRESSED_EVENT = 170,
+  DELETE_ROWS_COMPRESSED_EVENT = 171,
+
   /* Add new MariaDB events here - right above this comment!  */
 
   ENUM_END_EVENT /* end marker */
 };
+
+#define LOG_EVENT_IS_QUERY(type) (type == QUERY_EVENT || type == QUERY_COMPRESSED_EVENT)
+#define LOG_EVENT_IS_WRITE_ROW(type) (type == WRITE_ROWS_EVENT || type == WRITE_ROWS_EVENT_V1 || type == WRITE_ROWS_COMPRESSED_EVENT || type == WRITE_ROWS_COMPRESSED_EVENT_V1)
+#define LOG_EVENT_IS_UPDATE_ROW(type) (type == UPDATE_ROWS_EVENT || type == UPDATE_ROWS_EVENT_V1 || type == UPDATE_ROWS_COMPRESSED_EVENT || type == UPDATE_ROWS_COMPRESSED_EVENT_V1)
+#define LOG_EVENT_IS_DELETE_ROW(type) (type == DELETE_ROWS_EVENT || type == DELETE_ROWS_EVENT_V1 || type == DELETE_ROWS_COMPRESSED_EVENT || type == DELETE_ROWS_COMPRESSED_EVENT_V1)
+#define LOG_EVENT_IS_ROW_COMPRESSED(type) (type == WRITE_ROWS_COMPRESSED_EVENT || type == WRITE_ROWS_COMPRESSED_EVENT_V1 ||\
+                                            type == UPDATE_ROWS_COMPRESSED_EVENT || type == UPDATE_ROWS_COMPRESSED_EVENT_V1 ||\
+                                            type == DELETE_ROWS_COMPRESSED_EVENT || type == DELETE_ROWS_COMPRESSED_EVENT_V1) 
+#define LOG_EVENT_IS_ROW_V2(type) (type >= WRITE_ROWS_EVENT && type <= DELETE_ROWS_EVENT || \
+                                   type >= WRITE_ROWS_COMPRESSED_EVENT && type <= DELETE_ROWS_COMPRESSED_EVENT )
+
 
 /*
    The number of types we handle in Format_description_log_event (UNKNOWN_EVENT
@@ -2046,9 +2068,37 @@ public:        /* !!! Public in this patch to allow old usage */
       !strncasecmp(query, "SAVEPOINT", 9) ||
       !strncasecmp(query, "ROLLBACK", 8);
   }
-  bool is_begin()    { return !strcmp(query, "BEGIN"); }
-  bool is_commit()   { return !strcmp(query, "COMMIT"); }
-  bool is_rollback() { return !strcmp(query, "ROLLBACK"); }
+  virtual bool is_begin()    { return !strcmp(query, "BEGIN"); }
+  virtual bool is_commit()   { return !strcmp(query, "COMMIT"); }
+  virtual bool is_rollback() { return !strcmp(query, "ROLLBACK"); }
+};
+
+class Query_compressed_log_event:public Query_log_event{
+protected:
+  Log_event::Byte* query_buf;  // point to the uncompressed query
+public:
+  Query_compressed_log_event(const char* buf, uint event_len,
+    const Format_description_log_event *description_event,
+    Log_event_type event_type);
+  ~Query_compressed_log_event()
+  {
+    if (query_buf)
+      my_free(query_buf);
+  }
+  Log_event_type get_type_code() { return QUERY_COMPRESSED_EVENT; }
+
+  /*
+    the min length of log_bin_compress_min_len is 10, 
+    means that Begin/Commit/Rollback would never be compressed!  
+  */
+  virtual bool is_begin()    { return false; }
+  virtual bool is_commit()   { return false; }
+  virtual bool is_rollback() { return false; }
+#ifdef MYSQL_SERVER
+  Query_compressed_log_event(THD* thd_arg, const char* query_arg, ulong query_length,
+    bool using_trans, bool direct, bool suppress_use, int error);
+  virtual bool write();
+#endif
 };
 
 
@@ -4342,6 +4392,7 @@ public:
 #ifdef MYSQL_SERVER
   virtual bool write_data_header();
   virtual bool write_data_body();
+  virtual bool write_compressed();
   virtual const char *get_db() { return m_table->s->db.str; }
 #endif
   /*
@@ -4376,6 +4427,7 @@ protected:
 #endif
   Rows_log_event(const char *row_data, uint event_len, 
 		 const Format_description_log_event *description_event);
+  void uncompress_buf();
 
 #ifdef MYSQL_CLIENT
   void print_helper(FILE *, PRINT_EVENT_INFO *, char const *const name);
@@ -4588,6 +4640,23 @@ private:
 #endif
 };
 
+class Write_rows_compressed_log_event : public Write_rows_log_event
+{
+public:
+#if defined(MYSQL_SERVER)
+  Write_rows_compressed_log_event(THD*, TABLE*, ulong table_id,
+                       bool is_transactional);
+  virtual bool write();
+#endif
+#ifdef HAVE_REPLICATION
+  Write_rows_compressed_log_event(const char *buf, uint event_len, 
+                       const Format_description_log_event *description_event);
+#endif
+private:
+#if defined(MYSQL_CLIENT)
+  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+#endif
+};
 
 /**
   @class Update_rows_log_event
@@ -4658,6 +4727,24 @@ protected:
 #endif /* defined(MYSQL_SERVER) && defined(HAVE_REPLICATION) */
 };
 
+class Update_rows_compressed_log_event : public Update_rows_log_event
+{
+public:
+#if defined(MYSQL_SERVER)
+  Update_rows_compressed_log_event(THD*, TABLE*, ulong table_id,
+                        bool is_transactional);
+  virtual bool write();
+#endif
+#ifdef HAVE_REPLICATION
+  Update_rows_compressed_log_event(const char *buf, uint event_len, 
+                       const Format_description_log_event *description_event);
+#endif
+private:
+#if defined(MYSQL_CLIENT)
+  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+#endif
+};
+
 /**
   @class Delete_rows_log_event
 
@@ -4721,6 +4808,23 @@ protected:
   virtual int do_before_row_operations(const Slave_reporting_capability *const);
   virtual int do_after_row_operations(const Slave_reporting_capability *const,int);
   virtual int do_exec_row(rpl_group_info *);
+#endif
+};
+
+class Delete_rows_compressed_log_event : public Delete_rows_log_event
+{
+public:
+#if defined(MYSQL_SERVER)
+  Delete_rows_compressed_log_event(THD*, TABLE*, ulong, bool is_transactional);
+  virtual bool write();
+#endif
+#ifdef HAVE_REPLICATION
+  Delete_rows_compressed_log_event(const char *buf, uint event_len, 
+                       const Format_description_log_event *description_event);
+#endif
+private:
+#if defined(MYSQL_CLIENT)
+  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 };
 
@@ -4964,5 +5068,18 @@ extern TYPELIB binlog_checksum_typelib;
 /**
   @} (end of group Replication)
 */
+
+
+int binlog_buf_compress(const char *src, char *dst, uint32 len, uint32 *comlen);
+int binlog_buf_uncompress(const char *src, char *dst, uint32 len, uint32 *newlen);
+uint32 binlog_get_compress_len(uint32 len);
+uint32 binlog_get_uncompress_len(const char *buf);
+
+int query_event_uncompress(const Format_description_log_event *description_event,
+                           bool contain_checksum, const char *src, char **dst, ulong *newlen);
+
+int Row_log_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
+                             const char *src, char **dst, ulong *newlen);
+
 
 #endif /* _log_event_h */

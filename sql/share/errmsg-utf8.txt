@@ -7226,3 +7226,5 @@ ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
 ER_PARTITION_DEFAULT_ERROR
         eng "Only one DEFAULT partition allowed"
         ukr "Припустимо мати тільки один DEFAULT розділ" 
+ER_BINLOG_UNCOMPRESS_ERROR
+        eng "Uncompress the compressed binlog failed"

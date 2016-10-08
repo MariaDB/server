@@ -6438,7 +6438,14 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
   if (variables.option_bits & OPTION_GTID_BEGIN)
     is_trans= 1;
 
-  Rows_log_event* const ev=
+  Rows_log_event* ev;
+  if (binlog_should_compress(len))
+    ev =
+    binlog_prepare_pending_rows_event(table, variables.server_id,
+                                      len, is_trans,
+                                      static_cast<Write_rows_compressed_log_event*>(0));
+  else
+    ev =
     binlog_prepare_pending_rows_event(table, variables.server_id,
                                       len, is_trans,
                                       static_cast<Write_rows_log_event*>(0));
@@ -6486,8 +6493,15 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   DBUG_DUMP("after_row",     after_row, after_size);
 #endif
 
-  Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, variables.server_id,
+  Rows_log_event* ev;
+  if(binlog_should_compress(before_size + after_size))
+    ev =
+      binlog_prepare_pending_rows_event(table, variables.server_id,
+                                      before_size + after_size, is_trans,
+                                      static_cast<Update_rows_compressed_log_event*>(0));
+  else
+    ev =
+      binlog_prepare_pending_rows_event(table, variables.server_id,
                                       before_size + after_size, is_trans,
                                       static_cast<Update_rows_log_event*>(0));
 
@@ -6539,8 +6553,15 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
   if (variables.option_bits & OPTION_GTID_BEGIN)
     is_trans= 1;
 
-  Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, variables.server_id,
+  Rows_log_event* ev;
+  if(binlog_should_compress(len))
+    ev =
+      binlog_prepare_pending_rows_event(table, variables.server_id,
+                                      len, is_trans,
+                                      static_cast<Delete_rows_compressed_log_event*>(0));
+  else
+    ev =
+      binlog_prepare_pending_rows_event(table, variables.server_id,
                                       len, is_trans,
                                       static_cast<Delete_rows_log_event*>(0));
 
@@ -7005,15 +7026,28 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
       flush the pending rows event if necessary.
     */
     {
-      Query_log_event qinfo(this, query_arg, query_len, is_trans, direct,
-                            suppress_use, errcode);
+      Log_event* ev = NULL;
+      int error = 0;
+
       /*
         Binlog table maps will be irrelevant after a Query_log_event
         (they are just removed on the slave side) so after the query
         log event is written to the binary log, we pretend that no
         table maps were written.
-       */
-      int error= mysql_bin_log.write(&qinfo);
+      */
+      if(binlog_should_compress(query_len))
+      {
+        Query_compressed_log_event qinfo(this, query_arg, query_len, is_trans, direct,
+                            suppress_use, errcode);
+        error= mysql_bin_log.write(&qinfo);
+      }
+      else
+      {
+        Query_log_event qinfo(this, query_arg, query_len, is_trans, direct,
+          suppress_use, errcode);
+        error= mysql_bin_log.write(&qinfo);
+      }
+
       binlog_table_maps= 0;
       DBUG_RETURN(error);
     }

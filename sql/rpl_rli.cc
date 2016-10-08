@@ -1739,6 +1739,12 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
   case DELETE_ROWS_EVENT:
   case UPDATE_ROWS_EVENT:
   case WRITE_ROWS_EVENT:
+  case WRITE_ROWS_COMPRESSED_EVENT:
+  case DELETE_ROWS_COMPRESSED_EVENT:
+  case UPDATE_ROWS_COMPRESSED_EVENT:
+  case WRITE_ROWS_COMPRESSED_EVENT_V1:
+  case UPDATE_ROWS_COMPRESSED_EVENT_V1:
+  case DELETE_ROWS_COMPRESSED_EVENT_V1:
     /*
       After the last Rows event has been applied, the saved Annotate_rows
       event (if any) is not needed anymore and can be deleted.
