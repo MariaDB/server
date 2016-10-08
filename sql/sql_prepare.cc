@@ -207,6 +207,7 @@ public:
   bool execute_server_runnable(Server_runnable *server_runnable);
   /* Destroy this statement */
   void deallocate();
+  bool execute_immediate(const char *query, uint query_length);
 private:
   /**
     The memory root to allocate parsed tree elements (instances of Item,
@@ -218,6 +219,7 @@ private:
   bool set_parameters(String *expanded_query,
                       uchar *packet, uchar *packet_end);
   bool execute(String *expanded_query, bool open_cursor);
+  void deallocate_immediate();
   bool reprepare();
   bool validate_metadata(Prepared_statement  *copy);
   void swap_prepared_statement(Prepared_statement *copy);
@@ -2764,6 +2766,39 @@ void mysql_sql_stmt_prepare(THD *thd)
   DBUG_VOID_RETURN;
 }
 
+
+void mysql_sql_stmt_execute_immediate(THD *thd)
+{
+  LEX *lex= thd->lex;
+  Prepared_statement *stmt;
+  const char *query;
+  uint query_len= 0;
+  DBUG_ENTER("mysql_sql_stmt_execute_immediate");
+
+  if (lex->prepared_stmt_params_fix_fields(thd))
+    DBUG_VOID_RETURN;
+
+  /*
+    Prepared_statement is quite large,
+    let's allocate it on the heap rather than on the stack.
+  */
+  if (!(query= get_dynamic_sql_string(lex, &query_len)) ||
+      !(stmt= new Prepared_statement(thd)))
+    DBUG_VOID_RETURN;                           // out of memory
+
+  // See comments on thd->free_list in mysql_sql_stmt_execute()
+  Item *free_list_backup= thd->free_list;
+  thd->free_list= NULL;
+  (void) stmt->execute_immediate(query, query_len);
+  thd->free_items();
+  thd->free_list= free_list_backup;
+
+  stmt->lex->restore_set_statement_var();
+  delete stmt;
+  DBUG_VOID_RETURN;
+}
+
+
 /**
   Reinit prepared statement/stored procedure before execution.
 
@@ -3034,13 +3069,8 @@ void mysql_sql_stmt_execute(THD *thd)
 
   DBUG_PRINT("info",("stmt: 0x%lx", (long) stmt));
 
-  // Fix all Items in the USING list
-  List_iterator_fast<Item> param_it(lex->prepared_stmt_params);
-  while (Item *param= param_it++)
-  {
-    if (param->fix_fields(thd, 0) || param->check_cols(1))
-      DBUG_VOID_RETURN;
-  }
+  if (lex->prepared_stmt_params_fix_fields(thd))
+    DBUG_VOID_RETURN;
 
   /*
     thd->free_list can already have some Items.
@@ -4401,16 +4431,58 @@ error:
 }
 
 
-/** Common part of DEALLOCATE PREPARE and mysqld_stmt_close. */
+/**
+  Prepare, execute and clean-up a statement.
+  @param query  - query text
+  @param length - query text length
+  @retval true  - the query was not executed (parse error, wrong parameters)
+  @retval false - the query was prepared and executed
 
-void Prepared_statement::deallocate()
+  Note, if some error happened during execution, it still returns "false".
+*/
+bool Prepared_statement::execute_immediate(const char *query, uint query_len)
+{
+  DBUG_ENTER("Prepared_statement::execute_immediate");
+  String expanded_query;
+  static LEX_STRING execute_immediate_stmt_name=
+    {(char*) STRING_WITH_LEN("(immediate)") };
+
+  set_sql_prepare();
+  name= execute_immediate_stmt_name;      // for DBUG_PRINT etc
+  if (prepare(query, query_len))
+    DBUG_RETURN(true);
+
+  if (param_count != thd->lex->prepared_stmt_params.elements)
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), "EXECUTE");
+    deallocate_immediate();
+    DBUG_RETURN(true);
+  }
+
+  (void) execute_loop(&expanded_query, FALSE, NULL, NULL);
+  deallocate_immediate();
+  DBUG_RETURN(false);
+}
+
+
+/**
+  Common part of DEALLOCATE PREPARE, EXECUTE IMMEDIATE, mysqld_stmt_close.
+*/
+void Prepared_statement::deallocate_immediate()
 {
   /* We account deallocate in the same manner as mysqld_stmt_close */
   status_var_increment(thd->status_var.com_stmt_close);
 
   /* It should now be safe to reset CHANGE MASTER parameters */
   lex_end_stage2(lex);
+}
 
+
+/** Common part of DEALLOCATE PREPARE and mysqld_stmt_close. */
+
+void Prepared_statement::deallocate()
+{
+  deallocate_immediate();
   /* Statement map calls delete stmt on erase */
   thd->stmt_map.erase(this);
 }

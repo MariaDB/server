@@ -103,3 +103,29 @@ master-bin.000002	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (TIMESTAMP'2001-
 master-bin.000002	#	Query	#	#	COMMIT
 DROP TABLE t1;
 SET TIMESTAMP=DEFAULT;
+#
+# MDEV-10585 EXECUTE IMMEDIATE statement
+#
+FLUSH LOGS;
+CREATE TABLE t1 (a INT);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (101)';
+SET @a=102;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING @a;
+SET @a=103;
+SET @stmt='INSERT INTO t1 VALUES (?)';
+EXECUTE IMMEDIATE @stmt USING @a;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000003
+master-bin.000003	#	Gtid	#	#	GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (101)
+master-bin.000003	#	Query	#	#	COMMIT
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (102)
+master-bin.000003	#	Query	#	#	COMMIT
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (103)
+master-bin.000003	#	Query	#	#	COMMIT
+DROP TABLE t1;

@@ -3886,6 +3886,7 @@ SHOW_VAR com_status_vars[]= {
   {"drop_user",            STMT_STATUS(SQLCOM_DROP_USER)},
   {"drop_view",            STMT_STATUS(SQLCOM_DROP_VIEW)},
   {"empty_query",          STMT_STATUS(SQLCOM_EMPTY_QUERY)},
+  {"execute_immediate",    STMT_STATUS(SQLCOM_EXECUTE_IMMEDIATE)},
   {"execute_sql",          STMT_STATUS(SQLCOM_EXECUTE)},
   {"flush",                STMT_STATUS(SQLCOM_FLUSH)},
   {"get_diagnostics",      STMT_STATUS(SQLCOM_GET_DIAGNOSTICS)},

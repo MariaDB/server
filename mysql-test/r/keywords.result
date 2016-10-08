@@ -275,3 +275,8 @@ set option=1;
 ERROR HY000: Unknown system variable 'option'
 set option option=1;
 ERROR HY000: Unknown system variable 'option'
+#
+# MDEV-10585 EXECUTE IMMEDIATE statement
+#
+CREATE TABLE immediate (immediate int);
+DROP TABLE immediate;

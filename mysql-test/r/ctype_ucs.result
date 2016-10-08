@@ -6222,5 +6222,15 @@ DROP TABLE t1;
 #
 SET STORAGE_ENGINE=Default;
 #
+# MDEV-10585 EXECUTE IMMEDIATE statement
+#
+SET character_set_connection=ucs2;
+EXECUTE IMMEDIATE 'SELECT COLLATION("a")';
+COLLATION("a")
+ucs2_general_ci
+SET @stmt='SELECT COLLATION("a")';
+EXECUTE IMMEDIATE @stmt;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+#
 # End of 10.2 tests
 #

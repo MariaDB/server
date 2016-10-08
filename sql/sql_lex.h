@@ -3006,6 +3006,19 @@ public:
   void init_last_field(Column_definition *field, const char *name, CHARSET_INFO *cs);
   void set_last_field_type(const Lex_field_type_st &type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
+
+  bool prepared_stmt_params_fix_fields(THD *thd)
+  {
+    // Fix Items in the EXECUTE..USING list
+    List_iterator_fast<Item> param_it(prepared_stmt_params);
+    while (Item *param= param_it++)
+    {
+      if (param->fix_fields(thd, 0) || param->check_cols(1))
+        return true;
+    }
+    return false;
+  }
+
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
   {

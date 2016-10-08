@@ -4289,5 +4289,218 @@ DROP TABLE t1;
 # End of MDEV-10709 Expressions as parameters to Dynamic SQL
 #
 #
+# MDEV-10585 EXECUTE IMMEDIATE statement
+#
+EXECUTE IMMEDIATE 'SELECT 1 AS a';
+a
+1
+SET @a=10;
+EXECUTE IMMEDIATE 'SELECT ? AS a' USING @a;
+a
+10
+EXECUTE IMMEDIATE 'SELECT ? AS a' USING 20;
+a
+20
+#
+# Erroneous queries
+#
+EXECUTE IMMEDIATE 'xxx';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxx' at line 1
+EXECUTE IMMEDIATE 'SELECT 1' USING @a;
+ERROR HY000: Incorrect arguments to EXECUTE
+EXECUTE IMMEDIATE 'SELECT ?';
+ERROR HY000: Incorrect arguments to EXECUTE
+EXECUTE IMMEDIATE 'EXECUTE IMMEDIATE "SELECT 1"';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+EXECUTE IMMEDIATE 'PREPARE stmt FROM "SELECT 1"';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+EXECUTE IMMEDIATE 'EXECUTE stmt';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+EXECUTE IMMEDIATE 'DEALLOCATE PREPARE stmt';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
+EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '='
+EXECUTE IMMEDIATE 'SELECT ?' USING ROW(1,2);
+ERROR 21000: Operand should contain 1 column(s)
+#
+# Testing disallowed expressions in USING
+#
+EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING (SELECT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1)' at line 1
+CREATE FUNCTION f1() RETURNS VARCHAR(10) RETURN 'test';
+EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING f1();
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+DROP FUNCTION f1;
+#
+# DDL
+#
+EXECUTE IMMEDIATE 'CREATE TABLE t1 (a INT)';
+EXECUTE IMMEDIATE 'SHOW CREATE TABLE t1';
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+EXECUTE IMMEDIATE 'DROP TABLE t1';
+SET @stmt= 'CREATE TABLE t1 (a INT)';
+EXECUTE IMMEDIATE @stmt;
+SET @stmt= 'SHOW CREATE TABLE t1';
+EXECUTE IMMEDIATE @stmt;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SET @stmt= 'DROP TABLE t1';
+EXECUTE IMMEDIATE @stmt;
+#
+# DDL with parameters
+#
+SET @a= 10, @b= 10.1, @c= 10e0, @d='str';
+EXECUTE IMMEDIATE
+'CREATE TABLE t1 AS SELECT ? AS a,? AS b,? AS c,? AS d'
+  USING @a,@b,@c,@d;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(21) NOT NULL,
+  `b` decimal(3,1) DEFAULT NULL,
+  `c` double NOT NULL,
+  `d` varchar(3) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE IMMEDIATE
+'CREATE TABLE t1 AS SELECT ? AS a,? AS b,? AS c,? AS d'
+  USING 10, 10.1, 10e0, 'str';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(21) NOT NULL,
+  `b` decimal(3,1) DEFAULT NULL,
+  `c` double NOT NULL,
+  `d` varchar(3) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE IMMEDIATE
+'CREATE TABLE t1 AS SELECT ? AS t1,? AS t2, ? AS d1,? AS dt1, ? AS dt2'
+  USING TIME'10:20:30',
+TIME'10:20:30.123',
+DATE'2001-01-01',
+TIMESTAMP'2001-01-01 10:20:30',
+TIMESTAMP'2001-01-01 10:20:30.123';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t1` time DEFAULT NULL,
+  `t2` time(3) DEFAULT NULL,
+  `d1` date DEFAULT NULL,
+  `dt1` datetime DEFAULT NULL,
+  `dt2` datetime(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# Using a user variable as an EXECUTE IMMEDIATE..USING out parameter
+#
+CREATE PROCEDURE p1(OUT a INT)
+BEGIN
+SET a:= 10;
+END;
+/
+SET @a=1;
+CALL p1(@a);
+SELECT @a;
+@a
+10
+SET @a=2;
+EXECUTE IMMEDIATE 'CALL p1(?)' USING @a;
+SELECT @a;
+@a
+10
+DROP PROCEDURE p1;
+#
+# Using an SP variable as an EXECUTE IMMEDIATE..USING out parameter
+#
+CREATE PROCEDURE p1 (OUT a INT)
+BEGIN
+SET a=10;
+END;
+/
+CREATE PROCEDURE p2 (OUT a INT)
+BEGIN
+EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
+END;
+/
+SET @a= 1;
+CALL p2(@a);
+SELECT @a;
+@a
+10
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# Changing user variables
+#
+SET @a=10;
+EXECUTE IMMEDIATE 'SET @a=@a+1';
+SELECT @a;
+@a
+11
+#
+# SET STATEMENT
+#
+SET @@max_sort_length=1024;
+EXECUTE IMMEDIATE 'SET STATEMENT max_sort_length=1025 FOR SELECT @@max_sort_length';
+@@max_sort_length
+1025
+SELECT @@max_sort_length;
+@@max_sort_length
+1024
+SET @@max_sort_length=DEFAULT;
+#
+# Similar to prepared EXECUTE, IMMEDIATE is not allowed in stored functions
+#
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+EXECUTE IMMEDIATE 'DO 1';
+RETURN 1;
+END;
+$$
+ERROR 0A000: Dynamic SQL is not allowed in stored function or trigger
+#
+# Status variables
+#
+CREATE FUNCTION get_status_var(name TEXT) RETURNS INT
+RETURN (SELECT CAST(VARIABLE_VALUE AS INT)
+FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME=name);
+CREATE PROCEDURE test_status_var(name TEXT)
+BEGIN
+SET @cnt0=get_status_var(name);
+EXECUTE IMMEDIATE 'DO 1';
+SET @cnt1=get_status_var(name);
+SELECT @cnt1-@cnt0 AS increment;
+END;
+$$
+# Note, EXECUTE IMMEDIATE does not increment COM_EXECUTE_SQL
+# It increments COM_EXECUTE_IMMEDIATE instead.
+CALL test_status_var('COM_EXECUTE_SQL');
+increment
+0
+CALL test_status_var('COM_EXECUTE_IMMEDIATE');
+increment
+1
+CALL test_status_var('COM_STMT_PREPARE');
+increment
+1
+CALL test_status_var('COM_STMT_EXECUTE');
+increment
+1
+CALL test_status_var('COM_STMT_CLOSE');
+increment
+1
+DROP PROCEDURE test_status_var;
+DROP FUNCTION get_status_var;
+#
+# End of MDEV-10585 EXECUTE IMMEDIATE statement
+#
+#
 # End of 10.2 tests
 #

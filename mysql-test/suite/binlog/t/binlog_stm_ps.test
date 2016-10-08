@@ -54,3 +54,19 @@ SELECT * FROM t1;
 source include/show_binlog_events.inc;
 DROP TABLE t1;
 SET TIMESTAMP=DEFAULT;
+
+--echo #
+--echo # MDEV-10585 EXECUTE IMMEDIATE statement
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (a INT);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (101)';
+SET @a=102;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING @a;
+SET @a=103;
+SET @stmt='INSERT INTO t1 VALUES (?)';
+EXECUTE IMMEDIATE @stmt USING @a;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+DROP TABLE t1;

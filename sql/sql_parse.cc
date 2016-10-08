@@ -3377,6 +3377,11 @@ mysql_execute_command(THD *thd)
 
     break;
   }
+  case SQLCOM_EXECUTE_IMMEDIATE:
+  {
+    mysql_sql_stmt_execute_immediate(thd);
+    break;
+  }
   case SQLCOM_PREPARE:
   {
     mysql_sql_stmt_prepare(thd);

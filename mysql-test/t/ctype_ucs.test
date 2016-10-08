@@ -975,5 +975,17 @@ let $coll_pad='ucs2_bin';
 --source include/ctype_pad_all_engines.inc
 
 --echo #
+--echo # MDEV-10585 EXECUTE IMMEDIATE statement
+--echo #
+SET character_set_connection=ucs2;
+EXECUTE IMMEDIATE 'SELECT COLLATION("a")';
+
+# We don't support character sets with mbminlen>1 in the parser yet
+# Returning "syntax error" is fine
+SET @stmt='SELECT COLLATION("a")';
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE @stmt;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
