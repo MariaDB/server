@@ -186,9 +186,9 @@ public:
 #else
   bool (*set_params_data)(Prepared_statement *st, String *expanded_query);
 #endif
-  bool (*set_params_from_vars)(Prepared_statement *stmt,
-                               List<LEX_STRING>& varnames,
-                               String *expanded_query);
+  bool (*set_params_from_actual_params)(Prepared_statement *stmt,
+                                        List<Item> &list,
+                                        String *expanded_query);
 public:
   Prepared_statement(THD *thd_arg);
   virtual ~Prepared_statement();
@@ -1141,31 +1141,27 @@ swap_parameter_array(Item_param **param_array_dst,
   Assign prepared statement parameters from user variables.
 
   @param stmt      Statement
-  @param varnames  List of variables. Caller must ensure that number
-                   of variables in the list is equal to number of statement
+  @param params    A list of parameters. Caller must ensure that number
+                   of parameters in the list is equal to number of statement
                    parameters
   @param query     Ignored
 */
 
-static bool insert_params_from_vars(Prepared_statement *stmt,
-                                    List<LEX_STRING>& varnames,
-                                    String *query __attribute__((unused)))
+static bool
+insert_params_from_actual_params(Prepared_statement *stmt,
+                                 List<Item> &params,
+                                 String *query __attribute__((unused)))
 {
   Item_param **begin= stmt->param_array;
   Item_param **end= begin + stmt->param_count;
-  user_var_entry *entry;
-  LEX_STRING *varname;
-  List_iterator<LEX_STRING> var_it(varnames);
-  DBUG_ENTER("insert_params_from_vars");
+  List_iterator<Item> param_it(params);
+  DBUG_ENTER("insert_params_from_actual_params");
 
   for (Item_param **it= begin; it < end; ++it)
   {
     Item_param *param= *it;
-    varname= var_it++;
-    entry= (user_var_entry*)my_hash_search(&stmt->thd->user_vars,
-                                           (uchar*) varname->str,
-                                           varname->length);
-    if (param->set_from_user_var(stmt->thd, entry) ||
+    Item *ps_param= param_it++;
+    if (param->set_from_item(stmt->thd, ps_param) ||
         param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);
   }
@@ -1174,45 +1170,41 @@ static bool insert_params_from_vars(Prepared_statement *stmt,
 
 
 /**
-  Do the same as insert_params_from_vars but also construct query text for
-  binary log.
+  Do the same as insert_params_from_actual_params
+  but also construct query text for binary log.
 
   @param stmt      Prepared statement
-  @param varnames  List of variables. Caller must ensure that number of
-                   variables in the list is equal to number of statement
+  @param params    A list of parameters. Caller must ensure that number of
+                   parameters in the list is equal to number of statement
                    parameters
   @param query     The query with parameter markers replaced with corresponding
                    user variables that were used to execute the query.
 */
 
-static bool insert_params_from_vars_with_log(Prepared_statement *stmt,
-                                             List<LEX_STRING>& varnames,
-                                             String *query)
+static bool
+insert_params_from_actual_params_with_log(Prepared_statement *stmt,
+                                          List<Item> &params,
+                                          String *query)
 {
   Item_param **begin= stmt->param_array;
   Item_param **end= begin + stmt->param_count;
-  user_var_entry *entry;
-  LEX_STRING *varname;
-  List_iterator<LEX_STRING> var_it(varnames);
+  List_iterator<Item> param_it(params);
   THD *thd= stmt->thd;
   Copy_query_with_rewrite acc(thd, stmt->query(), stmt->query_length(), query);
 
-  DBUG_ENTER("insert_params_from_vars_with_log");
+  DBUG_ENTER("insert_params_from_actual_params_with_log");
 
   for (Item_param **it= begin; it < end; ++it)
   {
     Item_param *param= *it;
-    varname= var_it++;
-
-    entry= (user_var_entry *) my_hash_search(&thd->user_vars, (uchar*)
-                                             varname->str, varname->length);
+    Item *ps_param= param_it++;
     /*
       We have to call the setup_one_conversion_function() here to set
       the parameter's members that might be needed further
       (e.g. value.cs_info.character_set_client is used in the query_val_str()).
     */
     setup_one_conversion_function(thd, param, param->field_type());
-    if (param->set_from_user_var(thd, entry))
+    if (param->set_from_item(thd, ps_param))
       DBUG_RETURN(1);
 
     if (acc.append(param))
@@ -3042,7 +3034,49 @@ void mysql_sql_stmt_execute(THD *thd)
 
   DBUG_PRINT("info",("stmt: 0x%lx", (long) stmt));
 
+  // Fix all Items in the USING list
+  List_iterator_fast<Item> param_it(lex->prepared_stmt_params);
+  while (Item *param= param_it++)
+  {
+    if (param->fix_fields(thd, 0) || param->check_cols(1))
+      DBUG_VOID_RETURN;
+  }
+
+  /*
+    thd->free_list can already have some Items.
+
+    Example queries:
+      - SET STATEMENT var=expr FOR EXECUTE stmt;
+      - EXECUTE stmt USING expr;
+
+    E.g. for a query like this:
+      PREPARE stmt FROM 'INSERT INTO t1 VALUES (@@max_sort_length)';
+      SET STATEMENT max_sort_length=2048 FOR EXECUTE stmt;
+    thd->free_list contains a pointer to Item_int corresponding to 2048.
+
+    If Prepared_statement::execute() notices that the table metadata for "t1"
+    has changed since PREPARE, it returns an error asking the calling
+    Prepared_statement::execute_loop() to re-prepare the statement.
+    Before returning the error, Prepared_statement::execute()
+    calls Prepared_statement::cleanup_stmt(),
+    which calls thd->cleanup_after_query(),
+    which calls Query_arena::free_items().
+
+    We hide "external" Items, e.g. those created while parsing the
+    "SET STATEMENT" or "USING" parts of the query,
+    so they don't get freed in case of re-prepare.
+    See MDEV-10702 Crash in SET STATEMENT FOR EXECUTE
+  */
+  Item *free_list_backup= thd->free_list;
+  thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
+  thd->free_items();    // Free items created by execute_loop()
+  /*
+    Now restore the "external" (e.g. "SET STATEMENT") Item list.
+    It will be freed normaly in THD::cleanup_after_query().
+  */
+  thd->free_list= free_list_backup;
+
   stmt->lex->restore_set_statement_var();
   DBUG_VOID_RETURN;
 }
@@ -3490,7 +3524,7 @@ void Prepared_statement::setup_set_params()
 
   if (replace_params_with_values)
   {
-    set_params_from_vars= insert_params_from_vars_with_log;
+    set_params_from_actual_params= insert_params_from_actual_params_with_log;
 #ifndef EMBEDDED_LIBRARY
     set_params= insert_params_with_log;
 #else
@@ -3499,7 +3533,7 @@ void Prepared_statement::setup_set_params()
   }
   else
   {
-    set_params_from_vars= insert_params_from_vars;
+    set_params_from_actual_params= insert_params_from_actual_params;
 #ifndef EMBEDDED_LIBRARY
     set_params= insert_params;
 #else
@@ -3809,8 +3843,8 @@ Prepared_statement::set_parameters(String *expanded_query,
   if (is_sql_ps)
   {
     /* SQL prepared statement */
-    res= set_params_from_vars(this, thd->lex->prepared_stmt_params,
-                              expanded_query);
+    res= set_params_from_actual_params(this, thd->lex->prepared_stmt_params,
+                                       expanded_query);
   }
   else if (param_count)
   {

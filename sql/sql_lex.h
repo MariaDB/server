@@ -2728,7 +2728,7 @@ public:
   /* If true, prepared_stmt_code is a name of variable that holds the query */
   bool prepared_stmt_code_is_varref;
   /* Names of user variables holding parameters (in EXECUTE) */
-  List<LEX_STRING> prepared_stmt_params;
+  List<Item> prepared_stmt_params;
   sp_head *sphead;
   sp_name *spname;
   bool sp_lex_in_use;	/* Keep track on lex usage in SPs for error handling */

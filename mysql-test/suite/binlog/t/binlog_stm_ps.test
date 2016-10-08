@@ -28,3 +28,29 @@ prepare s from "insert into t1 select 100 limit ?";
 set @a=100; execute s using @a;
 source include/show_binlog_events.inc;
 drop table t1;
+
+--echo #
+--echo # MDEV-10709 Expressions as parameters to Dynamic SQL
+--echo #
+
+FLUSH LOGS;
+SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-02 10:20:30.123456');
+CREATE TABLE t1 (a DECIMAL(30,8));
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (?)';
+EXECUTE stmt USING 10;
+EXECUTE stmt USING 11e0;
+EXECUTE stmt USING 12.1;
+EXECUTE stmt USING '13';
+EXECUTE stmt USING CURRENT_DATE;
+EXECUTE stmt USING MAKETIME(10,20,30);
+EXECUTE stmt USING CURRENT_TIME;
+EXECUTE stmt USING CURRENT_TIME(3);
+EXECUTE stmt USING CURRENT_TIME(6);
+EXECUTE stmt USING CURRENT_TIMESTAMP;
+EXECUTE stmt USING CURRENT_TIMESTAMP(3);
+EXECUTE stmt USING CURRENT_TIMESTAMP(6);
+SELECT * FROM t1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+DROP TABLE t1;
+SET TIMESTAMP=DEFAULT;

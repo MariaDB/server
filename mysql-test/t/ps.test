@@ -3672,3 +3672,174 @@ DROP TABLE t1,t2;
 
 
 --echo # End of 10.0 tests
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10709 Expressions as parameters to Dynamic SQL
+--echo #
+
+--echo #
+--echo # Using a simple expressions as an EXECUTE parameter
+--echo #
+
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+EXECUTE stmt USING 10;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+EXECUTE stmt USING TO_BASE64('xxx');
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'SELECT ?+? FROM DUAL';
+EXECUTE stmt USING 10, 10 + 10;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'SELECT CONCAT(?,?) FROM DUAL';
+EXECUTE stmt USING 'xxx', CONCAT('yyy','zzz');
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # Testing disallowed expressions in USING
+--echo #
+
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+--error ER_PARSE_ERROR
+EXECUTE stmt USING (SELECT 1);
+DEALLOCATE PREPARE stmt;
+
+CREATE FUNCTION f1() RETURNS VARCHAR(10) RETURN 'test';
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE stmt USING f1();
+DEALLOCATE PREPARE stmt;
+DROP FUNCTION f1;
+
+--echo #
+--echo # Testing erroneous expressions in USING
+--echo #
+
+PREPARE stmt FROM 'SELECT ?';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE stmt USING _latin1'a'=_latin2'a';
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM 'SELECT ?';
+--error ER_OPERAND_COLUMNS
+EXECUTE stmt USING ROW(1,2);
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # Creating tables from EXECUTE parameters
+--echo #
+
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT ? AS c1 FROM DUAL';
+EXECUTE stmt USING 10;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+EXECUTE stmt USING 10.123;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+EXECUTE stmt USING 10.123e0;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_DATE;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIMESTAMP;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIMESTAMP(3);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIMESTAMP(6);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIME;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIME(3);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+EXECUTE stmt USING CURRENT_TIME(6);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt;
+
+
+--echo #
+--echo # Using a user variable as an EXECUTE..USING out parameter
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(OUT a INT)
+BEGIN
+  SET a:= 10;
+END;
+/
+DELIMITER ;/
+SET @a=1;
+CALL p1(@a);
+SELECT @a;
+SET @a=2;
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING @a;
+SELECT @a;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using an SP variable as an EXECUTE..USING out parameter
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1 (OUT a INT)
+BEGIN
+  SET a=10;
+END;
+/
+CREATE PROCEDURE p2 (OUT a INT)
+BEGIN
+  PREPARE stmt FROM 'CALL p1(?)';
+  EXECUTE stmt USING a;
+END;
+/
+DELIMITER ;/
+SET @a= 1;
+CALL p2(@a);
+SELECT @a;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Testing re-prepare on a table metadata update between PREPARE and EXECUTE
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER /;
+CREATE PROCEDURE p1(a INT)
+BEGIN
+  INSERT INTO t1 VALUES (a);
+END;
+/
+DELIMITER ;/
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING 10;
+SELECT * FROM t1;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=NEW.a+1;
+EXECUTE stmt USING 20;
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of MDEV-10709 Expressions as parameters to Dynamic SQL
+--echo #
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
