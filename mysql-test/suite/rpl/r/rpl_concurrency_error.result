@@ -22,7 +22,7 @@ SET AUTOCOMMIT = 1;
 BEGIN;
 UPDATE t SET f = 'yellow 2' WHERE i = 3;
 Warnings:
-Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them.
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them
 connection conn2;
 SET AUTOCOMMIT = 1;
 BEGIN;
@@ -53,7 +53,7 @@ SET AUTOCOMMIT = 1;
 BEGIN;
 UPDATE t SET f = 'gray 2' WHERE i = 3;
 Warnings:
-Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them.
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them
 connection conn2;
 SET AUTOCOMMIT = 1;
 BEGIN;
@@ -81,7 +81,7 @@ connection conn1;
 SET AUTOCOMMIT = 0;
 UPDATE t SET f = 'yellow 1' WHERE i = 3;
 Warnings:
-Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them.
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them
 connection conn2;
 SET AUTOCOMMIT = 0;
 UPDATE t SET f = 'magenta 1' WHERE f = 'red';
@@ -110,7 +110,7 @@ connection conn1;
 SET AUTOCOMMIT = 0;
 UPDATE t SET f = 'gray 1' WHERE i = 3;
 Warnings:
-Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them.
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them
 connection conn2;
 SET AUTOCOMMIT = 0;
 UPDATE t SET f = 'dark blue 1' WHERE f = 'red';

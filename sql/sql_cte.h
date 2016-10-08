@@ -350,7 +350,7 @@ void With_element::reset_recursive_for_exec()
   owner->with_prepared_anchor&= ~mutually_recursive;
   owner->cleaned&= ~get_elem_map();
   cleanup_stabilized();
-  rec_result->first_rec_table_to_update= 0;
+  spec->columns_are_renamed= false;
 }
 
 

@@ -30,12 +30,12 @@ CREATE TRIGGER test_trg_1 BEFORE UPDATE ON tp FOR EACH ROW
 BEGIN
 ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
 END|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION test_f_1() RETURNS int
 BEGIN
 ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
 END|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 SET @@autocommit= @save_autocommit;
 SET @save_event_scheduler= @@global.event_scheduler;
 SET @@global.event_scheduler= ON;

@@ -17,6 +17,7 @@ if (!$INNOCHECKSUM) {
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
 let $innodb_file_format_orig = `SELECT @@innodb_file_format`;
 let $innodb_file_per_table_orig = `SELECT @@innodb_file_per_table`;
+let MYSQLD_DATADIR= `SELECT @@datadir`;
 --enable_query_log
 
 SET GLOBAL innodb_file_format = `Barracuda`;

@@ -686,7 +686,7 @@ select @exec_count;
 set @@session.max_sp_recursion_depth=5;
 set @exec_count=0;
 call p1();
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 select @exec_count;
 @exec_count
 0

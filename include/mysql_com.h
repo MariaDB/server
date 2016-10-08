@@ -681,12 +681,7 @@ my_bool my_thread_init(void);
 void my_thread_end(void);
 
 #ifdef MY_GLOBAL_INCLUDED
-ulong STDCALL net_field_length(uchar **packet);
-my_ulonglong net_field_length_ll(uchar **packet);
-my_ulonglong safe_net_field_length_ll(uchar **packet, size_t packet_len);
-uchar *net_store_length(uchar *pkg, ulonglong length);
-uchar *safe_net_store_length(uchar *pkg, size_t pkg_len, ulonglong length);
-unsigned int net_length_size(ulonglong num);
+#include "pack.h"
 #endif
 
 #ifdef __cplusplus
@@ -703,12 +698,5 @@ unsigned int net_length_size(ulonglong num);
   decimals
 */
 
-#define FLOATING_POINT_DECIMALS 31
 
-/* Keep client compatible with earlier versions */
-#ifdef MYSQL_SERVER
-#define NOT_FIXED_DEC           DECIMAL_NOT_SPECIFIED
-#else
-#define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
-#endif
 #endif

@@ -1,0 +1,136 @@
+create table t1 (
+  pk int primary key,
+  a int,
+  b int
+);
+
+create table t2 (
+  pk int primary key,
+  a int,
+  b int,
+  c char(10)
+);
+
+insert into t2 values
+( 1, 0, 1, 'one'),
+( 2, 0, 2, 'two'),
+( 3, 0, 3, 'three'),
+( 4, 1, 1, 'one'),
+( 5, 1, 1, 'two'),
+( 6, 1, 2, 'three');
+
+--disable_warnings
+--echo # First try some invalid queries.
+select std(c) over (order by a)
+from t2;
+--enable_warnings
+
+--echo # Empty frame.
+select std(b) over (order by a rows between 2 following and 1 following)
+from t2;
+
+select std(b) over (order by a range between 2 following and 1 following)
+from t2;
+
+select std(b) over (order by a rows between 1 preceding and 2 preceding)
+from t2;
+
+select std(b) over (order by a range between 1 preceding and 2 preceding)
+from t2;
+
+select std(b) over (order by a rows between 1 following and 0 following)
+from t2;
+
+select std(b) over (order by a range between 1 following and 0 following)
+from t2;
+
+select std(b) over (order by a rows between 1 following and 0 preceding)
+from t2;
+
+select std(b) over (order by a range between 1 following and 0 preceding)
+from t2;
+
+select std(b) over (order by a rows between 0 following and 1 preceding)
+from t2;
+
+select std(b) over (order by a range between 0 following and 1 preceding)
+from t2;
+
+--echo # 1 row frame.
+select std(b) over (order by a rows between current row and current row)
+from t2;
+
+select std(b) over (order by a rows between 0 preceding and current row)
+from t2;
+
+select std(b) over (order by a rows between 0 preceding and 0 preceding)
+from t2;
+
+select std(b) over (order by a rows between 0 preceding and 0 following)
+from t2;
+
+select std(b) over (order by a rows between 0 following and 0 preceding)
+from t2;
+
+--error ER_BAD_COMBINATION_OF_WINDOW_FRAME_BOUND_SPECS
+select std(b) over (order by a rows between 0 following and current row)
+from t2;
+
+select std(b) over (order by a rows between current row and 0 following)
+from t2;
+
+--echo # Only peers frame.
+select a, b, std(b) over (order by a range between 0 preceding and 0 preceding)
+from t2;
+
+select a, b, std(b) over (order by a range between 0 preceding and current row)
+from t2;
+
+--error ER_BAD_COMBINATION_OF_WINDOW_FRAME_BOUND_SPECS
+select a, b, std(b) over (order by a range between current row and 0 preceding)
+from t2;
+
+select a, b, std(b) over (order by a range between current row and 0 following)
+from t2;
+
+select a, b, std(b) over (order by a range between 0 following and 0 following)
+from t2;
+
+--echo # 2 rows frame.
+
+--sorted_result
+select pk, a, b, std(b) over (order by a, b, pk rows between 1 preceding and current row)
+from t2;
+
+--sorted_result
+select pk, a, b, std(b) over (order by a, b, pk rows between 1 preceding and 0 preceding)
+from t2;
+
+--sorted_result
+select pk, a, b, std(b) over (order by a, b, pk rows between current row and 1 following)
+from t2;
+
+--sorted_result
+select pk, a, b, std(b) over (order by a, b, pk rows between 0 following and 1 following)
+from t2;
+
+--echo # 2 peers frame.
+
+--sorted_result
+select pk, a, b, std(b) over (order by a range between 1 preceding and current row)
+from t2;
+
+--sorted_result
+select pk, a, b, std(b) over (order by a range between 1 preceding and 0 preceding)
+from t2;
+
+--sorted_result
+select pk, a, b, std(b) over (order by a range between current row and 1 following)
+from t2;
+
+--sorted_result
+select pk, a, b, std(b) over (order by a range between 0 following and 1 following)
+from t2;
+
+drop table t1;
+drop table t2;

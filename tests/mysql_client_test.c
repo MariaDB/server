@@ -34,7 +34,21 @@
 
 #include "mysql_client_fw.c"
 
+static const my_bool my_true= 1;
+
+
 /* Query processing */
+
+static my_bool get_reconnect(MYSQL *mysql)
+{
+#ifdef EMBEDDED_LIBRARY
+  return mysql->reconnect;
+#else
+  my_bool reconnect;
+  mysql_get_option(mysql, MYSQL_OPT_RECONNECT, &reconnect);
+  return reconnect;
+#endif
+}
 
 static void client_query()
 {
@@ -3123,7 +3137,7 @@ static void test_long_data_str1()
   int        rc, i;
   char       data[255];
   long       length;
-  ulong      max_blob_length, blob_length, length1;
+  ulong      max_blob_length, blob_length= 0, length1;
   my_bool    true_value;
   MYSQL_RES  *result;
   MYSQL_BIND my_bind[2];
@@ -4812,7 +4826,7 @@ static void test_stmt_close()
     myerror("connection failed");
     exit(1);
   }
-  lmysql->reconnect= 1;
+  mysql_options(lmysql, MYSQL_OPT_RECONNECT, &my_true);
   if (!opt_silent)
     fprintf(stdout, "OK");
 
@@ -5496,7 +5510,7 @@ DROP TABLE IF EXISTS test_multi_tab";
     fprintf(stdout, "\n connection failed(%s)", mysql_error(mysql_local));
     exit(1);
   }
-  mysql_local->reconnect= 1;
+  mysql_options(mysql_local, MYSQL_OPT_RECONNECT, &my_true);
 
   rc= mysql_query(mysql_local, query);
   myquery(rc);
@@ -5620,7 +5634,7 @@ static void test_prepare_multi_statements()
     fprintf(stderr, "\n connection failed(%s)", mysql_error(mysql_local));
     exit(1);
   }
-  mysql_local->reconnect= 1;
+  mysql_options(mysql_local, MYSQL_OPT_RECONNECT, &my_true);
   strmov(query, "select 1; select 'another value'");
   stmt= mysql_simple_prepare(mysql_local, query);
   check_stmt_r(stmt);
@@ -6338,10 +6352,10 @@ static void test_pure_coverage()
 
   my_bind[0].buffer_type= MYSQL_TYPE_GEOMETRY;
   rc= mysql_stmt_bind_result(stmt, my_bind);
-  check_execute_r(stmt, rc); /* unsupported buffer type */
+  check_execute(stmt, rc); /* MariaDB C/C converts geometry to string */
 
   rc= mysql_stmt_store_result(stmt);
-  DIE_UNLESS(rc);
+  DIE_IF(rc);
 
   rc= mysql_stmt_store_result(stmt);
   DIE_UNLESS(rc); /* Old error must be reset first */
@@ -7225,7 +7239,7 @@ static void test_prepare_grant()
       mysql_close(lmysql);
       exit(1);
     }
-    lmysql->reconnect= 1;
+    mysql_options(lmysql, MYSQL_OPT_RECONNECT, &my_true);
     if (!opt_silent)
       fprintf(stdout, "OK");
 
@@ -7687,7 +7701,7 @@ static void test_drop_temp()
       mysql_close(lmysql);
       exit(1);
     }
-    lmysql->reconnect= 1;
+    mysql_options(lmysql, MYSQL_OPT_RECONNECT, &my_true);
     if (!opt_silent)
       fprintf(stdout, "OK");
 
@@ -13402,10 +13416,7 @@ static void test_bug9478()
       /* Fill in the fetch packet */
       int4store(buff, stmt->stmt_id);
       buff[4]= 1;                               /* prefetch rows */
-      rc= ((*mysql->methods->advanced_command)(mysql, COM_STMT_FETCH,
-                                               (uchar*) buff,
-                                               sizeof(buff), 0,0,1,NULL) ||
-           (*mysql->methods->read_query_result)(mysql));
+      rc= mysql_stmt_fetch(stmt);
       DIE_UNLESS(rc);
       if (!opt_silent && i == 0)
         printf("Got error (as expected): %s\n", mysql_error(mysql));
@@ -14992,7 +15003,7 @@ static void test_bug15510()
 static void test_opt_reconnect()
 {
   MYSQL *lmysql;
-  my_bool my_true= TRUE;
+
 
   myheader("test_opt_reconnect");
 
@@ -15003,8 +15014,8 @@ static void test_opt_reconnect()
   }
 
   if (!opt_silent)
-    fprintf(stdout, "reconnect before mysql_options: %d\n", lmysql->reconnect);
-  DIE_UNLESS(lmysql->reconnect == 0);
+    fprintf(stdout, "reconnect before mysql_options: %d\n", get_reconnect(lmysql));
+  DIE_UNLESS(get_reconnect(lmysql) == 0);
 
   if (mysql_options(lmysql, MYSQL_OPT_RECONNECT, &my_true))
   {
@@ -15014,8 +15025,8 @@ static void test_opt_reconnect()
 
   /* reconnect should be 1 */
   if (!opt_silent)
-    fprintf(stdout, "reconnect after mysql_options: %d\n", lmysql->reconnect);
-  DIE_UNLESS(lmysql->reconnect == 1);
+    fprintf(stdout, "reconnect after mysql_options: %d\n", get_reconnect(lmysql));
+  DIE_UNLESS(get_reconnect(lmysql) == 1);
 
   if (!(mysql_real_connect(lmysql, opt_host, opt_user,
                            opt_password, current_db, opt_port,
@@ -15028,8 +15039,8 @@ static void test_opt_reconnect()
   /* reconnect should still be 1 */
   if (!opt_silent)
     fprintf(stdout, "reconnect after mysql_real_connect: %d\n",
-	    lmysql->reconnect);
-  DIE_UNLESS(lmysql->reconnect == 1);
+	    get_reconnect(lmysql));
+  DIE_UNLESS(get_reconnect(lmysql) == 1);
 
   mysql_close(lmysql);
 
@@ -15040,8 +15051,8 @@ static void test_opt_reconnect()
   }
 
   if (!opt_silent)
-    fprintf(stdout, "reconnect before mysql_real_connect: %d\n", lmysql->reconnect);
-  DIE_UNLESS(lmysql->reconnect == 0);
+    fprintf(stdout, "reconnect before mysql_real_connect: %d\n", get_reconnect(lmysql));
+  DIE_UNLESS(get_reconnect(lmysql) == 0);
 
   if (!(mysql_real_connect(lmysql, opt_host, opt_user,
                            opt_password, current_db, opt_port,
@@ -15054,8 +15065,8 @@ static void test_opt_reconnect()
   /* reconnect should still be 0 */
   if (!opt_silent)
     fprintf(stdout, "reconnect after mysql_real_connect: %d\n",
-	    lmysql->reconnect);
-  DIE_UNLESS(lmysql->reconnect == 0);
+	    get_reconnect(lmysql));
+  DIE_UNLESS(get_reconnect(lmysql) == 0);
 
   mysql_close(lmysql);
 }
@@ -17985,7 +17996,8 @@ static void test_bug43560(void)
   strncpy(buffer, values[2], BUFSIZE);
   length= strlen(buffer);
   rc= mysql_stmt_execute(stmt);
-  DIE_UNLESS(rc && mysql_stmt_errno(stmt) == CR_SERVER_LOST);
+  DIE_UNLESS(rc && (mysql_stmt_errno(stmt) == CR_SERVER_LOST ||
+                    mysql_stmt_errno(stmt) == CR_SERVER_GONE_ERROR));
 
   opt_drop_db= 0;
   client_disconnect(conn);

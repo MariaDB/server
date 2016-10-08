@@ -21,6 +21,7 @@
 /* Classes in mysql */
 
 #include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
 #include <mysql/plugin_audit.h>
@@ -512,8 +513,6 @@ class Time_zone;
 
 #define THD_CHECK_SENTRY(thd) DBUG_ASSERT(thd->dbug_sentry == THD_SENTRY_MAGIC)
 
-typedef ulonglong sql_mode_t;
-
 typedef struct system_variables
 {
   /*
@@ -696,6 +695,7 @@ typedef struct system_variables
   my_bool session_track_schema;
   my_bool session_track_state_change;
 
+  ulong threadpool_priority;
 } SV;
 
 /**
@@ -787,6 +787,7 @@ typedef struct system_status_var
   ulong feature_timezone;	    /* +1 when XPATH is used */
   ulong feature_trigger;	    /* +1 opening a table with triggers */
   ulong feature_xml;		    /* +1 when XPATH is used */
+  ulong feature_window_functions;   /* +1 when window functions are used */
 
   /* From MASTER_GTID_WAIT usage */
   ulonglong master_gtid_wait_timeouts;          /* Number of timeouts */

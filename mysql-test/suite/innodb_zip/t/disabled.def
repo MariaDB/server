@@ -1,0 +1,16 @@
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : BUG#<xxxx> <date disabled> <disabler> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+
+restart : Not supported by MariaDB 10.2 2/9/2016 jplindst
+wl6650  : Not supported by MariaDB 10.2
+wl6560  : Very long, timeout
+

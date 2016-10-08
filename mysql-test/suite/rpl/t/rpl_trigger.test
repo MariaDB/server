@@ -337,6 +337,7 @@ SELECT MASTER_POS_WAIT('master-bin.000001', 513) >= 0;
 # Check that the replication succeeded.
 
 SHOW TABLES LIKE 't_';
+--replace_column 6 #
 SHOW TRIGGERS;
 SELECT * FROM t1;
 SELECT * FROM t2;
@@ -367,6 +368,7 @@ RESET SLAVE;
 
 connection master;
 SHOW TABLES LIKE 't_';
+--replace_column 6 #
 SHOW TRIGGERS;
 
 RESET MASTER;
@@ -533,6 +535,49 @@ sync_slave_with_master;
 let $binlog_start= $slave_pos;
 source include/show_binlog_events.inc;
 connection master;
+
+#
+# MDEV-6112 multiple triggers per table
+#
+
+create table t1 (a int primary key, b int);
+create trigger tr3
+  before insert on t1
+  for each row set NEW.b := (NEW.b+1)*4;
+create trigger tr1
+  before insert on t1 
+  for each row precedes tr3 set NEW.b := (NEW.b+1)*2;
+create trigger tr2
+  before insert on t1
+  for each row follows tr1 set NEW.b := (NEW.b+1)*3;
+
+--replace_column 6 #
+show triggers;
+insert into t1 values (1,1);
+select * from t1;
+sync_slave_with_master;
+--replace_column 6 #
+show triggers;
+select * from t1;
+connection master;
+drop table t1;
+
+#
+# MDEV-10924 CREATE OR REPLACE TRIGGER which fails on PRECEDES/FOLLOWS drops
+# the trigger, but isn't written to binlog; replication fails
+#
+
+CREATE TABLE t1 (i INT);
+CREATE OR REPLACE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @a=1;
+--error ER_REFERENCED_TRG_DOES_NOT_EXIST
+CREATE OR REPLACE TRIGGER tr BEFORE DELETE ON t1 FOR EACH ROW PRECEDES non_existing_trigger SET @a=2;
+--replace_column 6 #
+SHOW TRIGGERS;
+--sync_slave_with_master
+--replace_column 6 #
+SHOW TRIGGERS;
+connection master;
+drop table t1;
 
 #
 # End of tests

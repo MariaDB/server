@@ -5,7 +5,7 @@ let $file_per_table=`select @@innodb_file_per_table`;
 
 SET GLOBAL innodb_file_format='Barracuda';
 SET GLOBAL innodb_file_per_table=on;
-
+SET GLOBAL innodb_strict_mode=on;
 set old_alter_table=0;
 
 CREATE TABLE bug53591(a text charset utf8 not null)
@@ -20,3 +20,4 @@ DROP TABLE bug53591;
 
 EVAL SET GLOBAL innodb_file_format=$file_format;
 EVAL SET GLOBAL innodb_file_per_table=$file_per_table;
+SET GLOBAL innodb_strict_mode=DEFAULT;

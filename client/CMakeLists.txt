@@ -19,20 +19,25 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/mysys_ssl
   ${ZLIB_INCLUDE_DIR}
   ${SSL_INCLUDE_DIRS}
-  ${CMAKE_SOURCE_DIR}/libmysql
   ${CMAKE_SOURCE_DIR}/sql
   ${CMAKE_SOURCE_DIR}/strings
   ${MY_READLINE_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+INCLUDE_DIRECTORIES(BEFORE
+  ${CMAKE_BINARY_DIR}/libmariadb/include
+  ${CMAKE_SOURCE_DIR}/libmariadb/include)
+
 ## We will need libeay32.dll and ssleay32.dll when running client executables.
 COPY_OPENSSL_DLLS(copy_openssl_client)
+
+SET(CLIENT_LIB mariadbclient mysys)
 
 ADD_DEFINITIONS(${SSL_DEFINES})
 MYSQL_ADD_EXECUTABLE(mysql completion_hash.cc mysql.cc readline.cc
                            ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
-TARGET_LINK_LIBRARIES(mysql mysqlclient)
+TARGET_LINK_LIBRARIES(mysql ${CLIENT_LIB})
 IF(UNIX)
   TARGET_LINK_LIBRARIES(mysql ${MY_READLINE_LIBRARY})
   SET_TARGET_PROPERTIES(mysql PROPERTIES ENABLE_EXPORTS TRUE)
@@ -40,39 +45,40 @@ ENDIF(UNIX)
 
 MYSQL_ADD_EXECUTABLE(mysqltest mysqltest.cc COMPONENT Test)
 SET_SOURCE_FILES_PROPERTIES(mysqltest.cc PROPERTIES COMPILE_FLAGS "-DTHREADS")
-TARGET_LINK_LIBRARIES(mysqltest mysqlclient pcre pcreposix)
+TARGET_LINK_LIBRARIES(mysqltest  ${CLIENT_LIB} pcre pcreposix)
 SET_TARGET_PROPERTIES(mysqltest PROPERTIES ENABLE_EXPORTS TRUE)
 
 
 MYSQL_ADD_EXECUTABLE(mysqlcheck mysqlcheck.c)
-TARGET_LINK_LIBRARIES(mysqlcheck mysqlclient)
+TARGET_LINK_LIBRARIES(mysqlcheck ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mysqldump mysqldump.c ../sql-common/my_user.c)
-TARGET_LINK_LIBRARIES(mysqldump mysqlclient)
+TARGET_LINK_LIBRARIES(mysqldump ${CLIENT_LIB})
+
 
 MYSQL_ADD_EXECUTABLE(mysqlimport mysqlimport.c)
 SET_SOURCE_FILES_PROPERTIES(mysqlimport.c PROPERTIES COMPILE_FLAGS "-DTHREADS")
-TARGET_LINK_LIBRARIES(mysqlimport mysqlclient)
+TARGET_LINK_LIBRARIES(mysqlimport ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mysql_upgrade mysql_upgrade.c COMPONENT Server)
-TARGET_LINK_LIBRARIES(mysql_upgrade mysqlclient)
+TARGET_LINK_LIBRARIES(mysql_upgrade ${CLIENT_LIB})
 ADD_DEPENDENCIES(mysql_upgrade GenFixPrivs)
 
 MYSQL_ADD_EXECUTABLE(mysqlshow mysqlshow.c)
-TARGET_LINK_LIBRARIES(mysqlshow mysqlclient)
+TARGET_LINK_LIBRARIES(mysqlshow ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mysql_plugin mysql_plugin.c)
-TARGET_LINK_LIBRARIES(mysql_plugin mysqlclient)
+TARGET_LINK_LIBRARIES(mysql_plugin ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mysqlbinlog mysqlbinlog.cc)
-TARGET_LINK_LIBRARIES(mysqlbinlog mysqlclient)
+TARGET_LINK_LIBRARIES(mysqlbinlog ${CLIENT_LIB})
 
-MYSQL_ADD_EXECUTABLE(mysqladmin mysqladmin.cc)
-TARGET_LINK_LIBRARIES(mysqladmin mysqlclient)
+MYSQL_ADD_EXECUTABLE(mysqladmin mysqladmin.cc ../sql/password.c)
+TARGET_LINK_LIBRARIES(mysqladmin ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mysqlslap mysqlslap.c)
 SET_SOURCE_FILES_PROPERTIES(mysqlslap.c PROPERTIES COMPILE_FLAGS "-DTHREADS")
-TARGET_LINK_LIBRARIES(mysqlslap mysqlclient)
+TARGET_LINK_LIBRARIES(mysqlslap ${CLIENT_LIB})
 
 # "WIN32" also covers 64 bit. "echo" is used in some files below "mysql-test/".
 IF(WIN32)
@@ -81,10 +87,16 @@ ENDIF(WIN32)
 
 # async_example is just a code example, do not install it.
 ADD_EXECUTABLE(async_example async_example.c)
-TARGET_LINK_LIBRARIES(async_example mysqlclient)
+TARGET_LINK_LIBRARIES(async_example ${CLIENT_LIB})
 
 SET_TARGET_PROPERTIES (mysqlcheck mysqldump mysqlimport mysql_upgrade mysqlshow mysqlslap mysql_plugin async_example
 PROPERTIES HAS_CXX TRUE)
+
+
+FOREACH(t mysql mysqltest mysqltest mysqlcheck mysqldump mysqlimport mysql_upgrade mysqlshow mysql_plugin mysqlbinlog
+  mysqladmin mysqlslap async_example)
+  ADD_DEPENDENCIES(${t} GenError ${CLIENT_LIB})
+ENDFOREACH()
 
 ADD_DEFINITIONS(-DHAVE_DLOPEN)
 

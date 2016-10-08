@@ -1,5 +1,9 @@
 set global innodb_support_xa=default;
+Warnings:
+Warning	131	Using innodb_support_xa is deprecated and the parameter may be removed in future releases.
 set session innodb_support_xa=default;
+Warnings:
+Warning	131	Using innodb_support_xa is deprecated and the parameter may be removed in future releases.
 SET SESSION DEFAULT_STORAGE_ENGINE = InnoDB;
 drop table if exists t1,t2,t3,t1m,t1i,t2m,t2i,t4;
 drop procedure if exists p1;

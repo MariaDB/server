@@ -303,7 +303,7 @@ create trigger trg before insert on t1 for each row set @a:=1;
 create trigger trg after insert on t1 for each row set @a:=1;
 ERROR HY000: Trigger already exists
 create trigger trg2 before insert on t1 for each row set @a:=1;
-ERROR 42000: This version of MariaDB doesn't yet support 'multiple triggers with the same action time and event for one table'
+drop trigger trg2;
 create trigger trg before insert on t3 for each row set @a:=1;
 ERROR HY000: Trigger already exists
 create trigger trg2 before insert on t3 for each row set @a:=1;
@@ -783,7 +783,7 @@ for each row insert into t1 values (new.f2+1);
 set @SAVE_SP_RECURSION_LEVELS=@@max_sp_recursion_depth;
 set @@max_sp_recursion_depth=100;
 insert into t1 values (1);
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 set @@max_sp_recursion_depth=@SAVE_SP_RECURSION_LEVELS;
 select * from t1;
 f1
@@ -796,7 +796,7 @@ drop trigger t2_ai;
 create trigger t1_bu before update on t1
 for each row insert into t1 values (2);
 update t1 set f1= 10;
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 select * from t1;
 f1
 1
@@ -804,7 +804,7 @@ drop trigger t1_bu;
 create trigger t1_bu before update on t1
 for each row delete from t1 where f1=new.f1;
 update t1 set f1= 10;
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 select * from t1;
 f1
 1
@@ -1958,7 +1958,7 @@ DROP TRIGGER t_insert;
 CREATE TRIGGER t_insert AFTER INSERT ON t2 FOR EACH ROW BEGIN UPDATE t1,t2 SET
 date_insert=NOW(),b=b+1 WHERE t1.a=t2.b AND t2.a=NEW.a; END |
 INSERT INTO t2 (a,b) VALUES (3,5);
-ERROR HY000: Can't update table 't2' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't2' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 DROP TABLE t1;
 DROP TRIGGER t_insert;
 DROP TABLE t2;
@@ -1988,8 +1988,8 @@ create trigger t1_bi before insert on t1 for each row begin end;
 create trigger t1_bi before insert on t1 for each row begin end;
 ERROR HY000: Trigger already exists
 create trigger t1_bi2 before insert on t1 for each row begin end;
-ERROR 42000: This version of MariaDB doesn't yet support 'multiple triggers with the same action time and event for one table'
 drop trigger t1_bi;
+drop trigger t1_bi2;
 drop trigger t1_bi;
 ERROR HY000: Trigger does not exist
 lock tables t1 read;
@@ -2123,6 +2123,7 @@ CREATE TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERT/*!INTO*/t1 VALUES (1
 # Used to crash
 SHOW TRIGGERS IN db1;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+trg1	INSERT	t2	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERTINTOt1 VALUES (1)	BEFORE	#	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	latin1_swedish_ci
 INSERT INTO t2 VALUES (1);
 ERROR 42000: Trigger 'trg1' has an error in its body: 'You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VALUES (1)' at line 1'
 SELECT * FROM t1;
@@ -2298,6 +2299,8 @@ SET optimizer_switch=@save_optimizer_switch;
 DROP TRIGGER tr;
 DROP TABLE t1, t2;
 End of 5.3 tests.
+set time_zone="+00:00";
+SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
 CREATE TABLE t1 (c CHAR(1) NOT NULL);
 CREATE TRIGGER t1_bi
@@ -2311,5 +2314,55 @@ END;
 SET @@session.sql_mode = default;
 INSERT INTO t1 VALUES ('a');
 ERROR 22001: Data too long for column 'c' at row 1
+show create trigger t1_bi;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_bi	STRICT_TRANS_TABLES,STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi
+BEFORE INSERT
+ON t1
+FOR EACH ROW
+BEGIN
+SET NEW.c = 'www';
+END	latin1	latin1_swedish_ci	latin1_swedish_ci	2001-01-01 10:20:30.00
 DROP TRIGGER t1_bi;
 DROP TABLE t1;
+SET TIMESTAMP=DEFAULT;
+set time_zone= @@global.time_zone;
+create table t1 (i int);
+create trigger tr1 after insert on t1 for each row set @a=@a+1;
+create trigger tr2 after insert on t1 for each row set @a=@a+1;
+create trigger tr3 after insert on t1 for each row set @a=@a+1;
+flush status;
+show status like 'Executed_triggers';
+Variable_name	Value
+Executed_triggers	0
+set @a=0;
+insert into t1 values (1);
+show status like 'Executed_triggers';
+Variable_name	Value
+Executed_triggers	3
+select @a;
+@a
+3
+drop table t1;
+create table t1 (i int);
+set time_zone="+0:00";
+SET TIMESTAMP=UNIX_TIMESTAMP('2016-01-01 10:10:10.33');
+select now(2);
+now(2)
+2016-01-01 10:10:10.33
+create or replace trigger tr1 after insert on t1 for each row set @a=@a+1;
+SET TIMESTAMP=UNIX_TIMESTAMP('2016-01-01 10:10:10.99');
+select now(2);
+now(2)
+2016-01-01 10:10:10.99
+create or replace trigger tr2 after insert on t1 for each row set @a=@a+1;
+select now(2);
+now(2)
+2016-01-01 10:10:10.99
+select trigger_name, action_order, created from information_schema.triggers 
+where event_object_table = 't1' and trigger_schema='test';
+trigger_name	action_order	created
+tr1	1	2016-01-01 10:10:10.33
+tr2	2	2016-01-01 10:10:10.99
+drop table t1;
+set time_zone= @@global.time_zone;

@@ -1162,6 +1162,140 @@ select h_name, h_dob, w_name, w_dob
   from ancestor_couples;
 
 
+create table my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+
+select * from my_ancestors;
+
+delete from my_ancestors;
+
+insert into my_ancestors 
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+
+select * from my_ancestors;
+
+drop table my_ancestors;
+
+--echo #
+--echo # MDEV-10883: execution of prepared statement from SELECT
+--echo #             with recursive CTE that renames columns
+--echo #
+
+prepare stmt from"
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+
+--echo #
+--echo # MDEV-10881: execution of prepared statement from
+--echo #             CREATE ... SELECT, INSERT ... SELECT       
+--echo #
+
+prepare stmt from"
+create table my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+select * from my_ancestors;
+
+delete from my_ancestors;
+
+prepare stmt from"
+insert into my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+select * from my_ancestors;
+
+drop table my_ancestors;
+
+--echo #
+--echo # MDEV-10933: WITH clause together with SELECT in parenthesis
+--echo #             CREATE SELECT      
+--echo #
+
+create table my_ancestors
+(
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id
+);
+select * from my_ancestors;
+drop table my_ancestors;
+
 drop table folks;
 
 --echo #
@@ -1194,3 +1328,37 @@ WITH RECURSIVE cte(f) AS
   (SELECT t1.f FROM t1 UNION ALL SELECT cte.f FROM cte) 
 SELECT * FROM cte as t;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10899: mergeable derived in the spec of recursive CTE
+--echo #
+
+create table t1 (a int);
+insert into t1 values
+  (0), (1), (2), (3), (4);
+create table t2 (a int);
+insert into t2 values
+  (1), (2), (3), (4), (5);
+
+with recursive
+t1 as
+(
+select x.a from (select a from t2 where t2.a=3) x
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+explain
+with recursive
+t1 as
+(
+select x.a from (select a from t2 where t2.a=3) x
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+drop table t1,t2;
+
+

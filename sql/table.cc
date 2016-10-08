@@ -23,7 +23,6 @@
 #include "key.h"                                // find_ref_key
 #include "sql_table.h"                          // build_table_filename,
                                                 // primary_key_name
-#include "sql_trigger.h"
 #include "sql_parse.h"                          // free_items
 #include "strfunc.h"                            // unhex_type2
 #include "sql_partition.h"       // mysql_unpack_partition,
@@ -31,6 +30,7 @@
 #include "sql_acl.h"             // *_ACL, acl_getroot_no_password
 #include "sql_base.h"
 #include "create_options.h"
+#include "sql_trigger.h"
 #include <m_ctype.h>
 #include "my_md5.h"
 #include "my_bit.h"
@@ -2403,7 +2403,7 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
 int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
                                         const char *sql, size_t sql_length)
 {
-  ulonglong saved_mode= thd->variables.sql_mode;
+  sql_mode_t saved_mode= thd->variables.sql_mode;
   CHARSET_INFO *old_cs= thd->variables.character_set_client;
   Parser_state parser_state;
   bool error;
@@ -3795,7 +3795,7 @@ bool get_field(MEM_ROOT *mem, Field *field, String *res)
   String str(buff,sizeof(buff),&my_charset_bin);
   bool rc;
   THD *thd= field->get_thd();
-  ulonglong sql_mode_backup= thd->variables.sql_mode;
+  sql_mode_t sql_mode_backup= thd->variables.sql_mode;
   thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
 
   field->val_str(&str);

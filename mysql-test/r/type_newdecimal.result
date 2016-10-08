@@ -838,12 +838,12 @@ select 9999999999999999999999999999999999999999999999999999999999999999999999999
 x
 99999999999999999999999999999999999999999999999999999999999999999
 Warnings:
-Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 select 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 + 1 as x;
 x
 100000000000000000000000000000000000000000000000000000000000000000
 Warnings:
-Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 select 0.190287977636363637 + 0.040372670 * 0 -  0;
 0.190287977636363637 + 0.040372670 * 0 -  0
 0.190287977636363637
@@ -919,19 +919,19 @@ select ln(14000) c1, convert(ln(14000),decimal(5,3)) c2, cast(ln(14000) as decim
 c1	c2	c3
 9.546812608597396	9.547	9.547
 select convert(ln(14000),decimal(2,3)) c1;
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '')
 select cast(ln(14000) as decimal(2,3)) c1;
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '')
 create table t1 (sl decimal(70,30));
-ERROR 42000: Too big precision 70 specified for 'sl'. Maximum is 65.
+ERROR 42000: Too big precision 70 specified for 'sl'. Maximum is 65
 create table t1 (sl decimal(32,39));
-ERROR 42000: Too big scale 39 specified for 'sl'. Maximum is 38.
+ERROR 42000: Too big scale 39 specified for 'sl'. Maximum is 38
 create table t1 (sl decimal(67,38));
-ERROR 42000: Too big precision 67 specified for 'sl'. Maximum is 65.
+ERROR 42000: Too big precision 67 specified for 'sl'. Maximum is 65
 create table t1 (sl decimal(0,50));
-ERROR 42000: Too big scale 50 specified for 'sl'. Maximum is 38.
+ERROR 42000: Too big scale 50 specified for 'sl'. Maximum is 38
 create table t1 (sl decimal(0,30));
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'sl').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'sl')
 create table t1 (sl decimal(5, 5));
 show create table t1;
 Table	Create Table
@@ -1013,7 +1013,7 @@ select cast(@non_existing_user_var/2 as DECIMAL);
 cast(@non_existing_user_var/2 as DECIMAL)
 NULL
 create table t (d decimal(0,10));
-ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'd').
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'd')
 CREATE TABLE t1 (
 my_float   FLOAT,
 my_double  DOUBLE,
@@ -1382,7 +1382,7 @@ create table t1 (c1 decimal(64));
 insert into t1 values(
 89000000000000000000000000000000000000000000000000000000000000000000000000000000000000000);
 Warnings:
-Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1264	Out of range value for column 'c1' at row 1
 insert into t1 values(
 99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 *
@@ -1429,7 +1429,7 @@ select cast(19999999999999999999 as unsigned);
 cast(19999999999999999999 as unsigned)
 18446744073709551615
 Warnings:
-Warning	1916	Got overflow when converting '19999999999999999999' to UNSIGNED INT. Value truncated.
+Warning	1916	Got overflow when converting '19999999999999999999' to UNSIGNED INT. Value truncated
 create table t1(a decimal(18));
 insert into t1 values(123456789012345678);
 alter table t1 modify column a decimal(19);
@@ -1482,12 +1482,12 @@ SELECT CAST(1 AS decimal(65,10));
 CAST(1 AS decimal(65,10))
 1.0000000000
 SELECT CAST(1 AS decimal(66,10));
-ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65.
+ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
 SELECT CAST(1 AS decimal(65,38));
 CAST(1 AS decimal(65,38))
 1.00000000000000000000000000000000000000
 SELECT CAST(1 AS decimal(65,39));
-ERROR 42000: Too big scale 39 specified for '1'. Maximum is 38.
+ERROR 42000: Too big scale 39 specified for '1'. Maximum is 38
 CREATE TABLE t1 (a int DEFAULT NULL, b int DEFAULT NULL);
 INSERT INTO t1 VALUES (3,30), (1,10), (2,10);
 SELECT a+CAST(1 AS decimal(65,30)) AS aa, SUM(b) FROM t1 GROUP BY aa;
@@ -1496,7 +1496,7 @@ aa	SUM(b)
 3.000000000000000000000000000000	10
 4.000000000000000000000000000000	30
 SELECT a+CAST(1 AS decimal(65,49)) AS aa, SUM(b) FROM t1 GROUP BY aa;
-ERROR 42000: Too big scale 49 specified for '1'. Maximum is 38.
+ERROR 42000: Too big scale 49 specified for '1'. Maximum is 38
 DROP TABLE t1;
 CREATE TABLE t1 (a int DEFAULT NULL, b int DEFAULT NULL);
 INSERT INTO t1 VALUES (3,30), (1,10), (2,10);
@@ -1554,8 +1554,8 @@ SELECT substring(('M') FROM (999999999999999999999999999999999999999999999999999
 foo
 
 Warnings:
-Warning	1916	Got overflow when converting '999999999999999999999999999999999999999999999999999999999999999999999999999999999' to INT. Value truncated.
-Warning	1916	Got overflow when converting '999999999999999999999999999999999999999999999999999999999999999999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '999999999999999999999999999999999999999999999999999999999999999999999999999999999' to INT. Value truncated
+Warning	1916	Got overflow when converting '999999999999999999999999999999999999999999999999999999999999999999999999999999999' to INT. Value truncated
 SELECT min(999999999999999999999999999999999999999999999999999999999999999999999999999999999) AS foo;
 foo
 999999999999999999999999999999999999999999999999999999999999999999999999999999999
@@ -1563,7 +1563,7 @@ SELECT multipolygonfromtext(('4294967294.1'),(9999999999999999999999999999999999
 foo
 NULL
 Warnings:
-Warning	1916	Got overflow when converting '999999999999999999999999999999999999999999999999999999999999999999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '999999999999999999999999999999999999999999999999999999999999999999999999999999999' to INT. Value truncated
 SELECT convert((999999999999999999999999999999999999999999999999999999999999999999999999999999999), decimal(30,30)) AS foo;
 foo
 0.999999999999999999999999999999
@@ -1573,7 +1573,7 @@ SELECT bit_xor(99999999999999999999999999999999999999999999999999999999999999999
 foo
 9223372036854775807
 Warnings:
-Warning	1916	Got overflow when converting '999999999999999999999999999999999999999999999999999999999999999999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '999999999999999999999999999999999999999999999999999999999999999999999999999999999' to INT. Value truncated
 SELECT -(999999999999999999999999999999999999999999999999999999999999999999999999999999999) AS foo;
 foo
 -999999999999999999999999999999999999999999999999999999999999999999999999999999999
@@ -1714,7 +1714,7 @@ CREATE TABLE t1 SELECT
 /* 82 */ 1000000000000000000000000000000000000000000000000000000000000000000000000000000001
 AS c1;
 Warnings:
-Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 DESC t1;
 Field	Type	Null	Key	Default	Extra
 c1	decimal(65,0)	NO		NULL	

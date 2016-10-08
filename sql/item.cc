@@ -1388,7 +1388,7 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
   THD *thd= table->in_use;
   enum_check_fields tmp= thd->count_cuted_fields;
   my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
-  ulonglong sql_mode= thd->variables.sql_mode;
+  sql_mode_t sql_mode= thd->variables.sql_mode;
   thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
   thd->variables.sql_mode|= MODE_INVALID_DATES;
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;
@@ -1870,13 +1870,17 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
         ((Item_sum *) this)->ref_by)
       return;
   }
-  else if (type() == WINDOW_FUNC_ITEM)
+  else if (type() == WINDOW_FUNC_ITEM || with_window_func)
   {
     /*
       Skip the else part, window functions are very special functions: 
       they need to have their own fields in the temp. table, but they
       need to be proceessed differently than regular aggregate functions
+
+      Call split_sum_func here so that each argument gets its fields to
+      point to the temporary table.
     */
+    split_sum_func(thd, ref_pointer_array, fields, split_flags);
   }
   else
   {
@@ -8690,7 +8694,7 @@ void Item_insert_value::print(String *str, enum_query_type query_type)
     this stage we can't say exactly what Field object (corresponding
     to TABLE::record[0] or TABLE::record[1]) should be bound to this
     Item, we only find out index of the Field and then select concrete
-    Field object in fix_fields() (by that time Table_trigger_list::old_field/
+    Field object in fix_fields() (by that time Table_triggers_list::old_field/
     new_field should point to proper array of Fields).
     It also binds Item_trigger_field to Table_triggers_list object for
     table of trigger which uses this item.

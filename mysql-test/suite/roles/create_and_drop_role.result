@@ -38,9 +38,9 @@ user	host	is_role
 disconnect mysql;
 connection default;
 create role '';
-ERROR OP000: Invalid role specification ``.
+ERROR OP000: Invalid role specification ``
 create role ' ';
-ERROR OP000: Invalid role specification ``.
+ERROR OP000: Invalid role specification ``
 create role 'foo  ';
 drop role foo;
 create role r1;

@@ -82,7 +82,7 @@ SET GLOBAL gtid_strict_mode= 0;
 CHANGE MASTER TO master_use_gtid=SLAVE_POS;
 SET GLOBAL gtid_slave_pos= 'OLD_GTID_POS';
 Warnings:
-Warning	1947	Specified GTID OLD_GTID_POS conflicts with the binary log which contains a more recent GTID 0-2-12. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos.
+Warning	1947	Specified GTID OLD_GTID_POS conflicts with the binary log which contains a more recent GTID 0-2-12. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
 a

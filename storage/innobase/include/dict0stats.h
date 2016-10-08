@@ -28,7 +28,6 @@ Created Jan 06, 2010 Vasil Dimov
 
 #include "univ.i"
 
-#include "db0err.h"
 #include "dict0types.h"
 #include "trx0types.h"
 
@@ -60,7 +59,6 @@ is relatively quick and is used to calculate transient statistics that
 are not saved on disk.
 This was the only way to calculate statistics before the
 Persistent Statistics feature was introduced. */
-UNIV_INTERN
 void
 dict_stats_update_transient(
 /*========================*/
@@ -133,7 +131,6 @@ dict_stats_deinit(
 Calculates new estimates for table and index statistics. The statistics
 are used in query optimization.
 @return DB_* error code or DB_SUCCESS */
-UNIV_INTERN
 dberr_t
 dict_stats_update(
 /*==============*/
@@ -148,7 +145,6 @@ Removes the information for a particular index's stats from the persistent
 storage if it exists and if there is data stored for this index.
 This function creates its own trx and commits it.
 @return DB_SUCCESS or error code */
-UNIV_INTERN
 dberr_t
 dict_stats_drop_index(
 /*==================*/
@@ -163,7 +159,6 @@ Removes the statistics for a table and all of its indexes from the
 persistent storage if it exists and if there is data stored for the table.
 This function creates its own transaction and commits it.
 @return DB_SUCCESS or error code */
-UNIV_INTERN
 dberr_t
 dict_stats_drop_table(
 /*==================*/
@@ -174,7 +169,6 @@ dict_stats_drop_table(
 
 /*********************************************************************//**
 Fetches or calculates new estimates for index statistics. */
-UNIV_INTERN
 void
 dict_stats_update_for_index(
 /*========================*/
@@ -185,7 +179,6 @@ dict_stats_update_for_index(
 Renames a table in InnoDB persistent stats storage.
 This function creates its own transaction and commits it.
 @return DB_SUCCESS or error code */
-UNIV_INTERN
 dberr_t
 dict_stats_rename_table(
 /*====================*/
@@ -194,7 +187,19 @@ dict_stats_rename_table(
 	char*		errstr,		/*!< out: error string if != DB_SUCCESS
 					is returned */
 	size_t		errstr_sz);	/*!< in: errstr size */
-
+/*********************************************************************//**
+Renames an index in InnoDB persistent stats storage.
+This function creates its own transaction and commits it.
+@return DB_SUCCESS or error code. DB_STATS_DO_NOT_EXIST will be returned
+if the persistent stats do not exist. */
+dberr_t
+dict_stats_rename_index(
+/*====================*/
+	const dict_table_t*	table,		/*!< in: table whose index
+						is renamed */
+	const char*		old_index_name,	/*!< in: old index name */
+	const char*		new_index_name)	/*!< in: new index name */
+	__attribute__((warn_unused_result));
 /*********************************************************************//**
 Save defragmentation result.
 @return DB_SUCCESS or error code */
@@ -228,8 +233,48 @@ dict_stats_empty_defrag_stats(
 	dict_index_t* index);	/*!< in: index to clear defragmentation stats */
 
 
+/*********************************************************************//**
+Renames an index in InnoDB persistent stats storage.
+This function creates its own transaction and commits it.
+@return DB_SUCCESS or error code. DB_STATS_DO_NOT_EXIST will be returned
+if the persistent stats do not exist. */
+dberr_t
+dict_stats_rename_index(
+/*====================*/
+	const dict_table_t*	table,		/*!< in: table whose index
+						is renamed */
+	const char*		old_index_name,	/*!< in: old index name */
+	const char*		new_index_name)	/*!< in: new index name */
+	MY_ATTRIBUTE((warn_unused_result));
+
+/** Save an individual index's statistic into the persistent statistics
+storage.
+@param[in]	index			index to be updated
+@param[in]	last_update		timestamp of the stat
+@param[in]	stat_name		name of the stat
+@param[in]	stat_value		value of the stat
+@param[in]	sample_size		n pages sampled or NULL
+@param[in]	stat_description	description of the stat
+@param[in,out]	trx			in case of NULL the function will
+allocate and free the trx object. If it is not NULL then it will be
+rolled back only in the case of error, but not freed.
+@return DB_SUCCESS or error code */
+dberr_t
+dict_stats_save_index_stat(
+	dict_index_t*	index,
+	lint		last_update,
+	const char*	stat_name,
+	ib_uint64_t	stat_value,
+	ib_uint64_t*	sample_size,
+	const char*	stat_description,
+	trx_t*		trx);
+
 #ifndef UNIV_NONINL
 #include "dict0stats.ic"
 #endif
+
+#ifdef UNIV_ENABLE_UNIT_TEST_DICT_STATS
+void test_dict_stats_all();
+#endif /* UNIV_ENABLE_UNIT_TEST_DICT_STATS */
 
 #endif /* dict0stats_h */

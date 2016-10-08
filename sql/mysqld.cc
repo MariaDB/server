@@ -2147,7 +2147,10 @@ static void mysqld_exit(int exit_code)
   shutdown_performance_schema();        // we do it as late as possible
 #endif
   set_malloc_size_cb(NULL);
-  DBUG_ASSERT(global_status_var.global_memory_used == 0);
+  if (!opt_debugging)
+  {
+    DBUG_ASSERT(global_status_var.global_memory_used == 0);
+  }
   cleanup_tls();
   DBUG_LEAVE;
   if (opt_endinfo && global_status_var.global_memory_used)
@@ -4425,7 +4428,7 @@ static int init_common_variables()
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
 
 
-#if defined(HAVE_POOL_OF_THREADS) && !defined(_WIN32)
+#if defined(HAVE_POOL_OF_THREADS)
   if (IS_SYSVAR_AUTOSIZE(&threadpool_size))
     SYSVAR_AUTOSIZE(threadpool_size, my_getncpus());
 #endif
@@ -6464,7 +6467,7 @@ static void create_new_thread(CONNECT *connect)
     mysql_mutex_unlock(&LOCK_connection_count);
     statistic_increment(denied_connections, &LOCK_status);
     statistic_increment(connection_errors_max_connection, &LOCK_status);
-    connect->close_with_error(0, NullS, ER_CON_COUNT_ERROR);
+    connect->close_with_error(0, NullS, abort_loop ? ER_SERVER_SHUTDOWN : ER_CON_COUNT_ERROR);
     DBUG_VOID_RETURN;
   }
 
@@ -8411,6 +8414,7 @@ SHOW_VAR status_vars[]= {
   {"Feature_subquery",         (char*) offsetof(STATUS_VAR, feature_subquery), SHOW_LONG_STATUS},
   {"Feature_timezone",         (char*) offsetof(STATUS_VAR, feature_timezone), SHOW_LONG_STATUS},
   {"Feature_trigger",          (char*) offsetof(STATUS_VAR, feature_trigger), SHOW_LONG_STATUS},
+  {"Feature_window_functions", (char*) offsetof(STATUS_VAR, feature_window_functions), SHOW_LONG_STATUS},
   {"Feature_xml",              (char*) offsetof(STATUS_VAR, feature_xml), SHOW_LONG_STATUS},
   {"Flush_commands",           (char*) &show_flush_commands, SHOW_SIMPLE_FUNC},
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},

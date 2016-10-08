@@ -90,7 +90,13 @@ static bool check_huge_pages_in_practice(void)
 
     const long pagesize = 4096;
     const long n_pages = TWO_MB/pagesize;
+#ifdef __linux__
+    // On linux mincore is defined as mincore(void *, size_t, unsigned char *)
     unsigned char vec[n_pages];
+#else
+    // On BSD (OS X included) it is defined as mincore(void *, size_t, char *)
+    char vec[n_pages];
+#endif
     {
         int r = mincore(second, TWO_MB, vec);
         if (r!=0 && errno==ENOMEM) {

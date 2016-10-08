@@ -9,7 +9,7 @@ insert into t1 values (1),(2);
 insert into t1 values (3),(4);
 insert into t1 select i+20+0*sleep(1) from t1 where i=1;
 Warnings:
-Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave.
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
 flush logs;
 insert into t1 values (5),(6);
 insert into t1 values (7),(8);

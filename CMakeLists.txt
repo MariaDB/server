@@ -31,6 +31,9 @@ IF(CMAKE_VERSION VERSION_EQUAL "3.0.0" OR
  CMAKE_POLICY(SET CMP0045 OLD)
  CMAKE_POLICY(SET CMP0042 OLD)
 ENDIF()
+IF(POLICY CMP0054)
+  CMAKE_POLICY(SET CMP0054 NEW)
+ENDIF()
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
@@ -112,6 +115,11 @@ FOREACH(_base
   ENDIF()
 ENDFOREACH()
 
+FOREACH(tool gtar tar git)
+ STRING(TOUPPER ${tool}  TOOL)
+ FIND_PROGRAM(${TOOL}_EXECUTABLE ${tool} DOC "path to the executable")
+ MARK_AS_ADVANCED(${TOOL}_EXECUTABLE)
+ENDFOREACH()
 
 # Following autotools tradition, add preprocessor definitions
 # specified in environment variable CPPFLAGS
@@ -363,7 +371,7 @@ ADD_SUBDIRECTORY(strings)
 ADD_SUBDIRECTORY(vio)
 ADD_SUBDIRECTORY(mysys)
 ADD_SUBDIRECTORY(mysys_ssl)
-ADD_SUBDIRECTORY(libmysql)
+INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 ADD_SUBDIRECTORY(client)
 ADD_SUBDIRECTORY(extra)
 ADD_SUBDIRECTORY(libservices)

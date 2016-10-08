@@ -73,8 +73,9 @@ DISCONNECT conn4;
 let $wait_condition= SELECT COUNT(*)= 1 FROM INFORMATION_SCHEMA.PROCESSLIST;
 --source include/wait_condition.inc
 
-SHOW STATUS LIKE 'Threads_cached';
---echo 3 Expected
+# Wait until thread cache becomes 3
+let $wait_condition= SELECT variable_value = 3 FROM INFORMATION_SCHEMA.global_status where variable_name="Threads_cached";
+--source include/wait_condition.inc
 
 #
 # Decreasing cache size to 1
@@ -97,8 +98,9 @@ DISCONNECT conn2;
 let $wait_condition= SELECT COUNT(*)= 1 FROM INFORMATION_SCHEMA.PROCESSLIST;
 --source include/wait_condition.inc
 
-SHOW STATUS LIKE 'Threads_cached';
---echo 1 Expected
+# Wait until thread cache becomes 1
+let $wait_condition= SELECT variable_value = 1 FROM INFORMATION_SCHEMA.global_status where variable_name="Threads_cached";
+--source include/wait_condition.inc
 
 #
 # Cleanup

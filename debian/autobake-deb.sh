@@ -37,20 +37,32 @@ LOGSTRING="MariaDB build"
 
 CODENAME="$(lsb_release -sc)"
 
-# add libcrack2 (>= 2.9.0) as a build dependency
-# but only where the distribution can possibly satisfy it and if not on Travis-CI
-if $TRAVIS || apt-cache madison cracklib2|grep 'cracklib2 *| *2\.[0-8]\.' >/dev/null 2>&1
+# Add libcrack2 (>= 2.9.0) as a build dependency if available in the distribution
+# This matches Debian Jessie, Stretch and Ubuntu Trusty, Wily, Xenial, Yakkety
+# Update check when version 2.10 or newer is available.
+if apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
 then
-  # Anything in MARIADB_OPTIONAL_DEBS is omitted from the resulting
-  # packages by snipped in rules file
-  MARIADB_OPTIONAL_DEBS="${MARIADB_OPTIONAL_DEBS} cracklib-password-check-10.2"
-  sed -i -e "/\\\${MAYBE_LIBCRACK}/d" debian/control
-  # Remove package entry from control file completely so that
-  # resulting Debian source package will actually be buildable
-  sed -i -e "/Package: mariadb-cracklib-password-check/,+6d" debian/control
-else
-  MAYBE_LIBCRACK='libcrack2-dev (>= 2.9.0),'
-  sed -i -e "s/\\\${MAYBE_LIBCRACK}/${MAYBE_LIBCRACK}/g" debian/control
+  sed 's/Standards-Version/,libcrack2-dev (>= 2.9.0)\nStandards-Version/' debian/control
+  cat <<EOT >> debian/control
+
+Package: mariadb-cracklib-password-check-10.2
+Architecture: any
+Depends: libcrack2 (>= 2.9.0),
+         mariadb-server-10.2,
+         \${misc:Depends},
+         \${shlibs:Depends}
+Description: CrackLib Password Validation Plugin for MariaDB
+ This password validation plugin uses cracklib to allow only
+ sufficiently secure (as defined by cracklib) user passwords in MariaDB.
+EOT
+fi
+
+# Add libpcre3-dev (>= 2:8.35-3.2~) as a build dependency if available in the distribution
+# This matches Debian Jessie, Stretch and Ubuntu Wily, Xenial, Yakkety
+# Update check when version 2:8.40 or newer is available.
+if apt-cache madison libpcre3-dev | grep 'libpcre3-dev *| *2:8\.3[2-9]' >/dev/null 2>&1
+then
+  sed 's/Standards-Version/,libpcre3-dev (>= 2:8.35-3.2~)\nStandards-Version/' debian/control
 fi
 
 # Adjust changelog, add new version.

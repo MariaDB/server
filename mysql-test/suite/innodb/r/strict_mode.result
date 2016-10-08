@@ -2,6 +2,7 @@
 # Bug #17852083 PRINT A WARNING WHEN DDL HAS AN ERROR IN
 # INNODB_STRICT_MODE = 1
 #
+call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
 set innodb_strict_mode = 0;
 create table t1 (id int auto_increment primary key,
 v varchar(32),
@@ -235,7 +236,7 @@ col227 text,
 col228 text
 ) ENGINE=InnoDB;
 Warnings:
-Warning	139	Row size too large (> 8126). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+Warning	139	Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 set innodb_strict_mode = 1;
 alter table t1 engine=InnoDB;
 ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs

@@ -42,15 +42,15 @@ on (mysql.general_log.command_type = join_test.command_type)
 drop table join_test;
 flush logs;
 lock tables mysql.general_log WRITE;
-ERROR HY000: You can't use locks with log tables.
+ERROR HY000: You can't use locks with log tables
 lock tables mysql.slow_log WRITE;
-ERROR HY000: You can't use locks with log tables.
+ERROR HY000: You can't use locks with log tables
 lock tables mysql.general_log READ;
-ERROR HY000: You can't use locks with log tables.
+ERROR HY000: You can't use locks with log tables
 lock tables mysql.slow_log READ;
-ERROR HY000: You can't use locks with log tables.
+ERROR HY000: You can't use locks with log tables
 lock tables mysql.slow_log READ LOCAL, mysql.general_log READ LOCAL;
-ERROR HY000: You can't use locks with log tables.
+ERROR HY000: You can't use locks with log tables
 show create table mysql.general_log;
 Table	Create Table
 general_log	CREATE TABLE `general_log` (
@@ -245,13 +245,13 @@ TIMESTAMP	USER_HOST	THREAD_ID	1	Query	set global slow_query_log='ON'
 TIMESTAMP	USER_HOST	THREAD_ID	1	Query	select * from mysql.general_log
 flush logs;
 lock tables mysql.general_log WRITE;
-ERROR HY000: You can't use locks with log tables.
+ERROR HY000: You can't use locks with log tables
 lock tables mysql.slow_log WRITE;
-ERROR HY000: You can't use locks with log tables.
+ERROR HY000: You can't use locks with log tables
 lock tables mysql.general_log READ;
-ERROR HY000: You can't use locks with log tables.
+ERROR HY000: You can't use locks with log tables
 lock tables mysql.slow_log READ;
-ERROR HY000: You can't use locks with log tables.
+ERROR HY000: You can't use locks with log tables
 set global general_log='OFF';
 set global slow_query_log='OFF';
 set @save_storage_engine= @@session.storage_engine;
@@ -301,7 +301,7 @@ flush tables with read lock;
 unlock tables;
 use mysql;
 lock tables general_log read local, help_category read local;
-ERROR HY000: You can't use locks with log tables.
+ERROR HY000: You can't use locks with log tables
 unlock tables;
 SET SESSION long_query_time = 1000;
 drop table if exists mysql.renamed_general_log;

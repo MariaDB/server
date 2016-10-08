@@ -995,6 +995,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, const char *txt,
   class Window_frame *window_frame;
   class Window_frame_bound *window_frame_bound;
   udf_func *udf;
+  st_trg_execution_order trg_execution_order;
 
   /* enums */
   enum Condition_information_item::Name cond_info_item_name;
@@ -1022,6 +1023,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, const char *txt,
   enum Window_frame_bound::Bound_precedence_type bound_precedence_type;
   enum Window_frame::Frame_units frame_units;
   enum Window_frame::Frame_exclusion frame_exclusion;
+  enum trigger_order_type trigger_action_order_type;
   DDL_options_st object_ddl_options;
 }
 
@@ -1245,11 +1247,13 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  FAULTS_SYM
 %token  FETCH_SYM                     /* SQL-2003-R */
 %token  FILE_SYM
+%token  FIRST_VALUE_SYM               /* SQL-2011 */
 %token  FIRST_SYM                     /* SQL-2003-N */
 %token  FIXED_SYM
 %token  FLOAT_NUM
 %token  FLOAT_SYM                     /* SQL-2003-R */
 %token  FLUSH_SYM
+%token  FOLLOWS_SYM                   /* MYSQL trigger*/
 %token  FOLLOWING_SYM
 %token  FORCE_SYM
 %token  FOREIGN                       /* SQL-2003-R */
@@ -1272,6 +1276,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  GRANTS
 %token  GROUP_SYM                     /* SQL-2003-R */
 %token  GROUP_CONCAT_SYM
+%token  LAG_SYM                       /* SQL-2011 */
+%token  LEAD_SYM                      /* SQL-2011 */
 %token  HANDLER_SYM
 %token  HARD_SYM
 %token  HASH_SYM
@@ -1430,6 +1436,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  NUM
 %token  NUMBER_SYM                    /* SQL-2003-N */
 %token  NUMERIC_SYM                   /* SQL-2003-R */
+%token  NTH_VALUE_SYM                 /* SQL-2011 */
 %token  NVARCHAR_SYM
 %token  OFFSET_SYM
 %token  OLD_PASSWORD_SYM
@@ -1472,6 +1479,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  POLYGON
 %token  PORT_SYM
 %token  POSITION_SYM                  /* SQL-2003-N */
+%token  PRECEDES_SYM                  /* MYSQL */
 %token  PRECEDING_SYM
 %token  PRECISION                     /* SQL-2003-R */
 %token  PREPARE_SYM                   /* SQL-2003-R */
@@ -2025,6 +2033,9 @@ END_OF_INPUT
 
 %type <NONE> signal_stmt resignal_stmt
 %type <diag_condition_item_name> signal_condition_information_item_name
+
+%type <trg_execution_order> trigger_follows_precedes_clause;
+%type <trigger_action_order_type> trigger_action_order;
 
 %type <diag_area> which_area;
 %type <diag_info> diagnostics_information;
@@ -4810,16 +4821,22 @@ create_like:
 
 opt_create_select:
           /* empty */ {}
-        | opt_duplicate opt_as create_select_query_expression_body
+        | opt_duplicate opt_as create_select_query_expression
         ;
 
-create_select_query_expression_body:
-          SELECT_SYM create_select_part2 opt_table_expression
+create_select_query_expression:
+          opt_with_clause SELECT_SYM create_select_part2 opt_table_expression
           create_select_part4
-          { Select->set_braces(0);}
+          { 
+            Select->set_braces(0);
+            Select->set_with_clause($1);
+          }
           union_clause
-        | SELECT_SYM create_select_part2 create_select_part3_union_not_ready
-          create_select_part4
+        | opt_with_clause SELECT_SYM create_select_part2 
+          create_select_part3_union_not_ready create_select_part4
+          {
+            Select->set_with_clause($1);
+          }
         | '(' create_select_query_specification ')'
         | '(' create_select_query_specification ')'
           { Select->set_braces(1);} union_list {}
@@ -5519,7 +5536,11 @@ opt_part_option:
 */
 
 create_select_query_specification:
-          SELECT_SYM create_select_part2 create_select_part3 create_select_part4
+          opt_with_clause SELECT_SYM create_select_part2 create_select_part3
+          create_select_part4
+          {
+            Select->set_with_clause($1);
+          }
         ;
 
 create_select_part2:
@@ -9888,8 +9909,23 @@ function_call_conflict:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | LAST_VALUE '(' expr_list ')'
+          /* LAST_VALUE here conflicts with the definition for window functions.
+             We have these 2 separate rules to remove the shift/reduce conflict.
+          */
+        | LAST_VALUE '(' expr ')'
           {
+            List<Item> *list= new (thd->mem_root) List<Item>;
+            if (list == NULL)
+              MYSQL_YYABORT;
+            list->push_back($3, thd->mem_root);
+
+            $$= new (thd->mem_root) Item_func_last_value(thd, *list);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | LAST_VALUE '(' expr_list ',' expr ')'
+          {
+            $3->push_back($5, thd->mem_root);
             $$= new (thd->mem_root) Item_func_last_value(thd, *$3);
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -10475,6 +10511,63 @@ simple_window_func:
           NTILE_SYM '(' expr ')'
           {
             $$= new (thd->mem_root) Item_sum_ntile(thd, $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          FIRST_VALUE_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_first_value(thd, $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          LAST_VALUE '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_last_value(thd, $3);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          NTH_VALUE_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_nth_value(thd, $3, $5);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          LEAD_SYM '(' expr ')'
+          {
+            /* No second argument defaults to 1. */
+            Item* item_offset= new (thd->mem_root) Item_uint(thd, 1);
+            if (item_offset == NULL)
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_sum_lead(thd, $3, item_offset);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          LEAD_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_lead(thd, $3, $5);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          LAG_SYM '(' expr ')'
+          {
+            /* No second argument defaults to 1. */
+            Item* item_offset= new (thd->mem_root) Item_uint(thd, 1);
+            if (item_offset == NULL)
+              MYSQL_YYABORT;
+            $$= new (thd->mem_root) Item_sum_lag(thd, $3, item_offset);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        |
+          LAG_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_sum_lag(thd, $3, $5);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -12308,7 +12401,7 @@ fields:
 insert_values:
           VALUES values_list {}
         | VALUE_SYM values_list {}
-        | create_select_query_expression_body {}
+        | create_select_query_expression {}
         ;
 
 values_list:
@@ -14451,6 +14544,7 @@ keyword:
         | EXAMINED_SYM          {}
         | EXECUTE_SYM           {}
         | FLUSH_SYM             {}
+        | FOLLOWS_SYM           {}
         | FORMAT_SYM            {}
         | GET_SYM               {}
         | HANDLER_SYM           {}
@@ -14465,6 +14559,7 @@ keyword:
         | OWNER_SYM             {}
         | PARSER_SYM            {}
         | PORT_SYM              {}
+        | PRECEDES_SYM          {}
         | PREPARE_SYM           {}
         | REMOVE_SYM            {}
         | REPAIR                {}
@@ -16422,10 +16517,12 @@ view_select:
           {
             LEX *lex= Lex;
             uint len= YYLIP->get_cpp_ptr() - lex->create_view_select.str;
+            uint not_used;
             void *create_view_select= thd->memdup(lex->create_view_select.str, len);
             lex->create_view_select.length= len;
             lex->create_view_select.str= (char *) create_view_select;
-            trim_whitespace(thd->charset(), &lex->create_view_select);
+            trim_whitespace(thd->charset(), &lex->create_view_select,
+                            &not_used);
             lex->parsing_options.allows_variable= TRUE;
             lex->current_select->set_with_clause($2);
           }
@@ -16459,6 +16556,28 @@ view_check_option:
 
 **************************************************************************/
 
+trigger_action_order:
+            FOLLOWS_SYM
+            { $$= TRG_ORDER_FOLLOWS; }
+          | PRECEDES_SYM
+            { $$= TRG_ORDER_PRECEDES; }
+          ;
+
+trigger_follows_precedes_clause:
+            /* empty */
+            {
+              $$.ordering_clause= TRG_ORDER_NONE;
+              $$.anchor_trigger_name.str= NULL;
+              $$.anchor_trigger_name.length= 0;
+            }
+          |
+            trigger_action_order ident_or_text
+            {
+              $$.ordering_clause= $1;
+              $$.anchor_trigger_name= $2;
+            }
+          ;
+
 trigger_tail:
           TRIGGER_SYM
           remember_name
@@ -16483,7 +16602,11 @@ trigger_tail:
           }
           EACH_SYM
           ROW_SYM
-          { /* $17 */
+          {
+            Lex->trg_chistics.ordering_clause_begin= YYLIP->get_cpp_ptr();
+          }
+          trigger_follows_precedes_clause /* $18 */
+          { /* $19 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
@@ -16494,14 +16617,16 @@ trigger_tail:
             lex->ident.str= $9;
             lex->ident.length= $13 - $9;
             lex->spname= $5;
+            (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($18);
+            lex->trg_chistics.ordering_clause_end= lip->get_cpp_ptr();
 
             if (!make_sp_head(thd, $5, TYPE_ENUM_TRIGGER))
               MYSQL_YYABORT;
 
-            lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
+            lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
-          sp_proc_stmt /* $18 */
-          { /* $19 */
+          sp_proc_stmt /* $20 */
+          { /* $21 */
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
 

@@ -1,0 +1,23 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+--echo #
+--echo # WL#3253: multiple triggers per table
+--echo #
+
+--echo # Testing that the FOLLOWS and PRECEDES clauses get logged
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TRIGGER tr1_bi BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 (a) VALUES (NEW.a + 100);
+CREATE TRIGGER tr4_bi BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 (a) VALUES (NEW.a + 300);
+CREATE TRIGGER tr2_bi BEFORE INSERT ON t1 FOR EACH ROW FOLLOWS tr1_bi INSERT INTO t2 (a) VALUES (NEW.a + 200);
+CREATE TRIGGER tr3_bi BEFORE INSERT ON t1 FOR EACH ROW precedes tr4_bi INSERT INTO t2 (a) VALUES (NEW.a + 400);
+DROP TABLE t1;
+
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

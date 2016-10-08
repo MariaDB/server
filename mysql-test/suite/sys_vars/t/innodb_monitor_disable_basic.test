@@ -2,11 +2,6 @@
 # Test the metrics monitor system's control system
 # and counter accuracy.
 
-if (`select plugin_auth_version <= "5.6.10" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in InnoDB 5.6.10 or earlier
-}
-
 --source include/have_innodb.inc
 set global innodb_monitor_disable = All;
 # Test turn on/off the monitor counter  with "all" option

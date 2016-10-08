@@ -40,7 +40,6 @@ s/\(\(int\|void\) yy[gs]et_\)/MY_ATTRIBUTE((unused)) static \1/;
 s/\(void \*\?yy\(\(re\)\?alloc\|free\)\)/static \1/;
 s/\(extern \)\?\(int yy\(leng\|lineno\|_flex_debug\)\)/static \2/;
 s/\(int yylex_destroy\)/MY_ATTRIBUTE((unused)) static \1/;
-s/\(extern \)\?\(int yylex \)/UNIV_INTERN \2/;
 s/^\(\(FILE\|char\) *\* *yyget\)/MY_ATTRIBUTE((unused)) static \1/;
 s/^\(extern \)\?\(\(FILE\|char\) *\* *yy\)/static \2/;
 ' < $TMPFILE >> $OUTFILE

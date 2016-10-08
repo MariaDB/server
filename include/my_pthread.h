@@ -266,7 +266,7 @@ struct tm *gmtime_r(const time_t *clock, struct tm *res);
 #undef	pthread_detach_this_thread
 #define pthread_detach_this_thread() { pthread_t tmp=pthread_self() ; pthread_detach(&tmp); }
 #else /* HAVE_PTHREAD_ATTR_CREATE && !HAVE_SIGWAIT */
-#define HAVE_PTHREAD_KILL
+#define HAVE_PTHREAD_KILL 1
 #endif
 
 #endif /* defined(__WIN__) */

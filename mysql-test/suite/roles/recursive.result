@@ -22,7 +22,7 @@ grant role7 to role9;
 grant role9 to role10;
 grant role10 to foo@localhost;
 grant role10 to role2;
-ERROR HY000: Cannot grant role 'role10' to: 'role2'.
+ERROR HY000: Cannot grant role 'role10' to: 'role2'
 connect  foo, localhost, foo;
 show grants;
 Grants for foo@localhost

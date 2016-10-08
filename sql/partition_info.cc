@@ -330,11 +330,7 @@ bool partition_info::can_prune_insert(THD* thd,
     partitioning column, since they may change the row to be in another
     partition.
   */
-  if (table->triggers &&
-      table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE) &&
-      table->triggers->is_fields_updated_in_trigger(&full_part_field_set,
-                                                    TRG_EVENT_INSERT,
-                                                    TRG_ACTION_BEFORE))
+  if (is_fields_updated_in_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE))
     DBUG_RETURN(false);
 
   if (table->found_next_number_field)
@@ -371,15 +367,8 @@ bool partition_info::can_prune_insert(THD* thd,
       partitioning column, since they may change the row to be in another
       partition.
     */
-    if (table->triggers &&
-        table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                      TRG_ACTION_BEFORE) &&
-        table->triggers->is_fields_updated_in_trigger(&full_part_field_set,
-                                                      TRG_EVENT_UPDATE,
-                                                      TRG_ACTION_BEFORE))
-    {
+    if (is_fields_updated_in_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE))
       DBUG_RETURN(false);
-    }
   }
 
   /*

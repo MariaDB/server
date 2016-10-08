@@ -1,3 +1,4 @@
+call mtr.add_suppression("InnoDB: Error: trying to do an operation on a dropped tablespace.*");
 SET default_storage_engine = InnoDB;
 CREATE TABLE t1 (pk INT PRIMARY KEY, c VARCHAR(256));
 CREATE TABLE t2 AS SELECT * FROM t1;

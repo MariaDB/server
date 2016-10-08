@@ -2013,7 +2013,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 }
 
 
-void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str)
+void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str, uint *prefix_length)
 {
   /*
     TODO:
@@ -2021,8 +2021,10 @@ void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str)
     that can be considered white-space.
   */
 
+  *prefix_length= 0;
   while ((str->length > 0) && (my_isspace(cs, str->str[0])))
   {
+    (*prefix_length)++;
     str->length --;
     str->str ++;
   }

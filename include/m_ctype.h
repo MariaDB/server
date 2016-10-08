@@ -634,6 +634,7 @@ extern struct charset_info_st my_charset_ucs2_nopad_bin;
 extern struct charset_info_st my_charset_ucs2_general_nopad_ci;
 extern struct charset_info_st my_charset_ucs2_general_mysql500_ci;
 extern struct charset_info_st my_charset_ucs2_unicode_ci;
+extern struct charset_info_st my_charset_ucs2_unicode_nopad_ci;
 extern struct charset_info_st my_charset_ucs2_general_mysql500_ci;
 extern struct charset_info_st my_charset_ujis_bin;
 extern struct charset_info_st my_charset_ujis_japanese_ci;
@@ -642,6 +643,7 @@ extern struct charset_info_st my_charset_ujis_japanese_nopad_ci;
 extern struct charset_info_st my_charset_utf16_bin;
 extern struct charset_info_st my_charset_utf16_general_ci;
 extern struct charset_info_st my_charset_utf16_unicode_ci;
+extern struct charset_info_st my_charset_utf16_unicode_nopad_ci;
 extern struct charset_info_st my_charset_utf16le_bin;
 extern struct charset_info_st my_charset_utf16le_general_ci;
 extern struct charset_info_st my_charset_utf16_general_nopad_ci;
@@ -651,6 +653,7 @@ extern struct charset_info_st my_charset_utf16le_general_nopad_ci;
 extern struct charset_info_st my_charset_utf32_bin;
 extern struct charset_info_st my_charset_utf32_general_ci;
 extern struct charset_info_st my_charset_utf32_unicode_ci;
+extern struct charset_info_st my_charset_utf32_unicode_nopad_ci;
 extern struct charset_info_st my_charset_utf32_nopad_bin;
 extern struct charset_info_st my_charset_utf32_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8_bin;
@@ -658,11 +661,13 @@ extern struct charset_info_st my_charset_utf8_nopad_bin;
 extern struct charset_info_st my_charset_utf8_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8_general_mysql500_ci;
 extern struct charset_info_st my_charset_utf8_unicode_ci;
+extern struct charset_info_st my_charset_utf8_unicode_nopad_ci;
 extern struct charset_info_st my_charset_utf8mb4_bin;
 extern struct charset_info_st my_charset_utf8mb4_general_ci;
 extern struct charset_info_st my_charset_utf8mb4_nopad_bin;
 extern struct charset_info_st my_charset_utf8mb4_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8mb4_unicode_ci;
+extern struct charset_info_st my_charset_utf8mb4_unicode_nopad_ci;
 
 #define MY_UTF8MB3                 "utf8"
 #define MY_UTF8MB4                 "utf8mb4"

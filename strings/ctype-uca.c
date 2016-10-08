@@ -32088,6 +32088,78 @@ end:
 }
 
 
+static void my_hash_sort_uca_nopad(CHARSET_INFO *cs,
+                                   my_uca_scanner_handler *scanner_handler,
+                                   const uchar *s, size_t slen,
+                                   ulong *nr1, ulong *nr2)
+{
+  int   s_res;
+  my_uca_scanner scanner;
+  register ulong m1= *nr1, m2= *nr2;
+
+  scanner_handler->init(&scanner, cs, &cs->uca->level[0], s, slen);
+
+  while ((s_res= scanner_handler->next(&scanner)) >0)
+  {
+    /* See comment above why we can't use MY_HASH_ADD_16() */
+    MY_HASH_ADD(m1, m2, s_res >> 8);
+    MY_HASH_ADD(m1, m2, s_res & 0xFF);
+  }
+  *nr1= m1;
+  *nr2= m2;
+}
+
+
+static uchar *
+my_strnxfrm_uca_onelevel_internal(CHARSET_INFO *cs,
+                                  my_uca_scanner_handler *scanner_handler,
+                                  MY_UCA_WEIGHT_LEVEL *level,
+                                  uchar *dst, uchar *de, uint *nweights,
+                                  const uchar *src, size_t srclen)
+{
+  my_uca_scanner scanner;
+  int s_res;
+
+  DBUG_ASSERT(src || !srclen);
+
+  scanner_handler->init(&scanner, cs, level, src, srclen);
+  for (; dst < de && *nweights &&
+         (s_res= scanner_handler->next(&scanner)) > 0 ; (*nweights)--)
+  {
+    *dst++= s_res >> 8;
+    if (dst < de)
+      *dst++= s_res & 0xFF;
+  }
+  return dst;
+}
+
+
+static uchar *
+my_strnxfrm_uca_padn(uchar *dst, uchar *de, uint nweights, int weight)
+{
+  uint count= MY_MIN((uint) (de - dst) / 2, nweights);
+  for (; count ; count--)
+  {
+    *dst++= weight >> 8;
+    *dst++= weight & 0xFF;
+  }
+  return dst;
+}
+
+
+static uchar *
+my_strnxfrm_uca_pad(uchar *dst, uchar *de, int weight)
+{
+  for ( ; dst < de; )
+  {
+    *dst++= weight >> 8;
+    if (dst < de)
+      *dst++= weight & 0xFF;
+  }
+  return dst;
+}
+
+
 static uchar *
 my_strnxfrm_uca_onelevel(CHARSET_INFO *cs,
                          my_uca_scanner_handler *scanner_handler,
@@ -32095,29 +32167,40 @@ my_strnxfrm_uca_onelevel(CHARSET_INFO *cs,
                          uchar *dst, uchar *de, uint nweights,
                          const uchar *src, size_t srclen, uint flags)
 {
-  my_uca_scanner scanner;
   uchar *d0= dst;
-  int s_res;
 
-  scanner_handler->init(&scanner, cs, level, src, srclen);
-  for (; dst < de && nweights &&
-         (s_res= scanner_handler->next(&scanner)) > 0 ; nweights--)
-  {
-    *dst++= s_res >> 8;
-    if (dst < de)
-      *dst++= s_res & 0xFF;
-  }
-
+  dst= my_strnxfrm_uca_onelevel_internal(cs, scanner_handler, level,
+                                         dst, de, &nweights,
+                                         src, srclen);
+  DBUG_ASSERT(dst <= de);
   if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-  {
-    uint space_count= MY_MIN((uint) (de - dst) / 2, nweights);
-    s_res= my_space_weight(level);
-    for (; space_count ; space_count--)
-    {
-      *dst++= s_res >> 8;
-      *dst++= s_res & 0xFF;
-    }
-  }
+    dst= my_strnxfrm_uca_padn(dst, de, nweights, my_space_weight(level));
+  DBUG_ASSERT(dst <= de);
+  my_strxfrm_desc_and_reverse(d0, dst, flags, 0);
+  return dst;
+}
+
+
+static uchar *
+my_strnxfrm_uca_nopad_onelevel(CHARSET_INFO *cs,
+                              my_uca_scanner_handler *scanner_handler,
+                              MY_UCA_WEIGHT_LEVEL *level,
+                              uchar *dst, uchar *de, uint nweights,
+                              const uchar *src, size_t srclen, uint flags)
+{
+  uchar *d0= dst;
+
+  dst= my_strnxfrm_uca_onelevel_internal(cs, scanner_handler, level,
+                                         dst, de, &nweights,
+                                         src, srclen);
+  DBUG_ASSERT(dst <= de);
+  /*
+    Pad with the minimum possible primary weight 0x0200.
+  */
+  DBUG_ASSERT(level->levelno == 0); /* No multi-level NOPAD collations yet */
+  if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
+    dst= my_strnxfrm_uca_padn(dst, de, nweights, 0x0200);
+  DBUG_ASSERT(dst <= de);
   my_strxfrm_desc_and_reverse(d0, dst, flags, 0);
   return dst;
 }
@@ -32171,14 +32254,26 @@ my_strnxfrm_uca(CHARSET_INFO *cs,
     like my_strnxfrm_uca_multilevel() does.
   */
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
+    dst= my_strnxfrm_uca_pad(dst, de, my_space_weight(&cs->uca->level[0]));
+  return dst - d0;
+}
+
+
+static size_t
+my_strnxfrm_uca_nopad(CHARSET_INFO *cs,
+                      my_uca_scanner_handler *scanner_handler,
+                      uchar *dst, size_t dstlen, uint nweights,
+                      const uchar *src, size_t srclen, uint flags)
+{
+  uchar *d0= dst;
+  uchar *de= dst + dstlen;
+
+  dst= my_strnxfrm_uca_nopad_onelevel(cs, scanner_handler, &cs->uca->level[0],
+                                      dst, de, nweights, src, srclen, flags);
+  if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && dst < de)
   {
-    int s_res= my_space_weight(&cs->uca->level[0]);
-    for ( ; dst < de; )
-    {
-      *dst++= s_res >> 8;
-      if (dst < de)
-        *dst++= s_res & 0xFF;
-    }
+    memset(dst, 0, de - dst);
+    dst= de;
   }
   return dst - d0;
 }
@@ -34286,6 +34381,16 @@ static int my_strnncollsp_any_uca(CHARSET_INFO *cs,
   return my_strnncollsp_uca(cs, &my_any_uca_scanner_handler, s, slen, t, tlen);
 }   
 
+
+static int my_strnncollsp_generic_uca_nopad(CHARSET_INFO *cs,
+                                            const uchar *s, size_t slen,
+                                            const uchar *t, size_t tlen)
+{
+  return my_strnncoll_uca(cs, &my_any_uca_scanner_handler,
+                          s, slen, t, tlen, FALSE);
+}
+
+
 static int my_strnncollsp_any_uca_multilevel(CHARSET_INFO *cs,
                                       const uchar *s, size_t slen,
                                       const uchar *t, size_t tlen)
@@ -34301,12 +34406,29 @@ static void my_hash_sort_any_uca(CHARSET_INFO *cs,
   my_hash_sort_uca(cs, &my_any_uca_scanner_handler, s, slen, n1, n2);
 }
 
+static void my_hash_sort_generic_uca_nopad(CHARSET_INFO *cs,
+                                           const uchar *s, size_t slen,
+                                           ulong *n1, ulong *n2)
+{
+  my_hash_sort_uca_nopad(cs, &my_any_uca_scanner_handler, s, slen, n1, n2);
+}
+
 static size_t my_strnxfrm_any_uca(CHARSET_INFO *cs, 
                                   uchar *dst, size_t dstlen, uint nweights,
                                   const uchar *src, size_t srclen, uint flags)
 {
   return my_strnxfrm_uca(cs, &my_any_uca_scanner_handler,
                          dst, dstlen, nweights, src, srclen, flags);
+}
+
+static size_t my_strnxfrm_generic_uca_nopad(CHARSET_INFO *cs,
+                                            uchar *dst, size_t dstlen,
+                                            uint nweights,
+                                            const uchar *src, size_t srclen,
+                                            uint flags)
+{
+  return my_strnxfrm_uca_nopad(cs, &my_any_uca_scanner_handler,
+                               dst, dstlen, nweights, src, srclen, flags);
 }
 
 static size_t my_strnxfrm_any_uca_multilevel(CHARSET_INFO *cs, 
@@ -34329,6 +34451,40 @@ static size_t my_strnxfrmlen_any_uca_multilevel(CHARSET_INFO *cs, size_t len)
 {
   return my_strnxfrmlen_any_uca(cs, len) * cs->levels_for_order;
 }
+
+
+/* NO PAD handler for character sets with mbminlen==1 */
+MY_COLLATION_HANDLER my_collation_mb_uca_nopad_handler =
+{
+    my_coll_init_uca,
+    my_strnncoll_any_uca,
+    my_strnncollsp_generic_uca_nopad,
+    my_strnxfrm_generic_uca_nopad,
+    my_strnxfrmlen_any_uca,
+    my_like_range_mb,
+    my_wildcmp_uca,
+    NULL,
+    my_instr_mb,
+    my_hash_sort_generic_uca_nopad,
+    my_propagate_complex
+};
+
+
+/* NO PAD handler for character sets with mbminlen>=1 */
+MY_COLLATION_HANDLER my_collation_generic_uca_nopad_handler =
+{
+    my_coll_init_uca,
+    my_strnncoll_any_uca,
+    my_strnncollsp_generic_uca_nopad,
+    my_strnxfrm_generic_uca_nopad,
+    my_strnxfrmlen_any_uca,
+    my_like_range_generic,
+    my_wildcmp_uca,
+    NULL,
+    my_instr_mb,
+    my_hash_sort_generic_uca_nopad,
+    my_propagate_complex
+};
 
 
 MY_COLLATION_HANDLER my_collation_any_uca_handler_multilevel=
@@ -34397,7 +34553,9 @@ MY_COLLATION_HANDLER my_collation_ucs2_uca_handler =
   my_propagate_complex
 };
 
+
 #define MY_CS_UCS2_UCA_FLAGS (MY_CS_COMMON_UCA_FLAGS|MY_CS_NONASCII)
+#define MY_CS_UCS2_UCA_NOPAD_FLAGS (MY_CS_UCS2_UCA_FLAGS|MY_CS_NOPAD)
 
 struct charset_info_st my_charset_ucs2_unicode_ci=
 {
@@ -35275,6 +35433,72 @@ struct charset_info_st my_charset_ucs2_vietnamese_ci=
 };
 
 
+struct charset_info_st my_charset_ucs2_unicode_nopad_ci=
+{
+    MY_NOPAD_ID(128),0,0,      /* number           */
+    MY_CS_UCS2_UCA_NOPAD_FLAGS,/* state            */
+    "ucs2",                    /* cs name          */
+    "ucs2_unicode_nopad_ci",   /* name             */
+    "",                        /* comment          */
+    "",                        /* tailoring        */
+    NULL,                      /* ctype            */
+    NULL,                      /* to_lower         */
+    NULL,                      /* to_upper         */
+    NULL,                      /* sort_order       */
+    NULL,                      /* uca              */
+    NULL,                      /* tab_to_uni       */
+    NULL,                      /* tab_from_uni     */
+    &my_unicase_default,       /* caseinfo         */
+    NULL,                      /* state_map        */
+    NULL,                      /* ident_map        */
+    8,                         /* strxfrm_multiply */
+    1,                         /* caseup_multiply  */
+    1,                         /* casedn_multiply  */
+    2,                         /* mbminlen         */
+    2,                         /* mbmaxlen         */
+    9,                         /* min_sort_char    */
+    0xFFFF,                    /* max_sort_char    */
+    ' ',                       /* pad char         */
+    0,                         /* escape_with_backslash_is_dangerous */
+    1,                         /* levels_for_order */
+    &my_charset_ucs2_handler,
+    &my_collation_generic_uca_nopad_handler
+};
+
+
+struct charset_info_st my_charset_ucs2_unicode_520_nopad_ci=
+{
+    MY_NOPAD_ID(150),0,0,       /* number           */
+    MY_CS_UCS2_UCA_NOPAD_FLAGS, /* state            */
+    "ucs2",                     /* cs name          */
+    "ucs2_unicode_520_nopad_ci",/* name             */
+    "",                         /* comment          */
+    "",                         /* tailoring        */
+    NULL,                       /* ctype            */
+    NULL,                       /* to_lower         */
+    NULL,                       /* to_upper         */
+    NULL,                       /* sort_order       */
+    &my_uca_v520,               /* uca              */
+    NULL,                       /* tab_to_uni       */
+    NULL,                       /* tab_from_uni     */
+    &my_unicase_unicode520,     /* caseinfo         */
+    NULL,                       /* state_map        */
+    NULL,                       /* ident_map        */
+    8,                          /* strxfrm_multiply */
+    1,                          /* caseup_multiply  */
+    1,                          /* casedn_multiply  */
+    2,                          /* mbminlen         */
+    2,                          /* mbmaxlen         */
+    9,                          /* min_sort_char    */
+    0xFFFF,                     /* max_sort_char    */
+    ' ',                        /* pad char         */
+    0,                          /* escape_with_backslash_is_dangerous */
+    1,                          /* levels_for_order */
+    &my_charset_ucs2_handler,
+    &my_collation_generic_uca_nopad_handler
+};
+
+
 #endif
 
 
@@ -35293,6 +35517,7 @@ MY_COLLATION_HANDLER my_collation_any_uca_handler =
     my_hash_sort_any_uca,
     my_propagate_complex
 };
+
 
 /* 
   We consider bytes with code more than 127 as a letter.
@@ -35323,6 +35548,7 @@ static uchar ctype_utf8[] = {
 extern MY_CHARSET_HANDLER my_charset_utf8_handler;
 
 #define MY_CS_UTF8MB3_UCA_FLAGS  MY_CS_COMMON_UCA_FLAGS
+#define MY_CS_UTF8MB3_UCA_NOPAD_FLAGS  (MY_CS_UTF8MB3_UCA_FLAGS|MY_CS_NOPAD)
 
 struct charset_info_st my_charset_utf8_unicode_ci=
 {
@@ -36195,6 +36421,71 @@ struct charset_info_st my_charset_utf8_vietnamese_ci=
 };
 
 
+struct charset_info_st my_charset_utf8_unicode_nopad_ci=
+{
+    MY_NOPAD_ID(192),0,0,          /* number           */
+    MY_CS_UTF8MB3_UCA_NOPAD_FLAGS, /* flags            */
+    MY_UTF8MB3,                    /* cs name          */
+    MY_UTF8MB3 "_unicode_nopad_ci",/* name             */
+    "",                            /* comment          */
+    "",                            /* tailoring        */
+    ctype_utf8,                    /* ctype            */
+    NULL,                          /* to_lower         */
+    NULL,                          /* to_upper         */
+    NULL,                          /* sort_order       */
+    NULL,                          /* uca              */
+    NULL,                          /* tab_to_uni       */
+    NULL,                          /* tab_from_uni     */
+    &my_unicase_default,           /* caseinfo         */
+    NULL,                          /* state_map        */
+    NULL,                          /* ident_map        */
+    8,                             /* strxfrm_multiply */
+    1,                             /* caseup_multiply  */
+    1,                             /* casedn_multiply  */
+    1,                             /* mbminlen         */
+    3,                             /* mbmaxlen         */
+    9,                             /* min_sort_char    */
+    0xFFFF,                        /* max_sort_char    */
+    ' ',                           /* pad char         */
+    0,                             /* escape_with_backslash_is_dangerous */
+    1,                             /* levels_for_order */
+    &my_charset_utf8_handler,
+    &my_collation_mb_uca_nopad_handler
+};
+
+
+struct charset_info_st my_charset_utf8_unicode_520_nopad_ci=
+{
+    MY_NOPAD_ID(214),0,0,               /* number           */
+    MY_CS_UTF8MB3_UCA_NOPAD_FLAGS,      /* flags            */
+    MY_UTF8MB3,                         /* csname           */
+    MY_UTF8MB3 "_unicode_520_nopad_ci", /* name             */
+    "",                                 /* comment          */
+    "",                                 /* tailoring        */
+    ctype_utf8,                         /* ctype            */
+    NULL,                               /* to_lower         */
+    NULL,                               /* to_upper         */
+    NULL,                               /* sort_order       */
+    &my_uca_v520,                       /* uca              */
+    NULL,                               /* tab_to_uni       */
+    NULL,                               /* tab_from_uni     */
+    &my_unicase_unicode520,             /* caseinfo         */
+    NULL,                               /* state_map        */
+    NULL,                               /* ident_map        */
+    8,                                  /* strxfrm_multiply */
+    1,                                  /* caseup_multiply  */
+    1,                                  /* casedn_multiply  */
+    1,                                  /* mbminlen         */
+    3,                                  /* mbmaxlen         */
+    9,                                  /* min_sort_char    */
+    0xFFFF,                             /* max_sort_char    */
+    ' ',                                /* pad char         */
+    0,                                  /* escape_with_backslash_is_dangerous */
+    1,                                  /* levels_for_order */
+    &my_charset_utf8_handler,
+    &my_collation_mb_uca_nopad_handler
+};
+
 #endif /* HAVE_CHARSET_utf8 */
 
 
@@ -36203,6 +36494,7 @@ struct charset_info_st my_charset_utf8_vietnamese_ci=
 extern MY_CHARSET_HANDLER my_charset_utf8mb4_handler;
 
 #define MY_CS_UTF8MB4_UCA_FLAGS  (MY_CS_COMMON_UCA_FLAGS|MY_CS_UNICODE_SUPPLEMENT)
+#define MY_CS_UTF8MB4_UCA_NOPAD_FLAGS  (MY_CS_UTF8MB4_UCA_FLAGS|MY_CS_NOPAD)
 
 struct charset_info_st my_charset_utf8mb4_unicode_ci=
 {
@@ -37074,6 +37366,72 @@ struct charset_info_st my_charset_utf8mb4_vietnamese_ci=
 };
 
 
+struct charset_info_st my_charset_utf8mb4_unicode_nopad_ci=
+{
+    MY_NOPAD_ID(224),0,0,           /* number           */
+    MY_CS_UTF8MB4_UCA_NOPAD_FLAGS,  /* state            */
+    MY_UTF8MB4,                     /* csname           */
+    MY_UTF8MB4 "_unicode_nopad_ci", /* name             */
+    "",                             /* comment          */
+    "",                             /* tailoring        */
+    ctype_utf8,                     /* ctype            */
+    NULL,                           /* to_lower         */
+    NULL,                           /* to_upper         */
+    NULL,                           /* sort_order       */
+    NULL,                           /* uca              */
+    NULL,                           /* tab_to_uni       */
+    NULL,                           /* tab_from_uni     */
+    &my_unicase_default,            /* caseinfo         */
+    NULL,                           /* state_map        */
+    NULL,                           /* ident_map        */
+    8,                              /* strxfrm_multiply */
+    1,                              /* caseup_multiply  */
+    1,                              /* casedn_multiply  */
+    1,                              /* mbminlen         */
+    4,                              /* mbmaxlen         */
+    9,                              /* min_sort_char    */
+    0xFFFF,                         /* max_sort_char    */
+    ' ',                            /* pad char         */
+    0,                              /* escape_with_backslash_is_dangerous */
+    1,                              /* levels_for_order */
+    &my_charset_utf8mb4_handler,
+    &my_collation_mb_uca_nopad_handler
+};
+
+
+struct charset_info_st my_charset_utf8mb4_unicode_520_nopad_ci=
+{
+    MY_NOPAD_ID(246),0,0,           /* number           */
+    MY_CS_UTF8MB4_UCA_NOPAD_FLAGS,  /* flags            */
+    MY_UTF8MB4,                     /* csname           */
+    MY_UTF8MB4 "_unicode_520_nopad_ci", /* name         */
+    "",                             /* comment          */
+    "",                             /* tailoring        */
+    ctype_utf8,                     /* ctype            */
+    NULL,                           /* to_lower         */
+    NULL,                           /* to_upper         */
+    NULL,                           /* sort_order       */
+    &my_uca_v520,                   /* uca              */
+    NULL,                           /* tab_to_uni       */
+    NULL,                           /* tab_from_uni     */
+    &my_unicase_unicode520,         /* caseinfo         */
+    NULL,                           /* state_map        */
+    NULL,                           /* ident_map        */
+    8,                              /* strxfrm_multiply */
+    1,                              /* caseup_multiply  */
+    1,                              /* casedn_multiply  */
+    1,                              /* mbminlen         */
+    4,                              /* mbmaxlen         */
+    9,                              /* min_sort_char    */
+    0x10FFFF,                       /* max_sort_char    */
+    ' ',                            /* pad char         */
+    0,                              /* escape_with_backslash_is_dangerous */
+    1,                              /* levels_for_order */
+    &my_charset_utf8mb4_handler,
+    &my_collation_mb_uca_nopad_handler
+};
+
+
 #endif /* HAVE_CHARSET_utf8mb4 */
 
 
@@ -37094,9 +37452,11 @@ MY_COLLATION_HANDLER my_collation_utf32_uca_handler =
     my_propagate_complex
 };
 
+
 extern MY_CHARSET_HANDLER my_charset_utf32_handler;
 
 #define MY_CS_UTF32_UCA_FLAGS (MY_CS_COMMON_UCA_FLAGS|MY_CS_NONASCII)
+#define MY_CS_UTF32_UCA_NOPAD_FLAGS (MY_CS_UTF32_UCA_FLAGS|MY_CS_NOPAD)
 
 struct charset_info_st my_charset_utf32_unicode_ci=
 {
@@ -37969,6 +38329,73 @@ struct charset_info_st my_charset_utf32_vietnamese_ci=
 };
 
 
+struct charset_info_st my_charset_utf32_unicode_nopad_ci=
+{
+    MY_NOPAD_ID(160),0,0,        /* number           */
+    MY_CS_UTF32_UCA_NOPAD_FLAGS, /* state            */
+    "utf32",                     /* csname           */
+    "utf32_unicode_nopad_ci",    /* name             */
+    "",                          /* comment          */
+    "",                          /* tailoring        */
+    NULL,                        /* ctype            */
+    NULL,                        /* to_lower         */
+    NULL,                        /* to_upper         */
+    NULL,                        /* sort_order       */
+    NULL,                        /* uca              */
+    NULL,                        /* tab_to_uni       */
+    NULL,                        /* tab_from_uni     */
+    &my_unicase_default,         /* caseinfo         */
+    NULL,                        /* state_map        */
+    NULL,                        /* ident_map        */
+    8,                           /* strxfrm_multiply */
+    1,                           /* caseup_multiply  */
+    1,                           /* casedn_multiply  */
+    4,                           /* mbminlen         */
+    4,                           /* mbmaxlen         */
+    9,                           /* min_sort_char    */
+    0xFFFF,                      /* max_sort_char    */
+    ' ',                         /* pad char         */
+    0,                           /* escape_with_backslash_is_dangerous */
+    1,                           /* levels_for_order */
+    &my_charset_utf32_handler,
+    &my_collation_generic_uca_nopad_handler
+};
+
+
+struct charset_info_st my_charset_utf32_unicode_520_nopad_ci=
+{
+    MY_NOPAD_ID(182),0,0,        /* number           */
+    MY_CS_UTF32_UCA_NOPAD_FLAGS, /* state            */
+    "utf32",                     /* csname           */
+    "utf32_unicode_520_nopad_ci",/* name             */
+    "",                          /* comment          */
+    "",                          /* tailoring        */
+    NULL,                        /* ctype            */
+    NULL,                        /* to_lower         */
+    NULL,                        /* to_upper         */
+    NULL,                        /* sort_order       */
+    &my_uca_v520,                /* uca              */
+    NULL,                        /* tab_to_uni       */
+    NULL,                        /* tab_from_uni     */
+    &my_unicase_unicode520,      /* caseinfo         */
+    NULL,                        /* state_map        */
+    NULL,                        /* ident_map        */
+    8,                           /* strxfrm_multiply */
+    1,                           /* caseup_multiply  */
+    1,                           /* casedn_multiply  */
+    4,                           /* mbminlen         */
+    4,                           /* mbmaxlen         */
+    9,                           /* min_sort_char    */
+    0x10FFFF,                    /* max_sort_char    */
+    ' ',                         /* pad char         */
+    0,                           /* escape_with_backslash_is_dangerous */
+    1,                           /* levels_for_order */
+    &my_charset_utf32_handler,
+    &my_collation_generic_uca_nopad_handler
+};
+
+
+
 #endif /* HAVE_CHARSET_utf32 */
 
 
@@ -37990,9 +38417,11 @@ MY_COLLATION_HANDLER my_collation_utf16_uca_handler =
     my_propagate_complex
 };
 
+
 extern MY_CHARSET_HANDLER my_charset_utf16_handler;
 
 #define MY_CS_UTF16_UCA_FLAGS (MY_CS_COMMON_UCA_FLAGS|MY_CS_NONASCII)
+#define MY_CS_UTF16_UCA_NOPAD_FLAGS (MY_CS_UTF16_UCA_FLAGS|MY_CS_NOPAD)
 
 struct charset_info_st my_charset_utf16_unicode_ci=
 {
@@ -38864,6 +39293,72 @@ struct charset_info_st my_charset_utf16_vietnamese_ci=
     1,                 /* levels_for_order   */
     &my_charset_utf16_handler,
     &my_collation_utf16_uca_handler
+};
+
+
+struct charset_info_st my_charset_utf16_unicode_nopad_ci=
+{
+    MY_NOPAD_ID(101),0,0,        /* number           */
+    MY_CS_UTF16_UCA_NOPAD_FLAGS, /* state            */
+    "utf16",                     /* csname           */
+    "utf16_unicode_nopad_ci",    /* name             */
+    "",                          /* comment          */
+    "",                          /* tailoring        */
+    NULL,                        /* ctype            */
+    NULL,                        /* to_lower         */
+    NULL,                        /* to_upper         */
+    NULL,                        /* sort_order       */
+    NULL,                        /* uca              */
+    NULL,                        /* tab_to_uni       */
+    NULL,                        /* tab_from_uni     */
+    &my_unicase_default,         /* caseinfo         */
+    NULL,                        /* state_map        */
+    NULL,                        /* ident_map        */
+    8,                           /* strxfrm_multiply */
+    1,                           /* caseup_multiply  */
+    1,                           /* casedn_multiply  */
+    2,                           /* mbminlen         */
+    4,                           /* mbmaxlen         */
+    9,                           /* min_sort_char    */
+    0xFFFF,                      /* max_sort_char    */
+    ' ',                         /* pad char         */
+    0,                           /* escape_with_backslash_is_dangerous */
+    1,                           /* levels_for_order */
+    &my_charset_utf16_handler,
+    &my_collation_generic_uca_nopad_handler
+};
+
+
+struct charset_info_st my_charset_utf16_unicode_520_nopad_ci=
+{
+    MY_NOPAD_ID(123),0,0,        /* number           */
+    MY_CS_UTF16_UCA_NOPAD_FLAGS, /* state            */
+    "utf16",                     /* csname           */
+    "utf16_unicode_520_nopad_ci",/* name             */
+    "",                          /* comment          */
+    "",                          /* tailoring        */
+    NULL,                        /* ctype            */
+    NULL,                        /* to_lower         */
+    NULL,                        /* to_upper         */
+    NULL,                        /* sort_order       */
+    &my_uca_v520,                /* uca              */
+    NULL,                        /* tab_to_uni       */
+    NULL,                        /* tab_from_uni     */
+    &my_unicase_unicode520,      /* caseinfo         */
+    NULL,                        /* state_map        */
+    NULL,                        /* ident_map        */
+    8,                           /* strxfrm_multiply */
+    1,                           /* caseup_multiply  */
+    1,                           /* casedn_multiply  */
+    2,                           /* mbminlen         */
+    4,                           /* mbmaxlen         */
+    9,                           /* min_sort_char    */
+    0x10FFFF,                    /* max_sort_char    */
+    ' ',                         /* pad char         */
+    0,                           /* escape_with_backslash_is_dangerous */
+    1,                           /* levels_for_order */
+    &my_charset_utf16_handler,
+    &my_collation_generic_uca_nopad_handler
 };
 
 

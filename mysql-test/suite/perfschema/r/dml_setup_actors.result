@@ -24,13 +24,13 @@ server1	%	%
 localhost	Joe	%
 update performance_schema.setup_actors
 set user='ILLEGAL';
-ERROR HY000: Invalid performance_schema usage.
+ERROR HY000: Invalid performance_schema usage
 update performance_schema.setup_actors
 set host='ILLEGAL';
-ERROR HY000: Invalid performance_schema usage.
+ERROR HY000: Invalid performance_schema usage
 update performance_schema.setup_actors
 set role='ILLEGAL';
-ERROR HY000: Invalid performance_schema usage.
+ERROR HY000: Invalid performance_schema usage
 select * from performance_schema.setup_actors
 order by USER, HOST;
 HOST	USER	ROLE

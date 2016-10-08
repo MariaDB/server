@@ -35,7 +35,7 @@ SELECT 4;
 4
 connection default;
 KILL (SELECT COUNT(*) FROM mysql.user);
-ERROR 42000: KILL does not support subqueries or stored functions.
+ERROR 42000: KILL does not support subqueries or stored functions
 connection con1;
 connection con2;
 connection con1;

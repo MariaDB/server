@@ -914,7 +914,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   view_query.length(0);
   is_query.length(0);
   {
-    ulong sql_mode= thd->variables.sql_mode & MODE_ANSI_QUOTES;
+    sql_mode_t sql_mode= thd->variables.sql_mode & MODE_ANSI_QUOTES;
     thd->variables.sql_mode&= ~MODE_ANSI_QUOTES;
 
     lex->unit.print(&view_query, enum_query_type(QT_VIEW_INTERNAL |
@@ -1346,7 +1346,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     view_select= &lex->select_lex;
     view_select->select_number= ++thd->select_number;
 
-    ulonglong saved_mode= thd->variables.sql_mode;
+    sql_mode_t saved_mode= thd->variables.sql_mode;
     /* switch off modes which can prevent normal parsing of VIEW
       - MODE_REAL_AS_FLOAT            affect only CREATE TABLE parsing
       + MODE_PIPES_AS_CONCAT          affect expression parsing

@@ -10,13 +10,13 @@ PRIMARY KEY (pk)
 ) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (0,0,0);
 UPDATE t1 AS A, t1 AS B SET A.pk = 1, B.a = 2;
-ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'.
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
 SELECT * FROM t1;
 pk	a	b
 0	0	0
 CREATE VIEW v1 AS SELECT * FROM t1;
 UPDATE v1 AS A, t1 AS B SET A.pk = 1, B.a = 2;
-ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'.
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
 SELECT * FROM t1;
 pk	a	b
 0	0	0
@@ -51,17 +51,17 @@ primary key (pk_1,pk_2)
 INSERT INTO t2 VALUES (1,2,3,4);
 
 UPDATE t1 AS A NATURAL JOIN t1 B SET A.pk=5,B.pk=7;
-ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'.
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
 
 SELECT * FROM t1;
 col_int_key	pk	col_int
 1	2	3
 
 UPDATE t2 AS A NATURAL JOIN t2 B SET A.pk_1=5,B.pk_1=7;
-ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'.
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
 
 UPDATE t2 AS A NATURAL JOIN t2 B SET A.pk_2=10,B.pk_2=11;
-ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'.
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
 
 SELECT * FROM t2;
 col_int_key	pk_1	pk_2	col_int

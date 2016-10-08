@@ -72,7 +72,7 @@ INSERT INTO t1 VALUES (10);
 DELETE FROM t1 WHERE a=10;
 SET GLOBAL gtid_slave_pos='0-1-4';
 Warnings:
-Warning	1947	Specified GTID 0-1-4 conflicts with the binary log which contains a more recent GTID 0-2-6. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos.
+Warning	1947	Specified GTID 0-1-4 conflicts with the binary log which contains a more recent GTID 0-2-6. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 RESET MASTER;
 SET GLOBAL gtid_slave_pos='0-1-4';
 START SLAVE;
@@ -121,7 +121,7 @@ DROP TABLE t1;
 RESET SLAVE;
 SET GLOBAL gtid_slave_pos="";
 Warnings:
-Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-4. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos.
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-4. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 RESET MASTER;
 SET GLOBAL gtid_slave_pos="";
 include/start_slave.inc
@@ -223,7 +223,7 @@ Gtid_Slave_Pos
 include/stop_slave.inc
 SET GLOBAL gtid_slave_pos='0-1-2';
 Warnings:
-Warning	1947	Specified GTID 0-1-2 conflicts with the binary log which contains a more recent GTID 0-2-4. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos.
+Warning	1947	Specified GTID 0-1-2 conflicts with the binary log which contains a more recent GTID 0-2-4. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 RESET MASTER;
 SELECT '0-1-2' AS Gtid_Slave_Pos;
 Gtid_Slave_Pos

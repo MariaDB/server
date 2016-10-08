@@ -170,6 +170,8 @@
       <rules>
       </rules>
     </collation>
+    <collation name="utf8mb4_test_520_nopad_ci" id="329" version="5.2.0" flag="nopad">
+    </collation>
   </charset>
 
   <charset name="utf16">

@@ -20,8 +20,7 @@ MY_ADD_TESTS(my_vsnprintf LINK_LIBRARIES strings mysys)
 
 ADD_DEFINITIONS(${SSL_DEFINES})
 
-MY_ADD_TESTS(ma_dyncol
-	     LINK_LIBRARIES mysqlclient)
+MY_ADD_TESTS(ma_dyncol LINK_LIBRARIES  mysys)
 
 IF(WIN32)
   MY_ADD_TESTS(my_delete LINK_LIBRARIES mysys)

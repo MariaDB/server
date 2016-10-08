@@ -1,5 +1,8 @@
-call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded.");
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
 SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET GLOBAL innodb_file_per_table = ON;
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
 CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB;
@@ -50,6 +53,8 @@ t2.ibd
 t3.frm
 t3.ibd
 SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET GLOBAL innodb_file_per_table = ON;
 ALTER TABLE t1 DISCARD TABLESPACE;
 ALTER TABLE t2 DISCARD TABLESPACE;
@@ -61,6 +66,8 @@ t3.frm
 # Restarting server
 # Done restarting server
 SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET GLOBAL innodb_file_per_table = ON;
 # Tablespaces should be still encrypted
 # t1 yes on expecting NOT FOUND
@@ -147,3 +154,5 @@ NOT FOUND /temp/ in t2.ibd
 NOT FOUND /barfoo/ in t3.ibd
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1, t2, t3;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

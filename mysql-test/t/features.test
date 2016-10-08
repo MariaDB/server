@@ -98,6 +98,7 @@ set @a:=0;
 select @a;
 insert into t1 values (1),(2);
 select @a;
+--replace_column 6 #
 SHOW TRIGGERS IN test like 't1';
 drop trigger trg;
 drop table t1;

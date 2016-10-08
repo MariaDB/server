@@ -44,7 +44,7 @@ Returns the page compression flag of the space, or false if the space
 is not compressed. The tablespace must be cached in the memory cache.
 @return	true if page compressed, false if not or space not found */
 UNIV_INTERN
-ibool
+bool
 fil_space_is_page_compressed(
 /*=========================*/
 	ulint	id);	/*!< in: space id */
@@ -53,7 +53,7 @@ Returns the page compression flag of the space, or false if the space
 is not compressed. The tablespace must be cached in the memory cache.
 @return	true if page compressed, false if not or space not found */
 UNIV_INTERN
-ibool
+bool
 fil_space_get_page_compressed(
 /*=========================*/
 	fil_space_t*	space);	/*!< in: space id */
@@ -66,24 +66,6 @@ atomic_writes_t
 fil_space_get_atomic_writes(
 /*=========================*/
 	ulint	id);	/*!< in: space id */
-/*******************************************************************//**
-Find out wheather the page is index page or not
-@return	true if page type index page, false if not */
-UNIV_INTERN
-ibool
-fil_page_is_index_page(
-/*===================*/
-	byte	*buf);	/*!< in: page */
-
-/****************************************************************//**
-Get the name of the compression algorithm used for page
-compression.
-@return compression algorithm name or "UNKNOWN" if not known*/
-UNIV_INTERN
-const char*
-fil_get_compression_alg_name(
-/*=========================*/
-       ulint	comp_alg);	/*!<in: compression algorithm number */
 
 /****************************************************************//**
 For page compressed pages compress the page before actual write
@@ -139,32 +121,8 @@ Get block size from fil node
 UNIV_INTERN
 ulint
 fil_node_get_block_size(
+/*====================*/
 	fil_node_t*	node);	/*!< in: Node where to get block
 				size */
-/*******************************************************************//**
-Find out wheather the page is page compressed
-@return	true if page is page compressed*/
-UNIV_INTERN
-ibool
-fil_page_is_compressed(
-/*===================*/
-	byte*	buf);	/*!< in: page */
 
-/*******************************************************************//**
-Find out wheather the page is page compressed
-@return	true if page is page compressed*/
-UNIV_INTERN
-ibool
-fil_page_is_compressed_encrypted(
-/*=============================*/
-	byte*	buf);	/*!< in: page */
-
-/*******************************************************************//**
-Find out wheather the page is page compressed with lzo method
-@return	true if page is page compressed with lzo method*/
-UNIV_INTERN
-ibool
-fil_page_is_lzo_compressed(
-/*=======================*/
-	byte*	buf);	/*!< in: page */
 #endif

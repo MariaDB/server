@@ -8,7 +8,9 @@
 #
 # MDEV-8772: Assertion failure in file ha_innodb.cc line 20027 when importing page compressed and encrypted tablespace using incorrect keys
 #
-call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded");
+
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
 
 --disable_query_log
 let $innodb_file_format_orig = `SELECT @@innodb_file_format`;

@@ -997,9 +997,9 @@ select f5(1)|
 f5(1)
 1
 select f5(2)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 select f5(3)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 create function f6() returns int
 begin
 declare n int;
@@ -1048,11 +1048,11 @@ ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function
 create function f1() returns int
 return (select sum(data) from t1) + (select sum(data) from v1)|
 select f1()|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 select * from v1|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 select * from v2|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 drop function f1|
 create function f1() returns int
 return (select sum(data) from t1)|
@@ -4064,9 +4064,9 @@ select @@max_sp_recursion_depth|
 @@max_sp_recursion_depth
 4
 select bug10100f(3)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 select bug10100f(6)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 call bug10100t(5)|
 res
 120
@@ -4135,7 +4135,7 @@ select @@max_sp_recursion_depth|
 @@max_sp_recursion_depth
 0
 select bug10100f(5)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 call bug10100t(5)|
 ERROR HY000: Recursive limit 0 (as set by the max_sp_recursion_depth variable) was exceeded for routine bug10100p
 deallocate prepare stmt2|

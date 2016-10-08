@@ -1,8 +1,3 @@
-if (`select plugin_auth_version < "5.6.17" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in InnoDB before 5.6.17
-}
-
 --echo #
 --echo # Bug#69122 - INNODB DOESN'T REDO-LOG INSERT BUFFER MERGE
 --echo #             OPERATION IF IT IS DONE IN-PLACE
@@ -14,8 +9,13 @@ if (`select plugin_auth_version < "5.6.17" from information_schema.plugins where
 --source include/not_embedded.inc
 # DBUG_SUICIDE() hangs under valgrind
 --source include/not_valgrind.inc
-# No windows, need perl
---source include/not_windows.inc
+
+CREATE TABLE t1(
+	a INT AUTO_INCREMENT PRIMARY KEY,
+	b CHAR(1),
+	c INT,
+	INDEX(b))
+ENGINE=InnoDB STATS_PERSISTENT=0;
 
 # The flag innodb_change_buffering_debug is only available in debug builds.
 # It instructs InnoDB to try to evict pages from the buffer pool when
@@ -24,18 +24,10 @@ if (`select plugin_auth_version < "5.6.17" from information_schema.plugins where
 SET GLOBAL innodb_change_buffering_debug = 1;
 let SEARCH_FILE = $MYSQLTEST_VARDIR/tmp/my_restart.err;
 
-CREATE TABLE t1(
-	a INT AUTO_INCREMENT PRIMARY KEY,
-	b CHAR(1),
-	c INT,
-	INDEX(b))
-ENGINE=InnoDB;
-
 # Create enough rows for the table, so that the change buffer will be
 # used for modifying the secondary index page. There must be multiple
 # index pages, because changes to the root page are never buffered.
 INSERT INTO t1 VALUES(0,'x',1);
-INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
@@ -60,7 +52,7 @@ DELETE FROM t1 WHERE a=1;
 # This should be buffered, if innodb_change_buffering_debug = 1 is in effect.
 INSERT INTO t1 VALUES(1,'X',1);
 
-SET DEBUG_DBUG='+d,crash_after_log_ibuf_upd_inplace';
+SET DEBUG='+d,crash_after_log_ibuf_upd_inplace';
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 # This should force a change buffer merge

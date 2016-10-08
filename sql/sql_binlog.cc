@@ -60,7 +60,7 @@ void mysql_client_binlog_statement(THD* thd)
     my_error(ER_SYNTAX_ERROR, MYF(0));
     DBUG_VOID_RETURN;
   }
-  size_t decoded_len= base64_needed_decoded_length(coded_len);
+  size_t decoded_len= my_base64_needed_decoded_length(coded_len);
 
   /*
     option_bits will be changed when applying the event. But we don't expect
@@ -124,7 +124,7 @@ void mysql_client_binlog_statement(THD* thd)
        strptr < thd->lex->comment.str + thd->lex->comment.length ; )
   {
     char const *endptr= 0;
-    int bytes_decoded= base64_decode(strptr, coded_len, buf, &endptr,
+    int bytes_decoded= my_base64_decode(strptr, coded_len, buf, &endptr,
                                      MY_BASE64_DECODE_ALLOW_MULTIPLE_CHUNKS);
 
 #ifndef HAVE_valgrind

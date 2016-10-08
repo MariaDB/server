@@ -2648,7 +2648,7 @@ bool JOIN::make_aggr_tables_info()
     */
     DBUG_PRINT("info",("Sorting for order by/group by"));
     ORDER *order_arg= group_list ?  group_list : order;
-    if (join_tab &&
+    if (top_join_tab_count + aggr_tables > const_tables &&
         ordered_index_usage !=
         (group_list ? ordered_index_group_by : ordered_index_order_by) &&
         curr_tab->type != JT_CONST &&
@@ -2699,6 +2699,8 @@ bool JOIN::make_aggr_tables_info()
     if (curr_tab->window_funcs_step->setup(thd, &select_lex->window_funcs,
                                            curr_tab))
       DBUG_RETURN(true);
+    /* Count that we're using window functions. */
+    status_var_increment(thd->status_var.feature_window_functions);
   }
 
   fields= curr_fields_list;
@@ -26228,7 +26230,30 @@ AGGR_OP::end_send()
       rc= NESTED_LOOP_KILLED;
     }
     else
+    {
+      /*
+         In case we have window functions present, an extra step is required
+         to compute all the fields from the temporary table.
+         In case we have a compound expression such as: expr + expr,
+         where one of the terms has a window function inside it, only
+         after computing window function values we actually know the true
+         final result of the compounded expression.
+
+         Go through all the func items and save their values once again in the
+         corresponding temp table fields. Do this for each row in the table.
+      */
+      if (join_tab->window_funcs_step)
+      {
+        Item **func_ptr= join_tab->tmp_table_param->items_to_copy;
+        Item *func;
+        for (; (func = *func_ptr) ; func_ptr++)
+        {
+          if (func->with_window_func)
+            func->save_in_result_field(true);
+        }
+      }
       rc= evaluate_join_record(join, join_tab, 0);
+    }
   }
 
   // Finish rnd scn after sending records

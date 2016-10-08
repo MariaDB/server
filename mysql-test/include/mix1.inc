@@ -624,6 +624,11 @@ DROP TABLE t1,t2,t3;
 # Test bug when trying to drop data file which no InnoDB directory entry
 #
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Table .*bug29807.*");
+call mtr.add_suppression("InnoDB: Cannot open table test/bug29807 from");
+--enable_query_log
+
 create table t1 (a int) engine=innodb;
 let $MYSQLD_DATADIR= `select @@datadir`;
 copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/bug29807.frm;
@@ -631,10 +636,6 @@ copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/bug29807.frm;
 select * from bug29807;
 drop table t1;
 drop table bug29807;
---disable_query_log
-call mtr.add_suppression("InnoDB: Error: table .test...bug29807. does not exist in the InnoDB internal");
-call mtr.add_suppression("InnoDB: Cannot open table test/bug29807 from");
---enable_query_log
 
 
 #

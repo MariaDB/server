@@ -17,6 +17,12 @@
 # allow test to run only when innodb-page-size=16  
 --source include/have_innodb_16k.inc
 
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
+call mtr.add_suppression("InnoDB: Error: Tablespace flags .* corrupted unused .*");
+call mtr.add_suppression("InnoDB: Tablespace flags: .* corrupted  in file: .* ");
+call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
+flush tables;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
@@ -524,8 +530,8 @@ SET SESSION debug_dbug="+d,buf_page_is_corrupt_failure";
 
 --replace_regex /'.*t1.cfg'/'t1.cfg'/
 
-# Following alter is not failing 
-#--error ER_INTERNAL_ERROR
+# Following alter is failing 
+--error ER_INTERNAL_ERROR
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
 SET SESSION debug_dbug="-d,buf_page_is_corrupt_failure";

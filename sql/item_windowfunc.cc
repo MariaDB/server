@@ -219,3 +219,237 @@ void Item_sum_percent_rank::setup_window_func(THD *thd, Window_spec *window_spec
   peer_tracker->init();
   clear();
 }
+
+bool Item_sum_first_value::add()
+{
+  if (value_added)
+    return false;
+
+  /* TODO(cvicentiu) This is done like this due to how Item_sum_hybrid works.
+     For this usecase we can actually get rid of arg_cache. arg_cache is just
+     for running a comparison function. */
+  value_added= true;
+  Item_sum_hybrid_simple::add();
+  return false;
+}
+
+bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed == 0);
+
+  if (init_sum_func_check(thd))
+    return TRUE;
+
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Item *item= args[i];
+    // 'item' can be changed during fix_fields
+    if ((!item->fixed && item->fix_fields(thd, args)) ||
+        (item= args[i])->check_cols(1))
+      return TRUE;
+  }
+  Type_std_attributes::set(args[0]);
+  for (uint i= 0; i < arg_count && !with_subselect; i++)
+    with_subselect= with_subselect || args[i]->with_subselect;
+
+  Item *item2= args[0]->real_item();
+  if (item2->type() == Item::FIELD_ITEM)
+    set_handler_by_field_type(((Item_field*) item2)->field->type());
+  else if (args[0]->cmp_type() == TIME_RESULT)
+    set_handler_by_field_type(item2->field_type());
+  else
+    set_handler_by_result_type(item2->result_type(),
+                               max_length, collation.collation);
+
+  switch (Item_sum_hybrid_simple::result_type()) {
+  case INT_RESULT:
+  case DECIMAL_RESULT:
+  case STRING_RESULT:
+    break;
+  case REAL_RESULT:
+    max_length= float_length(decimals);
+    break;
+  case ROW_RESULT:
+  case TIME_RESULT:
+    DBUG_ASSERT(0); // XXX(cvicentiu) Should this never happen?
+    return TRUE;
+  };
+  setup_hybrid(thd, args[0]);
+  /* MIN/MAX can return NULL for empty set indepedent of the used column */
+  maybe_null= 1;
+  result_field=0;
+  null_value=1;
+  fix_length_and_dec();
+
+  if (check_sum_func(thd, ref))
+    return TRUE;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    orig_args[i]= args[i];
+  }
+  fixed= 1;
+  return FALSE;
+}
+
+bool Item_sum_hybrid_simple::add()
+{
+  value->store(args[0]);
+  value->cache_value();
+  null_value= value->null_value;
+  return false;
+}
+
+void Item_sum_hybrid_simple::setup_hybrid(THD *thd, Item *item)
+{
+  if (!(value= Item_cache::get_cache(thd, item, item->cmp_type())))
+    return;
+  value->setup(thd, item);
+  value->store(item);
+  if (!item->const_item())
+    value->set_used_tables(RAND_TABLE_BIT);
+  collation.set(item->collation);
+}
+
+double Item_sum_hybrid_simple::val_real()
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return 0.0;
+  double retval= value->val_real();
+  if ((null_value= value->null_value))
+    DBUG_ASSERT(retval == 0.0);
+  return retval;
+}
+
+longlong Item_sum_hybrid_simple::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return 0;
+  longlong retval= value->val_int();
+  if ((null_value= value->null_value))
+    DBUG_ASSERT(retval == 0);
+  return retval;
+}
+
+my_decimal *Item_sum_hybrid_simple::val_decimal(my_decimal *val)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return 0;
+  my_decimal *retval= value->val_decimal(val);
+  if ((null_value= value->null_value))
+    DBUG_ASSERT(retval == NULL);
+  return retval;
+}
+
+String *
+Item_sum_hybrid_simple::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return 0;
+  String *retval= value->val_str(str);
+  if ((null_value= value->null_value))
+    DBUG_ASSERT(retval == NULL);
+  return retval;
+}
+
+Field *Item_sum_hybrid_simple::create_tmp_field(bool group, TABLE *table)
+{
+  DBUG_ASSERT(0);
+  return NULL;
+}
+
+void Item_sum_hybrid_simple::reset_field()
+{
+  switch(Item_sum_hybrid_simple::result_type()) {
+  case STRING_RESULT:
+  {
+    char buff[MAX_FIELD_WIDTH];
+    String tmp(buff,sizeof(buff),result_field->charset()),*res;
+
+    res=args[0]->val_str(&tmp);
+    if (args[0]->null_value)
+    {
+      result_field->set_null();
+      result_field->reset();
+    }
+    else
+    {
+      result_field->set_notnull();
+      result_field->store(res->ptr(),res->length(),tmp.charset());
+    }
+    break;
+  }
+  case INT_RESULT:
+  {
+    longlong nr=args[0]->val_int();
+
+    if (maybe_null)
+    {
+      if (args[0]->null_value)
+      {
+	nr=0;
+	result_field->set_null();
+      }
+      else
+	result_field->set_notnull();
+    }
+    result_field->store(nr, unsigned_flag);
+    break;
+  }
+  case REAL_RESULT:
+  {
+    double nr= args[0]->val_real();
+
+    if (maybe_null)
+    {
+      if (args[0]->null_value)
+      {
+	nr=0.0;
+	result_field->set_null();
+      }
+      else
+	result_field->set_notnull();
+    }
+    result_field->store(nr);
+    break;
+  }
+  case DECIMAL_RESULT:
+  {
+    my_decimal value_buff, *arg_dec= args[0]->val_decimal(&value_buff);
+
+    if (maybe_null)
+    {
+      if (args[0]->null_value)
+        result_field->set_null();
+      else
+        result_field->set_notnull();
+    }
+    /*
+      We must store zero in the field as we will use the field value in
+      add()
+    */
+    if (!arg_dec)                               // Null
+      arg_dec= &decimal_zero;
+    result_field->store_decimal(arg_dec);
+    break;
+  }
+  case ROW_RESULT:
+  case TIME_RESULT:
+    DBUG_ASSERT(0);
+  }
+}
+
+void Item_sum_hybrid_simple::update_field()
+{
+  DBUG_ASSERT(0);
+}
+
+void Item_window_func::print(String *str, enum_query_type query_type)
+{
+  window_func()->print(str, query_type);
+  str->append(" over ");
+  window_spec->print(str, query_type);
+}

@@ -1953,7 +1953,7 @@ public:
   enum_duplicates dup;
   my_time_t start_time;
   ulong start_time_sec_part;
-  ulonglong sql_mode;
+  sql_mode_t sql_mode;
   bool auto_increment_field_not_null;
   bool query_start_used, ignore, log_query, query_start_sec_part_used;
   bool stmt_depends_on_first_successful_insert_id_in_prev_stmt;
@@ -2521,7 +2521,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     bitmaps_used++;
     copy->vcol_set= copy->def_vcol_set;
   }
-  if (share->default_fields)
+  if (share->default_fields || share->default_expressions)
   {
     if (!(copy->has_value_set= (MY_BITMAP*) alloc_root(client_thd->mem_root,
                                                        sizeof(MY_BITMAP))))

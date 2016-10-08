@@ -488,7 +488,7 @@ BEGIN
 INSERT INTO t1 SELECT * FROM t1 AS A;
 END |
 DELETE IGNORE FROM t1;
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 DROP TABLE t1;
 #
 # Bug #53450: Crash/assertion
