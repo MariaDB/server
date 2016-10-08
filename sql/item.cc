@@ -3412,6 +3412,32 @@ bool Item_param::set_longdata(const char *str, ulong length)
 }
 
 
+void Item_param::CONVERSION_INFO::set(THD *thd, CHARSET_INFO *fromcs)
+{
+  CHARSET_INFO *tocs= thd->variables.collation_connection;
+
+  character_set_of_placeholder= fromcs;
+  character_set_client= thd->variables.character_set_client;
+  /*
+    Setup source and destination character sets so that they
+    are different only if conversion is necessary: this will
+    make later checks easier.
+  */
+  uint32 dummy_offset;
+  final_character_set_of_str_value=
+    String::needs_conversion(0, fromcs, tocs, &dummy_offset) ?
+    tocs : fromcs;
+}
+
+
+bool Item_param::CONVERSION_INFO::convert(THD *thd, String *str)
+{
+  return thd->convert_string(str,
+                             character_set_of_placeholder,
+                             final_character_set_of_str_value);
+}
+
+
 /**
   Set parameter value from user variable value.
 
@@ -3451,20 +3477,7 @@ bool Item_param::set_from_user_var(THD *thd, const user_var_entry *entry)
       break;
     case STRING_RESULT:
     {
-      CHARSET_INFO *fromcs= entry->charset();
-      CHARSET_INFO *tocs= thd->variables.collation_connection;
-      uint32 dummy_offset;
-
-      value.cs_info.character_set_of_placeholder= fromcs;
-      value.cs_info.character_set_client= thd->variables.character_set_client;
-      /*
-        Setup source and destination character sets so that they
-        are different only if conversion is necessary: this will
-        make later checks easier.
-      */
-      value.cs_info.final_character_set_of_str_value=
-        String::needs_conversion(0, fromcs, tocs, &dummy_offset) ?
-        tocs : fromcs;
+      value.cs_info.set(thd, entry->charset());
       /*
         Exact value of max_length is not known unless data is converted to
         charset of connection, so we have to set it later.
@@ -3775,21 +3788,7 @@ bool Item_param::convert_str_value(THD *thd)
   bool rc= FALSE;
   if (state == STRING_VALUE || state == LONG_DATA_VALUE)
   {
-    /*
-      Check is so simple because all charsets were set up properly
-      in setup_one_conversion_function, where typecode of
-      placeholder was also taken into account: the variables are different
-      here only if conversion is really necessary.
-    */
-    if (value.cs_info.final_character_set_of_str_value !=
-        value.cs_info.character_set_of_placeholder)
-    {
-      rc= thd->convert_string(&str_value,
-                              value.cs_info.character_set_of_placeholder,
-                              value.cs_info.final_character_set_of_str_value);
-    }
-    else
-      str_value.set_charset(value.cs_info.final_character_set_of_str_value);
+    rc= value.cs_info.convert_if_needed(thd, &str_value);
     /* Here str_value is guaranteed to be in final_character_set_of_str_value */
 
     /*

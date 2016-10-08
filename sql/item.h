@@ -2727,6 +2727,47 @@ public:
     DECIMAL_VALUE
   } state;
 
+  struct CONVERSION_INFO
+  {
+    /*
+      Character sets conversion info for string values.
+      Character sets of client and connection defined at bind time are used
+      for all conversions, even if one of them is later changed (i.e.
+      between subsequent calls to mysql_stmt_execute).
+    */
+    CHARSET_INFO *character_set_client;
+    CHARSET_INFO *character_set_of_placeholder;
+    /*
+      This points at character set of connection if conversion
+      to it is required (i. e. if placeholder typecode is not BLOB).
+      Otherwise it's equal to character_set_client (to simplify
+      check in convert_str_value()).
+    */
+    CHARSET_INFO *final_character_set_of_str_value;
+  private:
+    bool needs_conversion() const
+    {
+      return final_character_set_of_str_value !=
+             character_set_of_placeholder;
+    }
+    bool convert(THD *thd, String *str);
+  public:
+    void set(THD *thd, CHARSET_INFO *cs);
+    bool convert_if_needed(THD *thd, String *str)
+    {
+      /*
+        Check is so simple because all charsets were set up properly
+        in setup_one_conversion_function, where typecode of
+        placeholder was also taken into account: the variables are different
+        here only if conversion is really necessary.
+      */
+      if (needs_conversion())
+        return convert(thd, str);
+      str->set_charset(final_character_set_of_str_value);
+      return false;
+    }
+  };
+
   /*
     A buffer for string and long data values. Historically all allocated
     values returned from val_str() were treated as eligible to
@@ -2743,24 +2784,7 @@ public:
   {
     longlong integer;
     double   real;
-    /*
-      Character sets conversion info for string values.
-      Character sets of client and connection defined at bind time are used
-      for all conversions, even if one of them is later changed (i.e.
-      between subsequent calls to mysql_stmt_execute).
-    */
-    struct CONVERSION_INFO
-    {
-      CHARSET_INFO *character_set_client;
-      CHARSET_INFO *character_set_of_placeholder;
-      /*
-        This points at character set of connection if conversion
-        to it is required (i. e. if placeholder typecode is not BLOB).
-        Otherwise it's equal to character_set_client (to simplify
-        check in convert_str_value()).
-      */
-      CHARSET_INFO *final_character_set_of_str_value;
-    } cs_info;
+    CONVERSION_INFO cs_info;
     MYSQL_TIME     time;
   } value;
 
