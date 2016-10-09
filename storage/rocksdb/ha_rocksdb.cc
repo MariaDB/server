@@ -3106,6 +3106,7 @@ static bool rocksdb_rollback_to_savepoint_can_release_mdl(handlerton *hton,
   return true;
 }
 
+#ifdef MARIAROCKS_NOT_YET
 /*
   This is called for INFORMATION_SCHEMA
 */
@@ -3196,7 +3197,7 @@ static void rocksdb_update_table_stats(
           rocksdb_hton_name);
   }
 }
-
+#endif
 
 static rocksdb::Status check_rocksdb_options_compatibility(
         const char *dbpath,
@@ -3314,7 +3315,9 @@ static int rocksdb_init_func(void *p)
   rocksdb_hton->savepoint_rollback= rocksdb_rollback_to_savepoint;
   rocksdb_hton->savepoint_rollback_can_release_mdl=
     rocksdb_rollback_to_savepoint_can_release_mdl;
+#ifdef MARIAROCKS_NOT_YET
   rocksdb_hton->update_table_stats = rocksdb_update_table_stats;
+#endif // MARIAROCKS_NOT_YET
   rocksdb_hton->flush_logs= rocksdb_flush_wal;
 
   rocksdb_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED |
