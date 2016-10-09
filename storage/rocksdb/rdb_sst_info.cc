@@ -398,7 +398,7 @@ void Rdb_sst_info::init(rocksdb::DB* db)
 
   // Scan through the files in the directory
   struct fileinfo* file_info= dir_info->dir_entry;
-  for (uint ii= 0; ii < dir_info->number_off_files; ii++, file_info++)
+  for (uint ii= 0; ii < dir_info->number_of_files; ii++, file_info++)
   {
     // find any files ending with m_suffix ...
     std::string name= file_info->name;

@@ -3128,7 +3128,7 @@ bool Rdb_validate_tbls::scan_for_frms(
 
   /* Scan through the files in the directory */
   struct fileinfo* file_info = dir_info->dir_entry;
-  for (uint ii = 0; ii < dir_info->number_off_files; ii++, file_info++)
+  for (uint ii = 0; ii < dir_info->number_of_files; ii++, file_info++)
   {
     /* Find .frm files that are not temp files (those that start with '#') */
     const char* ext = strrchr(file_info->name, '.');
@@ -3179,7 +3179,7 @@ bool Rdb_validate_tbls::compare_to_actual_tables(
   }
 
   file_info = dir_info->dir_entry;
-  for (uint ii = 0; ii < dir_info->number_off_files; ii++, file_info++)
+  for (uint ii = 0; ii < dir_info->number_of_files; ii++, file_info++)
   {
     /* Ignore files/dirs starting with '.' */
     if (file_info->name[0] == '.')
