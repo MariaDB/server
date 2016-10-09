@@ -25,6 +25,8 @@
 #include "./handler.h"
 #include <my_global.h>
 
+#include "rdb_mariadb_port.h"
+
 namespace myrocks {
 
 enum {
