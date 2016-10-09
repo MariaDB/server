@@ -4386,8 +4386,7 @@ int ha_rocksdb::convert_record_from_storage_format(const rocksdb::Slice *key,
 
       memcpy(blob->ptr, data_len_str, length_bytes);
 
-      uint32 data_len= blob->get_length((uchar*)data_len_str, length_bytes,
-                                        table->s->db_low_byte_first);
+      uint32 data_len= blob->get_length((uchar*)data_len_str, length_bytes);
       const char *blob_ptr;
       if (!(blob_ptr= reader.read(data_len)))
       {
