@@ -32,9 +32,7 @@ Vcs-Browser: https://github.com/MariaDB/server/
 Package: libmariadbclient18
 Architecture: any
 Section: libs
-Depends: mariadb-common,
-         ${misc:Depends},
-         ${shlibs:Depends}
+Depends: mariadb-common, ${misc:Depends}, ${shlibs:Depends}
 Conflicts: mariadb-galera-server-10.0 (<< 10.0.5),
            mariadb-galera-server-5.5 (<< 5.5.33),
            mariadb-server-10.0 (<< 10.0.5),
@@ -70,7 +68,10 @@ Architecture: any
 Section: libdevel
 Provides: libmysqld-dev
 Pre-Depends: ${misc:Pre-Depends}
-Depends: libmariadbd18 (= ${binary:Version}), libmariadbclient-dev (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
+Depends: libmariadbclient-dev (= ${binary:Version}),
+         libmariadbd18 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Breaks: libmysqld-dev
 Replaces: libmysqld-dev
 Description: MariaDB embedded database, development files
@@ -229,9 +230,7 @@ Replaces: mariadb-client (<< ${source:Version}),
           mysql-client-5.5,
           mysql-client-5.6,
           virtual-mysql-client
-Recommends: libdbd-mysql-perl (>= 1.2202),
-            libdbi-perl,
-            libterm-readkey-perl
+Recommends: libdbd-mysql-perl (>= 1.2202), libdbi-perl, libterm-readkey-perl
 Description: MariaDB database client binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -315,8 +314,8 @@ Conflicts: mariadb-server (<< ${source:Version}),
            mariadb-server-5.2,
            mariadb-server-5.3,
            mariadb-server-5.5,
-           mariadb-tokudb-engine-10.1,
            mariadb-tokudb-engine-10.0,
+           mariadb-tokudb-engine-10.1,
            mariadb-tokudb-engine-5.5,
            mysql-server (<< ${source:Version}),
            mysql-server-4.1,
@@ -334,8 +333,8 @@ Replaces: libmariadbclient-dev (<< 5.5.0),
           mariadb-server-5.2,
           mariadb-server-5.3,
           mariadb-server-5.5,
-          mariadb-tokudb-engine-10.1,
           mariadb-tokudb-engine-10.0,
+          mariadb-tokudb-engine-10.1,
           mariadb-tokudb-engine-5.5,
           mysql-server (<< ${source:Version}),
           mysql-server-4.1,
@@ -379,26 +378,26 @@ Description: MariaDB database client (metapackage depending on the latest versio
 Package: mariadb-test
 Architecture: any
 Depends: mariadb-client-10.2 (= ${binary:Version}),
-        mariadb-server-10.2 (= ${binary:Version}),
-        mariadb-test-data (= ${source:Version}),
-        ${misc:Depends},
-        ${shlibs:Depends}
-Breaks: mariadb-test-10.1,
-       mariadb-test-10.0,
-       mariadb-test-5.5,
-       mysql-testsuite,
-       mysql-testsuite-5.5,
-       mysql-testsuite-5.6,
-       mysql-testsuite-5.7,
-       virtual-mysql-testsuite
-Replaces: mariadb-test-10.1,
-         mariadb-test-10.0,
-         mariadb-test-5.5,
-         mysql-testsuite,
-         mysql-testsuite-5.5,
-         mysql-testsuite-5.6,
-         mysql-testsuite-5.7,
-         virtual-mysql-testsuite
+         mariadb-server-10.2 (= ${binary:Version}),
+         mariadb-test-data (= ${source:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Breaks: mariadb-test-10.0,
+        mariadb-test-10.1,
+        mariadb-test-5.5,
+        mysql-testsuite,
+        mysql-testsuite-5.5,
+        mysql-testsuite-5.6,
+        mysql-testsuite-5.7,
+        virtual-mysql-testsuite
+Replaces: mariadb-test-10.0,
+          mariadb-test-10.1,
+          mariadb-test-5.5,
+          mysql-testsuite,
+          mysql-testsuite-5.5,
+          mysql-testsuite-5.6,
+          mysql-testsuite-5.7,
+          virtual-mysql-testsuite
 Provides: virtual-mysql-testsuite
 Suggests: patch
 Description: MariaDB database regression test suite
@@ -412,22 +411,22 @@ Description: MariaDB database regression test suite
 Package: mariadb-test-data
 Architecture: all
 Depends: ${misc:Depends}
-Breaks: mariadb-test-10.1,
-       mariadb-test-10.0,
-       mariadb-test-5.5,
-       mariadb-test-data-10.0,
-       mysql-testsuite,
-       mysql-testsuite-5.5,
-       mysql-testsuite-5.6,
-       mysql-testsuite-5.7
-Replaces: mariadb-test-10.1,
-         mariadb-test-10.0,
-         mariadb-test-5.5,
-         mariadb-test-data-10.0,
-         mysql-testsuite,
-         mysql-testsuite-5.5,
-         mysql-testsuite-5.6,
-         mysql-testsuite-5.7
+Breaks: mariadb-test-10.0,
+        mariadb-test-10.1,
+        mariadb-test-5.5,
+        mariadb-test-data-10.0,
+        mysql-testsuite,
+        mysql-testsuite-5.5,
+        mysql-testsuite-5.6,
+        mysql-testsuite-5.7
+Replaces: mariadb-test-10.0,
+          mariadb-test-10.1,
+          mariadb-test-5.5,
+          mariadb-test-data-10.0,
+          mysql-testsuite,
+          mysql-testsuite-5.5,
+          mysql-testsuite-5.6,
+          mysql-testsuite-5.7
 Description: MariaDB database regression test suite - data files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -463,11 +462,13 @@ Description: OQGraph storage engine for MariaDB
 
 Package: mariadb-plugin-tokudb
 Architecture: any
-Depends: mariadb-server-10.2,
-         ${misc:Depends},
-         ${shlibs:Depends}
-Breaks: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
-Replaces: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Breaks: mariadb-server-10.0 (<< ${source:Version}),
+        mariadb-server-10.1 (<< ${source:Version}),
+        mariadb-server-10.2 (<< ${source:Version})
+Replaces: mariadb-server-10.0 (<< ${source:Version}),
+          mariadb-server-10.1 (<< ${source:Version}),
+          mariadb-server-10.2 (<< ${source:Version})
 Description: TokuDB storage engine for MariaDB
  The TokuDB storage engine is for use in high-performance and write-intensive
  environments, offering increased compression and better performance based
@@ -476,11 +477,13 @@ Description: TokuDB storage engine for MariaDB
 
 Package: mariadb-plugin-mroonga
 Architecture: any
-Depends: mariadb-server-10.2,
-         ${misc:Depends},
-         ${shlibs:Depends}
-Breaks: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
-Replaces: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Breaks: mariadb-server-10.0 (<< ${source:Version}),
+        mariadb-server-10.1 (<< ${source:Version}),
+        mariadb-server-10.2 (<< ${source:Version})
+Replaces: mariadb-server-10.0 (<< ${source:Version}),
+          mariadb-server-10.1 (<< ${source:Version}),
+          mariadb-server-10.2 (<< ${source:Version})
 Description: Mroonga storage engine for MariaDB
  Mroonga (formerly named Groonga Storage Engine) is a storage engine that
  provides fast CJK-ready full text searching using column store.
@@ -488,11 +491,13 @@ Description: Mroonga storage engine for MariaDB
 
 Package: mariadb-plugin-cassandra
 Architecture: any
-Depends: mariadb-server-10.2,
-         ${misc:Depends},
-         ${shlibs:Depends}
-Breaks: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
-Replaces: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Breaks: mariadb-server-10.0 (<< ${source:Version}),
+        mariadb-server-10.1 (<< ${source:Version}),
+        mariadb-server-10.2 (<< ${source:Version})
+Replaces: mariadb-server-10.0 (<< ${source:Version}),
+          mariadb-server-10.1 (<< ${source:Version}),
+          mariadb-server-10.2 (<< ${source:Version})
 Description: Cassandra storage engine for MariaDB
  The Cassandra Storage Engine allows access to data in a Cassandra cluster from
  MariaDB, combining the best of SQL and no-SQL worlds. Cassandra SE (storage
@@ -503,11 +508,13 @@ Description: Cassandra storage engine for MariaDB
 
 Package: mariadb-plugin-spider
 Architecture: any
-Depends: mariadb-server-10.2,
-         ${misc:Depends},
-         ${shlibs:Depends}
-Breaks: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
-Replaces: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Depends: mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Breaks: mariadb-server-10.0 (<< ${source:Version}),
+        mariadb-server-10.1 (<< ${source:Version}),
+        mariadb-server-10.2 (<< ${source:Version})
+Replaces: mariadb-server-10.0 (<< ${source:Version}),
+          mariadb-server-10.1 (<< ${source:Version}),
+          mariadb-server-10.2 (<< ${source:Version})
 Description: Spider storage engine for MariaDB
  The Spider storage engine with built-in sharding features. It supports
  partitioning and xa transactions, and allows tables of different MariaDB
@@ -516,14 +523,20 @@ Description: Spider storage engine for MariaDB
 
 Package: mariadb-plugin-gssapi-server
 Architecture: any
-Depends: libgssapi-krb5-2, mariadb-server-10.2, ${misc:Depends}, ${shlibs:Depends}
+Depends: libgssapi-krb5-2,
+         mariadb-server-10.2,
+         ${misc:Depends},
+         ${shlibs:Depends}
 Breaks: mariadb-gssapi-server-10.1, mariadb-gssapi-server-10.2
 Replaces: mariadb-gssapi-server-10.1, mariadb-gssapi-server-10.2
 Description: GSSAPI authentication plugin for MariaDB server
 
 Package: mariadb-plugin-gssapi-client
 Architecture: any
-Depends: libgssapi-krb5-2, mariadb-client-10.2, ${misc:Depends}, ${shlibs:Depends}
+Depends: libgssapi-krb5-2,
+         mariadb-client-10.2,
+         ${misc:Depends},
+         ${shlibs:Depends}
 Breaks: mariadb-gssapi-client-10.1, mariadb-gssapi-client-10.2
 Replaces: mariadb-gssapi-client-10.1, mariadb-gssapi-client-10.2
 Description: GSSAPI authentication plugin for MariaDB client
