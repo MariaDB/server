@@ -3064,7 +3064,7 @@ static int rocksdb_start_tx_and_assign_read_view(
 
   if (binlog_file)
   {
-    if (binlog_pos && mysql_bin_log_is_open())
+    if (binlog_pos && mysql_bin_log.is_open())
       mysql_bin_log_lock_commits();
     else
       return 1;
