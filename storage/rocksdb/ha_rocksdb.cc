@@ -4723,6 +4723,7 @@ void ha_rocksdb::free_key_buffers()
   m_pack_buffer= nullptr;
 }
 
+#ifdef MARIAROCKS_NOT_YET
 void ha_rocksdb::set_use_read_free_rpl(const char* whitelist)
 {
   DBUG_ASSERT(whitelist != nullptr);
@@ -4740,6 +4741,7 @@ void ha_rocksdb::set_use_read_free_rpl(const char* whitelist)
 
   m_use_read_free_rpl = regex_handler.matches(m_tbl_def->base_tablename());
 }
+#endif
 
 void ha_rocksdb::set_skip_unique_check_tables(const char* whitelist)
 {
@@ -4837,8 +4839,10 @@ int ha_rocksdb::open(const char *name, int mode, uint test_if_locked)
   /* Index block size in MyRocks: used by MySQL in query optimization */
   stats.block_size = rocksdb_tbl_options.block_size;
 
+#ifdef MARIAROCKS_NOT_YET // MDEV-10976
   /* Determine at open whether we can use Read Free Replication or not */
   set_use_read_free_rpl(THDVAR(ha_thd(), read_free_rpl_tables));
+#endif
 
   /* Determine at open whether we should skip unique checks for this table */
   set_skip_unique_check_tables(THDVAR(ha_thd(), skip_unique_check_tables));
@@ -10647,7 +10651,6 @@ void ha_rocksdb::rpl_after_update_rows()
   m_in_rpl_update_rows= false;
 }
 
-#endif // MARIAROCKS_NOT_YET
 /**
   @brief
   Read Free Replication can be used or not. Returning False means
@@ -10660,6 +10663,7 @@ bool ha_rocksdb::use_read_free_rpl()
   return ((m_in_rpl_delete_rows || m_in_rpl_update_rows) &&
       !has_hidden_pk(table) && m_use_read_free_rpl);
 }
+#endif // MARIAROCKS_NOT_YET
 
 double ha_rocksdb::read_time(uint index, uint ranges, ha_rows rows)
 {
