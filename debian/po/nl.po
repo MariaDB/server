@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mysql-dfsg-5.1 5.0.30-1\n"
 "Report-Msgid-Bugs-To: mariadb-10.2@packages.debian.org\n"
-"POT-Creation-Date: 2012-01-12 13:08+0100\n"
+"POT-Creation-Date: 2016-10-08 01:26+0300\n"
 "PO-Revision-Date: 2006-02-19 10:20+0100\n"
 "Last-Translator: Thijs Kinkhorst <thijs@debian.org>\n"
 "Language-Team: Debian-Dutch <debian-l10n-dutch@lists.debian.org>\n"
@@ -16,44 +16,34 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: boolean
+#. Type: note
 #. Description
 #: ../mariadb-server-10.2.templates:2001
-#, fuzzy
-#| msgid "Do you really want to downgrade?"
-msgid "Really proceed with downgrade?"
-msgstr "Wilt u echt een oude versie herstellen?"
-
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:2001
-msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
+msgid "The old data directory will be saved at new location"
 msgstr ""
 
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:2001
-#, fuzzy
-#| msgid ""
-#| "WARNING: The file /var/lib/mysql/debian-*.flag exists. This indicates "
-#| "that a mysql-server package with a higher version has been installed "
-#| "before. It can not be guaranteed that this version can use its data."
-msgid ""
-"Such a file is an indication that a mariadb-server package with a higher "
-"version has been installed previously."
-msgstr ""
-"Waarschuwing: waarschijnlijk is een hogere versie van het mariadb-server "
-"pakket geïnstalleerd geweest (het bestand /var/lib/mysql/debian-*.flag "
-"bestaat). Er is geen garantie dat de gegevensbestanden, bewerkt met die "
-"hogere versie, kunnen worden gebruikt met de versie van mysql die u nu "
-"installeert."
-
-#. Type: boolean
+#. Type: note
 #. Description
 #: ../mariadb-server-10.2.templates:2001
 msgid ""
-"There is no guarantee that the version you're currently installing will be "
-"able to use the current databases."
+"A file named /var/lib/mysql/debian-*.flag exists on this system. The number "
+"indicates a database binary format version that cannot automatically be "
+"upgraded (or downgraded)."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.2.templates:2001
+msgid ""
+"Therefore the previous data directory will be renamed to /var/lib/mysql-* "
+"and a new data directory will be initialized at /var/lib/mysql."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.2.templates:2001
+msgid ""
+"Please manually export/import your data (e.g. with mysqldump) if needed."
 msgstr ""
 
 #. Type: note
@@ -112,31 +102,9 @@ msgstr ""
 "een ander mariadb-serverpakket de datamap al gebruikt, dan zou de data "
 "moeten worden behouden."
 
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:5001
-#, fuzzy
-#| msgid "Should MySQL start on boot?"
-msgid "Start the MariaDB server on boot?"
-msgstr "Moet MariaDB starten als de computer start?"
-
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:5001
-#, fuzzy
-#| msgid ""
-#| "The MySQL can start automatically on boot time or only if you manually "
-#| "type '/etc/init.d/mysql start'."
-msgid ""
-"The MariaDB server can be launched automatically at boot time or manually "
-"with the '/etc/init.d/mysql start' command."
-msgstr ""
-"MariaDB kan automatisch starten bij het starten van de computer, of slechts "
-"wanneer u '/etc/init.d/mysql start' handmatig uitvoert."
-
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:6001
+#: ../mariadb-server-10.2.templates:5001
 #, fuzzy
 #| msgid "New password for MySQL \"root\" user:"
 msgid "New password for the MariaDB \"root\" user:"
@@ -144,7 +112,7 @@ msgstr "Nieuw wachtwoord voor de MariaDB \"root\"-gebruiker:"
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:6001
+#: ../mariadb-server-10.2.templates:5001
 #, fuzzy
 #| msgid ""
 #| "It is highly recommended that you set a password for the MySQL "
@@ -158,13 +126,13 @@ msgstr ""
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:6001
+#: ../mariadb-server-10.2.templates:5001
 msgid "If this field is left blank, the password will not be changed."
 msgstr ""
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:7001
+#: ../mariadb-server-10.2.templates:6001
 #, fuzzy
 #| msgid "New password for MySQL \"root\" user:"
 msgid "Repeat password for the MariaDB \"root\" user:"
@@ -172,7 +140,7 @@ msgstr "Nieuw wachtwoord voor de MariaDB \"root\"-gebruiker:"
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 #, fuzzy
 #| msgid "Unable to set password for MySQL \"root\" user"
 msgid "Unable to set password for the MariaDB \"root\" user"
@@ -180,7 +148,7 @@ msgstr "Kan het wachtwoord voor de MariaDB \"root\"-gebruiker niet instellen"
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 #, fuzzy
 #| msgid ""
 #| "It seems an error occurred while setting the password for the MySQL "
@@ -199,13 +167,13 @@ msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 msgid "You should check the account's password after the package installation."
 msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 msgid ""
 "Please read the /usr/share/doc/mariadb-server-10.2/README.Debian file for "
 "more information."
@@ -213,15 +181,51 @@ msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:9001
+#: ../mariadb-server-10.2.templates:8001
 msgid "Password input error"
 msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:9001
+#: ../mariadb-server-10.2.templates:8001
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr ""
+
+#, fuzzy
+#~| msgid "Do you really want to downgrade?"
+#~ msgid "Really proceed with downgrade?"
+#~ msgstr "Wilt u echt een oude versie herstellen?"
+
+#, fuzzy
+#~| msgid ""
+#~| "WARNING: The file /var/lib/mysql/debian-*.flag exists. This indicates "
+#~| "that a mysql-server package with a higher version has been installed "
+#~| "before. It can not be guaranteed that this version can use its data."
+#~ msgid ""
+#~ "Such a file is an indication that a mariadb-server package with a higher "
+#~ "version has been installed previously."
+#~ msgstr ""
+#~ "Waarschuwing: waarschijnlijk is een hogere versie van het mariadb-server "
+#~ "pakket geïnstalleerd geweest (het bestand /var/lib/mysql/debian-*.flag "
+#~ "bestaat). Er is geen garantie dat de gegevensbestanden, bewerkt met die "
+#~ "hogere versie, kunnen worden gebruikt met de versie van mysql die u nu "
+#~ "installeert."
+
+#, fuzzy
+#~| msgid "Should MySQL start on boot?"
+#~ msgid "Start the MariaDB server on boot?"
+#~ msgstr "Moet MariaDB starten als de computer start?"
+
+#, fuzzy
+#~| msgid ""
+#~| "The MySQL can start automatically on boot time or only if you manually "
+#~| "type '/etc/init.d/mysql start'."
+#~ msgid ""
+#~ "The MariaDB server can be launched automatically at boot time or manually "
+#~ "with the '/etc/init.d/mysql start' command."
+#~ msgstr ""
+#~ "MariaDB kan automatisch starten bij het starten van de computer, of "
+#~ "slechts wanneer u '/etc/init.d/mysql start' handmatig uitvoert."
 
 #~ msgid ""
 #~ "Support MySQL connections from hosts running Debian \"sarge\" or older?"

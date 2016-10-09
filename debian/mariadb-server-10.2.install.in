@@ -14,16 +14,31 @@ usr/lib/mysql/plugin/query_cache_info.so
 usr/lib/mysql/plugin/query_response_time.so
 usr/lib/mysql/plugin/semisync_master.so
 usr/lib/mysql/plugin/semisync_slave.so
+usr/lib/mysql/plugin/auth_pam.so
+usr/lib/mysql/plugin/auth_socket.so
+usr/lib/mysql/plugin/file_key_management.so
+usr/lib/mysql/plugin/ha_archive.so
+usr/lib/mysql/plugin/ha_blackhole.so
+usr/lib/mysql/plugin/ha_federated.so
+usr/lib/mysql/plugin/ha_federatedx.so
+usr/lib/mysql/plugin/ha_mroonga.so
+usr/lib/mysql/plugin/ha_sphinx.so
+usr/lib/mysql/plugin/handlersocket.so
+usr/lib/mysql/plugin/locales.so
+usr/lib/mysql/plugin/metadata_lock_info.so
+usr/lib/mysql/plugin/query_cache_info.so
+usr/lib/mysql/plugin/query_response_time.so
+usr/lib/mysql/plugin/semisync_master.so
+usr/lib/mysql/plugin/semisync_slave.so
 usr/lib/mysql/plugin/server_audit.so
 usr/lib/mysql/plugin/simple_password_check.so
 usr/lib/mysql/plugin/sql_errlog.so
 usr/lib/mysql/plugin/wsrep_info.so
 usr/lib/mysql/plugin/user_variables.so
-usr/lib/libhsclient.so.*
 etc/apparmor.d/usr.sbin.mysqld
 usr/share/apport/package-hooks/source_mariadb-10.2.py
-etc/mysql/debian-start
-etc/mysql/conf.d/mysqld_safe_syslog.cnf
+debian/additions/debian-start etc/mysql
+debian/additions/mysqld_safe_syslog.cnf etc/mysql/conf.d
 usr/bin/msql2mysql
 usr/bin/my_print_defaults
 usr/bin/myisamchk
@@ -56,8 +71,6 @@ usr/bin/wsrep_sst_rsync
 usr/bin/wsrep_sst_xtrabackup
 usr/bin/wsrep_sst_xtrabackup-v2
 usr/share/doc/mariadb-server-10.2/mysqld.sym.gz
-usr/share/doc/mariadb-server-10.2/INFO_SRC
-usr/share/doc/mariadb-server-10.2/INFO_BIN
 usr/share/man/man1/msql2mysql.1
 usr/share/man/man1/myisamchk.1
 usr/share/man/man1/myisam_ftdump.1
@@ -79,8 +92,8 @@ usr/share/man/man1/resolveip.1
 usr/share/man/man1/resolve_stack_dump.1
 usr/share/man/man1/innochecksum.1
 usr/share/man/man1/mysql_tzinfo_to_sql.1
-usr/share/mysql/debian-start.inc.sh
-usr/share/mysql/echo_stderr
+debian/additions/debian-start.inc.sh usr/share/mysql
+debian/additions/echo_stderr usr/share/mysql
 usr/share/mysql/errmsg-utf8.txt
 usr/share/mysql/fill_help_tables.sql
 usr/share/mysql/maria_add_gis_sp_bootstrap.sql
