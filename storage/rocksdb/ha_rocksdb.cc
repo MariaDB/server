@@ -7142,10 +7142,12 @@ bool ha_rocksdb::skip_unique_check()
          THDVAR(table->in_use, skip_unique_check);
 }
 
+#ifdef MARIAROCKS_NOT_YET // MDEV-10975
 void ha_rocksdb::set_force_skip_unique_check(bool skip)
 {
   m_force_skip_unique_check= skip;
 }
+#endif
 
 bool ha_rocksdb::commit_in_the_middle()
 {

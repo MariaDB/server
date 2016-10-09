@@ -459,7 +459,9 @@ class ha_rocksdb: public my_core::handler
   bool can_use_single_delete(uint index)
     __attribute__((__warn_unused_result__));
   bool skip_unique_check() __attribute__((__warn_unused_result__));
+#ifdef MARIAROCKS_NOT_YET // MDEV-10975
   void set_force_skip_unique_check(bool skip) override;
+#endif
   bool commit_in_the_middle() __attribute__((__warn_unused_result__));
   bool do_bulk_commit(Rdb_transaction *tx)
     __attribute__((__nonnull__, __warn_unused_result__));
