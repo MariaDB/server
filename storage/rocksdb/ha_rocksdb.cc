@@ -20,8 +20,9 @@
 
 #define MYSQL_SERVER 1
 
-/* The C++ file's header */
 #include <my_config.h>
+
+/* The C++ file's header */
 #include "./ha_rocksdb.h"
 
 /* C++ standard header files */
