@@ -97,7 +97,7 @@ if (NOT HAVE_BACKTRACE_WITHOUT_EXECINFO)
   endif ()
 endif ()
 
-if(HAVE_CLOCK_REALTIME)
+if(HAVE_CLOCK_REALTIME AND (NOT APPLE))
   list(APPEND EXTRA_SYSTEM_LIBS rt)
 else()
   list(APPEND EXTRA_SYSTEM_LIBS System)
@@ -109,6 +109,8 @@ check_function_exists(pthread_rwlockattr_setkind_np HAVE_PTHREAD_RWLOCKATTR_SETK
 ## check for the right way to yield using pthreads
 check_function_exists(pthread_yield HAVE_PTHREAD_YIELD)
 check_function_exists(pthread_yield_np HAVE_PTHREAD_YIELD_NP)
+## check if we have pthread_threadid_np() (i.e. osx)
+check_function_exists(pthread_threadid_np HAVE_PTHREAD_THREADID_NP)
 ## check if we have pthread_getthreadid_np() (i.e. freebsd)
 check_function_exists(pthread_getthreadid_np HAVE_PTHREAD_GETTHREADID_NP)
 check_function_exists(sched_getcpu HAVE_SCHED_GETCPU)
