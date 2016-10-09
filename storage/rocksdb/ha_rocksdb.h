@@ -591,9 +591,9 @@ public:
            HA_NULL_IN_KEY |
            HA_PARTIAL_COLUMN_READ;
   }
-
+#ifdef MARIAROCKS_NOT_YET
   bool init_with_fields() override;
-
+#endif
   /** @brief
     This is a bitmap of flags that indicates how the storage engine
     implements indexes. The current index flags are documented in
