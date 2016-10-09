@@ -5047,7 +5047,7 @@ int ha_rocksdb::create_cfs(const TABLE *table_arg, Rdb_tbl_def *tbl_def_arg,
         !is_hidden_pk(i, table_arg, tbl_def_arg) &&
         tbl_def_arg->base_tablename().find(tmp_file_prefix) != 0)
     {
-      for (uint part= 0; part < table_arg->key_info[i].actual_key_parts; part++)
+      for (uint part= 0; part < table_arg->key_info[i].ext_key_parts; part++)
       {
         if (!rdb_is_index_collation_supported(
             table_arg->key_info[i].key_part[part].field) &&
@@ -7124,7 +7124,7 @@ bool ha_rocksdb::can_use_single_delete(uint index)
 {
   return (index != pk_index(table, m_tbl_def) ||
           (!has_hidden_pk(table) &&
-          table->key_info[index].actual_key_parts == table->s->fields));
+          table->key_info[index].ext_key_parts == table->s->fields));
 }
 
 bool ha_rocksdb::skip_unique_check()
@@ -8351,7 +8351,7 @@ int ha_rocksdb::info(uint flag)
         continue;
       }
       KEY* k= &table->key_info[i];
-      for (uint j = 0; j < k->actual_key_parts; j++)
+      for (uint j = 0; j < k->ext_key_parts; j++)
       {
         const Rdb_index_stats& k_stats= m_key_descr_arr[i]->m_stats;
         uint x = k_stats.m_distinct_keys_per_prefix.size() > j &&
@@ -8367,7 +8367,7 @@ int ha_rocksdb::info(uint flag)
           // will have rec_per_key for (idx1)=4, (idx1,2)=2, and (idx1,2,3)=1.
           // rec_per_key for the whole index is 1, and multiplied by 2^n if
           // n suffix columns of the index are not used.
-          x = 1 << (k->actual_key_parts-j-1);
+          x = 1 << (k->ext_key_parts-j-1);
         }
         k->rec_per_key[j]= x;
       }

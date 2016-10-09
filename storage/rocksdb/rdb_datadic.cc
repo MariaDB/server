@@ -160,7 +160,7 @@ void Rdb_key_def::setup(const TABLE *tbl, const Rdb_tbl_def *tbl_def)
     }
 
     if (secondary_key)
-      m_pk_key_parts= hidden_pk_exists ? 1 : pk_info->actual_key_parts;
+      m_pk_key_parts= hidden_pk_exists ? 1 : pk_info->ext_key_parts;
     else
     {
       pk_info= nullptr;
@@ -168,7 +168,7 @@ void Rdb_key_def::setup(const TABLE *tbl, const Rdb_tbl_def *tbl_def)
     }
 
     // "unique" secondary keys support:
-    m_key_parts= is_hidden_pk ? 1 : key_info->actual_key_parts;
+    m_key_parts= is_hidden_pk ? 1 : key_info->ext_key_parts;
 
     if (secondary_key)
     {
@@ -229,7 +229,7 @@ void Rdb_key_def::setup(const TABLE *tbl, const Rdb_tbl_def *tbl_def)
         {
           /* Check if this field is already present in the key definition */
           bool found= false;
-          for (uint j= 0; j < key_info->actual_key_parts; j++)
+          for (uint j= 0; j < key_info->ext_key_parts; j++)
           {
             if (field->field_index == key_info->key_part[j].field->field_index)
             {
@@ -285,7 +285,7 @@ void Rdb_key_def::setup(const TABLE *tbl, const Rdb_tbl_def *tbl_def)
           For "unique" secondary indexes, pretend they have
           "index extensions"
          */
-        if (secondary_key && src_i+1 == key_info->actual_key_parts)
+        if (secondary_key && src_i+1 == key_info->ext_key_parts)
         {
           simulating_extkey= true;
           if (!hidden_pk_exists)
