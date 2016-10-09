@@ -318,6 +318,7 @@ Conflicts: mariadb-server (<< ${source:Version}),
            mariadb-server-5.2,
            mariadb-server-5.3,
            mariadb-server-5.5,
+           mariadb-tokudb-engine-10.1,
            mariadb-tokudb-engine-10.0,
            mariadb-tokudb-engine-5.5,
            mysql-server (<< ${source:Version}),
@@ -336,6 +337,7 @@ Replaces: libmariadbclient-dev (<< 5.5.0),
           mariadb-server-5.2,
           mariadb-server-5.3,
           mariadb-server-5.5,
+          mariadb-tokudb-engine-10.1,
           mariadb-tokudb-engine-10.0,
           mariadb-tokudb-engine-5.5,
           mysql-server (<< ${source:Version}),
@@ -461,6 +463,44 @@ Description: OQGraph storage engine for MariaDB
  The OQGraph engine is a computation engine plugin for handling hierarchies
  (trees) and graphs (friend-of-a-friend, etc) cleanly through standard SQL.
  This package contains the OQGraph plugin for MariaDB.
+
+Package: mariadb-plugin-tokudb
+Architecture: any
+Depends: mariadb-server-10.2|mariadb-galera-server-10.2,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Breaks: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Replaces: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Description: TokuDB storage engine for MariaDB
+ The TokuDB storage engine is for use in high-performance and write-intensive
+ environments, offering increased compression and better performance based
+ on fractal indexes.
+ This package contains the TokuDB plugin for MariaDB.
+
+Package: mariadb-plugin-mroonga
+Architecture: any
+Depends: mariadb-server-10.2|mariadb-galera-server-10.2,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Breaks: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Replaces: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Description: Mroonga storage engine for MariaDB
+ Mroonga (formerly named Groonga Storage Engine) is a storage engine that
+ provides fast CJK-ready full text searching using column store.
+ This package contains the Mroonga plugin for MariaDB.
+
+Package: mariadb-plugin-spider
+Architecture: any
+Depends: mariadb-server-10.2|mariadb-galera-server-10.2,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Breaks: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Replaces: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Description: Spider storage engine for MariaDB
+ The Spider storage engine with built-in sharding features. It supports
+ partitioning and xa transactions, and allows tables of different MariaDB
+ instances to be handled as if they were on the same insctance. It refers to one
+ possible implementation of ISO/IEC 9075-9:2008 SQL/MED.
 
 Package: mariadb-plugin-gssapi-server
 Section: database
