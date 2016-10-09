@@ -489,6 +489,21 @@ Description: Mroonga storage engine for MariaDB
  provides fast CJK-ready full text searching using column store.
  This package contains the Mroonga plugin for MariaDB.
 
+Package: mariadb-plugin-cassandra
+Architecture: any
+Depends: mariadb-server-10.2,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Breaks: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Replaces: mariadb-server-10.0 (<< ${source:Version}), mariadb-server-10.1 (<< ${source:Version}), mariadb-server-10.2 (<< ${source:Version})
+Description: Cassandra storage engine for MariaDB
+ The Cassandra Storage Engine allows access to data in a Cassandra cluster from
+ MariaDB, combining the best of SQL and no-SQL worlds. Cassandra SE (storage
+ engine) makes Cassandra's column family appear as a table in MariaDB that you
+ can insert to, update, and select from. You can write joins against this table,
+ it is possible to join data that's stored in MariaDB with data that's stored in
+ Cassandra.
+
 Package: mariadb-plugin-spider
 Architecture: any
 Depends: mariadb-server-10.2|mariadb-galera-server-10.2,

@@ -435,12 +435,6 @@ CONFIGURE_FILE(
     ${CMAKE_SOURCE_DIR}/cmake/info_macros.cmake.in
     ${CMAKE_BINARY_DIR}/info_macros.cmake @ONLY)
 
-IF(DEB)
-  CONFIGURE_FILE(
-    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.2.install.in
-    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.2.install)
-ENDIF(DEB)
-
 # Handle the "INFO_*" files.
 INCLUDE(${CMAKE_BINARY_DIR}/info_macros.cmake)
 # Source: This can be done during the cmake phase, all information is

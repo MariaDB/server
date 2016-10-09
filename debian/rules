@@ -121,6 +121,14 @@ override_dh_auto_install:
 	# If Mroonga plugin was not built skip the package
 	[ -f $(BUILDDIR)/storage/mroonga/ha_mroonga.so ] || sed -i -e "/Package: mariadb-plugin-mroonga/,+11d" debian/control
 
+	# If libthrift-dev was available (manually installed, as it is
+	# not in Debian) and ha_cassandra.so was thus built, create package,
+	# otherwise skip it.
+	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+14d" debian/control
+
+	# If Spider plugin was not built skip the package
+	[ -f $(BUILDDIR)/storage/spider/ha_spider.so ] || sed -i -e "/Package: mariadb-plugin-spider/,+12d" debian/control
+
 	# make install
 	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP)
 
