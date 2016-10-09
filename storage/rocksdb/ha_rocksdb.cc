@@ -10626,6 +10626,7 @@ void rdb_queue_save_stats_request()
   rdb_bg_thread.request_save_stats();
 }
 
+#ifdef MARIAROCKS_NOT_YET // MDEV-10976
 void ha_rocksdb::rpl_before_delete_rows()
 {
   m_in_rpl_delete_rows= true;
@@ -10646,6 +10647,7 @@ void ha_rocksdb::rpl_after_update_rows()
   m_in_rpl_update_rows= false;
 }
 
+#endif // MARIAROCKS_NOT_YET
 /**
   @brief
   Read Free Replication can be used or not. Returning False means

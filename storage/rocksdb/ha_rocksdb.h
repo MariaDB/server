@@ -978,12 +978,14 @@ public:
   void set_use_read_free_rpl(const char* whitelist);
   void set_skip_unique_check_tables(const char* whitelist);
 
+#ifdef MARIAROCKS_NOT_YET // MDEV-10976
  public:
   virtual void rpl_before_delete_rows() override;
   virtual void rpl_after_delete_rows() override;
   virtual void rpl_before_update_rows() override;
   virtual void rpl_after_update_rows() override;
   virtual bool use_read_free_rpl();
+#endif // MARIAROCKS_NOT_YET
 
  private:
   /* Flags tracking if we are inside different replication operation */
