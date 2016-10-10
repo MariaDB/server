@@ -9887,9 +9887,9 @@ static int test_if_case_insensitive(const char *dir_name)
   MY_STAT stat_info;
   DBUG_ENTER("test_if_case_insensitive");
 
-  fn_format(buff, glob_hostname, dir_name, ".lower-test",
+  fn_format(buff, opt_log_basename, dir_name, ".lower-test",
 	    MY_UNPACK_FILENAME | MY_REPLACE_EXT | MY_REPLACE_DIR);
-  fn_format(buff2, glob_hostname, dir_name, ".LOWER-TEST",
+  fn_format(buff2, opt_log_basename, dir_name, ".LOWER-TEST",
 	    MY_UNPACK_FILENAME | MY_REPLACE_EXT | MY_REPLACE_DIR);
   mysql_file_delete(key_file_casetest, buff2, MYF(0));
   if ((file= mysql_file_create(key_file_casetest,
