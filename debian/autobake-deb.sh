@@ -62,6 +62,13 @@ then
   sed 's/Standards-Version/,libpcre3-dev (>= 2:8.35-3.2~)\nStandards-Version/' debian/control
 fi
 
+# On Travis-CI, the log must stay under 4MB so make the build less verbose
+if [[ $TRAVIS ]]
+then
+  sed -i -e '/Add support for verbose builds/,+2d' debian/rules
+fi
+
+
 # Adjust changelog, add new version.
 #
 echo "Incrementing changelog and starting build scripts"
