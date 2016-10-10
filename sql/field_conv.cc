@@ -467,20 +467,19 @@ static void do_cut_string(Copy_field *copy)
 
 static void do_cut_string_complex(Copy_field *copy)
 {						// Shorter string field
-  int well_formed_error;
   CHARSET_INFO *cs= copy->from_field->charset();
   const uchar *from_end= copy->from_ptr + copy->from_length;
-  uint copy_length= cs->cset->well_formed_len(cs,
-                                              (char*) copy->from_ptr,
-                                              (char*) from_end, 
-                                              copy->to_length / cs->mbmaxlen,
-                                              &well_formed_error);
+  Well_formed_prefix prefix(cs,
+                           (char*) copy->from_ptr,
+                           (char*) from_end,
+                           copy->to_length / cs->mbmaxlen);
+  uint copy_length= prefix.length();
   if (copy->to_length < copy_length)
     copy_length= copy->to_length;
   memcpy(copy->to_ptr, copy->from_ptr, copy_length);
 
   /* Check if we lost any important characters */
-  if (well_formed_error ||
+  if (prefix.well_formed_error_pos() ||
       cs->cset->scan(cs, (char*) copy->from_ptr + copy_length,
                      (char*) from_end,
                      MY_SEQ_SPACES) < (copy->from_length - copy_length))
@@ -534,22 +533,19 @@ static void do_varstring1(Copy_field *copy)
 
 static void do_varstring1_mb(Copy_field *copy)
 {
-  int well_formed_error;
   CHARSET_INFO *cs= copy->from_field->charset();
   uint from_length= (uint) *(uchar*) copy->from_ptr;
   const uchar *from_ptr= copy->from_ptr + 1;
   uint to_char_length= (copy->to_length - 1) / cs->mbmaxlen;
-  uint length= cs->cset->well_formed_len(cs, (char*) from_ptr,
-                                         (char*) from_ptr + from_length,
-                                         to_char_length, &well_formed_error);
-  if (length < from_length)
+  Well_formed_prefix prefix(cs, (char*) from_ptr, from_length, to_char_length);
+  if (prefix.length() < from_length)
   {
     if (current_thd->count_cuted_fields)
       copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                   WARN_DATA_TRUNCATED, 1);
   }
-  *copy->to_ptr= (uchar) length;
-  memcpy(copy->to_ptr + 1, from_ptr, length);
+  *copy->to_ptr= (uchar) prefix.length();
+  memcpy(copy->to_ptr + 1, from_ptr, prefix.length());
 }
 
 
@@ -572,22 +568,19 @@ static void do_varstring2(Copy_field *copy)
 
 static void do_varstring2_mb(Copy_field *copy)
 {
-  int well_formed_error;
   CHARSET_INFO *cs= copy->from_field->charset();
   uint char_length= (copy->to_length - HA_KEY_BLOB_LENGTH) / cs->mbmaxlen;
   uint from_length= uint2korr(copy->from_ptr);
   const uchar *from_beg= copy->from_ptr + HA_KEY_BLOB_LENGTH;
-  uint length= cs->cset->well_formed_len(cs, (char*) from_beg,
-                                         (char*) from_beg + from_length,
-                                         char_length, &well_formed_error);
-  if (length < from_length)
+  Well_formed_prefix prefix(cs, (char*) from_beg, from_length, char_length);
+  if (prefix.length() < from_length)
   {
     if (current_thd->count_cuted_fields)
       copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                   WARN_DATA_TRUNCATED, 1);
   }  
-  int2store(copy->to_ptr, length);
-  memcpy(copy->to_ptr+HA_KEY_BLOB_LENGTH, from_beg, length);
+  int2store(copy->to_ptr, prefix.length());
+  memcpy(copy->to_ptr+HA_KEY_BLOB_LENGTH, from_beg, prefix.length());
 }
  
 

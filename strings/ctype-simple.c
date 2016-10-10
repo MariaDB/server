@@ -1143,16 +1143,6 @@ size_t my_charpos_8bit(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-size_t my_well_formed_len_8bit(CHARSET_INFO *cs __attribute__((unused)),
-                               const char *start, const char *end,
-                               size_t nchars, int *error)
-{
-  size_t nbytes= (size_t) (end-start);
-  *error= 0;
-  return MY_MIN(nbytes, nchars);
-}
-
-
 size_t
 my_well_formed_char_length_8bit(CHARSET_INFO *cs __attribute__((unused)),
                                 const char *start, const char *end,
@@ -2064,7 +2054,6 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_cset_init_8bit,
     my_numchars_8bit,
     my_charpos_8bit,
-    my_well_formed_len_8bit,
     my_lengthsp_8bit,
     my_numcells_8bit,
     my_mb_wc_8bit,

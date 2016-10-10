@@ -7902,12 +7902,9 @@ int Field_blob::copy_value(Field_blob *from)
   from->get_ptr(&data);
   if (packlength < from->packlength)
   {
-    int well_formed_errors;
     set_if_smaller(length, Field_blob::max_data_length());
-    length= field_charset->cset->well_formed_len(field_charset,
-                                                 (const char *) data,
-                                                 (const char *) data + length,
-                                                 length, &well_formed_errors);
+    length= (uint32) Well_formed_prefix(field_charset,
+                                        (const char *) data, length).length();
     rc= report_if_important_data((const char *) data + length,
                                  (const char *) data + from->get_length(),
                                  true);
@@ -7943,9 +7940,8 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
     copy_length= table->in_use->variables.group_concat_max_len;
     if (new_length > copy_length)
     {
-      int well_formed_error;
-      new_length= cs->cset->well_formed_len(cs, from, from + copy_length,
-                                            new_length, &well_formed_error);
+      new_length= Well_formed_prefix(cs,
+                                     from, copy_length, new_length).length();
       table->blob_storage->set_truncated_value(true);
     }
     if (!(tmp= table->blob_storage->store(from, new_length)))

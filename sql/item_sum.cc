@@ -3156,21 +3156,18 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   /* stop if length of result more than max_length */
   if (result->length() > max_length)
   {
-    int well_formed_error;
     CHARSET_INFO *cs= item->collation.collation;
     const char *ptr= result->ptr();
-    uint add_length;
     THD *thd= current_thd;
     /*
       It's ok to use item->result.length() as the fourth argument
       as this is never used to limit the length of the data.
       Cut is done with the third argument.
     */
-    add_length= cs->cset->well_formed_len(cs,
-                                          ptr + old_length,
-                                          ptr + max_length,
-                                          result->length(),
-                                          &well_formed_error);
+    uint add_length= Well_formed_prefix(cs,
+                                        ptr + old_length,
+                                        ptr + max_length,
+                                        result->length()).length();
     result->length(old_length + add_length);
     item->warning_for_row= TRUE;
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,

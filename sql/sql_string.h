@@ -44,13 +44,48 @@ inline uint32 copy_and_convert(char *to, uint32 to_length,
 }
 
 
-class String_copier: private MY_STRCONV_STATUS
+class String_copy_status: protected MY_STRCOPY_STATUS
 {
 public:
   const char *source_end_pos() const
-  { return m_native_copy_status.m_source_end_pos; }
+  { return m_source_end_pos; }
   const char *well_formed_error_pos() const
-  { return m_native_copy_status.m_well_formed_error_pos; }
+  { return m_well_formed_error_pos; }
+};
+
+
+class Well_formed_prefix_status: public String_copy_status
+{
+public:
+  Well_formed_prefix_status(CHARSET_INFO *cs,
+                            const char *str, const char *end, size_t nchars)
+  { cs->cset->well_formed_char_length(cs, str, end, nchars, this); }
+};
+
+
+class Well_formed_prefix: public Well_formed_prefix_status
+{
+  const char *m_str; // The beginning of the string
+public:
+  Well_formed_prefix(CHARSET_INFO *cs, const char *str, const char *end,
+                     size_t nchars)
+   :Well_formed_prefix_status(cs, str, end, nchars), m_str(str)
+  { }
+  Well_formed_prefix(CHARSET_INFO *cs, const char *str, size_t length,
+                     size_t nchars)
+   :Well_formed_prefix_status(cs, str, str + length, nchars), m_str(str)
+  { }
+  Well_formed_prefix(CHARSET_INFO *cs, const char *str, size_t length)
+   :Well_formed_prefix_status(cs, str, str + length, length), m_str(str)
+  { }
+  size_t length() const { return m_source_end_pos - m_str; }
+};
+
+
+class String_copier: public String_copy_status,
+                     protected MY_STRCONV_STATUS
+{
+public:
   const char *cannot_convert_error_pos() const
   { return m_cannot_convert_error_pos; }
   const char *most_important_error_pos() const
@@ -67,7 +102,7 @@ public:
                    uint nchars)
   {
     return my_convert_fix(dstcs, dst, dst_length,
-                          srccs, src, src_length, nchars, this);
+                          srccs, src, src_length, nchars, this, this);
   }
   /*
      Copy a string. Fix bad bytes/characters to '?'.
@@ -606,9 +641,7 @@ public:
   }
   uint well_formed_length() const
   {
-    int dummy_error;
-    return charset()->cset->well_formed_len(charset(), ptr(), ptr() + length(),
-                                            length(), &dummy_error);
+    return (uint) Well_formed_prefix(charset(), ptr(), length()).length();
   }
   bool is_ascii() const
   {
