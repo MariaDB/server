@@ -3471,6 +3471,7 @@ static int rocksdb_init_func(void *p)
   rocksdb::Options main_opts(rocksdb_db_options,
                              rocksdb_cf_options_map.get_defaults());
 
+#ifdef MARIAROCKS_NOT_YET  
   /*
     Flashcache configuration:
     When running on Flashcache, mysqld opens Flashcache device before
@@ -3497,6 +3498,7 @@ static int rocksdb_init_func(void *p)
                           "writer threads, fd %d", cachedev_fd);
     main_opts.env= flashcache_aware_env.get();
   }
+#endif 
 
   main_opts.env->SetBackgroundThreads(main_opts.max_background_flushes,
                                       rocksdb::Env::Priority::HIGH);
