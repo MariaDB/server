@@ -8669,13 +8669,9 @@ opt_for_system_time_clause:
           }
         | FOR_SYSTEM_TIME_SYM
           AS OF_SYM
-          TIMESTAMP TEXT_STRING
+          TIMESTAMP simple_expr
           {
-            Item *item= create_temporal_literal(thd, $5.str, $5.length, YYCSCL,
-                                                MYSQL_TYPE_DATETIME, true);
-            if (item == NULL)
-              MYSQL_YYABORT;
-            $$.init(FOR_SYSTEM_TIME_AS_OF, item);
+            $$.init(FOR_SYSTEM_TIME_AS_OF, $5);
           }
         | FOR_SYSTEM_TIME_SYM
           AS OF_SYM
@@ -8688,31 +8684,19 @@ opt_for_system_time_clause:
           }
         | FOR_SYSTEM_TIME_SYM
           FROM
-          TIMESTAMP TEXT_STRING
+          TIMESTAMP simple_expr
           TO_SYM
-          TIMESTAMP TEXT_STRING
+          TIMESTAMP simple_expr
           {
-            Item *item1= create_temporal_literal(thd, $4.str, $4.length, YYCSCL,
-                                                 MYSQL_TYPE_DATETIME, true);
-            Item *item2= create_temporal_literal(thd, $7.str, $7.length, YYCSCL,
-                                                 MYSQL_TYPE_DATETIME, true);
-            if (item1 == NULL || item2 == NULL)
-              MYSQL_YYABORT;
-            $$.init(FOR_SYSTEM_TIME_FROM_TO, item1, item2);
+            $$.init(FOR_SYSTEM_TIME_FROM_TO, $4, $7);
           }
         | FOR_SYSTEM_TIME_SYM
           BETWEEN_SYM
-          TIMESTAMP TEXT_STRING
+          TIMESTAMP simple_expr
           AND_SYM
-          TIMESTAMP TEXT_STRING
+          TIMESTAMP simple_expr
           {
-            Item *item1= create_temporal_literal(thd, $4.str, $4.length, YYCSCL,
-                                                 MYSQL_TYPE_DATETIME, true);
-            Item *item2= create_temporal_literal(thd, $7.str, $7.length, YYCSCL,
-                                                 MYSQL_TYPE_DATETIME, true);
-            if (item1 == NULL || item2 == NULL)
-              MYSQL_YYABORT;
-            $$.init(FOR_SYSTEM_TIME_BETWEEN, item1, item2);
+            $$.init(FOR_SYSTEM_TIME_BETWEEN, $4, $7);
           }
         ;
 
