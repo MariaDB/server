@@ -3398,8 +3398,21 @@ sp_instr_freturn::exec_core(THD *thd, uint *nextp)
     That means, Diagnostics Area should be clean before its execution.
   */
 
-  Diagnostics_area *da= thd->get_stmt_da();
-  da->clear_warning_info(da->warning_info_id());
+  if (!(thd->variables.sql_mode & MODE_ORACLE))
+  {
+    /*
+      Don't clean warnings in ORACLE mode,
+      as they are needed for SQLCODE and SQLERRM:
+        BEGIN
+          SELECT a INTO a FROM t1;
+          RETURN 'No exception ' || SQLCODE || ' ' || SQLERRM;
+        EXCEPTION WHEN NO_DATA_FOUND THEN
+          RETURN 'Exception ' || SQLCODE || ' ' || SQLERRM;
+        END;
+    */
+    Diagnostics_area *da= thd->get_stmt_da();
+    da->clear_warning_info(da->warning_info_id());
+  }
 
   /*
     Change <next instruction pointer>, so that this will be the last

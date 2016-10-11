@@ -13745,46 +13745,11 @@ order_ident:
 simple_ident:
           ident
           {
-            LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
-            sp_variable *spv;
-            sp_pcontext *spc = lex->spcont;
-            if (spc && (spv = spc->find_variable($1, false)))
-            {
-              /* We're compiling a stored procedure and found a variable */
-              if (! lex->parsing_options.allows_variable)
-                my_yyabort_error((ER_VIEW_SELECT_VARIABLE, MYF(0)));
-
-              Item_splocal *splocal;
-              splocal= new (thd->mem_root)
-                         Item_splocal(thd, $1, spv->offset, spv->sql_type(),
-                                      lip->get_tok_start_prev() - lex->sphead->m_tmp_query,
-                                      lip->get_tok_end() - lip->get_tok_start_prev());
-              if (splocal == NULL)
-                MYSQL_YYABORT;
-#ifndef DBUG_OFF
-              splocal->m_sp= lex->sphead;
-#endif
-              $$= splocal;
-              lex->safe_to_cache_query=0;
-            }
-            else
-            {
-              SELECT_LEX *sel=Select;
-              if ((sel->parsing_place != IN_HAVING) ||
-                  (sel->get_in_sum_expr() > 0))
-              {
-                $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
-                                                   NullS, NullS, $1.str);
-              }
-              else
-              {
-                $$= new (thd->mem_root) Item_ref(thd, Lex->current_context(),
-                                                 NullS, NullS, $1.str);
-              }
-              if ($$ == NULL)
-                MYSQL_YYABORT;
-            }
+            if (!($$= Lex->create_item_ident(thd, $1,
+                                             lip->get_tok_start_prev(),
+                                             lip->get_tok_end())))
+              MYSQL_YYABORT;
           }
         | simple_ident_q { $$= $1; }
         ;
@@ -13792,19 +13757,7 @@ simple_ident:
 simple_ident_nospvar:
           ident
           {
-            SELECT_LEX *sel=Select;
-            if ((sel->parsing_place != IN_HAVING) ||
-                (sel->get_in_sum_expr() > 0))
-            {
-              $$= new (thd->mem_root) Item_field(thd, Lex->current_context(),
-                                                 NullS, NullS, $1.str);
-            }
-            else
-            {
-              $$= new (thd->mem_root) Item_ref(thd, Lex->current_context(),
-                                               NullS, NullS, $1.str);
-            }
-            if ($$ == NULL)
+            if (!($$= Lex->create_item_ident_nosp(thd, $1)))
               MYSQL_YYABORT;
           }
         | simple_ident_q { $$= $1; }

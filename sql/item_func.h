@@ -2688,6 +2688,30 @@ public:
 };
 
 
+class Item_func_sqlcode: public Item_int_func
+{
+public:
+  Item_func_sqlcode(THD *thd): Item_int_func(thd) { }
+  longlong val_int();
+  const char *func_name() const { return "SQLCODE"; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(func_name());
+  }
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
+  }
+  void fix_length_and_dec()
+  {
+    maybe_null= null_value= false;
+    max_length= 11;
+  }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_sqlcode>(thd, mem_root, this); }
+};
+
+
 void uuid_short_init();
 
 class Item_func_uuid_short :public Item_int_func

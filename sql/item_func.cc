@@ -6647,6 +6647,19 @@ longlong Item_func_oracle_sql_rowcount::val_int()
 }
 
 
+longlong Item_func_sqlcode::val_int()
+{
+  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(!null_value);
+  Diagnostics_area::Sql_condition_iterator it=
+    current_thd->get_stmt_da()->sql_conditions();
+  const Sql_condition *err;
+  if ((err= it++))
+    return err->get_sql_errno();
+  return 0;
+}
+
+
 /**
   @brief Checks if requested access to function can be granted to user.
     If function isn't found yet, it searches function first.

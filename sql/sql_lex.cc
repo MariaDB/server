@@ -5951,6 +5951,67 @@ bool LEX::set_variable(struct sys_var_with_base *variable, Item *item)
 }
 
 
+Item *LEX::create_item_ident_nosp(THD *thd, LEX_STRING name)
+{
+  if (current_select->parsing_place != IN_HAVING ||
+      current_select->get_in_sum_expr() > 0)
+    return new (thd->mem_root) Item_field(thd, current_context(),
+                                          NullS, NullS, name.str);
+
+  return new (thd->mem_root) Item_ref(thd, current_context(),
+                                      NullS, NullS, name.str);
+}
+
+
+Item *LEX::create_item_ident_sp(THD *thd, LEX_STRING name,
+                                uint start_in_q,
+                                uint length_in_q)
+{
+  sp_variable *spv;
+  DBUG_ASSERT(spcont);
+  if ((spv= spcont->find_variable(name, false)))
+  {
+    /* We're compiling a stored procedure and found a variable */
+    if (!parsing_options.allows_variable)
+    {
+      my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
+      return NULL;
+    }
+
+    Item_splocal *splocal;
+    splocal= new (thd->mem_root) Item_splocal(thd, name,
+                                              spv->offset, spv->sql_type(),
+                                              start_in_q, length_in_q);
+    if (splocal == NULL)
+      return NULL;
+#ifndef DBUG_OFF
+    splocal->m_sp= sphead;
+#endif
+    safe_to_cache_query= 0;
+    return splocal;
+  }
+
+  if (thd->variables.sql_mode & MODE_ORACLE)
+  {
+    if (!my_strcasecmp(system_charset_info, name.str, "SQLCODE"))
+      return new (thd->mem_root) Item_func_sqlcode(thd);
+    if (!my_strcasecmp(system_charset_info, name.str, "SQLERRM"))
+      return new (thd->mem_root) Item_func_sqlerrm(thd);
+  }
+  return create_item_ident_nosp(thd, name);
+}
+
+
+Item *LEX::create_item_ident_sp(THD *thd, LEX_STRING name,
+                                const char *start_in_q,
+                                const char *end_in_q)
+{
+  DBUG_ASSERT(sphead);
+  return create_item_ident_sp(thd, name, start_in_q - sphead->m_tmp_query,
+                                         end_in_q - start_in_q);
+}
+
+
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 
