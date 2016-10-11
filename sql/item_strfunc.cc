@@ -2329,6 +2329,25 @@ String *Item_func_database::val_str(String *str)
 }
 
 
+String *Item_func_sqlerrm::val_str(String *str)
+{
+  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(!null_value);
+  Diagnostics_area::Sql_condition_iterator it=
+    current_thd->get_stmt_da()->sql_conditions();
+  const Sql_condition *err;
+  if ((err= it++))
+  {
+    str->copy(err->get_message_text(), err->get_message_octet_length(),
+              system_charset_info);
+    return str;
+  }
+  str->copy(C_STRING_WITH_LEN("normal, successful completition"),
+            system_charset_info);
+  return str;
+}
+
+
 /**
   @note USER() is replicated correctly if binlog_format=ROW or (as of
   BUG#28086) binlog_format=MIXED, but is incorrectly replicated to ''

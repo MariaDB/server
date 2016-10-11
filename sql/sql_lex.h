@@ -3074,6 +3074,21 @@ public:
                                        const char *start_in_q,
                                        const char *end_in_q);
 
+  Item *create_item_ident_nosp(THD *thd, LEX_STRING name);
+  Item *create_item_ident_sp(THD *thd, LEX_STRING name,
+                             uint start_in_q,
+                             uint length_in_q);
+  Item *create_item_ident_sp(THD *thd, LEX_STRING name,
+                             const char *start_in_q,
+                             const char *end_in_q);
+  Item *create_item_ident(THD *thd, LEX_STRING name,
+                          const char *start_in_q,
+                          const char *end_in_q)
+  {
+    return sphead ?
+           create_item_ident_sp(thd, name, start_in_q, end_in_q) :
+           create_item_ident_nosp(thd, name);
+  }
   bool is_trigger_new_or_old_reference(const LEX_STRING name);
 
   Item *create_and_link_Item_trigger_field(THD *thd, const char *name,

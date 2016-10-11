@@ -719,6 +719,27 @@ public:
 };
 
 
+class Item_func_sqlerrm :public Item_func_sysconst
+{
+public:
+  Item_func_sqlerrm(THD *thd): Item_func_sysconst(thd) {}
+  String *val_str(String *);
+  const char *func_name() const { return "SQLERRM"; }
+  const char *fully_qualified_func_name() const { return "SQLERRM"; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(func_name());
+  }
+  void fix_length_and_dec()
+  {
+    max_length= 512 * system_charset_info->mbmaxlen;
+    null_value= maybe_null= false;
+  }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_sqlerrm>(thd, mem_root, this); }
+};
+
+
 class Item_func_user :public Item_func_sysconst
 {
 protected:
