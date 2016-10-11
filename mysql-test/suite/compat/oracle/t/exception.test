@@ -239,6 +239,27 @@ CALL p1();
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
+--echo #
+--echo # Testing that warning-alike errors are caught by OTHERS
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+  a INT:=10;
+BEGIN
+  SELECT a INTO a FROM t1;
+  RETURN 'OK';
+EXCEPTION
+  WHEN OTHERS THEN RETURN 'Exception';
+END;
+$$
+DELIMITER ;$$
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of MDEV-10840 sql_mode=ORACLE: RAISE statement for predefined exceptions

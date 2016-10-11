@@ -410,8 +410,16 @@ sp_pcontext::find_handler(const char *sql_state,
         break;
 
       case sp_condition_value::EXCEPTION:
-        if (is_sqlstate_exception(sql_state) &&
-            level == Sql_condition::WARN_LEVEL_ERROR && !found_cv)
+        /*
+          In sql_mode=ORACLE this construct should catch errors and warnings:
+            EXCEPTION
+              WHEN OTHERS THEN ...;
+          E.g. NO_DATA_FOUND is more like a warning than an error,
+          and it should be caught.
+        */
+        if (((current_thd->variables.sql_mode & MODE_ORACLE) ||
+             (is_sqlstate_exception(sql_state) &&
+              level == Sql_condition::WARN_LEVEL_ERROR)) && !found_cv)
         {
           found_cv= cv;
           found_handler= h;
