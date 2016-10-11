@@ -8,7 +8,7 @@ Build-Depends: bison,
                debhelper (>= 9),
                dh-apparmor,
                dpatch,
-               libaio-dev,
+               libaio-dev [linux-any],
                libboost-dev,
                libjemalloc-dev (>= 3.0.0~) [linux-any],
                libjudy-dev,
@@ -70,7 +70,6 @@ Section: libdevel
 Provides: libmysqld-dev
 Pre-Depends: ${misc:Pre-Depends}
 Depends: libmariadbclient-dev (= ${binary:Version}),
-         libmariadbd18 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: libmysqld-dev
@@ -137,11 +136,6 @@ Depends: libmariadbclient18 (>= ${source:Version}),
          mariadb-common (>= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
-Provides: mysql-client-core,
-          mysql-client-core-5.1,
-          mysql-client-core-5.5,
-          mysql-client-core-5.6,
-          virtual-mysql-client-core
 Conflicts: mariadb-client-10.0,
            mariadb-client-10.1,
            mariadb-client-5.1,
@@ -161,6 +155,7 @@ Conflicts: mariadb-client-10.0,
            mysql-client-core-5.1,
            mysql-client-core-5.5,
            mysql-client-core-5.6,
+           mysql-client-core-5.7,
            virtual-mysql-client-core
 Replaces: mariadb-client-10.0,
           mariadb-client-10.1,
@@ -181,6 +176,13 @@ Replaces: mariadb-client-10.0,
           mysql-client-core-5.1,
           mysql-client-core-5.5,
           mysql-client-core-5.6,
+          mysql-client-core-5.7,
+          virtual-mysql-client-core
+Provides: mysql-client-core,
+          mysql-client-core-5.1,
+          mysql-client-core-5.5,
+          mysql-client-core-5.6,
+          mysql-client-core-5.7,
           virtual-mysql-client-core
 Description: MariaDB database core client binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -199,12 +201,6 @@ Depends: debianutils (>=1.6),
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
-Provides: mysql-client,
-          mysql-client-4.1,
-          mysql-client-5.1,
-          mysql-client-5.5,
-          mysql-client-5.6,
-          virtual-mysql-client
 Conflicts: mariadb-client (<< ${source:Version}),
            mariadb-client-10.0,
            mariadb-client-10.1,
@@ -217,6 +213,7 @@ Conflicts: mariadb-client (<< ${source:Version}),
            mysql-client-5.1,
            mysql-client-5.5,
            mysql-client-5.6,
+           mysql-client-5.7,
            virtual-mysql-client
 Replaces: mariadb-client (<< ${source:Version}),
           mariadb-client-10.0,
@@ -230,6 +227,14 @@ Replaces: mariadb-client (<< ${source:Version}),
           mysql-client-5.1,
           mysql-client-5.5,
           mysql-client-5.6,
+          mysql-client-5.7,
+          virtual-mysql-client
+Provides: mysql-client,
+          mysql-client-4.1,
+          mysql-client-5.1,
+          mysql-client-5.5,
+          mysql-client-5.6,
+          mysql-client-5.7,
           virtual-mysql-client
 Recommends: libdbd-mysql-perl (>= 1.2202), libdbi-perl, libterm-readkey-perl
 Description: MariaDB database client binaries
@@ -247,11 +252,6 @@ Depends: libmariadbclient18 (>= ${binary:Version}),
          mariadb-common (>= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
-Provides: mysql-server-core,
-          mysql-server-core-5.1,
-          mysql-server-core-5.5,
-          mysql-server-core-5.6,
-          virtual-mysql-server-core
 Conflicts: mariadb-server-core-10.0,
            mariadb-server-core-10.1,
            mariadb-server-core-5.1,
@@ -263,8 +263,11 @@ Conflicts: mariadb-server-core-10.0,
            mysql-server-core-5.1,
            mysql-server-core-5.5,
            mysql-server-core-5.6,
+           mysql-server-core-5.7,
            virtual-mysql-server-core
-Replaces: mariadb-server-core-10.0,
+Breaks: mariadb-server-10.2 (<< ${source:Version})
+Replaces: mariadb-server-10.2 (<< ${source:Version}),
+          mariadb-server-core-10.0,
           mariadb-server-core-10.1,
           mariadb-server-core-5.1,
           mariadb-server-core-5.2,
@@ -275,6 +278,13 @@ Replaces: mariadb-server-core-10.0,
           mysql-server-core-5.1,
           mysql-server-core-5.5,
           mysql-server-core-5.6,
+          mysql-server-core-5.7,
+          virtual-mysql-server-core
+Provides: mysql-server-core,
+          mysql-server-core-5.1,
+          mysql-server-core-5.5,
+          mysql-server-core-5.6,
+          mysql-server-core-5.7,
           virtual-mysql-server-core
 Description: MariaDB database core server files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -307,7 +317,6 @@ Depends: bsdutils,
          socat,
          ${misc:Depends},
          ${shlibs:Depends}
-Provides: mariadb-server, mysql-server, virtual-mysql-server
 Conflicts: mariadb-server (<< ${source:Version}),
            mariadb-server-10.0,
            mariadb-server-10.1,
@@ -324,6 +333,7 @@ Conflicts: mariadb-server (<< ${source:Version}),
            mysql-server-5.1,
            mysql-server-5.5,
            mysql-server-5.6,
+           mysql-server-5.7,
            virtual-mysql-server
 Replaces: libmariadbclient-dev (<< 5.5.0),
           libmariadbclient16 (<< 5.3.4),
@@ -343,7 +353,9 @@ Replaces: libmariadbclient-dev (<< 5.5.0),
           mysql-server-5.1,
           mysql-server-5.5,
           mysql-server-5.6,
+          mysql-server-5.7,
           virtual-mysql-server
+Provides: virtual-mysql-server
 Description: MariaDB database server binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -386,6 +398,7 @@ Depends: mariadb-client-10.2 (= ${binary:Version}),
 Breaks: mariadb-test-10.0,
         mariadb-test-10.1,
         mariadb-test-5.5,
+        mariadb-server-5.5,
         mysql-testsuite,
         mysql-testsuite-5.5,
         mysql-testsuite-5.6,
@@ -394,6 +407,7 @@ Breaks: mariadb-test-10.0,
 Replaces: mariadb-test-10.0,
           mariadb-test-10.1,
           mariadb-test-5.5,
+          mariadb-server-5.5,
           mysql-testsuite,
           mysql-testsuite-5.5,
           mysql-testsuite-5.6,
