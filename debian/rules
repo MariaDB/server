@@ -168,6 +168,6 @@ get-orig-source:
 	uscan --force-download --verbose
 
 %:
-	dh $@ --parallel
+	dh $@ --parallel --with dpatch
 
 # vim: ts=8
