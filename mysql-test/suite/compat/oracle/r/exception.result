@@ -199,5 +199,24 @@ ERROR 24000: Cursor is not open
 DROP PROCEDURE p1;
 DROP TABLE t1;
 #
+# Testing that warning-alike errors are caught by OTHERS
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+a INT:=10;
+BEGIN
+SELECT a INTO a FROM t1;
+RETURN 'OK';
+EXCEPTION
+WHEN OTHERS THEN RETURN 'Exception';
+END;
+$$
+SELECT f1() FROM DUAL;
+f1()
+Exception
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
 # End of MDEV-10840 sql_mode=ORACLE: RAISE statement for predefined exceptions
 #
