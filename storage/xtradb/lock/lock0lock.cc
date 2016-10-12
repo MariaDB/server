@@ -2049,7 +2049,7 @@ lock_rec_insert_by_trx_age(
 	ulint					space;
 	ulint					page_no;
 	ulint 				rec_fold;
-	hash_cell_t		cell;
+	hash_cell_t*		cell;
 	lock_t*				node;
 	lock_t*				next;
 
@@ -2971,7 +2971,7 @@ lock_rec_dequeue_from_page(
 {
 	ulint		space;
 	ulint		page_no;
-	ulint 		rec_fold
+	ulint 		rec_fold;
 	lock_t*		lock;
 	lock_t*		previous = NULL;
 	trx_lock_t*	trx_lock;
