@@ -171,8 +171,8 @@ const LEX_STRING command_name[257]={
   { C_STRING_WITH_LEN("Set option") },      //27
   { C_STRING_WITH_LEN("Fetch") },           //28
   { C_STRING_WITH_LEN("Daemon") },          //29
-  { 0, 0 }, //30
-  { 0, 0 }, //31
+  { C_STRING_WITH_LEN("Unimpl get tid") },  //30
+  { C_STRING_WITH_LEN("Reset connection") },//31
   { 0, 0 }, //32
   { 0, 0 }, //33
   { 0, 0 }, //34
@@ -525,6 +525,7 @@ void init_update_queries(void)
   server_command_flags[COM_STMT_SEND_LONG_DATA]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_REGISTER_SLAVE]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_MULTI]= CF_SKIP_WSREP_CHECK | CF_NO_COM_MULTI;
+  server_command_flags[CF_NO_COM_MULTI]= CF_NO_COM_MULTI;
 
   /* Initialize the sql command flags array. */
   memset(sql_command_flags, 0, sizeof(sql_command_flags));
@@ -1671,6 +1672,14 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     break;
   }
 #endif
+  case COM_RESET_CONNECTION:
+  {
+    thd->status_var.com_other++;
+    thd->change_user();
+    thd->clear_error();                         // if errors from rollback
+    my_ok(thd, 0, 0, 0);
+    break;
+  }
   case COM_CHANGE_USER:
   {
     int auth_rc;
@@ -2307,6 +2316,7 @@ com_multi_end:
   case COM_TIME:				// Impossible from client
   case COM_DELAYED_INSERT:
   case COM_END:
+  case COM_UNIMPLEMENTED:
   default:
     my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                MYF(0));
