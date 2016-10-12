@@ -2971,7 +2971,9 @@ lock_rec_dequeue_from_page(
 {
 	ulint		space;
 	ulint		page_no;
+	ulint 		rec_fold
 	lock_t*		lock;
+	lock_t*		previous = NULL;
 	trx_lock_t*	trx_lock;
 
 	ut_ad(lock_mutex_own());
@@ -2982,6 +2984,7 @@ lock_rec_dequeue_from_page(
 
 	space = in_lock->un_member.rec_lock.space;
 	page_no = in_lock->un_member.rec_lock.page_no;
+	rec_fold = lock_rec_fold(space, page_no);
 
 	in_lock->index->table->n_rec_locks--;
 
