@@ -3861,21 +3861,18 @@ vers_row_ins_vtq_low(trx_t* trx, mem_heap_t* heap, dtuple_t* row)
 	mem_heap_t* offsets_heap = mem_heap_create(1024);
 
 	do {
-		n_index++;
-
 		if (!(index = dict_table_get_next_index(index))) {
 			break;
 		}
 
-		if (index->type & DICT_FTS) {
-			continue;
-		}
+		n_index++;
 
 		entry = row_build_index_entry(row, NULL, index, heap);
 		err = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE,
 			index, offsets_heap, heap, entry, trx->id, NULL, false, trx);
 	} while (err == DB_SUCCESS);
+	ut_ad(n_index == 2 || err != DB_SUCCESS);
 
 	mem_heap_free(offsets_heap);
 	return err;
