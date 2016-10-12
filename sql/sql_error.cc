@@ -185,11 +185,8 @@ Sql_condition::Sql_condition()
    m_column_name((const char*) NULL, 0, & my_charset_utf8_bin),
    m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin),
    m_message_text(),
-   m_sql_errno(0),
-   m_level(Sql_condition::WARN_LEVEL_ERROR),
    m_mem_root(NULL)
 {
-  memset(m_returned_sqlstate, 0, sizeof(m_returned_sqlstate));
 }
 
 void Sql_condition::init(MEM_ROOT *mem_root)
@@ -229,12 +226,9 @@ Sql_condition::Sql_condition(MEM_ROOT *mem_root)
    m_column_name((const char*) NULL, 0, & my_charset_utf8_bin),
    m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin),
    m_message_text(),
-   m_sql_errno(0),
-   m_level(Sql_condition::WARN_LEVEL_ERROR),
    m_mem_root(mem_root)
 {
   DBUG_ASSERT(mem_root != NULL);
-  memset(m_returned_sqlstate, 0, sizeof(m_returned_sqlstate));
 }
 
 static void copy_string(MEM_ROOT *mem_root, String* dst, const String* src)
@@ -270,21 +264,6 @@ Sql_condition::copy_opt_attributes(const Sql_condition *cond)
   copy_string(m_mem_root, & m_cursor_name, & cond->m_cursor_name);
 }
 
-void
-Sql_condition::set(uint sql_errno, const char* sqlstate,
-                 Sql_condition::enum_warning_level level, const char* msg)
-{
-  DBUG_ASSERT(sql_errno != 0);
-  DBUG_ASSERT(sqlstate != NULL);
-  DBUG_ASSERT(msg != NULL);
-
-  m_sql_errno= sql_errno;
-  memcpy(m_returned_sqlstate, sqlstate, SQLSTATE_LENGTH);
-  m_returned_sqlstate[SQLSTATE_LENGTH]= '\0';
-
-  set_builtin_message_text(msg);
-  m_level= level;
-}
 
 void
 Sql_condition::set_builtin_message_text(const char* str)
@@ -312,12 +291,45 @@ Sql_condition::get_message_octet_length() const
   return m_message_text.length();
 }
 
-void
-Sql_condition::set_sqlstate(const char* sqlstate)
+
+void Sql_state_errno_level::assign_defaults(const Sql_state_errno *from)
 {
-  memcpy(m_returned_sqlstate, sqlstate, SQLSTATE_LENGTH);
-  m_returned_sqlstate[SQLSTATE_LENGTH]= '\0';
+  DBUG_ASSERT(from);
+  int sqlerrno= from->get_sql_errno();
+  /*
+    SIGNAL is restricted in sql_yacc.yy to only signal SQLSTATE conditions.
+  */
+  DBUG_ASSERT(from->has_sql_state());
+  set_sqlstate(from);
+  /* SQLSTATE class "00": illegal, rejected in the parser. */
+  DBUG_ASSERT(m_sqlstate[0] != '0' || get_sqlstate()[1] != '0');
+
+  if (Sql_state::is_warning())        /* SQLSTATE class "01": warning. */
+  {
+    m_level= Sql_condition::WARN_LEVEL_WARN;
+    m_sql_errno= sqlerrno ? sqlerrno : ER_SIGNAL_WARN;
+  }
+  else if (Sql_state::is_not_found()) /* SQLSTATE class "02": not found. */
+  {
+    m_level= Sql_condition::WARN_LEVEL_ERROR;
+    m_sql_errno= sqlerrno ? sqlerrno : ER_SIGNAL_NOT_FOUND;
+  }
+  else                               /* other SQLSTATE classes : error. */
+  {
+    m_level= Sql_condition::WARN_LEVEL_ERROR;
+    m_sql_errno= sqlerrno ? sqlerrno : ER_SIGNAL_EXCEPTION;
+  }
 }
+
+
+void Sql_condition::assign_defaults(THD *thd, const Sql_state_errno *from)
+{
+  if (from)
+    Sql_state_errno_level::assign_defaults(from);
+  if (!get_message_text())
+    set_builtin_message_text(ER(get_sql_errno()));
+}
+
 
 Diagnostics_area::Diagnostics_area(bool initialize)
   : is_bulk_execution(0), m_main_wi(0, false, initialize)
@@ -501,9 +513,7 @@ Diagnostics_area::set_error_status(uint sql_errno,
     return;
 #endif
 
-  m_sql_errno= sql_errno;
-  memcpy(m_sqlstate, sqlstate, SQLSTATE_LENGTH);
-  m_sqlstate[SQLSTATE_LENGTH]= '\0';
+  set_condition_value(sql_errno, sqlstate);
   strmake_buf(m_message, message);
 
   get_warning_info()->set_error_condition(error_condition);
@@ -695,8 +705,7 @@ void Warning_info::reserve_space(THD *thd, uint count)
 }
 
 Sql_condition *Warning_info::push_warning(THD *thd,
-                                          uint sql_errno, const char* sqlstate,
-                                          Sql_condition::enum_warning_level level,
+                                          const Sql_state_errno_level *value,
                                           const char *msg)
 {
   Sql_condition *cond= NULL;
@@ -709,11 +718,11 @@ Sql_condition *Warning_info::push_warning(THD *thd,
       cond= new (& m_warn_root) Sql_condition(& m_warn_root);
       if (cond)
       {
-        cond->set(sql_errno, sqlstate, level, msg);
+        cond->set(value, msg);
         m_warn_list.push_back(cond);
       }
     }
-    m_warn_count[(uint) level]++;
+    m_warn_count[(uint) value->get_level()]++;
   }
 
   m_current_statement_warn_count++;
@@ -721,13 +730,11 @@ Sql_condition *Warning_info::push_warning(THD *thd,
 }
 
 
-Sql_condition *Warning_info::push_warning(THD *thd, const Sql_condition *sql_condition)
+Sql_condition *Warning_info::push_warning(THD *thd,
+                                          const Sql_condition *sql_condition)
 {
-  Sql_condition *new_condition= push_warning(thd,
-                                           sql_condition->get_sql_errno(),
-                                           sql_condition->get_sqlstate(),
-                                           sql_condition->get_level(),
-                                           sql_condition->get_message_text());
+  Sql_condition *new_condition= push_warning(thd, sql_condition,
+                                             sql_condition->get_message_text());
 
   if (new_condition)
     new_condition->copy_opt_attributes(sql_condition);

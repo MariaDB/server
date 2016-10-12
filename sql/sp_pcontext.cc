@@ -36,10 +36,10 @@ bool sp_condition_value::equals(const sp_condition_value *cv) const
   switch (type)
   {
   case sp_condition_value::ERROR_CODE:
-    return (mysqlerr == cv->mysqlerr);
+    return (get_sql_errno() == cv->get_sql_errno());
 
   case sp_condition_value::SQLSTATE:
-    return (strcmp(sql_state, cv->sql_state) == 0);
+    return Sql_state::eq(cv);
 
   default:
     return true;
@@ -354,8 +354,7 @@ bool sp_pcontext::check_duplicate_handler(
 
 
 sp_handler*
-sp_pcontext::find_handler(const char *sql_state,
-                          uint sql_errno,
+sp_pcontext::find_handler(const Sql_state_errno *value,
                           Sql_condition::enum_warning_level level) const
 {
   sp_handler *found_handler= NULL;
@@ -373,7 +372,7 @@ sp_pcontext::find_handler(const char *sql_state,
       switch (cv->type)
       {
       case sp_condition_value::ERROR_CODE:
-        if (sql_errno == cv->mysqlerr &&
+        if (value->get_sql_errno() == cv->get_sql_errno() &&
             (!found_cv ||
              found_cv->type > sp_condition_value::ERROR_CODE))
         {
@@ -383,7 +382,7 @@ sp_pcontext::find_handler(const char *sql_state,
         break;
 
       case sp_condition_value::SQLSTATE:
-        if (strcmp(sql_state, cv->sql_state) == 0 &&
+        if (cv->Sql_state::eq(value) &&
             (!found_cv ||
              found_cv->type > sp_condition_value::SQLSTATE))
         {
@@ -393,7 +392,7 @@ sp_pcontext::find_handler(const char *sql_state,
         break;
 
       case sp_condition_value::WARNING:
-        if ((is_sqlstate_warning(sql_state) ||
+        if ((value->Sql_state::is_warning() ||
              level == Sql_condition::WARN_LEVEL_WARN) && !found_cv)
         {
           found_cv= cv;
@@ -402,7 +401,7 @@ sp_pcontext::find_handler(const char *sql_state,
         break;
 
       case sp_condition_value::NOT_FOUND:
-        if (is_sqlstate_not_found(sql_state) && !found_cv)
+        if (value->Sql_state::is_not_found() && !found_cv)
         {
           found_cv= cv;
           found_handler= h;
@@ -418,7 +417,7 @@ sp_pcontext::find_handler(const char *sql_state,
           and it should be caught.
         */
         if (((current_thd->variables.sql_mode & MODE_ORACLE) ||
-             (is_sqlstate_exception(sql_state) &&
+             (value->Sql_state::is_exception() &&
               level == Sql_condition::WARN_LEVEL_ERROR)) && !found_cv)
         {
           found_cv= cv;
@@ -467,7 +466,7 @@ sp_pcontext::find_handler(const char *sql_state,
   if (!p || !p->m_parent)
     return NULL;
 
-  return p->m_parent->find_handler(sql_state, sql_errno, level);
+  return p->m_parent->find_handler(value, level);
 }
 
 
