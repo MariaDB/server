@@ -29,12 +29,119 @@ class my_decimal;
 
 ///////////////////////////////////////////////////////////////////////////
 
-/**
-  Representation of a SQL condition.
-  A SQL condition can be a completion condition (note, warning),
-  or an exception condition (error, not found).
-*/
-class Sql_condition : public Sql_alloc
+class Sql_state
+{
+protected:
+  /**
+    This member is always NUL terminated.
+  */
+  char m_sqlstate[SQLSTATE_LENGTH + 1];
+public:
+  Sql_state()
+  {
+    memset(m_sqlstate, 0, sizeof(m_sqlstate));
+  }
+
+  Sql_state(const char *sqlstate)
+  {
+    set_sqlstate(sqlstate);
+  }
+
+  const char* get_sqlstate() const
+  { return m_sqlstate; }
+
+  void set_sqlstate(const Sql_state *other)
+  {
+    *this= *other;
+  }
+  void set_sqlstate(const char *sqlstate)
+  {
+    memcpy(m_sqlstate, sqlstate, SQLSTATE_LENGTH);
+    m_sqlstate[SQLSTATE_LENGTH]= '\0';
+  }
+  bool eq(const Sql_state *other) const
+  {
+    return strcmp(m_sqlstate, other->m_sqlstate) == 0;
+  }
+
+  bool has_sql_state() const { return m_sqlstate[0] != '\0'; }
+
+  /**
+    Checks if this SQL state defines a WARNING condition.
+    Note: m_sqlstate must contain a valid SQL-state.
+
+    @retval true if this SQL state defines a WARNING condition.
+    @retval false otherwise.
+  */
+  inline bool is_warning() const
+  { return m_sqlstate[0] == '0' && m_sqlstate[1] == '1'; }
+
+
+  /**
+    Checks if this SQL state defines a NOT FOUND condition.
+    Note: m_sqlstate must contain a valid SQL-state.
+
+    @retval true if this SQL state defines a NOT FOUND condition.
+    @retval false otherwise.
+  */
+  inline bool is_not_found() const
+  { return m_sqlstate[0] == '0' && m_sqlstate[1] == '2'; }
+
+
+  /**
+    Checks if this SQL state defines an EXCEPTION condition.
+    Note: m_sqlstate must contain a valid SQL-state.
+
+    @retval true if this SQL state defines an EXCEPTION condition.
+    @retval false otherwise.
+  */
+  inline bool is_exception() const
+  { return m_sqlstate[0] != '0' || m_sqlstate[1] > '2'; }
+
+};
+
+
+class Sql_state_errno: public Sql_state
+{
+protected:
+  /**
+    MySQL extension, MYSQL_ERRNO condition item.
+    SQL error number. One of ER_ codes from share/errmsg.txt.
+    Set by set_error_status.
+  */
+  uint m_sql_errno;
+
+public:
+  Sql_state_errno()
+   :m_sql_errno(0)
+  { }
+  Sql_state_errno(uint sql_errno)
+   :m_sql_errno(sql_errno)
+  { }
+  Sql_state_errno(uint sql_errno, const char *sql_state)
+   :Sql_state(sql_state),
+    m_sql_errno(sql_errno)
+  { }
+  /**
+    Get the SQL_ERRNO of this condition.
+    @return the sql error number condition item.
+  */
+  uint get_sql_errno() const
+  { return m_sql_errno; }
+
+  void set_condition_value(uint sql_errno, const char *sqlstate)
+  {
+    m_sql_errno= sql_errno;
+    set_sqlstate(sqlstate);
+  }
+  void set_condition_value(const Sql_state_errno *other)
+  {
+    *this= *other;
+  }
+};
+
+
+class Sql_state_errno_level: public Sql_state_errno
 {
 public:
   /*
@@ -45,6 +152,41 @@ public:
   */
   enum enum_warning_level
   { WARN_LEVEL_NOTE, WARN_LEVEL_WARN, WARN_LEVEL_ERROR, WARN_LEVEL_END};
+
+protected:
+  /** Severity (error, warning, note) of this condition. */
+  enum_warning_level m_level;
+
+  void assign_defaults(const Sql_state_errno *value);
+
+public:
+  /**
+    Get the error level of this condition.
+    @return the error level condition item.
+  */
+  enum_warning_level get_level() const
+  { return m_level; }
+
+   Sql_state_errno_level()
+    :m_level(WARN_LEVEL_ERROR)
+  { }
+
+  Sql_state_errno_level(uint sqlerrno, const char* sqlstate,
+                         enum_warning_level level)
+   :Sql_state_errno(sqlerrno, sqlstate),
+    m_level(level)
+  { }
+};
+
+
+/**
+  Representation of a SQL condition.
+  A SQL condition can be a completion condition (note, warning),
+  or an exception condition (error, not found).
+*/
+class Sql_condition : public Sql_alloc, public Sql_state_errno_level
+{
+public:
 
   /**
     Convert a bitmask consisting of MYSQL_TIME_{NOTE|WARN}_XXX bits
@@ -67,27 +209,6 @@ public:
     @return the length in bytes of the message text.
   */
   int get_message_octet_length() const;
-
-  /**
-    Get the SQLSTATE of this condition.
-    @return the sql state.
-  */
-  const char* get_sqlstate() const
-  { return m_returned_sqlstate; }
-
-  /**
-    Get the SQL_ERRNO of this condition.
-    @return the sql error number condition item.
-  */
-  uint get_sql_errno() const
-  { return m_sql_errno; }
-
-  /**
-    Get the error level of this condition.
-    @return the error level condition item.
-  */
-  Sql_condition::enum_warning_level get_level() const
-  { return m_level; }
 
 private:
   /*
@@ -143,15 +264,26 @@ private:
 
   /**
     Set this condition area with a fixed message text.
-    @param thd the current thread.
-    @param code the error number for this condition.
-    @param str the message text for this condition.
-    @param level the error level for this condition.
-    @param MyFlags additional flags.
+    @param value - the error number and the sql state for this condition.
+    @param level - the error level for this condition.
+    @param msg   - the message text for this condition.
   */
-  void set(uint sql_errno, const char* sqlstate,
+  void set(const Sql_state_errno *value,
            Sql_condition::enum_warning_level level,
-           const char* msg);
+           const char* msg)
+  {
+    DBUG_ASSERT(value->get_sql_errno() != 0);
+    DBUG_ASSERT(value->get_sqlstate() != NULL);
+    DBUG_ASSERT(msg != NULL);
+    set_condition_value(value);
+    set_builtin_message_text(msg);
+    m_level= level;
+  }
+
+  void set(const Sql_state_errno_level *cond, const char* msg)
+  {
+    set(cond, cond->get_level(), msg);
+  }
 
   /**
     Set the condition message test.
@@ -160,14 +292,19 @@ private:
   */
   void set_builtin_message_text(const char* str);
 
-  /** Set the SQLSTATE of this condition. */
-  void set_sqlstate(const char* sqlstate);
-
   /** Set the CLASS_ORIGIN of this condition. */
   void set_class_origin();
 
   /** Set the SUBCLASS_ORIGIN of this condition. */
   void set_subclass_origin();
+
+  /**
+    Assign the condition items 'MYSQL_ERRNO', 'level' and 'MESSAGE_TEXT'
+    default values of a condition.
+    @param thd   - current thread, to access to localized error messages
+    @param from  - copy condition items from here (can be NULL)
+  */
+  void assign_defaults(THD *thd, const Sql_state_errno *from);
 
   /**
     Clear this SQL condition.
@@ -207,18 +344,6 @@ private:
 
   /** Message text, expressed in the character set implied by --language. */
   String m_message_text;
-
-  /** MySQL extension, MYSQL_ERRNO condition item. */
-  uint m_sql_errno;
-
-  /**
-    SQL RETURNED_SQLSTATE condition item.
-    This member is always NUL terminated.
-  */
-  char m_returned_sqlstate[SQLSTATE_LENGTH+1];
-
-  /** Severity (error, warning, note) of this condition. */
-  Sql_condition::enum_warning_level m_level;
 
   /** Pointers for participating in the list of conditions. */
   Sql_condition *next_in_wi;
@@ -474,9 +599,7 @@ private:
     @return a pointer to the added SQL-condition.
   */
   Sql_condition *push_warning(THD *thd,
-                              uint sql_errno,
-                              const char* sqlstate,
-                              Sql_condition::enum_warning_level level,
+                              const Sql_state_errno_level *value,
                               const char* msg);
 
   /**
@@ -633,7 +756,7 @@ public:
   Can not be assigned twice per statement.
 */
 
-class Diagnostics_area
+class Diagnostics_area: public Sql_state_errno
 {
 private:
   /** The type of the counted and doubly linked list of conditions. */
@@ -721,10 +844,13 @@ public:
   { m_skip_flush= TRUE; }
 
   uint sql_errno() const
-  { DBUG_ASSERT(m_status == DA_ERROR); return m_sql_errno; }
+  {
+    DBUG_ASSERT(m_status == DA_ERROR);
+    return Sql_state_errno::get_sql_errno();
+  }
 
   const char* get_sqlstate() const
-  { DBUG_ASSERT(m_status == DA_ERROR); return m_sqlstate; }
+  { DBUG_ASSERT(m_status == DA_ERROR); return Sql_state::get_sqlstate(); }
 
   ulonglong affected_rows() const
   {
@@ -843,9 +969,8 @@ public:
                               Sql_condition::enum_warning_level level,
                               const char* msg)
   {
-    return get_warning_info()->push_warning(thd,
-                                            sql_errno_arg, sqlstate, level,
-                                            msg);
+    Sql_state_errno_level tmp(sql_errno_arg, sqlstate, level);
+    return get_warning_info()->push_warning(thd, &tmp, msg);
   }
 
   void mark_sql_conditions_for_removal()
@@ -885,14 +1010,6 @@ private:
 
   /** Message buffer. Can be used by OK or ERROR status. */
   char m_message[MYSQL_ERRMSG_SIZE];
-
-  /**
-    SQL error number. One of ER_ codes from share/errmsg.txt.
-    Set by set_error_status.
-  */
-  uint m_sql_errno;
-
-  char m_sqlstate[SQLSTATE_LENGTH+1];
 
   /**
     The number of rows affected by the last statement. This is
@@ -961,45 +1078,6 @@ bool is_sqlstate_valid(const LEX_STRING *sqlstate);
 */
 inline bool is_sqlstate_completion(const char *s)
 { return s[0] == '0' && s[1] == '0'; }
-
-
-/**
-  Checks if the specified SQL-state-string defines WARNING condition.
-  This function assumes that the given string contains a valid SQL-state.
-
-  @param s the condition SQLSTATE.
-
-  @retval true if the given string defines WARNING condition.
-  @retval false otherwise.
-*/
-inline bool is_sqlstate_warning(const char *s)
-{ return s[0] == '0' && s[1] == '1'; }
-
-
-/**
-  Checks if the specified SQL-state-string defines NOT FOUND condition.
-  This function assumes that the given string contains a valid SQL-state.
-
-  @param s the condition SQLSTATE.
-
-  @retval true if the given string defines NOT FOUND condition.
-  @retval false otherwise.
-*/
-inline bool is_sqlstate_not_found(const char *s)
-{ return s[0] == '0' && s[1] == '2'; }
-
-
-/**
-  Checks if the specified SQL-state-string defines EXCEPTION condition.
-  This function assumes that the given string contains a valid SQL-state.
-
-  @param s the condition SQLSTATE.
-
-  @retval true if the given string defines EXCEPTION condition.
-  @retval false otherwise.
-*/
-inline bool is_sqlstate_exception(const char *s)
-{ return s[0] != '0' || s[1] > '2'; }
 
 
 #endif // SQL_ERROR_H

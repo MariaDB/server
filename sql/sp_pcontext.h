@@ -127,12 +127,8 @@ public:
 /// In some sense, this class is a union -- a set of filled attributes
 /// depends on the sp_condition_value::type value.
 
-class sp_condition_value : public Sql_alloc
+class sp_condition_value : public Sql_alloc, public Sql_state_errno
 {
-  void init_sql_state()
-  {
-    sql_state[0]= '\0';
-  }
 public:
   enum enum_type
   {
@@ -146,44 +142,30 @@ public:
   /// Type of the condition value.
   enum_type type;
 
-  /// SQLSTATE of the condition value.
-  char sql_state[SQLSTATE_LENGTH+1];
-
-  /// MySQL error code of the condition value.
-  uint mysqlerr;
-
 public:
   sp_condition_value(uint _mysqlerr)
    :Sql_alloc(),
-    type(ERROR_CODE),
-    mysqlerr(_mysqlerr)
-  { init_sql_state(); }
+    Sql_state_errno(_mysqlerr),
+    type(ERROR_CODE)
+  { }
 
   sp_condition_value(uint _mysqlerr, const char *_sql_state)
    :Sql_alloc(),
-    type(ERROR_CODE),
-    mysqlerr(_mysqlerr)
-  {
-    memcpy(sql_state, _sql_state, SQLSTATE_LENGTH);
-    sql_state[SQLSTATE_LENGTH]= 0;
-  }
+    Sql_state_errno(_mysqlerr, _sql_state),
+    type(ERROR_CODE)
+  { }
 
   sp_condition_value(const char *_sql_state)
    :Sql_alloc(),
-    type(SQLSTATE),
-    mysqlerr(0)
-  {
-    memcpy(sql_state, _sql_state, SQLSTATE_LENGTH);
-    sql_state[SQLSTATE_LENGTH]= 0;
-  }
+    Sql_state_errno(0, _sql_state),
+    type(SQLSTATE)
+  { }
 
   sp_condition_value(enum_type _type)
    :Sql_alloc(),
-    type(_type),
-    mysqlerr(0)
+    type(_type)
   {
     DBUG_ASSERT(type != ERROR_CODE && type != SQLSTATE);
-    init_sql_state();
   }
 
   /// Check if two instances of sp_condition_value are equal or not.
@@ -192,8 +174,6 @@ public:
   ///
   /// @return true if the instances are equal, false otherwise.
   bool equals(const sp_condition_value *cv) const;
-
-  bool has_sql_state() const { return sql_state[0] != '\0'; }
 };
 
 ///////////////////////////////////////////////////////////////////////////
@@ -532,13 +512,11 @@ public:
   /// Find an SQL handler for the given SQL condition according to the
   /// SQL-handler resolution rules. This function is used at runtime.
   ///
-  /// @param sql_state        The SQL condition state
-  /// @param sql_errno        The error code
+  /// @param value            The error code and the SQL state
   /// @param level            The SQL condition level
   ///
   /// @return a pointer to the found SQL-handler or NULL.
-  sp_handler *find_handler(const char *sql_state,
-                           uint sql_errno,
+  sp_handler *find_handler(const Sql_state_errno *value,
                            Sql_condition::enum_warning_level level) const;
 
   /////////////////////////////////////////////////////////////////////////
