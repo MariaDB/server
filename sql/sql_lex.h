@@ -3565,9 +3565,9 @@ public:
   bool add_unit_in_brackets(SELECT_LEX *nselect);
   void check_automatic_up(enum sub_select_type type);
 
-  System_versioning_info &vers_get_info()
+  Vers_parse_info &vers_get_info()
   {
-    return create_info.system_versioning_info;
+    return create_info.vers_info;
   }
 };
 

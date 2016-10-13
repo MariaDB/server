@@ -5851,7 +5851,7 @@ create_table_option:
 	  }
         | WITH SYSTEM VERSIONING
           {
-            System_versioning_info &info= Lex->vers_get_info();
+            Vers_parse_info &info= Lex->vers_get_info();
             info.declared_system_versioning= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
@@ -6058,7 +6058,7 @@ period_for_system_time:
           // If FOR_SYM is followed by SYSTEM_TIME_SYM then they are merged to: FOR_SYSTEM_TIME_SYM .
           PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
           {
-            System_versioning_info &info= Lex->vers_get_info();
+            Vers_parse_info &info= Lex->vers_get_info();
             if (!my_strcasecmp(system_charset_info, $4->c_ptr(), $6->c_ptr()))
             {
               my_error(ER_SYS_START_AND_SYS_END_SAME, MYF(0), $4->c_ptr());
@@ -6164,7 +6164,7 @@ field_def:
           vcol_opt_specifier vcol_opt_attribute
         | opt_generated_always AS ROW_SYM start_or_end
           {
-            System_versioning_info &info= Lex->vers_get_info();
+            Vers_parse_info &info= Lex->vers_get_info();
             String *field_name= new (thd->mem_root)
               String((const char*)Lex->last_field->field_name, system_charset_info);
             if (!field_name)
@@ -6669,12 +6669,14 @@ serial_attribute:
         | WITH SYSTEM VERSIONING
           {
             Lex->last_field->versioning = Column_definition::WITH_VERSIONING;
-            Lex->create_info.system_versioning_info.has_versioned_fields= true;
+            Lex->create_info.vers_info.has_versioned_fields= true;
+            Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
         | WITHOUT SYSTEM VERSIONING
           {
             Lex->last_field->versioning = Column_definition::WITHOUT_VERSIONING;
-            Lex->create_info.system_versioning_info.has_unversioned_fields= true;
+            Lex->create_info.vers_info.has_unversioned_fields= true;
+            Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
         ;
 

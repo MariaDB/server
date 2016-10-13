@@ -6560,7 +6560,8 @@ static bool create_string(MEM_ROOT *mem_root, String **s, const char *value)
 }
 
 static bool create_sys_trx_field_if_missing(THD *thd, const char *field_name,
-                                            Alter_info *alter_info, String **s)
+                                            Alter_info *alter_info, String **s,
+                                            bool integer_fields)
 {
   Create_field *f= new (thd->mem_root) Create_field();
   if (!f)
@@ -6568,8 +6569,17 @@ static bool create_sys_trx_field_if_missing(THD *thd, const char *field_name,
 
   f->field_name= field_name;
   f->charset= system_charset_info;
-  f->sql_type= MYSQL_TYPE_TIMESTAMP2;
-  f->length= 6;
+  if (integer_fields)
+  {
+    f->sql_type= MYSQL_TYPE_LONGLONG;
+    f->flags= UNSIGNED_FLAG;
+    f->length= MY_INT64_NUM_DECIMAL_DIGITS;
+  }
+  else
+  {
+    f->sql_type= MYSQL_TYPE_TIMESTAMP2;
+    f->length= 6;
+  }
   f->decimals= 0;
 
   if (f->check(thd))
@@ -6582,11 +6592,11 @@ static bool create_sys_trx_field_if_missing(THD *thd, const char *field_name,
   return false;
 }
 
-bool System_versioning_info::add_versioning_info(THD *thd,
-                                                 Alter_info *alter_info)
+bool Vers_parse_info::add_versioning_info(
+  THD *thd,
+  Alter_info *alter_info,
+  bool integer_fields)
 {
-  DBUG_ASSERT(versioned());
-
   if (!declared_system_versioning && !has_versioned_fields)
     return false;
 
@@ -6617,21 +6627,30 @@ bool System_versioning_info::add_versioning_info(THD *thd,
     return false;
 
   return create_sys_trx_field_if_missing(thd, "sys_trx_start", alter_info,
-                                         &generated_as_row.start) ||
+                                         &generated_as_row.start, integer_fields) ||
          create_sys_trx_field_if_missing(thd, "sys_trx_end", alter_info,
-                                         &generated_as_row.end) ||
+                                         &generated_as_row.end, integer_fields) ||
          create_string(thd->mem_root, &period_for_system_time.start,
                        "sys_trx_start") ||
          create_string(thd->mem_root, &period_for_system_time.end,
                        "sys_trx_end");
 }
 
-bool System_versioning_info::check(THD *thd, Alter_info *alter_info)
+bool Vers_parse_info::check(THD *thd, Alter_info *alter_info, bool integer_fields)
 {
-  if (!versioned())
+  if (!(
+    has_versioned_fields ||
+    has_unversioned_fields ||
+    declared_system_versioning ||
+    period_for_system_time.start ||
+    period_for_system_time.end ||
+    generated_as_row.start ||
+    generated_as_row.end))
+  {
     return false;
+  }
 
-  if (add_versioning_info(thd, alter_info))
+  if (add_versioning_info(thd, alter_info, integer_fields))
     return true;
 
   bool r= false;
@@ -6714,10 +6733,3 @@ bool System_versioning_info::check(THD *thd, Alter_info *alter_info)
   return r; // false means no error
 }
 
-bool System_versioning_info::versioned() const
-{
-  return has_versioned_fields || has_unversioned_fields ||
-         declared_system_versioning || period_for_system_time.start ||
-         period_for_system_time.end || generated_as_row.start ||
-         generated_as_row.end;
-}

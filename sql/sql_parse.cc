@@ -3855,9 +3855,6 @@ mysql_execute_command(THD *thd)
       goto end_with_restore_list;
     }
 
-    if (create_info.system_versioning_info.check(thd, &alter_info))
-      goto end_with_restore_list;
-
     /* Check privileges */
     if ((res= create_table_precheck(thd, select_tables, create_table)))
       goto end_with_restore_list;
@@ -3878,6 +3875,11 @@ mysql_execute_command(THD *thd)
     */
     if (!(create_info.used_fields & HA_CREATE_USED_ENGINE))
       create_info.use_default_db_type(thd);
+
+    DBUG_ASSERT(create_info.db_type);
+    if (create_info.vers_info.check(thd, &alter_info, create_info.db_type->versioned()))
+      goto end_with_restore_list;
+
     /*
       If we are using SET CHARSET without DEFAULT, add an implicit
       DEFAULT to not confuse old users. (This may change).

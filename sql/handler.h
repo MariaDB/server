@@ -1669,45 +1669,34 @@ struct Schema_specification_st
 };
 
 
-struct System_versioning_info
+struct Vers_parse_info
 {
-  System_versioning_info() :
-    period_for_system_time({NULL, NULL}),
-    generated_as_row({NULL, NULL}),
+  Vers_parse_info() :
     declared_system_versioning(false),
     has_versioned_fields(false),
     has_unversioned_fields(false)
   {}
 
-  struct
+  struct start_end_t
   {
-    String *start, *end;
-  } period_for_system_time;
-
-  struct
-  {
+    start_end_t() :
+      start(NULL),
+      end(NULL) {}
     String *start;
     String *end;
-  } generated_as_row;
+  };
+
+  start_end_t period_for_system_time;
+  start_end_t generated_as_row;
 
   void set_period_for_system_time(String *start, String *end)
   {
     period_for_system_time.start = start;
     period_for_system_time.end = end;
   }
-  void set_period_for_system_time()
-  {
-    set_period_for_system_time(NULL, NULL);
-  }
 
-  /** Returns true on failure */
-  bool add_versioning_info(THD *thd, Alter_info *alter_info);
-
-  /** Returns true on failure */
-  bool check(THD *thd, Alter_info *alter_info);
-
-  /** Returns true if table is versioned */
-  bool versioned() const;
+  bool add_versioning_info(THD *thd, Alter_info *alter_info, bool integer_fields);
+  bool check(THD *thd, Alter_info *alter_info, bool integer_fields);
 
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
   bool declared_system_versioning : 1;
@@ -1799,7 +1788,7 @@ struct Table_scope_and_contents_source_st
   bool table_was_deleted;
   sequence_definition *seq_create_info;
 
-  System_versioning_info system_versioning_info;
+  Vers_parse_info vers_info;
 
   void init()
   {
@@ -1814,19 +1803,7 @@ struct Table_scope_and_contents_source_st
 
   bool versioned() const
   {
-    return system_versioning_info.versioned();
-  }
-  const System_versioning_info *get_system_versioning_info() const
-  {
-    if (!versioned())
-      return NULL;
-    return &system_versioning_info;
-  }
-  System_versioning_info *get_system_versioning_info()
-  {
-    if (!versioned())
-      return NULL;
-    return &system_versioning_info;
+    return options & HA_VERSIONED_TABLE;
   }
 };
 
