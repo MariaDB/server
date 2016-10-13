@@ -2251,19 +2251,13 @@ lock_rec_create(
 			return(lock);
 		}
 		trx_mutex_exit(c_lock->trx);
-	} else if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS) {
-		lock_rec_insert_by_trx_age(lock, type_mode & LOCK_WAIT);
 	} else {
 		HASH_INSERT(lock_t, hash, lock_sys->rec_hash,
 					lock_rec_fold(space, page_no), lock);
 	}
 #else
-	if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS) {
-		lock_rec_insert_by_trx_age(lock, type_mode & LOCK_WAIT);
-	} else {
-		HASH_INSERT(lock_t, hash, lock_sys->rec_hash,
-					lock_rec_fold(space, page_no), lock);
-	}
+	HASH_INSERT(lock_t, hash, lock_sys->rec_hash,
+				lock_rec_fold(space, page_no), lock);
 #endif /* WITH_WSREP */
 
 	lock_sys->rec_num++;
@@ -2398,6 +2392,13 @@ lock_rec_enqueue_waiting(
 
 		return(DB_SUCCESS_LOCKED_REC);
 	}
+
+    // Move it only when it does not cause a deadlock.
+    if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS) {
+        HASH_DELETE(lock_t, hash, lock_sys->rec_hash,
+                    lock_rec_fold(buf_block_get_space(block), buf_block_get_page_no(block)), lock);
+        lock_rec_insert_by_trx_age(lock, true);
+    }
 
 	trx->lock.que_state = TRX_QUE_LOCK_WAIT;
 
@@ -4263,7 +4264,8 @@ lock_get_first_lock(
 	}
 
 	ut_a(lock != NULL);
-	ut_a(lock != ctx->wait_lock);
+	ut_a(lock != ctx->wait_lock ||
+            innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS);
 	ut_ad(lock_get_type_low(lock) == lock_get_type_low(ctx->wait_lock));
 
 	return(lock);
@@ -6495,8 +6497,10 @@ lock_rec_queue_validate(
 			        mode, 0, 0, block, heap_no, lock->trx->id));
 #endif /* WITH_WSREP */
 
-		} else if (lock_get_wait(lock) && !lock_rec_get_gap(lock)) {
-
+		} else if (lock_get_wait(lock) && !lock_rec_get_gap(lock)
+				   && innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS) {
+			// If using VATS, it's possible that a wait lock is inserted to a place in the list
+			// such that it does not need to wait.
 			ut_a(lock_rec_has_to_wait_in_queue(lock));
 		}
 	}
