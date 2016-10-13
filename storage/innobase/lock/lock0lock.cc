@@ -2008,7 +2008,7 @@ has_higher_priority(
 		return true;
 	}
 	// Ask the upper server layer if any of the two trx should be prefered.
-	int preference = thd_deadlock_victim_preference(lock1->thd, lock2->thd);
+	int preference = thd_deadlock_victim_preference(lock1->trx->mysql_thd, lock2->trx->mysql_thd);
 	if (preference == -1) {
 		// lock1 is preferred as a victim, so lock2 has higher priority
 		return false;
