@@ -83,3 +83,23 @@ SET collation_connection=utf8mb4_thai_520_w2;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+SET NAMES utf8mb4;
+let $coll='utf8mb4_unicode_nopad_ci';
+let $coll_pad='utf8mb4_unicode_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='utf8mb4_unicode_520_nopad_ci';
+let $coll_pad='utf8mb4_unicode_520_ci';
+--source include/ctype_pad_all_engines.inc
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

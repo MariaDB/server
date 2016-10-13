@@ -1,4 +1,6 @@
 SET GLOBAL innodb_file_format = `Barracuda`;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET GLOBAL innodb_file_per_table = ON;
 call mtr.add_suppression("InnoDB: Block in space_id .* in file test/.* encrypted");
 call mtr.add_suppression("InnoDB: However key management plugin or used key_id 1 is not found or used encryption algorithm or method does not match.");
@@ -23,10 +25,24 @@ CREATE TABLE `t1` (
 `charcol3` varchar(128) DEFAULT NULL
 ) ENGINE=InnoDB;
 insert into t1 values (1,2,'maria','db','encryption');
+select * from t1;
+intcol1	intcol2	charcol1	charcol2	charcol3
+1	2	maria	db	encryption
+select * from t5;
+intcol1	intcol2	charcol1	charcol2	charcol3
+1	2	maria	db	encryption
 alter table t1 encrypted='yes' `encryption_key_id`=1;
+select * from t1;
+intcol1	intcol2	charcol1	charcol2	charcol3
+1	2	maria	db	encryption
+select * from t5;
+intcol1	intcol2	charcol1	charcol2	charcol3
+1	2	maria	db	encryption
 select * from t1;
 ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
 select * from t5;
 ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
 drop table t1;
 drop table t5;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html

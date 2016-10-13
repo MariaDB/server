@@ -49,7 +49,7 @@ SET @revokeRole = 'REVOKE developers FROM test_user';
 PREPARE stmtRevokeRole FROM @revokeRole;
 EXECUTE stmtRevokeRole;
 EXECUTE stmtRevokeRole;
-ERROR HY000: Cannot revoke role 'developers' from: 'test_user'@'%'.
+ERROR HY000: Cannot revoke role 'developers' from: 'test_user'@'%'
 SHOW GRANTS FOR test_user;
 Grants for test_user@%
 GRANT USAGE ON *.* TO 'test_user'@'%'

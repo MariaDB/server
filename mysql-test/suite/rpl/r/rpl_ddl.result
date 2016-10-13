@@ -1267,11 +1267,11 @@ TEST-INFO: SLAVE:  The INSERT is committed (Succeeded)
 connection master;
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t1	SET @a:=1	BEFORE	NULL		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t1	SET @a:=1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
 connection slave;
 SHOW TRIGGERS;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t1	SET @a:=1	BEFORE	NULL		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t1	SET @a:=1	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
 connection master;
 
 ######## DROP TRIGGER trg1 ########

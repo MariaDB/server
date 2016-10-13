@@ -32,10 +32,11 @@
 #define MYSQL_SERVER
 #endif
 
-#include <sql_cache.h>
+#include <my_global.h>
 #include <sql_parse.h>          // check_global_access
 #include <sql_acl.h>            // PROCESS_ACL
 #include <sql_class.h>          // THD
+#include <sql_cache.h>
 #include <table.h>              // ST_SCHEMA_TABLE
 #include <set_var.h>            // sql_mode_string_representation
 #include <tztime.h>

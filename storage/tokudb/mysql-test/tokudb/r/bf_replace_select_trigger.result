@@ -9,37 +9,37 @@ rollback;
 create trigger t_trigger before insert on t for each row replace into s values (1000000,0);
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger after insert on t for each row replace into s values (1000000,0);
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger before insert on t for each row delete from s where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger after insert on t for each row delete from s where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger before insert on t for each row update s set x=x+1 where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger after insert on t for each row update s set x=x+1 where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 truncate table t;
@@ -47,37 +47,37 @@ insert into t values (1,1);
 create trigger t_trigger before insert on t for each row replace into s values (1000000,0);
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger after insert on t for each row replace into s values (1000000,0);
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger before insert on t for each row delete from s where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger after insert on t for each row delete from s where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger before insert on t for each row update s set x=x+1 where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger after insert on t for each row update s set x=x+1 where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 truncate table t;
@@ -85,37 +85,37 @@ insert into t values (1,1);
 create trigger t_trigger before delete on t for each row replace into s values (1000000,0);
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger after delete on t for each row replace into s values (1000000,0);
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger before delete on t for each row delete from s where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger after delete on t for each row delete from s where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger before delete on t for each row update s set x=x+1 where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 create trigger t_trigger after delete on t for each row update s set x=x+1 where id=1000000;
 begin;
 replace into t select * from s;
-ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 's' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 rollback;
 drop trigger t_trigger;
 drop table s,t;

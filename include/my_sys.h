@@ -472,6 +472,8 @@ typedef struct st_io_cache		/* Used when cacheing files */
   const char *dir;
   char prefix[3];
   File file; /* file descriptor */
+
+  struct st_io_cache *next_file_user;
   /*
     seek_not_done is set by my_b_seek() to inform the upcoming read/write
     operation that a seek needs to be preformed prior to the actual I/O
@@ -802,6 +804,11 @@ extern my_bool reinit_io_cache(IO_CACHE *info,enum cache_type type,
 extern void setup_io_cache(IO_CACHE* info);
 extern void init_io_cache_share(IO_CACHE *read_cache, IO_CACHE_SHARE *cshare,
                                 IO_CACHE *write_cache, uint num_threads);
+
+extern int init_slave_io_cache(IO_CACHE *master, IO_CACHE *slave);
+void end_slave_io_cache(IO_CACHE *cache);
+void seek_io_cache(IO_CACHE *cache, my_off_t needed_offset);
+
 extern void remove_io_thread(IO_CACHE *info);
 extern int _my_b_async_read(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern int my_b_append(IO_CACHE *info,const uchar *Buffer,size_t Count);
@@ -1019,6 +1026,7 @@ extern void add_compiled_collation(struct charset_info_st *cs);
 extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
+extern char *get_tty_password(const char *opt_message);
 #ifdef __WIN__
 #define BACKSLASH_MBTAIL
 /* File system character set */

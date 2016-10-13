@@ -18,7 +18,7 @@
 #   $slave_io_errno
 #     The expected IO error numbers. This can be either a single
 #     number, or a comma-separated list of numbers. Examples:
-#       --let $slave_io_errno= 1040, 1053, 2002, 2003, 2006, 2013
+#       --let $slave_io_errno= 1053, 2002, 2003, 2006, 2013
 #       --let $slave_io_errno= 1045
 #     (After BUG#41956 has been fixed, this will be required to be
 #     symbolic names instead of numbers.)

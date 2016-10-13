@@ -194,7 +194,7 @@ EXPLAIN SELECT c1, i1, max(i2) FROM t2
 WHERE (c1 = 'C' OR ( c1 = 'F' AND i1 < 35)) AND ( i2 = 17 )
 GROUP BY c1,i1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	k2	k2	5	NULL	59	Using where; Using index
+1	SIMPLE	t2	range	k2	k2	5	NULL	60	Using where; Using index
 SELECT c1, i1, max(i2) FROM t2
 WHERE (c1 = 'C' OR ( c1 = 'F' AND i1 < 35)) AND ( i2 = 17 )
 GROUP BY c1,i1;
@@ -205,7 +205,7 @@ EXPLAIN SELECT c1, i1, max(i2) FROM t2
 WHERE (((c1 = 'C' AND i1 < 40) OR ( c1 = 'F' AND i1 < 35)) AND ( i2 = 17 ))
 GROUP BY c1,i1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	k2	k2	5	NULL	58	Using where; Using index
+1	SIMPLE	t2	range	k2	k2	5	NULL	60	Using where; Using index
 SELECT c1, i1, max(i2) FROM t2 
 WHERE (((c1 = 'C' AND i1 < 40) OR ( c1 = 'F' AND i1 < 35)) AND ( i2 = 17 ))
 GROUP BY c1,i1;

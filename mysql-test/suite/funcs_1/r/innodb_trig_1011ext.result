@@ -269,7 +269,7 @@ for each row insert into t4 (f4) values (new.f3+1);
 create trigger tr4 after insert on t4
 for each row insert into t1 (f1) values (new.f4+1);
 insert into t1 values (1);
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 select * from t1 order by f1;
 f1
 0
@@ -334,7 +334,7 @@ select @counter;
 @counter
 0
 call trig_sp();
-ERROR HY000: Can't update table 't1_sp' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1_sp' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 select @counter;
 @counter
 2

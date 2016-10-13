@@ -17,7 +17,8 @@
 #ifndef MYSQLD_INCLUDED
 #define MYSQLD_INCLUDED
 
-#include "my_global.h" /* MYSQL_PLUGIN_IMPORT, FN_REFLEN, FN_EXTLEN */
+#include <my_global.h> /* MYSQL_PLUGIN_IMPORT, FN_REFLEN, FN_EXTLEN */
+#include "sql_basic_types.h"			/* query_id_t */
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
@@ -699,7 +700,6 @@ enum enum_query_type
 
 
 /* query_id */
-typedef int64 query_id_t;
 extern query_id_t global_query_id;
 
 void unireg_end(void) __attribute__((noreturn));

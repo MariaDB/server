@@ -1777,6 +1777,9 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
   if (create_table_precheck(thd, tables, create_table))
     DBUG_RETURN(TRUE);
 
+  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
+    DBUG_RETURN(TRUE);
+
   if (select_lex->item_list.elements)
   {
     /* Base table and temporary table are not in the same name space. */
@@ -2165,6 +2168,9 @@ static bool mysql_test_insert_select(Prepared_statement *stmt,
   }
 
   if (insert_precheck(stmt->thd, tables))
+    return 1;
+
+  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
     return 1;
 
   /* store it, because mysql_insert_select_prepare_tester change it */

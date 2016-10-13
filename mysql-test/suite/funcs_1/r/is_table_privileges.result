@@ -233,7 +233,7 @@ test	t1_table
 test	t1_view
 RENAME TABLE test.t1_table TO db_datadict.t1_table;
 RENAME TABLE test.t1_view  TO db_datadict.t1_view;
-ERROR HY000: Changing schema from 'test' to 'db_datadict' is not allowed.
+ERROR HY000: Changing schema from 'test' to 'db_datadict' is not allowed
 SELECT DISTINCT table_schema,table_name FROM information_schema.table_privileges
 WHERE table_name LIKE 't1_%'
 ORDER BY table_schema,table_name;

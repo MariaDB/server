@@ -310,15 +310,15 @@ insert into t1 (val) values (i);
 return 0;
 end|
 select val, f1(val) from t1|
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 select val, f1(val) from t1 as tab|
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 select * from t1|
 val	x
 42	3.1
 19	1.2
 update t1 set val= f1(val)|
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 select * from t1|
 val	x
 42	3.1
@@ -746,7 +746,7 @@ return (i in (100, 200, bug11394(i-1), 400));
 end if;
 end|
 select bug11394(2)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 drop function bug11394|
 create function bug11394_1(i int) returns int
 begin
@@ -757,7 +757,7 @@ return (select bug11394_1(i-1));
 end if;
 end|
 select bug11394_1(2)|
-ERROR HY000: Recursive stored functions and triggers are not allowed.
+ERROR HY000: Recursive stored functions and triggers are not allowed
 drop function bug11394_1|
 create function bug11394_2(i int) returns int return i|
 select bug11394_2(bug11394_2(10))|
@@ -918,37 +918,37 @@ drop procedure bug13510_4|
 drop function if exists bug_13627_f|
 CREATE TABLE t1 (a int)|
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN DROP TRIGGER test1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN DROP TRIGGER test1; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN create table t2 (a int); END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN create table t2 (a int); return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN create index t1_i on t1 (a); END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN create index t1_i on t1 (a); return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN alter table t1 add column  b int; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN alter table t1 add column  b int; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN rename table t1 to t2; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN rename table t1 to t2; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN truncate table t1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN truncate table t1; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN drop table t1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN drop table t1; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN drop index t1_i on t1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN drop index t1_i on t1; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN unlock tables; END |
 ERROR 0A000: UNLOCK is not allowed in stored procedures
 CREATE FUNCTION bug_13627_f() returns int BEGIN unlock tables; return 1; END |
@@ -958,49 +958,49 @@ ERROR 0A000: LOCK is not allowed in stored procedures
 CREATE FUNCTION bug_13627_f() returns int BEGIN LOCK TABLE t1 READ; return 1; END |
 ERROR 0A000: LOCK is not allowed in stored procedures
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN create database mysqltest; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN create database mysqltest; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN drop database mysqltest; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN drop database mysqltest; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN create user 'mysqltest_1'; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN create user 'mysqltest_1'; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER bug21975 BEFORE INSERT ON t1 FOR EACH ROW BEGIN grant select on t1 to 'mysqltest_1'; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug21975() returns int BEGIN grant select on t1 to 'mysqltest_1'; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER bug21975 BEFORE INSERT ON t1 FOR EACH ROW BEGIN revoke select on t1 from 'mysqltest_1'; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug21975() returns int BEGIN revoke select on t1 from 'mysqltest_1'; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER bug21975 BEFORE INSERT ON t1 FOR EACH ROW BEGIN revoke all privileges on *.* from 'mysqltest_1'; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug21975() returns int BEGIN revoke all privileges on *.* from 'mysqltest_1'; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN drop user 'mysqltest_1'; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN drop user 'mysqltest_1'; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN rename user 'mysqltest_2' to 'mysqltest_1'; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN rename user 'mysqltest_2' to 'mysqltest_1'; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN create view v1 as select 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN create view v1 as select 1; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN alter view v1 as select 1; END |
 ERROR 0A000: ALTER VIEW is not allowed in stored procedures
 CREATE FUNCTION bug_13627_f() returns int BEGIN alter view v1 as select 1; return 1; END |
 ERROR 0A000: ALTER VIEW is not allowed in stored procedures
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN drop view v1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION bug_13627_f() returns int BEGIN drop view v1; return 1; END |
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW BEGIN create trigger tr2 before insert on t1 for each row do select 1; END |
 ERROR 2F003: Can't create a TRIGGER from within another stored routine
 CREATE FUNCTION bug_13627_f() returns int BEGIN create trigger tr2 before insert on t1 for each row do select 1; return 1; END |
@@ -1288,11 +1288,11 @@ END |
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
 CALL bug18914_p1();
 INSERT INTO t1 VALUES (1);
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 SELECT bug18914_f1();
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 SELECT bug18914_f2();
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 SELECT * FROM t2;
 ERROR 42S02: Table 'test.t2' doesn't exist
 DROP FUNCTION bug18914_f1;
@@ -1693,7 +1693,7 @@ INSERT INTO t1 SELECT * FROM t1 ;
 RETURN 1 ;
 END|
 INSERT INTO t1 SELECT * FROM (SELECT 2 AS f1, 2 AS f2) AS A WHERE func_1() = 5;
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 DROP FUNCTION func_1;
 DROP TABLE t1;
 #

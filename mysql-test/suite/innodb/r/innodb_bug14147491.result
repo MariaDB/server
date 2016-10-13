@@ -1,31 +1,10 @@
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed.*");
-CALL mtr.add_suppression("InnoDB: Error: Unable to read tablespace .* page no .* into the buffer pool after 100 attempts");
-CALL mtr.add_suppression("InnoDB: Warning: database page corruption or a failed");
-CALL mtr.add_suppression("InnoDB: Database page corruption on disk or a failed");
-CALL mtr.add_suppression("InnoDB: Space .* file test/t1 read of page .*");
-CALL mtr.add_suppression("InnoDB: You may have to recover from a backup.");
-CALL mtr.add_suppression("InnoDB: It is also possible that your operatingsystem has corrupted its own file cache.");
-CALL mtr.add_suppression("InnoDB: and rebooting your computer removes the error.");
-CALL mtr.add_suppression("InnoDB: If the corrupt page is an index page you can also try to");
-CALL mtr.add_suppression("InnoDB: fix the corruption by dumping, dropping, and reimporting");
-CALL mtr.add_suppression("InnoDB: the corrupt table. You can use CHECK");
-CALL mtr.add_suppression("InnoDB: TABLE to scan your table for corruption.");
-CALL mtr.add_suppression("InnoDB: See also .* about forcing recovery.");
-# Create and populate the table to be corrupted
-CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ROW_FORMAT=COMPACT ENGINE=InnoDB;
 INSERT INTO t1 (b) VALUES ('corrupt me');
 INSERT INTO t1 (b) VALUES ('corrupt me');
-# Write file to make mysql-test-run.pl expect the "crash", but don't
-# start it until it's told to
-# We give 30 seconds to do a clean shutdown because we do not want
-# to redo apply the pages of t1.ibd at the time of recovery.
-# We want SQL to initiate the first access to t1.ibd.
-# Wait until disconnected.
 # Backup the t1.ibd before corrupting
 # Corrupt the table
 Munged a string.
 Munged a string.
-# Write file to make mysql-test-run.pl start up the server again
 SET DEBUG_DBUG = '+d,innodb_page_corruption_retries';
 # Write file to make mysql-test-run.pl expect the "crash", but don't
 # start it until it's told to
@@ -34,6 +13,5 @@ SET DEBUG_DBUG = '+d,innodb_page_corruption_retries';
 SELECT * FROM t1;
 ERROR HY000: Lost connection to MySQL server during query
 # Restore the original t1.ibd
-# Write file to make mysql-test-run.pl start up the server again
 # Cleanup
 DROP TABLE t1;

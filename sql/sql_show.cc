@@ -92,6 +92,20 @@ enum enum_i_s_events_fields
 
 #define USERNAME_WITH_HOST_CHAR_LENGTH (USERNAME_CHAR_LENGTH + HOSTNAME_LENGTH + 2)
 
+
+static const LEX_STRING trg_action_time_type_names[]=
+{
+  { C_STRING_WITH_LEN("BEFORE") },
+  { C_STRING_WITH_LEN("AFTER") }
+};
+
+static const LEX_STRING trg_event_type_names[]=
+{
+  { C_STRING_WITH_LEN("INSERT") },
+  { C_STRING_WITH_LEN("UPDATE") },
+  { C_STRING_WITH_LEN("DELETE") }
+};
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static const char *grant_names[]={
   "select","insert","update","delete","create","drop","reload","shutdown",
@@ -6385,43 +6399,56 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
 }
 
 
-static bool store_trigger(THD *thd, TABLE *table, LEX_STRING *db_name,
-                          LEX_STRING *table_name, LEX_STRING *trigger_name,
-                          enum trg_event_type event,
-                          enum trg_action_time_type timing,
-                          LEX_STRING *trigger_stmt,
-                          ulong sql_mode,
-                          LEX_STRING *definer_buffer,
-                          LEX_STRING *client_cs_name,
-                          LEX_STRING *connection_cl_name,
-                          LEX_STRING *db_cl_name)
+static bool store_trigger(THD *thd, Trigger *trigger,
+                          TABLE *table, LEX_STRING *db_name,
+                          LEX_STRING *table_name)
 {
   CHARSET_INFO *cs= system_charset_info;
   LEX_STRING sql_mode_rep;
+  MYSQL_TIME timestamp;
+  char definer_holder[USER_HOST_BUFF_SIZE];
+  LEX_STRING definer_buffer, trigger_stmt, trigger_body;
+  definer_buffer.str= definer_holder;
+
+  trigger->get_trigger_info(&trigger_stmt, &trigger_body, &definer_buffer);
 
   restore_record(table, s->default_values);
   table->field[0]->store(STRING_WITH_LEN("def"), cs);
   table->field[1]->store(db_name->str, db_name->length, cs);
-  table->field[2]->store(trigger_name->str, trigger_name->length, cs);
-  table->field[3]->store(trg_event_type_names[event].str,
-                         trg_event_type_names[event].length, cs);
+  table->field[2]->store(trigger->name.str, trigger->name.length, cs);
+  table->field[3]->store(trg_event_type_names[trigger->event].str,
+                         trg_event_type_names[trigger->event].length, cs);
   table->field[4]->store(STRING_WITH_LEN("def"), cs);
   table->field[5]->store(db_name->str, db_name->length, cs);
   table->field[6]->store(table_name->str, table_name->length, cs);
-  table->field[9]->store(trigger_stmt->str, trigger_stmt->length, cs);
+  table->field[7]->store(trigger->action_order);
+  table->field[9]->store(trigger_body.str, trigger_body.length, cs);
   table->field[10]->store(STRING_WITH_LEN("ROW"), cs);
-  table->field[11]->store(trg_action_time_type_names[timing].str,
-                          trg_action_time_type_names[timing].length, cs);
+  table->field[11]->store(trg_action_time_type_names[trigger->action_time].str,
+                          trg_action_time_type_names[trigger->action_time].length, cs);
   table->field[14]->store(STRING_WITH_LEN("OLD"), cs);
   table->field[15]->store(STRING_WITH_LEN("NEW"), cs);
 
-  sql_mode_string_representation(thd, sql_mode, &sql_mode_rep);
+  if (trigger->create_time)
+  {
+    table->field[16]->set_notnull();
+    thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
+                                              trigger->create_time/100);
+    /* timestamp is with 6 digits */
+    timestamp.second_part= (trigger->create_time % 100) * 10000;
+    ((Field_temporal_with_date*) table->field[16])->store_time_dec(&timestamp,
+                                                                   2);
+  }
+
+  sql_mode_string_representation(thd, trigger->sql_mode, &sql_mode_rep);
   table->field[17]->store(sql_mode_rep.str, sql_mode_rep.length, cs);
-  table->field[18]->store(definer_buffer->str, definer_buffer->length, cs);
-  table->field[19]->store(client_cs_name->str, client_cs_name->length, cs);
-  table->field[20]->store(connection_cl_name->str,
-                          connection_cl_name->length, cs);
-  table->field[21]->store(db_cl_name->str, db_cl_name->length, cs);
+  table->field[18]->store(definer_buffer.str, definer_buffer.length, cs);
+  table->field[19]->store(trigger->client_cs_name.str,
+                          trigger->client_cs_name.length, cs);
+  table->field[20]->store(trigger->connection_cl_name.str,
+                          trigger->connection_cl_name.length, cs);
+  table->field[21]->store(trigger->db_cl_name.str,
+                          trigger->db_cl_name.length, cs);
 
   return schema_table_store_record(thd, table);
 }
@@ -6458,35 +6485,16 @@ static int get_schema_triggers_record(THD *thd, TABLE_LIST *tables,
     {
       for (timing= 0; timing < (int)TRG_ACTION_MAX; timing++)
       {
-        LEX_STRING trigger_name;
-        LEX_STRING trigger_stmt;
-        ulong sql_mode;
-        char definer_holder[USER_HOST_BUFF_SIZE];
-        LEX_STRING definer_buffer;
-        LEX_STRING client_cs_name;
-        LEX_STRING connection_cl_name;
-        LEX_STRING db_cl_name;
-
-        definer_buffer.str= definer_holder;
-        if (triggers->get_trigger_info(thd, (enum trg_event_type) event,
-                                       (enum trg_action_time_type)timing,
-                                       &trigger_name, &trigger_stmt,
-                                       &sql_mode,
-                                       &definer_buffer,
-                                       &client_cs_name,
-                                       &connection_cl_name,
-                                       &db_cl_name))
-          continue;
-
-        if (store_trigger(thd, table, db_name, table_name, &trigger_name,
-                         (enum trg_event_type) event,
-                         (enum trg_action_time_type) timing, &trigger_stmt,
-                         sql_mode,
-                         &definer_buffer,
-                         &client_cs_name,
-                         &connection_cl_name,
-                         &db_cl_name))
-          DBUG_RETURN(1);
+        Trigger *trigger;
+        for (trigger= triggers->
+               get_trigger((enum trg_event_type) event,
+                           (enum trg_action_time_type) timing) ;
+             trigger;
+             trigger= trigger->next)
+        {
+          if (store_trigger(thd, trigger, table, db_name, table_name))
+            DBUG_RETURN(1);
+        }
       }
     }
   }
@@ -7569,6 +7577,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
                                   strlen(fields_info->field_name),
                                   fields_info->field_type)))
         DBUG_RETURN(0);
+      item->decimals= fields_info->field_length;
       break;
     case MYSQL_TYPE_FLOAT:
     case MYSQL_TYPE_DOUBLE:
@@ -8776,7 +8785,8 @@ ST_FIELD_INFO triggers_fields_info[]=
    OPEN_FRM_ONLY},
   {"ACTION_REFERENCE_OLD_ROW", 3, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
   {"ACTION_REFERENCE_NEW_ROW", 3, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
-  {"CREATED", 0, MYSQL_TYPE_DATETIME, 0, 1, "Created", OPEN_FRM_ONLY},
+  /* 2 here indicates 2 decimals */
+  {"CREATED", 2, MYSQL_TYPE_DATETIME, 0, 1, "Created", OPEN_FRM_ONLY},
   {"SQL_MODE", 32*256, MYSQL_TYPE_STRING, 0, 0, "sql_mode", OPEN_FRM_ONLY},
   {"DEFINER", DEFINER_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, "Definer", OPEN_FRM_ONLY},
   {"CHARACTER_SET_CLIENT", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0,
@@ -8913,7 +8923,7 @@ ST_FIELD_INFO plugin_fields_info[]=
 ST_FIELD_INFO files_fields_info[]=
 {
   {"FILE_ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"FILE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
+  {"FILE_NAME", FN_REFLEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
   {"FILE_TYPE", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"TABLESPACE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, 0,
    SKIP_OPEN_TABLE},
@@ -9307,35 +9317,35 @@ int finalize_schema_table(st_plugin_int *plugin)
   DBUG_RETURN(0);
 }
 
+/*
+  This is used to create a timestamp field
+*/
+
+MYSQL_TIME zero_time={ 0,0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
 
 /**
   Output trigger information (SHOW CREATE TRIGGER) to the client.
 
   @param thd          Thread context.
-  @param triggers     List of triggers for the table.
-  @param trigger_idx  Index of the trigger to dump.
+  @param trigger      Trigger to dump
 
   @return Operation status
     @retval TRUE Error.
     @retval FALSE Success.
 */
 
-static bool show_create_trigger_impl(THD *thd,
-                                     Table_triggers_list *triggers,
-                                     int trigger_idx)
+static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
 {
   int ret_code;
   Protocol *p= thd->protocol;
   List<Item> fields;
-  LEX_STRING trg_name;
-  ulonglong trg_sql_mode;
-  LEX_STRING trg_sql_mode_str;
+  LEX_STRING trg_sql_mode_str, trg_body;
   LEX_STRING trg_sql_original_stmt;
-  LEX_STRING trg_client_cs_name;
-  LEX_STRING trg_connection_cl_name;
-  LEX_STRING trg_db_cl_name;
+  LEX_STRING trg_definer;
   CHARSET_INFO *trg_client_cs;
   MEM_ROOT *mem_root= thd->mem_root;
+  char definer_holder[USER_HOST_BUFF_SIZE];
+  trg_definer.str= definer_holder;
 
   /*
     TODO: Check privileges here. This functionality will be added by
@@ -9349,20 +9359,12 @@ static bool show_create_trigger_impl(THD *thd,
 
   /* Prepare trigger "object". */
 
-  triggers->get_trigger_info(thd,
-                             trigger_idx,
-                             &trg_name,
-                             &trg_sql_mode,
-                             &trg_sql_original_stmt,
-                             &trg_client_cs_name,
-                             &trg_connection_cl_name,
-                             &trg_db_cl_name);
-
-  sql_mode_string_representation(thd, trg_sql_mode, &trg_sql_mode_str);
+  trigger->get_trigger_info(&trg_sql_original_stmt, &trg_body, &trg_definer);
+  sql_mode_string_representation(thd, trigger->sql_mode, &trg_sql_mode_str);
 
   /* Resolve trigger client character set. */
 
-  if (resolve_charset(trg_client_cs_name.str, NULL, &trg_client_cs))
+  if (resolve_charset(trigger->client_cs_name.str, NULL, &trg_client_cs))
     return TRUE;
 
   /* Send header. */
@@ -9404,6 +9406,11 @@ static bool show_create_trigger_impl(THD *thd,
                                      MY_CS_NAME_SIZE),
                    mem_root);
 
+  Item_datetime_literal *tmp= (new (mem_root) 
+                               Item_datetime_literal(thd, &zero_time, 2));
+  tmp->set_name(thd, STRING_WITH_LEN("Created"), system_charset_info);
+  fields.push_back(tmp, mem_root);
+
   if (p->send_result_set_metadata(&fields,
                                   Protocol::SEND_NUM_ROWS |
                                   Protocol::SEND_EOF))
@@ -9413,8 +9420,8 @@ static bool show_create_trigger_impl(THD *thd,
 
   p->prepare_for_resend();
 
-  p->store(trg_name.str,
-           trg_name.length,
+  p->store(trigger->name.str,
+           trigger->name.length,
            system_charset_info);
 
   p->store(trg_sql_mode_str.str,
@@ -9425,17 +9432,29 @@ static bool show_create_trigger_impl(THD *thd,
            trg_sql_original_stmt.length,
            trg_client_cs);
 
-  p->store(trg_client_cs_name.str,
-           trg_client_cs_name.length,
+  p->store(trigger->client_cs_name.str,
+           trigger->client_cs_name.length,
            system_charset_info);
 
-  p->store(trg_connection_cl_name.str,
-           trg_connection_cl_name.length,
+  p->store(trigger->connection_cl_name.str,
+           trigger->connection_cl_name.length,
            system_charset_info);
 
-  p->store(trg_db_cl_name.str,
-           trg_db_cl_name.length,
+  p->store(trigger->db_cl_name.str,
+           trigger->db_cl_name.length,
            system_charset_info);
+
+  if (trigger->create_time)
+  {
+    MYSQL_TIME timestamp;
+    thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
+                                              trigger->create_time/100);
+    timestamp.second_part= (trigger->create_time % 100) * 10000;
+    p->store(&timestamp, 2);
+  }
+  else
+    p->store_null();
+
 
   ret_code= p->write();
 
@@ -9528,7 +9547,7 @@ bool show_create_trigger(THD *thd, const sp_name *trg_name)
   TABLE_LIST *lst= get_trigger_table(thd, trg_name);
   uint num_tables; /* NOTE: unused, only to pass to open_tables(). */
   Table_triggers_list *triggers;
-  int trigger_idx;
+  Trigger *trigger;
   bool error= TRUE;
 
   if (!lst)
@@ -9569,9 +9588,9 @@ bool show_create_trigger(THD *thd, const sp_name *trg_name)
     goto exit;
   }
 
-  trigger_idx= triggers->find_trigger_by_name(&trg_name->m_name);
+  trigger= triggers->find_trigger(&trg_name->m_name, 0);
 
-  if (trigger_idx < 0)
+  if (!trigger)
   {
     my_error(ER_TRG_CORRUPTED_FILE, MYF(0),
              (const char *) trg_name->m_db.str,
@@ -9580,7 +9599,7 @@ bool show_create_trigger(THD *thd, const sp_name *trg_name)
     goto exit;
   }
 
-  error= show_create_trigger_impl(thd, triggers, trigger_idx);
+  error= show_create_trigger_impl(thd, trigger);
 
   /*
     NOTE: if show_create_trigger_impl() failed, that means we could not

@@ -427,14 +427,14 @@ void Item_func_to_base64::fix_length_and_dec()
 {
   maybe_null= args[0]->maybe_null;
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-  if (args[0]->max_length > (uint) base64_encode_max_arg_length())
+  if (args[0]->max_length > (uint) my_base64_encode_max_arg_length())
   {
     maybe_null= 1;
-    fix_char_length_ulonglong((ulonglong) base64_encode_max_arg_length());
+    fix_char_length_ulonglong((ulonglong) my_base64_encode_max_arg_length());
   }
   else
   {
-    int length= base64_needed_encoded_length((int) args[0]->max_length);
+    int length= my_base64_needed_encoded_length((int) args[0]->max_length);
     DBUG_ASSERT(length > 0);
     fix_char_length_ulonglong((ulonglong) length - 1);
   }
@@ -447,9 +447,9 @@ String *Item_func_to_base64::val_str_ascii(String *str)
   bool too_long= false;
   int length;
   if (!res ||
-      res->length() > (uint) base64_encode_max_arg_length() ||
+      res->length() > (uint) my_base64_encode_max_arg_length() ||
       (too_long=
-       ((uint) (length= base64_needed_encoded_length((int) res->length())) >
+       ((uint) (length= my_base64_needed_encoded_length((int) res->length())) >
         current_thd->variables.max_allowed_packet)) ||
       tmp_value.alloc((uint) length))
   {
@@ -465,7 +465,7 @@ String *Item_func_to_base64::val_str_ascii(String *str)
     }
     return 0;
   }
-  base64_encode(res->ptr(), (int) res->length(), (char*) tmp_value.ptr());
+  my_base64_encode(res->ptr(), (int) res->length(), (char*) tmp_value.ptr());
   DBUG_ASSERT(length > 0);
   tmp_value.length((uint) length - 1); // Without trailing '\0'
   null_value= 0;
@@ -475,13 +475,13 @@ String *Item_func_to_base64::val_str_ascii(String *str)
 
 void Item_func_from_base64::fix_length_and_dec()
 {
-  if (args[0]->max_length > (uint) base64_decode_max_arg_length())
+  if (args[0]->max_length > (uint) my_base64_decode_max_arg_length())
   {
-    fix_char_length_ulonglong((ulonglong) base64_decode_max_arg_length());
+    fix_char_length_ulonglong((ulonglong) my_base64_decode_max_arg_length());
   }
   else
   {
-    int length= base64_needed_decoded_length((int) args[0]->max_length);
+    int length= my_base64_needed_decoded_length((int) args[0]->max_length);
     fix_char_length_ulonglong((ulonglong) length);
   }
   maybe_null= 1; // Can be NULL, e.g. in case of badly formed input string
@@ -497,8 +497,8 @@ String *Item_func_from_base64::val_str(String *str)
   if (!res)
     goto err;
 
-  if (res->length() > (uint) base64_decode_max_arg_length() ||
-      ((uint) (length= base64_needed_decoded_length((int) res->length())) >
+  if (res->length() > (uint) my_base64_decode_max_arg_length() ||
+      ((uint) (length= my_base64_needed_decoded_length((int) res->length())) >
        current_thd->variables.max_allowed_packet))
   {
     THD *thd= current_thd;
@@ -513,7 +513,7 @@ String *Item_func_from_base64::val_str(String *str)
   if (tmp_value.alloc((uint) length))
     goto err;
 
-  if ((length= base64_decode(res->ptr(), (int) res->length(),
+  if ((length= my_base64_decode(res->ptr(), (int) res->length(),
                              (char *) tmp_value.ptr(), &end_ptr, 0)) < 0 ||
       end_ptr < res->ptr() + res->length())
   {
@@ -572,7 +572,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   uint i;
   str->length(0);
   char numbuf[32];
-  const uchar *p= (uchar*)res->c_ptr();
+  const uchar *p= (uchar*)res->c_ptr_safe();
   for (i= 0; i < res->length(); i++)
   {
     double val;

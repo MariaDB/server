@@ -310,14 +310,18 @@ static int add_collation(struct charset_info_st *cs)
       if (!strcmp(cs->csname,"ucs2") )
       {
 #if defined(HAVE_CHARSET_ucs2) && defined(HAVE_UCA_COLLATIONS)
-        copy_uca_collation(newcs, &my_charset_ucs2_unicode_ci);
+        copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
+                                  &my_charset_ucs2_unicode_nopad_ci :
+                                  &my_charset_ucs2_unicode_ci);
         newcs->state|= MY_CS_AVAILABLE | MY_CS_LOADED | MY_CS_NONASCII;
 #endif        
       }
       else if (!strcmp(cs->csname, "utf8") || !strcmp(cs->csname, "utf8mb3"))
       {
 #if defined (HAVE_CHARSET_utf8) && defined(HAVE_UCA_COLLATIONS)
-        copy_uca_collation(newcs, &my_charset_utf8_unicode_ci);
+        copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
+                                  &my_charset_utf8_unicode_nopad_ci :
+                                  &my_charset_utf8_unicode_ci);
         newcs->ctype= my_charset_utf8_unicode_ci.ctype;
         if (init_state_maps(newcs))
           return MY_XML_ERROR;
@@ -326,7 +330,9 @@ static int add_collation(struct charset_info_st *cs)
       else if (!strcmp(cs->csname, "utf8mb4"))
       {
 #if defined (HAVE_CHARSET_utf8mb4) && defined(HAVE_UCA_COLLATIONS)
-        copy_uca_collation(newcs, &my_charset_utf8mb4_unicode_ci);
+        copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
+                                  &my_charset_utf8mb4_unicode_nopad_ci :
+                                  &my_charset_utf8mb4_unicode_ci);
         newcs->ctype= my_charset_utf8mb4_unicode_ci.ctype;
         newcs->state|= MY_CS_AVAILABLE | MY_CS_LOADED;
 #endif
@@ -334,14 +340,18 @@ static int add_collation(struct charset_info_st *cs)
       else if (!strcmp(cs->csname, "utf16"))
       {
 #if defined (HAVE_CHARSET_utf16) && defined(HAVE_UCA_COLLATIONS)
-        copy_uca_collation(newcs, &my_charset_utf16_unicode_ci);
+        copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
+                                  &my_charset_utf16_unicode_nopad_ci :
+                                  &my_charset_utf16_unicode_ci);
         newcs->state|= MY_CS_AVAILABLE | MY_CS_LOADED | MY_CS_NONASCII;
 #endif
       }
       else if (!strcmp(cs->csname, "utf32"))
       {
 #if defined (HAVE_CHARSET_utf32) && defined(HAVE_UCA_COLLATIONS)
-        copy_uca_collation(newcs, &my_charset_utf32_unicode_ci);
+        copy_uca_collation(newcs, newcs->state & MY_CS_NOPAD ?
+                                  &my_charset_utf32_unicode_nopad_ci :
+                                  &my_charset_utf32_unicode_ci);
         newcs->state|= MY_CS_AVAILABLE | MY_CS_LOADED | MY_CS_NONASCII;
 #endif
       }

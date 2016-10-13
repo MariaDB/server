@@ -108,9 +108,9 @@ set role role1;
 create definer=current_role trigger tr1 before insert on t2 for each row
 insert t1 values (111, 222, 333);
 show create trigger tr1;
-Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 tr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` trigger tr1 before insert on t2 for each row
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
 set role none;
 insert t2 values (11,22,33);
 ERROR 42000: INSERT command denied to user ''@'' for table 't1'
@@ -125,9 +125,9 @@ a	b	c
 create definer=role2 trigger tr2 before delete on t2 for each row
 insert t1 values (111, 222, 333);
 show create trigger tr2;
-Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 tr2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role2` trigger tr2 before delete on t2 for each row
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
 delete from t2 where a=1;
 select * from t1;
 a	b	c
@@ -143,9 +143,9 @@ insert t1 values (111, 222, 333);
 Warnings:
 Note	1449	The user specified as a definer ('role3'@'%') does not exist
 show create trigger tr3;
-Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 tr3	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role3`@`%` trigger tr3 before update on t2 for each row
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
 update t2 set b=2 where a=2;
 ERROR HY000: The user specified as a definer ('role3'@'%') does not exist
 select * from t1;
@@ -157,9 +157,9 @@ a	b	c
 2	20	200
 flush tables;
 show create trigger tr2;
-Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 tr2	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role2`@`` trigger tr2 before delete on t2 for each row
-insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci
+insert t1 values (111, 222, 333)	latin1	latin1_swedish_ci	latin1_swedish_ci	#
 delete from t2 where a=2;
 ERROR HY000: The user specified as a definer ('role2'@'%') does not exist
 select * from t1;

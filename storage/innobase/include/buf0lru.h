@@ -38,8 +38,7 @@ struct trx_t;
 Returns TRUE if less than 25 % of the buffer pool is available. This can be
 used in heuristics to prevent huge transactions eating up the whole buffer
 pool for their locks.
-@return	TRUE if less than 25 % of buffer pool left */
-UNIV_INTERN
+@return TRUE if less than 25 % of buffer pool left */
 ibool
 buf_LRU_buf_pool_running_out(void);
 /*==============================*/
@@ -56,7 +55,6 @@ Flushes all dirty pages or removes all pages belonging
 to a given tablespace. A PROBLEM: if readahead is being started, what
 guarantees that it will not try to read in pages after this operation
 has completed? */
-UNIV_INTERN
 void
 buf_LRU_flush_or_remove_pages(
 /*==========================*/
@@ -68,7 +66,6 @@ buf_LRU_flush_or_remove_pages(
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**
 Insert a compressed block into buf_pool->zip_clean in the LRU order. */
-UNIV_INTERN
 void
 buf_LRU_insert_zip_clean(
 /*=====================*/
@@ -86,7 +83,6 @@ accessible via bpage.
 The caller must hold buf_pool->mutex and must not hold any
 buf_page_get_mutex() when calling this function.
 @return true if freed, false otherwise. */
-UNIV_INTERN
 bool
 buf_LRU_free_page(
 /*==============*/
@@ -96,21 +92,19 @@ buf_LRU_free_page(
 	MY_ATTRIBUTE((nonnull));
 /******************************************************************//**
 Try to free a replaceable block.
-@return	TRUE if found and freed */
-UNIV_INTERN
-ibool
+@return true if found and freed */
+bool
 buf_LRU_scan_and_free_block(
 /*========================*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	ibool		scan_all)	/*!< in: scan whole LRU list
-					if TRUE, otherwise scan only
+	bool		scan_all)	/*!< in: scan whole LRU list
+					if true, otherwise scan only
 					'old' blocks. */
 	MY_ATTRIBUTE((nonnull,warn_unused_result));
 /******************************************************************//**
 Returns a free block from the buf_pool.  The block is taken off the
 free list.  If it is empty, returns NULL.
-@return	a free control block, or NULL if the buf_block->free list is empty */
-UNIV_INTERN
+@return a free control block, or NULL if the buf_block->free list is empty */
 buf_block_t*
 buf_LRU_get_free_only(
 /*==================*/
@@ -138,8 +132,7 @@ we put it to free list to be used.
     * scan LRU list even if buf_pool->try_LRU_scan is not set
 * iteration > 1:
   * same as iteration 1 but sleep 10ms
-@return	the free control block, in state BUF_BLOCK_READY_FOR_USE */
-UNIV_INTERN
+@return the free control block, in state BUF_BLOCK_READY_FOR_USE */
 buf_block_t*
 buf_LRU_get_free_block(
 /*===================*/
@@ -148,25 +141,21 @@ buf_LRU_get_free_block(
 /******************************************************************//**
 Determines if the unzip_LRU list should be used for evicting a victim
 instead of the general LRU list.
-@return	TRUE if should use unzip_LRU */
-UNIV_INTERN
+@return TRUE if should use unzip_LRU */
 ibool
 buf_LRU_evict_from_unzip_LRU(
 /*=========================*/
 	buf_pool_t*	buf_pool);
 /******************************************************************//**
 Puts a block back to the free list. */
-UNIV_INTERN
 void
 buf_LRU_block_free_non_file_page(
 /*=============================*/
 	buf_block_t*	block);	/*!< in: block, must not contain a file page */
 /******************************************************************//**
-Adds a block to the LRU list. Please make sure that the zip_size is
-already set into the page zip when invoking the function, so that we
-can get correct zip_size from the buffer page when adding a block
-into LRU */
-UNIV_INTERN
+Adds a block to the LRU list. Please make sure that the page_size is
+already set when invoking the function, so that we can get correct
+page_size from the buffer page when adding a block into LRU */
 void
 buf_LRU_add_block(
 /*==============*/
@@ -177,7 +166,6 @@ buf_LRU_add_block(
 				the start regardless of this parameter */
 /******************************************************************//**
 Adds a block to the LRU list of decompressed zip pages. */
-UNIV_INTERN
 void
 buf_unzip_LRU_add_block(
 /*====================*/
@@ -186,23 +174,20 @@ buf_unzip_LRU_add_block(
 				of the list, else put to the start */
 /******************************************************************//**
 Moves a block to the start of the LRU list. */
-UNIV_INTERN
 void
 buf_LRU_make_block_young(
 /*=====================*/
 	buf_page_t*	bpage);	/*!< in: control block */
 /******************************************************************//**
 Moves a block to the end of the LRU list. */
-UNIV_INTERN
 void
 buf_LRU_make_block_old(
 /*===================*/
 	buf_page_t*	bpage);	/*!< in: control block */
 /**********************************************************************//**
 Updates buf_pool->LRU_old_ratio.
-@return	updated old_pct */
-UNIV_INTERN
-ulint
+@return updated old_pct */
+uint
 buf_LRU_old_ratio_update(
 /*=====================*/
 	uint	old_pct,/*!< in: Reserve this percentage of
@@ -213,14 +198,12 @@ buf_LRU_old_ratio_update(
 /********************************************************************//**
 Update the historical stats that we are collecting for LRU eviction
 policy at the end of each interval. */
-UNIV_INTERN
 void
 buf_LRU_stat_update(void);
 /*=====================*/
 
 /******************************************************************//**
 Remove one page from LRU list and put it to free list */
-UNIV_INTERN
 void
 buf_LRU_free_one_page(
 /*==================*/
@@ -231,7 +214,6 @@ buf_LRU_free_one_page(
 
 /******************************************************************//**
 Adjust LRU hazard pointers if needed. */
-
 void
 buf_LRU_adjust_hp(
 /*==============*/
@@ -241,8 +223,7 @@ buf_LRU_adjust_hp(
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /**********************************************************************//**
 Validates the LRU list.
-@return	TRUE */
-UNIV_INTERN
+@return TRUE */
 ibool
 buf_LRU_validate(void);
 /*==================*/
@@ -250,7 +231,6 @@ buf_LRU_validate(void);
 #if defined UNIV_DEBUG_PRINT || defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /**********************************************************************//**
 Prints the LRU list. */
-UNIV_INTERN
 void
 buf_LRU_print(void);
 /*===============*/

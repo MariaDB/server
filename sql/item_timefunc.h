@@ -529,7 +529,7 @@ public:
 
 class Item_temporal_func: public Item_func
 {
-  ulonglong sql_mode;
+  sql_mode_t sql_mode;
 public:
   Item_temporal_func(THD *thd): Item_func(thd) {}
   Item_temporal_func(THD *thd, Item *a): Item_func(thd, a) {}

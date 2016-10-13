@@ -1627,7 +1627,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   ulong data_len;
   char buf[LOG_EVENT_MINIMAL_HEADER_LEN];
   uchar ev_offset= packet->length();
-#ifndef max_allowed_packet
+#if !defined(MYSQL_CLIENT)
   THD *thd=current_thd;
   ulong max_allowed_packet= thd ? thd->slave_thread ? slave_max_allowed_packet
                                                     : thd->variables.max_allowed_packet
@@ -3060,7 +3060,7 @@ void Log_event::print_base64(IO_CACHE* file,
   uint32 size= uint4korr(ptr + EVENT_LEN_OFFSET);
   DBUG_ENTER("Log_event::print_base64");
 
-  size_t const tmp_str_sz= base64_needed_encoded_length((int) size);
+  size_t const tmp_str_sz= my_base64_needed_encoded_length((int) size);
   char *const tmp_str= (char *) my_malloc(tmp_str_sz, MYF(MY_WME));
   if (!tmp_str) {
     fprintf(stderr, "\nError: Out of memory. "
@@ -3068,7 +3068,7 @@ void Log_event::print_base64(IO_CACHE* file,
     DBUG_VOID_RETURN;
   }
 
-  if (base64_encode(ptr, (size_t) size, tmp_str))
+  if (my_base64_encode(ptr, (size_t) size, tmp_str))
   {
     DBUG_ASSERT(0);
   }
@@ -3927,7 +3927,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
     {
       CHECK_SPACE(pos, end, 8);
       sql_mode_inited= 1;
-      sql_mode= (ulong) uint8korr(pos); // QQ: Fix when sql_mode is ulonglong
+      sql_mode= (sql_mode_t) uint8korr(pos);
       DBUG_PRINT("info",("In Query_log_event, read sql_mode: %llu", sql_mode));
       pos+= 8;
       break;
@@ -4431,8 +4431,9 @@ void Query_log_event::print_query_header(IO_CACHE* file,
       (unlikely(print_event_info->sql_mode != sql_mode ||
                 !print_event_info->sql_mode_inited)))
   {
-    my_b_printf(file,"SET @@session.sql_mode=%lu%s\n",
-                (ulong)sql_mode, print_event_info->delimiter);
+    char llbuff[22];
+    my_b_printf(file,"SET @@session.sql_mode=%s%s\n",
+                ullstr(sql_mode, llbuff), print_event_info->delimiter);
     print_event_info->sql_mode= sql_mode;
     print_event_info->sql_mode_inited= 1;
   }
@@ -4662,8 +4663,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       */
       if (sql_mode_inited)
         thd->variables.sql_mode=
-          (ulong) ((thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE) |
-                   (sql_mode & ~(ulong) MODE_NO_DIR_IN_CREATE));
+          (sql_mode_t) ((thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE) |
+                        (sql_mode & ~(ulong) MODE_NO_DIR_IN_CREATE));
       if (charset_inited)
       {
         rpl_sql_thread_info *sql_info= thd->system_thread_info.rpl_sql_info;
@@ -10434,7 +10435,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       extra columns on the slave. In that case, do not force
       MODE_NO_AUTO_VALUE_ON_ZERO.
     */
-    ulonglong saved_sql_mode= thd->variables.sql_mode;
+    sql_mode_t saved_sql_mode= thd->variables.sql_mode;
     if (!is_auto_inc_in_extra_columns())
       thd->variables.sql_mode= MODE_NO_AUTO_VALUE_ON_ZERO;
 

@@ -1,0 +1,111 @@
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t10 (a int, b int, c int);
+insert into t10 
+select 
+A.a + 1000*B.a,
+A.a + 1000*B.a,
+A.a + 1000*B.a
+from t1 A, t0 B
+order by A.a+1000*B.a;
+#################################################################
+## Try a basic example
+flush status;
+create table t21 as
+select 
+sum(b) over (order by a rows between 2 preceding and 2 following) as SUM_B
+from
+t10;
+select variable_name,
+case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+from information_schema.session_status
+where variable_name like 'Sort_merge_passes';
+variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+SORT_MERGE_PASSES	NO PASSES
+set sort_buffer_size=1024;
+flush status;
+create table t22 as
+select 
+sum(b) over (order by a rows between 2 preceding and 2 following) as SUM_B
+from
+t10;
+select variable_name,
+case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+from information_schema.session_status
+where variable_name like 'Sort_merge_passes';
+variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+SORT_MERGE_PASSES	WITH PASSES
+include/diff_tables.inc [t21, t22]
+drop table t21, t22;
+#################################################################
+# Try many cursors
+set sort_buffer_size=default;
+flush status;
+create table t21 as
+select 
+sum(b) over (order by a rows between 2 preceding and 2 following) as SUM_B1,
+sum(b) over (order by a rows between 5 preceding and 5 following) as SUM_B2,
+sum(b) over (order by a rows between 20 preceding and 20 following) as SUM_B3
+from
+t10;
+select variable_name,
+case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+from information_schema.session_status
+where variable_name like 'Sort_merge_passes';
+variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+SORT_MERGE_PASSES	NO PASSES
+set sort_buffer_size=1024;
+flush status;
+create table t22 as
+select 
+sum(b) over (order by a rows between 2 preceding and 2 following) as SUM_B1,
+sum(b) over (order by a rows between 5 preceding and 5 following) as SUM_B2,
+sum(b) over (order by a rows between 20 preceding and 20 following) as SUM_B3
+from
+t10;
+select variable_name,
+case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+from information_schema.session_status
+where variable_name like 'Sort_merge_passes';
+variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+SORT_MERGE_PASSES	WITH PASSES
+include/diff_tables.inc [t21, t22]
+drop table t21, t22;
+#################################################################
+# Try having cursors pointing at different IO_CACHE pages
+# in the IO_CACHE
+set sort_buffer_size=default;
+flush status;
+create table t21 as
+select 
+a,
+sum(b) over (order by a range between 5000 preceding and 5000 following) as SUM_B1
+from
+t10;
+select variable_name,
+case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+from information_schema.session_status
+where variable_name like 'Sort_merge_passes';
+variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+SORT_MERGE_PASSES	NO PASSES
+set sort_buffer_size=1024;
+flush status;
+create table t22 as
+select
+a,
+sum(b) over (order by a range between 5000 preceding and 5000 following) as SUM_B1
+from
+t10;
+select variable_name,
+case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+from information_schema.session_status
+where variable_name like 'Sort_merge_passes';
+variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+SORT_MERGE_PASSES	WITH PASSES
+include/diff_tables.inc [t21, t22]
+drop table t21, t22;
+#################################################################
+drop table t10;
+drop table t0,t1;

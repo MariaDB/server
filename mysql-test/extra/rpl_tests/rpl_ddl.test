@@ -473,8 +473,10 @@ let $my_stmt= CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a:=1;
 let $my_master_commit= true;
 let $my_slave_commit= true;
 --source include/rpl_stmt_seq.inc
+--replace_column 6 #
 SHOW TRIGGERS;
 connection slave;
+--replace_column 6 #
 SHOW TRIGGERS;
 connection master;
 

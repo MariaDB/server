@@ -251,6 +251,7 @@
                                     OPTIMIZER_SWITCH_FIRSTMATCH | \
                                     OPTIMIZER_SWITCH_LOOSE_SCAN | \
                                     OPTIMIZER_SWITCH_EXISTS_TO_IN | \
+                                    OPTIMIZER_SWITCH_ORDERBY_EQ_PROP | \
                                     OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED)
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you

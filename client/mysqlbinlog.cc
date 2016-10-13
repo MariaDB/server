@@ -37,13 +37,12 @@
 #include <sslopt-vars.h>
 /* That one is necessary for defines of OPTION_NO_FOREIGN_KEY_CHECKS etc */
 #include "sql_priv.h"
+#include "sql_basic_types.h"
 #include "log_event.h"
 #include "compat56.h"
 #include "sql_common.h"
 #include "my_dir.h"
 #include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
-
-
 #include "sql_string.h"   // needed for Rpl_filter
 #include "sql_list.h"     // needed for Rpl_filter
 #include "rpl_filter.h"
@@ -52,13 +51,17 @@
 
 #include <algorithm>
 
+#define my_net_write ma_net_write
+#define net_flush ma_net_flush
+#define cli_safe_read mysql_net_read_packet
+#define my_net_read ma_net_read
+extern "C" unsigned char *mysql_net_store_length(unsigned char *packet, size_t length);
+#define net_store_length mysql_net_store_length
+
 Rpl_filter *binlog_filter= 0;
 
 #define BIN_LOG_HEADER_SIZE	4
 #define PROBE_HEADER_LEN	(EVENT_LEN_OFFSET+4)
-
-
-#define CLIENT_CAPABILITIES	(CLIENT_LONG_PASSWORD | CLIENT_LONG_FLAG | CLIENT_LOCAL_FILES)
 
 /* Needed for Rpl_filter */
 CHARSET_INFO* system_charset_info= &my_charset_utf8_general_ci;
@@ -1771,6 +1774,7 @@ static int parse_args(int *argc, char*** argv)
 */
 static Exit_status safe_connect()
 {
+  my_bool reconnect= 1;
   /* Close any old connections to MySQL */
   if (mysql)
     mysql_close(mysql);
@@ -1816,7 +1820,7 @@ static Exit_status safe_connect()
     error("Failed on connect: %s", mysql_error(mysql));
     return ERROR_STOP;
   }
-  mysql->reconnect= 1;
+  mysql_options(mysql, MYSQL_OPT_RECONNECT, &reconnect);
   return OK_CONTINUE;
 }
 
@@ -2850,6 +2854,8 @@ struct encryption_service_st encryption_handler=
 #include "my_decimal.h"
 #include "decimal.c"
 #include "my_decimal.cc"
+#include "../sql-common/my_time.c"
+#include "password.c"
 #include "log_event.cc"
 #include "log_event_old.cc"
 #include "rpl_utility.cc"

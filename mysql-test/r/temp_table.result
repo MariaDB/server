@@ -441,7 +441,7 @@ INSERT INTO temp_t1 VALUES(1);
 DROP TABLE temp_t1;
 RETURN 0;
 END|
-ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger.
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 CREATE FUNCTION f2() RETURNS INT
 BEGIN
 DROP TEMPORARY TABLE IF EXISTS temp_t1;

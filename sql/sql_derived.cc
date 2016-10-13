@@ -1131,19 +1131,6 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   st_select_lex_unit *unit= derived->get_unit();
   st_select_lex *sl= unit->first_select();
 
-  /* Check whether any select of 'unit' allows condition pushdown */
-  bool any_select_allows_cond_pushdown= false;
-  for (; sl; sl= sl->next_select())
-  {
-    if (sl->cond_pushdown_is_allowed())
-    {
-      any_select_allows_cond_pushdown= true;
-      break;
-    }
-  }
-  if (!any_select_allows_cond_pushdown)
-    return false; 
-
   /* Do not push conditions into constant derived */
   if (unit->executed)
     return false;
@@ -1151,6 +1138,23 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   /* Do not push conditions into recursive with tables */
   if (derived->is_recursive_with_table())
     return false;
+
+  /* Do not push conditions into unit with global ORDER BY ... LIMIT */
+  if (unit->fake_select_lex && unit->fake_select_lex->explicit_limit)
+    return false;
+
+  /* Check whether any select of 'unit' allows condition pushdown */
+  bool some_select_allows_cond_pushdown= false;
+  for (; sl; sl= sl->next_select())
+  {
+    if (sl->cond_pushdown_is_allowed())
+    {
+      some_select_allows_cond_pushdown= true;
+      break;
+    }
+  }
+  if (!some_select_allows_cond_pushdown)
+    return false; 
 
   /*
     Build the most restrictive condition extractable from 'cond'

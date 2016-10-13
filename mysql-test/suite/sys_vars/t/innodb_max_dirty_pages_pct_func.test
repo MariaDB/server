@@ -33,15 +33,22 @@ SET @innodb_max_dirty_pages_pct = @@global.innodb_max_dirty_pages_pct;
 ############################################################################
 
 SET @@global.innodb_max_dirty_pages_pct = 80;
+--echo 'connect (con1,localhost,root,,,,)'
 connect (con1,localhost,root,,,,);
+--echo 'connection con1'
 connection con1;
 SELECT @@global.innodb_max_dirty_pages_pct;
 SET @@global.innodb_max_dirty_pages_pct = 70;
+--echo 'connect (con2,localhost,root,,,,)'
 connect (con2,localhost,root,,,,);
+--echo 'connection con2'
 connection con2;
 SELECT @@global.innodb_max_dirty_pages_pct;
+--echo 'connection default'
 connection default;
+--echo 'disconnect con2'
 disconnect con2;
+--echo 'disconnect con1'
 disconnect con1;
 # restore initial value
 SET @@global.innodb_max_dirty_pages_pct = @innodb_max_dirty_pages_pct;

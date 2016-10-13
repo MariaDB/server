@@ -576,7 +576,9 @@ begin
   end if;
 end|
 delimiter ;|
+--replace_column 6 #
 show triggers;
+--replace_column 17 #
 select * from information_schema.triggers where trigger_schema in ('mysql', 'information_schema', 'test', 'mysqltest');
 
 drop trigger trg1;
@@ -1034,12 +1036,14 @@ grant select(b) on mysqltest.t1 to mysqltest_1@localhost;
 
 select trigger_name from information_schema.triggers
 where event_object_table='t1';
+--replace_column 6 #
 show triggers from mysqltest;
 
 connect (con27629,localhost,mysqltest_1,,mysqltest);
 show columns from t1;
 select column_name from information_schema.columns where table_name='t1';
 
+--replace_column 6 #
 show triggers;
 select trigger_name from information_schema.triggers
 where event_object_table='t1';

@@ -479,9 +479,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /* Required for reentrant parser */
 #define YY_DECL int fts_blexer(YYSTYPE* val, yyscan_t yyscanner)
+#define exit(A)   ut_error
 
 #define YY_NO_INPUT 1
-#line 484 "fts0blex.cc"
+#line 485 "fts0blex.cc"
 
 #define INITIAL 0
 
@@ -706,7 +707,7 @@ YY_DECL
 	register int yy_act;
 	struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-#line 43 "fts0blex.l"
+#line 44 "fts0blex.l"
 
 
 #line 712 "fts0blex.cc"
@@ -790,12 +791,12 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 45 "fts0blex.l"
+#line 46 "fts0blex.l"
 /* Ignore whitespace */ ;
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 47 "fts0blex.l"
+#line 48 "fts0blex.l"
 {
 	val->oper = fts0bget_text(yyscanner)[0];
 
@@ -804,7 +805,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 53 "fts0blex.l"
+#line 54 "fts0blex.l"
 {
 	val->token = fts_ast_string_create(reinterpret_cast<const byte*>(fts0bget_text(yyscanner)), fts0bget_leng(yyscanner));
 
@@ -813,7 +814,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 59 "fts0blex.l"
+#line 60 "fts0blex.l"
 {
 	val->token = fts_ast_string_create(reinterpret_cast<const byte*>(fts0bget_text(yyscanner)), fts0bget_leng(yyscanner));
 
@@ -822,7 +823,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 65 "fts0blex.l"
+#line 66 "fts0blex.l"
 {
 	val->token = fts_ast_string_create(reinterpret_cast<const byte*>(fts0bget_text(yyscanner)), fts0bget_leng(yyscanner));
 
@@ -832,12 +833,12 @@ YY_RULE_SETUP
 case 6:
 /* rule 6 can match eol */
 YY_RULE_SETUP
-#line 71 "fts0blex.l"
+#line 72 "fts0blex.l"
 
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 73 "fts0blex.l"
+#line 74 "fts0blex.l"
 ECHO;
 	YY_BREAK
 #line 843 "fts0blex.cc"
@@ -1953,5 +1954,5 @@ void fts0bfree (void * ptr ,            yyscan_t yyscanner MY_ATTRIBUTE((unused)
 
 #define YYTABLES_NAME "yytables"
 
-#line 73 "fts0blex.l"
+#line 74 "fts0blex.l"
 

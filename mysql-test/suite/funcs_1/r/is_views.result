@@ -163,7 +163,7 @@ ORDER BY table_schema,table_name;
 table_schema	table_name
 test	t1_view
 RENAME TABLE test.t1_view TO db_datadict.t1_view;
-ERROR HY000: Changing schema from 'test' to 'db_datadict' is not allowed.
+ERROR HY000: Changing schema from 'test' to 'db_datadict' is not allowed
 DROP VIEW test.t1_view;
 CREATE VIEW db_datadict.t1_view AS SELECT * FROM test.t1_table;
 SELECT table_schema,table_name FROM information_schema.views

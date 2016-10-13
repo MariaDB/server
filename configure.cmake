@@ -56,7 +56,7 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   # MySQL "canonical" GCC flags. At least -fno-rtti flag affects
   # ABI and cannot be simply removed. 
   SET(CMAKE_CXX_FLAGS 
-    "${CMAKE_CXX_FLAGS} -fno-exceptions -fno-rtti")
+    "${CMAKE_CXX_FLAGS} -fno-rtti")
 
   IF (CMAKE_EXE_LINKER_FLAGS MATCHES " -static " 
      OR CMAKE_EXE_LINKER_FLAGS MATCHES " -static$")

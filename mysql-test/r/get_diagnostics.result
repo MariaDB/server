@@ -273,11 +273,11 @@ SELECT CAST(-19999999999999999999 AS SIGNED);
 CAST(-19999999999999999999 AS SIGNED)
 -9223372036854775808
 Warnings:
-Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 GET DIAGNOSTICS @var = NUMBER;
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 #
 # If GET DIAGNOSTICS itself causes an error, an error message is appended.
 #
@@ -285,14 +285,14 @@ SELECT CAST(-19999999999999999999 AS SIGNED);
 CAST(-19999999999999999999 AS SIGNED)
 -9223372036854775808
 Warnings:
-Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 GET DIAGNOSTICS CONDITION 99999 @var = CLASS_ORIGIN;
 Warnings:
-Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 Error	1758	Invalid condition number
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 Error	1758	Invalid condition number
 
 # Statement information runtime
@@ -302,8 +302,8 @@ CAST(-19999999999999999999 AS SIGNED);
 CAST(-19999999999999999999 AS SIGNED)	CAST(-19999999999999999999 AS SIGNED)
 -9223372036854775808	-9223372036854775808
 Warnings:
-Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
-Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated
+Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 GET DIAGNOSTICS @var = NUMBER;
 SELECT @var;
 @var
@@ -353,7 +353,7 @@ SELECT CAST(-19999999999999999999 AS SIGNED);
 CAST(-19999999999999999999 AS SIGNED)
 -9223372036854775808
 Warnings:
-Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 GET DIAGNOSTICS CONDITION 1
 @class_origin = CLASS_ORIGIN,
 @subclass_origin = SUBCLASS_ORIGIN,
@@ -392,7 +392,7 @@ SELECT
 @table_name	
 @column_name	
 @cursor_name	
-@message_text	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+@message_text	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 @mysql_errno	1916
 @returned_sqlstate	22003
 CREATE PROCEDURE p1()
@@ -452,13 +452,13 @@ schema_name
 table_name	
 column_name	
 cursor_name	
-message_text	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+message_text	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 mysql_errno	1916
 returned_sqlstate	22003
 Warnings:
 Level	Warning
 Code	1916
-Message	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+Message	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 BEGIN
@@ -475,13 +475,13 @@ END|
 CALL p1();
 CAST(-19999999999999999999 AS SIGNED)	-9223372036854775808
 errno1	1916
-msg1	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+msg1	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 errno2	1758
 msg2	Invalid condition number
 Warnings:
 Level	Warning
 Code	1916
-Message	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+Message	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 Level	Error
 Code	1758
 Message	Invalid condition number
@@ -769,7 +769,7 @@ SELECT CAST(-19999999999999999999 AS SIGNED);
 CAST(-19999999999999999999 AS SIGNED)
 -9223372036854775808
 Warnings:
-Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated.
+Warning	1916	Got overflow when converting '-19999999999999999999' to INT. Value truncated
 GET DIAGNOSTICS CONDITION 1 @var1 = MESSAGE_TEXT, @var2 = CLASS_ORIGIN;
 SELECT CHARSET(@var1), COLLATION(@var1), COERCIBILITY(@var1);
 CHARSET(@var1)	COLLATION(@var1)	COERCIBILITY(@var1)

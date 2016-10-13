@@ -534,7 +534,7 @@ select "123456789012345678901234567890.123456789012345678901234567890" div 1 as 
 ERROR 22003: BIGINT value is out of range in '('123456789012345678901234567890.123456789012345678901234567890' DIV 1)'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1916	Got overflow when converting '123456789012345678901234567890' to INT. Value truncated.
+Warning	1916	Got overflow when converting '123456789012345678901234567890' to INT. Value truncated
 Error	1690	BIGINT value is out of range in '('123456789012345678901234567890.123456789012345678901234567890' DIV 1)'
 #
 # Bug#57810 case/when/then : Assertion failed: length || !scale
@@ -741,7 +741,7 @@ select (1.175494351E-37 div 1.7976931348623157E+308);
 (1.175494351E-37 div 1.7976931348623157E+308)
 0
 Warnings:
-Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated.
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 #
 # Bug#12744991 - DECIMAL_ROUND(X,D) GIVES WRONG RESULTS WHEN D == N*(-9)
 #

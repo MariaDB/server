@@ -548,7 +548,7 @@ struct Query_cache_query_flags
   uint collation_connection_num;
   ha_rows limit;
   Time_zone *time_zone;
-  ulonglong sql_mode;
+  sql_mode_t sql_mode;
   ulong max_sort_length;
   ulong group_concat_max_len;
   ulong default_week_format;

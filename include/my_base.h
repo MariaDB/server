@@ -497,12 +497,18 @@ enum ha_base_keytype {
 #define HA_ERR_DISK_FULL          189
 #define HA_ERR_INCOMPATIBLE_DEFINITION 190
 #define HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE 191 /* Too many words in a phrase */
-#define HA_ERR_DECRYPTION_FAILED  192 /* Table encrypted but
-						decypt failed */
-#define HA_ERR_LAST               192    /* Copy of last error nr */
+#define HA_ERR_DECRYPTION_FAILED  192 /* Table encrypted but decypt failed */
+#define HA_ERR_FK_DEPTH_EXCEEDED  193 /* FK cascade depth exceeded */
+#define HA_ERR_TABLESPACE_MISSING 194  /* Missing Tablespace */
+#define HA_ERR_LAST               194  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)
+
+/* aliases */
+#define HA_ERR_TABLE_CORRUPT HA_ERR_WRONG_IN_RECORD
+#define HA_ERR_QUERY_INTERRUPTED HA_ERR_ABORTED_BY_USER
+#define HA_ERR_NOT_ALLOWED_COMMAND HA_ERR_WRONG_COMMAND
 
 	/* Other constants */
 
@@ -631,18 +637,5 @@ typedef ulong		ha_rows;
 C_MODE_START
 typedef void (* invalidator_by_filename)(const char * filename);
 C_MODE_END
-
-
-enum durability_properties
-{
-  /*
-    Preserves the durability properties defined by the engine */
-  HA_REGULAR_DURABILITY= 0,
-  /* 
-     Ignore the durability properties defined by the engine and
-     write only in-memory entries.
-  */
-  HA_IGNORE_DURABILITY= 1
-};
 
 #endif /* _my_base_h */

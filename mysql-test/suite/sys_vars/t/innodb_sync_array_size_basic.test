@@ -2,11 +2,6 @@
 
 --source include/have_innodb.inc
 
-if (`select plugin_auth_version <= "5.6.10" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in InnoDB 5.6.10 or earlier
-}
-
 # Exists as global only
 #
 --echo Valid values are between 0 and 1024
@@ -14,12 +9,15 @@ SELECT @@global.innodb_sync_array_size between 0 and 1024;
 SELECT @@global.innodb_sync_array_size;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.innodb_sync_array_size;
+
 SHOW GLOBAL variables LIKE 'innodb_sync_array_size';
 SHOW SESSION variables LIKE 'innodb_sync_array_size';
+--disable_warnings
 SELECT * FROM information_schema.global_variables 
 WHERE variable_name='innodb_sync_array_size';
 SELECT * FROM information_schema.session_variables 
 WHERE variable_name='innodb_sync_array_size';
+--enable_warnings
 
 #
 # Show that it's read-only

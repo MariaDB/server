@@ -32,6 +32,7 @@ class String;
 typedef struct st_io_cache IO_CACHE;
 typedef struct st_mem_root MEM_ROOT;
 
+#include "pack.h"
 int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);
 String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
 inline uint32 copy_and_convert(char *to, uint32 to_length,
@@ -631,8 +632,19 @@ public:
   {
     return !sortcmp(this, other, cs);
   }
-  void q_net_store_length(ulonglong length);
-  void q_net_store_data(const uchar *from, size_t length);
+  void q_net_store_length(ulonglong length)
+  {
+    DBUG_ASSERT(Alloced_length >= (str_length + net_length_size(length)));
+    char *pos= (char *) net_store_length((uchar *)(Ptr + str_length), length);
+    str_length= pos - Ptr;
+  }
+  void q_net_store_data(const uchar *from, size_t length)
+  {
+    DBUG_ASSERT(Alloced_length >= (str_length + length +
+                                   net_length_size(length)));
+    q_net_store_length(length);
+    q_append((const char *)from, length);
+  }
 };
 
 

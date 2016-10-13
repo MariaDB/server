@@ -1143,6 +1143,9 @@ int main(int argc,char *argv[])
 
   outfile[0]=0;			// no (default) outfile
   strmov(pager, "stdout");	// the default, if --pager wasn't given
+
+  mysql_init(&mysql);
+
   {
     char *tmp=getenv("PAGER");
     if (tmp && strlen(tmp))
@@ -1203,7 +1206,6 @@ int main(int argc,char *argv[])
   glob_buffer.realloc(512);
   completion_hash_init(&ht, 128);
   init_alloc_root(&hash_mem_root, 16384, 0, MYF(0));
-  bzero((char*) &mysql, sizeof(mysql));
   if (sql_connect(current_host,current_db,current_user,opt_password,
 		  opt_silent))
   {
@@ -4641,12 +4643,13 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     }
     return -1;					// Retryable
   }
-  
-  charset_info= mysql.charset;
+
+  charset_info= get_charset_by_name(mysql.charset->name, MYF(0));
+
   
   connected=1;
 #ifndef EMBEDDED_LIBRARY
-  mysql.reconnect= debug_info_flag; // We want to know if this happens
+  mysql_options(&mysql, MYSQL_OPT_RECONNECT, &debug_info_flag);
 
   /*
     CLIENT_PROGRESS_OBSOLETE is set only if we requested it in
@@ -4655,7 +4658,10 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   if (mysql.client_flag & CLIENT_PROGRESS_OBSOLETE)
     mysql_options(&mysql, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
 #else
-  mysql.reconnect= 1;
+  {
+    my_bool reconnect= 1;
+    mysql_options(&mysql, MYSQL_OPT_RECONNECT, &reconnect);
+  }
 #endif
 #ifdef HAVE_READLINE
   build_completion_hash(opt_rehash, 1);

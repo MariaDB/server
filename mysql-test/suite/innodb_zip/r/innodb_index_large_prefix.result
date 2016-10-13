@@ -1,7 +1,13 @@
 SET default_storage_engine=InnoDB;
+call mtr.add_suppression("Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
 set global innodb_file_format="Barracuda";
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 set global innodb_file_per_table=1;
 set global innodb_large_prefix=1;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+set global innodb_strict_mode=1;
 ### Test 1 ###
 create table worklog5743(a TEXT not null, primary key (a(1000))) ROW_FORMAT=DYNAMIC;
 show warnings;
@@ -97,6 +103,8 @@ create table worklog5743_4(a1 int, a2 TEXT not null) KEY_BLOCK_SIZE=4;
 create table worklog5743_8(a1 int, a2 TEXT, a3 TEXT) KEY_BLOCK_SIZE=8;
 create table worklog5743_16(a1 int, a2 TEXT, a3 TEXT) KEY_BLOCK_SIZE=16;
 set global innodb_large_prefix=0;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 create index idx1 on worklog5743_1(a2(4000));
 ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
 show warnings;
@@ -104,6 +112,8 @@ Level	Code	Message
 Warning	1071	Specified key was too long; max key length is 767 bytes
 Error	1118	Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
 set global innodb_large_prefix=1;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 create index idx2 on worklog5743_1(a2(4000));
 ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
 show warnings;
@@ -127,6 +137,8 @@ create index idx6 on worklog5743_1(a1, a2(428));
 show warnings;
 Level	Code	Message
 set global innodb_large_prefix=0;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 create index idx1 on worklog5743_2(a2(4000));
 Warnings:
 Warning	1071	Specified key was too long; max key length is 767 bytes
@@ -134,6 +146,8 @@ show warnings;
 Level	Code	Message
 Warning	1071	Specified key was too long; max key length is 767 bytes
 set global innodb_large_prefix=1;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 create index idx2 on worklog5743_2(a2(4000));
 ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
 show warnings;
@@ -157,6 +171,8 @@ create index idx6 on worklog5743_2(a1, a2(940));
 show warnings;
 Level	Code	Message
 set global innodb_large_prefix=0;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 create index idx1 on worklog5743_4(a2(4000));
 Warnings:
 Warning	1071	Specified key was too long; max key length is 767 bytes
@@ -164,6 +180,8 @@ show warnings;
 Level	Code	Message
 Warning	1071	Specified key was too long; max key length is 767 bytes
 set global innodb_large_prefix=1;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 create index idx2 on worklog5743_4(a2(4000));
 ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
 show warnings;
@@ -187,6 +205,8 @@ create index idx6 on worklog5743_4(a1, a2(1964));
 show warnings;
 Level	Code	Message
 set global innodb_large_prefix=0;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 create index idx1 on worklog5743_8(a2(1000));
 Warnings:
 Warning	1071	Specified key was too long; max key length is 767 bytes
@@ -194,6 +214,8 @@ show warnings;
 Level	Code	Message
 Warning	1071	Specified key was too long; max key length is 767 bytes
 set global innodb_large_prefix=1;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 create index idx2 on worklog5743_8(a2(3073));
 Warnings:
 Warning	1071	Specified key was too long; max key length is 3072 bytes
@@ -202,10 +224,10 @@ Level	Code	Message
 Warning	1071	Specified key was too long; max key length is 3072 bytes
 create index idx3 on worklog5743_8(a2(3072));
 Warnings:
-Note	1831	Duplicate index 'idx3' defined on the table 'test.worklog5743_8'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index 'idx3' defined on the table 'test.worklog5743_8'. This is deprecated and will be disallowed in a future release
 show warnings;
 Level	Code	Message
-Note	1831	Duplicate index 'idx3' defined on the table 'test.worklog5743_8'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index 'idx3' defined on the table 'test.worklog5743_8'. This is deprecated and will be disallowed in a future release
 create index idx4 on worklog5743_8(a1, a2(3069));
 ERROR 42000: Specified key was too long; max key length is 3072 bytes
 show warnings;
@@ -223,6 +245,8 @@ create index idx7 on worklog5743_8(a1, a2(2000), a3(1068));
 show warnings;
 Level	Code	Message
 set global innodb_large_prefix=0;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 create index idx1 on worklog5743_16(a2(1000));
 Warnings:
 Warning	1071	Specified key was too long; max key length is 767 bytes
@@ -230,6 +254,8 @@ show warnings;
 Level	Code	Message
 Warning	1071	Specified key was too long; max key length is 767 bytes
 set global innodb_large_prefix=1;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 create index idx2 on worklog5743_16(a2(3073));
 Warnings:
 Warning	1071	Specified key was too long; max key length is 3072 bytes
@@ -238,10 +264,10 @@ Level	Code	Message
 Warning	1071	Specified key was too long; max key length is 3072 bytes
 create index idx3 on worklog5743_16(a2(3072));
 Warnings:
-Note	1831	Duplicate index 'idx3' defined on the table 'test.worklog5743_16'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index 'idx3' defined on the table 'test.worklog5743_16'. This is deprecated and will be disallowed in a future release
 show warnings;
 Level	Code	Message
-Note	1831	Duplicate index 'idx3' defined on the table 'test.worklog5743_16'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index 'idx3' defined on the table 'test.worklog5743_16'. This is deprecated and will be disallowed in a future release
 create index idx4 on worklog5743_16(a1, a2(3069));
 ERROR 42000: Specified key was too long; max key length is 3072 bytes
 show warnings;
@@ -264,12 +290,16 @@ insert into worklog5743_4 values(9, repeat("a", 10000));
 insert into worklog5743_8 values(9, repeat("a", 10000), repeat("a", 10000));
 insert into worklog5743_16 values(9, repeat("a", 10000), repeat("a", 10000));
 set global innodb_large_prefix=0;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 insert into worklog5743_1 values(2, repeat("b", 10000));
 insert into worklog5743_2 values(2, repeat("b", 10000));
 insert into worklog5743_4 values(2, repeat("b", 10000));
 insert into worklog5743_8 values(2, repeat("b", 10000), repeat("b", 10000));
 insert into worklog5743_16 values(2, repeat("b", 10000), repeat("b", 10000));
 set global innodb_large_prefix=1;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 select a1, left(a2, 20) from worklog5743_1;
 a1	left(a2, 20)
 9	aaaaaaaaaaaaaaaaaaaa
@@ -444,11 +474,11 @@ connection default;
 rollback;
 drop table worklog5743;
 ### Test 6 ###
-create table worklog5743(a TEXT not null, primary key (a(1000)));
-ERROR HY000: Index column size too large. The maximum column size is 767 bytes.
-create table worklog5743(a TEXT);
+create table worklog5743(a TEXT not null, primary key (a(1000))) row_format=COMPACT;
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+create table worklog5743(a TEXT) row_format=COMPACT;
 create index idx on worklog5743(a(768));
-ERROR HY000: Index column size too large. The maximum column size is 767 bytes.
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
 create index idx on worklog5743(a(767));
 insert into worklog5743 values(repeat("a", 20000));
 begin;
@@ -480,7 +510,7 @@ Warnings:
 Warning	1071	Specified key was too long; max key length is 3072 bytes
 create index idx2 on worklog5743(a(3072));
 Warnings:
-Note	1831	Duplicate index 'idx2' defined on the table 'test.worklog5743'. This is deprecated and will be disallowed in a future release.
+Note	1831	Duplicate index 'idx2' defined on the table 'test.worklog5743'. This is deprecated and will be disallowed in a future release
 show create table worklog5743;
 Table	Create Table
 worklog5743	CREATE TABLE `worklog5743` (
@@ -491,17 +521,22 @@ worklog5743	CREATE TABLE `worklog5743` (
 drop table worklog5743;
 create table worklog5743(a TEXT not null) ROW_FORMAT=REDUNDANT;
 create index idx on worklog5743(a(768));
-ERROR HY000: Index column size too large. The maximum column size is 767 bytes.
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
 create index idx2 on worklog5743(a(767));
 drop table worklog5743;
 create table worklog5743(a TEXT not null) ROW_FORMAT=COMPACT;
 create index idx on worklog5743(a(768));
-ERROR HY000: Index column size too large. The maximum column size is 767 bytes.
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
 create index idx2 on worklog5743(a(767));
 drop table worklog5743;
-SET GLOBAL innodb_file_format=Antelope;
+SET GLOBAL innodb_file_format=Barracuda;
+Warnings:
+Warning	131	Using innodb_file_format is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
 SET GLOBAL innodb_file_per_table=1;
-SET GLOBAL innodb_large_prefix=0;
+SET GLOBAL innodb_large_prefix=1;
+Warnings:
+Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See http://dev.mysql.com/doc/refman/5.7/en/innodb-file-format.html
+SET GLOBAL innodb_strict_mode = DEFAULT;
 connection con1;
 disconnect con1;
 connection con2;

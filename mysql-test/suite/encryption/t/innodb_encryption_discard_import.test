@@ -4,7 +4,8 @@
 -- source include/not_embedded.inc
 -- source include/not_windows.inc
 
-call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded.");
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
 
 --let $MYSQLD_TMPDIR = `SELECT @@tmpdir`
 --let $MYSQLD_DATADIR = `SELECT @@datadir`
@@ -107,6 +108,7 @@ ALTER TABLE t3 DISCARD TABLESPACE;
 
 --echo # List after t1 DISCARD
 --list_files $MYSQLD_DATADIR/test
+--disable_result_log
 --error 0,1,2
 --remove_file $MYSQLD_DATADIR/test/t1.cfg
 --error 0,1,2

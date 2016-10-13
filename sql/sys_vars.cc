@@ -3013,7 +3013,7 @@ static Sys_var_ulonglong Sys_sort_buffer(
        VALID_RANGE(MIN_SORT_MEMORY, SIZE_T_MAX), DEFAULT(MAX_SORT_MEMORY),
        BLOCK_SIZE(1));
 
-export ulonglong expand_sql_mode(ulonglong sql_mode)
+export sql_mode_t expand_sql_mode(sql_mode_t sql_mode)
 {
   if (sql_mode & MODE_ANSI)
   {
@@ -3067,7 +3067,7 @@ export ulonglong expand_sql_mode(ulonglong sql_mode)
 static bool check_sql_mode(sys_var *self, THD *thd, set_var *var)
 {
   var->save_result.ulonglong_value=
-    expand_sql_mode(var->save_result.ulonglong_value);
+    (ulonglong) expand_sql_mode(var->save_result.ulonglong_value);
   return false;
 }
 static bool fix_sql_mode(sys_var *self, THD *thd, enum_var_type type)
@@ -3100,7 +3100,8 @@ static const char *sql_mode_names[]=
   "PAD_CHAR_TO_FULL_LENGTH",
   0
 };
-export bool sql_mode_string_representation(THD *thd, ulonglong sql_mode,
+
+export bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                            LEX_STRING *ls)
 {
   set_to_string(thd, ls, sql_mode, sql_mode_names);
@@ -3253,9 +3254,7 @@ static Sys_var_ulong Sys_thread_cache_size(
 #ifdef HAVE_POOL_OF_THREADS
 static bool fix_tp_max_threads(sys_var *, THD *, enum_var_type)
 {
-#ifdef _WIN32
   tp_set_max_threads(threadpool_max_threads);
-#endif
   return false;
 }
 
@@ -3268,8 +3267,6 @@ static bool fix_tp_min_threads(sys_var *, THD *, enum_var_type)
 }
 #endif
 
-
-#ifndef  _WIN32
 static bool check_threadpool_size(sys_var *self, THD *thd, set_var *var)
 {
   ulonglong v= var->save_result.ulonglong_value;
@@ -3294,7 +3291,6 @@ static bool fix_threadpool_stall_limit(sys_var*, THD*, enum_var_type)
   tp_set_threadpool_stall_limit(threadpool_stall_limit);
   return false;
 }
-#endif
 
 #ifdef _WIN32
 static Sys_var_uint Sys_threadpool_min_threads(
@@ -3305,7 +3301,24 @@ static Sys_var_uint Sys_threadpool_min_threads(
   NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
   ON_UPDATE(fix_tp_min_threads)
   );
-#else
+
+static const char *threadpool_mode_names[]={ "windows", "generic", 0 };
+static Sys_var_enum Sys_threadpool_mode(
+  "thread_pool_mode",
+  "Chose implementation of the threadpool",
+  READ_ONLY GLOBAL_VAR(threadpool_mode), CMD_LINE(REQUIRED_ARG),
+  threadpool_mode_names, DEFAULT(TP_MODE_WINDOWS)
+  );
+#endif
+
+static const char *threadpool_priority_names[]={ "high", "low", "auto", 0 };
+static Sys_var_enum Sys_thread_pool_priority(
+  "thread_pool_priority",
+  "Threadpool priority. High priority connections usually start executing earlier than low priority."
+  "If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction.",
+  SESSION_VAR(threadpool_priority), CMD_LINE(REQUIRED_ARG),
+  threadpool_priority_names, DEFAULT(TP_PRIORITY_AUTO));
+
 static Sys_var_uint Sys_threadpool_idle_thread_timeout(
   "thread_pool_idle_timeout",
   "Timeout in seconds for an idle thread in the thread pool."
@@ -3340,7 +3353,7 @@ static Sys_var_uint Sys_threadpool_stall_limit(
   NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), 
   ON_UPDATE(fix_threadpool_stall_limit)
 );
-#endif /* !WIN32 */
+
 static Sys_var_uint Sys_threadpool_max_threads(
   "thread_pool_max_threads",
   "Maximum allowed number of worker threads in the thread pool",
@@ -3348,6 +3361,13 @@ static Sys_var_uint Sys_threadpool_max_threads(
    VALID_RANGE(1, 65536), DEFAULT(1000), BLOCK_SIZE(1),
    NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), 
    ON_UPDATE(fix_tp_max_threads)
+);
+
+static Sys_var_uint Sys_threadpool_threadpool_prio_kickup_timer(
+ "thread_pool_prio_kickup_timer",
+ "The number of milliseconds before a dequeued low-priority statement is moved to the high-priority queue",
+  GLOBAL_VAR(threadpool_prio_kickup_timer), CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, UINT_MAX), DEFAULT(1000), BLOCK_SIZE(1)
 );
 #endif /* HAVE_POOL_OF_THREADS */
 

@@ -16,8 +16,8 @@
 #ifndef SQL_BASE_INCLUDED
 #define SQL_BASE_INCLUDED
 
-#include "sql_trigger.h"                        /* trg_event_type */
 #include "sql_class.h"                          /* enum_mark_columns */
+#include "sql_trigger.h"                        /* trg_event_type */
 #include "mysqld.h"                             /* key_map */
 #include "table_cache.h"
 

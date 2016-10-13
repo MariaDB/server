@@ -6279,7 +6279,7 @@ Item *create_temporal_literal(THD *thd,
   MYSQL_TIME_STATUS status;
   MYSQL_TIME ltime;
   Item *item= NULL;
-  ulonglong flags= sql_mode_for_dates(thd);
+  sql_mode_t flags= sql_mode_for_dates(thd);
 
   switch(type)
   {

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,13 +30,12 @@ Created 2007-03-27 Sunny Bains
 #include "fts0types.h"
 #include "fts0priv.h"
 
-#ifndef UNIV_NONINL
+#ifdef UNIV_NONINL
 #include "fts0types.ic"
 #include "fts0vlc.ic"
 #endif
 
-/** SQL statements for creating the ancillary FTS tables. %s must be replaced
-with the indexed table's id. */
+/** SQL statements for creating the ancillary FTS tables. */
 
 /** Preamble to all SQL statements. */
 static const char* fts_sql_begin=
@@ -50,7 +49,6 @@ static const char* fts_sql_end=
 /******************************************************************//**
 Get the table id.
 @return number of bytes written */
-UNIV_INTERN
 int
 fts_get_table_id(
 /*=============*/
@@ -97,8 +95,7 @@ fts_get_table_id(
 
 /******************************************************************//**
 Construct the prefix name of an FTS table.
-@return own: table name, must be freed with mem_free() */
-UNIV_INTERN
+@return own: table name, must be freed with ut_free() */
 char*
 fts_get_table_name_prefix(
 /*======================*/
@@ -124,7 +121,7 @@ fts_get_table_name_prefix(
 
 	prefix_name_len = dbname_len + 4 + len + 1;
 
-	prefix_name = static_cast<char*>(mem_alloc(prefix_name_len));
+	prefix_name = static_cast<char*>(ut_malloc_nokey(prefix_name_len));
 
 	len = sprintf(prefix_name, "%.*sFTS_%s",
 		      dbname_len, fts_table->parent, table_id);
@@ -136,41 +133,34 @@ fts_get_table_name_prefix(
 }
 
 /******************************************************************//**
-Construct the name of an ancillary FTS table.
-@return own: table name, must be freed with mem_free() */
-UNIV_INTERN
-char*
+Construct the name of an ancillary FTS table for the given table.
+Caller must allocate enough memory(usually size of MAX_FULL_NAME_LEN)
+for param 'table_name'. */
+void
 fts_get_table_name(
 /*===============*/
-	const fts_table_t*	fts_table)
+	const fts_table_t*	fts_table,
 					/*!< in: Auxiliary table type */
+	char*			table_name)
+					/*!< in/out: aux table name */
 {
 	int		len;
-	char*		name;
-	int		name_len;
 	char*		prefix_name;
 
 	prefix_name = fts_get_table_name_prefix(fts_table);
 
-	name_len = static_cast<int>(
-		strlen(prefix_name) + 1 + strlen(fts_table->suffix) + 1);
-
-	name = static_cast<char*>(mem_alloc(name_len));
-
-	len = sprintf(name, "%s_%s", prefix_name, fts_table->suffix);
+	len = sprintf(table_name, "%s_%s", prefix_name, fts_table->suffix);
 
 	ut_a(len > 0);
-	ut_a(len == name_len - 1);
+	ut_a(strlen(prefix_name) + 1 + strlen(fts_table->suffix)
+	     == static_cast<uint>(len));
 
-	mem_free(prefix_name);
-
-	return(name);
+	ut_free(prefix_name);
 }
 
 /******************************************************************//**
-Parse an SQL string. %s is replaced with the table's id.
+Parse an SQL string.
 @return query graph */
-UNIV_INTERN
 que_t*
 fts_parse_sql(
 /*==========*/
@@ -180,31 +170,16 @@ fts_parse_sql(
 {
 	char*		str;
 	que_t*		graph;
-	char*		str_tmp;
 	ibool		dict_locked;
 
-	if (fts_table != NULL) {
-		char*	table_name;
-
-		table_name = fts_get_table_name(fts_table);
-		str_tmp = ut_strreplace(sql, "%s", table_name);
-		mem_free(table_name);
-	} else {
-		ulint	sql_len = strlen(sql) + 1;
-
-		str_tmp = static_cast<char*>(mem_alloc(sql_len));
-		strcpy(str_tmp, sql);
-	}
-
-	str = ut_str3cat(fts_sql_begin, str_tmp, fts_sql_end);
-	mem_free(str_tmp);
+	str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
 
 	dict_locked = (fts_table && fts_table->table->fts
 		       && (fts_table->table->fts->fts_status
 			   & TABLE_DICT_LOCKED));
 
 	if (!dict_locked) {
-		ut_ad(!mutex_own(&(dict_sys->mutex)));
+		ut_ad(!mutex_own(&dict_sys->mutex));
 
 		/* The InnoDB SQL parser is not re-entrant. */
 		mutex_enter(&dict_sys->mutex);
@@ -217,15 +192,14 @@ fts_parse_sql(
 		mutex_exit(&dict_sys->mutex);
 	}
 
-	mem_free(str);
+	ut_free(str);
 
 	return(graph);
 }
 
 /******************************************************************//**
-Parse an SQL string. %s is replaced with the table's id.
+Parse an SQL string.
 @return query graph */
-UNIV_INTERN
 que_t*
 fts_parse_sql_no_dict_lock(
 /*=======================*/
@@ -235,33 +209,19 @@ fts_parse_sql_no_dict_lock(
 {
 	char*		str;
 	que_t*		graph;
-	char*		str_tmp = NULL;
 
 #ifdef UNIV_DEBUG
 	ut_ad(mutex_own(&dict_sys->mutex));
 #endif
 
-	if (fts_table != NULL) {
-		char*		table_name;
-
-		table_name = fts_get_table_name(fts_table);
-		str_tmp = ut_strreplace(sql, "%s", table_name);
-		mem_free(table_name);
-	}
-
-	if (str_tmp != NULL) {
-		str = ut_str3cat(fts_sql_begin, str_tmp, fts_sql_end);
-		mem_free(str_tmp);
-	} else {
-		str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
-	}
+	str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
 
 	//fprintf(stderr, "%s\n", str);
 
 	graph = pars_sql(info, str);
 	ut_a(graph);
 
-	mem_free(str);
+	ut_free(str);
 
 	return(graph);
 }
@@ -269,7 +229,6 @@ fts_parse_sql_no_dict_lock(
 /******************************************************************//**
 Evaluate an SQL query graph.
 @return DB_SUCCESS or error code */
-UNIV_INTERN
 dberr_t
 fts_eval_sql(
 /*=========*/
@@ -303,7 +262,6 @@ Two indexed columns named "subject" and "content":
  "$sel0, $sel1",
  info/ids: sel0 -> "subject", sel1 -> "content",
 @return heap-allocated WHERE string */
-UNIV_INTERN
 const char*
 fts_get_select_columns_str(
 /*=======================*/
@@ -334,7 +292,6 @@ fts_get_select_columns_str(
 /******************************************************************//**
 Commit a transaction.
 @return DB_SUCCESS or error code */
-UNIV_INTERN
 dberr_t
 fts_sql_commit(
 /*===========*/
@@ -353,7 +310,6 @@ fts_sql_commit(
 /******************************************************************//**
 Rollback a transaction.
 @return DB_SUCCESS or error code */
-UNIV_INTERN
 dberr_t
 fts_sql_rollback(
 /*=============*/

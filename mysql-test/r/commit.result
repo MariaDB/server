@@ -339,54 +339,54 @@ CREATE TEMPORARY TABLE temp_t2(a INT);
 SET SESSION TRANSACTION READ ONLY;
 # 1: DDL should be blocked, also on temporary tables.
 CREATE TABLE t3(a INT);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 ALTER TABLE t1 COMMENT "Test";
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 DROP TABLE t1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 CREATE TEMPORARY TABLE temp_t3(a INT);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 ALTER TABLE temp_t2 COMMENT "Test";
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 DROP TEMPORARY TABLE temp_t2;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 CREATE FUNCTION f1() RETURNS INT RETURN 1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 DROP FUNCTION f1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 CREATE PROCEDURE p1() BEGIN END;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 DROP PROCEDURE p1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 CREATE VIEW v1 AS SELECT 1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 SET SESSION TRANSACTION READ WRITE;
 CREATE VIEW v1 AS SELECT 1;
 SET SESSION TRANSACTION READ ONLY;
 DROP VIEW v1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 SET SESSION TRANSACTION READ WRITE;
 DROP VIEW v1;
 SET SESSION TRANSACTION READ ONLY;
 RENAME TABLE t1 TO t2;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 RENAME TABLE temp_t2 TO temp_t3;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 TRUNCATE TABLE t1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 CREATE DATABASE db1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 DROP DATABASE db1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 SET SESSION TRANSACTION READ WRITE;
 # 2: DML should be blocked on non-temporary tables.
 START TRANSACTION READ ONLY;
 INSERT INTO t1 VALUES (1), (2);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 UPDATE t1 SET a= 3;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 DELETE FROM t1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 # 3: DML should be allowed on temporary tables.
 INSERT INTO temp_t2 VALUES (1), (2);
 UPDATE temp_t2 SET a= 3;
@@ -406,7 +406,7 @@ a
 HANDLER temp_t2 CLOSE;
 # 5: Prepared statements
 PREPARE stmt FROM "DELETE FROM t1";
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 PREPARE stmt FROM "DELETE FROM temp_t2";
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -426,12 +426,12 @@ CREATE PROCEDURE p1() DELETE FROM t1;
 CREATE PROCEDURE p2() DELETE FROM temp_t2;
 START TRANSACTION READ ONLY;
 SELECT f1();
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 SELECT f2();
 f2()
 1
 CALL p1();
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 CALL p2();
 COMMIT;
 DROP FUNCTION f1;
@@ -442,7 +442,7 @@ DROP PROCEDURE p2;
 CREATE VIEW v1 AS SELECT a FROM t1;
 START TRANSACTION READ ONLY;
 INSERT INTO v1 VALUES (1), (2);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 SELECT * FROM v1;
 a
 COMMIT;
@@ -450,7 +450,7 @@ DROP VIEW v1;
 # 8: LOCK TABLE
 SET SESSION TRANSACTION READ ONLY;
 LOCK TABLE t1 WRITE;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 LOCK TABLE t1 READ;
 UNLOCK TABLES;
 SET SESSION TRANSACTION READ WRITE;
@@ -461,7 +461,7 @@ CREATE TABLE t1(a INT);
 SET SESSION TRANSACTION READ ONLY;
 START TRANSACTION;
 DELETE FROM t1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 COMMIT;
 START TRANSACTION READ WRITE;
 DELETE FROM t1;
@@ -470,7 +470,7 @@ SET SESSION TRANSACTION READ WRITE;
 SET TRANSACTION READ ONLY;
 START TRANSACTION;
 DELETE FROM t1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 COMMIT;
 START TRANSACTION READ WRITE;
 DELETE FROM t1;
@@ -480,14 +480,14 @@ SELECT * FROM t1;
 a
 COMMIT AND CHAIN;
 DELETE FROM t1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 COMMIT;
 START TRANSACTION READ ONLY;
 SELECT * FROM t1;
 a
 ROLLBACK AND CHAIN;
 DELETE FROM t1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 COMMIT;
 DROP TABLE t1;
 #
@@ -512,11 +512,11 @@ CREATE TABLE t1(a INT);
 SET TRANSACTION READ ONLY;
 XA START 'test1';
 INSERT INTO t1 VALUES (1);
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 UPDATE t1 SET a=2;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 DELETE FROM t1;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction.
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
 XA END 'test1';
 XA PREPARE 'test1';
 XA COMMIT 'test1';

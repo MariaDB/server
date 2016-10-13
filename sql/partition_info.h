@@ -375,6 +375,20 @@ public:
                         MY_BITMAP *used_partitions);
   bool has_same_partitioning(partition_info *new_part_info);
 private:
+  bool is_fields_updated_in_triggers(trg_event_type event_type,
+                                     trg_action_time_type action_time_type)
+  {
+    if (table->triggers)
+    {
+      Trigger *t;
+      for (t= table->triggers->get_trigger(event_type, action_time_type);
+           t;
+           t= t->next)
+        if (t->is_fields_updated_in_trigger(&full_part_field_set))
+          return true;
+    }
+    return false;
+  }
   static int list_part_cmp(const void* a, const void* b);
   bool set_up_default_partitions(THD *thd, handler *file, HA_CREATE_INFO *info,
                                  uint start_no);

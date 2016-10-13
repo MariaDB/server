@@ -61,6 +61,25 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
   return false;
 }
 
+void
+Window_spec::print(String *str, enum_query_type query_type)
+{
+  str->append('(');
+  if (partition_list->first)
+  {
+    str->append(STRING_WITH_LEN(" partition by "));
+    st_select_lex::print_order(str, partition_list->first, query_type);
+  }
+  if (order_list->first)
+  {
+    str->append(STRING_WITH_LEN(" order by "));
+    st_select_lex::print_order(str, order_list->first, query_type);
+  }
+  if (window_frame)
+    window_frame->print(str, query_type);
+  str->append(')');
+}
+
 bool
 Window_frame::check_frame_bounds()
 {
@@ -80,6 +99,70 @@ Window_frame::check_frame_bounds()
   return false;
 }
 
+
+void
+Window_frame::print(String *str, enum_query_type query_type)
+{
+  switch (units) {
+  case UNITS_ROWS:
+    str->append(STRING_WITH_LEN(" rows "));
+    break;
+  case UNITS_RANGE:
+    str->append(STRING_WITH_LEN(" range "));
+    break; 
+  default:
+    DBUG_ASSERT(0);
+  }
+
+  str->append(STRING_WITH_LEN("between "));
+  top_bound->print(str, query_type);
+  str->append(STRING_WITH_LEN(" and "));
+  bottom_bound->print(str, query_type);
+ 
+  if (exclusion != EXCL_NONE)
+  {
+     str->append(STRING_WITH_LEN(" exclude ")); 
+     switch (exclusion) {
+     case EXCL_CURRENT_ROW: 
+       str->append(STRING_WITH_LEN(" current row "));
+       break;
+     case EXCL_GROUP: 
+       str->append(STRING_WITH_LEN(" group "));
+       break;
+     case EXCL_TIES: 
+       str->append(STRING_WITH_LEN(" ties "));
+       break;
+     default: 
+       DBUG_ASSERT(0);
+       ;
+     }
+  } 
+}
+
+
+void
+Window_frame_bound::print(String *str, enum_query_type query_type)
+{
+  if (precedence_type == CURRENT)
+  {
+    str->append(STRING_WITH_LEN(" current row "));
+    return;
+  }
+  if (is_unbounded())
+    str->append(STRING_WITH_LEN(" unbounded "));
+  else
+    offset->print(str ,query_type);  
+  switch (precedence_type) {
+  case PRECEDING:
+    str->append(STRING_WITH_LEN(" preceding "));
+    break;
+  case FOLLOWING:
+    str->append(STRING_WITH_LEN(" following "));
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
+}
 
 /*
   Setup window functions in a select
@@ -238,7 +321,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 static
 int compare_order_elements(ORDER *ord1, ORDER *ord2)
 {
-  if (*ord1->item == *ord2->item)
+  if (*ord1->item == *ord2->item && ord1->direction == ord2->direction)
     return CMP_EQ;
   Item *item1= (*ord1->item)->real_item();
   Item *item2= (*ord2->item)->real_item();
@@ -273,7 +356,7 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
     return CMP_GT_C;
   if (elem2)
     return CMP_LT_C;
-  return CMP_EQ;     
+  return CMP_EQ;
 }
 
 
@@ -515,17 +598,6 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
 // note: make rr_from_pointers static again when not need it here anymore
 int rr_from_pointers(READ_RECORD *info);
 
-/*
-  A temporary way to clone READ_RECORD structures until Monty provides the real
-  one.
-*/
-bool clone_read_record(const READ_RECORD *src, READ_RECORD *dst)
-{
-  //DBUG_ASSERT(src->table->sort.record_pointers);
-  DBUG_ASSERT(src->read_record == rr_from_pointers);
-  memcpy(dst, src, sizeof(READ_RECORD));
-  return false;
-}
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -540,68 +612,145 @@ bool clone_read_record(const READ_RECORD *src, READ_RECORD *dst)
 class Rowid_seq_cursor
 {
 public:
-  virtual ~Rowid_seq_cursor() {}
+  Rowid_seq_cursor() : io_cache(NULL), ref_buffer(0) {}
+  virtual ~Rowid_seq_cursor()
+  {
+    if (ref_buffer)
+      my_free(ref_buffer);
+    if (io_cache)
+    {
+      end_slave_io_cache(io_cache);
+      my_free(io_cache);
+      io_cache= NULL;
+    }
+  }
+
+private:
+  /* Length of one rowid element */
+  size_t ref_length;
+
+  /* If io_cache=!NULL, use it */
+  IO_CACHE *io_cache;
+  uchar *ref_buffer;   /* Buffer for the last returned rowid */
+  uint rownum;     /* Number of the rowid that is about to be returned */
+  bool cache_eof; /* whether we've reached EOF */
+  
+  /* The following are used when we are reading from an array of pointers */
+  uchar *cache_start;
+  uchar *cache_pos;
+  uchar *cache_end;
+public:
 
   void init(READ_RECORD *info)
   {
-    cache_start= info->cache_pos;
-    cache_pos=   info->cache_pos;
-    cache_end=   info->cache_end;
     ref_length= info->ref_length;
+    if (info->read_record == rr_from_pointers)
+    {
+      io_cache= NULL;
+      cache_start= info->cache_pos;
+      cache_pos=   info->cache_pos;
+      cache_end=   info->cache_end;
+    }
+    else
+    {
+      //DBUG_ASSERT(info->read_record == rr_from_tempfile);
+      rownum= 0;
+      cache_eof= false;
+      io_cache= (IO_CACHE*)my_malloc(sizeof(IO_CACHE), MYF(0));
+      init_slave_io_cache(info->io_cache, io_cache);
+
+      ref_buffer= (uchar*)my_malloc(ref_length, MYF(0));
+    }
   }
 
   virtual int next()
   {
-    /* Allow multiple next() calls in EOF state. */
-    if (cache_pos == cache_end)
-      return -1;
+    if (io_cache)
+    {
+      if (cache_eof)
+        return 1;
 
-    cache_pos+= ref_length;
-    DBUG_ASSERT(cache_pos <= cache_end);
-
+      if (my_b_read(io_cache,ref_buffer,ref_length))
+      {
+        cache_eof= 1; // TODO: remove cache_eof
+        return -1;
+      }
+      rownum++;
+      return 0;
+    }
+    else
+    {
+      /* Allow multiple next() calls in EOF state. */
+      if (cache_pos == cache_end)
+        return -1;
+      cache_pos+= ref_length;
+      DBUG_ASSERT(cache_pos <= cache_end);
+    }
     return 0;
   }
 
   virtual int prev()
   {
-    /* Allow multiple prev() calls when positioned at the start. */
-    if (cache_pos == cache_start)
-      return -1;
-    cache_pos-= ref_length;
-    DBUG_ASSERT(cache_pos >= cache_start);
+    if (io_cache)
+    {
+      if (rownum == 0)
+        return -1;
 
-    return 0;
+      move_to(rownum - 1);
+      return 0;
+    }
+    else
+    {
+      /* Allow multiple prev() calls when positioned at the start. */
+      if (cache_pos == cache_start)
+        return -1;
+      cache_pos-= ref_length;
+      DBUG_ASSERT(cache_pos >= cache_start);
+      return 0;
+    }
   }
 
   ha_rows get_rownum() const
   {
-    return (cache_pos - cache_start) / ref_length;
+    if (io_cache)
+      return rownum;
+    else
+      return (cache_pos - cache_start) / ref_length;
   }
 
   void move_to(ha_rows row_number)
   {
-    cache_pos= MY_MIN(cache_end, cache_start + row_number * ref_length);
-    DBUG_ASSERT(cache_pos <= cache_end);
+    if (io_cache)
+    {
+      seek_io_cache(io_cache, row_number * ref_length);
+      rownum= row_number;
+      Rowid_seq_cursor::next();
+    }
+    else
+    {
+      cache_pos= MY_MIN(cache_end, cache_start + row_number * ref_length);
+      DBUG_ASSERT(cache_pos <= cache_end);
+    }
   }
 
 protected:
-  bool at_eof() { return (cache_pos == cache_end); }
-
-  uchar *get_prev_rowid()
+  bool at_eof()
   {
-    if (cache_pos == cache_start)
-      return NULL;
+    if (io_cache)
+    {
+      return cache_eof;
+    }
     else
-      return cache_pos - ref_length;
+      return (cache_pos == cache_end);
   }
 
-  uchar *get_curr_rowid() { return cache_pos; }
-
-private:
-  uchar *cache_start;
-  uchar *cache_pos;
-  uchar *cache_end;
-  uint ref_length;
+  uchar *get_curr_rowid()
+  {
+    if (io_cache)
+      return ref_buffer;
+    else
+      return cache_pos;
+  }
 };
 
 
@@ -628,18 +777,6 @@ public:
 
     uchar* curr_rowid= get_curr_rowid();
     return table->file->ha_rnd_pos(record, curr_rowid);
-  }
-
-  bool fetch_prev_row()
-  {
-    uchar *p;
-    if ((p= get_prev_rowid()))
-    {
-      int rc= table->file->ha_rnd_pos(record, p);
-      if (!rc)
-        return true; // restored ok
-    }
-    return false; // didn't restore
   }
 
 private:
@@ -698,7 +835,17 @@ public:
 
     if ((res= Table_read_cursor::next()) ||
         (res= fetch()))
+    {
+      /* TODO(cvicentiu) This does not consider table read failures.
+         Perhaps assuming end of table like this is fine in that case. */
+
+      /* This row is the final row in the table. To maintain semantics
+         that cursors always point to the last valid row, move back one step,
+         but mark end_of_partition as true. */
+      Table_read_cursor::prev();
+      end_of_partition= true;
       return res;
+    }
 
     if (bound_tracker.compare_with_cache())
     {
@@ -833,6 +980,17 @@ protected:
     while ((item_sum= it++))
     {
       item_sum->remove();
+    }
+  }
+
+  /* Clear all sum functions handled by this cursor. */
+  void clear_sum_functions()
+  {
+    List_iterator_fast<Item_sum> iter_sum_func(sum_functions);
+    Item_sum *sum_func;
+    while ((sum_func= iter_sum_func++))
+    {
+      sum_func->clear();
     }
   }
 
@@ -1688,7 +1846,6 @@ public:
     is_top_bound(is_top_bound_arg), n_rows(n_rows_arg),
     cursor(thd, partition_list)
   {
-    DBUG_ASSERT(n_rows > 0);
   }
 
   void init(READ_RECORD *info)
@@ -1860,17 +2017,6 @@ private:
   Table_read_cursor cursor;
   ha_rows curr_rownum;
 
-  /* Clear all sum functions handled by this cursor. */
-  void clear_sum_functions()
-  {
-    List_iterator_fast<Item_sum> iter_sum_func(sum_functions);
-    Item_sum *sum_func;
-    while ((sum_func= iter_sum_func++))
-    {
-      sum_func->clear();
-    }
-  }
-
   /* Scan the rows between the top bound and bottom bound. Add all the values
      between them, top bound row  and bottom bound row inclusive. */
   void compute_values_for_current_row()
@@ -1894,6 +2040,146 @@ private:
         break;
     }
   }
+};
+
+/* A cursor that follows a target cursor. Each time a new row is added,
+   the window functions are cleared and only have the row at which the target
+   is point at added to them.
+
+   The window functions are cleared if the bounds or the position cursors are
+   outside computational bounds.
+*/
+class Frame_positional_cursor : public Frame_cursor
+{
+ public:
+  Frame_positional_cursor(const Frame_cursor &position_cursor) :
+    position_cursor(position_cursor), top_bound(NULL),
+    bottom_bound(NULL), offset(NULL), overflowed(false),
+    negative_offset(false) {}
+
+  Frame_positional_cursor(const Frame_cursor &position_cursor,
+                          const Frame_cursor &top_bound,
+                          const Frame_cursor &bottom_bound,
+                          Item &offset,
+                          bool negative_offset) :
+    position_cursor(position_cursor), top_bound(&top_bound),
+    bottom_bound(&bottom_bound), offset(&offset),
+    negative_offset(negative_offset) {}
+
+  void init(READ_RECORD *info)
+  {
+    cursor.init(info);
+  }
+
+  void pre_next_partition(ha_rows rownum)
+  {
+    /* The offset is dependant on the current row values. We can only get
+     * it here accurately. When fetching other rows, it changes. */
+    save_offset_value();
+  }
+
+  void next_partition(ha_rows rownum)
+  {
+    save_positional_value();
+  }
+
+  void pre_next_row()
+  {
+    /* The offset is dependant on the current row values. We can only get
+     * it here accurately. When fetching other rows, it changes. */
+    save_offset_value();
+  }
+
+  void next_row()
+  {
+    save_positional_value();
+  }
+
+  ha_rows get_curr_rownum() const
+  {
+    return position_cursor.get_curr_rownum();
+  }
+
+private:
+  /* Check if a our position is within bounds.
+   * The position is passed as a parameter to avoid recalculating it. */
+  bool position_is_within_bounds()
+  {
+    if (!offset)
+      return !position_cursor.is_outside_computation_bounds();
+
+    if (overflowed)
+      return false;
+
+    /* No valid bound to compare to. */
+    if (position_cursor.is_outside_computation_bounds() ||
+        top_bound->is_outside_computation_bounds() ||
+        bottom_bound->is_outside_computation_bounds())
+      return false;
+
+    /* We are over the bound. */
+    if (position < top_bound->get_curr_rownum())
+      return false;
+    if (position > bottom_bound->get_curr_rownum())
+      return false;
+
+    return true;
+  }
+
+  /* Get the current position, accounting for the offset value, if present.
+     NOTE: This function does not check over/underflow.
+  */
+  void get_current_position()
+  {
+    position = position_cursor.get_curr_rownum();
+    overflowed= false;
+    if (offset)
+    {
+      if (offset_value < 0 &&
+          position + offset_value > position)
+      {
+        overflowed= true;
+      }
+      if (offset_value > 0 &&
+          position + offset_value < position)
+      {
+        overflowed= true;
+      }
+      position += offset_value;
+    }
+  }
+
+  void save_offset_value()
+  {
+    if (offset)
+      offset_value= offset->val_int() * (negative_offset ? -1 : 1);
+    else
+      offset_value= 0;
+  }
+
+  void save_positional_value()
+  {
+    get_current_position();
+    if (!position_is_within_bounds())
+      clear_sum_functions();
+    else
+    {
+      cursor.move_to(position);
+      cursor.fetch();
+      add_value_to_items();
+    }
+  }
+
+  const Frame_cursor &position_cursor;
+  const Frame_cursor *top_bound;
+  const Frame_cursor *bottom_bound;
+  Item *offset;
+  Table_read_cursor cursor;
+  ha_rows position;
+  longlong offset_value;
+  bool overflowed;
+
+  bool negative_offset;
 };
 
 
@@ -2003,11 +2289,13 @@ Frame_cursor *get_frame_cursor(THD *thd, Window_spec *spec, bool is_top_bound)
   return NULL;
 }
 
-void add_extra_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
-                             Item_window_func *window_func)
+static
+void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
+                               Item_window_func *window_func)
 {
   Window_spec *spec= window_func->window_spec;
   Item_sum *item_sum= window_func->window_func();
+  DBUG_PRINT("info", ("Get arg count: %d", item_sum->get_arg_count()));
   Frame_cursor *fc;
   switch (item_sum->sum_func())
   {
@@ -2023,6 +2311,61 @@ void add_extra_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       fc->add_sum_func(item_sum);
       cursor_manager->add_cursor(fc);
       break;
+    case Item_sum::FIRST_VALUE_FUNC:
+      fc= get_frame_cursor(thd, spec, true);
+      fc->set_no_action();
+      cursor_manager->add_cursor(fc);
+      fc= new Frame_positional_cursor(*fc);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    case Item_sum::LAST_VALUE_FUNC:
+      fc= get_frame_cursor(thd, spec, false);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    case Item_sum::LEAD_FUNC:
+    case Item_sum::LAG_FUNC:
+    {
+      Frame_cursor *bottom_bound= new Frame_unbounded_following(thd,
+                                                                spec->partition_list,
+                                                                spec->order_list);
+      Frame_cursor *top_bound= new Frame_unbounded_preceding(thd,
+                                                             spec->partition_list,
+                                                             spec->order_list);
+      Frame_cursor *current_row_pos= new Frame_rows_current_row_bottom;
+      cursor_manager->add_cursor(bottom_bound);
+      cursor_manager->add_cursor(top_bound);
+      cursor_manager->add_cursor(current_row_pos);
+      DBUG_ASSERT(item_sum->fixed);
+      bool negative_offset= item_sum->sum_func() == Item_sum::LAG_FUNC;
+      fc= new Frame_positional_cursor(*current_row_pos,
+                                      *top_bound, *bottom_bound,
+                                      *item_sum->get_arg(1),
+                                      negative_offset);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    }
+    case Item_sum::NTH_VALUE_FUNC:
+    {
+      Frame_cursor *bottom_bound= get_frame_cursor(thd, spec, false);
+      Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
+      cursor_manager->add_cursor(bottom_bound);
+      cursor_manager->add_cursor(top_bound);
+      DBUG_ASSERT(item_sum->fixed);
+      Item *int_item= new (thd->mem_root) Item_int(thd, 1);
+      Item *offset_func= new (thd->mem_root)
+                              Item_func_minus(thd, item_sum->get_arg(1),
+                                              int_item);
+      offset_func->fix_fields(thd, &offset_func);
+      fc= new Frame_positional_cursor(*top_bound,
+                                      *top_bound, *bottom_bound,
+                                      *offset_func, false);
+      fc->add_sum_func(item_sum);
+      cursor_manager->add_cursor(fc);
+      break;
+    }
     default:
       fc= new Frame_unbounded_preceding(
               thd, spec->partition_list, spec->order_list);
@@ -2045,6 +2388,8 @@ static bool is_computed_with_remove(Item_sum::Sumfunctype sum_func)
     case Item_sum::RANK_FUNC:
     case Item_sum::DENSE_RANK_FUNC:
     case Item_sum::NTILE_FUNC:
+    case Item_sum::FIRST_VALUE_FUNC:
+    case Item_sum::LAST_VALUE_FUNC:
       return false;
     default:
       return true;
@@ -2084,12 +2429,21 @@ void get_window_functions_required_cursors(
 
     /*
       If it is not a regular window function that follows frame specifications,
-      specific cursors are required. ROW_NUM, RANK, NTILE and others follow
-      such rules. Check is_frame_prohibited check for the full list.
+      and/or specific cursors are required. ROW_NUM, RANK, NTILE and others
+      follow such rules. Check is_frame_prohibited check for the full list.
+
+      TODO(cvicentiu) This approach is messy. Every time a function allows
+      computation in a certain way, we have to add an extra method to this
+      factory function. It is better to have window functions output
+      their own cursors, as needed. This way, the logic is bound
+      only to the implementation of said window function. Regular aggregate
+      functions can keep the default frame generating code, overwrite it or
+      add to it.
     */
-    if (item_win_func->is_frame_prohibited())
+    if (item_win_func->is_frame_prohibited() ||
+        item_win_func->requires_special_cursors())
     {
-      add_extra_frame_cursors(thd, cursor_manager, item_win_func);
+      add_special_frame_cursors(thd, cursor_manager, item_win_func);
       cursor_managers->push_back(cursor_manager);
       continue;
     }
@@ -2137,14 +2491,11 @@ bool save_window_function_values(List<Item_window_func>& window_functions,
   tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
   store_record(tbl, record[1]);
   while (Item_window_func *item_win= iter++)
-  {
-    int err;
     item_win->save_in_field(item_win->result_field, true);
-    // TODO check if this can be placed outside the loop.
-    err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
-    if (err && err != HA_ERR_RECORD_IS_THE_SAME)
-      return true;
-  }
+
+  int err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
+  if (err && err != HA_ERR_RECORD_IS_THE_SAME)
+    return true;
 
   return false;
 }
@@ -2389,21 +2740,31 @@ bool Window_funcs_sort::exec(JOIN *join)
 
 
 bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
-                              List_iterator<Item_window_func> &it)
+                              List_iterator<Item_window_func> &it,
+                              JOIN_TAB *join_tab)
 {
-  Item_window_func *win_func= it.peek();
-  Item_window_func *prev_win_func;
+  Window_spec *spec;
+  Item_window_func *win_func= it.peek();  
+  Item_window_func *win_func_with_longest_order= NULL;
+  int longest_order_elements= -1;
 
   /* The iterator should point to a valid function at the start of execution. */
   DBUG_ASSERT(win_func);
   do
   {
+    spec= win_func->window_spec;
+    int win_func_order_elements= spec->partition_list->elements +
+                                  spec->order_list->elements;
+    if (win_func_order_elements > longest_order_elements)
+    {
+      win_func_with_longest_order= win_func;
+      longest_order_elements= win_func_order_elements;
+    }
     if (runner.add_function_to_run(win_func))
       return true;
     it++;
-    prev_win_func= win_func;
-  } while ((win_func= it.peek()) &&
-           !(win_func->marker & SORTORDER_CHANGE_FLAG));
+    win_func= it.peek();
+  } while (win_func && !(win_func->marker & SORTORDER_CHANGE_FLAG));
 
   /*
     The sort criteria must be taken from the last win_func in the group of
@@ -2413,11 +2774,32 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
     in a way that the result is valid for all window functions belonging to
     this Window_funcs_sort.
   */
-  Window_spec *spec= prev_win_func->window_spec;
+  spec= win_func_with_longest_order->window_spec;
 
   ORDER* sort_order= concat_order_lists(thd->mem_root, 
                                         spec->partition_list->first,
                                         spec->order_list->first);
+  if (sort_order == NULL) // No partition or order by clause.
+  {
+    /* TODO(cvicentiu) This is used as a way to allow an empty OVER ()
+       clause for window functions. However, a better approach is
+       to not call Filesort at all in this case and just read whatever order
+       the temporary table has.
+       Due to cursors not working for out_of_memory cases (yet!), we have to run
+       filesort to generate a sort buffer of the results.
+       In this case we sort by the first field of the temporary table.
+       We should have this field available, even if it is a window_function
+       field. We don't care of the particular sorting result in this case.
+     */
+    ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
+    memset(order, 0, sizeof(*order));
+    Item *item= new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
+    order->item= (Item **)alloc_root(thd->mem_root, 2 * sizeof(Item *));
+    order->item[1]= NULL;
+    order->item[0]= item;
+    order->field= join_tab->table->field[0];
+    sort_order= order;
+  }
   filesort= new (thd->mem_root) Filesort(sort_order, HA_POS_ERROR, true, NULL);
 
   /* Apply the same condition that the subsequent sort has. */
@@ -2445,7 +2827,7 @@ bool Window_funcs_computation::setup(THD *thd,
   while (iter.peek())
   {
     if (!(srt= new Window_funcs_sort()) ||
-        srt->setup(thd, sel, iter))
+        srt->setup(thd, sel, iter, tab))
     {
       return true;
     }

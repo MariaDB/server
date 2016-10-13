@@ -417,19 +417,19 @@ f2()
 INSERT INTO t1 VALUES (3);
 INSERT DELAYED INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (f1());
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 INSERT DELAYED INTO t1 VALUES (f1());
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 INSERT INTO t1 VALUES (f2());
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 INSERT DELAYED INTO t1 VALUES (f2());
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
 INSERT INTO t1 VALUES (NEW.i);
 INSERT INTO t1 VALUES (1);
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 INSERT DELAYED INTO t1 VALUES (1);
-ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger.
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
 SELECT * FROM t1;
 i
 1

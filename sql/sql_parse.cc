@@ -3781,7 +3781,8 @@ mysql_execute_command(THD *thd)
       /* Copy temporarily the statement flags to thd for lock_table_names() */
       uint save_thd_create_info_options= thd->lex->create_info.options;
       thd->lex->create_info.options|= create_info.options;
-      res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
+      if (!(res= check_dependencies_in_with_clauses(lex->with_clauses_list)))
+        res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
       thd->lex->create_info.options= save_thd_create_info_options;
       if (res)
       {
@@ -4394,7 +4395,8 @@ end_with_restore_list:
 
     unit->set_limit(select_lex);
 
-    if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
+    if (!(res= check_dependencies_in_with_clauses(lex->with_clauses_list)) &&
+	!(res=open_and_lock_tables(thd, all_tables, TRUE, 0)))
     {
       MYSQL_INSERT_SELECT_START(thd->query());
       /*

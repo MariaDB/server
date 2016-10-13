@@ -22,6 +22,8 @@ call mtr.add_suppression(".*InnoDB: Cannot open table test/.* from the internal 
 call mtr.add_suppression("InnoDB: .ibd file is missing for table test/.*");
 call mtr.add_suppression("mysqld: File .*");
 call mtr.add_suppression("InnoDB: Tablespace id .* is encrypted but encryption service or used key_id .* is not available. Can't continue opening tablespace.");
+call mtr.add_suppression("InnoDB: InnoDB: Page may be an index page where index id is .*");
+
 --echo
 --echo # Start server with keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
@@ -54,10 +56,12 @@ SELECT * FROM t1;
 
 --error ER_GET_ERRMSG
 SELECT * FROM t1;
+--replace_regex /tablespace [0-9]*/tablespace #/
 SHOW WARNINGS;
 
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keysbad3.txt
 -- source include/restart_mysqld.inc
+--replace_regex /tablespace [0-9]*/tablespace #/
 DROP TABLE t1;
 
 #
@@ -83,34 +87,46 @@ SELECT * FROM t2;
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 SELECT * FROM t2 where id = 1;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 SELECT * FROM t2 where b = 1;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 INSERT INTO t2 VALUES ('tmp',3,3);
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 DELETE FROM t2 where b = 3;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 DELETE FROM t2 where id = 3;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 UPDATE t2 set b = b +1;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
 OPTIMIZE TABLE t2;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 ALTER TABLE t2 ADD COLUMN c INT;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
 ANALYZE TABLE t2;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 TRUNCATE TABLE t2;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
+--replace_regex /.*tablespace [0-9]*//
 --error ER_GET_ERRMSG
 DROP TABLE t2;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
 
 --echo
@@ -118,5 +134,7 @@ SHOW WARNINGS;
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
 -- source include/restart_mysqld.inc
 
+--replace_regex /.*tablespace [0-9]*//
 DROP TABLE t2;
+--replace_regex /.*tablespace [0-9]*//
 SHOW WARNINGS;
