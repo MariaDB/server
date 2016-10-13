@@ -688,11 +688,6 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
   {
     if (table->table && table->table->versioned())
       versioned_tables++;
-    else if (table->system_versioning.type != FOR_SYSTEM_TIME_UNSPECIFIED)
-    {
-      my_error(ER_TABLE_DOESNT_SUPPORT_SYSTEM_VERSIONING, MYF(0), table->table_name);
-      DBUG_RETURN(-1);
-    }
   }
 
   if (versioned_tables == 0)
@@ -746,7 +741,7 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
       }
 
       Item *cond1= 0, *cond2= 0, *curr= 0;
-      switch (table->system_versioning.type)
+      switch (select_lex->vers_conditions.type)
       {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
           if (table->table->versioned_by_sql())
@@ -764,21 +759,21 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
           break;
         case FOR_SYSTEM_TIME_AS_OF:
           cond1= new (thd->mem_root) Item_func_le(thd, row_start,
-            table->system_versioning.start);
+            select_lex->vers_conditions.start);
           cond2= new (thd->mem_root) Item_func_gt(thd, row_end,
-            table->system_versioning.start);
+            select_lex->vers_conditions.start);
           break;
         case FOR_SYSTEM_TIME_FROM_TO:
           cond1= new (thd->mem_root) Item_func_lt(thd, row_start,
-                                                  table->system_versioning.end);
+                                                  select_lex->vers_conditions.end);
           cond2= new (thd->mem_root) Item_func_ge(thd, row_end,
-                                                  table->system_versioning.start);
+                                                  select_lex->vers_conditions.start);
           break;
         case FOR_SYSTEM_TIME_BETWEEN:
           cond1= new (thd->mem_root) Item_func_le(thd, row_start,
-                                                  table->system_versioning.end);
+                                                  select_lex->vers_conditions.end);
           cond2= new (thd->mem_root) Item_func_ge(thd, row_end,
-                                                  table->system_versioning.start);
+                                                  select_lex->vers_conditions.start);
           break;
         default:
           DBUG_ASSERT(0);
@@ -797,10 +792,10 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
         else
           thd->change_item_tree(conds, cond1);
 
-        table->system_versioning.is_moved_to_where= true;
+        table->vers_moved_to_where= true;
       }
-    }
-  }
+    } // if (... table->table->versioned())
+  } // for (table= tables; ...)
 
   if (arena)
   {
@@ -24935,29 +24930,30 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 void TABLE_LIST::print_system_versioning(THD *thd, table_map eliminated_tables,
                    String *str, enum_query_type query_type)
 {
-  if (system_versioning.is_moved_to_where)
+  if (vers_moved_to_where)
     return;
 
+  DBUG_ASSERT(select_lex);
   // system versioning
-  if (system_versioning.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+  if (select_lex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
   {
-    switch (system_versioning.type)
+    switch (select_lex->vers_conditions.type)
     {
       case FOR_SYSTEM_TIME_AS_OF:
         str->append(STRING_WITH_LEN(" for system_time as of "));
-        system_versioning.start->print(str, query_type);
+        select_lex->vers_conditions.start->print(str, query_type);
         break;
       case FOR_SYSTEM_TIME_FROM_TO:
         str->append(STRING_WITH_LEN(" for system_time from timestamp "));
-        system_versioning.start->print(str, query_type);
+        select_lex->vers_conditions.start->print(str, query_type);
         str->append(STRING_WITH_LEN(" to "));
-        system_versioning.end->print(str, query_type);
+        select_lex->vers_conditions.end->print(str, query_type);
         break;
       case FOR_SYSTEM_TIME_BETWEEN:
         str->append(STRING_WITH_LEN(" for system_time between timestamp "));
-        system_versioning.start->print(str, query_type);
+        select_lex->vers_conditions.start->print(str, query_type);
         str->append(STRING_WITH_LEN(" and "));
-        system_versioning.end->print(str, query_type);
+        select_lex->vers_conditions.end->print(str, query_type);
         break;
       default:
         DBUG_ASSERT(0);

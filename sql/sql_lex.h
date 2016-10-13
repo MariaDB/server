@@ -991,6 +991,9 @@ public:
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;
 
+  /* System Versioning conditions */
+  vers_select_conds_t vers_conditions;
+
   void init_query();
   void init_select();
   st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }

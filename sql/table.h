@@ -1814,26 +1814,32 @@ class Item_in_subselect;
 
 enum for_system_time_type
 {
-  FOR_SYSTEM_TIME_UNSPECIFIED, FOR_SYSTEM_TIME_AS_OF,
-  FOR_SYSTEM_TIME_FROM_TO, FOR_SYSTEM_TIME_BETWEEN
+  FOR_SYSTEM_TIME_UNSPECIFIED = 0,
+  FOR_SYSTEM_TIME_AS_OF,
+  FOR_SYSTEM_TIME_FROM_TO,
+  FOR_SYSTEM_TIME_BETWEEN
 };
 
 /** System versioning support. */
-struct system_versioning_for_select
+struct vers_select_conds_t
 {
   enum for_system_time_type type;
   Item *start, *end;
-  bool is_moved_to_where;
+
+  void empty()
+  {
+    type= FOR_SYSTEM_TIME_UNSPECIFIED;
+    start= end= NULL;
+  }
 
   void init(
-    const enum for_system_time_type t=FOR_SYSTEM_TIME_UNSPECIFIED,
-    Item * const s=NULL,
-    Item * const e=NULL)
+    const enum for_system_time_type t,
+    Item * const s,
+    Item * const e= NULL)
   {
     type= t;
     start= s;
     end= e;
-    is_moved_to_where= false;
   }
 };
 
@@ -2293,8 +2299,8 @@ struct TABLE_LIST
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
 
-  /** System versioning support. */
-  system_versioning_for_select system_versioning;
+  /* System Versioning */
+  bool vers_moved_to_where;
 
   /**
      @brief
