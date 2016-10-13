@@ -388,6 +388,9 @@ extern "C" int thd_need_wait_for(const MYSQL_THD thd);
 extern "C"
 int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
 
+extern "C"
+int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
+
 /** Stack to use during DFS search. Currently only a single stack is required
 because there is no parallel deadlock check. This stack is protected by
 the lock_sys_t::mutex. */
@@ -2011,6 +2014,8 @@ wsrep_print_wait_locks(
 /*********************************************************************//**
 Check if lock1 has higher priority than lock2.
 NULL has lowest priority.
+Respect the preference of the upper server layer to reduce conflict
+during in-order parallel replication.
 If neither of them is wait lock, the first one has higher priority.
 If only one of them is a wait lock, it has lower priority.
 Otherwise, the one with an older transaction has higher priority.
@@ -2025,6 +2030,16 @@ has_higher_priority(
 	} else if (lock2 == NULL) {
 		return true;
 	}
+	// Ask the upper server layer if any of the two trx should be prefered.
+	int preference = thd_deadlock_victim_preference(lock1->thd, lock2->thd);
+	if (preference == -1) {
+		// lock1 is preferred as a victim, so lock2 has higher priority
+		return false;
+	} else if (preference == 1) {
+		// lock2 is preferred as a victim, so lock1 has higher priority
+		return true;
+	}
+	// No preference. Compre them by wait mode and trx age.
 	if (!lock_get_wait(lock1)) {
 		return true;
 	} else if (!lock_get_wait(lock2)) {
