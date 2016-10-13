@@ -7328,6 +7328,51 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
       }
     }
   }
+  else
+  {
+    THD *thd= current_thd;
+    JOIN *join;
+    COND_EQUAL *cond_equal;
+    // todo: also check that the condition has abort_on_null set.
+    if ((field_item->used_tables() & ~OUTER_REF_TABLE_BIT) &&
+        thd->lex->current_select &&
+        (join= thd->lex->current_select->join) &&
+        (join->outer_join & field_item->used_tables()) &&
+        (cond_equal= field->table->pos_in_table_list->cond_equal) &&
+        field_item->used_tables() & not_null_tables())
+    {
+      // Ok this is a table that's inner w.r.t some outer join
+      // And it has a multiple equality
+      List_iterator<Item_equal> li(cond_equal->current_level);
+      Item_equal *cur_item_eq;
+      while ((cur_item_eq= li++))
+      {
+        // If the multiple equality contains fields from 
+        //   - the table we're doing range analysis for 
+        //   - the table that we have a field from
+        // and field that we have is also there
+        if ((cur_item_eq->used_tables() & (param->current_table | 
+                                           field->table->map)) &&
+            cur_item_eq->contains(field))
+        {
+          // Find fields in the table we're from
+          Item_equal_fields_iterator it(*cur_item_eq);
+          while (it++)
+          {
+            Field *f= it.get_curr_field();
+            if (f->table == param->table)
+            {
+              if (!((ref_tables | f->table->map) & param_comp))
+              {
+                tree= get_func_mm_tree(param, f, value);
+                ftree= !ftree ? tree : tree_and(param, ftree, tree);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
   DBUG_RETURN(ftree);
 }
 
