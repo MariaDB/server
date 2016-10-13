@@ -172,64 +172,6 @@ This file contains the implementation of error and warnings related
     See WL#2111 (Stored Procedures: Implement GET DIAGNOSTICS)
 */
 
-Sql_condition::Sql_condition()
- : Sql_alloc(),
-   m_class_origin((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_subclass_origin((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_constraint_catalog((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_constraint_schema((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_constraint_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_catalog_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_schema_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_table_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_column_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_message_text(),
-   m_mem_root(NULL)
-{
-}
-
-void Sql_condition::init(MEM_ROOT *mem_root)
-{
-  DBUG_ASSERT(mem_root != NULL);
-  DBUG_ASSERT(m_mem_root == NULL);
-  m_mem_root= mem_root;
-}
-
-void Sql_condition::clear()
-{
-  m_class_origin.length(0);
-  m_subclass_origin.length(0);
-  m_constraint_catalog.length(0);
-  m_constraint_schema.length(0);
-  m_constraint_name.length(0);
-  m_catalog_name.length(0);
-  m_schema_name.length(0);
-  m_table_name.length(0);
-  m_column_name.length(0);
-  m_cursor_name.length(0);
-  m_message_text.length(0);
-  m_sql_errno= 0;
-  m_level= Sql_condition::WARN_LEVEL_ERROR;
-}
-
-Sql_condition::Sql_condition(MEM_ROOT *mem_root)
- : Sql_alloc(),
-   m_class_origin((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_subclass_origin((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_constraint_catalog((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_constraint_schema((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_constraint_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_catalog_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_schema_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_table_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_column_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin),
-   m_message_text(),
-   m_mem_root(mem_root)
-{
-  DBUG_ASSERT(mem_root != NULL);
-}
 
 static void copy_string(MEM_ROOT *mem_root, String* dst, const String* src)
 {
@@ -715,12 +657,9 @@ Sql_condition *Warning_info::push_warning(THD *thd,
     if (m_allow_unlimited_warnings ||
         m_warn_list.elements() < thd->variables.max_error_count)
     {
-      cond= new (& m_warn_root) Sql_condition(& m_warn_root);
+      cond= new (& m_warn_root) Sql_condition(& m_warn_root, value, msg);
       if (cond)
-      {
-        cond->set(value, msg);
         m_warn_list.push_back(cond);
-      }
     }
     m_warn_count[(uint) value->get_level()]++;
   }

@@ -138,6 +138,10 @@ public:
   {
     *this= *other;
   }
+  void clear()
+  {
+    m_sql_errno= 0;
+  }
 };
 
 
@@ -176,6 +180,78 @@ public:
    :Sql_state_errno(sqlerrno, sqlstate),
     m_level(level)
   { }
+  Sql_state_errno_level(const Sql_state_errno &state_errno,
+                         enum_warning_level level)
+   :Sql_state_errno(state_errno),
+    m_level(level)
+  { }
+  void clear()
+  {
+    m_level= WARN_LEVEL_ERROR;
+    Sql_state_errno::clear();
+  }
+};
+
+
+class Sql_condition_items
+{
+protected:
+  /** SQL CLASS_ORIGIN condition item. */
+  String m_class_origin;
+
+  /** SQL SUBCLASS_ORIGIN condition item. */
+  String m_subclass_origin;
+
+  /** SQL CONSTRAINT_CATALOG condition item. */
+  String m_constraint_catalog;
+
+  /** SQL CONSTRAINT_SCHEMA condition item. */
+  String m_constraint_schema;
+
+  /** SQL CONSTRAINT_NAME condition item. */
+  String m_constraint_name;
+
+  /** SQL CATALOG_NAME condition item. */
+  String m_catalog_name;
+
+  /** SQL SCHEMA_NAME condition item. */
+  String m_schema_name;
+
+  /** SQL TABLE_NAME condition item. */
+  String m_table_name;
+
+  /** SQL COLUMN_NAME condition item. */
+  String m_column_name;
+
+  /** SQL CURSOR_NAME condition item. */
+  String m_cursor_name;
+
+  Sql_condition_items()
+   :m_class_origin((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_subclass_origin((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_constraint_catalog((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_constraint_schema((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_constraint_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_catalog_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_schema_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_table_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_column_name((const char*) NULL, 0, & my_charset_utf8_bin),
+    m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin)
+  { }
+
+  void clear()
+  {
+    m_class_origin.length(0);
+    m_subclass_origin.length(0);
+    m_constraint_catalog.length(0);
+    m_constraint_schema.length(0);
+    m_constraint_name.length(0);
+    m_catalog_name.length(0);
+    m_schema_name.length(0);
+    m_table_name.length(0);
+    m_column_name.length(0);
+    m_cursor_name.length(0);
+  }
 };
 
 
@@ -184,7 +260,9 @@ public:
   A SQL condition can be a completion condition (note, warning),
   or an exception condition (error, not found).
 */
-class Sql_condition : public Sql_alloc, public Sql_state_errno_level
+class Sql_condition : public Sql_alloc,
+                      public Sql_state_errno_level,
+                      public Sql_condition_items
 {
 public:
 
@@ -236,21 +314,63 @@ private:
     This constructor is usefull when allocating arrays.
     Note that the init() method should be called to complete the Sql_condition.
   */
-  Sql_condition();
+  Sql_condition()
+   :m_mem_root(NULL)
+  { }
 
   /**
     Complete the Sql_condition initialisation.
     @param mem_root The memory root to use for the condition items
     of this condition
   */
-  void init(MEM_ROOT *mem_root);
+  void init(MEM_ROOT *mem_root)
+  {
+    DBUG_ASSERT(mem_root != NULL);
+    DBUG_ASSERT(m_mem_root == NULL);
+    m_mem_root= mem_root;
+  }
 
   /**
     Constructor.
     @param mem_root The memory root to use for the condition items
     of this condition
   */
-  Sql_condition(MEM_ROOT *mem_root);
+  Sql_condition(MEM_ROOT *mem_root)
+   :m_mem_root(mem_root)
+  {
+    DBUG_ASSERT(mem_root != NULL);
+  }
+
+  /**
+    Constructor for a fixed message text.
+    @param mem_root - memory root
+    @param value    - the error number and the sql state for this condition
+    @param level    - the error level for this condition
+    @param msg      - the message text for this condition
+  */
+  Sql_condition(MEM_ROOT *mem_root,
+                const Sql_state_errno_level *value,
+                const char *msg)
+   :Sql_state_errno_level(*value),
+    m_mem_root(mem_root)
+  {
+    DBUG_ASSERT(mem_root != NULL);
+    DBUG_ASSERT(value->get_sql_errno() != 0);
+    DBUG_ASSERT(msg != NULL);
+    set_builtin_message_text(msg);
+  }
+
+  Sql_condition(MEM_ROOT *mem_root,
+                const Sql_state_errno *value,
+                const char *msg)
+   :Sql_state_errno_level(*value, Sql_condition::WARN_LEVEL_ERROR),
+    m_mem_root(mem_root)
+  {
+    DBUG_ASSERT(mem_root != NULL);
+    DBUG_ASSERT(value->get_sql_errno() != 0);
+    DBUG_ASSERT(msg != NULL);
+    set_builtin_message_text(msg);
+  }
 
   /** Destructor. */
   ~Sql_condition()
@@ -261,29 +381,6 @@ private:
     @param cond the condition to copy.
   */
   void copy_opt_attributes(const Sql_condition *cond);
-
-  /**
-    Set this condition area with a fixed message text.
-    @param value - the error number and the sql state for this condition.
-    @param level - the error level for this condition.
-    @param msg   - the message text for this condition.
-  */
-  void set(const Sql_state_errno *value,
-           Sql_condition::enum_warning_level level,
-           const char* msg)
-  {
-    DBUG_ASSERT(value->get_sql_errno() != 0);
-    DBUG_ASSERT(value->get_sqlstate() != NULL);
-    DBUG_ASSERT(msg != NULL);
-    set_condition_value(value);
-    set_builtin_message_text(msg);
-    m_level= level;
-  }
-
-  void set(const Sql_state_errno_level *cond, const char* msg)
-  {
-    set(cond, cond->get_level(), msg);
-  }
 
   /**
     Set the condition message test.
@@ -309,39 +406,14 @@ private:
   /**
     Clear this SQL condition.
   */
-  void clear();
+  void clear()
+  {
+    Sql_state_errno_level::clear();
+    Sql_condition_items::clear();
+    m_message_text.length(0);
+  }
 
 private:
-  /** SQL CLASS_ORIGIN condition item. */
-  String m_class_origin;
-
-  /** SQL SUBCLASS_ORIGIN condition item. */
-  String m_subclass_origin;
-
-  /** SQL CONSTRAINT_CATALOG condition item. */
-  String m_constraint_catalog;
-
-  /** SQL CONSTRAINT_SCHEMA condition item. */
-  String m_constraint_schema;
-
-  /** SQL CONSTRAINT_NAME condition item. */
-  String m_constraint_name;
-
-  /** SQL CATALOG_NAME condition item. */
-  String m_catalog_name;
-
-  /** SQL SCHEMA_NAME condition item. */
-  String m_schema_name;
-
-  /** SQL TABLE_NAME condition item. */
-  String m_table_name;
-
-  /** SQL COLUMN_NAME condition item. */
-  String m_column_name;
-
-  /** SQL CURSOR_NAME condition item. */
-  String m_cursor_name;
-
   /** Message text, expressed in the character set implied by --language. */
   String m_message_text;
 

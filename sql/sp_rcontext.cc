@@ -242,10 +242,9 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
     */
     if (!found_condition)
     {
-      Sql_condition *condition=
-        new (callers_arena->mem_root) Sql_condition(callers_arena->mem_root);
-      condition->set(da, Sql_condition::WARN_LEVEL_ERROR, da->message());
-      found_condition= condition;
+      found_condition=
+        new (callers_arena->mem_root) Sql_condition(callers_arena->mem_root,
+                                                    da, da->message());
     }
   }
   else if (da->current_statement_warn_count())
