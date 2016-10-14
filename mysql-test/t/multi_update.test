@@ -986,7 +986,7 @@ drop table t1,t2,t3;
 --echo end of 5.5 tests
 
 
---source include/have_xtradb.inc
+#--source include/have_xtradb.inc
 
 --echo
 --echo # Bug mdev-5970
