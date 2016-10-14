@@ -5074,11 +5074,13 @@ int binlog_buf_uncompress(const char *src, char *dst, uint32 len, uint32 *newlen
 uint32 binlog_get_compress_len(uint32 len);
 uint32 binlog_get_uncompress_len(const char *buf);
 
-int query_event_uncompress(const Format_description_log_event *description_event,
-                           bool contain_checksum, const char *src, char **dst, ulong *newlen);
+int query_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
+                           const char *src, char* buf, ulong buf_size, bool* is_malloc,
+                           char **dst, ulong *newlen);
 
-int Row_log_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
-                             const char *src, char **dst, ulong *newlen);
+int row_log_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
+                             const char *src, char* buf, ulong buf_size, bool* is_malloc,
+                             char **dst, ulong *newlen);
 
 
 #endif /* _log_event_h */
