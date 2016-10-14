@@ -1228,3 +1228,25 @@
   fun:dlopen@@GLIBC_2.2.5
 }
 
+{
+   MDEV-11061: OpenSSL 0.9.8 - Conditional jump or move
+   Memcheck:Cond
+   fun:BN_*
+   ...
+   fun:ssl3_ctx_ctrl
+   fun:new_VioSSLFd
+   fun:new_VioSSLAcceptorFd
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8 - Use of uninitialised value
+   Memcheck:Value8
+   fun:BN_*
+   ...
+   fun:ssl3_ctx_ctrl
+   fun:new_VioSSLFd
+   fun:new_VioSSLAcceptorFd
+   ...
+}
+
