@@ -2468,13 +2468,9 @@ String *Item_char_typecast::val_str(String *str)
     if (!charset_conversion)
     {
       // Try to reuse the original string (if well formed).
-      MY_STRCOPY_STATUS status;
-      cs->cset->well_formed_char_length(cs, res->ptr(), res->end(),
-                                        cast_length, &status);
-      if (!status.m_well_formed_error_pos)
-      {
-        res= reuse(res, status.m_source_end_pos - res->ptr());
-      }
+      Well_formed_prefix prefix(cs, res->ptr(), res->end(), cast_length);
+      if (!prefix.well_formed_error_pos())
+        res= reuse(res, prefix.length());
       goto end;
     }
     // Character set conversion, or bad bytes were found.

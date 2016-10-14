@@ -401,28 +401,6 @@ size_t my_charpos_mb(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-size_t my_well_formed_len_mb(CHARSET_INFO *cs, const char *b, const char *e,
-                             size_t pos, int *error)
-{
-  const char *b_start= b;
-  *error= 0;
-  while (pos)
-  {
-    my_wc_t wc;
-    int mb_len;
-
-    if ((mb_len= cs->cset->mb_wc(cs, &wc, (uchar*) b, (uchar*) e)) <= 0)
-    {
-      *error= b < e ? 1 : 0;
-      break;
-    }
-    b+= mb_len;
-    pos--;
-  }
-  return (size_t) (b - b_start);
-}
-
-
 /*
   Append a badly formed piece of string.
   Bad bytes are fixed to '?'.

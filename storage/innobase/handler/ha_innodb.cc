@@ -2404,7 +2404,7 @@ innobase_check_identifier_length(
 	CHARSET_INFO	*cs = system_charset_info;
 	DBUG_ENTER("innobase_check_identifier_length");
 
-	size_t len = cs->cset->well_formed_len(
+	size_t len = my_well_formed_length(
 		cs, id, id + strlen(id),
 		NAME_CHAR_LEN, &well_formed_error);
 
@@ -7962,7 +7962,7 @@ wsrep_store_key_val_for_row(
 			the true length of the key */
 
 			if (len > 0 && cs->mbmaxlen > 1) {
-				true_len = (ulint) cs->cset->well_formed_len(cs,
+				true_len = (ulint) my_well_formed_length(cs,
 						(const char *) data,
 						(const char *) data + len,
 						(uint) (key_len /
@@ -8048,7 +8048,7 @@ wsrep_store_key_val_for_row(
 			the true length of the key */
 
 			if (blob_len > 0 && cs->mbmaxlen > 1) {
-				true_len = (ulint) cs->cset->well_formed_len(cs,
+				true_len = (ulint) my_well_formed_length(cs,
 						(const char *) blob_data,
 						(const char *) blob_data
 							+ blob_len,
@@ -8137,7 +8137,7 @@ wsrep_store_key_val_for_row(
 				if (key_len > 0 && cs->mbmaxlen > 1) {
 
 					true_len = (ulint)
-						cs->cset->well_formed_len(cs,
+						my_well_formed_length(cs,
 							(const char *)src_start,
 							(const char *)src_start
 								+ key_len,

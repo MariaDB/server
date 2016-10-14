@@ -704,6 +704,7 @@ void init_update_queries(void)
                                        CF_CAN_GENERATE_ROW_EVENTS |
                                        CF_OPTIMIZER_TRACE; // (1)
   sql_command_flags[SQLCOM_EXECUTE]=   CF_CAN_GENERATE_ROW_EVENTS;
+  sql_command_flags[SQLCOM_EXECUTE_IMMEDIATE]= CF_CAN_GENERATE_ROW_EVENTS;
   sql_command_flags[SQLCOM_COMPOUND]=  CF_CAN_GENERATE_ROW_EVENTS;
 
   /*
@@ -3375,6 +3376,11 @@ mysql_execute_command(THD *thd)
     if (!res)
       res= execute_sqlcom_select(thd, all_tables);
 
+    break;
+  }
+  case SQLCOM_EXECUTE_IMMEDIATE:
+  {
+    mysql_sql_stmt_execute_immediate(thd);
     break;
   }
   case SQLCOM_PREPARE:
@@ -9608,11 +9614,8 @@ bool check_string_char_length(LEX_STRING *str, uint err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
                               bool no_error)
 {
-  int well_formed_error;
-  uint res= cs->cset->well_formed_len(cs, str->str, str->str + str->length,
-                                      max_char_length, &well_formed_error);
-
-  if (!well_formed_error && str->length == res)
+  Well_formed_prefix prefix(cs, str->str, str->length, max_char_length);
+  if (!prefix.well_formed_error_pos() && str->length == prefix.length())
     return FALSE;
 
   if (!no_error)

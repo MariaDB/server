@@ -1965,5 +1965,20 @@ let $coll_pad='utf8mb4_bin';
 --source include/ctype_pad_all_engines.inc
 
 --echo #
+--echo # MDEV-10867 PREPARE..EXECUTE is not consistent about non-ASCII characters
+--echo #
+SET NAMES utf8mb4;
+SELECT '😎' AS c;
+
+SET @src='SELECT ''😎'' AS c';
+PREPARE stmt FROM @src;
+EXECUTE stmt;
+EXECUTE IMMEDIATE @src;
+
+PREPARE stmt FROM 'SELECT ''😎'' AS c';
+EXECUTE stmt;
+EXECUTE IMMEDIATE 'SELECT ''😎'' AS c';
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

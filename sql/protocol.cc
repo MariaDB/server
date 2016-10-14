@@ -1306,33 +1306,27 @@ bool Protocol_text::send_out_parameters(List<Item_param> *sp_params)
               thd->lex->prepared_stmt_params.elements);
 
   List_iterator_fast<Item_param> item_param_it(*sp_params);
-  List_iterator_fast<LEX_STRING> user_var_name_it(thd->lex->prepared_stmt_params);
+  List_iterator_fast<Item> param_it(thd->lex->prepared_stmt_params);
 
   while (true)
   {
     Item_param *item_param= item_param_it++;
-    LEX_STRING *user_var_name= user_var_name_it++;
+    Item *param= param_it++;
+    Settable_routine_parameter *sparam;
 
-    if (!item_param || !user_var_name)
+    if (!item_param || !param)
       break;
 
     if (!item_param->get_out_param_info())
       continue; // It's an IN-parameter.
 
-    Item_func_set_user_var *suv=
-      new (thd->mem_root) Item_func_set_user_var(thd, *user_var_name, item_param);
-    /*
-      Item_func_set_user_var is not fixed after construction, call
-      fix_fields().
-    */
-    if (suv->fix_fields(thd, NULL))
-      return TRUE;
+    if (!(sparam= param->get_settable_routine_parameter()))
+    {
+      DBUG_ASSERT(0);
+      continue;
+    }
 
-    if (suv->check(FALSE))
-      return TRUE;
-
-    if (suv->update())
-      return TRUE;
+    sparam->set_value(thd, thd->spcont, reinterpret_cast<Item **>(&item_param));
   }
 
   return FALSE;

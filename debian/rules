@@ -59,7 +59,7 @@ ifneq ($(ARCH_OS),hurd)
 endif
 
 	( test -d $(builddir) || mkdir $(builddir) ) && cd $(builddir) && \
-	sh -c 'PATH=$${MYSQL_BUILD_PATH:-"/usr/local/bin:/usr/bin:/bin"} \
+	sh -c 'PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
 			CC=$${MYSQL_BUILD_CC:-gcc} \
 			CFLAGS=$${MYSQL_BUILD_CFLAGS:-"-O2 -fno-omit-frame-pointer -g -pipe -Wall -Wno-uninitialized"} \
 			CXX=$${MYSQL_BUILD_CXX:-g++} \
@@ -83,7 +83,7 @@ build-stamp: configure
 
 ifeq ($(findstring nocheck,$(DEB_BUILD_OPTIONS)),)
 	if [ ! -f testsuite-stamp ] ; then \
-	  cd $(builddir)/mysql-test && ./mtr --force --parallel=$(NUMJOBS) --skip-rpl --suite=main; \
+	  cd $(builddir)/mysql-test && ./mtr --force --mem --parallel=$(NUMJOBS) --skip-rpl --suite=main; \
 	fi
 endif
 

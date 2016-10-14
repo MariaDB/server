@@ -5421,27 +5421,6 @@ int my_charlen_utf8(CHARSET_INFO *cs __attribute__((unused)),
   return MY_CS_ILSEQ;
 }
 
-static size_t
-my_well_formed_len_utf8(CHARSET_INFO *cs, const char *b, const char *e,
-                        size_t pos, int *error)
-{
-  const char *b_start= b;
-  *error= 0;
-  while (pos)
-  {
-    int mb_len;
-
-    if ((mb_len= my_charlen_utf8(cs, (uchar*) b, (uchar*) e)) <= 0)
-    {
-      *error= b < e ? 1 : 0;
-      break;
-    }
-    b+= mb_len;
-    pos--;
-  }
-  return (size_t) (b - b_start);
-}
-
 
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8
 #define CHARLEN(cs,str,end)       my_charlen_utf8(cs,str,end)
@@ -5656,7 +5635,6 @@ MY_CHARSET_HANDLER my_charset_utf8_handler=
     NULL,               /* init */
     my_numchars_mb,
     my_charpos_mb,
-    my_well_formed_len_utf8,
     my_lengthsp_8bit,
     my_numcells_mb,
     my_utf8_uni,
@@ -7276,7 +7254,6 @@ static MY_CHARSET_HANDLER my_charset_filename_handler=
     NULL,               /* init */
     my_numchars_mb,
     my_charpos_mb,
-    my_well_formed_len_mb,
     my_lengthsp_8bit,
     my_numcells_mb,
     my_mb_wc_filename,
@@ -7885,29 +7862,6 @@ my_charlen_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static
-size_t my_well_formed_len_utf8mb4(CHARSET_INFO *cs,
-                                  const char *b, const char *e,
-                                  size_t pos, int *error)
-{
-  const char *b_start= b;
-  *error= 0;
-  while (pos)
-  {
-    int mb_len;
-
-    if ((mb_len= my_charlen_utf8mb4(cs, (uchar*) b, (uchar*) e)) <= 0)
-    {
-      *error= b < e ? 1 : 0;
-      break;
-    }
-    b+= mb_len;
-    pos--;
-  }
-  return (size_t) (b - b_start);
-}
-
-
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf8mb4
 #define CHARLEN(cs,str,end)       my_charlen_utf8mb4(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -8033,7 +7987,6 @@ MY_CHARSET_HANDLER my_charset_utf8mb4_handler=
   NULL,               /* init */
   my_numchars_mb,
   my_charpos_mb,
-  my_well_formed_len_utf8mb4,
   my_lengthsp_8bit,
   my_numcells_mb,
   my_mb_wc_utf8mb4,

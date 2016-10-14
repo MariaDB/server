@@ -1300,6 +1300,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  IGNORE_DOMAIN_IDS_SYM
 %token  IGNORE_SYM
 %token  IGNORE_SERVER_IDS_SYM
+%token  IMMEDIATE_SYM                 /* SQL-2003-R */
 %token  IMPORT
 %token  INDEXES
 %token  INDEX_SYM
@@ -2222,23 +2223,20 @@ prepare:
           PREPARE_SYM ident FROM prepare_src
           {
             LEX *lex= thd->lex;
+            if (lex->table_or_sp_used())
+              my_yyabort_error((ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+                               "PREPARE..FROM"));
             lex->sql_command= SQLCOM_PREPARE;
             lex->prepared_stmt_name= $2;
           }
         ;
 
 prepare_src:
-          TEXT_STRING_sys
+          { Lex->expr_allows_subselect= false; }
+          expr
           {
-            LEX *lex= thd->lex;
-            lex->prepared_stmt_code= $1;
-            lex->prepared_stmt_code_is_varref= FALSE;
-          }
-        | '@' ident_or_text
-          {
-            LEX *lex= thd->lex;
-            lex->prepared_stmt_code= $2;
-            lex->prepared_stmt_code_is_varref= TRUE;
+            Lex->prepared_stmt_code= $2;
+            Lex->expr_allows_subselect= true;
           }
         ;
 
@@ -2251,11 +2249,27 @@ execute:
           }
           execute_using
           {}
+        | EXECUTE_SYM IMMEDIATE_SYM prepare_src
+          {
+            if (Lex->table_or_sp_used())
+              my_yyabort_error((ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+                               "EXECUTE IMMEDIATE"));
+            Lex->sql_command= SQLCOM_EXECUTE_IMMEDIATE;
+          }
+          execute_using
+          {}
         ;
 
 execute_using:
           /* nothing */
-        | USING execute_var_list
+        | USING            { Lex->expr_allows_subselect= false; }
+          execute_var_list
+          {
+            if (Lex->table_or_sp_used())
+              my_yyabort_error((ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+                               "EXECUTE..USING"));
+            Lex->expr_allows_subselect= true;
+          }
         ;
 
 execute_var_list:
@@ -2264,12 +2278,9 @@ execute_var_list:
         ;
 
 execute_var_ident:
-          '@' ident_or_text
+          expr
           {
-            LEX *lex=Lex;
-            LEX_STRING *lexstr= (LEX_STRING*)thd->memdup(&$2, sizeof(LEX_STRING));
-            if (!lexstr || lex->prepared_stmt_params.push_back(lexstr,
-                                                               thd->mem_root))
+            if (Lex->prepared_stmt_params.push_back($1, thd->mem_root))
               MYSQL_YYABORT;
           }
         ;
@@ -14360,10 +14371,7 @@ IDENT_sys:
             if (thd->charset_is_system_charset)
             {
               CHARSET_INFO *cs= system_charset_info;
-              int dummy_error;
-              uint wlen= cs->cset->well_formed_len(cs, $1.str,
-                                                   $1.str+$1.length,
-                                                   $1.length, &dummy_error);
+              uint wlen= Well_formed_prefix(cs, $1.str, $1.length).length();
               if (wlen < $1.length)
               {
                 ErrConvString err($1.str, $1.length, &my_charset_bin);
@@ -14701,6 +14709,7 @@ keyword_sp:
         | ID_SYM                   {}
         | IDENTIFIED_SYM           {}
         | IGNORE_SERVER_IDS_SYM    {}
+        | IMMEDIATE_SYM            {} /* SQL-2003-R */
         | INVOKER_SYM              {}
         | IMPORT                   {}
         | INDEXES                  {}

@@ -535,7 +535,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
   NULL,			/* init */
   my_numchars_8bit,
   my_charpos_8bit,
-  my_well_formed_len_8bit,
   my_lengthsp_binary,
   my_numcells_8bit,
   my_mb_wc_bin,

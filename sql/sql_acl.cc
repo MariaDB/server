@@ -12030,14 +12030,9 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     mostly for backward compatibility (to truncate long usernames, as
     old 5.1 did)
   */
-  {
-    CHARSET_INFO *cs= system_charset_info;
-    int           err;
-
-    user_len= (uint) cs->cset->well_formed_len(cs, user, user + user_len,
-                                               username_char_length, &err);
-    user[user_len]= '\0';
-  }
+  user_len= Well_formed_prefix(system_charset_info, user, user_len,
+                               username_char_length).length();
+  user[user_len]= '\0';
 
   Security_context *sctx= thd->security_ctx;
 

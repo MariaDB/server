@@ -975,5 +975,45 @@ let $coll_pad='ucs2_bin';
 --source include/ctype_pad_all_engines.inc
 
 --echo #
+--echo # MDEV-10585 EXECUTE IMMEDIATE statement
+--echo #
+SET character_set_connection=ucs2;
+EXECUTE IMMEDIATE 'SELECT COLLATION("a")';
+
+SET @stmt='SELECT COLLATION("a")';
+EXECUTE IMMEDIATE @stmt;
+
+--echo #
+--echo # MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+--echo #
+SET NAMES utf8, collation_connection=ucs2_bin;
+SET @stmt='SELECT COLLATION(''a'')';
+EXECUTE IMMEDIATE @stmt;
+
+SET NAMES utf8, character_set_connection=ucs2;
+SET @stmt='SELECT COLLATION(''a'')';
+EXECUTE IMMEDIATE @stmt;
+
+EXECUTE IMMEDIATE CONCAT('SELECT ''a'' FROM DUAL');
+
+SELECT HEX('aä') FROM DUAL;
+EXECUTE IMMEDIATE 'SELECT HEX(''aä'') FROM DUAL';
+EXECUTE IMMEDIATE CONCAT('SELECT HEX(''aä'') FROM DUAL');
+EXECUTE IMMEDIATE CONCAT('SELECT HEX(''aä'') FROM ', 'DUAL');
+PREPARE stmt FROM 'SELECT HEX(''aä'') FROM DUAL';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @table='DUAL';
+SELECT HEX(@table);
+EXECUTE IMMEDIATE CONCAT('SELECT HEX(''aä'') FROM ', @table);
+EXECUTE IMMEDIATE CONCAT('SELECT HEX(''aä'') FROM ', CONVERT(@table USING utf8));
+SET @stmt='SELECT HEX(''aä'') FROM DUAL';
+EXECUTE IMMEDIATE @stmt;
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

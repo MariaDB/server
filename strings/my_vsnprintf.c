@@ -205,8 +205,7 @@ static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
   plen= strnlen(par, width);
   if (left_len <= plen)
     plen = left_len - 1;
-  plen= cs->cset->well_formed_len(cs, par, par + plen,
-                                  width, &well_formed_error);
+  plen= my_well_formed_length(cs, par, par + plen, width, &well_formed_error);
   if (print_type & ESCAPED_ARG)
     to= backtick_string(cs, to, end, par, plen, '`');
   else

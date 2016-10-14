@@ -3412,11 +3412,37 @@ bool Item_param::set_longdata(const char *str, ulong length)
 }
 
 
+void Item_param::CONVERSION_INFO::set(THD *thd, CHARSET_INFO *fromcs)
+{
+  CHARSET_INFO *tocs= thd->variables.collation_connection;
+
+  character_set_of_placeholder= fromcs;
+  character_set_client= thd->variables.character_set_client;
+  /*
+    Setup source and destination character sets so that they
+    are different only if conversion is necessary: this will
+    make later checks easier.
+  */
+  uint32 dummy_offset;
+  final_character_set_of_str_value=
+    String::needs_conversion(0, fromcs, tocs, &dummy_offset) ?
+    tocs : fromcs;
+}
+
+
+bool Item_param::CONVERSION_INFO::convert(THD *thd, String *str)
+{
+  return thd->convert_string(str,
+                             character_set_of_placeholder,
+                             final_character_set_of_str_value);
+}
+
+
 /**
-  Set parameter value from user variable value.
+  Set parameter value from Item.
 
   @param thd   Current thread
-  @param entry User variable structure (NULL means use NULL value)
+  @param item  Item
 
   @retval
     0 OK
@@ -3424,47 +3450,44 @@ bool Item_param::set_longdata(const char *str, ulong length)
     1 Out of memory
 */
 
-bool Item_param::set_from_user_var(THD *thd, const user_var_entry *entry)
+bool Item_param::set_from_item(THD *thd, Item *item)
 {
-  DBUG_ENTER("Item_param::set_from_user_var");
-  if (entry && entry->value)
+  DBUG_ENTER("Item_param::set_from_item");
+  if (limit_clause_param)
   {
-    unsigned_flag= entry->unsigned_flag;
-    if (limit_clause_param)
+    longlong val= item->val_int();
+    if (item->null_value)
     {
-      bool unused;
-      set_int(entry->val_int(&unused), MY_INT64_NUM_DECIMAL_DIGITS);
+      set_null();
+      DBUG_RETURN(false);
+    }
+    else
+    {
+      unsigned_flag= item->unsigned_flag;
+      set_int(val, MY_INT64_NUM_DECIMAL_DIGITS);
       item_type= Item::INT_ITEM;
-      set_handler_by_result_type(entry->type);
+      set_handler_by_result_type(item->result_type());
       DBUG_RETURN(!unsigned_flag && value.integer < 0 ? 1 : 0);
     }
-    switch (entry->type) {
+  }
+  struct st_value tmp;
+  if (!item->store(&tmp, 0))
+  {
+    unsigned_flag= item->unsigned_flag;
+    switch (item->cmp_type()) {
     case REAL_RESULT:
-      set_double(*(double*)entry->value);
+      set_double(tmp.value.m_double);
       item_type= Item::REAL_ITEM;
       set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
       break;
     case INT_RESULT:
-      set_int(*(longlong*)entry->value, MY_INT64_NUM_DECIMAL_DIGITS);
+      set_int(tmp.value.m_longlong, MY_INT64_NUM_DECIMAL_DIGITS);
       item_type= Item::INT_ITEM;
       set_handler_by_field_type(MYSQL_TYPE_LONGLONG);
       break;
     case STRING_RESULT:
     {
-      CHARSET_INFO *fromcs= entry->charset();
-      CHARSET_INFO *tocs= thd->variables.collation_connection;
-      uint32 dummy_offset;
-
-      value.cs_info.character_set_of_placeholder= fromcs;
-      value.cs_info.character_set_client= thd->variables.character_set_client;
-      /*
-        Setup source and destination character sets so that they
-        are different only if conversion is necessary: this will
-        make later checks easier.
-      */
-      value.cs_info.final_character_set_of_str_value=
-        String::needs_conversion(0, fromcs, tocs, &dummy_offset) ?
-        tocs : fromcs;
+      value.cs_info.set(thd, item->collation.collation);
       /*
         Exact value of max_length is not known unless data is converted to
         charset of connection, so we have to set it later.
@@ -3472,13 +3495,13 @@ bool Item_param::set_from_user_var(THD *thd, const user_var_entry *entry)
       item_type= Item::STRING_ITEM;
       set_handler_by_field_type(MYSQL_TYPE_VARCHAR);
 
-      if (set_str((const char *)entry->value, entry->length))
+      if (set_str(tmp.m_string.ptr(), tmp.m_string.length()))
         DBUG_RETURN(1);
       break;
     }
     case DECIMAL_RESULT:
     {
-      const my_decimal *ent_value= (const my_decimal *)entry->value;
+      const my_decimal *ent_value= &tmp.m_decimal;
       my_decimal2decimal(ent_value, &decimal_value);
       state= DECIMAL_VALUE;
       decimals= ent_value->frac;
@@ -3489,8 +3512,17 @@ bool Item_param::set_from_user_var(THD *thd, const user_var_entry *entry)
       set_handler_by_field_type(MYSQL_TYPE_NEWDECIMAL);
       break;
     }
-    case ROW_RESULT:
     case TIME_RESULT:
+    {
+      value.time= tmp.value.m_time;
+      state= TIME_VALUE;
+      max_length= item->max_length;
+      decimals= item->decimals;
+      item_type= Item::DATE_ITEM;
+      set_handler(item->type_handler());
+      break;
+    }
+    case ROW_RESULT:
       DBUG_ASSERT(0);
       set_null();
     }
@@ -3729,18 +3761,34 @@ const String *Item_param::query_val_str(THD *thd, String* str) const
     break;
   case TIME_VALUE:
     {
+      static const uint32 typelen= 9; // "TIMESTAMP" is the longest type name
       char *buf, *ptr;
       str->length(0);
       /*
         TODO: in case of error we need to notify replication
         that binary log contains wrong statement 
       */
-      if (str->reserve(MAX_DATE_STRING_REP_LENGTH+3))
+      if (str->reserve(MAX_DATE_STRING_REP_LENGTH + 3 + typelen))
         break; 
 
       /* Create date string inplace */
+      switch (value.time.time_type) {
+      case MYSQL_TIMESTAMP_DATE:
+        str->append(C_STRING_WITH_LEN("DATE"));
+        break;
+      case MYSQL_TIMESTAMP_TIME:
+        str->append(C_STRING_WITH_LEN("TIME"));
+        break;
+      case MYSQL_TIMESTAMP_DATETIME:
+        str->append(C_STRING_WITH_LEN("TIMESTAMP"));
+        break;
+      case MYSQL_TIMESTAMP_ERROR:
+      case MYSQL_TIMESTAMP_NONE:
+        break;
+      }
+      DBUG_ASSERT(str->length() <= typelen);
       buf= str->c_ptr_quick();
-      ptr= buf;
+      ptr= buf + str->length();
       *ptr++= '\'';
       ptr+= (uint) my_TIME_to_str(&value.time, ptr, decimals);
       *ptr++= '\'';
@@ -3775,21 +3823,7 @@ bool Item_param::convert_str_value(THD *thd)
   bool rc= FALSE;
   if (state == STRING_VALUE || state == LONG_DATA_VALUE)
   {
-    /*
-      Check is so simple because all charsets were set up properly
-      in setup_one_conversion_function, where typecode of
-      placeholder was also taken into account: the variables are different
-      here only if conversion is really necessary.
-    */
-    if (value.cs_info.final_character_set_of_str_value !=
-        value.cs_info.character_set_of_placeholder)
-    {
-      rc= thd->convert_string(&str_value,
-                              value.cs_info.character_set_of_placeholder,
-                              value.cs_info.final_character_set_of_str_value);
-    }
-    else
-      str_value.set_charset(value.cs_info.final_character_set_of_str_value);
+    rc= value.cs_info.convert_if_needed(thd, &str_value);
     /* Here str_value is guaranteed to be in final_character_set_of_str_value */
 
     /*

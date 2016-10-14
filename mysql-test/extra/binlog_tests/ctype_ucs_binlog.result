@@ -6,8 +6,8 @@ insert into t2 values (@v);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	User var	#	#	@`v`=_ucs2 X'006100620063' COLLATE ucs2_general_ci
+master-bin.000001	#	Query	#	#	use `test`; insert into t2 values (@v)
 master-bin.000001	#	Query	#	#	COMMIT
 flush logs;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
@@ -17,6 +17,8 @@ DELIMITER /*!*/;
 ROLLBACK/*!*/;
 BEGIN
 /*!*/;
+SET @`v`:=_ucs2 X'006100620063' COLLATE `ucs2_general_ci`/*!*/;
+use `test`/*!*/;
 SET TIMESTAMP=10000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
@@ -26,6 +28,9 @@ SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
+insert into t2 values (@v)
+/*!*/;
+SET TIMESTAMP=10000/*!*/;
 COMMIT
 /*!*/;
 DELIMITER ;
@@ -40,7 +45,6 @@ drop table t2;
 #
 # MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
 #
-SET TIMESTAMP=UNIX_TIMESTAMP('1970-01-01 06:46:40');
 FLUSH LOGS;
 SET NAMES utf8;
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
@@ -87,7 +91,7 @@ DELIMITER /*!*/;
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
-SET TIMESTAMP=XXX/*!*/;
+SET TIMESTAMP=10000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
 SET @@session.sql_mode=1342177280/*!*/;
@@ -104,15 +108,13 @@ CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8)
 BEGIN
 /*!*/;
 # at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
-# at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO `test`.`t1`
-### SET
-###   @1='ä(i1)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(i1)')
+/*!*/;
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=XXX/*!*/;
+SET TIMESTAMP=10000/*!*/;
 COMMIT
 /*!*/;
 # at #
@@ -121,15 +123,13 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
-# at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO `test`.`t1`
-### SET
-###   @1='ä(i2)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(i2)')
+/*!*/;
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=XXX/*!*/;
+SET TIMESTAMP=10000/*!*/;
 COMMIT
 /*!*/;
 # at #
@@ -138,15 +138,13 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
-# at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO `test`.`t1`
-### SET
-###   @1='ä(i3)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(i3)')
+/*!*/;
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=XXX/*!*/;
+SET TIMESTAMP=10000/*!*/;
 COMMIT
 /*!*/;
 # at #
@@ -155,15 +153,13 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
-# at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO `test`.`t1`
-### SET
-###   @1='ä(p1)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(p1)')
+/*!*/;
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=XXX/*!*/;
+SET TIMESTAMP=10000/*!*/;
 COMMIT
 /*!*/;
 # at #
@@ -172,15 +168,13 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
-# at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO `test`.`t1`
-### SET
-###   @1='ä(p2)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(p2)')
+/*!*/;
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=XXX/*!*/;
+SET TIMESTAMP=10000/*!*/;
 COMMIT
 /*!*/;
 # at #
@@ -189,15 +183,13 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
-# at #
-#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO `test`.`t1`
-### SET
-###   @1='ä(p3)' /* VARSTRING(30) meta=30 nullable=1 is_null=0 */
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+SET TIMESTAMP=10000/*!*/;
+INSERT INTO t1 VALUES ('ä(p3)')
+/*!*/;
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=XXX/*!*/;
+SET TIMESTAMP=10000/*!*/;
 COMMIT
 /*!*/;
 # at #
@@ -205,7 +197,7 @@ COMMIT
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
-SET TIMESTAMP=XXX/*!*/;
+SET TIMESTAMP=10000/*!*/;
 DROP TABLE `t1` /* generated by server */
 /*!*/;
 # at #
@@ -215,7 +207,6 @@ DELIMITER ;
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
-SET TIMESTAMP=DEFAULT;
 #
 # End of 10.2 tests
 #

@@ -30,6 +30,29 @@
 
 C_MODE_START
 #include <ma_dyncol.h>
+
+/*
+  A prototype for a C-compatible structure to store a value of any data type.
+  Currently it has to stay in /sql, as it depends on String and my_decimal.
+  We'll do the following changes:
+  1. add pure C "struct st_string" and "struct st_my_decimal"
+  2. change type of m_string to struct st_string and move inside the union
+  3. change type of m_decmal to struct st_my_decimal and move inside the union
+  4. move the definition to some file in /include
+*/
+struct st_value
+{
+  enum enum_dynamic_column_type m_type;
+  union
+  {
+    longlong m_longlong;
+    double m_double;
+    MYSQL_TIME m_time;
+  } value;
+  String m_string;
+  my_decimal m_decimal;
+};
+
 C_MODE_END
 
 const char *dbug_print_item(Item *item);
@@ -742,6 +765,57 @@ public:
     supposed to be applied recursively.  
   */
   virtual inline void quick_fix_field() { fixed= 1; }
+
+  bool store(struct st_value *value, ulonglong fuzzydate)
+  {
+    switch (cmp_type()) {
+    case INT_RESULT:
+    {
+      value->m_type= unsigned_flag ? DYN_COL_UINT : DYN_COL_INT;
+      value->value.m_longlong= val_int();
+      break;
+    }
+    case REAL_RESULT:
+    {
+      value->m_type= DYN_COL_DOUBLE;
+      value->value.m_double= val_real();
+      break;
+    }
+    case DECIMAL_RESULT:
+    {
+      value->m_type= DYN_COL_DECIMAL;
+      my_decimal *dec= val_decimal(&value->m_decimal);
+      if (dec != &value->m_decimal && !null_value)
+        my_decimal2decimal(dec, &value->m_decimal);
+      break;
+    }
+    case STRING_RESULT:
+    {
+      value->m_type= DYN_COL_STRING;
+      String *str= val_str(&value->m_string);
+      if (str != &value->m_string && !null_value)
+        value->m_string.set(str->ptr(), str->length(), str->charset());
+      break;
+    }
+    case TIME_RESULT:
+    {
+      value->m_type= DYN_COL_DATETIME;
+      get_date(&value->value.m_time, fuzzydate);
+      break;
+    }
+    case ROW_RESULT:
+      DBUG_ASSERT(false);
+      null_value= true;
+      break;
+    }
+    if (null_value)
+    {
+      value->m_type= DYN_COL_NULL;
+      return true;
+    }
+    return false;
+  }
+
   /* Function returns 1 on overflow and -1 on fatal errors */
   int save_in_field_no_warnings(Field *field, bool no_conversions);
   virtual int save_in_field(Field *field, bool no_conversions);
@@ -2727,6 +2801,47 @@ public:
     DECIMAL_VALUE
   } state;
 
+  struct CONVERSION_INFO
+  {
+    /*
+      Character sets conversion info for string values.
+      Character sets of client and connection defined at bind time are used
+      for all conversions, even if one of them is later changed (i.e.
+      between subsequent calls to mysql_stmt_execute).
+    */
+    CHARSET_INFO *character_set_client;
+    CHARSET_INFO *character_set_of_placeholder;
+    /*
+      This points at character set of connection if conversion
+      to it is required (i. e. if placeholder typecode is not BLOB).
+      Otherwise it's equal to character_set_client (to simplify
+      check in convert_str_value()).
+    */
+    CHARSET_INFO *final_character_set_of_str_value;
+  private:
+    bool needs_conversion() const
+    {
+      return final_character_set_of_str_value !=
+             character_set_of_placeholder;
+    }
+    bool convert(THD *thd, String *str);
+  public:
+    void set(THD *thd, CHARSET_INFO *cs);
+    bool convert_if_needed(THD *thd, String *str)
+    {
+      /*
+        Check is so simple because all charsets were set up properly
+        in setup_one_conversion_function, where typecode of
+        placeholder was also taken into account: the variables are different
+        here only if conversion is really necessary.
+      */
+      if (needs_conversion())
+        return convert(thd, str);
+      str->set_charset(final_character_set_of_str_value);
+      return false;
+    }
+  };
+
   /*
     A buffer for string and long data values. Historically all allocated
     values returned from val_str() were treated as eligible to
@@ -2743,24 +2858,7 @@ public:
   {
     longlong integer;
     double   real;
-    /*
-      Character sets conversion info for string values.
-      Character sets of client and connection defined at bind time are used
-      for all conversions, even if one of them is later changed (i.e.
-      between subsequent calls to mysql_stmt_execute).
-    */
-    struct CONVERSION_INFO
-    {
-      CHARSET_INFO *character_set_client;
-      CHARSET_INFO *character_set_of_placeholder;
-      /*
-        This points at character set of connection if conversion
-        to it is required (i. e. if placeholder typecode is not BLOB).
-        Otherwise it's equal to character_set_client (to simplify
-        check in convert_str_value()).
-      */
-      CHARSET_INFO *final_character_set_of_str_value;
-    } cs_info;
+    CONVERSION_INFO cs_info;
     MYSQL_TIME     time;
   } value;
 
@@ -2792,7 +2890,7 @@ public:
   bool set_str(const char *str, ulong length);
   bool set_longdata(const char *str, ulong length);
   void set_time(MYSQL_TIME *tm, timestamp_type type, uint32 max_length_arg);
-  bool set_from_user_var(THD *thd, const user_var_entry *entry);
+  bool set_from_item(THD *thd, Item *item);
   void reset();
   /*
     Assign placeholder value from bind data.
