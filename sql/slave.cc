@@ -3424,7 +3424,8 @@ has_temporary_error(THD *thd)
 
   @retval nonzero If the delay was interrupted and the event shall be skipped.
 */
-static int sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
+int
+sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
 {
   Relay_log_info* rli= rgi->rli;
   long sql_delay= rli->get_sql_delay();
