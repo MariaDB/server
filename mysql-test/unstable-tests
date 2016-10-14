@@ -56,6 +56,7 @@ main.named_pipe                    : Modified on 2016-08-02 (MDEV-10383)
 main.openssl_1                     : Modified on 2016-07-11 (MDEV-10211)
 main.parser                        : Modified on 2016-06-21 (merge)
 main.pool_of_threads               : MDEV-10100 - sporadic error on detecting max connections
+main.ps                            : MDEV-11017 - sporadic wrong Prepared_stmt_count
 main.ps_1general                   : Modified on 2016-07-12 (merge)
 main.range                         : Modified on 2016-08-10 (merge)
 main.range_mrr_icp                 : Modified on 2016-08-10 (merge)
@@ -116,6 +117,7 @@ innodb.innodb_corrupt_bit             : Modified on 2016-06-21 (merge)
 innodb.innodb_bug30423                : MDEV-7311 - Wrong number of rows in the plan
 innodb.innodb-fk-warnings             : Modified on 2016-07-18 (MDEV-8569)
 innodb.innodb-fkcheck                 : Modified on 2016-06-13 (MDEV-10083)
+innodb.innodb_monitor                 : MDEV-10939 - Testcase timeout
 innodb.innodb-wl5522                  : rdiff file modified on 2016-08-10 (merge)
 innodb.innodb-wl5522-debug-zip        : MDEV-10427 - Warning: database page corruption
 
@@ -145,6 +147,7 @@ parts.partition_int_myisam   : MDEV-10621 - Testcase timeout
 perfschema.digest_table_full                 : Modified on 2016-06-21 (merge)
 perfschema.func_file_io                      : MDEV-5708 - fails for s390x
 perfschema.func_mutex                        : MDEV-5708 - fails for s390x
+perfschema.hostcache_ipv6_ssl                : MDEV-10696 - crash on shutdown
 perfschema.rpl_gtid_func                     : Modified on 2016-06-21 (merge)
 perfschema.sizing_low                        : Modified on 2016-04-26 (5.6.30 merge)
 perfschema.socket_summary_by_event_name_func : MDEV-10622 - Socket summary tables do not match
