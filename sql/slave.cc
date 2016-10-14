@@ -3410,17 +3410,21 @@ has_temporary_error(THD *thd)
 /**
   If this is a lagging slave (specified with CHANGE MASTER TO MASTER_DELAY = X), delays accordingly. Also unlocks rli->data_lock.
 
-  Design note: this is the place to unlock rli->data_lock here since
-  it should be held when reading delay info from rli, but it should
-  not be held while sleeping.
+  Design note: this is the place to unlock rli->data_lock. The lock
+  must be held when reading delay info from rli, but it should not be
+  held while sleeping.
 
   @param ev Event that is about to be executed.
 
   @param thd The sql thread's THD object.
 
   @param rli The sql thread's Relay_log_info structure.
+
+  @retval 0 If the delay timed out and the event shall be executed.
+
+  @retval nonzero If the delay was interrupted and the event shall be skipped.
 */
-static void sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
+static int sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
 {
   Relay_log_info* rli= rgi->rli;
   long sql_delay= rli->get_sql_delay();
@@ -3459,14 +3463,13 @@ static void sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
                           nap_time));
       rli->start_sql_delay(sql_delay_end);
       mysql_mutex_unlock(&rli->data_lock);
-      slave_sleep(thd, nap_time, sql_slave_killed, rgi);
-      DBUG_VOID_RETURN;
+      DBUG_RETURN(slave_sleep(thd, nap_time, sql_slave_killed, rgi));
     }
   }
 
   mysql_mutex_unlock(&rli->data_lock);
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 
@@ -3696,7 +3699,8 @@ apply_event_and_update_pos(Log_event* ev, THD* thd, rpl_group_info *rgi)
   if (reason == Log_event::EVENT_SKIP_NOT)
   {
     // Sleeps if needed, and unlocks rli->data_lock.
-    sql_delay_event(ev, thd, rgi);
+    if (sql_delay_event(ev, thd, rgi))
+      return 0;
   }
   else
     mysql_mutex_unlock(&rli->data_lock);
