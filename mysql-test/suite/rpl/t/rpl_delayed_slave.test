@@ -53,6 +53,8 @@
 #
 # The test takes a long time; it sleeps for around 20*10 seconds.
 
+--source include/big_test.inc
+--source include/not_valgrind.inc
 --source include/master-slave.inc
 # Needed so that sleeps get executed in the slave SQL thread.
 --source include/have_binlog_format_statement.inc
