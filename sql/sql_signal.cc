@@ -353,13 +353,7 @@ bool Sql_cmd_common_signal::raise_condition(THD *thd, Sql_condition *cond)
   DBUG_ASSERT((cond->m_level == Sql_condition::WARN_LEVEL_WARN) ||
               (cond->m_level == Sql_condition::WARN_LEVEL_ERROR));
 
-  Sql_condition *raised= NULL;
-  raised= thd->raise_condition(cond->get_sql_errno(),
-                               cond->get_sqlstate(),
-                               cond->get_level(),
-                               cond->get_message_text());
-  if (raised)
-    raised->copy_opt_attributes(cond);
+  (void) thd->raise_condition(cond);
 
   if (cond->m_level == Sql_condition::WARN_LEVEL_WARN)
   {
@@ -373,7 +367,8 @@ bool Sql_cmd_common_signal::raise_condition(THD *thd, Sql_condition *cond)
 bool Sql_cmd_signal::execute(THD *thd)
 {
   bool result= TRUE;
-  Sql_condition cond(thd->mem_root);
+  DBUG_ASSERT(m_cond);
+  Sql_condition cond(thd->mem_root, m_cond->get_user_condition_identity());
 
   DBUG_ENTER("Sql_cmd_signal::execute");
 
@@ -427,7 +422,7 @@ bool Sql_cmd_resignal::execute(THD *thd)
     DBUG_RETURN(result);
   }
 
-  Sql_condition signaled_err(thd->mem_root, signaled, signaled->message);
+  Sql_condition signaled_err(thd->mem_root, *signaled, signaled->message);
 
   if (m_cond)
   {

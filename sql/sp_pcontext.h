@@ -129,6 +129,7 @@ public:
 
 class sp_condition_value : public Sql_alloc, public Sql_state_errno
 {
+  bool m_is_user_defined;
 public:
   enum enum_type
   {
@@ -146,23 +147,27 @@ public:
   sp_condition_value(uint _mysqlerr)
    :Sql_alloc(),
     Sql_state_errno(_mysqlerr),
+    m_is_user_defined(false),
     type(ERROR_CODE)
   { }
 
   sp_condition_value(uint _mysqlerr, const char *_sql_state)
    :Sql_alloc(),
     Sql_state_errno(_mysqlerr, _sql_state),
+    m_is_user_defined(false),
     type(ERROR_CODE)
   { }
 
-  sp_condition_value(const char *_sql_state)
+  sp_condition_value(const char *_sql_state, bool is_user_defined= false)
    :Sql_alloc(),
     Sql_state_errno(0, _sql_state),
+    m_is_user_defined(is_user_defined),
     type(SQLSTATE)
   { }
 
   sp_condition_value(enum_type _type)
    :Sql_alloc(),
+    m_is_user_defined(false),
     type(_type)
   {
     DBUG_ASSERT(type != ERROR_CODE && type != SQLSTATE);
@@ -174,7 +179,38 @@ public:
   ///
   /// @return true if the instances are equal, false otherwise.
   bool equals(const sp_condition_value *cv) const;
+
+
+  /**
+    Checks if this condition is OK for search.
+    See also sp_context::find_handler().
+
+    @param identity - The condition identity
+    @param found_cv - A previously found matching condition or NULL.
+    @return true    - If the current value matches identity and
+                      makes a stronger match than the previously
+                      found condition found_cv.
+    @return false   - If the current value does not match identity,
+                      of the current value makes a weaker match than found_cv.
+  */
+  bool matches(const Sql_condition_identity &identity,
+               const sp_condition_value *found_cv) const;
+
+  Sql_user_condition_identity get_user_condition_identity() const
+  {
+    return Sql_user_condition_identity(m_is_user_defined ? this : NULL);
+  }
 };
+
+
+class sp_condition_value_user_defined: public sp_condition_value
+{
+public:
+  sp_condition_value_user_defined()
+   :sp_condition_value("45000", true)
+  { }
+};
+
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -516,8 +552,7 @@ public:
   /// @param level            The SQL condition level
   ///
   /// @return a pointer to the found SQL-handler or NULL.
-  sp_handler *find_handler(const Sql_state_errno *value,
-                           Sql_condition::enum_warning_level level) const;
+  sp_handler *find_handler(const Sql_condition_identity &identity) const;
 
   /////////////////////////////////////////////////////////////////////////
   // Cursors.

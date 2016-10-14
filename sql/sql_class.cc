@@ -1066,9 +1066,10 @@ void THD::raise_note_printf(uint sql_errno, ...)
 }
 
 Sql_condition* THD::raise_condition(uint sql_errno,
-                                  const char* sqlstate,
-                                  Sql_condition::enum_warning_level level,
-                                  const char* msg)
+                                    const char* sqlstate,
+                                    Sql_condition::enum_warning_level level,
+                                    const Sql_user_condition_identity &ucid,
+                                    const char* msg)
 {
   Diagnostics_area *da= get_stmt_da();
   Sql_condition *cond= NULL;
@@ -1127,7 +1128,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     if (!da->is_error())
     {
       set_row_count_func(-1);
-      da->set_error_status(sql_errno, msg, sqlstate, cond);
+      da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
     }
   }
 
@@ -1141,7 +1142,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
                            sql_errno == ER_OUTOFMEMORY)))
   {
-    cond= da->push_warning(this, sql_errno, sqlstate, level, msg);
+    cond= da->push_warning(this, sql_errno, sqlstate, level, ucid, msg);
   }
   DBUG_RETURN(cond);
 }

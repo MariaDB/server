@@ -2416,6 +2416,16 @@ sp_decl_body:
             $$.vars= $$.hndlrs= $$.curs= 0;
             $$.conds= 1;
           }
+        | ident_directly_assignable EXCEPTION_SYM
+          {
+            sp_condition_value *spcond= new (thd->mem_root)
+                                        sp_condition_value_user_defined();
+            if (!spcond ||
+                Lex->spcont->declare_condition(thd, $1, spcond))
+              MYSQL_YYABORT;
+            $$.vars= $$.hndlrs= $$.curs= 0;
+            $$.conds= 1;
+          }
         | sp_handler_type HANDLER_SYM FOR_SYM
           {
             if (Lex->sp_handler_declaration_init(thd, $1))

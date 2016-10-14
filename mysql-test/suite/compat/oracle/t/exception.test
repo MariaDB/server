@@ -264,3 +264,170 @@ DROP TABLE t1;
 --echo #
 --echo # End of MDEV-10840 sql_mode=ORACLE: RAISE statement for predefined exceptions
 --echo #
+
+
+--echo #
+--echo # MDEV-10587 sql_mode=ORACLE: User defined exceptions
+--echo #
+
+--echo #
+--echo # Checking that duplicate WHEN clause is not allowed
+--echo #
+
+DELIMITER $$;
+--error ER_SP_DUP_HANDLER
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+  e EXCEPTION;
+BEGIN
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN e THEN RETURN 'Got exception e';
+  WHEN e THEN RETURN 'Got exception e';
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Checking that raised user exceptions are further caught by name
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+  e EXCEPTION;
+  f EXCEPTION;
+BEGIN
+  IF c = 'e' THEN RAISE e; END IF;
+  IF c = 'f' THEN RAISE f; END IF;
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN e THEN RETURN 'Got exception e';
+END;
+$$
+DELIMITER ;$$
+SELECT f1('');
+SELECT f1('e');
+--error ER_SIGNAL_EXCEPTION
+SELECT f1('f');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Checking that raised user exceptions are further caught by OTHERS
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+  e EXCEPTION;
+  f EXCEPTION;
+BEGIN
+  IF c = 'e' THEN RAISE e; END IF;
+  IF c = 'f' THEN RAISE f; END IF;
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN OTHERS THEN RETURN 'Got some exception';
+END;
+$$
+DELIMITER ;$$
+SELECT f1('');
+SELECT f1('e');
+SELECT f1('f');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Checking that 'WHEN e .. WHEN f' does not produce ER_SP_DUP_HANDLER
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+  e EXCEPTION;
+  f EXCEPTION;
+  a VARCHAR(64):='';
+BEGIN
+  BEGIN
+    IF c = 'e' THEN RAISE e; END IF;
+    IF c = 'f' THEN RAISE f; END IF;
+  EXCEPTION
+    WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE e; END;
+    WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE f; END;
+  END;
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN OTHERS THEN RETURN a || 'Got EXCEPTION2/OTHERS;';
+END;
+$$
+DELIMITER ;$$
+SELECT f1('');
+SELECT f1('e');
+SELECT f1('f');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Checking that resignaled user exceptions are further caught by name
+--echo #
+DELIMITER $$;
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+  e EXCEPTION;
+  f EXCEPTION;
+  a VARCHAR(64):='';
+BEGIN
+  BEGIN
+    IF c = 'e' THEN RAISE e; END IF;
+    IF c = 'f' THEN RAISE f; END IF;
+  EXCEPTION
+    WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE; END;
+    WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE; END;
+  END;
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN e THEN RETURN a || 'Got EXCEPTION2/e;';
+END;
+$$
+DELIMITER ;$$
+SELECT f1('');
+SELECT f1('e');
+--error ER_SIGNAL_EXCEPTION
+SELECT f1('f');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Checking that resignaled user exceptions are further caught by OTHERS
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+  e EXCEPTION;
+  f EXCEPTION;
+  a VARCHAR(64):='';
+BEGIN
+  BEGIN
+    IF c = 'e' THEN RAISE e; END IF;
+    IF c = 'f' THEN RAISE f; END IF;
+  EXCEPTION
+    WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE; END;
+    WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE; END;
+  END;
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN OTHERS THEN RETURN a || 'Got EXCEPTION2/OTHERS;';
+END;
+$$
+DELIMITER ;$$
+SELECT f1('');
+SELECT f1('e');
+SELECT f1('f');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # End of MDEV-10587 sql_mode=ORACLE: User defined exceptions
+--echo #
