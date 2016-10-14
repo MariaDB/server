@@ -33,8 +33,6 @@
 #include "compat56.h"
 #include "sql_type.h"                           /* Type_std_attributes */
 
-#include <limits>
-
 class Send_field;
 class Copy_field;
 class Protocol;

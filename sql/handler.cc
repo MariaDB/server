@@ -6559,9 +6559,9 @@ static bool create_string(MEM_ROOT *mem_root, String **s, const char *value)
   return *s == NULL;
 }
 
-static bool create_sys_trx_field_if_missing(THD *thd, const char *field_name,
-                                            Alter_info *alter_info, String **s,
-                                            bool integer_fields)
+static bool create_sys_trx_field(THD *thd, const char *field_name,
+                                 Alter_info *alter_info, String **s,
+                                 bool integer_fields)
 {
   Create_field *f= new (thd->mem_root) Create_field();
   if (!f)
@@ -6626,10 +6626,10 @@ bool Vers_parse_info::add_versioning_info(
       period_for_system_time.start || period_for_system_time.end)
     return false;
 
-  return create_sys_trx_field_if_missing(thd, "sys_trx_start", alter_info,
-                                         &generated_as_row.start, integer_fields) ||
-         create_sys_trx_field_if_missing(thd, "sys_trx_end", alter_info,
-                                         &generated_as_row.end, integer_fields) ||
+  return create_sys_trx_field(thd, "sys_trx_start", alter_info,
+                              &generated_as_row.start, integer_fields) ||
+         create_sys_trx_field(thd, "sys_trx_end", alter_info,
+                              &generated_as_row.end, integer_fields) ||
          create_string(thd->mem_root, &period_for_system_time.start,
                        "sys_trx_start") ||
          create_string(thd->mem_root, &period_for_system_time.end,
@@ -6732,4 +6732,3 @@ bool Vers_parse_info::check(THD *thd, Alter_info *alter_info, bool integer_field
 
   return r; // false means no error
 }
-
