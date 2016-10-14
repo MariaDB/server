@@ -1908,6 +1908,7 @@ struct TABLE_LIST
   char		*db, *alias, *table_name, *schema_table_name;
   char          *option;                /* Used by cache index  */
   Item		*on_expr;		/* Used with outer join */
+  Item		*saved_on_expr;		/* Used with SP and System Versioning */
 
   Item          *sj_on_expr;
   /*

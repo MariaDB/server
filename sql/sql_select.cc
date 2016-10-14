@@ -668,7 +668,7 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
 }
 
 static int
-setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *select_lex)
+setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *select_lex)
 {
   DBUG_ENTER("setup_for_system_time");
 
@@ -697,23 +697,46 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
      because they must outlive execution phase for multiple executions. */
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
-  if (select_lex->saved_conds)
+  if (select_lex->saved_where)
   {
     DBUG_ASSERT(thd->stmt_arena->is_sp_execute());
-    *conds= select_lex->saved_conds;
+    *where_expr= select_lex->saved_where;
   }
   else if (thd->stmt_arena->is_sp_execute())
   {
-    if (thd->stmt_arena->is_stmt_execute())
-      *conds= 0;
-    else if (*conds)
-      select_lex->saved_conds= (*conds)->copy_andor_structure(thd);
+    if (thd->stmt_arena->is_stmt_execute()) // SP executed second time (STMT_EXECUTED)
+      *where_expr= 0;
+    else if (*where_expr) // SP executed first time (STMT_INITIALIZED_FOR_SP)
+      /* copy_andor_structure() is required since this andor tree
+         is modified later (and on shorter arena) */
+      select_lex->saved_where= (*where_expr)->copy_andor_structure(thd);
   }
 
   for (table= tables; table; table= table->next_local)
   {
     if (table->table && table->table->versioned())
     {
+      COND** dst_cond;
+      if (table->on_expr)
+      {
+        if (table->saved_on_expr) // same logic as saved_where
+        {
+          DBUG_ASSERT(thd->stmt_arena->is_sp_execute());
+          table->on_expr= table->saved_on_expr;
+        }
+        else if (thd->stmt_arena->is_sp_execute())
+        {
+          if (thd->stmt_arena->is_stmt_execute()) // SP executed second time (STMT_EXECUTED)
+            table->on_expr= 0;
+          else if (table->on_expr) // SP executed first time (STMT_INITIALIZED_FOR_SP)
+            table->saved_on_expr= table->on_expr->copy_andor_structure(thd);
+        }
+        dst_cond= &table->on_expr;
+      }
+      else
+      {
+        dst_cond= where_expr;
+      }
       Field *fstart= table->table->vers_start_field();
       Field *fend= table->table->vers_end_field();
 
@@ -782,15 +805,15 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
       if (cond1)
       {
         cond1= and_items(thd,
-          *conds,
+          *dst_cond,
           and_items(thd,
             cond2,
             cond1));
 
         if (arena)
-          *conds= cond1;
+          *dst_cond= cond1;
         else
-          thd->change_item_tree(conds, cond1);
+          thd->change_item_tree(dst_cond, cond1);
 
         table->vers_moved_to_where= true;
       }

@@ -2200,7 +2200,7 @@ void st_select_lex::init_query()
   join= 0;
   having= prep_having= where= prep_where= 0;
   cond_pushed_into_where= cond_pushed_into_having= 0;
-  saved_conds= 0;
+  saved_where= 0;
   olap= UNSPECIFIED_OLAP_TYPE;
   having_fix_field= 0;
   context.select_lex= this;
