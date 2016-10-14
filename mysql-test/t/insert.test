@@ -738,3 +738,21 @@ call verify_vtq;
 drop table t1;
 drop table t2;
 drop procedure verify_vtq;
+
+# Check whether it is possible to insert rows in a versioned table
+# with implicit fields without crash.
+CREATE TABLE t1(
+  id BIGINT PRIMARY KEY,
+  A INT,
+  B INT
+) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES(1, 1, 1);
+DROP TABLE t1;
+
+CREATE TABLE t1(
+  id BIGINT PRIMARY KEY,
+  A INT,
+  B INT
+) WITH SYSTEM VERSIONING ENGINE=INNODB;
+INSERT INTO t1 VALUES(1, 1, 1);
+DROP TABLE t1;
