@@ -162,4 +162,10 @@ include/start_slave.inc
 DROP TABLE t1, t_check_dml_not_executed_prematurely;
 DROP FUNCTION delay_on_slave;
 [on slave]
+SELECT @@GLOBAL.slave_parallel_mode;
+@@GLOBAL.slave_parallel_mode
+conservative
+SELECT @@GLOBAL.slave_parallel_threads;
+@@GLOBAL.slave_parallel_threads
+0
 include/rpl_end.inc

@@ -1,0 +1,65 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+# This test file tests delayed slave for parallel replication (and GTID).
+# Uses a different approach from rpl_delayed_slave.test, setting @@timestamp
+# to simulate events logged on master at different times.
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100));
+INSERT INTO t1 VALUES (1, "a");
+--save_master_pos
+
+--connection slave
+--sync_with_master
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode=optimistic;
+SET @old_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=10;
+
+--connection master
+INSERT INTO t1 VALUES (2, "b");
+INSERT INTO t1 VALUES (3, "b");
+INSERT INTO t1 VALUES (4, "b");
+--let $gtid1= `SELECT @@gtid_binlog_pos`
+# Simulate an event a days in the future, for delayed slave to wait on.
+SET timestamp= @@timestamp + 24*60*60;
+INSERT INTO t1 VALUES (5, "c");
+INSERT INTO t1 VALUES (6, "c");
+SET timestamp= 0;
+--let $gtid2= `SELECT @@gtid_binlog_pos`
+--source include/save_master_gtid.inc
+
+--connection slave
+CHANGE MASTER TO master_delay=1;
+--source include/start_slave.inc
+--replace_result $gtid1 GTID1
+# First sync halfways, to avoid timing-dependent test failures.
+eval SELECT MASTER_GTID_WAIT('$gtid1');
+# Try to sync up, should timeout because slave is waiting for one day.
+--replace_result $gtid2 GTID2
+eval SELECT MASTER_GTID_WAIT('$gtid2', 2);
+
+# Check that we can stop slave while delaying.
+--source include/stop_slave.inc
+SELECT * FROM t1 ORDER BY a;
+CHANGE MASTER TO master_delay=0;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=no, master_delay=0;
+SET GLOBAL slave_parallel_mode=@old_mode;
+SET GLOBAL slave_parallel_threads=@old_threads;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc
