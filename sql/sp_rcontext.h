@@ -120,7 +120,8 @@ public:
   /// standard SQL-condition processing (Diagnostics_area should contain an
   /// object for active SQL-condition, not just information stored in DA's
   /// fields).
-  class Sql_condition_info : public Sql_alloc, public Sql_state_errno_level
+  class Sql_condition_info : public Sql_alloc,
+                             public Sql_condition_identity
   {
   public:
     /// Text message.
@@ -132,7 +133,7 @@ public:
     /// @param arena           Query arena for SP
     Sql_condition_info(const Sql_condition *_sql_condition,
                        Query_arena *arena)
-      :Sql_state_errno_level(*_sql_condition)
+      :Sql_condition_identity(*_sql_condition)
     {
       message= strdup_root(arena->mem_root, _sql_condition->get_message_text());
     }

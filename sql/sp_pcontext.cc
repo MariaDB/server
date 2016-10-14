@@ -27,10 +27,41 @@ bool sp_condition_value::equals(const sp_condition_value *cv) const
 {
   DBUG_ASSERT(cv);
 
+  /*
+    The following test disallows duplicate handlers,
+    including user defined exceptions with the same WHEN clause:
+      DECLARE
+        a EXCEPTION;
+        b EXCEPTION;
+      BEGIN
+        RAUSE a;
+      EXCEPTION
+        WHEN a THEN RETURN 'a0';
+        WHEN a THEN RETURN 'a1';
+      END
+  */
   if (this == cv)
     return true;
 
-  if (type != cv->type)
+  /*
+    The test below considers two conditions of the same type as equal
+    (except for the user defined exceptions) to avoid declaring duplicate
+    handlers.
+
+    All user defined conditions have type==SQLSTATE
+    with the same SQL state and error code.
+    It's OK to have multiple user defined conditions:
+    DECLARE
+      a EXCEPTION;
+      b EXCEPTION;
+    BEGIN
+      RAISE a;
+    EXCEPTION
+      WHEN a THEN RETURN 'a';
+      WHEN b THEN RETURN 'b';
+    END;
+  */
+  if (type != cv->type || m_is_user_defined || cv->m_is_user_defined)
     return false;
 
   switch (type)
@@ -353,9 +384,57 @@ bool sp_pcontext::check_duplicate_handler(
 }
 
 
+bool sp_condition_value::matches(const Sql_condition_identity &value,
+                                 const sp_condition_value *found_cv) const
+{
+  bool user_value_matched= !value.get_user_condition_value() ||
+                           this == value.get_user_condition_value();
+
+  switch (type)
+  {
+  case sp_condition_value::ERROR_CODE:
+    return user_value_matched &&
+           value.get_sql_errno() == get_sql_errno() &&
+           (!found_cv || found_cv->type > sp_condition_value::ERROR_CODE);
+
+  case sp_condition_value::SQLSTATE:
+    return user_value_matched &&
+           Sql_state::eq(&value) &&
+           (!found_cv || found_cv->type > sp_condition_value::SQLSTATE);
+
+  case sp_condition_value::WARNING:
+    return user_value_matched &&
+           (value.Sql_state::is_warning() ||
+            value.get_level() == Sql_condition::WARN_LEVEL_WARN) &&
+           !found_cv;
+
+  case sp_condition_value::NOT_FOUND:
+    return user_value_matched &&
+           value.Sql_state::is_not_found() &&
+           !found_cv;
+
+  case sp_condition_value::EXCEPTION:
+    /*
+      In sql_mode=ORACLE this construct should catch both errors and warnings:
+        EXCEPTION
+          WHEN OTHERS THEN ...;
+      E.g. NO_DATA_FOUND is more like a warning than an error,
+      and it should be caught.
+
+      We don't check user_value_matched here.
+      "WHEN OTHERS" catches all user defined exception.
+    */
+    return (((current_thd->variables.sql_mode & MODE_ORACLE) ||
+           (value.Sql_state::is_exception() &&
+            value.get_level() == Sql_condition::WARN_LEVEL_ERROR)) &&
+           !found_cv);
+  }
+  return false;
+}
+
+
 sp_handler*
-sp_pcontext::find_handler(const Sql_state_errno *value,
-                          Sql_condition::enum_warning_level level) const
+sp_pcontext::find_handler(const Sql_condition_identity &value) const
 {
   sp_handler *found_handler= NULL;
   sp_condition_value *found_cv= NULL;
@@ -369,61 +448,10 @@ sp_pcontext::find_handler(const Sql_state_errno *value,
 
     while ((cv= li++))
     {
-      switch (cv->type)
+      if (cv->matches(value, found_cv))
       {
-      case sp_condition_value::ERROR_CODE:
-        if (value->get_sql_errno() == cv->get_sql_errno() &&
-            (!found_cv ||
-             found_cv->type > sp_condition_value::ERROR_CODE))
-        {
-          found_cv= cv;
-          found_handler= h;
-        }
-        break;
-
-      case sp_condition_value::SQLSTATE:
-        if (cv->Sql_state::eq(value) &&
-            (!found_cv ||
-             found_cv->type > sp_condition_value::SQLSTATE))
-        {
-          found_cv= cv;
-          found_handler= h;
-        }
-        break;
-
-      case sp_condition_value::WARNING:
-        if ((value->Sql_state::is_warning() ||
-             level == Sql_condition::WARN_LEVEL_WARN) && !found_cv)
-        {
-          found_cv= cv;
-          found_handler= h;
-        }
-        break;
-
-      case sp_condition_value::NOT_FOUND:
-        if (value->Sql_state::is_not_found() && !found_cv)
-        {
-          found_cv= cv;
-          found_handler= h;
-        }
-        break;
-
-      case sp_condition_value::EXCEPTION:
-        /*
-          In sql_mode=ORACLE this construct should catch errors and warnings:
-            EXCEPTION
-              WHEN OTHERS THEN ...;
-          E.g. NO_DATA_FOUND is more like a warning than an error,
-          and it should be caught.
-        */
-        if (((current_thd->variables.sql_mode & MODE_ORACLE) ||
-             (value->Sql_state::is_exception() &&
-              level == Sql_condition::WARN_LEVEL_ERROR)) && !found_cv)
-        {
-          found_cv= cv;
-          found_handler= h;
-        }
-        break;
+        found_cv= cv;
+        found_handler= h;
       }
     }
   }
@@ -466,7 +494,7 @@ sp_pcontext::find_handler(const Sql_state_errno *value,
   if (!p || !p->m_parent)
     return NULL;
 
-  return p->m_parent->find_handler(value, level);
+  return p->m_parent->find_handler(value);
 }
 
 

@@ -26,6 +26,7 @@
 
 class THD;
 class my_decimal;
+class sp_condition_value;
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -129,14 +130,10 @@ public:
   uint get_sql_errno() const
   { return m_sql_errno; }
 
-  void set_condition_value(uint sql_errno, const char *sqlstate)
+  void set(uint sql_errno, const char *sqlstate)
   {
     m_sql_errno= sql_errno;
     set_sqlstate(sqlstate);
-  }
-  void set_condition_value(const Sql_state_errno *other)
-  {
-    *this= *other;
   }
   void clear()
   {
@@ -189,6 +186,88 @@ public:
   {
     m_level= WARN_LEVEL_ERROR;
     Sql_state_errno::clear();
+  }
+};
+
+
+/*
+  class Sql_user_condition_identity.
+  Instances of this class uniquely idetify user defined conditions (EXCEPTION).
+
+    SET sql_mode=ORACLE;
+    CREATE PROCEDURE p1
+    AS
+      a EXCEPTION;
+    BEGIN
+      RAISE a;
+    EXCEPTION
+      WHEN a THEN NULL;
+    END;
+
+  Currently a user defined condition is identified by a pointer to
+  its parse time sp_condition_value instance. This can change when
+  we add packages. See MDEV-10591.
+*/
+class Sql_user_condition_identity
+{
+protected:
+  const sp_condition_value *m_user_condition_value;
+public:
+  Sql_user_condition_identity()
+   :m_user_condition_value(NULL)
+  { }
+  Sql_user_condition_identity(const sp_condition_value *value)
+   :m_user_condition_value(value)
+  { }
+  const sp_condition_value *get_user_condition_value() const
+  { return m_user_condition_value; }
+
+  void set(const Sql_user_condition_identity &identity)
+  {
+    *this= identity;
+  }
+  void clear()
+  {
+    m_user_condition_value= NULL;
+  }
+};
+
+
+/**
+  class Sql_condition_identity.
+  Instances of this class uniquely identify conditions
+  (including user-defined exceptions for sql_mode=ORACLE)
+  and store everything that is needed for handler search
+  purposes in sp_pcontext::find_handler().
+*/
+class Sql_condition_identity: public Sql_state_errno_level,
+                              public Sql_user_condition_identity
+{
+public:
+  Sql_condition_identity()
+  { }
+  Sql_condition_identity(const Sql_state_errno_level &st,
+                         const Sql_user_condition_identity &ucid)
+   :Sql_state_errno_level(st),
+    Sql_user_condition_identity(ucid)
+  { }
+  Sql_condition_identity(const Sql_state_errno &st,
+                         enum_warning_level level,
+                         const Sql_user_condition_identity &ucid)
+   :Sql_state_errno_level(st, level),
+    Sql_user_condition_identity(ucid)
+  { }
+  Sql_condition_identity(uint sqlerrno,
+                         const char* sqlstate,
+                         enum_warning_level level,
+                         const Sql_user_condition_identity &ucid)
+    :Sql_state_errno_level(sqlerrno, sqlstate, level),
+     Sql_user_condition_identity(ucid)
+  { }
+  void clear()
+  {
+    Sql_state_errno_level::clear();
+    Sql_user_condition_identity::clear();
   }
 };
 
@@ -261,7 +340,7 @@ protected:
   or an exception condition (error, not found).
 */
 class Sql_condition : public Sql_alloc,
-                      public Sql_state_errno_level,
+                      public Sql_condition_identity,
                       public Sql_condition_items
 {
 public:
@@ -341,6 +420,12 @@ private:
     DBUG_ASSERT(mem_root != NULL);
   }
 
+  Sql_condition(MEM_ROOT *mem_root, const Sql_user_condition_identity &ucid)
+   :Sql_condition_identity(Sql_state_errno_level(), ucid),
+    m_mem_root(mem_root)
+  {
+    DBUG_ASSERT(mem_root != NULL);
+  }
   /**
     Constructor for a fixed message text.
     @param mem_root - memory root
@@ -349,25 +434,13 @@ private:
     @param msg      - the message text for this condition
   */
   Sql_condition(MEM_ROOT *mem_root,
-                const Sql_state_errno_level *value,
+                const Sql_condition_identity &value,
                 const char *msg)
-   :Sql_state_errno_level(*value),
+   :Sql_condition_identity(value),
     m_mem_root(mem_root)
   {
     DBUG_ASSERT(mem_root != NULL);
-    DBUG_ASSERT(value->get_sql_errno() != 0);
-    DBUG_ASSERT(msg != NULL);
-    set_builtin_message_text(msg);
-  }
-
-  Sql_condition(MEM_ROOT *mem_root,
-                const Sql_state_errno *value,
-                const char *msg)
-   :Sql_state_errno_level(*value, Sql_condition::WARN_LEVEL_ERROR),
-    m_mem_root(mem_root)
-  {
-    DBUG_ASSERT(mem_root != NULL);
-    DBUG_ASSERT(value->get_sql_errno() != 0);
+    DBUG_ASSERT(value.get_sql_errno() != 0);
     DBUG_ASSERT(msg != NULL);
     set_builtin_message_text(msg);
   }
@@ -408,7 +481,7 @@ private:
   */
   void clear()
   {
-    Sql_state_errno_level::clear();
+    Sql_condition_identity::clear();
     Sql_condition_items::clear();
     m_message_text.length(0);
   }
@@ -663,15 +736,13 @@ private:
     counters.
 
     @param thd        Thread context.
-    @param sql_errno  SQL-condition error number.
-    @param sqlstate   SQL-condition state.
-    @param level      SQL-condition level.
+    @param identity   SQL-condition identity
     @param msg        SQL-condition message.
 
     @return a pointer to the added SQL-condition.
   */
   Sql_condition *push_warning(THD *thd,
-                              const Sql_state_errno_level *value,
+                              const Sql_condition_identity *identity,
                               const char* msg);
 
   /**
@@ -828,7 +899,8 @@ public:
   Can not be assigned twice per statement.
 */
 
-class Diagnostics_area: public Sql_state_errno
+class Diagnostics_area: public Sql_state_errno,
+                        public Sql_user_condition_identity
 {
 private:
   /** The type of the counted and doubly linked list of conditions. */
@@ -880,7 +952,18 @@ public:
   void set_error_status(uint sql_errno,
                         const char *message,
                         const char *sqlstate,
+                        const Sql_user_condition_identity &ucid,
                         const Sql_condition *error_condition);
+
+  void set_error_status(uint sql_errno,
+                        const char *message,
+                        const char *sqlstate,
+                        const Sql_condition *error_condition)
+  {
+    set_error_status(sql_errno, message, sqlstate,
+                     Sql_user_condition_identity(),
+                     error_condition);
+  }
 
   void disable_status();
 
@@ -941,6 +1024,18 @@ public:
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK ||
                 m_status == DA_EOF);
     return m_statement_warn_count;
+  }
+
+  /**
+    Get the current errno, state and id of the user defined condition
+    and return them as Sql_condition_identity.
+  */
+  Sql_condition_identity get_error_condition_identity() const
+  {
+    DBUG_ASSERT(m_status == DA_ERROR);
+    return Sql_condition_identity(*this /*Sql_state_errno*/,
+                                  Sql_condition::WARN_LEVEL_ERROR,
+                                  *this /*Sql_user_condition_identity*/);
   }
 
   /* Used to count any warnings pushed after calling set_ok_status(). */
@@ -1039,12 +1134,22 @@ public:
                               uint sql_errno_arg,
                               const char* sqlstate,
                               Sql_condition::enum_warning_level level,
+                              const Sql_user_condition_identity &ucid,
                               const char* msg)
   {
-    Sql_state_errno_level tmp(sql_errno_arg, sqlstate, level);
+    Sql_condition_identity tmp(sql_errno_arg, sqlstate, level, ucid);
     return get_warning_info()->push_warning(thd, &tmp, msg);
   }
 
+  Sql_condition *push_warning(THD *thd,
+                              uint sqlerrno,
+                              const char* sqlstate,
+                              Sql_condition::enum_warning_level level,
+                              const char* msg)
+  {
+    return push_warning(thd, sqlerrno, sqlstate, level,
+                        Sql_user_condition_identity(), msg);
+  }
   void mark_sql_conditions_for_removal()
   { get_warning_info()->mark_sql_conditions_for_removal(); }
 

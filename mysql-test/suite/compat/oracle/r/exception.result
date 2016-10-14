@@ -220,3 +220,164 @@ DROP TABLE t1;
 #
 # End of MDEV-10840 sql_mode=ORACLE: RAISE statement for predefined exceptions
 #
+#
+# MDEV-10587 sql_mode=ORACLE: User defined exceptions
+#
+#
+# Checking that duplicate WHEN clause is not allowed
+#
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+e EXCEPTION;
+BEGIN
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN e THEN RETURN 'Got exception e';
+WHEN e THEN RETURN 'Got exception e';
+END;
+$$
+ERROR 42000: Duplicate handler declared in the same block
+#
+# Checking that raised user exceptions are further caught by name
+#
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+e EXCEPTION;
+f EXCEPTION;
+BEGIN
+IF c = 'e' THEN RAISE e; END IF;
+IF c = 'f' THEN RAISE f; END IF;
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN e THEN RETURN 'Got exception e';
+END;
+$$
+SELECT f1('');
+f1('')
+Got no exceptions
+SELECT f1('e');
+f1('e')
+Got exception e
+SELECT f1('f');
+ERROR 45000: Unhandled user-defined exception condition
+DROP FUNCTION f1;
+#
+# Checking that raised user exceptions are further caught by OTHERS
+#
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+e EXCEPTION;
+f EXCEPTION;
+BEGIN
+IF c = 'e' THEN RAISE e; END IF;
+IF c = 'f' THEN RAISE f; END IF;
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN OTHERS THEN RETURN 'Got some exception';
+END;
+$$
+SELECT f1('');
+f1('')
+Got no exceptions
+SELECT f1('e');
+f1('e')
+Got some exception
+SELECT f1('f');
+f1('f')
+Got some exception
+DROP FUNCTION f1;
+#
+# Checking that 'WHEN e .. WHEN f' does not produce ER_SP_DUP_HANDLER
+#
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+e EXCEPTION;
+f EXCEPTION;
+a VARCHAR(64):='';
+BEGIN
+BEGIN
+IF c = 'e' THEN RAISE e; END IF;
+IF c = 'f' THEN RAISE f; END IF;
+EXCEPTION
+WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE e; END;
+WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE f; END;
+END;
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN OTHERS THEN RETURN a || 'Got EXCEPTION2/OTHERS;';
+END;
+$$
+SELECT f1('');
+f1('')
+Got no exceptions
+SELECT f1('e');
+f1('e')
+Got EXCEPTION1/e; Got EXCEPTION2/OTHERS;
+SELECT f1('f');
+f1('f')
+Got EXCEPTION1/f; Got EXCEPTION2/OTHERS;
+DROP FUNCTION f1;
+#
+# Checking that resignaled user exceptions are further caught by name
+#
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+e EXCEPTION;
+f EXCEPTION;
+a VARCHAR(64):='';
+BEGIN
+BEGIN
+IF c = 'e' THEN RAISE e; END IF;
+IF c = 'f' THEN RAISE f; END IF;
+EXCEPTION
+WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE; END;
+WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE; END;
+END;
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN e THEN RETURN a || 'Got EXCEPTION2/e;';
+END;
+$$
+SELECT f1('');
+f1('')
+Got no exceptions
+SELECT f1('e');
+f1('e')
+Got EXCEPTION1/e; Got EXCEPTION2/e;
+SELECT f1('f');
+ERROR 45000: Unhandled user-defined exception condition
+DROP FUNCTION f1;
+#
+# Checking that resignaled user exceptions are further caught by OTHERS
+#
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+e EXCEPTION;
+f EXCEPTION;
+a VARCHAR(64):='';
+BEGIN
+BEGIN
+IF c = 'e' THEN RAISE e; END IF;
+IF c = 'f' THEN RAISE f; END IF;
+EXCEPTION
+WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE; END;
+WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE; END;
+END;
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN OTHERS THEN RETURN a || 'Got EXCEPTION2/OTHERS;';
+END;
+$$
+SELECT f1('');
+f1('')
+Got no exceptions
+SELECT f1('e');
+f1('e')
+Got EXCEPTION1/e; Got EXCEPTION2/OTHERS;
+SELECT f1('f');
+f1('f')
+Got EXCEPTION1/f; Got EXCEPTION2/OTHERS;
+DROP FUNCTION f1;
+#
+# End of MDEV-10587 sql_mode=ORACLE: User defined exceptions
+#

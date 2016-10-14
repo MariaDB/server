@@ -307,7 +307,8 @@ Diagnostics_area::reset_diagnostics_area()
   m_can_overwrite_status= FALSE;
   /** Don't take chances in production */
   m_message[0]= '\0';
-  m_sql_errno= 0;
+  Sql_state_errno::clear();
+  Sql_user_condition_identity::clear();
   m_affected_rows= 0;
   m_last_insert_id= 0;
   m_statement_warn_count= 0;
@@ -406,6 +407,7 @@ Diagnostics_area::set_error_status(uint sql_errno)
   set_error_status(sql_errno,
                    ER(sql_errno),
                    mysql_errno_to_sqlstate(sql_errno),
+                   Sql_user_condition_identity(),
                    NULL);
 }
 
@@ -419,6 +421,7 @@ Diagnostics_area::set_error_status(uint sql_errno)
   @param sql_errno        SQL-condition error number
   @param message          SQL-condition message
   @param sqlstate         SQL-condition state
+  @param ucid             User defined condition identity
   @param error_condition  SQL-condition object representing the error state
 
   @note Note, that error_condition may be NULL. It happens if a) OOM error is
@@ -429,6 +432,7 @@ void
 Diagnostics_area::set_error_status(uint sql_errno,
                                    const char *message,
                                    const char *sqlstate,
+                                   const Sql_user_condition_identity &ucid,
                                    const Sql_condition *error_condition)
 {
   DBUG_ENTER("set_error_status");
@@ -455,7 +459,8 @@ Diagnostics_area::set_error_status(uint sql_errno,
     return;
 #endif
 
-  set_condition_value(sql_errno, sqlstate);
+  Sql_state_errno::set(sql_errno, sqlstate);
+  Sql_user_condition_identity::set(ucid);
   strmake_buf(m_message, message);
 
   get_warning_info()->set_error_condition(error_condition);
@@ -647,7 +652,7 @@ void Warning_info::reserve_space(THD *thd, uint count)
 }
 
 Sql_condition *Warning_info::push_warning(THD *thd,
-                                          const Sql_state_errno_level *value,
+                                          const Sql_condition_identity *value,
                                           const char *msg)
 {
   Sql_condition *cond= NULL;
@@ -657,7 +662,7 @@ Sql_condition *Warning_info::push_warning(THD *thd,
     if (m_allow_unlimited_warnings ||
         m_warn_list.elements() < thd->variables.max_error_count)
     {
-      cond= new (& m_warn_root) Sql_condition(& m_warn_root, value, msg);
+      cond= new (& m_warn_root) Sql_condition(& m_warn_root, *value, msg);
       if (cond)
         m_warn_list.push_back(cond);
     }

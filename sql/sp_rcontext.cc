@@ -228,7 +228,7 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
   if (thd->is_error())
   {
     found_handler=
-      cur_spi->m_ctx->find_handler(da, Sql_condition::WARN_LEVEL_ERROR);
+      cur_spi->m_ctx->find_handler(da->get_error_condition_identity());
 
     if (found_handler)
       found_condition= da->get_error_condition();
@@ -244,7 +244,8 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
     {
       found_condition=
         new (callers_arena->mem_root) Sql_condition(callers_arena->mem_root,
-                                                    da, da->message());
+                                                    da->get_error_condition_identity(),
+                                                    da->message());
     }
   }
   else if (da->current_statement_warn_count())
@@ -261,8 +262,7 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
       if (c->get_level() == Sql_condition::WARN_LEVEL_WARN ||
           c->get_level() == Sql_condition::WARN_LEVEL_NOTE)
       {
-        const sp_handler *handler=
-          cur_spi->m_ctx->find_handler(c, c->get_level());
+        const sp_handler *handler= cur_spi->m_ctx->find_handler(*c);
         if (handler)
         {
           found_handler= handler;
