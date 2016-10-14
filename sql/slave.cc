@@ -5664,7 +5664,10 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   bool gtid_skip_enqueue= false;
   bool got_gtid_event= false;
   rpl_gtid event_gtid;
-  bool compressed_event = FALSE;
+  bool is_compress_event = false;
+  char* new_buf = NULL;
+  char new_buf_arr[4096];
+  bool is_malloc = false;
 
   /*
     FD_q must have been prepared for the first R_a event
@@ -6150,7 +6153,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   */
   case QUERY_COMPRESSED_EVENT:
     inc_pos= event_len;
-    if (query_event_uncompress(rli->relay_log.description_event_for_queue, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32, buf, (char **)&buf, &event_len))
+    if (query_event_uncompress(rli->relay_log.description_event_for_queue, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32, 
+                                buf, new_buf_arr, sizeof(new_buf_arr), &is_malloc, (char **)&new_buf, &event_len))
     {
       char  llbuf[22];
       error = ER_BINLOG_UNCOMPRESS_ERROR;
@@ -6159,7 +6163,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       error_msg.append(llbuf, strlen(llbuf));
       goto err;
     }
-    compressed_event = true;
+    buf = new_buf;
+    is_compress_event = true;
     goto default_action;
 
   case WRITE_ROWS_COMPRESSED_EVENT:
@@ -6170,7 +6175,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   case DELETE_ROWS_COMPRESSED_EVENT_V1:
     inc_pos = event_len;
     {
-      if (Row_log_event_uncompress(rli->relay_log.description_event_for_queue, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32, buf, (char **)&buf, &event_len))
+      if (row_log_event_uncompress(rli->relay_log.description_event_for_queue, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32, 
+                                    buf, new_buf_arr, sizeof(new_buf_arr), &is_malloc, (char **)&new_buf, &event_len))
       {
         char  llbuf[22];
         error = ER_BINLOG_UNCOMPRESS_ERROR;
@@ -6180,7 +6186,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
         goto err;
       }
     }
-    compressed_event = true;
+    buf = new_buf;
+    is_compress_event = true;
     goto default_action;
 
 #ifndef DBUG_OFF
@@ -6233,7 +6240,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
         ++mi->events_queued_since_last_gtid;
     }
 
-    if (!compressed_event)
+    if (!is_compress_event)
       inc_pos= event_len;
 
     break;
@@ -6429,8 +6436,8 @@ err:
     mi->report(ERROR_LEVEL, error, NULL, ER_DEFAULT(error),
                error_msg.ptr());
 
-  if(compressed_event)
-    my_free((void *)buf);
+  if(is_malloc)
+    my_free((void *)new_buf);
 
   DBUG_RETURN(error);
 }
