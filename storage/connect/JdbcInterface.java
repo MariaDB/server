@@ -692,11 +692,11 @@ public class JdbcInterface {
 	  return 0;  
 	} // end of TimestampField
     
-    public String ObjectField(int n, String name) {
+    public Object ObjectField(int n, String name) {
 	  if (rs == null) {
 		System.out.println("No result set");
 	  } else try {
-	    return (n > 0) ? rs.getObject(n).toString() : rs.getObject(name).toString();
+	    return (n > 0) ? rs.getObject(n) : rs.getObject(name);
 	  } catch (SQLException se) {
 		SetErrmsg(se);
 	  } //end try/catch
