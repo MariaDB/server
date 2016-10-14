@@ -33,9 +33,9 @@
 #include "sql_signal.h"
 
 
-void LEX::parse_error()
+void LEX::parse_error(uint err_number)
 {
-  thd->parse_error();
+  thd->parse_error(err_number);
 }
 
 

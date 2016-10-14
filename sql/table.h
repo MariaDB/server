@@ -1812,7 +1812,7 @@ class Item_in_subselect;
   4) jtbm semi-join (jtbm_subselect != NULL)
 */
 
-enum for_system_time_type
+enum vers_range_type_t
 {
   FOR_SYSTEM_TIME_UNSPECIFIED = 0,
   FOR_SYSTEM_TIME_AS_OF,
@@ -1820,24 +1820,34 @@ enum for_system_time_type
   FOR_SYSTEM_TIME_BETWEEN
 };
 
+enum vers_range_unit_t
+{
+  UNIT_TIMESTAMP = 0,
+  UNIT_TRX_ID
+};
+
 /** System versioning support. */
 struct vers_select_conds_t
 {
-  enum for_system_time_type type;
+  vers_range_type_t type;
+  vers_range_unit_t unit;
   Item *start, *end;
 
   void empty()
   {
     type= FOR_SYSTEM_TIME_UNSPECIFIED;
+    unit= UNIT_TIMESTAMP;
     start= end= NULL;
   }
 
   void init(
-    const enum for_system_time_type t,
-    Item * const s,
-    Item * const e= NULL)
+    vers_range_type_t t,
+    vers_range_unit_t u,
+    Item * s,
+    Item * e= NULL)
   {
     type= t;
+    unit= u;
     start= s;
     end= e;
   }
