@@ -512,7 +512,7 @@ JDBConn::JDBConn(PGLOBAL g, TDBJDBC *tdbp)
 	xqid = xuid = xid = grs = readid = fetchid = typid = errid = nullptr;
 	prepid = xpid = pcid = nullptr;
 	chrfldid = intfldid = dblfldid = fltfldid = bigfldid = nullptr;
-	datfldid = timfldid = tspfldid = nullptr;
+	objfldid = datfldid = timfldid = tspfldid = nullptr;
 	//m_LoginTimeout = DEFAULT_LOGIN_TIMEOUT;
 //m_QueryTimeout = DEFAULT_QUERY_TIMEOUT;
 //m_UpdateOptions = 0;
@@ -1167,9 +1167,10 @@ void JDBConn::Close()
 /***********************************************************************/
 void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 {
-	PGLOBAL&   g = m_G;
-	jint       ctyp;
-	jstring    cn, jn = nullptr;
+	PGLOBAL& g = m_G;
+	jint     ctyp;
+	jstring  cn, jn = nullptr;
+	jobject  jb = nullptr;
 
 	if (rank == 0)
 		if (!name || (jn = env->NewStringUTF(name)) == nullptr) {
@@ -1185,21 +1186,32 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		longjmp(g->jumper[g->jump_level], TYPE_AM_JDBC);
 	} // endif Check
 
+	if (val->GetNullable())
+		if (!gmID(g, objfldid, "ObjectField", "(ILjava/lang/String;)Ljava/lang/Object;")) {
+			jb = env->CallObjectMethod(job, objfldid, (jint)rank, jn);
+
+			if (jb == nullptr) {
+				val->Reset();
+				val->SetNull(true);
+				goto chk;
+			}	// endif job
+
+		}	// endif objfldid
+
 	switch (ctyp) {
 	case 12:          // VARCHAR
 	case -1:          // LONGVARCHAR
 	case 1:           // CHAR
-		if (!gmID(g, chrfldid, "StringField", "(ILjava/lang/String;)Ljava/lang/String;")) {
+		if (jb)
+			cn = (jstring)jb;
+		else if (!gmID(g, chrfldid, "StringField", "(ILjava/lang/String;)Ljava/lang/String;"))
 			cn = (jstring)env->CallObjectMethod(job, chrfldid, (jint)rank, jn);
+		else
+			cn = nullptr;
 
-			if (cn) {
-				const char *field = env->GetStringUTFChars(cn, (jboolean)false);
-				val->SetValue_psz((PSZ)field);
-			} else {
-				val->Reset();
-				val->SetNull(true);
-			} // endif cn
-
+		if (cn) {
+			const char *field = env->GetStringUTFChars(cn, (jboolean)false);
+			val->SetValue_psz((PSZ)field);
 		} else
 			val->Reset();
 
@@ -1271,6 +1283,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		val->Reset();
 	} // endswitch Type
 
+ chk:
 	if (Check()) {
 		if (rank == 0)
 			env->DeleteLocalRef(jn);
