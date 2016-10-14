@@ -344,6 +344,10 @@ The following options may be given as the first argument:
  We strongly recommend to use either --log-basename or
  specify a filename to ensure that replication doesn't
  stop if the real hostname of the computer changes.
+ --log-bin-compress  Whether the binary log can be compressed
+ --log-bin-compress-min-len[=#] 
+ Minimum length of sql statement(in statement mode) or
+ record(in row mode)that can be compressed.
  --log-bin-index=name 
  File that holds the names for last binary log files.
  --log-bin-trust-function-creators 
@@ -1264,6 +1268,8 @@ lc-time-names en_US
 local-infile TRUE
 lock-wait-timeout 31536000
 log-bin (No default value)
+log-bin-compress FALSE
+log-bin-compress-min-len 256
 log-bin-index (No default value)
 log-bin-trust-function-creators FALSE
 log-error 
