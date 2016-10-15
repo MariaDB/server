@@ -25,6 +25,19 @@ INCLUDE_DIRECTORIES(
 ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX -DOS_LINUX
   -DZLIB)
 
+# MARIAROCKS_NOT_YET: Add -frtti flag when compiling RocksDB files.
+# TODO: is this the right way to do this?
+#  - SQL layer and storage/rocksdb/*.cc are compiled with -fnortti
+#  - RocksDB files are compiled with "-fnortti ... -frtti" 
+#  - This causes RocksDB headers to be compiled with different settings:
+#     = with RTTI when compiling RocksDB
+#     = without RTTI when compiling storage/rocksdb/*.cc
+# 
+#  (facebook/mysql-5.6 just compiles everything without -f*rtti, which means
+#  everything is compiled with -frtti) 
+#
+set_source_files_properties(${ROCKSDB_LIB_SOURCES} PROPERTIES COMPILE_FLAGS -frtti)
+
 SET(ROCKSDB_SOURCES
   ha_rocksdb.cc ha_rocksdb.h ha_rocksdb_proto.h
   logger.h
