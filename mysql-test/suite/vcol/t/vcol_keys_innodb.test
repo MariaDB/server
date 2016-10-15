@@ -34,14 +34,13 @@
 ##### Storage engine to be tested
 # Set the session storage engine
 --source include/have_innodb.inc
-eval SET @@session.storage_engine = 'InnoDB';
+SET @@session.storage_engine = 'InnoDB';
 
 ##### Workarounds for known open engine specific bugs
 #     none
 
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
-let $skip_spatial_index_check = 1;
 --source suite/vcol/inc/vcol_keys.inc
 
 #------------------------------------------------------------------------------#
