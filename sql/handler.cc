@@ -6567,20 +6567,21 @@ static bool create_sys_trx_field(THD *thd, const char *field_name,
   if (!f)
     return true;
 
+  memset(f, 0, sizeof(*f));
   f->field_name= field_name;
   f->charset= system_charset_info;
   if (integer_fields)
   {
     f->sql_type= MYSQL_TYPE_LONGLONG;
-    f->flags= UNSIGNED_FLAG;
+    f->flags= UNSIGNED_FLAG | NOT_NULL_FLAG;
     f->length= MY_INT64_NUM_DECIMAL_DIGITS;
   }
   else
   {
     f->sql_type= MYSQL_TYPE_TIMESTAMP2;
+    f->flags= NOT_NULL_FLAG;
     f->length= 6;
   }
-  f->decimals= 0;
 
   if (f->check(thd))
     return true;
