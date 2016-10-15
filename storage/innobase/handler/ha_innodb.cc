@@ -4976,7 +4976,7 @@ innobase_commit(
 
 	if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
 
-		sql_print_error("Transaction not registered for MySQL 2PC,"
+		sql_print_error("Transaction not registered for MariaDB 2PC,"
 				" but transaction is active");
 	}
 
@@ -5490,7 +5490,7 @@ innobase_close_connection(
 
 		if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
 
-			sql_print_error("Transaction not registered for MySQL 2PC, "
+			sql_print_error("Transaction not registered for MariaDB 2PC, "
 				"but transaction is active");
 		}
 
@@ -5511,7 +5511,7 @@ innobase_close_connection(
 				}
 			} else {
 			sql_print_warning(
-				"MySQL is closing a connection that has an active "
+				"MariaDB is closing a connection that has an active "
 				"InnoDB transaction.  " TRX_ID_FMT " row modifications "
 				"will roll back.",
 					" row modifications will roll back.",
@@ -6485,7 +6485,7 @@ innobase_build_index_translation(
 		if (!innobase_match_index_columns(&table->key_info[count],
 					          index_mapping[count])) {
 			sql_print_error("Found index %s whose column info"
-					" does not match that of MySQL.",
+					" does not match that of MariaDB.",
 					table->key_info[count].name);
 			ret = false;
 			goto func_exit;
@@ -6670,7 +6670,7 @@ ha_innobase::innobase_initialize_autoinc()
 			break;
 		}
 		case DB_RECORD_NOT_FOUND:
-			ib::error() << "MySQL and InnoDB data dictionaries are"
+			ib::error() << "MariaDB and InnoDB data dictionaries are"
 				" out of sync. Unable to find the AUTOINC"
 				" column " << col_name << " in the InnoDB"
 				" table " << index->table->name << ". We set"
@@ -6773,7 +6773,7 @@ ha_innobase::open(
 		ib::warn() << "Table " << norm_name << " contains "
 			<< dict_table_get_n_user_cols(ib_table) << " user"
 			" defined columns in InnoDB, but " << table->s->stored_fields
-			<< " columns in MySQL. Please check"
+			<< " columns in MariaDB. Please check"
 			" INFORMATION_SCHEMA.INNODB_SYS_COLUMNS and " REFMAN
 			"innodb-troubleshooting.html for how to resolve the"
 			" issue.";
@@ -7362,7 +7362,7 @@ wsrep_innobase_mysql_sort(
 
 			if (charset == NULL) {
 			  sql_print_error("InnoDB needs charset %lu for doing "
-					  "a comparison, but MySQL cannot "
+					  "a comparison, but MariaDB cannot "
 					  "find that charset.",
 					  (ulong) charset_number);
 				ut_a(0);
@@ -11527,7 +11527,7 @@ ha_innobase::wsrep_append_keys(
 			keyval1[0] = (char)i;
 
 			if (!tab) {
-				WSREP_WARN("MySQL-InnoDB key mismatch %s %s",
+				WSREP_WARN("MariaDB-InnoDB key mismatch %s %s",
 					   table->s->table_name.str,
 					   key_info->name);
 			}
@@ -12403,7 +12403,7 @@ create_index(
 			case DATA_DOUBLE:
 			case DATA_DECIMAL:
 				sql_print_error(
-					"MySQL is trying to create a column"
+					"MariaDB is trying to create a column"
 					" prefix index field, on an"
 					" inappropriate data type. Table"
 					" name %s, column name %s.",
@@ -14602,9 +14602,9 @@ ha_innobase::delete_table(
 			tbl_name.m_name = norm_name;
 			ib::error() << "Table " << tbl_name <<
 				" does not exist in the InnoDB"
-				" internal data dictionary though MySQL is"
+				" internal data dictionary though MariaDB is"
 				" trying to drop it. Have you copied the .frm"
-				" file of the table to the MySQL database"
+				" file of the table to the MariaDB database"
 				" directory from another database? "
 				<< TROUBLESHOOTING_MSG;
 		}
@@ -15204,9 +15204,9 @@ innobase_rename_table(
 		if (error == DB_TABLE_NOT_FOUND) {
 			ib::error() << "Table " << ut_get_name(trx, norm_from)
 				<< " does not exist in the InnoDB internal"
-				" data dictionary though MySQL is trying to"
+				" data dictionary though MariaDB is trying to"
 				" rename the table. Have you copied the .frm"
-				" file of the table to the MySQL database"
+				" file of the table to the MariaDB database"
 				" directory from another database? "
 				<< TROUBLESHOOTING_MSG;
 		}
@@ -15832,7 +15832,7 @@ innobase_get_mysql_key_number_for_index(
 			if (index->is_committed()) {
 				sql_print_warning(
 					"Found index %s in InnoDB index list"
-					" but not its MySQL index number."
+					" but not its MariaDB index number."
 					" It could be an InnoDB internal"
 					" index.",
 					index->name());
@@ -15954,7 +15954,7 @@ ha_innobase::info_low(
 	/* In case MySQL calls this in the middle of a SELECT query, release
 	possible adaptive hash latch to avoid deadlocks of threads */
 
-	m_prebuilt->trx->op_info = (char*)"returning various info to MySQL";
+	m_prebuilt->trx->op_info = (char*)"returning various info to MariaDB";
 
 	trx_search_latch_release_if_reserved(m_prebuilt->trx);
 
@@ -15991,7 +15991,7 @@ ha_innobase::info_low(
 			}
 
 			m_prebuilt->trx->op_info =
-				"returning various info to MySQL";
+				"returning various info to MariaDB";
 		}
 
 
@@ -16211,7 +16211,7 @@ ha_innobase::info_low(
 					sql_print_error(
 						"Index %s of %s has %lu columns"
 						" unique inside InnoDB, but"
-						" MySQL is asking statistics for"
+						" MariaDB is asking statistics for"
 						" %lu columns. Have you mixed"
 						" up .frm files from different"
 						" installations? %s",
@@ -19194,7 +19194,7 @@ innobase_xa_prepare(
 
 	if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
 
-		sql_print_error("Transaction not registered for MySQL 2PC,"
+		sql_print_error("Transaction not registered for MariaDB 2PC,"
 				" but transaction is active");
 	}
 
@@ -21878,7 +21878,7 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
     " write a constant magic number, do not allow values other than that"
     " magic number when reading;"
   " Files updated when this option is set to crc32 or strict_crc32 will"
-  " not be readable by MySQL versions older than 5.6.3",
+  " not be readable by InnoDB versions older than 5.6.3",
   NULL, NULL, SRV_CHECKSUM_ALGORITHM_CRC32,
   &innodb_checksum_algorithm_typelib);
 
@@ -22850,7 +22850,7 @@ static MYSQL_SYSVAR_BOOL(status_output_locks, srv_print_innodb_lock_monitor,
 
 static MYSQL_SYSVAR_BOOL(print_all_deadlocks, srv_print_all_deadlocks,
   PLUGIN_VAR_OPCMDARG,
-  "Print all deadlocks to MySQL error log (off by default)",
+  "Print all deadlocks to MariaDB error log (off by default)",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ULONG(compression_failure_threshold_pct,
@@ -24389,7 +24389,7 @@ ib_push_frm_error(
 	case DICT_FRM_NO_PK:
 		sql_print_error("Table %s has a primary key in "
 			"InnoDB data dictionary, but not "
-			"in MySQL!"
+			"in MariaDB!"
 			" Have you mixed up "
 			".frm files from different "
 			"installations? See "
@@ -24403,17 +24403,17 @@ ib_push_frm_error(
 				"InnoDB: Table %s has a "
 				"primary key in InnoDB data "
 				"dictionary, but not in "
-				"MySQL!", ib_table->name);
+				"MariaDB!", ib_table->name);
 		}
 		break;
 	case DICT_NO_PK_FRM_HAS:
 		sql_print_error(
 				"Table %s has no primary key in InnoDB data "
-				"dictionary, but has one in MySQL! If you "
-				"created the table with a MySQL version < "
+				"dictionary, but has one in MariaDB! If you "
+				"created the table with a MariaDB version < "
 				"3.23.54 and did not define a primary key, "
 				"but defined a unique key with all non-NULL "
-				"columns, then MySQL internally treats that "
+				"columns, then MariaDB internally treats that "
 				"key as the primary key. You can fix this "
 				"error by dump + DROP + CREATE + reimport "
 				"of the table.", ib_table->name);
@@ -24424,7 +24424,7 @@ ib_push_frm_error(
 				"InnoDB: Table %s has no "
 				"primary key in InnoDB data "
 				"dictionary, but has one in "
-				"MySQL!",
+				"MariaDB!",
 				ib_table->name);
 		}
 		break;
@@ -24433,7 +24433,7 @@ ib_push_frm_error(
 		sql_print_error("InnoDB: Table %s contains %lu "
 			"indexes inside InnoDB, which "
 			"is different from the number of "
-			"indexes %u defined in the MySQL "
+			"indexes %u defined in the MariaDB "
 			" Have you mixed up "
 			".frm files from different "
 			"installations? See "
@@ -24448,7 +24448,7 @@ ib_push_frm_error(
 				"InnoDB: Table %s contains %lu "
 				"indexes inside InnoDB, which "
 				"is different from the number of "
-				"indexes %u defined in the MySQL ",
+				"indexes %u defined in the MariaDB ",
 				ib_table->name, n_keys,
 				table->s->keys);
 		}
@@ -24457,7 +24457,7 @@ ib_push_frm_error(
 	case DICT_FRM_CONSISTENT:
 	default:
 		sql_print_error("InnoDB: Table %s is consistent "
-			"on InnoDB data dictionary and MySQL "
+			"on InnoDB data dictionary and MariaDB "
 			" FRM file.",
 			ib_table->name);
 		ut_error;
