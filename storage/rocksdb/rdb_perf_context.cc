@@ -17,6 +17,7 @@
 
 #include <my_config.h>
 
+#include "rdb_mariadb_port.h"
 /* This C++ file's header file */
 #include "./rdb_perf_context.h"
 
@@ -222,9 +223,12 @@ void Rdb_io_perf::end_and_record(uint32_t perf_context_level)
         rocksdb::perf_context.block_read_time;
 
     my_io_perf_sum_atomic_helper(m_shared_io_perf_read, &io_perf_read);
+#ifdef MARIAROCKS_NOT_YET
     my_io_perf_sum(&m_stats->table_io_perf_read, &io_perf_read);
+#endif
   }
 
+#ifdef MARIAROCKS_NOT_YET
   if (m_stats) {
     if (rocksdb::perf_context.internal_key_skipped_count != 0)
     {
@@ -237,6 +241,7 @@ void Rdb_io_perf::end_and_record(uint32_t perf_context_level)
           rocksdb::perf_context.internal_delete_skipped_count;
     }
   }
+#endif
 }
 
 }  // namespace myrocks

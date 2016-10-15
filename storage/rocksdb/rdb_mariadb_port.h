@@ -5,6 +5,7 @@
 #ifndef RDB_MARIADB_PORT_H
 #define RDB_MARIADB_PORT_H
 
+#include "my_global.h"                   /* ulonglong */
 #include "atomic_stat.h"
 
 /* Struct used for IO performance counters, shared among multiple threads */
@@ -29,5 +30,7 @@ typedef struct my_io_perf_atomic_struct my_io_perf_atomic_t;
 */
 #define abort_with_stack_traces()  { abort(); }
 
+////////////////////////////////////////////////////////////////////////////
+typedef struct my_io_perf_struct my_io_perf_t;
 
 #endif
