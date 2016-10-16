@@ -9503,8 +9503,10 @@ enum icp_result ha_rocksdb::check_index_cond()
 {
   DBUG_ASSERT(pushed_idx_cond);
   DBUG_ASSERT(pushed_idx_cond_keyno != MAX_KEY);
-
-  if (end_range && compare_key_icp(end_range) > 0)
+  
+  // MARIAROCKS_NOT_YET: MariaRocks todo: switch to using
+  // handler_index_cond_check() call?
+  if (end_range && compare_key2(end_range) > 0)
   {
     /* caller should return HA_ERR_END_OF_FILE already */
     return ICP_OUT_OF_RANGE;
