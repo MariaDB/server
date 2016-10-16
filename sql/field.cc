@@ -10598,7 +10598,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     length
 */
 
-uint32 Field_blob::char_length()
+uint32 Field_blob::char_length() const
 {
   switch (packlength)
   {
