@@ -3012,12 +3012,13 @@ static bool rocksdb_show_status(handlerton*		hton,
     str.append(buf);
     res |= print_stats(thd, "Memory_Stats", "rocksdb", str, stat_print);
   }
+#ifdef MARIAROCKS_NOT_YET
   else if (stat_type == HA_ENGINE_TRX)
   {
     /* Handle the SHOW ENGINE ROCKSDB TRANSACTION STATUS command */
     res |= rocksdb_show_snapshot_status(hton, thd, stat_print);
   }
-
+#endif
   return res;
 }
 
