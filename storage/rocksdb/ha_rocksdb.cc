@@ -7299,6 +7299,7 @@ int ha_rocksdb::write_row(uchar *buf)
 */
 void ha_rocksdb::set_last_rowkey(const uchar *old_data)
 {
+#ifdef MARIAROCKS_NOT_YET
   if (old_data && use_read_free_rpl())
   {
     int old_pk_size= m_pk_descr->pack_record(
@@ -7306,6 +7307,7 @@ void ha_rocksdb::set_last_rowkey(const uchar *old_data)
     m_last_rowkey.copy((const char*)m_pk_packed_tuple, old_pk_size,
                        &my_charset_bin);
   }
+#endif
 }
 
 int ha_rocksdb::get_pk_for_update(struct update_row_info* row_info)
