@@ -115,7 +115,7 @@ Rdb_cond_var::WaitFor(std::shared_ptr<TransactionDBMutex> mutex_arg,
 
 #ifndef STANDALONE_UNITTEST
     if (current_thd)
-      killed= my_core::thd_killed(current_thd);
+      killed= thd_killed(current_thd);
 #endif
   } while (!killed && res == EINTR);
 
