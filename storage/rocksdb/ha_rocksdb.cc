@@ -3931,7 +3931,7 @@ int ha_rocksdb::read_hidden_pk_id_from_rowkey(longlong* hidden_pk_id)
   if ((!reader.read(Rdb_key_def::INDEX_NUMBER_SIZE)))
     return 1;
 
-  const int length= Field_longlong::PACK_LENGTH;
+  const int length= 8; /* was Field_longlong::PACK_LENGTH in FB MySQL tree */
   const uchar *from= reinterpret_cast<const uchar*>(reader.read(length));
   if (from == nullptr)
   {
