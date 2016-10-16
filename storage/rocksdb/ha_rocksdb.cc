@@ -2578,10 +2578,15 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
         return 1;
       }
       if (thd->durability_property == HA_IGNORE_DURABILITY) {
+#ifdef MARIAROCKS_NOT_YET
+        // MariaRocks: disable the
+        //   "write/sync redo log before flushing binlog cache to file"
+        //  feature. See a869c56d361bb44f46c0efeb11a8f03561676247
         /**
           we set the log sequence as '1' just to trigger hton->flush_logs
         */
         thd_store_lsn(thd, 1, DB_TYPE_ROCKSDB);
+#endif        
       }
     }
 
