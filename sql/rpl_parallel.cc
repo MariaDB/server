@@ -47,9 +47,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   if (!(ev->is_artificial_event() || ev->is_relay_log_event() ||
         (ev->when == 0)))
     rgi->last_master_timestamp= ev->when + (time_t)ev->exec_time;
-  mysql_mutex_lock(&rli->data_lock);
-  /* Mutex will be released in apply_event_and_update_pos(). */
-  err= apply_event_and_update_pos(ev, thd, rgi, rpt);
+  err= apply_event_and_update_pos_for_parallel(ev, thd, rgi);
 
   thread_safe_increment64(&rli->executed_entries);
   /* ToDo: error handling. */
@@ -2426,8 +2424,17 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       !(unlikely(rli->gtid_skip_flag != GTID_SKIP_NOT) && is_group_event))
     return -1;
 
-  /* ToDo: what to do with this lock?!? */
-  mysql_mutex_unlock(&rli->data_lock);
+  /* Note: rli->data_lock is released by sql_delay_event(). */
+  if (sql_delay_event(ev, rli->sql_driver_thd, serial_rgi))
+  {
+    /*
+      If sql_delay_event() returns non-zero, it means that the wait timed out
+      due to slave stop. We should not queue the event in this case, it must
+      not be applied yet.
+    */
+    delete ev;
+    return 1;
+  }
 
   if (unlikely(typ == FORMAT_DESCRIPTION_EVENT))
   {

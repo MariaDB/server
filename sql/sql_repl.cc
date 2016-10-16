@@ -495,7 +495,7 @@ static enum enum_binlog_checksum_alg get_binlog_checksum_value_at_connect(THD * 
 
   TODO
     - Inform the slave threads that they should sync the position
-      in the binary log file with flush_relay_log_info.
+      in the binary log file with Relay_log_info::flush().
       Now they sync is done for next read.
 */
 
@@ -3304,6 +3304,7 @@ int reset_slave(THD *thd, Master_info* mi)
   mi->clear_error();
   mi->rli.clear_error();
   mi->rli.clear_until_condition();
+  mi->rli.clear_sql_delay();
   mi->rli.slave_skip_counter= 0;
 
   // close master_info_file, relay_log_info_file, set mi->inited=rli->inited=0
@@ -3613,6 +3614,9 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->ssl != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
     mi->ssl= (lex_mi->ssl == LEX_MASTER_INFO::LEX_MI_ENABLE);
 
+  if (lex_mi->sql_delay != -1)
+    mi->rli.set_sql_delay(lex_mi->sql_delay);
+
   if (lex_mi->ssl_verify_server_cert != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
     mi->ssl_verify_server_cert=
       (lex_mi->ssl_verify_server_cert == LEX_MASTER_INFO::LEX_MI_ENABLE);
@@ -3797,7 +3801,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     in-memory value at restart (thus causing errors, as the old relay log does
     not exist anymore).
   */
-  flush_relay_log_info(&mi->rli);
+  mi->rli.flush();
   mysql_cond_broadcast(&mi->data_cond);
   mysql_mutex_unlock(&mi->rli.data_lock);
 

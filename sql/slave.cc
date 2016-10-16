@@ -735,7 +735,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
     DBUG_PRINT("info",("Flushing relay-log info file."));
     if (current_thd)
       THD_STAGE_INFO(current_thd, stage_flushing_relay_log_info_file);
-    if (flush_relay_log_info(&mi->rli))
+    if (mi->rli.flush())
       DBUG_RETURN(ER_ERROR_DURING_FLUSH_LOGS);
     
     if (my_sync(mi->rli.info_fd, MYF(MY_WME)))
@@ -1631,8 +1631,10 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
       (master_res= mysql_store_result(mysql)) &&
       (master_row= mysql_fetch_row(master_res)))
   {
+    mysql_mutex_lock(&mi->data_lock);
     mi->clock_diff_with_master=
       (long) (time((time_t*) 0) - strtoul(master_row[0], 0, 10));
+    mysql_mutex_unlock(&mi->data_lock);
   }
   else if (check_io_slave_killed(mi, NULL))
     goto slave_killed_err;
@@ -1644,7 +1646,9 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   }
   else 
   {
+    mysql_mutex_lock(&mi->data_lock);
     mi->clock_diff_with_master= 0; /* The "most sensible" value */
+    mysql_mutex_unlock(&mi->data_lock);
     sql_print_warning("\"SELECT UNIX_TIMESTAMP()\" failed on master, "
                       "do not trust column Seconds_Behind_Master of SHOW "
                       "SLAVE STATUS. Error: %s (%d)",
@@ -2794,6 +2798,15 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                         Item_empty_string(thd, "Parallel_Mode",
                                           sizeof("conservative")-1),
                         mem_root);
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "SQL_Delay", 10,
+                                        MYSQL_TYPE_LONG));
+  field_list->push_back(new (mem_root)
+                        Item_return_int(thd, "SQL_Remaining_Delay", 8,
+                                        MYSQL_TYPE_LONG));
+  field_list->push_back(new (mem_root)
+                        Item_empty_string(thd, "Slave_SQL_Running_State",
+                                          20));
   if (full)
   {
     field_list->push_back(new (mem_root)
@@ -2983,6 +2996,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     prot_store_ids(thd, &mi->ignore_server_ids);
     // Master_Server_id
     protocol->store((uint32) mi->master_id);
+    // SQL_Delay
     // Master_Ssl_Crl
     protocol->store(mi->ssl_ca, &my_charset_bin);
     // Master_Ssl_Crlpath
@@ -3004,6 +3018,22 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
                                       mi->parallel_mode);
       protocol->store(mode_name, strlen(mode_name), &my_charset_bin);
     }
+
+    protocol->store((uint32) mi->rli.get_sql_delay());
+    // SQL_Remaining_Delay
+    // THD::proc_info is not protected by any lock, so we read it once
+    // to ensure that we use the same value throughout this function.
+    const char *slave_sql_running_state=
+      mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
+    if (slave_sql_running_state == Relay_log_info::state_delaying_string)
+    {
+      time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
+      protocol->store((uint32)(t < sql_delay_end ? sql_delay_end - t : 0));
+    }
+    else
+      protocol->store_null();
+    // Slave_SQL_Running_State
+    protocol->store(slave_sql_running_state, &my_charset_bin);
 
     if (full)
     {
@@ -3369,38 +3399,83 @@ has_temporary_error(THD *thd)
 
 
 /**
-  Applies the given event and advances the relay log position.
+  If this is a lagging slave (specified with CHANGE MASTER TO MASTER_DELAY = X), delays accordingly. Also unlocks rli->data_lock.
 
-  In essence, this function does:
+  Design note: this is the place to unlock rli->data_lock. The lock
+  must be held when reading delay info from rli, but it should not be
+  held while sleeping.
 
-  @code
-    ev->apply_event(rli);
-    ev->update_pos(rli);
-  @endcode
+  @param ev Event that is about to be executed.
 
-  But it also does some maintainance, such as skipping events if
-  needed and reporting errors.
+  @param thd The sql thread's THD object.
 
-  If the @c skip flag is set, then it is tested whether the event
-  should be skipped, by looking at the slave_skip_counter and the
-  server id.  The skip flag should be set when calling this from a
-  replication thread but not set when executing an explicit BINLOG
-  statement.
+  @param rli The sql thread's Relay_log_info structure.
 
-  @retval 0 OK.
+  @retval 0 If the delay timed out and the event shall be executed.
 
-  @retval 1 Error calling ev->apply_event().
-
-  @retval 2 No error calling ev->apply_event(), but error calling
-  ev->update_pos().
+  @retval nonzero If the delay was interrupted and the event shall be skipped.
 */
-int apply_event_and_update_pos(Log_event* ev, THD* thd,
-                               rpl_group_info *rgi,
-                               rpl_parallel_thread *rpt)
+int
+sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
 {
-  int exec_res= 0;
   Relay_log_info* rli= rgi->rli;
-  DBUG_ENTER("apply_event_and_update_pos");
+  long sql_delay= rli->get_sql_delay();
+
+  DBUG_ENTER("sql_delay_event");
+  mysql_mutex_assert_owner(&rli->data_lock);
+  DBUG_ASSERT(!rli->belongs_to_client());
+
+  int type= ev->get_type_code();
+  if (sql_delay && type != ROTATE_EVENT &&
+      type != FORMAT_DESCRIPTION_EVENT && type != START_EVENT_V3)
+  {
+    // The time when we should execute the event.
+    time_t sql_delay_end=
+      ev->when + rli->mi->clock_diff_with_master + sql_delay;
+    // The current time.
+    time_t now= my_time(0);
+    // The time we will have to sleep before executing the event.
+    unsigned long nap_time= 0;
+    if (sql_delay_end > now)
+      nap_time= sql_delay_end - now;
+
+    DBUG_PRINT("info", ("sql_delay= %lu "
+                        "ev->when= %lu "
+                        "rli->mi->clock_diff_with_master= %lu "
+                        "now= %ld "
+                        "sql_delay_end= %lu "
+                        "nap_time= %ld",
+                        sql_delay, (long)ev->when,
+                        rli->mi->clock_diff_with_master,
+                        (long)now, sql_delay_end, (long)nap_time));
+
+    if (sql_delay_end > now)
+    {
+      DBUG_PRINT("info", ("delaying replication event %lu secs",
+                          nap_time));
+      rli->start_sql_delay(sql_delay_end);
+      mysql_mutex_unlock(&rli->data_lock);
+      DBUG_RETURN(slave_sleep(thd, nap_time, sql_slave_killed, rgi));
+    }
+  }
+
+  mysql_mutex_unlock(&rli->data_lock);
+
+  DBUG_RETURN(0);
+}
+
+
+/*
+  First half of apply_event_and_update_pos(), see below.
+  Setup some THD variables for applying the event.
+
+  Split out so that it can run with rli->data_lock held in non-parallel
+  replication, but without the mutex held in the parallel case.
+*/
+static int
+apply_event_and_update_pos_setup(Log_event* ev, THD* thd, rpl_group_info *rgi)
+{
+  DBUG_ENTER("apply_event_and_update_pos_setup");
 
   DBUG_PRINT("exec_event",("%s(type_code: %d; server_id: %d)",
                            ev->get_type_str(), ev->get_type_code(),
@@ -3450,13 +3525,23 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
     (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ? OPTION_SKIP_REPLICATION : 0);
   ev->thd = thd; // because up to this point, ev->thd == 0
 
-  int reason= ev->shall_skip(rgi);
-  if (reason == Log_event::EVENT_SKIP_COUNT)
-  {
-    DBUG_ASSERT(rli->slave_skip_counter > 0);
-    rli->slave_skip_counter--;
-  }
-  mysql_mutex_unlock(&rli->data_lock);
+  DBUG_RETURN(ev->shall_skip(rgi));
+}
+
+
+/*
+  Second half of apply_event_and_update_pos(), see below.
+
+  Do the actual event apply (or skip), and position update.
+ */
+static int
+apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
+                                 int reason)
+{
+  int exec_res= 0;
+  Relay_log_info* rli= rgi->rli;
+
+  DBUG_ENTER("apply_event_and_update_pos_apply");
   DBUG_EXECUTE_IF("inject_slave_sql_before_apply_event",
     {
       DBUG_ASSERT(!debug_sync_set_action
@@ -3503,16 +3588,16 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
   if (exec_res == 0)
   {
     int error= ev->update_pos(rgi);
-#ifdef HAVE_valgrind
-    if (!rli->is_fake)
-#endif
+ #ifndef DBUG_OFF
+    DBUG_PRINT("info", ("update_pos error = %d", error));
+    if (!rli->belongs_to_client())
     {
-      DBUG_PRINT("info", ("update_pos error = %d", error));
       DBUG_PRINT("info", ("group %llu %s", rli->group_relay_log_pos,
                           rli->group_relay_log_name));
       DBUG_PRINT("info", ("event %llu %s", rli->event_relay_log_pos,
                           rli->event_relay_log_name));
     }
+#endif
     /*
       The update should not fail, so print an error message and
       return an error code.
@@ -3541,6 +3626,103 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
   }
 
   DBUG_RETURN(exec_res ? 1 : 0);
+}
+
+
+/**
+  Applies the given event and advances the relay log position.
+
+  This is needed by the sql thread to execute events from the binlog,
+  and by clients executing BINLOG statements.  Conceptually, this
+  function does:
+
+  @code
+    ev->apply_event(rli);
+    ev->update_pos(rli);
+  @endcode
+
+  It also does the following maintainance:
+
+   - Initializes the thread's server_id and time; and the event's
+     thread.
+
+   - If !rli->belongs_to_client() (i.e., if it belongs to the slave
+     sql thread instead of being used for executing BINLOG
+     statements), it does the following things: (1) skips events if it
+     is needed according to the server id or slave_skip_counter; (2)
+     unlocks rli->data_lock; (3) sleeps if required by 'CHANGE MASTER
+     TO MASTER_DELAY=X'; (4) maintains the running state of the sql
+     thread (rli->thread_state).
+
+   - Reports errors as needed.
+
+  @param ev The event to apply.
+
+  @param thd The client thread that executes the event (i.e., the
+  slave sql thread if called from a replication slave, or the client
+  thread if called to execute a BINLOG statement).
+
+  @param rli The relay log info (i.e., the slave's rli if called from
+  a replication slave, or the client's thd->rli_fake if called to
+  execute a BINLOG statement).
+
+  @retval 0 OK.
+
+  @retval 1 Error calling ev->apply_event().
+
+  @retval 2 No error calling ev->apply_event(), but error calling
+  ev->update_pos().
+
+  This function is only used in non-parallel replication, where it is called
+  with rli->data_lock held; this lock is released during this function.
+*/
+int
+apply_event_and_update_pos(Log_event* ev, THD* thd, rpl_group_info *rgi)
+{
+  Relay_log_info* rli= rgi->rli;
+  mysql_mutex_assert_owner(&rli->data_lock);
+  int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
+  if (reason == Log_event::EVENT_SKIP_COUNT)
+  {
+    DBUG_ASSERT(rli->slave_skip_counter > 0);
+    rli->slave_skip_counter--;
+  }
+
+  if (reason == Log_event::EVENT_SKIP_NOT)
+  {
+    // Sleeps if needed, and unlocks rli->data_lock.
+    if (sql_delay_event(ev, thd, rgi))
+      return 0;
+  }
+  else
+    mysql_mutex_unlock(&rli->data_lock);
+
+  return apply_event_and_update_pos_apply(ev, thd, rgi, reason);
+}
+
+
+/*
+  The version of above apply_event_and_update_pos() used in parallel
+  replication. Unlike the non-parallel case, this function is called without
+  rli->data_lock held.
+*/
+int
+apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
+                                        rpl_group_info *rgi)
+{
+  Relay_log_info* rli= rgi->rli;
+  mysql_mutex_assert_not_owner(&rli->data_lock);
+  int reason= apply_event_and_update_pos_setup(ev, thd, rgi);
+  /*
+    In parallel replication, sql_slave_skip_counter is handled in the SQL
+    driver thread, so 23 should never see EVENT_SKIP_COUNT here.
+  */
+  DBUG_ASSERT(reason != Log_event::EVENT_SKIP_COUNT);
+  /*
+    Calling sql_delay_event() was handled in the SQL driver thread when
+    doing parallel replication.
+  */
+  return apply_event_and_update_pos_apply(ev, thd, rgi, reason);
 }
 
 
@@ -3619,7 +3801,8 @@ inline void update_state_of_relay_log(Relay_log_info *rli, Log_event *ev)
 
 
 /**
-  Top-level function for executing the next event from the relay log.
+  Top-level function for executing the next event in the relay log.
+  This is called from the SQL thread.
 
   This function reads the event from the relay log, executes it, and
   advances the relay log position.  It also handles errors, etc.
@@ -3794,7 +3977,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     serial_rgi->future_event_relay_log_pos= rli->future_event_relay_log_pos;
     serial_rgi->event_relay_log_name= rli->event_relay_log_name;
     serial_rgi->event_relay_log_pos= rli->event_relay_log_pos;
-    exec_res= apply_event_and_update_pos(ev, thd, serial_rgi, NULL);
+    exec_res= apply_event_and_update_pos(ev, thd, serial_rgi);
 
 #ifdef WITH_WSREP
     WSREP_DEBUG("apply_event_and_update_pos() result: %d", exec_res);
@@ -4164,8 +4347,10 @@ connected:
                     };);
 #endif
 
-  // TODO: the assignment below should be under mutex (5.0)
+  mysql_mutex_lock(&mi->run_lock);
   mi->slave_running= MYSQL_SLAVE_RUN_CONNECT;
+  mysql_mutex_unlock(&mi->run_lock);
+
   thd->slave_net = &mysql->net;
   THD_STAGE_INFO(thd, stage_checking_master_version);
   ret= get_master_version_and_clock(mysql, mi);
@@ -4928,7 +5113,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   {
     ulong domain_count;
 
-    flush_relay_log_info(rli);
+    rli->flush();
     if (mi->using_parallel())
     {
       /*
@@ -6516,75 +6701,6 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
 }
 #endif
 
-/*
-  Store the file and position where the execute-slave thread are in the
-  relay log.
-
-  SYNOPSIS
-    flush_relay_log_info()
-    rli                 Relay log information
-
-  NOTES
-    - As this is only called by the slave thread or on STOP SLAVE, with the
-      log_lock grabbed and the slave thread stopped, we don't need to have 
-      a lock here.
-    - If there is an active transaction, then we don't update the position
-      in the relay log.  This is to ensure that we re-execute statements
-      if we die in the middle of an transaction that was rolled back.
-    - As a transaction never spans binary logs, we don't have to handle the
-      case where we do a relay-log-rotation in the middle of the transaction.
-      If this would not be the case, we would have to ensure that we
-      don't delete the relay log file where the transaction started when
-      we switch to a new relay log file.
-
-  TODO
-    - Change the log file information to a binary format to avoid calling
-      longlong2str.
-
-  RETURN VALUES
-    0   ok
-    1   write error
-*/
-
-bool flush_relay_log_info(Relay_log_info* rli)
-{
-  bool error=0;
-  DBUG_ENTER("flush_relay_log_info");
-
-  if (unlikely(rli->no_storage))
-    DBUG_RETURN(0);
-
-  IO_CACHE *file = &rli->info_file;
-  char buff[FN_REFLEN*2+22*2+4], *pos;
-
-  my_b_seek(file, 0L);
-  pos=strmov(buff, rli->group_relay_log_name);
-  *pos++='\n';
-  pos= longlong10_to_str(rli->group_relay_log_pos, pos, 10);
-  *pos++='\n';
-  pos=strmov(pos, rli->group_master_log_name);
-  *pos++='\n';
-  pos=longlong10_to_str(rli->group_master_log_pos, pos, 10);
-  *pos='\n';
-  if (my_b_write(file, (uchar*) buff, (size_t) (pos-buff)+1))
-    error=1;
-  if (flush_io_cache(file))
-    error=1;
-  if (sync_relayloginfo_period &&
-      !error &&
-      ++(rli->sync_counter) >= sync_relayloginfo_period)
-  {
-    if (my_sync(rli->info_fd, MYF(MY_WME)))
-      error=1;
-    rli->sync_counter= 0;
-  }
-  /* 
-    Flushing the relay log is done by the slave I/O thread 
-    or by the user on STOP SLAVE. 
-   */
-  DBUG_RETURN(error);
-}
-
 
 /*
   Called when we notice that the current "hot" log got rotated under our feet.
@@ -6941,7 +7057,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         }
         rli->event_relay_log_pos = BIN_LOG_HEADER_SIZE;
         strmake_buf(rli->event_relay_log_name,rli->linfo.log_file_name);
-        flush_relay_log_info(rli);
+        rli->flush();
       }
 
       /*

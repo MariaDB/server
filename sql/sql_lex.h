@@ -246,11 +246,12 @@ struct LEX_MASTER_INFO
   ulong server_id;
   uint port, connect_retry;
   float heartbeat_period;
+  int sql_delay;
   /*
     Enum is used for making it possible to detect if the user
     changed variable or if it should be left at old value
    */
-  enum {LEX_MI_UNCHANGED, LEX_MI_DISABLE, LEX_MI_ENABLE}
+  enum {LEX_MI_UNCHANGED= 0, LEX_MI_DISABLE, LEX_MI_ENABLE}
     ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt,
     repl_do_domain_ids_opt, repl_ignore_domain_ids_opt;
   enum {
@@ -266,6 +267,7 @@ struct LEX_MASTER_INFO
                           sizeof(ulong), 0, 16, MYF(0));
     my_init_dynamic_array(&repl_ignore_domain_ids,
                           sizeof(ulong), 0, 16, MYF(0));
+    sql_delay= -1;
   }
   void reset(bool is_change_master)
   {
@@ -286,6 +288,7 @@ struct LEX_MASTER_INFO
       repl_ignore_domain_ids_opt= LEX_MI_UNCHANGED;
     gtid_pos_str= null_lex_str;
     use_gtid_opt= LEX_GTID_UNCHANGED;
+    sql_delay= -1;
   }
 };
 
