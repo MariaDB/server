@@ -2543,9 +2543,15 @@ static bool rocksdb_flush_wal(handlerton* hton __attribute__((__unused__)),
   For a slave, prepare() updates the slave_gtid_info table which tracks the
   replication progress.
 */
-static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx,
+static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
+#ifdef MARIAROCKS_NOT_YET
                            bool async)
+// This is "ASYNC_COMMIT" feature which is only in webscalesql
+// for now, define async=false below:
+#endif
 {
+  bool async=false;
+
   Rdb_transaction*& tx= get_tx_from_thd(thd);
   if (!tx->can_prepare())
   {
@@ -2693,7 +2699,7 @@ static int rocksdb_recover(handlerton* hton, XID* xid_list, uint len,
   return count;
 }
 
-static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx, bool)
+static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
 {
   DBUG_ENTER("rocksdb_commit");
 
