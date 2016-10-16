@@ -19,7 +19,7 @@ STRING(REGEX MATCHALL "[^\n]+" ROCKSDB_LIB_SOURCES ${SCRIPT_OUTPUT})
 INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb
   ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/include
-  ${CMAKE_SOURCE_DIR}/rocksdb/third-party/gtest-1.7.0/fused-src
+  ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/third-party/gtest-1.7.0/fused-src
 )
 
 ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX -DOS_LINUX
