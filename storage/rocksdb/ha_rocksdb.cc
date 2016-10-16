@@ -3774,7 +3774,9 @@ Rdb_table_handler* Rdb_open_tables_map::get_table_handler(
     }
 
     thr_lock_init(&table_handler->m_thr_lock);
+#ifdef MARIAROCKS_NOT_YET
     my_io_perf_atomic_init(&table_handler->m_io_perf_read);
+#endif
   }
   DBUG_ASSERT(table_handler->m_ref_count >= 0);
   table_handler->m_ref_count++;
