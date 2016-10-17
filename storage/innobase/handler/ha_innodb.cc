@@ -5685,8 +5685,7 @@ innobase_kill_query(
 				wsrep_thd_is_BF(current_thd, FALSE));
 		}
 
-		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
-			trx->abort_type == TRX_SERVER_ABORT) {
+		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 			ut_ad(!lock_mutex_own());
 			lock_mutex_enter();
 			lock_mutex_taken = true;
