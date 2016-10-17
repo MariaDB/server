@@ -1165,7 +1165,7 @@ my_net_read_packet(NET *net, my_bool read_from_server)
     }
     net->read_pos = net->buff + net->where_b;
     if (len != packet_error)
-	{
+    {
       net->read_pos[len]=0;		/* Safeguard for mysql_use_result */
       net->real_network_read_len = len;
     }
