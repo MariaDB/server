@@ -4482,7 +4482,8 @@ Stopping slave I/O thread due to out-of-memory error from master");
       /* Control the binlog read speed of master when read_binlog_speed_limit is non-zero
       */
       ulonglong read_binlog_speed_limit_in_bytes = opt_read_binlog_speed_limit * 1024;
-      if (read_binlog_speed_limit_in_bytes) {
+      if (read_binlog_speed_limit_in_bytes) 
+      {
         /* prevent the tokenamount become a large value, 
         for example, the IO thread doesn't work for a long time
         */
@@ -4492,13 +4493,14 @@ Stopping slave I/O thread due to out-of-memory error from master");
           tokenamount = read_binlog_speed_limit_in_bytes * 2;
         }
 
-        do{
+        do
+        {
           ulonglong currenttime = my_hrtime().val;
-          tokenamount += (currenttime - lastchecktime)*read_binlog_speed_limit_in_bytes/(1000*1000);
+          tokenamount += (currenttime - lastchecktime) * read_binlog_speed_limit_in_bytes / (1000*1000);
           lastchecktime = currenttime;
           if(tokenamount < network_read_len)
           {
-            ulonglong micro_sleeptime = 1000*1000*(network_read_len - tokenamount) / read_binlog_speed_limit_in_bytes ;  
+            ulonglong micro_sleeptime = 1000*1000 * (network_read_len - tokenamount) / read_binlog_speed_limit_in_bytes ;  
             my_sleep(micro_sleeptime > 1000 ? micro_sleeptime : 1000); // at least sleep 1000 micro second
           }
         }while(tokenamount < network_read_len);
@@ -4506,7 +4508,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
       }
 
       /* XXX: 'synced' should be updated by queue_event to indicate
-      whether event has been synced to disk */
+         whether event has been synced to disk */
       bool synced= 0;
       if (queue_event(mi, event_buf, event_len))
       {
