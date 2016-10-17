@@ -4234,7 +4234,7 @@ connected:
 
     mi->slave_running= MYSQL_SLAVE_RUN_READING;
     DBUG_ASSERT(mi->last_error().number == 0);
-    ulonglong lastchecktime = my_micro_time()/1000;
+    ulonglong lastchecktime = my_hrtime().val;
     ulonglong tokenamount   = opt_read_binlog_speed_limit*1024;
     while (!io_slave_killed(mi))
     {
@@ -4296,24 +4296,24 @@ Stopping slave I/O thread due to out-of-memory error from master");
 
       /* Control the binlog read speed of master when read_binlog_speed_limit is non-zero
       */
-      ulonglong read_binlog_speed_limit = opt_read_binlog_speed_limit;
-      if (read_binlog_speed_limit) {
+      ulonglong read_binlog_speed_limit_in_bytes = opt_read_binlog_speed_limit * 1024;
+      if (read_binlog_speed_limit_in_bytes) {
         /* prevent the tokenamount become a large value, 
         for example, the IO thread doesn't work for a long time
         */
-        if (tokenamount > read_binlog_speed_limit * 1024 *2) 
+        if (tokenamount > read_binlog_speed_limit_in_bytes * 2) 
         {
-          lastchecktime = my_micro_time()/1000;
-          tokenamount = read_binlog_speed_limit * 1024 *2;
+          lastchecktime = my_hrtime().val;
+          tokenamount = read_binlog_speed_limit_in_bytes * 2;
         }
 
         do{
-          ulonglong currenttime = my_micro_time()/1000;
-          tokenamount += (currenttime - lastchecktime)*read_binlog_speed_limit*1024/1000;
+          ulonglong currenttime = my_hrtime().val;
+          tokenamount += (currenttime - lastchecktime)*read_binlog_speed_limit_in_bytes/(1000*1000);
           lastchecktime = currenttime;
           if(tokenamount < network_read_len)
           {
-            ulonglong micro_sleeptime = 1000*1000*(network_read_len - tokenamount) / (read_binlog_speed_limit * 1024);  
+            ulonglong micro_sleeptime = 1000*1000*(network_read_len - tokenamount) / read_binlog_speed_limit_in_bytes ;  
             my_sleep(micro_sleeptime > 1000 ? micro_sleeptime : 1000); // at least sleep 1000 micro second
           }
         }while(tokenamount < network_read_len);
