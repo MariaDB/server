@@ -3126,9 +3126,7 @@ static void free_delayed_insert_blobs(register TABLE *table)
   {
     if ((*ptr)->flags & BLOB_FLAG)
     {
-      uchar *str;
-      ((Field_blob *) (*ptr))->get_ptr(&str);
-      my_free(str);
+      my_free(((Field_blob *) (*ptr))->get_ptr());
       ((Field_blob *) (*ptr))->reset();
     }
   }

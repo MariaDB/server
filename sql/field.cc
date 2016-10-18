@@ -7883,7 +7883,7 @@ void Field_blob::store_length(uchar *i_ptr, uint i_packlength, uint32 i_number)
 }
 
 
-uint32 Field_blob::get_length(const uchar *pos, uint packlength_arg)
+uint32 Field_blob::get_length(const uchar *pos, uint packlength_arg) const
 {
   return (uint32)read_lowendian(pos, packlength_arg);
 }
@@ -7898,8 +7898,7 @@ int Field_blob::copy_value(Field_blob *from)
   DBUG_ASSERT(field_charset == from->charset());
   int rc= 0;
   uint32 length= from->get_length();
-  uchar *data;
-  from->get_ptr(&data);
+  uchar *data= from->get_ptr();
   if (packlength < from->packlength)
   {
     set_if_smaller(length, Field_blob::max_data_length());
@@ -8146,7 +8145,7 @@ uint Field_blob::get_key_image(uchar *buff,uint length, imagetype type_arg)
       bzero(buff, image_length);
       return image_length;
     }
-    get_ptr(&blob);
+    blob= get_ptr();
     gobj= Geometry::construct(&buffer, (char*) blob, blob_length);
     if (!gobj || gobj->get_mbr(&mbr, &dummy))
       bzero(buff, image_length);
@@ -8161,7 +8160,7 @@ uint Field_blob::get_key_image(uchar *buff,uint length, imagetype type_arg)
   }
 #endif /*HAVE_SPATIAL*/
 
-  get_ptr(&blob);
+  blob= get_ptr();
   uint local_char_length= length / field_charset->mbmaxlen;
   local_char_length= my_charpos(field_charset, blob, blob + blob_length,
                           local_char_length);
@@ -8320,7 +8319,7 @@ uchar *Field_blob::pack(uchar *to, const uchar *from, uint max_length)
    */
   if (length > 0)
   {
-    get_ptr((uchar**) &from);
+    from= get_ptr();
     memcpy(to+packlength, from,length);
   }
   ptr=save;					// Restore org row pointer
