@@ -30,6 +30,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include <mysql/service_thd_error_context.h>
+#include <sql_class.h>
 
 #include "lock0lock.h"
 #include "lock0priv.h"
@@ -58,6 +59,9 @@ Created 5/7/1996 Heikki Tuuri
 #include <mysql/service_wsrep.h>
 #endif /* WITH_WSREP */
 
+/** Lock scheduling algorithm */
+ulong innodb_lock_schedule_algorithm = INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS;
+
 /** Total number of cached record locks */
 static const ulint	REC_LOCK_CACHE = 8;
 
@@ -70,6 +74,15 @@ static const ulint	TABLE_LOCK_CACHE = 8;
 /** Size in bytes, of the table lock instance */
 static const ulint	TABLE_LOCK_SIZE = sizeof(ib_lock_t);
 
+/*********************************************************************//**
+Checks if a waiting record lock request still has to wait in a queue.
+@return lock that is causing the wait */
+static
+const lock_t*
+lock_rec_has_to_wait_in_queue(
+/*==========================*/
+  const lock_t*	wait_lock);	/*!< in: waiting record lock */
+
 /* Buffer to collect THDs to report waits for. */
 struct thd_wait_reports {
 	struct thd_wait_reports *next;	/*!< List link */
@@ -80,6 +93,9 @@ struct thd_wait_reports {
 extern "C" void thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_for(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
+
+extern "C" int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
+
 
 /** Deadlock checker. */
 class DeadlockChecker {
@@ -1881,6 +1897,85 @@ RecLock::create(
 	return(lock);
 }
 
+/*********************************************************************//**
+Check if lock1 has higher priority than lock2.
+NULL has lowest priority.
+If either is a high priority transaction, the lock has higher priority.
+If neither of them is wait lock, the first one has higher priority.
+If only one of them is a wait lock, it has lower priority.
+Otherwise, the one with an older transaction has higher priority.
+@returns true if lock1 has higher priority, false otherwise. */
+bool
+has_higher_priority(
+	lock_t *lock1,
+	lock_t *lock2)
+{
+	if (lock1 == NULL) {
+		return false;
+	} else if (lock2 == NULL) {
+		return true;
+	}
+	// Ask the upper server layer if any of the two trx should be prefered.
+	int preference = thd_deadlock_victim_preference(lock1->trx->mysql_thd, lock2->trx->mysql_thd);
+	if (preference == -1) {
+		// lock1 is preferred as a victim, so lock2 has higher priority
+		return false;
+	} else if (preference == 1) {
+		// lock2 is preferred as a victim, so lock1 has higher priority
+		return true;
+	}
+	// No preference. Compre them by wait mode and trx age.
+	if (!lock_get_wait(lock1)) {
+		return true;
+	} else if (!lock_get_wait(lock2)) {
+		return false;
+	}
+	return lock1->trx->start_time < lock2->trx->start_time;
+}
+
+/*********************************************************************//**
+Insert a lock to the hash list according to the mode (whether it is a wait
+lock) and the age of the transaction the it is associated with.
+If the lock is not a wait lock, insert it to the head of the hash list.
+Otherwise, insert it to the middle of the wait locks according to the age of
+the transaciton. */
+static
+void
+lock_rec_insert_by_trx_age(
+	lock_t *in_lock, /*!< in: lock to be insert */
+	bool wait)	 /*!< in: whether it's a wait lock */
+{
+    ulint               space;
+    ulint               page_no;
+	ulint				rec_fold;
+    hash_table_t*       hash;
+	hash_cell_t*        cell;
+	lock_t*				node;
+	lock_t*				next;
+
+    space = in_lock->un_member.rec_lock.space;
+    page_no = in_lock->un_member.rec_lock.page_no;
+	rec_fold = lock_rec_fold(space, page_no);
+    hash = lock_hash_get(in_lock->type_mode);
+	cell = hash_get_nth_cell(hash,
+				 hash_calc_hash(rec_fold, hash));
+
+	node = (lock_t *) cell->node;
+	// If in_lock is not a wait lock, we insert it to the head of the list.
+	if (node == NULL || !wait || has_higher_priority(in_lock, node)) {
+		cell->node = in_lock;
+		in_lock->hash = node;
+		return;
+	}
+	while (node != NULL && has_higher_priority((lock_t *) node->hash,
+						   in_lock)) {
+		node = (lock_t *) node->hash;
+	}
+	next = (lock_t *) node->hash;
+	node->hash = in_lock;
+    in_lock->hash = next;
+}
+
 /**
 Check the outcome of the deadlock check
 @param[in,out] victim_trx	Transaction selected for rollback
@@ -1903,7 +1998,23 @@ RecLock::check_deadlock_result(const trx_t* victim_trx, lock_t* lock)
 
 		return(DB_DEADLOCK);
 
-	} else if (m_trx->lock.wait_lock == NULL) {
+	}
+
+    // Move it only when it does not cause a deadlock.
+    if (innodb_lock_schedule_algorithm
+        == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS
+        && !trx_is_high_priority(lock->trx)) {
+        
+        HASH_DELETE(lock_t, hash, lock_hash_get(lock->type_mode),
+                    m_rec_id.fold(), lock);
+        lock_rec_insert_by_trx_age(lock, m_mode & LOCK_WAIT);
+        if (lock_get_wait(lock) && !lock_rec_has_to_wait_in_queue(lock)) {
+            lock_reset_lock_and_trx_wait(lock);
+            return DB_SUCCESS_LOCKED_REC;
+        }
+    }
+
+	if (m_trx->lock.wait_lock == NULL) {
 
 		/* If there was a deadlock but we chose another
 		transaction as a victim, it is possible that we
@@ -2800,6 +2911,32 @@ lock_rec_cancel(
 }
 
 /*************************************************************//**
+Move the lock to the head of the hash list. */
+static
+void
+lock_rec_move_to_front(
+	lock_t *lock_to_move,	/*!< in: lock to be moved */
+	ulint rec_fold)			 /*!< in: rec fold of the lock */
+{
+    hash_table_t*	lock_hash;
+    hash_cell_t*    cell;
+    lock_t*         next;
+    
+	if (lock_to_move != NULL)
+	{
+        lock_hash = lock_hash_get(lock_to_move->type_mode);
+		// Move the target lock to the head of the list
+		cell = hash_get_nth_cell(lock_hash,
+                hash_calc_hash(rec_fold, lock_hash));
+		if (lock_to_move != cell->node) {
+			next = (lock_t *) cell->node;
+			cell->node = lock_to_move;
+			lock_to_move->hash = next;
+		}
+	}
+}
+
+/*************************************************************//**
 Removes a record lock request, waiting or granted, from the queue and
 grants locks to other transactions in the queue if they now are entitled
 to a lock. NOTE: all record locks contained in in_lock are removed. */
@@ -2815,6 +2952,8 @@ lock_rec_dequeue_from_page(
 {
 	ulint		space;
 	ulint		page_no;
+	ulint		rec_fold;
+	lock_t*		previous = NULL;
 	lock_t*		lock;
 	trx_lock_t*	trx_lock;
 	hash_table_t*	lock_hash;
@@ -2827,6 +2966,7 @@ lock_rec_dequeue_from_page(
 
 	space = in_lock->un_member.rec_lock.space;
 	page_no = in_lock->un_member.rec_lock.page_no;
+	rec_fold = lock_rec_fold(space, page_no);
 
 	ut_ad(in_lock->index->table->n_rec_locks > 0);
 	in_lock->index->table->n_rec_locks--;
@@ -2841,33 +2981,83 @@ lock_rec_dequeue_from_page(
 	MONITOR_INC(MONITOR_RECLOCK_REMOVED);
 	MONITOR_DEC(MONITOR_NUM_RECLOCK);
 
-	/* Check if waiting locks in the queue can now be granted: grant
-	locks if there are no conflicting locks ahead. Stop at the first
-	X lock that is waiting or has been granted. */
+	if (innodb_lock_schedule_algorithm
+	    == INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS) {
 
-	for (lock = lock_rec_get_first_on_page_addr(lock_hash, space, page_no);
-	     lock != NULL;
-	     lock = lock_rec_get_next_on_page(lock)) {
+		/* Check if waiting locks in the queue can now be granted:
+		grant locks if there are no conflicting locks ahead. Stop at
+		the first X lock that is waiting or has been granted. */
 
-		if (lock_get_wait(lock)
-		    && !lock_rec_has_to_wait_in_queue(lock)) {
+		for (lock = lock_rec_get_first_on_page_addr(lock_hash, space,
+							    page_no);
+		     lock != NULL;
+		     lock = lock_rec_get_next_on_page(lock)) {
 
-			/* Grant the lock */
-			ut_ad(lock->trx != in_lock->trx);
+			if (lock_get_wait(lock)
+			    && !lock_rec_has_to_wait_in_queue(lock)) {
 
-			bool exit_trx_mutex = false;
+				/* Grant the lock */
+				ut_ad(lock->trx != in_lock->trx);
 
-			if (lock->trx->abort_type != TRX_SERVER_ABORT) {
-				ut_ad(trx_mutex_own(lock->trx));
-				trx_mutex_exit(lock->trx);
-				exit_trx_mutex = true;
+				bool exit_trx_mutex = false;
+
+				if (lock->trx->abort_type != TRX_SERVER_ABORT) {
+					ut_ad(trx_mutex_own(lock->trx));
+					trx_mutex_exit(lock->trx);
+					exit_trx_mutex = true;
+				}
+
+				lock_grant(lock);
+
+				if (exit_trx_mutex) {
+					ut_ad(!trx_mutex_own(lock->trx));
+					trx_mutex_enter(lock->trx);
+				}
 			}
+		}
+	} else {
+		/* Grant locks if there are no conflicting locks ahead.
+		Move granted locks to the head of the list. */
+		for (lock = lock_rec_get_first_on_page_addr(lock_hash, space, page_no);
+		     lock != NULL;) {
 
-			lock_grant(lock);
+			/* If the lock is a wait lock on this page, and it does not need to wait. */
+			if ((lock->un_member.rec_lock.space == space)
+			    && (lock->un_member.rec_lock.page_no == page_no)
+			    && lock_get_wait(lock)
+			    && !lock_rec_has_to_wait_in_queue(lock)) {
 
-			if (exit_trx_mutex) {
-				ut_ad(!trx_mutex_own(lock->trx));
-				trx_mutex_enter(lock->trx);
+				/* Grant the lock */
+				ut_ad(lock->trx != in_lock->trx);
+
+				bool exit_trx_mutex = false;
+
+				if (lock->trx->abort_type != TRX_SERVER_ABORT) {
+					ut_ad(trx_mutex_own(lock->trx));
+					trx_mutex_exit(lock->trx);
+					exit_trx_mutex = true;
+				}
+
+				lock_grant(lock);
+
+				if (exit_trx_mutex) {
+					ut_ad(!trx_mutex_own(lock->trx));
+					trx_mutex_enter(lock->trx);
+				}
+
+				if (previous != NULL) {
+					/* Move the lock to the head of the list. */
+					HASH_GET_NEXT(hash, previous) = HASH_GET_NEXT(hash, lock);
+					lock_rec_move_to_front(lock, rec_fold);
+				} else {
+					/* Already at the head of the list. */
+					previous = lock;
+				}
+				/* Move on to the next lock. */
+				lock = static_cast<lock_t *>(HASH_GET_NEXT(hash, previous));
+			} else {
+				previous = lock;
+				lock = static_cast<lock_t *>(HASH_GET_NEXT(hash, lock));
 			}
 		}
 	}
@@ -7799,7 +7989,9 @@ DeadlockChecker::get_first_lock(ulint* heap_no) const
 	/* Must find at least two locks, otherwise there cannot be a
 	waiting lock, secondly the first lock cannot be the wait_lock. */
 	ut_a(lock != NULL);
-	ut_a(lock != m_wait_lock);
+	ut_a(lock != m_wait_lock ||
+	     (innodb_lock_schedule_algorithm
+	      == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS));
 
 	/* Check that the lock type doesn't change. */
 	ut_ad(lock_get_type_low(lock) == lock_get_type_low(m_wait_lock));
