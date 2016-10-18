@@ -1,0 +1,310 @@
+set @@session.time_zone='+00:00';
+select ifnull(max(trx_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+create procedure if not exists verify_vtq()
+begin
+set @i= 0;
+select
+@i:= @i + 1 as No,
+trx_id > 0 as A,
+begin_ts > '1-1-1 0:0:0' as B,
+commit_ts > begin_ts as C,
+concurr_trx is null as D
+from information_schema.innodb_vtq
+where trx_id > @start_trx_id;
+select ifnull(max(trx_id), 0)
+into @start_trx_id
+from information_schema.innodb_vtq;
+end~~
+create or replace procedure test_01(
+sys_type varchar(255),
+engine varchar(255),
+fields varchar(255))
+begin
+set @str= concat('
+  create or replace table t1(
+    XNo int unsigned,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+prepare stmt from @str; execute stmt; drop prepare stmt;
+insert into t1(XNo) values(0);
+insert into t1(XNo) values(1);
+insert into t1(XNo) values(2);
+insert into t1(XNo) values(3);
+insert into t1(XNo) values(4);
+insert into t1(XNo) values(5);
+insert into t1(XNo) values(6);
+insert into t1(XNo) values(7);
+insert into t1(XNo) values(8);
+insert into t1(XNo) values(9);
+set @str= concat('select XNo, ',
+fields, " < '2038-01-19 03:14:07'
+  from t1 for system_time
+  between timestamp '0000-0-0 0:0:0'
+  and timestamp '2038-01-19 04:14:07'");
+prepare stmt from @str; execute stmt;
+delete from t1 where XNo = 0;
+execute stmt;
+delete from t1 where XNo = 1;
+execute stmt;
+delete from t1 where XNo > 5;
+create view vt1 as select XNo from t1;
+select XNo from vt1;
+delete from vt1 where XNo = 3;
+select XNo from vt1;
+execute stmt; drop prepare stmt;
+drop view vt1;
+drop table t1;
+end~~
+create or replace procedure test_02(
+sys_type varchar(255),
+engine varchar(255),
+fields varchar(255))
+begin
+set @str= concat('create or replace table t1 (
+    x int,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+prepare stmt from @str; execute stmt; drop prepare stmt;
+insert into t1(x) values (1);
+select sys_start into @sys_start from t1;
+delete from t1;
+select * from t1;
+select x = 1 as A, sys_start = @sys_start as B, sys_end > sys_start as C
+from t1 for system_time between timestamp '0-0-0' and timestamp '2038-01-19 04:14:07';
+drop table t1;
+end~~
+create or replace procedure test_03(
+sys_type varchar(255),
+engine varchar(255),
+fields varchar(255))
+begin
+set @str0= concat('(
+    x int,
+    y int,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+set @str= concat('create or replace table t1', @str0);
+prepare stmt from @str; execute stmt; drop prepare stmt;
+set @str= concat('create or replace table t2', @str0);
+prepare stmt from @str; execute stmt; drop prepare stmt;
+insert into t1(x, y) values (1, 1), (2, 2), (3, 3), (14, 4);
+insert into t2(x, y) values (11, 1), (12, 2), (13, 32), (14, 4);
+delete t1, t2 from t1 join t2 where t1.y = 3 and t2.y = 32;
+select x as t1_x from t1;
+select x as t2_x from t2;
+delete t1, t2 from t1 join t2 where t1.x = t2.x;
+select x as t1_x from t1;
+select x as t2_x from t2;
+select x as t1_x_all from t1 for system_time between timestamp '0-0-0' and timestamp '2038-01-19 04:14:07';
+select x as t2_x_all from t2 for system_time between timestamp '0-0-0' and timestamp '2038-01-19 04:14:07';
+drop table t1;
+drop table t2;
+end~~
+# Basic + delete from view
+call test_01('timestamp(6)', 'myisam', 'sys_end');
+XNo	sys_end < '2038-01-19 03:14:07'
+0	0
+1	0
+2	0
+3	0
+4	0
+5	0
+6	0
+7	0
+8	0
+9	0
+XNo	sys_end < '2038-01-19 03:14:07'
+0	1
+1	0
+2	0
+3	0
+4	0
+5	0
+6	0
+7	0
+8	0
+9	0
+XNo	sys_end < '2038-01-19 03:14:07'
+0	1
+1	1
+2	0
+3	0
+4	0
+5	0
+6	0
+7	0
+8	0
+9	0
+XNo
+2
+3
+4
+5
+XNo
+2
+4
+5
+XNo	sys_end < '2038-01-19 03:14:07'
+0	1
+1	1
+2	0
+3	1
+4	0
+5	0
+6	1
+7	1
+8	1
+9	1
+call test_01('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+XNo	commit_ts(sys_end) < '2038-01-19 03:14:07'
+0	0
+1	0
+2	0
+3	0
+4	0
+5	0
+6	0
+7	0
+8	0
+9	0
+XNo	commit_ts(sys_end) < '2038-01-19 03:14:07'
+0	1
+1	0
+2	0
+3	0
+4	0
+5	0
+6	0
+7	0
+8	0
+9	0
+XNo	commit_ts(sys_end) < '2038-01-19 03:14:07'
+0	1
+1	1
+2	0
+3	0
+4	0
+5	0
+6	0
+7	0
+8	0
+9	0
+XNo
+2
+3
+4
+5
+XNo
+2
+4
+5
+XNo	commit_ts(sys_end) < '2038-01-19 03:14:07'
+0	1
+1	1
+2	0
+3	1
+4	0
+5	0
+6	1
+7	1
+8	1
+9	1
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+3	1	1	1	1
+4	1	1	1	1
+5	1	1	1	1
+6	1	1	1	1
+7	1	1	1	1
+8	1	1	1	1
+9	1	1	1	1
+10	1	1	1	1
+11	1	1	1	1
+12	1	1	1	1
+13	1	1	1	1
+14	1	1	1	1
+# Check sys_start, sys_end
+call test_02('timestamp(6)', 'myisam', 'sys_end');
+x	sys_start	sys_end
+A	B	C
+1	1	1
+call test_02('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+x	sys_start	sys_end
+A	B	C
+1	1	1
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+# Multi-delete
+call test_03('timestamp(6)', 'myisam', 'sys_end');
+t1_x
+1
+2
+14
+t2_x
+11
+12
+14
+t1_x
+1
+2
+t2_x
+11
+12
+t1_x_all
+1
+2
+3
+14
+t2_x_all
+11
+12
+13
+14
+call test_03('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+t1_x
+1
+2
+14
+t2_x
+11
+12
+14
+t1_x
+1
+2
+t2_x
+11
+12
+t1_x_all
+1
+2
+3
+14
+t2_x_all
+11
+12
+13
+14
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+3	1	1	1	1
+4	1	1	1	1
+drop procedure test_01;
+drop procedure test_02;
+drop procedure test_03;
+drop procedure verify_vtq;

@@ -1,0 +1,96 @@
+-- source suite/versioning/common.inc
+
+delimiter ~~;
+create procedure test_01(
+  sys_type varchar(255),
+  engine varchar(255),
+  fields varchar(255))
+begin
+  set @str= concat('
+  create table t1(
+    x int unsigned,
+    y int unsigned,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+  prepare stmt from @str; execute stmt; drop prepare stmt;
+  insert into t1 (x, y) values
+    (0, 100),
+    (1, 101),
+    (2, 102),
+    (3, 103),
+    (4, 104),
+    (5, 105),
+    (6, 106),
+    (7, 107),
+    (8, 108),
+    (9, 109);
+  set @t0= now(6);
+  delete from t1 where x = 3;
+  delete from t1 where x > 7;
+
+  insert into t1(x, y) values(3, 33);
+  set @str= concat('select ', fields, ' from t1 where x = 3 and y = 33 into @t1');
+  prepare stmt from @str; execute stmt; drop prepare stmt;  
+  select x, y from t1;
+  select x as AS_OF_x, y from t1 for system_time as of timestamp @t0;
+  select x as FROM_TO_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
+  select x as BETWEEN_AND_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+
+  drop table t1;
+end~~
+
+create or replace procedure test_02(
+  sys_type varchar(255),
+  engine varchar(255),
+  fields varchar(255))
+begin
+  set @str0= concat('(
+    x int,
+    y int,
+    sys_start ', sys_type, ' generated always as row start,
+    sys_end ', sys_type, ' generated always as row end,
+    period for system_time (sys_start, sys_end))
+  with system versioning
+  engine ', engine);
+  set @str= concat('create or replace table t1', @str0);
+  prepare stmt from @str; execute stmt; drop prepare stmt;
+  set @str= concat('create or replace table t2', @str0);
+  prepare stmt from @str; execute stmt; drop prepare stmt;
+  
+  insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
+  insert into t2 values (1, 2), (2, 1), (3, 1);
+  set @t0= now(6);
+  
+  select t1.x as IJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x;
+  select t1.x as LJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x;
+  select t1.x as RJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x;
+  
+  delete from t1;
+  delete from t2;
+  
+  select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x
+  for system_time as of timestamp @t0;  
+  select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x
+  for system_time as of timestamp @t0;
+  select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x
+  for system_time as of timestamp @t0;
+
+  drop table t1;
+  drop table t2;
+end~~
+delimiter ;~~
+
+call test_01('timestamp(6)', 'myisam', 'sys_start');
+call test_01('bigint unsigned', 'innodb', 'commit_ts(sys_start)');
+
+call test_02('timestamp(6)', 'myisam', 'sys_start');
+call test_02('bigint unsigned', 'innodb', 'commit_ts(sys_start)');
+
+call verify_vtq;
+
+drop procedure test_01;
+drop procedure test_02;
+drop procedure verify_vtq;

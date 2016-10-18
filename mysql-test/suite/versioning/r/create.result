@@ -1,0 +1,198 @@
+drop table if exists t1;
+create table t1 (
+XNo int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_end timestamp(6) generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `XNo` int(10) unsigned DEFAULT NULL,
+  `Sys_start` timestamp(6) NOT NULL GENERATED AS ROW START,
+  `Sys_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+# Implicit fields test
+create or replace table t1 (
+XNo int unsigned
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `XNo` int(10) unsigned DEFAULT NULL,
+  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
+  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+XNo int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_start2 timestamp(6) generated always as row start,
+Sys_end timestamp(6) generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: 'Generated as row start' specified more than once
+create or replace table t1 (
+XNo int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_end2 timestamp(6) generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: Second column in 'period for system time' must be equal to 'generated as row end' column
+create or replace table t1 (
+XNo int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_end timestamp(6) generated always as row end,
+Sys_end2 timestamp(6) generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: Generated as row end specified more than once
+create or replace table t1 (
+XNo int unsigned,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: 'Generated as row start' not specified
+create or replace table t1 (
+XNo int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_end timestamp(6) generated always as row end,
+Sys_end2 timestamp(6) generated always as row end,
+period for system_time (Sys_start, Sys_end)
+);
+ERROR HY000: Generated as row end specified more than once
+create or replace table t1 (
+XNo int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_end timestamp(6) generated always as row end,
+period for system_time (sys_insert, sys_remove)
+) with system versioning;
+ERROR HY000: First column in 'period for system time' must be equal to 'generated as row start' column
+create or replace table t1 (
+XNo int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_end timestamp(6) generated always as row end,
+period for system_time (Sys_start, Sys_end)
+);
+ERROR HY000: 'With system versioning' is missing
+create or replace table t1 (
+XNo int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_end timestamp(6) generated always as row end,
+period for system_time (Sys_start, Sys_start)
+);
+ERROR HY000: 'Period for system_time' must contain two different columns
+create or replace table t1 (
+XNo int unsigned,
+Sys_start int generated always as row start,
+Sys_end timestamp(6) generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: System start field must be of type TIMESTAMP
+create or replace table t1 (
+XNo int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_end int generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: System end field must be of type TIMESTAMP
+create or replace table t1 (
+XNo int unsigned,
+Sys_start timestamp(6) generated always as row start,
+Sys_end bigint generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning engine innodb;
+ERROR HY000: System start field must be of type BIGINT UNSIGNED
+create or replace table t1 (
+XNo int unsigned,
+Sys_start bigint generated always as row start,
+Sys_end bigint generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning engine innodb;
+ERROR HY000: System start field must be of type BIGINT UNSIGNED
+create or replace table t1 (
+XNo int unsigned,
+Sys_start bigint unsigned generated always as row start,
+Sys_end bigint generated always as row end,
+period for system_time (Sys_start, Sys_end)
+) with system versioning engine innodb;
+ERROR HY000: System end field must be of type BIGINT UNSIGNED
+create or replace table t1 (
+A int with system versioning,
+B int
+);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
+  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+A int with system versioning,
+B int
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL,
+  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
+  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+A int,
+B int without system versioning
+);
+ERROR HY000: Every field specified unversioned in versioned table
+create or replace table t1 (
+A int,
+B int without system versioning
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
+  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+A int with system versioning,
+B int without system versioning
+);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
+  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+A int with system versioning,
+B int without system versioning
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `A` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
+  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+A int without system versioning
+);
+ERROR HY000: Every field specified unversioned in versioned table
+create or replace table t1 (
+A int without system versioning
+) with system versioning;
+ERROR HY000: Every field specified unversioned in versioned table
+drop table t1;
