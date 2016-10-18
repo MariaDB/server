@@ -681,6 +681,7 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LE
     && !is_prepare
     && !thd->stmt_arena->is_sp_execute())
   {
+    // statement is already prepared
     DBUG_RETURN(0);
   }
 
@@ -716,27 +717,30 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LE
   {
     if (table->table && table->table->versioned())
     {
-      COND** dst_cond;
-      if (table->on_expr)
+      COND** dst_cond= where_expr;
+      if (table->saved_on_expr) // same logic as saved_where
       {
-        if (table->saved_on_expr) // same logic as saved_where
+        DBUG_ASSERT(thd->stmt_arena->is_sp_execute());
+        if (table->on_expr)
         {
-          DBUG_ASSERT(thd->stmt_arena->is_sp_execute());
           table->on_expr= table->saved_on_expr;
+          dst_cond= &table->on_expr;
         }
-        else if (thd->stmt_arena->is_sp_execute())
+        else
         {
-          if (thd->stmt_arena->is_stmt_execute()) // SP executed second time (STMT_EXECUTED)
-            table->on_expr= 0;
-          else if (table->on_expr) // SP executed first time (STMT_INITIALIZED_FOR_SP)
-            table->saved_on_expr= table->on_expr->copy_andor_structure(thd);
+          // on_expr was moved to WHERE (see below: Add ON expression to the WHERE)
+          *dst_cond= and_items(thd,
+            *where_expr,
+            table->saved_on_expr);
         }
-        dst_cond= &table->on_expr;
       }
-      else
+      else if (table->on_expr)
       {
-        dst_cond= where_expr;
+        dst_cond= &table->on_expr;
+        if (thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP)
+          table->saved_on_expr= table->on_expr->copy_andor_structure(thd);
       }
+
       Field *fstart= table->table->vers_start_field();
       Field *fend= table->table->vers_end_field();
 
