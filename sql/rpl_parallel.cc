@@ -990,6 +990,7 @@ handle_rpl_parallel_thread(void *arg)
   rpl_sql_thread_info sql_info(NULL);
   int err;
 
+  is_slave_replication = true;
   struct rpl_parallel_thread *rpt= (struct rpl_parallel_thread *)arg;
 
   my_thread_init();
@@ -1410,7 +1411,7 @@ handle_rpl_parallel_thread(void *arg)
   mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
 
   my_thread_end();
-
+  is_slave_replication = false;
   return NULL;
 }
 
