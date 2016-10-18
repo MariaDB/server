@@ -701,16 +701,44 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LE
   if (select_lex->saved_where)
   {
     DBUG_ASSERT(thd->stmt_arena->is_sp_execute());
-    *where_expr= select_lex->saved_where;
+    /* 2. this copy_andor_structure() is also required by the same reason */
+    *where_expr= select_lex->saved_where->copy_andor_structure(thd);
   }
   else if (thd->stmt_arena->is_sp_execute())
   {
     if (thd->stmt_arena->is_stmt_execute()) // SP executed second time (STMT_EXECUTED)
       *where_expr= 0;
     else if (*where_expr) // SP executed first time (STMT_INITIALIZED_FOR_SP)
-      /* copy_andor_structure() is required since this andor tree
+      /* 1. copy_andor_structure() is required since this andor tree
          is modified later (and on shorter arena) */
       select_lex->saved_where= (*where_expr)->copy_andor_structure(thd);
+  }
+
+  /* We have to save also non-versioned on_expr since we may have
+     conjuction of versioned + non-versioned */
+  if (thd->stmt_arena->is_sp_execute())
+  {
+    for (table= tables; table; table= table->next_local)
+    {
+      if (!table->table)
+        continue;
+
+      if (table->saved_on_expr) // same logic as saved_where
+      {
+        if (table->on_expr)
+          table->on_expr= table->saved_on_expr->copy_andor_structure(thd);
+        else
+          // on_expr was moved to WHERE (see below: Add ON expression to the WHERE)
+          *where_expr= and_items(thd,
+            *where_expr,
+            table->saved_on_expr->copy_andor_structure(thd));
+      }
+      else if (table->on_expr &&
+        thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP)
+      {
+        table->saved_on_expr= table->on_expr->copy_andor_structure(thd);
+      }
+    }
   }
 
   for (table= tables; table; table= table->next_local)
@@ -718,27 +746,9 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LE
     if (table->table && table->table->versioned())
     {
       COND** dst_cond= where_expr;
-      if (table->saved_on_expr) // same logic as saved_where
-      {
-        DBUG_ASSERT(thd->stmt_arena->is_sp_execute());
-        if (table->on_expr)
-        {
-          table->on_expr= table->saved_on_expr;
-          dst_cond= &table->on_expr;
-        }
-        else
-        {
-          // on_expr was moved to WHERE (see below: Add ON expression to the WHERE)
-          *dst_cond= and_items(thd,
-            *where_expr,
-            table->saved_on_expr);
-        }
-      }
-      else if (table->on_expr)
+      if (table->on_expr)
       {
         dst_cond= &table->on_expr;
-        if (thd->stmt_arena->state == Query_arena::STMT_INITIALIZED_FOR_SP)
-          table->saved_on_expr= table->on_expr->copy_andor_structure(thd);
       }
 
       Field *fstart= table->table->vers_start_field();
