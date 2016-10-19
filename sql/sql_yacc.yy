@@ -13869,13 +13869,13 @@ literal:
           }
         | FALSE_SYM
           {
-            $$= new (thd->mem_root) Item_int(thd, (char*) "FALSE",0,1);
+            $$= new (thd->mem_root) Item_bool(thd, (char*) "FALSE",0);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | TRUE_SYM
           {
-            $$= new (thd->mem_root) Item_int(thd, (char*) "TRUE",1,1);
+            $$= new (thd->mem_root) Item_bool(thd, (char*) "TRUE",1);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

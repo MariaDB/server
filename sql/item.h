@@ -2997,6 +2997,20 @@ public:
 };
 
 
+/*
+  We sometimes need to distinguish a number from a boolean:
+  a[1] and a[true] are different things in XPath.
+  Also in JSON boolean values should be treated differently.
+*/
+class Item_bool :public Item_int
+{
+public:
+  Item_bool(THD *thd, const char *str_arg, longlong i):
+    Item_int(thd, str_arg, i, 1) {}
+  bool is_bool_type() { return true; }
+};
+
+
 class Item_uint :public Item_int
 {
 public:
@@ -4750,6 +4764,7 @@ public:
 #include "item_timefunc.h"
 #include "item_subselect.h"
 #include "item_xmlfunc.h"
+#include "item_jsonfunc.h"
 #include "item_create.h"
 #endif
 
