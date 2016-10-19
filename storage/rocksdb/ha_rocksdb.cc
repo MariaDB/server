@@ -2453,7 +2453,7 @@ static Rdb_transaction *get_or_create_tx(THD *thd)
   // TODO: this is called too many times.. O(#rows)
   if (tx == nullptr)
   {
-    if (rpl_skip_tx_api_var && thd->rli_slave)
+    if (rpl_skip_tx_api_var && thd->rgi_slave)
       tx= new Rdb_writebatch_impl(thd);
     else
       tx= new Rdb_transaction_impl(thd);
@@ -2531,7 +2531,7 @@ static std::string rdb_xid_to_string(const XID& src)
 static bool rocksdb_flush_wal(handlerton* hton __attribute__((__unused__)))
 #ifdef MARIAROCKS_NOT_YET
                               ulonglong target_lsn __attribute__((__unused__)))
-#else
+#endif
 {
   DBUG_ASSERT(rdb != nullptr);
   rocksdb::Status s= rdb->SyncWAL();
@@ -8675,7 +8675,7 @@ int ha_rocksdb::external_lock(THD *thd, int lock_type)
 
   int binlog_format= my_core::thd_binlog_format(thd);
   bool unsafe_for_binlog= THDVAR(ha_thd(), unsafe_for_binlog);
-  if (lock_type == F_WRLCK && !thd->rli_slave &&
+  if (lock_type == F_WRLCK && !thd->rgi_slave &&
       !unsafe_for_binlog &&
       binlog_format != BINLOG_FORMAT_ROW &&
       binlog_format != BINLOG_FORMAT_UNSPEC &&
