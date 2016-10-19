@@ -2704,6 +2704,14 @@ int handler::ha_index_first(uchar * buf)
   return result;
 }
 
+bool handler::is_using_full_key(key_part_map keypart_map,
+                                uint actual_key_parts)
+{
+  return (keypart_map == HA_WHOLE_KEY) ||
+         (keypart_map == ((key_part_map(1) << actual_key_parts)
+                        - 1));
+}
+
 int handler::ha_index_last(uchar * buf)
 {
   int result;

@@ -6229,6 +6229,7 @@ int ha_rocksdb::read_range_first(const key_range *start_key,
     result= ha_index_first(table->record[0]);
   else
   {
+#ifdef MARIAROCKS_NOT_YET
     if (is_using_prohibited_gap_locks(table,
                                       is_using_full_unique_key(
                                         active_index,
@@ -6237,6 +6238,7 @@ int ha_rocksdb::read_range_first(const key_range *start_key,
     {
       DBUG_RETURN(HA_ERR_LOCK_DEADLOCK);
     }
+#endif
 
     MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
       { result= index_read_map_impl(table->record[0],
@@ -8613,7 +8615,11 @@ THR_LOCK_DATA **ha_rocksdb::store_lock(THD *thd,
       uint sql_command = my_core::thd_sql_command(thd);
       if ((lock_type == TL_READ && in_lock_tables) ||
           (lock_type == TL_READ_HIGH_PRIORITY && in_lock_tables) ||
+#ifdef MARIAROCKS_NOT_YET
           can_hold_read_locks_on_select(thd, lock_type))
+#else
+          false)
+#endif
       {
         ulong tx_isolation = my_core::thd_tx_isolation(thd);
         if (sql_command != SQLCOM_CHECKSUM &&
