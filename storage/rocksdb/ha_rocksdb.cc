@@ -2528,8 +2528,10 @@ static std::string rdb_xid_to_string(const XID& src)
   Called by hton->flush_logs after MySQL group commit prepares a set of
   transactions.
 */
-static bool rocksdb_flush_wal(handlerton* hton __attribute__((__unused__)),
+static bool rocksdb_flush_wal(handlerton* hton __attribute__((__unused__)))
+#ifdef MARIAROCKS_NOT_YET
                               ulonglong target_lsn __attribute__((__unused__)))
+#else
 {
   DBUG_ASSERT(rdb != nullptr);
   rocksdb::Status s= rdb->SyncWAL();
