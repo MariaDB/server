@@ -1632,11 +1632,13 @@ public:
     }
     else
     {
+#ifdef MARIAROCKS_NOT_YET
       my_core::thd_binlog_pos(m_thd, &m_mysql_log_file_name,
                               &m_mysql_log_offset, &m_mysql_gtid);
       binlog_manager.update(m_mysql_log_file_name,
                             m_mysql_log_offset,
                             m_mysql_gtid, get_write_batch());
+#endif
       return commit_no_binlog();
     }
   }
@@ -2559,6 +2561,7 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
   {
     return 1;
   }
+#ifdef MARIAROCKS_NOT_YET // disable prepare/commit
   if (prepare_tx ||
       (!my_core::thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
     /* We were instructed to prepare the whole transaction, or
@@ -2594,7 +2597,7 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
 
     DEBUG_SYNC(thd, "rocksdb.prepared");
   }
-
+#endif
   return 0;
 }
 
@@ -2660,9 +2663,12 @@ static void rdb_xid_from_string(const std::string& src, XID *dst)
   Reading last committed binary log info from RocksDB system row.
   The info is needed for crash safe slave/master to work.
 */
-static int rocksdb_recover(handlerton* hton, XID* xid_list, uint len,
+static int rocksdb_recover(handlerton* hton, XID* xid_list, uint len)
+#ifdef MARIAROCKS_NOT_YET
                            char* binlog_file, my_off_t* binlog_pos)
+#endif
 {
+#ifdef MARIAROCKS_NOT_YET
   if (binlog_file && binlog_pos)
   {
     char file_buf[FN_REFLEN+1]= {0};
@@ -2683,6 +2689,7 @@ static int rocksdb_recover(handlerton* hton, XID* xid_list, uint len,
       }
     }
   }
+#endif
 
   if (len == 0 || xid_list == nullptr)
   {
