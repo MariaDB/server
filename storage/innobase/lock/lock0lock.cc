@@ -2080,23 +2080,7 @@ RecLock::check_deadlock_result(const trx_t* victim_trx, lock_t* lock)
 
 		return(DB_DEADLOCK);
 
-	}
-
-    // Move it only when it does not cause a deadlock.
-    if (innodb_lock_schedule_algorithm
-        == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS
-        && !trx_is_high_priority(lock->trx)) {
-        
-        HASH_DELETE(lock_t, hash, lock_hash_get(lock->type_mode),
-                    m_rec_id.fold(), lock);
-        lock_rec_insert_by_trx_age(lock, m_mode & LOCK_WAIT);
-        if (lock_get_wait(lock) && !lock_rec_has_to_wait_in_queue(lock)) {
-            lock_reset_lock_and_trx_wait(lock);
-            return DB_SUCCESS_LOCKED_REC;
-        }
-    }
-
-	if (m_trx->lock.wait_lock == NULL) {
+	} else if (m_trx->lock.wait_lock == NULL) {
 
 		/* If there was a deadlock but we chose another
 		transaction as a victim, it is possible that we
@@ -3026,9 +3010,6 @@ lock_grant_and_move_on_page(
             && (lock->un_member.rec_lock.page_no == page_no)
             && lock_get_wait(lock)
             && !lock_rec_has_to_wait_in_queue(lock)) {
-
-			/* Grant the lock */
-			ut_ad(lock->trx != in_lock->trx);
 
 			bool exit_trx_mutex = false;
 
