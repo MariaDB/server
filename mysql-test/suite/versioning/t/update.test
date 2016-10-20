@@ -43,20 +43,20 @@ begin
   set @str= concat('
   create table t1 (
     id bigint primary key,
-    a int,
-    b int without system versioning)
+    x int,
+    y int without system versioning)
   with system versioning
   engine ', engine);
   prepare stmt from @str; execute stmt; drop prepare stmt;  
   insert into t1 values(1, 1, 1);
   set @ins_t= now(6);
   select sys_trx_start into @tmp1 from t1;
-  update t1 set a=11, b=11 where id=1;
-  select @tmp1 < sys_trx_start, a, b from t1;
+  update t1 set x= 11, y= 11 where id = 1;
+  select @tmp1 < sys_trx_start as A1, x, y from t1;
   
   select sys_trx_start into @tmp1 from t1;
-  update t1 set b=1 where id=1;
-  select @tmp1 = sys_trx_start, b from t1;
+  update t1 set y= 1 where id = 1;
+  select @tmp1 = sys_trx_start as A2, x from t1;
 
   drop table t1;
 end~~
@@ -252,8 +252,7 @@ call test_06('timestamp(6)', 'myisam', 'sys_end');
 call test_06('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
 
 call test_07('timestamp(6)', 'myisam', 'sys_end');
-# Issue #53
-# call test_07('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_07('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
 
 call verify_vtq;
 

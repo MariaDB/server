@@ -2854,7 +2854,7 @@ row_ins_sec_index_entry_low(
 
 	cursor.thr = thr;
 	cursor.rtr_info = NULL;
-	ut_ad(thr_get_trx(thr)->id != 0);
+	ut_ad(trx && trx->id != 0 || thr_get_trx(thr)->id != 0);
 
 	mtr_start(&mtr);
 	mtr.set_named_space(index->space);
@@ -3890,7 +3890,7 @@ void vers_notify_vtq(trx_t* trx)
 	timeval begin_ts, commit_ts;
 	begin_ts.tv_sec = trx->start_time;
 	begin_ts.tv_usec = trx->start_time_micro;
-	ut_usectime((ulint *)&commit_ts.tv_sec, (ulint *)&commit_ts.tv_usec);
+        ut_usectime((ulong*)&commit_ts.tv_sec, (ulong*)&commit_ts.tv_usec);
 
 	dict_table_copy_types(row, dict_sys->sys_vtq);
 	set_row_field_8(row, DICT_FLD__SYS_VTQ__TRX_ID, trx->id, heap);
