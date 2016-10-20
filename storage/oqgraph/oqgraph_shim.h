@@ -154,12 +154,12 @@ namespace oqgraph3
     typedef std::input_iterator_tag iterator_category;
     in_edge_iterator() { }
     in_edge_iterator(const cursor_ptr& cursor) : _cursor(cursor) { }
-    value_type operator*() { return value_type(_cursor); }
+    value_type operator*() const { return value_type(_cursor); }
     self& operator++() { _cursor->seek_next(); return *this; }
     self operator++(int)
     { cursor_ptr t(new cursor(*_cursor)); ++(*this); return in_edge_iterator(t); }
-    bool operator==(const self& x) { return _cursor == x._cursor; }
-    bool operator!=(const self& x) { return _cursor != x._cursor; }
+    bool operator==(const self& x) const { return _cursor == x._cursor; }
+    bool operator!=(const self& x) const { return _cursor != x._cursor; }
     cursor_ptr _cursor;
   };
 

@@ -41,19 +41,19 @@ dijkstras	3	NULL	256	2	2
 dijkstras	3	NULL	0	1	3
 SELECT * FROM graph WHERE latch = 'dijkstras' AND destid = 1;
 latch	origid	destid	weight	seq	linkid
-dijkstras	NULL	1	784	4	4
+dijkstras	NULL	1	65808	4	4
 dijkstras	NULL	1	272	3	3
 dijkstras	NULL	1	16	2	2
 dijkstras	NULL	1	0	1	1
 SELECT * FROM graph WHERE latch = 'dijkstras' AND destid = 2;
 latch	origid	destid	weight	seq	linkid
-dijkstras	NULL	2	768	4	4
+dijkstras	NULL	2	65792	4	4
 dijkstras	NULL	2	256	3	3
 dijkstras	NULL	2	16	2	1
 dijkstras	NULL	2	0	1	2
 SELECT * FROM graph WHERE latch = 'dijkstras' AND destid = 3;
 latch	origid	destid	weight	seq	linkid
-dijkstras	NULL	3	1024	4	4
+dijkstras	NULL	3	65536	4	4
 dijkstras	NULL	3	272	3	1
 dijkstras	NULL	3	256	2	2
 dijkstras	NULL	3	0	1	3
