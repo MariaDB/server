@@ -193,6 +193,7 @@ enum enum_indicator_type
 #define WITHOUT_SYSTEM_VERSIONING_FLAG (1 << 29) /* column that doesn't support
                                                     system versioning when table
                                                     itself supports it*/
+#define HIDDEN_FLAG (1 << 31) /* hide from SELECT * */
 
 #define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
 #define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */

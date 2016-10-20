@@ -2020,6 +2020,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (f_without_system_versioning(pack_flag))
       reg_field->flags|= WITHOUT_SYSTEM_VERSIONING_FLAG;
 
+    if (f_hidden(pack_flag))
+      reg_field->flags|= HIDDEN_FLAG;
+
     if (reg_field->unireg_check == Field::NEXT_NUMBER)
       share->found_next_number_field= field_ptr;
 

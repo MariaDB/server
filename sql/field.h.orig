@@ -3379,7 +3379,7 @@ public:
     memcpy(ptr,length,packlength);
     memcpy(ptr+packlength, &data,sizeof(char*));
   }
-  void set_ptr_offset(my_ptrdiff_t ptr_diff, uint32 length, const uchar *data)
+  void set_ptr_offset(my_ptrdiff_t ptr_diff, uint32 length, uchar *data)
   {
     uchar *ptr_ofs= ADD_TO_PTR(ptr,ptr_diff,uchar*);
     store_length(ptr_ofs, packlength, length);
@@ -3920,22 +3920,9 @@ public:
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
-    option_list(NULL), pack_flag(0),
+    option_list(NULL),
     vcol_info(0), default_value(0), check_constraint(0),
     versioning(VERSIONING_NOT_SET)
-  {
-    interval_list.empty();
-  }
-
-  Column_definition(const char *name, enum_field_types type):
-    field_name(name),
-    comment(null_lex_str),
-    on_update(NULL), sql_type(type), length(0), decimals(0),
-    flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
-    interval(0), charset(&my_charset_bin),
-    srid(0), geom_type(Field::GEOM_GEOMETRY),
-    option_list(NULL), pack_flag(0),
-    vcol_info(0), default_value(0), check_constraint(0)
   {
     interval_list.empty();
   }
@@ -4025,151 +4012,7 @@ public:
     return unireg_check == Field::TIMESTAMP_DN_FIELD
         || unireg_check == Field::TIMESTAMP_DNUN_FIELD;
   }
-
-  // Replace the entire value by another definition
-  void set_column_definition(const Column_definition *def)
-  {
-    *this= *def;
-  }
 };
-
-
-/**
-  List of ROW element definitions, e.g.:
-    DECLARE a ROW(a INT,b VARCHAR(10))
-*/
-class Row_definition_list: public List<class Spvar_definition>
-{
-public:
-  inline bool eq_name(const Spvar_definition *def, const char *name) const;
-  /**
-    Find a ROW field by name.
-    @param [IN]  name   - the name
-    @param [OUT] offset - if the ROW field found, its offset it returned here
-    @retval NULL        - the ROW field was not found
-    @retval !NULL       - the pointer to the found ROW field
-  */
-  Spvar_definition *find_row_field_by_name(const char *name, uint *offset) const
-  {
-    // Cast-off the "const" qualifier
-    List_iterator<Spvar_definition> it(*((List<Spvar_definition>*)this));
-    Spvar_definition *def;
-    for (*offset= 0; (def= it++); (*offset)++)
-    {
-      if (eq_name(def, name))
-        return def;
-    }
-    return 0;
-  }
-};
-
-
-/**
-  This class is used during a stored routine or a trigger execution,
-  at sp_rcontext::create() time.
-  Currently it can represent:
-  - variables with explicit data types:   DECLARE a INT;
-  - variables with data type references:  DECLARE a t1.a%TYPE;
-  - ROW type variables
-
-  Notes:
-  - Scalar variables have m_field_definitions==NULL.
-  - ROW variables are defined as having MYSQL_TYPE_NULL,
-    with a non-empty m_field_definitions.
-
-  Data type references to other object types will be added soon, e.g.:
-  - DECLARE a table_name%ROWTYPE;
-  - DECLARE a cursor_name%ROWTYPE;
-  - DECLARE a record_name%TYPE;
-  - DECLARE a variable_name%TYPE;
-*/
-class Spvar_definition: public Column_definition
-{
-  class Qualified_column_ident *m_column_type_ref; // for %TYPE
-  class Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
-  bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
-  Row_definition_list *m_row_field_definitions;    // for ROW
-public:
-  Spvar_definition()
-   :m_column_type_ref(NULL),
-    m_table_rowtype_ref(NULL),
-    m_cursor_rowtype_ref(false),
-    m_row_field_definitions(NULL)
-  { }
-  Spvar_definition(THD *thd, Field *field)
-   :Column_definition(thd, field, NULL),
-    m_column_type_ref(NULL),
-    m_table_rowtype_ref(NULL),
-    m_cursor_rowtype_ref(false),
-    m_row_field_definitions(NULL)
-  { }
-  const Type_handler *type_handler() const
-  {
-    return is_row() || is_table_rowtype_ref() || is_cursor_rowtype_ref() ?
-           &type_handler_row :
-           Type_handler::get_handler_by_field_type(sql_type);
-  }
-  bool is_column_type_ref() const { return m_column_type_ref != 0; }
-  bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
-  bool is_cursor_rowtype_ref() const { return m_cursor_rowtype_ref; }
-  class Qualified_column_ident *column_type_ref() const
-  {
-    return m_column_type_ref;
-  }
-  void set_column_type_ref(class Qualified_column_ident *ref)
-  {
-    m_column_type_ref= ref;
-  }
-
-  class Table_ident *table_rowtype_ref() const
-  {
-    return m_table_rowtype_ref;
-  }
-  void set_table_rowtype_ref(class Table_ident *ref)
-  {
-    m_table_rowtype_ref= ref;
-  }
-  void set_cursor_rowtype_ref(bool ref)
-  {
-    m_cursor_rowtype_ref= ref;
-  }
-
-  /*
-    Find a ROW field by name.
-    See Row_field_list::find_row_field_by_name() for details.
-  */
-  Spvar_definition *find_row_field_by_name(const char *name, uint *offset) const
-  {
-    DBUG_ASSERT(m_row_field_definitions);
-    return m_row_field_definitions->find_row_field_by_name(name, offset);
-  }
-  uint is_row() const
-  {
-    return m_row_field_definitions != NULL;
-  }
-  // Check if "this" defines a ROW variable with n elements
-  uint is_row(uint n) const
-  {
-    return m_row_field_definitions != NULL &&
-           m_row_field_definitions->elements == n;
-  }
-  Row_definition_list *row_field_definitions() const
-  {
-    return m_row_field_definitions;
-  }
-  void set_row_field_definitions(Row_definition_list *list)
-  {
-    m_row_field_definitions= list;
-  }
-
-};
-
-
-inline bool Row_definition_list::eq_name(const Spvar_definition *def,
-                                         const char *name) const
-{
-  return my_strcasecmp(system_charset_info, def->field_name, name) == 0;
-}
 
 
 class Create_field :public Column_definition
@@ -4281,8 +4124,6 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
 #define FIELDFLAG_BITFIELD		512U	// mangled with decimals!
 #define FIELDFLAG_BLOB			1024U	// mangled with decimals!
 #define FIELDFLAG_GEOM			2048U   // mangled with decimals!
-// Do not show field in SELECT *. Hope GEOM field is never hidden.
-#define FIELDFLAG_HIDDEN                2048U
 
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096U   /* use Field_bit_as_char */
 #define FIELDFLAG_LONG_DECIMAL          8192U
