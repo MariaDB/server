@@ -6961,7 +6961,6 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
       flush the pending rows event if necessary.
     */
     {
-      Log_event* ev = NULL;
       int error = 0;
 
       /*

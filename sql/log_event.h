@@ -694,6 +694,11 @@ enum Log_event_type
 
   /*
     Compressed binlog event.
+
+    Note that the order between WRITE/UPDATE/DELETE events is significant;
+    this is so that we can convert from the compressed to the uncompressed
+    event type with (type-WRITE_ROWS_COMPRESSED_EVENT + WRITE_ROWS_EVENT)
+    and similar for _V1.
   */
   QUERY_COMPRESSED_EVENT = 165,
   WRITE_ROWS_COMPRESSED_EVENT_V1 = 166,
@@ -708,15 +713,52 @@ enum Log_event_type
   ENUM_END_EVENT /* end marker */
 };
 
-#define LOG_EVENT_IS_QUERY(type) (type == QUERY_EVENT || type == QUERY_COMPRESSED_EVENT)
-#define LOG_EVENT_IS_WRITE_ROW(type) (type == WRITE_ROWS_EVENT || type == WRITE_ROWS_EVENT_V1 || type == WRITE_ROWS_COMPRESSED_EVENT || type == WRITE_ROWS_COMPRESSED_EVENT_V1)
-#define LOG_EVENT_IS_UPDATE_ROW(type) (type == UPDATE_ROWS_EVENT || type == UPDATE_ROWS_EVENT_V1 || type == UPDATE_ROWS_COMPRESSED_EVENT || type == UPDATE_ROWS_COMPRESSED_EVENT_V1)
-#define LOG_EVENT_IS_DELETE_ROW(type) (type == DELETE_ROWS_EVENT || type == DELETE_ROWS_EVENT_V1 || type == DELETE_ROWS_COMPRESSED_EVENT || type == DELETE_ROWS_COMPRESSED_EVENT_V1)
-#define LOG_EVENT_IS_ROW_COMPRESSED(type) (type == WRITE_ROWS_COMPRESSED_EVENT || type == WRITE_ROWS_COMPRESSED_EVENT_V1 ||\
-                                            type == UPDATE_ROWS_COMPRESSED_EVENT || type == UPDATE_ROWS_COMPRESSED_EVENT_V1 ||\
-                                            type == DELETE_ROWS_COMPRESSED_EVENT || type == DELETE_ROWS_COMPRESSED_EVENT_V1) 
-#define LOG_EVENT_IS_ROW_V2(type) (type >= WRITE_ROWS_EVENT && type <= DELETE_ROWS_EVENT || \
-                                   type >= WRITE_ROWS_COMPRESSED_EVENT && type <= DELETE_ROWS_COMPRESSED_EVENT )
+static inline bool LOG_EVENT_IS_QUERY(enum Log_event_type type)
+{
+  return type == QUERY_EVENT || type == QUERY_COMPRESSED_EVENT;
+}
+
+
+static inline bool LOG_EVENT_IS_WRITE_ROW(enum Log_event_type type)
+{
+  return type == WRITE_ROWS_EVENT || type == WRITE_ROWS_EVENT_V1 ||
+    type == WRITE_ROWS_COMPRESSED_EVENT ||
+    type == WRITE_ROWS_COMPRESSED_EVENT_V1;
+}
+
+
+static inline bool LOG_EVENT_IS_UPDATE_ROW(enum Log_event_type type)
+{
+  return type == UPDATE_ROWS_EVENT || type == UPDATE_ROWS_EVENT_V1 ||
+    type == UPDATE_ROWS_COMPRESSED_EVENT ||
+    type == UPDATE_ROWS_COMPRESSED_EVENT_V1;
+}
+
+
+static inline bool LOG_EVENT_IS_DELETE_ROW(enum Log_event_type type)
+{
+  return type == DELETE_ROWS_EVENT || type == DELETE_ROWS_EVENT_V1 ||
+    type == DELETE_ROWS_COMPRESSED_EVENT ||
+    type == DELETE_ROWS_COMPRESSED_EVENT_V1;
+}
+
+
+static inline bool LOG_EVENT_IS_ROW_COMPRESSED(enum Log_event_type type)
+{
+  return type == WRITE_ROWS_COMPRESSED_EVENT ||
+    type == WRITE_ROWS_COMPRESSED_EVENT_V1 ||
+    type == UPDATE_ROWS_COMPRESSED_EVENT ||
+    type == UPDATE_ROWS_COMPRESSED_EVENT_V1 ||
+    type == DELETE_ROWS_COMPRESSED_EVENT ||
+    type == DELETE_ROWS_COMPRESSED_EVENT_V1;
+}
+
+
+static inline bool LOG_EVENT_IS_ROW_V2(enum Log_event_type type)
+{
+  return (type >= WRITE_ROWS_EVENT && type <= DELETE_ROWS_EVENT) ||
+    (type >= WRITE_ROWS_COMPRESSED_EVENT && type <= DELETE_ROWS_COMPRESSED_EVENT);
+}
 
 
 /*

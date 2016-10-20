@@ -708,11 +708,11 @@ char *str_to_hex(char *to, const char *from, uint len)
 /**
   Compressed Record
     Record Header: 1 Byte
-                   0 Bit: Always 1, mean compressed;
-                   1-3 Bit: Reversed, compressed algorithm¡£Always 0, means zlib
-                   4-7 Bit: Bytes of "Record Original Length"
+             0 Bit: Always 1, mean compressed;
+           1-3 Bit: Reversed, compressed algorithm - Always 0, means zlib
+           4-7 Bit: Bytes of "Record Original Length"
     Record Original Length: 1-4 Bytes
-    Compressed Buf:  
+    Compressed Buf:
 */
 
 /**
@@ -721,7 +721,7 @@ char *str_to_hex(char *to, const char *from, uint len)
 
 uint32 binlog_get_compress_len(uint32 len)
 {
-	/* 5 for the begin content, 1 reserved for a '\0'*/
+    /* 5 for the begin content, 1 reserved for a '\0'*/
     return ALIGN_SIZE((BINLOG_COMPRESSED_HEADER_LEN + BINLOG_COMPRESSED_ORIGINAL_LENGTH_MAX_BYTES) 
                         + compressBound(len) + 1);
 }
@@ -769,7 +769,8 @@ int binlog_buf_compress(const char *src, char *dst, uint32 len, uint32 *comlen)
   dst[0] = 0x80 | (lenlen & 0x07);
 
   uLongf tmplen = (uLongf)*comlen - BINLOG_COMPRESSED_HEADER_LEN - lenlen - 1;
-  if (compress((Bytef *)dst + BINLOG_COMPRESSED_HEADER_LEN + lenlen, &tmplen, (const Bytef *)src, (uLongf)len) != Z_OK)
+  if (compress((Bytef *)dst + BINLOG_COMPRESSED_HEADER_LEN + lenlen, &tmplen,
+               (const Bytef *)src, (uLongf)len) != Z_OK)
   {
     return 1;
   }
@@ -779,41 +780,46 @@ int binlog_buf_compress(const char *src, char *dst, uint32 len, uint32 *comlen)
 
 /**
    Convert a query_compressed_log_event to query_log_event
-   from 'src' to 'dst'(malloced inside), the size after compress
-   stored in 'newlen'. 
+   from 'src' to 'dst', the size after compression stored in 'newlen'.
 
-   @Warning:
-      1)The caller should call my_free to release 'dst'.
+   @Note:
+      1) The caller should call my_free to release 'dst' if *is_malloc is
+         returned as true.
+      2) If *is_malloc is retuened as false, then 'dst' reuses the passed-in
+         'buf'.
 
-   return zero if successful, others otherwise.
+   return zero if successful, non-zero otherwise.
 */
 
-int query_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
-						   const char *src, char* buf, ulong buf_size, bool* is_malloc,
-               char **dst, ulong *newlen)
+int
+query_event_uncompress(const Format_description_log_event *description_event,
+                       bool contain_checksum, const char *src, char* buf,
+                       ulong buf_size, bool* is_malloc, char **dst,
+                       ulong *newlen)
 {
   ulong len = uint4korr(src + EVENT_LEN_OFFSET);
-	const char *tmp = src;
+  const char *tmp = src;
 
   DBUG_ASSERT((uchar)src[EVENT_TYPE_OFFSET] == QUERY_COMPRESSED_EVENT);
 
-	uint8 common_header_len= description_event->common_header_len;
-	uint8 post_header_len= description_event->post_header_len[QUERY_COMPRESSED_EVENT-1];
+  uint8 common_header_len= description_event->common_header_len;
+  uint8 post_header_len=
+    description_event->post_header_len[QUERY_COMPRESSED_EVENT-1];
 
-	tmp += common_header_len;
+  tmp += common_header_len;
 
-	uint db_len = (uint)tmp[Q_DB_LEN_OFFSET];
-	uint16 status_vars_len= uint2korr(tmp + Q_STATUS_VARS_LEN_OFFSET);
+  uint db_len = (uint)tmp[Q_DB_LEN_OFFSET];
+  uint16 status_vars_len= uint2korr(tmp + Q_STATUS_VARS_LEN_OFFSET);
 
-	tmp += post_header_len + status_vars_len + db_len + 1;
+  tmp += post_header_len + status_vars_len + db_len + 1;
 
-	uint32 un_len = binlog_get_uncompress_len(tmp);
-	*newlen = (tmp - src) + un_len;
+  uint32 un_len = binlog_get_uncompress_len(tmp);
+  *newlen = (tmp - src) + un_len;
   if(contain_checksum)
     *newlen += BINLOG_CHECKSUM_LEN;
   
   uint32 alloc_size = ALIGN_SIZE(*newlen);
-	char *new_dst = NULL;
+  char *new_dst = NULL;
 
   *is_malloc = false;
   if (alloc_size <= buf_size) 
@@ -822,7 +828,7 @@ int query_event_uncompress(const Format_description_log_event *description_event
   }
   else 
   {
-	  new_dst = (char *)my_malloc(alloc_size, MYF(MY_WME));
+    new_dst = (char *)my_malloc(alloc_size, MYF(MY_WME));
     if (!new_dst)
       return 1;
 
@@ -830,42 +836,47 @@ int query_event_uncompress(const Format_description_log_event *description_event
   }
 
   /* copy the head*/
-	memcpy(new_dst, src , tmp - src);
-	if (binlog_buf_uncompress(tmp, new_dst + (tmp - src), len - (tmp - src), &un_len))
-	{
+  memcpy(new_dst, src , tmp - src);
+  if (binlog_buf_uncompress(tmp, new_dst + (tmp - src),
+                            len - (tmp - src), &un_len))
+  {
     if (*is_malloc)
-		  my_free(new_dst);
+      my_free(new_dst);
 
     *is_malloc = false;
 
-		return 1;
-	}
+    return 1;
+  }
 
   new_dst[EVENT_TYPE_OFFSET] = QUERY_EVENT;
-	int4store(new_dst + EVENT_LEN_OFFSET, *newlen);
-  if(contain_checksum){
+  int4store(new_dst + EVENT_LEN_OFFSET, *newlen);
+  if(contain_checksum)
+  {
     ulong clear_len = *newlen - BINLOG_CHECKSUM_LEN;
-    int4store(new_dst + clear_len, my_checksum(0L, (uchar *)new_dst, clear_len));
+    int4store(new_dst + clear_len,
+              my_checksum(0L, (uchar *)new_dst, clear_len));
   }
   *dst = new_dst;
-	return 0;
+  return 0;
 }
 
-int row_log_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
-                             const char *src, char* buf, ulong buf_size, bool* is_malloc,
-                             char **dst, ulong *newlen)
+int
+row_log_event_uncompress(const Format_description_log_event *description_event,
+                         bool contain_checksum, const char *src, char* buf,
+                         ulong buf_size, bool* is_malloc, char **dst,
+                         ulong *newlen)
 {
   Log_event_type type = (Log_event_type)(uchar)src[EVENT_TYPE_OFFSET];
   ulong len = uint4korr(src + EVENT_LEN_OFFSET);
-	const char *tmp = src;
+  const char *tmp = src;
   char *new_dst = NULL;
 
   DBUG_ASSERT(LOG_EVENT_IS_ROW_COMPRESSED(type));
 
-	uint8 common_header_len= description_event->common_header_len;
-	uint8 post_header_len= description_event->post_header_len[type-1];
+  uint8 common_header_len= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[type-1];
 
-	tmp += common_header_len + ROWS_HEADER_LEN_V1;
+  tmp += common_header_len + ROWS_HEADER_LEN_V1;
   if (post_header_len == ROWS_HEADER_LEN_V2)
   {
     /*
@@ -879,14 +890,15 @@ int row_log_event_uncompress(const Format_description_log_event *description_eve
     tmp += var_header_len;
 
     /* get the uncompressed event type */
-    type = (Log_event_type)(type - WRITE_ROWS_COMPRESSED_EVENT + WRITE_ROWS_EVENT);
+    type=
+      (Log_event_type)(type - WRITE_ROWS_COMPRESSED_EVENT + WRITE_ROWS_EVENT);
   }
   else 
   {
     /* get the uncompressed event type */
-    type = (Log_event_type)(type - WRITE_ROWS_COMPRESSED_EVENT_V1 + WRITE_ROWS_EVENT_V1);
+    type= (Log_event_type)
+      (type - WRITE_ROWS_COMPRESSED_EVENT_V1 + WRITE_ROWS_EVENT_V1);
   }
-
 
   ulong m_width = net_field_length((uchar **)&tmp);
   tmp += (m_width + 7) / 8;
@@ -896,8 +908,8 @@ int row_log_event_uncompress(const Format_description_log_event *description_eve
     tmp += (m_width + 7) / 8;
   }
 
-	uint32 un_len = binlog_get_uncompress_len(tmp);
-	*newlen = (tmp - src) + un_len;
+  uint32 un_len = binlog_get_uncompress_len(tmp);
+  *newlen = (tmp - src) + un_len;
   if(contain_checksum)
     *newlen += BINLOG_CHECKSUM_LEN;
 
@@ -910,32 +922,34 @@ int row_log_event_uncompress(const Format_description_log_event *description_eve
   }
   else
   {
-	  new_dst = (char *)my_malloc(alloc_size, MYF(MY_WME));
+    new_dst = (char *)my_malloc(alloc_size, MYF(MY_WME));
     if (!new_dst)
       return 1;
 
     *is_malloc = true;
   }
 
-  /* copy the head*/
-	memcpy(new_dst, src , tmp - src);
-  /* uncompress the body */
-	if (binlog_buf_uncompress(tmp, new_dst + (tmp - src), len - (tmp - src), &un_len))
-	{
+  /* Copy the head. */
+  memcpy(new_dst, src , tmp - src);
+  /* Uncompress the body. */
+  if (binlog_buf_uncompress(tmp, new_dst + (tmp - src),
+                            len - (tmp - src), &un_len))
+  {
     if (*is_malloc)
-		  my_free(new_dst);
+      my_free(new_dst);
 
-		return 1;
-	}
+    return 1;
+  }
 
   new_dst[EVENT_TYPE_OFFSET] = type;
   int4store(new_dst + EVENT_LEN_OFFSET, *newlen);
   if(contain_checksum){
     ulong clear_len = *newlen - BINLOG_CHECKSUM_LEN;
-    int4store(new_dst + clear_len, my_checksum(0L, (uchar *)new_dst, clear_len));
+    int4store(new_dst + clear_len,
+              my_checksum(0L, (uchar *)new_dst, clear_len));
   }
   *dst = new_dst;
-	return 0;
+  return 0;
 }
 
 /**
@@ -945,27 +959,28 @@ int row_log_event_uncompress(const Format_description_log_event *description_eve
 uint32 binlog_get_uncompress_len(const char *buf)
 {
   DBUG_ASSERT((buf[0] & 0xe0) == 0x80);
-	uint32 lenlen = buf[0] & 0x07;
-	uint32 len = 0;
-	switch(lenlen)
-	{
-	case 1:
-		len = uchar(buf[1]);
-		break;
-	case 2:
-		len = uchar(buf[1]) << 8 | uchar(buf[2]);
-		break;
-	case 3:
-		len = uchar(buf[1]) << 16 | uchar(buf[2]) << 8 | uchar(buf[3]);
-		break;
-	case 4:
-		len = uchar(buf[1]) << 24 | uchar(buf[2]) << 16 | uchar(buf[3]) << 8 | uchar(buf[4]);
-		break;
-	default:
-		DBUG_ASSERT(lenlen >= 1 && lenlen <= 4);
-		break;
-	}
-	return len;
+  uint32 lenlen = buf[0] & 0x07;
+  uint32 len = 0;
+  switch(lenlen)
+  {
+  case 1:
+    len = uchar(buf[1]);
+    break;
+  case 2:
+    len = uchar(buf[1]) << 8 | uchar(buf[2]);
+    break;
+  case 3:
+    len = uchar(buf[1]) << 16 | uchar(buf[2]) << 8 | uchar(buf[3]);
+    break;
+  case 4:
+    len = uchar(buf[1]) << 24 | uchar(buf[2]) << 16 |
+          uchar(buf[3]) << 8 | uchar(buf[4]);
+    break;
+  default:
+    DBUG_ASSERT(lenlen >= 1 && lenlen <= 4);
+    break;
+  }
+  return len;
 }
 
 /**
@@ -979,22 +994,24 @@ uint32 binlog_get_uncompress_len(const char *buf)
 
    return zero if successful, others otherwise.
 */
-int binlog_buf_uncompress(const char *src, char *dst, uint32 len, uint32 *newlen)
+int binlog_buf_uncompress(const char *src, char *dst, uint32 len,
+                          uint32 *newlen)
 {
-	if((src[0] & 0x80) == 0)
-	{
-		return 1;
-	}
+  if((src[0] & 0x80) == 0)
+  {
+    return 1;
+  }
 
-	uint32 lenlen = src[0] & 0x07;
-    uLongf buflen  = *newlen;
-	if(uncompress((Bytef *)dst, &buflen, (const Bytef*)src + 1 + lenlen, len) != Z_OK)
-	{
-		return 1;
-	}
+  uint32 lenlen= src[0] & 0x07;
+  uLongf buflen= *newlen;
+  if(uncompress((Bytef *)dst, &buflen,
+                (const Bytef*)src + 1 + lenlen, len) != Z_OK)
+  {
+    return 1;
+  }
 
-	*newlen = (uint32)buflen;
-	return 0;
+  *newlen = (uint32)buflen;
+  return 0;
 }
 
 #ifndef MYSQL_CLIENT
@@ -1964,7 +1981,8 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       ev  = new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
       break;
     case QUERY_COMPRESSED_EVENT:
-      ev = new Query_compressed_log_event(buf, event_len, fdle, QUERY_COMPRESSED_EVENT);
+      ev = new Query_compressed_log_event(buf, event_len, fdle,
+                                          QUERY_COMPRESSED_EVENT);
       break;
     case LOAD_EVENT:
       ev = new Load_log_event(buf, event_len, fdle);
@@ -3149,32 +3167,32 @@ void Log_event::print_base64(IO_CACHE* file,
     }
     case UPDATE_ROWS_EVENT:
     case UPDATE_ROWS_EVENT_V1:
-      {
-        ev= new Update_rows_log_event((const char*) ptr, size,
-          glob_description_event);
-        break;
-      }
+    {
+      ev= new Update_rows_log_event((const char*) ptr, size,
+                                    glob_description_event);
+      break;
+    }
     case WRITE_ROWS_COMPRESSED_EVENT:
     case WRITE_ROWS_COMPRESSED_EVENT_V1:
-      {
-        ev= new Write_rows_compressed_log_event((const char*) ptr, size,
-          glob_description_event);
-        break;
-      }
+    {
+      ev= new Write_rows_compressed_log_event((const char*) ptr, size,
+                                              glob_description_event);
+      break;
+    }
     case UPDATE_ROWS_COMPRESSED_EVENT:
     case UPDATE_ROWS_COMPRESSED_EVENT_V1:
-      {
-        ev= new Update_rows_compressed_log_event((const char*) ptr, size,
-          glob_description_event);
-        break;
+    {
+      ev= new Update_rows_compressed_log_event((const char*) ptr, size,
+                                               glob_description_event);
+      break;
       }
     case DELETE_ROWS_COMPRESSED_EVENT:
     case DELETE_ROWS_COMPRESSED_EVENT_V1:
-      {
-        ev= new Delete_rows_compressed_log_event((const char*) ptr, size,
-          glob_description_event);
-        break;
-      }
+    {
+      ev= new Delete_rows_compressed_log_event((const char*) ptr, size,
+                                               glob_description_event);
+      break;
+    }
     default:
       break;
     }
@@ -3743,8 +3761,9 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
 Query_compressed_log_event::Query_compressed_log_event(THD* thd_arg, const char* query_arg,
     ulong query_length, bool using_trans,
     bool direct, bool suppress_use, int errcode)
-    :Query_log_event(thd_arg, query_arg, query_length, using_trans, direct, suppress_use, errcode),
-    query_buf(0)
+    :Query_log_event(thd_arg, query_arg, query_length, using_trans, direct,
+                     suppress_use, errcode),
+     query_buf(0)
 {
 
 }
@@ -4154,17 +4173,22 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
   DBUG_VOID_RETURN;
 }
 
-Query_compressed_log_event::Query_compressed_log_event(const char *buf, uint event_len,
+Query_compressed_log_event::Query_compressed_log_event(const char *buf,
+      uint event_len,
       const Format_description_log_event
       *description_event,
       Log_event_type event_type)
-      :Query_log_event(buf, event_len, description_event, event_type),query_buf(NULL)
+      :Query_log_event(buf, event_len, description_event, event_type),
+       query_buf(NULL)
 {
   if(query)
   {
     uint32 un_len=binlog_get_uncompress_len(query);
-    query_buf = (Log_event::Byte*)my_malloc(ALIGN_SIZE(un_len + 1), MYF(MY_WME)); //reserve one byte for '\0'
-    if(query_buf && !binlog_buf_uncompress(query, (char *)query_buf, q_len, &un_len))
+    /* Reserve one byte for '\0' */
+    query_buf = (Log_event::Byte*)my_malloc(ALIGN_SIZE(un_len + 1),
+                                            MYF(MY_WME));
+    if(query_buf &&
+       !binlog_buf_uncompress(query, (char *)query_buf, q_len, &un_len))
     {
       query_buf[un_len] = 0;
       query = (const char *)query_buf;
@@ -9953,7 +9977,8 @@ void Rows_log_event::uncompress_buf()
   uchar *new_buf= (uchar*) my_malloc(ALIGN_SIZE(un_len), MYF(MY_WME));
   if (new_buf)
   {
-    if(!binlog_buf_uncompress((char *)m_rows_buf, (char *)new_buf, m_rows_cur - m_rows_buf, &un_len))
+    if(!binlog_buf_uncompress((char *)m_rows_buf, (char *)new_buf,
+                              m_rows_cur - m_rows_buf, &un_len))
     {
       my_free(m_rows_buf);
       m_rows_buf = new_buf;
@@ -10817,16 +10842,18 @@ bool Rows_log_event::write_compressed()
   uchar *m_rows_cur_tmp = m_rows_cur;
   bool ret = true;
   uint32 comlen, alloc_size;
-  comlen = alloc_size = binlog_get_compress_len(m_rows_cur_tmp - m_rows_buf_tmp);
+  comlen= alloc_size= binlog_get_compress_len(m_rows_cur_tmp - m_rows_buf_tmp);
   m_rows_buf = (uchar *)my_safe_alloca(alloc_size);
-  if(m_rows_buf && !binlog_buf_compress((const char *)m_rows_buf_tmp, (char *)m_rows_buf, m_rows_cur_tmp - m_rows_buf_tmp, &comlen))
+  if(m_rows_buf &&
+     !binlog_buf_compress((const char *)m_rows_buf_tmp, (char *)m_rows_buf,
+                          m_rows_cur_tmp - m_rows_buf_tmp, &comlen))
   {
-    m_rows_cur = comlen + m_rows_buf;
-    ret = Log_event::write();
+    m_rows_cur= comlen + m_rows_buf;
+    ret= Log_event::write();
   }
   my_safe_afree(m_rows_buf, alloc_size);
-  m_rows_buf = m_rows_buf_tmp;
-  m_rows_cur = m_rows_cur_tmp;
+  m_rows_buf= m_rows_buf_tmp;
+  m_rows_cur= m_rows_cur_tmp;
   return ret;
 }
 #endif
@@ -11744,18 +11771,19 @@ Write_rows_log_event::Write_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 {
 }
 
-Write_rows_compressed_log_event::Write_rows_compressed_log_event(THD *thd_arg, TABLE *tbl_arg,
+Write_rows_compressed_log_event::Write_rows_compressed_log_event(
+                                           THD *thd_arg,
+                                           TABLE *tbl_arg,
                                            ulong tid_arg,
                                            bool is_transactional)
   : Write_rows_log_event(thd_arg, tbl_arg, tid_arg, is_transactional)
 {
-  //m_type = log_bin_use_v1_row_events ? WRITE_ROWS_COMPRESSED_EVENT_V1 : WRITE_ROWS_COMPRESSED_EVENT;
   m_type = WRITE_ROWS_COMPRESSED_EVENT_V1;
 }
 
 bool Write_rows_compressed_log_event::write()
 {
-    return Rows_log_event::write_compressed();    
+  return Rows_log_event::write_compressed();
 }
 #endif
 
@@ -11770,7 +11798,8 @@ Write_rows_log_event::Write_rows_log_event(const char *buf, uint event_len,
 {
 }
 
-Write_rows_compressed_log_event::Write_rows_compressed_log_event(const char *buf, uint event_len,
+Write_rows_compressed_log_event::Write_rows_compressed_log_event(
+                                           const char *buf, uint event_len,
                                            const Format_description_log_event
                                            *description_event)
 : Write_rows_log_event(buf, event_len, description_event)
@@ -12269,21 +12298,25 @@ void Write_rows_log_event::print(FILE *file, PRINT_EVENT_INFO* print_event_info)
   Rows_log_event::print_helper(file, print_event_info, "Write_rows");
 }
 
-void Write_rows_compressed_log_event::print(FILE *file, PRINT_EVENT_INFO* print_event_info)
+void Write_rows_compressed_log_event::print(FILE *file,
+                                            PRINT_EVENT_INFO* print_event_info)
 {
   char *new_buf;
   ulong len;
   bool is_malloc = false;
-  if(!row_log_event_uncompress(glob_description_event, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+  if(!row_log_event_uncompress(glob_description_event,
+                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                temp_buf, NULL, 0, &is_malloc, &new_buf, &len))
   {
-      free_temp_buf();
-      register_temp_buf(new_buf, true);
-      Rows_log_event::print_helper(file, print_event_info, "Write_compressed_rows");
+    free_temp_buf();
+    register_temp_buf(new_buf, true);
+    Rows_log_event::print_helper(file, print_event_info,
+                                 "Write_compressed_rows");
   }
   else
   {
-      my_b_printf(&print_event_info->head_cache, "ERROR: uncompress write_compressed_rows failed\n");
+    my_b_printf(&print_event_info->head_cache,
+                "ERROR: uncompress write_compressed_rows failed\n");
   }
 }
 #endif
@@ -12471,7 +12504,7 @@ void issue_long_find_row_warning(Log_event_type type,
     if (delta > LONG_FIND_ROW_THRESHOLD)
     {
       rgi->set_long_find_row_note_printed();
-      const char* evt_type= type == DELETE_ROWS_EVENT ? " DELETE" : "n UPDATE";
+      const char* evt_type= LOG_EVENT_IS_DELETE_ROW(type) ? " DELETE" : "n UPDATE";
       const char* scan_type= is_index_scan ? "scanning an index" : "scanning the table";
 
       sql_print_information("The slave is applying a ROW event on behalf of a%s statement "
@@ -12807,18 +12840,18 @@ Delete_rows_log_event::Delete_rows_log_event(THD *thd_arg, TABLE *tbl_arg,
 {
 }
 
-Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(THD *thd_arg, TABLE *tbl_arg,
+Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
+                                           THD *thd_arg, TABLE *tbl_arg,
                                            ulong tid_arg,
                                            bool is_transactional)
   : Delete_rows_log_event(thd_arg, tbl_arg, tid_arg, is_transactional)
 {
-  //m_type = log_bin_use_v1_row_events ? DELETE_ROWS_COMPRESSED_EVENT_V1 : DELETE_ROWS_COMPRESSED_EVENT;
-  m_type = DELETE_ROWS_COMPRESSED_EVENT_V1;
+  m_type= DELETE_ROWS_COMPRESSED_EVENT_V1;
 }
 
 bool Delete_rows_compressed_log_event::write()
 {
-    return Rows_log_event::write_compressed();    
+  return Rows_log_event::write_compressed();    
 }
 #endif /* #if !defined(MYSQL_CLIENT) */
 
@@ -12833,7 +12866,8 @@ Delete_rows_log_event::Delete_rows_log_event(const char *buf, uint event_len,
 {
 }
 
-Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(const char *buf, uint event_len,
+Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
+                                           const char *buf, uint event_len,
                                            const Format_description_log_event
                                            *description_event)
   : Delete_rows_log_event(buf, event_len, description_event)
@@ -12944,16 +12978,19 @@ void Delete_rows_compressed_log_event::print(FILE *file,
   char *new_buf;
   ulong len;
   bool is_malloc = false;
-  if(!row_log_event_uncompress(glob_description_event, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+  if(!row_log_event_uncompress(glob_description_event,
+                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                temp_buf, NULL, 0, &is_malloc, &new_buf, &len))
   {
-      free_temp_buf();
-      register_temp_buf(new_buf, true);
-      Rows_log_event::print_helper(file, print_event_info, "Delete_compressed_rows");
+    free_temp_buf();
+    register_temp_buf(new_buf, true);
+    Rows_log_event::print_helper(file, print_event_info,
+                                 "Delete_compressed_rows");
   }
   else
   {
-      my_b_printf(&print_event_info->head_cache, "ERROR: uncompress delete_compressed_rows failed\n");
+    my_b_printf(&print_event_info->head_cache,
+                "ERROR: uncompress delete_compressed_rows failed\n");
   }
 }
 #endif
@@ -12988,13 +13025,12 @@ Update_rows_compressed_log_event::Update_rows_compressed_log_event(THD *thd_arg,
                                                                    bool is_transactional)
 : Update_rows_log_event(thd_arg, tbl_arg, tid, is_transactional)
 {
-  //m_type = log_bin_use_v1_row_events ? UPDATE_ROWS_COMPRESSED_EVENT_V1 : UPDATE_ROWS_COMPRESSED_EVENT;
   m_type = UPDATE_ROWS_COMPRESSED_EVENT_V1;
 }
 
 bool Update_rows_compressed_log_event::write()
 {
-    return Rows_log_event::write_compressed();
+  return Rows_log_event::write_compressed();
 }
 
 void Update_rows_log_event::init(MY_BITMAP const *cols)
@@ -13036,12 +13072,13 @@ Update_rows_log_event::Update_rows_log_event(const char *buf, uint event_len,
 {
 }
 
-Update_rows_compressed_log_event::Update_rows_compressed_log_event(const char *buf, uint event_len,
+Update_rows_compressed_log_event::Update_rows_compressed_log_event(
+                                             const char *buf, uint event_len,
                                              const Format_description_log_event
                                              *description_event)
   : Update_rows_log_event(buf, event_len, description_event)
 {
-   uncompress_buf();
+  uncompress_buf();
 }
 #endif
 
@@ -13200,17 +13237,20 @@ void Update_rows_compressed_log_event::print(FILE *file, PRINT_EVENT_INFO *print
 {
   char *new_buf;
   ulong len;
-  bool is_malloc = false;
-  if(!row_log_event_uncompress(glob_description_event, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+  bool is_malloc= false;
+  if(!row_log_event_uncompress(glob_description_event,
+                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                temp_buf, NULL, 0, &is_malloc, &new_buf, &len))
   {
-      free_temp_buf();
-      register_temp_buf(new_buf, true);
-      Rows_log_event::print_helper(file, print_event_info, "Update_compressed_rows");
+    free_temp_buf();
+    register_temp_buf(new_buf, true);
+    Rows_log_event::print_helper(file, print_event_info,
+                                 "Update_compressed_rows");
   }
   else
   {
-      my_b_printf(&print_event_info->head_cache, "ERROR: uncompress update_compressed_rows failed\n");
+    my_b_printf(&print_event_info->head_cache,
+                "ERROR: uncompress update_compressed_rows failed\n");
   }
 }
 #endif

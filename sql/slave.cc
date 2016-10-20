@@ -6153,8 +6153,10 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   */
   case QUERY_COMPRESSED_EVENT:
     inc_pos= event_len;
-    if (query_event_uncompress(rli->relay_log.description_event_for_queue, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32, 
-                                buf, new_buf_arr, sizeof(new_buf_arr), &is_malloc, (char **)&new_buf, &event_len))
+    if (query_event_uncompress(rli->relay_log.description_event_for_queue,
+                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+                               buf, new_buf_arr, sizeof(new_buf_arr),
+                               &is_malloc, (char **)&new_buf, &event_len))
     {
       char  llbuf[22];
       error = ER_BINLOG_UNCOMPRESS_ERROR;
@@ -6175,8 +6177,10 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   case DELETE_ROWS_COMPRESSED_EVENT_V1:
     inc_pos = event_len;
     {
-      if (row_log_event_uncompress(rli->relay_log.description_event_for_queue, checksum_alg == BINLOG_CHECKSUM_ALG_CRC32, 
-                                    buf, new_buf_arr, sizeof(new_buf_arr), &is_malloc, (char **)&new_buf, &event_len))
+      if (row_log_event_uncompress(rli->relay_log.description_event_for_queue,
+                                   checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+                                   buf, new_buf_arr, sizeof(new_buf_arr),
+                                   &is_malloc, (char **)&new_buf, &event_len))
       {
         char  llbuf[22];
         error = ER_BINLOG_UNCOMPRESS_ERROR;
@@ -6207,7 +6211,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     DBUG_EXECUTE_IF("kill_slave_io_after_2_events",
                     {
                       if (mi->dbug_do_disconnect &&
-                          (LOG_EVENT_IS_QUERY((uchar)buf[EVENT_TYPE_OFFSET]) ||
+                          (LOG_EVENT_IS_QUERY((Log_event_type)(uchar)buf[EVENT_TYPE_OFFSET]) ||
                            ((uchar)buf[EVENT_TYPE_OFFSET] == TABLE_MAP_EVENT))
                           && (--mi->dbug_event_counter == 0))
                       {
