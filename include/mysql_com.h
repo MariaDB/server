@@ -585,6 +585,8 @@ my_bool	net_write_command(NET *net,unsigned char command,
 			  const unsigned char *packet, size_t len);
 int	net_real_write(NET *net,const unsigned char *packet, size_t len);
 unsigned long my_net_read_packet(NET *net, my_bool read_from_server);
+ulong my_net_read_packet_reallen(NET *net, my_bool read_from_server, 
+                                 ulong* reallen);
 #define my_net_read(A) my_net_read_packet((A), 0)
 
 #ifdef MY_GLOBAL_INCLUDED

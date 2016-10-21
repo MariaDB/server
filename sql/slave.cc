@@ -77,6 +77,7 @@ Master_info *active_mi= 0;
 Master_info_index *master_info_index;
 my_bool replicate_same_server_id;
 ulonglong relay_log_space_limit = 0;
+ulonglong opt_read_binlog_speed_limit = 0;
 
 const char *relay_log_index= 0;
 const char *relay_log_basename= 0;
@@ -3307,13 +3308,15 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
                         try a reconnect.  We do not want to print anything to
                         the error log in this case because this a anormal
                         event in an idle server.
+    network_read_len    get the real network read length in VIO, especially using compressed protocol 
 
     RETURN VALUES
     'packet_error'      Error
     number              Length of packet
 */
 
-static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings)
+static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings, 
+                        ulong* network_read_len)
 {
   ulong len;
   DBUG_ENTER("read_event");
@@ -3328,7 +3331,7 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings)
     DBUG_RETURN(packet_error);
 #endif
 
-  len = cli_safe_read(mysql);
+  len = cli_safe_read_reallen(mysql, network_read_len);
   if (len == packet_error || (long) len < 1)
   {
     if (mysql_errno(mysql) == ER_NET_READ_INTERRUPTED)
@@ -4415,9 +4418,11 @@ connected:
 
     mi->slave_running= MYSQL_SLAVE_RUN_READING;
     DBUG_ASSERT(mi->last_error().number == 0);
+    ulonglong lastchecktime = my_hrtime().val;
+    ulonglong tokenamount   = opt_read_binlog_speed_limit*1024;
     while (!io_slave_killed(mi))
     {
-      ulong event_len;
+      ulong event_len, network_read_len = 0;
       /*
          We say "waiting" because read_event() will wait if there's nothing to
          read. But if there's something to read, it will not wait. The
@@ -4425,7 +4430,7 @@ connected:
          we're in fact receiving nothing.
       */
       THD_STAGE_INFO(thd, stage_waiting_for_master_to_send_event);
-      event_len= read_event(mysql, mi, &suppress_warnings);
+      event_len= read_event(mysql, mi, &suppress_warnings, &network_read_len);
       if (check_io_slave_killed(mi, NullS))
         goto err;
 
@@ -4471,6 +4476,47 @@ Stopping slave I/O thread due to out-of-memory error from master");
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
                    "Failed to run 'after_read_event' hook");
         goto err;
+      }
+
+      /* Control the binlog read speed of master 
+         when read_binlog_speed_limit is non-zero
+      */
+      ulonglong speed_limit_in_bytes = opt_read_binlog_speed_limit * 1024;
+      if (speed_limit_in_bytes) 
+      {
+        /* Prevent the tokenamount become a large value, 
+           for example, the IO thread doesn't work for a long time
+        */
+        if (tokenamount > speed_limit_in_bytes * 2) 
+        {
+          lastchecktime = my_hrtime().val;
+          tokenamount = speed_limit_in_bytes * 2;
+        }
+
+        do
+        {
+          ulonglong currenttime = my_hrtime().val;
+          tokenamount += (currenttime - lastchecktime) * speed_limit_in_bytes / (1000*1000);
+          lastchecktime = currenttime;
+          if(tokenamount < network_read_len)
+          {
+            ulonglong micro_time = 1000*1000 * (network_read_len - tokenamount) / speed_limit_in_bytes ;  
+            ulonglong second_time = micro_time / (1000 * 1000);
+            micro_time = micro_time % (1000 * 1000);
+
+            // at least sleep 1000 micro second
+            my_sleep(micro_time > 1000 ? micro_time : 1000); 
+
+            /*
+              If it sleep more than one second, 
+              it should use slave_sleep() to avoid the STOP SLAVE hang.   
+            */
+            if (second_time)
+              slave_sleep(thd, second_time, io_slave_killed, mi);
+
+          }
+        }while(tokenamount < network_read_len);
+        tokenamount -= network_read_len;
       }
 
       /* XXX: 'synced' should be updated by queue_event to indicate

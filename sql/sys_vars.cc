@@ -4630,6 +4630,12 @@ static Sys_var_charptr Sys_slave_skip_errors(
        READ_ONLY GLOBAL_VAR(opt_slave_skip_errors), CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(0));
 
+static Sys_var_ulonglong Sys_read_binlog_speed_limit(
+       "read_binlog_speed_limit", "Maximum speed(KB/s) to read binlog from"
+       " master (0 = no limit)",
+       GLOBAL_VAR(opt_read_binlog_speed_limit), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
 static Sys_var_ulonglong Sys_relay_log_space_limit(
        "relay_log_space_limit", "Maximum space to use for all relay logs",
        READ_ONLY GLOBAL_VAR(relay_log_space_limit), CMD_LINE(REQUIRED_ARG),
