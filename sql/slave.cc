@@ -3315,7 +3315,8 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
     number              Length of packet
 */
 
-static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings, ulong* network_read_len)
+static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings, 
+                        ulong* network_read_len)
 {
   ulong len;
   DBUG_ENTER("read_event");
@@ -3330,7 +3331,7 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings, 
     DBUG_RETURN(packet_error);
 #endif
 
-  len = cli_safe_read(mysql);
+  len = cli_safe_read_reallen(mysql, network_read_len);
   if (len == packet_error || (long) len < 1)
   {
     if (mysql_errno(mysql) == ER_NET_READ_INTERRUPTED)
@@ -3356,8 +3357,6 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings, 
                      mysql_error(mysql));
      DBUG_RETURN(packet_error);
   }
-
-  *network_read_len = mysql->net.real_network_read_len ;
 
   DBUG_PRINT("exit", ("len: %lu  net->read_pos[4]: %d",
                       len, mysql->net.read_pos[4]));
@@ -4479,29 +4478,42 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      /* Control the binlog read speed of master when read_binlog_speed_limit is non-zero
+      /* Control the binlog read speed of master 
+         when read_binlog_speed_limit is non-zero
       */
-      ulonglong read_binlog_speed_limit_in_bytes = opt_read_binlog_speed_limit * 1024;
-      if (read_binlog_speed_limit_in_bytes) 
+      ulonglong speed_limit_in_bytes = opt_read_binlog_speed_limit * 1024;
+      if (speed_limit_in_bytes) 
       {
-        /* prevent the tokenamount become a large value, 
-        for example, the IO thread doesn't work for a long time
+        /* Prevent the tokenamount become a large value, 
+           for example, the IO thread doesn't work for a long time
         */
-        if (tokenamount > read_binlog_speed_limit_in_bytes * 2) 
+        if (tokenamount > speed_limit_in_bytes * 2) 
         {
           lastchecktime = my_hrtime().val;
-          tokenamount = read_binlog_speed_limit_in_bytes * 2;
+          tokenamount = speed_limit_in_bytes * 2;
         }
 
         do
         {
           ulonglong currenttime = my_hrtime().val;
-          tokenamount += (currenttime - lastchecktime) * read_binlog_speed_limit_in_bytes / (1000*1000);
+          tokenamount += (currenttime - lastchecktime) * speed_limit_in_bytes / (1000*1000);
           lastchecktime = currenttime;
           if(tokenamount < network_read_len)
           {
-            ulonglong micro_sleeptime = 1000*1000 * (network_read_len - tokenamount) / read_binlog_speed_limit_in_bytes ;  
-            my_sleep(micro_sleeptime > 1000 ? micro_sleeptime : 1000); // at least sleep 1000 micro second
+            ulonglong micro_time = 1000*1000 * (network_read_len - tokenamount) / speed_limit_in_bytes ;  
+            ulonglong second_time = micro_time / (1000 * 1000);
+            micro_time = micro_time % (1000 * 1000);
+
+            // at least sleep 1000 micro second
+            my_sleep(micro_time > 1000 ? micro_time : 1000); 
+
+            /*
+              If it sleep more than one second, 
+              it should use slave_sleep() to avoid the STOP SLAVE hang.   
+            */
+            if (second_time)
+              slave_sleep(thd, second_time, io_slave_killed, mi);
+
           }
         }while(tokenamount < network_read_len);
         tokenamount -= network_read_len;

@@ -1133,16 +1133,22 @@ ulong my_net_read(NET *net)
   The function returns the length of the found packet or packet_error.
   net->read_pos points to the read data.
 */
+ulong
+my_net_read_packet(NET *net, my_bool read_from_server)
+{
+  ulong reallen = 0;
+  return my_net_read_packet_reallen(net, read_from_server, &reallen); 
+}
 
 
 ulong
-my_net_read_packet(NET *net, my_bool read_from_server)
+my_net_read_packet_reallen(NET *net, my_bool read_from_server, ulong* reallen)
 {
   size_t len, complen;
 
   MYSQL_NET_READ_START();
 
-  net->real_network_read_len = 0;
+  *reallen = 0;
 #ifdef HAVE_COMPRESS
   if (!net->compress)
   {
@@ -1167,7 +1173,7 @@ my_net_read_packet(NET *net, my_bool read_from_server)
     if (len != packet_error)
     {
       net->read_pos[len]=0;		/* Safeguard for mysql_use_result */
-      net->real_network_read_len = len;
+      *reallen = len;
     }
     MYSQL_NET_READ_DONE(0, len);
     return len;
@@ -1269,7 +1275,7 @@ my_net_read_packet(NET *net, my_bool read_from_server)
 	return packet_error;
       }
       buf_length+= complen;
-      net->real_network_read_len += packet_len;
+      *reallen += packet_len;
     }
 
     net->read_pos=      net->buff+ first_packet_offset + NET_HEADER_SIZE;
