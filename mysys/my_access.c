@@ -186,7 +186,7 @@ static my_bool does_drive_exists(char drive_letter)
  
   @return TRUE if the file name is allowed, FALSE otherwise.
 */
-#define ILLEGAL_FILENAME_CHARS "<>:\"/\|?*"
+#define ILLEGAL_FILENAME_CHARS "<>:\"/\\|?*"
 
 my_bool is_filename_allowed(const char *name __attribute__((unused)),
                             size_t length __attribute__((unused)),
