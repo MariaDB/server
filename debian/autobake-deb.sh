@@ -31,35 +31,26 @@ PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
 
 # Look up distro-version specific stuff.
+# Always keep the actual packaging as up-to-date as possible following the latest
+# Debian policy and targetting Debian Sid. Then case-by-case run in autobake-deb.sh
+# tests for backwards compatibility and strip away parts on older builders.
 
 CODENAME="$(lsb_release -sc)"
 
-# Add libcrack2 (>= 2.9.0) as a build dependency if available in the distribution
-# This matches Debian Jessie, Stretch and Ubuntu Trusty, Wily, Xenial, Yakkety
-# Update check when version 2.10 or newer is available.
-if apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
+# If libcrack2 (>= 2.9.0) is not available (before Debian Jessie and Ubuntu Trusty)
+# clean away the cracklib stanzas so the package can build without them.
+if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
 then
-  sed 's/Standards-Version/,libcrack2-dev (>= 2.9.0)\nStandards-Version/' debian/control
-  cat <<EOT >> debian/control
-
-Package: mariadb-cracklib-password-check-10.2
-Architecture: any
-Depends: libcrack2 (>= 2.9.0),
-         mariadb-server-10.2,
-         \${misc:Depends},
-         \${shlibs:Depends}
-Description: CrackLib Password Validation Plugin for MariaDB
- This password validation plugin uses cracklib to allow only
- sufficiently secure (as defined by cracklib) user passwords in MariaDB.
-EOT
+  sed '/libcrack2-dev/d' -i debian/control
+  sed '/Package: mariadb-plugin-cracklib/,+10d' -i debian/control
 fi
 
-# Add libpcre3-dev (>= 2:8.35-3.2~) as a build dependency if available in the distribution
-# This matches Debian Jessie, Stretch and Ubuntu Wily, Xenial, Yakkety
+# If libpcre3-dev (>= 2:8.35-3.2~) is not available (before Debian Jessie or Ubuntu Wily)
+# clean away the PCRE3 stanzas so the package can build without them.
 # Update check when version 2:8.40 or newer is available.
-if apt-cache madison libpcre3-dev | grep 'libpcre3-dev *| *2:8\.3[2-9]' >/dev/null 2>&1
+if ! apt-cache madison libpcre3-dev | grep 'libpcre3-dev *| *2:8\.3[2-9]' >/dev/null 2>&1
 then
-  sed 's/Standards-Version/,libpcre3-dev (>= 2:8.35-3.2~)\nStandards-Version/' debian/control
+  sed '/libpcre3-dev/d' -i debian/control
 fi
 
 # On Travis-CI, the log must stay under 4MB so make the build less verbose

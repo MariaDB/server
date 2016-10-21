@@ -10,11 +10,13 @@ Build-Depends: bison,
                dpatch,
                libaio-dev [linux-any],
                libboost-dev,
+               libcrack2-dev (>= 2.9.0),
                libjemalloc-dev (>= 3.0.0~) [linux-any],
                libjudy-dev,
                libkrb5-dev,
                libncurses5-dev (>= 5.0-6~),
                libpam0g-dev,
+               libpcre3-dev (>= 2:8.35-3.2~),
                libreadline-gplv2-dev,
                libssl-dev,
                libxml2-dev,
@@ -555,3 +557,13 @@ Depends: libgssapi-krb5-2,
 Breaks: mariadb-gssapi-client-10.1, mariadb-gssapi-client-10.2
 Replaces: mariadb-gssapi-client-10.1, mariadb-gssapi-client-10.2
 Description: GSSAPI authentication plugin for MariaDB client
+
+Package: mariadb-plugin-cracklib-password-check
+Architecture: any
+Depends: libcrack2 (>= 2.9.0),
+         mariadb-server-10.2,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: CrackLib Password Validation Plugin for MariaDB
+ This password validation plugin uses cracklib to allow only
+ sufficiently secure (as defined by cracklib) user passwords in MariaDB.
