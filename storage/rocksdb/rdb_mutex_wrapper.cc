@@ -19,9 +19,16 @@
 /* This C++ file's header file */
 #include "./rdb_mutex_wrapper.h"
 
+/* The following are for THD_ENTER_COND: */
+#define MYSQL_SERVER 1
+#include "sql_priv.h"
+#include "my_decimal.h"
+#include "sql_class.h"
+
 /* MyRocks header files */
 #include "./ha_rocksdb.h"
 #include "./rdb_utils.h"
+
 
 // Internal MySQL APIs not exposed in any header.
 extern "C"
@@ -92,8 +99,8 @@ Rdb_cond_var::WaitFor(std::shared_ptr<TransactionDBMutex> mutex_arg,
 
   if (current_thd && mutex_obj->m_old_stage_info.count(current_thd) == 0)
   {
-    my_core::thd_enter_cond(current_thd, &m_cond, mutex_ptr,
-                            &stage_waiting_on_row_lock2, &old_stage);
+    THD_ENTER_COND(current_thd, &m_cond, mutex_ptr,
+                   &stage_waiting_on_row_lock2, &old_stage);
     /*
       After the mysql_cond_timedwait we need make this call
 
@@ -226,7 +233,7 @@ void Rdb_mutex::UnLock() {
     std::shared_ptr<PSI_stage_info> old_stage = m_old_stage_info[current_thd];
     m_old_stage_info.erase(current_thd);
     /* The following will call mysql_mutex_unlock */
-    my_core::thd_exit_cond(current_thd, old_stage.get());
+    THD_EXIT_COND(current_thd, old_stage.get());
     return;
   }
 #endif

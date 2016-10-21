@@ -4,7 +4,7 @@ IF (NOT EXISTS "${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/Makefile")
   MESSAGE(SEND_ERROR "Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -frtti")
 
 # get a list of rocksdb library source files
 # run with env -i to avoid passing variables
@@ -36,6 +36,9 @@ ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX -DOS_LINUX
 #  (facebook/mysql-5.6 just compiles everything without -f*rtti, which means
 #  everything is compiled with -frtti) 
 #
+#  (also had to add -frtti above, because something that event_listener.cc
+#  includes requires it. So, now everything in MariaRocks is compiled with
+#  -frtti)
 set_source_files_properties(${ROCKSDB_LIB_SOURCES} PROPERTIES COMPILE_FLAGS -frtti)
 
 SET(ROCKSDB_SOURCES

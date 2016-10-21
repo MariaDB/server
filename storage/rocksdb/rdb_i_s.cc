@@ -1052,7 +1052,7 @@ static int rdb_i_s_deinit(void *p __attribute__((__unused__)))
 static struct st_mysql_information_schema rdb_i_s_info=
 { MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
 
-struct st_mysql_plugin rdb_i_s_cfstats=
+struct st_maria_plugin rdb_i_s_cfstats=
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &rdb_i_s_info,
@@ -1069,7 +1069,7 @@ struct st_mysql_plugin rdb_i_s_cfstats=
   0,                                  /* flags */
 };
 
-struct st_mysql_plugin rdb_i_s_dbstats=
+struct st_maria_plugin rdb_i_s_dbstats=
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &rdb_i_s_info,
@@ -1086,7 +1086,7 @@ struct st_mysql_plugin rdb_i_s_dbstats=
   0,                                  /* flags */
 };
 
-struct st_mysql_plugin rdb_i_s_perf_context=
+struct st_maria_plugin rdb_i_s_perf_context=
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &rdb_i_s_info,
@@ -1103,7 +1103,7 @@ struct st_mysql_plugin rdb_i_s_perf_context=
   0,                                  /* flags */
 };
 
-struct st_mysql_plugin rdb_i_s_perf_context_global=
+struct st_maria_plugin rdb_i_s_perf_context_global=
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &rdb_i_s_info,
@@ -1120,7 +1120,7 @@ struct st_mysql_plugin rdb_i_s_perf_context_global=
   0,                                  /* flags */
 };
 
-struct st_mysql_plugin rdb_i_s_cfoptions=
+struct st_maria_plugin rdb_i_s_cfoptions=
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &rdb_i_s_info,
@@ -1137,7 +1137,7 @@ struct st_mysql_plugin rdb_i_s_cfoptions=
   0,                                  /* flags */
 };
 
-struct st_mysql_plugin rdb_i_s_global_info=
+struct st_maria_plugin rdb_i_s_global_info=
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &rdb_i_s_info,
@@ -1154,7 +1154,7 @@ struct st_mysql_plugin rdb_i_s_global_info=
   0,                                  /* flags */
 };
 
-struct st_mysql_plugin rdb_i_s_ddl=
+struct st_maria_plugin rdb_i_s_ddl=
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &rdb_i_s_info,
@@ -1171,7 +1171,7 @@ struct st_mysql_plugin rdb_i_s_ddl=
   0,                                  /* flags */
 };
 
-struct st_mysql_plugin rdb_i_s_index_file_map=
+struct st_maria_plugin rdb_i_s_index_file_map=
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &rdb_i_s_info,

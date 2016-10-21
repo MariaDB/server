@@ -10780,7 +10780,7 @@ double ha_rocksdb::read_time(uint index, uint ranges, ha_rows rows)
 struct st_mysql_storage_engine rocksdb_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(rocksdb_se)
+maria_declare_plugin(rocksdb_se)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,                  /* Plugin Type */
   &rocksdb_storage_engine,                      /* Plugin Descriptor */
@@ -10793,8 +10793,8 @@ mysql_declare_plugin(rocksdb_se)
   0x0001,                                       /* version number (0.1) */
   myrocks::rocksdb_status_vars,                 /* status variables */
   myrocks::rocksdb_system_variables,            /* system variables */
-  nullptr,                                      /* config options */
-  0,                                            /* flags */
+  "1.0",                                        /* string version */
+  MariaDB_PLUGIN_MATURITY_ALPHA                 /* maturity */
 },
 myrocks::rdb_i_s_cfstats,
 myrocks::rdb_i_s_dbstats,
@@ -10804,4 +10804,4 @@ myrocks::rdb_i_s_cfoptions,
 myrocks::rdb_i_s_global_info,
 myrocks::rdb_i_s_ddl,
 myrocks::rdb_i_s_index_file_map
-mysql_declare_plugin_end;
+maria_declare_plugin_end;
