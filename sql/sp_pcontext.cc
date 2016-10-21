@@ -498,18 +498,18 @@ sp_pcontext::find_handler(const Sql_condition_identity &value) const
 }
 
 
-bool sp_pcontext::add_cursor(const LEX_STRING name)
+bool sp_pcontext::add_cursor(const LEX_STRING name, sp_pcontext *param_ctx)
 {
   if (m_cursors.elements() == m_max_cursor_index)
     ++m_max_cursor_index;
 
-  return m_cursors.append(name);
+  return m_cursors.append(sp_pcursor(name, param_ctx));
 }
 
 
-bool sp_pcontext::find_cursor(const LEX_STRING name,
-                              uint *poff,
-                              bool current_scope_only) const
+const sp_pcursor *sp_pcontext::find_cursor(const LEX_STRING name,
+                                           uint *poff,
+                                           bool current_scope_only) const
 {
   uint i= m_cursors.elements();
 
@@ -522,13 +522,13 @@ bool sp_pcontext::find_cursor(const LEX_STRING name,
 		     (const uchar *) n.str, n.length) == 0)
     {
       *poff= m_cursor_offset + i;
-      return true;
+      return &m_cursors.at(i);
     }
   }
 
   return (!current_scope_only && m_parent) ?
     m_parent->find_cursor(name, poff, false) :
-    false;
+    NULL;
 }
 
 
@@ -551,7 +551,7 @@ void sp_pcontext::retrieve_field_definitions(
 }
 
 
-const LEX_STRING *sp_pcontext::find_cursor(uint offset) const
+const sp_pcursor *sp_pcontext::find_cursor(uint offset) const
 {
   if (m_cursor_offset <= offset &&
       offset < m_cursor_offset + m_cursors.elements())

@@ -362,6 +362,85 @@ public:
                                                  spcont->last_label());
   }
 
+  bool set_local_variable(THD *thd, sp_pcontext *spcont,
+                          sp_variable *spv, Item *val, LEX *lex);
+
+private:
+  /**
+    Generate a code to set a single cursor parameter variable.
+    @param thd          - current thd, for mem_root allocations.
+    @param param_spcont - the context of the parameter block
+    @param idx          - the index of the parameter
+    @param prm          - the actual parameter (contains information about
+                          the assignment source expression Item,
+                          its free list, and its LEX)
+  */
+  bool add_set_cursor_param_variable(THD *thd,
+                                     sp_pcontext *param_spcont, uint idx,
+                                     sp_assignment_lex *prm)
+  {
+    DBUG_ASSERT(idx < param_spcont->context_var_count());
+    sp_variable *spvar= param_spcont->find_context_variable(idx);
+    /*
+      add_instr() gets free_list from m_thd->free_list.
+      Initialize it before the set_local_variable() call.
+    */
+    DBUG_ASSERT(m_thd->free_list == NULL);
+    m_thd->free_list= prm->get_free_list();
+    if (set_local_variable(thd, param_spcont, spvar, prm->get_item(), prm))
+      return true;
+    /*
+      Safety:
+      The item and its free_list are now fully owned by the sp_instr_set
+      instance, created by set_local_variable(). The sp_instr_set instance
+      is now responsible for freeing the item and the free_list.
+      Reset the "item" and the "free_list" members of "prm",
+      to avoid double pointers to the same objects from "prm" and
+      from the sp_instr_set instance.
+    */
+    prm->set_item_and_free_list(NULL, NULL);
+    return false;
+  }
+
+  /**
+    Generate a code to set all cursor parameter variables.
+    This method is called only when parameters exists,
+    and the number of formal parameters matches the number of actual
+    parameters. See also comments to add_open_cursor().
+  */
+  bool add_set_cursor_param_variables(THD *thd, sp_pcontext *param_spcont,
+                                      List<sp_assignment_lex> *parameters)
+  {
+    DBUG_ASSERT(param_spcont->context_var_count() == parameters->elements);
+    sp_assignment_lex *prm;
+    List_iterator<sp_assignment_lex> li(*parameters);
+    for (uint idx= 0; (prm= li++); idx++)
+    {
+      if (add_set_cursor_param_variable(thd, param_spcont, idx, prm))
+        return true;
+    }
+    return false;
+  }
+
+
+public:
+  /**
+    Generate a code for an "OPEN cursor" statement.
+    @param thd          - current thd, for mem_root allocations
+    @param spcont       - the context of the cursor
+    @param offset       - the offset of the cursor
+    @param param_spcont - the context of the cursor parameter block
+    @param parameters   - the list of the OPEN actual parameters
+
+    The caller must make sure that the number of local variables
+    in "param_spcont" (formal parameters) matches the number of list elements
+    in "parameters" (actual parameters).
+    NULL in either of them means 0 parameters.
+  */
+  bool add_open_cursor(THD *thd, sp_pcontext *spcont,
+                       uint offset,
+                       sp_pcontext *param_spcont,
+                       List<sp_assignment_lex> *parameters);
 
   /**
     Returns true if any substatement in the routine directly
@@ -395,13 +474,43 @@ public:
   reset_lex(THD *thd);
 
   /**
+    Merge two LEX instances.
+    @param oldlex - the upper level LEX we're going to restore to.
+    @param sublex - the local lex that have just parsed some substatement.
+    @returns      - false on success, true on error (e.g. failed to
+                    merge the routine list or the table list).
+    This method is shared by:
+    - restore_lex(), when the old LEX is popped by sp_head::m_lex.pop()
+    - THD::restore_from_local_lex_to_old_lex(), when the old LEX
+      is stored in the caller's local variable.
+  */
+  bool
+  merge_lex(THD *thd, LEX *oldlex, LEX *sublex);
+
+  /**
     Restores lex in 'thd' from our copy, but keeps some status from the
     one in 'thd', like ptr, tables, fields, etc.
 
     @todo Conflicting comment in sp_head.cc
   */
   bool
-  restore_lex(THD *thd);
+  restore_lex(THD *thd)
+  {
+    DBUG_ENTER("sp_head::restore_lex");
+    LEX *oldlex= (LEX *) m_lex.pop();
+    if (!oldlex)
+      DBUG_RETURN(false); // Nothing to restore
+    LEX *sublex= thd->lex;
+    if (thd->restore_from_local_lex_to_old_lex(oldlex))// This restores thd->lex
+      DBUG_RETURN(true);
+    if (!sublex->sp_lex_in_use)
+    {
+      sublex->sphead= NULL;
+      lex_end(sublex);
+      delete sublex;
+    }
+    DBUG_RETURN(false);
+  }
 
   /// Put the instruction on the backpatch list, associated with the label.
   int

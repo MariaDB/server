@@ -247,6 +247,36 @@ public:
   }
 };
 
+
+///////////////////////////////////////////////////////////////////////////
+
+/**
+  class sp_pcursor.
+  Stores information about a cursor:
+  - Cursor's name in LEX_STRING.
+  - Cursor's formal parameter descriptions.
+
+    Formal parameter descriptions reside in a separate context block,
+    pointed by the "m_param_context" member.
+
+    m_param_context can be NULL. This means a cursor with no parameters.
+    Otherwise, the number of variables in m_param_context means
+    the number of cursor's formal parameters.
+
+    Note, m_param_context can be not NULL, but have no variables.
+    This is also means a cursor with no parameters (similar to NULL).
+*/
+class sp_pcursor: public LEX_STRING
+{
+  class sp_pcontext *m_param_context; // Formal parameters
+public:
+  sp_pcursor(const LEX_STRING &name, class sp_pcontext *param_ctx)
+   :LEX_STRING(name), m_param_context(param_ctx)
+  { }
+  class sp_pcontext *param_context() const { return m_param_context; }
+};
+
+
 ///////////////////////////////////////////////////////////////////////////
 
 /// This class represents 'DECLARE HANDLER' statement.
@@ -382,6 +412,13 @@ public:
   /// @return the number of variables in this context alone.
   uint context_var_count() const
   { return m_vars.elements(); }
+
+  /// return the i-th variable on the current context
+  sp_variable *find_context_variable(uint i) const
+  {
+    DBUG_ASSERT(i < m_vars.elements());
+    return m_vars.at(i);
+  }
 
   /// @return map index in this parsing context to runtime offset.
   uint var_context2runtime(uint i) const
@@ -558,14 +595,14 @@ public:
   // Cursors.
   /////////////////////////////////////////////////////////////////////////
 
-  bool add_cursor(const LEX_STRING name);
+  bool add_cursor(const LEX_STRING name, sp_pcontext *param_ctx);
 
   /// See comment for find_variable() above.
-  bool find_cursor(const LEX_STRING name,
-                   uint *poff, bool current_scope_only) const;
+  const sp_pcursor *find_cursor(const LEX_STRING name,
+                                uint *poff, bool current_scope_only) const;
 
-  /// Find cursor by offset (for debugging only).
-  const LEX_STRING *find_cursor(uint offset) const;
+  /// Find cursor by offset (for SHOW {PROCEDURE|FUNCTION} CODE only).
+  const sp_pcursor *find_cursor(uint offset) const;
 
   uint max_cursor_index() const
   { return m_max_cursor_index + m_cursors.elements(); }
@@ -641,7 +678,7 @@ private:
   Dynamic_array<sp_condition *> m_conditions;
 
   /// Stack of cursors.
-  Dynamic_array<LEX_STRING> m_cursors;
+  Dynamic_array<sp_pcursor> m_cursors;
 
   /// Stack of SQL-handlers.
   Dynamic_array<sp_handler *> m_handlers;

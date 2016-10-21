@@ -44,6 +44,7 @@ class sp_name;
 class sp_instr;
 class sp_pcontext;
 class sp_variable;
+class sp_assignment_lex;
 class st_alter_tablespace;
 class partition_info;
 class Event_parse_data;
@@ -725,7 +726,7 @@ public:
 
   void set_unique_exclude();
 
-  friend void lex_start(THD *thd);
+  friend class LEX;
   friend int subselect_union_engine::exec();
 
   List<Item> *get_column_types(bool for_cursor);
@@ -1030,7 +1031,7 @@ public:
   */
   ha_rows get_limit();
 
-  friend void lex_start(THD *thd);
+  friend class LEX;
   st_select_lex() : group_list_ptrs(NULL), braces(0),
   n_sum_items(0), n_child_sum_items(0)
   {}
@@ -2878,6 +2879,8 @@ public:
     delete_dynamic(&plugins);
   }
 
+  void start(THD *thd);
+
   inline bool is_ps_or_view_context_analysis()
   {
     return (context_analysis_only &
@@ -3068,8 +3071,10 @@ public:
   bool sp_handler_declaration_init(THD *thd, int type);
   bool sp_handler_declaration_finalize(THD *thd, int type);
 
-  bool sp_declare_cursor(THD *thd, const LEX_STRING name, LEX *cursor_stmt);
-  bool set_local_variable(sp_variable *spv, Item *val);
+  bool sp_declare_cursor(THD *thd, const LEX_STRING name, LEX *cursor_stmt,
+                         sp_pcontext *param_ctx);
+  bool sp_open_cursor(THD *thd, const LEX_STRING name,
+                      List<sp_assignment_lex> *parameters);
   Item_splocal *create_item_for_sp_var(LEX_STRING name, sp_variable *spvar,
                                        const char *start_in_q,
                                        const char *end_in_q);
@@ -3458,6 +3463,92 @@ digest_reduce_token(sql_digest_state *state, uint token_left, uint token_right);
 struct st_lex_local: public LEX, public Sql_alloc
 {
 };
+
+
+/**
+  An st_lex_local extension with automatic initialization for SP purposes.
+  Used to parse sub-expressions and SP sub-statements.
+
+  This class is reused for:
+  1. sp_head::reset_lex() based constructs
+    - SP variable assignments (e.g. SET x=10;)
+    - FOR loop conditions and index variable increments
+    - Cursor statements
+    - SP statements
+    - SP function RETURN statements
+    - CASE statements
+    - REPEAT..UNTIL expressions
+    - WHILE expressions
+    - EXIT..WHEN and CONTINUE..WHEN statements
+  2. sp_assignment_lex based constructs:
+    - CURSOR parameter assignments
+*/
+class sp_lex_local: public st_lex_local
+{
+public:
+  sp_lex_local(THD *thd, const LEX *oldlex)
+  {
+    /* Reset most stuff. */
+    start(thd);
+    /* Keep the parent SP stuff */
+    sphead= oldlex->sphead;
+    spcont= oldlex->spcont;
+    /* Keep the parent trigger stuff too */
+    trg_chistics= oldlex->trg_chistics;
+    trg_table_fields.empty();
+    sp_lex_in_use= false;
+  }
+};
+
+
+/**
+  An assignment specific LEX, which additionally has an Item (an expression)
+  and an associated with the Item free_list, which is usually freed
+  after the expression is calculated.
+
+  Note, consider changing some of sp_lex_local to sp_assignment_lex,
+  as the latter allows to use a simpler grammar in sql_yacc.yy (IMO).
+
+  If the expression is simple (e.g. does not have function calls),
+  then m_item and m_free_list point to the same Item.
+
+  If the expressions is complex (e.g. have function calls),
+  then m_item points to the leftmost Item, while m_free_list points
+  to the rightmost item.
+  For example:
+      f1(COALESCE(f2(10), f2(20)))
+  - m_item points to Item_func_sp for f1 (the leftmost Item)
+  - m_free_list points to Item_int for 20 (the rightmost Item)
+
+  Note, we could avoid storing m_item at all, as we can always reach
+  the leftmost item from the rightmost item by iterating through m_free_list.
+  But with a separate m_item the code should be faster.
+*/
+class sp_assignment_lex: public sp_lex_local
+{
+  Item *m_item;       // The expression
+  Item *m_free_list;  // The associated free_list (sub-expressions)
+public:
+  sp_assignment_lex(THD *thd, LEX *oldlex)
+   :sp_lex_local(thd, oldlex),
+    m_item(NULL),
+    m_free_list(NULL)
+  { }
+  void set_item_and_free_list(Item *item, Item *free_list)
+  {
+    m_item= item;
+    m_free_list= free_list;
+  }
+  Item *get_item() const
+  {
+    return m_item;
+  }
+  Item *get_free_list() const
+  {
+    return m_free_list;
+  }
+};
+
 
 extern void lex_init(void);
 extern void lex_free(void);
