@@ -35,7 +35,6 @@ typedef struct st_net {
   my_bool thread_specific_malloc;
   unsigned char compress;
   my_bool unused3;
-  unsigned long real_network_read_len;
   void *thd;
   unsigned int last_errno;
   unsigned char error;
