@@ -652,116 +652,121 @@ void Lex_input_stream::reduce_digest_token(uint token_left, uint token_right)
   }
 }
 
+void lex_start(THD *thd)
+{
+  DBUG_ENTER("lex_start");
+  thd->lex->start(thd);
+  DBUG_VOID_RETURN;
+}
+
+
 /*
   This is called before every query that is to be parsed.
   Because of this, it's critical to not do too much things here.
   (We already do too much here)
 */
 
-void lex_start(THD *thd)
+void LEX::start(THD *thd_arg)
 {
-  LEX *lex= thd->lex;
-  DBUG_ENTER("lex_start");
+  DBUG_ENTER("LEX::start");
 
-  lex->thd= lex->unit.thd= thd;
+  thd= unit.thd= thd_arg;
   
-  DBUG_ASSERT(!lex->explain);
+  DBUG_ASSERT(!explain);
 
-  lex->context_stack.empty();
-  lex->unit.init_query();
-  lex->unit.init_select();
-  lex->select_lex.linkage= UNSPECIFIED_TYPE;
+  context_stack.empty();
+  unit.init_query();
+  unit.init_select();
+  select_lex.linkage= UNSPECIFIED_TYPE;
   /* 'parent_lex' is used in init_query() so it must be before it. */
-  lex->select_lex.parent_lex= lex;
-  lex->select_lex.init_query();
-  lex->curr_with_clause= 0;
-  lex->with_clauses_list= 0;
-  lex->with_clauses_list_last_next= &lex->with_clauses_list;
-  lex->value_list.empty();
-  lex->update_list.empty();
-  lex->set_var_list.empty();
-  lex->param_list.empty();
-  lex->view_list.empty();
-  lex->with_column_list.empty();
-  lex->with_persistent_for_clause= FALSE;
-  lex->column_list= NULL;
-  lex->index_list= NULL;
-  lex->prepared_stmt_params.empty();
-  lex->auxiliary_table_list.empty();
-  lex->unit.next= lex->unit.master=
-    lex->unit.link_next= lex->unit.return_to= 0;
-  lex->unit.prev= lex->unit.link_prev= 0;
-  lex->unit.slave= lex->current_select=
-    lex->all_selects_list= &lex->select_lex;
-  lex->select_lex.master= &lex->unit;
-  lex->select_lex.prev= &lex->unit.slave;
-  lex->select_lex.link_next= lex->select_lex.slave= lex->select_lex.next= 0;
-  lex->select_lex.link_prev= (st_select_lex_node**)&(lex->all_selects_list);
-  lex->select_lex.options= 0;
-  lex->select_lex.sql_cache= SELECT_LEX::SQL_CACHE_UNSPECIFIED;
-  lex->select_lex.init_order();
-  lex->select_lex.group_list.empty();
-  if (lex->select_lex.group_list_ptrs)
-    lex->select_lex.group_list_ptrs->clear();
-  lex->describe= 0;
-  lex->analyze_stmt= 0;
-  lex->explain_json= false;
-  lex->subqueries= FALSE;
-  lex->context_analysis_only= 0;
-  lex->derived_tables= 0;
-  lex->safe_to_cache_query= 1;
-  lex->parsing_options.reset();
-  lex->empty_field_list_on_rset= 0;
-  lex->select_lex.select_number= 1;
-  lex->part_info= 0;
-  lex->select_lex.in_sum_expr=0;
-  lex->select_lex.ftfunc_list_alloc.empty();
-  lex->select_lex.ftfunc_list= &lex->select_lex.ftfunc_list_alloc;
-  lex->select_lex.group_list.empty();
-  lex->select_lex.order_list.empty();
-  lex->select_lex.gorder_list.empty();
-  lex->m_sql_cmd= NULL;
-  lex->duplicates= DUP_ERROR;
-  lex->ignore= 0;
-  lex->spname= NULL;
-  lex->spcont= NULL;
-  lex->proc_list.first= 0;
-  lex->escape_used= FALSE;
-  lex->query_tables= 0;
-  lex->reset_query_tables_list(FALSE);
-  lex->expr_allows_subselect= TRUE;
-  lex->use_only_table_context= FALSE;
-  lex->parse_vcol_expr= FALSE;
-  lex->check_exists= FALSE;
-  lex->create_info.lex_start();
-  lex->verbose= 0;
+  select_lex.parent_lex= this;
+  select_lex.init_query();
+  curr_with_clause= 0;
+  with_clauses_list= 0;
+  with_clauses_list_last_next= &with_clauses_list;
+  value_list.empty();
+  update_list.empty();
+  set_var_list.empty();
+  param_list.empty();
+  view_list.empty();
+  with_column_list.empty();
+  with_persistent_for_clause= FALSE;
+  column_list= NULL;
+  index_list= NULL;
+  prepared_stmt_params.empty();
+  auxiliary_table_list.empty();
+  unit.next= unit.master= unit.link_next= unit.return_to= 0;
+  unit.prev= unit.link_prev= 0;
+  unit.slave= current_select= all_selects_list= &select_lex;
+  select_lex.master= &unit;
+  select_lex.prev= &unit.slave;
+  select_lex.link_next= select_lex.slave= select_lex.next= 0;
+  select_lex.link_prev= (st_select_lex_node**)&(all_selects_list);
+  select_lex.options= 0;
+  select_lex.sql_cache= SELECT_LEX::SQL_CACHE_UNSPECIFIED;
+  select_lex.init_order();
+  select_lex.group_list.empty();
+  if (select_lex.group_list_ptrs)
+    select_lex.group_list_ptrs->clear();
+  describe= 0;
+  analyze_stmt= 0;
+  explain_json= false;
+  subqueries= FALSE;
+  context_analysis_only= 0;
+  derived_tables= 0;
+  safe_to_cache_query= 1;
+  parsing_options.reset();
+  empty_field_list_on_rset= 0;
+  select_lex.select_number= 1;
+  part_info= 0;
+  select_lex.in_sum_expr=0;
+  select_lex.ftfunc_list_alloc.empty();
+  select_lex.ftfunc_list= &select_lex.ftfunc_list_alloc;
+  select_lex.group_list.empty();
+  select_lex.order_list.empty();
+  select_lex.gorder_list.empty();
+  m_sql_cmd= NULL;
+  duplicates= DUP_ERROR;
+  ignore= 0;
+  spname= NULL;
+  spcont= NULL;
+  proc_list.first= 0;
+  escape_used= FALSE;
+  query_tables= 0;
+  reset_query_tables_list(FALSE);
+  expr_allows_subselect= TRUE;
+  use_only_table_context= FALSE;
+  parse_vcol_expr= FALSE;
+  check_exists= FALSE;
+  create_info.lex_start();
+  verbose= 0;
 
-  lex->name= null_lex_str;
-  lex->event_parse_data= NULL;
-  lex->profile_options= PROFILE_NONE;
-  lex->nest_level=0 ;
-  lex->select_lex.nest_level_base= &lex->unit;
-  lex->allow_sum_func= 0;
-  lex->in_sum_func= NULL;
+  name= null_lex_str;
+  event_parse_data= NULL;
+  profile_options= PROFILE_NONE;
+  nest_level=0 ;
+  select_lex.nest_level_base= &unit;
+  allow_sum_func= 0;
+  in_sum_func= NULL;
 
-  lex->used_tables= 0;
-  lex->only_view= FALSE;
-  lex->reset_slave_info.all= false;
-  lex->limit_rows_examined= 0;
-  lex->limit_rows_examined_cnt= ULONGLONG_MAX;
-  lex->var_list.empty();
-  lex->stmt_var_list.empty();
-  lex->proc_list.elements=0;
+  used_tables= 0;
+  only_view= FALSE;
+  reset_slave_info.all= false;
+  limit_rows_examined= 0;
+  limit_rows_examined_cnt= ULONGLONG_MAX;
+  var_list.empty();
+  stmt_var_list.empty();
+  proc_list.elements=0;
 
-  lex->save_group_list.empty();
-  lex->save_order_list.empty();
-  lex->win_ref= NULL;
-  lex->win_frame= NULL;
-  lex->frame_top_bound= NULL;
-  lex->frame_bottom_bound= NULL;
-  lex->win_spec= NULL;
+  save_group_list.empty();
+  save_order_list.empty();
+  win_ref= NULL;
+  win_frame= NULL;
+  frame_top_bound= NULL;
+  frame_bottom_bound= NULL;
+  win_spec= NULL;
 
-  lex->is_lex_started= TRUE;
+  is_lex_started= TRUE;
   DBUG_VOID_RETURN;
 }
 
@@ -5355,7 +5360,8 @@ bool LEX::sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop)
   if (!inc)
     return true;
   Item *expr= new (thd->mem_root) Item_func_plus(thd, splocal, inc);
-  if (!expr || set_local_variable(loop.m_index, expr))
+  if (!expr ||
+      sphead->set_local_variable(thd, spcont, loop.m_index, expr, this))
     return true;
   return false;
 }
@@ -5379,7 +5385,8 @@ bool LEX::sp_for_loop_finalize(THD *thd, const Lex_for_loop_st &loop)
 
 /***************************************************************************/
 
-bool LEX::sp_declare_cursor(THD *thd, const LEX_STRING name, LEX *cursor_stmt)
+bool LEX::sp_declare_cursor(THD *thd, const LEX_STRING name, LEX *cursor_stmt,
+                            sp_pcontext *param_ctx)
 {
   uint offp;
   sp_instr_cpush *i;
@@ -5392,7 +5399,38 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_STRING name, LEX *cursor_stmt)
   i= new (thd->mem_root)
        sp_instr_cpush(sphead->instructions(), spcont, cursor_stmt,
                       spcont->current_cursor_count());
-  return i == NULL || sphead->add_instr(i) || spcont->add_cursor(name);
+  return i == NULL ||
+         sphead->add_instr(i) ||
+         spcont->add_cursor(name, param_ctx);
+}
+
+
+/**
+  Generate an SP code for an "OPEN cursor_name" statement.
+  @param thd
+  @param name       - Name of the cursor
+  @param parameters - Cursor parameters, e.g. OPEN c(1,2,3)
+  @returns          - false on success, true on error
+*/
+bool LEX::sp_open_cursor(THD *thd, const LEX_STRING name,
+                         List<sp_assignment_lex> *parameters)
+{
+  uint offset;
+  const sp_pcursor *pcursor;
+  if (!(pcursor= spcont->find_cursor(name, &offset, false)))
+  {
+    my_error(ER_SP_CURSOR_MISMATCH, MYF(0), name.str);
+    return true;
+  }
+  if ((pcursor->param_context() ?
+       pcursor->param_context()->context_var_count() : 0) !=
+      (parameters ? parameters->elements : 0))
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_CURSOR, MYF(0), name.str);
+    return true;
+  }
+  return sphead->add_open_cursor(thd, spcont, offset,
+                                 pcursor->param_context(), parameters);
 }
 
 
@@ -5947,7 +5985,7 @@ bool LEX::set_variable(struct sys_var_with_base *variable, Item *item)
   sp_variable *spv= spcont->find_variable(variable->base_name, false);
   DBUG_ASSERT(spv);
   /* It is a local variable. */
-  return set_local_variable(spv, item);
+  return sphead->set_local_variable(thd, spcont, spv, item, this);
 }
 
 

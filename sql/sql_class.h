@@ -4358,6 +4358,31 @@ public:
     current_linfo= 0;
     mysql_mutex_unlock(&LOCK_thread_count);
   }
+
+  /**
+    Switch to a sublex, to parse a substatement or an expression.
+  */
+  void set_local_lex(sp_lex_local *sublex)
+  {
+    DBUG_ASSERT(lex->sphead);
+    lex= sublex;
+    /* Reset part of parser state which needs this. */
+    m_parser_state->m_yacc.reset_before_substatement();
+  }
+
+  /**
+    Switch back from a sublex (currently pointed by this->lex) to the old lex.
+    Sublex is merged to "oldlex" and this->lex is set to "oldlex".
+
+    This method is called after parsing a substatement or an expression.
+    set_local_lex() must be previously called.
+    @param oldlex - The old lex which was active before set_local_lex().
+    @returns      - false on success, true on error (failed to merge LEX's).
+
+    See also sp_head::merge_lex().
+  */
+  bool restore_from_local_lex_to_old_lex(LEX *oldlex);
+
 };
 
 inline void add_to_active_threads(THD *thd)

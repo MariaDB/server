@@ -195,11 +195,13 @@ void ORAerror(THD *thd, const char *s)
   Item_param *item_param;
   Key_part_spec *key_part;
   LEX *lex;
+  sp_assignment_lex *assignment_lex;
   LEX_STRING *lex_str_ptr;
   LEX_USER *lex_user;
   List<Condition_information_item> *cond_info_list;
   List<DYNCALL_CREATE_DEF> *dyncol_def_list;
   List<Item> *item_list;
+  List<sp_assignment_lex> *sp_assignment_lex_list;
   List<Statement_information_item> *stmt_info_list;
   List<String> *string_list;
   List<LEX_STRING> *lex_str_list;
@@ -266,10 +268,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 103 shift/reduce conflicts.
+  Currently there are 102 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 103
+%expect 102
 
 /*
    Comments for TOKENS.
@@ -1131,6 +1133,14 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         ident_list ident_list_arg opt_expr_list
         decode_when_list
 
+%type <assignment_lex>
+        assignment_source_lex
+        assignment_source_expr
+
+%type <sp_assignment_lex_list>
+        cursor_actual_parameters
+        opt_parenthesized_cursor_actual_parameters
+
 %type <var_type>
         option_type opt_var_type opt_var_ident_type
 
@@ -1302,7 +1312,7 @@ END_OF_INPUT
 %type <sp_instr_addr> sp_instr_addr
 %type <sp_cursor_name_and_offset> sp_cursor_name_and_offset
 %type <num> opt_exception_clause exception_handlers
-%type <lex> sp_cursor_stmt
+%type <lex> sp_cursor_stmt remember_lex
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <for_loop> sp_for_loop_index_and_bounds
@@ -2438,14 +2448,28 @@ sp_decl_body:
             $$.vars= $$.conds= $$.curs= 0;
             $$.hndlrs= 1;
           }
-        | CURSOR_SYM ident_directly_assignable IS sp_cursor_stmt
+        | CURSOR_SYM ident_directly_assignable
           {
-            if (Lex->sp_declare_cursor(thd, $2, $4))
+            Lex->sp_block_init(thd);
+          }
+          opt_parenthesized_cursor_formal_parameters
+          IS sp_cursor_stmt
+          {
+            sp_pcontext *param_ctx= Lex->spcont;
+            if (Lex->sp_block_finalize(thd))
+              MYSQL_YYABORT;
+            if (Lex->sp_declare_cursor(thd, $2, $6, param_ctx))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
           }
         ;
+
+opt_parenthesized_cursor_formal_parameters:
+          /* Empty */
+        | '(' sp_fdparams ')'
+        ;
+
 
 sp_cursor_stmt:
           {
@@ -3095,20 +3119,60 @@ sp_proc_stmt_iterate:
           }
         ;
 
-sp_proc_stmt_open:
-          OPEN_SYM ident
+remember_lex:
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            uint offset;
-            sp_instr_copen *i;
+            $$= thd->lex;
+          }
+        ;
 
-            if (! lex->spcont->find_cursor($2, &offset, false))
-              my_yyabort_error((ER_SP_CURSOR_MISMATCH, MYF(0), $2.str));
-            i= new (thd->mem_root)
-              sp_instr_copen(sp->instructions(), lex->spcont, offset);
-            if (i == NULL ||
-                sp->add_instr(i))
+assignment_source_lex:
+          {
+            DBUG_ASSERT(Lex->sphead);
+            if (!($$= new (thd->mem_root) sp_assignment_lex(thd, thd->lex)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+assignment_source_expr:
+          remember_lex assignment_source_lex
+          {
+            DBUG_ASSERT(thd->free_list == NULL);
+            thd->set_local_lex($2); // This changes thd->lex to $2
+          }
+          expr
+          {
+            DBUG_ASSERT($2 == thd->lex);
+            if (thd->restore_from_local_lex_to_old_lex($1)) // Restores thd->lex
+              MYSQL_YYABORT;
+            $$= $2;
+            $$->set_item_and_free_list($4, thd->free_list);
+            thd->free_list= NULL;
+          }
+        ;
+
+cursor_actual_parameters:
+          assignment_source_expr
+          {
+            if (!($$= new (thd->mem_root) List<sp_assignment_lex>))
+              MYSQL_YYABORT;
+            $$->push_back($1, thd->mem_root);
+          }
+        | cursor_actual_parameters ',' assignment_source_expr
+          {
+            $$= $1;
+            $$->push_back($3, thd->mem_root);
+          }
+        ;
+
+opt_parenthesized_cursor_actual_parameters:
+          /* Empty */                        { $$= NULL; }
+        | '(' cursor_actual_parameters ')'   { $$= $2; }
+        ;
+
+sp_proc_stmt_open:
+          OPEN_SYM ident opt_parenthesized_cursor_actual_parameters
+          {
+           if (Lex->sp_open_cursor(thd, $2, $3))
               MYSQL_YYABORT;
           }
         ;

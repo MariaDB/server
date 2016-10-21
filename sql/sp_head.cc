@@ -2066,29 +2066,15 @@ bool
 sp_head::reset_lex(THD *thd)
 {
   DBUG_ENTER("sp_head::reset_lex");
-  LEX *sublex;
   LEX *oldlex= thd->lex;
 
-  sublex= new (thd->mem_root)st_lex_local;
+  sp_lex_local *sublex= new (thd->mem_root) sp_lex_local(thd, oldlex);
   if (sublex == 0)
     DBUG_RETURN(TRUE);
 
-  thd->lex= sublex;
+  thd->set_local_lex(sublex);
+
   (void)m_lex.push_front(oldlex);
-
-  /* Reset most stuff. */
-  lex_start(thd);
-
-  /* And keep the SP stuff too */
-  sublex->sphead= oldlex->sphead;
-  sublex->spcont= oldlex->spcont;
-  /* And trigger related stuff too */
-  sublex->trg_chistics= oldlex->trg_chistics;
-  sublex->trg_table_fields.empty();
-  sublex->sp_lex_in_use= FALSE;
-
-  /* Reset part of parser state which needs this. */
-  thd->m_parser_state->m_yacc.reset_before_substatement();
 
   DBUG_RETURN(FALSE);
 }
@@ -2098,6 +2084,8 @@ sp_head::reset_lex(THD *thd)
   Restore lex during parsing, after we have parsed a sub statement.
 
   @param thd Thread handle
+  @param oldlex The upper level lex we're near to restore to
+  @param sublex The local lex we're near to restore from
 
   @return
     @retval TRUE failure
@@ -2105,23 +2093,17 @@ sp_head::reset_lex(THD *thd)
 */
 
 bool
-sp_head::restore_lex(THD *thd)
+sp_head::merge_lex(THD *thd, LEX *oldlex, LEX *sublex)
 {
-  DBUG_ENTER("sp_head::restore_lex");
-  LEX *sublex= thd->lex;
-  LEX *oldlex;
+  DBUG_ENTER("sp_head::merge_lex");
 
   sublex->set_trg_event_type_for_tables();
-
-  oldlex= (LEX *)m_lex.pop();
-  if (! oldlex)
-    DBUG_RETURN(FALSE); // Nothing to restore
 
   oldlex->trg_table_fields.push_back(&sublex->trg_table_fields);
 
   /* If this substatement is unsafe, the entire routine is too. */
-  DBUG_PRINT("info", ("lex->get_stmt_unsafe_flags: 0x%x",
-                      thd->lex->get_stmt_unsafe_flags()));
+  DBUG_PRINT("info", ("sublex->get_stmt_unsafe_flags: 0x%x",
+                      sublex->get_stmt_unsafe_flags()));
   unsafe_flags|= sublex->get_stmt_unsafe_flags();
 
   /*
@@ -2143,13 +2125,6 @@ sp_head::restore_lex(THD *thd)
   /* Merge lists of PS parameters. */
   oldlex->param_list.append(&sublex->param_list);
 
-  if (! sublex->sp_lex_in_use)
-  {
-    sublex->sphead= NULL;
-    lex_end(sublex);
-    delete sublex;
-  }
-  thd->lex= oldlex;
   DBUG_RETURN(FALSE);
 }
 
@@ -4197,3 +4172,59 @@ sp_add_to_query_tables(THD *thd, LEX *lex,
   return table;
 }
 
+
+/**
+  Helper action for a SET statement.
+  Used to push a SP local variable into the assignment list.
+
+  @param var_type the SP local variable
+  @param val      the value being assigned to the variable
+
+  @return TRUE if error, FALSE otherwise.
+*/
+
+bool
+sp_head::set_local_variable(THD *thd, sp_pcontext *spcont,
+                            sp_variable *spv, Item *val, LEX *lex)
+{
+  Item *it;
+
+  if (val)
+    it= val;
+  else if (spv->default_value)
+    it= spv->default_value;
+  else
+  {
+    it= new (thd->mem_root) Item_null(thd);
+    if (it == NULL)
+      return TRUE;
+  }
+
+  sp_instr_set *sp_set= new (thd->mem_root)
+                        sp_instr_set(instructions(), spcont,
+                                     spv->offset, it, spv->sql_type(),
+                                     lex, true);
+
+  return sp_set == NULL || add_instr(sp_set);
+}
+
+
+bool sp_head::add_open_cursor(THD *thd, sp_pcontext *spcont, uint offset,
+                              sp_pcontext *param_spcont,
+                              List<sp_assignment_lex> *parameters)
+{
+  /*
+    The caller must make sure that the number of formal parameters matches
+    the number of actual parameters.
+  */
+  DBUG_ASSERT((param_spcont ? param_spcont->context_var_count() :  0) ==
+              (parameters ? parameters->elements : 0));
+
+  if (parameters &&
+      add_set_cursor_param_variables(thd, param_spcont, parameters))
+    return true;
+
+  sp_instr_copen *i= new (thd->mem_root)
+                     sp_instr_copen(instructions(), spcont, offset);
+  return i == NULL || add_instr(i);
+}

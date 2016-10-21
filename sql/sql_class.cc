@@ -55,6 +55,7 @@
 #include <mysys_err.h>
 #include <limits.h>
 
+#include "sp_head.h"
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "transaction.h"
@@ -1323,7 +1324,17 @@ void THD::init(void)
   DBUG_VOID_RETURN;
 }
 
- 
+
+bool THD::restore_from_local_lex_to_old_lex(LEX *oldlex)
+{
+  DBUG_ASSERT(lex->sphead);
+  if (lex->sphead->merge_lex(this, oldlex, lex))
+    return true;
+  lex= oldlex;
+  return false;
+}
+
+
 /* Updates some status variables to be used by update_global_user_stats */
 
 void THD::update_stats(void)

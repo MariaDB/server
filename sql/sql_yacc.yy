@@ -311,42 +311,6 @@ LEX::set_system_variable(struct sys_var_with_base *tmp,
 
 /**
   Helper action for a SET statement.
-  Used to push a SP local variable into the assignment list.
-
-  @param var_type the SP local variable
-  @param val      the value being assigned to the variable
-
-  @return TRUE if error, FALSE otherwise.
-*/
-
-bool
-LEX::set_local_variable(sp_variable *spv, Item *val)
-{
-  Item *it;
-  sp_instr_set *sp_set;
-
-  if (val)
-    it= val;
-  else if (spv->default_value)
-    it= spv->default_value;
-  else
-  {
-    it= new (thd->mem_root) Item_null(thd);
-    if (it == NULL)
-      return TRUE;
-  }
-
-  sp_set= new (thd->mem_root)
-         sp_instr_set(sphead->instructions(), spcont,
-                      spv->offset, it, spv->sql_type(),
-                      this, true);
-
-  return (sp_set == NULL || sphead->add_instr(sp_set));
-}
-
-
-/**
-  Helper action for a SET statement.
   Used to SET a field of NEW row.
 
   @param name     the field name
@@ -3001,7 +2965,7 @@ sp_decl_body:
           }
         | ident CURSOR_SYM FOR_SYM sp_cursor_stmt
           {
-            if (Lex->sp_declare_cursor(thd, $1, $4))
+            if (Lex->sp_declare_cursor(thd, $1, $4, NULL))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
@@ -3570,17 +3534,7 @@ sp_proc_stmt_iterate:
 sp_proc_stmt_open:
           OPEN_SYM ident
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            uint offset;
-            sp_instr_copen *i;
-
-            if (! lex->spcont->find_cursor($2, &offset, false))
-              my_yyabort_error((ER_SP_CURSOR_MISMATCH, MYF(0), $2.str));
-            i= new (thd->mem_root)
-              sp_instr_copen(sp->instructions(), lex->spcont, offset);
-            if (i == NULL ||
-                sp->add_instr(i))
+            if (Lex->sp_open_cursor(thd, $2, NULL))
               MYSQL_YYABORT;
           }
         ;
