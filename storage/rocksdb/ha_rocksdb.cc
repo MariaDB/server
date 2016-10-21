@@ -1430,6 +1430,27 @@ class Rdb_snapshot_notifier : public rocksdb::TransactionNotifier
   }
 };
 
+
+#ifdef MARIAROCKS_NOT_YET
+// ER_LOCK_WAIT_TIMEOUT error also has a reason in facebook/mysql-5.6
+#endif
+String timeout_message(const char *command, const char *name1,
+                       const char *name2)
+{
+    String msg;
+    msg.append("Timeout on ");
+    msg.append(command);
+    msg.append(": ");
+    msg.append(name1);
+    if (name2 && name2[0])
+    {
+      msg.append(".");
+      msg.append(name2);
+    }
+    return msg;
+}
+
+
 /* This is the base class for transactions when interacting with rocksdb.
 */
 class Rdb_transaction
