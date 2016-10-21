@@ -911,7 +911,7 @@ public:
     __attribute__((__warn_unused_result__));
   int external_lock(THD *thd, int lock_type)
     __attribute__((__warn_unused_result__));
-  int delete_all_rows(ha_rows* nrows) __attribute__((__warn_unused_result__));
+  int delete_all_rows() __attribute__((__warn_unused_result__));
   int truncate() __attribute__((__warn_unused_result__));
 
   int reset() override

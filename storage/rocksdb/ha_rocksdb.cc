@@ -8253,7 +8253,7 @@ int ha_rocksdb::index_end()
 }
 
 
-int ha_rocksdb::delete_all_rows(ha_rows* nrows)
+int ha_rocksdb::delete_all_rows()
 {
   DBUG_ENTER("ha_rocksdb::delete_all_rows");
   /*
