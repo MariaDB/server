@@ -3371,7 +3371,6 @@ int JOIN_TAB_SCAN::next()
   int skip_rc;
   READ_RECORD *info= &join_tab->read_record;
   SQL_SELECT *select= join_tab->cache_select;
-  TABLE *table= join_tab->table;
   THD *thd= join->thd;
 
   if (is_first_record)
@@ -3382,8 +3381,6 @@ int JOIN_TAB_SCAN::next()
   if (!err)
   {
     join_tab->tracker->r_rows++;
-    if (table->vfield)
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
   }
 
   while (!err && select && (skip_rc= select->skip_record(thd)) <= 0)
@@ -3398,8 +3395,6 @@ int JOIN_TAB_SCAN::next()
     if (!err)
     {
       join_tab->tracker->r_rows++;
-      if (table->vfield)
-        table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
     }
   }
 
@@ -3923,8 +3918,6 @@ int JOIN_TAB_SCAN_MRR::next()
     DBUG_ASSERT(cache->buff <= (uchar *) (*ptr) &&
                 (uchar *) (*ptr) <= cache->end_pos);
     */
-    if (join_tab->table->vfield)
-      join_tab->table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
   }
   return rc;
 }

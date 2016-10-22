@@ -31,7 +31,7 @@
 #include <m_ctype.h>
 #include "sql_sort.h"
 #include "probes_mysql.h"
-#include "sql_base.h"                           // update_virtual_fields
+#include "sql_base.h"
 #include "sql_test.h"                           // TEST_filesort
 #include "opt_range.h"                          // SQL_SELECT
 #include "bounded_queue.h"
@@ -784,8 +784,6 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
     {
       if ((error= select->quick->get_next()))
         break;
-      if (!error && sort_form->vfield)
-        sort_form->update_virtual_fields(VCOL_UPDATE_FOR_READ);
       file->position(sort_form->record[0]);
       DBUG_EXECUTE_IF("debug_filesort", dbug_print_record(sort_form, TRUE););
     }
@@ -793,8 +791,6 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
     {
       {
 	error= file->ha_rnd_next(sort_form->record[0]);
-	if (!error && sort_form->vfield)
-          sort_form->update_virtual_fields(VCOL_UPDATE_FOR_READ);
 	if (!flag)
 	{
 	  my_store_ptr(ref_pos,ref_length,record); // Position to row

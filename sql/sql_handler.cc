@@ -929,9 +929,6 @@ retry:
       }
       goto ok;
     }
-    /* Generate values for virtual fields */
-    if (table->vfield)
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
     if (cond && !cond->val_int())
     {
       if (thd->is_error())

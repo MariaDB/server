@@ -2579,6 +2579,8 @@ int handler::ha_rnd_next(uchar *buf)
   if (!result)
   {
     update_rows_read();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
     increment_statistics(&SSV::ha_read_rnd_next_count);
   }
   else if (result == HA_ERR_RECORD_DELETED)
@@ -2603,7 +2605,11 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
     { result= rnd_pos(buf, pos); })
   increment_statistics(&SSV::ha_read_rnd_count);
   if (!result)
+  {
     update_rows_read();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
 }
@@ -2622,7 +2628,11 @@ int handler::ha_index_read_map(uchar *buf, const uchar *key,
     { result= index_read_map(buf, key, keypart_map, find_flag); })
   increment_statistics(&SSV::ha_read_key_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
 }
@@ -2649,6 +2659,8 @@ int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
   {
     update_rows_read();
     index_rows_read[index]++;
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
@@ -2666,7 +2678,11 @@ int handler::ha_index_next(uchar * buf)
     { result= index_next(buf); })
   increment_statistics(&SSV::ha_read_next_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
 }
@@ -2683,7 +2699,11 @@ int handler::ha_index_prev(uchar * buf)
     { result= index_prev(buf); })
   increment_statistics(&SSV::ha_read_prev_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
 }
@@ -2699,7 +2719,11 @@ int handler::ha_index_first(uchar * buf)
     { result= index_first(buf); })
   increment_statistics(&SSV::ha_read_first_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
 }
@@ -2715,7 +2739,11 @@ int handler::ha_index_last(uchar * buf)
     { result= index_last(buf); })
   increment_statistics(&SSV::ha_read_last_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
 }
@@ -2731,7 +2759,11 @@ int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
     { result= index_next_same(buf, key, keylen); })
   increment_statistics(&SSV::ha_read_next_count);
   if (!result)
+  {
     update_index_statistics();
+    if (table->vfield && buf == table->record[0])
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
+  }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;
 }
