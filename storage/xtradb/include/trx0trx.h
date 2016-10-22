@@ -876,6 +876,8 @@ struct trx_t{
 
 	time_t		start_time;	/*!< time the trx state last time became
 					TRX_STATE_ACTIVE */
+	clock_t 	start_time_micro; /*!< start time of the transaction
+                    in microseconds. */
 	trx_id_t	id;		/*!< transaction id */
 	XID		xid;		/*!< X/Open XA transaction
 					identification to identify a

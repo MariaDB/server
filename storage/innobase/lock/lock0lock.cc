@@ -94,14 +94,6 @@ lock_grant(
 	lock_t*	lock,	/*!< in/out: waiting lock request */
     bool    owns_trx_mutex);    /*!< in: whether lock->trx->mutex is owned */
 
-
-/* Buffer to collect THDs to report waits for. */
-struct thd_wait_reports {
-	struct thd_wait_reports *next;	/*!< List link */
-	ulint used;			/*!< How many elements in waitees[] */
-	trx_t *waitees[64];		/*!< Trxs for thd_report_wait_for() */
-};
-
 extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
