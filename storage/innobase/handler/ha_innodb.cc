@@ -1687,7 +1687,7 @@ thd_is_replication_slave_thread(
 /*============================*/
 	THD*	thd)	/*!< in: thread handle */
 {
-	return((ibool) thd_slave_thread(thd));
+	return thd && ((ibool) thd_slave_thread(thd));
 }
 
 /******************************************************************//**
