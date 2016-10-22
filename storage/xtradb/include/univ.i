@@ -647,7 +647,7 @@ functions. */
 
 #ifdef __WIN__
 #define usleep(a) Sleep((a)/1000)
-typedef ulint os_thread_ret_t;
+typedef DWORD os_thread_ret_t;
 #define OS_THREAD_DUMMY_RETURN return(0)
 #else
 typedef void* os_thread_ret_t;
