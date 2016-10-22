@@ -60,6 +60,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0pool.h"
 #include "ut0vec.h"
 
+#include <inttypes.h>
 #include <set>
 #include <new>
 
@@ -1444,7 +1445,7 @@ trx_start_low(
 
 		ut_ad(trx_sys_validate_trx_list());
 
-		trx_sys_mutex_exit();
+        trx_sys_mutex_exit();
 
 	} else {
 		trx->id = 0;
@@ -1484,10 +1485,11 @@ trx_start_low(
 	} else {
 		trx->start_time = ut_time();
 	}
+    trx->start_time_micro = clock();
 
 	ut_a(trx->error_state == DB_SUCCESS);
 
-	MONITOR_INC(MONITOR_TRX_ACTIVE);
+    MONITOR_INC(MONITOR_TRX_ACTIVE);
 }
 
 /****************************************************************//**

@@ -72,7 +72,6 @@
 #include <sys/syscall.h>
 #endif
 
-bool is_slave_replication = false;
 /*
   The following is used to initialise Table_ident with a internal
   table name
