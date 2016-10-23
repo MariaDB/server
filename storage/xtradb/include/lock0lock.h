@@ -47,17 +47,6 @@ extern ibool	lock_print_waits;
 
 extern ulint	srv_n_lock_deadlock_count;
 
-/** Alternatives for innodb_lock_schedule_algorithm, which can be changed by
-    setting innodb_lock_schedule_algorithm. */
-enum innodb_lock_schedule_algorithm_t {
-    /*!< First Come First Served */
-    INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS,
-    /*!< Variance-Aware-Transaction-Scheduling */
-    INNODB_LOCK_SCHEDULE_ALGORITHM_VATS
-};
-
-extern ulong innodb_lock_schedule_algorithm;
-
 /*********************************************************************//**
 Gets the size of a lock struct.
 @return	size in bytes */
