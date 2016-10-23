@@ -281,6 +281,26 @@ void set_my_errno(int err)
 	errno = err;
 }
 
+
+/** Checks whether the file name belongs to a partition of a table.
+@param[in]	file_name	file name
+@return pointer to the end of the table name part of the file name, or NULL */
+static
+char*
+is_partition(
+/*=========*/
+	char*		file_name)
+{
+	/* We look for pattern #P# to see if the table is partitioned
+	MariaDB table. */
+#ifdef _WIN32
+	return strstr(file_name, "#p#");
+#else
+	return strstr(file_name, "#P#");
+#endif /* _WIN32 */
+}
+
+
 /** Return the InnoDB ROW_FORMAT enum value
 @param[in]	row_format	row_format from "innodb_default_row_format"
 @return InnoDB ROW_FORMAT value from rec_format_t enum. */
@@ -6715,7 +6735,6 @@ ha_innobase::open(
 	dict_table_t*		ib_table;
 	char			norm_name[FN_REFLEN];
 	THD*			thd;
-	char*			is_part = NULL;
 	dict_err_ignore_t	ignore_err = DICT_ERR_IGNORE_NONE;
 
 	DBUG_ENTER("ha_innobase::open");
@@ -6745,13 +6764,7 @@ ha_innobase::open(
 	m_upd_buf = NULL;
 	m_upd_buf_size = 0;
 
-	/* We look for pattern #P# to see if the table is partitioned
-	MySQL table. */
-#ifdef _WIN32
-	is_part = strstr(norm_name, "#p#");
-#else
-	is_part = strstr(norm_name, "#P#");
-#endif /* _WIN32 */
+	char*	is_part = is_partition(norm_name);
 
 	/* Check whether FOREIGN_KEY_CHECKS is set to 0. If so, the table
 	can be opened even if some FK indexes are missing. If not, the table
@@ -14546,12 +14559,7 @@ ha_innobase::delete_table(
 
 	if (err == DB_TABLE_NOT_FOUND
 	    && innobase_get_lower_case_table_names() == 1) {
-		char*	is_part = NULL;
-#ifdef __WIN__
-		is_part = strstr(norm_name, "#p#");
-#else
-		is_part = strstr(norm_name, "#P#");
-#endif /* __WIN__ */
+		char*	is_part = is_partition(norm_name);
 
 		if (is_part) {
 			char	par_case_name[FN_REFLEN];
@@ -14616,11 +14624,7 @@ ha_innobase::delete_table(
 	native innodb partitioning is completed */
 	if (err == DB_TABLE_NOT_FOUND
 	    && innobase_get_lower_case_table_names() == 1) {
-#ifdef _WIN32
-		char*	is_part = strstr(norm_name, "#p#");
-#else
-		char*	is_part = strstr(norm_name, "#P#");
-#endif /* _WIN32 */
+		char*	is_part = is_partition(norm_name);
 
 		if (is_part != NULL) {
 			char	par_case_name[FN_REFLEN];
@@ -15213,12 +15217,7 @@ innobase_rename_table(
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
 		    && innobase_get_lower_case_table_names() == 1) {
-			char*	is_part = NULL;
-#ifdef _WIN32
-			is_part = strstr(norm_from, "#p#");
-#else
-			is_part = strstr(norm_from, "#P#");
-#endif /* _WIN32 */
+			char*	is_part = is_partition(norm_from);
 
 			if (is_part) {
 				char	par_case_name[FN_REFLEN];
@@ -23526,11 +23525,7 @@ innobase_init_vc_templ(
 
 	/* For partition table, remove the partition name and use the
 	"main" table name to build the template */
-#ifdef _WIN32
-        char*	is_part = strstr(tbname, "#p#");
-#else
-        char*	is_part = strstr(tbname, "#P#");
-#endif /* _WIN32 */
+        char*	is_part = is_partition(tbname);
 
 	if (is_part != NULL) {
 		*is_part = '\0';
@@ -23581,11 +23576,7 @@ innobase_rename_vc_templ(
 
 	/* For partition table, remove the partition name and use the
 	"main" table name to build the template */
-#ifdef _WIN32
-	char*   is_part = strstr(tbname, "#p#");
-#else
-	char*   is_part = strstr(tbname, "#P#");
-#endif /* _WIN32 */
+	char*	is_part = is_partition(tbname);
 
 	if (is_part != NULL) {
 		*is_part = '\0';
