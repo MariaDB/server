@@ -379,6 +379,7 @@ fil_node_get_space_id(
 
 /*******************************************************************//**
 Returns the table space by a given name, NULL if not found. */
+UNIV_INLINE
 fil_space_t*
 fil_space_get_by_name(
 /*==================*/
@@ -4784,7 +4785,7 @@ directory. We retry 100 times if os_file_readdir_next_file() returns -1. The
 idea is to read as much good data as we can and jump over bad data.
 @return 0 if ok, -1 if error even after the retries, 1 if at the end
 of the directory */
-
+static
 int
 fil_file_readdir_next_file(
 /*=======================*/
@@ -4825,7 +4826,7 @@ space id is != 0.
 @return	DB_SUCCESS or error number */
 UNIV_INTERN
 dberr_t
-fil_load_single_table_tablespaces(ibool (*pred)(const char*, const char*))
+fil_load_single_table_tablespaces(void)
 /*===================================*/
 {
 	int		ret;

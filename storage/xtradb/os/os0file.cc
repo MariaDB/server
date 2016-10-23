@@ -1010,6 +1010,7 @@ os_file_lock(
 #ifndef UNIV_HOTBACKUP
 /****************************************************************//**
 Creates the seek mutexes used in positioned reads and writes. */
+static
 void
 os_io_init_simple(void)
 /*===================*/

@@ -284,7 +284,7 @@ static TYPELIB innodb_stats_method_typelib = {
 
 /** Possible values for system variables "innodb_checksum_algorithm" and
 "innodb_log_checksum_algorithm". */
-const char* innodb_checksum_algorithm_names[] = {
+static const char* innodb_checksum_algorithm_names[] = {
 	"CRC32",
 	"STRICT_CRC32",
 	"INNODB",
@@ -296,7 +296,7 @@ const char* innodb_checksum_algorithm_names[] = {
 
 /** Used to define an enumerate type of the system variables
 innodb_checksum_algorithm and innodb_log_checksum_algorithm. */
-TYPELIB innodb_checksum_algorithm_typelib = {
+static TYPELIB innodb_checksum_algorithm_typelib = {
 	array_elements(innodb_checksum_algorithm_names) - 1,
 	"innodb_checksum_algorithm_typelib",
 	innodb_checksum_algorithm_names,
@@ -3016,7 +3016,7 @@ trx_is_started(
 /****************************************************************//**
 Update log_checksum_algorithm_ptr with a pointer to the function corresponding
 to a given checksum algorithm. */
-
+static
 void
 innodb_log_checksum_func_update(
 /*============================*/
