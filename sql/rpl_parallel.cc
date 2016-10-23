@@ -1410,7 +1410,7 @@ handle_rpl_parallel_thread(void *arg)
   mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
 
   my_thread_end();
-  
+
   return NULL;
 }
 

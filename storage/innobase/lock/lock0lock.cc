@@ -53,7 +53,6 @@ Created 5/7/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "pars0pars.h"
 
-#include <inttypes.h>
 #include <set>
 
 #ifdef WITH_WSREP
@@ -1756,11 +1755,11 @@ has_higher_priority(
 		return true;
 	}
 	if (trx_is_high_priority(lock1->trx)) {
-        return true;
-    }
-    if (trx_is_high_priority(lock2->trx)) {
-        return false;
-    }
+		return true;
+	}
+	if (trx_is_high_priority(lock2->trx)) {
+		return false;
+	}
 	// No preference. Compre them by wait mode and trx age.
 	if (!lock_get_wait(lock1)) {
 		return true;
@@ -1780,11 +1779,11 @@ static
 dberr_t
 lock_rec_insert_by_trx_age(
 	lock_t *in_lock) /*!< in: lock to be insert */{
-    ulint               space;
-    ulint               page_no;
+	ulint				space;
+	ulint				page_no;
 	ulint				rec_fold;
-    hash_table_t*       hash;
-	hash_cell_t*        cell;
+	hash_table_t*		hash;
+	hash_cell_t*		cell;
 	lock_t*				node;
 	lock_t*				next;
 
@@ -5197,7 +5196,7 @@ lock_release(
 		ut_d(lock_check_dict_lock(lock));
 
 		if (lock_get_type_low(lock) == LOCK_REC) {
-            
+
 			lock_rec_dequeue_from_page(lock);
 		} else {
 			dict_table_t*	table;
