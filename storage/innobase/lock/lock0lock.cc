@@ -3103,16 +3103,12 @@ lock_rec_dequeue_from_page(
 	lock_hash = lock_hash_get(in_lock->type_mode);
 
 	HASH_DELETE(lock_t, hash, lock_hash,
-			lock_rec_fold(space, page_no), in_lock);
+		    lock_rec_fold(space, page_no), in_lock);
 
 	UT_LIST_REMOVE(trx_lock->trx_locks, in_lock);
 
 	MONITOR_INC(MONITOR_RECLOCK_REMOVED);
 	MONITOR_DEC(MONITOR_NUM_RECLOCK);
-
-	/* Check if waiting locks in the queue can now be granted:
-     grant locks if there are no conflicting locks ahead. Stop at
-     the first X lock that is waiting or has been granted. */
 
 	if (innodb_lock_schedule_algorithm
 		== INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS ||
