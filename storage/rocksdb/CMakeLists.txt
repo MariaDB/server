@@ -4,7 +4,7 @@ IF (NOT EXISTS "${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/Makefile")
   MESSAGE(SEND_ERROR "Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -frtti")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 # get a list of rocksdb library source files
 # run with env -i to avoid passing variables
@@ -40,6 +40,8 @@ ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX -DOS_LINUX
 #  includes requires it. So, now everything in MariaRocks is compiled with
 #  -frtti)
 set_source_files_properties(${ROCKSDB_LIB_SOURCES} PROPERTIES COMPILE_FLAGS -frtti)
+set_source_files_properties(event_listener.cc PROPERTIES COMPILE_FLAGS -frtti)
+
 
 SET(ROCKSDB_SOURCES
   ha_rocksdb.cc ha_rocksdb.h ha_rocksdb_proto.h
@@ -116,6 +118,7 @@ IF (WITH_ROCKSDB_SE_STORAGE_ENGINE)
     ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/tools/ldb_cmd.cc
     ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/tools/sst_dump_tool.cc
   )
+  set_source_files_properties(${ROCKSDB_TOOL_SOURCES} PROPERTIES COMPILE_FLAGS -frtti)
   MYSQL_ADD_EXECUTABLE(sst_dump ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/tools/sst_dump.cc ${ROCKSDB_TOOL_SOURCES})
   TARGET_LINK_LIBRARIES(sst_dump rocksdb_se)
 
