@@ -970,6 +970,25 @@ set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivit
 
 DROP TABLE t1,t2;
 
+set use_stat_tables=@save_use_stat_tables;
 
+--echo #
+--echo # Bug mdev-11096: range condition over column without statistical data
+--echo #
+
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=3;
+
+create table t1(col1 char(32));
+insert into t1 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
+analyze table t1 persistent for columns () indexes ();
+
+explain extended 
+select * from t1 where col1 > 'b' and col1 < 'e';
+select * from t1 where col1 > 'b' and col1 < 'e';
+
+drop table t1;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
 
