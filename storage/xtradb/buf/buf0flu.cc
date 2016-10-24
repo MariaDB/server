@@ -2222,7 +2222,7 @@ buf_flush_single_page_from_LRU(
 		if (ready) {
 			bool	evict_zip;
 
-			evict_zip = !buf_LRU_evict_from_unzip_LRU(buf_pool);;
+			evict_zip = !buf_LRU_evict_from_unzip_LRU(buf_pool);
 
 			freed = buf_LRU_free_page(bpage, evict_zip);
 
