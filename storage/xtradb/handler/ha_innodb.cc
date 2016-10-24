@@ -348,6 +348,23 @@ static TYPELIB innodb_empty_free_list_algorithm_typelib = {
 	NULL
 };
 
+/** Possible values of the parameter innodb_lock_schedule_algorithm */
+static const char* innodb_lock_schedule_algorithm_names[] = {
+	"fcfs",
+	"vats",
+	NullS
+};
+
+/** Used to define an enumerate type of the system variable
+innodb_lock_schedule_algorithm. */
+static TYPELIB innodb_lock_schedule_algorithm_typelib = {
+	array_elements(innodb_lock_schedule_algorithm_names) - 1,
+	"innodb_lock_schedule_algorithm_typelib",
+	innodb_lock_schedule_algorithm_names,
+	NULL
+};
+
+
 /* The following counter is used to convey information to InnoDB
 about server activity: in case of normal DML ops it is not
 sensible to call srv_active_wake_master_thread after each
@@ -20473,6 +20490,18 @@ static MYSQL_SYSVAR_ENUM(empty_free_list_algorithm,
   innodb_srv_empty_free_list_algorithm_validate, NULL, SRV_EMPTY_FREE_LIST_BACKOFF,
   &innodb_empty_free_list_algorithm_typelib);
 
+static MYSQL_SYSVAR_ENUM(lock_schedule_algorithm, innodb_lock_schedule_algorithm,
+  PLUGIN_VAR_RQCMDARG,
+  "The algorithm Innodb uses for deciding which locks to grant next when"
+  " a lock is released. Possible values are"
+  " FCFS"
+    " grant the locks in First-Come-First-Served order;"
+  " VATS"
+    " use the Variance-Aware-Transaction-Scheduling algorithm, which"
+    " uses an Eldest-Transaction-First heuristic.",
+  NULL, NULL, INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS,
+  &innodb_lock_schedule_algorithm_typelib);
+
 static MYSQL_SYSVAR_LONG(buffer_pool_instances, innobase_buffer_pool_instances,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Number of buffer pool instances, set to higher value on high-end machines to increase scalability",
@@ -21366,6 +21395,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_sort_pll_degree),
   MYSQL_SYSVAR(large_prefix),
   MYSQL_SYSVAR(force_load_corrupted),
+  MYSQL_SYSVAR(lock_schedule_algorithm),
   MYSQL_SYSVAR(locks_unsafe_for_binlog),
   MYSQL_SYSVAR(lock_wait_timeout),
 #ifdef UNIV_LOG_ARCHIVE
