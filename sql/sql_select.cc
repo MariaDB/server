@@ -20569,7 +20569,7 @@ static int test_if_order_by_key(JOIN *join,
   key_parts= (uint) (key_part - table->key_info[idx].key_part);
 
   if (reverse == -1 && 
-      !(table->file->index_flags(idx, user_defined_kp, 1) & HA_READ_PREV))
+      !(table->file->index_flags(idx, user_defined_kp-1, 1) & HA_READ_PREV))
     reverse= 0;                               // Index can't be used
   
   if (have_pk_suffix && reverse == -1)
