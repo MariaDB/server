@@ -41,6 +41,7 @@ ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX -DOS_LINUX
 #  -frtti)
 set_source_files_properties(${ROCKSDB_LIB_SOURCES} PROPERTIES COMPILE_FLAGS -frtti)
 set_source_files_properties(event_listener.cc PROPERTIES COMPILE_FLAGS -frtti)
+set_source_files_properties(rdb_cf_options.cc PROPERTIES COMPILE_FLAGS -frtti)
 
 
 SET(ROCKSDB_SOURCES
