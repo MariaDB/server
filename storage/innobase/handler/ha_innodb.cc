@@ -13926,7 +13926,7 @@ ha_innobase::check(
 			if (!dict_index_is_clust(index)) {
 				prebuilt->index_usable = FALSE;
 				row_mysql_lock_data_dictionary(prebuilt->trx);
-                                dict_set_corrupted(index, prebuilt->trx, "dict_set_index_corrupted");;
+                                dict_set_corrupted(index, prebuilt->trx, "dict_set_index_corrupted");
 				row_mysql_unlock_data_dictionary(prebuilt->trx);
 			});
 
