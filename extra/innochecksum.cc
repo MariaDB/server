@@ -639,10 +639,18 @@ print_stats()
                "\t#bytes_per_page\n");
        for (std::map<unsigned long long, per_index_stats>::const_iterator it = index_ids.begin(); it != index_ids.end(); it++) {
          const per_index_stats& index = it->second;
+	 longlong recs_per_page = index.total_n_recs;
+	 longlong bytes_per_page = index.total_data_bytes;
+	 if (index.total_n_recs && index.pages) {
+		 recs_per_page = index.total_n_recs / index.pages;
+	 }
+	 if (index.total_data_bytes && index.pages) {
+		 bytes_per_page = index.total_data_bytes / index.pages;
+	 }
          printf("%lld\t\t%lld\t\t%lld\t\t%lld\t\t%lld\n",
                 it->first, index.pages, index.leaf_pages,
-                index.total_n_recs / index.pages,
-                index.total_data_bytes / index.pages);
+		recs_per_page,
+                bytes_per_page);
        }
        printf("\n");
        printf("index_id\tpage_data_bytes_histgram(empty,...,oversized)\n");
