@@ -741,7 +741,7 @@ void rdb_pack_with_make_sort_key(Rdb_field_packing *fpi, Field *field,
   DBUG_ASSERT(*dst != nullptr);
 
   const int max_len= fpi->m_max_image_len;
-  field->make_sort_key(*dst, max_len);
+  field->sort_string(*dst, max_len);
   *dst += max_len;
 }
 
