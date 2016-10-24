@@ -28,6 +28,7 @@ addons:
       - libpam0g-dev
       - libreadline-gplv2-dev
       - libssl-dev
+      - libnuma-dev
       - lsb-release
       - perl
       - po-debconf
