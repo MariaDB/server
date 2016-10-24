@@ -1001,8 +1001,13 @@ retry:
 	does not exist, we handle the situation in the function which called
 	this function */
 
-	if (!space || UT_LIST_GET_FIRST(space->chain)->open) {
+	if (!space) {
+		return;
+	}
 
+	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
+
+	if (!node || node->open) {
 		return;
 	}
 

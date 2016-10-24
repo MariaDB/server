@@ -1002,8 +1002,13 @@ retry:
 	/* If the file is already open, no need to do anything; if the space
 	does not exist, we handle the situation in the function which called
 	this function */
+	if (!space) {
+		return;
+	}
 
-	if (!space || UT_LIST_GET_FIRST(space->chain)->open) {
+	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
+
+	if (!node || node->open) {
 
 		return;
 	}
