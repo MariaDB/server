@@ -1,0 +1,1 @@
+--ignore-db-dirs=.rocksdb
