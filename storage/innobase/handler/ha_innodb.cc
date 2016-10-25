@@ -22808,7 +22808,7 @@ static MYSQL_SYSVAR_ENUM(lock_schedule_algorithm, innodb_lock_schedule_algorithm
   " VATS"
   " use the Variance-Aware-Transaction-Scheduling algorithm, which"
   " uses an Eldest-Transaction-First heuristic.",
-  NULL, NULL, INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS,
+  NULL, NULL, INNODB_LOCK_SCHEDULE_ALGORITHM_VATS,
   &innodb_lock_schedule_algorithm_typelib);
 
 static MYSQL_SYSVAR_ULONG(buffer_pool_instances, srv_buf_pool_instances,
