@@ -489,6 +489,8 @@ fil_space_get_by_id(
 		    ut_ad(space->magic_n == FIL_SPACE_MAGIC_N),
 		    space->id == id);
 
+	/* The system tablespace must always be found */
+	ut_ad(space || id != 0 || srv_is_being_started);
 	return(space);
 }
 

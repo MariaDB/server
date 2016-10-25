@@ -2714,6 +2714,12 @@ files_checked:
 		return(err);
 	}
 
+	/* Create the SYS_ZIP_DICT system table */
+	err = dict_create_or_check_sys_zip_dict();
+	if (err != DB_SUCCESS) {
+		return(err);
+	}
+
 	srv_is_being_started = FALSE;
 
 	ut_a(trx_purge_state() == PURGE_STATE_INIT);

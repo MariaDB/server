@@ -210,14 +210,33 @@ os_thread_create_func(
 #endif
 }
 
+/**
+Waits until the specified thread completes and joins it. Its return value is
+ignored.
+
+@param	thread	thread to join */
+UNIV_INTERN
+void
+os_thread_join(
+	os_thread_t	thread)
+{
+	int ret	MY_ATTRIBUTE((unused)) = pthread_join(thread, NULL);
+
+	/* Waiting on already-quit threads is allowed */
+	ut_ad(ret == 0 || ret == ESRCH);
+}
+
 /*****************************************************************//**
 Exits the current thread. */
 UNIV_INTERN
 void
 os_thread_exit(
 /*===========*/
-	void*	exit_value)	/*!< in: exit value; in Windows this void*
+	void*	exit_value,	/*!< in: exit value; in Windows this void*
 				is cast as a DWORD */
+	bool	detach)		/*!< in: if true, the thread will be detached
+				right before exiting. If false, another thread
+				is responsible for joining this thread. */
 {
 #ifdef UNIV_DEBUG_THREAD_CREATION
 	fprintf(stderr, "Thread exits, id %lu\n",
@@ -233,7 +252,8 @@ os_thread_exit(
 #ifdef __WIN__
 	ExitThread((DWORD) exit_value);
 #else
-	pthread_detach(pthread_self());
+	if (detach)
+		pthread_detach(pthread_self());
 	pthread_exit(exit_value);
 #endif
 }

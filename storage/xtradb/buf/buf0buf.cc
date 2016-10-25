@@ -4492,7 +4492,9 @@ corrupt:
 			recv_recover_page(TRUE, (buf_block_t*) bpage);
 		}
 
-		if (uncompressed && !recv_no_ibuf_operations) {
+		if (uncompressed && !recv_no_ibuf_operations
+		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
+		    && page_is_leaf(frame)) {
 
 			buf_block_t*	block;
 			ibool		update_ibuf_bitmap;
