@@ -23,6 +23,7 @@ set DEBUG_SYNC = 'tokudb_after_truncate_all_dictionarys SIGNAL closed WAIT_FOR d
 TRUNCATE TABLE t1;
 set global tokudb_debug_pause_background_job_manager = FALSE;
 set DEBUG_SYNC = 'now SIGNAL done';
+set DEBUG_SYNC = 'RESET';
 drop table t1;
 set session tokudb_auto_analyze = @orig_auto_analyze;
 set session tokudb_analyze_in_background = @orig_in_background;

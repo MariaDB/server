@@ -12,7 +12,7 @@ create table t (id int primary key);
 
 # verify that txn_a insert (1) blocks txn_b insert (1) and txn_b gets a duplicate key error
 
-# should be empty
+--echo t should be empty
 select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
 select * from information_schema.tokudb_locks;
 select * from information_schema.tokudb_lock_waits;
@@ -28,7 +28,7 @@ set autocommit=0;
 set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 send insert into t values (1);
 
-# should find the presence of a lock on 1st transaction
+--echo should find the presence of a lock on 1st transaction
 connection default;
 let $wait_condition= select count(*)=1 from information_schema.processlist where info='insert into t values (1)' and state='update';
 source include/wait_condition.inc;
@@ -37,17 +37,17 @@ real_sleep 1; # delay a little to shorten the update -> write row -> lock wait r
 replace_column 1 TRX_ID 2 MYSQL_ID; 
 select * from information_schema.tokudb_locks;
 
-# should find the presence of a lock_wait on the 2nd transaction
+--echo should find the presence of a lock_wait on the 2nd transaction
 replace_column 1 REQUEST_TRX_ID 2 BLOCK_TRX_ID 6 LOCK_WAITS_START_TIME;
 select * from information_schema.tokudb_lock_waits;
 
-# should find the presence of two transactions
+--echo should find the presence of two transactions
 replace_column 1 TRX_ID 2 MYSQL_ID;
 select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
 
 connection conn_a;
 commit;
-# verify that the lock on the 1st transaction is released and replaced by the lock for the 2nd transaction
+--echo verify that the lock on the 1st transaction is released and replaced by the lock for the 2nd transaction
 let $wait_condition= select count(*)=1 from information_schema.tokudb_locks where locks_dname='./test/t-main';
 source include/wait_condition.inc;
 
@@ -64,10 +64,8 @@ connection default;
 disconnect conn_a;
 disconnect conn_b;
 
-# verify that txn_a replace (1) blocks txn_b replace (1) and txn_b eventually gets the lock on (1) and completes
-
-# verify that the lock on the 2nd transaction has been released
-# should be be empty
+--echo verify that txn_a replace (1) blocks txn_b replace (1) and txn_b eventually gets the lock on (1) and completes
+--echo verify that the lock on the 2nd transaction has been released, should be be empty
 select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
 select * from information_schema.tokudb_locks;
 select * from information_schema.tokudb_lock_waits;
@@ -83,7 +81,7 @@ set autocommit=0;
 set tokudb_lock_timeout=600000; # set lock wait timeout to 10 minutes
 send replace into t values (1);
 
-# should find the presence of a lock on 1st transaction
+--echo should find the presence of a lock on 1st transaction
 connection default;
 let $wait_condition= select count(*)=1 from information_schema.processlist where info='replace into t values (1)' and state='update';
 source include/wait_condition.inc;
@@ -92,17 +90,19 @@ real_sleep 1; # delay a little to shorten the update -> write row -> lock wait r
 replace_column 1 TRX_ID 2 MYSQL_ID; 
 select * from information_schema.tokudb_locks;
 
-# should find the presence of a lock_wait on the 2nd transaction
+--echo should find the presence of a lock_wait on the 2nd transaction
 replace_column 1 REQUEST_TRX_ID 2 BLOCK_TRX_ID 6 LOCK_WAITS_START_TIME;
 select * from information_schema.tokudb_lock_waits;
 
-# should find the presence of two transactions
+--echo should find the presence of two transactions
 replace_column 1 TRX_ID 2 MYSQL_ID;
 select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
 
 connection conn_a;
 commit;
-# verify that the lock on the 1st transaction is released and replaced by the lock for the 2nd transaction
+--echo verify that the lock on the 1st transaction is released and replaced by the lock for the 2nd transaction
+let $wait_condition= select count(*)=1 from information_schema.tokudb_locks where locks_dname='./test/t-main';
+source include/wait_condition.inc;
 replace_column 1 TRX_ID 2 MYSQL_ID;
 select * from information_schema.tokudb_locks;
 select * from information_schema.tokudb_lock_waits;
@@ -115,8 +115,7 @@ connection default;
 disconnect conn_a;
 disconnect conn_b;
 
-# verify that the lock on the 2nd transaction has been released
-# should be be empty
+--echo verify that the lock on the 2nd transaction has been released, should be be empty
 select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
 select * from information_schema.tokudb_locks;
 select * from information_schema.tokudb_lock_waits;

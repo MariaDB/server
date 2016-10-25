@@ -81,6 +81,7 @@ extern uint         read_status_frequency;
 extern my_bool      strip_frm_data;
 extern char*        tmp_dir;
 extern uint         write_status_frequency;
+extern my_bool      dir_per_db;
 extern char*        version;
 
 #if TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL

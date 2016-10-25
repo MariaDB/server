@@ -138,6 +138,8 @@ struct cachefile {
     // nor attempt to open any cachefile with the same fname (dname)
     // until this cachefile has been fully closed and unlinked.
     bool unlink_on_close;
+    // If set then fclose will not be logged in recovery log.
+    bool skip_log_recover_on_close;
     int fd;       /* Bug: If a file is opened read-only, then it is stuck in read-only.  If it is opened read-write, then subsequent writers can write to it too. */
     CACHETABLE cachetable;
     struct fileid fileid;

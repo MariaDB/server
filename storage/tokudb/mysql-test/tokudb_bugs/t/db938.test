@@ -40,6 +40,7 @@ insert into t1(b,c) values(0,0), (1,1), (2,2), (3,3);
 select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
 
 # lets flip to another connection
+--source include/count_sessions.inc
 connect(conn1, localhost, root);
 
 # set up the DEBUG_SYNC point
@@ -64,6 +65,7 @@ connection conn1;
 reap;
 connection default;
 disconnect conn1;
+set DEBUG_SYNC = 'RESET';
 drop table t1;
 
 set session tokudb_auto_analyze = @orig_auto_analyze;
@@ -74,3 +76,4 @@ set session tokudb_analyze_time = @orig_time;
 set global tokudb_cardinality_scale_percent = @orig_scale_percent;
 set session default_storage_engine = @orig_default_storage_engine;
 set global tokudb_debug_pause_background_job_manager = @orig_pause_background_job_manager;
+--source include/wait_until_count_sessions.inc

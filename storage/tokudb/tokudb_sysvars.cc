@@ -66,6 +66,7 @@ uint        read_status_frequency = 0;
 my_bool     strip_frm_data = FALSE;
 char*       tmp_dir = NULL;
 uint        write_status_frequency = 0;
+my_bool     dir_per_db = FALSE;
 char*       version = (char*) TOKUDB_VERSION_STR;
 
 // file system reserve as a percentage of total disk space
@@ -393,6 +394,18 @@ static MYSQL_SYSVAR_UINT(
     0,
     ~0U,
     0);
+
+static void tokudb_dir_per_db_update(THD* thd,
+                                     struct st_mysql_sys_var* sys_var,
+                                     void* var, const void* save) {
+    my_bool *value = (my_bool *) var;
+    *value = *(const my_bool *) save;
+    db_env->set_dir_per_db(db_env, *value);
+}
+
+static MYSQL_SYSVAR_BOOL(dir_per_db, dir_per_db,
+    0, "TokuDB store ft files in db directories",
+    NULL, tokudb_dir_per_db_update, FALSE);
 
 #if TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
 static MYSQL_SYSVAR_STR(
@@ -935,6 +948,7 @@ st_mysql_sys_var* system_variables[] = {
     MYSQL_SYSVAR(tmp_dir),
     MYSQL_SYSVAR(version),
     MYSQL_SYSVAR(write_status_frequency),
+    MYSQL_SYSVAR(dir_per_db),
 
 #if TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
     MYSQL_SYSVAR(gdb_path),

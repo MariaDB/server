@@ -543,6 +543,7 @@ static int tokudb_init_func(void *p) {
     db_env->change_fsync_log_period(db_env, tokudb::sysvars::fsync_log_period);
 
     db_env->set_lock_timeout_callback(db_env, tokudb_lock_timeout_callback);
+    db_env->set_dir_per_db(db_env, tokudb::sysvars::dir_per_db);
 
     db_env->set_loader_memory_size(
         db_env,

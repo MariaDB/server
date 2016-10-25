@@ -106,6 +106,7 @@ namespace MhsRbTree {
         static const uint64_t MHS_MAX_VAL = 0xffffffffffffffff;
         OUUInt64() : _value(0) {}
         OUUInt64(uint64_t s) : _value(s) {}
+        OUUInt64(const OUUInt64& o) : _value(o._value) {}
         bool operator<(const OUUInt64 &r) const {
             invariant(!(_value == MHS_MAX_VAL && r.ToInt() == MHS_MAX_VAL));
             return _value < r.ToInt();
@@ -182,15 +183,18 @@ namespace MhsRbTree {
 
     class Node {
        public:
-        struct BlockPair {
+        class BlockPair {
+           public:
             OUUInt64 _offset;
             OUUInt64 _size;
 
             BlockPair() : _offset(0), _size(0) {}
             BlockPair(uint64_t o, uint64_t s) : _offset(o), _size(s) {}
-
             BlockPair(OUUInt64 o, OUUInt64 s) : _offset(o), _size(s) {}
-            int operator<(const struct BlockPair &rhs) const {
+            BlockPair(const BlockPair &o)
+                : _offset(o._offset), _size(o._size) {}
+
+            int operator<(const BlockPair &rhs) const {
                 return _offset < rhs._offset;
             }
             int operator<(const uint64_t &o) const { return _offset < o; }
@@ -203,15 +207,15 @@ namespace MhsRbTree {
         };
 
         EColor _color;
-        struct BlockPair _hole;
-        struct Pair _label;
+        BlockPair _hole;
+        Pair _label;
         Node *_left;
         Node *_right;
         Node *_parent;
 
         Node(EColor c,
              Node::BlockPair h,
-             struct Pair lb,
+             Pair lb,
              Node *l,
              Node *r,
              Node *p)
