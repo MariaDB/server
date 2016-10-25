@@ -21,6 +21,13 @@ then
   export DEB_BUILD_OPTIONS="nocheck"
 fi
 
+# Don't include test suite package on Travis-CI to make the build time shorter
+if [[ $TRAVIS ]]
+then
+  sed '/Package: mariadb-test-data/,+26d' -i debian/control
+  sed '/Package: mariadb-test/,+34d' -i debian/control
+fi
+
 export MARIADB_OPTIONAL_DEBS=""
 
 # Find major.minor version.
