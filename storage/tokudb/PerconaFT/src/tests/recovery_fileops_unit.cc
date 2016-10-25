@@ -36,17 +36,17 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
+#include <db.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include "ft/logger/logger.h"
 #include "test.h"
 #include "toku_pthread.h"
-#include <db.h>
-#include <sys/stat.h>
-#include <stdlib.h>
-
 
 static int do_recover;
 static int do_crash;
 static char fileop;
-static int choices['I'-'A'+1];
+static int choices['J' - 'A' + 1];
 const int num_choices = sizeof(choices)/sizeof(choices[0]);
 static DB_TXN *txn;
 const char *oldname = "oldfoo";
@@ -58,11 +58,14 @@ static char *cmd;
 
 static void
 usage(void) {
-    fprintf(stderr, "Usage:\n%s [-v|-q]* [-h] (-c|-r) -O fileop -A# -B# -C# -D# -E# -F# [-G# -H# -I#]\n"
-                    "  fileop = c/r/d (create/rename/delete)\n"
-                    "  Where # is a single digit number > 0.\n"
-                    "  A-F are required for fileop=create\n"
-                    "  A-I are required for fileop=delete, fileop=rename\n", cmd);
+    fprintf(stderr,
+            "Usage:\n%s [-v|-q]* [-h] (-c|-r) -O fileop -A# -B# -C# -D# -E# "
+            "-F# -G# [-H# -I# -J#]\n"
+            "  fileop = c/r/d (create/rename/delete)\n"
+            "  Where # is a single digit number > 0.\n"
+            "  A-G are required for fileop=create\n"
+            "  A-I are required for fileop=delete, fileop=rename\n",
+            cmd);
     exit(1);
 }
 
@@ -129,19 +132,18 @@ get_choice_flush_log_before_crash(void) {
     return get_bool_choice('F');
 }
 
-static int
-get_choice_create_type(void) {
-    return get_x_choice('G', 6);
-}
+static int get_choice_dir_per_db(void) { return get_bool_choice('G'); }
+
+static int get_choice_create_type(void) { return get_x_choice('H', 6); }
 
 static int
 get_choice_txn_does_open_close_before_fileop(void) {
-    return get_bool_choice('H');
+    return get_bool_choice('I');
 }
 
 static int
 get_choice_lock_table_split_fcreate(void) {
-    int choice = get_bool_choice('I');
+    int choice = get_bool_choice('J');
     if (choice)
         assert(fileop_did_commit());
     return choice;
@@ -156,63 +158,65 @@ do_args(int argc, char * const argv[]) {
         choices[i] = -1;
     }
 
-    int c;
-    while ((c = getopt(argc, argv, "vqhcrO:A:B:C:D:E:F:G:H:I:X:")) != -1) {
-	switch(c) {
-        case 'v':
-	    verbose++;
-            break;
-        case 'q':
-            verbose--;
-	    if (verbose<0) verbose=0;
-            break;
-        case 'h':
-        case '?':
-            usage();
-            break;
-        case 'c':
-            do_crash = 1;
-            break;
-        case 'r':
-            do_recover = 1;
-            break;
-        case 'O':
-            if (fileop != '\0')
-                usage();
-            fileop = optarg[0];
-            switch (fileop) {
-                case 'c':
-                case 'r':
-                case 'd':
-                    break;
-                default:
-                    usage();
-                    break;
-            }
-            break;
-        case 'A':
-        case 'B':
-        case 'C':
-        case 'D':
-        case 'E':
-        case 'F':
-        case 'G':
-        case 'H':
-        case 'I':
-            if (fileop == '\0')
-                usage();
-            int num;
-            num = atoi(optarg);
-            if (num < 0 || num > 9)
-                usage();
-            choices[c - 'A'] = num;
-            break;
-        case 'X':
-            if (strcmp(optarg, "novalgrind") == 0) {
-                // provide a way for the shell script runner to pass an
-                // arg that suppresses valgrind on this child process
+    char c;
+    while ((c = getopt(argc, argv, "vqhcrO:A:B:C:D:E:F:G:H:I:J:X:")) != -1) {
+        switch (c) {
+            case 'v':
+                verbose++;
                 break;
-            }
+            case 'q':
+                verbose--;
+                if (verbose < 0)
+                    verbose = 0;
+                break;
+            case 'h':
+            case '?':
+                usage();
+                break;
+            case 'c':
+                do_crash = 1;
+                break;
+            case 'r':
+                do_recover = 1;
+                break;
+            case 'O':
+                if (fileop != '\0')
+                    usage();
+                fileop = optarg[0];
+                switch (fileop) {
+                    case 'c':
+                    case 'r':
+                    case 'd':
+                        break;
+                    default:
+                        usage();
+                        break;
+                }
+                break;
+            case 'A':
+            case 'B':
+            case 'C':
+            case 'D':
+            case 'E':
+            case 'F':
+            case 'G':
+            case 'H':
+            case 'I':
+            case 'J':
+                if (fileop == '\0')
+                    usage();
+                int num;
+                num = atoi(optarg);
+                if (num < 0 || num > 9)
+                    usage();
+                choices[c - 'A'] = num;
+                break;
+            case 'X':
+                if (strcmp(optarg, "novalgrind") == 0) {
+                    // provide a way for the shell script runner to pass an
+                    // arg that suppresses valgrind on this child process
+                    break;
+                }
             // otherwise, fall through to an error
 	default:
             usage();
@@ -222,7 +226,7 @@ do_args(int argc, char * const argv[]) {
     if (argc!=optind) { usage(); exit(1); }
 
     for (i = 0; i < num_choices; i++) {
-        if (i >= 'G' - 'A' && fileop == 'c')
+        if (i >= 'H' - 'A' && fileop == 'c')
             break;
         if (choices[i] == -1)
             usage();
@@ -260,6 +264,8 @@ static void env_startup(void) {
     }
     int envflags = DB_INIT_LOCK | DB_INIT_LOG | DB_INIT_MPOOL | DB_INIT_TXN | DB_CREATE | DB_PRIVATE | recover_flag;
     r = db_env_create(&env, 0);
+    CKERR(r);
+    r = env->set_dir_per_db(env, get_choice_dir_per_db());
     CKERR(r);
     env->set_errfile(env, stderr);
     r = env->open(env, TOKU_TEST_FILENAME, envflags, S_IRWXU+S_IRWXG+S_IRWXO);
@@ -625,8 +631,11 @@ recover_and_verify(void) {
         else if (did_create_commit_early())
             expect_old_name = 1;
     }
-    verify_file_exists(oldname, expect_old_name);
-    verify_file_exists(newname, expect_new_name);
+    // We can't expect files existence until recovery log was not flushed
+    if ((get_choice_flush_log_before_crash())) {
+        verify_file_exists(oldname, expect_old_name);
+        verify_file_exists(newname, expect_new_name);
+    }
     env_shutdown();
 }
 

@@ -53,9 +53,10 @@ static void generate_random_input() {
     std::srand(unsigned(std::time(0)));
 
     // set some values:
-    for (uint64_t i = 1; i < N; ++i) {
-        input_vector.push_back({i, 0});
-        old_vector[i] = {i, 0};
+    for (uint64_t i = 0; i < N; ++i) {
+        MhsRbTree::Node::BlockPair bp = {i+1, 0};
+        input_vector.push_back(bp);
+        old_vector[i] = bp;
     }
     // using built-in random generator:
     std::random_shuffle(input_vector.begin(), input_vector.end(), myrandom);
