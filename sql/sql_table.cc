@@ -6274,6 +6274,7 @@ static bool fill_alter_inplace_info(THD *thd,
           (field->stored_in_db || field->vcol_info->is_in_partitioning_expr()))
       {
         if (is_equal == IS_EQUAL_NO ||
+            !new_field->vcol_info ||
             !field->vcol_info->is_equal(new_field->vcol_info))
           ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
         else
