@@ -1,6 +1,10 @@
 # vim ft=yaml
 # travis-ci.org definition
 
+branches:
+  only:
+    - natsys/trunk
+
 # non-container builds don't have enough RAM to reliably compile
 sudo: required
 dist: trusty
@@ -68,13 +72,7 @@ script:
   - export MYSQL_BUILD_CC=/usr/bin/gcc-${GCC_VERSION} MYSQL_BUILD_CXX=/usr/bin/g++-${GCC_VERSION}
   - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
   - cd "${TRAVIS_BUILD_DIR}"
-  - env DEB_BUILD_OPTIONS="parallel=3" debian/autobake-deb.sh;
-
-notifications:
-  irc:
-    channels:
-      - "chat.freenode.net#maria"
-    on_success: never # [always|never|change]
-    on_failure: never
-    template:
-      - "%{repository}/%{branch} (%{commit} - %{author}): %{build_url}: %{message}"
+  - cmake -DCMAKE_BUILD_TYPE=Debug -DWITH_INNOBASE_STORAGE_ENGINE=yes -DWITH_JEMALLOC=yes -DSECURITY_HARDENED=no -DWITH_PIC=no -DCMAKE_CXX_FLAGS_DEBUG="-g -O0" -DCMAKE_C_FLAGS_DEBUG="-g -O0"
+  - make -j $(grep -c processor /proc/cpuinfo)
+  - cd ./mysql-test
+  - ./mtr --suite=versioning --force --max-test-fail=0
