@@ -521,7 +521,7 @@ buf_dblwr_process()
 			if (buf_page_is_corrupted(true, read_buf, zip_size)) {
 
 				fprintf(stderr,
-					"InnoDB: Warning: database page"
+					"InnoDB: Database page"
 					" corruption or a failed\n"
 					"InnoDB: file read of"
 					" space %lu page %lu.\n"

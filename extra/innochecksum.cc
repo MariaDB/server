@@ -245,7 +245,7 @@ int main(int argc, char **argv)
                                  /* ulints for checksum storage */
   unsigned long long int size;   /* size of file (has to be 64 bits) */
   ulint pages;                   /* number of pages in file */
-  unsigned long long offset= 0;
+  long long offset= 0;
   int fd;
 
   printf("InnoDB offline file checksum utility.\n");
@@ -390,7 +390,7 @@ int main(int argc, char **argv)
       goto error;
     }
 
-    offset= (ulonglong)start_page * (ulonglong)physical_page_size;
+    offset= (longlong)start_page * (longlong)physical_page_size;
 #ifdef _WIN32
     if (_lseeki64(fd, offset, SEEK_SET) != offset)
 #else
