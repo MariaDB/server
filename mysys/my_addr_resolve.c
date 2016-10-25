@@ -34,6 +34,13 @@ static const char *strip_path(const char *s)
   return prev;
 }
 
+#if defined(HAVE_LINK_H) && defined(HAVE_DLOPEN)
+#include <link.h>
+static ptrdiff_t offset= 0;
+#else
+#define offset 0
+#endif
+
 /*
   The following is very much single-threaded code and it's only supposed
   to be used on shutdown or for a crash report
@@ -60,7 +67,7 @@ static asymbol **symtable= 0;
 */
 int my_addr_resolve(void *ptr, my_addr_loc *loc)
 {
-  bfd_vma addr= (intptr)ptr;
+  bfd_vma addr= (intptr)ptr - offset;
   asection *sec;
 
   for (sec= bfdh->sections; sec; sec= sec->next)
@@ -103,6 +110,12 @@ const char *my_addr_resolve_init()
     uint unused;
     char **matching;
 
+#if defined(HAVE_LINK_H) && defined(HAVE_DLOPEN)
+    struct link_map *lm = (struct link_map*) dlopen(0, RTLD_NOW);
+    if (lm)
+      offset= lm->l_addr;
+#endif
+
     bfdh= bfd_openr(my_progname, NULL);
     if (!bfdh)
       goto err;
@@ -132,13 +145,6 @@ err:
 
 #include <m_string.h>
 #include <ctype.h>
-
-#if defined(HAVE_LINK_H) && defined(HAVE_DLOPEN)
-#include <link.h>
-static ptrdiff_t offset= 0;
-#else
-#define offset 0
-#endif
 
 static int in[2], out[2];
 static int initialized= 0;
@@ -174,7 +180,7 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
     extra_bytes_read= read(out[0], output + total_bytes_read,
                            sizeof(output) - total_bytes_read);
     if (extra_bytes_read < 0)
-      return 1;
+      return 2;
     /* Timeout or max bytes read. */
     if (extra_bytes_read == 0)
       break;
@@ -184,7 +190,7 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
 
   /* Failed starting addr2line. */
   if (total_bytes_read == 0)
-    return 1;
+    return 3;
 
   /* Go through the addr2line response and get the required data.
      The response is structured in 2 lines. The first line contains the function
@@ -205,14 +211,14 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
   }
   /* Response is malformed. */
   if (filename_start == -1 || line_number_start == -1)
-   return 1;
+   return 4;
 
   loc->func= output;
   loc->file= output + filename_start;
 
   /* Addr2line was unable to extract any meaningful information. */
   if (strcmp(loc->file, "??") == 0)
-    return 1;
+    return 5;
 
   loc->file= strip_path(loc->file);
 
