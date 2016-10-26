@@ -3,7 +3,7 @@
 
 let $cf_name=cf1;
 
---source suite/rocksdb/t/rocksdb_icp.inc
+--source include/rocksdb_icp.inc
 
 --echo #
 --echo # Issue #67: Inefficient index condition pushdown

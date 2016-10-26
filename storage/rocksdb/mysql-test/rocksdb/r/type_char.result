@@ -13,7 +13,7 @@ c	char(1)	YES		NULL
 c0	char(0)	YES		NULL	
 c1	char(1)	YES		NULL	
 c20	char(20)	YES		NULL	
-c255	char(255)	NO	PRI		
+c255	char(255)	NO	PRI	NULL	
 INSERT INTO t1 (c,c0,c1,c20,c255) VALUES ('','','','','');
 INSERT INTO t1 (c,c0,c1,c20,c255) VALUES ('a','','b','abcdefghi klmnopqrst', 'Creating an article for the Knowledgebase is similar to asking questions. First, navigate to the category where you feel the article should be. Once there, double check that an article doesn\'t already exist which would work.');
 SELECT c,c0,c1,c20,c255 FROM t1;
@@ -66,7 +66,7 @@ c1
 DROP TABLE t1;
 CREATE TABLE t1(a char(10) character set utf8 collate utf8_bin primary key);
 INSERT INTO t1 VALUES ('one'),('two'),('three'),('four'),('five');
-SELECT * FROM t1 LIMIT 1 UNION SELECT * FROM t1;
+(SELECT * FROM t1 LIMIT 1) UNION (SELECT * FROM t1);
 a
 five
 four

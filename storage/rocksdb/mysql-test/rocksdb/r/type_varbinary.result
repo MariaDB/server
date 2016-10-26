@@ -10,12 +10,12 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varbinary(0)	YES		NULL	
 v1	varbinary(1)	YES		NULL	
-v64	varbinary(64)	NO	PRI		
+v64	varbinary(64)	NO	PRI	NULL	
 v65000	varbinary(65000)	YES		NULL	
 CREATE TABLE t2 (v VARBINARY(65532) , PRIMARY KEY(v(255))) ENGINE=rocksdb;
 SHOW COLUMNS IN t2;
 Field	Type	Null	Key	Default	Extra
-v	varbinary(65532)	NO	PRI		
+v	varbinary(65532)	NO	PRI	NULL	
 INSERT INTO t1 (v0,v1,v64,v65000) VALUES ('','','','');
 INSERT INTO t1 (v0,v1,v64,v65000) VALUES ('','y','Once there, double check that an article doesn\'t already exist','Here is a list of recommended books on MariaDB and MySQL. We\'ve provided links to Amazon.com here for convenience, but they can be found at many other bookstores, both online and off.
 
@@ -87,7 +87,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varbinary(0)	YES		NULL	
 v1	varbinary(1)	YES		NULL	
-v64	varbinary(64)	NO	PRI		
+v64	varbinary(64)	NO	PRI	NULL	
 v65000	varbinary(65000)	YES		NULL	
 v65536	mediumblob	YES		NULL	
 DROP TABLE t1, t2;

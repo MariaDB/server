@@ -88,7 +88,7 @@ create TABLE t1(a int,b int,c int,primary key(a,b))
                              partition x2 values in (3,11,5,7) tablespace ts2,
                              partition x3 values in (16,8,5+19,70-43) tablespace ts3);
 create table t2(b binary(2));
-set session optimizer_switch=5;
+set session optimizer_switch='materialization=off';
 insert into t1(a,b) values(1,7);
 select a from t1 where a in (select a from t1 where a in (select b from t2));
 

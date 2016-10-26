@@ -1,4 +1,5 @@
 --source include/have_rocksdb.inc
+--source include/have_partition.inc
 
 #
 # Create tables with partitions and try to update/select from them.

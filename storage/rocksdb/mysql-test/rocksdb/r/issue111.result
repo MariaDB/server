@@ -1,3 +1,5 @@
+connect  con2,localhost,root,,;
+connection default;
 create table t1 (
 pk int not null primary key, 
 col1 int not null, 
@@ -24,9 +26,12 @@ pk	col1	col2
 8	8	8
 9	9	9
 # Connect with another connection and make a conflicting change
+connection con2;
 begin;
 update t1 set col2=123456 where pk=0;
 commit;
+connection default;
 update t1 set col2=col2+1 where col1 < 10 limit 5;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+disconnect con2;
 drop table t1, ten, one_k;
