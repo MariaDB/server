@@ -220,10 +220,19 @@ void
 os_thread_join(
 	os_thread_t	thread)
 {
+	/*This function is currently only used to workaround glibc bug
+	described in http://bugs.mysql.com/bug.php?id=82886
+
+	On Windows, no workarounds are necessary, all threads
+	are "detached" upon thread exit (handle is closed), so we do
+	nothing.
+	*/
+#ifndef _WIN32
 	int ret	MY_ATTRIBUTE((unused)) = pthread_join(thread, NULL);
 
 	/* Waiting on already-quit threads is allowed */
 	ut_ad(ret == 0 || ret == ESRCH);
+#endif
 }
 
 /*****************************************************************//**
