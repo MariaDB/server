@@ -20,3 +20,24 @@ UPDATE t1 SET f1 = 2 WHERE f1 = 1;
 SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11149: wsrep_replicate_mysaim: DML fails when binlog checksum
+--echo # enabled
+--echo #
+
+--connection node_1
+let $wsrep_replicate_myisam_saved= `SELECT @@wsrep_replicate_myisam`;
+SET @@global.wsrep_replicate_myisam=1;
+
+CREATE TABLE t1 (i INT) ENGINE=MYISAM;
+INSERT INTO t1 VALUES(1);
+
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+eval SET @@global.wsrep_replicate_myisam=$wsrep_replicate_myisam_saved;
+
+--echo # End of tests.
