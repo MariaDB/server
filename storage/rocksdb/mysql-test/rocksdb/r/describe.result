@@ -6,7 +6,7 @@ INSERT INTO t2 (a,b) VALUES (1, 'bar');
 CREATE TABLE t3 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb CHARACTER SET utf8;
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
-a	int(11)	NO	PRI	0	
+a	int(11)	NO	PRI	NULL	
 b	char(8)	YES		NULL	
 DESC t2 a;
 Field	Type	Null	Key	Default	Extra

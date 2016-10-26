@@ -23,23 +23,23 @@ select * from t1;
 
 set @tmp1=@@rocksdb_verify_checksums;
 set rocksdb_verify_checksums=1;
-set session debug= "+d,myrocks_simulate_bad_row_read1";
+set session debug_dbug= "+d,myrocks_simulate_bad_row_read1";
 --error ER_GET_ERRNO
 select * from t1 where pk=1;
-set session debug= "-d,myrocks_simulate_bad_row_read1";
+set session debug_dbug= "-d,myrocks_simulate_bad_row_read1";
 set rocksdb_verify_checksums=@tmp1;
 
 select * from t1 where pk=1;
 
-set session debug= "+d,myrocks_simulate_bad_row_read2";
+set session debug_dbug= "+d,myrocks_simulate_bad_row_read2";
 --error ER_GET_ERRNO
 select * from t1 where pk=1;
-set session debug= "-d,myrocks_simulate_bad_row_read2";
+set session debug_dbug= "-d,myrocks_simulate_bad_row_read2";
 
-set session debug= "+d,myrocks_simulate_bad_row_read3";
+set session debug_dbug= "+d,myrocks_simulate_bad_row_read3";
 --error ER_GET_ERRNO
 select * from t1 where pk=1;
-set session debug= "-d,myrocks_simulate_bad_row_read3";
+set session debug_dbug= "-d,myrocks_simulate_bad_row_read3";
 
 insert into t1 values(4,'0123456789');
 select * from t1;
@@ -57,10 +57,10 @@ create table t2 (
 
 insert into t2 values ('ABCD',1);
 select * from t2;
-set session debug= "+d,myrocks_simulate_bad_pk_read1";
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_read1";
 --error ER_GET_ERRNO
 select * from t2;
-set session debug= "-d,myrocks_simulate_bad_pk_read1";
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_read1";
 
 drop table t2;
 
@@ -72,9 +72,9 @@ create table t2 (
 insert into t2 values ('ABCD',1);
 
 select * from t2;
-set session debug= "+d,myrocks_simulate_bad_pk_read1";
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_read1";
 --error ER_GET_ERRNO
 select * from t2;
-set session debug= "-d,myrocks_simulate_bad_pk_read1";
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_read1";
 
 drop table t2;

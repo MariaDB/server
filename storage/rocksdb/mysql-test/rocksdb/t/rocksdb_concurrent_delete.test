@@ -9,16 +9,16 @@
 
 let $order=ASC;
 let $comment="";
---source suite/rocksdb/include/rocksdb_concurrent_delete.inc
+--source include/rocksdb_concurrent_delete.inc
 
 let $order=DESC;
 let $comment="";
---source suite/rocksdb/include/rocksdb_concurrent_delete.inc
+--source include/rocksdb_concurrent_delete.inc
 
 let $order=ASC;
 let $comment="rev:cf2";
---source suite/rocksdb/include/rocksdb_concurrent_delete.inc
+--source include/rocksdb_concurrent_delete.inc
 
 let $order=DESC;
 let $comment="rev:cf2";
---source suite/rocksdb/include/rocksdb_concurrent_delete.inc
+--source include/rocksdb_concurrent_delete.inc

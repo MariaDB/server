@@ -19,8 +19,8 @@ while ($i <= $max) {
 
 SET GLOBAL ROCKSDB_FORCE_FLUSH_MEMTABLE_NOW=1;
 
-set session debug= "+d,myrocks_simulate_negative_stats";
+set session debug_dbug= "+d,myrocks_simulate_negative_stats";
 SELECT CASE WHEN DATA_LENGTH < 1024 * 1024 THEN 'true' ELSE 'false' END FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
-set session debug= "-d,myrocks_simulate_negative_stats";
+set session debug_dbug= "-d,myrocks_simulate_negative_stats";
 
 DROP TABLE t1;

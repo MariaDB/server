@@ -16,7 +16,7 @@ CREATE TABLE t2 (id1 INT, id2 INT, id3 INT,
                  UNIQUE KEY (id3, id1) COMMENT 'rev:cf') ENGINE=ROCKSDB;
 
 
---source suite/rocksdb/include/dup_key_update.inc
+--source include/dup_key_update.inc
 
 # Cleanup
 DROP TABLE t1;
@@ -34,7 +34,7 @@ CREATE TABLE t2 (id1 varchar(128) CHARACTER SET latin1 COLLATE latin1_bin,
                  PRIMARY KEY (id1, id2, id3),
                  UNIQUE KEY (id3, id1) COMMENT 'rev:cf') ENGINE=ROCKSDB;
 
---source suite/rocksdb/include/dup_key_update.inc
+--source include/dup_key_update.inc
 
 # Cleanup
 DROP TABLE t1;
