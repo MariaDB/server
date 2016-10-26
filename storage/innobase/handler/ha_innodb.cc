@@ -9203,7 +9203,7 @@ calc_row_difference(
 
 			if (!prebuilt->upd_node->versioned &&
 				DICT_TF2_FLAG_IS_SET(prebuilt->table, DICT_TF2_VERSIONED) &&
-				!(field->flags & WITHOUT_SYSTEM_VERSIONING_FLAG))
+				!(field->flags & VERS_OPTIMIZED_UPDATE_FLAG))
 			{
 				prebuilt->upd_node->versioned = true;
 			}
@@ -9315,7 +9315,7 @@ calc_row_difference(
 
 		if (!prebuilt->upd_node->versioned &&
 			DICT_TF2_FLAG_IS_SET(prebuilt->table, DICT_TF2_VERSIONED) &&
-			!(field->flags & WITHOUT_SYSTEM_VERSIONING_FLAG))
+			!(field->flags & VERS_OPTIMIZED_UPDATE_FLAG))
 		{
 			prebuilt->upd_node->versioned = true;
 		}

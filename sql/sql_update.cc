@@ -161,7 +161,7 @@ static bool check_has_vers_fields(List<Item> &items)
   while (Item *item= it++)
   {
     if (Item_field *item_field= item->field_for_view_update())
-      if (!(item_field->field->flags & WITHOUT_SYSTEM_VERSIONING_FLAG))
+      if (!(item_field->field->flags & VERS_OPTIMIZED_UPDATE_FLAG))
         return true;
   }
   return false;

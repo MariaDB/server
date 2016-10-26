@@ -6616,10 +6616,10 @@ bool Vers_parse_info::add_versioning_info(
 
     if (f->versioning == Column_definition::VERSIONING_NOT_SET &&
         without_system_versioning_by_default)
-      f->flags|= WITHOUT_SYSTEM_VERSIONING_FLAG;
+      f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
 
     else if (f->versioning == Column_definition::WITHOUT_VERSIONING)
-      f->flags|= WITHOUT_SYSTEM_VERSIONING_FLAG;
+      f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
   }
 
   // If user specified some of these he must specify the others too. Do nothing.

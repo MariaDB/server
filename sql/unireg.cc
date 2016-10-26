@@ -120,6 +120,16 @@ vers_get_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields, b
   return 0;
 }
 
+bool has_extra2_field_flags(List<Create_field> &create_fields)
+{
+  List_iterator<Create_field> it(create_fields);
+  while (Create_field *f= it++)
+  {
+    if (f->flags & (VERS_OPTIMIZED_UPDATE_FLAG | HIDDEN_FLAG))
+      return true;
+  }
+  return false;
+}
 
 /**
   Create a frm (table definition) file
@@ -258,6 +268,13 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     extra2_size+= 1 + 1 + 2 * sizeof(uint16);
   }
 
+  bool has_extra2_field_flags_= has_extra2_field_flags(create_fields);
+  if (has_extra2_field_flags_)
+  {
+    extra2_size+=
+        1 + (create_fields.elements <= 255 ? 1 : 3) + create_fields.elements;
+  }
+
   key_buff_length= uint4korr(fileinfo+47);
 
   frm.length= FRM_HEADER_SIZE;                  // fileinfo;
@@ -321,6 +338,22 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     pos+= sizeof(uint16);
     int2store(pos, vers_get_field(create_info, create_fields, ROW_END));
     pos+= sizeof(uint16);
+  }
+
+  if (has_extra2_field_flags_)
+  {
+    *pos++= EXTRA2_FIELD_FLAGS;
+    pos= extra2_write_len(pos, create_fields.elements);
+    List_iterator<Create_field> it(create_fields);
+    while (Create_field *field= it++)
+    {
+      uchar flags= 0;
+      if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG)
+        flags|= VERS_OPTIMIZED_UPDATE;
+      if (field->flags & HIDDEN_FLAG)
+        flags|= HIDDEN;
+      *pos++= flags;
+    }
   }
 
   int4store(pos, filepos); // end of the extra2 segment

@@ -1424,7 +1424,7 @@ public:
 
   bool is_versioning_disabled()
   {
-    return flags & WITHOUT_SYSTEM_VERSIONING_FLAG;
+    return flags & VERS_OPTIMIZED_UPDATE_FLAG;
   }
 
   /* Mark a field as auto-generated row start column. */
@@ -1444,13 +1444,13 @@ public:
   /* Disable a field versioning for a versioned table. */
   void disable_versioning()
   {
-    flags |= WITHOUT_SYSTEM_VERSIONING_FLAG;
+    flags |= VERS_OPTIMIZED_UPDATE_FLAG;
   }
 
   /* Inherit a field versioning status from the table. */
   void inherit_versioning()
   {
-    flags &= ~WITHOUT_SYSTEM_VERSIONING_FLAG;
+    flags &= ~VERS_OPTIMIZED_UPDATE_FLAG;
   }
 
   /*
@@ -4281,8 +4281,6 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
 #define FIELDFLAG_BITFIELD		512U	// mangled with decimals!
 #define FIELDFLAG_BLOB			1024U	// mangled with decimals!
 #define FIELDFLAG_GEOM			2048U   // mangled with decimals!
-// Do not show field in SELECT *. Hope GEOM field is never hidden.
-#define FIELDFLAG_HIDDEN                2048U
 
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096U   /* use Field_bit_as_char */
 #define FIELDFLAG_LONG_DECIMAL          8192U
@@ -4313,7 +4311,5 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
 #define f_no_default(x)		((x) & FIELDFLAG_NO_DEFAULT)
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
-#define f_without_system_versioning(x) ((x) & FIELDFLAG_WITHOUT_SYSTEM_VERSIONING)
-#define f_hidden(x)             ((x) & FIELDFLAG_HIDDEN)
 
 #endif /* FIELD_INCLUDED */

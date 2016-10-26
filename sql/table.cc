@@ -1197,7 +1197,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint len;
   uint ext_key_parts= 0;
   plugin_ref se_plugin= 0;
-  const uchar *system_period = 0;
+  const uchar *system_period= 0;
+  const uchar *extra2_field_flags= 0;
+  size_t extra2_field_flags_length= 0;
 
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
@@ -1296,6 +1298,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (system_period || length != 2 * sizeof(uint16))
           goto err;
         system_period = extra2;
+        break;
+      case EXTRA2_FIELD_FLAGS:
+        if (extra2_field_flags)
+          goto err;
+        extra2_field_flags= extra2;
+        extra2_field_flags_length= length;
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -1615,6 +1623,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   disk_buff= frm_image + pos + FRM_FORMINFO_SIZE;
 
   share->fields= uint2korr(forminfo+258);
+  if (extra2_field_flags && extra2_field_flags_length != share->fields)
+    goto err;
   pos= uint2korr(forminfo+260);   /* Length of all screens */
   n_length= uint2korr(forminfo+268);
   interval_count= uint2korr(forminfo+270);
@@ -1987,6 +1997,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     reg_field->field_index= i;
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;
+    if (extra2_field_flags)
+    {
+      uchar flags= *extra2_field_flags++;
+      if (flags & VERS_OPTIMIZED_UPDATE)
+        reg_field->disable_versioning();
+      if (flags & HIDDEN)
+        reg_field->flags|= HIDDEN_FLAG;
+    }
     if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
     {
       null_bits_are_used= 1;
@@ -2016,12 +2034,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     if (f_no_default(pack_flag))
       reg_field->flags|= NO_DEFAULT_VALUE_FLAG;
-
-    if (f_without_system_versioning(pack_flag))
-      reg_field->flags|= WITHOUT_SYSTEM_VERSIONING_FLAG;
-
-    if (f_hidden(pack_flag))
-      reg_field->flags|= HIDDEN_FLAG;
 
     if (reg_field->unireg_check == Field::NEXT_NUMBER)
       share->found_next_number_field= field_ptr;
