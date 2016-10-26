@@ -110,6 +110,31 @@ where t1.child_user_id=t3.id and t1.child_group_id is null and t2.lower_group_na
 drop table t1,t2,t3;
 
 --echo #
+--echo # MDEV-9187: duplicate of bug mdev-9628
+--echo #
+
+set use_stat_tables = preferably;
+set optimizer_use_condition_selectivity=3;
+ 
+CREATE TABLE t1 (f1 char(32)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('foo'),('bar'),('qux');
+ANALYZE TABLE t1;
+
+SELECT * FROM t1 WHERE f1 < 'm';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE f1 < 'm';
+
+CREATE TABLE t2 (f1 TEXT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('foo'),('bar'),('qux');
+ANALYZE TABLE t2;
+
+SELECT * FROM t2 WHERE f1 <> 'qux';
+EXPLAIN EXTENDED
+SELECT * FROM t2 WHERE f1 <> 'qux';
+
+DROP TABLE t1,t2;
+
+--echo #
 --echo # End of 10.0 tests
 --echo #
 
