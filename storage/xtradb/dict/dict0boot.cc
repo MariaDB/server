@@ -272,6 +272,10 @@ dict_boot(void)
 	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN_FOR_NAME == 2);
 	ut_ad(DICT_NUM_COLS__SYS_FOREIGN_COLS == 4);
 	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN_COLS == 6);
+	ut_ad(DICT_NUM_COLS__SYS_ZIP_DICT == 3);
+	ut_ad(DICT_NUM_FIELDS__SYS_ZIP_DICT == 5);
+	ut_ad(DICT_NUM_COLS__SYS_ZIP_DICT_COLS == 3);
+	ut_ad(DICT_NUM_FIELDS__SYS_ZIP_DICT_COLS == 5);
 
 	mtr_start(&mtr);
 

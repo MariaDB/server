@@ -149,22 +149,23 @@ basement nodes, bulk fetch,  and partial fetch:
 
 #include "ft/cachetable/checkpoint.h"
 #include "ft/cursor.h"
-#include "ft/ft.h"
 #include "ft/ft-cachetable-wrappers.h"
 #include "ft/ft-flusher.h"
 #include "ft/ft-internal.h"
-#include "ft/msg.h"
+#include "ft/ft.h"
 #include "ft/leafentry.h"
 #include "ft/logger/log-internal.h"
+#include "ft/msg.h"
 #include "ft/node.h"
 #include "ft/serialize/block_table.h"
-#include "ft/serialize/sub_block.h"
 #include "ft/serialize/ft-serialize.h"
 #include "ft/serialize/ft_layout_version.h"
 #include "ft/serialize/ft_node-serialize.h"
+#include "ft/serialize/sub_block.h"
 #include "ft/txn/txn_manager.h"
-#include "ft/ule.h"
 #include "ft/txn/xids.h"
+#include "ft/ule.h"
+#include "src/ydb-internal.h"
 
 #include <toku_race_tools.h>
 
@@ -179,6 +180,7 @@ basement nodes, bulk fetch,  and partial fetch:
 
 #include <stdint.h>
 
+#include <memory>
 /* Status is intended for display to humans to help understand system behavior.
  * It does not need to be perfectly thread-safe.
  */
@@ -2593,12 +2595,104 @@ static inline int ft_open_maybe_direct(const char *filename, int oflag, int mode
 
 static const mode_t file_mode = S_IRUSR+S_IWUSR+S_IRGRP+S_IWGRP+S_IROTH+S_IWOTH;
 
+inline bool toku_file_is_root(const char *path, const char *last_slash) {
+    return last_slash == path;
+}
+
+static std::unique_ptr<char[], decltype(&toku_free)> toku_file_get_parent_dir(
+    const char *path) {
+    std::unique_ptr<char[], decltype(&toku_free)> result(nullptr, &toku_free);
+
+    bool has_trailing_slash = false;
+
+    /* Find the offset of the last slash */
+    const char *last_slash = strrchr(path, OS_PATH_SEPARATOR);
+
+    if (!last_slash) {
+        /* No slash in the path, return NULL */
+        return result;
+    }
+
+    /* Ok, there is a slash. Is there anything after it? */
+    if (static_cast<size_t>(last_slash - path + 1) == strlen(path)) {
+        has_trailing_slash = true;
+    }
+
+    /* Reduce repetative slashes. */
+    while (last_slash > path && last_slash[-1] == OS_PATH_SEPARATOR) {
+        last_slash--;
+    }
+
+    /* Check for the root of a drive. */
+    if (toku_file_is_root(path, last_slash)) {
+        return result;
+    }
+
+    /* If a trailing slash prevented the first strrchr() from trimming
+    the last component of the path, trim that component now. */
+    if (has_trailing_slash) {
+        /* Back up to the previous slash. */
+        last_slash--;
+        while (last_slash > path && last_slash[0] != OS_PATH_SEPARATOR) {
+            last_slash--;
+        }
+
+        /* Reduce repetative slashes. */
+        while (last_slash > path && last_slash[-1] == OS_PATH_SEPARATOR) {
+            last_slash--;
+        }
+    }
+
+    /* Check for the root of a drive. */
+    if (toku_file_is_root(path, last_slash)) {
+        return result;
+    }
+
+    result.reset(toku_strndup(path, last_slash - path));
+    return result;
+}
+
+static bool toku_create_subdirs_if_needed(const char *path) {
+    static const mode_t dir_mode = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP |
+                                   S_IWGRP | S_IXGRP | S_IROTH | S_IXOTH;
+
+    toku_struct_stat stat;
+    bool subdir_exists = true;
+    auto subdir = toku_file_get_parent_dir(path);
+
+    if (!subdir.get())
+        return true;
+
+    if (toku_stat(subdir.get(), &stat) == -1) {
+        if (ENOENT == get_error_errno())
+            subdir_exists = false;
+        else
+            return false;
+    }
+
+    if (subdir_exists) {
+        if (!S_ISDIR(stat.st_mode))
+            return false;
+        return true;
+    }
+
+    if (!toku_create_subdirs_if_needed(subdir.get()))
+        return false;
+
+    if (toku_os_mkdir(subdir.get(), dir_mode))
+        return false;
+
+    return true;
+}
+
 // open a file for use by the ft
 // Requires:  File does not exist.
 static int ft_create_file(FT_HANDLE UU(ft_handle), const char *fname, int *fdp) {
     int r;
     int fd;
     int er;
+    if (!toku_create_subdirs_if_needed(fname))
+        return get_error_errno();
     fd = ft_open_maybe_direct(fname, O_RDWR | O_BINARY, file_mode);
     assert(fd==-1);
     if ((er = get_maybe_error_errno()) != ENOENT) {
@@ -4425,6 +4519,55 @@ void toku_ft_unlink(FT_HANDLE handle) {
     CACHEFILE cf;
     cf = handle->ft->cf;
     toku_cachefile_unlink_on_close(cf);
+}
+
+int toku_ft_rename_iname(DB_TXN *txn,
+                         const char *data_dir,
+                         const char *old_iname,
+                         const char *new_iname,
+                         CACHETABLE ct) {
+    int r = 0;
+
+    std::unique_ptr<char[], decltype(&toku_free)> new_iname_full(nullptr,
+                                                                 &toku_free);
+    std::unique_ptr<char[], decltype(&toku_free)> old_iname_full(nullptr,
+                                                                 &toku_free);
+
+    new_iname_full.reset(toku_construct_full_name(2, data_dir, new_iname));
+    old_iname_full.reset(toku_construct_full_name(2, data_dir, old_iname));
+
+    if (txn) {
+        BYTESTRING bs_old_name = {static_cast<uint32_t>(strlen(old_iname) + 1),
+                                  const_cast<char *>(old_iname)};
+        BYTESTRING bs_new_name = {static_cast<uint32_t>(strlen(new_iname) + 1),
+                                  const_cast<char *>(new_iname)};
+        FILENUM filenum = FILENUM_NONE;
+        {
+            CACHEFILE cf;
+            r = toku_cachefile_of_iname_in_env(ct, old_iname, &cf);
+            if (r != ENOENT) {
+                char *old_fname_in_cf = toku_cachefile_fname_in_env(cf);
+                toku_cachefile_set_fname_in_env(cf, toku_xstrdup(new_iname));
+                toku_free(old_fname_in_cf);
+                filenum = toku_cachefile_filenum(cf);
+            }
+        }
+        toku_logger_save_rollback_frename(
+            db_txn_struct_i(txn)->tokutxn, &bs_old_name, &bs_new_name);
+        toku_log_frename(db_txn_struct_i(txn)->tokutxn->logger,
+                         (LSN *)0,
+                         0,
+                         toku_txn_get_txnid(db_txn_struct_i(txn)->tokutxn),
+                         bs_old_name,
+                         filenum,
+                         bs_new_name);
+    }
+
+    r = toku_os_rename(old_iname_full.get(), new_iname_full.get());
+    if (r != 0)
+        return r;
+    r = toku_fsync_directory(new_iname_full.get());
+    return r;
 }
 
 int toku_ft_get_fragmentation(FT_HANDLE ft_handle, TOKU_DB_FRAGMENTATION report) {

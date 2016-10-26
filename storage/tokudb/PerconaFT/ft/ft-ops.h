@@ -48,6 +48,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "ft/msg.h"
 #include "util/dbt.h"
 
+#define OS_PATH_SEPARATOR '/'
+
 typedef struct ft_handle *FT_HANDLE;
 
 int toku_open_ft_handle (const char *fname, int is_create, FT_HANDLE *, int nodesize, int basementnodesize, enum toku_compression_method compression_method, CACHETABLE, TOKUTXN, int(*)(DB *,const DBT*,const DBT*)) __attribute__ ((warn_unused_result));
