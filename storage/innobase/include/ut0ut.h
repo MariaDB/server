@@ -35,10 +35,6 @@ Created 1/20/1994 Heikki Tuuri
 
 #include "db0err.h"
 
-#ifndef UNIV_HOTBACKUP
-# include "os0atomic.h"
-#endif /* UNIV_HOTBACKUP */
-
 #include <time.h>
 
 #ifndef MYSQL_SERVER
@@ -81,8 +77,9 @@ typedef time_t	ib_time_t;
    } while (0)
 # else
 #  define UT_RELAX_CPU() do { \
-     volatile lint	volatile_var; \
-     os_compare_and_swap_lint(&volatile_var, 0, 1); \
+     volatile int32	volatile_var; \
+     int32 oldval= 0;
+     my_atomic_cas32(&volatile_var, &oldval, 1); \
    } while (0)
 # endif
 

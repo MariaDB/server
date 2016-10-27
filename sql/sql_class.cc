@@ -4598,19 +4598,20 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
 }
 
 /*
-  This function can optionally be called to check if thd_report_wait_for()
+  This function can optionally be called to check if thd_rpl_deadlock_check()
   needs to be called for waits done by a given transaction.
 
-  If this function returns false for a given thd, there is no need to do any
-  calls to thd_report_wait_for() on that thd.
+  If this function returns false for a given thd, there is no need to do
+  any calls to thd_rpl_deadlock_check() on that thd.
 
-  This call is optional; it is safe to call thd_report_wait_for() in any case.
-  This call can be used to save some redundant calls to thd_report_wait_for()
-  if desired. (This is unlikely to matter much unless there are _lots_ of
-  waits to report, as the overhead of thd_report_wait_for() is small).
+  This call is optional; it is safe to call thd_rpl_deadlock_check() in
+  any case. This call can be used to save some redundant calls to
+  thd_rpl_deadlock_check() if desired. (This is unlikely to matter much
+  unless there are _lots_ of waits to report, as the overhead of
+  thd_rpl_deadlock_check() is small).
 */
 extern "C" int
-thd_need_wait_for(const MYSQL_THD thd)
+thd_need_wait_reports(const MYSQL_THD thd)
 {
   rpl_group_info *rgi;
 
@@ -4625,75 +4626,9 @@ thd_need_wait_for(const MYSQL_THD thd)
 }
 
 /*
-  Used by InnoDB/XtraDB to report that one transaction THD is about to go to
-  wait for a transactional lock held by another transactions OTHER_THD.
-
-  This is used for parallel replication, where transactions are required to
-  commit in the same order on the slave as they did on the master. If the
-  transactions on the slave encounters lock conflicts on the slave that did
-  not exist on the master, this can cause deadlocks.
-
-  Normally, such conflicts will not occur, because the same conflict would
-  have prevented the two transactions from committing in parallel on the
-  master, thus preventing them from running in parallel on the slave in the
-  first place. However, it is possible in case when the optimizer chooses a
-  different plan on the slave than on the master (eg. table scan instead of
-  index scan).
-
-  InnoDB/XtraDB reports lock waits using this call. If a lock wait causes a
-  deadlock with the pre-determined commit order, we kill the later transaction,
-  and later re-try it, to resolve the deadlock.
-
-  This call need only receive reports about waits for locks that will remain
-  until the holding transaction commits. InnoDB/XtraDB auto-increment locks
-  are released earlier, and so need not be reported. (Such false positives are
-  not harmful, but could lead to unnecessary kill and retry, so best avoided).
-*/
-extern "C" void
-thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd)
-{
-  rpl_group_info *rgi;
-  rpl_group_info *other_rgi;
-
-  if (!thd)
-    return;
-  DEBUG_SYNC(thd, "thd_report_wait_for");
-  thd->transaction.stmt.mark_trans_did_wait();
-  if (!other_thd)
-    return;
-  binlog_report_wait_for(thd, other_thd);
-  rgi= thd->rgi_slave;
-  other_rgi= other_thd->rgi_slave;
-  if (!rgi || !other_rgi)
-    return;
-  if (!rgi->is_parallel_exec)
-    return;
-  if (rgi->rli != other_rgi->rli)
-    return;
-  if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id)
-    return;
-  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
-    return;
-  if (rgi->gtid_sub_id > other_rgi->gtid_sub_id)
-    return;
-  /*
-    This transaction is about to wait for another transaction that is required
-    by replication binlog order to commit after. This would cause a deadlock.
-
-    So send a kill to the other transaction, with a temporary error; this will
-    cause replication to rollback (and later re-try) the other transaction,
-    releasing the lock for this transaction so replication can proceed.
-  */
-  other_rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
-  mysql_mutex_lock(&other_thd->LOCK_thd_data);
-  other_thd->awake(KILL_CONNECTION);
-  mysql_mutex_unlock(&other_thd->LOCK_thd_data);
-}
-
-/*
-  Used by storage engines (currently TokuDB) to report that one transaction
-  THD is about to go to wait for a transactional lock held by another
-  transactions OTHER_THD.
+  Used by storage engines (currently TokuDB and InnoDB/XtraDB) to report that
+  one transaction THD is about to go to wait for a transactional lock held by
+  another transactions OTHER_THD.
 
   This is used for parallel replication, where transactions are required to
   commit in the same order on the slave as they did on the master. If the
@@ -4708,9 +4643,9 @@ thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd)
   chooses a different plan on the slave than on the master (eg. table scan
   instead of index scan).
 
-  InnoDB/XtraDB reports lock waits using this call. If a lock wait causes a
-  deadlock with the pre-determined commit order, we kill the later transaction,
-  and later re-try it, to resolve the deadlock.
+  Storage engines report lock waits using this call. If a lock wait causes a
+  deadlock with the pre-determined commit order, we kill the later
+  transaction, and later re-try it, to resolve the deadlock.
 
   This call need only receive reports about waits for locks that will remain
   until the holding transaction commits. InnoDB/XtraDB auto-increment locks,
@@ -4801,8 +4736,8 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
 
   Calling this function is just an optimisation to avoid unnecessary
   deadlocks. If it was not used, a gap lock would be set that could eventually
-  cause a deadlock; the deadlock would be caught by thd_report_wait_for() and
-  the transaction T2 killed and rolled back (and later re-tried).
+  cause a deadlock; the deadlock would be caught by thd_rpl_deadlock_check()
+  and the transaction T2 killed and rolled back (and later re-tried).
 */
 extern "C" int
 thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)

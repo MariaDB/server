@@ -134,7 +134,7 @@ struct Block {
 	byte*		m_ptr;
 
 	byte		pad[CACHE_LINE_SIZE - sizeof(ulint)];
-	lock_word_t	m_in_use;
+	int32		m_in_use;
 };
 
 /** For storing the allocated blocks */
@@ -915,7 +915,8 @@ os_alloc_block()
 
 		pos = i++ % size;
 
-		if (TAS(&blocks[pos].m_in_use, 1) == 0) {
+		if (my_atomic_fas32_explicit(&blocks[pos].m_in_use, 1,
+					     MY_MEMORY_ORDER_ACQUIRE) == 0) {
 			block = &blocks[pos];
 			break;
 		}
@@ -938,7 +939,7 @@ os_free_block(Block* block)
 {
 	ut_ad(block->m_in_use == 1);
 
-	TAS(&block->m_in_use, 0);
+	my_atomic_store32_explicit(&block->m_in_use, 0, MY_MEMORY_ORDER_RELEASE);
 
 	/* When this block is not in the block cache, and it's
 	a temporary block, we need to free it directly. */
@@ -5709,12 +5710,12 @@ os_file_pwrite(
 
 	++os_n_file_writes;
 
-	(void) os_atomic_increment_ulint(&os_n_pending_writes, 1);
+	(void) my_atomic_addlint(&os_n_pending_writes, 1);
 	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_WRITES);
 
 	ssize_t	n_bytes = os_file_io(type, file, (void*) buf, n, offset, err);
 
-	(void) os_atomic_decrement_ulint(&os_n_pending_writes, 1);
+	(void) my_atomic_addlint(&os_n_pending_writes, -1);
 	MONITOR_ATOMIC_DEC(MONITOR_OS_PENDING_WRITES);
 
 	return(n_bytes);
@@ -5792,12 +5793,12 @@ os_file_pread(
 {
 	++os_n_file_reads;
 
-	(void) os_atomic_increment_ulint(&os_n_pending_reads, 1);
+	(void) my_atomic_addlint(&os_n_pending_reads, 1);
 	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_READS);
 
 	ssize_t	n_bytes = os_file_io(type, file, buf, n, offset, err);
 
-	(void) os_atomic_decrement_ulint(&os_n_pending_reads, 1);
+	(void) my_atomic_addlint(&os_n_pending_reads, -1);
 	MONITOR_ATOMIC_DEC(MONITOR_OS_PENDING_READS);
 
 	return(n_bytes);

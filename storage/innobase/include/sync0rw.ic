@@ -89,10 +89,9 @@ rw_lock_set_waiter_flag(
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
 #ifdef INNODB_RW_LOCKS_USE_ATOMICS
-	(void) os_compare_and_swap_ulint(&lock->waiters, 0, 1);
+	my_atomic_storelint(&lock->waiters, 1);
 #else /* INNODB_RW_LOCKS_USE_ATOMICS */
 	lock->waiters = 1;
-	os_wmb;
 #endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 }
 
@@ -107,10 +106,9 @@ rw_lock_reset_waiter_flag(
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
 #ifdef INNODB_RW_LOCKS_USE_ATOMICS
-	(void) os_compare_and_swap_ulint(&lock->waiters, 1, 0);
+	my_atomic_storelint(&lock->waiters, 0);
 #else /* INNODB_RW_LOCKS_USE_ATOMICS */
 	lock->waiters = 0;
-	os_wmb;
 #endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 }
 
@@ -272,15 +270,13 @@ rw_lock_lock_word_decr(
 #ifdef INNODB_RW_LOCKS_USE_ATOMICS
 	lint local_lock_word;
 
-	os_rmb;
 	local_lock_word = lock->lock_word;
 	while (local_lock_word > threshold) {
-		if (os_compare_and_swap_lint(&lock->lock_word,
-					     local_lock_word,
-					     local_lock_word - amount)) {
+		if (my_atomic_caslint(&lock->lock_word,
+				      &local_lock_word,
+				      local_lock_word - amount)) {
 			return(true);
 		}
-		local_lock_word = lock->lock_word;
 	}
 	return(false);
 #else /* INNODB_RW_LOCKS_USE_ATOMICS */
@@ -306,7 +302,7 @@ rw_lock_lock_word_incr(
 	ulint		amount)		/*!< in: amount of increment */
 {
 #ifdef INNODB_RW_LOCKS_USE_ATOMICS
-	return(os_atomic_increment_lint(&lock->lock_word, amount));
+	return(my_atomic_addlint(&lock->lock_word, amount) + amount);
 #else /* INNODB_RW_LOCKS_USE_ATOMICS */
 	lint local_lock_word;
 
@@ -341,19 +337,8 @@ rw_lock_set_writer_id_and_recursion_flag(
 	os_thread_id_t	curr_thread	= os_thread_get_curr_id();
 
 #ifdef INNODB_RW_LOCKS_USE_ATOMICS
-	os_thread_id_t	local_thread;
-	ibool		success;
 
-	/* Prevent Valgrind warnings about writer_thread being
-	uninitialized.  It does not matter if writer_thread is
-	uninitialized, because we are comparing writer_thread against
-	itself, and the operation should always succeed. */
-	UNIV_MEM_VALID(&lock->writer_thread, sizeof lock->writer_thread);
-
-	local_thread = lock->writer_thread;
-	success = os_compare_and_swap_thread_id(
-		&lock->writer_thread, local_thread, curr_thread);
-	ut_a(success);
+	my_atomic_storelong(&lock->writer_thread, (long) curr_thread);
 	lock->recursive = recursive;
 
 #else /* INNODB_RW_LOCKS_USE_ATOMICS */
@@ -459,7 +444,8 @@ rw_lock_x_lock_func_nowait(
 	ibool local_recursive= lock->recursive;
 
 #ifdef INNODB_RW_LOCKS_USE_ATOMICS
-	success = os_compare_and_swap_lint(&lock->lock_word, X_LOCK_DECR, 0);
+	lint oldval = X_LOCK_DECR;
+	success = my_atomic_caslint(&lock->lock_word, &oldval, 0);
 #else
 
 	success = FALSE;
@@ -473,7 +459,7 @@ rw_lock_x_lock_func_nowait(
 #endif
 	/* Note: recursive must be loaded before writer_thread see
 	comment for rw_lock_set_writer_id_and_recursion_flag().
-	To achieve this we load it before os_compare_and_swap_lint(),
+	To achieve this we load it before my_atomic_caslint(),
 	which implies full memory barrier in current implementation. */
 	if (success) {
 		rw_lock_set_writer_id_and_recursion_flag(lock, true);

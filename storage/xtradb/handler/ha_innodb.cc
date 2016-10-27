@@ -5441,8 +5441,7 @@ innobase_kill_connection(
 			wsrep_thd_is_BF(current_thd, FALSE),
 			lock_get_info(trx->lock.wait_lock).c_str());
 
-		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
-		    trx->abort_type == TRX_SERVER_ABORT) {
+		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 			ut_ad(!lock_mutex_own());
 			lock_mutex_enter();
 		}
@@ -5462,8 +5461,7 @@ innobase_kill_connection(
 			trx_mutex_exit(trx);
 		}
 
-		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
-		    trx->abort_type == TRX_SERVER_ABORT) {
+		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 			lock_mutex_exit();
 		}
 	}

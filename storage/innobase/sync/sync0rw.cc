@@ -307,7 +307,6 @@ rw_lock_free_func(
 /*==============*/
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	os_rmb;
 	ut_ad(rw_lock_validate(lock));
 	ut_a(lock->lock_word == X_LOCK_DECR);
 
@@ -356,7 +355,6 @@ rw_lock_s_lock_spin(
 lock_loop:
 
 	/* Spin waiting for the writer field to become free */
-	os_rmb;
 	HMT_low();
 	while (i < srv_n_spin_wait_rounds && lock->lock_word <= 0) {
 		if (srv_spin_wait_delay) {
@@ -364,7 +362,6 @@ lock_loop:
 		}
 
 		i++;
-		os_rmb;
 	}
 
 	HMT_medium();
@@ -480,7 +477,6 @@ rw_lock_x_lock_wait_func(
 	sync_array_t*	sync_arr;
 	uint64_t	count_os_wait = 0;
 
-	os_rmb;
 	ut_ad(lock->lock_word <= threshold);
 
 	while (lock->lock_word < threshold) {
@@ -493,7 +489,6 @@ rw_lock_x_lock_wait_func(
 
 		if (i < srv_n_spin_wait_rounds) {
 			i++;
-			os_rmb;
 			continue;
 		}
 		HMT_medium();
@@ -578,6 +573,8 @@ rw_lock_x_lock_low(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
+	ibool local_recursive= lock->recursive;
+
 	if (rw_lock_lock_word_decr(lock, X_LOCK_DECR, X_LOCK_HALF_DECR)) {
 
 
@@ -596,14 +593,13 @@ rw_lock_x_lock_low(
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
 
-		if (!pass) {
-			os_rmb;
-		}
-
 		/* Decrement failed: An X or SX lock is held by either
-		this thread or another. Try to relock. */
-		if (!pass
-		    && lock->recursive
+		this thread or another. Try to relock.
+		Note: recursive must be loaded before writer_thread see
+		comment for rw_lock_set_writer_id_and_recursion_flag().
+		To achieve this we load it before rw_lock_lock_word_decr(),
+		which implies full memory barrier in current implementation. */
+		if (!pass && local_recursive
 		    && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* Other s-locks can be allowed. If it is request x
 			recursively while holding sx lock, this x lock should
@@ -665,6 +661,8 @@ rw_lock_sx_lock_low(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
+	ibool local_recursive= lock->recursive;
+
 	if (rw_lock_lock_word_decr(lock, X_LOCK_HALF_DECR, X_LOCK_HALF_DECR)) {
 
 		/* lock->recursive also tells us if the writer_thread
@@ -681,14 +679,14 @@ rw_lock_sx_lock_low(
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
 
-		if (!pass) {
-			os_rmb;
-		}
-
 		/* Decrement failed: It already has an X or SX lock by this
 		thread or another thread. If it is this thread, relock,
-		else fail. */
-		if (!pass && lock->recursive
+		else fail.
+		Note: recursive must be loaded before writer_thread see
+		comment for rw_lock_set_writer_id_and_recursion_flag().
+		To achieve this we load it before rw_lock_lock_word_decr(),
+		which implies full memory barrier in current implementation. */
+		if (!pass && local_recursive
 		    && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* This thread owns an X or SX lock */
 			if (lock->sx_recursive++ == 0) {
@@ -776,7 +774,6 @@ lock_loop:
 	} else {
 
 		/* Spin waiting for the lock_word to become free */
-		os_rmb;
 		HMT_low();
 		while (i < srv_n_spin_wait_rounds
 		       && lock->lock_word <= X_LOCK_HALF_DECR) {
@@ -787,7 +784,6 @@ lock_loop:
 			}
 
 			i++;
-			os_rmb;
 		}
 
 		HMT_medium();
@@ -885,7 +881,6 @@ lock_loop:
 		++spin_wait_count;
 
 		/* Spin waiting for the lock_word to become free */
-		os_rmb;
 		while (i < srv_n_spin_wait_rounds
 		       && lock->lock_word <= X_LOCK_HALF_DECR) {
 

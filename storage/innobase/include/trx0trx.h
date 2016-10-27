@@ -842,8 +842,7 @@ lock_sys->mutex and sometimes by trx->mutex. */
 
 typedef enum {
 	TRX_SERVER_ABORT = 0,
-	TRX_WSREP_ABORT  = 1,
-	TRX_REPLICATION_ABORT = 2
+	TRX_WSREP_ABORT  = 1
 } trx_abort_t;
 
 
@@ -1097,6 +1096,8 @@ struct trx_t {
 
 	time_t		start_time;	/*!< time the state last time became
 					TRX_STATE_ACTIVE */
+	clock_t		start_time_micro; /*!< start time of the transaction
+					in microseconds. */
 	lsn_t		commit_lsn;	/*!< lsn at the time of the commit */
 	table_id_t	table_id;	/*!< Table to drop iff dict_operation
 					== TRX_DICT_OP_TABLE, or 0. */

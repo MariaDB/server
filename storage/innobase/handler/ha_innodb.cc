@@ -379,6 +379,22 @@ static TYPELIB innodb_default_row_format_typelib = {
 	NULL
 };
 
+/** Possible values of the parameter innodb_lock_schedule_algorithm */
+static const char* innodb_lock_schedule_algorithm_names[] = {
+	"fcfs",
+	"vats",
+	NullS
+};
+
+/** Used to define an enumerate type of the system variable
+innodb_lock_schedule_algorithm. */
+static TYPELIB innodb_lock_schedule_algorithm_typelib = {
+	array_elements(innodb_lock_schedule_algorithm_names) - 1,
+	"innodb_lock_schedule_algorithm_typelib",
+	innodb_lock_schedule_algorithm_names,
+	NULL
+};
+
 /* The following counter is used to convey information to InnoDB
 about server activity: in case of normal DML ops it is not
 sensible to call srv_active_wake_master_thread after each
@@ -1671,7 +1687,7 @@ thd_is_replication_slave_thread(
 /*============================*/
 	THD*	thd)	/*!< in: thread handle */
 {
-	return((ibool) thd_slave_thread(thd));
+	return thd && ((ibool) thd_slave_thread(thd));
 }
 
 /******************************************************************//**
@@ -5685,8 +5701,7 @@ innobase_kill_query(
 				wsrep_thd_is_BF(current_thd, FALSE));
 		}
 
-		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
-			trx->abort_type == TRX_SERVER_ABORT) {
+		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 			ut_ad(!lock_mutex_own());
 			lock_mutex_enter();
 			lock_mutex_taken = true;
@@ -17080,7 +17095,7 @@ ha_innobase::check(
 		    && !dict_index_is_corrupted(index)) {
 			/* Enlarge the fatal lock wait timeout during
 			CHECK TABLE. */
-			os_atomic_increment_ulint(
+			my_atomic_addlint(
 				&srv_fatal_semaphore_wait_threshold,
 				SRV_SEMAPHORE_WAIT_EXTENSION);
 
@@ -17089,9 +17104,9 @@ ha_innobase::check(
 
 			/* Restore the fatal lock wait timeout after
 			CHECK TABLE. */
-			os_atomic_decrement_ulint(
+			my_atomic_addlint(
 				&srv_fatal_semaphore_wait_threshold,
-				SRV_SEMAPHORE_WAIT_EXTENSION);
+				-SRV_SEMAPHORE_WAIT_EXTENSION);
 
 			if (err != DB_SUCCESS) {
 				is_ok = false;
@@ -22784,6 +22799,18 @@ static MYSQL_SYSVAR_ULONG(doublewrite_batch_size, srv_doublewrite_batch_size,
   NULL, NULL, 120, 1, 127, 0);
 #endif /* defined UNIV_DEBUG || defined UNIV_PERF_DEBUG */
 
+static MYSQL_SYSVAR_ENUM(lock_schedule_algorithm, innodb_lock_schedule_algorithm,
+  PLUGIN_VAR_RQCMDARG,
+  "The algorithm Innodb uses for deciding which locks to grant next when"
+  " a lock is released. Possible values are"
+  " FCFS"
+  " grant the locks in First-Come-First-Served order;"
+  " VATS"
+  " use the Variance-Aware-Transaction-Scheduling algorithm, which"
+  " uses an Eldest-Transaction-First heuristic.",
+  NULL, NULL, INNODB_LOCK_SCHEDULE_ALGORITHM_VATS,
+  &innodb_lock_schedule_algorithm_typelib);
+
 static MYSQL_SYSVAR_ULONG(buffer_pool_instances, srv_buf_pool_instances,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Number of buffer pool instances, set to higher value on high-end machines to increase scalability",
@@ -23657,6 +23684,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_sort_pll_degree),
   MYSQL_SYSVAR(large_prefix),
   MYSQL_SYSVAR(force_load_corrupted),
+  MYSQL_SYSVAR(lock_schedule_algorithm),
   MYSQL_SYSVAR(locks_unsafe_for_binlog),
   MYSQL_SYSVAR(lock_wait_timeout),
   MYSQL_SYSVAR(page_size),

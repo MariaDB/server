@@ -1045,7 +1045,7 @@ dict_mem_create_temporary_tablename(
 	size_t		dblen   = dbend - dbtab + 1;
 
 	/* Increment a randomly initialized  number for each temp file. */
-	os_atomic_increment_uint32(&dict_temp_file_num, 1);
+	my_atomic_add32((int32*) &dict_temp_file_num, 1);
 
 	size = dblen + (sizeof(TEMP_FILE_PREFIX) + 3 + 20 + 1 + 10);
 	name = static_cast<char*>(mem_heap_alloc(heap, size));

@@ -707,8 +707,7 @@ lock_sys->mutex and sometimes by trx->mutex. */
 
 typedef enum {
 	TRX_SERVER_ABORT = 0,
-	TRX_WSREP_ABORT  = 1,
-	TRX_REPLICATION_ABORT = 2
+	TRX_WSREP_ABORT  = 1
 } trx_abort_t;
 
 struct trx_t{

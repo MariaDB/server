@@ -1461,7 +1461,7 @@ row_ins_foreign_check_on_constraint(
 #endif /* WITH_WSREP */
 	node->new_upd_nodes->push_back(cascade);
 
-	os_atomic_increment_ulint(&table->n_foreign_key_checks_running, 1);
+	my_atomic_addlint(&table->n_foreign_key_checks_running, 1);
 
 	ut_ad(foreign->foreign_table->n_foreign_key_checks_running > 0);
 
@@ -1573,7 +1573,7 @@ class ib_dec_in_dtor {
 public:
 	ib_dec_in_dtor(ulint& c): counter(c) {}
 	~ib_dec_in_dtor() {
-		os_atomic_decrement_ulint(&counter, 1);
+		my_atomic_addlint(&counter, -1);
 	}
 private:
 	ulint&		counter;
@@ -1890,7 +1890,7 @@ do_possible_lock_wait:
 		thr->lock_state = QUE_THR_LOCK_ROW;
 
 		/* To avoid check_table being dropped, increment counter */
-		os_atomic_increment_ulint(
+		my_atomic_addlint(
 			&check_table->n_foreign_key_checks_running, 1);
 
 		lock_wait_suspend_thread(thr);

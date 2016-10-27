@@ -1511,19 +1511,12 @@ innobase_start_or_create_for_mysql(void)
 	ib::info() << "Compiler hints enabled.";
 #endif /* defined(COMPILER_HINTS_ENABLED) */
 
-	ib::info() << IB_ATOMICS_STARTUP_MSG;
-	ib::info() << MUTEX_TYPE;
-	ib::info() << IB_MEMORY_BARRIER_STARTUP_MSG;
-
-#ifndef HAVE_MEMORY_BARRIER
-#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64 || defined _WIN32
+#ifdef _WIN32
+	ib::info() << "Mutexes and rw_locks use Windows interlocked functions";
 #else
-	ib::warn() << "MySQL was built without a memory barrier capability on"
-		" this architecture, which might allow a mutex/rw_lock"
-		" violation under high thread concurrency. This may cause a"
-		" hang.";
-#endif /* IA32 or AMD64 */
-#endif /* HAVE_MEMORY_BARRIER */
+	ib::info() << "Mutexes and rw_locks use GCC atomic builtins";
+#endif
+	ib::info() << MUTEX_TYPE;
 
 	ib::info() << "Compressed tables use zlib " ZLIB_VERSION
 #ifdef UNIV_ZIP_DEBUG

@@ -426,12 +426,7 @@ ulong	srv_doublewrite_batch_size	= 120;
 ulong	srv_replication_delay		= 0;
 
 /*-------------------------------------------*/
-#ifdef HAVE_MEMORY_BARRIER
-/* No idea to wait long with memory barriers */
 UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 15;
-#else
-UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 30;
-#endif
 ulong	srv_spin_wait_delay	= 6;
 ibool	srv_priority_boost	= TRUE;
 
@@ -1896,8 +1891,6 @@ exit_func:
 /*********************************************************************//**
 A thread which prints warnings about semaphore waits which have lasted
 too long. These can be used to track bugs which cause hangs.
-Note: In order to make sync_arr_wake_threads_if_sema_free work as expected,
-we should avoid waiting any mutexes in this function!
 @return a dummy parameter */
 extern "C"
 os_thread_ret_t
@@ -1959,12 +1952,6 @@ loop:
 	/* Update the statistics collected for deciding LRU
 	eviction policy. */
 	buf_LRU_stat_update();
-
-	/* In case mutex_exit is not a memory barrier, it is
-	theoretically possible some threads are left waiting though
-	the semaphore is already released. Wake up those threads: */
-
-	sync_arr_wake_threads_if_sema_free();
 
 	if (sync_array_print_long_waits(&waiter, &sema)
 	    && sema == old_sema && os_thread_eq(waiter, old_waiter)) {
@@ -2732,8 +2719,8 @@ srv_task_execute(void)
 
 		que_run_threads(thr);
 
-		os_atomic_inc_ulint(
-			&purge_sys->pq_mutex, &purge_sys->n_completed, 1);
+		my_atomic_addlint(
+			&purge_sys->n_completed, 1);
 	}
 
 	return(thr != NULL);

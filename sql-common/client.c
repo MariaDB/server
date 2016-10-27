@@ -569,16 +569,22 @@ err:
                            Error message is set.
   @retval  
 */
-
 ulong
 cli_safe_read(MYSQL *mysql)
+{
+  ulong reallen = 0;
+  return cli_safe_read_reallen(mysql, &reallen);
+}
+
+ulong
+cli_safe_read_reallen(MYSQL *mysql, ulong* reallen)
 {
   NET *net= &mysql->net;
   ulong len=0;
 
 restart:
   if (net->vio != 0)
-    len= my_net_read_packet(net, 0);
+    len= my_net_read_packet_reallen(net, 0, reallen);
 
   if (len == packet_error || len == 0)
   {

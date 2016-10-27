@@ -380,8 +380,8 @@ struct lock_stack_t {
 	ulint		heap_no;		/*!< heap number if rec lock */
 };
 
-extern "C" void thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd);
-extern "C" int thd_need_wait_for(const MYSQL_THD thd);
+extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
+extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C"
 int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
 
@@ -406,7 +406,7 @@ UNIV_INTERN mysql_pfs_key_t	lock_sys_wait_mutex_key;
 struct thd_wait_reports {
 	struct thd_wait_reports *next;	/*!< List link */
 	ulint used;			/*!< How many elements in waitees[] */
-	trx_t *waitees[64];		/*!< Trxs for thd_report_wait_for() */
+	trx_t *waitees[64];		/*!< Trxs for thd_rpl_deadlock_check() */
 };
 
 
@@ -4489,14 +4489,7 @@ lock_report_waiters_to_mysql(
 			/*  There is no need to report waits to a trx already
 			selected as a victim. */
 			if (w_trx->id != victim_trx_id) {
-				/* If thd_report_wait_for() decides to kill the
-				transaction, then we will get a call back into
-				innobase_kill_query. We mark this by setting
-				current_lock_mutex_owner, so we can avoid trying
-				to recursively take lock_sys->mutex. */
-				w_trx->abort_type = TRX_REPLICATION_ABORT;
-				thd_report_wait_for(mysql_thd, w_trx->mysql_thd);
-				w_trx->abort_type = TRX_SERVER_ABORT;
+				thd_rpl_deadlock_check(mysql_thd, w_trx->mysql_thd);
 			}
 			++i;
 		}
@@ -4535,7 +4528,7 @@ lock_deadlock_check_and_resolve(
 	assert_trx_in_list(trx);
 
 	start_mysql_thd = trx->mysql_thd;
-	if (start_mysql_thd && thd_need_wait_for(start_mysql_thd)) {
+	if (start_mysql_thd && thd_need_wait_reports(start_mysql_thd)) {
 		waitee_buf_ptr = &waitee_buf;
 	} else {
 		waitee_buf_ptr = NULL;

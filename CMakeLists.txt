@@ -162,6 +162,7 @@ INCLUDE(install_macros)
 INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 INCLUDE(crc32-vpmsum)
+INCLUDE(numa)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -356,6 +357,7 @@ IF(WITH_UNIT_TESTS)
  ADD_SUBDIRECTORY(unittest/examples)
  ADD_SUBDIRECTORY(unittest/mysys)
  ADD_SUBDIRECTORY(unittest/my_decimal)
+ ADD_SUBDIRECTORY(unittest/json_lib)
  IF(NOT WITHOUT_SERVER)
    ADD_SUBDIRECTORY(unittest/sql)
  ENDIF()

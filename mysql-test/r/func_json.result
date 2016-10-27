@@ -1,0 +1,123 @@
+select json_valid('[1, 2]');
+json_valid('[1, 2]')
+1
+select json_valid('"string"}');
+json_valid('"string"}')
+0
+select json_valid('{"key1":1, "key2":[2,3]}');
+json_valid('{"key1":1, "key2":[2,3]}')
+1
+select json_valid('[false, true, null]');
+json_valid('[false, true, null]')
+1
+select json_value('{"key1":123}', '$.key2');
+json_value('{"key1":123}', '$.key2')
+NULL
+select json_value('{"key1":123}', '$.key1');
+json_value('{"key1":123}', '$.key1')
+123
+select json_value('{"key1":[1,2,3]}', '$.key1');
+json_value('{"key1":[1,2,3]}', '$.key1')
+NULL
+select json_value('{"key1": [1,2,3], "key1":123}', '$.key1');
+json_value('{"key1": [1,2,3], "key1":123}', '$.key1')
+123
+select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2');
+json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2')
+NULL
+select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key1');
+json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key1')
+{"a":1, "b":[1,2]}
+select json_query('{"key1": 1}', '$.key1');
+json_query('{"key1": 1}', '$.key1')
+NULL
+select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
+json_query('{"key1":123, "key1": [1,2,3]}', '$.key1')
+[1,2,3]
+select json_array(1);
+json_array(1)
+[1]
+select json_array(1, "text", false, null);
+json_array(1, "text", false, null)
+[1, "text", false, null]
+select json_array_append('["a", "b"]', '$', FALSE);
+json_array_append('["a", "b"]', '$', FALSE)
+["a", "b", false]
+select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
+json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2)
+{"k1":1, "k2":["a", "b", 2]}
+select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
+json_contains('{"k1":123, "k2":345}', '123', '$.k1')
+1
+select json_contains('"you"', '"you"');
+json_contains('"you"', '"you"')
+1
+select json_contains('"youth"', '"you"');
+json_contains('"youth"', '"you"')
+0
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
+json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]")
+1
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]");
+json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]")
+0
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.ma");
+json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.ma")
+0
+select json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1");
+json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1")
+1
+select json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1", "$.ma");
+json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1", "$.ma")
+1
+select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.ma");
+json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.ma")
+0
+select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.key2");
+json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.key2")
+1
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1");
+json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1")
+asd
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY");
+json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY")
+NULL
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2");
+json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2")
+["asd", [2,3]]
+select json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2");
+json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2")
+[5, [2,3]]
+select json_extract('{"key0":true, "key1":"qwe"}', "$.key1");
+json_extract('{"key0":true, "key1":"qwe"}', "$.key1")
+qwe
+select json_object("ki", 1, "mi", "ya");
+json_object("ki", 1, "mi", "ya")
+{"ki": 1, "mi": "ya"}
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2");
+json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2")
+1
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[1]");
+json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[1]")
+1
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[10]");
+json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[10]")
+0
+select json_quote('"string"');
+json_quote('"string"')
+\"string\"
+select json_merge('string', 123);
+json_merge('string', 123)
+["string", 123]
+select json_type('{"k1":123, "k2":345}');
+json_type('{"k1":123, "k2":345}')
+OBJECT
+select json_type('[123, "k2", 345]');
+json_type('[123, "k2", 345]')
+ARRAY
+select json_type("true");
+json_type("true")
+BOOLEAN
+select json_type('123');
+json_type('123')
+NUMBER

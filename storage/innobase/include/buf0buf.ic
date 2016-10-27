@@ -968,7 +968,7 @@ ulint
 buf_block_fix(
 	buf_page_t*	bpage)
 {
-	return(os_atomic_increment_uint32(&bpage->buf_fix_count, 1));
+	return(my_atomic_add32((int32*) &bpage->buf_fix_count, 1) + 1);
 }
 
 /** Increments the bufferfix count.
@@ -1016,7 +1016,7 @@ ulint
 buf_block_unfix(
 	buf_page_t*	bpage)
 {
-	ulint	count = os_atomic_decrement_uint32(&bpage->buf_fix_count, 1);
+	ulint	count = my_atomic_add32((int32*) &bpage->buf_fix_count, -1) - 1;
 	ut_ad(count + 1 != 0);
 	return(count);
 }

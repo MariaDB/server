@@ -2900,6 +2900,14 @@ void Item_int::print(String *str, enum_query_type query_type)
 }
 
 
+Item *Item_bool::neg_transformer(THD *thd)
+{
+  value= !value;
+  name= 0;
+  return this;
+}
+
+
 Item_uint::Item_uint(THD *thd, const char *str_arg, uint length):
   Item_int(thd, str_arg, length)
 {

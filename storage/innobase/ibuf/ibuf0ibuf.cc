@@ -1447,7 +1447,7 @@ ibuf_add_ops(
 	ulint	i;
 
 	for (i = 0; i < IBUF_OP_COUNT; i++) {
-		os_atomic_increment_ulint(&arr[i], ops[i]);
+		my_atomic_addlint(&arr[i], ops[i]);
 	}
 }
 
@@ -4788,7 +4788,7 @@ reset_bit:
 	btr_pcur_close(&pcur);
 	mem_heap_free(heap);
 
-	os_atomic_increment_ulint(&ibuf->n_merges, 1);
+	my_atomic_addlint(&ibuf->n_merges, 1);
 	ibuf_add_ops(ibuf->n_merged_ops, mops);
 	ibuf_add_ops(ibuf->n_discarded_ops, dops);
 	if (space != NULL) {

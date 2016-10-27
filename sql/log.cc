@@ -4304,6 +4304,10 @@ void MYSQL_BIN_LOG::wait_for_last_checkpoint_event()
   relay log.
 
   IMPLEMENTATION
+
+  - You must hold rli->data_lock before calling this function, since
+    it writes group_relay_log_pos and similar fields of
+    Relay_log_info.
   - Protects index file with LOCK_index
   - Delete relevant relay log files
   - Copy all file names after these ones to the front of the index file
@@ -4317,7 +4321,7 @@ void MYSQL_BIN_LOG::wait_for_last_checkpoint_event()
                       read by the SQL slave thread are deleted).
 
   @note
-    - This is only called from the slave-execute thread when it has read
+    - This is only called from the slave SQL thread when it has read
     all commands from a relay log and want to switch to a new relay log.
     - When this happens, we can be in an active transaction as
     a transaction can span over two relay logs
@@ -4347,6 +4351,8 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   DBUG_ASSERT(is_open());
   DBUG_ASSERT(rli->slave_running == MYSQL_SLAVE_RUN_NOT_CONNECT);
   DBUG_ASSERT(!strcmp(rli->linfo.log_file_name,rli->event_relay_log_name));
+
+  mysql_mutex_assert_owner(&rli->data_lock);
 
   mysql_mutex_lock(&LOCK_index);
 
@@ -4406,7 +4412,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   }
 
   /* Store where we are in the new file for the execution thread */
-  flush_relay_log_info(rli);
+  rli->flush();
 
   DBUG_EXECUTE_IF("crash_before_purge_logs", DBUG_SUICIDE(););
 

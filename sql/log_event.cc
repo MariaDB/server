@@ -966,6 +966,7 @@ int Log_event::do_update_pos(rpl_group_info *rgi)
   Relay_log_info *rli= rgi->rli;
   DBUG_ENTER("Log_event::do_update_pos");
 
+  DBUG_ASSERT(!rli->belongs_to_client());
   /*
     rli is null when (as far as I (Guilhem) know) the caller is
     Load_log_event::do_apply_event *and* that one is called from
@@ -6403,6 +6404,9 @@ bool Rotate_log_event::write()
   in a A -> B -> A setup.
   The NOTES below is a wrong comment which will disappear when 4.1 is merged.
 
+  This must only be called from the Slave SQL thread, since it calls
+  Relay_log_info::flush().
+
   @retval
     0	ok
 */
@@ -6456,7 +6460,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
                         (ulong) rli->group_master_log_pos));
     mysql_mutex_unlock(&rli->data_lock);
     rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
-    flush_relay_log_info(rli);
+    rli->flush();
     
     /*
       Reset thd->variables.option_bits and sql_mode etc, because this could
@@ -8225,6 +8229,9 @@ void Stop_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
   were we must do this cleaning is in
   Start_log_event_v3::do_apply_event(), not here. Because if we come
   here, the master was sane.
+
+  This must only be called from the Slave SQL thread, since it calls
+  Relay_log_info::flush().
 */
 
 int Stop_log_event::do_update_pos(rpl_group_info *rgi)
@@ -8244,7 +8251,7 @@ int Stop_log_event::do_update_pos(rpl_group_info *rgi)
   {
     rpl_global_gtid_slave_state->record_and_update_gtid(thd, rgi);
     rli->inc_group_relay_log_pos(0, rgi);
-    flush_relay_log_info(rli);
+    rli->flush();
   }
   DBUG_RETURN(0);
 }

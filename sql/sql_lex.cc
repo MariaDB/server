@@ -2151,7 +2151,6 @@ void st_select_lex::init_select()
   in_sum_expr= with_wild= 0;
   options= 0;
   sql_cache= SQL_CACHE_UNSPECIFIED;
-  interval_list.empty();
   ftfunc_list_alloc.empty();
   inner_sum_func_list= 0;
   ftfunc_list= &ftfunc_list_alloc;

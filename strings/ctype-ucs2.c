@@ -1190,9 +1190,12 @@ my_lengthsp_mb2(CHARSET_INFO *cs __attribute__((unused)),
 #endif /* HAVE_CHARSET_mb2*/
 
 
+/*
+  Next part is actually HAVE_CHARSET_utf16-specific,
+  but the JSON functions needed my_utf16_uni()
+  so the #ifdef was moved lower.
+*/
 
-
-#ifdef HAVE_CHARSET_utf16
 
 /*
   D800..DB7F - Non-provate surrogate high (896 pages)
@@ -1260,7 +1263,12 @@ static inline int my_weight_mb2_utf16mb2_general_ci(uchar b0, uchar b1)
 #undef IS_MB2_CHAR
 #undef IS_MB4_CHAR
 
-static int
+/*
+  These two functions are used in JSON library, so made exportable
+  and unconditionally compiled into the library.
+*/
+
+/*static*/ int
 my_utf16_uni(CHARSET_INFO *cs __attribute__((unused)),
              my_wc_t *pwc, const uchar *s, const uchar *e)
 {
@@ -1293,7 +1301,7 @@ my_utf16_uni(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static int
+/*static*/ int
 my_uni_utf16(CHARSET_INFO *cs __attribute__((unused)),
              my_wc_t wc, uchar *s, uchar *e)
 {
@@ -1321,6 +1329,9 @@ my_uni_utf16(CHARSET_INFO *cs __attribute__((unused)),
 
   return MY_CS_ILUNI;
 }
+
+
+#ifdef HAVE_CHARSET_utf16
 
 
 static inline void
