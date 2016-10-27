@@ -317,6 +317,9 @@ on the io_type */
 	 ? (counter##_READ)				\
 	 : (counter##_WRITTEN))
 
+/* prototypes for new functions added to ha_innodb.cc */
+trx_t* innobase_get_trx();
+
 /********************************************************************//**
 Check if page is maybe compressed, encrypted or both when we encounter
 corrupted page. Note that we can't be 100% sure if page is corrupted
@@ -4485,7 +4488,6 @@ buf_page_check_corrupt(
 	ulint zip_size = buf_page_get_zip_size(bpage);
 	byte* dst_frame = (zip_size) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
-	unsigned key_version = bpage->key_version;
 	bool page_compressed = bpage->page_encrypted;
 	ulint stored_checksum = bpage->stored_checksum;
 	ulint calculated_checksum = bpage->stored_checksum;
@@ -4495,6 +4497,7 @@ buf_page_check_corrupt(
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
 	fil_space_t* space = fil_space_found_by_id(space_id);
 	bool corrupted = true;
+	ulint key_version = bpage->key_version;
 
 	if (key_version != 0 || page_compressed_encrypted) {
 		bpage->encrypted = true;
@@ -4524,7 +4527,7 @@ buf_page_check_corrupt(
 					stored_checksum, calculated_checksum);
 			}
 			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Reason could be that key_version %u in page "
+				"Reason could be that key_version %lu in page "
 				"or in crypt_data %p could not be found.",
 				key_version, crypt_data);
 			ib_logf(IB_LOG_LEVEL_ERROR,
@@ -4538,7 +4541,7 @@ buf_page_check_corrupt(
 				"Block in space_id %lu in file %s encrypted.",
 				space_id, space ? space->name : "NULL");
 			ib_logf(IB_LOG_LEVEL_ERROR,
-				"However key management plugin or used key_id %u is not found or"
+				"However key management plugin or used key_id %lu is not found or"
 				" used encryption algorithm or method does not match.",
 				key_version);
 			ib_logf(IB_LOG_LEVEL_ERROR,
@@ -4718,6 +4721,7 @@ database_corrupted:
 					return(false);
 				} else {
 					corrupted = buf_page_check_corrupt(bpage);
+					ulint key_version = bpage->key_version;
 
 					if (corrupted) {
 						ib_logf(IB_LOG_LEVEL_ERROR,
@@ -4726,12 +4730,12 @@ database_corrupted:
 						ut_error;
 					}
 
-					ib_push_warning((void *)NULL, DB_DECRYPTION_FAILED,
+					ib_push_warning(innobase_get_trx(), DB_DECRYPTION_FAILED,
 						"Table in tablespace %lu encrypted."
-						"However key management plugin or used key_id %u is not found or"
+						"However key management plugin or used key_id %lu is not found or"
 						" used encryption algorithm or method does not match."
 						" Can't continue opening the table.",
-						(ulint)bpage->space, bpage->key_version);
+						(ulint)bpage->space, key_version);
 
 					if (bpage->space > TRX_SYS_SPACE) {
 						if (corrupted) {
@@ -4890,7 +4894,7 @@ buf_all_freed_instance(
 		const buf_block_t* block = buf_chunk_not_freed(chunk);
 
 		if (UNIV_LIKELY_NULL(block)) {
-				if (block->page.key_version == 0) {
+			if (block->page.key_version == 0) {
 				fil_space_t* space = fil_space_get(block->page.space);
 				ib_logf(IB_LOG_LEVEL_ERROR,
 					"Page %u %u still fixed or dirty.",

@@ -4601,7 +4601,6 @@ buf_page_check_corrupt(
 	ulint zip_size = buf_page_get_zip_size(bpage);
 	byte* dst_frame = (zip_size) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
-	unsigned key_version = bpage->key_version;
 	bool page_compressed = bpage->page_encrypted;
 	ulint stored_checksum = bpage->stored_checksum;
 	ulint calculated_checksum = bpage->stored_checksum;
@@ -4611,6 +4610,7 @@ buf_page_check_corrupt(
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space_id);
 	fil_space_t* space = fil_space_found_by_id(space_id);
 	bool corrupted = true;
+	ulint key_version = bpage->key_version;
 
 	if (key_version != 0 || page_compressed_encrypted) {
 		bpage->encrypted = true;
@@ -4640,7 +4640,7 @@ buf_page_check_corrupt(
 					stored_checksum, calculated_checksum);
 			}
 			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Reason could be that key_version %u in page "
+				"Reason could be that key_version %lu in page "
 				"or in crypt_data %p could not be found.",
 				key_version, crypt_data);
 			ib_logf(IB_LOG_LEVEL_ERROR,
@@ -4654,7 +4654,7 @@ buf_page_check_corrupt(
 				"Block in space_id %lu in file %s encrypted.",
 				space_id, space ? space->name : "NULL");
 			ib_logf(IB_LOG_LEVEL_ERROR,
-				"However key management plugin or used key_id %u is not found or"
+				"However key management plugin or used key_id %lu is not found or"
 				" used encryption algorithm or method does not match.",
 				key_version);
 			ib_logf(IB_LOG_LEVEL_ERROR,
@@ -4855,6 +4855,7 @@ database_corrupted:
 						return(false);
 					} else {
 						corrupted = buf_page_check_corrupt(bpage);
+						ulint key_version = bpage->key_version;
 
 						if (corrupted) {
 							ib_logf(IB_LOG_LEVEL_ERROR,
@@ -4865,10 +4866,10 @@ database_corrupted:
 
 						ib_push_warning(innobase_get_trx(), DB_DECRYPTION_FAILED,
 							"Table in tablespace %lu encrypted."
-							"However key management plugin or used key_id %u is not found or"
+							"However key management plugin or used key_id %lu is not found or"
 							" used encryption algorithm or method does not match."
 							" Can't continue opening the table.",
-							(ulint)bpage->space, bpage->key_version);
+							(ulint)bpage->space, key_version);
 
 						if (bpage->space > TRX_SYS_SPACE) {
 							if (corrupted) {

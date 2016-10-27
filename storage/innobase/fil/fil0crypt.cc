@@ -1351,6 +1351,12 @@ fil_crypt_space_needs_rotation(
 		}
 	}
 
+	/* If used key_id is not found from encryption plugin we can't
+	continue to rotate the tablespace */
+	if (fil_crypt_get_latest_key_version(crypt_data) == ENCRYPTION_KEY_VERSION_INVALID) {
+		return false;
+	}
+
 	mutex_enter(&crypt_data->mutex);
 
 	do {
