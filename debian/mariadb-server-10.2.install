@@ -63,4 +63,7 @@ usr/share/mysql/mysql_system_tables.sql
 usr/share/mysql/mysql_system_tables_data.sql
 usr/share/mysql/mysql_test_data_timezone.sql
 usr/share/mysql/wsrep_notify
-@SYSTEMD_DEB_FILES@
+usr/bin/galera_new_cluster
+usr/bin/galera_recovery
+usr/bin/mariadb-service-convert
+lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf

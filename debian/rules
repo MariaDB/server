@@ -129,6 +129,10 @@ override_dh_auto_install:
 	# If Spider plugin was not built skip the package
 	[ -f $(BUILDDIR)/storage/spider/ha_spider.so ] || sed -i -e "/Package: mariadb-plugin-spider/,+14d" debian/control
 
+	# Copy systemd files to a location available for dh_installinit
+	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.2.mariadb.service
+	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.2.mariadb@.service
+
 	# make install
 	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP)
 
@@ -158,13 +162,15 @@ override_dh_auto_install:
 override_dh_installlogrotate-arch:
 	dh_installlogrotate --name mysql-server
 
+override_dh_systemd_enable:
+	dh_systemd_enable --name=mariadb
+	dh_systemd_enable --no-enable --name=mariadb@
+
 # Start mysql at sequence number 19 before 20 where apache, proftpd etc gets
 # started which might depend on a running database server.
 override_dh_installinit-arch:
-	if [ -x /usr/bin/dh_systemd_enable -a -f debian/mariadb-server-10.2/lib/systemd/system/mariadb.service ]; then dh_systemd_enable -pmariadb-server-10.2 mariadb.service; fi
-	if [ -x /usr/bin/dh_systemd_enable -a -f debian/mariadb-server-10.2/lib/systemd/system/mariadb@.service ]; then dh_systemd_enable --no-enable -pmariadb-server-10.2 mariadb@.service; fi
 	dh_installinit --name=mysql -- defaults 19 21
-	if [ -x /usr/bin/dh_systemd_start -a -f debian/mariadb-server-10.2/lib/systemd/system/mariadb.service ]; then dh_systemd_start -pmariadb-server-10.2 --restart-after-upgrade mariadb.service; fi
+	dh_systemd_start --restart-after-upgrade
 
 override_dh_installcron-arch:
 	dh_installcron --name mysql-server
@@ -173,6 +179,6 @@ get-orig-source:
 	uscan --force-download --verbose
 
 %:
-	dh $@ --parallel --with dpatch
+	dh $@ --parallel --with dpatch --with systemd
 
 # vim: ts=8

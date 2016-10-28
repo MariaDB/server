@@ -60,6 +60,20 @@ then
   sed '/libpcre3-dev/d' -i debian/control
 fi
 
+# If libsystemd-dev is not available (before Debian Jessie or Ubuntu Wily)
+# clean away the systemd stanzas so the package can build without them.
+if ! apt-cache madison libsystemd-dev | grep 'libsystemd-dev' >/dev/null 2>&1
+then
+  sed '/dh-systemd/d' -i debian/control
+  sed '/libsystemd-dev/d' -i debian/control
+  sed 's/ --with systemd//' -i debian/rules
+  sed '/systemd/d' -i debian/rules
+  sed '/\.service/d' -i debian/rules
+  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.2.install
+  sed '/galera_recovery/d' -i debian/mariadb-server-10.2.install
+  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.2.install
+fi
+
 # On Travis-CI, the log must stay under 4MB so make the build less verbose
 if [[ $TRAVIS ]]
 then
