@@ -77,6 +77,7 @@ static const char *key_spec_names[]={ "AES_128", "AES_256", 0 };
 
 /* Plugin variables */
 static char* master_key_id;
+static char* region;
 static unsigned long key_spec;
 static unsigned long log_level;
 static int rotate_key;
@@ -163,6 +164,10 @@ static int plugin_init(void *p)
   InitializeAWSLogging(Aws::MakeShared<MySQLLogSystem>("aws_key_management_plugin", (Aws::Utils::Logging::LogLevel) log_level));
 
   Aws::Client::ClientConfiguration clientConfiguration;
+  if (region && region[0])
+  {
+    clientConfiguration.region = region;
+  }
   if (request_timeout)
   {
      clientConfiguration.requestTimeoutMs= request_timeout;
@@ -585,6 +590,10 @@ static MYSQL_SYSVAR_INT(request_timeout, request_timeout,
   "Timeout in milliseconds for create HTTPS connection or execute AWS request. Specify 0 to use SDK default.",
   NULL, NULL, 0, 0, INT_MAX, 1);
 
+static MYSQL_SYSVAR_STR(region, region,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "AWS region. For example us-east-1, or eu-central-1. If no value provided, SDK default is used.",
+  NULL, NULL, "");
 
 static struct st_mysql_sys_var* settings[]= {
   MYSQL_SYSVAR(master_key_id),
@@ -592,6 +601,7 @@ static struct st_mysql_sys_var* settings[]= {
   MYSQL_SYSVAR(rotate_key),
   MYSQL_SYSVAR(log_level),
   MYSQL_SYSVAR(request_timeout),
+  MYSQL_SYSVAR(region),
   NULL
 };
 
