@@ -78,7 +78,9 @@ echo "Creating package version ${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
 # Build the package.
 # Pass -I so that .git and other unnecessary temporary and source control files
 # will be ignored by dpkg-source when createing the tar.gz source package
-fakeroot dpkg-buildpackage -us -uc -I
+# Use -b to build binary only packages as there is no need to waste time on
+# generating the source package.
+fakeroot dpkg-buildpackage -us -uc -I -b
 
 [ -e debian/autorm-file ] && rm -vf `cat debian/autorm-file`
 
