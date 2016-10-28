@@ -31,7 +31,7 @@ extern "C" {
 
 #if 1
 #define DENA_ALLOCA_ALLOCATE(typ, len) \
-	static_cast<typ *>(alloca((len) * sizeof(typ)))
+	(typ *) alloca((len) * sizeof(typ))
 #define DENA_ALLOCA_FREE(x)
 #else
 #define DENA_ALLOCA_ALLOCATE(typ, len) \
