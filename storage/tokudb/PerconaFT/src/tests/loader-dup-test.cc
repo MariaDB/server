@@ -51,7 +51,7 @@ int DISALLOW_PUTS=0;
 int COMPRESS=0;
 enum {MAGIC=311};
 
-bool dup_row_at_end = false; // false: duplicate at the begining.  true: duplicate at the end.   The duplicated row is row 0.
+bool dup_row_at_end = false; // false: duplicate at the beginning.  true: duplicate at the end.   The duplicated row is row 0.
 int  dup_row_id     = 0;     // 0 means to use row 1 if inserting at the end, row NUM_ROWS if inserting at the beginning.  Otherwise insert the row specified here.
 
 //

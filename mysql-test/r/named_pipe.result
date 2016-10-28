@@ -2154,3 +2154,4 @@ Privat (Private Nutzung)	Mobilfunk
 Warnings:
 Warning	1052	Column 'kundentyp' in group statement is ambiguous
 drop table t1;
+FOUND /\[ERROR\] Create named pipe failed/ in second-mysqld.err

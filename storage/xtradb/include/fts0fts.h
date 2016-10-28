@@ -375,6 +375,7 @@ extern bool		fts_need_sync;
 /** Variable specifying the table that has Fulltext index to display its
 content through information schema table */
 extern char*		fts_internal_tbl_name;
+extern char*		fts_internal_tbl_name2;
 
 #define	fts_que_graph_free(graph)			\
 do {							\
@@ -823,6 +824,15 @@ void
 fts_drop_orphaned_tables(void);
 /*==========================*/
 
+/* Get parent table name if it's a fts aux table
+@param[in]	aux_table_name	aux table name
+@param[in]	aux_table_len	aux table length
+@return parent table name, or NULL */
+char*
+fts_get_parent_table_name(
+	const char*	aux_table_name,
+	ulint		aux_table_len);
+
 /******************************************************************//**
 Since we do a horizontal split on the index table, we need to drop
 all the split tables.
@@ -840,13 +850,15 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	table		fts table
 @param[in]	unlock_cache	whether unlock cache when write node
 @param[in]	wait		whether wait for existing sync to finish
+@param[in]      has_dict        whether has dict operation lock
 @return DB_SUCCESS on success, error code on failure. */
 UNIV_INTERN
 dberr_t
 fts_sync_table(
 	dict_table_t*	table,
 	bool		unlock_cache,
-	bool		wait);
+	bool		wait,
+	bool		has_dict);
 
 /****************************************************************//**
 Free the query graph but check whether dict_sys->mutex is already

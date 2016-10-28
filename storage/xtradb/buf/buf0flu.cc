@@ -309,6 +309,8 @@ buf_flush_init_flush_rbt(void)
 
 		buf_flush_list_mutex_enter(buf_pool);
 
+		ut_ad(buf_pool->flush_rbt == NULL);
+
 		/* Create red black tree for speedy insertions in flush list. */
 		buf_pool->flush_rbt = rbt_create(
 			sizeof(buf_page_t*), buf_flush_block_cmp);
@@ -2565,6 +2567,11 @@ page_cleaner_sleep_if_needed(
 	ulint	next_loop_time)	/*!< in: time when next loop iteration
 				should start */
 {
+	/* No sleep if we are cleaning the buffer pool during the shutdown
+	with everything else finished */
+	if (srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)
+		return;
+
 	ulint	cur_time = ut_time_ms();
 
 	if (next_loop_time > cur_time) {

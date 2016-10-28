@@ -53,7 +53,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 // This test is a micro stress test that does multithreaded updates on a fixed size table.
 // There is also a thread that scans the table with bulk fetch, ensuring the sum is zero.
 //
-// This test is targetted at stressing the locktree, hence the small table and many update threads.
+// This test is targeted at stressing the locktree, hence the small table and many update threads.
 //
 
 static int UU() lock_escalation_op(DB_TXN *UU(txn), ARG arg, void* operation_extra, void *UU(stats_extra)) {

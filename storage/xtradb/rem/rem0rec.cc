@@ -323,7 +323,8 @@ rec_init_offsets_comp_ordinary(
 			stored in one byte for 0..127.  The length
 			will be encoded in two bytes when it is 128 or
 			more, or when the field is stored externally. */
-			if (UNIV_UNLIKELY(col->len > 255)
+			if (UNIV_UNLIKELY(col->len > 255 -
+			    prtype_get_compression_extra(col->prtype))
 			    || UNIV_UNLIKELY(col->mtype
 					     == DATA_BLOB)) {
 				if (len & 0x80) {
@@ -844,8 +845,12 @@ rec_get_converted_size_comp_prefix_low(
 			continue;
 		}
 
-		ut_ad(len <= col->len || col->mtype == DATA_BLOB
-			|| (col->len == 0 && col->mtype == DATA_VARCHAR));
+		ut_ad(len <= col->len || col->mtype == DATA_BLOB ||
+		  ((col->mtype == DATA_VARCHAR || col->mtype == DATA_BINARY
+		   || col->mtype == DATA_VARMYSQL)
+		   && (col->len == 0
+		       || len <= col->len +
+			  prtype_get_compression_extra(col->prtype))));
 
 		fixed_len = field->fixed_len;
 		if (temp && fixed_len
@@ -877,7 +882,9 @@ rec_get_converted_size_comp_prefix_low(
 			ut_ad(col->len >= 256 || col->mtype == DATA_BLOB);
 			extra_size += 2;
 		} else if (len < 128
-			   || (col->len < 256 && col->mtype != DATA_BLOB)) {
+			   || (col->len < 256 -
+			       prtype_get_compression_extra(col->prtype)
+			       && col->mtype != DATA_BLOB)) {
 			extra_size++;
 		} else {
 			/* For variable-length columns, we look up the
@@ -1272,12 +1279,16 @@ rec_convert_dtuple_to_rec_comp(
 			*lens-- = (byte) (len >> 8) | 0xc0;
 			*lens-- = (byte) len;
 		} else {
-			ut_ad(len <= dtype_get_len(type)
+			ut_ad(len <= dtype_get_len(type) +
+			      prtype_get_compression_extra(
+			        dtype_get_prtype(type))
 			      || dtype_get_mtype(type) == DATA_BLOB
 			      || !strcmp(index->name,
 					 FTS_INDEX_TABLE_IND_NAME));
 			if (len < 128
-			    || (dtype_get_len(type) < 256
+			    || (dtype_get_len(type) < 256 -
+			        prtype_get_compression_extra(
+				  dtype_get_prtype(type))
 				&& dtype_get_mtype(type) != DATA_BLOB)) {
 
 				*lens-- = (byte) len;
