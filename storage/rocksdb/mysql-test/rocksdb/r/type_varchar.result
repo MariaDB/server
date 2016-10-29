@@ -21,12 +21,12 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varchar(0)	YES		NULL	
 v1	varchar(1)	YES		NULL	
-v64	varchar(64)	NO	PRI		
+v64	varchar(64)	NO	PRI	NULL	
 v65000	varchar(65000)	YES		NULL	
 CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb;
 SHOW COLUMNS IN t2;
 Field	Type	Null	Key	Default	Extra
-v	varchar(65532)	NO	PRI		
+v	varchar(65532)	NO	PRI	NULL	
 INSERT INTO t1 (v0,v1,v64,v65000) VALUES ('','','','');
 INSERT INTO t1 (v0,v1,v64,v65000) VALUES ('','y','Once there, double check that an article doesn\'t already exist','Here is a list of recommended books on MariaDB and MySQL. We\'ve provided links to Amazon.com here for convenience, but they can be found at many other bookstores, both online and off.
 
@@ -133,7 +133,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 v0	varchar(0)	YES		NULL	
 v1	varchar(1)	YES		NULL	
-v64	varchar(64)	NO	PRI		
+v64	varchar(64)	NO	PRI	NULL	
 v65000	varchar(65000)	YES		NULL	
 v65536	mediumtext	YES		NULL	
 DROP TABLE t1, t2;
@@ -418,7 +418,7 @@ insert into t1 values (3, 'a  \t', 'a-tab');
 explain
 select col1, hex(col1) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	NULL
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
 select col1, hex(col1) from t1;
 col1	hex(col1)
 ab	00610062
@@ -448,7 +448,7 @@ insert into t1 values(23, repeat(' ',18), '18x-space');
 explain
 select pk, col1, hex(col1), length(col1) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	NULL	NULL	NULL	NULL	#	NULL
+1	SIMPLE	t1	#	NULL	NULL	NULL	NULL	#	
 select pk, col1, hex(col1), length(col1) from t1;
 pk	col1	hex(col1)	length(col1)
 10			0
@@ -530,7 +530,7 @@ insert into t1 values (3, 'a  \t', 'a-tab');
 explain
 select col1, hex(col1) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	NULL
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
 select col1, hex(col1) from t1;
 col1	hex(col1)
 ab	6162
@@ -560,7 +560,7 @@ insert into t1 values(23, repeat(' ',18), '18x-space');
 explain
 select pk, col1, hex(col1), length(col1) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	NULL	NULL	NULL	NULL	#	NULL
+1	SIMPLE	t1	#	NULL	NULL	NULL	NULL	#	
 select pk, col1, hex(col1), length(col1) from t1;
 pk	col1	hex(col1)	length(col1)
 10			0
@@ -642,7 +642,7 @@ insert into t1 values (3, 'a  \t', 'a-tab');
 explain
 select col1, hex(col1) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	NULL
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
 select col1, hex(col1) from t1;
 col1	hex(col1)
 ab	00610062
@@ -672,7 +672,7 @@ insert into t1 values(23, repeat(' ',18), '18x-space');
 explain
 select pk, col1, hex(col1), length(col1) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	NULL	NULL	NULL	NULL	#	NULL
+1	SIMPLE	t1	#	NULL	NULL	NULL	NULL	#	
 select pk, col1, hex(col1), length(col1) from t1;
 pk	col1	hex(col1)	length(col1)
 10			0

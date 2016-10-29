@@ -10,7 +10,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	bit(1)	YES		NULL	
 b	bit(20)	YES		NULL	
-c	bit(64)	NO	PRI	b'0'	
+c	bit(64)	NO	PRI	NULL	
 d	bit(1)	YES		NULL	
 ALTER TABLE t1 DROP COLUMN d;
 ALTER TABLE t1 ADD COLUMN d BIT(0) ;
@@ -18,7 +18,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 a	bit(1)	YES		NULL	
 b	bit(20)	YES		NULL	
-c	bit(64)	NO	PRI	b'0'	
+c	bit(64)	NO	PRI	NULL	
 d	bit(1)	YES		NULL	
 INSERT INTO t1 (a,b,c,d) VALUES (0,POW(2,20)-1,b'1111111111111111111111111111111111111111111111111111111111111111',1);
 SELECT BIN(a), HEX(b), c+0 FROM t1 WHERE d>0;
@@ -50,4 +50,4 @@ a+0	b+0	c+0	d+0
 1	0	18446744073709551615	0
 DROP TABLE t1;
 CREATE TABLE t1 (pk INT PRIMARY KEY, a BIT(65) ) ENGINE=rocksdb;
-ERROR 42000: Display width out of range for column 'a' (max = 64)
+ERROR 42000: Display width out of range for 'a' (max = 64)
