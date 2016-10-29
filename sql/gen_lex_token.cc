@@ -132,6 +132,8 @@ void compute_tokens()
 
   set_token(WITH_CUBE_SYM, "WITH CUBE");
   set_token(WITH_ROLLUP_SYM, "WITH ROLLUP");
+  set_token(WITH_SYSTEM_SYM, "WITH SYSTEM");
+  set_token(FOR_SYSTEM_TIME_SYM, "FOR SYSTEM_TIME");
   set_token(NOT2_SYM, "!");
   set_token(OR2_SYM, "|");
   set_token(PARAM_MARKER, "?");

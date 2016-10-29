@@ -1333,6 +1333,8 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       return WITH_CUBE_SYM;
     case ROLLUP_SYM:
       return WITH_ROLLUP_SYM;
+    case SYSTEM:
+      return WITH_SYSTEM_SYM;
     default:
       /*
         Save the token following 'WITH'
