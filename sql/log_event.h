@@ -5117,11 +5117,11 @@ uint32 binlog_get_compress_len(uint32 len);
 uint32 binlog_get_uncompress_len(const char *buf);
 
 int query_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
-                           const char *src, char* buf, ulong buf_size, bool* is_malloc,
+                           const char *src, ulong src_len, char* buf, ulong buf_size, bool* is_malloc,
                            char **dst, ulong *newlen);
 
 int row_log_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
-                             const char *src, char* buf, ulong buf_size, bool* is_malloc,
+                             const char *src, ulong src_len, char* buf, ulong buf_size, bool* is_malloc,
                              char **dst, ulong *newlen);
 
 

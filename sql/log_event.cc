@@ -708,9 +708,10 @@ char *str_to_hex(char *to, const char *from, uint len)
 /**
   Compressed Record
     Record Header: 1 Byte
-             0 Bit: Always 1, mean compressed;
-           1-3 Bit: Reversed, compressed algorithm - Always 0, means zlib
-           4-7 Bit: Bytes of "Record Original Length"
+             7 Bit: Always 1, mean compressed;
+           4-6 Bit: Compressed algorithm - Always 0, means zlib
+                    It maybe support other compression algorithm in the future.
+           0-3 Bit: Bytes of "Record Original Length"
     Record Original Length: 1-4 Bytes
     Compressed Buf:
 */
@@ -793,12 +794,17 @@ int binlog_buf_compress(const char *src, char *dst, uint32 len, uint32 *comlen)
 
 int
 query_event_uncompress(const Format_description_log_event *description_event,
-                       bool contain_checksum, const char *src, char* buf,
-                       ulong buf_size, bool* is_malloc, char **dst,
+                       bool contain_checksum, const char *src, ulong src_len, 
+                       char* buf, ulong buf_size, bool* is_malloc, char **dst,
                        ulong *newlen)
 {
   ulong len = uint4korr(src + EVENT_LEN_OFFSET);
   const char *tmp = src;
+  const char *end = src + len;
+
+  // bad event
+  if (src_len < len )
+    return 1;
 
   DBUG_ASSERT((uchar)src[EVENT_TYPE_OFFSET] == QUERY_COMPRESSED_EVENT);
 
@@ -806,14 +812,29 @@ query_event_uncompress(const Format_description_log_event *description_event,
   uint8 post_header_len=
     description_event->post_header_len[QUERY_COMPRESSED_EVENT-1];
 
+  *is_malloc = false;
+
   tmp += common_header_len;
+  // bad event
+  if (end <= tmp)
+    return 1;
 
   uint db_len = (uint)tmp[Q_DB_LEN_OFFSET];
   uint16 status_vars_len= uint2korr(tmp + Q_STATUS_VARS_LEN_OFFSET);
 
   tmp += post_header_len + status_vars_len + db_len + 1;
+  // bad event
+  if (end <= tmp)
+    return 1;
 
+  int32 comp_len = len - (tmp - src) - 
+                  (contain_checksum ? BINLOG_CHECKSUM_LEN : 0);
   uint32 un_len = binlog_get_uncompress_len(tmp);
+
+  // bad event 
+  if (comp_len < 0 || un_len == 0)
+    return 1;
+
   *newlen = (tmp - src) + un_len;
   if(contain_checksum)
     *newlen += BINLOG_CHECKSUM_LEN;
@@ -821,7 +842,7 @@ query_event_uncompress(const Format_description_log_event *description_event,
   uint32 alloc_size = ALIGN_SIZE(*newlen);
   char *new_dst = NULL;
 
-  *is_malloc = false;
+  
   if (alloc_size <= buf_size) 
   {
     new_dst = buf;
@@ -838,7 +859,7 @@ query_event_uncompress(const Format_description_log_event *description_event,
   /* copy the head*/
   memcpy(new_dst, src , tmp - src);
   if (binlog_buf_uncompress(tmp, new_dst + (tmp - src),
-                            len - (tmp - src), &un_len))
+                            comp_len, &un_len))
   {
     if (*is_malloc)
       my_free(new_dst);
@@ -862,14 +883,19 @@ query_event_uncompress(const Format_description_log_event *description_event,
 
 int
 row_log_event_uncompress(const Format_description_log_event *description_event,
-                         bool contain_checksum, const char *src, char* buf,
-                         ulong buf_size, bool* is_malloc, char **dst,
+                         bool contain_checksum, const char *src, ulong src_len,
+                         char* buf, ulong buf_size, bool* is_malloc, char **dst,
                          ulong *newlen)
 {
   Log_event_type type = (Log_event_type)(uchar)src[EVENT_TYPE_OFFSET];
   ulong len = uint4korr(src + EVENT_LEN_OFFSET);
   const char *tmp = src;
   char *new_dst = NULL;
+  const char *end = tmp + len;
+
+  // bad event
+  if (src_len < len)
+    return 1;
 
   DBUG_ASSERT(LOG_EVENT_IS_ROW_COMPRESSED(type));
 
@@ -883,8 +909,13 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
       Have variable length header, check length,
       which includes length bytes
     */
+
+    // bad event
+    if (end - tmp <= 2)
+      return 1;
+
     uint16 var_header_len= uint2korr(tmp);
-    assert(var_header_len >= 2);
+    DBUG_ASSERT(var_header_len >= 2);
 
     /* skip over var-len header, extracting 'chunks' */
     tmp += var_header_len;
@@ -900,6 +931,10 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
       (type - WRITE_ROWS_COMPRESSED_EVENT_V1 + WRITE_ROWS_EVENT_V1);
   }
 
+  //bad event
+  if (end <= tmp)
+    return 1;
+
   ulong m_width = net_field_length((uchar **)&tmp);
   tmp += (m_width + 7) / 8;
 
@@ -908,7 +943,21 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
     tmp += (m_width + 7) / 8;
   }
 
+  //bad event
+  if (end <= tmp)
+    return 1;
+
   uint32 un_len = binlog_get_uncompress_len(tmp);
+  //bad event
+  if (un_len == 0)
+    return 1;
+
+  long comp_len = len - (tmp - src) - 
+    (contain_checksum ? BINLOG_CHECKSUM_LEN : 0);
+  //bad event
+  if (comp_len <=0)
+    return 1;
+
   *newlen = (tmp - src) + un_len;
   if(contain_checksum)
     *newlen += BINLOG_CHECKSUM_LEN;
@@ -933,7 +982,7 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
   memcpy(new_dst, src , tmp - src);
   /* Uncompress the body. */
   if (binlog_buf_uncompress(tmp, new_dst + (tmp - src),
-                            len - (tmp - src), &un_len))
+                            comp_len, &un_len))
   {
     if (*is_malloc)
       my_free(new_dst);
@@ -954,6 +1003,7 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
 
 /**
   Get the length of uncompress content.
+  return 0 means error.
 */
 
 uint32 binlog_get_uncompress_len(const char *buf)
@@ -1004,12 +1054,25 @@ int binlog_buf_uncompress(const char *src, char *dst, uint32 len,
 
   uint32 lenlen= src[0] & 0x07;
   uLongf buflen= *newlen;
-  if(uncompress((Bytef *)dst, &buflen,
-                (const Bytef*)src + 1 + lenlen, len) != Z_OK)
+
+  uint32 alg = (src[0] & 0x70) >> 4;
+  switch(alg)
   {
+  case 0:
+    // zlib
+    if(uncompress((Bytef *)dst, &buflen,
+      (const Bytef*)src + 1 + lenlen, len - 1 - lenlen) != Z_OK)
+    {
+      return 1;
+    }
+    break;
+  default:
+    //TODO
+    //bad algorithm
     return 1;
   }
 
+  DBUG_ASSERT(*newlen == (uint32)buflen);
   *newlen = (uint32)buflen;
   return 0;
 }
@@ -4184,6 +4247,12 @@ Query_compressed_log_event::Query_compressed_log_event(const char *buf,
   if(query)
   {
     uint32 un_len=binlog_get_uncompress_len(query);
+    if (!un_len)
+    {
+      query = 0;
+      return;
+    }
+
     /* Reserve one byte for '\0' */
     query_buf = (Log_event::Byte*)my_malloc(ALIGN_SIZE(un_len + 1),
                                             MYF(MY_WME));
@@ -9974,6 +10043,9 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
 void Rows_log_event::uncompress_buf()
 {
   uint32 un_len = binlog_get_uncompress_len((char *)m_rows_buf);
+  if (!un_len)
+    return;
+
   uchar *new_buf= (uchar*) my_malloc(ALIGN_SIZE(un_len), MYF(MY_WME));
   if (new_buf)
   {
@@ -12306,7 +12378,7 @@ void Write_rows_compressed_log_event::print(FILE *file,
   bool is_malloc = false;
   if(!row_log_event_uncompress(glob_description_event,
                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
-                               temp_buf, NULL, 0, &is_malloc, &new_buf, &len))
+                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc, &new_buf, &len))
   {
     free_temp_buf();
     register_temp_buf(new_buf, true);
@@ -12980,7 +13052,7 @@ void Delete_rows_compressed_log_event::print(FILE *file,
   bool is_malloc = false;
   if(!row_log_event_uncompress(glob_description_event,
                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
-                               temp_buf, NULL, 0, &is_malloc, &new_buf, &len))
+                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc, &new_buf, &len))
   {
     free_temp_buf();
     register_temp_buf(new_buf, true);
@@ -13240,7 +13312,7 @@ void Update_rows_compressed_log_event::print(FILE *file, PRINT_EVENT_INFO *print
   bool is_malloc= false;
   if(!row_log_event_uncompress(glob_description_event,
                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
-                               temp_buf, NULL, 0, &is_malloc, &new_buf, &len))
+                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc, &new_buf, &len))
   {
     free_temp_buf();
     register_temp_buf(new_buf, true);

@@ -6155,7 +6155,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     inc_pos= event_len;
     if (query_event_uncompress(rli->relay_log.description_event_for_queue,
                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
-                               buf, new_buf_arr, sizeof(new_buf_arr),
+                               buf, event_len, new_buf_arr, sizeof(new_buf_arr),
                                &is_malloc, (char **)&new_buf, &event_len))
     {
       char  llbuf[22];
@@ -6179,7 +6179,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     {
       if (row_log_event_uncompress(rli->relay_log.description_event_for_queue,
                                    checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
-                                   buf, new_buf_arr, sizeof(new_buf_arr),
+                                   buf, event_len, new_buf_arr, sizeof(new_buf_arr),
                                    &is_malloc, (char **)&new_buf, &event_len))
       {
         char  llbuf[22];
