@@ -5089,9 +5089,7 @@ int ha_rocksdb::create_cfs(const TABLE *table_arg, Rdb_tbl_def *tbl_def_arg,
   DBUG_ENTER("ha_rocksdb::create_cfs");
 
   char tablename_sys[NAME_LEN + 1];
-
-  my_core::filename_to_tablename(tbl_def_arg->base_tablename().c_str(),
-                                 tablename_sys, sizeof(tablename_sys));
+  bool tsys_set= false;
 
   /*
     The first loop checks the index parameters and creates
@@ -5105,6 +5103,13 @@ int ha_rocksdb::create_cfs(const TABLE *table_arg, Rdb_tbl_def *tbl_def_arg,
         !is_hidden_pk(i, table_arg, tbl_def_arg) &&
         tbl_def_arg->base_tablename().find(tmp_file_prefix) != 0)
     {
+      if (!tsys_set)
+      {
+        tsys_set= true;
+        my_core::filename_to_tablename(tbl_def_arg->base_tablename().c_str(),
+                                   tablename_sys, sizeof(tablename_sys));
+      }
+
       for (uint part= 0; part < table_arg->key_info[i].ext_key_parts; part++)
       {
         if (!rdb_is_index_collation_supported(
