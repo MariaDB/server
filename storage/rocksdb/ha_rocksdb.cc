@@ -6265,6 +6265,7 @@ int ha_rocksdb::read_range_first(const key_range *start_key,
       DBUG_RETURN(HA_ERR_LOCK_DEADLOCK);
     }
 #endif
+    increment_statistics(&SSV::ha_read_key_count);
 
     MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
       { result= index_read_map_impl(table->record[0],

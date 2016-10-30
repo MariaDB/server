@@ -3928,10 +3928,16 @@ private:
   void mark_trx_read_write_internal();
   bool check_table_binlog_row_based_internal(bool binlog_row);
 
-  /* Private helpers */
+protected:
+  /*
+    These are intended to be used only by handler::ha_xxxx() functions
+    However, engines that implement read_range_XXX() (like MariaRocks)
+    or embed other engines (like ha_partition) may need to call these also
+  */
   inline void increment_statistics(ulong SSV::*offset) const;
   inline void decrement_statistics(ulong SSV::*offset) const;
 
+private:
   /*
     Low-level primitives for storage engines.  These should be
     overridden by the storage engine class. To call these methods, use
