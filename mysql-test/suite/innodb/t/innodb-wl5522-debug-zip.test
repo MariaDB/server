@@ -17,6 +17,7 @@
 # allow test to run only when innodb-page-size=16  
 --source include/have_innodb_16k.inc
 
+call mtr.add_suppression("InnoDB: Page for tablespace .* ");
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
