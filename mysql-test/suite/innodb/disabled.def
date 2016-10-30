@@ -12,3 +12,5 @@
 
 innodb_defragment_fill_factor : MDEV-10771
 innodb_bug14147491            : MDEV-12253 ut_ad(buf_pool->n_pend_reads > 0)
+innodb_uninstall              : natsys: requires external innodb plugin
+
