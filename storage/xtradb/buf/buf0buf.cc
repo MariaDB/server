@@ -65,6 +65,10 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "ha_prototypes.h"
 
+/* Enable this for checksum error messages. */
+//#ifdef UNIV_DEBUG
+//#define UNIV_DEBUG_LEVEL2 1
+//#endif
 
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();
@@ -599,7 +603,7 @@ buf_page_is_checksum_valid_crc32(
 	if (!(checksum_field1 == crc32 && checksum_field2 == crc32)) {
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"Page checksum crc32 not valid field1 %lu field2 %lu crc32 %lu.",
-			checksum_field1, checksum_field2, crc32);
+			checksum_field1, checksum_field2, (ulint)crc32);
 	}
 #endif
 
@@ -650,7 +654,7 @@ buf_page_is_checksum_valid_innodb(
 #ifdef UNIV_DEBUG_LEVEL2
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"Page checksum innodb not valid field1 %lu field2 %lu crc32 %lu lsn %lu.",
-			checksum_field1, checksum_field2, buf_calc_page_old_checksum(read_buf),
+			checksum_field1, checksum_field2, buf_calc_page_new_checksum(read_buf),
 			mach_read_from_4(read_buf + FIL_PAGE_LSN)
 		);
 #endif
@@ -676,7 +680,7 @@ buf_page_is_checksum_valid_none(
 	if (!(checksum_field1 == checksum_field2 || checksum_field1 == BUF_NO_CHECKSUM_MAGIC)) {
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"Page checksum none not valid field1 %lu field2 %lu crc32 %lu lsn %lu.",
-			checksum_field1, checksum_field2, buf_calc_page_old_checksum(read_buf),
+			checksum_field1, checksum_field2, BUF_NO_CHECKSUM_MAGIC,
 			mach_read_from_4(read_buf + FIL_PAGE_LSN)
 		);
 	}
@@ -773,6 +777,7 @@ buf_page_is_corrupted(
 	if (zip_size) {
 		return(!page_zip_verify_checksum(read_buf, zip_size));
 	}
+
 	if (page_encrypted) {
 		return (FALSE);
 	}
@@ -4603,7 +4608,7 @@ buf_page_check_corrupt(
 		((buf_block_t*) bpage)->frame;
 	bool page_compressed = bpage->page_encrypted;
 	ulint stored_checksum = bpage->stored_checksum;
-	ulint calculated_checksum = bpage->stored_checksum;
+	ulint calculated_checksum = bpage->calculated_checksum;
 	bool page_compressed_encrypted = bpage->page_compressed;
 	ulint space_id = mach_read_from_4(
 		dst_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -4707,6 +4712,10 @@ buf_page_io_complete(
 				frame = ((buf_block_t*) bpage)->frame;
 			}
 
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"Page %u in tablespace %u encryption error key_version %u.",
+				bpage->offset, bpage->space, bpage->key_version);
+
 			goto database_corrupted;
 		}
 
@@ -4719,6 +4728,10 @@ buf_page_io_complete(
 
 				os_atomic_decrement_ulint(
 					&buf_pool->n_pend_unzip, 1);
+
+				ib_logf(IB_LOG_LEVEL_INFO,
+					"Page %u in tablespace %u zip_decompress failure.",
+					bpage->offset, bpage->space);
 
 				goto database_corrupted;
 			}
@@ -6440,7 +6453,23 @@ buf_page_decrypt_after_read(
 	    (crypt_data &&
 	     crypt_data->type == CRYPT_SCHEME_UNENCRYPTED &&
 	     key_version != 0)) {
-		key_version = 0;
+		byte*	frame = NULL;
+
+		if (buf_page_get_zip_size(bpage)) {
+			frame = bpage->zip.data;
+		} else {
+			frame = ((buf_block_t*) bpage)->frame;
+		}
+
+		/* If page is not corrupted at this point, page can't be
+		encrypted, thus set key_version to 0. If page is corrupted,
+		we assume at this point that it is encrypted as page
+		contained key_version != 0. Note that page could still be
+		really corrupted. This we will find out after decrypt by
+		checking page checksums. */
+		if (!buf_page_is_corrupted(false, frame, buf_page_get_zip_size(bpage))) {
+			key_version = 0;
+		}
 	}
 
 	/* If page is encrypted read post-encryption checksum */
