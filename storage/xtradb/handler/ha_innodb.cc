@@ -11248,6 +11248,12 @@ ha_innobase::create(
 	zip_dict_ids = static_cast<ulint*>(
 		mem_heap_alloc(heap, form->s->fields * sizeof(ulint)));
 
+	/* This is currently required for valgrind because MariaDB does
+	not currently support compressed columns. */
+	for (size_t field_idx = 0; field_idx < form->s->fields; ++field_idx) {
+		zip_dict_ids[field_idx] = ULINT_UNDEFINED;
+	}
+
 	const char*	err_zip_dict_name = 0;
 	if (!innobase_check_zip_dicts(form, zip_dict_ids,
 		trx, &err_zip_dict_name)) {
