@@ -28,16 +28,34 @@ begin
     (8, 108),
     (9, 109);
   set @t0= now(6);
+  if engine = 'innodb' then
+    select sys_start from t1 limit 1 into @x0;
+  end if;
+
   delete from t1 where x = 3;
   delete from t1 where x > 7;
 
   insert into t1(x, y) values(3, 33);
-  set @str= concat('select ', fields, ' from t1 where x = 3 and y = 33 into @t1');
-  prepare stmt from @str; execute stmt; drop prepare stmt;  
+  select sys_start from t1 where x = 3 and y = 33 into @t1;
+  if engine = 'innodb' then
+    set @x1= @t1;
+    select commit_ts(@x1) into @t1;
+  end if;
+
   select x, y from t1;
-  select x as AS_OF_x, y from t1 for system_time as of timestamp @t0;
-  select x as FROM_TO_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
-  select x as BETWEEN_AND_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+  select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
+  select x as FROMTO_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
+  select x as BETWAND_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+  select x as FROMTO_ext_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
+  select x as BETWAND_ext_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+
+  if engine = 'innodb' then
+      select x as ASOF2_x, y from t1 for system_time as of transaction @x0;
+      select x as FROMTO2_x, y from t1 for system_time from transaction 0 to transaction @x1;
+      select x as BETWAND2_x, y from t1 for system_time between transaction 0 and transaction @x1;
+      select x as FROMTO2_ext_x, y from t1 for system_time transaction from 0 to @x1;
+      select x as BETWAND2_ext_x, y from t1 for system_time transaction between 0 and @x1;
+  end if;
 
   drop table t1;
 end~~
