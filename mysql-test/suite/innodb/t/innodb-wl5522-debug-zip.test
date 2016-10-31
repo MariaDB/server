@@ -18,6 +18,7 @@
 --source include/have_innodb_16k.inc
 
 call mtr.add_suppression("InnoDB: Page for tablespace .* ");
+FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
