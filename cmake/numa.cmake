@@ -1,5 +1,6 @@
 MACRO (MYSQL_CHECK_NUMA)
 
+  IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
     CHECK_INCLUDE_FILES(numa.h HAVE_NUMA_H)
     CHECK_INCLUDE_FILES(numaif.h HAVE_NUMAIF_H)
 
@@ -10,22 +11,25 @@ MACRO (MYSQL_CHECK_NUMA)
     ENDIF()
 
     IF(WITH_NUMA AND HAVE_NUMA_H AND HAVE_NUMAIF_H)
-        SET(SAVE_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
-        SET(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} numa)
-        CHECK_C_SOURCE_COMPILES(
-        "
-        #include <numa.h>
-        #include <numaif.h>
-        int main()
-        {
-           struct bitmask *all_nodes= numa_all_nodes_ptr;
-           set_mempolicy(MPOL_DEFAULT, 0, 0);
-           return all_nodes != NULL;
-        }"
-        HAVE_LIBNUMA)
-        SET(CMAKE_REQUIRED_LIBRARIES ${SAVE_CMAKE_REQUIRED_LIBRARIES})
+      SET(SAVE_CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES})
+      SET(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} numa)
+      CHECK_C_SOURCE_COMPILES(
+      "
+      #include <numa.h>
+      #include <numaif.h>
+      int main()
+      {
+         struct bitmask *all_nodes= numa_all_nodes_ptr;
+         set_mempolicy(MPOL_DEFAULT, 0, 0);
+         return all_nodes != NULL;
+      }"
+      HAVE_LIBNUMA)
+      SET(CMAKE_REQUIRED_LIBRARIES ${SAVE_CMAKE_REQUIRED_LIBRARIES})
+      IF(HAVE_LIBNUMA)
+        ADD_DEFINITIONS(-DHAVE_LIBNUMA=1)
+      ENDIF()
     ELSE()
-        SET(HAVE_LIBNUMA 0)
+      SET(HAVE_LIBNUMA 0)
     ENDIF()
 
     IF(WITH_NUMA AND NOT HAVE_LIBNUMA)
@@ -33,6 +37,9 @@ MACRO (MYSQL_CHECK_NUMA)
       UNSET(WITH_NUMA CACHE)
       MESSAGE(FATAL_ERROR "Could not find numa headers/libraries")
     ENDIF()
+ ELSE()
+   SET(HAVE_LIBNUMA 0)
+ ENDIF()
 
 ENDMACRO()
 
