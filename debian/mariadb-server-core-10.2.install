@@ -1,5 +1,6 @@
+usr/bin/innochecksum
+usr/bin/mysql_upgrade
 usr/sbin/mysqld
-usr/share/man/man8/mysqld.8
 usr/share/mysql/charsets
 usr/share/mysql/czech
 usr/share/mysql/danish

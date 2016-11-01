@@ -1,0 +1,3 @@
+debian/tmp/usr/share/man/man8/mysqld.8
+debian/tmp/usr/share/man/man1/innochecksum.1
+debian/tmp/usr/share/man/man1/mysql_upgrade.1

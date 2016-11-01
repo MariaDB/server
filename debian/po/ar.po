@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: templates\n"
 "Report-Msgid-Bugs-To: mariadb-10.2@packages.debian.org\n"
-"POT-Creation-Date: 2012-01-12 13:08+0100\n"
+"POT-Creation-Date: 2016-10-08 01:26+0300\n"
 "PO-Revision-Date: 2007-05-01 13:04+0300\n"
 "Last-Translator: Ossama M. Khayat <okhayat@yahoo.com>\n"
 "Language-Team: Arabic <support@arabeyes.org>\n"
@@ -25,40 +25,35 @@ msgstr ""
 ": n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5\n"
 ": n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5\n"
 
-#. Type: boolean
+#. Type: note
 #. Description
 #: ../mariadb-server-10.2.templates:2001
-msgid "Really proceed with downgrade?"
-msgstr "هل فعلاً تريد التثبيط؟"
-
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:2001
-msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
-msgstr "هناك ملف مسمى /var/lib/mysql/debian-*.flag موجود على هذا النظام."
-
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:2001
-#, fuzzy
-#| msgid ""
-#| "Such file is an indication that a mariadb-server package with a higher "
-#| "version has been installed earlier."
-msgid ""
-"Such a file is an indication that a mariadb-server package with a higher "
-"version has been installed previously."
+msgid "The old data directory will be saved at new location"
 msgstr ""
-"هذا الملف دلالة على أن نسخة أحدث من حزمة mariadb-server تم تثبيتها مسبقاً."
 
-#. Type: boolean
+#. Type: note
 #. Description
 #: ../mariadb-server-10.2.templates:2001
 msgid ""
-"There is no guarantee that the version you're currently installing will be "
-"able to use the current databases."
+"A file named /var/lib/mysql/debian-*.flag exists on this system. The number "
+"indicates a database binary format version that cannot automatically be "
+"upgraded (or downgraded)."
 msgstr ""
-"ليست هناك أية ضمانة أن النسخة التي تقوم بتثبيتها ستكون قادرة على استخدام "
-"قواعد البيانات الحالية."
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.2.templates:2001
+msgid ""
+"Therefore the previous data directory will be renamed to /var/lib/mysql-* "
+"and a new data directory will be initialized at /var/lib/mysql."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.2.templates:2001
+msgid ""
+"Please manually export/import your data (e.g. with mysqldump) if needed."
+msgstr ""
 
 #. Type: note
 #. Description
@@ -111,31 +106,15 @@ msgstr ""
 "إن كنت تقوم بإزالة حزمة MariaDB كي تقوم لاحقاً بتثبيت نسخة أحدث أو إن كانت "
 "حزمة mariadb-server مختلفة تستخدمها، فيجب إبقاء البيانات."
 
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:5001
-msgid "Start the MariaDB server on boot?"
-msgstr "تشغيل خادم MariaDB عند الإقلاع؟"
-
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:5001
-msgid ""
-"The MariaDB server can be launched automatically at boot time or manually "
-"with the '/etc/init.d/mysql start' command."
-msgstr ""
-"يمكن تشغيل خادم MariaDB آلياً وقت الإقلاع أو يدوياً باستخدام الأمر '/etc/init."
-"d/mysql start'."
-
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:6001
+#: ../mariadb-server-10.2.templates:5001
 msgid "New password for the MariaDB \"root\" user:"
 msgstr "كلمة المرور الجديدة لمستخد \"root\" الخاص بـMariaDB:"
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:6001
+#: ../mariadb-server-10.2.templates:5001
 msgid ""
 "While not mandatory, it is highly recommended that you set a password for "
 "the MariaDB administrative \"root\" user."
@@ -145,7 +124,7 @@ msgstr ""
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:6001
+#: ../mariadb-server-10.2.templates:5001
 #, fuzzy
 #| msgid "If that field is left blank, the password will not be changed."
 msgid "If this field is left blank, the password will not be changed."
@@ -153,7 +132,7 @@ msgstr "إن ترك الحقل فارغاً، فلن يتم تغيير كلمة 
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:7001
+#: ../mariadb-server-10.2.templates:6001
 #, fuzzy
 #| msgid "New password for the MariaDB \"root\" user:"
 msgid "Repeat password for the MariaDB \"root\" user:"
@@ -161,13 +140,13 @@ msgstr "كلمة المرور الجديدة لمستخد \"root\" الخاص ب
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 msgid "Unable to set password for the MariaDB \"root\" user"
 msgstr "تعذر تعيين كلمة مرور للمستخدم \"root\" الخاص بـMariaDB."
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 msgid ""
 "An error occurred while setting the password for the MariaDB administrative "
 "user. This may have happened because the account already has a password, or "
@@ -179,7 +158,7 @@ msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 #, fuzzy
 #| msgid ""
 #| "You should check the account's password after tha package installation."
@@ -188,7 +167,7 @@ msgstr "يجب عليك التحقق من كلمة مرور الحساب عقب 
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 #, fuzzy
 #| msgid ""
 #| "Please read the /usr/share/doc/mysql-server-5.1/README.Debian file for "
@@ -197,20 +176,53 @@ msgid ""
 "Please read the /usr/share/doc/mariadb-server-10.2/README.Debian file for "
 "more information."
 msgstr ""
-"الرجاء قراءة الملف /usr/share/doc/mariadb-server-10.2/README.Debian للمزيد من "
-"المعلومات."
+"الرجاء قراءة الملف /usr/share/doc/mariadb-server-10.2/README.Debian للمزيد "
+"من المعلومات."
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:9001
+#: ../mariadb-server-10.2.templates:8001
 msgid "Password input error"
 msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:9001
+#: ../mariadb-server-10.2.templates:8001
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr ""
+
+#~ msgid "Really proceed with downgrade?"
+#~ msgstr "هل فعلاً تريد التثبيط؟"
+
+#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
+#~ msgstr "هناك ملف مسمى /var/lib/mysql/debian-*.flag موجود على هذا النظام."
+
+#, fuzzy
+#~| msgid ""
+#~| "Such file is an indication that a mariadb-server package with a higher "
+#~| "version has been installed earlier."
+#~ msgid ""
+#~ "Such a file is an indication that a mariadb-server package with a higher "
+#~ "version has been installed previously."
+#~ msgstr ""
+#~ "هذا الملف دلالة على أن نسخة أحدث من حزمة mariadb-server تم تثبيتها مسبقاً."
+
+#~ msgid ""
+#~ "There is no guarantee that the version you're currently installing will "
+#~ "be able to use the current databases."
+#~ msgstr ""
+#~ "ليست هناك أية ضمانة أن النسخة التي تقوم بتثبيتها ستكون قادرة على استخدام "
+#~ "قواعد البيانات الحالية."
+
+#~ msgid "Start the MariaDB server on boot?"
+#~ msgstr "تشغيل خادم MariaDB عند الإقلاع؟"
+
+#~ msgid ""
+#~ "The MariaDB server can be launched automatically at boot time or manually "
+#~ "with the '/etc/init.d/mysql start' command."
+#~ msgstr ""
+#~ "يمكن تشغيل خادم MariaDB آلياً وقت الإقلاع أو يدوياً باستخدام الأمر '/etc/"
+#~ "init.d/mysql start'."
 
 #~ msgid ""
 #~ "To use MariaDB, the following entries for users and groups should be "

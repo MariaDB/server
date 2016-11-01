@@ -7,19 +7,19 @@
 # Even minor modifications require translation updates and such
 # changes should be coordinated with translators and reviewers.
 
-Template: mariadb-server-10.2/really_downgrade
-Type: boolean
-Default: false
-_Description: Really proceed with downgrade?
+Template: mariadb-server-10.2/old_data_directory_saved
+Type: note
+_Description: The old data directory will be saved at new location
  A file named /var/lib/mysql/debian-*.flag exists on this system.
+ The number indicates a database binary format version that cannot automatically
+ be upgraded (or downgraded).
  .
- Such a file is an indication that a mariadb-server package with a higher
- version has been installed previously.
+ Therefore the previous data directory will be renamed to /var/lib/mysql-* and
+ a new data directory will be initialized at /var/lib/mysql.
  .
- There is no guarantee that the version you're currently installing
- will be able to use the current databases.
+ Please manually export/import your data (e.g. with mysqldump) if needed.
 
-Template: mysql-server-5.1/nis_warning
+Template: mariadb-server-10.2/nis_warning
 Type: note
 #flag:translate!:3,5
 _Description: Important note for NIS/YP users
@@ -33,7 +33,7 @@ _Description: Important note for NIS/YP users
  .
   /var/lib/mysql: drwxr-xr-x   mysql    mysql
 
-Template: mysql-server-5.1/postrm_remove_databases
+Template: mariadb-server-10.2/postrm_remove_databases
 Type: boolean
 Default: false
 _Description: Remove all MariaDB databases?
@@ -43,13 +43,6 @@ _Description: Remove all MariaDB databases?
  If you're removing the MariaDB package in order to later install a more
  recent version or if a different mariadb-server package is already
  using it, the data should be kept.
-
-Template: mysql-server-5.1/start_on_boot
-Type: boolean
-Default: true
-_Description: Start the MariaDB server on boot?
- The MariaDB server can be launched automatically at boot time or manually
- with the '/etc/init.d/mysql start' command.
 
 Template: mysql-server/root_password
 Type: password

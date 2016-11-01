@@ -16,7 +16,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mysql-dfsg-5.1 5.1.37-1\n"
 "Report-Msgid-Bugs-To: mariadb-10.2@packages.debian.org\n"
-"POT-Creation-Date: 2012-01-12 13:08+0100\n"
+"POT-Creation-Date: 2016-10-08 01:26+0300\n"
 "PO-Revision-Date: 2009-09-01 08:25+0900\n"
 "Last-Translator: Hideki Yamane (Debian-JP) <henrich@debian.or.jp>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
@@ -25,39 +25,35 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#. Type: boolean
+#. Type: note
 #. Description
 #: ../mariadb-server-10.2.templates:2001
-msgid "Really proceed with downgrade?"
-msgstr "本当にダウングレードを実行しますか?"
-
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:2001
-msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
+msgid "The old data directory will be saved at new location"
 msgstr ""
-"このシステムには  /var/lib/mysql/debian-*.flag という名前のファイルが存在して"
-"います。"
 
-#. Type: boolean
+#. Type: note
 #. Description
 #: ../mariadb-server-10.2.templates:2001
 msgid ""
-"Such a file is an indication that a mariadb-server package with a higher "
-"version has been installed previously."
+"A file named /var/lib/mysql/debian-*.flag exists on this system. The number "
+"indicates a database binary format version that cannot automatically be "
+"upgraded (or downgraded)."
 msgstr ""
-"このファイルが意味するのは、以前により新しいバージョンの mariadb-server パッ"
-"ケージがインストールされていたことを示します。"
 
-#. Type: boolean
+#. Type: note
 #. Description
 #: ../mariadb-server-10.2.templates:2001
 msgid ""
-"There is no guarantee that the version you're currently installing will be "
-"able to use the current databases."
+"Therefore the previous data directory will be renamed to /var/lib/mysql-* "
+"and a new data directory will be initialized at /var/lib/mysql."
 msgstr ""
-"このデータベースを現在インストールしようとしているバージョンで使えるかどうか"
-"は保証できません。"
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.2.templates:2001
+msgid ""
+"Please manually export/import your data (e.g. with mysqldump) if needed."
+msgstr ""
 
 #. Type: note
 #. Description
@@ -111,31 +107,15 @@ msgstr ""
 "ケージを削除しようとしている、あるいは別の mariadb-server パッケージを既に"
 "使っている場合、データは保持する必要があります。"
 
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:5001
-msgid "Start the MariaDB server on boot?"
-msgstr "MariaDB をシステム起動時に開始しますか?"
-
-#. Type: boolean
-#. Description
-#: ../mariadb-server-10.2.templates:5001
-msgid ""
-"The MariaDB server can be launched automatically at boot time or manually "
-"with the '/etc/init.d/mysql start' command."
-msgstr ""
-"MariaDB の起動方法について、システム起動時に自動的に開始するか、あるいは '/"
-"etc/init.d/mysql start' と手で入力して起動するかを選べます。"
-
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:6001
+#: ../mariadb-server-10.2.templates:5001
 msgid "New password for the MariaDB \"root\" user:"
 msgstr "MariaDB の \"root\" ユーザに対する新しいパスワード:"
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:6001
+#: ../mariadb-server-10.2.templates:5001
 msgid ""
 "While not mandatory, it is highly recommended that you set a password for "
 "the MariaDB administrative \"root\" user."
@@ -145,25 +125,25 @@ msgstr ""
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:6001
+#: ../mariadb-server-10.2.templates:5001
 msgid "If this field is left blank, the password will not be changed."
 msgstr "この値を空のままにしておいた場合は、パスワードは変更されません。"
 
 #. Type: password
 #. Description
-#: ../mariadb-server-10.2.templates:7001
+#: ../mariadb-server-10.2.templates:6001
 msgid "Repeat password for the MariaDB \"root\" user:"
 msgstr "MariaDB の \"root\" ユーザに対する新しいパスワード:"
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 msgid "Unable to set password for the MariaDB \"root\" user"
 msgstr "MariaDB の \"root\" ユーザのパスワードを設定できません"
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 msgid ""
 "An error occurred while setting the password for the MariaDB administrative "
 "user. This may have happened because the account already has a password, or "
@@ -175,14 +155,14 @@ msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 msgid "You should check the account's password after the package installation."
 msgstr ""
 "パッケージのインストール後、アカウントのパスワードを確認する必要があります。"
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:8001
+#: ../mariadb-server-10.2.templates:7001
 #, fuzzy
 #| msgid ""
 #| "Please read the /usr/share/doc/mariadb-server-10.2/README.Debian file for "
@@ -195,13 +175,44 @@ msgstr ""
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:9001
+#: ../mariadb-server-10.2.templates:8001
 msgid "Password input error"
 msgstr "パスワード入力エラー"
 
 #. Type: error
 #. Description
-#: ../mariadb-server-10.2.templates:9001
+#: ../mariadb-server-10.2.templates:8001
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr "入力された二つのパスワードが一致しません。再入力してください。"
 
+#~ msgid "Really proceed with downgrade?"
+#~ msgstr "本当にダウングレードを実行しますか?"
+
+#~ msgid "A file named /var/lib/mysql/debian-*.flag exists on this system."
+#~ msgstr ""
+#~ "このシステムには  /var/lib/mysql/debian-*.flag という名前のファイルが存在"
+#~ "しています。"
+
+#~ msgid ""
+#~ "Such a file is an indication that a mariadb-server package with a higher "
+#~ "version has been installed previously."
+#~ msgstr ""
+#~ "このファイルが意味するのは、以前により新しいバージョンの mariadb-server "
+#~ "パッケージがインストールされていたことを示します。"
+
+#~ msgid ""
+#~ "There is no guarantee that the version you're currently installing will "
+#~ "be able to use the current databases."
+#~ msgstr ""
+#~ "このデータベースを現在インストールしようとしているバージョンで使えるかどう"
+#~ "かは保証できません。"
+
+#~ msgid "Start the MariaDB server on boot?"
+#~ msgstr "MariaDB をシステム起動時に開始しますか?"
+
+#~ msgid ""
+#~ "The MariaDB server can be launched automatically at boot time or manually "
+#~ "with the '/etc/init.d/mysql start' command."
+#~ msgstr ""
+#~ "MariaDB の起動方法について、システム起動時に自動的に開始するか、あるいは "
+#~ "'/etc/init.d/mysql start' と手で入力して起動するかを選べます。"

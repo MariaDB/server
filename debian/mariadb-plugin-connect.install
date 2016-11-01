@@ -1,0 +1,2 @@
+etc/mysql/conf.d/connect.cnf
+usr/lib/mysql/plugin/ha_connect.so
