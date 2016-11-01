@@ -7231,4 +7231,6 @@ ER_PARTITION_DEFAULT_ERROR
         eng "Only one DEFAULT partition allowed"
         ukr "Припустимо мати тільки один DEFAULT розділ" 
 ER_REFERENCED_TRG_DOES_NOT_EXIST
-  eng "Referenced trigger '%s' for the given action time and event type does not exist"
+        eng "Referenced trigger '%s' for the given action time and event type does not exist"
+ER_BINLOG_UNCOMPRESS_ERROR
+        eng "Uncompress the compressed binlog failed"
