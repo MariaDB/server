@@ -1,9 +1,12 @@
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
 SET GLOBAL wsrep_load_data_splitting = TRUE;
+connection node_2;
 SELECT COUNT(*) = 95000 FROM t1;
 COUNT(*) = 95000
 1
 wsrep_last_committed_diff
 1
+connection node_1;
 SET GLOBAL wsrep_load_data_splitting = 1;;
 DROP TABLE t1;

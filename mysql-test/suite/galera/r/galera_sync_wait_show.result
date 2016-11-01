@@ -42,8 +42,8 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.f1 = 'a';
 connection node_2;
 SHOW CREATE TRIGGER tr1;
-Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation
-tr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.f1 = 'a'	latin1	latin1_swedish_ci	latin1_swedish_ci
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+tr1	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.f1 = 'a'	latin1	latin1_swedish_ci	latin1_swedish_ci	#
 DROP TABLE t1;
 connection node_1;
 CREATE EVENT event1 ON SCHEDULE AT '2038-01-01 23:59:59' DO SELECT 1;
