@@ -7568,6 +7568,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);
 
+      /* This will be deprecated when HIDDEN feature will come to MariaDB. */
       if (item->type() == Item::FIELD_ITEM)
       {
         Item_field *f= static_cast<Item_field *>(item);
