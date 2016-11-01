@@ -1957,43 +1957,6 @@ row_update_for_mysql_using_upd_graph(
 					      prebuilt->clust_pcur);
 	}
 
-	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED) &&
-		(node->is_delete || node->versioned))
-	{
-		/* System Versioning: modify update vector to set
-		   sys_trx_start (or sys_trx_end in case of DELETE)
-		   to current trx_id. */
-		upd_t* uvect = node->update;
-		upd_field_t* ufield;
-		dict_col_t* col;
-		unsigned col_idx;
-		if (node->is_delete) {
-			ufield = &uvect->fields[0];
-			uvect->n_fields = 0;
-			node->is_delete = false;
-			col_idx = table->vers_row_end;
-		} else {
-			ut_ad(uvect->n_fields < node->table->n_cols);
-			ufield = &uvect->fields[uvect->n_fields];
-			col_idx = table->vers_row_start;
-		}
-		col = &table->cols[col_idx];
-		UNIV_MEM_INVALID(ufield, sizeof *ufield);
-		ufield->field_no = dict_col_get_clust_pos(col, clust_index);
-		ufield->orig_len = 0;
-		ufield->exp = NULL;
-
-		static const ulint fsize = sizeof(trx_id_t);
-		byte* buf = static_cast<byte*>(mem_heap_alloc(node->heap, fsize));
-		mach_write_to_8(buf, trx->id);
-		dfield_t* dfield = &ufield->new_val;
-		dfield_set_data(dfield, buf, fsize);
-		dict_col_copy_type(col, &dfield->type);
-
-		uvect->n_fields++;
-		ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
-	}
-
 	ut_a(node->pcur->rel_pos == BTR_PCUR_ON);
 
 	/* MySQL seems to call rnd_pos before updating each row it
@@ -2029,6 +1992,50 @@ row_update_for_mysql_using_upd_graph(
 	thr->fk_cascade_depth = 0;
 
 run_again:
+	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED) &&
+		(node->is_delete || node->versioned))
+	{
+		/* System Versioning: modify update vector to set
+		   sys_trx_start (or sys_trx_end in case of DELETE)
+		   to current trx_id. */
+		dict_table_t* table = node->table;
+		dict_index_t* clust_index = dict_table_get_first_index(table);
+		upd_t* uvect = node->update;
+		upd_field_t* ufield;
+		dict_col_t* col;
+		unsigned col_idx;
+		if (node->is_delete) {
+			ufield = &uvect->fields[0];
+			uvect->n_fields = 0;
+			node->is_delete = false;
+			node->vers_delete = true;
+			col_idx = table->vers_row_end;
+		} else {
+			ut_ad(uvect->n_fields < table->n_cols);
+			ufield = &uvect->fields[uvect->n_fields];
+			col_idx = table->vers_row_start;
+		}
+		col = &table->cols[col_idx];
+		UNIV_MEM_INVALID(ufield, sizeof *ufield);
+		{
+			ulint field_no = dict_col_get_clust_pos(col, clust_index);
+			ut_ad(field_no != ULINT_UNDEFINED);
+			ufield->field_no = field_no;
+		}
+		ufield->orig_len = 0;
+		ufield->exp = NULL;
+
+		static const ulint fsize = sizeof(trx_id_t);
+		byte* buf = static_cast<byte*>(mem_heap_alloc(node->update->heap, fsize));
+		mach_write_to_8(buf, trx->id);
+		dfield_t* dfield = &ufield->new_val;
+		dfield_set_data(dfield, buf, fsize);
+		dict_col_copy_type(col, &dfield->type);
+
+		uvect->n_fields++;
+		ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
+	}
+
 	if (thr->fk_cascade_depth == 1 && trx->dict_operation_lock_mode == 0) {
 		got_s_lock = true;
 		row_mysql_freeze_data_dictionary(trx);

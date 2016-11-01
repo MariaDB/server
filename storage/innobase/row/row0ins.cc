@@ -1569,6 +1569,79 @@ private:
 	ulint&		counter;
 };
 
+/*********************************************************************//**
+Reads sys_trx_end field from clustered index row.
+@return trx_id_t */
+static
+trx_id_t
+row_ins_get_sys_trx_end(
+/*===================================*/
+			const rec_t *rec,	/*!< in: clustered row */
+			ulint *offsets,		/*!< in: offsets */
+			dict_index_t *index)	/*!< in: clustered index */
+{
+	ut_a(dict_index_is_clust(index));
+
+	ulint len;
+	ulint nfield = dict_col_get_clust_pos(
+		&index->table->cols[index->table->vers_row_end], index);
+	const byte *field = rec_get_nth_field(rec, offsets, nfield, &len);
+	ut_a(len == 8);
+	return(mach_read_from_8(field));
+}
+
+/*********************************************************************//**
+Performs search at clustered index and returns sys_trx_end if row was found.
+@return DB_SUCCESS, DB_NO_REFERENCED_ROW */
+static
+dberr_t
+row_ins_search_sys_trx_end(
+/*=======================*/
+			dict_index_t *index,	/*!< in: index of record */
+			const rec_t *rec,	/*!< in: record */
+			trx_id_t *end_trx_id)	/*!< out: end_trx_id */
+{
+	rec_t *clust_rec;
+	bool found = false;
+	mem_heap_t *clust_heap = mem_heap_create(256);
+	ulint clust_offsets_[REC_OFFS_NORMAL_SIZE];
+	ulint *clust_offsets = clust_offsets_;
+	rec_offs_init(clust_offsets_);
+	btr_pcur_t clust_pcur;
+
+	dict_index_t *clust_index = dict_table_get_first_index(index->table);
+
+	dtuple_t *ref =
+		row_build_row_ref(ROW_COPY_POINTERS, index, rec, clust_heap);
+
+	mtr_t clust_mtr;
+	mtr_start(&clust_mtr);
+	btr_pcur_open_on_user_rec(clust_index, ref, PAGE_CUR_GE,
+				BTR_SEARCH_LEAF, &clust_pcur, &clust_mtr);
+
+	if (!btr_pcur_is_on_user_rec(&clust_pcur))
+		goto not_found;
+
+	clust_rec = btr_pcur_get_rec(&clust_pcur);
+	clust_offsets = rec_get_offsets(clust_rec, clust_index, clust_offsets,
+					ULINT_UNDEFINED, &clust_heap);
+	if (0 != cmp_dtuple_rec(ref, clust_rec, clust_offsets))
+		goto not_found;
+
+	*end_trx_id = row_ins_get_sys_trx_end(
+		clust_rec, clust_offsets, clust_index);
+	found = true;
+not_found:
+	mtr_commit(&clust_mtr);
+	btr_pcur_close(&clust_pcur);
+	mem_heap_free(clust_heap);
+	if (!found) {
+		fprintf(stderr, "InnoDB: foreign constraints: secondary index is out of sync\n");
+		return(DB_NO_REFERENCED_ROW);
+	}
+	return(DB_SUCCESS);
+}
+
 /***************************************************************//**
 Checks if foreign key constraint fails for an index entry. Sets shared locks
 which lock either the success or the failure of the constraint. NOTE that
@@ -1745,8 +1818,24 @@ row_ins_check_foreign_constraint(
 		cmp = cmp_dtuple_rec(entry, rec, offsets);
 
 		if (cmp == 0) {
-			if (rec_get_deleted_flag(rec,
-						 rec_offs_comp(offsets))) {
+			if (DICT_TF2_FLAG_IS_SET(check_table, DICT_TF2_VERSIONED)) {
+				trx_id_t end_trx_id = 0;
+
+				if (dict_index_is_clust(check_index)) {
+					end_trx_id =
+						row_ins_get_sys_trx_end(
+						rec, offsets, check_index);
+				} else if (row_ins_search_sys_trx_end(
+						check_index, rec, &end_trx_id) !=
+						DB_SUCCESS) {
+					break;
+				}
+
+				if (end_trx_id != TRX_ID_MAX)
+					continue;
+			}
+
+			if (rec_get_deleted_flag(rec, rec_offs_comp(offsets))) {
 				err = row_ins_set_shared_rec_lock(
 					LOCK_ORDINARY, block,
 					rec, check_index, offsets, thr);

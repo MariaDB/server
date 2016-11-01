@@ -4621,20 +4621,6 @@ handler *mysql_create_frm_image(THD *thd,
 
   if (create_info->versioned())
   {
-    // FIXME: This test doesn't detect foreign key relationship on the side of
-    //   parent table and System Time support will not work correctly for such
-    //   table either. But this cannot be implemented without changes to innodb
-    //   that are postponed for later time.
-    List_iterator_fast<Key> key_iterator(alter_info->key_list);
-    Key *key;
-    while ((key= key_iterator++))
-    {
-      if (key->type == Key::FOREIGN_KEY)
-      {
-        my_error(ER_FOREIGN_KEY_ON_SYSTEM_VERSIONED, MYF(0));
-        goto err;
-      }
-    }
     if(vers_prepare_keys(thd, create_info, alter_info, key_info,
                                 *key_count))
       goto err;

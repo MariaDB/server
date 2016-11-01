@@ -269,6 +269,7 @@ row_upd_check_references_constraints(
 
 		if (foreign->referenced_index == index
 		    && (node->is_delete
+			|| node->vers_delete
 			|| row_upd_changes_first_fields_binary(
 				entry, index, node->update,
 				foreign->n_fields))) {
@@ -381,6 +382,7 @@ wsrep_row_upd_check_foreign_constraints(
 
 		if (foreign->foreign_index == index
 		    && (node->is_delete
+			|| node->vers_delete
 			|| row_upd_changes_first_fields_binary(
 				entry, index, node->update,
 				foreign->n_fields))) {

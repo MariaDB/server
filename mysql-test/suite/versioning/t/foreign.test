@@ -1,0 +1,158 @@
+-- source include/have_innodb.inc
+
+#################
+# Test RESTRICT #
+#################
+
+create table parent(
+  id int unique key
+) engine innodb;
+
+create table child(
+  parent_id int,
+  foreign key(parent_id) references parent(id)
+    on delete restrict
+    on update restrict
+) engine innodb with system versioning;
+
+insert into parent values(1);
+insert into child values(1);
+
+-- error ER_ROW_IS_REFERENCED_2
+delete from parent where id = 1;
+delete from child where parent_id = 1;
+delete from parent where id = 1;
+
+insert into parent values(1);
+insert into child values(1);
+-- error ER_ROW_IS_REFERENCED_2
+update parent set id=id+1;
+delete from child;
+update parent set id=id+1;
+select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+
+drop table child;
+drop table parent;
+
+##############################################
+# Test when clustered index is a foreign key #
+##############################################
+
+create table parent(
+  id int(10) unsigned unique key
+) engine innodb;
+
+create table child(
+  parent_id int(10) unsigned primary key,
+  foreign key(parent_id) references parent(id)
+) engine innodb with system versioning;
+
+insert into parent values(1);
+insert into child values(1);
+
+-- error ER_ROW_IS_REFERENCED_2
+delete from parent where id = 1;
+
+drop table child;
+drop table parent;
+
+################
+# Test CASCADE #
+################
+
+create table parent(
+  id int unique key
+) engine innodb;
+
+create table child(
+  parent_id int,
+  foreign key(parent_id) references parent(id)
+    on delete cascade
+    on update cascade
+) engine innodb with system versioning;
+
+insert into parent values(1);
+insert into child values(1);
+
+delete from parent where id = 1;
+select * from child;
+select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+
+insert into parent values(1);
+insert into child values(1);
+update parent set id=id+1;
+select * from child;
+select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+
+drop table child;
+drop table parent;
+
+#################
+# Test SET NULL #
+#################
+
+create table parent(
+  id int unique key
+) engine innodb;
+
+create table child(
+  parent_id int,
+  foreign key(parent_id) references parent(id)
+    on delete set null
+    on update set null
+) engine innodb with system versioning;
+
+insert into parent values(1);
+insert into child values(1);
+delete from child;
+insert into child values(1);
+
+delete from parent where id = 1;
+select * from child;
+select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+delete from child;
+
+insert into parent values(1);
+insert into child values(1);
+update parent set id=id+1;
+select * from child;
+select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+
+drop table child;
+drop table parent;
+
+###########################
+# Parent table is foreign #
+###########################
+
+create or replace table parent(
+  id int unique key
+) engine innodb with system versioning;
+
+create or replace table child(
+  parent_id int,
+  foreign key(parent_id) references parent(id)
+) engine innodb;
+
+insert into parent values(1);
+insert into child values(1);
+-- error ER_ROW_IS_REFERENCED_2
+delete from parent;
+-- error ER_ROW_IS_REFERENCED_2
+update parent set id=2;
+
+delete from child;
+delete from parent;
+
+-- error ER_NO_REFERENCED_ROW_2
+insert into child values(1);
+
+insert into parent values(1);
+insert into child values(1);
+-- error ER_ROW_IS_REFERENCED_2
+delete from parent;
+-- error ER_ROW_IS_REFERENCED_2
+update parent set id=2;
+
+drop table child;
+drop table parent;

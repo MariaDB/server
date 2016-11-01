@@ -7520,9 +7520,6 @@ ER_SYS_START_AND_SYS_END_SAME
 ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER
         eng "Generated field for System Versioning cannot be set by user"
 
-ER_FOREIGN_KEY_ON_SYSTEM_VERSIONED
-        eng "Foreign key clause is not yet supported in conjunction with system versioning"
-
 ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING
         eng "Rows matched: %ld  Changed: %ld  Inserted: %ld  Warnings: %ld"
 
