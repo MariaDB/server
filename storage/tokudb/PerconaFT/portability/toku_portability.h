@@ -246,6 +246,8 @@ int toku_os_open(const char *path, int oflag, int mode);
 int toku_os_open_direct(const char *path, int oflag, int mode);
 int toku_os_close(int fd);
 int toku_os_fclose(FILE * stream);
+int toku_os_rename(const char *old_name, const char *new_name);
+int toku_os_unlink(const char *path);
 ssize_t toku_os_read(int fd, void *buf, size_t count);
 ssize_t toku_os_pread(int fd, void *buf, size_t count, off_t offset);
 void toku_os_recursive_delete(const char *path);

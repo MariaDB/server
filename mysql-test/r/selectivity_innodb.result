@@ -802,9 +802,9 @@ insert into t2 values (2),(3);
 explain extended 
 select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	0.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	0.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where ((`test`.`t1`.`a` > 3))
 select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
@@ -1450,6 +1450,78 @@ a	b	i
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP TABLE t1,t2;
 set use_stat_tables=@save_use_stat_tables;
+#
+# Bug mdev-11096: range condition over column without statistical data
+#
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=3;
+create table t1(col1 char(32));
+insert into t1 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
+analyze table t1 persistent for columns () indexes ();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+explain extended 
+select * from t1 where col1 > 'b' and col1 < 'e';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where ((`test`.`t1`.`col1` > 'b') and (`test`.`t1`.`col1` < 'e'))
+select * from t1 where col1 > 'b' and col1 < 'e';
+col1
+c
+d
+drop table t1;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+#
+# Bug mdev-9628: unindexed blob column without min-max statistics 
+#                with optimizer_use_condition_selectivity=3
+#
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=3;
+create table t1(col1 char(32));
+insert into t1 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+create table t2(col1 text);
+insert into t2 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	Warning	Engine-independent statistics are not collected for column 'col1'
+test.t2	analyze	status	OK
+select * from t1 where col1 > 'b' and col1 < 'd';
+col1
+c
+explain extended 
+select * from t1 where col1 > 'b' and col1 < 'd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	28.57	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where ((`test`.`t1`.`col1` > 'b') and (`test`.`t1`.`col1` < 'd'))
+select * from t2 where col1 > 'b' and col1 < 'd';
+col1
+c
+explain extended 
+select * from t2 where col1 > 'b' and col1 < 'd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`col1` AS `col1` from `test`.`t2` where ((`test`.`t2`.`col1` > 'b') and (`test`.`t2`.`col1` < 'd'))
+select * from t2 where col1 < 'b' and col1 > 'd';
+col1
+explain extended 
+select * from t2 where col1 < 'b' and col1 > 'd';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	select `test`.`t2`.`col1` AS `col1` from `test`.`t2` where 0
+drop table t1,t2;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 set @tmp_ust= @@use_stat_tables;
 set @tmp_oucs= @@optimizer_use_condition_selectivity;
@@ -1535,6 +1607,45 @@ select * from t1, t2, t3
 where t1.child_user_id=t3.id and t1.child_group_id is null and t2.lower_group_name='foo' and t1.parent_id=t2.id and t2.directory_id=10;
 parent_id	child_group_id	child_user_id	id	lower_group_name	directory_id	id
 drop table t1,t2,t3;
+#
+# MDEV-9187: duplicate of bug mdev-9628
+#
+set use_stat_tables = preferably;
+set optimizer_use_condition_selectivity=3;
+CREATE TABLE t1 (f1 char(32)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('foo'),('bar'),('qux');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM t1 WHERE f1 < 'm';
+f1
+foo
+bar
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE f1 < 'm';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	72.09	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`f1` AS `f1` from `test`.`t1` where (`test`.`t1`.`f1` < 'm')
+CREATE TABLE t2 (f1 TEXT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('foo'),('bar'),('qux');
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	Warning	Engine-independent statistics are not collected for column 'f1'
+test.t2	analyze	status	OK
+SELECT * FROM t2 WHERE f1 <> 'qux';
+f1
+foo
+bar
+EXPLAIN EXTENDED
+SELECT * FROM t2 WHERE f1 <> 'qux';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`f1` AS `f1` from `test`.`t2` where (`test`.`t2`.`f1` <> 'qux')
+DROP TABLE t1,t2;
 #
 # End of 10.0 tests
 #

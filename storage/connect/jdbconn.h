@@ -165,6 +165,7 @@ protected:
 	jmethodID xpid;										  // The ExecutePrep method ID
 	jmethodID pcid;										  // The ClosePrepStmt method ID
 	jmethodID errid;										// The GetErrmsg method ID
+	jmethodID objfldid;									// The ObjectField method ID
 	jmethodID chrfldid;									// The StringField method ID
 	jmethodID intfldid;									// The IntField method ID
 	jmethodID dblfldid;									// The DoubleField method ID

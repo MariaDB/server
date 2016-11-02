@@ -3263,12 +3263,6 @@ mysql_execute_command(THD *thd)
     }
 
     /*
-      For CREATE TABLE we should not open the table even if it exists.
-      If the table exists, we should either not create it or replace it
-    */
-    lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
-
-    /*
       If we are a slave, we should add OR REPLACE if we don't have
       IF EXISTS. This will help a slave to recover from
       CREATE TABLE OR EXISTS failures by dropping the table and
@@ -8870,12 +8864,6 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
 
   if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info, create_table->db))
     goto err;
-
-  /*
-    For CREATE TABLE we should not open the table even if it exists.
-    If the table exists, we should either not create it or replace it
-  */
-  lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
 
   error= FALSE;
 

@@ -2691,8 +2691,8 @@ static bool check_equality_for_exist2in(Item_func *func,
            args[0]->all_used_tables() == OUTER_REF_TABLE_BIT)
   {
     /* It is Item_field or Item_direct_view_ref) */
-    DBUG_ASSERT(args[0]->type() == Item::FIELD_ITEM ||
-                args[0]->type() == Item::REF_ITEM);
+    DBUG_ASSERT(args[1]->type() == Item::FIELD_ITEM ||
+                args[1]->type() == Item::REF_ITEM);
     *local_field= (Item_ident *)args[1];
     *outer_exp= args[0];
     return TRUE;

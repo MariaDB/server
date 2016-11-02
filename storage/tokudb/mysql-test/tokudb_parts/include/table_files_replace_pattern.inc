@@ -1,0 +1,1 @@
+--replace_regex  /[a-z0-9]+_[a-z0-9]+_[a-z0-9]+(_[BP]_[a-z0-9]+){0,1}\./id./ /sqlx_[a-z0-9]+_[a-z0-9]+_/sqlx_nnnn_nnnn_/ /sqlx-[a-z0-9]+_[a-z0-9]+/sqlx-nnnn_nnnn/ /#p#/#P#/ /#sp#/#SP#/ /#tmp#/#TMP#/

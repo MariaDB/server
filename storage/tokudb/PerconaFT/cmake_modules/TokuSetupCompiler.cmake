@@ -66,9 +66,7 @@ set_cflags_if_supported(
   -Wno-error=address-of-array-temporary
   -Wno-error=tautological-constant-out-of-range-compare
   -Wno-error=maybe-uninitialized
-  -Wno-ignored-attributes
   -Wno-error=extern-c-compat
-  -Wno-pointer-bool-conversion
   -fno-rtti
   -fno-exceptions
   -Wno-error=nonnull-compare

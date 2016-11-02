@@ -388,6 +388,11 @@ public:
     avg_frequency= (ulong) (val * Scale_factor_avg_frequency);
   }
 
+  bool min_max_values_are_provided()
+  {
+    return !is_null(COLUMN_STAT_MIN_VALUE) && 
+      !is_null(COLUMN_STAT_MIN_VALUE);
+  }          
 };
 
 
