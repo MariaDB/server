@@ -3726,6 +3726,44 @@ Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
 */
 class Column_definition: public Sql_alloc
 {
+  /**
+    Create "interval" from "interval_list".
+    @param mem_root                   - memory root to create the TYPELIB
+                                        instance and its values on
+    @param reuse_interval_list_values - determines if TYPELIB can reuse strings
+                                        from interval_list, or should always
+                                        allocate a copy on mem_root, even if
+                                        character set conversion is not needed
+    @retval false on success
+    @retval true  on error (bad values, or EOM)
+  */
+  bool create_interval_from_interval_list(MEM_ROOT *mem_root,
+                                          bool reuse_interval_list_values);
+
+  /*
+    Calculate TYPELIB (set or enum) max and total lengths
+
+    @param  cs            charset+collation pair of the interval
+    @param  max_length    length of the longest item
+    @param  tot_length    sum of the item lengths
+
+    After this method call:
+    - ENUM uses max_length
+    - SET uses tot_length.
+  */
+  void calculate_interval_lengths(uint32 *max_length, uint32 *tot_length)
+  {
+    const char **pos;
+    uint *len;
+    *max_length= *tot_length= 0;
+    for (pos= interval->type_names, len= interval->type_lengths;
+         *pos ; pos++, len++)
+    {
+      size_t length= charset->cset->numchars(charset, *pos, *pos + *len);
+      *tot_length+= length;
+      set_if_bigger(*max_length, (uint32)length);
+    }
+  }
 public:
   const char *field_name;
   LEX_STRING comment;			// Comment for field
@@ -3775,7 +3813,65 @@ public:
 
   Column_definition(THD *thd, Field *field, Field *orig_field);
   void create_length_to_internal_length(void);
+  /**
+    Prepare a SET/ENUM field.
+    Create "interval" from "interval_list" if needed, and adjust "length".
+    @param mem_root                   - Memory root to allocate TYPELIB and
+                                        its values on
+    @param reuse_interval_list_values - determines if TYPELIB can reuse value
+                                        buffers from interval_list, or should
+                                        always allocate a copy on mem_root,
+                                        even if character set conversion
+                                        is not needed
+  */
+  bool prepare_interval_field(MEM_ROOT *mem_root,
+                              bool reuse_interval_list_values)
+  {
+    DBUG_ENTER("Column_definition::prepare_interval_field");
+    DBUG_ASSERT(sql_type == MYSQL_TYPE_ENUM || sql_type == MYSQL_TYPE_SET);
+    /*
+      Interval values are either in "interval" or in "interval_list",
+      but not in both at the same time, and are not empty at the same time.
+      - Values are in "interval_list" when we're coming from the parser
+        in CREATE TABLE or in CREATE {FUNCTION|PROCEDURE}.
+      - Values are in "interval" when we're in ALTER TABLE.
 
+      In a corner case with an empty set like SET(''):
+      - after the parser we have interval_list.elements==1
+      - in ALTER TABLE we have a non-NULL interval with interval->count==1,
+        with interval->type_names[0]=="" and interval->type_lengths[0]==0.
+      So the assert is still valid for this corner case.
+
+      ENUM and SET with no values at all (e.g. ENUM(), SET()) are not possible,
+      as the parser requires at least one element, so for a ENUM or SET field it
+      should never happen that both internal_list.elements and interval are 0.
+    */
+    DBUG_ASSERT((interval == NULL) == (interval_list.elements > 0));
+
+    /*
+      Create typelib from interval_list, and if necessary
+      convert strings from client character set to the
+      column character set.
+    */
+    if (interval_list.elements &&
+        create_interval_from_interval_list(mem_root,
+                                           reuse_interval_list_values))
+      DBUG_RETURN(true);
+
+    uint32 field_length, dummy;
+    if (sql_type == MYSQL_TYPE_SET)
+    {
+      calculate_interval_lengths(&dummy, &field_length);
+      length= field_length + (interval->count - 1);
+    }
+    else /* MYSQL_TYPE_ENUM */
+    {
+      calculate_interval_lengths(&field_length, &dummy);
+      length= field_length;
+    }
+    set_if_smaller(length, MAX_FIELD_WIDTH - 1);
+    DBUG_RETURN(false);
+  }
   bool check(THD *thd);
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }

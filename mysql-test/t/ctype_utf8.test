@@ -2074,3 +2074,20 @@ let $coll_pad='utf8_bin';
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-11155 Bad error message when creating a SET column with comma and non-ASCII characters
+--echo #
+
+SET NAMES utf8;
+--error ER_ILLEGAL_VALUE_FOR_TYPE
+CREATE TABLE t1 (a SET('a,bü'));
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

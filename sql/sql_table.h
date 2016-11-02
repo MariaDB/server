@@ -251,7 +251,8 @@ bool quick_rm_table(THD *thd, handlerton *base, const char *db,
                     const char *table_name, uint flags,
                     const char *table_path=0);
 void close_cached_table(THD *thd, TABLE *table);
-void sp_prepare_create_field(THD *thd, Column_definition *sql_field);
+bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root,
+                             Column_definition *sql_field);
 int prepare_create_field(Column_definition *sql_field,
 			 uint *blob_columns,
 			 longlong table_flags);

@@ -747,58 +747,6 @@ sp_head::set_stmt_end(THD *thd)
 }
 
 
-static TYPELIB *
-create_typelib(MEM_ROOT *mem_root, Column_definition *field_def, List<String> *src)
-{
-  TYPELIB *result= NULL;
-  CHARSET_INFO *cs= field_def->charset;
-  DBUG_ENTER("create_typelib");
-
-  if (src->elements)
-  {
-    result= (TYPELIB*) alloc_root(mem_root, sizeof(TYPELIB));
-    result->count= src->elements;
-    result->name= "";
-    if (!(result->type_names=(const char **)
-          alloc_root(mem_root,(sizeof(char *)+sizeof(int))*(result->count+1))))
-      DBUG_RETURN(0);
-    result->type_lengths= (uint*)(result->type_names + result->count+1);
-    List_iterator<String> it(*src);
-    String conv;
-    for (uint i=0; i < result->count; i++)
-    {
-      uint32 dummy;
-      uint length;
-      String *tmp= it++;
-
-      if (String::needs_conversion(tmp->length(), tmp->charset(),
-                                   cs, &dummy))
-      {
-        uint cnv_errs;
-        conv.copy(tmp->ptr(), tmp->length(), tmp->charset(), cs, &cnv_errs);
-
-        length= conv.length();
-        result->type_names[i]= (char*) strmake_root(mem_root, conv.ptr(),
-                                                    length);
-      }
-      else
-      {
-        length= tmp->length();
-        result->type_names[i]= strmake_root(mem_root, tmp->ptr(), length);
-      }
-
-      // Strip trailing spaces.
-      length= cs->cset->lengthsp(cs, result->type_names[i], length);
-      result->type_lengths[i]= length;
-      ((uchar *)result->type_names[i])[length]= '\0';
-    }
-    result->type_names[result->count]= 0;
-    result->type_lengths[result->count]= 0;
-  }
-  DBUG_RETURN(result);
-}
-
-
 sp_head::~sp_head()
 {
   LEX *lex;
@@ -2362,11 +2310,8 @@ sp_head::fill_field_definition(THD *thd, LEX *lex,
   if (field_def->check(thd))
     return TRUE;
 
-  if (field_def->interval_list.elements)
-    field_def->interval= create_typelib(mem_root, field_def,
-                                        &field_def->interval_list);
-
-  sp_prepare_create_field(thd, field_def);
+  if (sp_prepare_create_field(thd, mem_root, field_def))
+    return true;
 
   if (prepare_create_field(field_def, &unused1, HA_CAN_GEOMETRY))
   {

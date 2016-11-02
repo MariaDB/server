@@ -11142,3 +11142,15 @@ SET STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-11155 Bad error message when creating a SET column with comma and non-ASCII characters
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a SET('a,bü'));
+ERROR 22007: Illegal set 'a,bü' value found during parsing
+#
+# End of 10.3 tests
+#
