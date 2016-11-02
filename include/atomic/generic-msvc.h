@@ -17,11 +17,6 @@
 #ifndef _atomic_h_cleanup_
 #define _atomic_h_cleanup_ "atomic/generic-msvc.h"
 
-/*
-  We don't implement anything specific for MY_ATOMIC_MODE_DUMMY, always use
-  intrinsics.
-*/
-
 #include <windows.h>
 /*
   x86 compilers (both VS2003 or VS2005) never use instrinsics, but generate 

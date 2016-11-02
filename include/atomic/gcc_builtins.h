@@ -26,12 +26,7 @@
   sav= __sync_val_compare_and_swap(a, cmp_val, set);\
   if (!(ret= (sav == cmp_val))) *cmp= sav
 
-#ifdef MY_ATOMIC_MODE_DUMMY
-#define make_atomic_load_body(S)   ret= *a
-#define make_atomic_store_body(S)  *a= v
-#define MY_ATOMIC_MODE "gcc-builtins-up"
-
-#elif defined(HAVE_GCC_C11_ATOMICS)
+#if defined(HAVE_GCC_C11_ATOMICS)
 #define MY_ATOMIC_MODE "gcc-atomics-smp"
 #define make_atomic_load_body(S)                    \
   ret= __atomic_load_n(a, __ATOMIC_SEQ_CST)

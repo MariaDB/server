@@ -908,48 +908,38 @@ SET(SIGNAL_WITH_VIO_CLOSE 1)
 MARK_AS_ADVANCED(NO_ALARM)
 
 
-IF(WITH_ATOMIC_OPS STREQUAL "up")
-  SET(MY_ATOMIC_MODE_DUMMY 1 CACHE BOOL "Assume single-CPU mode, no concurrency")
-ELSEIF(WITH_ATOMIC_OPS STREQUAL "smp")
-ELSEIF(NOT WITH_ATOMIC_OPS)
-  CHECK_CXX_SOURCE_COMPILES("
-  int main()
-  {
-    int foo= -10; int bar= 10;
-    long long int foo64= -10; long long int bar64= 10;
-    if (!__sync_fetch_and_add(&foo, bar) || foo)
-      return -1;
-    bar= __sync_lock_test_and_set(&foo, bar);
-    if (bar || foo != 10)
-      return -1;
-    bar= __sync_val_compare_and_swap(&bar, foo, 15);
-    if (bar)
-      return -1;
-    if (!__sync_fetch_and_add(&foo64, bar64) || foo64)
-      return -1;
-    bar64= __sync_lock_test_and_set(&foo64, bar64);
-    if (bar64 || foo64 != 10)
-      return -1;
-    bar64= __sync_val_compare_and_swap(&bar64, foo, 15);
-    if (bar64)
-      return -1;
-    return 0;
-  }"
-  HAVE_GCC_ATOMIC_BUILTINS)
-  CHECK_CXX_SOURCE_COMPILES("
-  int main()
-  {
-    long long int var= 1;
-    long long int *ptr= &var;
-    return (int)__atomic_load_n(ptr, __ATOMIC_SEQ_CST);
-  }"
-  HAVE_GCC_C11_ATOMICS)
-ELSE()
-  MESSAGE(FATAL_ERROR "${WITH_ATOMIC_OPS} is not a valid value for WITH_ATOMIC_OPS!")
-ENDIF()
-
-SET(WITH_ATOMIC_OPS "${WITH_ATOMIC_OPS}" CACHE STRING "Implement atomic operations using atomic CPU instructions for multi-processor (smp) or uniprocessor (up) configuration. By default gcc built-in sync functions are used, if available and 'smp' configuration otherwise.")
-MARK_AS_ADVANCED(WITH_ATOMIC_OPS MY_ATOMIC_MODE_DUMMY)
+CHECK_CXX_SOURCE_COMPILES("
+int main()
+{
+  int foo= -10; int bar= 10;
+  long long int foo64= -10; long long int bar64= 10;
+  if (!__sync_fetch_and_add(&foo, bar) || foo)
+    return -1;
+  bar= __sync_lock_test_and_set(&foo, bar);
+  if (bar || foo != 10)
+    return -1;
+  bar= __sync_val_compare_and_swap(&bar, foo, 15);
+  if (bar)
+    return -1;
+  if (!__sync_fetch_and_add(&foo64, bar64) || foo64)
+    return -1;
+  bar64= __sync_lock_test_and_set(&foo64, bar64);
+  if (bar64 || foo64 != 10)
+    return -1;
+  bar64= __sync_val_compare_and_swap(&bar64, foo, 15);
+  if (bar64)
+    return -1;
+  return 0;
+}"
+HAVE_GCC_ATOMIC_BUILTINS)
+CHECK_CXX_SOURCE_COMPILES("
+int main()
+{
+  long long int var= 1;
+  long long int *ptr= &var;
+  return (int)__atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+}"
+HAVE_GCC_C11_ATOMICS)
 
 IF(WITH_VALGRIND)
   SET(HAVE_valgrind 1)

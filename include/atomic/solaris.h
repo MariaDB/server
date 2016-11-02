@@ -45,20 +45,11 @@
 
 /* ------------------------------------------------------------------------ */
 
-#ifdef MY_ATOMIC_MODE_DUMMY
-
-#define make_atomic_load_body(S)  ret= *a
-#define make_atomic_store_body(S)   *a= v
-
-#else /* MY_ATOMIC_MODE_DUMMY */
-
 #define make_atomic_load_body(S)                        \
   ret= atomic_or_ ## S ## _nv((volatile uint ## S ## _t *)a, 0)
 
 #define make_atomic_store_body(S)                       \
   (void) atomic_swap_ ## S((volatile uint ## S ## _t *)a, (uint ## S ## _t)v)
-
-#endif
 
 #define make_atomic_fas_body(S)                        \
   v= atomic_swap_ ## S((volatile uint ## S ## _t *)a, (uint ## S ## _t)v)
