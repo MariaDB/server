@@ -5841,7 +5841,22 @@ void Item_func_get_system_var::fix_length_and_dec()
 
 void Item_func_get_system_var::print(String *str, enum_query_type query_type)
 {
-  str->append(name, name_length);
+  if (name_length)
+    str->append(name, name_length);
+  else
+  {
+    str->append(STRING_WITH_LEN("@@"));
+    if (component.length)
+    {
+      str->append(&component);
+      str->append('.');
+    }
+    else if (var_type == SHOW_OPT_GLOBAL && var->scope() != sys_var::GLOBAL)
+    {
+      str->append(STRING_WITH_LEN("global."));
+    }
+    str->append(&var->name);
+  }
 }
 
 bool Item_func_get_system_var::check_vcol_func_processor(void *arg)

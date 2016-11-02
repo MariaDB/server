@@ -1801,3 +1801,23 @@ select * from information_schema.session_variables where variable_name='sql_mode
 VARIABLE_NAME	VARIABLE_VALUE
 SQL_MODE	ANSI_QUOTES
 End of 5.5 tests
+explain extended select @@VERsion from dual where rand() > @@verSION;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select @@VERsion AS "@@VERsion" from DUAL  where (rand() > @@version)
+explain extended select @@SESsion.SQL_mode from dual where rand() > @@sesSION.sql_MODE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select @@SESsion.SQL_mode AS "@@SESsion.SQL_mode" from DUAL  where (rand() > @@sql_mode)
+explain extended select @@GLObal.COLLATION_connection from dual where rand() > @@gloBAL.collation_CONNECTION;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select @@GLObal.COLLATION_connection AS "@@GLObal.COLLATION_connection" from DUAL  where (rand() > @@global.collation_connection)
+explain extended select @@FOObar.KEY_BUFfer_size from dual where rand() > @@fooBAR.key_bufFER_SIZE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select @@FOObar.KEY_BUFfer_size AS "@@FOObar.KEY_BUFfer_size" from DUAL  where (rand() > @@fooBAR.key_buffer_size)
