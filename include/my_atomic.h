@@ -99,17 +99,9 @@
   MY_MEMORY_ORDER_SEQ_CST - The operation has the same semantics as
                             acquire-release operation, and additionally has
                             sequentially-consistent operation ordering.
-
-  8- and 16-bit atomics aren't implemented for windows (see generic-msvc.h),
-  but can be added, if necessary.
 */
 
 #define intptr         void *
-/**
-  Currently we don't support 8-bit and 16-bit operations.
-  It can be added later if needed.
-*/
-#undef MY_ATOMIC_HAS_8_16
 
 /*
   We choose implementation as follows:
@@ -253,41 +245,21 @@ static inline void my_atomic_store ## S(                        \
   make_atomic_store_body(S);                                    \
 }
 
-#ifdef MY_ATOMIC_HAS_8_16
-make_atomic_cas(8)
-make_atomic_cas(16)
-#endif
 make_atomic_cas(32)
 make_atomic_cas(64)
 make_atomic_cas(ptr)
 
-#ifdef MY_ATOMIC_HAS_8_16
-make_atomic_add(8)
-make_atomic_add(16)
-#endif
 make_atomic_add(32)
 make_atomic_add(64)
 
-#ifdef MY_ATOMIC_HAS_8_16
-make_atomic_load(8)
-make_atomic_load(16)
-#endif
 make_atomic_load(32)
 make_atomic_load(64)
 make_atomic_load(ptr)
 
-#ifdef MY_ATOMIC_HAS_8_16
-make_atomic_fas(8)
-make_atomic_fas(16)
-#endif
 make_atomic_fas(32)
 make_atomic_fas(64)
 make_atomic_fas(ptr)
 
-#ifdef MY_ATOMIC_HAS_8_16
-make_atomic_store(8)
-make_atomic_store(16)
-#endif
 make_atomic_store(32)
 make_atomic_store(64)
 make_atomic_store(ptr)
