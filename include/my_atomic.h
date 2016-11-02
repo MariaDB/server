@@ -148,66 +148,9 @@
   (void)(my_atomic_fas ## S (a, v));
 #endif
 
-/*
-  transparent_union doesn't work in g++
-  Bug ?
-
-  Darwin's gcc doesn't want to put pointers in a transparent_union
-  when built with -arch ppc64. Complains:
-  warning: 'transparent_union' attribute ignored
-*/
-#if defined(__GNUC__) && !defined(__cplusplus) && \
-      ! (defined(__APPLE__) && (defined(_ARCH_PPC64) ||defined (_ARCH_PPC)))
-/*
-  we want to be able to use my_atomic_xxx functions with
-  both signed and unsigned integers. But gcc will issue a warning
-  "passing arg N of `my_atomic_XXX' as [un]signed due to prototype"
-  if the signedness of the argument doesn't match the prototype, or
-  "pointer targets in passing argument N of my_atomic_XXX differ in signedness"
-  if int* is used where uint* is expected (or vice versa).
-  Let's shut these warnings up
-*/
-#define make_transparent_unions(S)                              \
-        typedef union {                                         \
-          int  ## S  i;                                         \
-          uint ## S  u;                                         \
-        } U_ ## S   __attribute__ ((transparent_union));        \
-        typedef union {                                         \
-          int  ## S volatile *i;                                \
-          uint ## S volatile *u;                                \
-        } Uv_ ## S   __attribute__ ((transparent_union));
-#define uintptr intptr
-make_transparent_unions(8)
-make_transparent_unions(16)
-make_transparent_unions(32)
-make_transparent_unions(64)
-make_transparent_unions(ptr)
-#undef uintptr
-#undef make_transparent_unions
-#define a       U_a.i
-#define cmp     U_cmp.i
-#define v       U_v.i
-#define set     U_set.i
-#else
-#define U_8    int8
-#define U_16   int16
-#define U_32   int32
-#define U_64   int64
-#define U_ptr  intptr
-#define Uv_8   int8
-#define Uv_16  int16
-#define Uv_32  int32
-#define Uv_64  int64
-#define Uv_ptr intptr
-#define U_a    volatile *a
-#define U_cmp  *cmp
-#define U_v    v
-#define U_set  set
-#endif /* __GCC__ transparent_union magic */
-
 #define make_atomic_cas(S)                                      \
-static inline int my_atomic_cas ## S(Uv_ ## S U_a,              \
-                            Uv_ ## S U_cmp, U_ ## S U_set)      \
+static inline int my_atomic_cas ## S(int ## S volatile *a,      \
+                            int ## S *cmp, int ## S set)        \
 {                                                               \
   int8 ret;                                                     \
   make_atomic_cas_body(S);                                      \
@@ -216,7 +159,7 @@ static inline int my_atomic_cas ## S(Uv_ ## S U_a,              \
 
 #define make_atomic_add(S)                                      \
 static inline int ## S my_atomic_add ## S(                      \
-                        Uv_ ## S U_a, U_ ## S U_v)              \
+                        int ## S volatile *a, int ## S v)       \
 {                                                               \
   make_atomic_add_body(S);                                      \
   return v;                                                     \
@@ -224,14 +167,14 @@ static inline int ## S my_atomic_add ## S(                      \
 
 #define make_atomic_fas(S)                                      \
 static inline int ## S my_atomic_fas ## S(                      \
-                         Uv_ ## S U_a, U_ ## S U_v)             \
+                         int ## S volatile *a, int ## S v)      \
 {                                                               \
   make_atomic_fas_body(S);                                      \
   return v;                                                     \
 }
 
 #define make_atomic_load(S)                                     \
-static inline int ## S my_atomic_load ## S(Uv_ ## S U_a)        \
+static inline int ## S my_atomic_load ## S(int ## S volatile *a)\
 {                                                               \
   int ## S ret;                                                 \
   make_atomic_load_body(S);                                     \
@@ -240,7 +183,7 @@ static inline int ## S my_atomic_load ## S(Uv_ ## S U_a)        \
 
 #define make_atomic_store(S)                                    \
 static inline void my_atomic_store ## S(                        \
-                     Uv_ ## S U_a, U_ ## S U_v)                 \
+                     int ## S volatile *a, int ## S v)          \
 {                                                               \
   make_atomic_store_body(S);                                    \
 }
@@ -283,24 +226,6 @@ make_atomic_store(ptr)
 #undef _atomic_h_cleanup_
 #endif
 
-#undef U_8
-#undef U_16
-#undef U_32
-#undef U_64
-#undef U_ptr
-#undef Uv_8
-#undef Uv_16
-#undef Uv_32
-#undef Uv_64
-#undef Uv_ptr
-#undef a
-#undef cmp
-#undef v
-#undef set
-#undef U_a
-#undef U_cmp
-#undef U_v
-#undef U_set
 #undef make_atomic_add
 #undef make_atomic_cas
 #undef make_atomic_load
