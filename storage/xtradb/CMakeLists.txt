@@ -498,11 +498,6 @@ SET(INNOBASE_SOURCES
 	ut/ut0wqueue.cc
 	ut/ut0timer.cc)
 
-UNSET(NUMA_LIBRARY)
-IF(HAVE_LIBNUMA)
-  SET(NUMA_LIBRARY "numa")
-ENDIF()
-
 MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
   DISABLED # until upgraded to 5.7, see also mysql-test/include/have_xtradb.combinations
   RECOMPILE_FOR_EMBEDDED
