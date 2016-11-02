@@ -32,6 +32,43 @@
   ret= __atomic_load_n(a, __ATOMIC_SEQ_CST)
 #define make_atomic_store_body(S)                   \
   __atomic_store_n(a, v, __ATOMIC_SEQ_CST)
+
+#define MY_MEMORY_ORDER_RELAXED __ATOMIC_RELAXED
+#define MY_MEMORY_ORDER_CONSUME __ATOMIC_CONSUME
+#define MY_MEMORY_ORDER_ACQUIRE __ATOMIC_ACQUIRE
+#define MY_MEMORY_ORDER_RELEASE __ATOMIC_RELEASE
+#define MY_MEMORY_ORDER_ACQ_REL __ATOMIC_ACQ_REL
+#define MY_MEMORY_ORDER_SEQ_CST __ATOMIC_SEQ_CST
+
+#define my_atomic_store32_explicit(P, D, O) __atomic_store_n((P), (D), (O))
+#define my_atomic_store64_explicit(P, D, O) __atomic_store_n((P), (D), (O))
+#define my_atomic_storeptr_explicit(P, D, O) __atomic_store_n((P), (D), (O))
+
+#define my_atomic_load32_explicit(P, O) __atomic_load_n((P), (O))
+#define my_atomic_load64_explicit(P, O) __atomic_load_n((P), (O))
+#define my_atomic_loadptr_explicit(P, O) __atomic_load_n((P), (O))
+
+#define my_atomic_fas32_explicit(P, D, O) __atomic_exchange_n((P), (D), (O))
+#define my_atomic_fas64_explicit(P, D, O) __atomic_exchange_n((P), (D), (O))
+#define my_atomic_fasptr_explicit(P, D, O) __atomic_exchange_n((P), (D), (O))
+
+#define my_atomic_add32_explicit(P, A, O) __atomic_fetch_add((P), (A), (O))
+#define my_atomic_add64_explicit(P, A, O) __atomic_fetch_add((P), (A), (O))
+
+#define my_atomic_cas32_weak_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
+#define my_atomic_cas64_weak_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
+#define my_atomic_casptr_weak_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
+
+#define my_atomic_cas32_strong_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
+#define my_atomic_cas64_strong_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
+#define my_atomic_casptr_strong_explicit(P, E, D, S, F) \
+  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
+
 #else
 #define MY_ATOMIC_MODE "gcc-builtins-smp"
 #define make_atomic_load_body(S)                    \

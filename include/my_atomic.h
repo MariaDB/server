@@ -99,18 +99,13 @@
   MY_MEMORY_ORDER_SEQ_CST - The operation has the same semantics as
                             acquire-release operation, and additionally has
                             sequentially-consistent operation ordering.
-*/
 
-#define intptr         void *
-
-/*
-  We choose implementation as follows:
-  ------------------------------------
-  On Windows using Visual C++ the native implementation should be
-  preferrable. When using gcc we prefer the Solaris implementation
-  before the gcc because of stability preference, we choose gcc
+  We choose implementation as follows: on Windows using Visual C++ the native
+  implementation should be preferrable. When using gcc we prefer the Solaris
+  implementation before the gcc because of stability preference, we choose gcc
   builtins if available.
 */
+
 #if defined(_MSC_VER)
 #include "atomic/generic-msvc.h"
 #elif defined(HAVE_SOLARIS_ATOMIC)
@@ -124,6 +119,8 @@
 /* nolock.h was not able to generate even a CAS function, fall back */
 #error atomic ops for this platform are not implemented
 #endif
+
+#define intptr         void *
 
 /* define missing functions by using the already generated ones */
 #ifndef make_atomic_add_body
@@ -207,20 +204,6 @@ make_atomic_store(32)
 make_atomic_store(64)
 make_atomic_store(ptr)
 
-#if SIZEOF_LONG == 4
-#define my_atomic_addlong(A,B) my_atomic_add32((int32*) (A), (B))
-#define my_atomic_loadlong(A) my_atomic_load32((int32*) (A))
-#define my_atomic_storelong(A,B) my_atomic_store32((int32*) (A), (B))
-#define my_atomic_faslong(A,B) my_atomic_fas32((int32*) (A), (B))
-#define my_atomic_caslong(A,B,C) my_atomic_cas32((int32*) (A), (int32*) (B), (C))
-#else
-#define my_atomic_addlong(A,B) my_atomic_add64((int64*) (A), (B))
-#define my_atomic_loadlong(A) my_atomic_load64((int64*) (A))
-#define my_atomic_storelong(A,B) my_atomic_store64((int64*) (A), (B))
-#define my_atomic_faslong(A,B) my_atomic_fas64((int64*) (A), (B))
-#define my_atomic_caslong(A,B,C) my_atomic_cas64((int64*) (A), (int64*) (B), (C))
-#endif
-
 #ifdef _atomic_h_cleanup_
 #include _atomic_h_cleanup_
 #undef _atomic_h_cleanup_
@@ -247,43 +230,21 @@ make_atomic_store(ptr)
 #define LF_BACKOFF (1)
 #endif
 
-#ifdef __ATOMIC_SEQ_CST
-#define MY_MEMORY_ORDER_RELAXED __ATOMIC_RELAXED
-#define MY_MEMORY_ORDER_CONSUME __ATOMIC_CONSUME
-#define MY_MEMORY_ORDER_ACQUIRE __ATOMIC_ACQUIRE
-#define MY_MEMORY_ORDER_RELEASE __ATOMIC_RELEASE
-#define MY_MEMORY_ORDER_ACQ_REL __ATOMIC_ACQ_REL
-#define MY_MEMORY_ORDER_SEQ_CST __ATOMIC_SEQ_CST
-
-#define my_atomic_store32_explicit(P, D, O) __atomic_store_n((P), (D), (O))
-#define my_atomic_store64_explicit(P, D, O) __atomic_store_n((P), (D), (O))
-#define my_atomic_storeptr_explicit(P, D, O) __atomic_store_n((P), (D), (O))
-
-#define my_atomic_load32_explicit(P, O) __atomic_load_n((P), (O))
-#define my_atomic_load64_explicit(P, O) __atomic_load_n((P), (O))
-#define my_atomic_loadptr_explicit(P, O) __atomic_load_n((P), (O))
-
-#define my_atomic_fas32_explicit(P, D, O) __atomic_exchange_n((P), (D), (O))
-#define my_atomic_fas64_explicit(P, D, O) __atomic_exchange_n((P), (D), (O))
-#define my_atomic_fasptr_explicit(P, D, O) __atomic_exchange_n((P), (D), (O))
-
-#define my_atomic_add32_explicit(P, A, O) __atomic_fetch_add((P), (A), (O))
-#define my_atomic_add64_explicit(P, A, O) __atomic_fetch_add((P), (A), (O))
-
-#define my_atomic_cas32_weak_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
-#define my_atomic_cas64_weak_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
-#define my_atomic_casptr_weak_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), true, (S), (F))
-
-#define my_atomic_cas32_strong_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
-#define my_atomic_cas64_strong_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
-#define my_atomic_casptr_strong_explicit(P, E, D, S, F) \
-  __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
+#if SIZEOF_LONG == 4
+#define my_atomic_addlong(A,B) my_atomic_add32((int32*) (A), (B))
+#define my_atomic_loadlong(A) my_atomic_load32((int32*) (A))
+#define my_atomic_storelong(A,B) my_atomic_store32((int32*) (A), (B))
+#define my_atomic_faslong(A,B) my_atomic_fas32((int32*) (A), (B))
+#define my_atomic_caslong(A,B,C) my_atomic_cas32((int32*) (A), (int32*) (B), (C))
 #else
+#define my_atomic_addlong(A,B) my_atomic_add64((int64*) (A), (B))
+#define my_atomic_loadlong(A) my_atomic_load64((int64*) (A))
+#define my_atomic_storelong(A,B) my_atomic_store64((int64*) (A), (B))
+#define my_atomic_faslong(A,B) my_atomic_fas64((int64*) (A), (B))
+#define my_atomic_caslong(A,B,C) my_atomic_cas64((int64*) (A), (int64*) (B), (C))
+#endif
+
+#ifndef MY_MEMORY_ORDER_SEQ_CST
 #define MY_MEMORY_ORDER_RELAXED
 #define MY_MEMORY_ORDER_CONSUME
 #define MY_MEMORY_ORDER_ACQUIRE
