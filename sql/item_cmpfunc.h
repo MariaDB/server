@@ -1022,6 +1022,11 @@ public:
     Item_func_hybrid_field_type(thd, a, b, a),
     m_cache(NULL)
   { arg_count--; }
+  void cleanup()
+  {
+    Item_func_hybrid_field_type::cleanup();
+    arg_count= 2; // See the comment to the constructor
+  }
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   double real_op();
   longlong int_op();
