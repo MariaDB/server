@@ -295,10 +295,6 @@ int main(int argc __attribute__((unused)), char **argv)
 
   plan(40);
 
-  if (my_atomic_initialize())
-    return exit_status();
-
-
   tablockman_init(&tablockman, &loid2lo1, 50);
 
   for (i= 0; i < Nlos; i++)

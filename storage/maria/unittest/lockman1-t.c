@@ -263,10 +263,6 @@ int main()
 
   plan(35);
 
-  if (my_atomic_initialize())
-    return exit_status();
-
-
   lockman_init(&lockman, &loid2lo, 50);
   tablockman_init(&tablockman, &loid2lo1, 50);
 

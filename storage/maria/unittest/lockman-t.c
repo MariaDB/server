@@ -251,10 +251,6 @@ int main()
 
   plan(35);
 
-  if (my_atomic_initialize())
-    return exit_status();
-
-
   lockman_init(&lockman, &loid2lo, 50);
 
   for (i= 0; i < Nlos; i++)

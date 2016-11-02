@@ -141,9 +141,6 @@ int main(int argc __attribute__((unused)), char **argv)
 
   plan(7);
 
-  if (my_atomic_initialize())
-    return exit_status();
-
   pthread_mutex_init(&rt_mutex, 0);
   pthread_attr_init(&attr);
 #ifdef HAVE_PTHREAD_ATTR_GETSTACKSIZE

@@ -186,13 +186,10 @@ void do_tests()
     skip(1, "Big test skipped");
     return;
   }
-  plan(14);
+  plan(13);
   compile_time_assert(THREADS >= 4);
 
   DBUG_PRINT("wt", ("================= initialization ==================="));
-
-  bad= my_atomic_initialize();
-  ok(!bad, "my_atomic_initialize() returned %d", bad);
 
   pthread_cond_init(&thread_sync, 0);
   pthread_mutex_init(&lock, 0);

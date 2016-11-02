@@ -350,10 +350,6 @@ make_atomic_store(ptr)
 #define LF_BACKOFF (1)
 #endif
 
-#define MY_ATOMIC_OK       0
-#define MY_ATOMIC_NOT_1CPU 1
-extern int my_atomic_initialize();
-
 #ifdef __ATOMIC_SEQ_CST
 #define MY_MEMORY_ORDER_RELAXED __ATOMIC_RELAXED
 #define MY_MEMORY_ORDER_CONSUME __ATOMIC_CONSUME

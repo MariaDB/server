@@ -374,9 +374,7 @@ int fill_misc_data(THD *thd, TABLE_LIST *tables)
 {
   TABLE *table= tables->table;
 
-#ifdef MY_ATOMIC_OK
   INSERT1("Cpu_count", (my_getncpus(), UNSIGNED));
-#endif
   INSERT1("Mem_total", (my_getphysmem(), UNSIGNED));
   INSERT1("Now", (thd->query_start(), UNSIGNED));
 

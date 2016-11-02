@@ -118,11 +118,7 @@ pthread_handler_t test_atomic_cas(void *arg)
 
 void do_tests()
 {
-  plan(6);
-
-  bad= my_atomic_initialize();
-  ok(!bad, "my_atomic_initialize() returned %d", bad);
-
+  plan(5);
 
   b32= c32= 0;
   test_concurrently("my_atomic_add32", test_atomic_add, THREADS, CYCLES);
