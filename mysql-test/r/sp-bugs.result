@@ -281,3 +281,14 @@ end|
 start transaction;
 call sp();
 drop procedure sp;
+#
+# MDEV-11146 SP variables of the SET data type erroneously allow values with comma
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a SET('a','b','c','a,b');
+SET a='a,b';
+SELECT a, a+0;
+END;
+$$
+ERROR 22007: Illegal set 'a,b' value found during parsing

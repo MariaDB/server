@@ -9724,6 +9724,86 @@ void Field_bit_as_char::sql_type(String &res) const
   Handling of field and Create_field
 *****************************************************************************/
 
+bool Column_definition::create_interval_from_interval_list(MEM_ROOT *mem_root,
+                                               bool reuse_interval_list_values)
+{
+  DBUG_ENTER("Column_definition::create_interval_from_interval_list");
+  DBUG_ASSERT(!interval);
+  if (!(interval= (TYPELIB*) alloc_root(mem_root, sizeof(TYPELIB))))
+    DBUG_RETURN(true); // EOM
+
+  List_iterator<String> it(interval_list);
+  StringBuffer<64> conv;
+  char comma_buf[5]; /* 5 bytes for 'filename' charset */
+  DBUG_ASSERT(sizeof(comma_buf) >= charset->mbmaxlen);
+  int comma_length= charset->cset->wc_mb(charset, ',',
+                                         (uchar*) comma_buf,
+                                         (uchar*) comma_buf +
+                                         sizeof(comma_buf));
+  DBUG_ASSERT(comma_length >= 0 && comma_length <= (int) sizeof(comma_buf));
+
+  if (!multi_alloc_root(mem_root,
+                        &interval->type_names,
+                        sizeof(char*) * (interval_list.elements + 1),
+                        &interval->type_lengths,
+                        sizeof(uint) * (interval_list.elements + 1),
+                        NullS))
+    goto err; // EOM
+
+  interval->name= "";
+  interval->count= interval_list.elements;
+
+  for (uint i= 0; i < interval->count; i++)
+  {
+    uint32 dummy;
+    String *tmp= it++;
+    LEX_CSTRING value;
+    if (String::needs_conversion(tmp->length(), tmp->charset(),
+                                 charset, &dummy))
+    {
+      uint cnv_errs;
+      conv.copy(tmp->ptr(), tmp->length(), tmp->charset(), charset, &cnv_errs);
+      value.str= strmake_root(mem_root, conv.ptr(), conv.length());
+      value.length= conv.length();
+    }
+    else
+    {
+      value.str= reuse_interval_list_values ? tmp->ptr() :
+                                              strmake_root(mem_root,
+                                                           tmp->ptr(),
+                                                           tmp->length());
+      value.length= tmp->length();
+    }
+    if (!value.str)
+      goto err; // EOM
+
+    // Strip trailing spaces.
+    value.length= charset->cset->lengthsp(charset, value.str, value.length);
+    ((char*) value.str)[value.length]= '\0';
+
+    if (sql_type == MYSQL_TYPE_SET)
+    {
+      if (charset->coll->instr(charset, value.str, value.length,
+                               comma_buf, comma_length, NULL, 0))
+      {
+        ErrConvString err(tmp);
+        my_error(ER_ILLEGAL_VALUE_FOR_TYPE, MYF(0), "set", err.ptr());
+        goto err;
+      }
+    }
+    interval->type_names[i]= value.str;
+    interval->type_lengths[i]= value.length;
+  }
+  interval->type_names[interval->count]= 0;    // End marker
+  interval->type_lengths[interval->count]= 0;
+  interval_list.empty();  // Don't need interval_list anymore
+  DBUG_RETURN(false);
+err:
+  interval= NULL;  // Avoid having both non-empty interval_list and interval
+  DBUG_RETURN(true);
+}
+
+
 /**
   Convert create_field::length from number of characters to number of bytes.
 */
@@ -10540,6 +10620,9 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     interval= ((Field_enum*) old_field)->typelib;
   else
     interval=0;
+
+  interval_list.empty(); // prepare_interval_field() needs this
+
   char_length= length;
 
   /*

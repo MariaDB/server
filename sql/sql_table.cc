@@ -2826,40 +2826,6 @@ bool check_duplicates_in_interval(const char *set_or_name,
 
 
 /*
-  Check TYPELIB (set or enum) max and total lengths
-
-  SYNOPSIS
-    calculate_interval_lengths()
-    cs            charset+collation pair of the interval
-    typelib       list of values for the column
-    max_length    length of the longest item
-    tot_length    sum of the item lengths
-
-  DESCRIPTION
-    After this function call:
-    - ENUM uses max_length
-    - SET uses tot_length.
-
-  RETURN VALUES
-    void
-*/
-void calculate_interval_lengths(CHARSET_INFO *cs, TYPELIB *interval,
-                                uint32 *max_length, uint32 *tot_length)
-{
-  const char **pos;
-  uint *len;
-  *max_length= *tot_length= 0;
-  for (pos= interval->type_names, len= interval->type_lengths;
-       *pos ; pos++, len++)
-  {
-    size_t length= cs->cset->numchars(cs, *pos, *pos + *len);
-    *tot_length+= length;
-    set_if_bigger(*max_length, (uint32)length);
-  }
-}
-
-
-/*
   Prepare a create_table instance for packing
 
   SYNOPSIS
@@ -3261,79 +3227,16 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (sql_field->sql_type == MYSQL_TYPE_SET ||
         sql_field->sql_type == MYSQL_TYPE_ENUM)
     {
-      uint32 dummy;
-      CHARSET_INFO *cs= sql_field->charset;
-      TYPELIB *interval= sql_field->interval;
-
       /*
-        Create typelib from interval_list, and if necessary
-        convert strings from client character set to the
-        column character set.
+        Create the typelib in runtime memory - we will free the
+        occupied memory at the same time when we free this
+        sql_field -- at the end of execution.
+        Pass "true" as the last argument to reuse "interval_list"
+        values in "interval" in cases when no character conversion is needed,
+        to avoid extra copying.
       */
-      if (!interval)
-      {
-        /*
-          Create the typelib in runtime memory - we will free the
-          occupied memory at the same time when we free this
-          sql_field -- at the end of execution.
-        */
-        interval= sql_field->interval= typelib(thd->mem_root,
-                                               sql_field->interval_list);
-        List_iterator<String> int_it(sql_field->interval_list);
-        String conv, *tmp;
-        char comma_buf[5]; /* 5 bytes for 'filename' charset */
-        DBUG_ASSERT(sizeof(comma_buf) >= cs->mbmaxlen);
-        int comma_length= cs->cset->wc_mb(cs, ',', (uchar*) comma_buf,
-                                          (uchar*) comma_buf +
-                                          sizeof(comma_buf));
-        DBUG_ASSERT(comma_length > 0);
-        for (uint i= 0; (tmp= int_it++); i++)
-        {
-          size_t lengthsp;
-          if (String::needs_conversion(tmp->length(), tmp->charset(),
-                                       cs, &dummy))
-          {
-            uint cnv_errs;
-            conv.copy(tmp->ptr(), tmp->length(), tmp->charset(), cs, &cnv_errs);
-            interval->type_names[i]= strmake_root(thd->mem_root, conv.ptr(),
-                                                  conv.length());
-            interval->type_lengths[i]= conv.length();
-          }
-
-          // Strip trailing spaces.
-          lengthsp= cs->cset->lengthsp(cs, interval->type_names[i],
-                                       interval->type_lengths[i]);
-          interval->type_lengths[i]= lengthsp;
-          ((uchar *)interval->type_names[i])[lengthsp]= '\0';
-          if (sql_field->sql_type == MYSQL_TYPE_SET)
-          {
-            if (cs->coll->instr(cs, interval->type_names[i], 
-                                interval->type_lengths[i], 
-                                comma_buf, comma_length, NULL, 0))
-            {
-              ErrConvString err(tmp->ptr(), tmp->length(), cs);
-              my_error(ER_ILLEGAL_VALUE_FOR_TYPE, MYF(0), "set", err.ptr());
-              DBUG_RETURN(TRUE);
-            }
-          }
-        }
-        sql_field->interval_list.empty(); // Don't need interval_list anymore
-      }
-
-      if (sql_field->sql_type == MYSQL_TYPE_SET)
-      {
-        uint32 field_length;
-        calculate_interval_lengths(cs, interval, &dummy, &field_length);
-        sql_field->length= field_length + (interval->count - 1);
-      }
-      else  /* MYSQL_TYPE_ENUM */
-      {
-        uint32 field_length;
-        DBUG_ASSERT(sql_field->sql_type == MYSQL_TYPE_ENUM);
-        calculate_interval_lengths(cs, interval, &field_length, &dummy);
-        sql_field->length= field_length;
-      }
-      set_if_smaller(sql_field->length, MAX_FIELD_WIDTH-1);
+      if (sql_field->prepare_interval_field(thd->mem_root, true))
+        DBUG_RETURN(true); // E.g. wrong values with commas: SET('a,b')
     }
 
     if (sql_field->sql_type == MYSQL_TYPE_BIT)
@@ -4396,28 +4299,18 @@ static bool prepare_blob_field(THD *thd, Column_definition *sql_field)
 
 */
 
-void sp_prepare_create_field(THD *thd, Column_definition *sql_field)
+bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root,
+                             Column_definition *sql_field)
 {
   if (sql_field->sql_type == MYSQL_TYPE_SET ||
       sql_field->sql_type == MYSQL_TYPE_ENUM)
   {
-    uint32 field_length, dummy;
-    if (sql_field->sql_type == MYSQL_TYPE_SET)
-    {
-      calculate_interval_lengths(sql_field->charset,
-                                 sql_field->interval, &dummy, 
-                                 &field_length);
-      sql_field->length= field_length + 
-                         (sql_field->interval->count - 1);
-    }
-    else /* MYSQL_TYPE_ENUM */
-    {
-      calculate_interval_lengths(sql_field->charset,
-                                 sql_field->interval,
-                                 &field_length, &dummy);
-      sql_field->length= field_length;
-    }
-    set_if_smaller(sql_field->length, MAX_FIELD_WIDTH-1);
+    /*
+      Pass "false" as the last argument to allocate TYPELIB values on mem_root,
+      even if no character set conversion is needed.
+    */
+    if (sql_field->prepare_interval_field(mem_root, false))
+      return true; // E.g. wrong values with commas: SET('a,b')
   }
 
   if (sql_field->sql_type == MYSQL_TYPE_BIT)
@@ -4427,8 +4320,12 @@ void sp_prepare_create_field(THD *thd, Column_definition *sql_field)
   }
   sql_field->create_length_to_internal_length();
   DBUG_ASSERT(sql_field->default_value == 0);
-  /* Can't go wrong as sql_field->def is not defined */
-  (void) prepare_blob_field(thd, sql_field);
+  /*
+    prepare_blob_field() can return an error on attempt to create a too long
+    VARCHAR/VARBINARY field when the current sql_mode does not allow automatic
+    conversion to TEXT/BLOB.
+  */
+  return prepare_blob_field(thd, sql_field);
 }
 
 

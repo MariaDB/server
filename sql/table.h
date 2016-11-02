@@ -2704,7 +2704,6 @@ inline bool is_infoschema_db(const char *name)
                         INFORMATION_SCHEMA_NAME.str, name);
 }
 
-TYPELIB *typelib(MEM_ROOT *mem_root, List<String> &strings);
 
 inline void mark_as_null_row(TABLE *table)
 {
