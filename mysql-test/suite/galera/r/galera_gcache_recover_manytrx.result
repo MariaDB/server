@@ -1,0 +1,107 @@
+SET SESSION wsrep_sync_wait = 0;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 LONGBLOB) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE PROCEDURE insert_simple ()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET SESSION wsrep_sync_wait = 0;
+WHILE 1 DO
+INSERT INTO t1 (f1, f2) VALUES (DEFAULT,'abcdef');
+END WHILE;
+END|
+CREATE PROCEDURE insert_multi ()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET SESSION wsrep_sync_wait = 0;
+WHILE 1 DO
+INSERT INTO t1 (f1) VALUES (DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT);
+END WHILE;
+END|
+CREATE PROCEDURE insert_transaction ()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET SESSION wsrep_sync_wait = 0;
+SET AUTOCOMMIT = OFF;
+WHILE 1 DO
+START TRANSACTION;
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+COMMIT;
+END WHILE;
+END|
+CREATE PROCEDURE update_simple ()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET SESSION wsrep_sync_wait = 0;
+WHILE 1 DO
+UPDATE t1 SET f2 = CONCAT(f2,f2);
+END WHILE;
+END|
+CREATE PROCEDURE insert_1k ()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET SESSION wsrep_sync_wait = 0;
+WHILE 1 DO
+INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024));
+END WHILE;
+END|
+CREATE PROCEDURE insert_1m ()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET SESSION wsrep_sync_wait = 0;
+WHILE 1 DO
+INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024));
+END WHILE;
+END|
+CREATE PROCEDURE insert_10m ()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET SESSION wsrep_sync_wait = 0;
+WHILE 1 DO
+INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
+END WHILE;
+END|
+CALL insert_simple();;
+CALL insert_multi();;
+CALL insert_transaction ();;
+CALL update_simple ();;
+CALL insert_1k ();;
+CALL insert_1m ();;
+CALL insert_10m ();;
+SET SESSION wsrep_sync_wait = 0;
+Killing server ...
+Killing server ...
+ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to MySQL server during query
+Performing --wsrep-recover ...
+Using --wsrep-start-position when starting mysqld ...
+Performing --wsrep-recover ...
+Using --wsrep-start-position when starting mysqld ...
+include/diff_servers.inc [servers=1 2]
+DROP TABLE t1;
+DROP TABLE ten;
+DROP PROCEDURE insert_simple;
+DROP PROCEDURE insert_multi;
+DROP PROCEDURE insert_transaction;
+DROP PROCEDURE update_simple;
+DROP PROCEDURE insert_1k;
+DROP PROCEDURE insert_1m;
+CALL mtr.add_suppression("conflict state 7 after post commit");
+CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
+include/assert_grep.inc [async IST sender starting to serve]
+CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
+include/assert_grep.inc [Recovering GCache ring buffer: found gapless sequence]
