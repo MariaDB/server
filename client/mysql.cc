@@ -5129,7 +5129,7 @@ static const char *construct_prompt()
       {
         const char *prompt;
         prompt= connected ? mysql_get_host_info(&mysql) : "not_connected";
-        if (strstr(prompt, "Localhost"))
+        if (strstr(prompt, "Localhost") || strstr(prompt, "localhost "))
         {
           if (*c == 'h')
             processed_prompt.append("localhost");
