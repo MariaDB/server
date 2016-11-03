@@ -5933,16 +5933,18 @@ static int binlog_log_row(TABLE* table,
   THD *const thd= table->in_use;
 
 #ifdef WITH_WSREP
-  if (WSREP_EMULATE_BINLOG(thd))
+  /* only InnoDB tables will be replicated through binlog emulation */
+  if (WSREP_EMULATE_BINLOG(thd) &&
+      table->file->ht->db_type != DB_TYPE_INNODB &&
+      !(table->file->ht->db_type == DB_TYPE_PARTITION_DB &&
+        (((ha_partition*)(table->file))->wsrep_db_type() == DB_TYPE_INNODB)))
   {
-    /* only InnoDB tables will be replicated through binlog emulation */
-    if (table->file->ht->db_type != DB_TYPE_INNODB &&
-        !(table->file->ht->db_type == DB_TYPE_PARTITION_DB &&
-          (((ha_partition*)(table->file))->wsrep_db_type() == DB_TYPE_INNODB)))
-    {
       return 0;
-    }
+  }
 
+  /* enforce wsrep_max_ws_rows */
+  if (table->s->tmp_table == NO_TMP_TABLE)
+  {
     thd->wsrep_affected_rows++;
     if (wsrep_max_ws_rows &&
         thd->wsrep_exec_mode != REPL_RECV &&
