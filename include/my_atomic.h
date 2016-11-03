@@ -115,6 +115,7 @@
 #endif
 
 
+#ifndef HAVE_GCC_C11_ATOMICS
 #ifndef make_atomic_cas_body
 /* nolock.h was not able to generate even a CAS function, fall back */
 #error atomic ops for this platform are not implemented
@@ -220,6 +221,7 @@ make_atomic_store(ptr)
 #undef make_atomic_store_body
 #undef make_atomic_fas_body
 #undef intptr
+#endif
 
 /*
   the macro below defines (as an expression) the code that

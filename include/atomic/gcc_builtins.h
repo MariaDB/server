@@ -16,22 +16,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#define make_atomic_add_body(S)                     \
-  v= __sync_fetch_and_add(a, v);
-#define make_atomic_fas_body(S)                     \
-  v= __sync_lock_test_and_set(a, v);
-#define make_atomic_cas_body(S)                     \
-  int ## S sav;                                     \
-  int ## S cmp_val= *cmp;                           \
-  sav= __sync_val_compare_and_swap(a, cmp_val, set);\
-  if (!(ret= (sav == cmp_val))) *cmp= sav
-
 #if defined(HAVE_GCC_C11_ATOMICS)
 #define MY_ATOMIC_MODE "gcc-atomics-smp"
-#define make_atomic_load_body(S)                    \
-  ret= __atomic_load_n(a, __ATOMIC_SEQ_CST)
-#define make_atomic_store_body(S)                   \
-  __atomic_store_n(a, v, __ATOMIC_SEQ_CST)
 
 #define MY_MEMORY_ORDER_RELAXED __ATOMIC_RELAXED
 #define MY_MEMORY_ORDER_CONSUME __ATOMIC_CONSUME
@@ -69,12 +55,42 @@
 #define my_atomic_casptr_strong_explicit(P, E, D, S, F) \
   __atomic_compare_exchange_n((P), (E), (D), false, (S), (F))
 
+#define my_atomic_store32(P, D) __atomic_store_n((P), (D), __ATOMIC_SEQ_CST)
+#define my_atomic_store64(P, D) __atomic_store_n((P), (D), __ATOMIC_SEQ_CST)
+#define my_atomic_storeptr(P, D) __atomic_store_n((P), (D), __ATOMIC_SEQ_CST)
+
+#define my_atomic_load32(P) __atomic_load_n((P), __ATOMIC_SEQ_CST)
+#define my_atomic_load64(P) __atomic_load_n((P), __ATOMIC_SEQ_CST)
+#define my_atomic_loadptr(P) __atomic_load_n((P), __ATOMIC_SEQ_CST)
+
+#define my_atomic_fas32(P, D) __atomic_exchange_n((P), (D), __ATOMIC_SEQ_CST)
+#define my_atomic_fas64(P, D) __atomic_exchange_n((P), (D), __ATOMIC_SEQ_CST)
+#define my_atomic_fasptr(P, D) __atomic_exchange_n((P), (D), __ATOMIC_SEQ_CST)
+
+#define my_atomic_add32(P, A) __atomic_fetch_add((P), (A), __ATOMIC_SEQ_CST)
+#define my_atomic_add64(P, A) __atomic_fetch_add((P), (A), __ATOMIC_SEQ_CST)
+
+#define my_atomic_cas32(P, E, D) \
+  __atomic_compare_exchange_n((P), (E), (D), 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+#define my_atomic_cas64(P, E, D) \
+  __atomic_compare_exchange_n((P), (E), (D), 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+#define my_atomic_casptr(P, E, D) \
+  __atomic_compare_exchange_n((P), (E), (D), 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
 #else
 #define MY_ATOMIC_MODE "gcc-builtins-smp"
 #define make_atomic_load_body(S)                    \
   ret= __sync_fetch_and_or(a, 0);
 #define make_atomic_store_body(S)                   \
   (void) __sync_lock_test_and_set(a, v);
+#define make_atomic_add_body(S)                     \
+  v= __sync_fetch_and_add(a, v);
+#define make_atomic_fas_body(S)                     \
+  v= __sync_lock_test_and_set(a, v);
+#define make_atomic_cas_body(S)                     \
+  int ## S sav;                                     \
+  int ## S cmp_val= *cmp;                           \
+  sav= __sync_val_compare_and_swap(a, cmp_val, set);\
+  if (!(ret= (sav == cmp_val))) *cmp= sav
 #endif
 
 #endif /* ATOMIC_GCC_BUILTINS_INCLUDED */
