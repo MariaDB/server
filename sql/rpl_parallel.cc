@@ -645,7 +645,7 @@ is_group_ending(Log_event *ev, Log_event_type event_type)
 {
   if (event_type == XID_EVENT)
     return 1;
-  if (event_type == QUERY_EVENT)
+  if (event_type == QUERY_EVENT)  // COMMIT/ROLLBACK are never compressed
   {
     Query_log_event *qev = (Query_log_event *)ev;
     if (qev->is_commit())
@@ -2511,7 +2511,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       {
         DBUG_ASSERT(rli->gtid_skip_flag == GTID_SKIP_TRANSACTION);
         if (typ == XID_EVENT ||
-            (typ == QUERY_EVENT &&
+            (typ == QUERY_EVENT &&  // COMMIT/ROLLBACK are never compressed
              (((Query_log_event *)ev)->is_commit() ||
               ((Query_log_event *)ev)->is_rollback())))
           rli->gtid_skip_flag= GTID_SKIP_NOT;
