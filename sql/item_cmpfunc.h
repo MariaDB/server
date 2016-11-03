@@ -1868,10 +1868,7 @@ public:
     escape_used_in_parsing(escape_used), use_sampling(0) {}
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
-  void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print_op(str, query_type);
-  }
+  void print(String *str, enum_query_type query_type);
   CHARSET_INFO *compare_collation() const
   { return cmp_collation.collation; }
   cond_result eq_cmp_result() const

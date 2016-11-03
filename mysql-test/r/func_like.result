@@ -254,3 +254,11 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+create view v1 as select 'foo!' like 'foo!!', 'foo!' like 'foo!!' escape '!';
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select ('foo!' like 'foo!!') AS `'foo!' like 'foo!!'`,('foo!' like 'foo!!' escape '!') AS `'foo!' like 'foo!!' escape '!'`	koi8r	koi8r_general_ci
+select * from v1;
+'foo!' like 'foo!!'	'foo!' like 'foo!!' escape '!'
+0	1
+drop view v1;

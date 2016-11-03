@@ -185,3 +185,11 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+#
+# Item_func_line::print()
+#
+create view v1 as select 'foo!' like 'foo!!', 'foo!' like 'foo!!' escape '!';
+show create view v1;
+select * from v1;
+drop view v1;

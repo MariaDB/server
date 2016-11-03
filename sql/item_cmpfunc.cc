@@ -5076,6 +5076,22 @@ bool Item_bool_func2::count_sargable_conds(void *arg)
   return 0;
 }
 
+void Item_func_like::print(String *str, enum_query_type query_type)
+{
+  str->append('(');
+  args[0]->print(str, query_type);
+  str->append(' ');
+  str->append(func_name());
+  str->append(' ');
+  args[1]->print(str, query_type);
+  if (escape_used_in_parsing)
+  {
+    str->append(STRING_WITH_LEN(" escape "));
+    escape_item->print(str, query_type);
+  }
+  str->append(')');
+}
+
 
 longlong Item_func_like::val_int()
 {
