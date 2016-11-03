@@ -3089,7 +3089,7 @@ void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
   thd->profiling.set_query_source(stmt->query(), stmt->query_length());
 #endif
   DBUG_PRINT("exec_query", ("%s", stmt->query()));
-  DBUG_PRINT("info",("stmt: 0x%p iterations: %lu", stmt, iterations));
+  DBUG_PRINT("info",("stmt: %p iterations: %lu", stmt, iterations));
 
   open_cursor= MY_TEST(flags & (ulong) CURSOR_TYPE_READ_ONLY);
 
