@@ -1706,7 +1706,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
         if (quoted)
           append_unescaped(def_value, def_val.ptr(), def_val.length());
         else
-          def_value->move(def_val);
+          def_value->append(def_val);
       }
       else if (quoted)
         def_value->set(STRING_WITH_LEN("''"), system_charset_info);
