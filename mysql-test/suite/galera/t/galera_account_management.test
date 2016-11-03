@@ -18,14 +18,12 @@ SELECT COUNT(*) = 2 FROM mysql.user WHERE user IN ('user1', 'user2');
 # ALTER USER
 #
 
-# LP bug 1376269
-#
-#--connection node_1
-#ALTER USER user1 PASSWORD EXPIRE;
-#SELECT password_expired = 'Y' FROM mysql.user WHERE user = 'user1';
-#
-#--connection node_2
-#SELECT password_expired = 'Y' FROM mysql.user WHERE user = 'user1';
+--connection node_1
+ALTER USER user1 PASSWORD EXPIRE;
+SELECT password_expired = 'Y' FROM mysql.user WHERE user = 'user1';
+
+--connection node_2
+SELECT password_expired = 'Y' FROM mysql.user WHERE user = 'user1';
 
 #
 # RENAME USER
