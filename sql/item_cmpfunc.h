@@ -1009,6 +1009,7 @@ class Item_func_nullif :public Item_func_hybrid_field_type
   */
   Item_cache *m_cache;
   int compare();
+  Item *m_arg0;
 public:
   /*
     Here we pass three arguments to the parent constructor, as NULLIF
@@ -1020,7 +1021,8 @@ public:
   */
   Item_func_nullif(THD *thd, Item *a, Item *b):
     Item_func_hybrid_field_type(thd, a, b, a),
-    m_cache(NULL)
+    m_cache(NULL),
+    m_arg0(NULL)
   { arg_count--; }
   void cleanup()
   {
