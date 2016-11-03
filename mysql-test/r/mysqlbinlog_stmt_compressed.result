@@ -177,6 +177,31 @@ DELIMITER ;
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
-DROP TABLE t1,t2;
+
+Test mysqlbinlog | mysql type point-in-time recovery with compressed events.
+
+FLUSH BINARY LOGS;
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT, c VARCHAR(100));
+INSERT INTO t3 VALUES (0, 10, "hello");
+BEGIN;
+INSERT INTO t3 VALUES (1, 10, "cat"), (2, 10, "mouse"), (3, 10, "dog");
+INSERT INTO t3 VALUES (4, 10, "goodbye");
+COMMIT;
+DELETE FROM t3 WHERE a=2;
+SELECT * FROM t3 ORDER BY a;
+a	b	c
+0	10	hello
+1	10	cat
+3	10	dog
+4	10	goodbye
+FLUSH LOGS;
+DROP TABLE t3;
+SELECT * FROM t3 ORDER BY a;
+a	b	c
+0	10	hello
+1	10	cat
+3	10	dog
+4	10	goodbye
+DROP TABLE t1,t2,t3;
 SET GLOBAL log_bin_compress=off;
 SET GLOBAL log_bin_compress_min_len=256;
