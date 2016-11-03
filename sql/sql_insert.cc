@@ -4022,7 +4022,6 @@ static TABLE *create_table_from_items(THD *thd,
   Item *item;
   DBUG_ENTER("create_table_from_items");
 
-  tmp_table.alias= 0;
   tmp_table.s= &share;
   init_tmp_table_share(thd, &share, "", 0, "", "");
 
