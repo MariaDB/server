@@ -3621,6 +3621,21 @@ nl:
 }
 
 
+void Item_func_weight_string::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  args[0]->print(str, query_type);
+  str->append(',');
+  str->append_ulonglong(result_length);
+  str->append(',');
+  str->append_ulonglong(nweights);
+  str->append(',');
+  str->append_ulonglong(flags);
+  str->append(')');
+}
+
+
 String *Item_func_hex::val_str_ascii(String *str)
 {
   String *res;
