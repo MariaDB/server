@@ -57,7 +57,7 @@ create or replace table t1 (a datetime, b datetime as (utc_timestamp()) PERSISTE
 ERROR HY000: Function or expression 'utc_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # WEEK() - one argument version
 create or replace table t1 (a datetime, b datetime as (week(a)) PERSISTENT);
-ERROR HY000: Function or expression '@@default_week_format' cannot be used in the GENERATED ALWAYS AS clause of `b`
+ERROR HY000: Function or expression 'week()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 # MATCH()
 create or replace table t1 (a varchar(32), b bool as (match a against ('sample text')) PERSISTENT);
 ERROR HY000: Function or expression 'match ... against()' cannot be used in the GENERATED ALWAYS AS clause of `b`

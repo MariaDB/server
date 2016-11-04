@@ -334,6 +334,7 @@ public:
 class Item_func_week :public Item_int_func
 {
 public:
+  Item_func_week(THD *thd, Item *a): Item_int_func(thd, a) {}
   Item_func_week(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "week"; }
@@ -342,6 +343,16 @@ public:
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
     maybe_null=1;
+  }
+  bool check_vcol_func_processor(void *arg)
+  {
+    if (arg_count == 2)
+      return FALSE;
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
+  bool check_valid_arguments_processor(void *int_arg)
+  {
+    return arg_count == 2;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_week>(thd, mem_root, this); }
@@ -981,7 +992,12 @@ class Item_extract :public Item_int_func
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(void *arg) { return FALSE;}
+  bool check_vcol_func_processor(void *arg)
+  {
+    if (int_type != INTERVAL_WEEK)
+      return FALSE;
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
   bool check_valid_arguments_processor(void *int_arg)
   {
     switch (int_type) {

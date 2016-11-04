@@ -1044,13 +1044,15 @@ uint week_mode(uint mode)
 longlong Item_func_week::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  uint year;
+  uint year, week_format;
   MYSQL_TIME ltime;
   if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
     return 0;
-  return (longlong) calc_week(&ltime,
-			      week_mode((uint) args[1]->val_int()),
-			      &year);
+  if (arg_count > 1)
+    week_format= args[1]->val_int();
+  else
+    week_format= current_thd->variables.default_week_format;
+  return (longlong) calc_week(&ltime, week_mode(week_format), &year);
 }
 
 
