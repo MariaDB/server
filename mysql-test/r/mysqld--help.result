@@ -1487,7 +1487,7 @@ table-open-cache-instances 8
 tc-heuristic-recover OFF
 thread-cache-size 151
 thread-pool-idle-timeout 60
-thread-pool-max-threads 1000
+thread-pool-max-threads 65536
 thread-pool-oversubscribe 3
 thread-pool-prio-kickup-timer 1000
 thread-pool-priority auto
