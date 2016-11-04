@@ -509,7 +509,7 @@ btr_pcur_move_to_prev_page(
 
 	page_cur_set_after_last(prev_block, btr_pcur_get_page_cur(cursor));
 
-	page_check_dir(prev_page);
+	ut_d(page_check_dir(prev_page));
 }
 
 /*********************************************************//**
