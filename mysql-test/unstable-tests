@@ -300,6 +300,10 @@ spider/bg.vp_fixes              : MDEV-9329 - Fails on Ubuntu/s390x
 
 #----------------------------------------------------------------
 
+sphinx.* : MDEV-10985, MDEV-10986 - Tests have not been maintained
+
+#----------------------------------------------------------------
+
 storage_engine* : Tests are not always timely maintained
 
 #----------------------------------------------------------------
