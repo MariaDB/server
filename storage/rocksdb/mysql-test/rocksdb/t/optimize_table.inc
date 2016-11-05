@@ -64,7 +64,7 @@ select count(*) from t5;
 select count(*) from t6;
 
 # run a check script to verify sst files reduced enough during each optimize table
---exec perl suite/rocksdb/optimize_table_check_sst.pl $MYSQL_TMP_DIR/sst_size.dat
+--exec perl ../storage/rocksdb/mysql-test/rocksdb/optimize_table_check_sst.pl $MYSQL_TMP_DIR/sst_size.dat
 
 #cleanup
 optimize table t2;
