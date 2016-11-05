@@ -105,6 +105,6 @@ let $wait_condition = select count(*) = 0
 
 # Check that space is reclaimed
 --exec du -c $MYSQLTEST_VARDIR/mysqld.1/data/.rocksdb/*.sst |grep total |sed 's/[\t]total/ after/' >> $output
---exec perl suite/rocksdb/t/drop_table2_check.pl $output
+--exec perl ../storage/rocksdb/mysql-test/rocksdb/t/drop_table2_check.pl $output
 
 # Cleanup

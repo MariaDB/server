@@ -1,6 +1,6 @@
 # loading some data (larger than write buf size) to cause compaction
---exec perl suite/rocksdb/t/gen_insert.pl t1 >  $MYSQL_TMP_DIR/insert_t1.sql
---exec perl suite/rocksdb/t/gen_insert.pl t2 >  $MYSQL_TMP_DIR/insert_t2.sql
+--exec perl ../storage/rocksdb/mysql-test/rocksdb/t/gen_insert.pl t1 >  $MYSQL_TMP_DIR/insert_t1.sql
+--exec perl ../storage/rocksdb/mysql-test/rocksdb/t/gen_insert.pl t2 >  $MYSQL_TMP_DIR/insert_t2.sql
 --disable_query_log
 --source $MYSQL_TMP_DIR/insert_t1.sql
 --source $MYSQL_TMP_DIR/insert_t2.sql

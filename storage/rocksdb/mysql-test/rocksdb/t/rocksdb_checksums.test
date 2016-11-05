@@ -57,7 +57,7 @@ while ($i<10000)
 --enable_query_log
 check table t4;
 --exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t4" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2 > $MYSQL_TMP_DIR/rocksdb_checksums.log
---exec perl suite/rocksdb/t/rocksdb_checksums.pl $MYSQL_TMP_DIR/rocksdb_checksums.log 10000 5
+--exec perl ../storage/rocksdb/mysql-test/rocksdb/t/rocksdb_checksums.pl $MYSQL_TMP_DIR/rocksdb_checksums.log 10000 5
 --remove_file $MYSQL_TMP_DIR/rocksdb_checksums.log
 set session rocksdb_checksums_pct=100;
 
@@ -70,7 +70,7 @@ insert into mtr.test_suppressions values
  ('Data with incorrect checksum');
 
 --echo # 1. Start with mismatch in key checksum of the PK.
-set session debug= "+d,myrocks_simulate_bad_pk_checksum1";
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_checksum1";
 set session rocksdb_verify_checksums=off;
 select * from t3;
 set session rocksdb_verify_checksums=on;
@@ -78,10 +78,10 @@ set session rocksdb_verify_checksums=on;
 select * from t3;
 --error ER_INTERNAL_ERROR
 select * from t4;
-set session debug= "-d,myrocks_simulate_bad_pk_checksum1";
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_checksum1";
 
 --echo # 2. Continue with mismatch in pk value checksum.
-set session debug= "+d,myrocks_simulate_bad_pk_checksum2";
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_checksum2";
 set session rocksdb_verify_checksums=off;
 select * from t3;
 set session rocksdb_verify_checksums=on;
@@ -89,7 +89,7 @@ set session rocksdb_verify_checksums=on;
 select * from t3;
 --error ER_INTERNAL_ERROR
 select * from t4;
-set session debug= "-d,myrocks_simulate_bad_pk_checksum2";
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_checksum2";
 
 --echo # 3. Check if we catch checksum mismatches for secondary indexes
 --replace_column 9 #
@@ -97,12 +97,12 @@ explain
 select * from t3 force index(a) where a<4;
 select * from t3 force index(a) where a<4;
 
-set session debug= "+d,myrocks_simulate_bad_key_checksum1";
+set session debug_dbug= "+d,myrocks_simulate_bad_key_checksum1";
 --error ER_INTERNAL_ERROR
 select * from t3 force index(a) where a<4;
 --error ER_INTERNAL_ERROR
 select * from t4 force index(a) where a<1000000;
-set session debug= "-d,myrocks_simulate_bad_key_checksum1";
+set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 
 --echo # 4. The same for index-only reads?
 --replace_column 9 #
@@ -110,12 +110,12 @@ explain
 select a from t3 force index(a) where a<4;
 select a from t3 force index(a) where a<4;
 
-set session debug= "+d,myrocks_simulate_bad_key_checksum1";
+set session debug_dbug= "+d,myrocks_simulate_bad_key_checksum1";
 --error ER_INTERNAL_ERROR
 select a from t3 force index(a) where a<4;
 --error ER_INTERNAL_ERROR
 select a from t4 force index(a) where a<1000000;
-set session debug= "-d,myrocks_simulate_bad_key_checksum1";
+set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 
 set @@global.rocksdb_store_checksums=@save_rocksdb_store_checksums;
 set @@global.rocksdb_verify_checksums=@save_rocksdb_verify_checksums;

@@ -64,7 +64,7 @@ insert into mtr.test_suppressions values
 ('Checksum mismatch in value of key-value pair for index'),
 ('Data with incorrect checksum');
 # 1. Start with mismatch in key checksum of the PK.
-set session debug= "+d,myrocks_simulate_bad_pk_checksum1";
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_checksum1";
 set session rocksdb_verify_checksums=off;
 select * from t3;
 pk	a	b
@@ -76,9 +76,9 @@ select * from t3;
 ERROR HY000: Internal error: Record checksum mismatch
 select * from t4;
 ERROR HY000: Internal error: Record checksum mismatch
-set session debug= "-d,myrocks_simulate_bad_pk_checksum1";
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_checksum1";
 # 2. Continue with mismatch in pk value checksum.
-set session debug= "+d,myrocks_simulate_bad_pk_checksum2";
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_checksum2";
 set session rocksdb_verify_checksums=off;
 select * from t3;
 pk	a	b
@@ -90,7 +90,7 @@ select * from t3;
 ERROR HY000: Internal error: Record checksum mismatch
 select * from t4;
 ERROR HY000: Internal error: Record checksum mismatch
-set session debug= "-d,myrocks_simulate_bad_pk_checksum2";
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_checksum2";
 # 3. Check if we catch checksum mismatches for secondary indexes
 explain
 select * from t3 force index(a) where a<4;
@@ -101,12 +101,12 @@ pk	a	b
 1	1	1
 2	2	3
 3	3	3
-set session debug= "+d,myrocks_simulate_bad_key_checksum1";
+set session debug_dbug= "+d,myrocks_simulate_bad_key_checksum1";
 select * from t3 force index(a) where a<4;
 ERROR HY000: Internal error: Record checksum mismatch
 select * from t4 force index(a) where a<1000000;
 ERROR HY000: Internal error: Record checksum mismatch
-set session debug= "-d,myrocks_simulate_bad_key_checksum1";
+set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 # 4. The same for index-only reads?
 explain 
 select a from t3 force index(a) where a<4;
@@ -117,12 +117,12 @@ a
 1
 2
 3
-set session debug= "+d,myrocks_simulate_bad_key_checksum1";
+set session debug_dbug= "+d,myrocks_simulate_bad_key_checksum1";
 select a from t3 force index(a) where a<4;
 ERROR HY000: Internal error: Record checksum mismatch
 select a from t4 force index(a) where a<1000000;
 ERROR HY000: Internal error: Record checksum mismatch
-set session debug= "-d,myrocks_simulate_bad_key_checksum1";
+set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 set @@global.rocksdb_store_checksums=@save_rocksdb_store_checksums;
 set @@global.rocksdb_verify_checksums=@save_rocksdb_verify_checksums;
 set @@global.rocksdb_checksums_pct=@save_rocksdb_checksums_pct;
