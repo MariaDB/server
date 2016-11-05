@@ -1,5 +1,5 @@
 drop table if exists t1,t2;
-set session debug= "+d,myrocks_enable_unknown_collation_index_only_scans";
+set session debug_dbug= "+d,myrocks_enable_unknown_collation_index_only_scans";
 #
 # Issue 257: Sort order for varchars is different between
 #            MyISAM/InnoDB vs MyRocks
@@ -112,11 +112,11 @@ pk	length(a)	rtrim(a)
 1	301	a
 2	301	b
 drop table t1;
-set session debug= "-d,myrocks_enable_unknown_collation_index_only_scans";
+set session debug_dbug= "-d,myrocks_enable_unknown_collation_index_only_scans";
 #
 # Check backwards compatibility: 
 #
-set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
 # Create the tables in the old format
 create table t1 (
 pk varchar(64) collate latin1_bin,
@@ -154,7 +154,7 @@ t1	PRIMARY	10
 t2	PRIMARY	10
 t2	col1	10
 flush tables;
-set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
 select pk, hex(pk), col1 from t1;
 pk	hex(pk)	col1
 a	61	a
@@ -177,13 +177,13 @@ drop table t1,t2;
 #
 # General upgrade tests to see that they work.
 #
-set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
 create table t2 (
 id int primary key,
 col1 varchar(64) collate latin1_swedish_ci,
 unique key (col1)
 ) engine=rocksdb;
-set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
 insert into t2 values (1, 'a');
 insert into t2 values (2, 'b');
 insert into t2 values (3, 'c');
@@ -204,13 +204,13 @@ c
 insert into t2 values (4, 'c ');
 ERROR 23000: Duplicate entry 'c ' for key 'col1'
 drop table t2;
-set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
 create table t2 (
 id int primary key,
 col1 varchar(64) collate latin1_bin,
 unique key (col1)
 ) engine=rocksdb;
-set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
 insert into t2 values (1, 'a');
 insert into t2 values (2, 'b');
 insert into t2 values (3, 'c');
@@ -235,7 +235,7 @@ drop table t2;
 # Check what happens when one tries to 'upgrade' to the new data format
 # and causes a unique key violation:
 #
-set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
 create table t2 (
 pk int not null primary key,
 col1 varchar(64) collate latin1_bin,
@@ -248,7 +248,7 @@ select * from t2;
 pk	col1	col2
 1	a 	a-space
 2	a	a
-set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
 alter table t2 engine=rocksdb;
 ERROR 23000: Duplicate entry 'a' for key 'col1'
 drop table t2;

@@ -5,7 +5,7 @@ drop table if exists t1, t2;
 create table t0(a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 # First, make the server to create a dataset in the old format:
-set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
 create table t1 (
 pk1 decimal(32,16), 
 pk2 decimal(32,16),
@@ -29,7 +29,7 @@ where TABLE_SCHEMA=database() AND table_name='t1';
 table_name	index_name	kv_format_version
 t1	PRIMARY	10
 flush tables;
-set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
 # Check that the new server reads the data in the old format:
 select * from t1 order by pk1,pk2,pk3 limit 5;
 pk1	pk2	pk3	a

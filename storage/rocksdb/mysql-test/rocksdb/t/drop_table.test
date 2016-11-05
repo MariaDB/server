@@ -109,7 +109,7 @@ let $wait_condition = select count(*) = 0
 # Get list of all indices needing to be dropped
 # Check total compacted-away rows for all indices
 # Check that all indices have been successfully dropped
---exec perl suite/rocksdb/t/drop_table_compactions.pl $MYSQLTEST_VARDIR/log/mysqld.1.err
+--exec perl ../storage/rocksdb/mysql-test/rocksdb/t/drop_table_compactions.pl $MYSQLTEST_VARDIR/log/mysqld.1.err
 
 # Cleanup
 drop table t1;

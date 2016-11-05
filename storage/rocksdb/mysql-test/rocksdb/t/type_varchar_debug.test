@@ -9,18 +9,18 @@ drop table if exists t1,t2;
 --enable_warnings
 
 
-set session debug= "+d,myrocks_enable_unknown_collation_index_only_scans";
+set session debug_dbug= "+d,myrocks_enable_unknown_collation_index_only_scans";
 
 --let $character_set_collate=CHARACTER SET utf8 COLLATE utf8_general_ci
 --source type_varchar_endspace.inc
 
-set session debug= "-d,myrocks_enable_unknown_collation_index_only_scans";
+set session debug_dbug= "-d,myrocks_enable_unknown_collation_index_only_scans";
 
 --echo #
 --echo # Check backwards compatibility: 
 --echo #
 
-set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
 
 --echo # Create the tables in the old format
 
@@ -53,7 +53,7 @@ from information_schema.ROCKSDB_DDL
 where TABLE_SCHEMA=database() AND table_name in ('t1','t2');
 
 flush tables;
-set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
 select pk, hex(pk), col1 from t1;
 select pk, col1, hex(col1), col2 from t2;
 
@@ -69,13 +69,13 @@ drop table t1,t2;
 --echo #
 --echo # General upgrade tests to see that they work.
 --echo #
-set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
 create table t2 (
   id int primary key,
   col1 varchar(64) collate latin1_swedish_ci,
   unique key (col1)
 ) engine=rocksdb;
-set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
 
 insert into t2 values (1, 'a');
 insert into t2 values (2, 'b');
@@ -91,13 +91,13 @@ select col1 from t2;
 insert into t2 values (4, 'c ');
 drop table t2;
 
-set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
 create table t2 (
   id int primary key,
   col1 varchar(64) collate latin1_bin,
   unique key (col1)
 ) engine=rocksdb;
-set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
 
 insert into t2 values (1, 'a');
 insert into t2 values (2, 'b');
@@ -117,7 +117,7 @@ drop table t2;
 --echo # Check what happens when one tries to 'upgrade' to the new data format
 --echo # and causes a unique key violation:
 --echo #
-set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
 create table t2 (
   pk int not null primary key,
   col1 varchar(64) collate latin1_bin,
@@ -129,7 +129,7 @@ insert into t2 values (1, 'a ', 'a-space');
 insert into t2 values (2, 'a',  'a');
 
 select * from t2;
-set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
+set session debug_dbug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
 
 --error ER_DUP_ENTRY
 alter table t2 engine=rocksdb;
