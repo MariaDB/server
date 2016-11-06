@@ -1530,6 +1530,14 @@ DROP TABLE t1,t2;
 --echo # Start of 10.2 tests
 --echo #
 
+#
+# Item_func_spatial_collection::print()
+#
+create view v1 as select AsWKT(GeometryCollection(Point(44, 6), LineString(Point(3, 6), Point(7, 9))));
+show create view v1;
+select * from v1;
+drop view v1;
+
 --echo #
 --echo # MDEV-10134 Add full support for DEFAULT
 --echo #

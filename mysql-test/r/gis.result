@@ -488,7 +488,7 @@ explain extended select issimple(MultiPoint(Point(3, 6), Point(4, 10))), issimpl
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select st_issimple(st_multipoint(point(3,6),point(4,10))) AS `issimple(MultiPoint(Point(3, 6), Point(4, 10)))`,st_issimple(point(3,6)) AS `issimple(Point(3, 6))`
+Note	1003	select st_issimple(geometrycollection(point(3,6),point(4,10))) AS `issimple(MultiPoint(Point(3, 6), Point(4, 10)))`,st_issimple(point(3,6)) AS `issimple(Point(3, 6))`
 create table t1 (a geometry not null);
 insert into t1 values (GeomFromText('Point(1 2)'));
 insert into t1 values ('Garbage');
@@ -1832,6 +1832,14 @@ DROP TABLE t1,t2;
 #
 # Start of 10.2 tests
 #
+create view v1 as select AsWKT(GeometryCollection(Point(44, 6), LineString(Point(3, 6), Point(7, 9))));
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select st_astext(geometrycollection(point(44,6),geometrycollection(point(3,6),point(7,9)))) AS `Name_exp_1`	latin1	latin1_swedish_ci
+select * from v1;
+Name_exp_1
+GEOMETRYCOLLECTION(POINT(44 6),GEOMETRYCOLLECTION(POINT(3 6),POINT(7 9)))
+drop view v1;
 #
 # MDEV-10134 Add full support for DEFAULT
 #
