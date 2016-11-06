@@ -171,7 +171,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0008 August 10, 2016";
+       char version[]= "Version 1.04.0008 October 20, 2016";
 #if defined(__WIN__)
        char compver[]= "Version 1.04.0008 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -5190,7 +5190,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	PJPARM      sjp= NULL;
 	char       *driver= NULL;
 	char       *url= NULL;
-	char       *tabtyp = NULL;
+//char       *prop= NULL;
+	char       *tabtyp= NULL;
 #endif   // JDBC_SUPPORT
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool        bif, ok= false, dbf= false;
@@ -5256,6 +5257,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(JDBC_SUPPORT)
 		driver= GetListOption(g, "Driver", topt->oplist, NULL);
 //	url= GetListOption(g, "URL", topt->oplist, NULL);
+//	prop = GetListOption(g, "Properties", topt->oplist, NULL);
 		tabtyp = GetListOption(g, "Tabtype", topt->oplist, NULL);
 #endif   // JDBC_SUPPORT
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
@@ -5366,6 +5368,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			jdef->SetName(create_info->alias);
 			sjp= (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));
 			sjp->Driver= driver;
+//		sjp->Properties = prop;
 			sjp->Fsize= 0;
 			sjp->Scrollable= false;
 

@@ -5264,3 +5264,50 @@ char *envar(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	return str;
 } // end of envar
 
+/*********************************************************************************/
+/*  Returns the distinct number of B occurences in A.                            */
+/*********************************************************************************/
+my_bool countin_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	if (args->arg_count != 2) {
+		strcpy(message, "This function must have 2 arguments");
+		return true;
+	} else if (args->arg_type[0] != STRING_RESULT) {
+		strcpy(message, "First argument must be string");
+		return true;
+	} else if (args->arg_type[1] != STRING_RESULT) {
+		strcpy(message, "Second argument is not a string");
+		return true;
+	} // endif args
+
+	return false;
+} // end of countin_init
+
+long long countin(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *)
+{
+	PSZ str1, str2;
+	char *s;
+	long long n = 0;
+	size_t lg;
+
+	lg = (size_t)args->lengths[0];
+	s = str1 = (PSZ)malloc(lg + 1);
+	memcpy(str1, args->args[0], lg);
+	str1[lg] = 0;
+
+	lg = (size_t)args->lengths[1];
+	str2 = (PSZ)malloc(lg + 1);
+	memcpy(str2, args->args[1], lg);
+	str2[lg] = 0;
+
+	while (s = strstr(s, str2)) {
+		n++;
+		s += lg;
+	} // endwhile
+
+	free(str1);
+	free(str2);
+	return n;
+} // end of countin
+
