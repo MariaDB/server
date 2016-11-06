@@ -64,7 +64,9 @@
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "tabfmt.h"
+#if defined(VCT_SUPPORT)
 #include "tabvct.h"
+#endif   // VCT_SUPPORT
 #include "tabsys.h"
 #if defined(__WIN__)
 #include "tabmac.h"
@@ -549,7 +551,9 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
 #if defined(XML_SUPPORT)
     case TAB_XML: tdp= new(g) XMLDEF;   break;
 #endif   // XML_SUPPORT
-    case TAB_VEC: tdp= new(g) VCTDEF;   break;
+#if defined(VCT_SUPPORT)
+		case TAB_VEC: tdp = new(g)VCTDEF;   break;
+#endif   // VCT_SUPPORT
 #if defined(ODBC_SUPPORT)
     case TAB_ODBC: tdp= new(g) ODBCDEF; break;
 #endif   // ODBC_SUPPORT

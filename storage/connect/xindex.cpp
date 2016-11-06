@@ -45,7 +45,9 @@
 //nclude "array.h"
 #include "filamtxt.h"
 #include "tabdos.h"
+#if defined(VCT_SUPPORT)
 #include "tabvct.h"
+#endif   // VCT_SUPPORT
 
 /***********************************************************************/
 /*  Macro or external routine definition                               */
@@ -293,9 +295,11 @@ bool XINDEX::AddColumns(void)
     return false;     // Not applying to static index
   else if (IsMul())
     return false;     // Not done yet for multiple index
-  else if (Tbxp->GetAmType() == TYPE_AM_VCT && ((PTDBVCT)Tbxp)->IsSplit())
+#if defined(VCT_SUPPORT)
+	else if (Tbxp->GetAmType() == TYPE_AM_VCT && ((PTDBVCT)Tbxp)->IsSplit())
     return false;     // This would require to read additional files
-  else
+#endif   // VCT_SUPPORT
+	else
     return true;
 
   } // end of AddColumns

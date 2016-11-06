@@ -40,7 +40,9 @@
 #include "tabcol.h"
 #include "filamap.h"
 #include "filamfix.h"
+#if defined(VCT_SUPPORT)
 #include "filamvct.h"
+#endif   // VCT_SUPPORT
 #if defined(ZIP_SUPPORT)
 #include "filamzip.h"
 #endif   // ZIP_SUPPORT
@@ -683,16 +685,19 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
         txfp = new(g) MPXFAM(defp);
       else
         txfp = new(g) FIXFAM(defp);
-
     } else if (rfm == RECFM_VCT) {
-      assert (Pxdef->GetDefType() == TYPE_AM_VCT);
+#if defined(VCT_SUPPORT)
+			assert(Pxdef->GetDefType() == TYPE_AM_VCT);
 
       if (map)
         txfp = new(g) VCMFAM((PVCTDEF)defp);
       else
         txfp = new(g) VCTFAM((PVCTDEF)defp);
-
-    } // endif's
+#else   // !VCT_SUPPORT
+			strcpy(g->Message, "VCT no more supported");
+			return NULL;
+#endif  // !VCT_SUPPORT
+		} // endif's
 
     ((PTDBDOS)tdbp)->SetTxfp(txfp);
     } // endif Txfp
