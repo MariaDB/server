@@ -830,8 +830,9 @@ bool TDBCSV::SkipHeader(PGLOBAL g)
 /***********************************************************************/
 int TDBCSV::ReadBuffer(PGLOBAL g)
   {
-  char *p1, *p2, *p = NULL;
-  int   i, n, len, rc = Txfp->ReadBuffer(g);
+  //char *p1, *p2, *p = NULL;
+	char *p2, *p = NULL;
+	int   i, n, len, rc = Txfp->ReadBuffer(g);
   bool  bad = false;
 
   if (trace > 1)
@@ -846,14 +847,23 @@ int TDBCSV::ReadBuffer(PGLOBAL g)
   for (i = 0; i < Fields; i++) {
     if (!bad) {
       if (Qot && *p2 == Qot) {                // Quoted field
-        for (n = 0, p1 = ++p2; (p = strchr(p1, Qot)); p1 = p + 2)
-          if (*(p + 1) == Qot)
-            n++;                              // Doubled internal quotes
-          else
-            break;                            // Final quote
+        //for (n = 0, p1 = ++p2; (p = strchr(p1, Qot)); p1 = p + 2)
+        //  if (*(p + 1) == Qot)
+        //    n++;                              // Doubled internal quotes
+        //  else
+        //    break;                            // Final quote
+
+				for (n = 0, p = ++p2; p; p++)
+					if (*p == Qot || *p == '\\') {
+						if (*(++p) == Qot)
+							n++;														// Escaped internal quotes
+						else if (*(p - 1) == Qot)
+							break;													// Final quote
+					}	// endif *p
 
         if (p) {
-          len = p++ - p2;
+          //len = p++ - p2;
+					len = p - p2 - 1;;
 
 //        if (Sep != ' ')
 //          for (; *p == ' '; p++) ;          // Skip blanks
@@ -873,10 +883,12 @@ int TDBCSV::ReadBuffer(PGLOBAL g)
           if (n) {
             int j, k;
 
-            // Suppress the double of internal quotes
+            // Suppress the escape of internal quotes
             for (j = k = 0; j < len; j++, k++) {
-              if (p2[j] == Qot)
-                j++;                          // skip first one
+              if (p2[j] == Qot || (p2[j] == '\\' && p2[j + 1] == Qot))
+                j++;                          // skip escape char
+							else if (p2[j] == '\\')
+								p2[k++] = p2[j++];						// avoid \\Qot
 
               p2[k] = p2[j];
               } // endfor i, j

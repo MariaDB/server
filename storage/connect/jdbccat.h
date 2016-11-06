@@ -8,6 +8,7 @@ typedef struct jdbc_parms {
 	char *Url;                  // Driver URL
 	char *User;                 // User connect info
 	char *Pwd;                  // Password connect info
+//char *Properties;						// Connection property list
 //int   Cto;                  // Connect timeout
 //int   Qto;                  // Query timeout
 	int   Fsize;								// Fetch size
