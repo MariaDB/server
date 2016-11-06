@@ -1878,6 +1878,14 @@ COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL))
 #
 # Start of 10.2 tests
 #
+create view v1 as select column_get(column_add(column_create(1 , 'blue' as char), 2, 'ttt'), 1 as char);
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select column_get(column_add(column_create(1,'blue' AS char charset utf8 ),2,'ttt'),1 as char charset utf8) AS `Name_exp_1`	utf8	utf8_general_ci
+select * from v1;
+Name_exp_1
+blue
+drop view v1;
 #
 # MDEV-10134 Add full support for DEFAULT
 #
