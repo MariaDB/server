@@ -5256,7 +5256,7 @@ sub server_need_restart {
 
 sub servers_need_restart($) {
   my ($tinfo)= @_;
-  if ($tinfo->{'force_restart'} == 1) {
+  if (defined($tinfo->{'force_restart'})) {
     return all_servers();
   } else {
     return grep { server_need_restart($tinfo, $_); } all_servers();
