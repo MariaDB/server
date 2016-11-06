@@ -6,3 +6,4 @@
 --loose-enable_rocksdb_perf_context_global
 --loose-enable-rocksdb_index_file_map
 --loose-enable-rocksdb_dbstats
+--loose-enable-rocksdb_cfstats
