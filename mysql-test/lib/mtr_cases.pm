@@ -604,6 +604,14 @@ sub process_opts {
       # Fallthrough, add the --default-time-zone option
     }
 
+    # --force-restart is a "fake" option which just signals MTR that
+    # it should restart the mysqld server even if it was started with
+    # a matching set of options
+    if ($opt eq "--force-restart") {
+      $tinfo->{'force_restart'}= 1;
+      next;
+    }
+
     # Ok, this was a real option, add it
     push(@{$tinfo->{$opt_name}}, $opt);
   }
