@@ -1421,6 +1421,7 @@ public:
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
+  int update_virtual_fields(enum_vcol_update_mode update_mode);
   int update_default_fields(bool update, bool ignore_errors);
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }

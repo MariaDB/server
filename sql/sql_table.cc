@@ -9789,7 +9789,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       break;
     }
     if (from->vfield)
-      update_virtual_fields(thd, from);
+      from->update_virtual_fields(VCOL_UPDATE_FOR_READ);
     if (++thd->progress.counter >= time_to_report_progress)
     {
       time_to_report_progress+= MY_HOW_OFTEN_TO_WRITE/10;
@@ -9819,7 +9819,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (to->default_field)
       to->update_default_fields(0, ignore);
     if (to->vfield)
-      update_virtual_fields(thd, to, VCOL_UPDATE_FOR_WRITE);
+      to->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
 
     /* This will set thd->is_error() if fatal failure */
     if (to->verify_constraints(ignore) == VIEW_CHECK_SKIP)

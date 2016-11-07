@@ -288,8 +288,6 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
                                   const char *table_name,
                                   bool no_error);
 
-int update_virtual_fields(THD *thd, TABLE *table,
-      enum enum_vcol_update_mode vcol_update_mode= VCOL_UPDATE_FOR_READ);
 int dynamic_column_error_message(enum_dyncol_func_result rc);
 
 /* open_and_lock_tables with optional derived handling */

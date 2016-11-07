@@ -7262,9 +7262,7 @@ bool is_simple_order(ORDER *order)
 /*
   @brief Compute values for virtual columns used in query
 
-  @param  thd              Thread handle
-  @param  table            The TABLE object
-  @param  vcol_update_mode Specifies what virtual column are computed
+  @param  update_mode Specifies what virtual column are computed
   
   @details
     The function computes the values of the virtual columns of the table and
@@ -7276,52 +7274,50 @@ bool is_simple_order(ORDER *order)
     >0   Error occurred when storing a virtual field value
 */
 
-int update_virtual_fields(THD *thd, TABLE *table,
-                          enum enum_vcol_update_mode vcol_update_mode)
+int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
 {
-  DBUG_ENTER("update_virtual_fields");
-  Field **vfield_ptr, *vfield;
-  DBUG_ASSERT(table);
-  DBUG_ASSERT(table->vfield);
+  DBUG_ENTER("TABLE::update_virtual_fields");
+  Field **vfield_ptr, *vf;
+  DBUG_ASSERT(vfield);
 
-  thd->reset_arena_for_cached_items(table->expr_arena);
+  in_use->reset_arena_for_cached_items(expr_arena);
   /* Iterate over virtual fields in the table */
-  for (vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
+  for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    vfield= (*vfield_ptr);
-    Virtual_column_info *vcol_info= vfield->vcol_info;
+    vf= (*vfield_ptr);
+    Virtual_column_info *vcol_info= vf->vcol_info;
     DBUG_ASSERT(vcol_info);
     DBUG_ASSERT(vcol_info->expr_item);
 
     bool update;
-    switch (vcol_update_mode) {
+    switch (update_mode) {
     case VCOL_UPDATE_FOR_READ_WRITE:
-      if (table->triggers)
+      if (triggers)
       {
         update= true;
         break;
       }
     case VCOL_UPDATE_FOR_READ:
       update= !vcol_info->stored_in_db
-           && bitmap_is_set(table->vcol_set, vfield->field_index);
+           && bitmap_is_set(vcol_set, vf->field_index);
       break;
     case VCOL_UPDATE_FOR_WRITE:
-      update= table->triggers || bitmap_is_set(table->vcol_set, vfield->field_index);
+      update= triggers || bitmap_is_set(vcol_set, vf->field_index);
       break;
     }
 
     if (update)
     {
       /* Compute the actual value of the virtual fields */
-      vcol_info->expr_item->save_in_field(vfield, 0);
-      DBUG_PRINT("info", ("field '%s' - updated", vfield->field_name));
+      vcol_info->expr_item->save_in_field(vf, 0);
+      DBUG_PRINT("info", ("field '%s' - updated", vf->field_name));
     }
     else
     {
-      DBUG_PRINT("info", ("field '%s' - skipped", vfield->field_name));
+      DBUG_PRINT("info", ("field '%s' - skipped", vf->field_name));
     }
   }
-  thd->reset_arena_for_cached_items(0);
+  in_use->reset_arena_for_cached_items(0);
   DBUG_RETURN(0);
 }
 

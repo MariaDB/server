@@ -3383,7 +3383,7 @@ int JOIN_TAB_SCAN::next()
   {
     join_tab->tracker->r_rows++;
     if (table->vfield)
-      update_virtual_fields(thd, table);
+      table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
   }
 
   while (!err && select && (skip_rc= select->skip_record(thd)) <= 0)
@@ -3399,7 +3399,7 @@ int JOIN_TAB_SCAN::next()
     {
       join_tab->tracker->r_rows++;
       if (table->vfield)
-        update_virtual_fields(thd, table);
+        table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
     }
   }
 
@@ -3924,7 +3924,7 @@ int JOIN_TAB_SCAN_MRR::next()
                 (uchar *) (*ptr) <= cache->end_pos);
     */
     if (join_tab->table->vfield)
-      update_virtual_fields(join->thd, join_tab->table);
+      join_tab->table->update_virtual_fields(VCOL_UPDATE_FOR_READ);
   }
   return rc;
 }
