@@ -2310,7 +2310,7 @@ void Field::set_default()
   if (default_value)
   {
     table->in_use->reset_arena_for_cached_items(table->expr_arena);
-    (void) default_value->expr_item->save_in_field(this, 0);
+    (void) default_value->expr->save_in_field(this, 0);
     table->in_use->reset_arena_for_cached_items(0);
     return;
   }
@@ -9788,7 +9788,7 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
     to be part of the virtual column
   */
   res.errors= 0;
-  ret= vcol->expr_item->walk(&Item::check_vcol_func_processor, 0, &res);
+  ret= vcol->expr->walk(&Item::check_vcol_func_processor, 0, &res);
   vcol->flags= res.errors;
 
   uint filter= VCOL_IMPOSSIBLE;
@@ -9805,7 +9805,7 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
     Safe to call before fix_fields as long as vcol's don't include sub
     queries (which is now checked in check_vcol_func_processor)
   */
-  if (vcol->expr_item->check_cols(1))
+  if (vcol->expr->check_cols(1))
     return TRUE;
   return FALSE;
 }
@@ -9821,7 +9821,7 @@ bool Column_definition::check(THD *thd)
   /* Initialize data for a computed field */
   if (vcol_info)
   {
-    DBUG_ASSERT(vcol_info->expr_item);
+    DBUG_ASSERT(vcol_info->expr);
     vcol_info->set_field_type(sql_type);
     if (check_expression(vcol_info, field_name, vcol_info->stored_in_db
                          ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))
@@ -9834,7 +9834,7 @@ bool Column_definition::check(THD *thd)
 
   if (default_value)
   {
-    Item *def_expr= default_value->expr_item;
+    Item *def_expr= default_value->expr;
     if (check_expression(default_value, field_name, VCOL_DEFAULT))
       DBUG_RETURN(TRUE);
 
@@ -9859,15 +9859,15 @@ bool Column_definition::check(THD *thd)
     DBUG_RETURN(1);
   }
 
-  if (default_value && !default_value->expr_item->basic_const_item() &&
+  if (default_value && !default_value->expr->basic_const_item() &&
       mysql_type_to_time_type(sql_type) == MYSQL_TIMESTAMP_DATETIME &&
-      default_value->expr_item->type() == Item::FUNC_ITEM)
+      default_value->expr->type() == Item::FUNC_ITEM)
   {
     /*
       Special case: NOW() for TIMESTAMP and DATETIME fields are handled
       as in MariaDB 10.1 by marking them in unireg_check.
     */
-    Item_func *fn= static_cast<Item_func*>(default_value->expr_item);
+    Item_func *fn= static_cast<Item_func*>(default_value->expr);
     if (fn->functype() == Item_func::NOW_FUNC &&
         (fn->decimals == 0 || fn->decimals >= length))
     {
@@ -10563,7 +10563,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
       String *res= orig_field->val_str(&tmp, orig_field->ptr_in_record(dv));
       char *pos= (char*) thd->strmake(res->ptr(), res->length());
       default_value= new (thd->mem_root) Virtual_column_info();
-      default_value->expr_item=
+      default_value->expr=
         new (thd->mem_root) Item_string(thd, pos, res->length(), charset);
       default_value->utf8= 0;
     }
@@ -10627,7 +10627,7 @@ Create_field *Create_field::clone(MEM_ROOT *mem_root) const
 bool Column_definition::has_default_expression()
 {
   return (default_value &&
-          (!default_value->expr_item->basic_const_item() ||
+          (!default_value->expr->basic_const_item() ||
            (flags & BLOB_FLAG)));
 }
 

@@ -1039,7 +1039,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     case VCOL_GENERATED_STORED:
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
                                       (*field_ptr)->vcol_info, error_reported);
-      DBUG_ASSERT((*field_ptr)->vcol_info->expr_item == NULL);
+      DBUG_ASSERT((*field_ptr)->vcol_info->expr == NULL);
       (*field_ptr)->vcol_info= vcol;
       *(vfield_ptr++)= *field_ptr;
       break;
@@ -1047,7 +1047,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
                                       (*field_ptr)->default_value,
                                       error_reported);
-      DBUG_ASSERT((*field_ptr)->default_value->expr_item == NULL);
+      DBUG_ASSERT((*field_ptr)->default_value->expr == NULL);
       (*field_ptr)->default_value= vcol;
       *(dfield_ptr++)= *field_ptr;
       break;
@@ -1055,7 +1055,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
                                       (*field_ptr)->check_constraint,
                                       error_reported);
-      DBUG_ASSERT((*field_ptr)->check_constraint->expr_item == NULL);
+      DBUG_ASSERT((*field_ptr)->check_constraint->expr == NULL);
       (*field_ptr)->check_constraint= vcol;
       *check_constraint_ptr++= vcol;
       break;
@@ -1081,10 +1081,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, (uchar*)buf, len,
                                       (*field_ptr)->default_value,
                                       error_reported);
-      DBUG_ASSERT((*field_ptr)->default_value->expr_item == NULL);
+      DBUG_ASSERT((*field_ptr)->default_value->expr == NULL);
       (*field_ptr)->default_value= vcol;
       *(dfield_ptr++)= *field_ptr;
-      if (!field->default_value->expr_item)
+      if (!field->default_value->expr)
         DBUG_RETURN(1);
     }
     else if (field->has_update_default_function() && !field->default_value)
@@ -2663,7 +2663,7 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
   const char *save_where= thd->where;
   thd->where= "virtual column function";
 
-  int error= vcol->expr_item->fix_fields(thd, &vcol->expr_item);
+  int error= vcol->expr->fix_fields(thd, &vcol->expr);
 
   thd->mark_used_columns= save_mark_used_columns;
   thd->where= save_where;
@@ -2690,8 +2690,8 @@ bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol)
   if (!(vcol->flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC)))
     DBUG_RETURN(0);
 
-  vcol->expr_item->cleanup();
-  DBUG_ASSERT(!vcol->expr_item->fixed);
+  vcol->expr->cleanup();
+  DBUG_ASSERT(!vcol->expr->fixed);
   DBUG_RETURN(fix_vcol_expr(thd, vcol));
 }
 
@@ -2747,7 +2747,7 @@ bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
 static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
                                     Virtual_column_info *vcol)
 {
-  Item* func_expr= vcol->expr_item;
+  Item* func_expr= vcol->expr;
   DBUG_ENTER("fix_and_check_vcol_expr");
   DBUG_PRINT("info", ("vcol: %p", vcol));
   DBUG_ASSERT(func_expr);
@@ -2762,7 +2762,7 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
     DBUG_RETURN(0); // already checked, no need to do it again
 
   /* fix_fields could've changed the expression */
-  func_expr= vcol->expr_item;
+  func_expr= vcol->expr;
 
   /* this was checked in check_expression(), but the frm could be mangled... */
   if (unlikely(func_expr->result_type() == ROW_RESULT))
@@ -2941,7 +2941,7 @@ end:
 static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol)
 {
   bool res= vcol &&
-            vcol->expr_item->walk(&Item::check_field_expression_processor, 0,
+            vcol->expr->walk(&Item::check_field_expression_processor, 0,
                                   field);
   return res;
 }
@@ -5077,7 +5077,7 @@ int TABLE::verify_constraints(bool ignore_failure)
   {
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
     {
-      if ((*chk)->expr_item->val_int() == 0)
+      if ((*chk)->expr->val_int() == 0)
       {
         my_error(ER_CONSTRAINT_FAILED,
                  MYF(ignore_failure ? ME_JUST_WARNING : 0), (*chk)->name.str,
@@ -6187,9 +6187,9 @@ void TABLE::mark_columns_used_by_index_no_reset(uint index,
   {
     bitmap_set_bit(bitmap, key_part->fieldnr-1);
     if (key_part->field->vcol_info &&
-        key_part->field->vcol_info->expr_item)
+        key_part->field->vcol_info->expr)
       key_part->field->vcol_info->
-               expr_item->walk(&Item::register_field_in_bitmap, 1, bitmap);
+               expr->walk(&Item::register_field_in_bitmap, 1, bitmap);
   }
 }
 
@@ -6553,7 +6553,7 @@ bool TABLE::mark_virtual_col(Field *field)
   DBUG_ASSERT(field->vcol_info);
   if (!(res= bitmap_fast_test_and_set(vcol_set, field->field_index)))
   {
-    Item *vcol_item= field->vcol_info->expr_item;
+    Item *vcol_item= field->vcol_info->expr;
     DBUG_ASSERT(vcol_item);
     vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
   }
@@ -6611,7 +6611,7 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
       else
       {
         MY_BITMAP *save_read_set= read_set, *save_vcol_set= vcol_set;
-        Item *vcol_item= tmp_vfield->vcol_info->expr_item;
+        Item *vcol_item= tmp_vfield->vcol_info->expr;
         DBUG_ASSERT(vcol_item);
         bitmap_clear_all(&tmp_set);
         read_set= vcol_set= &tmp_set;
@@ -6652,7 +6652,7 @@ void TABLE::mark_columns_used_by_check_constraints(void)
   read_set= s->check_set;
 
   for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
-    (*chk)->expr_item->walk(&Item::register_field_in_read_map, 1, 0);
+    (*chk)->expr->walk(&Item::register_field_in_read_map, 1, 0);
 
   read_set= save_read_set;
   s->check_set_initialized= 1;
@@ -6680,7 +6680,7 @@ void TABLE::mark_default_fields_for_write(bool is_insert)
     if (is_insert && field->default_value)
     {
       bitmap_set_bit(write_set, field->field_index);
-      field->default_value->expr_item->
+      field->default_value->expr->
         walk(&Item::register_field_in_read_map, 1, 0);
     }
     else if (!is_insert && field->has_update_default_function())
@@ -7355,7 +7355,7 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
     vf= (*vfield_ptr);
     Virtual_column_info *vcol_info= vf->vcol_info;
     DBUG_ASSERT(vcol_info);
-    DBUG_ASSERT(vcol_info->expr_item);
+    DBUG_ASSERT(vcol_info->expr);
 
     bool update;
     switch (update_mode) {
@@ -7382,7 +7382,7 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
     if (update)
     {
       /* Compute the actual value of the virtual fields */
-      vcol_info->expr_item->save_in_field(vf, 0);
+      vcol_info->expr->save_in_field(vf, 0);
       DBUG_PRINT("info", ("field '%s' - updated", vf->field_name));
     }
     else
@@ -7400,8 +7400,8 @@ int TABLE::update_virtual_field(Field *vf)
 
   in_use->reset_arena_for_cached_items(expr_arena);
   bitmap_clear_all(&tmp_set);
-  vf->vcol_info->expr_item->walk(&Item::update_vcol_processor, 0, &tmp_set);
-  vf->vcol_info->expr_item->save_in_field(vf, 0);
+  vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
+  vf->vcol_info->expr->save_in_field(vf, 0);
   in_use->reset_arena_for_cached_items(0);
   DBUG_RETURN(0);
 }
@@ -7450,7 +7450,7 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
       {
         if (field->default_value &&
             (field->default_value->flags || field->flags & BLOB_FLAG))
-          res|= (field->default_value->expr_item->save_in_field(field, 0) < 0);
+          res|= (field->default_value->expr->save_in_field(field, 0) < 0);
       }
       else
         res|= field->evaluate_update_default_function();

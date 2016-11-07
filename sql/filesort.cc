@@ -1272,7 +1272,7 @@ static void register_used_fields(Sort_param *param)
       {
         if (field->vcol_info)
 	{
-          Item *vcol_item= field->vcol_info->expr_item;
+          Item *vcol_item= field->vcol_info->expr;
           vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
         }                   
         bitmap_set_bit(bitmap, field->field_index);

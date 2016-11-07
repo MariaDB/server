@@ -918,7 +918,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
      mem_alloc_error(sizeof(Virtual_column_info));
      return 0;
    }
-   v->expr_item= expr;
+   v->expr= expr;
    v->utf8= 0;  /* connection charset */
    return v;
 }

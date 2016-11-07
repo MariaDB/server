@@ -1663,7 +1663,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
     if (field->default_value)
     {
       field->default_value->print(&str);
-      if (field->default_value->expr_item->need_parentheses_in_default())
+      if (field->default_value->expr->need_parentheses_in_default())
       {
         def_value->set_charset(&my_charset_utf8mb4_general_ci);
         def_value->append('(');

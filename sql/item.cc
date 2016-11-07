@@ -905,7 +905,7 @@ bool Item_field::register_field_in_read_map(void *arg)
   if (field->vcol_info &&
       !bitmap_fast_test_and_set(field->table->vcol_set, field->field_index))
   {
-    res= field->vcol_info->expr_item->walk(&Item::register_field_in_read_map,1,arg);
+    res= field->vcol_info->expr->walk(&Item::register_field_in_read_map,1,arg);
   }
   if (field->table == table || !table)
     bitmap_set_bit(field->table->read_set, field->field_index);
@@ -1000,8 +1000,8 @@ bool Item_field::update_vcol_processor(void *arg)
   if (field->vcol_info &&
       !bitmap_fast_test_and_set(map, field->field_index))
   {
-    field->vcol_info->expr_item->walk(&Item::update_vcol_processor, 0, arg);
-    field->vcol_info->expr_item->save_in_field(field, 0);
+    field->vcol_info->expr->walk(&Item::update_vcol_processor, 0, arg);
+    field->vcol_info->expr->save_in_field(field, 0);
   }
   return 0;
 }
@@ -8642,7 +8642,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   {
     fix_session_vcol_expr_for_read(thd, field, field->default_value);
     if (thd->mark_used_columns != MARK_COLUMNS_NONE)
-      field->default_value->expr_item->walk(&Item::register_field_in_read_map, 1, 0);
+      field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
     IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
   }
   return FALSE;
@@ -10454,9 +10454,9 @@ void Item::register_in(THD *thd)
 
 void Virtual_column_info::print(String *str)
 {
-  expr_item->print(str, (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
-                   QT_ITEM_IDENT_SKIP_DB_NAMES |
-                   QT_ITEM_IDENT_SKIP_TABLE_NAMES |
-                   QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
-                   QT_TO_SYSTEM_CHARSET));
+  expr->print(str, (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                     QT_ITEM_IDENT_SKIP_DB_NAMES |
+                                     QT_ITEM_IDENT_SKIP_TABLE_NAMES |
+                                     QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
+                                     QT_TO_SYSTEM_CHARSET));
 }

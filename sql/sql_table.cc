@@ -3345,8 +3345,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       We can only do this for constants as we have not yet run fix_fields.
     */
     if (sql_field->default_value &&
-        sql_field->default_value->expr_item->basic_const_item() &&
-        save_cs != sql_field->default_value->expr_item->collation.collation &&
+        sql_field->default_value->expr->basic_const_item() &&
+        save_cs != sql_field->default_value->expr->collation.collation &&
         (sql_field->sql_type == MYSQL_TYPE_VAR_STRING ||
          sql_field->sql_type == MYSQL_TYPE_STRING ||
          sql_field->sql_type == MYSQL_TYPE_SET ||
@@ -3357,7 +3357,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
          sql_field->sql_type == MYSQL_TYPE_ENUM))
     {
       Item *item;
-      if (!(item= sql_field->default_value->expr_item->
+      if (!(item= sql_field->default_value->expr->
             safe_charset_converter(thd, save_cs)))
       {
         /* Could not convert */
@@ -3365,16 +3365,16 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(TRUE);
       }
       /* Fix for prepare statement */
-      thd->change_item_tree(&sql_field->default_value->expr_item, item);
+      thd->change_item_tree(&sql_field->default_value->expr, item);
     }
 
     if (sql_field->default_value &&
-        sql_field->default_value->expr_item->basic_const_item() &&
+        sql_field->default_value->expr->basic_const_item() &&
         (sql_field->sql_type == MYSQL_TYPE_SET ||
          sql_field->sql_type == MYSQL_TYPE_ENUM))
     {
       StringBuffer<MAX_FIELD_WIDTH> str;
-      String *def= sql_field->default_value->expr_item->val_str(&str);
+      String *def= sql_field->default_value->expr->val_str(&str);
       bool not_found;
       if (def == NULL) /* SQL "NULL" maps to NULL */
       {
@@ -6412,7 +6412,7 @@ static bool fill_alter_inplace_info(THD *thd,
               uses DEFAULT() function. The check is kind of expensive, so don't
               do it if ALTER_COLUMN_VCOL is already set.
             */
-            if (field->vcol_info->expr_item->walk(
+            if (field->vcol_info->expr->walk(
                                  &Item::check_func_default_processor, 0, 0))
             {
               ha_alter_info->handler_flags|= alter_expr;

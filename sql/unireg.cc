@@ -981,7 +981,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     if (field->default_value && !field->default_value->flags &&
         !(field->flags & BLOB_FLAG))
     {
-      Item *expr= field->default_value->expr_item;
+      Item *expr= field->default_value->expr;
       int res= !expr->fixed && // may be already fixed if ALTER TABLE
                 expr->fix_fields(thd, &expr);
       if (!res)

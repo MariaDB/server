@@ -621,14 +621,14 @@ public:
   /* Flag indicating  that the field is physically stored in the database */
   bool stored_in_db;
   bool utf8;                                    /* Already in utf8 */
-  Item *expr_item;
+  Item *expr;
   LEX_STRING name;                              /* Name of constraint */
   uint flags;
 
   Virtual_column_info()
   : field_type((enum enum_field_types)MYSQL_TYPE_VIRTUAL),
     in_partitioning_expr(FALSE), stored_in_db(FALSE),
-    utf8(TRUE), expr_item(NULL), flags(0)
+    utf8(TRUE), expr(NULL), flags(0)
   {
     name.str= NULL;
     name.length= 0;

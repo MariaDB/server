@@ -11811,7 +11811,7 @@ prepare_vcol_for_base_setup(
 	field->table->read_set = field->table->vcol_set = &field->table->tmp_set;
 
 	bitmap_clear_all(&field->table->tmp_set);
-	field->vcol_info->expr_item->walk(
+	field->vcol_info->expr->walk(
 		&Item::register_field_in_read_map, 1, field->table);
 	col->num_base= bitmap_bits_set(&field->table->tmp_set);
 	if (col->num_base != 0) {
