@@ -1328,14 +1328,19 @@ struct dict_vcol_templ_t {
 	/** table name */
 	std::string		tb_name;
 
-	/** share->table_name */
-	std::string		share_name;
-
 	/** MySQL record length */
 	ulint			rec_len;
 
 	/** default column value if any */
 	byte*			default_rec;
+
+	/** cached MySQL TABLE object */
+	TABLE*			mysql_table;
+
+	/** when mysql_table was cached */
+	uint64_t		mysql_table_query_id;
+
+	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(-1) {}
 };
 
 /* This flag is for sync SQL DDL and memcached DML.

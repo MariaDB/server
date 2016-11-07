@@ -4383,6 +4383,93 @@ extern "C" int thd_is_connected(MYSQL_THD thd)
 
 
 #ifdef INNODB_COMPATIBILITY_HOOKS
+
+/** open a table and add it to thd->open_tables
+
+  @note At the moment this is used in innodb background purge threads
+  *only*.There should be no table locks, because the background purge does not
+  change the table as far as LOCK TABLES is concerned. MDL locks are
+  still needed, though.
+
+  To make sure no table stays open for long, this helper allows the thread to
+  have only one table open at any given time.
+*/
+TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
+                        const char *tb, size_t tblen)
+{
+  DBUG_ENTER("open_purge_table");
+  DBUG_ASSERT(thd->open_tables == NULL);
+  DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
+
+  Open_table_context ot_ctx(thd, 0);
+  TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
+
+  tl->init_one_table(db, dblen, tb, tblen, tb, TL_READ);
+  tl->i_s_requested_object= OPEN_TABLE_ONLY;
+
+  bool error= open_table(thd, tl, &ot_ctx);
+
+  /* we don't recover here */
+  DBUG_ASSERT(!error || !ot_ctx.can_recover_from_failed_open());
+
+  if (error)
+    close_thread_tables(thd);
+
+  DBUG_RETURN(error ? NULL : tl->table);
+}
+
+/** Find an open table in the list of prelocked tabled
+
+  Used for foreign key actions, for example, in UPDATE t1 SET a=1;
+  where a child table t2 has a KB on t1.a.
+
+  But only when virtual columns are involved, otherwise InnoDB
+  does not need an open TABLE.
+*/
+TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
+                       const char *table, size_t table_len)
+{
+  for (TABLE *t= thd->open_tables; t; t= t->next)
+  {
+    if (t->s->db.length == db_len && t->s->table_name.length == table_len &&
+        !strcmp(t->s->db.str, db) && !strcmp(t->s->table_name.str, table) &&
+        t->pos_in_table_list->prelocking_placeholder == TABLE_LIST::FK)
+      return t;
+  }
+  return NULL;
+}
+
+/* the following three functions are used in background purge threads */
+
+MYSQL_THD create_thd()
+{
+  THD *thd= new THD(next_thread_id());
+  thd->thread_stack= (char*) &thd;
+  thd->store_globals();
+  thd->set_command(COM_DAEMON);
+  thd->system_thread= SYSTEM_THREAD_GENERIC;
+  add_to_active_threads(thd);
+  return thd;
+}
+
+void destroy_thd(MYSQL_THD thd)
+{
+  delete_running_thd(thd);
+}
+
+void reset_thd(MYSQL_THD thd)
+{
+  close_thread_tables(thd);
+  thd->mdl_context.release_transactional_locks();
+  thd->free_items();
+  free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
+}
+
+unsigned long long thd_get_query_id(const MYSQL_THD thd)
+{
+  return((unsigned long long)thd->query_id);
+}
+
 extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)
 {
   return(thd->charset());

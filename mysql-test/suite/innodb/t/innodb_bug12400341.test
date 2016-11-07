@@ -59,7 +59,7 @@ while ($c)
 }
 --enable_query_log
 
-select count(*) from information_schema.processlist;
+select count(*) from information_schema.processlist where command != 'Daemon';
 
 #
 # fill the all undo slots
@@ -80,7 +80,7 @@ connection default;
 --error ER_CANT_CREATE_TABLE
 CREATE TABLE mysqltest.testtable (id int unsigned not null primary key) ENGINE=InnoDB;
 
-select count(*) from information_schema.processlist;
+select count(*) from information_schema.processlist where command != 'Daemon';
 
 --disable_query_log
 let $c = 32;
@@ -93,7 +93,7 @@ while ($c)
 --enable_query_log
 
 connection default;
-select count(*) from information_schema.processlist;
+select count(*) from information_schema.processlist where command != 'Daemon';
 
 --disable_query_log
 let $c = 32;

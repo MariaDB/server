@@ -2195,6 +2195,13 @@ loop:
 			count = 0;
 		}
 
+		/* Wake up purge threads to die - they have MYSQL_THD's and
+		thus might keep open transactions. In particular, this is
+		needed in embedded server and when one uses UNINSTALL PLUGIN.
+		In the normal server shutdown purge threads should've been
+		already notified by the thd_destructor_proxy thread. */
+		srv_purge_wakeup();
+
 		goto loop;
 	}
 

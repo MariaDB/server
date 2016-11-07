@@ -395,7 +395,7 @@ ALTER TABLE t CHANGE c c varchar(10) as ('a');
 ALTER TABLE t CHANGE dd d varchar(10);
 if ($support_virtual_index)
 {
-
+# no RENAME INDEX yet
 #ALTER TABLE t ADD INDEX idx(a), ADD INDEX idx1(c);
 #ALTER TABLE t RENAME INDEX idx TO idx2, RENAME INDEX idx1 TO idx3;
 #ALTER TABLE t DROP INDEX idx2, DROP INDEX idx3;

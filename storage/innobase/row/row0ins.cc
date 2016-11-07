@@ -931,7 +931,6 @@ row_ins_invalidate_query_cache(
 	innobase_invalidate_query_cache(thr_get_trx(thr), name, len);
 }
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 
 /** Fill virtual column information in cascade node for the child table.
 @param[out]	cascade		child update node
@@ -1042,7 +1041,6 @@ func_exit:
 		mem_heap_free(v_heap);
 	}
 }
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 #ifdef WITH_WSREP
 dberr_t wsrep_append_foreign_key(trx_t *trx,
@@ -1338,7 +1336,6 @@ row_ins_foreign_check_on_constraint(
 			cascade->fts_doc_id = doc_id;
 		}
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 		if (foreign->v_cols != NULL
 		    && foreign->v_cols->size() > 0) {
 			row_ins_foreign_fill_virtual(
@@ -1349,7 +1346,6 @@ row_ins_foreign_check_on_constraint(
 				goto nonstandard_exit_func;
 			}
 		}
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 	} else if (table->fts && cascade->is_delete) {
 		/* DICT_FOREIGN_ON_DELETE_CASCADE case */
 		for (i = 0; i < foreign->n_fields; i++) {
@@ -1379,7 +1375,6 @@ row_ins_foreign_check_on_constraint(
 			trx, &fts_col_affacted, cascade);
 
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 		if (foreign->v_cols != NULL
 		    && foreign->v_cols->size() > 0) {
 			row_ins_foreign_fill_virtual(
@@ -1390,7 +1385,6 @@ row_ins_foreign_check_on_constraint(
 				goto nonstandard_exit_func;
 			}
 		}
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 		if (n_to_update == ULINT_UNDEFINED) {
 			err = DB_ROW_IS_REFERENCED;

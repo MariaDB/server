@@ -1076,7 +1076,6 @@ row_upd_build_difference_binary(
 		}
 	}
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 	/* Check the virtual columns updates. Even if there is no non-virtual
 	column (base columns) change, we will still need to build the
 	indexed virtual column value so that undo log would log them (
@@ -1141,7 +1140,6 @@ row_upd_build_difference_binary(
 			mem_heap_free(v_heap);
 		}
 	}
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 	update->n_fields = n_diff;
 	ut_ad(update->validate());
@@ -2061,7 +2059,6 @@ row_upd_eval_new_vals(
 	}
 }
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 /** Stores to the heap the virtual columns that need for any indexes
 @param[in,out]	node		row update node
 @param[in]	update		an update vector if it is update
@@ -2140,7 +2137,6 @@ row_upd_store_v_row(
 		mem_heap_free(heap);
 	}
 }
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 /** Stores to the heap the row on which the node->pcur is positioned.
 @param[in]	node		row update node
@@ -2190,12 +2186,10 @@ row_upd_store_row(
 	node->row = row_build(ROW_COPY_DATA, clust_index, rec, offsets,
 			      NULL, NULL, NULL, ext, node->heap);
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 	if (node->table->n_v_cols) {
 		row_upd_store_v_row(node, node->is_delete ? NULL : node->update,
 				    thd, mysql_table);
 	}
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 	if (node->is_delete) {
 		node->upd_row = NULL;

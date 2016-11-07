@@ -13969,8 +13969,8 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
       (
         Alter_inplace_info::ADD_COLUMN |
         Alter_inplace_info::DROP_COLUMN |
-        Alter_inplace_info::ALTER_COLUMN_TYPE |
-        Alter_inplace_info::ALTER_COLUMN_ORDER |
+        Alter_inplace_info::ALTER_STORED_COLUMN_TYPE |
+        Alter_inplace_info::ALTER_STORED_COLUMN_ORDER |
         Alter_inplace_info::ALTER_COLUMN_NULLABLE |
         Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE |
         Alter_inplace_info::ALTER_COLUMN_STORAGE_TYPE |

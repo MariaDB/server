@@ -59,189 +59,147 @@ DROP TABLE t1;
 #
 CREATE TABLE c (
 pk INTEGER AUTO_INCREMENT,
-col_int_nokey INTEGER /*! NULL */,
-col_int_key INTEGER GENERATED ALWAYS AS
-(col_int_nokey + col_int_nokey) VIRTUAL not null,
-col_date_nokey DATE /*! NULL */,
-col_date_key DATE GENERATED ALWAYS AS
-(DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL not null,
-col_datetime_nokey DATETIME /*! NULL */,
-col_time_nokey TIME /*! NULL */,
-col_datetime_key DATETIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-col_time_key TIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-col_varchar_nokey VARCHAR(1) /*! NULL */,
-col_varchar_key VARCHAR(2) GENERATED ALWAYS AS
-(CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL not null,
+col_int_nokey INTEGER,
+gcol_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL,
+col_date_nokey DATE,
+gcol_date_key DATE GENERATED ALWAYS AS (DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL,
+col_datetime_nokey DATETIME,
+col_time_nokey TIME,
+gcol_datetime_key DATETIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+gcol_time_key TIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+col_varchar_nokey VARCHAR(1),
+gcol_varchar_key VARCHAR(2) GENERATED ALWAYS AS (CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL,
 PRIMARY KEY (pk),
-UNIQUE KEY (col_int_key),
-UNIQUE KEY (col_varchar_key),
-UNIQUE KEY (col_date_key),
-KEY (col_time_key),
-KEY (col_datetime_key),
-UNIQUE KEY (col_int_key, col_varchar_key),
-KEY (col_int_key, col_int_nokey),
-KEY(col_int_key,col_date_key),
-KEY(col_int_key, col_time_key),
-KEY(col_int_key, col_datetime_key),
-UNIQUE
-KEY(col_date_key,col_time_key,col_datetime_key),
-UNIQUE KEY (col_varchar_key, col_varchar_nokey),
-UNIQUE KEY (col_int_key, col_varchar_key,
-col_date_key, col_time_key, col_datetime_key)
+UNIQUE KEY (gcol_int_key),
+UNIQUE KEY (gcol_varchar_key),
+UNIQUE KEY (gcol_date_key),
+KEY (gcol_time_key),
+KEY (gcol_datetime_key),
+UNIQUE KEY (gcol_int_key, gcol_varchar_key),
+KEY (gcol_int_key, col_int_nokey),
+KEY(gcol_int_key,gcol_date_key),
+KEY(gcol_int_key, gcol_time_key),
+KEY(gcol_int_key, gcol_datetime_key),
+UNIQUE KEY(gcol_date_key,gcol_time_key,gcol_datetime_key),
+UNIQUE KEY (gcol_varchar_key, col_varchar_nokey),
+UNIQUE KEY (gcol_int_key, gcol_varchar_key, gcol_date_key, gcol_time_key, gcol_datetime_key)
 )  ENGINE=INNODB;
-INSERT /*! IGNORE */ INTO c (
-col_int_nokey,
-col_date_nokey,
-col_time_nokey,
-col_datetime_nokey,
-col_varchar_nokey
-) VALUES (7, '2004-04-09', '14:03:03.042673',
-'2001-11-28 00:50:27.051028', 'c'),(1, '2006-05-13', '01:46:09.016386',
-'2007-10-09 19:53:04.008332', NULL);
+INSERT IGNORE INTO c ( col_int_nokey, col_date_nokey, col_time_nokey, col_datetime_nokey, col_varchar_nokey)
+VALUES (7, '2004-04-09', '14:03:03.042673', '2001-11-28 00:50:27.051028', 'c'),
+(1, '2006-05-13', '01:46:09.016386', '2007-10-09 19:53:04.008332', NULL);
 Warnings:
-Warning	1048	Column 'col_varchar_key' cannot be null
+Note	1265	Data truncated for column 'gcol_time_key' at row 1
+Note	1265	Data truncated for column 'gcol_time_key' at row 2
 CREATE TABLE bb (
 pk INTEGER AUTO_INCREMENT,
-col_int_nokey INTEGER /*! NULL */,
-col_int_key INTEGER GENERATED ALWAYS AS
-(col_int_nokey + col_int_nokey) VIRTUAL not null,
-col_date_nokey DATE /*! NULL */,
-col_date_key DATE GENERATED ALWAYS AS
-(DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL not null,
-col_datetime_nokey DATETIME /*! NULL */,
-col_time_nokey TIME /*! NULL */,
-col_datetime_key DATETIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-col_time_key TIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-col_varchar_nokey VARCHAR(1) /*! NULL */,
-col_varchar_key VARCHAR(2) GENERATED ALWAYS AS
-(CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL not null,
+col_int_nokey INTEGER,
+gcol_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL,
+col_date_nokey DATE,
+gcol_date_key DATE GENERATED ALWAYS AS (DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL,
+col_datetime_nokey DATETIME,
+col_time_nokey TIME,
+gcol_datetime_key DATETIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+gcol_time_key TIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+col_varchar_nokey VARCHAR(1),
+gcol_varchar_key VARCHAR(2) GENERATED ALWAYS AS (CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL,
 PRIMARY KEY (pk),
-UNIQUE KEY (col_int_key),
-UNIQUE KEY (col_varchar_key),
-UNIQUE KEY (col_date_key),
-KEY (col_time_key),
-KEY (col_datetime_key),
-UNIQUE KEY (col_int_key, col_varchar_key),
-KEY (col_int_key, col_int_nokey),
-KEY(col_int_key,col_date_key),
-KEY(col_int_key, col_time_key),
-KEY(col_int_key, col_datetime_key),
-UNIQUE
-KEY(col_date_key,col_time_key,col_datetime_key),
-UNIQUE KEY (col_varchar_key, col_varchar_nokey),
-UNIQUE KEY (col_int_key, col_varchar_key,
-col_date_key, col_time_key, col_datetime_key)
+UNIQUE KEY (gcol_int_key),
+UNIQUE KEY (gcol_varchar_key),
+UNIQUE KEY (gcol_date_key),
+KEY (gcol_time_key),
+KEY (gcol_datetime_key),
+UNIQUE KEY (gcol_int_key, gcol_varchar_key),
+KEY (gcol_int_key, col_int_nokey),
+KEY(gcol_int_key,gcol_date_key),
+KEY(gcol_int_key, gcol_time_key),
+KEY(gcol_int_key, gcol_datetime_key),
+UNIQUE KEY(gcol_date_key,gcol_time_key,gcol_datetime_key),
+UNIQUE KEY (gcol_varchar_key, col_varchar_nokey),
+UNIQUE KEY (gcol_int_key, gcol_varchar_key, gcol_date_key, gcol_time_key, gcol_datetime_key)
 )  AUTO_INCREMENT=10 ENGINE=INNODB;
-INSERT /*! IGNORE */ INTO bb (
-col_int_nokey,
-col_date_nokey,
-col_time_nokey,
-col_datetime_nokey,
-col_varchar_nokey
-) VALUES (0, '2003-08-04', '01:48:05.048577',
-'2006-11-03 00:00:00', 'p'),(2, '2007-11-06', '00:00:00', '2009-11-26 19:28:11.005115', 'n');
+INSERT IGNORE INTO bb ( col_int_nokey, col_date_nokey, col_time_nokey, col_datetime_nokey, col_varchar_nokey)
+VALUES (0, '2003-08-04', '01:48:05.048577', '2006-11-03 00:00:00', 'p'),
+(2, '2007-11-06', '00:00:00', '2009-11-26 19:28:11.005115', 'n');
+Warnings:
+Note	1265	Data truncated for column 'gcol_time_key' at row 1
+Note	1265	Data truncated for column 'gcol_time_key' at row 2
 CREATE TABLE cc (
 pk INTEGER AUTO_INCREMENT,
-col_int_nokey INTEGER /*! NULL */,
-col_int_key INTEGER GENERATED ALWAYS AS
-(col_int_nokey + col_int_nokey) VIRTUAL not null,
-col_date_nokey DATE /*! NULL */,
-col_date_key DATE GENERATED ALWAYS AS
-(DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL not null,
-col_datetime_nokey DATETIME /*! NULL */,
-col_time_nokey TIME /*! NULL */,
-col_datetime_key DATETIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-col_time_key TIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-col_varchar_nokey VARCHAR(1) /*! NULL */,
-col_varchar_key VARCHAR(2) GENERATED ALWAYS AS
-(CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL not null,
+col_int_nokey INTEGER,
+gcol_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL,
+col_date_nokey DATE,
+gcol_date_key DATE GENERATED ALWAYS AS (DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL,
+col_datetime_nokey DATETIME,
+col_time_nokey TIME,
+gcol_datetime_key DATETIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+gcol_time_key TIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+col_varchar_nokey VARCHAR(1),
+gcol_varchar_key VARCHAR(2) GENERATED ALWAYS AS (CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL,
 PRIMARY KEY (pk),
-UNIQUE KEY (col_int_key),
-UNIQUE KEY (col_varchar_key),
-UNIQUE KEY (col_date_key),
-KEY (col_time_key),
-KEY (col_datetime_key),
-UNIQUE KEY (col_int_key, col_varchar_key),
-KEY (col_int_key, col_int_nokey),
-KEY(col_int_key,col_date_key),
-KEY(col_int_key, col_time_key),
-KEY(col_int_key, col_datetime_key),
-UNIQUE
-KEY(col_date_key,col_time_key,col_datetime_key),
-UNIQUE KEY (col_varchar_key, col_varchar_nokey),
-UNIQUE KEY (col_int_key, col_varchar_key,
-col_date_key, col_time_key, col_datetime_key)
+UNIQUE KEY (gcol_int_key),
+UNIQUE KEY (gcol_varchar_key),
+UNIQUE KEY (gcol_date_key),
+KEY (gcol_time_key),
+KEY (gcol_datetime_key),
+UNIQUE KEY (gcol_int_key, gcol_varchar_key),
+KEY (gcol_int_key, col_int_nokey),
+KEY(gcol_int_key,gcol_date_key),
+KEY(gcol_int_key, gcol_time_key),
+KEY(gcol_int_key, gcol_datetime_key),
+UNIQUE KEY(gcol_date_key,gcol_time_key,gcol_datetime_key),
+UNIQUE KEY (gcol_varchar_key, col_varchar_nokey),
+UNIQUE KEY (gcol_int_key, gcol_varchar_key, gcol_date_key, gcol_time_key, gcol_datetime_key)
 )  AUTO_INCREMENT=10 ENGINE=INNODB;
-INSERT /*! IGNORE */ INTO cc (
-col_int_nokey,
-col_date_nokey,
-col_time_nokey,
-col_datetime_nokey,
-col_varchar_nokey
-) VALUES (172, '2009-04-23', '00:00:00', '2000-12-07 10:17:40.013275', 'h'),(NULL, '2002-10-06', '00:50:49.017545', NULL, 'm');
+INSERT IGNORE INTO cc (col_int_nokey, col_date_nokey, col_time_nokey, col_datetime_nokey, col_varchar_nokey)
+VALUES (172, '2009-04-23', '00:00:00', '2000-12-07 10:17:40.013275', 'h'),
+(NULL, '2002-10-06', '00:50:49.017545', NULL, 'm');
 Warnings:
-Warning	1048	Column 'col_int_key' cannot be null
-Warning	1048	Column 'col_datetime_key' cannot be null
-Warning	1048	Column 'col_time_key' cannot be null
+Note	1265	Data truncated for column 'gcol_time_key' at row 1
 EXPLAIN SELECT
-gp1 . col_datetime_key AS g1
-FROM cc AS gp1 LEFT JOIN c AS gp2 ON ( gp2 . col_datetime_key <> gp1 .
+gp1 . gcol_datetime_key AS g1
+FROM cc AS gp1 LEFT JOIN c AS gp2 ON ( gp2 . gcol_datetime_key <> gp1 .
 col_time_nokey )
 WHERE
 gp1 . col_varchar_nokey IN
 (
 SELECT
-DISTINCT p1 . col_varchar_key AS p1
+DISTINCT p1 . gcol_varchar_key AS p1
 FROM bb AS p1 LEFT JOIN bb AS p2
-ON ( p1 . col_int_key = p2 . pk )
+ON ( p1 . gcol_int_key = p2 . pk )
 )
 AND gp1 . col_varchar_nokey = 'b'
 HAVING g1 > 6;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	gp1	NULL	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where
-1	SIMPLE	p1	NULL	const	col_varchar_key,col_varchar_key_2	col_varchar_key	4	const	1	100.00	NULL
-1	SIMPLE	p2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.p1.col_int_key	1	100.00	Using index; FirstMatch(gp1)
-1	SIMPLE	gp2	NULL	index	NULL	col_datetime_key	5	NULL	2	100.00	Using where; Using index; Using join buffer (Block Nested Loop)
-Warnings:
-Warning	1292	Incorrect datetime value: '6' for column 'col_datetime_key' at row 1
-Note	1003	/* select#1 */ select `test`.`gp1`.`col_datetime_key` AS `g1` from `test`.`cc` `gp1` semi join (`test`.`bb` `p1` left join `test`.`bb` `p2` on((`test`.`p1`.`col_int_key` = `test`.`p2`.`pk`))) left join `test`.`c` `gp2` on((`test`.`gp2`.`col_datetime_key` <> `test`.`gp1`.`col_time_nokey`)) where ((`test`.`gp1`.`col_varchar_nokey` = 'b') and ('b' = `test`.`p1`.`col_varchar_key`)) having (`g1` > 6)
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT
-gp1 . col_datetime_key AS g1
-FROM cc AS gp1 LEFT JOIN c AS gp2 ON ( gp2 . col_datetime_key <> gp1 .
+gp1 . gcol_datetime_key AS g1
+FROM cc AS gp1 LEFT JOIN c AS gp2 ON ( gp2 . gcol_datetime_key <> gp1 .
 col_time_nokey )
 WHERE
 gp1 . col_varchar_nokey IN
 (
 SELECT
-DISTINCT p1 . col_varchar_key AS p1
+DISTINCT p1 . gcol_varchar_key AS p1
 FROM bb AS p1 LEFT JOIN bb AS p2
-ON ( p1 . col_int_key = p2 . pk )
+ON ( p1 . gcol_int_key = p2 . pk )
 )
 AND gp1 . col_varchar_nokey = 'b'
 HAVING g1 > 6;
 g1
-Warnings:
-Warning	1292	Incorrect datetime value: '6' for column 'col_datetime_key' at row 1
 DROP TABLE bb, c, cc;
 # Bug#21284646: Assertion !(table || table->read_set || bitmap_is_set())
 CREATE TABLE c (
 pk INTEGER AUTO_INCREMENT,
 col_int_nokey INTEGER NOT NULL,
-col_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL not null,
+col_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL,
 col_date_nokey DATE NOT NULL,
-col_date_key DATE GENERATED ALWAYS AS (DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL not null,
+col_date_key DATE GENERATED ALWAYS AS (DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL,
 col_datetime_nokey DATETIME NOT NULL,
 col_time_nokey TIME NOT NULL,
-col_datetime_key DATETIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-col_time_key TIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
+col_datetime_key DATETIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+col_time_key TIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
 col_varchar_nokey VARCHAR(1) NOT NULL,
-col_varchar_key VARCHAR(2) GENERATED ALWAYS AS (CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL not null,
+col_varchar_key VARCHAR(2) GENERATED ALWAYS AS (CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL,
 PRIMARY KEY (pk,col_int_nokey),
 UNIQUE KEY (col_int_key),
 UNIQUE KEY (col_varchar_key),
@@ -264,6 +222,13 @@ INSERT INTO c (col_int_nokey, col_date_nokey, col_time_nokey, col_datetime_nokey
 (6, '2006-05-25', '19:47:59.011283', '2001-02-15 03:08:38.035426', 'y'),
 (2, '2002-10-13', '00:00:00', '1900-01-01 00:00:00', 's'),
 (4, '1900-01-01', '15:57:25.019666', '2005-08-15 00:00:00', 'r');
+Warnings:
+Note	1265	Data truncated for column 'col_time_key' at row 1
+Note	1265	Data truncated for column 'col_time_key' at row 2
+Note	1265	Data truncated for column 'col_time_key' at row 3
+Note	1265	Data truncated for column 'col_time_key' at row 4
+Note	1265	Data truncated for column 'col_time_key' at row 5
+Note	1265	Data truncated for column 'col_time_key' at row 6
 ANALYZE TABLE c;
 Table	Op	Msg_type	Msg_text
 test.c	analyze	status	OK
@@ -274,10 +239,8 @@ col_int_nokey <> 9 AND
 pk >= 8
 HAVING x > '2000-02-06'
 ORDER BY col_time_nokey, pk;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	c	NULL	index_merge	PRIMARY,col_varchar_key,col_int_key_2,col_varchar_key_2,col_int_key_7	col_varchar_key,PRIMARY	4,4	NULL	2	100.00	Using sort_union(col_varchar_key,PRIMARY); Using where
-Warnings:
-Note	1003	/* select#1 */ select count(distinct `test`.`c`.`col_varchar_key`) AS `x` from `test`.`c` where ((`test`.`c`.`col_varchar_key` in ('rr','rr')) or ((`test`.`c`.`col_int_nokey` <> 9) and (`test`.`c`.`pk` >= 8))) having (`x` > '2000-02-06')
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	c	ALL	PRIMARY,col_varchar_key,col_varchar_key_2	NULL	NULL	NULL	6	Using where
 SELECT COUNT(DISTINCT col_varchar_key) AS x
 FROM c
 WHERE col_varchar_key IN ('rr', 'rr') OR
@@ -292,15 +255,15 @@ DROP TABLE c;
 # Bug#21341044: Conditional jump at sort_param::make_sort_key
 CREATE TABLE t1 (
 pk INTEGER AUTO_INCREMENT,
-col_int_nokey INTEGER /*! NULL */,
+col_int_nokey INTEGER,
 col_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL,
-col_blob_nokey BLOB /*! NULL */,
+col_blob_nokey BLOB,
 col_blob_key BLOB GENERATED ALWAYS AS (REPEAT(col_blob_nokey,15)) VIRTUAL,
-col_longblob_nokey LONGBLOB /*! NULL */,
-col_longtext_nokey LONGTEXT /*! NULL */,
+col_longblob_nokey LONGBLOB,
+col_longtext_nokey LONGTEXT,
 col_longblob_key LONGBLOB GENERATED ALWAYS AS (REPEAT(col_longblob_nokey, 20)) VIRTUAL,
 col_longtext_key LONGTEXT GENERATED ALWAYS AS (REPEAT(col_longblob_nokey, 18)) VIRTUAL,
-col_text_nokey TEXT /*! NULL */,
+col_text_nokey TEXT,
 col_text_key TEXT GENERATED ALWAYS AS (REPEAT(col_text_nokey, 30)) VIRTUAL,
 PRIMARY KEY (pk),
 KEY (col_int_key),
@@ -350,7 +313,7 @@ CREATE TABLE t(a int);
 ALTER TABLE t ADD COLUMN b int GENERATED ALWAYS AS (
 date_sub(a,interval a month)) VIRTUAL;
 ALTER TABLE t ADD COLUMN c int GENERATED ALWAYS AS (sum(a));
-ERROR HY000: Invalid use of group function
+ERROR HY000: Function or expression 'sum()' cannot be used in the GENERATED ALWAYS AS clause of `c`
 DROP TABLE t;
 #
 # Bug#21628840: CRASH/MEMORY CORRUPTION ADDING INDEXES TO VIRTUAL COLUMN
@@ -368,10 +331,8 @@ test.t1	analyze	status	OK
 # Make sure the index is correct. That's kinda important.
 EXPLAIN
 SELECT c FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	NULL	index	NULL	c	5	NULL	5	100.00	Using index
-Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`c` AS `c` from `test`.`t1`
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	c	5	NULL	5	Using index
 SELECT c FROM t1;
 c
 1
@@ -408,20 +369,16 @@ b CHAR(2) GENERATED ALWAYS AS (a IN (1)) VIRTUAL,
 KEY(c,b(1)));
 INSERT INTO v (a,c) VALUES (1,1);
 EXPLAIN SELECT 1 FROM t WHERE ( SELECT 1 FROM t ) >=ANY( SELECT c FROM v );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
-2	SUBQUERY	t	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	NULL
-Warnings:
-Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t` where 0
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 SELECT 1 FROM t WHERE ( SELECT 1 FROM t ) >=ANY( SELECT c FROM v );
 1
 EXPLAIN SELECT (SELECT MAX(c) FROM v);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
-Warnings:
-Note	1003	/* select#1 */ select (/* select#2 */ select max(`test`.`v`.`c`) from `test`.`v`) AS `(SELECT MAX(c) FROM v)`
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 SELECT (SELECT MAX(c) FROM v);
 (SELECT MAX(c) FROM v)
 1
@@ -479,12 +436,17 @@ PRIMARY KEY(c1),
 UNIQUE KEY(c13)
 );
 INSERT INTO C (c8,c9) VALUES('1970-01-01',0),('1970-01-01',1);
+Warnings:
+Note	1265	Data truncated for column 'c11' at row 1
+Note	1265	Data truncated for column 'c13' at row 1
+Note	1265	Data truncated for column 'c11' at row 2
+Note	1265	Data truncated for column 'c13' at row 2
 CREATE VIEW view_C AS SELECT * FROM C;
 SELECT /*+ NO_BNL(t1) */ t1.c13 FROM C AS t2 STRAIGHT_JOIN C AS t1 FORCE INDEX(c13);
 c13
 00:00:00
-00:00:01
 00:00:00
+00:00:01
 00:00:01
 SELECT DISTINCT t1.c13 FROM C AS t1, view_C AS t2;
 c13
@@ -492,17 +454,6 @@ c13
 00:00:01
 DROP TABLE C;
 DROP VIEW view_C;
-#
-# Bug #21808680: JSON + GENERATED COLUMN CORRUPTS TABLE CACHE
-#                MEMORY, CRASHES
-#
-CREATE TABLE t (a INT, b JSON, c TEXT GENERATED ALWAYS AS (REPEAT(a=b, 2)));
-INSERT INTO t (a, b) VALUES (1, '2'), (3, '3');
-SELECT * FROM t;
-a	b	c
-1	2	00
-3	3	11
-DROP TABLE t;
 #
 # Bug#21810529: CRASH IN ITEM_FUNC::WALK WHEN CODE JUMPS TO GARBAGE
 # LOCATION
@@ -522,10 +473,10 @@ DROP TABLE t;
 #
 CREATE TABLE t(b BLOB);
 ALTER TABLE t ADD COLUMN c INT GENERATED ALWAYS AS ((1,1)) VIRTUAL;
-ERROR HY000: Expression of generated column 'c' contains a disallowed function.
+ERROR 21000: Operand should contain 1 column(s)
 DROP TABLE t;
 CREATE TABLE t(b BLOB, c INT GENERATED ALWAYS AS ((1,1)) VIRTUAL);
-ERROR HY000: Expression of generated column 'c' contains a disallowed function.
+ERROR 21000: Operand should contain 1 column(s)
 #
 # Bug#21929967 GCOLS: GCOL VALUE CHANGES WHEN SESSION CHANGES SQL_MODE
 #
@@ -536,14 +487,12 @@ t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   `b` char(1) DEFAULT NULL,
   `c` char(2) GENERATED ALWAYS AS ((`a` or `b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES('1','1');
 SELECT * FROM t1;
 a	b	c
 1	1	1
 SET SQL_MODE=PIPES_AS_CONCAT;
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 SELECT * FROM t1;
 a	b	c
 1	1	1
@@ -559,7 +508,7 @@ t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   `b` char(1) DEFAULT NULL,
   `c` char(2) GENERATED ALWAYS AS (concat(`a`,`b`)) VIRTUAL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES('1','1');
 SELECT * FROM t1;
 a	b	c
@@ -576,17 +525,18 @@ DROP TABLE t1;
 # Bug#22018999: gcols: assertion failed: !error
 SET @save_old_sql_mode= @@sql_mode;
 SET sql_mode="";
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 CREATE TABLE t (a INTEGER AS (SUBSTR('','a',1))) engine=innodb;
-ERROR 22007: Truncated incorrect INTEGER value: 'a'
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'a'
+DROP TABLE t;
 CREATE TABLE t (a INTEGER) engine=innodb;
 ALTER TABLE t ADD b INTEGER AS (SUBSTR('','a',1));
-ERROR 22007: Truncated incorrect INTEGER value: 'a'
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'a'
+Warning	1292	Truncated incorrect INTEGER value: 'a'
+Warning	1292	Truncated incorrect INTEGER value: 'a'
 DROP TABLE t;
 set sql_mode= @save_old_sql_mode;
-Warnings:
-Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 # Bug#21875520 Problems with virtual column indexes
 CREATE TABLE t(
 a TIMESTAMP,

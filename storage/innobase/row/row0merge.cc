@@ -655,13 +655,10 @@ row_merge_buf_add(
 		const dfield_t*		row_field;
 
 		col = ifield->col;
-
-#ifdef MYSQL_VIRTUAL_COLUMNS
 		const dict_v_col_t*	v_col = NULL;
 		if (dict_col_is_virtual(col)) {
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 		}
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 		col_no = dict_col_get_no(col);
 
@@ -687,7 +684,6 @@ row_merge_buf_add(
 		} else {
 			/* Use callback to get the virtual column value */
 			if (dict_col_is_virtual(col)) {
- #ifdef MYSQL_VIRTUAL_COLUMN
 				dict_index_t*	clust_index
 					= dict_table_get_first_index(new_table);
 
@@ -701,7 +697,6 @@ row_merge_buf_add(
 					DBUG_RETURN(0);
 				}
 				dfield_copy(field, row_field);
-#endif /* MYSQL_VIRTUAL_COLUMN */
 			} else {
 				row_field = dtuple_get_nth_field(row, col_no);
 				dfield_copy(field, row_field);

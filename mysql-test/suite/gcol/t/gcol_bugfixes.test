@@ -80,164 +80,113 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE c (
-                        pk INTEGER AUTO_INCREMENT,
-                        col_int_nokey INTEGER /*! NULL */,
-                        col_int_key INTEGER GENERATED ALWAYS AS
-(col_int_nokey + col_int_nokey) VIRTUAL not null,
+  pk INTEGER AUTO_INCREMENT,
+  col_int_nokey INTEGER,
+  gcol_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL,
+  col_date_nokey DATE,
+  gcol_date_key DATE GENERATED ALWAYS AS (DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL,
+  col_datetime_nokey DATETIME,
+  col_time_nokey TIME,
+  gcol_datetime_key DATETIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+  gcol_time_key TIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+  col_varchar_nokey VARCHAR(1),
+  gcol_varchar_key VARCHAR(2) GENERATED ALWAYS AS (CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL,
+  PRIMARY KEY (pk),
+  UNIQUE KEY (gcol_int_key),
+  UNIQUE KEY (gcol_varchar_key),
+  UNIQUE KEY (gcol_date_key),
+  KEY (gcol_time_key),
+  KEY (gcol_datetime_key),
+  UNIQUE KEY (gcol_int_key, gcol_varchar_key),
+  KEY (gcol_int_key, col_int_nokey),
+  KEY(gcol_int_key,gcol_date_key),
+  KEY(gcol_int_key, gcol_time_key),
+  KEY(gcol_int_key, gcol_datetime_key),
+  UNIQUE KEY(gcol_date_key,gcol_time_key,gcol_datetime_key),
+  UNIQUE KEY (gcol_varchar_key, col_varchar_nokey),
+  UNIQUE KEY (gcol_int_key, gcol_varchar_key, gcol_date_key, gcol_time_key, gcol_datetime_key)
+)  ENGINE=INNODB;
 
-                        col_date_nokey DATE /*! NULL */,
-                        col_date_key DATE GENERATED ALWAYS AS
-(DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL not null,
-
-                        col_datetime_nokey DATETIME /*! NULL */,
-                        col_time_nokey TIME /*! NULL */,
-
-                        col_datetime_key DATETIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-                        col_time_key TIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-
-                        col_varchar_nokey VARCHAR(1) /*! NULL */,
-                        col_varchar_key VARCHAR(2) GENERATED ALWAYS AS
-(CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL not null,
-
-                        PRIMARY KEY (pk),
-                        UNIQUE KEY (col_int_key),
-                        UNIQUE KEY (col_varchar_key),
-                        UNIQUE KEY (col_date_key),
-                        KEY (col_time_key),
-                        KEY (col_datetime_key),
-                        UNIQUE KEY (col_int_key, col_varchar_key),
-                        KEY (col_int_key, col_int_nokey),
-                        KEY(col_int_key,col_date_key),
-                        KEY(col_int_key, col_time_key),
-                        KEY(col_int_key, col_datetime_key),
-                        UNIQUE
-KEY(col_date_key,col_time_key,col_datetime_key),
-                        UNIQUE KEY (col_varchar_key, col_varchar_nokey),
-                        UNIQUE KEY (col_int_key, col_varchar_key,
-col_date_key, col_time_key, col_datetime_key)
-                )  ENGINE=INNODB;
-
-INSERT /*! IGNORE */ INTO c (
-                                col_int_nokey,
-                                col_date_nokey,
-                                col_time_nokey,
-                                col_datetime_nokey,
-                                col_varchar_nokey
-                        ) VALUES (7, '2004-04-09', '14:03:03.042673',
-'2001-11-28 00:50:27.051028', 'c'),(1, '2006-05-13', '01:46:09.016386',
-'2007-10-09 19:53:04.008332', NULL);
+INSERT IGNORE INTO c ( col_int_nokey, col_date_nokey, col_time_nokey, col_datetime_nokey, col_varchar_nokey)
+VALUES (7, '2004-04-09', '14:03:03.042673', '2001-11-28 00:50:27.051028', 'c'),
+       (1, '2006-05-13', '01:46:09.016386', '2007-10-09 19:53:04.008332', NULL);
 
 CREATE TABLE bb (
-                        pk INTEGER AUTO_INCREMENT,
-                        col_int_nokey INTEGER /*! NULL */,
-                        col_int_key INTEGER GENERATED ALWAYS AS
-(col_int_nokey + col_int_nokey) VIRTUAL not null,
+  pk INTEGER AUTO_INCREMENT,
+  col_int_nokey INTEGER,
+  gcol_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL,
+  col_date_nokey DATE,
+  gcol_date_key DATE GENERATED ALWAYS AS (DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL,
+  col_datetime_nokey DATETIME,
+  col_time_nokey TIME,
+  gcol_datetime_key DATETIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+  gcol_time_key TIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+  col_varchar_nokey VARCHAR(1),
+  gcol_varchar_key VARCHAR(2) GENERATED ALWAYS AS (CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL,
+  PRIMARY KEY (pk),
+  UNIQUE KEY (gcol_int_key),
+  UNIQUE KEY (gcol_varchar_key),
+  UNIQUE KEY (gcol_date_key),
+  KEY (gcol_time_key),
+  KEY (gcol_datetime_key),
+  UNIQUE KEY (gcol_int_key, gcol_varchar_key),
+  KEY (gcol_int_key, col_int_nokey),
+  KEY(gcol_int_key,gcol_date_key),
+  KEY(gcol_int_key, gcol_time_key),
+  KEY(gcol_int_key, gcol_datetime_key),
+  UNIQUE KEY(gcol_date_key,gcol_time_key,gcol_datetime_key),
+  UNIQUE KEY (gcol_varchar_key, col_varchar_nokey),
+  UNIQUE KEY (gcol_int_key, gcol_varchar_key, gcol_date_key, gcol_time_key, gcol_datetime_key)
+)  AUTO_INCREMENT=10 ENGINE=INNODB;
 
-                        col_date_nokey DATE /*! NULL */,
-                        col_date_key DATE GENERATED ALWAYS AS
-(DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL not null,
-
-                        col_datetime_nokey DATETIME /*! NULL */,
-                        col_time_nokey TIME /*! NULL */,
-
-                        col_datetime_key DATETIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-                        col_time_key TIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-
-                        col_varchar_nokey VARCHAR(1) /*! NULL */,
-                        col_varchar_key VARCHAR(2) GENERATED ALWAYS AS
-(CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL not null,
-
-                        PRIMARY KEY (pk),
-                        UNIQUE KEY (col_int_key),
-                        UNIQUE KEY (col_varchar_key),
-                        UNIQUE KEY (col_date_key),
-                        KEY (col_time_key),
-                        KEY (col_datetime_key),
-                        UNIQUE KEY (col_int_key, col_varchar_key),
-                        KEY (col_int_key, col_int_nokey),
-                        KEY(col_int_key,col_date_key),
-                        KEY(col_int_key, col_time_key),
-                        KEY(col_int_key, col_datetime_key),
-                        UNIQUE
-KEY(col_date_key,col_time_key,col_datetime_key),
-                        UNIQUE KEY (col_varchar_key, col_varchar_nokey),
-                        UNIQUE KEY (col_int_key, col_varchar_key,
-col_date_key, col_time_key, col_datetime_key)
-                )  AUTO_INCREMENT=10 ENGINE=INNODB;
-
-INSERT /*! IGNORE */ INTO bb (
-                                col_int_nokey,
-                                col_date_nokey,
-                                col_time_nokey,
-                                col_datetime_nokey,
-                                col_varchar_nokey
-                        ) VALUES (0, '2003-08-04', '01:48:05.048577',
-'2006-11-03 00:00:00', 'p'),(2, '2007-11-06', '00:00:00', '2009-11-26 19:28:11.005115', 'n');
+INSERT IGNORE INTO bb ( col_int_nokey, col_date_nokey, col_time_nokey, col_datetime_nokey, col_varchar_nokey)
+ VALUES (0, '2003-08-04', '01:48:05.048577', '2006-11-03 00:00:00', 'p'),
+        (2, '2007-11-06', '00:00:00', '2009-11-26 19:28:11.005115', 'n');
 
 CREATE TABLE cc (
-                        pk INTEGER AUTO_INCREMENT,
-                        col_int_nokey INTEGER /*! NULL */,
-                        col_int_key INTEGER GENERATED ALWAYS AS
-(col_int_nokey + col_int_nokey) VIRTUAL not null,
+  pk INTEGER AUTO_INCREMENT,
+  col_int_nokey INTEGER,
+  gcol_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL,
+  col_date_nokey DATE,
+  gcol_date_key DATE GENERATED ALWAYS AS (DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL,
+  col_datetime_nokey DATETIME,
+  col_time_nokey TIME,
+  gcol_datetime_key DATETIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+  gcol_time_key TIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+  col_varchar_nokey VARCHAR(1),
+  gcol_varchar_key VARCHAR(2) GENERATED ALWAYS AS (CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL,
+  PRIMARY KEY (pk),
+  UNIQUE KEY (gcol_int_key),
+  UNIQUE KEY (gcol_varchar_key),
+  UNIQUE KEY (gcol_date_key),
+  KEY (gcol_time_key),
+  KEY (gcol_datetime_key),
+  UNIQUE KEY (gcol_int_key, gcol_varchar_key),
+  KEY (gcol_int_key, col_int_nokey),
+  KEY(gcol_int_key,gcol_date_key),
+  KEY(gcol_int_key, gcol_time_key),
+  KEY(gcol_int_key, gcol_datetime_key),
+  UNIQUE KEY(gcol_date_key,gcol_time_key,gcol_datetime_key),
+  UNIQUE KEY (gcol_varchar_key, col_varchar_nokey),
+  UNIQUE KEY (gcol_int_key, gcol_varchar_key, gcol_date_key, gcol_time_key, gcol_datetime_key)
+)  AUTO_INCREMENT=10 ENGINE=INNODB;
 
-                        col_date_nokey DATE /*! NULL */,
-                        col_date_key DATE GENERATED ALWAYS AS
-(DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL not null,
-
-                        col_datetime_nokey DATETIME /*! NULL */,
-                        col_time_nokey TIME /*! NULL */,
-
-                        col_datetime_key DATETIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-                        col_time_key TIME GENERATED ALWAYS AS
-(ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
-
-                        col_varchar_nokey VARCHAR(1) /*! NULL */,
-                        col_varchar_key VARCHAR(2) GENERATED ALWAYS AS
-(CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL not null,
-
-                        PRIMARY KEY (pk),
-                        UNIQUE KEY (col_int_key),
-                        UNIQUE KEY (col_varchar_key),
-                        UNIQUE KEY (col_date_key),
-                        KEY (col_time_key),
-                        KEY (col_datetime_key),
-                        UNIQUE KEY (col_int_key, col_varchar_key),
-                        KEY (col_int_key, col_int_nokey),
-                        KEY(col_int_key,col_date_key),
-                        KEY(col_int_key, col_time_key),
-                        KEY(col_int_key, col_datetime_key),
-                        UNIQUE
-KEY(col_date_key,col_time_key,col_datetime_key),
-                        UNIQUE KEY (col_varchar_key, col_varchar_nokey),
-                        UNIQUE KEY (col_int_key, col_varchar_key,
-col_date_key, col_time_key, col_datetime_key)
-                )  AUTO_INCREMENT=10 ENGINE=INNODB;
-
-INSERT /*! IGNORE */ INTO cc (
-                                col_int_nokey,
-                                col_date_nokey,
-                                col_time_nokey,
-                                col_datetime_nokey,
-                                col_varchar_nokey
-                        ) VALUES (172, '2009-04-23', '00:00:00', '2000-12-07 10:17:40.013275', 'h'),(NULL, '2002-10-06', '00:50:49.017545', NULL, 'm');
+INSERT IGNORE INTO cc (col_int_nokey, col_date_nokey, col_time_nokey, col_datetime_nokey, col_varchar_nokey)
+ VALUES (172, '2009-04-23', '00:00:00', '2000-12-07 10:17:40.013275', 'h'),
+        (NULL, '2002-10-06', '00:50:49.017545', NULL, 'm');
 
 let $query=
 SELECT
-gp1 . col_datetime_key AS g1
-FROM cc AS gp1 LEFT JOIN c AS gp2 ON ( gp2 . col_datetime_key <> gp1 .
+gp1 . gcol_datetime_key AS g1
+FROM cc AS gp1 LEFT JOIN c AS gp2 ON ( gp2 . gcol_datetime_key <> gp1 .
 col_time_nokey )
 WHERE
 gp1 . col_varchar_nokey IN
 (
 SELECT
-DISTINCT p1 . col_varchar_key AS p1
+DISTINCT p1 . gcol_varchar_key AS p1
 FROM bb AS p1 LEFT JOIN bb AS p2
-ON ( p1 . col_int_key = p2 . pk )
+ON ( p1 . gcol_int_key = p2 . pk )
 )
 AND gp1 . col_varchar_nokey = 'b'
 HAVING g1 > 6;
@@ -251,15 +200,15 @@ DROP TABLE bb, c, cc;
 CREATE TABLE c (
  pk INTEGER AUTO_INCREMENT,
  col_int_nokey INTEGER NOT NULL,
- col_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL not null,
+ col_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL,
  col_date_nokey DATE NOT NULL,
- col_date_key DATE GENERATED ALWAYS AS (DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL not null,
+ col_date_key DATE GENERATED ALWAYS AS (DATE_ADD(col_date_nokey,interval 30 day)) VIRTUAL,
  col_datetime_nokey DATETIME NOT NULL,
  col_time_nokey TIME NOT NULL,
- col_datetime_key DATETIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
- col_time_key TIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL not null,
+ col_datetime_key DATETIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
+ col_time_key TIME GENERATED ALWAYS AS (ADDTIME(col_datetime_nokey, col_time_nokey)) VIRTUAL,
  col_varchar_nokey VARCHAR(1) NOT NULL,
- col_varchar_key VARCHAR(2) GENERATED ALWAYS AS (CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL not null,
+ col_varchar_key VARCHAR(2) GENERATED ALWAYS AS (CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL,
  PRIMARY KEY (pk,col_int_nokey),
  UNIQUE KEY (col_int_key),
  UNIQUE KEY (col_varchar_key),
@@ -303,15 +252,15 @@ DROP TABLE c;
 
 CREATE TABLE t1 (
  pk INTEGER AUTO_INCREMENT,
- col_int_nokey INTEGER /*! NULL */,
+ col_int_nokey INTEGER,
  col_int_key INTEGER GENERATED ALWAYS AS (col_int_nokey + col_int_nokey) VIRTUAL,
- col_blob_nokey BLOB /*! NULL */,
+ col_blob_nokey BLOB,
  col_blob_key BLOB GENERATED ALWAYS AS (REPEAT(col_blob_nokey,15)) VIRTUAL,
- col_longblob_nokey LONGBLOB /*! NULL */,
- col_longtext_nokey LONGTEXT /*! NULL */,
+ col_longblob_nokey LONGBLOB,
+ col_longtext_nokey LONGTEXT,
  col_longblob_key LONGBLOB GENERATED ALWAYS AS (REPEAT(col_longblob_nokey, 20)) VIRTUAL,
  col_longtext_key LONGTEXT GENERATED ALWAYS AS (REPEAT(col_longblob_nokey, 18)) VIRTUAL,
- col_text_nokey TEXT /*! NULL */,
+ col_text_nokey TEXT,
  col_text_key TEXT GENERATED ALWAYS AS (REPEAT(col_text_nokey, 30)) VIRTUAL,
  PRIMARY KEY (pk),
  KEY (col_int_key),
@@ -339,7 +288,6 @@ VALUES
 (5, 'bjjv', 'bjjv', 'bjjv', 'bjjv'),
 (0, 'jjvvkymalu', 'jjvvkymalu', 'jjvvkymalu', 'jjvvkymalu'),
 (3, 'j', 'j', 'j', 'j');
-
 SELECT alias1.pk AS field1
 FROM t1 AS alias1 LEFT OUTER JOIN t1 AS alias2
      ON alias1.col_int_key = alias2.col_int_key
@@ -357,7 +305,7 @@ DROP TABLE t1;
 CREATE TABLE t(a int);
 ALTER TABLE t ADD COLUMN b int GENERATED ALWAYS AS (
 date_sub(a,interval a month)) VIRTUAL;
---error 1111
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 ALTER TABLE t ADD COLUMN c int GENERATED ALWAYS AS (sum(a));
 DROP TABLE t;
 
@@ -488,16 +436,6 @@ DROP TABLE C;
 DROP VIEW view_C;
 
 --echo #
---echo # Bug #21808680: JSON + GENERATED COLUMN CORRUPTS TABLE CACHE
---echo #                MEMORY, CRASHES
---echo #
-CREATE TABLE t (a INT, b JSON, c TEXT GENERATED ALWAYS AS (REPEAT(a=b, 2)));
-INSERT INTO t (a, b) VALUES (1, '2'), (3, '3');
-# The next statement used to crash.
-SELECT * FROM t;
-DROP TABLE t;
-
---echo #
 --echo # Bug#21810529: CRASH IN ITEM_FUNC::WALK WHEN CODE JUMPS TO GARBAGE
 --echo # LOCATION
 --echo #
@@ -517,10 +455,10 @@ DROP TABLE t;
 --echo #
 
 CREATE TABLE t(b BLOB);
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_OPERAND_COLUMNS
 ALTER TABLE t ADD COLUMN c INT GENERATED ALWAYS AS ((1,1)) VIRTUAL;
 DROP TABLE t;
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_OPERAND_COLUMNS
 CREATE TABLE t(b BLOB, c INT GENERATED ALWAYS AS ((1,1)) VIRTUAL);
 
 --echo #
@@ -552,12 +490,11 @@ DROP TABLE t1;
 SET @save_old_sql_mode= @@sql_mode;
 SET sql_mode="";
 
---error ER_TRUNCATED_WRONG_VALUE
 CREATE TABLE t (a INTEGER AS (SUBSTR('','a',1))) engine=innodb;
+DROP TABLE t;
 
 CREATE TABLE t (a INTEGER) engine=innodb;
 
---error ER_TRUNCATED_WRONG_VALUE
 ALTER TABLE t ADD b INTEGER AS (SUBSTR('','a',1));
 
 DROP TABLE t;

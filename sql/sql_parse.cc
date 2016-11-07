@@ -1085,20 +1085,11 @@ void do_handle_bootstrap(THD *thd)
 end:
   in_bootstrap= FALSE;
   delete thd;
-  if (!opt_bootstrap)
-  {
-    /*
-      We need to wake up main thread in case of read_init_file().
-      This is not done by THD::~THD() when there are other threads running
-      (binlog background thread, for example). So do it here again.
-    */
-    mysql_mutex_lock(&LOCK_thread_count);
-    mysql_cond_broadcast(&COND_thread_count);
-    mysql_mutex_unlock(&LOCK_thread_count);
-  }
+  mysql_mutex_lock(&LOCK_thread_count);
+  mysql_cond_broadcast(&COND_thread_count);
+  mysql_mutex_unlock(&LOCK_thread_count);
 
 #ifndef EMBEDDED_LIBRARY
-  DBUG_ASSERT(!opt_bootstrap || thread_count == 0);
   my_thread_end();
   pthread_exit(0);
 #endif

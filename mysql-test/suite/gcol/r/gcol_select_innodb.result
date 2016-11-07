@@ -563,6 +563,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT /*+ bka() */ 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
 WHERE b.b>c.a;
 c
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'cccc'
 DROP TABLE t;
 set @optimizer_switch_save = @@optimizer_switch;
 set optimizer_switch='mrr_cost_based=off';

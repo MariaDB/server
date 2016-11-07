@@ -467,7 +467,6 @@ row_vers_non_vc_match(
 	return(ret);
 }
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 /** build virtual column value from current cluster index record data
 @param[in,out]	row		the cluster index row in dtuple form
 @param[in]	clust_index	clustered index
@@ -841,7 +840,6 @@ row_vers_build_cur_vrow(
 					 ULINT_UNDEFINED, &heap);
 	return(cur_vrow);
 }
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 /*****************************************************************//**
 Finds out if a version of the record, where the version >= the current
@@ -913,7 +911,6 @@ row_vers_old_has_index_entry(
 
 		if (dict_index_has_virtual(index)) {
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 
 #ifdef DBUG_OFF
 # define dbug_v_purge false
@@ -963,7 +960,6 @@ row_vers_old_has_index_entry(
 			}
 			clust_offsets = rec_get_offsets(rec, clust_index, NULL,
 							ULINT_UNDEFINED, &heap);
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 		} else {
 
 			entry = row_build_index_entry(
@@ -1001,7 +997,6 @@ row_vers_old_has_index_entry(
 			}
 		}
 	} else if (dict_index_has_virtual(index)) {
-#ifdef MYSQL_VIRTUAL_COLUMNS
 		/* The current cluster index record could be
 		deleted, but the previous version of it might not. We will
 		need to get the virtual column data from undo record
@@ -1009,7 +1004,6 @@ row_vers_old_has_index_entry(
 		cur_vrow = row_vers_build_cur_vrow(
 			also_curr, rec, clust_index, &clust_offsets,
 			index, ientry, roll_ptr, trx_id, heap, v_heap, mtr);
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 	}
 
 	version = rec;

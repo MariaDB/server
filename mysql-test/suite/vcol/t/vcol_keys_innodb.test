@@ -41,6 +41,7 @@ SET @@session.storage_engine = 'InnoDB';
 
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
+let $with_foreign_keys = 1;
 --source suite/vcol/inc/vcol_keys.inc
 
 #------------------------------------------------------------------------------#

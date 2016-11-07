@@ -221,7 +221,6 @@ row_sel_sec_rec_is_for_clust_rec(
 		/* For virtual column, its value will need to be
 		reconstructed from base column in cluster index */
 		if (is_virtual) {
-#ifdef MYSQL_VIRTUAL_COLUMNS
 			const dict_v_col_t*	v_col;
 			const dtuple_t*         row;
 			dfield_t*		vfield;
@@ -243,7 +242,6 @@ row_sel_sec_rec_is_for_clust_rec(
 
 			clust_len = vfield->len;
 			clust_field = static_cast<byte*>(vfield->data);
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 		} else {
 			clust_pos = dict_col_get_clust_pos(col, clust_index);
 
