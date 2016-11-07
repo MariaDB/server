@@ -685,7 +685,7 @@ Db	char(64)	NO	PRI
 User	char(80)	NO	PRI		
 Table_name	char(64)	NO	PRI		
 Grantor	char(141)	NO	MUL		
-Timestamp	timestamp	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+Timestamp	timestamp	NO		current_timestamp()	on update current_timestamp()
 Table_priv	set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger')	NO			
 Column_priv	set('Select','Insert','Update','References')	NO			
 use test;
@@ -2675,7 +2675,7 @@ CREATE TABLE t1 (a VARCHAR(30) DEFAULT USER());
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(30) DEFAULT USER()
+  `a` varchar(30) DEFAULT user()
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ();
 GRANT ALL PRIVILEGES ON test.* TO dummy@localhost IDENTIFIED BY 'pwd';

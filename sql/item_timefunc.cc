@@ -1651,6 +1651,15 @@ bool Item_func_curtime::get_date(MYSQL_TIME *res,
   return 0;
 }
 
+void Item_func_curtime::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  if (decimals)
+    str->append_ulonglong(decimals);
+  str->append(')');
+}
+
 static void set_sec_part(ulong sec_part, MYSQL_TIME *ltime, Item *item)
 {
   DBUG_ASSERT(item->decimals == AUTO_SEC_PART_DIGITS ||
@@ -1702,6 +1711,15 @@ bool Item_func_now::fix_fields(THD *thd, Item **items)
     return 1;
   }
   return Item_temporal_func::fix_fields(thd, items);
+}
+
+void Item_func_now::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  if (decimals)
+    str->append_ulonglong(decimals);
+  str->append(')');
 }
 
 /**
@@ -2336,7 +2354,7 @@ void Item_temporal_typecast::print(String *str, enum_query_type query_type)
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" as "));
   str->append(cast_type());
-  if (decimals)
+  if (decimals && decimals != NOT_FIXED_DEC)
   {
     str->append('(');
     str->append(llstr(decimals, buf));

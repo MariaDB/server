@@ -655,6 +655,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
+  void print(String *str, enum_query_type query_type);
 };
 
 
@@ -740,6 +741,7 @@ public:
     */
     return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
+  void print(String *str, enum_query_type query_type);
 };
 
 
@@ -747,7 +749,7 @@ class Item_func_now_local :public Item_func_now
 {
 public:
   Item_func_now_local(THD *thd, uint dec): Item_func_now(thd, dec) {}
-  const char *func_name() const { return "now"; }
+  const char *func_name() const { return "current_timestamp"; }
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
   virtual enum Functype functype() const { return NOW_FUNC; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)

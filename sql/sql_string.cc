@@ -733,7 +733,7 @@ void String::qs_append(int i)
 void String::qs_append(ulonglong i)
 {
   char *buff= Ptr + str_length;
-  char *end= longlong10_to_str(i, buff,10);
+  char *end= longlong10_to_str(i, buff, 10);
   str_length+= (int) (end-buff);
 }
 

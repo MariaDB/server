@@ -32,7 +32,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a+1) PERSISTENT,
-  `c` int(11) AS (a+2) VIRTUAL
+  `b` int(11) AS ((`a` + 1)) PERSISTENT,
+  `c` int(11) AS ((`a` + 2)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;

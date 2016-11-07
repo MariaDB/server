@@ -178,9 +178,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL,
-  `b` blob DEFAULT COMPRESS(a),
-  `bl` int(11) DEFAULT UNCOMPRESSED_LENGTH(b),
-  `a1` text DEFAULT UNCOMPRESS(b)
+  `b` blob DEFAULT compress(`a`),
+  `bl` int(11) DEFAULT uncompressed_length(`b`),
+  `a1` text DEFAULT uncompress(`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (REPEAT('a',100));
 SELECT bl, a1 FROM t1;

@@ -260,7 +260,7 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `a` timestamp NOT NULL DEFAULT current_timestamp(),
   `b` varchar(10) DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

@@ -129,7 +129,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a*2) PERSISTENT,
+  `b` int(11) AS ((`a` * 2)) PERSISTENT,
   UNIQUE KEY `b` (`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;
@@ -144,7 +144,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a*2) PERSISTENT,
+  `b` int(11) AS ((`a` * 2)) PERSISTENT,
   UNIQUE KEY `b` (`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;
@@ -173,7 +173,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a*2) PERSISTENT,
+  `b` int(11) AS ((`a` * 2)) PERSISTENT,
   KEY `b` (`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;
@@ -186,7 +186,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS (a*2) PERSISTENT,
+  `b` int(11) AS ((`a` * 2)) PERSISTENT,
   KEY `a` (`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;

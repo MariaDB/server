@@ -2397,7 +2397,7 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `___________a` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `___________a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `case_______a` timestamp NULL DEFAULT NULL,
   `case_____a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   `coalesce___a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',

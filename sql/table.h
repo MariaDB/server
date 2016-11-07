@@ -582,6 +582,7 @@ struct TABLE_SHARE
   KEY  *key_info;			/* data of keys in database */
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
+  LEX_CUSTRING vcol_defs;              /* definitions of generated columns */
 
   TABLE_STATISTICS_CB stats_cb;
 
@@ -2668,11 +2669,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
 bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
                                     Virtual_column_info *vcol);
-Virtual_column_info *unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
-                                               TABLE *table,
-                                               Field *field,
-                                               Virtual_column_info *vcol,
-                                               bool *error_reported);
+bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
+                     bool *error_reported);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                                const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,

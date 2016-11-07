@@ -223,8 +223,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(30) DEFAULT NULL,
-  `b` blob DEFAULT DES_ENCRYPT(a, 'passwd'),
-  `c` text DEFAULT DES_DECRYPT(b, 'passwd')
+  `b` blob DEFAULT des_encrypt(`a`,'passwd'),
+  `c` text DEFAULT des_decrypt(`b`,'passwd')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('test');
 SELECT c FROM t1;

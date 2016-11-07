@@ -47,6 +47,9 @@
 #define MYSQL57_GENERATED_FIELD 128
 #define MYSQL57_GCOL_HEADER_SIZE 4
 
+static Virtual_column_info * unpack_vcol_info_from_frm(THD *, MEM_ROOT *,
+                 TABLE *, const uchar *, size_t, Virtual_column_info *, bool *);
+static bool check_vcol_forward_refs(Field *, Virtual_column_info *);
 
 /* INFORMATION_SCHEMA name */
 LEX_STRING INFORMATION_SCHEMA_NAME= {C_STRING_WITH_LEN("information_schema")};
@@ -957,6 +960,159 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
   }
 }
 
+
+/** Parse TABLE_SHARE::vcol_defs
+
+  unpack_vcol_info_from_frm
+  5.7
+    byte 1      = 1
+    byte 2,3    = expr length
+    byte 4      = stored_in_db
+    expression
+  10.1-
+    byte 1     = 1 | 2
+    byte 2     = sql_type
+    byte 3     = stored_in_db
+    [byte 4]   = optional interval_id for sql_type (if byte 1 == 2)
+    expression
+  10.2+
+    byte 1     = type
+    byte 2,3   = field_number
+    byte 4,5   = length of expression
+    byte 6     = length of name
+    name
+    expression
+*/
+bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
+                     bool *error_reported)
+{
+  const uchar *pos= table->s->vcol_defs.str;
+  const uchar *end= pos + table->s->vcol_defs.length;
+  Field **field_ptr= table->field - 1;
+  Field **vfield_ptr= table->vfield;
+  Field **dfield_ptr= table->default_field;
+  Virtual_column_info **check_constraint_ptr= table->check_constraints;
+  Virtual_column_info *vcol;
+  DBUG_ENTER("parse_vcol_defs");
+
+  if (check_constraint_ptr)
+    memcpy(table->check_constraints + table->s->field_check_constraints,
+           table->s->check_constraints,
+           table->s->table_check_constraints * sizeof(Virtual_column_info*));
+
+  while (pos < end)
+  {
+    uint type, expr_length;
+    if (table->s->mysql_version >= 100202)
+    {
+      uint field_nr, name_length;
+      /* see pack_expression() for how data is stored */
+      type= pos[0];
+      field_nr= uint2korr(pos+1);
+      expr_length= uint2korr(pos+3);
+      name_length= pos[5];
+      pos+= FRM_VCOL_NEW_HEADER_SIZE + name_length;
+      field_ptr= table->field + field_nr;
+    }
+    else
+    {
+      /*
+        see below in ::init_from_binary_frm_image for how data is stored
+        in versions below 10.2 (that includes 5.7 too)
+      */
+      while (*++field_ptr && !(*field_ptr)->vcol_info) /* no-op */;
+      if (!*field_ptr)
+      {
+        open_table_error(table->s, OPEN_FRM_CORRUPTED, 1);
+        DBUG_RETURN(1);
+      }
+      type= (*field_ptr)->vcol_info->stored_in_db
+            ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL;
+      expr_length= uint2korr(pos+1);
+      if (table->s->mysql_version > 50700 && table->s->mysql_version < 100000)
+        pos+= 4;                        // MySQL from 5.7
+      else
+        pos+= pos[0] == 2 ? 4 : 3;      // MariaDB from 5.2 to 10.1
+    }
+    switch (type) {
+    case VCOL_GENERATED_VIRTUAL:
+    case VCOL_GENERATED_STORED:
+      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
+                                      (*field_ptr)->vcol_info, error_reported);
+      DBUG_ASSERT((*field_ptr)->vcol_info->expr_item == NULL);
+      (*field_ptr)->vcol_info= vcol;
+      *(vfield_ptr++)= *field_ptr;
+      break;
+    case VCOL_DEFAULT:
+      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
+                                      (*field_ptr)->default_value,
+                                      error_reported);
+      DBUG_ASSERT((*field_ptr)->default_value->expr_item == NULL);
+      (*field_ptr)->default_value= vcol;
+      *(dfield_ptr++)= *field_ptr;
+      break;
+    case VCOL_CHECK_FIELD:
+      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
+                                      (*field_ptr)->check_constraint,
+                                      error_reported);
+      DBUG_ASSERT((*field_ptr)->check_constraint->expr_item == NULL);
+      (*field_ptr)->check_constraint= vcol;
+      *check_constraint_ptr++= vcol;
+      break;
+    case VCOL_CHECK_TABLE:
+      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
+                                      *check_constraint_ptr, error_reported);
+      *check_constraint_ptr++= vcol;
+      break;
+    }
+    if (!vcol)
+      DBUG_RETURN(1);
+    pos+= expr_length;
+  }
+
+  /* Now, initialize CURRENT_TIMESTAMP fields */
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    Field *field= *field_ptr;
+    if (field->has_default_now_unireg_check())
+    {
+      char buf[256];
+      size_t len= my_snprintf(buf, sizeof(buf), "current_timestamp(%u)", field->decimals());
+      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, (uchar*)buf, len,
+                                      (*field_ptr)->default_value,
+                                      error_reported);
+      DBUG_ASSERT((*field_ptr)->default_value->expr_item == NULL);
+      (*field_ptr)->default_value= vcol;
+      *(dfield_ptr++)= *field_ptr;
+      if (!field->default_value->expr_item)
+        DBUG_RETURN(1);
+    }
+    else if (field->has_update_default_function() && !field->default_value)
+      *(dfield_ptr++)= *field_ptr;
+  }
+
+  if (vfield_ptr)
+    *vfield_ptr= 0;
+
+  if (dfield_ptr)
+    *dfield_ptr= 0;
+
+  if (check_constraint_ptr)
+    *check_constraint_ptr= 0;
+
+  /* Check that expressions aren't refering to not yet initialized fields */
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    Field *field= *field_ptr;
+    if (check_vcol_forward_refs(field, field->vcol_info) ||
+        check_vcol_forward_refs(field, field->check_constraint) ||
+        check_vcol_forward_refs(field, field->default_value))
+      DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
 /**
   Read data from a binary .frm file image into a TABLE_SHARE
 
@@ -1452,6 +1608,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (!interval_count)
     share->intervals= 0;			// For better debugging
 
+  share->vcol_defs.str= vcol_screen_pos;
+  share->vcol_defs.length= vcol_screen_length;
+
   memcpy(names, strpos+(share->fields*field_pack_length), n_length+int_length);
   memcpy(comment_pos, disk_buff+read_length-com_length-vcol_screen_length, 
          com_length);
@@ -1535,8 +1694,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     mysql57_vcol_null_bit_pos= null_bit_pos;
     mysql57_calculate_null_position(share, &mysql57_vcol_null_pos,
                                     &mysql57_vcol_null_bit_pos,
-                                    strpos,
-                                    vcol_screen_pos);
+                                    strpos, vcol_screen_pos);
   }
 
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
@@ -1631,18 +1789,20 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         unireg_type&= MYSQL57_GENERATED_FIELD;
 
+        /*
+          MySQL 5.7 generated fields
+
+          byte 1        = 1
+          byte 2,3      = expr length
+          byte 4        = stored_in_db
+          byte 5..      = expr
+        */
         if ((uint)(vcol_screen_pos)[0] != 1)
           goto err;
         vcol_info= new (&share->mem_root) Virtual_column_info();
         vcol_info_length= uint2korr(vcol_screen_pos + 1);
         DBUG_ASSERT(vcol_info_length);
         vcol_info->stored_in_db= vcol_screen_pos[3];
-        if (!(vcol_info->expr_str.str=
-              (char *)memdup_root(&share->mem_root,
-                                  vcol_screen_pos + MYSQL57_GCOL_HEADER_SIZE,
-                                  vcol_info_length)))
-          goto err;
-        vcol_info->expr_str.length= vcol_info_length;
         vcol_info->utf8= 0;
         vcol_screen_pos+= vcol_info_length + MYSQL57_GCOL_HEADER_SIZE;;
         share->virtual_fields++;
@@ -1657,8 +1817,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           Get virtual column data stored in the .frm file as follows:
           byte 1      = 1 | 2
           byte 2      = sql_type
-          byte 3      = flags (as of now, 0 - no flags,
-                        1 - field is physically stored)
+          byte 3      = flags. 1 for stored_in_db
           [byte 4]    = optional interval_id for sql_type (if byte 1 == 2)
           next byte ...  = virtual column expression (text data)
         */
@@ -1670,20 +1829,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           interval_nr= (uint)vcol_screen_pos[3];
         else if ((uint)vcol_screen_pos[0] != 1)
           goto err;
-
-        vcol_info->stored_in_db= vcol_screen_pos[2];
+        vcol_info->stored_in_db= vcol_screen_pos[2] & 1;
         vcol_expr_length= vcol_info_length -
                           (uint)(FRM_VCOL_OLD_HEADER_SIZE(opt_interval_id));
-        if (!(vcol_info->expr_str.str=
-              (char *)memdup_root(&share->mem_root,
-                                  vcol_screen_pos +
-                                  (uint) FRM_VCOL_OLD_HEADER_SIZE(opt_interval_id),
-                                  vcol_expr_length)))
-          goto err;
-        if (opt_interval_id)
-          interval_nr= (uint) vcol_screen_pos[3];
-        vcol_info->expr_str.length= vcol_expr_length;
         vcol_info->utf8= 0; // before 10.2.1 the charset was unknown
+        int2store(vcol_screen_pos+1, vcol_expr_length); // for parse_vcol_defs()
         vcol_screen_pos+= vcol_info_length;
         share->virtual_fields++;
       }
@@ -1768,11 +1918,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     /* Convert pre-10.2.2 timestamps to use Field::default_value */
     unireg_check= (Field::utype) MTYP_TYPENR(unireg_type);
-    if (unireg_check == Field::TIMESTAMP_DNUN_FIELD)
-      unireg_check= Field::TIMESTAMP_UN_FIELD;
-    if (unireg_check == Field::TIMESTAMP_DN_FIELD)
-      unireg_check= Field::NONE;
-
     *field_ptr= reg_field=
       make_field(share, &share->mem_root, record+recpos, (uint32) field_length,
 		 null_pos, null_bit_pos, pack_flag, field_type, charset,
@@ -1782,17 +1927,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (!reg_field)				// Not supported field type
       goto err;
 
-    if (unireg_check != (Field::utype) MTYP_TYPENR(unireg_type))
+    if (unireg_check == Field::TIMESTAMP_DNUN_FIELD ||
+        unireg_check == Field::TIMESTAMP_DN_FIELD)
     {
-      char buf[32];
-      if (reg_field->decimals())
-        my_snprintf(buf, sizeof(buf), "CURRENT_TIMESTAMP(%d)", reg_field->decimals());
-      else
-        strmov(buf, "CURRENT_TIMESTAMP");
-
       reg_field->default_value= new (&share->mem_root) Virtual_column_info();
       reg_field->default_value->stored_in_db= 1;
-      thd->make_lex_string(&reg_field->default_value->expr_str, buf, strlen(buf));
       share->default_expressions++;
     }
 
@@ -1814,11 +1953,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         null_pos++;
     }
 
-    if (mysql57_null_bits && vcol_info && !vcol_info->stored_in_db)
+    if (vcol_info)
     {
-      /* MySQL 5.7 has null bits last */
-      swap_variables(uchar*, null_pos, mysql57_vcol_null_pos);
-      swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
+      vcol_info->name.str= const_cast<char*>(reg_field->field_name);
+      if (mysql57_null_bits && !vcol_info->stored_in_db)
+      {
+        /* MySQL 5.7 has null bits last */
+        swap_variables(uchar*, null_pos, mysql57_vcol_null_pos);
+        swap_variables(uint, null_bit_pos, mysql57_vcol_null_bit_pos);
+      }
     }
 
     if (f_no_default(pack_flag))
@@ -2169,6 +2312,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     /* Skip header */
     vcol_screen_pos+= FRM_VCOL_NEW_BASE_SIZE;
+    share->vcol_defs.str+= FRM_VCOL_NEW_BASE_SIZE;
+    share->vcol_defs.length-= FRM_VCOL_NEW_BASE_SIZE;
 
     /*
       Read virtual columns, default values and check constraints
@@ -2181,40 +2326,28 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       uint field_nr=     uint2korr(vcol_screen_pos+1);
       uint expr_length=  uint2korr(vcol_screen_pos+3);
       uint name_length=  (uint) vcol_screen_pos[5];
-      LEX_STRING name;
-      char *expr;
 
-      vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
-
-      name.str= 0;
-      if ((name.length= name_length))
-      {
-        if (!(name.str= strmake_root(&share->mem_root,
-                                     (char*) vcol_screen_pos,
-                                     name_length)))
-          goto err;
-      }
-      vcol_screen_pos+= name_length;
-      if (!(vcol_info=   new (&share->mem_root) Virtual_column_info()) ||
-          !(expr= (char *) strmake_root(&share->mem_root,
-                                        (char*) vcol_screen_pos,
-                                        expr_length)))
+      if (!(vcol_info=   new (&share->mem_root) Virtual_column_info()))
         goto err;
-      vcol_info->name= name;
-
       /* The following can only be true for check_constraints */
+
       if (field_nr != UINT_MAX16)
       {
         DBUG_ASSERT(field_nr < share->fields);
         reg_field= share->field[field_nr];
       }
 
-      vcol_info->expr_str.str=    expr;
-      vcol_info->expr_str.length= expr_length;
-      vcol_screen_pos+=           expr_length;
+      vcol_screen_pos+= FRM_VCOL_NEW_HEADER_SIZE;
+      vcol_info->name.length= name_length;
+      if (name_length)
+        vcol_info->name.str= strmake_root(&share->mem_root,
+                                          (char*)vcol_screen_pos, name_length);
+      else
+        vcol_info->name.str= const_cast<char*>(reg_field->field_name);
+      vcol_screen_pos+= name_length + expr_length;
 
       switch (type) {
-      case 0:                                   // Generated virtual field
+      case VCOL_GENERATED_VIRTUAL:
       {
         uint recpos;
         reg_field->vcol_info= vcol_info;
@@ -2226,24 +2359,24 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           share->stored_rec_length= recpos-1;
         break;
       }
-      case 1:                                   // Generated stored field
+      case VCOL_GENERATED_STORED:
         vcol_info->stored_in_db= 1;
         DBUG_ASSERT(!reg_field->vcol_info);
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
         break;
-      case 2:                                   // Default expression
+      case VCOL_DEFAULT:
         vcol_info->stored_in_db= 1;
         DBUG_ASSERT(!reg_field->default_value);
         reg_field->default_value=    vcol_info;
         share->default_expressions++;
         break;
-      case 3:                                   // Field check constraint
+      case VCOL_CHECK_FIELD:
         DBUG_ASSERT(!reg_field->check_constraint);
         reg_field->check_constraint= vcol_info;
         share->field_check_constraints++;
         break;
-      case 4:                                   // Table check constraint
+      case VCOL_CHECK_TABLE:
         *(table_check_constraints++)= vcol_info;
         break;
       }
@@ -2537,7 +2670,9 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
 
   if (unlikely(error))
   {
-    my_error(ER_ERROR_EVALUATING_EXPRESSION, MYF(0), vcol->expr_str);
+    StringBuffer<MAX_FIELD_WIDTH> str;
+    vcol->print(&str);
+    my_error(ER_ERROR_EVALUATING_EXPRESSION, MYF(0), str.c_ptr());
     DBUG_RETURN(1);
   }
 
@@ -2609,7 +2744,7 @@ bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
     FALSE          Otherwise
 */
 
-static bool fix_and_check_vcol_expr(THD *thd, TABLE *table, Field *field,
+static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
                                     Virtual_column_info *vcol)
 {
   Item* func_expr= vcol->expr_item;
@@ -2647,7 +2782,7 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table, Field *field,
   if (error || (res.errors & VCOL_IMPOSSIBLE))
   { // this can only happen if the frm was corrupted
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
-             "???", field ? field->field_name : "?????");
+             "???", "?????");
     DBUG_RETURN(1);
   }
   vcol->flags= res.errors;
@@ -2697,12 +2832,10 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table, Field *field,
    @retval NULL                   Error
 */
 
-Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
-                                               MEM_ROOT *mem_root,
-                                               TABLE *table,
-                                               Field *field,
-                                               Virtual_column_info *vcol,
-                                               bool *error_reported)
+static Virtual_column_info *
+unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root, TABLE *table,
+                          const uchar *expr_str, size_t expr_str_length,
+                          Virtual_column_info *vcol, bool *error_reported)
 {
   char *vcol_expr_str;
   int str_len;
@@ -2713,12 +2846,10 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
   Create_field vcol_storage; // placeholder for vcol_info
   Parser_state parser_state;
   Virtual_column_info *vcol_info= 0;
-  LEX_STRING *vcol_expr= &vcol->expr_str;
   LEX *old_lex= thd->lex;
   LEX lex;
   bool error;
   DBUG_ENTER("unpack_vcol_info_from_frm");
-  DBUG_ASSERT(vcol_expr);
 
   save_character_set_client= thd->variables.character_set_client;
   save_collation= thd->variables.collation_connection;
@@ -2731,14 +2862,14 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
   */
   
   if (!(vcol_expr_str= (char*) alloc_root(mem_root,
-                                          vcol_expr->length + 
+                                          expr_str_length +
                                           parse_vcol_keyword.length + 3)))
     DBUG_RETURN(0);
   memcpy(vcol_expr_str, parse_vcol_keyword.str, parse_vcol_keyword.length);
   str_len= parse_vcol_keyword.length;
   vcol_expr_str[str_len++]= '(';
-  memcpy(vcol_expr_str + str_len, vcol_expr->str, vcol_expr->length);
-  str_len+= vcol_expr->length;
+  memcpy(vcol_expr_str + str_len, expr_str, expr_str_length);
+  str_len+= expr_str_length;
   vcol_expr_str[str_len++]= ')';
   vcol_expr_str[str_len++]= 0;
 
@@ -2787,7 +2918,7 @@ Virtual_column_info *unpack_vcol_info_from_frm(THD *thd,
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
   vcol_storage.vcol_info->name=              vcol->name;
   vcol_storage.vcol_info->utf8=              vcol->utf8;
-  if (!fix_and_check_vcol_expr(thd, table, field, vcol_storage.vcol_info))
+  if (!fix_and_check_vcol_expr(thd, table, vcol_storage.vcol_info))
   {
     vcol_info= vcol_storage.vcol_info;          // Expression ok
     goto end;
@@ -3023,104 +3154,14 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (share->table_check_constraints || share->field_check_constraints)
       outparam->check_constraints= check_constraint_ptr;
 
-    /* Reuse the same loop both for virtual, default and check fields */
-    for (field_ptr= outparam->field; *field_ptr; field_ptr++)
+    if (parse_vcol_defs(thd, &outparam->mem_root, outparam, &error_reported))
     {
-      Field *field= *field_ptr;
-      if (field->vcol_info)
-      {
-        Virtual_column_info *vcol;
-        field->vcol_info->name.str= (char*) field->field_name;
-        if (!(vcol= unpack_vcol_info_from_frm(thd, &outparam->mem_root,
-                                              outparam, *field_ptr,
-                                              field->vcol_info,
-                                              &error_reported)))
-        {
-          error= OPEN_FRM_CORRUPTED;
-          goto err;
-        }
-        field->vcol_info= vcol;
-        *(vfield_ptr++)= *field_ptr;
-      }
-
-      if (field->check_constraint)
-      {
-        Virtual_column_info *vcol;
-        field->check_constraint->name.str=
-          (char*) field->field_name;
-        if (!(vcol= unpack_vcol_info_from_frm(thd, &outparam->mem_root,
-                                              outparam, 0,
-                                              field->check_constraint,
-                                              &error_reported)))
-        {
-          error= OPEN_FRM_CORRUPTED;
-          goto err;
-        }
-        field->check_constraint= vcol;
-        *(check_constraint_ptr++)= vcol;
-      }
-
-      if (field->default_value)
-      {
-        Virtual_column_info *vcol;
-        field->default_value->name.str=
-          (char*) field->field_name;
-        if (!(vcol= unpack_vcol_info_from_frm(thd, &outparam->mem_root,
-                                              outparam, *field_ptr,
-                                              field->default_value,
-                                              &error_reported)))
-        {
-          error= OPEN_FRM_CORRUPTED;
-          goto err;
-        }
-        field->default_value= vcol;
-        *(dfield_ptr++)= *field_ptr;
-      }
-      else
-        if (field->has_update_default_function())
-          *(dfield_ptr++)= *field_ptr;
-
-    }
-    *vfield_ptr= 0;                            // End marker
-    *dfield_ptr= 0;                            // End marker
-
-    /* Check that expressions aren't refering to not yet initialized fields */
-    for (field_ptr= outparam->field; *field_ptr; field_ptr++)
-    {
-      Field *field= *field_ptr;
-      if (check_vcol_forward_refs(field, field->vcol_info) ||
-          check_vcol_forward_refs(field, field->check_constraint) ||
-          check_vcol_forward_refs(field, field->default_value))
-      {
-        error= OPEN_FRM_CORRUPTED;
-        goto err;
-      }
+      error= OPEN_FRM_CORRUPTED;
+      goto err;
     }
 
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
-
-    /* Copy table level constraints to check_constraint_ptr */
-    for (i= 0 ;
-         i < share->table_check_constraints - share->field_check_constraints;
-         i++)
-    {
-      if (!(*check_constraint_ptr=
-            unpack_vcol_info_from_frm(thd,
-                                      &outparam->mem_root,
-                                      outparam,
-                                      0,
-                                      share->check_constraints[i],
-                                      &error_reported)))
-      {
-        error= OPEN_FRM_CORRUPTED;
-        goto err;
-      }
-      (*check_constraint_ptr)->name= share->check_constraints[i]->name;
-      check_constraint_ptr++;
-    }
-
-    *check_constraint_ptr= 0;                       // End marker
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -3776,8 +3817,8 @@ rename_file_ext(const char * from,const char * to,const char * ext)
 
 bool get_field(MEM_ROOT *mem, Field *field, String *res)
 {
-  char buff[MAX_FIELD_WIDTH], *to;
-  String str(buff,sizeof(buff),&my_charset_bin);
+  char *to;
+  StringBuffer<MAX_FIELD_WIDTH> str;
   bool rc;
   THD *thd= field->get_thd();
   sql_mode_t sql_mode_backup= thd->variables.sql_mode;
@@ -4060,13 +4101,11 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
       is backward compatible.
     */
   }
-  char buffer[1024];
+  StringBuffer<1024> sql_type(system_charset_info);
+  sql_type.extra_allocation(256); // Allocate min 256 characters at once
   for (i=0 ; i < table_def->count; i++, field_def++)
   {
-    String sql_type(buffer, sizeof(buffer), system_charset_info);
     sql_type.length(0);
-    /* Allocate min 256 characters at once */
-    sql_type.extra_allocation(256);
     if (i < table->s->fields)
     {
       Field *field= table->field[i];
@@ -7390,7 +7429,7 @@ int TABLE::update_virtual_field(Field *vf)
 
 int TABLE::update_default_fields(bool update_command, bool ignore_errors)
 {
-  DBUG_ENTER("update_default_fields");
+  DBUG_ENTER("TABLE::update_default_fields");
   Field **field_ptr;
   int res= 0;
   DBUG_ASSERT(default_field);
@@ -7412,8 +7451,6 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
         if (field->default_value &&
             (field->default_value->flags || field->flags & BLOB_FLAG))
           res|= (field->default_value->expr_item->save_in_field(field, 0) < 0);
-        else
-          res|= field->evaluate_insert_default_function();
       }
       else
         res|= field->evaluate_update_default_function();

@@ -195,13 +195,13 @@ t1	t2	t3
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `t1` timestamp NOT NULL DEFAULT current_timestamp(),
   `t2` datetime DEFAULT NULL,
   `t3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
-t1	timestamp	NO		CURRENT_TIMESTAMP	
+t1	timestamp	NO		current_timestamp()	
 t2	datetime	YES		NULL	
 t3	timestamp	NO		0000-00-00 00:00:00	
 drop table t1;
@@ -222,12 +222,12 @@ t1	t2
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t1` timestamp NOT NULL DEFAULT '2003-01-01 00:00:00' ON UPDATE CURRENT_TIMESTAMP,
+  `t1` timestamp NOT NULL DEFAULT '2003-01-01 00:00:00' ON UPDATE current_timestamp(),
   `t2` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
-t1	timestamp	NO		2003-01-01 00:00:00	on update CURRENT_TIMESTAMP
+t1	timestamp	NO		2003-01-01 00:00:00	on update current_timestamp()
 t2	datetime	YES		NULL	
 drop table t1;
 create table t1 (t1 timestamp not null default now() on update now(), t2 datetime);
@@ -247,12 +247,12 @@ t1	t2
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `t1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `t2` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
-t1	timestamp	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+t1	timestamp	NO		current_timestamp()	on update current_timestamp()
 t2	datetime	YES		NULL	
 drop table t1;
 create table t1 (t1 timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, t2 datetime, t3 timestamp NOT NULL DEFAULT '0000-00-00 00:00:00');
@@ -272,13 +272,13 @@ t1	t2	t3
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `t1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `t2` datetime DEFAULT NULL,
   `t3` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
-t1	timestamp	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+t1	timestamp	NO		current_timestamp()	on update current_timestamp()
 t2	datetime	YES		NULL	
 t3	timestamp	NO		0000-00-00 00:00:00	
 drop table t1;
@@ -299,12 +299,12 @@ t1	t2
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `t1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `t2` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
-t1	timestamp	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+t1	timestamp	NO		current_timestamp()	on update current_timestamp()
 t2	datetime	YES		NULL	
 truncate table t1;
 insert into t1 values ('2004-04-01 00:00:00', '2004-04-01 00:00:00');
@@ -369,7 +369,7 @@ create table t1 (a timestamp null default current_timestamp on update current_ti
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `a` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `b` timestamp NULL DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (NULL, NULL);
@@ -710,12 +710,12 @@ CREATE TABLE t2 AS SELECT * from t1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `ts` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `ts` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `ts` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
 SET sql_mode=DEFAULT;
@@ -731,13 +731,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `vc` varchar(10) NOT NULL DEFAULT 'test',
-  `ts` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+  `ts` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `vc` varchar(10) NOT NULL DEFAULT 'test',
-  `ts` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+  `ts` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp()
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
 End of 10.0 tests

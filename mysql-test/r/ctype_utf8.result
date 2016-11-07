@@ -5320,11 +5320,11 @@ NULL
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Level	Code	Message
-Note	1003	select (v_LastPaymentDate@0 < now()) AS `v_LastPaymentDate < NOW()`
+Note	1003	select (v_LastPaymentDate@0 < current_timestamp()) AS `v_LastPaymentDate < NOW()`
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select concat(convert(v_LastPaymentDate@0 using utf8),now()) AS `CONCAT(v_LastPaymentDate, NOW())`
+Note	1003	select concat(convert(v_LastPaymentDate@0 using utf8),current_timestamp()) AS `CONCAT(v_LastPaymentDate, NOW())`
 DROP PROCEDURE p1;
 #
 # Bug#52159 returning time type from function and empty left join causes debug assertion
@@ -10515,7 +10515,7 @@ SET NAMES utf8;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(30) DEFAULT CONCAT('ÃŸ')
+  `a` varchar(30) DEFAULT concat('ÃŸ')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT HEX(a),a  FROM t1;
@@ -10528,9 +10528,9 @@ ALTER TABLE t1 ADD c VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ÃŸ');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(30) DEFAULT CONCAT('ÃŸ'),
-  `b` varchar(30) DEFAULT CONCAT('ÃŸ'),
-  `c` varchar(30) DEFAULT CONCAT('ÃŸ')
+  `a` varchar(30) DEFAULT concat('ÃŸ'),
+  `b` varchar(30) DEFAULT concat('ÃŸ'),
+  `c` varchar(30) DEFAULT concat('ÃŸ')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DELETE FROM t1;
 INSERT INTO t1 VALUES();
@@ -10551,7 +10551,7 @@ SET NAMES utf8;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(30) CHARACTER SET utf8 DEFAULT CONCAT('ÃŸ')
+  `a` varchar(30) CHARACTER SET utf8 DEFAULT concat('ÃŸ')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT HEX(a), a FROM t1;
@@ -10563,7 +10563,7 @@ CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET latin1 DEFAULT CONCAT('ß'));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(30) DEFAULT CONCAT('ß')
+  `a` varchar(30) DEFAULT concat('ß')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT HEX(a) FROM t1;
@@ -10575,7 +10575,7 @@ CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8 DEFAULT CONCAT('ß'));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(30) CHARACTER SET utf8 DEFAULT CONCAT('ß')
+  `a` varchar(30) CHARACTER SET utf8 DEFAULT concat('ß')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT HEX(a) FROM t1;

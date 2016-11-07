@@ -2353,6 +2353,12 @@ end_create:
   DBUG_RETURN(thd->is_error());
 }
 
+#define memdup_vcol(thd, vcol)                                            \
+  if (vcol)                                                               \
+  {                                                                       \
+    (vcol)= (Virtual_column_info*)(thd)->memdup((vcol), sizeof(*(vcol))); \
+    (vcol)->expr_item= NULL;                                              \
+  }
 
 /**
   As we can't let many client threads modify the same TABLE
@@ -2374,7 +2380,6 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
 {
   my_ptrdiff_t adjust_ptrs;
   Field **field,**org_field, *found_next_number_field;
-  Field **vfield= 0, **dfield_ptr= 0;
   TABLE *copy;
   TABLE_SHARE *share;
   uchar *bitmap;
@@ -2437,14 +2442,6 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   if (!copy_tmp)
     goto error;
 
-  if (share->virtual_fields)
-  {
-    vfield= (Field **) client_thd->alloc((share->virtual_fields+1)*
-                                         sizeof(Field*));
-    if (!vfield)
-      goto error;
-  }
-
   /* Copy the TABLE object. */
   copy= new (copy_tmp) TABLE;
   *copy= *table;
@@ -2463,7 +2460,14 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                         sizeof(Field*));
     if (!copy->default_field)
       goto error;
-    dfield_ptr= copy->default_field;
+  }
+
+  if (share->virtual_fields)
+  {
+    copy->vfield= (Field **) client_thd->alloc((share->virtual_fields+1)*
+                                               sizeof(Field*));
+    if (!copy->vfield)
+      goto error;
   }
   copy->expr_arena= NULL;
 
@@ -2481,12 +2485,14 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   found_next_number_field= table->found_next_number_field;
   for (org_field= table->field; *org_field; org_field++, field++)
   {
-    if (!(*field= (*org_field)->make_new_field(client_thd->mem_root, copy,
-                                               1)))
+    if (!(*field= (*org_field)->make_new_field(client_thd->mem_root, copy, 1)))
       goto error;
     (*field)->unireg_check= (*org_field)->unireg_check;
     (*field)->orig_table= copy;			// Remove connection
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
+    memdup_vcol(client_thd, (*field)->vcol_info);
+    memdup_vcol(client_thd, (*field)->default_value);
+    memdup_vcol(client_thd, (*field)->check_constraint);
     if (*org_field == found_next_number_field)
       (*field)->table->found_next_number_field= *field;
   }
@@ -2499,42 +2505,9 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     if (!(copy->def_vcol_set= (MY_BITMAP*) alloc_root(client_thd->mem_root,
                                                       sizeof(MY_BITMAP))))
       goto error;
-    copy->vfield= vfield;
-    for (field= copy->field; *field; field++)
-    {
-      Virtual_column_info *vcol;
-      if ((*field)->vcol_info)
-      {
-        if (!(vcol= unpack_vcol_info_from_frm(client_thd,
-                                              client_thd->mem_root,
-                                              copy,
-                                              0,
-                                              (*field)->vcol_info,
-                                              &error_reported)))
-          goto error;
-        (*field)->vcol_info= vcol;
-        *vfield++= *field;
-      }
-      if ((*field)->default_value)
-      {
-        if (!(vcol= unpack_vcol_info_from_frm(client_thd,
-                                              client_thd->mem_root,
-                                              copy,
-                                              0,
-                                              (*field)->default_value,
-                                              &error_reported)))
-          goto error;
-        (*field)->default_value= vcol;
-        *dfield_ptr++= *field;
-      }
-      else
-      if ((*field)->has_update_default_function())
-        *dfield_ptr++= *field;
-    }
-    if (vfield)
-      *vfield= 0;
-    if (dfield_ptr)
-      *dfield_ptr= 0;
+
+    if (parse_vcol_defs(client_thd, client_thd->mem_root, copy, &error_reported))
+      goto error;
   }
 
   switch_defaults_to_nullable_trigger_fields(copy);

@@ -2638,16 +2638,50 @@ void Item_ident::print(String *str, enum_query_type query_type)
   THD *thd= current_thd;
   char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
   const char *d_name= db_name, *t_name= table_name;
+  bool use_table_name= table_name && table_name[0];
+  bool use_db_name= use_table_name && db_name && db_name[0] && !alias_name_used;
+
+  if (use_db_name && (query_type & QT_ITEM_IDENT_SKIP_DB_NAMES))
+    use_db_name= !thd->db || strcmp(thd->db, db_name);
+
+  if (use_db_name)
+    use_db_name= !(cached_table && cached_table->belong_to_view &&
+                   cached_table->belong_to_view->compact_view_format);
+
+  if (!use_db_name && use_table_name &&
+      (query_type & QT_ITEM_IDENT_SKIP_TABLE_NAMES))
+  {
+    /*
+      Don't print the table name if it's the only table in the context
+      XXX technically, that's a sufficient, but too strong condition
+    */
+    if (!context)
+      use_table_name= false;
+    else if (context->outer_context)
+      use_table_name= true;
+    else if (context->last_name_resolution_table == context->first_name_resolution_table)
+      use_table_name= false;
+    else if (!context->last_name_resolution_table &&
+             !context->first_name_resolution_table->next_name_resolution_table)
+      use_table_name= false;
+  }
+
+  if (!field_name || !field_name[0])
+  {
+    append_identifier(thd, str, STRING_WITH_LEN("tmp_field"));
+    return;
+  }
+
   if (lower_case_table_names== 1 ||
       (lower_case_table_names == 2 && !alias_name_used))
   {
-    if (table_name && table_name[0])
+    if (use_table_name)
     {
       strmov(t_name_buff, table_name);
       my_casedn_str(files_charset_info, t_name_buff);
       t_name= t_name_buff;
     }
-    if (db_name && db_name[0])
+    if (use_db_name)
     {
       strmov(d_name_buff, db_name);
       my_casedn_str(files_charset_info, d_name_buff);
@@ -2655,43 +2689,18 @@ void Item_ident::print(String *str, enum_query_type query_type)
     }
   }
 
-  if (!table_name || !field_name || !field_name[0])
+  if (use_db_name)
   {
-    const char *nm= (field_name && field_name[0]) ?
-                      field_name : name ? name : "tmp_field";
-    append_identifier(thd, str, nm, (uint) strlen(nm));
-    return;
-  }
-  if (db_name && db_name[0] && !alias_name_used)
-  {
-    /* 
-      When printing EXPLAIN, don't print database name when it's the same as
-      current database.
-    */
-    bool skip_db= (query_type & QT_ITEM_IDENT_SKIP_CURRENT_DATABASE) &&
-                   thd->db && !strcmp(thd->db, db_name);
-    if (!skip_db && 
-        !(cached_table && cached_table->belong_to_view &&
-          cached_table->belong_to_view->compact_view_format))
-    {
-      append_identifier(thd, str, d_name, (uint)strlen(d_name));
-      str->append('.');
-    }
-    append_identifier(thd, str, t_name, (uint)strlen(t_name));
+    append_identifier(thd, str, d_name, (uint)strlen(d_name));
     str->append('.');
-    append_identifier(thd, str, field_name, (uint)strlen(field_name));
+    DBUG_ASSERT(use_table_name);
   }
-  else
+  if (use_table_name)
   {
-    if (table_name[0])
-    {
-      append_identifier(thd, str, t_name, (uint) strlen(t_name));
-      str->append('.');
-      append_identifier(thd, str, field_name, (uint) strlen(field_name));
-    }
-    else
-      append_identifier(thd, str, field_name, (uint) strlen(field_name));
+    append_identifier(thd, str, t_name, (uint) strlen(t_name));
+    str->append('.');
   }
+  append_identifier(thd, str, field_name, (uint) strlen(field_name));
 }
 
 /* ARGSUSED */
@@ -10441,4 +10450,13 @@ void Item::register_in(THD *thd)
 {
   next= thd->free_list;
   thd->free_list= this;
+}
+
+void Virtual_column_info::print(String *str)
+{
+  expr_item->print(str, (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                   QT_ITEM_IDENT_SKIP_DB_NAMES |
+                   QT_ITEM_IDENT_SKIP_TABLE_NAMES |
+                   QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
+                   QT_TO_SYSTEM_CHARSET));
 }

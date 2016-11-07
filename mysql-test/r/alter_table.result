@@ -2073,8 +2073,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  CONSTRAINT `min` CHECK (a+b > 100),
-  CONSTRAINT `mini` CHECK (a+b > 100)
+  CONSTRAINT `min` CHECK (((`a` + `b`) > 100)),
+  CONSTRAINT `mini` CHECK (((`a` + `b`) > 100))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 CREATE TABLE t1(a INT, b INT, CONSTRAINT min check (a>5),

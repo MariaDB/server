@@ -345,7 +345,7 @@ eval create or replace table t1 (a int, b varchar(16384) as (concat(a,'$tmp_long
 
 --disable_query_log
 let $tmp_long_string = `SELECT repeat('a',65535)`;
---error ER_TOO_MANY_FIELDS
+--error ER_EXPRESSION_IS_TOO_BIG
 eval create or replace table t1 (a int, b varchar(16384) as (concat(a,'$tmp_long_string')));
 --enable_query_log
 

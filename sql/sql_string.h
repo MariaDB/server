@@ -584,6 +584,12 @@ public:
     qs_append((ulonglong)i);
   }
   void qs_append(ulonglong i);
+  void qs_append(longlong i, int radix)
+  {
+    char *buff= Ptr + str_length;
+    char *end= ll2str(i, buff, radix, 0);
+    str_length+= (int) (end-buff);
+  }
 
   /* Inline (general) functions used by the protocol functions */
 

@@ -7395,9 +7395,9 @@ ER_CONSTRAINT_FAILED 23000
         rus "проверка CONSTRAINT %`s для %`-.192s.%`-.192s провалилась"
         ukr "Перевірка CONSTRAINT %`s для %`-.192s.%`-.192s не пройшла"
 ER_EXPRESSION_IS_TOO_BIG
-        eng "%s expression in the %s clause is too big"
+        eng "Expression in the %s clause is too big"
 ER_ERROR_EVALUATING_EXPRESSION
-        eng "Got an error evaluating stored expression %`s"
+        eng "Got an error evaluating stored expression %s"
 ER_CALCULATING_DEFAULT_VALUE
         eng "Got an error when calculating default value for %`s"
 ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000

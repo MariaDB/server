@@ -1457,10 +1457,10 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(30) DEFAULT NULL,
-  `b` bigint(20) DEFAULT INET_ATON(a),
-  `a1` varchar(30) DEFAULT INET_NTOA(b),
-  `c` int(11) DEFAULT IS_IPV4(a),
-  `d` int(11) DEFAULT IS_IPV6(a)
+  `b` bigint(20) DEFAULT inet_aton(`a`),
+  `a1` varchar(30) DEFAULT inet_ntoa(`b`),
+  `c` int(11) DEFAULT is_ipv4(`a`),
+  `d` int(11) DEFAULT is_ipv6(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('192.168.001.001'),('::1'),('xxx');
 SELECT * FROM t1;
@@ -1480,10 +1480,10 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `str` varchar(128) DEFAULT NULL,
-  `addr` varbinary(16) DEFAULT INET6_ATON(str),
-  `str1` varchar(128) DEFAULT INET6_NTOA(addr),
-  `b` int(11) DEFAULT IS_IPV4_COMPAT(addr),
-  `c` int(11) DEFAULT IS_IPV4_MAPPED(addr)
+  `addr` varbinary(16) DEFAULT inet6_aton(`str`),
+  `str1` varchar(128) DEFAULT inet6_ntoa(`addr`),
+  `b` int(11) DEFAULT is_ipv4_compat(`addr`),
+  `c` int(11) DEFAULT is_ipv4_mapped(`addr`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (str) VALUES ('::FFFF:192.168.0.1'),('::10.0.5.9');
 SELECT str, str1, b,c FROM t1;

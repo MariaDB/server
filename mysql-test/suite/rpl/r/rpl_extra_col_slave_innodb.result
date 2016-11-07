@@ -675,7 +675,7 @@ t16	CREATE TABLE `t16` (
   `c4` blob DEFAULT NULL,
   `c5` char(5) DEFAULT NULL,
   `c6` int(11) DEFAULT 1,
-  `c7` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `c7` timestamp NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
  PARTITION BY KEY (c1)

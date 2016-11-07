@@ -8,7 +8,7 @@ connection slave;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT (1+1),
+  `a` int(11) DEFAULT ((1 + 1)),
   `b` bigint(20) DEFAULT uuid_short(),
   `u` blob DEFAULT user()
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

@@ -910,27 +910,14 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
        MYSQL_YYABORT;                   \
   } while(0)
 
-Virtual_column_info *add_virtual_expression(THD *thd, const char *txt,
-                                           size_t size, Item *expr)
+Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 {
-  CHARSET_INFO *cs= thd->charset();
   Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
   if (!v)
   {
      mem_alloc_error(sizeof(Virtual_column_info));
      return 0;
    }
-   /*
-     We have to remove white space as remember_cur_pos may have pointed to end
-     of previous expression.
-   */
-   while (cs->state_map[*(uchar*)txt] == MY_LEX_SKIP)
-   {
-     txt++;
-     size--;
-   }
-   v->expr_str.str= (char* ) thd->strmake(txt, size);
-   v->expr_str.length= size;
    v->expr_item= expr;
    v->utf8= 0;  /* connection charset */
    return v;
@@ -1761,7 +1748,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_ident_opt_wild create_like
 
 %type <simple_string>
-        remember_name remember_end opt_db remember_tok_start remember_cur_pos
+        remember_name remember_end opt_db remember_tok_start
         wild_and_where
         field_length opt_field_length opt_field_length_default_1
 
@@ -2005,7 +1992,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         definer_opt no_definer definer get_diagnostics
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
-        explainable_command opt_impossible_action
+        explainable_command
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -6120,10 +6107,10 @@ opt_check_constraint:
         ;
 
 check_constraint:
-          CHECK_SYM '(' remember_name expr remember_end ')'
+          CHECK_SYM '(' expr ')'
           {
             Virtual_column_info *v=
-              add_virtual_expression(thd, $3+1, (uint)($5 - $3) - 1, $4);
+              add_virtual_expression(thd, $3);
             if (!v)
             {
               MYSQL_YYABORT;
@@ -6264,10 +6251,10 @@ parenthesized_expr:
           ;
 
 virtual_column_func:
-          '(' remember_cur_pos parenthesized_expr remember_end ')'
+          '(' parenthesized_expr ')'
           {
             Virtual_column_info *v=
-              add_virtual_expression(thd, $2, (uint)($4 - $2), $3);
+              add_virtual_expression(thd, $2);
             if (!v)
             {
               MYSQL_YYABORT;
@@ -6280,18 +6267,12 @@ expr_or_literal: column_default_non_parenthesized_expr | signed_literal ;
 
 column_default_expr:
           virtual_column_func
-        | remember_name expr_or_literal opt_impossible_action remember_end
+        | expr_or_literal
           {
-            if (!($$= add_virtual_expression(thd, $1, (uint) ($4- $1), $2)))
+            if (!($$= add_virtual_expression(thd, $1)))
               MYSQL_YYABORT;
           }
         ;
-
-/* This is to force remember_end to look at next token */
-opt_impossible_action:
-        IMPOSSIBLE_ACTION {}
-        | /* empty */ {}
-
 
 field_type:
           int_type opt_field_length field_options { $$.set($1, $2); }
@@ -8744,12 +8725,6 @@ select_item:
 remember_tok_start:
           {
             $$= (char*) YYLIP->get_tok_start();
-          }
-        ;
-
-remember_cur_pos:
-          {
-            $$= (char*) YYLIP->get_cpp_ptr();
           }
         ;
 

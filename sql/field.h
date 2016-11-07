@@ -560,6 +560,28 @@ inline bool is_temporal_type_with_time(enum_field_types type)
   }
 }
 
+enum enum_vcol_info_type
+{
+  VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
+  VCOL_DEFAULT, VCOL_CHECK_FIELD, VCOL_CHECK_TABLE
+};
+
+static inline const char *vcol_type_name(enum_vcol_info_type type)
+{
+  switch (type)
+  {
+  case VCOL_GENERATED_VIRTUAL:
+  case VCOL_GENERATED_STORED:
+    return "GENERATED ALWAYS AS";
+  case VCOL_DEFAULT:
+    return "DEFAULT";
+  case VCOL_CHECK_FIELD:
+  case VCOL_CHECK_TABLE:
+    return "CHECK";
+  }
+  return 0;
+}
+
 /*
   Flags for Virtual_column_info. If none is set, the expression must be
   a constant with no side-effects, so it's calculated at CREATE TABLE time,
@@ -599,10 +621,7 @@ public:
   /* Flag indicating  that the field is physically stored in the database */
   bool stored_in_db;
   bool utf8;                                    /* Already in utf8 */
-  /* The expression to compute the value of the virtual column */
   Item *expr_item;
-  /* Text representation of the defining expression */
-  LEX_STRING expr_str;
   LEX_STRING name;                              /* Name of constraint */
   uint flags;
 
@@ -611,7 +630,7 @@ public:
     in_partitioning_expr(FALSE), stored_in_db(FALSE),
     utf8(TRUE), expr_item(NULL), flags(0)
   {
-    expr_str.str= name.str= NULL;
+    name.str= NULL;
     name.length= 0;
   };
   ~Virtual_column_info() {}
@@ -640,13 +659,8 @@ public:
   {
     in_partitioning_expr= TRUE;
   }
-  bool is_equal(const Virtual_column_info* vcol) const
-  {
-    return field_type == vcol->get_real_type()
-        && stored_in_db == vcol->is_stored()
-        && expr_str.length == vcol->expr_str.length
-        && memcmp(expr_str.str, vcol->expr_str.str, expr_str.length) == 0;
-  }
+  inline bool is_equal(const Virtual_column_info* vcol) const;
+  void print(String*);
 };
 
 class Field: public Value_source
@@ -920,7 +934,12 @@ public:
 
   bool has_update_default_function() const
   {
-    return unireg_check == TIMESTAMP_UN_FIELD;
+    return flags & ON_UPDATE_NOW_FLAG;
+  }
+  bool has_default_now_unireg_check() const
+  {
+    return unireg_check == TIMESTAMP_DN_FIELD
+        || unireg_check == TIMESTAMP_DNUN_FIELD;
   }
 
   /*
@@ -939,14 +958,6 @@ public:
     return bitmap_is_set(table->has_value_set, field_index);
   }
   virtual void set_explicit_default(Item *value);
-
-  /**
-     Evaluates the @c INSERT default function and stores the result in the
-     field. If no such function exists for the column, or the function is not
-     valid for the column's data type, invoking this function has no effect.
-  */
-  virtual int evaluate_insert_default_function() { return 0; }
-
 
   /**
      Evaluates the @c UPDATE default function, if one exists, and stores the
@@ -2785,7 +2796,11 @@ public:
                  const char *field_name_arg)
     :Field_temporal_with_date(ptr_arg, length_arg, null_ptr_arg, null_bit_arg,
                               unireg_check_arg, field_name_arg)
-    {}
+    {
+      if (unireg_check == TIMESTAMP_UN_FIELD ||
+          unireg_check == TIMESTAMP_DNUN_FIELD)
+        flags|= ON_UPDATE_NOW_FLAG;
+    }
   enum_field_types type() const { return MYSQL_TYPE_DATETIME;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONGLONG; }
   double val_real(void);
@@ -3779,8 +3794,7 @@ public:
 
   bool has_default_function() const
   {
-    return (unireg_check == Field::TIMESTAMP_UN_FIELD ||
-            unireg_check == Field::NEXT_NUMBER);
+    return unireg_check != Field::NONE;
   }
 
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
@@ -3801,6 +3815,12 @@ public:
   }
   /* Return true if default is an expression that must be saved explicitely */
   bool has_default_expression();
+
+  bool has_default_now_unireg_check() const
+  {
+    return unireg_check == Field::TIMESTAMP_DN_FIELD
+        || unireg_check == Field::TIMESTAMP_DNUN_FIELD;
+  }
 };
 
 
@@ -3897,8 +3917,8 @@ uint32 calc_pack_length(enum_field_types type,uint32 length);
 int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);
-bool check_expression(Virtual_column_info *vcol, const char *type,
-                      const char *name, bool must_be_deterministic);
+bool check_expression(Virtual_column_info *vcol, const char *name,
+                      enum_vcol_info_type type);
 
 /*
   The following are for the interface with the .frm file

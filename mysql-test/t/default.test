@@ -448,11 +448,12 @@ DEALLOCATE PREPARE stmt;
 # We can't have an expression for prepared statements
 #
 
-PREPARE stmt FROM 'CREATE TABLE t1 (a INT DEFAULT(?+?))';
+prepare stmt from 'create table t1 (a int default(?+?))';
 set @a=1;
---error ER_PARSE_ERROR
 execute stmt using @a,@a;
-DEALLOCATE PREPARE stmt;
+deallocate prepare stmt;
+show create table t1;
+drop table t1;
 
 --echo #
 --echo # Parenthesized Item_basic_constant
@@ -1974,3 +1975,21 @@ DROP TABLE t1;
 
 
 --echo # end of 10.2 test
+
+#
+# ANSI_QUOTES
+#
+set sql_mode=ansi_quotes;
+create table t1 (a int, b int default (a+1));
+show create table t1;
+insert t1 (a) values (10);
+set sql_mode='';
+show create table t1;
+insert t1 (a) values (20);
+flush tables;
+show create table t1;
+insert t1 (a) values (30);
+select * from t1;
+drop table t1;
+set sql_mode=default;
+

@@ -1848,8 +1848,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` point DEFAULT NULL,
-  `x` double DEFAULT x(a),
-  `y` double DEFAULT y(a)
+  `x` double DEFAULT st_x(`a`),
+  `y` double DEFAULT st_y(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (Point(1,2));
 SELECT x,y FROM t1;
@@ -1861,7 +1861,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `g` geometry DEFAULT NULL,
-  `area` double DEFAULT ST_AREA(g)
+  `area` double DEFAULT st_area(`g`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (g) VALUES (GeomFromText('POLYGON((0 0,20 0,20 20,0 20,0 0))'));
 SELECT area FROM t1;
@@ -1873,7 +1873,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `g` geometry DEFAULT NULL,
-  `length` double DEFAULT ST_LENGTH(g)
+  `length` double DEFAULT st_length(`g`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (g) VALUES (GeomFromText('LINESTRING(0 0,20 0,20 20,0 20,0 0)'));
 SELECT length FROM t1;
@@ -1885,7 +1885,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `g` point DEFAULT NULL,
-  `distance` double DEFAULT ST_DISTANCE(g, POINT(0,0))
+  `distance` double DEFAULT st_distance(`g`,point(0,0))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (g) VALUES (Point(1,0));
 SELECT distance FROM t1;
@@ -1897,7 +1897,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL,
-  `g` geometry DEFAULT GeomFromText(a)
+  `g` geometry DEFAULT st_geometryfromtext(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('point(1 1)');
 SELECT AsText(g) FROM t1;
@@ -1910,7 +1910,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
-  `g` geometry DEFAULT POINT(x,y)
+  `g` geometry DEFAULT point(`x`,`y`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (x,y) VALUES (10,20);
 SELECT AsText(g) FROM t1;
@@ -1922,7 +1922,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` geometry DEFAULT PointN(a,2)
+  `b` geometry DEFAULT st_pointn(`a`,2)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('LineString(1 1,2 2,3 3)'));
 SELECT AsText(b) FROM t1;
@@ -1934,7 +1934,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` geometry DEFAULT StartPoint(a)
+  `b` geometry DEFAULT st_startpoint(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('LineString(1 1,2 2,3 3)'));
 SELECT AsText(b) FROM t1;
@@ -1947,7 +1947,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT NULL,
-  `c` geometry DEFAULT GeometryCollection(a,b)
+  `c` geometry DEFAULT geometrycollection(`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES (Point(1,1), Point(2,2));
 SELECT AsText(c) FROM t1;
@@ -1959,7 +1959,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` geometry DEFAULT GeomFromWKB(AsBinary(a),20)
+  `b` geometry DEFAULT st_geometryfromwkb(st_aswkb(`a`),20)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('POINT(1 1)', 10));
 SELECT AsText(a), SRID(a), AsText(b), SRID(b) FROM t1;
@@ -1971,7 +1971,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` geometry DEFAULT BOUNDARY(a)
+  `b` geometry DEFAULT st_boundary(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('POLYGON((10 10, 10 20, 20 20, 20 10, 10 10))'));
 SELECT AsText(b) FROM t1;
@@ -1983,7 +1983,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` geometry DEFAULT BUFFER(a,10)
+  `b` geometry DEFAULT st_buffer(`a`,10)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('POLYGON((10 10, 10 20, 20 20, 20 10, 10 10))'));
 SELECT GeometryType(b) FROM t1;
@@ -1995,7 +1995,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` geometry DEFAULT CENTROID(a)
+  `b` geometry DEFAULT st_centroid(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('POLYGON((10 10, 10 20, 20 20, 20 10, 10 10))'));
 SELECT AsText(b) FROM t1;
@@ -2007,7 +2007,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` geometry DEFAULT ENVELOPE(a)
+  `b` geometry DEFAULT st_envelope(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('LineString(1 1,4 4)'));
 SELECT AsText(b) FROM t1;
@@ -2019,7 +2019,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` geometry DEFAULT PointOnSurface(a)
+  `b` geometry DEFAULT st_pointonsurface(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('POLYGON((10 10, 10 20, 20 20, 20 10, 10 10))'));
 SELECT GeometryType(b) FROM t1;
@@ -2031,8 +2031,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` geometry DEFAULT Point(1,1),
-  `c` geometry DEFAULT ST_UNION(a,b)
+  `b` geometry DEFAULT point(1,1),
+  `c` geometry DEFAULT st_union(`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (Point(0,0));
 SELECT AsText(c) FROM t1;
@@ -2044,7 +2044,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` varchar(20) DEFAULT GeometryType(a)
+  `b` varchar(20) DEFAULT st_geometrytype(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (Point(0, 0));
 SELECT b FROM t1;
@@ -2056,7 +2056,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` int(11) DEFAULT IsSimple(a)
+  `b` int(11) DEFAULT st_issimple(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (Point(0, 0));
 SELECT b FROM t1;
@@ -2068,7 +2068,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` int(11) DEFAULT IsEmpty(a)
+  `b` int(11) DEFAULT st_isempty(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (Point(0, 0));
 SELECT b FROM t1;
@@ -2080,7 +2080,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` int(11) DEFAULT IsRing(a)
+  `b` int(11) DEFAULT st_isring(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('LineString(0 0,0 1,1 1,1 0,0 0)'));
 SELECT b FROM t1;
@@ -2092,7 +2092,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` int(11) DEFAULT IsClosed(a)
+  `b` int(11) DEFAULT st_isclosed(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('LineString(0 0,0 1,1 1,1 0,0 0)'));
 SELECT b FROM t1;
@@ -2104,7 +2104,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` int(11) DEFAULT Dimension(a)
+  `b` int(11) DEFAULT st_dimension(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (Buffer(Point(1,1),1));
 SELECT b FROM t1;
@@ -2116,7 +2116,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` int(11) DEFAULT NumGeometries(a)
+  `b` int(11) DEFAULT st_numgeometries(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (ST_UNION(Point(1,1),Point(0,0)));
 SELECT b FROM t1;
@@ -2128,7 +2128,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` int(11) DEFAULT NumInteriorRings(a)
+  `b` int(11) DEFAULT st_numinteriorrings(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('Polygon((0 0,0 3,3 3,3 0,0 0),(1 1,1 2,2 2,2 1,1 1))'));
 SELECT b FROM t1;
@@ -2140,7 +2140,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` int(11) DEFAULT NumPoints(a)
+  `b` int(11) DEFAULT st_numpoints(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (LineString(Point(1,1),Point(0,0)));
 SELECT b FROM t1;
@@ -2152,7 +2152,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
-  `b` int(11) DEFAULT SRID(a)
+  `b` int(11) DEFAULT srid(`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (GeomFromText('Point(1 1)', 100));
 SELECT b FROM t1;
@@ -2165,7 +2165,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT NULL,
-  `c` int(11) DEFAULT MBRDisjoint(a,b)
+  `c` int(11) DEFAULT mbrdisjoint(`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES (Point(1,1),Point(1,1));
 SELECT c FROM t1;
@@ -2178,7 +2178,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT NULL,
-  `c` int(11) DEFAULT ST_Disjoint(a,b)
+  `c` int(11) DEFAULT st_disjoint(`a`,`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES (Point(1,1),Point(1,1));
 SELECT c FROM t1;
@@ -2191,7 +2191,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` geometry DEFAULT NULL,
   `b` geometry DEFAULT NULL,
-  `c` int(11) DEFAULT ST_Relate(a,b,'T*F**FFF*')
+  `c` int(11) DEFAULT st_relate(`a`,`b`,'T*F**FFF*')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES (Point(1,1),Point(1,1));
 SELECT c FROM t1;

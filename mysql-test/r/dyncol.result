@@ -1908,16 +1908,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `name` varchar(10) DEFAULT NULL,
   `value` varchar(10) DEFAULT NULL,
-  `dyncol0` blob DEFAULT COLUMN_CREATE(name, value),
-  `value_dyncol0_name0` varchar(10) DEFAULT (COLUMN_GET(dyncol0, 'name0' AS CHAR)),
-  `dyncol1` blob DEFAULT COLUMN_ADD(dyncol0, 'name1', 'value1'),
-  `value_dyncol1_name1` varchar(10) DEFAULT (COLUMN_GET(dyncol1, 'name1' AS CHAR)),
-  `dyncol2` blob DEFAULT COLUMN_DELETE(dyncol1, 'name1'),
-  `dyncol2_exists_name0` int(11) DEFAULT COLUMN_EXISTS(dyncol2, 'name0'),
-  `dyncol2_exists_name1` int(11) DEFAULT COLUMN_EXISTS(dyncol2, 'name1'),
-  `dyncol2_check` int(11) DEFAULT COLUMN_CHECK(dyncol2),
-  `dyncol1_list` text DEFAULT COLUMN_LIST(dyncol1),
-  `dyncol1_json` text DEFAULT COLUMN_JSON(dyncol1)
+  `dyncol0` blob DEFAULT column_create(`name`,`value`),
+  `value_dyncol0_name0` varchar(10) DEFAULT (column_get(`dyncol0`,'name0' as char charset utf8)),
+  `dyncol1` blob DEFAULT column_add(`dyncol0`,'name1','value1'),
+  `value_dyncol1_name1` varchar(10) DEFAULT (column_get(`dyncol1`,'name1' as char charset utf8)),
+  `dyncol2` blob DEFAULT column_add(`dyncol1`,'name1',NULL AS int),
+  `dyncol2_exists_name0` int(11) DEFAULT column_exists(`dyncol2`,'name0'),
+  `dyncol2_exists_name1` int(11) DEFAULT column_exists(`dyncol2`,'name1'),
+  `dyncol2_check` int(11) DEFAULT column_check(`dyncol2`),
+  `dyncol1_list` text DEFAULT column_list(`dyncol1`),
+  `dyncol1_json` text DEFAULT column_json(`dyncol1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (name,value) VALUES ('name0', 'value0');
 SELECT value_dyncol0_name0, value_dyncol1_name1 FROM t1;
