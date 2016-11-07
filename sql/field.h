@@ -615,7 +615,7 @@ public:
     name.length= 0;
   };
   ~Virtual_column_info() {}
-  enum_field_types get_real_type()
+  enum_field_types get_real_type() const
   {
     return field_type;
   }
@@ -624,7 +624,7 @@ public:
     /* Calling this function can only be done once. */
     field_type= fld_type;
   }
-  bool is_stored()
+  bool is_stored() const
   {
     return stored_in_db;
   }
@@ -632,7 +632,7 @@ public:
   {
     stored_in_db= stored;
   }
-  bool is_in_partitioning_expr()
+  bool is_in_partitioning_expr() const
   {
     return in_partitioning_expr;
   }
@@ -640,7 +640,7 @@ public:
   {
     in_partitioning_expr= TRUE;
   }
-  bool is_equal(Virtual_column_info* vcol)
+  bool is_equal(const Virtual_column_info* vcol) const
   {
     return field_type == vcol->get_real_type()
         && stored_in_db == vcol->is_stored()

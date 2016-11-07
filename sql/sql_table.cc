@@ -6222,6 +6222,15 @@ static int compare_uint(const uint *s, const uint *t)
 }
 
 
+/*
+  Check if the column is computed and either
+  is stored or is used in the partitioning expression.
+*/
+static bool vcol_affecting_storage(const Virtual_column_info* vcol)
+{
+  return vcol && (vcol->is_stored() || vcol->is_in_partitioning_expr());
+}
+
 /**
    Compare original and new versions of a table and fill Alter_inplace_info
    describing differences between those versions.
@@ -6428,14 +6437,11 @@ static bool fill_alter_inplace_info(THD *thd,
         ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_TYPE;
       }
 
-      /*
-        Check if the column is computed and either
-        is stored or is used in the partitioning expression.
-      */
-      if (field->vcol_info && 
-          (field->stored_in_db() || field->vcol_info->is_in_partitioning_expr()))
+      if (vcol_affecting_storage(field->vcol_info) ||
+          vcol_affecting_storage(new_field->vcol_info))
       {
         if (is_equal == IS_EQUAL_NO ||
+            !field->vcol_info || !new_field->vcol_info ||
             !field->vcol_info->is_equal(new_field->vcol_info))
           ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
         else

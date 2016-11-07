@@ -948,7 +948,8 @@ bool Item_field::register_field_in_write_map(void *arg)
   - All fields that have default value as a constant are initialized first.
   - Then user-specified values from the INSERT list
   - Then all fields that has a default expression, in field_index order.
-  - Last all virtual fields, in field_index order.
+  - Then all virtual fields, in field_index order.
+  - Then auto-increment values
 
   This means:
   - For default fields we can't access the same field or a field after
@@ -956,6 +957,7 @@ bool Item_field::register_field_in_write_map(void *arg)
   - A virtual fields can't access itself or a virtual field after itself.
   - user-specified values will not see virtual fields or default expressions,
     as in INSERT t1 (a) VALUES (b);
+  - no virtual fields can access auto-increment values
 
   This is used by fix_vcol_expr() when a table is opened
 
@@ -965,11 +967,18 @@ bool Item_field::register_field_in_write_map(void *arg)
 
 bool Item_field::check_field_expression_processor(void *arg)
 {
+  Field *org_field= (Field*) arg;
   if (field->flags & NO_DEFAULT_VALUE_FLAG)
     return 0;
+  if (field->flags & AUTO_INCREMENT_FLAG)
+  {
+      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
+               MYF(0),
+               org_field->field_name, field->field_name);
+      return 1;
+  }
   if ((field->default_value && field->default_value->flags) || field->vcol_info)
   {
-    Field *org_field= (Field*) arg;
     if (field == org_field ||
         (!org_field->vcol_info && field->vcol_info) ||
         (((field->vcol_info && org_field->vcol_info) ||

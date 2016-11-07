@@ -1628,7 +1628,7 @@ public:
     return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
   virtual bool check_field_expression_processor(void *arg) { return 0; }
-
+  virtual bool check_func_default_processor(void *arg) { return 0; }
   /*
     Check if an expression value has allowed arguments, like DATE/DATETIME
     for date functions. Also used by partitioning code to reject
@@ -3347,9 +3347,11 @@ public:
   }
 
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
-  bool check_vcol_func_processor(void *arg) 
-  {
-    return mark_unsupported_function(func_name, arg, VCOL_IMPOSSIBLE);
+
+  bool check_vcol_func_processor(void *arg)
+  { // VCOL_TIME_FUNC because the value is not constant, but does not
+    // require fix_fields() to be re-run for every statement.
+    return mark_unsupported_function(func_name, arg, VCOL_TIME_FUNC);
   }
 };
 
@@ -5094,6 +5096,7 @@ public:
   table_map used_tables() const { return (table_map)0L; }
   Item_field *field_for_view_update() { return 0; }
   bool update_vcol_processor(void *arg) { return 0; }
+  bool check_func_default_processor(void *arg) { return true; }
 
   bool walk(Item_processor processor, bool walk_subquery, void *args)
   {
