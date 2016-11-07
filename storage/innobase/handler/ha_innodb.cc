@@ -684,6 +684,11 @@ srv_mbr_debug(const byte* data)
 static void innodb_remember_check_sysvar_funcs();
 mysql_var_check_func check_sysvar_enum;
 
+// should page compression be used by default for new tables
+static MYSQL_THDVAR_BOOL(compression_default, PLUGIN_VAR_OPCMDARG,
+  "Is compression the default for new tables", 
+  NULL, NULL, FALSE);
+
 static MYSQL_THDVAR_UINT(default_encryption_key_id, PLUGIN_VAR_RQCMDARG,
 			 "Default encryption key id used for table encryption.",
 			 NULL, NULL,
@@ -701,7 +706,7 @@ ha_create_table_option innodb_table_option_list[]=
 {
   /* With this option user can enable page compression feature for the
   table */
-  HA_TOPTION_BOOL("PAGE_COMPRESSED", page_compressed, 0),
+  HA_TOPTION_SYSVAR("PAGE_COMPRESSED", page_compressed, compression_default),
   /* With this option user can set zip compression level for page
   compression for this table*/
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, 0, 1, 9, 1),
@@ -23806,6 +23811,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
   /* Table page compression feature */
   MYSQL_SYSVAR(use_trim),
+  MYSQL_SYSVAR(compression_default),
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
