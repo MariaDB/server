@@ -7543,3 +7543,6 @@ ER_VERS_TRX_ID_UNSUPPORTED
 
 ER_VERS_RANGE_UNITS_MISMATCH
         eng "Range units mismatch"
+
+ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY
+        eng "Attempt to read unversioned field '%s' in historical query"

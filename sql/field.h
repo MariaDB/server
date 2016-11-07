@@ -707,6 +707,8 @@ public:
   /* Field is part of the following keys */
   key_map	key_start, part_of_key, part_of_key_not_clustered;
 
+  bool force_null;
+
   /*
     Bitmap of indexes that have records ordered by col1, ... this_field, ...
 
@@ -1089,6 +1091,8 @@ public:
   virtual uint size_of() const =0;		// For new field
   inline bool is_null(my_ptrdiff_t row_offset= 0) const
   {
+    if (force_null)
+      return true;
     /*
       The table may have been marked as containing only NULL values
       for all fields if it is a NULL-complemented row of an OUTER JOIN
