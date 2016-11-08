@@ -667,6 +667,8 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
   case _CS_ST_STRENGTH:
     /* 1, 2, 3, 4, 5, or primary, secondary, tertiary, quaternary, identical */
     rc= tailoring_append(st, "[strength %.*s]", len, attr);
+    if (len && attr[0] >= '1' && attr[0] <= '9')
+      i->cs.levels_for_order= attr[0] - '0';
     break;
 
   case _CS_ST_ALTERNATE:

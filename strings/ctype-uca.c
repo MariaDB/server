@@ -6542,6 +6542,17 @@ MY_UCA_INFO my_uca_v400=
       },
       0         /* levelno            */
     },
+    {
+      0,
+      NULL,
+      NULL,
+      {
+        0,
+        NULL,
+        NULL
+      },
+      1         /* levelno            */
+    },
   },
 
   /* Logical positions */
@@ -30134,6 +30145,18 @@ MY_UCA_INFO my_uca_v520=
       },
       0              /* levelno */
     },
+
+    {
+      0x10FFFF,      /* maxchar */
+      (uchar *) uca520_length_w2,
+      (uint16 **) uca520_weight_w2,
+      {            /* Contractions: */
+        0,         /*   nitems */
+        NULL,      /*   item */
+        NULL       /*   flags */
+      },
+      1            /* levelno */
+    },
   },
 
   0x0009,    /* first_non_ignorable       p != ignore                       */
@@ -31851,6 +31874,25 @@ static int my_strnncoll_uca_multilevel(CHARSET_INFO *cs,
 }
 
 
+static int
+my_strnncollsp_generic_uca_nopad_multilevel(CHARSET_INFO *cs,
+                                            const uchar *s, size_t slen,
+                                            const uchar *t, size_t tlen)
+{
+  uint num_level= cs->levels_for_order;
+  uint i;
+  for (i= 0; i != num_level; i++)
+  {
+    int ret= my_strnncoll_uca_onelevel(cs, &my_any_uca_scanner_handler,
+                                       &cs->uca->level[i],
+                                       s, slen, t, tlen, FALSE);
+    if (ret)
+       return ret;
+  }
+  return 0;
+}
+
+
 static inline int
 my_space_weight(const MY_UCA_WEIGHT_LEVEL *level)
 {
@@ -32181,6 +32223,16 @@ my_strnxfrm_uca_onelevel(CHARSET_INFO *cs,
 }
 
 
+/*
+  Return the minimum possible weight on a level.
+*/
+static uint min_weight_on_level(MY_UCA_WEIGHT_LEVEL *level)
+{
+  DBUG_ASSERT(level->levelno < 2); /* No 3-level NOPAD collations yet */
+  return level->levelno == 0 ? 0x0200 : 0x0020;
+}
+
+
 static uchar *
 my_strnxfrm_uca_nopad_onelevel(CHARSET_INFO *cs,
                               my_uca_scanner_handler *scanner_handler,
@@ -32194,12 +32246,9 @@ my_strnxfrm_uca_nopad_onelevel(CHARSET_INFO *cs,
                                          dst, de, &nweights,
                                          src, srclen);
   DBUG_ASSERT(dst <= de);
-  /*
-    Pad with the minimum possible primary weight 0x0200.
-  */
-  DBUG_ASSERT(level->levelno == 0); /* No multi-level NOPAD collations yet */
+  /*  Pad with the minimum possible weight on this level */
   if (dst < de && nweights && (flags & MY_STRXFRM_PAD_WITH_SPACE))
-    dst= my_strnxfrm_uca_padn(dst, de, nweights, 0x0200);
+    dst= my_strnxfrm_uca_padn(dst, de, nweights, min_weight_on_level(level));
   DBUG_ASSERT(dst <= de);
   my_strxfrm_desc_and_reverse(d0, dst, flags, 0);
   return dst;
@@ -32294,7 +32343,12 @@ my_strnxfrm_uca_multilevel(CHARSET_INFO *cs,
   {
     if (!(flags & MY_STRXFRM_LEVEL_ALL) ||
         (flags & (MY_STRXFRM_LEVEL1 << current_level)))
-      dst= my_strnxfrm_uca_onelevel(cs, scanner_handler,
+      dst= cs->state & MY_CS_NOPAD ?
+           my_strnxfrm_uca_nopad_onelevel(cs, scanner_handler,
+                                          &cs->uca->level[current_level],
+                                          dst, de, nweights,
+                                          src, srclen, flags) :
+           my_strnxfrm_uca_onelevel(cs, scanner_handler,
                                     &cs->uca->level[current_level],
                                     dst, de, nweights,
                                     src, srclen, flags);
@@ -32970,6 +33024,7 @@ typedef enum
 typedef struct my_coll_rules_st
 {
   uint version;              /* Unicode version, e.g. 400 or 520  */
+  uint strength;             /* Number of levels                  */
   MY_UCA_INFO *uca;          /* Unicode weight data               */
   size_t nrules;             /* Number of rules in the rule array */
   size_t mrules;             /* Number of allocated rules         */
@@ -33251,6 +33306,10 @@ my_coll_parser_scan_setting(MY_COLL_RULE_PARSER *p)
   {
     rules->shift_after_method= my_shift_method_simple;
   }
+  else if (!lex_cmp(lexem, C_STRING_WITH_LEN("[strength 1]")))
+    rules->strength= 1;
+  else if (!lex_cmp(lexem, C_STRING_WITH_LEN("[strength 2]")))
+    rules->strength= 2;
   else
   {
     return 0;
@@ -34189,6 +34248,10 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
 }
 
 
+MY_COLLATION_HANDLER my_collation_any_uca_handler_multilevel;
+MY_COLLATION_HANDLER my_collation_generic_uca_nopad_handler_multilevel;
+
+
 /*
   This function copies an UCS2 collation from
   the default Unicode Collation Algorithm (UCA)
@@ -34210,66 +34273,6 @@ static my_bool
 create_tailoring(struct charset_info_st *cs,
                           MY_CHARSET_LOADER *loader)
 {
-  MY_COLL_RULES rules;
-  MY_UCA_INFO new_uca, *src_uca= NULL;
-  int rc= 0;
-
-  *loader->error= '\0';
-
-  if (!cs->tailoring)
-    return 0; /* Ok to add a collation without tailoring */
-
-  memset(&rules, 0, sizeof(rules));
-  rules.loader= loader;
-  rules.uca= cs->uca ? cs->uca : &my_uca_v400; /* For logical positions, etc */
-  memset(&new_uca, 0, sizeof(new_uca));
-
-  /* Parse ICU Collation Customization expression */
-  if ((rc= my_coll_rule_parse(&rules,
-                              cs->tailoring,
-                              cs->tailoring + strlen(cs->tailoring))))
-    goto ex;
-
-  if (rules.version == 520)           /* Unicode-5.2.0 requested */
-  {
-    src_uca= &my_uca_v520;
-    cs->caseinfo= &my_unicase_unicode520;
-  }
-  else if (rules.version == 400)      /* Unicode-4.0.0 requested */
-  {
-    src_uca= &my_uca_v400;
-    cs->caseinfo= &my_unicase_default;
-  }
-  else                                /* No Unicode version specified */
-  {
-    src_uca= cs->uca ? cs->uca : &my_uca_v400;
-    if (!cs->caseinfo)
-      cs->caseinfo= &my_unicase_default;
-  }
-
-  if ((rc= init_weight_level(loader, &rules,
-                             &new_uca.level[0], &src_uca->level[0])))
-    goto ex;
-
-  if (!(cs->uca= (MY_UCA_INFO *) (loader->once_alloc)(sizeof(MY_UCA_INFO))))
-  {
-    rc= 1;
-    goto ex;
-  }
-  cs->uca[0]= new_uca;
-
-ex:
-  (loader->free)(rules.rule);
-  if (rc != 0 && loader->error[0])
-    loader->reporter(ERROR_LEVEL, "%s", loader->error);
-  return rc;
-}
-
-static my_bool
-create_tailoring_multilevel(struct charset_info_st *cs,
-                            MY_CHARSET_LOADER *loader)
-{
-  uint num_level= cs->levels_for_order;
   MY_COLL_RULES rules;
   MY_UCA_INFO new_uca, *src_uca= NULL;
   int rc= 0;
@@ -34307,9 +34310,17 @@ create_tailoring_multilevel(struct charset_info_st *cs,
     if (!cs->caseinfo)
       cs->caseinfo= &my_unicase_default;
   }
+  cs->levels_for_order= rules.strength ? rules.strength : 1;
 
-  for (i= 0; i != num_level; i++)
+  for (i= 0; i != cs->levels_for_order; i++)
   {
+    if ((rc= (src_uca->level[i].maxchar == 0)))
+    {
+      my_snprintf(loader->error, sizeof(loader->error) - 1,
+                  "%s: no level #%d data for this Unicode version.",
+                  cs->name, i + 1);
+      goto ex;
+    }
     if ((rc= init_weight_level(loader, &rules,
                                &new_uca.level[i], &src_uca->level[i])))
       goto ex;
@@ -34321,6 +34332,10 @@ create_tailoring_multilevel(struct charset_info_st *cs,
     goto ex;
   }
   cs->uca[0]= new_uca;
+  if (cs->levels_for_order > 1)
+    cs->coll= (cs->state & MY_CS_NOPAD) ?
+               &my_collation_generic_uca_nopad_handler_multilevel :
+               &my_collation_any_uca_handler_multilevel;
 
 ex:
   (loader->free)(rules.rule);
@@ -34345,16 +34360,6 @@ my_coll_init_uca(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
   return create_tailoring(cs, loader);
 }
 
-static my_bool
-my_coll_init_uca_multilevel(struct charset_info_st *cs,
-                            MY_CHARSET_LOADER *loader)
-{
-  cs->pad_char= ' ';
-  cs->ctype= my_charset_utf8_unicode_ci.ctype;
-  if (!cs->caseinfo)
-    cs->caseinfo= &my_unicase_default;
-  return create_tailoring_multilevel(cs, loader);
-}
 
 static int my_strnncoll_any_uca(CHARSET_INFO *cs,
                                 const uchar *s, size_t slen,
@@ -34489,7 +34494,7 @@ MY_COLLATION_HANDLER my_collation_generic_uca_nopad_handler =
 
 MY_COLLATION_HANDLER my_collation_any_uca_handler_multilevel=
 {
-    my_coll_init_uca_multilevel,
+    my_coll_init_uca,
     my_strnncoll_any_uca_multilevel,
     my_strnncollsp_any_uca_multilevel,
     my_strnxfrm_any_uca_multilevel,
@@ -34499,6 +34504,22 @@ MY_COLLATION_HANDLER my_collation_any_uca_handler_multilevel=
     NULL,
     my_instr_mb,
     my_hash_sort_any_uca,
+    my_propagate_complex
+};
+
+
+MY_COLLATION_HANDLER my_collation_generic_uca_nopad_handler_multilevel =
+{
+    my_coll_init_uca,
+    my_strnncoll_any_uca_multilevel,
+    my_strnncollsp_generic_uca_nopad_multilevel,
+    my_strnxfrm_any_uca_multilevel,
+    my_strnxfrmlen_any_uca_multilevel,
+    my_like_range_generic,
+    my_wildcmp_uca,
+    NULL,
+    my_instr_mb,
+    my_hash_sort_generic_uca_nopad,
     my_propagate_complex
 };
 
@@ -35342,7 +35363,7 @@ struct charset_info_st my_charset_ucs2_thai_520_w2=
     "ucs2",              /* csname       */
     "ucs2_thai_520_w2",  /* name         */
     "",                  /* comment      */
-    "",                  /* tailoring    */
+    "[strength 2]",      /* tailoring    */
     NULL,                /* ctype        */
     NULL,                /* to_lower     */
     NULL,                /* to_upper     */
@@ -36363,7 +36384,7 @@ struct charset_info_st my_charset_utf8_thai_520_w2=
     MY_UTF8MB3,          /* csname       */
     MY_UTF8MB3 "_thai_520_w2",/* name    */
     "",                  /* comment      */
-    "",                  /* tailoring    */
+    "[strength 2]",      /* tailoring    */
     ctype_utf8,          /* ctype        */
     NULL,                /* to_lower     */
     NULL,                /* to_upper     */
@@ -37275,7 +37296,7 @@ struct charset_info_st my_charset_utf8mb4_thai_520_w2=
     MY_UTF8MB4,          /* csname       */
     MY_UTF8MB4 "_thai_520_w2", /* name   */
     "",                  /* comment      */
-    "",                  /* tailoring    */
+    "[strength 2]",      /* tailoring    */
     ctype_utf8,          /* ctype        */
     NULL,                /* to_lower     */
     NULL,                /* to_upper     */
@@ -38237,7 +38258,7 @@ struct charset_info_st my_charset_utf32_thai_520_w2=
     "utf32",            /* csname       */
     "utf32_thai_520_w2",/* name         */
     "",                 /* comment      */
-    "",                 /* tailoring    */
+    "[strength 2]",     /* tailoring    */
     NULL,               /* ctype        */
     NULL,               /* to_lower     */
     NULL,               /* to_upper     */
@@ -39204,7 +39225,7 @@ struct charset_info_st my_charset_utf16_thai_520_w2=
     "utf16",           /* cs name      */
     "utf16_thai_520_w2",/* name        */
     "",                /* comment      */
-    "",                /* tailoring    */
+    "[strength 2]",    /* tailoring    */
     NULL,              /* ctype        */
     NULL,              /* to_lower     */
     NULL,              /* to_upper     */
