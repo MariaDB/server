@@ -6365,7 +6365,7 @@ Create_func_weekofyear Create_func_weekofyear::s_singleton;
 Item*
 Create_func_weekofyear::create_1_arg(THD *thd, Item *arg1)
 {
-  Item *i1= new (thd->mem_root) Item_int(thd, (char*) "0", 3, 1);
+  Item *i1= new (thd->mem_root) Item_int(thd, (char*) "3", 3, 1);
   return new (thd->mem_root) Item_func_week(thd, arg1, i1);
 }
 
