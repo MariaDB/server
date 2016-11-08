@@ -3339,6 +3339,8 @@ partititon_err:
   outparam->file= 0;				// For easier error checking
   outparam->db_stat=0;
   thd->lex->context_analysis_only= save_context_analysis_only;
+  if (outparam->expr_arena)
+    outparam->expr_arena->free_items();
   free_root(&outparam->mem_root, MYF(0));       // Safe to call on bzero'd root
   outparam->alias.free();
   DBUG_RETURN (error);

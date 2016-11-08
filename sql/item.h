@@ -2576,6 +2576,7 @@ public:
   bool register_field_in_bitmap(void *arg);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool vcol_in_partition_func_processor(void *bool_arg);
+  bool check_valid_arguments_processor(void *bool_arg);
   bool check_field_expression_processor(void *arg);
   bool enumerate_field_refs_processor(void *arg);
   bool update_table_bitmaps_processor(void *arg);

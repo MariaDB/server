@@ -5576,6 +5576,14 @@ bool Item_field::vcol_in_partition_func_processor(void *int_arg)
   return FALSE;
 }
 
+bool Item_field::check_valid_arguments_processor(void *bool_arg)
+{
+  Virtual_column_info *vcol= field->vcol_info;
+  if (!vcol)
+    return FALSE;
+  return vcol->expr->walk(&Item::check_partition_func_processor, 0, NULL)
+      || vcol->expr->walk(&Item::check_valid_arguments_processor, 0, NULL);
+}
 
 void Item_field::cleanup()
 {
