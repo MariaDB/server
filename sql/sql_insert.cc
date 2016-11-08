@@ -2451,6 +2451,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
       goto error;
     dfield_ptr= copy->default_field;
   }
+  copy->expr_arena= NULL;
 
   /* Ensure we don't use the table list of the original table */
   copy->pos_in_table_list= 0;
