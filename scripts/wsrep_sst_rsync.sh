@@ -65,27 +65,28 @@ check_pid_and_port()
 
     case $OS in
     FreeBSD)
-        local port_info=$(netstat -46lp ${rsync_port} 2>/dev/null | \
-        grep ":${rsync_port}")
-        local is_rsync=$(echo $port_info | \
-        grep -w '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)
+        local port_info="$(sockstat -46lp ${rsync_port} 2>/dev/null | \
+            grep ":${rsync_port}")"
+        local is_rsync="$(echo $port_info | \
+            grep -w '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
         ;;
-    *) 
+    *)
         if ! which lsof > /dev/null; then
           wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
           exit 2 # ENOENT
         fi
 
-        local port_info=$(lsof -i :$rsync_port -Pn 2>/dev/null | \
-            grep "(LISTEN)")
-        local is_listening_all=$(echo $port_info | \
-            grep "*:$rsync_port" 2>/dev/null)
-        local is_listening_addr=$(echo $port_info | \
-            grep "$rsync_addr:$rsync_port" 2>/dev/null)
-        local is_rsync=$(echo $port_info | \
-            grep -w '^rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)
+        local port_info="$(lsof -i :$rsync_port -Pn 2>/dev/null | \
+            grep "(LISTEN)")"
+        local is_rsync="$(echo $port_info | \
+            grep -w '^rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
         ;;
     esac
+
+    local is_listening_all="$(echo $port_info | \
+        grep "*:$rsync_port" 2>/dev/null)"
+    local is_listening_addr="$(echo $port_info | \
+        grep "$rsync_addr:$rsync_port" 2>/dev/null)"
 
     if [ ! -z "$is_listening_all" -o ! -z "$is_listening_addr" ]; then
         if [ -z "$is_rsync" ]; then
@@ -202,7 +203,9 @@ then
         if ! [ -z $WSREP_SST_OPT_BINLOG ]
         then
             # Prepare binlog files
-            pushd $BINLOG_DIRNAME &> /dev/null
+            OLD_PWD="$(pwd)"
+            cd $BINLOG_DIRNAME
+
             binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
             binlog_files=""
             for ii in $binlog_files_full
@@ -214,14 +217,14 @@ then
                 wsrep_log_info "Preparing binlog files for transfer:"
                 tar -cvf $BINLOG_TAR_FILE $binlog_files >&2
             fi
-            popd &> /dev/null
+            cd "$OLD_PWD"
         fi
 
         # first, the normal directories, so that we can detect incompatible protocol
         RC=0
-        rsync --owner --group --perms --links --specials \
+        eval rsync --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT "${FILTER}" "$WSREP_SST_OPT_DATA/" \
+              $WHOLE_FILE_OPT ${FILTER} "$WSREP_SST_OPT_DATA/" \
               rsync://$WSREP_SST_OPT_ADDR >&2 || RC=$?
 
         if [ "$RC" -ne 0 ]; then
@@ -253,7 +256,8 @@ then
         fi
 
         # then, we parallelize the transfer of database directories, use . so that pathconcatenation works
-        pushd "$WSREP_SST_OPT_DATA" >/dev/null
+        OLD_PWD="$(pwd)"
+        cd $WSREP_SST_OPT_DATA
 
         count=1
         [ "$OS" = "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
@@ -266,7 +270,7 @@ then
              $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \
              rsync://$WSREP_SST_OPT_ADDR/{} >&2 || RC=$?
 
-        popd >/dev/null
+        cd "$OLD_PWD"
 
         if [ $RC -ne 0 ]; then
             wsrep_log_error "find/rsync returned code $RC:"
@@ -377,7 +381,9 @@ EOF
     if ! [ -z $WSREP_SST_OPT_BINLOG ]
     then
 
-        pushd $BINLOG_DIRNAME &> /dev/null
+        OLD_PWD="$(pwd)"
+        cd $BINLOG_DIRNAME
+
         if [ -f $BINLOG_TAR_FILE ]
         then
             # Clean up old binlog files first
@@ -389,7 +395,8 @@ EOF
                 echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
             done
         fi
-        popd &> /dev/null
+        cd "$OLD_PWD"
+
     fi
     if [ -r "$MAGIC_FILE" ]
     then
