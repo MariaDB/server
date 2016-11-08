@@ -620,6 +620,9 @@ do {								\
 do {								\
 	PSI_THREAD_CALL(delete_current_thread)();		\
 } while (0)
+# else
+#  define pfs_register_thread(key)
+#  define pfs_delete_thread()
 # endif /* UNIV_PFS_THREAD */
 
 #ifdef HAVE_PSI_STAGE_INTERFACE

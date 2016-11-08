@@ -122,6 +122,7 @@ support cross-platform development and expose comonly used SQL names. */
 #include <unistd.h>
 #endif
 
+#include "my_pthread.h"
 /* Following defines are to enable performance schema
 instrumentation in each of five InnoDB modules if
 HAVE_PSI_INTERFACE is defined. */
@@ -159,7 +160,6 @@ be excluded from instrumentation. */
 #include "pfs_thread_provider.h"
 #endif
 
-#include "my_pthread.h"
 #include "mysql/psi/mysql_thread.h"
 /* For PSI_FILE_CALL(). */
 /* JAN: TODO: missing 5.7 header */
