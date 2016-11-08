@@ -1601,42 +1601,32 @@ row_ins_search_sys_trx_end(
 			const rec_t *rec,	/*!< in: record */
 			trx_id_t *end_trx_id)	/*!< out: end_trx_id */
 {
-	rec_t *clust_rec;
 	bool found = false;
-	mem_heap_t *clust_heap = mem_heap_create(256);
-	ulint clust_offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint *clust_offsets = clust_offsets_;
-	rec_offs_init(clust_offsets_);
-	btr_pcur_t clust_pcur;
+	mem_heap_t *heap = mem_heap_create(256);
+	dict_index_t *clust_index = NULL;
+	ulint offsets_[REC_OFFS_NORMAL_SIZE];
+	ulint *offsets = offsets_;
+	rec_offs_init(offsets_);
 
-	dict_index_t *clust_index = dict_table_get_first_index(index->table);
+	mtr_t mtr;
+	mtr_start(&mtr);
 
-	dtuple_t *ref =
-		row_build_row_ref(ROW_COPY_POINTERS, index, rec, clust_heap);
-
-	mtr_t clust_mtr;
-	mtr_start(&clust_mtr);
-	btr_pcur_open_on_user_rec(clust_index, ref, PAGE_CUR_GE,
-				BTR_SEARCH_LEAF, &clust_pcur, &clust_mtr);
-
-	if (!btr_pcur_is_on_user_rec(&clust_pcur))
+	rec_t *clust_rec =
+	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, index, &clust_index, &mtr);
+        if (!clust_rec)
 		goto not_found;
 
-	clust_rec = btr_pcur_get_rec(&clust_pcur);
-	clust_offsets = rec_get_offsets(clust_rec, clust_index, clust_offsets,
-					ULINT_UNDEFINED, &clust_heap);
-	if (0 != cmp_dtuple_rec(ref, clust_rec, clust_offsets))
-		goto not_found;
+	offsets = rec_get_offsets(clust_rec, clust_index, offsets,
+					ULINT_UNDEFINED, &heap);
 
-	*end_trx_id = row_ins_get_sys_trx_end(
-		clust_rec, clust_offsets, clust_index);
+	*end_trx_id = row_ins_get_sys_trx_end(clust_rec, offsets, clust_index);
 	found = true;
 not_found:
-	mtr_commit(&clust_mtr);
-	btr_pcur_close(&clust_pcur);
-	mem_heap_free(clust_heap);
+	mtr_commit(&mtr);
+	mem_heap_free(heap);
 	if (!found) {
 		fprintf(stderr, "InnoDB: foreign constraints: secondary index is out of sync\n");
+		ut_ad(false && "secondary index is out of sync");
 		return(DB_NO_REFERENCED_ROW);
 	}
 	return(DB_SUCCESS);
