@@ -85,4 +85,17 @@ echo "Creating package version ${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
 # generating the source package.
 fakeroot dpkg-buildpackage -us -uc -I -b
 
+# Don't log package contents on Travis-CI to save time and log size
+if [[ ! $TRAVIS ]]
+then
+  echo "List package contents ..."
+  cd ..
+  for package in `ls *.deb`
+  do
+    echo $package | cut -d '_' -f 1
+    dpkg-deb -c $package | awk '{print $1 " " $2 " " $6}' | sort -k 3
+    echo "------------------------------------------------"
+  done
+fi
+
 echo "Build complete"
