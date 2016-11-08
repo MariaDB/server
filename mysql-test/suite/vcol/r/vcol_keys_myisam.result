@@ -260,5 +260,21 @@ drop table t1;
 # on virtual columns can be found in:
 #  - vcol_ins_upd.inc
 #  - vcol_select.inc
-#
-# TODO: CHECK
+create table t1 (a int, b timestamp as (now()), key (b));
+ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b timestamp as (now()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+create table t1 (a int, b varchar(100) as (user()), key (b));
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b varchar(100) as (user()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+create table t1 (a int, b double as (rand()), key (b));
+ERROR HY000: Function or expression 'rand()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b double as (rand()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'rand()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;

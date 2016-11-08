@@ -3877,10 +3877,21 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  }
 	}
 #endif
-        if (key->type == Key::PRIMARY && sql_field->vcol_info)
+        if (sql_field->vcol_info)
         {
-          my_error(ER_PRIMARY_KEY_BASED_ON_VIRTUAL_COLUMN, MYF(0));
-          DBUG_RETURN(TRUE);
+          if (key->type == Key::PRIMARY)
+          {
+            my_error(ER_PRIMARY_KEY_BASED_ON_VIRTUAL_COLUMN, MYF(0));
+            DBUG_RETURN(TRUE);
+          }
+          if (sql_field->vcol_info->flags & VCOL_NOT_STRICTLY_DETERMINISTIC)
+          {
+            /* use check_expression() to report an error */
+            check_expression(sql_field->vcol_info, sql_field->field_name,
+                             VCOL_GENERATED_STORED);
+            DBUG_ASSERT(thd->is_error());
+            DBUG_RETURN(TRUE);
+          }
         }
 	if (!(sql_field->flags & NOT_NULL_FLAG))
 	{

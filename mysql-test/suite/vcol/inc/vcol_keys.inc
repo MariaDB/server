@@ -157,6 +157,27 @@ drop table t1;
 --echo #  - vcol_ins_upd.inc
 --echo #  - vcol_select.inc
 
---echo #
---echo # TODO: CHECK
+#
+# Restrictions when indexed:
+#
 
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int, b timestamp as (now()), key (b));
+create table t1 (a int, b timestamp as (now()));
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+alter table t1 add index (b);
+drop table t1;
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int, b varchar(100) as (user()), key (b));
+create table t1 (a int, b varchar(100) as (user()));
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+alter table t1 add index (b);
+drop table t1;
+
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a int, b double as (rand()), key (b));
+create table t1 (a int, b double as (rand()));
+--error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+alter table t1 add index (b);
+drop table t1;
