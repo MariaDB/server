@@ -48,7 +48,7 @@
 #define MYSQL57_GCOL_HEADER_SIZE 4
 
 static Virtual_column_info * unpack_vcol_info_from_frm(THD *, MEM_ROOT *,
-                 TABLE *, const uchar *, size_t, Virtual_column_info *, bool *);
+              TABLE *, String *, Virtual_column_info **, bool *);
 static bool check_vcol_forward_refs(Field *, Virtual_column_info *);
 
 /* INFORMATION_SCHEMA name */
@@ -971,8 +971,8 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
     expression
   10.1-
     byte 1     = 1 | 2
-    byte 2     = sql_type
-    byte 3     = stored_in_db
+    byte 2     = sql_type       ; but  TABLE::init_from_binary_frm_image()
+    byte 3     = stored_in_db   ; has put expr_length here
     [byte 4]   = optional interval_id for sql_type (if byte 1 == 2)
     expression
   10.2+
@@ -986,19 +986,40 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
                      bool *error_reported)
 {
+  CHARSET_INFO *save_character_set_client= thd->variables.character_set_client;
+  CHARSET_INFO *save_collation= thd->variables.collation_connection;
+  Query_arena  *backup_stmt_arena_ptr= thd->stmt_arena;
   const uchar *pos= table->s->vcol_defs.str;
   const uchar *end= pos + table->s->vcol_defs.length;
   Field **field_ptr= table->field - 1;
   Field **vfield_ptr= table->vfield;
   Field **dfield_ptr= table->default_field;
   Virtual_column_info **check_constraint_ptr= table->check_constraints;
+  Query_arena backup_arena;
   Virtual_column_info *vcol;
+  StringBuffer<MAX_FIELD_WIDTH> expr_str;
+  bool res= 1;
   DBUG_ENTER("parse_vcol_defs");
 
   if (check_constraint_ptr)
     memcpy(table->check_constraints + table->s->field_check_constraints,
            table->s->check_constraints,
            table->s->table_check_constraints * sizeof(Virtual_column_info*));
+
+  DBUG_ASSERT(table->expr_arena == NULL);
+  /*
+    We need to use CONVENTIONAL_EXECUTION here to ensure that
+    any new items created by fix_fields() are not reverted.
+  */
+  table->expr_arena= new (alloc_root(mem_root, sizeof(Query_arena)))
+                        Query_arena(mem_root, Query_arena::STMT_CONVENTIONAL_EXECUTION);
+  if (!table->expr_arena)
+    DBUG_RETURN(1);
+
+  thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
+  thd->stmt_arena= table->expr_arena;
+  thd->update_charset(&my_charset_utf8mb4_general_ci, table->s->table_charset);
+  expr_str.append(&parse_vcol_keyword);
 
   while (pos < end)
   {
@@ -1024,7 +1045,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       if (!*field_ptr)
       {
         open_table_error(table->s, OPEN_FRM_CORRUPTED, 1);
-        DBUG_RETURN(1);
+        goto end;
       }
       type= (*field_ptr)->vcol_info->stored_in_db
             ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL;
@@ -1034,39 +1055,37 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       else
         pos+= pos[0] == 2 ? 4 : 3;      // MariaDB from 5.2 to 10.1
     }
+
+    expr_str.length(parse_vcol_keyword.length);
+    expr_str.append((char*)pos, expr_length);
+
     switch (type) {
     case VCOL_GENERATED_VIRTUAL:
     case VCOL_GENERATED_STORED:
-      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
-                                      (*field_ptr)->vcol_info, error_reported);
-      DBUG_ASSERT((*field_ptr)->vcol_info->expr == NULL);
-      (*field_ptr)->vcol_info= vcol;
+      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
+                                    &((*field_ptr)->vcol_info), error_reported);
       *(vfield_ptr++)= *field_ptr;
       break;
     case VCOL_DEFAULT:
-      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
-                                      (*field_ptr)->default_value,
+      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
+                                      &((*field_ptr)->default_value),
                                       error_reported);
-      DBUG_ASSERT((*field_ptr)->default_value->expr == NULL);
-      (*field_ptr)->default_value= vcol;
       *(dfield_ptr++)= *field_ptr;
       break;
     case VCOL_CHECK_FIELD:
-      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
-                                      (*field_ptr)->check_constraint,
+      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
+                                      &((*field_ptr)->check_constraint),
                                       error_reported);
-      DBUG_ASSERT((*field_ptr)->check_constraint->expr == NULL);
-      (*field_ptr)->check_constraint= vcol;
-      *check_constraint_ptr++= vcol;
+      *check_constraint_ptr++= (*field_ptr)->check_constraint;
       break;
     case VCOL_CHECK_TABLE:
-      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, pos, expr_length,
-                                      *check_constraint_ptr, error_reported);
-      *check_constraint_ptr++= vcol;
+      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
+                                      check_constraint_ptr, error_reported);
+      check_constraint_ptr++;
       break;
     }
     if (!vcol)
-      DBUG_RETURN(1);
+      goto end;
     pos+= expr_length;
   }
 
@@ -1076,16 +1095,16 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     Field *field= *field_ptr;
     if (field->has_default_now_unireg_check())
     {
-      char buf[256];
-      size_t len= my_snprintf(buf, sizeof(buf), "current_timestamp(%u)", field->decimals());
-      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, (uchar*)buf, len,
-                                      (*field_ptr)->default_value,
+      expr_str.length(parse_vcol_keyword.length);
+      expr_str.append(STRING_WITH_LEN("current_timestamp("));
+      expr_str.append_ulonglong(field->decimals());
+      expr_str.append(')');
+      vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
+                                      &((*field_ptr)->default_value),
                                       error_reported);
-      DBUG_ASSERT((*field_ptr)->default_value->expr == NULL);
-      (*field_ptr)->default_value= vcol;
       *(dfield_ptr++)= *field_ptr;
       if (!field->default_value->expr)
-        DBUG_RETURN(1);
+        goto end;
     }
     else if (field->has_update_default_function() && !field->default_value)
       *(dfield_ptr++)= *field_ptr;
@@ -1107,10 +1126,16 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     if (check_vcol_forward_refs(field, field->vcol_info) ||
         check_vcol_forward_refs(field, field->check_constraint) ||
         check_vcol_forward_refs(field, field->default_value))
-      DBUG_RETURN(1);
+      goto end;
   }
 
-  DBUG_RETURN(0);
+  res=0;
+end:
+  thd->restore_active_arena(table->expr_arena, &backup_arena);
+  thd->stmt_arena= backup_stmt_arena_ptr;
+  if (save_character_set_client)
+    thd->update_charset(save_character_set_client, save_collation);
+  DBUG_RETURN(res);
 }
 
 /**
@@ -2834,106 +2859,45 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
 
 static Virtual_column_info *
 unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root, TABLE *table,
-                          const uchar *expr_str, size_t expr_str_length,
-                          Virtual_column_info *vcol, bool *error_reported)
+                          String *expr_str, Virtual_column_info **vcol_ptr,
+                          bool *error_reported)
 {
-  char *vcol_expr_str;
-  int str_len;
-  CHARSET_INFO *save_character_set_client, *save_collation;
-  Query_arena *backup_stmt_arena_ptr;
-  Query_arena backup_arena;
-  Query_arena *vcol_arena= 0;
   Create_field vcol_storage; // placeholder for vcol_info
   Parser_state parser_state;
-  Virtual_column_info *vcol_info= 0;
+  Virtual_column_info *vcol= *vcol_ptr, *vcol_info= 0;
   LEX *old_lex= thd->lex;
   LEX lex;
   bool error;
   DBUG_ENTER("unpack_vcol_info_from_frm");
 
-  save_character_set_client= thd->variables.character_set_client;
-  save_collation= thd->variables.collation_connection;
-  backup_stmt_arena_ptr= thd->stmt_arena;
-
-  /* 
-    Step 1: Construct the input string for the parser.
-    The string to be parsed has to be of the following format:
-    "PARSE_VCOL_EXPR (<expr_string_from_frm>)".
-  */
+  DBUG_ASSERT(vcol->expr == NULL);
   
-  if (!(vcol_expr_str= (char*) alloc_root(mem_root,
-                                          expr_str_length +
-                                          parse_vcol_keyword.length + 3)))
-    DBUG_RETURN(0);
-  memcpy(vcol_expr_str, parse_vcol_keyword.str, parse_vcol_keyword.length);
-  str_len= parse_vcol_keyword.length;
-  vcol_expr_str[str_len++]= '(';
-  memcpy(vcol_expr_str + str_len, expr_str, expr_str_length);
-  str_len+= expr_str_length;
-  vcol_expr_str[str_len++]= ')';
-  vcol_expr_str[str_len++]= 0;
-
-  if (parser_state.init(thd, vcol_expr_str, str_len))
-    goto err;
-
-  /* 
-    Step 2: Setup thd for parsing.
-  */
-  vcol_arena= table->expr_arena;
-  if (!vcol_arena)
-  {
-    /*
-      We need to use CONVENTIONAL_EXECUTION here to ensure that
-      any new items created by fix_fields() are not reverted.
-    */
-    Query_arena expr_arena(mem_root,
-                           Query_arena::STMT_CONVENTIONAL_EXECUTION);
-    if (!(vcol_arena= (Query_arena *) alloc_root(mem_root,
-                                                 sizeof(Query_arena))))
-      goto err;
-    *vcol_arena= expr_arena;
-    table->expr_arena= vcol_arena;
-  }
-  thd->set_n_backup_active_arena(vcol_arena, &backup_arena);
-  thd->stmt_arena= vcol_arena;
+  if (parser_state.init(thd, expr_str->c_ptr(), expr_str->length()))
+    goto end;
 
   if (init_lex_with_single_table(thd, table, &lex))
-    goto err;
+    goto end;
 
-  lex.parse_vcol_expr= TRUE;
+  lex.parse_vcol_expr= true;
   lex.last_field= &vcol_storage;
 
-  /* 
-    Step 3: Use the parser to build an Item object from vcol_expr_str.
-  */
-  if (vcol->utf8)
-  {
-    thd->update_charset(&my_charset_utf8mb4_general_ci,
-                        table->s->table_charset);
-  }
   error= parse_sql(thd, &parser_state, NULL);
   if (error)
-    goto err;
+    goto end;
 
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
   vcol_storage.vcol_info->name=              vcol->name;
   vcol_storage.vcol_info->utf8=              vcol->utf8;
   if (!fix_and_check_vcol_expr(thd, table, vcol_storage.vcol_info))
   {
-    vcol_info= vcol_storage.vcol_info;          // Expression ok
+    *vcol_ptr= vcol_info= vcol_storage.vcol_info;   // Expression ok
+    DBUG_ASSERT(vcol_info->expr);
     goto end;
   }
   *error_reported= TRUE;
 
-err:
-  thd->free_items();
 end:
-  thd->stmt_arena= backup_stmt_arena_ptr;
-  if (vcol_arena)
-    thd->restore_active_arena(vcol_arena, &backup_arena);
   end_lex_with_single_table(thd, table, old_lex);
-  if (vcol->utf8)
-    thd->update_charset(save_character_set_client, save_collation);
 
   DBUG_RETURN(vcol_info);
 }

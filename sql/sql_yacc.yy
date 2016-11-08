@@ -6221,7 +6221,7 @@ vcol_attribute:
         ;
 
 parse_vcol_expr:
-          PARSE_VCOL_EXPR_SYM virtual_column_func
+          PARSE_VCOL_EXPR_SYM
           {
             /*
               "PARSE_VCOL_EXPR" can only be used by the SQL server
@@ -6229,7 +6229,13 @@ parse_vcol_expr:
               Prevent the end user from invoking this command.
             */
             MYSQL_YYABORT_UNLESS(Lex->parse_vcol_expr);
-            Lex->last_field->vcol_info= $2;
+          }
+          expr
+          {
+            Virtual_column_info *v= add_virtual_expression(thd, $3);
+            if (!v)
+              MYSQL_YYABORT;
+            Lex->last_field->vcol_info= v;
           }
         ;
 
