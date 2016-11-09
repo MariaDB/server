@@ -799,7 +799,6 @@ lock_reset_lock_and_trx_wait(
 	/* Reset the back pointer in trx to this waiting lock request */
 
 	if (!(lock->type_mode & LOCK_CONV_BY_OTHER)) {
-		ut_ad((lock->trx)->wait_lock == lock);
 		(lock->trx)->wait_lock = NULL;
 	} else {
 		ut_ad(lock_get_type_low(lock) == LOCK_REC);
