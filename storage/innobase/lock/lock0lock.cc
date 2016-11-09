@@ -900,9 +900,34 @@ lock_reset_lock_and_trx_wait(
 /*=========================*/
 	lock_t*	lock)	/*!< in/out: record lock */
 {
-	ut_ad(lock->trx->lock.wait_lock == lock);
 	ut_ad(lock_get_wait(lock));
 	ut_ad(lock_mutex_own());
+
+	if (lock->trx->lock.wait_lock &&
+	    lock->trx->lock.wait_lock != lock) {
+		const char*	stmt=NULL;
+		const char*	stmt2=NULL;
+		size_t		stmt_len;
+		trx_id_t trx_id = 0;
+		stmt = innobase_get_stmt(lock->trx->mysql_thd, &stmt_len);
+
+		if (lock->trx->lock.wait_lock &&
+			lock->trx->lock.wait_lock->trx) {
+			trx_id = lock->trx->lock.wait_lock->trx->id;
+			stmt2 = innobase_get_stmt(lock->trx->lock.wait_lock->trx->mysql_thd, &stmt_len);
+		}
+
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Trx id %lu is waiting a lock in statement %s"
+			" for this trx id %lu and statement %s wait_lock %p",
+			lock->trx->id,
+			stmt ? stmt : "NULL",
+			trx_id,
+			stmt2 ? stmt2 : "NULL",
+			lock->trx->lock.wait_lock);
+
+		ut_ad(lock->trx->lock.wait_lock == lock);
+	}
 
 	lock->trx->lock.wait_lock = NULL;
 	lock->type_mode &= ~LOCK_WAIT;
