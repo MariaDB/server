@@ -779,7 +779,8 @@ lock_reset_lock_and_trx_wait(
 	ut_ad(lock_get_wait(lock));
 	ut_ad(lock_mutex_own());
 
-	if (lock->trx->lock.wait_lock != lock) {
+	if (lock->trx->lock.wait_lock &&
+	    lock->trx->lock.wait_lock != lock) {
 		const char*	stmt=NULL;
 		const char*	stmt2=NULL;
 		size_t		stmt_len;
@@ -800,7 +801,7 @@ lock_reset_lock_and_trx_wait(
 				  << " and statement "
 				  << (stmt2 ? stmt2 : "NULL")
 				  << "wait_lock " << lock->trx->lock.wait_lock;
-		ut_error;
+		ut_ad(lock->trx->lock.wait_lock != lock);
 	}
 
 	lock->trx->lock.wait_lock = NULL;
