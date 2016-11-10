@@ -1707,6 +1707,28 @@ struct TABLE_LIST
                      MDL_TRANSACTION);
   }
 
+  inline void init_one_table_for_prelocking(const char *db_name_arg,
+                             size_t db_length_arg,
+                             const char *table_name_arg,
+                             size_t table_name_length_arg,
+                             const char *alias_arg,
+                             enum thr_lock_type lock_type_arg,
+                             TABLE_LIST *belong_to_view_arg,
+                             uint8 trg_event_map_arg,
+                             TABLE_LIST ***last_ptr)
+  {
+    init_one_table(db_name_arg, db_length_arg, table_name_arg,
+                   table_name_length_arg, alias_arg, lock_type_arg);
+    cacheable_table= 1;
+    prelocking_placeholder= 1;
+    belong_to_view= belong_to_view_arg;
+    trg_event_map= trg_event_map_arg;
+
+    **last_ptr= this;
+    prev_global= *last_ptr;
+    *last_ptr= &next_global;
+  }
+
   /*
     List of tables local to a subquery (used by SQL_I_List). Considers
     views as leaves (unlike 'next_leaf' below). Created at parse time

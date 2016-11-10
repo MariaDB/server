@@ -4219,7 +4219,7 @@ sp_head::add_used_tables_to_table_list(THD *thd,
     if (stab->temp)
       continue;
 
-    if (!(tab_buff= (char *)thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST)) *
+    if (!(tab_buff= (char *)thd->alloc(ALIGN_SIZE(sizeof(TABLE_LIST)) *
                                         stab->lock_count)) ||
         !(key_buff= (char*)thd->memdup(stab->qname.str,
                                        stab->qname.length)))
@@ -4228,32 +4228,11 @@ sp_head::add_used_tables_to_table_list(THD *thd,
     for (uint j= 0; j < stab->lock_count; j++)
     {
       table= (TABLE_LIST *)tab_buff;
-
-      table->db= key_buff;
-      table->db_length= stab->db_length;
-      table->table_name= table->db + table->db_length + 1;
-      table->table_name_length= stab->table_name_length;
-      table->alias= table->table_name + table->table_name_length + 1;
-      table->lock_type= stab->lock_type;
-      table->cacheable_table= 1;
-      table->prelocking_placeholder= 1;
-      table->belong_to_view= belong_to_view;
-      table->trg_event_map= stab->trg_event_map;
-      /*
-        Since we don't allow DDL on base tables in prelocked mode it
-        is safe to infer the type of metadata lock from the type of
-        table lock.
-      */
-      table->mdl_request.init(MDL_key::TABLE, table->db, table->table_name,
-                              table->lock_type >= TL_WRITE_ALLOW_WRITE ?
-                              MDL_SHARED_WRITE : MDL_SHARED_READ,
-                              MDL_TRANSACTION);
-
-      /* Everyting else should be zeroed */
-
-      **query_tables_last_ptr= table;
-      table->prev_global= *query_tables_last_ptr;
-      *query_tables_last_ptr= &table->next_global;
+      table->init_one_table_for_prelocking(key_buff, stab->db_length,
+           key_buff + stab->db_length + 1, stab->table_name_length,
+           key_buff + stab->db_length + stab->table_name_length + 2,
+           stab->lock_type, belong_to_view, stab->trg_event_map,
+           query_tables_last_ptr);
 
       tab_buff+= ALIGN_SIZE(sizeof(TABLE_LIST));
       result= TRUE;
