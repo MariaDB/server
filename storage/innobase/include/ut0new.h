@@ -883,6 +883,13 @@ ut_delete_array(
 
 #define UT_DELETE_ARRAY(ptr)		::delete[] ptr
 
+inline void *aligned_calloc(size_t nmemb, size_t size)
+{
+  void *ptr = ALIGNED_ALLOC(nmemb * size, CPU_LEVEL1_DCACHE_LINESIZE);
+  bzero(ptr, nmemb * size);
+  return ptr;
+}
+
 #define ut_malloc(n_bytes, key)		ALIGNED_ALLOC(n_bytes, CPU_LEVEL1_DCACHE_LINESIZE)
 
 #define ut_zalloc(n_bytes, key)		::aligned_calloc(1, n_bytes)
