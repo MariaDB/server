@@ -5164,6 +5164,7 @@ sub stop_all_servers () {
 # Find out if server should be restarted for this test
 sub server_need_restart {
   my ($tinfo, $server)= @_;
+
   if ( using_extern() )
   {
     mtr_verbose_restart($server, "no restart for --extern server");
@@ -5256,11 +5257,7 @@ sub server_need_restart {
 
 sub servers_need_restart($) {
   my ($tinfo)= @_;
-  if (defined($tinfo->{'force_restart'})) {
-    return all_servers();
-  } else {
-    return grep { server_need_restart($tinfo, $_); } all_servers();
-  }
+  return grep { server_need_restart($tinfo, $_); } all_servers();
 }
 
 

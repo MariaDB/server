@@ -1,6 +1,8 @@
 --source include/have_rocksdb.inc
 --source include/have_partition.inc
 
+--source include/restart_mysqld.inc
+
 #
 # SHOW ENGINE STATUS command
 # Checking that the command doesn't produce an error.
