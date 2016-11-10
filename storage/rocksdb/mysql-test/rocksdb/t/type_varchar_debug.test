@@ -48,6 +48,7 @@ insert into t2 values (2, 'a',  'a');
 select pk, col1, hex(col1), col2 from t2;
 
 --echo # Check the format version:
+--sorted_result
 select table_name,index_name,kv_format_version 
 from information_schema.ROCKSDB_DDL 
 where TABLE_SCHEMA=database() AND table_name in ('t1','t2');
