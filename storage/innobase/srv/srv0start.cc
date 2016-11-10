@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation
+Copyright (c) 2013, 2016, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1291,6 +1291,11 @@ srv_shutdown_all_bg_threads()
 		/* f. dict_stats_thread is signaled from
 		logs_empty_and_mark_files_at_shutdown() and should have
 		already quit or is quitting right now. */
+
+		if (srv_use_mtflush) {
+			/* g. Exit the multi threaded flush threads */
+			buf_mtflu_io_thread_exit();
+		}
 
 		bool	active = os_thread_active();
 
@@ -2808,11 +2813,6 @@ innobase_shutdown_for_mysql(void)
 
 	/* 2. Make all threads created by InnoDB to exit */
 	srv_shutdown_all_bg_threads();
-
-	if (srv_use_mtflush) {
-		/* g. Exit the multi threaded flush threads */
-		buf_mtflu_io_thread_exit();
-	}
 
 	if (srv_monitor_file) {
 		fclose(srv_monitor_file);
