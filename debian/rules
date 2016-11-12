@@ -157,6 +157,9 @@ override_dh_auto_install:
 	# install Apport hook
 	install -D -m 644 debian/mariadb-server-10.2.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.2.py
 
+	# Install libmariadbclient18 compatibility links
+	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
+
 	touch $@
 
 override_dh_installlogrotate-arch:
