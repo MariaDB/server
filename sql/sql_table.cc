@@ -2511,8 +2511,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                          table->table ? (long) table->table->s : (long) -1));
 
     DBUG_EXECUTE_IF("bug43138",
-                    my_printf_error(ER_BAD_TABLE_ERROR,
-                                    ER_THD(thd, ER_BAD_TABLE_ERROR), MYF(0),
+                    my_error(ER_BAD_TABLE_ERROR, MYF(0),
                                     table->table_name););
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
@@ -2524,12 +2523,9 @@ err:
   {
     DBUG_ASSERT(errors);
     if (errors == 1 && was_view)
-      my_printf_error(ER_IT_IS_A_VIEW, ER_THD(thd, ER_IT_IS_A_VIEW), MYF(0),
-                      wrong_tables.c_ptr_safe());
+      my_error(ER_IT_IS_A_VIEW, MYF(0), wrong_tables.c_ptr_safe());
     else if (errors > 1 || !thd->is_error())
-      my_printf_error(ER_BAD_TABLE_ERROR, ER_THD(thd, ER_BAD_TABLE_ERROR),
-                      MYF(0),
-                      wrong_tables.c_ptr_safe());
+      my_error(ER_BAD_TABLE_ERROR, MYF(0), wrong_tables.c_ptr_safe());
     error= 1;
   }
 
@@ -2909,8 +2905,7 @@ int prepare_create_field(Column_definition *sql_field,
 #ifdef HAVE_SPATIAL
     if (!(table_flags & HA_CAN_GEOMETRY))
     {
-      my_printf_error(ER_CHECK_NOT_IMPLEMENTED, ER(ER_CHECK_NOT_IMPLEMENTED),
-                      MYF(0), "GEOMETRY");
+      my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), "GEOMETRY");
       DBUG_RETURN(1);
     }
     sql_field->pack_flag=FIELDFLAG_GEOM |
@@ -2923,7 +2918,7 @@ int prepare_create_field(Column_definition *sql_field,
     (*blob_columns)++;
     break;
 #else
-    my_printf_error(ER_FEATURE_DISABLED,ER(ER_FEATURE_DISABLED), MYF(0),
+    my_error(ER_FEATURE_DISABLED, MYF(0),
                     sym_group_geom.name, sym_group_geom.needed_define);
     DBUG_RETURN(1);
 #endif /*HAVE_SPATIAL*/
@@ -2938,8 +2933,7 @@ int prepare_create_field(Column_definition *sql_field,
       if ((sql_field->length / sql_field->charset->mbmaxlen) >
           MAX_FIELD_CHARLENGTH)
       {
-        my_printf_error(ER_TOO_BIG_FIELDLENGTH, ER(ER_TOO_BIG_FIELDLENGTH),
-                        MYF(0), sql_field->field_name,
+        my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), sql_field->field_name,
                         static_cast<ulong>(MAX_FIELD_CHARLENGTH));
         DBUG_RETURN(1);
       }
@@ -3850,9 +3844,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         if (!my_strcasecmp(system_charset_info,
 	     	           column->field_name.str, dup_column->field_name.str))
 	{
-	  my_printf_error(ER_DUP_FIELDNAME,
-			  ER_THD(thd, ER_DUP_FIELDNAME),MYF(0),
-			  column->field_name.str);
+	  my_error(ER_DUP_FIELDNAME, MYF(0), column->field_name.str);
 	  DBUG_RETURN(TRUE);
 	}
       }

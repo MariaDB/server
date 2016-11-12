@@ -8566,14 +8566,12 @@ int Field_geom::store(const char *from, uint length, CHARSET_INFO *cs)
         geom_type != Field::GEOM_GEOMETRYCOLLECTION &&
         (uint32) geom_type != wkb_type)
     {
-      my_printf_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, 
-                      ER_THD(get_thd(), ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
-                      MYF(0),
-                      Geometry::ci_collection[geom_type]->m_name.str,
-                      Geometry::ci_collection[wkb_type]->m_name.str,
-                      field_name,
-                      (ulong) table->in_use->get_stmt_da()->
-                      current_row_for_warning());
+      my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0),
+               Geometry::ci_collection[geom_type]->m_name.str,
+               Geometry::ci_collection[wkb_type]->m_name.str,
+               field_name,
+               (ulong) table->in_use->get_stmt_da()->
+               current_row_for_warning());
       goto err_exit;
     }
 

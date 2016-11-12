@@ -134,8 +134,7 @@ static void my_parse_error_intern(THD *thd, const char *err_text,
   /* Push an error into the error stack */
   ErrConvString err(yytext, strlen(yytext),
                     thd->variables.character_set_client);
-  my_printf_error(ER_PARSE_ERROR,  ER_THD(thd, ER_PARSE_ERROR), MYF(0),
-                  err_text, err.ptr(), lip->yylineno);
+  my_error(ER_PARSE_ERROR, MYF(0), err_text, err.ptr(), lip->yylineno);
 }
 
 
