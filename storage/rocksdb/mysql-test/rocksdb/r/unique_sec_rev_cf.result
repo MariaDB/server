@@ -80,32 +80,32 @@ COUNT(*)
 13
 # Primary key should prevent duplicate on insert
 INSERT INTO t1 VALUES (30, 31, 30, 30, 30, 30, 30, 30);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 # Primary key should prevent duplicate on update
 UPDATE t1 SET id1=30, id2=31 WHERE id2=10;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 # Unique secondary key should prevent duplicate on insert
 INSERT INTO t1 VALUES (31, 31, 32, 33, 30, 30, 30, 30);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.id2_2
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 INSERT INTO t1 VALUES (32, 32, 32, 32, 34, 32, 32, 32);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.id5
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 # Unique secondary key should prevent duplicate on update
 UPDATE t1 SET id2=31, id3=32, id4=33 WHERE id2=8;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.id2_2
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t1 SET id5=34 WHERE id2=8;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.id5
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 # Adding multiple rows where one of the rows fail the duplicate
 # check should fail the whole statement
 INSERT INTO t1 VALUES (35, 35, 35, 35, 35, 35, 35, 35),
 (36, 36, 36, 36, 36, 36, 36, 36),
 (37, 31, 32, 33, 37, 37, 37, 37),
 (38, 38, 38, 38, 38, 38, 38, 38);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.id2_2
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 INSERT INTO t1 VALUES (35, 35, 35, 35, 35, 35, 35, 35),
 (36, 36, 36, 36, 36, 36, 36, 36),
 (37, 37, 37, 37, 34, 37, 37, 37),
 (38, 38, 38, 38, 38, 38, 38, 38);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.id5
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 # NULL values are unique and duplicates in value fields are ignored
 INSERT INTO t1 VALUES (37, 31, 32, NULL, 37, 37, 37, 37),
 (38, 31, 32, NULL, 38, 37, 37, 37),
@@ -118,7 +118,7 @@ UPDATE t1 SET id5=37 WHERE id1=38;
 ERROR 23000: Duplicate entry '37' for key 'id5'
 # Fail on lock timeout for row modified in another transaction
 UPDATE t1 SET id5=34 WHERE id1=38;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.id5
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 # NULL values are unique
 UPDATE t1 SET id5=NULL WHERE value1 > 37;
 connection con1;
@@ -136,9 +136,9 @@ INSERT INTO t1 VALUES (40, 40, 40, 40, 40, 40, 40, 40);
 connection con2;
 # When transaction is pending, fail on lock acquisition
 INSERT INTO t1 VALUES (40, 40, 40, 40, 40, 40, 40, 40);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 INSERT INTO t1 VALUES (41, 40, 40, 40, 40, 40, 40, 40);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.id2_2
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 17

@@ -30,7 +30,7 @@ set @@rocksdb_lock_wait_timeout=2;
 set autocommit=0;
 begin;
 select * from t1 where pk=1 for update;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
 rollback;
 set autocommit=1;

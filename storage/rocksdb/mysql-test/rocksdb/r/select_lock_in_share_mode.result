@@ -17,9 +17,9 @@ a	b
 # Currently, SELECT ... LOCK IN SHARE MODE works like 
 #   SELECT FOR UPDATE
 SELECT a,b FROM t1 WHERE b='a' LOCK IN SHARE MODE;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t1 SET b='c' WHERE b='a';
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection con1;
 COMMIT;
 SELECT a,b FROM t1;

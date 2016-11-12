@@ -11,7 +11,7 @@ connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
 SELECT * FROM t WHERE id1=1 AND id2=1 AND id3=1 FOR UPDATE;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SELECT * FROM t WHERE id1=1 AND id2=1 AND id3=2 FOR UPDATE;
 id1	id2	id3	value
 connection con1;
@@ -22,7 +22,7 @@ connection con2;
 ROLLBACK;
 BEGIN;
 UPDATE t SET value=value+100 WHERE id1=1 AND id2=1 AND id3=1;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 UPDATE t SET value=value+100 WHERE id1=1 AND id2=0 AND id3=1;
 connection con1;
 ROLLBACK;
@@ -32,7 +32,7 @@ connection con2;
 ROLLBACK;
 BEGIN;
 DELETE FROM t WHERE id1=1 AND id2=1 AND id3=1;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 DELETE FROM t WHERE id1=1 AND id2=1 AND id3=0;
 connection default;
 disconnect con1;

@@ -15,9 +15,9 @@ id2	COUNT(DISTINCT id)
 UPDATE t1 SET id=-1 WHERE id=1;
 connection con1;
 SELECT id,id2 FROM t1;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 LOCK TABLE t1 READ;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
 LOCK TABLE t1 READ;
 UPDATE t1 SET id=1 WHERE id=1;
@@ -27,9 +27,9 @@ SELECT COUNT(DISTINCT id) FROM t1;
 COUNT(DISTINCT id)
 1
 UPDATE t1 SET id=2 WHERE id=2;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table: test.t1
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 LOCK TABLE t1 WRITE;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 LOCK TABLE t1 READ;
 UNLOCK TABLES;
 connection default;
@@ -83,13 +83,13 @@ UNLOCK TABLES;
 FLUSH TABLES t1, t2 WITH READ LOCK;
 connection con1;
 INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
 UNLOCK TABLES;
 FLUSH TABLES WITH READ LOCK;
 connection con1;
 INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on global read: 
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
 UNLOCK TABLES;
 INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
