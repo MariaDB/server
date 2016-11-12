@@ -22,7 +22,8 @@ SHOW COLUMNS IN t1;
 # instead of an error we are getting the current timestamp
 
 # As of mysql-5.6.11, this no longer works, and we get an error:
---error ER_BAD_NULL_ERROR
+#  (MariaDB doesn't have this patch, so it doesnt produce an error):
+# --error ER_BAD_NULL_ERROR
 INSERT INTO t1 (c) VALUES (NULL);
 eval INSERT INTO t1 (c) VALUES ($col_default);
 SELECT HEX(c) FROM t1;
@@ -47,8 +48,16 @@ eval ALTER TABLE t1 ADD COLUMN err $col_type NOT NULL DEFAULT NULL;
 # instead of an error we are getting the current timestamp
 
 # As of mysql-5.6.11, this no longer works, and we get an error:
---error ER_BAD_NULL_ERROR
+#  (MariaDB doesn't have this patch, so it doesnt produce an error):
+# --error ER_BAD_NULL_ERROR
+
+# Since we don't produce an error, the row will get inserted. Make it
+# deterministic:
+set @save_ts=@@timestamp;
+set timestamp=1478923914;
+
 INSERT INTO t1 (c) VALUES (NULL);
+set timestamp=@save_ts;
 
 eval INSERT INTO t1 (c) VALUES ($col_default);
 eval INSERT INTO t1 () VALUES ();

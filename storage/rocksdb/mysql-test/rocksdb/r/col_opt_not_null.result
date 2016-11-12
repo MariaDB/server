@@ -276,7 +276,7 @@ a+0	b+0	c+0	d+0
 1	0	18446744073709551615	0
 DROP TABLE t1;
 CREATE TABLE t1 (pk INT PRIMARY KEY, a BIT(65) NOT NULL) ENGINE=rocksdb;
-ERROR 42000: Display width out of range for column 'a' (max = 64)
+ERROR 42000: Display width out of range for 'a' (max = 64)
 DROP TABLE IF EXISTS t1;
 #----------------------------------
 # BIT NOT NULL columns without a default
@@ -373,7 +373,7 @@ LENGTH(b)	LENGTH(b0)	LENGTH(b1)	LENGTH(b300)	LENGTH(bm)	LENGTH(b70k)	LENGTH(b17m
 65535	65535	255	65535	65535	1048576	1048576	255	1048576	1048576
 65535	65535	255	65535	65535	1048576	2097152	255	1048576	2097152
 ALTER TABLE t1 ADD COLUMN bbb BLOB(4294967296);
-ERROR 42000: Display width out of range for column 'bbb' (max = 4294967295)
+ERROR 42000: Display width out of range for 'bbb' (max = 4294967295)
 DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 #----------------------------------
@@ -398,12 +398,10 @@ CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c BLOB NOT NULL DEFAULT ''
 ) ENGINE=rocksdb;
-Warnings:
-Warning	1101	BLOB/TEXT column 'c' can't have a default value
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	blob	NO		NULL	
+c	blob	NO		''	
 ALTER TABLE t1 ADD COLUMN err BLOB NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);
@@ -438,12 +436,10 @@ CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c TINYBLOB NOT NULL DEFAULT ''
 ) ENGINE=rocksdb;
-Warnings:
-Warning	1101	BLOB/TEXT column 'c' can't have a default value
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	tinyblob	NO		NULL	
+c	tinyblob	NO		''	
 ALTER TABLE t1 ADD COLUMN err TINYBLOB NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);
@@ -478,12 +474,10 @@ CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c MEDIUMBLOB NOT NULL DEFAULT ''
 ) ENGINE=rocksdb;
-Warnings:
-Warning	1101	BLOB/TEXT column 'c' can't have a default value
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	mediumblob	NO		NULL	
+c	mediumblob	NO		''	
 ALTER TABLE t1 ADD COLUMN err MEDIUMBLOB NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);
@@ -518,12 +512,10 @@ CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c LONGBLOB NOT NULL DEFAULT ''
 ) ENGINE=rocksdb;
-Warnings:
-Warning	1101	BLOB/TEXT column 'c' can't have a default value
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	longblob	NO		NULL	
+c	longblob	NO		''	
 ALTER TABLE t1 ADD COLUMN err LONGBLOB NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);
@@ -607,9 +599,9 @@ b1	b2
 127	-128
 2	3
 ALTER TABLE t1 ADD COLUMN b3 BOOLEAN UNSIGNED NOT NULL;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'UNSIGNED NOT NULL' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNSIGNED NOT NULL' at line 1
 ALTER TABLE ADD COLUMN b3 BOOL ZEROFILL NOT NULL;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'ADD COLUMN b3 BOOL ZEROFILL NOT NULL' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ADD COLUMN b3 BOOL ZEROFILL NOT NULL' at line 1
 DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 #----------------------------------
@@ -768,7 +760,7 @@ v65000	varchar(65000)	NO		NULL
 CREATE TABLE t2 (v VARCHAR(65532), PRIMARY KEY (v(255))) ENGINE=rocksdb;
 SHOW COLUMNS IN t2;
 Field	Type	Null	Key	Default	Extra
-v	varchar(65532)	NO	PRI		
+v	varchar(65532)	NO	PRI	NULL	
 INSERT INTO t1 (v0,v1,v64,v65000) VALUES ('','','','');
 INSERT INTO t1 (v0,v1,v64,v65000) VALUES ('','y','Once there, double check that an article doesn\'t already exist','Here is a list of recommended books on MariaDB and MySQL. We\'ve provided links to Amazon.com here for convenience, but they can be found at many other bookstores, both online and off.
 
@@ -932,7 +924,7 @@ y2 YEAR(2) NOT NULL,
 pk DATETIME PRIMARY KEY
 ) ENGINE=rocksdb;
 Warnings:
-Warning	1818	YEAR(2) column type is deprecated. Creating YEAR(4) column instead.
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 d	date	NO		NULL	
@@ -941,7 +933,7 @@ ts	timestamp	NO		NULL
 t	time	NO		NULL	
 y	year(4)	NO		NULL	
 y4	year(4)	NO		NULL	
-y2	year(4)	NO		NULL	
+y2	year(2)	NO		NULL	
 pk	datetime	NO	PRI	NULL	
 SET @tm = '2012-04-09 05:27:00';
 INSERT INTO t1 (d,dt,ts,t,y,y4,y2,pk) VALUES
@@ -951,27 +943,27 @@ INSERT INTO t1 (d,dt,ts,t,y,y4,y2,pk) VALUES
 (DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),YEAR(@tm),YEAR(@tm),'2012-12-12 12:12:15');
 SELECT d,dt,ts,t,y,y4,y2 FROM t1;
 d	dt	ts	t	y	y4	y2
-0000-00-00	0000-00-00 00:00:00	0000-00-00 00:00:00	00:00:00	2000	2000	2000
-1000-01-01	1000-01-01 00:00:00	1970-01-01 03:00:01	-838:59:59	1901	1901	2000
-2012-04-09	2012-04-09 05:27:00	2012-04-09 05:27:00	05:27:00	2012	2012	2012
-9999-12-31	9999-12-31 23:59:59	2038-01-19 06:14:07	838:59:59	2155	2155	1999
+0000-00-00	0000-00-00 00:00:00	0000-00-00 00:00:00	00:00:00	2000	2000	00
+1000-01-01	1000-01-01 00:00:00	1970-01-01 00:00:01	-838:59:59	1901	1901	00
+2012-04-09	2012-04-09 05:27:00	2012-04-09 05:27:00	05:27:00	2012	2012	12
+9999-12-31	9999-12-31 23:59:59	2038-01-19 03:14:07	838:59:59	2155	2155	99
 INSERT INTO t1 (d,dt,ts,t,y,y4,y2,pk) VALUES
 ('999-13-32', '999-11-31 00:00:00', '0', '-839:00:00', '1900', '1900', '-1','2012-12-12 12:12:16');
 Warnings:
 Warning	1265	Data truncated for column 'd' at row 1
-Warning	1264	Out of range value for column 'dt' at row 1
-Warning	1264	Out of range value for column 'ts' at row 1
+Warning	1265	Data truncated for column 'dt' at row 1
+Warning	1265	Data truncated for column 'ts' at row 1
 Warning	1264	Out of range value for column 't' at row 1
 Warning	1264	Out of range value for column 'y' at row 1
 Warning	1264	Out of range value for column 'y4' at row 1
 Warning	1264	Out of range value for column 'y2' at row 1
 SELECT d,dt,ts,t,y,y4,y2 FROM t1;
 d	dt	ts	t	y	y4	y2
-1000-01-01	1000-01-01 00:00:00	1970-01-01 03:00:01	-838:59:59	1901	1901	2000
-9999-12-31	9999-12-31 23:59:59	2038-01-19 06:14:07	838:59:59	2155	2155	1999
-0000-00-00	0000-00-00 00:00:00	0000-00-00 00:00:00	00:00:00	2000	2000	2000
-2012-04-09	2012-04-09 05:27:00	2012-04-09 05:27:00	05:27:00	2012	2012	2012
-0000-00-00	0000-00-00 00:00:00	0000-00-00 00:00:00	-838:59:59	0000	0000	0000
+1000-01-01	1000-01-01 00:00:00	1970-01-01 00:00:01	-838:59:59	1901	1901	00
+9999-12-31	9999-12-31 23:59:59	2038-01-19 03:14:07	838:59:59	2155	2155	99
+0000-00-00	0000-00-00 00:00:00	0000-00-00 00:00:00	00:00:00	2000	2000	00
+2012-04-09	2012-04-09 05:27:00	2012-04-09 05:27:00	05:27:00	2012	2012	12
+0000-00-00	0000-00-00 00:00:00	0000-00-00 00:00:00	-838:59:59	0000	0000	00
 DROP TABLE t1;
 SET TIMESTAMP=UNIX_TIMESTAMP('2013-12-12 12:12:12');
 DROP TABLE IF EXISTS t1;
@@ -1060,10 +1052,10 @@ Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
 c	timestamp	NO		NULL	
 INSERT INTO t1 (c) VALUES (NULL);
-ERROR 23000: Column 'c' cannot be null
 INSERT INTO t1 (c) VALUES ('2012-12-21 12:21:12');
 SELECT HEX(c) FROM t1;
 HEX(c)
+323031332D31322D31322031323A31323A3132
 323031322D31322D32312031323A32313A3132
 DROP TABLE t1;
 #----------------------------------
@@ -1079,14 +1071,17 @@ pk	int(11)	NO	PRI	NULL	auto_increment
 c	timestamp	NO		2012-12-21 12:21:12	
 ALTER TABLE t1 ADD COLUMN err TIMESTAMP NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
+set @save_ts=@@timestamp;
+set timestamp=1478923914;
 INSERT INTO t1 (c) VALUES (NULL);
-ERROR 23000: Column 'c' cannot be null
+set timestamp=@save_ts;
 INSERT INTO t1 (c) VALUES ('2012-12-21 12:21:12');
 INSERT INTO t1 () VALUES ();
 SELECT pk, HEX(c) FROM t1 ORDER BY pk;
 pk	HEX(c)
-1	323031322D31322D32312031323A32313A3132
+1	323031362D31312D31322030343A31313A3534
 2	323031322D31322D32312031323A32313A3132
+3	323031322D31322D32312031323A32313A3132
 DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 #----------------------------------
@@ -1170,17 +1165,17 @@ DROP TABLE IF EXISTS t1;
 #----------------------------------
 CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, c YEAR(2) NOT NULL) ENGINE=rocksdb;
 Warnings:
-Warning	1818	YEAR(2) column type is deprecated. Creating YEAR(4) column instead.
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	year(4)	NO		NULL	
+c	year(2)	NO		NULL	
 INSERT INTO t1 (c) VALUES (NULL);
 ERROR 23000: Column 'c' cannot be null
 INSERT INTO t1 (c) VALUES ('12');
 SELECT HEX(c) FROM t1;
 HEX(c)
-7DC
+C
 DROP TABLE t1;
 #----------------------------------
 # YEAR(2) NOT NULL columns with a default
@@ -1190,11 +1185,11 @@ pk INT AUTO_INCREMENT PRIMARY KEY,
 c YEAR(2) NOT NULL DEFAULT '12'
 ) ENGINE=rocksdb;
 Warnings:
-Warning	1818	YEAR(2) column type is deprecated. Creating YEAR(4) column instead.
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	year(4)	NO		2012	
+c	year(2)	NO		12	
 ALTER TABLE t1 ADD COLUMN err YEAR(2) NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);
@@ -1203,8 +1198,8 @@ INSERT INTO t1 (c) VALUES ('12');
 INSERT INTO t1 () VALUES ();
 SELECT pk, HEX(c) FROM t1 ORDER BY pk;
 pk	HEX(c)
-1	7DC
-2	7DC
+1	C
+2	C
 DROP TABLE t1;
 ########################
 # ENUM columns
@@ -1422,11 +1417,11 @@ d	d0	d1_1	d10_2	d60_10	n	n0_0	n1	n20_4	n65_4
 9999999999	9999999999	0.9	99999999.99	99999999999999999999999999999999999999999999999999.9999999999	9999999999	9999999999	9	9999999999999999.9999	9999999999999999999999999999999999999999999999999999999999999.9999
 9999999999	9999999999	0.9	99999999.99	99999999999999999999999999999999999999999999999999.9999999999	9999999999	9999999999	9	9999999999999999.9999	9999999999999999999999999999999999999999999999999999999999999.9999
 ALTER TABLE t1 ADD COLUMN n66 NUMERIC(66) NOT NULL;
-ERROR 42000: Too big precision 66 specified for column 'n66'. Maximum is 65.
+ERROR 42000: Too big precision 66 specified for 'n66'. Maximum is 65
 ALTER TABLE t1 ADD COLUMN n66_6 DECIMAL(66,6) NOT NULL;
-ERROR 42000: Too big precision 66 specified for column 'n66_6'. Maximum is 65.
+ERROR 42000: Too big precision 66 specified for 'n66_6'. Maximum is 65
 ALTER TABLE t1 ADD COLUMN n66_66 DECIMAL(66,66) NOT NULL;
-ERROR 42000: Too big scale 66 specified for column 'n66_66'. Maximum is 30.
+ERROR 42000: Too big scale 66 specified for 'n66_66'. Maximum is 38
 DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 #----------------------------------
@@ -1741,7 +1736,7 @@ INSERT INTO t1 (f,f0,r1_1,f23_0,f20_3,d,d1_0,d10_10,d53,d53_10,pk) VALUES (
 6
 );
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: ''
+Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1264	Out of range value for column 'f' at row 1
 Warning	1264	Out of range value for column 'f0' at row 1
 Warning	1264	Out of range value for column 'r1_1' at row 1
@@ -1813,11 +1808,9 @@ r1_1	0.9
 r1_1	0.9
 r1_1	0.9
 ALTER TABLE t1 ADD COLUMN d0_0 DOUBLE(0,0) NOT NULL;
-ERROR 42000: Display width out of range for column 'd0_0' (max = 255)
 ALTER TABLE t1 ADD COLUMN n66_6 DECIMAL(256,1) NOT NULL;
-ERROR 42000: Too big precision 256 specified for column 'n66_6'. Maximum is 65.
+ERROR 42000: Too big precision 256 specified for 'n66_6'. Maximum is 65
 ALTER TABLE t1 ADD COLUMN n66_66 DECIMAL(40,35) NOT NULL;
-ERROR 42000: Too big scale 35 specified for column 'n66_66'. Maximum is 30.
 DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 #----------------------------------
@@ -2108,7 +2101,7 @@ i	i0	i1	i20	t	t0	t1	t20	s	s0	s1	s20	m	m0	m1	m20	b	b0	b1	b20
 2147483647	2147483647	2147483647	2147483647	127	127	127	127	32767	32767	32767	32767	8388607	8388607	8388607	8388607	9223372036854775807	9223372036854775807	9223372036854775807	9223372036854775807
 2147483647	2147483647	2147483647	2147483647	127	127	127	127	32767	32767	32767	32767	8388607	8388607	8388607	8388607	9223372036854775807	9223372036854775807	9223372036854775807	9223372036854775807
 ALTER TABLE t1 ADD COLUMN i257 INT(257) NOT NULL;
-ERROR 42000: Display width out of range for column 'i257' (max = 255)
+ERROR 42000: Display width out of range for 'i257' (max = 255)
 DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 #----------------------------------
@@ -2448,7 +2441,7 @@ LENGTH(t)	LENGTH(t0)	LENGTH(t1)	LENGTH(t300)	LENGTH(tm)	LENGTH(t70k)	LENGTH(t17m
 65535	65535	255	65535	65535	1048576	1048576	255	1048576	1048576
 65535	65535	255	65535	65535	1048576	1048576	255	1048576	1048576
 ALTER TABLE t1 ADD COLUMN ttt TEXT(4294967296) NOT NULL;
-ERROR 42000: Display width out of range for column 'ttt' (max = 4294967295)
+ERROR 42000: Display width out of range for 'ttt' (max = 4294967295)
 DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 #----------------------------------
@@ -2473,12 +2466,10 @@ CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c TEXT NOT NULL DEFAULT ''
 ) ENGINE=rocksdb;
-Warnings:
-Warning	1101	BLOB/TEXT column 'c' can't have a default value
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	text	NO		NULL	
+c	text	NO		''	
 ALTER TABLE t1 ADD COLUMN err TEXT NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);
@@ -2513,12 +2504,10 @@ CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c TINYTEXT NOT NULL DEFAULT ''
 ) ENGINE=rocksdb;
-Warnings:
-Warning	1101	BLOB/TEXT column 'c' can't have a default value
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	tinytext	NO		NULL	
+c	tinytext	NO		''	
 ALTER TABLE t1 ADD COLUMN err TINYTEXT NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);
@@ -2553,12 +2542,10 @@ CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c MEDIUMTEXT NOT NULL DEFAULT ''
 ) ENGINE=rocksdb;
-Warnings:
-Warning	1101	BLOB/TEXT column 'c' can't have a default value
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	mediumtext	NO		NULL	
+c	mediumtext	NO		''	
 ALTER TABLE t1 ADD COLUMN err MEDIUMTEXT NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);
@@ -2593,12 +2580,10 @@ CREATE TABLE t1 (
 pk INT AUTO_INCREMENT PRIMARY KEY,
 c LONGTEXT NOT NULL DEFAULT ''
 ) ENGINE=rocksdb;
-Warnings:
-Warning	1101	BLOB/TEXT column 'c' can't have a default value
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	longtext	NO		NULL	
+c	longtext	NO		''	
 ALTER TABLE t1 ADD COLUMN err LONGTEXT NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);
