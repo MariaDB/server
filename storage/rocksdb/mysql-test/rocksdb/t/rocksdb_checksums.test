@@ -22,7 +22,7 @@ show variables like 'rocksdb_%checksum%';
 create table t1 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
 insert into t1 values (1,1,1),(2,2,2),(3,3,3);
 check table t1;
---exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t1" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--exec grep "^[0-9-]*  \?[0-9:]* [0-9]* \[Note\] CHECKTABLE t1" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
 
 drop table t1;
 
@@ -30,7 +30,7 @@ set session rocksdb_store_checksums=on;
 create table t2 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
 insert into t2 values (1,1,1),(2,2,2),(3,3,3);
 check table t2;
---exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t2" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--exec grep "^[0-9-]*  \?[0-9:]* [0-9]* \[Note\] CHECKTABLE t2" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
 
 --echo # Now, make a table that has both rows with checksums and without
 create table t3 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
@@ -39,7 +39,7 @@ set session rocksdb_store_checksums=off;
 update t3 set b=3 where a=2;
 set session rocksdb_store_checksums=on;
 check table t3;
---exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t3" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--exec grep "^[0-9-]*  \?[0-9:]* [0-9]* \[Note\] CHECKTABLE t3" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
 
 set session rocksdb_store_checksums=on;
 set session rocksdb_checksums_pct=5;
@@ -56,7 +56,7 @@ while ($i<10000)
 }
 --enable_query_log
 check table t4;
---exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t4" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2 > $MYSQL_TMP_DIR/rocksdb_checksums.log
+--exec grep "^[0-9-]*  \?[0-9:]* [0-9]* \[Note\] CHECKTABLE t4" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2 > $MYSQL_TMP_DIR/rocksdb_checksums.log
 --exec perl ../storage/rocksdb/mysql-test/rocksdb/t/rocksdb_checksums.pl $MYSQL_TMP_DIR/rocksdb_checksums.log 10000 5
 --remove_file $MYSQL_TMP_DIR/rocksdb_checksums.log
 set session rocksdb_checksums_pct=100;
