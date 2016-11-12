@@ -3,8 +3,6 @@
 set -e
 
 # Install Spider
-# No user or password parameter is required with new MariaDB that
-# has unix socket authentication support by default.
 mysql --defaults-file=/etc/mysql/debian.cnf < /usr/share/mysql/install_spider.sql || true
 # Always exit with success instead of leaving dpkg in a broken state
 
