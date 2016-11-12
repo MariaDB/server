@@ -204,6 +204,7 @@ Provides: mysql-client-core,
           mysql-client-core-5.5,
           mysql-client-core-5.6,
           mysql-client-core-5.7,
+          default-mysql-client-core,
           virtual-mysql-client-core
 Description: MariaDB database core client binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -256,6 +257,7 @@ Provides: mysql-client,
           mysql-client-5.5,
           mysql-client-5.6,
           mysql-client-5.7,
+          default-mysql-client,
           virtual-mysql-client
 Recommends: libdbd-mysql-perl (>= 1.2202), libdbi-perl, libterm-readkey-perl
 Description: MariaDB database client binaries
@@ -306,6 +308,7 @@ Provides: mysql-server-core,
           mysql-server-core-5.5,
           mysql-server-core-5.6,
           mysql-server-core-5.7,
+          default-mysql-server-core,
           virtual-mysql-server-core
 Description: MariaDB database core server files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -376,7 +379,7 @@ Replaces: libmariadbclient-dev (<< 5.5.0),
           mysql-server-5.6,
           mysql-server-5.7,
           virtual-mysql-server
-Provides: virtual-mysql-server
+Provides: virtual-mysql-server, default-mysql-server
 Description: MariaDB database server binaries
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
