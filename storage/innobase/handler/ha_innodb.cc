@@ -10471,13 +10471,7 @@ ha_innobase::rnd_init(
 	bool	scan)	/*!< in: true if table/index scan FALSE otherwise */
 {
 	TrxInInnoDB	trx_in_innodb(m_prebuilt->trx);
-
-	if (trx_in_innodb.is_aborted()) {
-
-		return(innobase_rollback(ht, m_user_thd, false));
-	}
-
-	int	err;
+	int		err;
 
 	/* Store the active index value so that we can restore the original
 	value after a scan */
