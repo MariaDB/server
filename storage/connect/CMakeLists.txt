@@ -265,17 +265,14 @@ IF(CONNECT_WITH_JDBC)
     jdbconn.cpp tabjdbc.cpp jdbconn.h tabjdbc.h jdbccat.h
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java
-    JdbcInterface.class ApacheInterface.class MariadbInterface.class
-    MysqlInterface.class OracleInterface.class PostgresqlInterface.class)
+    JavaWrappers.jar)
     # TODO: Find how to compile and install the java wrapper classes
     # Find required libraries and include directories
     SET (JAVA_SOURCES JdbcInterface.java)
     add_jar(JdbcInterface ${JAVA_SOURCES})
 		install_jar(JdbcInterface DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
-    SET (JAVA_CLASSES JdbcInterface.class ApacheInterface.class MariadbInterface.class
-		MysqlInterface.class OracleInterface.class PostgresqlInterface.class)
-    add_jar(JavaWrappers ${JAVA_CLASSES})
-		install_jar(JavaWrappers DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+    INSTALL(FILES ${CURRENT_SOURCE_DIR}/JavaWrappers.jar 
+		  DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
     add_definitions(-DJDBC_SUPPORT)
   ELSE()
     SET(JDBC_LIBRARY "")
