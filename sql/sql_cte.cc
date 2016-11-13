@@ -1121,17 +1121,6 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
     { 
       if(!tbl->is_with_table())
       {
-        if (tbl->is_materialized_derived())
-        {
-          table_map dep_map;
-          check_dependencies_in_unit(unit, NULL, false, &dep_map);
-          if (dep_map & get_elem_map())
-          {
-	    my_error(ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED,
-	  	     MYF(0), query_name->str);
-	    return true;
-          }
-        }
         if (check_unrestricted_recursive(unit->first_select(), 
 					 unrestricted, 
 				         encountered))
