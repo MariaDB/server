@@ -29,6 +29,17 @@
 /* MyRocks header files */
 #include "./ha_rocksdb.h"
 
+/*
+  Both innobase/include/ut0counter.h and rocksdb/port/port_posix.h define
+  CACHE_LINE_SIZE.
+*/
+#ifdef CACHE_LINE_SIZE
+#  undef CACHE_LINE_SIZE
+#endif
+
+/* RocksDB header files */
+#include "util/compression.h"
+
 namespace myrocks {
 
 /*
@@ -308,6 +319,43 @@ bool rdb_database_exists(const std::string& db_name)
 
   my_dirend(dir_info);
   return true;
+}
+
+
+/*
+  @brief
+     Return a comma-separated string with compiled-in compression types.
+     Not thread-safe.
+*/
+const char *get_rocksdb_supported_compression_types()
+{
+  static std::string compression_methods_buf;
+  static bool inited=false;
+  if (!inited)
+  {
+    inited= true;
+    std::vector<rocksdb::CompressionType> known_types=
+    {
+      rocksdb::kSnappyCompression,
+      rocksdb::kZlibCompression,
+      rocksdb::kBZip2Compression,
+      rocksdb::kLZ4Compression,
+      rocksdb::kLZ4HCCompression,
+      rocksdb::kXpressCompression,
+      rocksdb::kZSTDNotFinalCompression
+    };
+
+    for (auto typ : known_types)
+    {
+      if (CompressionTypeSupported(typ))
+      {
+        if (compression_methods_buf.size())
+          compression_methods_buf.append(",");
+        compression_methods_buf.append(CompressionTypeToString(typ));
+      }
+    }
+  }
+  return compression_methods_buf.c_str();
 }
 
 }  // namespace myrocks

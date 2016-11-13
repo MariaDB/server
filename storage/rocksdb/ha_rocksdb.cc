@@ -419,6 +419,9 @@ static uint32_t rocksdb_table_stats_sampling_pct;
 static my_bool rocksdb_enable_bulk_load_api= 1;
 static my_bool rpl_skip_tx_api_var= 0;
 
+char *compression_types_val=
+  const_cast<char*>(get_rocksdb_supported_compression_types());
+
 std::atomic<uint64_t> rocksdb_snapshot_conflict_errors(0);
 
 static rocksdb::DBOptions rdb_init_rocksdb_db_options(void)
@@ -1107,6 +1110,13 @@ static MYSQL_SYSVAR_STR(datadir,
   "RocksDB data directory",
   nullptr, nullptr, "./.rocksdb");
 
+static MYSQL_SYSVAR_STR(supported_compression_types,
+  compression_types_val,
+  PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_READONLY,
+  "Compression algorithms supported by RocksDB",
+  nullptr, nullptr,
+  compression_types_val);
+
 static MYSQL_SYSVAR_UINT(
   table_stats_sampling_pct,
   rocksdb_table_stats_sampling_pct,
@@ -1228,6 +1238,7 @@ static struct st_mysql_sys_var* rocksdb_system_variables[]= {
   MYSQL_SYSVAR(compaction_sequential_deletes_count_sd),
 
   MYSQL_SYSVAR(datadir),
+  MYSQL_SYSVAR(supported_compression_types),
   MYSQL_SYSVAR(create_checkpoint),
 
   MYSQL_SYSVAR(checksums_pct),

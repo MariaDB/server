@@ -205,4 +205,6 @@ std::string rdb_hexdump(const char *data, std::size_t data_len,
  */
 bool rdb_database_exists(const std::string& db_name);
 
+const char *get_rocksdb_supported_compression_types();
+
 }  // namespace myrocks
