@@ -220,6 +220,19 @@ public class JdbcInterface {
     	
     } // end of SetTimestampParm
     
+    public int SetNullParm(int i, int typ) {
+    	int rc = 0;
+    	
+    	try {
+    		pstmt.setNull(i, typ);
+    	} catch (Exception e) {
+    		SetErrmsg(e);
+    		rc = -1;
+    	} // end try/catch
+    	
+    	return rc;
+    } // end of SetNullParm
+    
     public int ExecutePrep() {
         int n = -3;
         

@@ -55,9 +55,8 @@
 
 #if defined(__WIN__)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#else   // !__WIN__
+#endif   // __WIN__
 #define nullptr 0
-#endif  // !__WIN__
 
 TYPCONV GetTypeConv();
 int GetConvSize();
@@ -1442,7 +1441,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 	PGLOBAL&   g = m_G;
 	bool       rc = false;
 	PVAL       val = colp->GetValue();
-	jint       n, i = (jint)colp->GetRank();
+	jint       n, jrc = 0, i = (jint)colp->GetRank();
 	jshort     s;
 	jlong      lg;
 //jfloat     f;
@@ -1452,69 +1451,74 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 	jstring    jst = nullptr;
 	jmethodID  dtc, setid = nullptr;
 
-	switch (val->GetType()) {
-	case TYPE_STRING:
-		if (gmID(g, setid, "SetStringParm", "(ILjava/lang/String;)V"))
+	if (val->GetNullable() && val->IsNull()) {
+		if (gmID(g, setid, "SetNullParm", "(II)I"))
 			return true;
 
-		jst = env->NewStringUTF(val->GetCharValue());
-		env->CallVoidMethod(job, setid, i, jst);
-		break;
-	case TYPE_INT:
-		if (gmID(g, setid, "SetIntParm", "(II)V"))
-			return true;
+		jrc = env->CallIntMethod(job, setid, i, (jint)GetJDBCType(val->GetType()));
+	} else switch (val->GetType()) {
+		case TYPE_STRING:
+			if (gmID(g, setid, "SetStringParm", "(ILjava/lang/String;)V"))
+				return true;
 
-		n = (jint)val->GetIntValue();
-		env->CallVoidMethod(job, setid, i, n);
-		break;
-	case TYPE_TINY:
-	case TYPE_SHORT:
-		if (gmID(g, setid, "SetShortParm", "(IS)V"))
-			return true;
+			jst = env->NewStringUTF(val->GetCharValue());
+			env->CallVoidMethod(job, setid, i, jst);
+			break;
+		case TYPE_INT:
+			if (gmID(g, setid, "SetIntParm", "(II)V"))
+				return true;
 
-		s = (jshort)val->GetShortValue();
-		env->CallVoidMethod(job, setid, i, s);
-		break;
-	case TYPE_BIGINT:
-		if (gmID(g, setid, "SetBigintParm", "(IJ)V"))
-			return true;
+			n = (jint)val->GetIntValue();
+			env->CallVoidMethod(job, setid, i, n);
+			break;
+		case TYPE_TINY:
+		case TYPE_SHORT:
+			if (gmID(g, setid, "SetShortParm", "(IS)V"))
+				return true;
 
-		lg = (jlong)val->GetBigintValue();
-		env->CallVoidMethod(job, setid, i, lg);
-		break;
-	case TYPE_DOUBLE:
-	case TYPE_DECIM:
-		if (gmID(g, setid, "SetDoubleParm", "(ID)V"))
-			return true;
+			s = (jshort)val->GetShortValue();
+			env->CallVoidMethod(job, setid, i, s);
+			break;
+		case TYPE_BIGINT:
+			if (gmID(g, setid, "SetBigintParm", "(IJ)V"))
+				return true;
 
-		d = (jdouble)val->GetFloatValue();
-		env->CallVoidMethod(job, setid, i, d);
-		break;
-	case TYPE_DATE:
-		if ((dat = env->FindClass("java/sql/Timestamp")) == nullptr) {
-			strcpy(g->Message, "Cannot find Timestamp class");
-			return true;
-		} else if (!(dtc = env->GetMethodID(dat, "<init>", "(J)V"))) {
-			strcpy(g->Message, "Cannot find Timestamp class constructor");
-			return true;
-		}	// endif's
+			lg = (jlong)val->GetBigintValue();
+			env->CallVoidMethod(job, setid, i, lg);
+			break;
+		case TYPE_DOUBLE:
+		case TYPE_DECIM:
+			if (gmID(g, setid, "SetDoubleParm", "(ID)V"))
+				return true;
 
-		lg = (jlong)val->GetBigintValue() * 1000;
+			d = (jdouble)val->GetFloatValue();
+			env->CallVoidMethod(job, setid, i, d);
+			break;
+		case TYPE_DATE:
+			if ((dat = env->FindClass("java/sql/Timestamp")) == nullptr) {
+				strcpy(g->Message, "Cannot find Timestamp class");
+				return true;
+			} else if (!(dtc = env->GetMethodID(dat, "<init>", "(J)V"))) {
+				strcpy(g->Message, "Cannot find Timestamp class constructor");
+				return true;
+			}	// endif's
 
-		if ((datobj = env->NewObject(dat, dtc, lg)) == nullptr) {
-			strcpy(g->Message, "Cannot make Timestamp object");
+			lg = (jlong)val->GetBigintValue() * 1000;
+
+			if ((datobj = env->NewObject(dat, dtc, lg)) == nullptr) {
+				strcpy(g->Message, "Cannot make Timestamp object");
+				return true;
+			} else if (gmID(g, setid, "SetTimestampParm", "(ILjava/sql/Timestamp;)V"))
+				return true;
+
+			env->CallVoidMethod(job, setid, i, datobj);
+			break;
+		default:
+			sprintf(g->Message, "Parm type %d not supported", val->GetType());
 			return true;
-		} else if (gmID(g, setid, "SetTimestampParm", "(ILjava/sql/Timestamp;)V"))
-			return true;
+		}	// endswitch Type
 
-		env->CallVoidMethod(job, setid, i, datobj);
-		break;
-	default:
-		sprintf(g->Message, "Parm type %d not supported", val->GetType());
-		return true;
-	}	// endswitch Type
-
-	if (Check()) {
+	if (Check(jrc)) {
 		sprintf(g->Message, "SetParam: col=%s msg=%s", colp->GetName(), Msg);
 		rc = true;
 	} // endif msg
