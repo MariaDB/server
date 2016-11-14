@@ -66,7 +66,7 @@ addons:
 
 env:
   - BUILD_TYPE=-DCMAKE_BUILD_TYPE=Debug -DWITH_JEMALLOC=yes -DSECURITY_HARDENED=no -DWITH_PIC=no -DCMAKE_CXX_FLAGS_DEBUG="-g -O0" -DCMAKE_C_FLAGS_DEBUG="-g -O0" "${TRAVIS_BUILD_DIR}"
-  - BUILD_TYPE=-DCMAKE_BUILD_TYPE=Release -DWITH_JEMALLOC=yes -DSECURITY_HARDENED=yes -DWITH_PIC=no -DCMAKE_CXX_FLAGS_DEBUG="-g -O2" -DCMAKE_C_FLAGS_DEBUG="-g -O2" "${TRAVIS_BUILD_DIR}"
+  - BUILD_TYPE=-DCMAKE_BUILD_TYPE=Release -DWITH_JEMALLOC=yes -DSECURITY_HARDENED=yes -DCMAKE_CXX_FLAGS_RELEASE="-g" -DCMAKE_C_FLAGS_RELEASE="-g" "${TRAVIS_BUILD_DIR}"
 
 # libsnappy-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3880
 # liblzma-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3879
