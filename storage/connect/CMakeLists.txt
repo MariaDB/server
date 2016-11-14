@@ -271,7 +271,7 @@ IF(CONNECT_WITH_JDBC)
     SET (JAVA_SOURCES JdbcInterface.java)
     add_jar(JdbcInterface ${JAVA_SOURCES})
 		install_jar(JdbcInterface DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
-    INSTALL(FILES ${CURRENT_SOURCE_DIR}JavaWrappers.jar 
+    INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar 
 		  DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
     add_definitions(-DJDBC_SUPPORT)
   ELSE()
