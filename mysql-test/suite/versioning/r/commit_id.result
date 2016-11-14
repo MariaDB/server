@@ -1,0 +1,103 @@
+set @@session.time_zone='+00:00';
+select ifnull(max(trx_id), 0) into @start_trx_id from information_schema.innodb_vtq;
+create procedure if not exists verify_vtq()
+begin
+set @i= 0;
+select
+@i:= @i + 1 as No,
+trx_id > 0 as A,
+commit_id >= trx_id as B,
+begin_ts > '1-1-1 0:0:0' as C,
+commit_ts > begin_ts as D
+from information_schema.innodb_vtq
+where trx_id > @start_trx_id;
+select ifnull(max(trx_id), 0)
+into @start_trx_id
+from information_schema.innodb_vtq;
+end~~
+create table t1(
+id int auto_increment primary key)
+with system versioning
+engine innodb;
+set transaction isolation level read uncommitted;
+insert into t1 values ();
+select iso_level = 'RU' from information_schema.innodb_vtq limit 1;
+iso_level = 'RU'
+1
+set transaction isolation level read committed;
+insert into t1 values ();
+select iso_level = 'RC' from information_schema.innodb_vtq limit 1;
+iso_level = 'RC'
+1
+set transaction isolation level serializable;
+insert into t1 values ();
+select iso_level = 'S' from information_schema.innodb_vtq limit 1;
+iso_level = 'S'
+1
+set transaction isolation level repeatable read;
+insert into t1 values ();
+select iso_level = 'RR' from information_schema.innodb_vtq limit 1;
+iso_level = 'RR'
+1
+set @ts0= now(6);
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx0;
+select trx_id = @tx0 from information_schema.innodb_vtq limit 1;
+trx_id = @tx0
+1
+set @ts1= now(6);
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx1;
+select trx_id = @tx1 from information_schema.innodb_vtq limit 1;
+trx_id = @tx1
+1
+set @ts2= now(6);
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx2;
+select trx_id = @tx2 from information_schema.innodb_vtq limit 1;
+trx_id = @tx2
+1
+set @ts3= now(6);
+select
+vtq_trx_id(@ts0) < @tx0 as A,
+vtq_trx_id(@ts0, true) = @tx0 as B,
+vtq_trx_id(@ts1) = @tx0 as C,
+vtq_trx_id(@ts1, true) = @tx1 as D,
+vtq_trx_id(@ts2) = @tx1 as E,
+vtq_trx_id(@ts2, true) = @tx2 as F,
+vtq_trx_id(@ts3) = @tx2 as G,
+vtq_trx_id(@ts3, true) is null as H;
+A	B	C	D	E	F	G	H
+1	1	1	1	1	1	1	1
+select
+vtq_commit_id(@ts0) < @tx0 as A,
+vtq_commit_id(@ts0, true) = vtq_commit_id(null, @tx0) as B,
+vtq_commit_id(@ts1) = vtq_commit_id(null, @tx0) as C,
+vtq_commit_id(@ts1, true) = vtq_commit_id(null, @tx1) as D,
+vtq_commit_id(@ts2) = vtq_commit_id(null, @tx1) as E,
+vtq_commit_id(@ts2, true) = vtq_commit_id(null, @tx2) as F,
+vtq_commit_id(@ts3) = vtq_commit_id(null, @tx2) as G,
+vtq_commit_id(@ts3, true) is null as H;
+A	B	C	D	E	F	G	H
+1	1	1	1	1	1	1	1
+select
+vtq_trx_sees(@tx1, @tx0) as A,
+not vtq_trx_sees(@tx0, @tx1) as B,
+vtq_trx_sees_eq(@tx1, @tx1) as C,
+not vtq_trx_sees(@tx1, @tx1) as D,
+vtq_trx_sees(@tx2, 0) as E,
+vtq_trx_sees(0, @tx2) is null as F,
+vtq_trx_sees(-1, @tx2) as H;
+A	B	C	D	E	F	H
+1	1	1	1	1	1	1
+drop table t1;
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+3	1	1	1	1
+4	1	1	1	1
+5	1	1	1	1
+6	1	1	1	1
+7	1	1	1	1
+drop procedure verify_vtq;

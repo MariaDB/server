@@ -9669,7 +9669,16 @@ static ST_FIELD_INFO	innodb_vtq_fields_info[] =
 	STRUCT_FLD(old_name,		""),
 	STRUCT_FLD(open_method,		SKIP_OPEN_TABLE) },
 
-#define SYS_VTQ_BEGIN_TS 1
+#define SYS_VTQ_COMMIT_ID 1
+	{ STRUCT_FLD(field_name,	"commit_id"),
+	STRUCT_FLD(field_length,	MY_INT64_NUM_DECIMAL_DIGITS),
+	STRUCT_FLD(field_type,		MYSQL_TYPE_LONGLONG),
+	STRUCT_FLD(value,		0),
+	STRUCT_FLD(field_flags,		MY_I_S_UNSIGNED),
+	STRUCT_FLD(old_name,		""),
+	STRUCT_FLD(open_method,		SKIP_OPEN_TABLE) },
+
+#define SYS_VTQ_BEGIN_TS 2
 	{ STRUCT_FLD(field_name,	"begin_ts"),
 	STRUCT_FLD(field_length,	6),
 	STRUCT_FLD(field_type,		MYSQL_TYPE_TIMESTAMP),
@@ -9678,7 +9687,7 @@ static ST_FIELD_INFO	innodb_vtq_fields_info[] =
 	STRUCT_FLD(old_name,		""),
 	STRUCT_FLD(open_method,		SKIP_OPEN_TABLE) },
 
-#define SYS_VTQ_COMMIT_TS 2
+#define SYS_VTQ_COMMIT_TS 3
 	{ STRUCT_FLD(field_name,	"commit_ts"),
 	STRUCT_FLD(field_length,	6),
 	STRUCT_FLD(field_type,		MYSQL_TYPE_TIMESTAMP),
@@ -9687,13 +9696,12 @@ static ST_FIELD_INFO	innodb_vtq_fields_info[] =
 	STRUCT_FLD(old_name,		""),
 	STRUCT_FLD(open_method,		SKIP_OPEN_TABLE) },
 
-#define SYS_VTQ_CONCURR_TRX 3
-	{ STRUCT_FLD(field_name,	"concurr_trx"),
-	// 3 for "..." if list is truncated
-	STRUCT_FLD(field_length,	I_S_MAX_CONCURR_TRX * (TRX_ID_MAX_LEN + 1) + 3),
+#define SYS_VTQ_ISO_LEVEL 4
+	{ STRUCT_FLD(field_name,	"iso_level"),
+	STRUCT_FLD(field_length,	2),
 	STRUCT_FLD(field_type,		MYSQL_TYPE_STRING),
 	STRUCT_FLD(value,		0),
-	STRUCT_FLD(field_flags,		MY_I_S_MAYBE_NULL),
+	STRUCT_FLD(field_flags,		0),
 	STRUCT_FLD(old_name,		""),
 	STRUCT_FLD(open_method,		SKIP_OPEN_TABLE) },
 
@@ -9709,21 +9717,35 @@ int
 i_s_dict_fill_vtq(
 /*========================*/
 	THD*		thd,		/*!< in: thread */
-	ullong		col_trx_id,	/*!< in: table fields */
-	timeval&	col_begin_ts,
-	timeval&	col_commit_ts,
-	char*		col_concurr_trx,
+	vtq_record_t&	vtq,		/*!< in: table fields */
 	TABLE*		table_to_fill)	/*!< in/out: fill this table */
 {
 	Field**		fields;
+	const char*	iso_level;
 
 	DBUG_ENTER("i_s_dict_fill_vtq");
 	fields = table_to_fill->field;
 
-	OK(field_store_ullong(fields[SYS_VTQ_TRX_ID], col_trx_id));
-	OK(field_store_timeval(fields[SYS_VTQ_BEGIN_TS], col_begin_ts, thd));
-	OK(field_store_timeval(fields[SYS_VTQ_COMMIT_TS], col_commit_ts, thd));
-	OK(field_store_string(fields[SYS_VTQ_CONCURR_TRX], col_concurr_trx));
+	switch (vtq.iso_level) {
+	case TRX_ISO_REPEATABLE_READ:
+		iso_level = "RR";
+		break;
+	case TRX_ISO_READ_COMMITTED:
+		iso_level = "RC";
+		break;
+	case TRX_ISO_SERIALIZABLE:
+		iso_level = "S";
+		break;
+	case TRX_ISO_READ_UNCOMMITTED:
+		iso_level = "RU";
+		break;
+	}
+
+	OK(field_store_ullong(fields[SYS_VTQ_TRX_ID], vtq.trx_id));
+	OK(field_store_ullong(fields[SYS_VTQ_COMMIT_ID], vtq.commit_id));
+	OK(field_store_timeval(fields[SYS_VTQ_BEGIN_TS], vtq.begin_ts, thd));
+	OK(field_store_timeval(fields[SYS_VTQ_COMMIT_TS], vtq.commit_ts, thd));
+	OK(field_store_string(fields[SYS_VTQ_ISO_LEVEL], iso_level));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -9768,19 +9790,13 @@ i_s_sys_vtq_fill_table(
 
 	for (int i = 0; rec && i < I_S_SYS_VTQ_LIMIT; ++i) {
 		const char*	err_msg;
-		trx_id_t	col_trx_id;
-		timeval		col_begin_ts;
-		timeval		col_commit_ts;
-		char*		col_concurr_trx;
+		vtq_record_t	fields;
 
 		/* Extract necessary information from SYS_VTQ row */
 		err_msg = dict_process_sys_vtq(
 			heap,
 			rec,
-			&col_trx_id,
-			&col_begin_ts,
-			&col_commit_ts,
-			&col_concurr_trx);
+			fields);
 
 		mtr_commit(&mtr);
 		mutex_exit(&dict_sys->mutex);
@@ -9788,10 +9804,7 @@ i_s_sys_vtq_fill_table(
 		if (!err_msg) {
 			err = i_s_dict_fill_vtq(
 				thd,
-				col_trx_id,
-				col_begin_ts,
-				col_commit_ts,
-				col_concurr_trx,
+				fields,
 				tables->table);
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,

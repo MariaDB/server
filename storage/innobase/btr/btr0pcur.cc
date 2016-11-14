@@ -657,8 +657,9 @@ btr_pcur_open_on_user_rec_func(
 	} else {
 		ut_ad((mode == PAGE_CUR_LE) || (mode == PAGE_CUR_L));
 
-		/* Not implemented yet */
+		if (btr_pcur_is_before_first_on_page(cursor)) {
 
-		ut_error;
+			btr_pcur_move_to_prev_user_rec(cursor, mtr);
+		}
 	}
 }

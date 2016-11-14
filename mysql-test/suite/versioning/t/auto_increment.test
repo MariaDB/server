@@ -60,7 +60,7 @@ end~~
 delimiter ;~~
 
 call test_01('timestamp(6)', 'myisam', 'sys_end');
-call test_01('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 call verify_vtq;
 
 drop procedure test_01;

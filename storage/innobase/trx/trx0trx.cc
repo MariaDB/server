@@ -316,10 +316,6 @@ struct TrxFactory {
 		trx->lock.table_locks.~lock_pool_t();
 
 		trx->hit_list.~hit_list_t();
-
-		if (trx->vtq_concurr_trx) {
-			ut_free(trx->vtq_concurr_trx);
-		}
 	}
 
 	/** Enforce any invariants here, this is called before the transaction
@@ -1331,13 +1327,6 @@ trx_start_low(
 		ut_ad(trx->rsegs.m_redo.rseg != 0
 		      || srv_read_only_mode
 		      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
-
-		if (UT_LIST_GET_LEN(trx_sys->rw_trx_list) > 0) {
-			trx->vtq_concurr_trx = static_cast<trx_id_t *>(
-				ut_malloc_nokey(UT_LIST_GET_LEN(trx_sys->rw_trx_list) * sizeof(trx_id_t)));
-			copy_trx_ids f(trx->vtq_concurr_trx, trx->vtq_concurr_n);
-			ut_list_map(trx_sys->rw_trx_list, f);
-		}
 
 		UT_LIST_ADD_FIRST(trx_sys->rw_trx_list, trx);
 

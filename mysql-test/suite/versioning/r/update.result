@@ -6,9 +6,9 @@ set @i= 0;
 select
 @i:= @i + 1 as No,
 trx_id > 0 as A,
-begin_ts > '1-1-1 0:0:0' as B,
-commit_ts > begin_ts as C,
-concurr_trx is null as D
+commit_id >= trx_id as B,
+begin_ts > '1-1-1 0:0:0' as C,
+commit_ts > begin_ts as D
 from information_schema.innodb_vtq
 where trx_id > @start_trx_id;
 select ifnull(max(trx_id), 0)
@@ -258,7 +258,7 @@ x	y
 9	9001
 8	8000
 9	9000
-call test_01('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 x	y
 1	1000
 2	2000
@@ -296,7 +296,7 @@ A1	x	y
 1	11	11
 A2	x
 1	11
-call test_02('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 A1	x	y
 1	11	11
 A2	x
@@ -308,7 +308,7 @@ x	y
 3	3
 3	1
 3	2
-call test_03('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 x	y
 1	1
 2	1
@@ -322,7 +322,7 @@ x
 2
 x
 3
-call test_04('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_04('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 x
 x
 1
@@ -356,7 +356,7 @@ x	y
 7	7000
 8	8000
 9	9000
-call test_05('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_05('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 x	y
 1	1000
 2	2000
@@ -431,7 +431,7 @@ x	y
 7	7010
 8	8010
 9	9010
-call test_06('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_06('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 x	y
 1	1000
 2	2000
@@ -489,7 +489,7 @@ B1	salary
 1	2500
 B2	salary
 1	2500
-call test_07('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_07('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 A1	name
 1	Jerry
 A2	name

@@ -1,0 +1,79 @@
+-- source suite/versioning/common.inc
+
+create table t1(
+  id int auto_increment primary key)
+with system versioning
+engine innodb;
+
+
+
+# VTQ_ISO_LEVEL #
+
+set transaction isolation level read uncommitted;
+insert into t1 values ();
+select iso_level = 'RU' from information_schema.innodb_vtq limit 1;
+
+set transaction isolation level read committed;
+insert into t1 values ();
+select iso_level = 'RC' from information_schema.innodb_vtq limit 1;
+
+set transaction isolation level serializable;
+insert into t1 values ();
+select iso_level = 'S' from information_schema.innodb_vtq limit 1;
+
+set transaction isolation level repeatable read;
+insert into t1 values ();
+select iso_level = 'RR' from information_schema.innodb_vtq limit 1;
+
+
+# VTQ_TRX_ID, VTQ_COMMIT_ID, VTQ_TRX_SEES #
+
+set @ts0= now(6);
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx0;
+select trx_id = @tx0 from information_schema.innodb_vtq limit 1;
+
+set @ts1= now(6);
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx1;
+select trx_id = @tx1 from information_schema.innodb_vtq limit 1;
+
+set @ts2= now(6);
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx2;
+select trx_id = @tx2 from information_schema.innodb_vtq limit 1;
+
+set @ts3= now(6);
+
+select
+  vtq_trx_id(@ts0) < @tx0 as A,
+  vtq_trx_id(@ts0, true) = @tx0 as B,
+  vtq_trx_id(@ts1) = @tx0 as C,
+  vtq_trx_id(@ts1, true) = @tx1 as D,
+  vtq_trx_id(@ts2) = @tx1 as E,
+  vtq_trx_id(@ts2, true) = @tx2 as F,
+  vtq_trx_id(@ts3) = @tx2 as G,
+  vtq_trx_id(@ts3, true) is null as H;
+
+select
+  vtq_commit_id(@ts0) < @tx0 as A,
+  vtq_commit_id(@ts0, true) = vtq_commit_id(null, @tx0) as B,
+  vtq_commit_id(@ts1) = vtq_commit_id(null, @tx0) as C,
+  vtq_commit_id(@ts1, true) = vtq_commit_id(null, @tx1) as D,
+  vtq_commit_id(@ts2) = vtq_commit_id(null, @tx1) as E,
+  vtq_commit_id(@ts2, true) = vtq_commit_id(null, @tx2) as F,
+  vtq_commit_id(@ts3) = vtq_commit_id(null, @tx2) as G,
+  vtq_commit_id(@ts3, true) is null as H;
+
+select
+  vtq_trx_sees(@tx1, @tx0) as A,
+  not vtq_trx_sees(@tx0, @tx1) as B,
+  vtq_trx_sees_eq(@tx1, @tx1) as C,
+  not vtq_trx_sees(@tx1, @tx1) as D,
+  vtq_trx_sees(@tx2, 0) as E,
+  vtq_trx_sees(0, @tx2) is null as F,
+  vtq_trx_sees(-1, @tx2) as H;
+
+drop table t1;
+call verify_vtq;
+drop procedure verify_vtq;

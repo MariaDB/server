@@ -6,9 +6,9 @@ set @i= 0;
 select
 @i:= @i + 1 as No,
 trx_id > 0 as A,
-begin_ts > '1-1-1 0:0:0' as B,
-commit_ts > begin_ts as C,
-concurr_trx is null as D
+commit_id >= trx_id as B,
+begin_ts > '1-1-1 0:0:0' as C,
+commit_ts > begin_ts as D
 from information_schema.innodb_vtq
 where trx_id > @start_trx_id;
 select ifnull(max(trx_id), 0)
@@ -164,8 +164,8 @@ XNo	sys_end < '2038-01-19 03:14:07'
 7	1
 8	1
 9	1
-call test_01('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
-XNo	commit_ts(sys_end) < '2038-01-19 03:14:07'
+call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+XNo	vtq_commit_ts(sys_end) < '2038-01-19 03:14:07'
 0	0
 1	0
 2	0
@@ -176,7 +176,7 @@ XNo	commit_ts(sys_end) < '2038-01-19 03:14:07'
 7	0
 8	0
 9	0
-XNo	commit_ts(sys_end) < '2038-01-19 03:14:07'
+XNo	vtq_commit_ts(sys_end) < '2038-01-19 03:14:07'
 0	1
 1	0
 2	0
@@ -187,7 +187,7 @@ XNo	commit_ts(sys_end) < '2038-01-19 03:14:07'
 7	0
 8	0
 9	0
-XNo	commit_ts(sys_end) < '2038-01-19 03:14:07'
+XNo	vtq_commit_ts(sys_end) < '2038-01-19 03:14:07'
 0	1
 1	1
 2	0
@@ -207,7 +207,7 @@ XNo
 2
 4
 5
-XNo	commit_ts(sys_end) < '2038-01-19 03:14:07'
+XNo	vtq_commit_ts(sys_end) < '2038-01-19 03:14:07'
 0	1
 1	1
 2	0
@@ -239,7 +239,7 @@ call test_02('timestamp(6)', 'myisam', 'sys_end');
 x	sys_start	sys_end
 A	B	C
 1	1	1
-call test_02('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 x	sys_start	sys_end
 A	B	C
 1	1	1
@@ -273,7 +273,7 @@ t2_x_all
 12
 13
 14
-call test_03('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 t1_x
 1
 2

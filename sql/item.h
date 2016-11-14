@@ -480,9 +480,20 @@ public:
   String_copier_for_item(THD *thd): m_thd(thd) { }
 };
 
+/* System versioning */
+class Vers_extended_item
+{
+public:
+  virtual vtq_record_t* vtq_cached_result()
+  {
+    return NULL;
+  }
+};
+
 
 class Item: public Value_source,
-            public Type_std_attributes
+            public Type_std_attributes,
+            public Vers_extended_item
 {
   void operator=(Item &);
   /**

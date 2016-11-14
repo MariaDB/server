@@ -1495,15 +1495,15 @@ row_insert_for_mysql(
 		ut_ad(t->mysql_col_len == 8);
 
 		if (historical) {
-			set_row_field_8(node->row, table->vers_row_end, trx->id, node->entry_sys_heap);
+			set_tuple_col_8(node->row, table->vers_row_end, trx->id, node->entry_sys_heap);
 			int8store(&mysql_rec[t->mysql_col_offset], trx->id);
 		}
 		else {
-			set_row_field_8(node->row, table->vers_row_end, IB_UINT64_MAX, node->entry_sys_heap);
+			set_tuple_col_8(node->row, table->vers_row_end, IB_UINT64_MAX, node->entry_sys_heap);
 			int8store(&mysql_rec[t->mysql_col_offset], IB_UINT64_MAX);
 			t = &prebuilt->mysql_template[table->vers_row_start];
 			ut_ad(t->mysql_col_len == 8);
-			set_row_field_8(node->row, table->vers_row_start, trx->id, node->entry_sys_heap);
+			set_tuple_col_8(node->row, table->vers_row_start, trx->id, node->entry_sys_heap);
 			int8store(&mysql_rec[t->mysql_col_offset], trx->id);
 		}
 	}

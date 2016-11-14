@@ -144,10 +144,10 @@ end~~
 delimiter ;~~
 
 call test_01('timestamp(6)', 'myisam', 'sys_end');
-call test_01('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 
 call test_02('timestamp(6)', 'myisam', 'sys_end');
-call test_02('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 
 call test_03('timestamp(6)', 'myisam', 'sys_end');
 --ERROR ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER
@@ -158,7 +158,7 @@ drop table t1;
 drop view vt1_1;
 drop view vt1_2;
 
-call test_03('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 --ERROR ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER
 insert into t1(x, y, sys_end) values(8001, 9001, 1111111);
 --ERROR ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER
@@ -168,10 +168,10 @@ drop view vt1_1;
 drop view vt1_2;
 
 call test_04('timestamp(6)', 'myisam', 'sys_end');
-call test_04('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_04('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 
 call test_05('timestamp(6)', 'myisam', 'sys_end');
-call test_05('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_05('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 
 # VTQ test
 

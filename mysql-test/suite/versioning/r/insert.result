@@ -6,9 +6,9 @@ set @i= 0;
 select
 @i:= @i + 1 as No,
 trx_id > 0 as A,
-begin_ts > '1-1-1 0:0:0' as B,
-commit_ts > begin_ts as C,
-concurr_trx is null as D
+commit_id >= trx_id as B,
+begin_ts > '1-1-1 0:0:0' as C,
+commit_ts > begin_ts as D
 from information_schema.innodb_vtq
 where trx_id > @start_trx_id;
 select ifnull(max(trx_id), 0)
@@ -156,8 +156,8 @@ x	y	sys_end
 3	4	2038-01-19 03:14:07.000000
 2	3	2038-01-19 03:14:07.000000
 40	33	2038-01-19 03:14:07.000000
-call test_01('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
-x	y	commit_ts(sys_end)
+call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+x	y	vtq_commit_ts(sys_end)
 3	4	2038-01-19 03:14:07.000000
 2	3	2038-01-19 03:14:07.000000
 40	33	2038-01-19 03:14:07.000000
@@ -166,8 +166,8 @@ id	x	y	sys_end
 1	33	44	2038-01-19 03:14:07.000000
 20	33	44	2038-01-19 03:14:07.000000
 40	33	44	2038-01-19 03:14:07.000000
-call test_02('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
-id	x	y	commit_ts(sys_end)
+call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+id	x	y	vtq_commit_ts(sys_end)
 1	33	44	2038-01-19 03:14:07.000000
 20	33	44	2038-01-19 03:14:07.000000
 40	33	44	2038-01-19 03:14:07.000000
@@ -194,8 +194,8 @@ ERROR HY000: Generated field for System Versioning cannot be set by user
 drop table t1;
 drop view vt1_1;
 drop view vt1_2;
-call test_03('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
-x	y	commit_ts(sys_end)
+call test_03('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
+x	y	vtq_commit_ts(sys_end)
 8001	9001	2038-01-19 03:14:07.000000
 1001	2001	2038-01-19 03:14:07.000000
 1002	2002	2038-01-19 03:14:07.000000
@@ -205,7 +205,7 @@ x	y
 1001	2001
 1002	2002
 3001	4001
-x	y	commit_ts(sys_end)
+x	y	vtq_commit_ts(sys_end)
 8001	9001	2038-01-19 03:14:07.000000
 1001	2001	2038-01-19 03:14:07.000000
 1002	2002	2038-01-19 03:14:07.000000
@@ -222,7 +222,7 @@ id	a	b
 1	1	1
 id	a	b	C	D
 2	2	2	1	1
-call test_04('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_04('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 id	a	b
 1	1	1
 id	a	b	C	D
@@ -257,7 +257,7 @@ x	y
 7	7001
 8	8001
 9	9001
-call test_05('bigint unsigned', 'innodb', 'commit_ts(sys_end)');
+call test_05('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_end)');
 x	y
 1	1001
 2	2001
