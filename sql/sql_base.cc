@@ -1855,12 +1855,8 @@ retry_share:
       goto err_lock;
 
     error= open_table_from_share(thd, share, alias,
-                                 (uint) (HA_OPEN_KEYFILE |
-                                         HA_OPEN_RNDFILE |
-                                         HA_GET_INDEX |
-                                         HA_TRY_READ_ONLY),
-                                 (READ_KEYINFO | COMPUTE_TYPES |
-                                  EXTRA_RECORD),
+                                 HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
+                                 EXTRA_RECORD,
                                  thd->open_options, table, FALSE);
 
     if (error)
@@ -2694,10 +2690,8 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
   DBUG_ASSERT(! share->is_view);
 
   if (open_table_from_share(thd, share, table_list->alias,
-                            (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
-                                    HA_GET_INDEX |
-                                    HA_TRY_READ_ONLY),
-                            READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
+                            HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
+                            EXTRA_RECORD,
                             ha_open_options | HA_OPEN_FOR_REPAIR,
                             entry, FALSE) || ! entry->file ||
       (entry->file->is_crashed() && entry->file->ha_check_and_repair(thd)))

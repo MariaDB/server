@@ -370,16 +370,9 @@ enum enum_alter_inplace_result {
 */
 
 #define HA_OPEN_KEYFILE		1
-#define HA_OPEN_RNDFILE		2
-#define HA_GET_INDEX		4
-#define HA_GET_INFO		8	/* do a ha_info() after open */
 #define HA_READ_ONLY		16	/* File opened as readonly */
 /* Try readonly if can't open with read and write */
 #define HA_TRY_READ_ONLY	32
-#define HA_WAIT_IF_LOCKED	64	/* Wait if locked on open */
-#define HA_ABORT_IF_LOCKED	128	/* skip if locked on open.*/
-#define HA_BLOCK_LOCK		256	/* unlock when reading some records */
-#define HA_OPEN_TEMPORARY	512
 
 	/* Some key definitions */
 #define HA_KEY_NULL_LENGTH	1

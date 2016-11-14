@@ -1116,13 +1116,8 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
   }
 
   if (open_table_from_share(this, share, alias,
-                            (open_in_engine) ?
-                            (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
-                                    HA_GET_INDEX) : 0,
-                            (uint) (READ_KEYINFO | COMPUTE_TYPES |
-                                    EXTRA_RECORD),
-                            ha_open_options,
-                            table,
+                            open_in_engine ? (uint)HA_OPEN_KEYFILE : 0,
+                            EXTRA_RECORD, ha_open_options, table,
                             open_in_engine ? false : true))
   {
     my_free(table);

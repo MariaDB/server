@@ -83,64 +83,53 @@
 
 	/* Defines for use with openfrm, openprt and openfrd */
 
-#define READ_ALL		1	/* openfrm: Read all parameters */
-#define CHANGE_FRM		2	/* openfrm: open .frm as O_RDWR */
-#define READ_KEYINFO		4	/* L{s nyckeldata fr}n filen */
-#define EXTRA_RECORD		8	/* Reserve space for an extra record */
-#define DONT_OPEN_TABLES	8	/* Don't open database-files (frd) */
-#define DONT_OPEN_MASTER_REG	16	/* Don't open first reg-file (prt) */
-#define EXTRA_LONG_RECORD	16	/* Plats f|r dubbel s|k-record */
-#define COMPUTE_TYPES		32	/* Kontrollera type f|r f{ltena */
-#define SEARCH_PRG		64	/* S|k efter registret i 'prg_dev' */
-#define READ_USED_NAMES		128	/* L{s anv{nda formul{rnamn */
-#define DONT_GIVE_ERROR		256	/* Don't do frm_error on openfrm  */
-#define READ_SCREENS		1024	/* Read screens, info and helpfile */
-#define DELAYED_OPEN		4096	/* Open table later */
-#define OPEN_VIEW		8192	/* Allow open on view */
-#define OPEN_VIEW_NO_PARSE     16384    /* Open frm only if it's a view,
-                                           but do not parse view itself */
+#define READ_ALL               (1 <<  0) /* openfrm: Read all parameters */
+#define EXTRA_RECORD           (1 <<  3) /* Reserve space for an extra record */
+#define DELAYED_OPEN           (1 << 12) /* Open table later */
+#define OPEN_VIEW_NO_PARSE     (1 << 14) /* Open frm only if it's a view,
+                                            but do not parse view itself */
 /**
   This flag is used in function get_all_tables() which fills
   I_S tables with data which are retrieved from frm files and storage engine
   The flag means that we need to open FRM file only to get necessary data.
 */
-#define OPEN_FRM_FILE_ONLY     32768
+#define OPEN_FRM_FILE_ONLY     (1 << 15)
 /**
   This flag is used in function get_all_tables() which fills
   I_S tables with data which are retrieved from frm files and storage engine
   The flag means that we need to process tables only to get necessary data.
   Views are not processed.
 */
-#define OPEN_TABLE_ONLY        (OPEN_FRM_FILE_ONLY*2)
+#define OPEN_TABLE_ONLY        (1 << 16)
 /**
   This flag is used in function get_all_tables() which fills
   I_S tables with data which are retrieved from frm files and storage engine
   The flag means that we need to process views only to get necessary data.
   Tables are not processed.
 */
-#define OPEN_VIEW_ONLY         (OPEN_TABLE_ONLY*2)
+#define OPEN_VIEW_ONLY         (1 << 17)
 /**
   This flag is used in function get_all_tables() which fills
   I_S tables with data which are retrieved from frm files and storage engine.
   The flag means that we need to open a view using
   open_normal_and_derived_tables() function.
 */
-#define OPEN_VIEW_FULL         (OPEN_VIEW_ONLY*2)
+#define OPEN_VIEW_FULL         (1 << 18)
 /**
   This flag is used in function get_all_tables() which fills
   I_S tables with data which are retrieved from frm files and storage engine.
   The flag means that I_S table uses optimization algorithm.
 */
-#define OPTIMIZE_I_S_TABLE     (OPEN_VIEW_FULL*2)
+#define OPTIMIZE_I_S_TABLE     (1 << 19)
 /**
   This flag is used to instruct tdc_open_view() to check metadata version.
 */
-#define CHECK_METADATA_VERSION (OPEN_TRIGGER_ONLY*2)
+#define CHECK_METADATA_VERSION (1 << 20)
 
 /*
   The flag means that we need to process trigger files only.
 */
-#define OPEN_TRIGGER_ONLY      (OPTIMIZE_I_S_TABLE*2)
+#define OPEN_TRIGGER_ONLY      (1 << 21)
 
 /*
   Minimum length pattern before Turbo Boyer-Moore is used

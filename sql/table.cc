@@ -3261,13 +3261,8 @@ partititon_err:
   /* The table struct is now initialized;  Open the table */
   if (db_stat)
   {
-    if (db_stat & HA_OPEN_TEMPORARY)
-      ha_open_flags|= HA_OPEN_TMP_TABLE;
-    else if ((db_stat & HA_WAIT_IF_LOCKED) ||
-             (specialflag & SPECIAL_WAIT_IF_LOCKED))
+    if (specialflag & SPECIAL_WAIT_IF_LOCKED)
       ha_open_flags|= HA_OPEN_WAIT_IF_LOCKED;
-    else if (db_stat & (HA_ABORT_IF_LOCKED | HA_GET_INFO))
-      ha_open_flags|= HA_OPEN_ABORT_IF_LOCKED;
     else
       ha_open_flags|= HA_OPEN_IGNORE_IF_LOCKED;
 

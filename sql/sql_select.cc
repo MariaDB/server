@@ -17133,7 +17133,7 @@ bool open_tmp_table(TABLE *table)
     table->db_stat= 0;
     return 1;
   }
-  table->db_stat= HA_OPEN_KEYFILE+HA_OPEN_RNDFILE;
+  table->db_stat= HA_OPEN_KEYFILE;
   (void) table->file->extra(HA_EXTRA_QUICK); /* Faster */
   if (!table->is_created())
   {
