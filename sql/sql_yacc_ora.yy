@@ -10314,6 +10314,14 @@ cast_type:
           { Lex->charset= thd->variables.collation_connection; }
           opt_binary
           { $$.set(ITEM_CAST_CHAR, $2); }
+        | VARCHAR field_length
+          { Lex->charset= thd->variables.collation_connection; }
+          opt_binary
+          { $$.set(ITEM_CAST_CHAR, $2); }
+        | VARCHAR2 field_length
+          { Lex->charset= thd->variables.collation_connection; }
+          opt_binary
+          { $$.set(ITEM_CAST_CHAR, $2); }
         | NCHAR_SYM opt_field_length
           {
             Lex->charset= national_charset_info;
