@@ -309,6 +309,7 @@ static SYMBOL symbols[] = {
   { "ITERATE",          SYM(ITERATE_SYM)},
   { "INVOKER",          SYM(INVOKER_SYM)},
   { "JOIN",		SYM(JOIN_SYM)},
+  { "JSON",		SYM(JSON_SYM)},
   { "KEY",		SYM(KEY_SYM)},
   { "KEYS",		SYM(KEYS)},
   { "KEY_BLOCK_SIZE",	SYM(KEY_BLOCK_SIZE)},

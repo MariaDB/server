@@ -1174,7 +1174,7 @@ static int handle_match(json_engine_t *je, json_path_t *p,
   Check if the name of the current JSON key matches
   the step of the path.
 */
-static int json_key_matches(json_engine_t *je, json_string_t *k)
+int json_key_matches(json_engine_t *je, json_string_t *k)
 {
   while (json_read_keyname_chr(je) == 0)
   {
@@ -1409,6 +1409,8 @@ int json_unescape(CHARSET_INFO *json_cs,
                   CHARSET_INFO *res_cs, uchar *res, uchar *res_end)
 {
   json_string_t s;
+  const uchar *res_b= res;
+
   json_string_setup(&s, json_cs, json_str, json_end);
   while (json_read_string_const_chr(&s) == 0)
   {
@@ -1434,7 +1436,7 @@ int json_unescape(CHARSET_INFO *json_cs,
     return -1;
   }
 
-  return s.error ? 1 : 0;
+  return s.error==JE_EOS ? res - res_b : -1;
 }
 
 

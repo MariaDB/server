@@ -1457,6 +1457,7 @@ public:
   virtual void set_result_field(Field *field) {}
   virtual bool is_result_field() { return 0; }
   virtual bool is_bool_type() { return false; }
+  virtual bool is_json_type() { return false; }
   /* This is to handle printing of default values */
   virtual bool need_parentheses_in_default() { return false; }
   virtual void save_in_result_field(bool no_conversions) {}
@@ -5762,5 +5763,16 @@ public:
   }
   void close() {}
 };
+
+
+/*
+  It's used in ::fix_fields() methods of LIKE and JSON_SEARCH
+  functions to handle the ESCAPE parameter.
+  This parameter is quite non-standard so the specific function.
+*/
+bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
+                     bool escape_used_in_parsing, CHARSET_INFO *cmp_cs,
+                     int *escape);
+
 
 #endif /* SQL_ITEM_INCLUDED */

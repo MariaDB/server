@@ -19,6 +19,11 @@ select json_array(1, "text", false, null);
 select json_array_append('["a", "b"]', '$', FALSE);
 select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
 
+SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x');
+SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x');
+SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x');
+SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x');
+
 select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
 select json_contains('"you"', '"you"');
 select json_contains('"youth"', '"you"');
@@ -37,6 +42,24 @@ select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2");
 select json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2");
 select json_extract('{"key0":true, "key1":"qwe"}', "$.key1");
 
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3);
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.a[2]', 2);
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.c', 'word');
+
+select json_set('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]');
+
+select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]');
+select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.b', '[true, false]');
+
+set @j = '["a", ["b", "c"], "d"]';
+select json_remove(@j, '$[0]');
+select json_remove(@j, '$[1]');
+select json_remove(@j, '$[2]');
+set @j = '{"a": 1, "b": [2, 3]}';
+select json_remove(@j, '$.b');
+select json_remove(@j, '$.a');
+
 select json_object("ki", 1, "mi", "ya");
 
 select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2");
@@ -51,4 +74,24 @@ select json_type('{"k1":123, "k2":345}');
 select json_type('[123, "k2", 345]');
 select json_type("true");
 select json_type('123');
+
+select json_keys('{"a":{"c":1, "d":2}, "b":2}');
+select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a");
+select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b");
+
+SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
+select json_search(@j, 'one', 'abc');
+select json_search(@j, 'all', 'abc');
+select json_search(@j, 'all', 'abc', NULL, '$[2]');
+select json_search(@j, 'all', 'abc', NULL, '$');
+select json_search(@j, 'all', '10', NULL, '$');
+select json_search(@j, 'all', '10', NULL, '$[*]');
+select json_search(@j, 'all', '10', NULL, '$[*][0].k');
+
+
+select json_unquote('"abc"');
+
+select json_object("a", json_object("b", "abcd"));
+select json_object("a", '{"b": "abcd"}');
+select json_object("a", cast('{"b": "abcd"}' as json));
 

@@ -227,6 +227,13 @@ int json_read_keyname_chr(json_engine_t *j);
 
 
 /*
+  Check if the name of the current JSON key matches
+  the step of the path.
+*/
+int json_key_matches(json_engine_t *je, json_string_t *k);
+
+
+/*
   json_read_value() function parses the JSON value syntax,
   so that we can handle the value of a key or an array item.
   It only returns meaningful result when the engine is in

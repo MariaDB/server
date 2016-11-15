@@ -46,6 +46,18 @@ json_array_append('["a", "b"]', '$', FALSE)
 select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
 json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2)
 {"k1":1, "k2":["a", "b", 2]}
+SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x');
+JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x')
+["a", "x", {"b": [1, 2]}, [3, 4]]
+SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x');
+JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x')
+["a", {"b": [1, 2]}, "x", [3, 4]]
+SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x');
+JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x')
+["a", {"b": [1, 2]}, [3, 4], "x"]
+SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x');
+JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x')
+["a", {"b": [1, 2]}, [3, 4], "x"]
 select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
 json_contains('{"k1":123, "k2":345}', '123', '$.k1')
 1
@@ -91,6 +103,44 @@ json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2")
 select json_extract('{"key0":true, "key1":"qwe"}', "$.key1");
 json_extract('{"key0":true, "key1":"qwe"}', "$.key1")
 qwe
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
+json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word')
+{"a":1, "b":{"c":1, "k1":"word"}, "d":[1, 2]}
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3);
+json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3)
+{"a":1, "b":{"c":1}, "d":[1, 2, 3]}
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.a[2]', 2);
+json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.a[2]', 2)
+{"a":[1, 2], "b":{"c":1}, "d":[1, 2]}
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.c', 'word');
+json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.c', 'word')
+{"a":1, "b":{"c":1}, "d":[1, 2]}
+select json_set('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]');
+json_set('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]')
+{ "a": 10, "b": [2, 3], "c":"[true, false]"}
+select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]');
+json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]')
+{ "a": 10, "b": [2, 3]}
+select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.b', '[true, false]');
+json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.b', '[true, false]')
+{ "a": 10, "b": "[true, false]"}
+set @j = '["a", ["b", "c"], "d"]';
+select json_remove(@j, '$[0]');
+json_remove(@j, '$[0]')
+[ ["b", "c"], "d"]
+select json_remove(@j, '$[1]');
+json_remove(@j, '$[1]')
+["a" "d"]
+select json_remove(@j, '$[2]');
+json_remove(@j, '$[2]')
+["a", ["b", "c"]]
+set @j = '{"a": 1, "b": [2, 3]}';
+select json_remove(@j, '$.b');
+json_remove(@j, '$.b')
+{"a": 1}
+select json_remove(@j, '$.a');
+json_remove(@j, '$.a')
+{"b": [2, 3]}
 select json_object("ki", 1, "mi", "ya");
 json_object("ki", 1, "mi", "ya")
 {"ki": 1, "mi": "ya"}
@@ -121,3 +171,46 @@ BOOLEAN
 select json_type('123');
 json_type('123')
 NUMBER
+select json_keys('{"a":{"c":1, "d":2}, "b":2}');
+json_keys('{"a":{"c":1, "d":2}, "b":2}')
+["a", "b"]
+select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a");
+json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a")
+["c", "d"]
+select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b");
+json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b")
+NULL
+SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
+select json_search(@j, 'one', 'abc');
+json_search(@j, 'one', 'abc')
+"$[0]"
+select json_search(@j, 'all', 'abc');
+json_search(@j, 'all', 'abc')
+["$[0]", "$[2].x"]
+select json_search(@j, 'all', 'abc', NULL, '$[2]');
+json_search(@j, 'all', 'abc', NULL, '$[2]')
+"$[2].x"
+select json_search(@j, 'all', 'abc', NULL, '$');
+json_search(@j, 'all', 'abc', NULL, '$')
+["$[0]", "$[2].x"]
+select json_search(@j, 'all', '10', NULL, '$');
+json_search(@j, 'all', '10', NULL, '$')
+"$[1][0].k"
+select json_search(@j, 'all', '10', NULL, '$[*]');
+json_search(@j, 'all', '10', NULL, '$[*]')
+"$[1][0].k"
+select json_search(@j, 'all', '10', NULL, '$[*][0].k');
+json_search(@j, 'all', '10', NULL, '$[*][0].k')
+"$[1][0].k"
+select json_unquote('"abc"');
+json_unquote('"abc"')
+abc
+select json_object("a", json_object("b", "abcd"));
+json_object("a", json_object("b", "abcd"))
+{"a": {"b": "abcd"}}
+select json_object("a", '{"b": "abcd"}');
+json_object("a", '{"b": "abcd"}')
+{"a": "{\"b\": \"abcd\"}"}
+select json_object("a", cast('{"b": "abcd"}' as json));
+json_object("a", cast('{"b": "abcd"}' as json))
+{"a": {"b": "abcd"}}
