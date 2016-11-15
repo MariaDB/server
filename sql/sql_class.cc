@@ -540,13 +540,13 @@ const char *set_thd_proc_info(THD *thd_arg, const char *info,
   PSI_stage_info old_stage;
   PSI_stage_info new_stage;
 
-  old_stage.m_key= 0;
-  old_stage.m_name= info;
+  new_stage.m_key= 0;
+  new_stage.m_name= info;
 
-  set_thd_stage_info(thd_arg, & old_stage, & new_stage,
+  set_thd_stage_info(thd_arg, & new_stage, & old_stage,
                      calling_function, calling_file, calling_line);
 
-  return new_stage.m_name;
+  return old_stage.m_name;
 }
 
 extern "C"
