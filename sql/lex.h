@@ -515,6 +515,7 @@ static SYMBOL symbols[] = {
   { "RETURN",           SYM(RETURN_SYM)},
   { "RETURNING",        SYM(RETURNING_SYM)},
   { "RETURNS",		SYM(RETURNS_SYM)},
+  { "REUSE",            SYM(REUSE_SYM)},
   { "REVERSE",		SYM(REVERSE_SYM)},
   { "REVOKE",		SYM(REVOKE)},
   { "RIGHT",		SYM(RIGHT)},

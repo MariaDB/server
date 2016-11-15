@@ -1343,6 +1343,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  RETURNING_SYM
 %token  RETURNS_SYM                   /* SQL-2003-R */
 %token  RETURN_SYM                    /* SQL-2003-R */
+%token  REUSE_SYM                     /* Oracle-R   */
 %token  REVERSE_SYM
 %token  REVOKE                        /* SQL-2003-R */
 %token  RIGHT                         /* SQL-2003-R */
@@ -14314,6 +14315,7 @@ keyword_sp:
         | RESUME_SYM               {}
         | RETURNED_SQLSTATE_SYM    {}
         | RETURNS_SYM              {}
+        | REUSE_SYM                {}
         | REVERSE_SYM              {}
         | ROLE_SYM                 {}
         | ROLLUP_SYM               {}
