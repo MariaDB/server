@@ -256,3 +256,6 @@ DROP TABLE notfound;
 
 CREATE TABLE raise (raise int);
 DROP TABLE raise;
+
+CREATE TABLE reuse (reuse int);
+DROP TABLE reuse;
