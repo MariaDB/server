@@ -387,7 +387,6 @@ ut_delay(
 	}
 
 	UT_RESUME_PRIORITY_CPU();
-	UT_RESUME_PRIORITY_CPU();
 
 	return(j);
 }
