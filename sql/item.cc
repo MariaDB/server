@@ -901,17 +901,15 @@ bool Item_field::find_item_in_field_list_processor(void *arg)
 bool Item_field::register_field_in_read_map(void *arg)
 {
   TABLE *table= (TABLE *) arg;
+  int res= 0;
+  if (field->vcol_info &&
+      !bitmap_fast_test_and_set(field->table->vcol_set, field->field_index))
+  {
+    res= field->vcol_info->expr_item->walk(&Item::register_field_in_read_map,1,arg);
+  }
   if (field->table == table || !table)
     bitmap_set_bit(field->table->read_set, field->field_index);
-  if (field->vcol_info &&
-      !bitmap_is_set(field->table->vcol_set, field->field_index))
-  {
-    /* Ensure that the virtual fields is updated on read or write */
-    bitmap_set_bit(field->table->vcol_set, field->field_index);
-    return field->vcol_info->expr_item->walk(&Item::register_field_in_read_map,
-                                             1, arg);
-  }
-  return 0;
+  return res;
 }
 
 /*
