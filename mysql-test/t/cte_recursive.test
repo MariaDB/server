@@ -1409,6 +1409,7 @@ DROP TABLE IF EXISTS edges2;
 CREATE VIEW edges2 (a, b) AS 
  SELECT a, b FROM edges   UNION ALL   SELECT b, a FROM edges;
 
+--sorted_result
 WITH RECURSIVE transitive_closure(a, b, distance, path_string) AS
 ( SELECT a, b, 1 AS distance,
    concat(a, '.', b, '.') AS path_string
