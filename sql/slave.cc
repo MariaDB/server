@@ -620,8 +620,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
   if (thread_mask & (SLAVE_SQL|SLAVE_FORCE_ALL))
   {
     DBUG_PRINT("info",("Terminating SQL thread"));
-    if (opt_slave_parallel_threads > 0 &&
-        mi->rli.abort_slave && mi->rli.stop_for_until)
+    if (mi->using_parallel() && mi->rli.abort_slave && mi->rli.stop_for_until)
     {
       mi->rli.stop_for_until= false;
       mi->rli.parallel.stop_during_until();
@@ -2726,8 +2725,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       else
       {
         idle= mi->rli.sql_thread_caught_up;
-        if (opt_slave_parallel_threads > 0 && idle &&
-            !mi->rli.parallel.workers_idle())
+        if (mi->using_parallel() && idle && !mi->rli.parallel.workers_idle())
           idle= false;
       }
       if (idle)
@@ -3517,7 +3515,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       the user might be surprised to see a claim that the slave is up to date
       long before those queued events are actually executed.
      */
-    if (opt_slave_parallel_threads == 0 &&
+    if (!rli->mi->using_parallel() &&
         !(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
     {
       rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
@@ -3568,7 +3566,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
     update_state_of_relay_log(rli, ev);
 
-    if (opt_slave_parallel_threads > 0)
+    if (rli->mi->using_parallel())
     {
       int res= rli->parallel.do_event(serial_rgi, ev, event_size);
       if (res >= 0)
@@ -4546,8 +4544,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   serial_rgi->gtid_sub_id= 0;
   serial_rgi->gtid_pending= false;
-  if (mi->using_gtid != Master_info::USE_GTID_NO &&
-      opt_slave_parallel_threads > 0 &&
+  if (mi->using_gtid != Master_info::USE_GTID_NO && mi->using_parallel() &&
       rli->restart_gtid_pos.count() > 0)
   {
     /*
@@ -4734,7 +4731,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     }
   }
 
-  if (opt_slave_parallel_threads > 0)
+  if (mi->using_parallel())
     rli->parallel.wait_for_done(thd, rli);
 
   /* Thread stopped. Print the current replication position to the log */
@@ -4760,7 +4757,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     (We want the first one to be before the printout of stop position to
     get the correct position printed.)
   */
-  if (opt_slave_parallel_threads > 0)
+  if (mi->using_parallel())
     rli->parallel.wait_for_done(thd, rli);
 
   /*
@@ -4784,7 +4781,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     ulong domain_count;
 
     flush_relay_log_info(rli);
-    if (opt_slave_parallel_threads > 0)
+    if (mi->using_parallel())
     {
       /*
         In parallel replication GTID mode, we may stop with different domains
@@ -6475,7 +6472,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
                           llstr(my_b_tell(cur_log),llbuf1),
                           llstr(rli->event_relay_log_pos,llbuf2)));
       DBUG_ASSERT(my_b_tell(cur_log) >= BIN_LOG_HEADER_SIZE);
-      DBUG_ASSERT(opt_slave_parallel_threads > 0 ||
+      DBUG_ASSERT(rli->mi->using_parallel() ||
                   my_b_tell(cur_log) == rli->event_relay_log_pos);
     }
 #endif

@@ -12829,7 +12829,7 @@ bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
   return FALSE;
 #else
   const Relay_log_info *rli= &(active_mi->rli);
-  if (opt_slave_parallel_threads == 0)
+  if (!rli->mi->using_parallel())
   {
     *log_file_name= rli->group_master_log_name;
     *log_pos= rli->group_master_log_pos +
