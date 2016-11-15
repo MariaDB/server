@@ -7083,3 +7083,87 @@ a
 3
 6
 drop table t1;
+#
+# MDEV-11072: pushdown of the condition obtained
+#             after constant row substitution
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE OR REPLACE VIEW v2 AS SELECT * FROM t2;
+CREATE TABLE t3 (c INT);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
+SELECT * FROM t1 WHERE a IN ( 
+SELECT b FROM v2 WHERE b < a OR b IN ( 
+SELECT c FROM v3 WHERE c = a 
+) 
+);
+a
+INSERT INTO t1 VALUES (2);
+INSERT INTO t2 VALUES (3), (2);
+INSERT INTO t3 VALUES (4), (1), (2), (7);
+SELECT * FROM t1 WHERE a IN ( 
+SELECT b FROM v2 WHERE b < a OR b IN ( 
+SELECT c FROM v3 WHERE c = a 
+) 
+);
+a
+2
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1 WHERE a IN ( 
+SELECT b FROM v2 WHERE b < a OR b IN ( 
+SELECT c FROM v3 WHERE c = a 
+) 
+);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "const_condition": "(0 or <in_optimizer>(2,<exists>(subquery#3)))",
+    "table": {
+      "table_name": "t1",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "(t2.b = 2)",
+      "first_match": "t1"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "<derived5>",
+            "access_type": "index_subquery",
+            "possible_keys": ["key0"],
+            "key": "key0",
+            "key_length": "5",
+            "used_key_parts": ["c"],
+            "ref": ["func"],
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 5,
+                "table": {
+                  "table_name": "t3",
+                  "access_type": "ALL",
+                  "rows": 4,
+                  "filtered": 100,
+                  "attached_condition": "(t3.c = 2)"
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+DROP VIEW v2,v3;
+DROP TABLE t1,t2,t3;

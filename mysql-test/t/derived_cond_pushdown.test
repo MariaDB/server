@@ -951,3 +951,40 @@ select * from
  order by a limit 5) t where t.a not in (2,9);
 
 drop table t1;
+
+--echo #
+--echo # MDEV-11072: pushdown of the condition obtained
+--echo #             after constant row substitution
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE OR REPLACE VIEW v2 AS SELECT * FROM t2;
+CREATE TABLE t3 (c INT);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
+
+SELECT * FROM t1 WHERE a IN ( 
+  SELECT b FROM v2 WHERE b < a OR b IN ( 
+    SELECT c FROM v3 WHERE c = a 
+  ) 
+);
+
+INSERT INTO t1 VALUES (2);
+INSERT INTO t2 VALUES (3), (2);
+INSERT INTO t3 VALUES (4), (1), (2), (7);
+
+SELECT * FROM t1 WHERE a IN ( 
+  SELECT b FROM v2 WHERE b < a OR b IN ( 
+    SELECT c FROM v3 WHERE c = a 
+  ) 
+);
+
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1 WHERE a IN ( 
+  SELECT b FROM v2 WHERE b < a OR b IN ( 
+    SELECT c FROM v3 WHERE c = a 
+  ) 
+);
+
+DROP VIEW v2,v3;
+DROP TABLE t1,t2,t3;
