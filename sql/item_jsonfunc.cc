@@ -922,8 +922,8 @@ void Item_func_json_array_append::fix_length_and_dec()
 
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
-    paths[n_arg-1].set_constant_flag(args[n_arg]->const_item());
-    char_length+= args[n_arg+1]->max_char_length() + 4;
+    paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
+    char_length+= args[n_arg/2+1]->max_char_length() + 4;
   }
 
   fix_char_length_ulonglong(char_length);
@@ -1323,8 +1323,8 @@ void Item_func_json_insert::fix_length_and_dec()
 
   for (n_arg= 1; n_arg < arg_count; n_arg+= 2)
   {
-    paths[n_arg-1].set_constant_flag(args[n_arg]->const_item());
-    char_length+= args[n_arg+1]->max_char_length() + 4;
+    paths[n_arg/2].set_constant_flag(args[n_arg]->const_item());
+    char_length+= args[n_arg/2+1]->max_char_length() + 4;
   }
 
   fix_char_length_ulonglong(char_length);
