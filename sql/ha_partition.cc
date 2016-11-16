@@ -3434,7 +3434,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   }
   m_start_key.length= 0;
   m_rec0= table->record[0];
-  m_rec_length= table_share->stored_rec_length;
+  m_rec_length= table_share->reclength;
   if (!m_part_ids_sorted_by_num_of_records)
   {
     if (!(m_part_ids_sorted_by_num_of_records=
