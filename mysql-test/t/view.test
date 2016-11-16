@@ -6019,6 +6019,26 @@ select * from v1;
 DROP VIEW v1;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10724:Assertion `vcol_table == 0 || vcol_table == table'
+--echo # failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,
+--echo # bool, bool)
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+CREATE TABLE t2 (f2 INT);
+CREATE TABLE t3 (f3 INT);
+ 
+CREATE ALGORITHM = MERGE VIEW v AS SELECT f1, f3 FROM t1,
+( SELECT f3 FROM t2, t3 ) AS sq;
+ 
+--error ER_VIEW_MULTIUPDATE
+INSERT INTO v (f1, f3) VALUES (1,1), (2,2);
+
+drop view v;
+drop tables t1,t2,t3;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

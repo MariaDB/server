@@ -6278,5 +6278,19 @@ a
 DROP VIEW v1;
 DROP TABLE t1;
 #
+# MDEV-10724:Assertion `vcol_table == 0 || vcol_table == table'
+# failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,
+# bool, bool)
+#
+CREATE TABLE t1 (f1 INT);
+CREATE TABLE t2 (f2 INT);
+CREATE TABLE t3 (f3 INT);
+CREATE ALGORITHM = MERGE VIEW v AS SELECT f1, f3 FROM t1,
+( SELECT f3 FROM t2, t3 ) AS sq;
+INSERT INTO v (f1, f3) VALUES (1,1), (2,2);
+ERROR HY000: Can not modify more than one base table through a join view 'test.v'
+drop view v;
+drop tables t1,t2,t3;
+#
 # End of 10.2 tests
 #

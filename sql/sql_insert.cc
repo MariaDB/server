@@ -78,6 +78,7 @@
 #include "sql_audit.h"
 #include "sql_derived.h"                        // mysql_handle_derived
 #include "sql_prepare.h"
+#include <my_bit.h>
 
 #include "debug_sync.h"
 
@@ -126,6 +127,14 @@ static bool check_view_single_update(List<Item> &fields, List<Item> *values,
 
   while ((item= it++))
     tables|= item->used_tables();
+
+  /*
+    Check that table is only one
+    (we can not rely on check_single_table because it skips some
+    types of tables)
+  */
+  if (my_count_bits(tables) > 1)
+    goto error;
 
   if (values)
   {
