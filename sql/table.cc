@@ -6633,6 +6633,18 @@ void TABLE::mark_default_fields_for_write(bool is_insert)
   DBUG_VOID_RETURN;
 }
 
+void TABLE::move_fields(Field **ptr, const uchar *to, const uchar *from)
+{
+  my_ptrdiff_t diff= to - from;
+  if (diff)
+  {
+    do
+    {
+      (*ptr)->move_field_offset(diff);
+    } while (*(++ptr));
+  }
+}
+
 
 /**
   @brief

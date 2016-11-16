@@ -7959,7 +7959,7 @@ void ha_partition::append_row_to_str(String &str)
   {
     Field **field_ptr;
     if (!is_rec0)
-      set_field_ptr(m_part_info->full_part_field_array, rec,
+      table->move_fields(m_part_info->full_part_field_array, rec,
                     table->record[0]);
     /* No primary key, use full partition field array. */
     for (field_ptr= m_part_info->full_part_field_array;
@@ -7973,7 +7973,7 @@ void ha_partition::append_row_to_str(String &str)
       field_unpack(&str, field, rec, 0, false);
     }
     if (!is_rec0)
-      set_field_ptr(m_part_info->full_part_field_array, table->record[0],
+      table->move_fields(m_part_info->full_part_field_array, table->record[0],
                     rec);
   }
 }
