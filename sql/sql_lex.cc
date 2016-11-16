@@ -196,7 +196,6 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VCOL_EXPR;
   select_lex->cur_pos_in_select_list= UNDEF_POS;
   table->map= 1; //To ensure correct calculation of const item
-  table->get_fields_in_item_tree= TRUE;
   table_list->table= table;
   table_list->cacheable_table= false;
   return FALSE;
