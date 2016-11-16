@@ -2878,7 +2878,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     goto err;
   outparam->quick_keys.init();
   outparam->covering_keys.init();
-  outparam->merge_keys.init();
   outparam->intersect_keys.init();
   outparam->keys_in_use_for_query.init();
 

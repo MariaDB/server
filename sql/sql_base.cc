@@ -5027,7 +5027,6 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
     */
       
     table->covering_keys.intersect(field->part_of_key);
-    table->merge_keys.merge(field->part_of_key);
 
     if (field->vcol_info)
       table->mark_virtual_col(field);
@@ -6376,7 +6375,6 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
         /* Mark field_1 used for table cache. */
         bitmap_set_bit(table_1->read_set, field_1->field_index);
         table_1->covering_keys.intersect(field_1->part_of_key);
-        table_1->merge_keys.merge(field_1->part_of_key);
       }
       if (field_2)
       {
@@ -6384,7 +6382,6 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
         /* Mark field_2 used for table cache. */
         bitmap_set_bit(table_2->read_set, field_2->field_index);
         table_2->covering_keys.intersect(field_2->part_of_key);
-        table_2->merge_keys.merge(field_2->part_of_key);
       }
 
       if (using_fields != NULL)
@@ -7479,7 +7476,6 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         if (table)
         {
           table->covering_keys.intersect(field->part_of_key);
-          table->merge_keys.merge(field->part_of_key);
         }
         if (tables->is_natural_join)
         {
@@ -7499,7 +7495,6 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
             thd->lex->current_select->select_list_tables|=
               field_table->map;
             field_table->covering_keys.intersect(field->part_of_key);
-            field_table->merge_keys.merge(field->part_of_key);
             field_table->used_fields++;
           }
         }

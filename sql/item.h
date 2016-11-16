@@ -2529,7 +2529,6 @@ public:
     {
       TABLE *tab= field->table;
       tab->covering_keys.intersect(field->part_of_key);
-      tab->merge_keys.merge(field->part_of_key);
       if (tab->read_set)
         bitmap_fast_test_and_set(tab->read_set, field->field_index);
       /* 
