@@ -3,15 +3,16 @@
 warn_path=$1
 shift
 warn_file="$warn_path/compile.warnings"
+suppress_file="$warn_path/suppress.warnings"
 
-set -o pipefail
 exec 3>&1
-x=$(("$@" >&2) 2>&1 1>&3)
-error=${PIPESTATUS}
+cmderr=$("$@" 2>&1 1>&3)
+error=$?
 
-if ! [[ -z "$x" ]]; then
-    echo -n "$x" >> $warn_file
-    echo -n "$x" >&2
+if [[ -n "$cmderr" ]]; then
+    echo "$cmderr" >&2
+    [[ "$cmderr" =~ warning:(.+)$ ]] &&
+        echo -n "$cmderr" >> "$warn_file"
 fi
 
 exit ${error}

@@ -481,16 +481,4 @@ IF(NON_DISTRIBUTABLE_WARNING)
 You have linked MariaDB with GPLv3 libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with Free Software Foundation.")
 ENDIF()
 
-IF (CMAKE_BUILD_TYPE MATCHES "Debug")
-  SET_DIRECTORY_PROPERTIES(PROPERTIES RULE_LAUNCH_COMPILE
-    "bash ${CMAKE_SOURCE_DIR}/BUILD/capture_warnings.sh ${CMAKE_BINARY_DIR}")
-  SET_DIRECTORY_PROPERTIES(PROPERTY ADDITIONAL_MAKE_CLEAN_FILES
-    "${CMAKE_BINARY_DIR}/compile.warnings")
-  ADD_CUSTOM_TARGET(REMOVE_WARNINGS_FILE ALL
-    COMMAND rm -f "compile.warnings"
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-  ADD_CUSTOM_TARGET(REPRINT ALL
-    COMMAND if [ -f "compile.warnings" ]; then cat "compile.warnings" \; fi
-    DEPENDS mysql udf_example explain_filename-t REMOVE_WARNINGS_FILE
-    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
-ENDIF()
+INCLUDE(${CMAKE_SOURCE_DIR}/cmake/print_warnings.cmake)
