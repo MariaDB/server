@@ -1696,6 +1696,12 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                                                         HA_READ_KEY_EXACT))))
 	  goto err;
       }
+      if (table->vfield)
+      {
+        table->move_fields(table->field, table->record[1], table->record[0]);
+        table->update_virtual_fields(VCOL_UPDATE_INDEXED);
+        table->move_fields(table->field, table->record[0], table->record[1]);
+      }
       if (info->handle_duplicates == DUP_UPDATE)
       {
         int res= 0;

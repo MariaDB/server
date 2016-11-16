@@ -35,3 +35,11 @@ index(c(100), d(20)));
 insert t1 (a,b,h) values (repeat('g', 10000), repeat('x', 2800), 1);
 update t1 set a = repeat(cast(1 as char), 2000);
 drop table t1;
+create table t1(a blob not null, b int, c varbinary (10) generated always as (a) virtual, unique (c(9)));
+insert t1 (a,b) values ('a', 1);
+replace t1 set a = 'a',b =1;
+insert t1 (a,b) values ('a', 1) on duplicate key update a='b', b=2;
+select * from t1;
+a	b	c
+b	2	b
+drop table t1;
