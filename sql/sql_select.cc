@@ -1281,11 +1281,17 @@ JOIN::optimize_inner()
         Do not push conditions from where into materialized inner tables
         of outer joins: this is not valid.
       */
-      if (tbl->is_materialized_derived() && 
-          !tbl->is_inner_table_of_outer_join())
+      if (tbl->is_materialized_derived())
       {
-        if (pushdown_cond_for_derived(thd, conds, tbl))
-	  DBUG_RETURN(1);
+        /* 
+          Do not push conditions from where into materialized inner tables
+          of outer joins: this is not valid.
+        */
+        if (!tbl->is_inner_table_of_outer_join())
+	{
+          if (pushdown_cond_for_derived(thd, conds, tbl))
+	    DBUG_RETURN(1);
+        }
 	if (mysql_handle_single_derived(thd->lex, tbl, DT_OPTIMIZE))
 	  DBUG_RETURN(1);
       }
