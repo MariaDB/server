@@ -618,8 +618,7 @@ public:
 
 
 class Item: public Value_source,
-            public Type_std_attributes,
-            public Type_handler
+            public Type_std_attributes
 {
   void operator=(Item &);
   /**
@@ -831,35 +830,20 @@ public:
   { return save_in_field(field, 1); }
   virtual bool send(Protocol *protocol, String *str);
   virtual bool eq(const Item *, bool binary_cmp) const;
-  const Type_handler  *type_handler() const
+  virtual enum_field_types field_type() const= 0;
+  virtual const Type_handler *type_handler() const
   {
-    return get_handler_by_field_type(field_type());
-  }
-  Field *make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
-                                            const Item *item) const
-  {
-    return type_handler()->make_num_distinct_aggregator_field(mem_root, this);
-  }
-  Field *make_conversion_table_field(TABLE *table,
-                                     uint metadata, const Field *target) const
-  {
-    DBUG_ASSERT(0); // Should not be called in Item context
-    return NULL;
+    return Type_handler::get_handler_by_field_type(field_type());
   }
   /* result_type() of an item specifies how the value should be returned */
-  Item_result result_type() const { return type_handler()->result_type(); }
-  /* ... while cmp_type() specifies how it should be compared */
-  Item_result cmp_type() const { return type_handler()->cmp_type(); }
-  void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
-                     Sort_param *param) const
+  virtual Item_result result_type() const
   {
-    type_handler()->make_sort_key(to, item, sort_field, param);
+    return type_handler()->result_type();
   }
-  void sortlength(THD *thd,
-                  const Type_std_attributes *item,
-                  SORT_FIELD_ATTR *attr) const
+  /* ... while cmp_type() specifies how it should be compared */
+  virtual Item_result cmp_type() const
   {
-    type_handler()->sortlength(thd, item, attr);
+    return type_handler()->cmp_type();
   }
   virtual Item_result cast_to_int_type() const { return cmp_type(); }
   enum_field_types string_field_type() const
@@ -2223,6 +2207,8 @@ public:
   inline uint get_var_idx() const;
 
   inline enum Type type() const;
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
   enum Item_result result_type () const
@@ -2879,6 +2865,8 @@ public:
 
   enum Type item_type;
 
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
   enum Item_result result_type () const
@@ -4872,6 +4860,8 @@ public:
   /** All of the subclasses should have the same type tag */
   enum Type type() const { return COPY_STR_ITEM; }
 
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
   enum Item_result result_type () const
@@ -5390,6 +5380,8 @@ public:
   };
   enum Type type() const { return CACHE_ITEM; }
 
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
   enum Item_result result_type () const
@@ -5699,6 +5691,8 @@ protected:
 public:
   Item_type_holder(THD*, Item*);
 
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_real_field_type::type_handler(); }
   enum_field_types field_type() const
   { return Type_handler_hybrid_real_field_type::field_type(); }
   enum_field_types real_field_type() const

@@ -867,7 +867,8 @@ bool Aggregator_distinct::setup(THD *thd)
     if (always_null)
       DBUG_RETURN(FALSE);
 
-    Field *field= arg->make_num_distinct_aggregator_field(thd->mem_root, arg);
+    Field *field= arg->type_handler()->
+                    make_num_distinct_aggregator_field(thd->mem_root, arg);
     if (!field || !(table= create_virtual_tmp_table(thd, field)))
       DBUG_RETURN(TRUE);
 
