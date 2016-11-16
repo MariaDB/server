@@ -70,7 +70,7 @@ typedef time_t	ib_time_t;
    the YieldProcessor macro defined in WinNT.h. It is a CPU architecture-
    independent way by using YieldProcessor. */
 #  define UT_RELAX_CPU() YieldProcessor()
-# elif defined(__powerpc__)
+# elif defined(__powerpc__) && defined __GLIBC__
 #include <sys/platform/ppc.h>
 #  define UT_RELAX_CPU() do { \
      volatile lint      volatile_var = __ppc_get_timebase(); \
@@ -78,17 +78,9 @@ typedef time_t	ib_time_t;
 # else
 #  define UT_RELAX_CPU() do { \
      volatile int32	volatile_var; \
-     int32 oldval= 0;
+     int32 oldval= 0; \
      my_atomic_cas32(&volatile_var, &oldval, 1); \
    } while (0)
-# endif
-
-# if defined(HAVE_HMT_PRIORITY_INSTRUCTION)
-#  define UT_LOW_PRIORITY_CPU() __asm__ __volatile__ ("or 1,1,1")
-#  define UT_RESUME_PRIORITY_CPU() __asm__ __volatile__ ("or 2,2,2")
-# else
-#  define UT_LOW_PRIORITY_CPU() ((void)0)
-#  define UT_RESUME_PRIORITY_CPU() ((void)0)
 # endif
 
 #if defined (__GNUC__)

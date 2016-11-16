@@ -1324,6 +1324,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  ISSUER_SYM
 %token  ITERATE_SYM
 %token  JOIN_SYM                      /* SQL-2003-R */
+%token  JSON_SYM
 %token  KEYS
 %token  KEY_BLOCK_SIZE
 %token  KEY_SYM                       /* SQL-2003-N */
@@ -10709,6 +10710,7 @@ cast_type:
           }
         | cast_type_numeric  { $$= $1; Lex->charset= NULL; }
         | cast_type_temporal { $$= $1; Lex->charset= NULL; }
+        | JSON_SYM           { $$.set(ITEM_CAST_JSON); }
         ;
 
 cast_type_numeric:
@@ -13226,11 +13228,10 @@ opt_extended_describe:
 
 opt_format_json:
           /* empty */ {}
+        | FORMAT_SYM '=' JSON_SYM { Lex->explain_json= true; }
         | FORMAT_SYM '=' ident_or_text
           {
-            if (!my_strcasecmp(system_charset_info, $3.str, "JSON"))
-              Lex->explain_json= true;
-            else if (!my_strcasecmp(system_charset_info, $3.str, "TRADITIONAL"))
+            if (!my_strcasecmp(system_charset_info, $3.str, "TRADITIONAL"))
               DBUG_ASSERT(Lex->explain_json==false);
             else
               my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0), $3.str));

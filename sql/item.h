@@ -1457,6 +1457,7 @@ public:
   virtual void set_result_field(Field *field) {}
   virtual bool is_result_field() { return 0; }
   virtual bool is_bool_type() { return false; }
+  virtual bool is_json_type() { return false; }
   /* This is to handle printing of default values */
   virtual bool need_parentheses_in_default() { return false; }
   virtual void save_in_result_field(bool no_conversions) {}
@@ -1558,7 +1559,9 @@ public:
   virtual bool exclusive_dependence_on_table_processor(void *map)
   { return 0; }
   virtual bool exclusive_dependence_on_grouping_fields_processor(void *arg)
- { return 0; }
+  { return 0; }
+  virtual bool cleanup_excluding_outer_fields_processor(void *arg)
+  { return cleanup_processor(arg); }
 
   virtual Item *get_copy(THD *thd, MEM_ROOT *mem_root)=0;
 
@@ -2661,6 +2664,9 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   bool exclusive_dependence_on_table_processor(void *map);
   bool exclusive_dependence_on_grouping_fields_processor(void *arg);
+  bool cleanup_excluding_outer_fields_processor(void *arg)
+  { return depended_from ? 0 :cleanup_processor(arg); }
+   
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_field>(thd, mem_root, this); }
   bool is_outer_field() const
@@ -2798,7 +2804,7 @@ public:
   {
     NO_VALUE, NULL_VALUE, INT_VALUE, REAL_VALUE,
     STRING_VALUE, TIME_VALUE, LONG_DATA_VALUE,
-    DECIMAL_VALUE
+    DECIMAL_VALUE, DEFAULT_VALUE
   } state;
 
   struct CONVERSION_INFO
@@ -2843,6 +2849,13 @@ public:
   };
 
   /*
+    Used for bulk protocol. Indicates if we should expect
+    indicators byte before value of the parameter
+  */
+  my_bool indicators;
+  enum enum_indicator_type indicator;
+
+  /*
     A buffer for string and long data values. Historically all allocated
     values returned from val_str() were treated as eligible to
     modification. I. e. in some cases Item_func_concat can append it's
@@ -2882,6 +2895,7 @@ public:
   bool get_date(MYSQL_TIME *tm, ulonglong fuzzydate);
   int  save_in_field(Field *field, bool no_conversions);
 
+  void set_default();
   void set_null();
   void set_int(longlong i, uint32 max_length_arg);
   void set_double(double i);
@@ -5102,6 +5116,10 @@ public:
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
      arg(a) {}
+  Item_default_value(THD *thd, Name_resolution_context *context_arg, Field *a)
+    :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
+                (const char *)NULL),
+     arg(NULL) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
   bool fix_fields(THD *, Item **);
@@ -5750,5 +5768,16 @@ public:
   }
   void close() {}
 };
+
+
+/*
+  It's used in ::fix_fields() methods of LIKE and JSON_SEARCH
+  functions to handle the ESCAPE parameter.
+  This parameter is quite non-standard so the specific function.
+*/
+bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
+                     bool escape_used_in_parsing, CHARSET_INFO *cmp_cs,
+                     int *escape);
+
 
 #endif /* SQL_ITEM_INCLUDED */

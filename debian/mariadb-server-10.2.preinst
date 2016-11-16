@@ -14,9 +14,8 @@ ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
 export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
 MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
-DATADIR=/var/lib/mysql
-LOGDIR=/var/log/mysql
-UPGRADEDIR=/var/lib/mysql-upgrade
+mysql_datadir=/var/lib/mysql
+mysql_upgradedir=/var/lib/mysql-upgrade
 
 # Try to stop the server in a sane way. If it does not success let the admin
 # do it himself. No database directories should be removed while the server
@@ -33,13 +32,13 @@ stop_server() {
     $cmd
     errno=$?
     set -e
-   
+
     # 0=ok, 100=no init script (fresh install)
     if [ "$errno" != 0 -a "$errno" != 100 ]; then
       echo "${cmd/ */} returned $errno" 1>&2
       echo "There is a MySQL server running, but we failed in our attempts to stop it." 1>&2
       echo "Stop it yourself and try again!" 1>&2
-      db_stop  	
+      db_stop
       exit 1
     fi
 }
@@ -47,31 +46,80 @@ stop_server() {
 ################################ main() ##########################
 
 this_version=10.2
+max_upgradeable_version=5.6
 
-# Safe the user from stupidities.
-show_downgrade_warning=0
-for i in `ls $DATADIR/debian-*.flag 2>/dev/null`; do
-  found_version=`echo $i | sed 's/.*debian-\([0-9\.]\+\).flag/\1/'`
-  if dpkg --compare-versions "$this_version" '<<' "$found_version"; then
-    show_downgrade_warning=1
-    break;
+# Check if a flag file is found that indicates a previous MariaDB or MySQL
+# version was installed. If multiple flags are found, check which one was
+# the biggest version number.
+for flag in $mysql_datadir/debian-*.flag
+do
+
+  # The for loop leaves $flag as the query string if there are no results,
+  # so the check below is needed to stop further processing when there are
+  # no real results.
+  if [ $flag = "$mysql_datadir/debian-*.flag" ]
+  then
+    break
   fi
+
+  flag_version=`echo $flag | sed 's/.*debian-\([0-9\.]\+\).flag/\1/'`
+
+  # Initialize value if empty
+  if [ -z "$found_version" ]
+  then
+    found_version=$flag_version
+  fi
+
+  # Update value if now bigger then before
+  if dpkg --compare-versions "$flag_version" '>>' "$found_version"
+  then
+    found_version=$flag_version
+  fi
+
 done
-if [ "$show_downgrade_warning" = 1 ]; then
-  db_fset mariadb-server-$this_version/really_downgrade seen false || true
-  db_input medium mariadb-server-$this_version/really_downgrade || true
-  db_go
-  db_get mariadb-server-$this_version/really_downgrade || true
-  if [ "$RET" = "true" ]; then
-    rm -f $DATADIR/debian-*.flag
-    touch $DATADIR/debian-$this_version.flag
-  else
-    echo "Aborting downgrade from (at least) $found_version to $this_version." 1>&2
-    echo "If are sure you want to downgrade to $this_version, remove the file" 1>&2
-    echo "$DATADIR/debian-*.flag and try installing again." 1>&2
-    db_stop
-    exit 1
+
+
+# If an upgrade is detected, proceed with it automatically without
+# requiring any user interaction.
+#
+# However, if the user attempts to downgrade, warn about the incompatibility.
+# Downgrade is detected if the flag version is bigger than $this_version
+# (e.g. 10.1 > 10.0) or the flag version is smaller than 10.0 but bigger
+# than $max_upgradeable_version.
+if [ ! -z "$found_version" ]
+then
+
+  echo "$mysql_datadir: found previous version $found_version"
+
+  if dpkg --compare-versions "$found_version" '>>' "$this_version"
+  then
+    downgrade_detected=true
   fi
+
+  if dpkg --compare-versions "$found_version" '>>' "$max_upgradeable_version" \
+  && dpkg --compare-versions "$found_version" '<<' "10.0"
+  then
+    downgrade_detected=true
+  fi
+
+fi
+
+
+# Don't abort dpkg if downgrade is detected (as was done previously).
+# Instead simply move the old datadir and create a new for this_version.
+if [ ! -z "$downgrade_detected" ]
+then
+  db_input critical mariadb-server-10.2/old_data_directory_saved || true
+  db_go
+  echo "The file $mysql_datadir/debian-$found_version.flag indicates a" 1>&2
+  echo "version that cannot automatically be upgraded. Therefore the" 1>&2
+  echo "previous data directory will be renamed to $mysql_datadir-$found_version and" 1>&2
+  echo "a new data directory will be initialized at $mysql_datadir." 1>&2
+  echo "Please manually export/import your data (e.g. with mysqldump) if needed." 1>&2
+  mv -f $mysql_datadir $mysql_datadir-$found_version
+  # Also move away the old debian.cnf file that included credentials that are
+  # no longer valid
+  mv -f /etc/mysql/debian.cnf /etc/mysql/debian.cnf-$found_version
 fi
 
 # to be sure
@@ -86,9 +134,9 @@ fi
 
 #
 # Now we have to ensure the following state:
-# /etc/passwd: mysql:x:100:101:MySQL Server:/var/lib/mysql:/bin/false
+# /etc/passwd: mysql:x:100:101:MySQL Server:/nonexistent:/bin/false
 # /etc/group:  mysql:x:101:
-# 
+#
 # Sadly there could any state be present on the system so we have to
 # modify everything carefully i.e. not doing a chown before creating
 # the user etc...
@@ -107,7 +155,8 @@ if ! getent passwd mysql >/dev/null; then
 	  --system \
           --disabled-login \
 	  --ingroup mysql \
-	  --home $DATADIR \
+	  --no-create-home \
+	  --home /nonexistent \
 	  --gecos "MySQL Server" \
 	  --shell /bin/false \
 	  mysql  >/dev/null
@@ -121,47 +170,36 @@ set -e
 for dir in DATADIR LOGDIR; do
     checkdir=`eval echo "$"$dir`
     if [ -L "$checkdir" ]; then
-	mkdir -p "$UPGRADEDIR"
-	cp -d "$checkdir" "$UPGRADEDIR/$dir.link"
+	mkdir -p "$mysql_upgradedir"
+	cp -dT "$checkdir" "$mysql_upgradedir/$dir.link"
     fi
 done
 
 # creating mysql home directory
-if [ ! -d $DATADIR -a ! -L $DATADIR ]; then
- 	mkdir $DATADIR
+if [ ! -d $mysql_datadir -a ! -L $mysql_datadir ]; then
+ 	mkdir $mysql_datadir
 fi
 
 # checking disc space
-if LC_ALL=C BLOCKSIZE= df --portability $DATADIR/. | tail -n 1 | awk '{ exit ($4>1000) }'; then
-  echo "ERROR: There's not enough space in $DATADIR/" 1>&2
+if LC_ALL=C BLOCKSIZE= df --portability $mysql_datadir/. | tail -n 1 | awk '{ exit ($4>1000) }'; then
+  echo "ERROR: There's not enough space in $mysql_datadir/" 1>&2
   db_stop
   exit 1
 fi
 
 # Since the home directory was created before putting the user into
-# the mysql group and moreover we cannot guarantee that the 
+# the mysql group and moreover we cannot guarantee that the
 # permissions were correctly *before* calling this script, we fix them now.
 # In case we use NIS and no mysql user is present then this script should
 # better fail now than later..
 # The "set +e" is necessary as e.g. a ".journal" of a ext3 partition is
 # not chgrp'able (#318435).
 set +e
-chown mysql:mysql $DATADIR
-find $DATADIR -follow -not -group mysql -print0 2>/dev/null \
+chown mysql:mysql $mysql_datadir
+find $mysql_datadir -follow -not -group mysql -print0 2>/dev/null \
   | xargs -0 --no-run-if-empty chgrp mysql
 set -e
 
-# Some files below /etc/ were possibly in the mysql-server-5.0/etch package
-# before. They get overwritten by current ones to avoid unnecessary dpkg questions.
-while read md5 file; do
-  if [ "`md5sum $file 2>/dev/null`" = "$md5  $file" ]; then
-    cp /usr/share/mysql-common/internal-use-only/`echo $file | sed 's°/°_°g'` $file
-  fi
-done <<EOT
-6691f2fdc5c6d27ff0260eb79813e1bc  /etc/init.d/mysql
-b53b9552d44661361d39157c3c7c51d3  /etc/logrotate.d/mysql-server
-57f3e58f72582ca55100dc1ba0f1a8ae  /etc/mysql/debian-start
-EOT
 
 db_stop
 

@@ -28,6 +28,12 @@
 */
 #undef MY_ATOMIC_HAS_8_AND_16
 
+#ifdef MY_ATOMIC_MODE_DUMMY
+#define LOCK_prefix ""
+#else
+#define LOCK_prefix "lock"
+#endif
+
 #ifdef __x86_64__
 #  ifdef MY_ATOMIC_NO_XADD
 #    define MY_ATOMIC_MODE "gcc-amd64" LOCK_prefix "-no-xadd"

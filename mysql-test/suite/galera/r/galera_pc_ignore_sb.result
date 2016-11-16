@@ -16,3 +16,5 @@ VARIABLE_VALUE = 'ON'
 1
 SET GLOBAL wsrep_cluster_address = '';
 connection node_2;
+disconnect node_2;
+disconnect node_1;

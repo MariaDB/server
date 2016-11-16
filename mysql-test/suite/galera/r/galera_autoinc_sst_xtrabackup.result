@@ -1,3 +1,4 @@
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
 CREATE PROCEDURE p1 ()
 BEGIN
@@ -9,12 +10,21 @@ COMMIT;
 END WHILE;
 END|
 CALL p1();;
+connection node_2;
 CALL p1();;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
 Killing server ...
 INSERT INTO t1 VALUES (DEFAULT);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
 INSERT INTO t1 VALUES (DEFAULT);
+connection node_1;
 Got one of the listed errors
+connection node_2;
 Got one of the listed errors
+connection node_1a;
+connection node_2a;
 count_equal
 1
 CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member 0");
@@ -24,6 +34,7 @@ VARIABLE_VALUE
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 VARIABLE_VALUE = 2
 1
+connection node_1a;
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 VARIABLE_VALUE
 2

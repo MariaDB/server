@@ -1,0 +1,9 @@
+usr/share/mysql/mysql-test/collections
+usr/share/mysql/mysql-test/extra
+usr/share/mysql/mysql-test/include
+usr/share/mysql/mysql-test/plugin
+usr/share/mysql/mysql-test/r
+usr/share/mysql/mysql-test/std_data
+usr/share/mysql/mysql-test/suite
+usr/share/mysql/mysql-test/t
+usr/share/mysql/mysql-test/unstable-tests

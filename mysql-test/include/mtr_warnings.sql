@@ -206,14 +206,6 @@ INSERT INTO global_suppressions VALUES
  ("==[0-9]*== Warning: invalid file descriptor -1 in syscall read()"),
 
  /*
-   BUG#42147 - Concurrent DML and LOCK TABLE ... READ for InnoDB 
-   table cause warnings in errlog
-   Note: This is a temporary suppression until Bug#42147 can be 
-   fixed properly. See bug page for more information.
-  */
- ("Found lock of type 6 that is write and read locked"),
-
- /*
    Transient network failures that cause warnings on reconnect.
    BUG#47743 and BUG#47983.
  */

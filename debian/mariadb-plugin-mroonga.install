@@ -1,0 +1,3 @@
+usr/lib/mysql/plugin/ha_mroonga.so
+usr/share/mysql/mroonga/install.sql
+usr/share/mysql/mroonga/uninstall.sql

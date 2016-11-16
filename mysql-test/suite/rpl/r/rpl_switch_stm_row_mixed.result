@@ -410,6 +410,7 @@ LOCK TABLES t11 WRITE;
 SET SESSION BINLOG_FORMAT=ROW;
 INSERT INTO t11 VALUES('Several Species of Small Furry Animals Gathered Together in a Cave and Grooving With a Pict');
 SET SESSION BINLOG_FORMAT=STATEMENT;
+ERROR HY000: Cannot modify @@session.binlog_format inside a transaction
 INSERT INTO t11 VALUES('Careful With That Axe, Eugene');
 UNLOCK TABLES;
 SELECT * FROM t11;

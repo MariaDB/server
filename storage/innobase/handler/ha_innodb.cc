@@ -684,6 +684,11 @@ srv_mbr_debug(const byte* data)
 static void innodb_remember_check_sysvar_funcs();
 mysql_var_check_func check_sysvar_enum;
 
+// should page compression be used by default for new tables
+static MYSQL_THDVAR_BOOL(compression_default, PLUGIN_VAR_OPCMDARG,
+  "Is compression the default for new tables", 
+  NULL, NULL, FALSE);
+
 static MYSQL_THDVAR_UINT(default_encryption_key_id, PLUGIN_VAR_RQCMDARG,
 			 "Default encryption key id used for table encryption.",
 			 NULL, NULL,
@@ -701,7 +706,7 @@ ha_create_table_option innodb_table_option_list[]=
 {
   /* With this option user can enable page compression feature for the
   table */
-  HA_TOPTION_BOOL("PAGE_COMPRESSED", page_compressed, 0),
+  HA_TOPTION_SYSVAR("PAGE_COMPRESSED", page_compressed, compression_default),
   /* With this option user can set zip compression level for page
   compression for this table*/
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, 0, 1, 9, 1),
@@ -10453,10 +10458,10 @@ ha_innobase::index_read(
 		table->status = 0;
 		if (m_prebuilt->table->is_system_db) {
 			srv_stats.n_system_rows_read.add(
-				(size_t) m_prebuilt->trx->id, 1);
+				thd_get_thread_id(m_prebuilt->trx->mysql_thd), 1);
 		} else {
 			srv_stats.n_rows_read.add(
-				(size_t) m_prebuilt->trx->id, 1);
+				thd_get_thread_id(m_prebuilt->trx->mysql_thd), 1);
 		}
 		break;
 
@@ -10778,10 +10783,10 @@ ha_innobase::general_fetch(
 		table->status = 0;
 		if (m_prebuilt->table->is_system_db) {
 			srv_stats.n_system_rows_read.add(
-				(size_t) m_prebuilt->trx->id, 1);
+				thd_get_thread_id(trx->mysql_thd), 1);
 		} else {
 			srv_stats.n_rows_read.add(
-				(size_t) m_prebuilt->trx->id, 1);
+				thd_get_thread_id(trx->mysql_thd), 1);
 		}
 		break;
 	case DB_RECORD_NOT_FOUND:
@@ -18932,7 +18937,6 @@ free_share(
 	mysql_mutex_unlock(&innobase_share_mutex);
 }
 
-#if 0
 /*********************************************************************//**
 Returns number of THR_LOCK locks used for one instance of InnoDB table.
 InnoDB no longer relies on THR_LOCK locks so 0 value is returned.
@@ -18948,7 +18952,6 @@ ha_innobase::lock_count(void) const
 {
 	return 0;
 }
-#endif
 
 /*****************************************************************//**
 Supposed to convert a MySQL table lock stored in the 'lock' field of the
@@ -19195,8 +19198,6 @@ ha_innobase::store_lock(
 
 		lock.type = lock_type;
 	}
-
-	*to++= &lock;
 
 	if (!trx_is_started(trx)
 	    && (m_prebuilt->select_lock_type != LOCK_NONE
@@ -23810,6 +23811,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
   /* Table page compression feature */
   MYSQL_SYSVAR(use_trim),
+  MYSQL_SYSVAR(compression_default),
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),

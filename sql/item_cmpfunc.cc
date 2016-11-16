@@ -5124,13 +5124,10 @@ bool Item_func_like::with_sargable_pattern() const
 }
 
 
-bool Item_func_like::fix_fields(THD *thd, Item **ref)
+bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
+                     bool escape_used_in_parsing, CHARSET_INFO *cmp_cs,
+                     int *escape)
 {
-  DBUG_ASSERT(fixed == 0);
-  if (Item_bool_func2::fix_fields(thd, ref) ||
-      escape_item->fix_fields(thd, &escape_item))
-    return TRUE;
-
   if (!escape_item->const_during_execution())
   {
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"ESCAPE");
@@ -5140,7 +5137,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
   if (escape_item->const_item())
   {
     /* If we are on execution stage */
-    String *escape_str= escape_item->val_str(&cmp_value1);
+    String *escape_str= escape_item->val_str(tmp_str);
     if (escape_str)
     {
       const char *escape_str_ptr= escape_str->ptr();
@@ -5153,7 +5150,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
         return TRUE;
       }
 
-      if (use_mb(cmp_collation.collation))
+      if (use_mb(cmp_cs))
       {
         CHARSET_INFO *cs= escape_str->charset();
         my_wc_t wc;
@@ -5161,7 +5158,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
                                 (const uchar*) escape_str_ptr,
                                 (const uchar*) escape_str_ptr +
                                 escape_str->length());
-        escape= (int) (rc > 0 ? wc : '\\');
+        *escape= (int) (rc > 0 ? wc : '\\');
       }
       else
       {
@@ -5170,25 +5167,40 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
           code instead of Unicode code as "escape" argument.
           Convert to "cs" if charset of escape differs.
         */
-        CHARSET_INFO *cs= cmp_collation.collation;
         uint32 unused;
         if (escape_str->needs_conversion(escape_str->length(),
-                                         escape_str->charset(), cs, &unused))
+                                         escape_str->charset(),cmp_cs,&unused))
         {
           char ch;
           uint errors;
-          uint32 cnvlen= copy_and_convert(&ch, 1, cs, escape_str_ptr,
+          uint32 cnvlen= copy_and_convert(&ch, 1, cmp_cs, escape_str_ptr,
                                           escape_str->length(),
                                           escape_str->charset(), &errors);
-          escape= cnvlen ? ch : '\\';
+          *escape= cnvlen ? ch : '\\';
         }
         else
-          escape= escape_str_ptr ? *escape_str_ptr : '\\';
+          *escape= escape_str_ptr ? *escape_str_ptr : '\\';
       }
     }
     else
-      escape= '\\';
+      *escape= '\\';
+  }
 
+  return FALSE;
+}
+
+
+bool Item_func_like::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed == 0);
+  if (Item_bool_func2::fix_fields(thd, ref) ||
+      escape_item->fix_fields(thd, &escape_item) ||
+      fix_escape_item(thd, escape_item, &cmp_value1, escape_used_in_parsing,
+                      cmp_collation.collation, &escape))
+    return TRUE;
+
+  if (escape_item->const_item())
+  {
     /*
       We could also do boyer-more for non-const items, but as we would have to
       recompute the tables for each row it's not worth it.

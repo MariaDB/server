@@ -32,4 +32,10 @@ if ($node_3)
 --connection $node_3
 --eval SET @@global.auto_increment_offset = $auto_increment_offset_node_3;
 }
+
+if ($node_4)
+{
+--connection $node_4
+--eval SET @@global.auto_increment_offset = $auto_increment_offset_node_4;
+}
 --enable_query_log

@@ -21,6 +21,7 @@ addons:
       - debhelper
       - dh-apparmor
       - dpatch
+      - gdb
       - libaio-dev
       - libboost-dev
       - libjudy-dev

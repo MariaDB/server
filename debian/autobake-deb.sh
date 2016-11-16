@@ -1,14 +1,10 @@
 #!/bin/bash
-
-# Build MariaDB .deb packages.
-# Based on OurDelta .deb packaging scripts, which are in turn based on Debian
-# MySQL packages.
+#
+# Build MariaDB .deb packages for test and release at mariadb.org
+#
 
 # Exit immediately on any error
 set -e
-
-# Debug script and command lines
-#set -x
 
 # On Buildbot, don't run the mysql-test-run test suite as part of build.
 # It takes a lot of time, and we will do a better test anyway in
@@ -21,65 +17,85 @@ then
   export DEB_BUILD_OPTIONS="nocheck"
 fi
 
-export MARIADB_OPTIONAL_DEBS=""
-
-# Find major.minor version.
-#
-source ./VERSION
-UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${MYSQL_VERSION_EXTRA}"
-RELEASE_EXTRA=""
-
-RELEASE_NAME=""
-PATCHLEVEL="+maria"
-LOGSTRING="MariaDB build"
-
-# Look up distro-version specific stuff.
-
-CODENAME="$(lsb_release -sc)"
-
-# Add libcrack2 (>= 2.9.0) as a build dependency if available in the distribution
-# This matches Debian Jessie, Stretch and Ubuntu Trusty, Wily, Xenial, Yakkety
-# Update check when version 2.10 or newer is available.
-if apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
+# Travis-CI optimizations
+if [[ $TRAVIS ]]
 then
-  sed 's/Standards-Version/,libcrack2-dev (>= 2.9.0)\nStandards-Version/' debian/control
-  cat <<EOT >> debian/control
+  # On Travis-CI, the log must stay under 4MB so make the build less verbose
+  sed -i -e '/Add support for verbose builds/,+2d' debian/rules
 
-Package: mariadb-cracklib-password-check-10.2
-Architecture: any
-Depends: libcrack2 (>= 2.9.0),
-         mariadb-server-10.2,
-         \${misc:Depends},
-         \${shlibs:Depends}
-Description: CrackLib Password Validation Plugin for MariaDB
- This password validation plugin uses cracklib to allow only
- sufficiently secure (as defined by cracklib) user passwords in MariaDB.
-EOT
+  # Don't include test suite package on Travis-CI to make the build time shorter
+  sed '/Package: mariadb-test-data/,+26d' -i debian/control
+  sed '/Package: mariadb-test/,+34d' -i debian/control
 fi
 
-# Add libpcre3-dev (>= 2:8.35-3.2~) as a build dependency if available in the distribution
-# This matches Debian Jessie, Stretch and Ubuntu Wily, Xenial, Yakkety
+
+# Look up distro-version specific stuff
+# Always keep the actual packaging as up-to-date as possible following the latest
+# Debian policy and targetting Debian Sid. Then case-by-case run in autobake-deb.sh
+# tests for backwards compatibility and strip away parts on older builders.
+
+# If libcrack2 (>= 2.9.0) is not available (before Debian Jessie and Ubuntu Trusty)
+# clean away the cracklib stanzas so the package can build without them.
+if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
+then
+  sed '/libcrack2-dev/d' -i debian/control
+  sed '/Package: mariadb-plugin-cracklib/,+10d' -i debian/control
+fi
+
+# If libpcre3-dev (>= 2:8.35-3.2~) is not available (before Debian Jessie or Ubuntu Wily)
+# clean away the PCRE3 stanzas so the package can build without them.
 # Update check when version 2:8.40 or newer is available.
-if apt-cache madison libpcre3-dev | grep 'libpcre3-dev *| *2:8\.3[2-9]' >/dev/null 2>&1
+if ! apt-cache madison libpcre3-dev | grep 'libpcre3-dev *| *2:8\.3[2-9]' >/dev/null 2>&1
 then
-  sed 's/Standards-Version/,libpcre3-dev (>= 2:8.35-3.2~)\nStandards-Version/' debian/control
+  sed '/libpcre3-dev/d' -i debian/control
 fi
 
-# Adjust changelog, add new version.
-#
+# If libsystemd-dev is not available (before Debian Jessie or Ubuntu Wily)
+# clean away the systemd stanzas so the package can build without them.
+if ! apt-cache madison libsystemd-dev | grep 'libsystemd-dev' >/dev/null 2>&1
+then
+  sed '/dh-systemd/d' -i debian/control
+  sed '/libsystemd-dev/d' -i debian/control
+  sed 's/ --with systemd//' -i debian/rules
+  sed '/systemd/d' -i debian/rules
+  sed '/\.service/d' -i debian/rules
+  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.2.install
+  sed '/galera_recovery/d' -i debian/mariadb-server-10.2.install
+  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.2.install
+fi
+
+# Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
 
-dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME}" "Automatic build with ${LOGSTRING}."
+# Find major.minor version
+source ./VERSION
+UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${MYSQL_VERSION_EXTRA}"
+PATCHLEVEL="+maria"
+LOGSTRING="MariaDB build"
+CODENAME="$(lsb_release -sc)"
 
-echo "Creating package version ${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME} ... "
+dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
 
-# Build the package.
+echo "Creating package version ${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
+
+# Build the package
 # Pass -I so that .git and other unnecessary temporary and source control files
-# will be ignored by dpkg-source when createing the tar.gz source package
-fakeroot dpkg-buildpackage -us -uc -I
+# will be ignored by dpkg-source when creating the tar.gz source package.
+# Use -b to build binary only packages as there is no need to waste time on
+# generating the source package.
+fakeroot dpkg-buildpackage -us -uc -I -b
 
-[ -e debian/autorm-file ] && rm -vf `cat debian/autorm-file`
+# Don't log package contents on Travis-CI to save time and log size
+if [[ ! $TRAVIS ]]
+then
+  echo "List package contents ..."
+  cd ..
+  for package in `ls *.deb`
+  do
+    echo $package | cut -d '_' -f 1
+    dpkg-deb -c $package | awk '{print $1 " " $2 " " $6}' | sort -k 3
+    echo "------------------------------------------------"
+  done
+fi
 
 echo "Build complete"
-
-# end of autobake script

@@ -7232,3 +7232,10 @@ ER_PARTITION_DEFAULT_ERROR
         ukr "Припустимо мати тільки один DEFAULT розділ" 
 ER_REFERENCED_TRG_DOES_NOT_EXIST
   eng "Referenced trigger '%s' for the given action time and event type does not exist"
+ER_INVALID_DEFAULT_PARAM
+        eng "Default value is not supported for such parameter usage"
+        ukr "Значення за замовчуванням не підтримано для цього випадку використання параьетра"
+ER_BINLOG_NON_SUPPORTED_BULK
+        eng "Only row based replication supported for bulk operations"
+ER_BINLOG_UNCOMPRESS_ERROR
+        eng "Uncompress the compressed binlog failed"

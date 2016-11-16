@@ -658,6 +658,8 @@ public:
     DA_OK,
     /** Set whenever one calls my_eof(). */
     DA_EOF,
+    /** Set whenever one calls my_ok() in PS bulk mode. */
+    DA_OK_BULK,
     /** Set whenever one calls my_error() or my_message(). */
     DA_ERROR,
     /** Set in case of a custom response, such as one from COM_STMT_PREPARE. */
@@ -699,13 +701,21 @@ public:
 
   bool is_disabled() const { return m_status == DA_DISABLED; }
 
+  void set_bulk_execution(bool bulk) { is_bulk_execution= bulk; }
+
+  bool is_bulk_op() const { return is_bulk_execution; }
+
   enum_diagnostics_status status() const { return m_status; }
 
   const char *message() const
-  { DBUG_ASSERT(m_status == DA_ERROR || m_status == DA_OK); return m_message; }
+  { DBUG_ASSERT(m_status == DA_ERROR || m_status == DA_OK ||
+                m_status == DA_OK_BULK); return m_message; }
 
   bool skip_flush() const
-  { DBUG_ASSERT(m_status == DA_OK); return m_skip_flush; }
+  {
+    DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK);
+    return m_skip_flush;
+  }
 
   void set_skip_flush()
   { m_skip_flush= TRUE; }
@@ -717,14 +727,21 @@ public:
   { DBUG_ASSERT(m_status == DA_ERROR); return m_sqlstate; }
 
   ulonglong affected_rows() const
-  { DBUG_ASSERT(m_status == DA_OK); return m_affected_rows; }
+  {
+    DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK);
+    return m_affected_rows;
+  }
 
   ulonglong last_insert_id() const
-  { DBUG_ASSERT(m_status == DA_OK); return m_last_insert_id; }
+  {
+    DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK);
+    return m_last_insert_id;
+  }
 
   uint statement_warn_count() const
   {
-    DBUG_ASSERT(m_status == DA_OK || m_status == DA_EOF);
+    DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK ||
+                m_status == DA_EOF);
     return m_statement_warn_count;
   }
 
@@ -906,6 +923,8 @@ private:
   uint	     m_statement_warn_count;
 
   enum_diagnostics_status m_status;
+
+  my_bool is_bulk_execution;
 
   Warning_info m_main_wi;
 

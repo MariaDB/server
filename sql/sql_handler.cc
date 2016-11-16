@@ -282,7 +282,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     back-off for such locks.
   */
   tables->mdl_request.init(MDL_key::TABLE, tables->db, tables->table_name,
-                           MDL_SHARED, MDL_TRANSACTION);
+                           MDL_SHARED_READ, MDL_TRANSACTION);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   /* for now HANDLER can be used only for real TABLES */
@@ -750,11 +750,12 @@ retry:
   tables->table= table;                         // This is used by fix_fields
   table->pos_in_table_list= tables;
 
-  if (handler->lock->lock_count > 0)
+  if (handler->lock->table_count > 0)
   {
     int lock_error;
 
-    handler->lock->locks[0]->type= handler->lock->locks[0]->org_type;
+    if (handler->lock->lock_count > 0)
+      handler->lock->locks[0]->type= handler->lock->locks[0]->org_type;
 
     /* save open_tables state */
     TABLE* backup_open_tables= thd->open_tables;

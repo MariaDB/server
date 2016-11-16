@@ -11,11 +11,17 @@ enum enum_server_command
   COM_STMT_RESET, COM_SET_OPTION, COM_STMT_FETCH, COM_DAEMON,
   COM_MDB_GAP_BEG,
   COM_MDB_GAP_END=250,
-  COM_SLAVE_WORKER,
-  COM_SLAVE_IO,
-  COM_SLAVE_SQL,
-  COM_MULTI,
-  COM_END
+  COM_SLAVE_WORKER=251,
+  COM_SLAVE_IO=252,
+  COM_SLAVE_SQL=253,
+  COM_MULTI=254,
+  COM_END=255
+};
+enum enum_indicator_type
+{
+  STMT_INDICATOR_NONE= 0,
+  STMT_INDICATOR_NULL,
+  STMT_INDICATOR_DEFAULT
 };
 struct st_vio;
 typedef struct st_vio Vio;
@@ -109,8 +115,8 @@ my_bool net_write_command(NET *net,unsigned char command,
      const unsigned char *packet, size_t len);
 int net_real_write(NET *net,const unsigned char *packet, size_t len);
 unsigned long my_net_read_packet(NET *net, my_bool read_from_server);
-ulong my_net_read_packet_reallen(NET *net, my_bool read_from_server,
-                                 ulong* reallen);
+unsigned long my_net_read_packet_reallen(NET *net, my_bool read_from_server,
+                                         unsigned long* reallen);
 struct sockaddr;
 int my_connect(my_socket s, const struct sockaddr *name, unsigned int namelen,
         unsigned int timeout);

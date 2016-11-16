@@ -57,6 +57,7 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.f1 = 'a';
 
 --connection node_2
+--replace_column 7 #
 SHOW CREATE TRIGGER tr1;
 DROP TABLE t1;
 

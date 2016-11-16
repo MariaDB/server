@@ -112,9 +112,26 @@
 #undef MY_ATOMIC_HAS_8_16
 
 /*
- * Attempt to do atomic ops without locks
- */
-#include "atomic/nolock.h"
+  We choose implementation as follows:
+  ------------------------------------
+  On Windows using Visual C++ the native implementation should be
+  preferrable. When using gcc we prefer the Solaris implementation
+  before the gcc because of stability preference, we choose gcc
+  builtins if available, otherwise we choose the somewhat broken
+  native x86 implementation. If neither Visual C++ or gcc we still
+  choose the Solaris implementation on Solaris (mainly for SunStudio
+  compilers).
+*/
+#if defined(_MSC_VER)
+#include "atomic/generic-msvc.h"
+#elif defined(HAVE_SOLARIS_ATOMIC)
+#include "atomic/solaris.h"
+#elif defined(HAVE_GCC_ATOMIC_BUILTINS)
+#include "atomic/gcc_builtins.h"
+#elif defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+#include "atomic/x86-gcc.h"
+#endif
+
 
 #ifndef make_atomic_cas_body
 /* nolock.h was not able to generate even a CAS function, fall back */

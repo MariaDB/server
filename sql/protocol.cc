@@ -572,6 +572,7 @@ void Protocol::end_statement()
                     thd->get_stmt_da()->statement_warn_count());
     break;
   case Diagnostics_area::DA_OK:
+  case Diagnostics_area::DA_OK_BULK:
     error= send_ok(thd->server_status,
                    thd->get_stmt_da()->statement_warn_count(),
                    thd->get_stmt_da()->affected_rows(),

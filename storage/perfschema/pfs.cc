@@ -4827,6 +4827,7 @@ static void end_statement_v1(PSI_statement_locker *locker, void *stmt_da)
 
       switch(da->status())
       {
+        case Diagnostics_area::DA_OK_BULK:
         case Diagnostics_area::DA_EMPTY:
           break;
         case Diagnostics_area::DA_OK:
@@ -4960,6 +4961,7 @@ static void end_statement_v1(PSI_statement_locker *locker, void *stmt_da)
 
   switch (da->status())
   {
+    case Diagnostics_area::DA_OK_BULK:
     case Diagnostics_area::DA_EMPTY:
       break;
     case Diagnostics_area::DA_OK:

@@ -570,17 +570,19 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_UPDATES_DATA;
+                                            CF_UPDATES_DATA | CF_SP_BULK_SAFE;
   sql_command_flags[SQLCOM_UPDATE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_UPDATES_DATA;
+                                            CF_UPDATES_DATA | CF_SP_BULK_SAFE;
   sql_command_flags[SQLCOM_INSERT]=	    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_INSERTS_DATA;
+                                            CF_INSERTS_DATA |
+                                            CF_SP_BULK_SAFE |
+                                            CF_SP_BULK_OPTIMIZED;
   sql_command_flags[SQLCOM_INSERT_SELECT]=  CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -598,7 +600,7 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_INSERTS_DATA;;
+                                            CF_INSERTS_DATA | CF_SP_BULK_SAFE;
   sql_command_flags[SQLCOM_REPLACE_SELECT]= CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -4792,7 +4794,8 @@ end_with_restore_list:
     if (lock_tables_precheck(thd, all_tables))
       goto error;
 
-    thd->variables.option_bits|= OPTION_TABLE_LOCK;
+    thd->variables.option_bits|= OPTION_TABLE_LOCK | OPTION_NOT_AUTOCOMMIT;
+    thd->server_status&= ~SERVER_STATUS_AUTOCOMMIT;
 
     res= lock_tables_open_and_lock_tables(thd, all_tables);
 

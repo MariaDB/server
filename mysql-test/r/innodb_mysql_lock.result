@@ -95,8 +95,6 @@ LOCK TABLES t1 READ;
 SELECT release_lock('bug42147_lock');
 release_lock('bug42147_lock')
 1
-connection default;
-connection con2;
 UNLOCK TABLES;
 connection default;
 disconnect con2;

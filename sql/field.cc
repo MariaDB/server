@@ -10821,3 +10821,43 @@ bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
   dbug_tmp_restore_column_map(table->read_set, old_map);
   return rc;
 }
+
+
+bool Field::save_in_field_default_value(bool view_error_processing)
+{
+  THD *thd= table->in_use;
+
+  if (flags & NO_DEFAULT_VALUE_FLAG &&
+      real_type() != MYSQL_TYPE_ENUM)
+  {
+    if (reset())
+    {
+      my_message(ER_CANT_CREATE_GEOMETRY_OBJECT,
+                 ER_THD(thd, ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
+      return -1;
+    }
+
+    if (view_error_processing)
+    {
+      TABLE_LIST *view= table->pos_in_table_list->top_table();
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_NO_DEFAULT_FOR_VIEW_FIELD,
+                          ER_THD(thd, ER_NO_DEFAULT_FOR_VIEW_FIELD),
+                          view->view_db.str,
+                          view->view_name.str);
+    }
+    else
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_NO_DEFAULT_FOR_FIELD,
+                          ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
+                          field_name);
+    }
+    return 1;
+  }
+  set_default();
+  return
+    !is_null() &&
+    validate_value_in_record_with_warn(thd, table->record[0]) &&
+    thd->is_error() ? -1 : 0;
+}

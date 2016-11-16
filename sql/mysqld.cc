@@ -389,6 +389,8 @@ static DYNAMIC_ARRAY all_options;
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
+bool opt_bin_log_compress;
+uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
 my_bool debug_assert_on_not_freed_memory= 0;
 my_bool disable_log_notes;
@@ -5170,6 +5172,12 @@ static int init_server_components()
   }
 
   /*
+    Since some wsrep threads (THDs) are create before plugins are
+    initialized, LOCK_plugin mutex needs to be initialized here.
+  */
+  plugin_mutex_init();
+
+  /*
     Wsrep initialization must happen at this point, because:
     - opt_bin_logname must be known when starting replication
       since SST may need it
@@ -5410,6 +5418,17 @@ static int init_server_components()
 #endif
 
 #ifdef WITH_WSREP
+  /*
+    Now is the right time to initialize members of wsrep startup threads
+    that rely on plugins and other related global system variables to be
+    initialized. This initialization was not possible before, as plugins
+    (and thus some global system variables) are initialized after wsrep
+    startup threads are created.
+    Note: This only needs to be done for rsync, xtrabackup based SST methods.
+  */
+  if (wsrep_before_SE())
+    wsrep_plugins_post_init();
+
   if (WSREP_ON && !opt_bin_log)
   {
     wsrep_emulate_bin_log= 1;
@@ -6008,11 +6027,26 @@ int mysqld_main(int argc, char **argv)
   }
 
   disable_log_notes= 0; /* Startup done, now we can give notes again */
-  sql_print_information(ER_DEFAULT(ER_STARTUP),my_progname,server_version,
-                        ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
-                         (char*) "" : mysqld_unix_port),
-                         mysqld_port,
-                         MYSQL_COMPILATION_COMMENT);
+
+  if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
+    sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname, server_version,
+                          ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
+                           (char*) "" : mysqld_unix_port),
+                          mysqld_port, MYSQL_COMPILATION_COMMENT);
+  else
+  {
+    char real_server_version[2 * SERVER_VERSION_LENGTH + 10];
+
+    set_server_version(real_server_version, sizeof(real_server_version));
+    strcat(real_server_version, "' as '");
+    strcat(real_server_version, server_version);
+
+    sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname,
+                          real_server_version,
+                          ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
+                           (char*) "" : mysqld_unix_port),
+                          mysqld_port, MYSQL_COMPILATION_COMMENT);
+  }
 
   // try to keep fd=0 busy
   if (!freopen(IF_WIN("NUL","/dev/null"), "r", stdin))

@@ -36,6 +36,7 @@
 #include <cstdlib>
 #include "log_event.h"
 #include <slave.h>
+#include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 
 wsrep_t *wsrep                  = NULL;
 /*
@@ -792,7 +793,6 @@ void wsrep_thr_init()
   DBUG_VOID_RETURN;
 }
 
-
 void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
@@ -802,6 +802,17 @@ void wsrep_init_startup (bool first)
      (wsrep_abort_thd_fun)wsrep_abort_thd,
      wsrep_debug, wsrep_convert_LOCK_to_trx,
      (wsrep_on_fun)wsrep_on);
+
+  /*
+    Pre-initialize global_system_variables.table_plugin with a dummy engine
+    (placeholder) required during the initialization of wsrep threads (THDs).
+    (see: plugin_thdvar_init())
+    Note: This only needs to be done for rsync & xtrabackup based SST methods.
+    In case of mysqldump SST method, the wsrep threads are created after the
+    server plugins & global system variables are initialized.
+  */
+  if (wsrep_before_SE())
+    wsrep_plugins_pre_init();
 
   /* Skip replication start if dummy wsrep provider is loaded */
   if (!strcmp(wsrep_provider, WSREP_NONE)) return;
@@ -1237,9 +1248,11 @@ int wsrep_to_buf_helper(
                        65536, MYF(MY_WME)))
     return 1;
   int ret(0);
+  enum enum_binlog_checksum_alg current_binlog_check_alg=
+    (enum_binlog_checksum_alg) binlog_checksum_options;
 
   Format_description_log_event *tmp_fd= new Format_description_log_event(4);
-  tmp_fd->checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
+  tmp_fd->checksum_alg= current_binlog_check_alg;
   writer.write(tmp_fd);
   delete tmp_fd;
 
@@ -1258,11 +1271,13 @@ int wsrep_to_buf_helper(
     Query_log_event ev(thd, thd->wsrep_TOI_pre_query,
 		       thd->wsrep_TOI_pre_query_len,
 		       FALSE, FALSE, FALSE, 0);
+    ev.checksum_alg= current_binlog_check_alg;
     if (writer.write(&ev)) ret= 1;
   }
 
   /* continue to append the actual query */
   Query_log_event ev(thd, query, query_len, FALSE, FALSE, FALSE, 0);
+  ev.checksum_alg= current_binlog_check_alg;
   if (!ret && writer.write(&ev)) ret= 1;
   if (!ret && wsrep_write_cache_buf(&tmp_io_cache, buf, buf_len)) ret= 1;
   close_cached_file(&tmp_io_cache);

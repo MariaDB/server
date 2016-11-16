@@ -150,14 +150,16 @@ let $wait_condition=
 --source include/wait_condition.inc
 LOCK TABLES t1 READ;
 SELECT release_lock('bug42147_lock');
+let $wait_condition=
+  SELECT COUNT(*) > 0 FROM information_schema.processlist
+  WHERE state = 'executing'
+  AND info = 'INSERT INTO t1 SELECT get_lock(\'bug42147_lock\', 60)';
+--source include/wait_condition.inc
+UNLOCK TABLES;
 
 connection default;
 --reap
 
-connection con2;
-UNLOCK TABLES;
-
-connection default;
 disconnect con2;
 DROP TABLE t1;
 
