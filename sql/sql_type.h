@@ -33,12 +33,12 @@ struct SORT_FIELD_ATTR;
 class Type_handler
 {
 protected:
-  const Type_handler *string_type_handler(uint max_octet_length) const;
   void make_sort_key_longlong(uchar *to,
                               bool maybe_null, bool null_value,
                               bool unsigned_flag,
                               longlong value) const;
 public:
+  static const Type_handler *string_type_handler(uint max_octet_length);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
   virtual enum_field_types field_type() const= 0;
@@ -499,7 +499,7 @@ public:
   Makes sure that field_type(), cmp_type() and result_type()
   are always in sync to each other for hybrid functions.
 */
-class Type_handler_hybrid_field_type: public Type_handler
+class Type_handler_hybrid_field_type
 {
   const Type_handler *m_type_handler;
   const Type_handler *get_handler_by_result_type(Item_result type) const;
@@ -509,11 +509,12 @@ public:
    :m_type_handler(handler)
   { }
   Type_handler_hybrid_field_type(enum_field_types type)
-    :m_type_handler(get_handler_by_field_type(type))
+    :m_type_handler(Type_handler::get_handler_by_field_type(type))
   { }
   Type_handler_hybrid_field_type(const Type_handler_hybrid_field_type *other)
     :m_type_handler(other->m_type_handler)
   { }
+  const Type_handler *type_handler() const { return m_type_handler; }
   enum_field_types field_type() const { return m_type_handler->field_type(); }
   enum_field_types real_field_type() const
   {
@@ -540,42 +541,12 @@ public:
   }
   const Type_handler *set_handler_by_field_type(enum_field_types type)
   {
-    return (m_type_handler= get_handler_by_field_type(type));
+    return (m_type_handler= Type_handler::get_handler_by_field_type(type));
   }
   const Type_handler *set_handler_by_real_type(enum_field_types type)
   {
-    return (m_type_handler= get_handler_by_real_type(type));
+    return (m_type_handler= Type_handler::get_handler_by_real_type(type));
   }
-  const Type_handler *
-  type_handler_adjusted_to_max_octet_length(uint max_octet_length,
-                                            CHARSET_INFO *cs) const
-  {
-    return
-      m_type_handler->type_handler_adjusted_to_max_octet_length(max_octet_length,
-                                                                cs);
-  }
-  Field *make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
-                                            const Item *item) const
-  {
-    return m_type_handler->make_num_distinct_aggregator_field(mem_root, item);
-  }
-  Field *make_conversion_table_field(TABLE *table, uint metadata,
-                                     const Field *target) const
-  {
-    return m_type_handler->make_conversion_table_field(table, metadata, target);
-  }
-  void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
-                     Sort_param *param) const
-  {
-    m_type_handler->make_sort_key(to, item, sort_field, param);
-  }
-  void sortlength(THD *thd,
-                  const Type_std_attributes *item,
-                  SORT_FIELD_ATTR *attr) const
-  {
-    m_type_handler->sortlength(thd, item, attr);
-  }
-
 };
 
 
@@ -587,7 +558,8 @@ class Type_handler_hybrid_real_field_type:
 {
 public:
   Type_handler_hybrid_real_field_type(enum_field_types type)
-    :Type_handler_hybrid_field_type(get_handler_by_real_type(type))
+    :Type_handler_hybrid_field_type(Type_handler::
+                                    get_handler_by_real_type(type))
   { }
 };
 

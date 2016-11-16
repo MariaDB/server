@@ -755,6 +755,8 @@ public:
   longlong val_int();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
   enum Item_result result_type () const
@@ -1012,6 +1014,8 @@ protected:
   void reset_field();
   String *val_str(String *);
   bool keep_field_type(void) const { return 1; }
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
   enum Item_result result_type () const
   { return Type_handler_hybrid_field_type::result_type(); }
   enum Item_result cmp_type () const

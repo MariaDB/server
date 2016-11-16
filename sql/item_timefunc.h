@@ -565,6 +565,8 @@ protected:
 public:
   Item_temporal_hybrid_func(THD *thd, Item *a, Item *b):
     Item_temporal_func(thd, a, b) {}
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
   enum Item_result result_type () const

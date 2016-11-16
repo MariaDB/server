@@ -68,7 +68,7 @@ static Type_handler_set         type_handler_set;
   all around the code.
 */
 const Type_handler *
-Type_handler::string_type_handler(uint max_octet_length) const
+Type_handler::string_type_handler(uint max_octet_length)
 {
   if (max_octet_length >= 16777216)
     return &type_handler_long_blob;

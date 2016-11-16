@@ -399,6 +399,8 @@ public:
   Item_hybrid_func(THD *thd, List<Item> &list): Item_func(thd, list) { }
   Item_hybrid_func(THD *thd, Item_hybrid_func *item)
     :Item_func(thd, item), Type_handler_hybrid_field_type(item) { }
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
   enum_field_types field_type() const
   { return Type_handler_hybrid_field_type::field_type(); }
   enum Item_result result_type () const

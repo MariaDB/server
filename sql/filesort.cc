@@ -1183,7 +1183,8 @@ static void make_sortkey(register Sort_param *param,
     }
     else
     {						// Item
-      sort_field->item->make_sort_key(to, sort_field->item, sort_field, param);
+      sort_field->item->type_handler()->make_sort_key(to, sort_field->item,
+                                                      sort_field, param);
       if ((maybe_null= sort_field->item->maybe_null))
         to++;
     }
@@ -1983,7 +1984,8 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
     }
     else
     {
-      sortorder->item->sortlength(thd, sortorder->item, sortorder);
+      sortorder->item->type_handler()->sortlength(thd, sortorder->item,
+                                                  sortorder);
       if (use_strnxfrm(sortorder->item->collation.collation))
       {
         *multi_byte_charset= true;
