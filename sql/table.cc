@@ -6272,15 +6272,34 @@ void TABLE::mark_columns_needed_for_update()
 
   if (triggers)
     triggers->mark_fields_used(TRG_EVENT_UPDATE);
+  if (default_field)
+    mark_default_fields_for_write(FALSE);
+  if (vfield)
+    need_signal|= mark_virtual_columns_for_write(FALSE);
   if (file->ha_table_flags() & HA_REQUIRES_KEY_COLUMNS_FOR_DELETE)
   {
-    /* Mark all used key columns for read */
-    Field **reg_field;
-    for (reg_field= field ; *reg_field ; reg_field++)
+    KEY *end= key_info + s->keys;
+    for (KEY *k= key_info; k < end; k++)
     {
-      /* Merge keys is all keys that had a column refered to in the query */
-      if (merge_keys.is_overlapping((*reg_field)->part_of_key))
-        bitmap_set_bit(read_set, (*reg_field)->field_index);
+      KEY_PART_INFO *kpend= k->key_part + k->ext_key_parts;
+      bool any_written= false, all_read= true;
+      for (KEY_PART_INFO *kp= k->key_part; kp < kpend; kp++)
+      {
+        int idx= kp->fieldnr - 1;
+        any_written|= bitmap_is_set(write_set, idx);
+        all_read&= bitmap_is_set(read_set, idx);
+      }
+      if (any_written && !all_read)
+      {
+        for (KEY_PART_INFO *kp= k->key_part; kp < kpend; kp++)
+        {
+          int idx= kp->fieldnr - 1;
+          if (bitmap_fast_test_and_set(read_set, idx))
+            continue;
+          if (field[idx]->vcol_info)
+            mark_virtual_col(field[idx]);
+        }
+      }
     }
     need_signal= true;
   }
@@ -6299,11 +6318,6 @@ void TABLE::mark_columns_needed_for_update()
       need_signal= true;
     }
   }
-  if (default_field)
-    mark_default_fields_for_write(FALSE);
-  /* Mark all virtual columns needed for update */
-  if (vfield)
-    need_signal|= mark_virtual_columns_for_write(FALSE);
   if (check_constraints)
   {
     mark_check_constraint_columns_for_read();

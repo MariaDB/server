@@ -8,3 +8,30 @@ select * from t1;
 a	b	c
 2	3	4
 drop table t1;
+create table t1 (a int, c int as(a), p varchar(20) as(y), y char(20), index (p,c));
+insert into t1 (a,y) values(1, "yyy");
+update t1 set a = 100 where a = 1;
+drop table t1;
+create table t1 (
+a varchar(10000),
+b varchar(3000),
+c varchar(14000) generated always as (concat(a,b)) virtual,
+d varchar(5000) generated always as (b) virtual,
+e int(11) generated always as (10) virtual,
+h int(11) not null primary key,
+index(c(100), d(20)));
+insert t1 (a,b,h) values (repeat('g', 10000), repeat('x', 2800), 1);
+update t1 set a = repeat(cast(1 as char), 2000);
+drop table t1;
+create table t1 (
+a varchar(10000),
+b varchar(3000),
+c varchar(14000) generated always as (concat(a,b)) virtual,
+i varchar(5000) generated always as (b) virtual,
+d varchar(5000) generated always as (i) virtual,
+e int(11) generated always as (10) virtual,
+h int(11) not null primary key,
+index(c(100), d(20)));
+insert t1 (a,b,h) values (repeat('g', 10000), repeat('x', 2800), 1);
+update t1 set a = repeat(cast(1 as char), 2000);
+drop table t1;
