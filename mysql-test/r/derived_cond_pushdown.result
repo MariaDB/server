@@ -7167,3 +7167,57 @@ EXPLAIN
 }
 DROP VIEW v2,v3;
 DROP TABLE t1,t2,t3;
+#
+# MDEV-11102: condition pushdown into materialized inner table 
+#              of outer join is not applied as not being valid 
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1),(2);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+SELECT * FROM t1 LEFT JOIN t2 ON a = b WHERE b IS NULL;
+a	b
+0	NULL
+SELECT * FROM t1 LEFT JOIN v2 ON a = b WHERE b IS NULL;
+a	b
+0	NULL
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1 LEFT JOIN v2 ON a = b WHERE b IS NULL;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["b"],
+      "ref": ["test.t1.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "(trigcond(isnull(v2.b)) and trigcond(trigcond((t1.a is not null))))",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+DROP VIEW v2;
+DROP TABLE t1,t2;
