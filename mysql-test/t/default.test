@@ -196,7 +196,7 @@ DROP TABLE t1;
 --echo #
 
 # Note, the problem was not repeatable with a non-fresh connection.
---connect (con1,127.0.0.1,root,,test)
+--connect (con1,localhost,root,,test)
 CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ();
 INSERT INTO t1 VALUES ();
