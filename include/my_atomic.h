@@ -110,7 +110,7 @@
 #include "atomic/generic-msvc.h"
 #elif defined(HAVE_SOLARIS_ATOMIC)
 #include "atomic/solaris.h"
-#elif defined(HAVE_GCC_ATOMIC_BUILTINS)
+#elif defined(HAVE_GCC_ATOMIC_BUILTINS) || defined(HAVE_GCC_C11_ATOMICS)
 #include "atomic/gcc_builtins.h"
 #endif
 
