@@ -72,7 +72,7 @@ override_dh_auto_configure:
 	# Remove symbols file on kFreeBSD builds so that
 	# dpkg-gensymbols will not fail the build.
 ifneq (,$(filter $(ARCH), kfreebsd-i386 kfreebsd-amd64))
-	rm debian/libmariadbclient18.symbols
+	rm debian/libmariadb3.symbols
 endif
 
 	mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && \
