@@ -1504,6 +1504,8 @@ NULL
 NULL
 NULL
 0
+SELECT * FROM t WHERE d > 0;
+a	b	d
 SELECT * FROM t;
 a	b	d
 0	0	0

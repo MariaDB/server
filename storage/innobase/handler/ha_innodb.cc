@@ -8455,6 +8455,8 @@ ha_innobase::build_template(
 			if (innobase_is_v_fld(table->field[i])) {
 				index_contains = dict_index_contains_col_or_prefix(
 					index, num_v, true);
+                                if (index_contains)
+                                        goto no_icp;
 			} else {
 				index_contains = dict_index_contains_col_or_prefix(
 					index, i - num_v, false);
@@ -8637,6 +8639,7 @@ ha_innobase::build_template(
 
 		m_prebuilt->idx_cond = this;
 	} else {
+no_icp:
 		mysql_row_templ_t*	templ;
 		ulint			num_v = 0;
 		/* No index condition pushdown */
