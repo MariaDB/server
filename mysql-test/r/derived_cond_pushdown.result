@@ -7221,3 +7221,44 @@ EXPLAIN
 }
 DROP VIEW v2;
 DROP TABLE t1,t2;
+#
+# MDEV-11103: pushdown condition with ANY subquery
+#
+CREATE TABLE t1 (i INT);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+EXPLAIN FORMAT=JSON
+SELECT * FROM v1 WHERE i <= ANY ( SELECT 3 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "<nop>((v1.i <= 3))",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "attached_condition": "<nop>((t1.i <= 3))"
+          }
+        }
+      }
+    }
+  }
+}
+Warnings:
+Note	1249	Select 2 was reduced during optimization
+SELECT * FROM v1 WHERE i <= ANY ( SELECT 3 );
+i
+1
+2
+DROP VIEW v1;
+DROP TABLE t1;
