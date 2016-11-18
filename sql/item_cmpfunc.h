@@ -649,6 +649,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "<nop>"; }
   Item *neg_transformer(THD *thd);
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_nop_all>(thd, mem_root, this); }
 };
 
 

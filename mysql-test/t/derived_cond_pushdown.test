@@ -988,3 +988,42 @@ SELECT * FROM t1 WHERE a IN (
 
 DROP VIEW v2,v3;
 DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-11102: condition pushdown into materialized inner table 
+--echo #              of outer join is not applied as not being valid 
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(2);
+ 
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1),(2);
+ 
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+ 
+SELECT * FROM t1 LEFT JOIN t2 ON a = b WHERE b IS NULL;
+
+SELECT * FROM t1 LEFT JOIN v2 ON a = b WHERE b IS NULL;
+
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1 LEFT JOIN v2 ON a = b WHERE b IS NULL;
+
+DROP VIEW v2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-11103: pushdown condition with ANY subquery
+--echo #
+
+CREATE TABLE t1 (i INT);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+
+EXPLAIN FORMAT=JSON
+SELECT * FROM v1 WHERE i <= ANY ( SELECT 3 );
+
+SELECT * FROM v1 WHERE i <= ANY ( SELECT 3 );
+
+DROP VIEW v1;
+DROP TABLE t1;

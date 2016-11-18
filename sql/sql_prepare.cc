@@ -3063,7 +3063,11 @@ void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
   uchar *packet= (uchar*)packet_arg; // GCC 4.0.1 workaround
   ulong stmt_id= uint4korr(packet);
   ulong flags= (ulong) packet[4];
+#ifndef EMBEDDED_LIBRARY
   ulong iterations= uint4korr(packet + 5);
+#else
+  ulong iterations= 0; // no support
+#endif
   /* Query text for binary, general or slow log, if any of them is open */
   String expanded_query;
   uchar *packet_end= packet + packet_length;

@@ -74,7 +74,8 @@ Architecture: any
 Section: libdevel
 Provides: libmysqld-dev
 Pre-Depends: ${misc:Pre-Depends}
-Depends: libmariadbclient-dev (= ${binary:Version}),
+Depends: libmariadbd19,
+         libmariadbclient-dev (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: libmysqld-dev
@@ -86,6 +87,21 @@ Description: MariaDB embedded database, development files
  ease of use.
  .
  This package includes the embedded server library development and header files.
+
+Package: libmariadbd19
+Architecture: any
+Section: libs
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Multi-Arch: same
+Breaks: libmariadbd-dev (<< ${source:Version}), libmysqld-dev
+Replaces: libmariadbd-dev (<< ${source:Version}), libmysqld-dev
+Description: MariaDB embedded database, shared library
+ MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
+ server. SQL (Structured Query Language) is the most popular database query
+ language in the world. The main goals of MariaDB are speed, robustness and
+ ease of use.
+ .
+ This package includes a shared library for embedded MariaDB applications
 
 Package: libmariadbclient-dev
 Architecture: any
