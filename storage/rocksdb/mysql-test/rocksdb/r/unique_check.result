@@ -1,63 +1,91 @@
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
+connect  con3, localhost, root,,;
+connection default;
 set debug_sync='RESET';
 drop table if exists t1;
 create table t1 (id int, value int, primary key (id)) engine=rocksdb;
 create table t2 (id int, id2 int, value int, primary key (id), unique key (id2)) engine=rocksdb;
+connection con1;
 begin;
 insert into t1 values (1,1);
+connection con2;
 set session rocksdb_lock_wait_timeout=50;
 begin;
 insert into t1 values (1,2);
+connection con1;
 commit;
+connection con2;
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 commit;
 select * from t1;
 id	value
 1	1
 truncate table t1;
+connection con1;
 begin;
 insert into t2 values (1,1,1);
+connection con2;
 begin;
 insert into t2 values (2,1,2);
+connection con1;
 commit;
+connection con2;
 ERROR 23000: Duplicate entry '1' for key 'id2'
 commit;
 select * from t2;
 id	id2	value
 1	1	1
 truncate table t2;
+connection con1;
 begin;
 insert into t1 values (1,1);
+connection con2;
 begin;
 insert into t1 values (1,2);
+connection con1;
 rollback;
+connection con2;
 commit;
 select * from t1;
 id	value
 1	2
 truncate table t1;
+connection con1;
 begin;
 insert into t2 values (1,1,1);
+connection con2;
 begin;
 insert into t2 values (2,1,2);
+connection con1;
 rollback;
+connection con2;
 commit;
 select * from t2;
 id	id2	value
 2	1	2
 truncate table t2;
+connection con1;
 set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go1';
 insert into t1 values (1,1);
+connection con2;
 set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go2';
 insert into t2 values (1,1,1);
+connection default;
 set debug_sync='now WAIT_FOR parked1';
 set debug_sync='now WAIT_FOR parked2';
+connection con3;
 set session rocksdb_lock_wait_timeout=1;
 insert into t1 values (1,2);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into t2 values (2,1,2);
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t2.id2
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
 set debug_sync='now SIGNAL go1';
 set debug_sync='now SIGNAL go2';
+connection con1;
+connection con2;
+connection default;
 insert into t1 values (1,2);
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 insert into t2 values (2,1,2);
@@ -68,5 +96,9 @@ id	value
 select * from t2;
 id	id2	value
 1	1	1
+connection default;
 set debug_sync='RESET';
+disconnect con1;
+disconnect con2;
+disconnect con3;
 drop table t1, t2;

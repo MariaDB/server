@@ -15,7 +15,7 @@ drop table if exists t1;
 # create the actual table
 CREATE TABLE t1 (a INT) ENGINE=rocksdb;
 
-let $exec = python suite/rocksdb/t/rocksdb_concurrent_insert.py root 127.0.0.1 $MASTER_MYPORT test t1 100 4;
+let $exec = python ../storage/rocksdb/mysql-test/rocksdb/t/rocksdb_concurrent_insert.py root 127.0.0.1 $MASTER_MYPORT test t1 100 4;
 exec $exec;
 
 SELECT COUNT(*) from t1;
