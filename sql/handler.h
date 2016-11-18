@@ -204,6 +204,9 @@ enum enum_alter_inplace_result {
 /* old name for the same flag */
 #define HA_MUST_USE_TABLE_CONDITION_PUSHDOWN HA_CAN_TABLE_CONDITION_PUSHDOWN
 
+/* Engine supports  filed like varchar/blob/text to be compressed. 
+Currently only innobase supports this function. */
+#define HA_CAN_FIELD_COMPRESSED				 (1ULL << 50)
 /**
   The handler supports read before write removal optimization
 

@@ -2243,7 +2243,7 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
     Try not to reset it, or explain why it needs to be reset.
   */
   tmp->unireg_check= Field::NONE;
-  tmp->flags&= (NOT_NULL_FLAG | BLOB_FLAG | UNSIGNED_FLAG |
+  tmp->flags&= (NOT_NULL_FLAG | BLOB_FLAG | FIELD_IS_COMPRESSED | UNSIGNED_FLAG |
                 ZEROFILL_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG);
   tmp->reset_fields();
   return tmp;
@@ -7872,6 +7872,8 @@ Field_blob::Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 {
   DBUG_ASSERT(blob_pack_length <= 4); // Only pack lengths 1-4 supported currently
   flags|= BLOB_FLAG;
+  if (unireg_check_arg == COMPRESSED_PROPERTY_FIELD)
+    flags |= FIELD_IS_COMPRESSED;
   share->blob_fields++;
   /* TODO: why do not fill table->s->blob_field array here? */
 }
@@ -8383,6 +8385,9 @@ uint Field_blob::max_packed_col_length(uint max_length)
 
 uint Field_blob::is_equal(Create_field *new_field)
 {
+  if (is_compressed() != new_field->is_compressed())
+    return 0;
+
   return ((new_field->sql_type == get_blob_type_from_length(max_data_length()))
           && new_field->charset == field_charset &&
           new_field->pack_length == pack_length());
@@ -9898,6 +9903,22 @@ bool Column_definition::check(THD *thd)
     unireg_check= Field::NEXT_NUMBER;
 
   sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
+
+  switch(sql_type)
+  {	
+  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_VARCHAR:
+    break;
+  default:
+    if(flags & FIELD_IS_COMPRESSED)
+    {/* only BOLB/TEXT/VARCHAR/VARBINARY type can have compressed property */
+      my_error(ER_FIELD_TYPE_NOT_ALLOWED_AS_COMPRESSED_FIELD, MYF(0), field_name);
+      DBUG_RETURN(1);
+    }
+  }
 
   switch (sql_type) {
   case MYSQL_TYPE_TINY:

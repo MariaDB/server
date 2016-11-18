@@ -195,7 +195,7 @@ be less than 256 */
 				MySQL uses 2 bytes to store the data len;
 				for shorter VARCHARs MySQL uses only 1 byte */
 #define	DATA_VIRTUAL	8192	/* Virtual column */
-
+#define DATA_IS_COMPRESSED 16384 /* Used as the flag, if data is compressed */
 /*-------------------------------------------*/
 
 /* This many bytes we need to store the type information affecting the

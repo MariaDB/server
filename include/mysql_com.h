@@ -180,6 +180,7 @@ enum enum_indicator_type
 #define FIELD_FLAGS_COLUMN_FORMAT 24    /* Field column format, bit 24-25 */
 #define FIELD_FLAGS_COLUMN_FORMAT_MASK (3 << FIELD_FLAGS_COLUMN_FORMAT)
 #define FIELD_IS_DROPPED (1<< 26)       /* Intern: Field is being dropped */
+#define FIELD_IS_COMPRESSED (1<< 27)    /* Field has been set compressed, bit 27 */
 
 #define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
 #define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */

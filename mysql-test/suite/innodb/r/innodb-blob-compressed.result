@@ -1,0 +1,142 @@
+CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT compressed) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY, b TEXT compressed, c TEXT compressed) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,REPEAT('a',30000)),(2,REPEAT('b',40000));
+BEGIN;
+UPDATE t1 SET a=a+2;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET b=CONCAT(b,'foo');
+SELECT a, RIGHT(b,20) FROM t1;
+a	RIGHT(b,20)
+1	aaaaaaaaaaaaaaaaafoo
+2	bbbbbbbbbbbbbbbbbfoo
+INSERT INTO t1 VALUES (3,REPEAT('c',50000));
+SELECT a, RIGHT(b,20) FROM t1;
+a	RIGHT(b,20)
+1	aaaaaaaaaaaaaaaaafoo
+2	bbbbbbbbbbbbbbbbbfoo
+3	cccccccccccccccccccc
+SELECT a FROM t1;
+a
+1
+2
+3
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+INSERT INTO t3 VALUES
+(1,REPEAT('d',7000),REPEAT('e',100)),
+(2,REPEAT('g',7000),REPEAT('h',100));
+UPDATE t3 SET c=REPEAT('f',3000) WHERE a=1;
+SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
+a	RIGHT(b,20)	RIGHT(c,20)
+1	dddddddddddddddddddd	ffffffffffffffffffff
+2	gggggggggggggggggggg	hhhhhhhhhhhhhhhhhhhh
+UPDATE t3 SET c=REPEAT('i',3000) WHERE a=2;
+CHECK TABLE t1,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t3	check	status	OK
+SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
+a	RIGHT(b,20)	RIGHT(c,20)
+1	dddddddddddddddddddd	ffffffffffffffffffff
+2	gggggggggggggggggggg	iiiiiiiiiiiiiiiiiiii
+SELECT a FROM t3;
+a
+1
+2
+UPDATE t3 SET c=REPEAT('j',3000) WHERE a=2;
+SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
+a	RIGHT(b,20)	RIGHT(c,20)
+1	dddddddddddddddddddd	ffffffffffffffffffff
+2	gggggggggggggggggggg	jjjjjjjjjjjjjjjjjjjj
+SELECT a FROM t3;
+a
+1
+2
+DROP TABLE t1,t3;
+CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT compressed, c blob compressed) ENGINE=InnoDB;
+CREATE TABLE t2 like t1;
+create table t3 (a int primary key, b text compressed) engine=MyIsam;
+Got one of the listed errors
+create index index_t1_b on t1(b(10));
+Got one of the listed errors
+begin;
+insert into t1 values(1,repeat('b',10),repeat('c',3000));
+select a,length(b),length(c) from t1;
+a	length(b)	length(c)
+1	10	3000
+rollback;
+alter table t2 add column d blob compressed;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  `b` text DEFAULT NULL /*!100203 COMPRESSED */,
+  `c` blob DEFAULT NULL /*!100203 COMPRESSED */,
+  `d` blob DEFAULT NULL /*!100203 COMPRESSED */,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+insert into t1 values(1,repeat('b',10),repeat('c',3000));
+insert into t1 values(2,repeat('d',10),repeat('e',3000));
+select a,length(b),length(c) from t1;
+a	length(b)	length(c)
+1	10	3000
+2	10	3000
+update t1 set b='b',c='c';
+select * from t1;
+a	b	c
+1	b	c
+2	b	c
+create temporary table t3(a blob compressed) ENGINE=InnoDB;
+insert into t3 values(repeat('a',3000));
+insert into t3 values('');
+select length(a) from t3;
+length(a)
+3000
+0
+CREATE TABLE employees (
+id INT NOT NULL,
+name blob compressed
+)ENGINE=InnoDB
+PARTITION BY RANGE (name) (
+PARTITION p0 VALUES LESS THAN (6),
+PARTITION p1 VALUES LESS THAN (11)
+);
+Got one of the listed errors
+DROP TABLE t1,t2,t3;
+create table t1(c1 varchar(20480), c2 varbinary(20480))ENGINE=InnoDB;
+insert into t1 values('a', repeat('a',1000));
+insert into t1 values('','x');
+select c1,length(c2) from t1;
+c1	length(c2)
+a	1000
+	1
+alter table t1 change c1 c1 varchar(20480) compressed, change c2 c2 varbinary(20480) compressed;
+insert into t1 values('b', repeat('b',10000));
+insert into t1 values('','x');
+select c1,length(c2) from t1;
+c1	length(c2)
+a	1000
+	1
+b	10000
+	1
+drop table t1;
+create table t1(c1 int,c2 varchar(20480) compressed)ENGINE=InnoDB;
+insert into t1 values(1,repeat('a',1000));
+create table t2 like t1;
+insert into t2 (select * from t1);
+select c1,length(c2) from t2;
+c1	length(c2)
+1	1000
+SELECT c1,length(c2) FROM t2;
+c1	length(c2)
+1	1000
+set @default_storage_engine_old = @@default_storage_engine;
+set default_storage_engine = innodb;
+create table t3 select * from t2;
+select c1,length(c2) from t3;
+c1	length(c2)
+1	1000
+set default_storage_engine = @default_storage_engine_old;
+drop table t1,t2,t3;

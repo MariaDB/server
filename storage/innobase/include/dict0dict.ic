@@ -179,6 +179,15 @@ dict_col_get_sql_null_size(
 {
 	return(dict_col_get_fixed_size(col, comp));
 }
+/*********************************************************************//**
+Returns if the col has compressed property. */
+UNIV_INLINE
+ibool
+dict_col_is_compressed(
+const dict_col_t*	col)	/*!< in: column */
+{
+    return (col->prtype & DATA_IS_COMPRESSED) ? TRUE : FALSE;
+}
 
 /*********************************************************************//**
 Gets the column number.

@@ -712,7 +712,8 @@ public:
   enum utype  { NONE,DATE,SHIELD,NOEMPTY,CASEUP,PNR,BGNR,PGNR,YES,NO,REL,
 		CHECK,EMPTY,UNKNOWN_FIELD,CASEDN,NEXT_NUMBER,INTERVAL_FIELD,
                 BIT_FIELD, TIMESTAMP_OLD_FIELD, CAPITALIZE, BLOB_FIELD,
-                TIMESTAMP_DN_FIELD, TIMESTAMP_UN_FIELD, TIMESTAMP_DNUN_FIELD};
+                TIMESTAMP_DN_FIELD, TIMESTAMP_UN_FIELD, TIMESTAMP_DNUN_FIELD,
+                COMPRESSED_PROPERTY_FIELD};
   enum geometry_type
   {
     GEOM_GEOMETRY = 0, GEOM_POINT = 1, GEOM_LINESTRING = 2, GEOM_POLYGON = 3,
@@ -1062,6 +1063,7 @@ public:
   */
   virtual void sql_type(String &str) const =0;
   virtual uint size_of() const =0;		// For new field
+  virtual bool is_compressed() { return false;}
   inline bool is_null(my_ptrdiff_t row_offset= 0) const
   {
     /*
@@ -3080,7 +3082,7 @@ public:
   {
     share->varchar_fields++;
   }
-
+  bool is_compressed() { return unireg_check == COMPRESSED_PROPERTY_FIELD; }
   enum_field_types type() const { return MYSQL_TYPE_VARCHAR; }
   enum ha_base_keytype key_type() const;
   uint row_pack_length() const { return field_length; }
@@ -3234,6 +3236,7 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const
   { return (uint32) (packlength + portable_sizeof_char_ptr); }
+  bool is_compressed() { return unireg_check == COMPRESSED_PROPERTY_FIELD; }
 
   /**
      Return the packed length without the pointer size added. 
@@ -3820,6 +3823,7 @@ public:
   { }
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
+  bool is_compressed() { return unireg_check == Field::COMPRESSED_PROPERTY_FIELD; }
 };
 
 

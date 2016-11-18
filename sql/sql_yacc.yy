@@ -6604,6 +6604,11 @@ attribute:
             lex->last_field->flags|= PRI_KEY_FLAG | NOT_NULL_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
+        | COMPRESSED_SYM
+          {
+            LEX *lex=Lex;
+            lex->last_field->flags|= FIELD_IS_COMPRESSED;
+          }  
         | UNIQUE_SYM
           {
             LEX *lex=Lex;

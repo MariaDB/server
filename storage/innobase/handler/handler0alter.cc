@@ -3120,7 +3120,7 @@ innobase_build_col_map_add(
 	}
 
 	row_mysql_store_col_in_innobase_format(
-		dfield, buf, true, mysql_data, size, comp);
+		dfield, buf, true, mysql_data, size, comp, NULL, 0);
 }
 
 /** Construct the translation table for reordering, dropping or
@@ -3797,7 +3797,10 @@ prepare_inplace_add_virtual(
 				field_type |= DATA_LONG_TRUE_VARCHAR;
 			}
 		}
-
+		if (field->is_compressed())
+		{
+			field_type |= DATA_IS_COMPRESSED;
+		}
 
 		ctx->add_vcol[j].m_col.prtype = dtype_form_prtype(
 						field_type, charset_no);
@@ -4822,6 +4825,10 @@ prepare_inplace_alter_table_dict(
 					field_type |= DATA_LONG_TRUE_VARCHAR;
 				}
 
+			}
+			if (field->is_compressed())
+			{
+				field_type |= DATA_IS_COMPRESSED;
 			}
 
 			if (col_type == DATA_POINT) {
