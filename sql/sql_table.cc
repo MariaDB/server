@@ -2874,7 +2874,7 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
     if (!(table_flags & HA_CAN_GEOMETRY))
     {
       my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), "GEOMETRY");
-      DBUG_RETURN(1);
+      DBUG_RETURN(true);
     }
     pack_flag= FIELDFLAG_GEOM |
       pack_length_to_packflag(pack_length - portable_sizeof_char_ptr);
