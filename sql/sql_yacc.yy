@@ -3023,7 +3023,7 @@ sp_param_name_and_type:
             LEX *lex= Lex;
             sp_variable *spvar= $<spvar>2;
 
-            if (lex->sphead->fill_field_definition(thd, lex, lex->last_field))
+            if (lex->sphead->fill_field_definition(thd, lex->last_field))
             {
               MYSQL_YYABORT;
             }
@@ -3135,8 +3135,7 @@ sp_decl:
               spvar->default_value= dflt_value_item;
               spvar->field_def.field_name= spvar->name.str;
             
-              if (lex->sphead->fill_field_definition(thd, lex,
-                                                     &spvar->field_def))
+              if (lex->sphead->fill_field_definition(thd, &spvar->field_def))
               {
                 MYSQL_YYABORT;
               }
@@ -16747,7 +16746,7 @@ sf_tail:
           }
           type_with_opt_collate /* $11 */
           { /* $12 */
-            if (Lex->sphead->fill_field_definition(thd, Lex, Lex->last_field))
+            if (Lex->sphead->fill_field_definition(thd, Lex->last_field))
               MYSQL_YYABORT;
           }
           sp_c_chistics /* $13 */

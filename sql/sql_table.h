@@ -251,11 +251,6 @@ bool quick_rm_table(THD *thd, handlerton *base, const char *db,
                     const char *table_name, uint flags,
                     const char *table_path=0);
 void close_cached_table(THD *thd, TABLE *table);
-bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root,
-                             Column_definition *sql_field);
-int prepare_create_field(Column_definition *sql_field,
-			 uint *blob_columns,
-			 longlong table_flags);
 CHARSET_INFO* get_sql_field_charset(Create_field *sql_field,
                                     HA_CREATE_INFO *create_info);
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags);

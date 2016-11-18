@@ -3846,6 +3846,13 @@ public:
     set_if_smaller(length, MAX_FIELD_WIDTH - 1);
     DBUG_RETURN(false);
   }
+
+  bool prepare_blob_field(THD *thd);
+
+  bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root);
+
+  bool prepare_create_field(uint *blob_columns, longlong table_flags);
+
   bool check(THD *thd);
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
