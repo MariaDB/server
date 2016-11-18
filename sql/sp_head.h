@@ -417,9 +417,23 @@ public:
   Field *create_result_field(uint field_max_length, const char *field_name,
                              TABLE *table);
 
-  bool fill_field_definition(THD *thd, LEX *lex,
-                             Column_definition *field_def);
 
+  /**
+    Check and prepare an instance of Column_definition for field creation
+    (fill all necessary attributes).
+
+    @param[in]  thd          Thread handle
+    @param[in]  lex          Yacc parsing context
+    @param[out] field_def    An instance of create_field to be filled
+
+    @retval false on success
+    @retval true  on error
+  */
+  bool fill_field_definition(THD *thd, Column_definition *field_def)
+  {
+    return field_def->check(thd) ||
+           field_def->sp_prepare_create_field(thd, mem_root);
+  }
   void set_info(longlong created, longlong modified,
 		st_sp_chistics *chistics, sql_mode_t sql_mode);
 

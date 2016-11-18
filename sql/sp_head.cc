@@ -23,8 +23,6 @@
 #include "probes_mysql.h"
 #include "sql_show.h"                           // append_identifier
 #include "sql_db.h"            // mysql_opt_change_db, mysql_change_db
-#include "sql_table.h"         // sp_prepare_create_field,
-                               // prepare_create_field
 #include "sql_acl.h"           // *_ACL
 #include "sql_array.h"         // Dynamic_array
 #include "log_event.h"         // Query_log_event
@@ -2285,40 +2283,6 @@ sp_head::backpatch(sp_label *lab)
     }
   }
   DBUG_VOID_RETURN;
-}
-
-/**
-  Prepare an instance of Column_definition for field creation
-  (fill all necessary attributes).
-
-  @param[in]  thd          Thread handle
-  @param[in]  lex          Yacc parsing context
-  @param[out] field_def    An instance of create_field to be filled
-
-  @retval
-    FALSE  on success
-  @retval
-    TRUE   on error
-*/
-
-bool
-sp_head::fill_field_definition(THD *thd, LEX *lex,
-                               Column_definition *field_def)
-{
-  uint unused1= 0;
-
-  if (field_def->check(thd))
-    return TRUE;
-
-  if (sp_prepare_create_field(thd, mem_root, field_def))
-    return true;
-
-  if (prepare_create_field(field_def, &unused1, HA_CAN_GEOMETRY))
-  {
-    return TRUE;
-  }
-
-  return FALSE;
 }
 
 

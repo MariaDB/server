@@ -75,7 +75,6 @@ static int copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                                     Alter_info::enum_enable_or_disable keys_onoff,
                                     Alter_table_ctx *alter_ctx);
 
-static bool prepare_blob_field(THD *thd, Column_definition *sql_field);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
@@ -2822,48 +2821,39 @@ bool check_duplicates_in_interval(const char *set_or_name,
 
 
 /*
-  Prepare a create_table instance for packing
+  Prepare a Column_definition instance for packing
+  Members such as pack_flag are valid after this call.
 
-  SYNOPSIS
-    prepare_create_field()
-    sql_field     field to prepare for packing
-    blob_columns  count for BLOBs
-    table_flags   table flags
+  @param IN/OUT blob_columns - count for BLOBs
+  @param IN     table_flags  - table flags
 
-  DESCRIPTION
-    This function prepares a Create_field instance.
-    Fields such as pack_flag are valid after this call.
-
-  RETURN VALUES
-   0	ok
-   1	Error
+  @retval false  -  ok
+  @retval true   -  error (not supported type, bad definition, etc)
 */
 
-int prepare_create_field(Column_definition *sql_field,
-			 uint *blob_columns, 
-			 longlong table_flags)
+bool Column_definition::prepare_create_field(uint *blob_columns,
+                                             longlong table_flags)
 {
   uint dup_val_count;
-  uint decimals= sql_field->decimals;
-  DBUG_ENTER("prepare_create_field");
+  uint decimals_orig= decimals;
+  DBUG_ENTER("Column_definition::prepare_create_field");
 
   /*
     This code came from mysql_prepare_create_table.
     Indent preserved to make patching easier
   */
-  DBUG_ASSERT(sql_field->charset);
+  DBUG_ASSERT(charset);
 
-  switch (sql_field->sql_type) {
+  switch (sql_type) {
   case MYSQL_TYPE_BLOB:
   case MYSQL_TYPE_MEDIUM_BLOB:
   case MYSQL_TYPE_TINY_BLOB:
   case MYSQL_TYPE_LONG_BLOB:
-    sql_field->pack_flag=FIELDFLAG_BLOB |
-      pack_length_to_packflag(sql_field->pack_length -
-                              portable_sizeof_char_ptr);
-    if (sql_field->charset->state & MY_CS_BINSORT)
-      sql_field->pack_flag|=FIELDFLAG_BINARY;
-    sql_field->length=8;			// Unireg field length
+    pack_flag= FIELDFLAG_BLOB |
+      pack_length_to_packflag(pack_length - portable_sizeof_char_ptr);
+    if (charset->state & MY_CS_BINSORT)
+      pack_flag|= FIELDFLAG_BINARY;
+    length= 8;                        // Unireg field length
     (*blob_columns)++;
     break;
   case MYSQL_TYPE_GEOMETRY:
@@ -2873,66 +2863,59 @@ int prepare_create_field(Column_definition *sql_field,
       my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), "GEOMETRY");
       DBUG_RETURN(1);
     }
-    sql_field->pack_flag=FIELDFLAG_GEOM |
-      pack_length_to_packflag(sql_field->pack_length -
-                              portable_sizeof_char_ptr);
-    if (sql_field->charset->state & MY_CS_BINSORT)
-      sql_field->pack_flag|=FIELDFLAG_BINARY;
-    sql_field->length=8;			// Unireg field length
+    pack_flag= FIELDFLAG_GEOM |
+      pack_length_to_packflag(pack_length - portable_sizeof_char_ptr);
+    if (charset->state & MY_CS_BINSORT)
+      pack_flag|= FIELDFLAG_BINARY;
+    length= 8;                        // Unireg field length
     (*blob_columns)++;
     break;
 #else
     my_error(ER_FEATURE_DISABLED, MYF(0),
-                    sym_group_geom.name, sym_group_geom.needed_define);
-    DBUG_RETURN(1);
+             sym_group_geom.name, sym_group_geom.needed_define);
+    DBUG_RETURN(true);
 #endif /*HAVE_SPATIAL*/
   case MYSQL_TYPE_VARCHAR:
 #ifndef QQ_ALL_HANDLERS_SUPPORT_VARCHAR
     if (table_flags & HA_NO_VARCHAR)
     {
       /* convert VARCHAR to CHAR because handler is not yet up to date */
-      sql_field->sql_type=    MYSQL_TYPE_VAR_STRING;
-      sql_field->pack_length= calc_pack_length(sql_field->sql_type,
-                                               (uint) sql_field->length);
-      if ((sql_field->length / sql_field->charset->mbmaxlen) >
-          MAX_FIELD_CHARLENGTH)
+      sql_type= MYSQL_TYPE_VAR_STRING;
+      pack_length= calc_pack_length(sql_type, (uint) length);
+      if ((length / charset->mbmaxlen) > MAX_FIELD_CHARLENGTH)
       {
-        my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), sql_field->field_name,
-                        static_cast<ulong>(MAX_FIELD_CHARLENGTH));
-        DBUG_RETURN(1);
+        my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name,
+                 static_cast<ulong>(MAX_FIELD_CHARLENGTH));
+        DBUG_RETURN(true);
       }
     }
 #endif
     /* fall through */
   case MYSQL_TYPE_STRING:
-    sql_field->pack_flag=0;
-    if (sql_field->charset->state & MY_CS_BINSORT)
-      sql_field->pack_flag|=FIELDFLAG_BINARY;
+    pack_flag= 0;
+    if (charset->state & MY_CS_BINSORT)
+      pack_flag|= FIELDFLAG_BINARY;
     break;
   case MYSQL_TYPE_ENUM:
-    sql_field->pack_flag=pack_length_to_packflag(sql_field->pack_length) |
-      FIELDFLAG_INTERVAL;
-    if (sql_field->charset->state & MY_CS_BINSORT)
-      sql_field->pack_flag|=FIELDFLAG_BINARY;
-    if (check_duplicates_in_interval("ENUM",sql_field->field_name,
-                                     sql_field->interval,
-                                     sql_field->charset, &dup_val_count))
-      DBUG_RETURN(1);
+    pack_flag= pack_length_to_packflag(pack_length) | FIELDFLAG_INTERVAL;
+    if (charset->state & MY_CS_BINSORT)
+      pack_flag|= FIELDFLAG_BINARY;
+    if (check_duplicates_in_interval("ENUM", field_name, interval,
+                                     charset, &dup_val_count))
+      DBUG_RETURN(true);
     break;
   case MYSQL_TYPE_SET:
-    sql_field->pack_flag=pack_length_to_packflag(sql_field->pack_length) |
-      FIELDFLAG_BITFIELD;
-    if (sql_field->charset->state & MY_CS_BINSORT)
-      sql_field->pack_flag|=FIELDFLAG_BINARY;
-    if (check_duplicates_in_interval("SET",sql_field->field_name,
-                                     sql_field->interval,
-                                     sql_field->charset, &dup_val_count))
-      DBUG_RETURN(1);
+    pack_flag= pack_length_to_packflag(pack_length) | FIELDFLAG_BITFIELD;
+    if (charset->state & MY_CS_BINSORT)
+      pack_flag|= FIELDFLAG_BINARY;
+    if (check_duplicates_in_interval("SET", field_name, interval,
+                                     charset, &dup_val_count))
+      DBUG_RETURN(true);
     /* Check that count of unique members is not more then 64 */
-    if (sql_field->interval->count -  dup_val_count > sizeof(longlong)*8)
+    if (interval->count - dup_val_count > sizeof(longlong)*8)
     {
-       my_error(ER_TOO_BIG_SET, MYF(0), sql_field->field_name);
-       DBUG_RETURN(1);
+       my_error(ER_TOO_BIG_SET, MYF(0), field_name);
+       DBUG_RETURN(true);
     }
     break;
   case MYSQL_TYPE_DATE:			// Rest of string types
@@ -2942,7 +2925,7 @@ int prepare_create_field(Column_definition *sql_field,
   case MYSQL_TYPE_TIME2:
   case MYSQL_TYPE_DATETIME2:
   case MYSQL_TYPE_NULL:
-    sql_field->pack_flag=f_settype((uint) sql_field->sql_type);
+    pack_flag= f_settype((uint) sql_type);
     break;
   case MYSQL_TYPE_BIT:
     /* 
@@ -2951,12 +2934,10 @@ int prepare_create_field(Column_definition *sql_field,
     */
     break;
   case MYSQL_TYPE_NEWDECIMAL:
-    sql_field->pack_flag=(FIELDFLAG_NUMBER |
-                          (sql_field->flags & UNSIGNED_FLAG ? 0 :
-                           FIELDFLAG_DECIMAL) |
-                          (sql_field->flags & ZEROFILL_FLAG ?
-                           FIELDFLAG_ZEROFILL : 0) |
-                          (decimals << FIELDFLAG_DEC_SHIFT));
+    pack_flag= (FIELDFLAG_NUMBER |
+                (flags & UNSIGNED_FLAG ? 0 : FIELDFLAG_DECIMAL) |
+                (flags & ZEROFILL_FLAG ? FIELDFLAG_ZEROFILL : 0) |
+                (decimals_orig << FIELDFLAG_DEC_SHIFT));
     break;
   case MYSQL_TYPE_FLOAT:
   case MYSQL_TYPE_DOUBLE:
@@ -2965,28 +2946,26 @@ int prepare_create_field(Column_definition *sql_field,
       FLOATING_POINT_DECIMALS to keep things compatible with earlier MariaDB
       versions.
     */
-    if (decimals >= FLOATING_POINT_DECIMALS)
-      decimals= FLOATING_POINT_DECIMALS;
+    if (decimals_orig >= FLOATING_POINT_DECIMALS)
+      decimals_orig= FLOATING_POINT_DECIMALS;
     /* fall-trough */
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_TIMESTAMP2:
     /* fall-through */
   default:
-    sql_field->pack_flag=(FIELDFLAG_NUMBER |
-                          (sql_field->flags & UNSIGNED_FLAG ? 0 :
-                           FIELDFLAG_DECIMAL) |
-                          (sql_field->flags & ZEROFILL_FLAG ?
-                           FIELDFLAG_ZEROFILL : 0) |
-                          f_settype((uint) sql_field->sql_type) |
-                          (decimals << FIELDFLAG_DEC_SHIFT));
+    pack_flag= (FIELDFLAG_NUMBER |
+                (flags & UNSIGNED_FLAG ? 0 : FIELDFLAG_DECIMAL) |
+                (flags & ZEROFILL_FLAG ? FIELDFLAG_ZEROFILL : 0) |
+                f_settype((uint) sql_type) |
+                (decimals_orig << FIELDFLAG_DEC_SHIFT));
     break;
   }
-  if (!(sql_field->flags & NOT_NULL_FLAG) ||
-      (sql_field->vcol_info))  /* Make virtual columns allow NULL values */
-    sql_field->pack_flag|= FIELDFLAG_MAYBE_NULL;
-  if (sql_field->flags & NO_DEFAULT_VALUE_FLAG)
-    sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
-  DBUG_RETURN(0);
+  if (!(flags & NOT_NULL_FLAG) ||
+      (vcol_info))  /* Make virtual columns allow NULL values */
+    pack_flag|= FIELDFLAG_MAYBE_NULL;
+  if (flags & NO_DEFAULT_VALUE_FLAG)
+    pack_flag|= FIELDFLAG_NO_DEFAULT;
+  DBUG_RETURN(false);
 }
 
 
@@ -3239,7 +3218,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
 
     sql_field->create_length_to_internal_length();
-    if (prepare_blob_field(thd, sql_field))
+    if (sql_field->prepare_blob_field(thd))
       DBUG_RETURN(TRUE);
 
     /*
@@ -3404,8 +3383,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   {
     DBUG_ASSERT(sql_field->charset != 0);
 
-    if (prepare_create_field(sql_field, &blob_columns, 
-			     file->ha_table_flags()))
+    if (sql_field->prepare_create_field(&blob_columns, file->ha_table_flags()))
       DBUG_RETURN(TRUE);
     if (sql_field->sql_type == MYSQL_TYPE_VARCHAR)
       create_info->varchar= TRUE;
@@ -4185,7 +4163,6 @@ static void set_table_default_charset(THD *thd,
 
   SYNOPSIS
     prepare_blob_field()
-    sql_field		Field to check
 
   RETURN
     0	ok
@@ -4193,45 +4170,42 @@ static void set_table_default_charset(THD *thd,
         In this case the error is given
 */
 
-static bool prepare_blob_field(THD *thd, Column_definition *sql_field)
+bool Column_definition::prepare_blob_field(THD *thd)
 {
-  DBUG_ENTER("prepare_blob_field");
+  DBUG_ENTER("Column_definition::prepare_blob_field");
 
-  if (sql_field->length > MAX_FIELD_VARCHARLENGTH &&
-      !(sql_field->flags & BLOB_FLAG))
+  if (length > MAX_FIELD_VARCHARLENGTH && !(flags & BLOB_FLAG))
   {
     /* Convert long VARCHAR columns to TEXT or BLOB */
     char warn_buff[MYSQL_ERRMSG_SIZE];
 
     if (thd->is_strict_mode())
     {
-      my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), sql_field->field_name,
-               static_cast<ulong>(MAX_FIELD_VARCHARLENGTH /
-                                  sql_field->charset->mbmaxlen));
+      my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name,
+               static_cast<ulong>(MAX_FIELD_VARCHARLENGTH / charset->mbmaxlen));
       DBUG_RETURN(1);
     }
-    sql_field->sql_type= MYSQL_TYPE_BLOB;
-    sql_field->flags|= BLOB_FLAG;
+    sql_type= MYSQL_TYPE_BLOB;
+    flags|= BLOB_FLAG;
     my_snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_AUTO_CONVERT),
-                sql_field->field_name,
-                (sql_field->charset == &my_charset_bin) ? "VARBINARY" :
-                "VARCHAR",
-                (sql_field->charset == &my_charset_bin) ? "BLOB" : "TEXT");
+                field_name,
+                (charset == &my_charset_bin) ? "VARBINARY" : "VARCHAR",
+                (charset == &my_charset_bin) ? "BLOB" : "TEXT");
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_AUTO_CONVERT,
                  warn_buff);
   }
 
-  if ((sql_field->flags & BLOB_FLAG) && sql_field->length)
+  if ((flags & BLOB_FLAG) && length)
   {
-    if (sql_field->sql_type == FIELD_TYPE_BLOB ||
-        sql_field->sql_type == FIELD_TYPE_TINY_BLOB ||
-        sql_field->sql_type == FIELD_TYPE_MEDIUM_BLOB)
+    if (sql_type == FIELD_TYPE_BLOB ||
+        sql_type == FIELD_TYPE_TINY_BLOB ||
+        sql_type == FIELD_TYPE_MEDIUM_BLOB)
     {
       /* The user has given a length to the blob column */
-      sql_field->sql_type= get_blob_type_from_length(sql_field->length);
-      sql_field->pack_length= calc_pack_length(sql_field->sql_type, 0);
+      sql_type= get_blob_type_from_length(length);
+      pack_length= calc_pack_length(sql_type, 0);
     }
-    sql_field->length= 0;
+    length= 0;
   }
   DBUG_RETURN(0);
 }
@@ -4244,41 +4218,39 @@ static bool prepare_blob_field(THD *thd, Column_definition *sql_field)
 
   SYNOPSIS
     sp_prepare_create_field()
-    thd			Thread object
-    sql_field		Field to prepare
+    thd                 Thread object
+    mem_root            Memory root to allocate components on (e.g. interval)
 
   DESCRIPTION
     Prepares the field structures for field creation.
 
 */
 
-bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root,
-                             Column_definition *sql_field)
+bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 {
-  if (sql_field->sql_type == MYSQL_TYPE_SET ||
-      sql_field->sql_type == MYSQL_TYPE_ENUM)
+  if (sql_type == MYSQL_TYPE_SET || sql_type == MYSQL_TYPE_ENUM)
   {
     /*
       Pass "false" as the last argument to allocate TYPELIB values on mem_root,
       even if no character set conversion is needed.
     */
-    if (sql_field->prepare_interval_field(mem_root, false))
+    if (prepare_interval_field(mem_root, false))
       return true; // E.g. wrong values with commas: SET('a,b')
   }
 
-  if (sql_field->sql_type == MYSQL_TYPE_BIT)
-  {
-    sql_field->pack_flag= FIELDFLAG_NUMBER |
-                          FIELDFLAG_TREAT_BIT_AS_CHAR;
-  }
-  sql_field->create_length_to_internal_length();
-  DBUG_ASSERT(sql_field->default_value == 0);
+  if (sql_type == MYSQL_TYPE_BIT)
+    pack_flag= FIELDFLAG_NUMBER | FIELDFLAG_TREAT_BIT_AS_CHAR;
+  create_length_to_internal_length();
+  DBUG_ASSERT(default_value == 0);
   /*
     prepare_blob_field() can return an error on attempt to create a too long
     VARCHAR/VARBINARY field when the current sql_mode does not allow automatic
     conversion to TEXT/BLOB.
   */
-  return prepare_blob_field(thd, sql_field);
+  if (prepare_blob_field(thd))
+    return true;
+  uint unused1;
+  return prepare_create_field(&unused1, HA_CAN_GEOMETRY);
 }
 
 
