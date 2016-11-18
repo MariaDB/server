@@ -589,7 +589,8 @@ public:
            (m_pk_can_be_decoded? HA_PRIMARY_KEY_IN_READ_INDEX : 0) |
            HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
            HA_NULL_IN_KEY |
-           HA_PARTIAL_COLUMN_READ;
+           HA_PARTIAL_COLUMN_READ |
+           HA_TABLE_SCAN_ON_INDEX;
   }
 #ifdef MARIAROCKS_NOT_YET
   bool init_with_fields() override;
