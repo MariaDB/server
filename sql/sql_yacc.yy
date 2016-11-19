@@ -2684,6 +2684,7 @@ server_option:
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.host.str == 0);
             Lex->server_options.host= $2;
+            my_casedn_str(system_charset_info, Lex->server_options.host.str);
           }
         | DATABASE TEXT_STRING_sys
           {
