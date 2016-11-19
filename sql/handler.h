@@ -1697,8 +1697,10 @@ struct Vers_parse_info
     period_for_system_time.end = end;
   }
 
-  bool add_versioning_info(THD *thd, Alter_info *alter_info, bool integer_fields);
-  bool check(THD *thd, Alter_info *alter_info, bool integer_fields);
+private:
+  bool fix_implicit(THD *thd, Alter_info *alter_info, bool integer_fields);
+public:
+  bool check_and_fix_implicit(THD *thd, Alter_info *alter_info, bool integer_fields, const char* table_name);
 
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
   bool declared_system_versioning : 1;

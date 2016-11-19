@@ -32,14 +32,14 @@ Sys_start2 timestamp(6) generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: 'Generated as row start' specified more than once
+ERROR HY000: Wrong parameters for versioned table `t1`: multiple 'GENERATED ALWAYS AS ROW START'
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end2 timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Second column in 'period for system time' must be equal to 'generated as row end' column
+ERROR HY000: Wrong parameters for versioned table `t1`: 'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW END' mismatch
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
@@ -47,12 +47,12 @@ Sys_end timestamp(6) generated always as row end,
 Sys_end2 timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Generated as row end specified more than once
+ERROR HY000: Wrong parameters for versioned table `t1`: multiple 'GENERATED ALWAYS AS ROW END'
 create or replace table t1 (
 XNo int unsigned,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: 'Generated as row start' not specified
+ERROR HY000: Wrong parameters for versioned table `t1`: 'GENERATED AS ROW START' column missing
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
@@ -60,63 +60,63 @@ Sys_end timestamp(6) generated always as row end,
 Sys_end2 timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 );
-ERROR HY000: Generated as row end specified more than once
+ERROR HY000: Wrong parameters for versioned table `t1`: multiple 'GENERATED ALWAYS AS ROW END'
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (sys_insert, sys_remove)
 ) with system versioning;
-ERROR HY000: First column in 'period for system time' must be equal to 'generated as row start' column
+ERROR HY000: Wrong parameters for versioned table `t1`: 'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW START' mismatch
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 );
-ERROR HY000: 'With system versioning' is missing
+ERROR HY000: Wrong parameters for versioned table `t1`: 'WITH SYSTEM VERSIONING' missing
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_start)
 );
-ERROR HY000: 'Period for system_time' must contain two different columns
+ERROR HY000: Wrong parameters for versioned table `t1`: 'PERIOD FOR SYSTEM_TIME' columns must be different
 create or replace table t1 (
 XNo int unsigned,
 Sys_start int generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: System start field must be of type TIMESTAMP
+ERROR HY000: `Sys_start` must be of type `TIMESTAMP` for versioned table `t1`
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end int generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: System end field must be of type TIMESTAMP
+ERROR HY000: `Sys_end` must be of type `TIMESTAMP` for versioned table `t1`
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end bigint generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
-ERROR HY000: System start field must be of type BIGINT UNSIGNED
+ERROR HY000: `Sys_start` must be of type `BIGINT UNSIGNED` for versioned table `t1`
 create or replace table t1 (
 XNo int unsigned,
 Sys_start bigint generated always as row start,
 Sys_end bigint generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
-ERROR HY000: System start field must be of type BIGINT UNSIGNED
+ERROR HY000: `Sys_start` must be of type `BIGINT UNSIGNED` for versioned table `t1`
 create or replace table t1 (
 XNo int unsigned,
 Sys_start bigint unsigned generated always as row start,
 Sys_end bigint generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
-ERROR HY000: System end field must be of type BIGINT UNSIGNED
+ERROR HY000: `Sys_end` must be of type `BIGINT UNSIGNED` for versioned table `t1`
 create or replace table t1 (
 A int with system versioning,
 B int
@@ -147,7 +147,7 @@ create or replace table t1 (
 A int,
 B int without system versioning
 );
-ERROR HY000: Every field specified unversioned in versioned table
+ERROR HY000: Wrong parameters for versioned table `t1`: 'WITH SYSTEM VERSIONING' missing
 create or replace table t1 (
 A int,
 B int without system versioning
@@ -190,9 +190,9 @@ t1	CREATE TABLE `t1` (
 create or replace table t1 (
 A int without system versioning
 );
-ERROR HY000: Every field specified unversioned in versioned table
+ERROR HY000: Wrong parameters for versioned table `t1`: 'WITH SYSTEM VERSIONING' missing
 create or replace table t1 (
 A int without system versioning
 ) with system versioning;
-ERROR HY000: Every field specified unversioned in versioned table
+ERROR HY000: Wrong parameters for versioned table `t1`: versioned fields missing
 drop table t1;

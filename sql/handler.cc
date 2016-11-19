@@ -6593,15 +6593,11 @@ static bool create_sys_trx_field(THD *thd, const char *field_name,
   return false;
 }
 
-bool Vers_parse_info::add_versioning_info(
+bool Vers_parse_info::fix_implicit(
   THD *thd,
   Alter_info *alter_info,
   bool integer_fields)
 {
-  if (!declared_system_versioning && !has_versioned_fields)
-    return false;
-
-  bool without_system_versioning_by_default= !declared_system_versioning;
   List_iterator<Create_field> it(alter_info->create_list);
   while (Create_field *f= it++)
   {
@@ -6615,11 +6611,11 @@ bool Vers_parse_info::add_versioning_info(
       continue;
 
     if (f->versioning == Column_definition::VERSIONING_NOT_SET &&
-        without_system_versioning_by_default)
+      !declared_system_versioning ||
+      f->versioning == Column_definition::WITHOUT_VERSIONING)
+    {
       f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
-
-    else if (f->versioning == Column_definition::WITHOUT_VERSIONING)
-      f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
+    }
   }
 
   // If user specified some of these he must specify the others too. Do nothing.
@@ -6637,7 +6633,11 @@ bool Vers_parse_info::add_versioning_info(
                        "sys_trx_end");
 }
 
-bool Vers_parse_info::check(THD *thd, Alter_info *alter_info, bool integer_fields)
+bool Vers_parse_info::check_and_fix_implicit(
+  THD *thd,
+  Alter_info *alter_info,
+  bool integer_fields,
+  const char* table_name)
 {
   if (!(
     has_versioned_fields ||
@@ -6651,10 +6651,14 @@ bool Vers_parse_info::check(THD *thd, Alter_info *alter_info, bool integer_field
     return false;
   }
 
-  if (add_versioning_info(thd, alter_info, integer_fields))
+  if (!declared_system_versioning && !has_versioned_fields)
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'WITH SYSTEM VERSIONING' missing");
     return true;
+  }
 
-  bool r= false;
+  if (fix_implicit(thd, alter_info, integer_fields))
+    return true;
 
   {
     int not_set= 0;
@@ -6685,51 +6689,42 @@ bool Vers_parse_info::check(THD *thd, Alter_info *alter_info, bool integer_field
     if ((table_with_system_versioning && not_set == 0 && with == 0) ||
         (!table_with_system_versioning && with == 0))
     {
-      r= true;
-      my_error(ER_NO_VERSIONED_FIELDS_IN_VERSIONED_TABLE, MYF(0));
+      my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "versioned fields missing");
+      return true;
     }
-  }
-
-  if (!declared_system_versioning && !has_versioned_fields)
-  {
-    r= true;
-    my_error(ER_MISSING_WITH_SYSTEM_VERSIONING, MYF(0));
   }
 
   if (!generated_as_row.start)
   {
-    r= true;
-    my_error(ER_SYS_START_NOT_SPECIFIED, MYF(0));
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'GENERATED AS ROW START' column missing");
+    return true;
   }
 
   if (!generated_as_row.end)
   {
-    r= true;
-    my_error(ER_SYS_END_NOT_SPECIFIED, MYF(0));
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'GENERATED AS ROW END' column missing");
+    return true;
   }
 
   if (!period_for_system_time.start || !period_for_system_time.end)
   {
-    r= true;
-    my_error(ER_MISSING_PERIOD_FOR_SYSTEM_TIME, MYF(0));
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'PERIOD FOR SYSTEM_TIME' missing");
+    return true;
   }
 
-  if (!r)
+  if (my_strcasecmp(system_charset_info, generated_as_row.start->c_ptr(),
+                    period_for_system_time.start->c_ptr()))
   {
-    if (my_strcasecmp(system_charset_info, generated_as_row.start->c_ptr(),
-                      period_for_system_time.start->c_ptr()))
-    {
-      r= true;
-      my_error(ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_START_COLUMN, MYF(0));
-    }
-
-    if (my_strcasecmp(system_charset_info, generated_as_row.end->c_ptr(),
-                      period_for_system_time.end->c_ptr()))
-    {
-      r= true;
-      my_error(ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_END_COLUMN, MYF(0));
-    }
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW START' mismatch");
+    return true;
   }
 
-  return r; // false means no error
+  if (my_strcasecmp(system_charset_info, generated_as_row.end->c_ptr(),
+                    period_for_system_time.end->c_ptr()))
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW END' mismatch");
+    return true;
+  }
+
+  return false;
 }

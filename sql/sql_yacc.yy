@@ -6065,7 +6065,9 @@ period_for_system_time:
             Vers_parse_info &info= Lex->vers_get_info();
             if (!my_strcasecmp(system_charset_info, $4->c_ptr(), $6->c_ptr()))
             {
-              my_error(ER_SYS_START_AND_SYS_END_SAME, MYF(0), $4->c_ptr());
+              my_error(ER_VERS_WRONG_PARAMS, MYF(0),
+                Lex->create_last_non_select_table->table_name,
+                "'PERIOD FOR SYSTEM_TIME' columns must be different");
               MYSQL_YYABORT;
             }
             info.set_period_for_system_time($4, $6);
@@ -6174,17 +6176,19 @@ field_def:
             if (!field_name)
               MYSQL_YYABORT;
 
+            const char *table_name= Lex->create_last_non_select_table->table_name;
+
             String **p= NULL;
-            int err_nr= 0;
+            const char* err;
             switch ($4)
             {
             case 1:
               p= &info.generated_as_row.start;
-              err_nr= ER_SYS_START_MORE_THAN_ONCE;
+              err= "multiple 'GENERATED ALWAYS AS ROW START'";
               break;
             case 0:
               p= &info.generated_as_row.end;
-              err_nr= ER_SYS_END_MORE_THAN_ONCE;
+              err= "multiple 'GENERATED ALWAYS AS ROW END'";
               break;
             default:
               /* Not Reachable */
@@ -6193,7 +6197,7 @@ field_def:
             }
             if (*p)
             {
-              my_error(err_nr, MYF(0), field_name->c_ptr());
+              my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, err);
               MYSQL_YYABORT;
             }
             *p= field_name;

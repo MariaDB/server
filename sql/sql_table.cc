@@ -3470,23 +3470,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
-
-    if (create_info->versioned())
-    {
-      const bool is_generated_as_row_start =
-        !my_strcasecmp(system_charset_info,
-                      create_info->vers_info.generated_as_row.start->c_ptr(),
-                      sql_field->field_name);
-      const bool is_generated_as_row_end =
-        !my_strcasecmp(system_charset_info,
-                      create_info->vers_info.generated_as_row.end->c_ptr(),
-                      sql_field->field_name);
-      if (is_generated_as_row_start && is_generated_as_row_end)
-      {
-        my_error(ER_SYS_START_AND_SYS_END_SAME, MYF(0), sql_field->field_name);
-        DBUG_RETURN(TRUE);
-      }
-    }
   }
   /* Update virtual fields' offset*/
   it.rewind();
