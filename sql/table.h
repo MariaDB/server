@@ -685,7 +685,6 @@ struct TABLE_SHARE
   bool table_creation_was_logged;
   bool non_determinstic_insert;
   bool vcols_need_refixing;
-  bool has_virtual_stored_fields;
   bool check_set_initialized;
   bool has_update_default_function;
   ulong table_map_id;                   /* for row-based replication */

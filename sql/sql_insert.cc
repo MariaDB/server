@@ -1522,8 +1522,6 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
 
   if (!table)
     table= table_list->table;
-  if (table->s->has_virtual_stored_fields)
-    thd->lex->unit.insert_table_with_stored_vcol= table;
 
   if (!select_insert)
   {

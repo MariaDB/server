@@ -7762,7 +7762,6 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
   Item_field *field;
-  TABLE *vcol_table= 0;
   bool save_abort_on_warning= thd->abort_on_warning;
   bool save_no_errors= thd->no_errors;
   DBUG_ENTER("fill_record");
@@ -7788,8 +7787,6 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     table_arg->auto_increment_field_not_null= FALSE;
     f.rewind();
   }
-  else
-    vcol_table= thd->lex->unit.insert_table_with_stored_vcol;
 
   while ((fld= f++))
   {
@@ -7822,8 +7819,6 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       goto err;
     }
     rfield->set_explicit_default(value);
-    DBUG_ASSERT(vcol_table == 0 || vcol_table == table);
-    vcol_table= table;
   }
 
   if (!update && table_arg->default_field &&
@@ -7831,8 +7826,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     goto err;
   /* Update virtual fields */
   thd->abort_on_warning= FALSE;
-  if (vcol_table && vcol_table->vfield &&
-      vcol_table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE))
+  if (table_arg->vfield &&
+      table_arg->update_virtual_fields(VCOL_UPDATE_FOR_WRITE))
     goto err;
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;

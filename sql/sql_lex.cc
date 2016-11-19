@@ -2074,7 +2074,6 @@ void st_select_lex_unit::init_query()
   item_list.empty();
   describe= 0;
   found_rows_for_union= 0;
-  insert_table_with_stored_vcol= 0;
   derived= 0;
   is_view= false;
   with_clause= 0;

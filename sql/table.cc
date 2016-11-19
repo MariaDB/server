@@ -2231,7 +2231,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         DBUG_ASSERT(!reg_field->vcol_info);
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
-        share->has_virtual_stored_fields=true;  // For insert/load data
         break;
       case 2:                                   // Default expression
         vcol_info->stored_in_db= 1;
