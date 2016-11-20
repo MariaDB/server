@@ -3636,6 +3636,10 @@ public:
    pushed_idx_cond_keyno= MAX_KEY;
    in_range_check_pushed_down= false;
  }
+
+ /* Needed for partition / spider */
+  virtual TABLE_LIST *get_next_global_for_child() { return NULL; }
+
  /**
    Part of old, deprecated in-place ALTER API.
  */

@@ -75,7 +75,6 @@
 #define PARTITION_DISABLED_TABLE_FLAGS (HA_CAN_GEOMETRY | \
                                         HA_CAN_FULLTEXT | \
                                         HA_DUPLICATE_POS | \
-                                        HA_CAN_SQL_HANDLER | \
                                         HA_CAN_INSERT_DELAYED | \
                                         HA_READ_BEFORE_WRITE_REMOVAL)
 static const char *ha_par_ext= ".par";
@@ -5715,7 +5714,8 @@ int ha_partition::index_next(uchar * buf)
     and if direction changes, we must step back those partitions in
     the record queue so we don't return a value from the wrong direction.
   */
-  DBUG_ASSERT(m_index_scan_type != partition_index_last);
+  if (m_index_scan_type == partition_index_last)
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   if (!m_ordered_scan_ongoing)
   {
     DBUG_RETURN(handle_unordered_next(buf, FALSE));
@@ -5748,7 +5748,8 @@ int ha_partition::index_next_same(uchar *buf, const uchar *key, uint keylen)
   decrement_statistics(&SSV::ha_read_next_count);
 
   DBUG_ASSERT(keylen == m_start_key.length);
-  DBUG_ASSERT(m_index_scan_type != partition_index_last);
+  if (m_index_scan_type == partition_index_last)
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   if (!m_ordered_scan_ongoing)
     DBUG_RETURN(handle_unordered_next(buf, TRUE));
   DBUG_RETURN(handle_ordered_next(buf, TRUE));
@@ -5776,7 +5777,8 @@ int ha_partition::index_prev(uchar * buf)
   decrement_statistics(&SSV::ha_read_prev_count);
 
   /* TODO: read comment in index_next */
-  DBUG_ASSERT(m_index_scan_type != partition_index_first);
+  if (m_index_scan_type == partition_index_first)
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   DBUG_RETURN(handle_ordered_prev(buf));
 }
 
@@ -6395,7 +6397,7 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
 
   if (error)
   {
-    if (error == HA_ERR_END_OF_FILE)
+    if (error == HA_ERR_END_OF_FILE && m_queue.elements)
     {
       /* Return next buffered row */
       queue_remove_top(&m_queue);
@@ -6447,7 +6449,7 @@ int ha_partition::handle_ordered_prev(uchar *buf)
 
   if ((error= file->ha_index_prev(rec_buf)))
   {
-    if (error == HA_ERR_END_OF_FILE)
+    if (error == HA_ERR_END_OF_FILE && m_queue.elements)
     {
       queue_remove_top(&m_queue);
       if (m_queue.elements)
@@ -9123,6 +9125,20 @@ int ha_partition::check_for_upgrade(HA_CHECK_OPT *check_opt)
   }
 
   DBUG_RETURN(error);
+}
+
+
+TABLE_LIST *ha_partition::get_next_global_for_child()
+{
+  handler **file;
+  DBUG_ENTER("ha_partition::get_next_global_for_child");
+  for (file= m_file; *file; file++)
+  {
+    TABLE_LIST *table_list;
+    if ((table_list= (*file)->get_next_global_for_child()))
+      DBUG_RETURN(table_list);
+  }
+  DBUG_RETURN(0);
 }
 
 

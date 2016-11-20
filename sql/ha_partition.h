@@ -914,7 +914,7 @@ public:
     special file for handling names of partitions, engine types.
     HA_REC_NOT_IN_SEQ is always set for partition handler since we cannot
     guarantee that the records will be returned in sequence.
-    HA_CAN_GEOMETRY, HA_CAN_FULLTEXT, HA_CAN_SQL_HANDLER, HA_DUPLICATE_POS,
+    HA_CAN_GEOMETRY, HA_CAN_FULLTEXT, HA_DUPLICATE_POS,
     HA_CAN_INSERT_DELAYED, HA_PRIMARY_KEY_REQUIRED_FOR_POSITION is disabled
     until further investigated.
   */
@@ -1223,6 +1223,7 @@ public:
   /* Enabled keycache for performance reasons, WL#4571 */
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);
     virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);
+    virtual TABLE_LIST *get_next_global_for_child();
 
   /*
     -------------------------------------------------------------------------
