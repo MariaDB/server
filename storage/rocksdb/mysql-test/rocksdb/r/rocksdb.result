@@ -74,7 +74,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 explain select * from t2 where a='abc';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	const	PRIMARY	PRIMARY	12	const	#	NULL
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	12	const	#	
 select * from t2 where a='abc';
 a	b
 abc	def
@@ -190,7 +190,7 @@ insert into t8 values
 # Delete by PK
 explain delete from t8 where a='three';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t8	range	PRIMARY	PRIMARY	12	const	#	Using where
+1	SIMPLE	t8	range	PRIMARY	PRIMARY	12	NULL	#	Using where
 delete from t8 where a='three';
 select * from t8;
 a	col1
@@ -306,7 +306,7 @@ drop table t14;
 #
 create table t9 (i int primary key) engine=rocksdb;
 alter table t9 discard tablespace;
-ERROR HY000: Table storage engine for 't9' doesn't have this option
+ERROR HY000: Storage engine ROCKSDB of the table `test`.`t9` doesn't have this option
 drop table t9;
 #
 # MDEV-3959: Assertion `slice->size() == table->s->reclength' fails ...
@@ -368,11 +368,16 @@ row4	val1
 #
 # Locking tests
 #
+connect  con1,localhost,root,,;
 # First, make sure there's no locking when transactions update different rows
+connection con1;
 set autocommit=0;
 update t17 set col1='UPD1' where pk='row2';
+connection default;
 update t17 set col1='UPD2' where pk='row3';
+connection con1;
 commit;
+connection default;
 select * from t17;
 pk	col1
 row2	UPD1
@@ -387,17 +392,22 @@ show variables like 'rocksdb_lock_wait_timeout';
 Variable_name	Value
 rocksdb_lock_wait_timeout	2
 # Try updating the same row from two transactions
+connection con1;
 begin;
 update t17 set col1='UPD2-AA' where pk='row2';
+connection default;
 update t17 set col1='UPD2-BB' where pk='row2';
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t17.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 set rocksdb_lock_wait_timeout=1000;
 update t17 set col1='UPD2-CC' where pk='row2';
+connection con1;
 rollback;
+connection default;
 select * from t17 where pk='row2';
 pk	col1
 row2	UPD2-CC
 drop table t17;
+disconnect con1;
 #
 #  MDEV-4035: RocksDB: SELECT produces different results inside a transaction (read is not repeatable)
 #
@@ -488,7 +498,7 @@ row3	row3data
 connection default;
 set rocksdb_lock_wait_timeout=1;
 update t27 set col1='row2-modified' where pk='row3';
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t27.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection con1;
 rollback;
 connection default;
@@ -1146,7 +1156,7 @@ BEGIN;
 UPDATE t1 SET i = 100;
 connect  con1,localhost,root,,test;
 DELETE IGNORE FROM t1 ORDER BY i;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
 connection default;
 COMMIT;
@@ -1669,14 +1679,14 @@ insert into t1 values (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
 explain
 select * from t1 where col1=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	col1	col1	5	const	#	NULL
+1	SIMPLE	t1	ref	col1	col1	5	const	#	
 select * from t1 where col1=2;
 pk	col1	col2
 2	2	2
 explain
 select * from t1 where col2=3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	col2	col2	5	const	#	NULL
+1	SIMPLE	t1	ref	col2	col2	5	const	#	
 select * from t1 where col2=3;
 pk	col1	col2
 3	3	3
@@ -1699,7 +1709,7 @@ insert into t1 values (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
 explain
 select * from t1 where col1=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	col1	col1	5	const	#	NULL
+1	SIMPLE	t1	ref	col1	col1	5	const	#	
 select * from t1 where col1=2;
 pk	col1	col2
 2	2	2
@@ -1749,9 +1759,9 @@ id	key1
 1	1
 # Check that ALTER and RENAME are disallowed
 alter table t1 add col2 int;
-ERROR 42000: This version of MySQL doesn't yet support 'ALTER TABLE on table with per-index CF'
+ERROR 42000: This version of MariaDB doesn't yet support 'ALTER TABLE on table with per-index CF'
 rename table t1 to t2;
-ERROR 42000: This version of MySQL doesn't yet support 'ALTER TABLE on table with per-index CF'
+ERROR 42000: This version of MariaDB doesn't yet support 'ALTER TABLE on table with per-index CF'
 drop table t1;
 # Check detection of typos in $per_index_cf
 create table t1 (
@@ -1760,7 +1770,7 @@ key1 int,
 PRIMARY KEY (id),
 index (key1) comment '$per_idnex_cf'
 )engine=rocksdb;
-ERROR 42000: This version of MySQL doesn't yet support 'column family name looks like a typo of $per_index_cf'
+ERROR 42000: This version of MariaDB doesn't yet support 'column family name looks like a typo of $per_index_cf'
 #
 # Issue #22: SELECT ... FOR UPDATE takes a long time
 #
@@ -2131,7 +2141,7 @@ id
 6
 begin;
 select * from t1 where id=4 for update;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t1.PRIMARY
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 select * from t1 where id=7 for update;
 id
 select * from t1 where id=9 for update;
@@ -2163,7 +2173,9 @@ a	b	c
 3	3abcde	3abcde
 drop table t1;
 create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(2255))) engine=rocksdb;
-ERROR 42000: Specified key was too long; max key length is 2048 bytes
+Warnings:
+Warning	1071	Specified key was too long; max key length is 2048 bytes
+drop table t1;
 SET sql_mode = @old_mode;
 drop table t0;
 #
