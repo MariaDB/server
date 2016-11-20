@@ -1,3 +1,5 @@
+truncate table performance_schema.events_statements_history_long;
+truncate table performance_schema.events_stages_history_long;
 drop table if exists t0, t1;
 select * from performance_schema.setup_instruments where name like '%show_explain%';
 NAME	ENABLED	TIMED

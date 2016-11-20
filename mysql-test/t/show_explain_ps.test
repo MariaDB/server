@@ -6,7 +6,10 @@
 # Like all other perfschema tests, we don't work on embedded server:
 --source include/not_embedded.inc
 
---source include/restart_mysqld.inc
+# There is a query below that selects from P_S tables.
+# Remove possible history that could confuse it
+truncate table performance_schema.events_statements_history_long;
+truncate table performance_schema.events_stages_history_long;
 
 --disable_warnings
 drop table if exists t0, t1;
