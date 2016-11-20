@@ -9,4 +9,3 @@ return "Test needs --big-test" unless $::opt_big_test;
 sub is_default { 1 }
 
 bless { };
-

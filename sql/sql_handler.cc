@@ -139,6 +139,48 @@ static void mysql_ha_hash_free(SQL_HANDLER *table)
   delete table;
 }
 
+static void mysql_ha_close_childs(THD *thd, TABLE_LIST *current_table_list,
+                                  TABLE_LIST **next_global)
+{
+  TABLE_LIST *table_list;
+  DBUG_ENTER("mysql_ha_close_childs");
+  DBUG_PRINT("info",("current_table_list: %p", current_table_list));
+  DBUG_PRINT("info",("next_global: %p", *next_global));
+  for (table_list = *next_global; table_list; table_list = *next_global)
+  {
+    *next_global = table_list->next_global;
+    DBUG_PRINT("info",("table_name: %s.%s", table_list->table->s->db.str,
+                       table_list->table->s->table_name.str));
+    DBUG_PRINT("info",("parent_l: %p", table_list->parent_l));
+    if (table_list->parent_l == current_table_list)
+    {
+      DBUG_PRINT("info",("found child"));
+      TABLE *table = table_list->table;
+      if (table)
+      {
+        table->open_by_handler= 0;
+        if (!table->s->tmp_table)
+        {
+          (void) close_thread_table(thd, &table);
+          thd->mdl_context.release_lock(table_list->mdl_request.ticket);
+        }
+        else
+        {
+          thd->mark_tmp_table_as_free_for_reuse(table);
+        }
+      }
+      mysql_ha_close_childs(thd, table_list, next_global);
+    }
+    else
+    {
+      /* the end of child tables */
+      *next_global = table_list;
+      break;
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
 /**
   Close a HANDLER table.
 
@@ -155,11 +197,16 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
 {
   THD *thd= handler->thd;
   TABLE *table= handler->table;
+  TABLE_LIST *current_table_list= NULL, *next_global;
 
   /* check if table was already closed */
   if (!table)
     return;
 
+  if ((next_global= table->file->get_next_global_for_child()))
+    current_table_list= next_global->parent_l;
+
+  table->open_by_handler= 0;
   if (!table->s->tmp_table)
   {
     /* Non temporary table. */
@@ -170,15 +217,17 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
     }
 
     table->file->ha_index_or_rnd_end();
-    table->open_by_handler= 0;
     close_thread_table(thd, &table);
+    if (current_table_list)
+      mysql_ha_close_childs(thd, current_table_list, &next_global);
     thd->mdl_context.release_lock(handler->mdl_request.ticket);
   }
   else
   {
     /* Must be a temporary table */
     table->file->ha_index_or_rnd_end();
-    table->open_by_handler= 0;
+    if (current_table_list)
+      mysql_ha_close_childs(thd, current_table_list, &next_global);
     thd->mark_tmp_table_as_free_for_reuse(table);
   }
   my_free(handler->lock);
@@ -309,15 +358,24 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     goto err;
   }
 
-  if (tables->mdl_request.ticket &&
-      thd->mdl_context.has_lock(mdl_savepoint, tables->mdl_request.ticket))
+  DBUG_PRINT("info",("clone_tickets start"));
+  for (TABLE_LIST *table_list= tables; table_list;
+    table_list= table_list->next_global)
   {
+    DBUG_PRINT("info",("table_list %s.%s", table_list->table->s->db.str,
+      table_list->table->s->table_name.str));
+  if (table_list->mdl_request.ticket &&
+      thd->mdl_context.has_lock(mdl_savepoint, table_list->mdl_request.ticket))
+  {
+      DBUG_PRINT("info",("clone_tickets"));
     /* The ticket returned is within a savepoint. Make a copy.  */
-    error= thd->mdl_context.clone_ticket(&tables->mdl_request);
-    tables->table->mdl_ticket= tables->mdl_request.ticket;
+    error= thd->mdl_context.clone_ticket(&table_list->mdl_request);
+    table_list->table->mdl_ticket= table_list->mdl_request.ticket;
     if (error)
       goto err;
   }
+  }
+  DBUG_PRINT("info",("clone_tickets end"));
 
   if (! reopen)
   {
@@ -378,26 +436,37 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
 
   /* Restore the state. */
   thd->set_open_tables(backup_open_tables);
+  DBUG_PRINT("info",("set_lock_duration start"));
   if (sql_handler->mdl_request.ticket)
   {
     thd->mdl_context.set_lock_duration(sql_handler->mdl_request.ticket,
                                        MDL_EXPLICIT);
     thd->mdl_context.set_needs_thr_lock_abort(TRUE);
   }
+  for (TABLE_LIST *table_list= tables->next_global; table_list;
+    table_list= table_list->next_global)
+  {
+    DBUG_PRINT("info",("table_list %s.%s", table_list->table->s->db.str,
+      table_list->table->s->table_name.str));
+    if (table_list->mdl_request.ticket)
+    {
+      thd->mdl_context.set_lock_duration(table_list->mdl_request.ticket,
+                                         MDL_EXPLICIT);
+      thd->mdl_context.set_needs_thr_lock_abort(TRUE);
+    }
+  }
+  DBUG_PRINT("info",("set_lock_duration end"));
 
-  /*
-    Assert that the above check prevents opening of views and merge tables.
-    For temporary tables, TABLE::next can be set even if only one table
-    was opened for HANDLER as it is used to link them together.
-  */
-  DBUG_ASSERT(sql_handler->table->next == NULL ||
-              sql_handler->table->s->tmp_table);
   /*
     If it's a temp table, don't reset table->query_id as the table is
     being used by this handler. For non-temp tables we use this flag
     in asserts.
   */
-  table->open_by_handler= 1;
+  for (TABLE_LIST *table_list= tables; table_list;
+    table_list= table_list->next_global)
+  {
+    table_list->table->open_by_handler= 1;
+  }
 
   /* Safety, cleanup the pointer to satisfy MDL assertions. */
   tables->mdl_request.ticket= NULL;
@@ -707,8 +776,14 @@ retry:
   {
     int lock_error;
 
-    if (handler->lock->lock_count > 0)
-      handler->lock->locks[0]->type= handler->lock->locks[0]->org_type;
+    THR_LOCK_DATA **pos,**end;
+    for (pos= handler->lock->locks,
+           end= handler->lock->locks + handler->lock->lock_count;
+         pos < end;
+         pos++)
+    {
+      pos[0]->type= pos[0]->org_type;
+    }
 
     /* save open_tables state */
     TABLE* backup_open_tables= thd->open_tables;
