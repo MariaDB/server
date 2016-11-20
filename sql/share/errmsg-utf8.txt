@@ -7488,10 +7488,10 @@ ER_UNKNOWN_VIEW 42S02
 # MariaDB error numbers related to System Versioning
 
 ER_TABLE_DOESNT_SUPPORT_SYSTEM_VERSIONING
-        eng "Table '%s' doesn't support system versioning"
+        eng "Table %`s doesn't support system versioning"
 
-ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER
-        eng "Generated field for System Versioning cannot be set by user"
+ER_VERS_READONLY_FIELD
+        eng "System field %`s is read-only"
 
 ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING
         eng "Rows matched: %ld  Changed: %ld  Inserted: %ld  Warnings: %ld"
@@ -7509,4 +7509,4 @@ ER_VERS_RANGE_UNITS_MISMATCH
         eng "Range units mismatch"
 
 ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY
-        eng "Attempt to read unversioned field '%s' in historical query"
+        eng "Attempt to read unversioned field %`s in historical query"

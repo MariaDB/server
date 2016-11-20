@@ -2001,7 +2001,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     {
       uchar flags= *extra2_field_flags++;
       if (flags & VERS_OPTIMIZED_UPDATE)
-        reg_field->disable_versioning();
+        reg_field->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
       if (flags & HIDDEN)
         reg_field->flags|= HIDDEN_FLAG;
     }
@@ -2557,8 +2557,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       goto err;
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
     share->enable_system_versioning(row_start, row_end);
-    vers_start_field()->set_generated_row_start();
-    vers_end_field()->set_generated_row_end();
+    vers_start_field()->flags|= VERS_SYS_START_FLAG;
+    vers_end_field()->flags|= VERS_SYS_END_FLAG;
 
     DBUG_ASSERT(db_type());
     if (db_type()->versioned())
@@ -3148,7 +3148,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     outparam->non_generated_field = fptr;
     for (i=0 ; i < share->fields; i++)
     {
-      if (outparam->field[i]->is_generated())
+      if (outparam->field[i]->vers_sys_field())
         continue;
       *fptr++ = outparam->field[i];
     }

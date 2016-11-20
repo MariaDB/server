@@ -3051,7 +3051,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
           column_definition->default_value == NULL &&   // no constant default,
           column_definition->unireg_check == Field::NONE && // no function default
           column_definition->vcol_info == NULL &&
-          !(column_definition->flags & (GENERATED_ROW_START_FLAG | GENERATED_ROW_END_FLAG))) // column isn't generated
+          !(column_definition->flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG))) // column isn't generated
       {
         DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "
                             "DEFAULT CURRENT_TIMESTAMP ON UPDATE "
@@ -3142,37 +3142,6 @@ static void check_duplicate_key(THD *thd, Key *key, KEY *key_info,
                           ER_DUP_INDEX, ER_THD(thd, ER_DUP_INDEX),
                           key_info->name);
       break;
-    }
-  }
-}
-
-static void
-copy_info_about_generated_fields(Alter_info *dst_alter_info,
-                                 HA_CREATE_INFO *src_create_info)
-{
-  if (!src_create_info->versioned())
-    return;
-
-  const char *row_start_field = src_create_info->vers_info.generated_as_row.start->c_ptr();
-  DBUG_ASSERT(row_start_field);
-  const char *row_end_field = src_create_info->vers_info.generated_as_row.end->c_ptr();
-  DBUG_ASSERT(row_end_field);
-
-  List_iterator<Create_field> it(dst_alter_info->create_list);
-  Create_field *column_definition = NULL;
-  while ( (column_definition = it++) )
-  {
-    if (!my_strcasecmp(system_charset_info,
-                       row_start_field,
-                       column_definition->field_name))
-    {
-      column_definition->flags |= GENERATED_ROW_START_FLAG;
-    }
-    else if (!my_strcasecmp(system_charset_info,
-                       row_end_field,
-                       column_definition->field_name))
-    {
-      column_definition->flags |= GENERATED_ROW_END_FLAG;
     }
   }
 }
@@ -5038,8 +5007,6 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     create_table_mode= C_ORDINARY_CREATE;
   else
     create_table_mode= C_ASSISTED_DISCOVERY;
-
-  copy_info_about_generated_fields(alter_info, create_info);
 
   if (!opt_explicit_defaults_for_timestamp)
     promote_first_timestamp_column(&alter_info->create_list);

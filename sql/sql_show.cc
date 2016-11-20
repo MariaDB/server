@@ -1666,7 +1666,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
 
   has_default= (field->default_value ||
                 (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
-		 !field->is_generated() &&
+		 !field->vers_sys_field() &&
                  field->unireg_check != Field::NEXT_NUMBER));
 
   def_value->length(0);
@@ -2109,7 +2109,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     {
       if (flags & NOT_NULL_FLAG)
         packet->append(STRING_WITH_LEN(" NOT NULL"));
-      else if (field->type() == MYSQL_TYPE_TIMESTAMP)
+      else if (field->type() == MYSQL_TYPE_TIMESTAMP && !field->vers_sys_field())
       {
         /*
           TIMESTAMP field require explicit NULL flag, because unlike
@@ -2124,16 +2124,16 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         packet->append(STRING_WITH_LEN(" DEFAULT "));
         packet->append(def_value.ptr(), def_value.length(), system_charset_info);
       }
-      else if (field->is_generated_row_start())
+      else if (field->flags & VERS_SYS_START_FLAG)
       {
-        packet->append(STRING_WITH_LEN(" GENERATED AS ROW START"));
+        packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW START"));
       }
-      else if (field->is_generated_row_end())
+      else if (field->flags & VERS_SYS_END_FLAG)
       {
-        packet->append(STRING_WITH_LEN(" GENERATED AS ROW END"));
+        packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW END"));
       }
 
-      if (field->is_versioning_disabled())
+      if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG)
       {
         packet->append(STRING_WITH_LEN(" WITHOUT SYSTEM VERSIONING"));
       }

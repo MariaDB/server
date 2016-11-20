@@ -6170,13 +6170,14 @@ field_def:
           vcol_opt_specifier vcol_opt_attribute
         | opt_generated_always AS ROW_SYM start_or_end
           {
-            Vers_parse_info &info= Lex->vers_get_info();
+            LEX *lex= Lex;
+            Vers_parse_info &info= lex->vers_get_info();
             String *field_name= new (thd->mem_root)
-              String((const char*)Lex->last_field->field_name, system_charset_info);
+              String((const char*)lex->last_field->field_name, system_charset_info);
             if (!field_name)
               MYSQL_YYABORT;
 
-            const char *table_name= Lex->create_last_non_select_table->table_name;
+            const char *table_name= lex->create_last_non_select_table->table_name;
 
             String **p= NULL;
             const char* err;
@@ -6185,10 +6186,12 @@ field_def:
             case 1:
               p= &info.generated_as_row.start;
               err= "multiple 'GENERATED ALWAYS AS ROW START'";
+              lex->last_field->flags|= VERS_SYS_START_FLAG;
               break;
             case 0:
               p= &info.generated_as_row.end;
               err= "multiple 'GENERATED ALWAYS AS ROW END'";
+              lex->last_field->flags|= VERS_SYS_END_FLAG;
               break;
             default:
               /* Not Reachable */

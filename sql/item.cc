@@ -2760,7 +2760,7 @@ void Item_field::set_field(Field *field_par)
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE)
     any_privileges= 0;
 
-  if (field->is_versioning_disabled() && context && context->select_lex &&
+  if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context && context->select_lex &&
       context->select_lex->vers_conditions.type !=
           FOR_SYSTEM_TIME_UNSPECIFIED &&
       !field->force_null)

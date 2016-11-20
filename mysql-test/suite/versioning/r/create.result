@@ -9,8 +9,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `XNo` int(10) unsigned DEFAULT NULL,
-  `Sys_start` timestamp(6) NOT NULL GENERATED AS ROW START,
-  `Sys_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  `Sys_start` timestamp(6) NOT NULL GENERATED ALWAYS AS ROW START,
+  `Sys_end` timestamp(6) NOT NULL GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 # Implicit fields test
@@ -21,8 +21,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `XNo` int(10) unsigned DEFAULT NULL,
-  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
-  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
@@ -126,8 +126,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `A` int(11) DEFAULT NULL,
   `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
-  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
-  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
@@ -139,8 +139,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `A` int(11) DEFAULT NULL,
   `B` int(11) DEFAULT NULL,
-  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
-  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
@@ -157,8 +157,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `A` int(11) DEFAULT NULL,
   `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
-  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
-  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
@@ -170,8 +170,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `A` int(11) DEFAULT NULL,
   `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
-  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
-  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
@@ -183,8 +183,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `A` int(11) DEFAULT NULL,
   `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
-  `sys_trx_start` timestamp(6) NOT NULL GENERATED AS ROW START,
-  `sys_trx_end` timestamp(6) NOT NULL GENERATED AS ROW END,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (

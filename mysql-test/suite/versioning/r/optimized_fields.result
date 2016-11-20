@@ -17,50 +17,50 @@ a	b	b+0
 1	NULL	NULL
 3	NULL	NULL
 Warnings:
-Warning	4055	Attempt to read unversioned field 'b' in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select * from t for system_time as of timestamp now(6);
 a	b
 1	NULL
 3	NULL
 Warnings:
-Warning	4055	Attempt to read unversioned field 'b' in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select count(*) from t group by b for system_time as of timestamp now(6);
 count(*)
 2
 Warnings:
-Warning	4055	Attempt to read unversioned field 'b' in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) order by b asc;
 a	b
 1	NULL
 3	NULL
 Warnings:
-Warning	4055	Attempt to read unversioned field 'b' in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select * from t for system_time as of timestamp now(6) order by b desc;
 a	b
 1	NULL
 3	NULL
 Warnings:
-Warning	4055	Attempt to read unversioned field 'b' in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select * from t group by a having a=2 for system_time as of timestamp now(6);
 a	b
 Warnings:
-Warning	4055	Attempt to read unversioned field 'b' in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select * from t group by b having b=2 for system_time as of timestamp now(6);
 a	b
 Warnings:
-Warning	4055	Attempt to read unversioned field 'b' in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select a from t where b=2 for system_time as of timestamp now(6);
 a
 Warnings:
-Warning	4055	Attempt to read unversioned field 'b' in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select a from t where b=NULL for system_time as of timestamp now(6);
 a
 Warnings:
-Warning	4055	Attempt to read unversioned field 'b' in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select count(*), b from t group by b having b=NULL for system_time as of timestamp now(6);
 count(*)	b
 Warnings:
-Warning	4055	Attempt to read unversioned field 'b' in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select a, b from t;
 a	b
 1	2

@@ -6561,6 +6561,7 @@ static bool create_string(MEM_ROOT *mem_root, String **s, const char *value)
 
 static bool create_sys_trx_field(THD *thd, const char *field_name,
                                  Alter_info *alter_info, String **s,
+                                 int flags,
                                  bool integer_fields)
 {
   Create_field *f= new (thd->mem_root) Create_field();
@@ -6570,12 +6571,12 @@ static bool create_sys_trx_field(THD *thd, const char *field_name,
   memset(f, 0, sizeof(*f));
   f->field_name= field_name;
   f->charset= system_charset_info;
-  f->flags= NOT_NULL_FLAG | HIDDEN_FLAG;
+  f->flags= flags | HIDDEN_FLAG;
   if (integer_fields)
   {
     f->sql_type= MYSQL_TYPE_LONGLONG;
     f->flags|= UNSIGNED_FLAG;
-    f->length= MY_INT64_NUM_DECIMAL_DIGITS;
+    f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
   }
   else
   {
@@ -6610,8 +6611,8 @@ bool Vers_parse_info::fix_implicit(
         !strncmp(name, generated_as_row.end->c_ptr(), len))
       continue;
 
-    if (f->versioning == Column_definition::VERSIONING_NOT_SET &&
-      !declared_system_versioning ||
+    if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
+      !declared_system_versioning) ||
       f->versioning == Column_definition::WITHOUT_VERSIONING)
     {
       f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
@@ -6623,10 +6624,12 @@ bool Vers_parse_info::fix_implicit(
       period_for_system_time.start || period_for_system_time.end)
     return false;
 
-  return create_sys_trx_field(thd, "sys_trx_start", alter_info,
-                              &generated_as_row.start, integer_fields) ||
+  return create_sys_trx_field(thd,"sys_trx_start", alter_info,
+                              &generated_as_row.start, VERS_SYS_START_FLAG,
+                              integer_fields) ||
          create_sys_trx_field(thd, "sys_trx_end", alter_info,
-                              &generated_as_row.end, integer_fields) ||
+                              &generated_as_row.end, VERS_SYS_END_FLAG,
+                              integer_fields) ||
          create_string(thd->mem_root, &period_for_system_time.start,
                        "sys_trx_start") ||
          create_string(thd->mem_root, &period_for_system_time.end,

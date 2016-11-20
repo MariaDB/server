@@ -1407,54 +1407,9 @@ public:
       FIELD_FLAGS_COLUMN_FORMAT;
   }
 
-  /*
-    System versioning support.
-   */
-
-  bool is_generated()
+  bool vers_sys_field()
   {
-    return flags & (GENERATED_ROW_START_FLAG | GENERATED_ROW_END_FLAG);
-  }
-
-  bool is_generated_row_start()
-  {
-    return flags & GENERATED_ROW_START_FLAG;
-  }
-
-  bool is_generated_row_end()
-  {
-    return flags & GENERATED_ROW_END_FLAG;
-  }
-
-  bool is_versioning_disabled()
-  {
-    return flags & VERS_OPTIMIZED_UPDATE_FLAG;
-  }
-
-  /* Mark a field as auto-generated row start column. */
-  void set_generated_row_start()
-  {
-    //DBUG_ASSERT((flags & GENERATED_ROW_END_FLAG) == 0);
-    flags |= GENERATED_ROW_START_FLAG;
-  }
-
-  /* Mark a field as auto-generated row start column. */
-  void set_generated_row_end()
-  {
-    //DBUG_ASSERT((flags & GENERATED_ROW_START_FLAG) == 0);
-    flags |= GENERATED_ROW_END_FLAG;
-  }
-
-  /* Disable a field versioning for a versioned table. */
-  void disable_versioning()
-  {
-    flags |= VERS_OPTIMIZED_UPDATE_FLAG;
-  }
-
-  /* Inherit a field versioning status from the table. */
-  void inherit_versioning()
-  {
-    flags &= ~VERS_OPTIMIZED_UPDATE_FLAG;
+    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
   }
 
   /*

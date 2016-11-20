@@ -188,9 +188,9 @@ x	y	sys_end
 1002	2002	2038-01-19 03:14:07.000000
 3001	4001	2038-01-19 03:14:07.000000
 insert into t1(x, y, sys_end) values(8001, 9001, '2015-1-1 1:1:1');
-ERROR HY000: Generated field for System Versioning cannot be set by user
+ERROR HY000: System field `sys_end` is read-only
 insert into vt1_2 values(3002, 4002, '2015-2-2 2:2:2');
-ERROR HY000: Generated field for System Versioning cannot be set by user
+ERROR HY000: System field `sys_end` is read-only
 drop table t1;
 drop view vt1_1;
 drop view vt1_2;
@@ -211,9 +211,9 @@ x	y	vtq_commit_ts(sys_end)
 1002	2002	2038-01-19 03:14:07.000000
 3001	4001	2038-01-19 03:14:07.000000
 insert into t1(x, y, sys_end) values(8001, 9001, 1111111);
-ERROR HY000: Generated field for System Versioning cannot be set by user
+ERROR HY000: System field `sys_end` is read-only
 insert into vt1_2 values(3002, 4002, 2222222);
-ERROR HY000: Generated field for System Versioning cannot be set by user
+ERROR HY000: System field `sys_end` is read-only
 drop table t1;
 drop view vt1_1;
 drop view vt1_2;

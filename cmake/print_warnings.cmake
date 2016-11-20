@@ -22,6 +22,6 @@ IF(NOT WARN_MODE MATCHES "early")
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
   ADD_CUSTOM_TARGET(print_warnings ALL
     COMMAND bash -c '[ -f compile.warnings ] && { echo "Warnings found:" \; cat compile.warnings \; echo "" \; } \; true'
-    DEPENDS mysql udf_example explain_filename-t rm_compile.warnings
+    DEPENDS mysql udf_example rm_compile.warnings
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
 ENDIF()
