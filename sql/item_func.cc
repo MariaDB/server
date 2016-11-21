@@ -6611,7 +6611,9 @@ void Item_func_sp::fix_length_and_dec()
   DBUG_ENTER("Item_func_sp::fix_length_and_dec");
 
   DBUG_ASSERT(sp_result_field);
-  Type_std_attributes::set(sp_result_field);
+  Type_std_attributes::set(sp_result_field->type_std_attributes());
+  // There is a bug in the line below. See MDEV-11292 for details.
+  collation.derivation= DERIVATION_COERCIBLE;
   maybe_null= 1;
 
   DBUG_VOID_RETURN;

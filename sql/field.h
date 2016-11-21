@@ -31,6 +31,7 @@
 #include "my_decimal.h"                         /* my_decimal */
 #include "sql_error.h"                          /* Sql_condition */
 #include "compat56.h"
+#include "sql_type.h"                           /* Type_std_attributes */
 
 class Send_field;
 class Copy_field;
@@ -403,24 +404,9 @@ public:
 };
 
 
-enum Derivation
-{
-  DERIVATION_IGNORABLE= 6,
-  DERIVATION_NUMERIC= 5,
-  DERIVATION_COERCIBLE= 4,
-  DERIVATION_SYSCONST= 3,
-  DERIVATION_IMPLICIT= 2,
-  DERIVATION_NONE= 1,
-  DERIVATION_EXPLICIT= 0
-};
-
-
 #define STORAGE_TYPE_MASK 7
 #define COLUMN_FORMAT_MASK 7
 #define COLUMN_FORMAT_SHIFT 3
-
-#define my_charset_numeric      my_charset_latin1
-#define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
 
 /* The length of the header part for each virtual column in the .frm file */
 #define FRM_VCOL_OLD_HEADER_SIZE(b) (3 + MY_TEST(b))
@@ -796,6 +782,18 @@ public:
         uchar null_bit_arg, utype unireg_check_arg,
         const char *field_name_arg);
   virtual ~Field() {}
+
+  DTCollation dtcollation() const
+  {
+    return DTCollation(charset(), derivation(), repertoire());
+  }
+  Type_std_attributes type_std_attributes() const
+  {
+    return Type_std_attributes(field_length, decimals(),
+                               MY_TEST(flags & UNSIGNED_FLAG),
+                               dtcollation());
+  }
+
   /**
     Convenience definition of a copy function returned by
     Field::get_copy_func()
