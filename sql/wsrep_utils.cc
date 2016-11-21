@@ -264,7 +264,6 @@ process::process (const char* cmd, const char* type, char** env)
 
     err_ = posix_spawnattr_setflags (&attr, POSIX_SPAWN_SETSIGDEF  |
                                             POSIX_SPAWN_SETSIGMASK |
-            /* start a new process group */ POSIX_SPAWN_SETPGROUP  |
                                             POSIX_SPAWN_USEVFORK);
     if (err_)
     {
