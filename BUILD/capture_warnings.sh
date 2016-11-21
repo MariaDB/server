@@ -11,9 +11,9 @@ cmderr=$("$@" 2>&1 1>&3)
 error=$?
 
 if [[ -n "$cmderr" ]]; then
-    [[ "$warn_mode" == "both" ]] &&
+    [[ "$warn_mode" != "late" ]] &&
         echo "$cmderr" >&2
-    [[ "$cmderr" =~ warning:(.+)$ ]] &&
+    [[ "$warn_mode" != "early" && "$cmderr" =~ warning:(.+)$ ]] &&
         echo -n "$cmderr" >> "$warn_file"
 fi
 
