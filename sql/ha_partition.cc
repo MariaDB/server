@@ -7237,18 +7237,9 @@ int ha_partition::extra(enum ha_extra_function operation)
       with row being inserted by PK/unique key without reporting error
       to the SQL-layer.
 
-      This optimization is not safe for partitioned table in general case
-      since we may have to put new version of row into partition which is
-      different from partition in which old version resides (for example
-      when we partition by non-PK column or by some column which is not
-      part of unique key which were violated).
-      And since NDB which is the only engine at the moment that supports
-      this optimization handles partitioning on its own we simple disable
-      it here. (BTW for NDB this optimization is safe since it supports
-      only KEY partitioning and won't use this optimization for tables
-      which have additional unique constraints).
+      At this time, this is safe by limitation of ha_partition
     */
-    break;
+    DBUG_RETURN(loop_extra(operation));
   }
     /* Category 7), used by federated handlers */
   case HA_EXTRA_INSERT_WITH_UPDATE:
