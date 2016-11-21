@@ -30,6 +30,186 @@ class Sort_param;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 
+
+/*
+  Flags for collation aggregation modes, used in TDCollation::agg():
+
+  MY_COLL_ALLOW_SUPERSET_CONV  - allow conversion to a superset
+  MY_COLL_ALLOW_COERCIBLE_CONV - allow conversion of a coercible value
+                                 (i.e. constant).
+  MY_COLL_ALLOW_CONV           - allow any kind of conversion
+                                 (combination of the above two)
+  MY_COLL_ALLOW_NUMERIC_CONV   - if all items were numbers, convert to
+                                 @@character_set_connection
+  MY_COLL_DISALLOW_NONE        - don't allow return DERIVATION_NONE
+                                 (e.g. when aggregating for comparison)
+  MY_COLL_CMP_CONV             - combination of MY_COLL_ALLOW_CONV
+                                 and MY_COLL_DISALLOW_NONE
+*/
+
+#define MY_COLL_ALLOW_SUPERSET_CONV   1
+#define MY_COLL_ALLOW_COERCIBLE_CONV  2
+#define MY_COLL_DISALLOW_NONE         4
+#define MY_COLL_ALLOW_NUMERIC_CONV    8
+
+#define MY_COLL_ALLOW_CONV (MY_COLL_ALLOW_SUPERSET_CONV | MY_COLL_ALLOW_COERCIBLE_CONV)
+#define MY_COLL_CMP_CONV   (MY_COLL_ALLOW_CONV | MY_COLL_DISALLOW_NONE)
+
+
+#define my_charset_numeric      my_charset_latin1
+#define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
+
+
+enum Derivation
+{
+  DERIVATION_IGNORABLE= 6,
+  DERIVATION_NUMERIC= 5,
+  DERIVATION_COERCIBLE= 4,
+  DERIVATION_SYSCONST= 3,
+  DERIVATION_IMPLICIT= 2,
+  DERIVATION_NONE= 1,
+  DERIVATION_EXPLICIT= 0
+};
+
+
+/**
+   "Declared Type Collation"
+   A combination of collation and its derivation.
+*/
+
+class DTCollation {
+public:
+  CHARSET_INFO     *collation;
+  enum Derivation derivation;
+  uint repertoire;
+
+  void set_repertoire_from_charset(CHARSET_INFO *cs)
+  {
+    repertoire= cs->state & MY_CS_PUREASCII ?
+                MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
+  }
+  DTCollation()
+  {
+    collation= &my_charset_bin;
+    derivation= DERIVATION_NONE;
+    repertoire= MY_REPERTOIRE_UNICODE30;
+  }
+  DTCollation(CHARSET_INFO *collation_arg, Derivation derivation_arg)
+  {
+    collation= collation_arg;
+    derivation= derivation_arg;
+    set_repertoire_from_charset(collation_arg);
+  }
+  DTCollation(CHARSET_INFO *collation_arg,
+              Derivation derivation_arg,
+              uint repertoire_arg)
+   :collation(collation_arg),
+    derivation(derivation_arg),
+    repertoire(repertoire_arg)
+  { }
+  void set(const DTCollation &dt)
+  {
+    collation= dt.collation;
+    derivation= dt.derivation;
+    repertoire= dt.repertoire;
+  }
+  void set(CHARSET_INFO *collation_arg, Derivation derivation_arg)
+  {
+    collation= collation_arg;
+    derivation= derivation_arg;
+    set_repertoire_from_charset(collation_arg);
+  }
+  void set(CHARSET_INFO *collation_arg,
+           Derivation derivation_arg,
+           uint repertoire_arg)
+  {
+    collation= collation_arg;
+    derivation= derivation_arg;
+    repertoire= repertoire_arg;
+  }
+  void set_numeric()
+  {
+    collation= &my_charset_numeric;
+    derivation= DERIVATION_NUMERIC;
+    repertoire= MY_REPERTOIRE_NUMERIC;
+  }
+  void set(CHARSET_INFO *collation_arg)
+  {
+    collation= collation_arg;
+    set_repertoire_from_charset(collation_arg);
+  }
+  void set(Derivation derivation_arg)
+  { derivation= derivation_arg; }
+  bool aggregate(const DTCollation &dt, uint flags= 0);
+  bool set(DTCollation &dt1, DTCollation &dt2, uint flags= 0)
+  { set(dt1); return aggregate(dt2, flags); }
+  const char *derivation_name() const
+  {
+    switch(derivation)
+    {
+      case DERIVATION_NUMERIC:   return "NUMERIC";
+      case DERIVATION_IGNORABLE: return "IGNORABLE";
+      case DERIVATION_COERCIBLE: return "COERCIBLE";
+      case DERIVATION_IMPLICIT:  return "IMPLICIT";
+      case DERIVATION_SYSCONST:  return "SYSCONST";
+      case DERIVATION_EXPLICIT:  return "EXPLICIT";
+      case DERIVATION_NONE:      return "NONE";
+      default: return "UNKNOWN";
+    }
+  }
+  int sortcmp(const String *s, const String *t) const
+  {
+    return collation->coll->strnncollsp(collation,
+                                        (uchar *) s->ptr(), s->length(),
+                                        (uchar *) t->ptr(), t->length());
+  }
+};
+
+
+/**
+  A class to store type attributes for the standard data types.
+  Does not include attributes for the extended data types
+  such as ENUM, SET, GEOMETRY.
+*/
+class Type_std_attributes
+{
+public:
+  DTCollation collation;
+  uint decimals;
+  /*
+    The maximum value length in characters multiplied by collation->mbmaxlen.
+    Almost always it's the maximum value length in bytes.
+  */
+  uint32 max_length;
+  bool unsigned_flag;
+  Type_std_attributes()
+   :collation(&my_charset_bin, DERIVATION_COERCIBLE),
+    decimals(0), max_length(0), unsigned_flag(false)
+  { }
+  Type_std_attributes(const Type_std_attributes *other)
+   :collation(other->collation),
+    decimals(other->decimals),
+    max_length(other->max_length),
+    unsigned_flag(other->unsigned_flag)
+  { }
+  Type_std_attributes(uint32 max_length_arg, uint decimals_arg,
+                      bool unsigned_flag_arg, const DTCollation &dtc)
+    :collation(dtc),
+     decimals(decimals_arg),
+     max_length(max_length_arg),
+     unsigned_flag(unsigned_flag_arg)
+  { }
+  void set(const Type_std_attributes *other)
+  {
+    *this= *other;
+  }
+  void set(const Type_std_attributes &other)
+  {
+    *this= other;
+  }
+};
+
+
 class Type_handler
 {
 protected:
