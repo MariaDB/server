@@ -59,6 +59,7 @@ select x as FROMTO_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to 
 select x as BETWAND_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
 select x as FROMTO_ext_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
 select x as BETWAND_ext_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+select x as ALL_x, y from t1 for system_time all;
 if engine = 'innodb' then
 select x as ASOF2_x, y from t1 for system_time as of transaction @x0;
 select x as FROMTO2_x, y from t1 for system_time from transaction 0 to transaction @x1;
@@ -169,6 +170,18 @@ BETWAND_ext_x	y
 8	108
 9	109
 3	33
+ALL_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+3	33
 call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_start)');
 x	y
 0	100
@@ -225,6 +238,18 @@ FROMTO_ext_x	y
 8	108
 9	109
 BETWAND_ext_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+3	33
+ALL_x	y
 0	100
 1	101
 2	102

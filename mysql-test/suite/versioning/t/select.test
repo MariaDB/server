@@ -48,6 +48,7 @@ begin
   select x as BETWAND_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
   select x as FROMTO_ext_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
   select x as BETWAND_ext_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+  select x as ALL_x, y from t1 for system_time all;
 
   if engine = 'innodb' then
       select x as ASOF2_x, y from t1 for system_time as of transaction @x0;
@@ -77,18 +78,18 @@ begin
   prepare stmt from @str; execute stmt; drop prepare stmt;
   set @str= concat('create or replace table t2', @str0);
   prepare stmt from @str; execute stmt; drop prepare stmt;
-  
+
   insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
   insert into t2 values (1, 2), (2, 1), (3, 1);
   set @t0= now(6);
-  
+
   select t1.x as IJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x;
   select t1.x as LJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x;
   select t1.x as RJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x;
-  
+
   delete from t1;
   delete from t2;
-  
+
   select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x
   for system_time as of timestamp @t0;  
   select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x

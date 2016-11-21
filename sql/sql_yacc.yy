@@ -8712,6 +8712,16 @@ opt_for_system_time_clause:
               MYSQL_YYABORT;
             Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, UNIT_TIMESTAMP, item);
           }
+        | FOR_SYSTEM_TIME_SYM ALL
+          {
+            static MYSQL_TIME min= { TIMESTAMP_MIN_YEAR, 1, 1, 0, 0, 0, 0, false, MYSQL_TIMESTAMP_DATETIME };
+            static MYSQL_TIME max= { TIMESTAMP_MAX_YEAR, 12, 31, 23, 59, 59, 0, false, MYSQL_TIMESTAMP_DATETIME };
+            Item *t0= new (thd->mem_root) Item_datetime_literal(thd, &min);
+            Item *t1= new (thd->mem_root) Item_datetime_literal(thd, &max);
+            if (!t0 || !t1)
+              MYSQL_YYABORT;
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, UNIT_TIMESTAMP, t0, t1);
+          }
         | FOR_SYSTEM_TIME_SYM
           FROM
           trans_or_timestamp
