@@ -2299,6 +2299,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         error= 1;
         goto err;
       }
+      error= 0;
       table->table= 0;
     }
 
