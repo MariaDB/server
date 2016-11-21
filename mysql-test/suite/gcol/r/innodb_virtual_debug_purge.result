@@ -138,4 +138,23 @@ a	b	c
 6	6	12
 8	8	16
 DROP TABLE t0, t1;
+create table t (a blob, b blob, c blob as (concat(a,b)), h varchar(10), index (c(100)));
+insert t(a,b,h) values (repeat('g', 16000), repeat('x', 16000), "kk");
+insert t(a,b,h) values (repeat('a', 16000), repeat('b', 16000), "mm");
+set global innodb_purge_stop_now = 1;
+set global debug_dbug="+d,ib_purge_virtual_index_callback";
+update t set a = repeat('m', 16000) where a like "aaa%";
+connect con1, localhost, root;
+lock table t write;
+connection default;
+set global innodb_purge_run_now=1;
+select variable_value>1 from information_schema.global_status where variable_name='innodb_purge_trx_id_age';
+variable_value>1
+1
+disconnect con1;
+select variable_value>1 from information_schema.global_status where variable_name='innodb_purge_trx_id_age';
+variable_value>1
+0
+set global debug_dbug=@old_dbug;
+drop table t;
 set debug_sync=reset;
