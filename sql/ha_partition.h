@@ -1198,6 +1198,14 @@ public:
     virtual bool is_crashed() const;
     virtual int check_for_upgrade(HA_CHECK_OPT *check_opt);
 
+  /*
+    -------------------------------------------------------------------------
+    MODULE condition pushdown
+    -------------------------------------------------------------------------
+  */
+    virtual const COND *cond_push(const COND *cond);
+    virtual void cond_pop();
+
     private:
     int handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt, uint flags);
     int handle_opt_part(THD *thd, HA_CHECK_OPT *check_opt, uint part_id,
