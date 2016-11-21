@@ -6537,7 +6537,7 @@ bool TABLE::mark_virtual_col(Field *field)
 bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
 {
   Field **vfield_ptr, *tmp_vfield;
-  bool bitmap_updated= FALSE;
+  bool bitmap_updated= false;
 
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
@@ -6546,25 +6546,30 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
       bitmap_updated= mark_virtual_col(tmp_vfield);
     else if (tmp_vfield->vcol_info->stored_in_db)
     {
-      bool mark_fl= insert_fl;
-      if (!mark_fl)
-      {
-        MY_BITMAP *save_read_set;
-        Item *vcol_item= tmp_vfield->vcol_info->expr_item;
-        DBUG_ASSERT(vcol_item);
-        bitmap_clear_all(&tmp_set);
-        save_read_set= read_set;
-        read_set= &tmp_set;
-        vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
-        read_set= save_read_set;
-        bitmap_intersect(&tmp_set, write_set);
-        mark_fl= !bitmap_is_clear_all(&tmp_set);
-      }
-      if (mark_fl)
+      if (insert_fl)
       {
         bitmap_set_bit(write_set, tmp_vfield->field_index);
         mark_virtual_col(tmp_vfield);
-        bitmap_updated= TRUE;
+        bitmap_updated= true;
+      }
+      else
+      {
+        MY_BITMAP *save_read_set= read_set, *save_vcol_set= vcol_set;
+        Item *vcol_item= tmp_vfield->vcol_info->expr_item;
+        DBUG_ASSERT(vcol_item);
+        bitmap_clear_all(&tmp_set);
+        read_set= vcol_set= &tmp_set;
+        vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
+        read_set= save_read_set;
+        vcol_set= save_vcol_set;
+        if (bitmap_is_overlapping(&tmp_set, write_set))
+        {
+          bitmap_set_bit(write_set, tmp_vfield->field_index);
+          bitmap_set_bit(vcol_set, tmp_vfield->field_index);
+          bitmap_union(read_set, &tmp_set);
+          bitmap_union(vcol_set, &tmp_set);
+          bitmap_updated= true;
+        }
       }
     }
   }

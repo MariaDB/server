@@ -1,0 +1,10 @@
+create table t1 (a int, b int as (a+1), c int as (b+1) stored);
+insert t1 set a=1;
+select * from t1;
+a	b	c
+1	2	3
+update t1 set a=2;
+select * from t1;
+a	b	c
+2	3	4
+drop table t1;

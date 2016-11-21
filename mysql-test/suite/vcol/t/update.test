@@ -1,0 +1,12 @@
+#
+# Test how UPDATE detects what columns need to be read (or generated) in a row
+#
+# stored column depends on virtual column depends on updated column.
+# this tests TABLE::mark_virtual_columns_for_write()
+#
+create table t1 (a int, b int as (a+1), c int as (b+1) stored);
+insert t1 set a=1;
+select * from t1;
+update t1 set a=2;
+select * from t1;
+drop table t1;
