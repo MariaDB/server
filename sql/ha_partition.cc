@@ -9142,6 +9142,39 @@ TABLE_LIST *ha_partition::get_next_global_for_child()
 }
 
 
+const COND *ha_partition::cond_push(const COND *cond)
+{
+  handler **file= m_file;
+  COND *res_cond = NULL;
+  DBUG_ENTER("ha_partition::cond_push");
+
+  do
+  {
+    if ((*file)->pushed_cond != cond)
+    {
+      if ((*file)->cond_push(cond))
+        res_cond = (COND *) cond;
+      else
+        (*file)->pushed_cond = cond;
+    }
+  } while (*(++file));
+  DBUG_RETURN(res_cond);
+}
+
+
+void ha_partition::cond_pop()
+{
+  handler **file= m_file;
+  DBUG_ENTER("ha_partition::cond_push");
+
+  do
+  {
+    (*file)->cond_pop();
+  } while (*(++file));
+  DBUG_VOID_RETURN;
+}
+
+
 struct st_mysql_storage_engine partition_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
