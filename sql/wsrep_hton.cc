@@ -313,7 +313,7 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
   int replay_round= 0;
 
   if (thd->get_stmt_da()->is_error()) {
-    WSREP_ERROR("commit issue, error: %d %s",
+    WSREP_DEBUG("commit issue, error: %d %s",
                 thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
   }
 
