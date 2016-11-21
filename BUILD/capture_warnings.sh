@@ -7,8 +7,11 @@ warn_file="$warn_path/compile.warnings"
 suppress_file="$warn_path/suppress.warnings"
 
 exec 3>&1
-cmderr=$("$@" 2>&1 1>&3)
-error=$?
+cmderr=$("$@" 2>&1 1>&3) || {
+    error=$?
+    echo "$cmderr" >&2
+    exit $error
+}
 
 if [[ -n "$cmderr" ]]; then
     [[ "$warn_mode" != "late" ]] &&
@@ -17,4 +20,5 @@ if [[ -n "$cmderr" ]]; then
         echo -n "$cmderr" >> "$warn_file"
 fi
 
-exit ${error}
+true
+
