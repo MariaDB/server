@@ -4572,7 +4572,7 @@ subselect_hash_sj_engine::get_strategy_using_schema()
     return COMPLETE_MATCH;
   else
   {
-    List_iterator<Item> inner_col_it(*item_in->unit->get_unit_column_types());
+    List_iterator<Item> inner_col_it(*item_in->unit->get_column_types(false));
     Item *outer_col, *inner_col;
 
     for (uint i= 0; i < item_in->left_expr->cols(); i++)

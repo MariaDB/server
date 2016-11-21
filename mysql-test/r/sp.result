@@ -8001,3 +8001,42 @@ return 1;
 end |
 ERROR 0A000: Not allowed to return a result set from a function
 drop table t1,t2;
+#
+# MDEV-11081: CURSOR for query with GROUP BY
+#
+CREATE TABLE t1 (name VARCHAR(10), value INT);
+INSERT INTO t1 VALUES ('b',1);
+INSERT INTO t1 VALUES ('b',1);
+INSERT INTO t1 VALUES ('c',1);
+INSERT INTO t1 VALUES ('a',1);
+INSERT INTO t1 VALUES ('a',1);
+INSERT INTO t1 VALUES ('a',1);
+CREATE PROCEDURE p1 ()
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE v_name VARCHAR(10);
+DECLARE v_total INT;
+DECLARE c CURSOR FOR
+SELECT name, SUM(value) AS total FROM t1 GROUP BY name;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+OPEN c;
+read_loop:
+LOOP
+FETCH c INTO v_name, v_total;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT v_name, v_total;
+END LOOP;
+CLOSE c;
+END;
+|
+CALL p1();
+v_name	v_total
+a	3
+v_name	v_total
+b	2
+v_name	v_total
+c	1
+DROP PROCEDURE p1;
+DROP TABLE t1;

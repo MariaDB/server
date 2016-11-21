@@ -1121,9 +1121,6 @@ int JOIN::optimize()
 int
 JOIN::optimize_inner()
 {
-/*
-    if (conds) { Item *it_clone= conds->build_clone(thd,thd->mem_root); }
-*/
   ulonglong select_opts_for_readinfo;
   uint no_jbuf_after;
   JOIN_TAB *tab;
@@ -1136,6 +1133,12 @@ JOIN::optimize_inner()
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
+
+  /*
+    Needed in case optimizer short-cuts,
+    set properly in make_tmp_tables_info()
+  */
+  fields= &select_lex->item_list;
 
   if (select_lex->first_cond_optimization)
   {

@@ -4392,7 +4392,7 @@ protected:
   /* 
     All descendant classes have their send_data() skip the first 
     unit->offset_limit_cnt rows sent.  Select_materialize
-    also uses unit->get_unit_column_types().
+    also uses unit->get_column_types().
   */
   SELECT_LEX_UNIT *unit;
   /* Something used only by the parser: */

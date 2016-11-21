@@ -732,7 +732,7 @@ public:
   friend void lex_start(THD *thd);
   friend int subselect_union_engine::exec();
 
-  List<Item> *get_unit_column_types();
+  List<Item> *get_column_types(bool for_cursor);
 
   select_union *get_union_result() { return union_result; }
   int save_union_explain(Explain_query *output);
