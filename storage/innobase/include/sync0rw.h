@@ -484,14 +484,6 @@ ulint
 rw_lock_get_sx_lock_count(
 /*======================*/
 	const rw_lock_t*	lock);	/*!< in: rw-lock */
-/********************************************************************//**
-Check if there are threads waiting for the rw-lock.
-@return 1 if waiters, 0 otherwise */
-UNIV_INLINE
-ulint
-rw_lock_get_waiters(
-/*================*/
-	const rw_lock_t*	lock);	/*!< in: rw-lock */
 /******************************************************************//**
 Returns the write-status of the lock - this function made more sense
 with the old rw_lock implementation.
@@ -620,7 +612,7 @@ struct rw_lock_t
 	volatile lint	lock_word;
 
 	/** 1: there are waiters */
-	volatile ulint	waiters;
+	volatile uint32_t	waiters;
 
 	/** Default value FALSE which means the lock is non-recursive.
 	The value is typically set to TRUE making normal rw_locks recursive.

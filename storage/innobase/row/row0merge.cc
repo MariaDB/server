@@ -2090,8 +2090,7 @@ row_merge_read_clustered_index(
 			}
 
 			if (dbug_run_purge
-			    || rw_lock_get_waiters(
-				    dict_index_get_lock(clust_index))) {
+			    || dict_index_get_lock(clust_index)->waiters) {
 				/* There are waiters on the clustered
 				index tree lock, likely the purge
 				thread. Store and restore the cursor

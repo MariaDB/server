@@ -399,7 +399,7 @@ lock_loop:
 
 		/* Set waiters before checking lock_word to ensure wake-up
 		signal is sent. This may lead to some unnecessary signals. */
-		rw_lock_set_waiter_flag(lock);
+		my_atomic_store32((int32*) &lock->waiters, 1);
 
 		if (rw_lock_s_lock_low(lock, pass, file_name, line)) {
 
@@ -806,7 +806,7 @@ lock_loop:
 
 	/* Waiters must be set before checking lock_word, to ensure signal
 	is sent. This could lead to a few unnecessary wake-up signals. */
-	rw_lock_set_waiter_flag(lock);
+	my_atomic_store32((int32*) &lock->waiters, 1);
 
 	if (rw_lock_x_lock_low(lock, pass, file_name, line)) {
 		sync_array_free_cell(sync_arr, cell);
@@ -911,7 +911,7 @@ lock_loop:
 
 	/* Waiters must be set before checking lock_word, to ensure signal
 	is sent. This could lead to a few unnecessary wake-up signals. */
-	rw_lock_set_waiter_flag(lock);
+	my_atomic_store32((int32*) &lock->waiters, 1);
 
 	if (rw_lock_sx_lock_low(lock, pass, file_name, line)) {
 
@@ -950,16 +950,14 @@ rw_lock_validate(
 /*=============*/
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	ulint	waiters;
 	lint	lock_word;
 
 	ut_ad(lock);
 
-	waiters = rw_lock_get_waiters(lock);
 	lock_word = lock->lock_word;
 
 	ut_ad(lock->magic_n == RW_LOCK_MAGIC_N);
-	ut_ad(waiters == 0 || waiters == 1);
+	ut_ad(lock->waiters < 2);
 	ut_ad(lock_word > -(2 * X_LOCK_DECR));
 	ut_ad(lock_word <= X_LOCK_DECR);
 
@@ -1229,7 +1227,7 @@ rw_lock_list_print_info(
 
 			fprintf(file, "RW-LOCK: %p ", (void*) lock);
 
-			if (rw_lock_get_waiters(lock)) {
+			if (lock->waiters) {
 				fputs(" Waiters for the lock exist\n", file);
 			} else {
 				putc('\n', file);
@@ -1283,7 +1281,7 @@ rw_lock_print(
 
 	if (lock->lock_word != X_LOCK_DECR) {
 
-		if (rw_lock_get_waiters(lock)) {
+		if (lock->waiters) {
 			fputs(" Waiters for the lock exist\n", stderr);
 		} else {
 			putc('\n', stderr);

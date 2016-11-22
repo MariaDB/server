@@ -66,52 +66,6 @@ rw_lock_remove_debug_info(
 	ulint		lock_type);	/*!< in: lock type */
 #endif /* UNIV_DEBUG */
 
-/********************************************************************//**
-Check if there are threads waiting for the rw-lock.
-@return 1 if waiters, 0 otherwise */
-UNIV_INLINE
-ulint
-rw_lock_get_waiters(
-/*================*/
-	const rw_lock_t*	lock)	/*!< in: rw-lock */
-{
-	return(lock->waiters);
-}
-
-/********************************************************************//**
-Sets lock->waiters to 1. It is not an error if lock->waiters is already
-1. On platforms where ATOMIC builtins are used this function enforces a
-memory barrier. */
-UNIV_INLINE
-void
-rw_lock_set_waiter_flag(
-/*====================*/
-	rw_lock_t*	lock)	/*!< in/out: rw-lock */
-{
-#ifdef INNODB_RW_LOCKS_USE_ATOMICS
-	my_atomic_storelint(&lock->waiters, 1);
-#else /* INNODB_RW_LOCKS_USE_ATOMICS */
-	lock->waiters = 1;
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
-}
-
-/********************************************************************//**
-Resets lock->waiters to 0. It is not an error if lock->waiters is already
-0. On platforms where ATOMIC builtins are used this function enforces a
-memory barrier. */
-UNIV_INLINE
-void
-rw_lock_reset_waiter_flag(
-/*======================*/
-	rw_lock_t*	lock)	/*!< in/out: rw-lock */
-{
-#ifdef INNODB_RW_LOCKS_USE_ATOMICS
-	my_atomic_storelint(&lock->waiters, 0);
-#else /* INNODB_RW_LOCKS_USE_ATOMICS */
-	lock->waiters = 0;
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
-}
-
 /******************************************************************//**
 Returns the write-status of the lock - this function made more sense
 with the old rw_lock implementation.
@@ -555,7 +509,7 @@ rw_lock_x_unlock_func(
 		We do not need to signal wait_ex waiters, since they cannot
 		exist when there is a writer. */
 		if (lock->waiters) {
-			rw_lock_reset_waiter_flag(lock);
+			my_atomic_store32((int32*) &lock->waiters, 0);
 			os_event_set(lock->event);
 			sync_array_object_signalled();
 		}
@@ -606,7 +560,7 @@ rw_lock_sx_unlock_func(
 			since they cannot exist when there is an sx-lock
 			holder. */
 			if (lock->waiters) {
-				rw_lock_reset_waiter_flag(lock);
+				my_atomic_store32((int32*) &lock->waiters, 0);
 				os_event_set(lock->event);
 				sync_array_object_signalled();
 			}
