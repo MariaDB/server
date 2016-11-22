@@ -292,32 +292,6 @@ rw_lock_lock_word_decr(
 }
 
 /******************************************************************//**
-Increments lock_word the specified amount and returns new value.
-@return lock->lock_word after increment */
-UNIV_INLINE
-lint
-rw_lock_lock_word_incr(
-/*===================*/
-	rw_lock_t*	lock,		/*!< in/out: rw-lock */
-	ulint		amount)		/*!< in: amount of increment */
-{
-#ifdef INNODB_RW_LOCKS_USE_ATOMICS
-	return(my_atomic_addlint(&lock->lock_word, amount) + amount);
-#else /* INNODB_RW_LOCKS_USE_ATOMICS */
-	lint local_lock_word;
-
-	mutex_enter(&(lock->mutex));
-
-	lock->lock_word += amount;
-	local_lock_word = lock->lock_word;
-
-	mutex_exit(&(lock->mutex));
-
-	return(local_lock_word);
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
-}
-
-/******************************************************************//**
 This function sets the lock->writer_thread and lock->recursive fields.
 For platforms where we are using atomic builtins instead of lock->mutex
 it sets the lock->writer_thread field using atomics to ensure memory
@@ -526,7 +500,7 @@ rw_lock_s_unlock_func(
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_S));
 
 	/* Increment lock_word to indicate 1 less reader */
-	lint	lock_word = rw_lock_lock_word_incr(lock, 1);
+	lint	lock_word = my_atomic_addlint(&lock->lock_word, 1) + 1;
 	if (lock_word == 0 || lock_word == -X_LOCK_HALF_DECR) {
 
 		/* wait_ex waiter exists. It may not be asleep, but we signal
@@ -571,7 +545,7 @@ rw_lock_x_unlock_func(
 	if (lock->lock_word == 0 || lock->lock_word == -X_LOCK_HALF_DECR) {
 		/* There is 1 x-lock */
 		/* atomic increment is needed, because it is last */
-		if (rw_lock_lock_word_incr(lock, X_LOCK_DECR) <= 0) {
+		if (my_atomic_addlint(&lock->lock_word, X_LOCK_DECR) <= -X_LOCK_DECR) {
 			ut_error;
 		}
 
@@ -624,8 +598,7 @@ rw_lock_sx_unlock_func(
 			UNIV_MEM_INVALID(&lock->writer_thread,
 					 sizeof lock->writer_thread);
 
-			if (rw_lock_lock_word_incr(lock, X_LOCK_HALF_DECR)
-			    <= X_LOCK_HALF_DECR) {
+			if (my_atomic_addlint(&lock->lock_word, X_LOCK_HALF_DECR) <= 0) {
 				ut_error;
 			}
 			/* Lock is now free. May have to signal read/write

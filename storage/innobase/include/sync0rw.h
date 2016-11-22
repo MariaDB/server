@@ -521,15 +521,6 @@ rw_lock_lock_word_decr(
 	ulint		amount,		/*!< in: amount to decrement */
 	lint		threshold);	/*!< in: threshold of judgement */
 /******************************************************************//**
-Increments lock_word the specified amount and returns new value.
-@return lock->lock_word after increment */
-UNIV_INLINE
-lint
-rw_lock_lock_word_incr(
-/*===================*/
-	rw_lock_t*	lock,		/*!< in/out: rw-lock */
-	ulint		amount);	/*!< in: amount to increment */
-/******************************************************************//**
 This function sets the lock->writer_thread and lock->recursive fields.
 For platforms where we are using atomic builtins instead of lock->mutex
 it sets the lock->writer_thread field using atomics to ensure memory
