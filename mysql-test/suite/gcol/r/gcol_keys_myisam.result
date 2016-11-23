@@ -6,6 +6,19 @@ SET @@session.default_storage_engine = 'MyISAM';
 #            - FOREIGN INDEX (partially supported)
 #            - CHECK (allowed but not used)
 # UNIQUE
+create table t1 (a int, b int generated always as (a*2) virtual unique);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) AS (a*2) VIRTUAL,
+  UNIQUE KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	UNI	NULL	VIRTUAL
+drop table t1;
 create table t1 (a int, b int generated always as (a*2) stored unique);
 show create table t1;
 Table	Create Table
@@ -18,6 +31,19 @@ describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
 b	int(11)	YES	UNI	NULL	PERSISTENT
+drop table t1;
+create table t1 (a int, b int generated always as (a*2) virtual, unique key (b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) AS (a*2) VIRTUAL,
+  UNIQUE KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	UNI	NULL	VIRTUAL
 drop table t1;
 create table t1 (a int, b int generated always as (a*2) stored, unique (b));
 show create table t1;
@@ -32,6 +58,9 @@ Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
 b	int(11)	YES	UNI	NULL	PERSISTENT
 drop table t1;
+create table t1 (a int, b int generated always as (a*2) virtual);
+alter table t1 add unique key (b);
+drop table t1;
 create table t1 (a int, b int generated always as (a*2) stored);
 alter table t1 add unique key (b);
 drop table t1;
@@ -41,6 +70,21 @@ drop table t1;
 #  - gcol_select.inc
 #
 # INDEX
+create table t1 (a int, b int generated always as (a*2) virtual, index (b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) AS (a*2) VIRTUAL,
+  KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	MUL	NULL	VIRTUAL
+drop table t1;
+create table t1 (a int, b int generated always as (a*2) virtual, index (a,b));
+drop table t1;
 create table t1 (a int, b int generated always as (a*2) stored, index (b));
 show create table t1;
 Table	Create Table
@@ -67,6 +111,10 @@ Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
 b	int(11)	YES		NULL	PERSISTENT
 drop table t1;
+create table t1 (a int, b int generated always as (a*2) virtual);
+alter table t1 add index (b);
+alter table t1 add index (a,b);
+drop table t1;
 create table t1 (a int, b int generated always as (a*2) stored);
 alter table t1 add index (b);
 drop table t1;
@@ -81,6 +129,13 @@ drop table t1;
 #
 # TODO: FULLTEXT INDEX
 # SPATIAL INDEX
+# Error "All parts of a SPATIAL index must be geometrical"
+create table t1 (a int, b int generated always as (a+1) stored, spatial index (b));
+ERROR HY000: Incorrect arguments to SPATIAL INDEX
+create table t1 (a int, b int generated always as (a+1) stored);
+alter table t1 add spatial index (b);
+ERROR HY000: Incorrect arguments to SPATIAL INDEX
+drop table t1;
 # FOREIGN KEY
 # Rejected FK options.
 create table t1 (a int, b int generated always as (a+1) stored,
@@ -117,6 +172,185 @@ drop table t1;
 create table t1 (a int, b int generated always as (a % 10) stored,
 foreign key (b) references t2(a) on delete no action);
 drop table t1,t2;
+#
+# Bug#20553262: WL8149: ASSERTION `DELSUM+(INT) Y/4-TEMP >= 0' FAILED
+#
+CREATE TABLE c (
+pk integer AUTO_INCREMENT,
+col_datetime_nokey DATETIME /*! NULL */,
+col_time_nokey TIME /*! NULL */,
+col_datetime_key DATETIME GENERATED ALWAYS AS
+(ADDTIME(col_datetime_nokey, col_time_nokey)),
+col_time_key TIME GENERATED ALWAYS AS
+(ADDTIME(col_datetime_nokey, col_time_nokey)),
+col_varchar_nokey VARCHAR(1) /*! NULL */,
+PRIMARY KEY (pk),
+KEY (col_time_key),
+KEY (col_datetime_key));
+INSERT INTO c ( col_time_nokey,col_datetime_nokey,col_varchar_nokey) values
+('14:03:03.042673','2001-11-28 00:50:27.051028', 'c'),
+('01:46:09.016386','2007-10-09 19:53:04.008332', NULL),
+('16:21:18.052408','2001-11-08 21:02:12.009395', 'x'),
+('18:56:33.027423','2003-04-01 00:00:00', 'i');
+Warnings:
+Note	1265	Data truncated for column 'col_time_key' at row 1
+Note	1265	Data truncated for column 'col_time_key' at row 2
+Note	1265	Data truncated for column 'col_time_key' at row 3
+Note	1265	Data truncated for column 'col_time_key' at row 4
+EXPLAIN SELECT
+outr.col_time_key AS x
+FROM c as outr
+WHERE
+outr.col_varchar_nokey in ('c', 'x', 'i')
+AND (outr.col_time_key IS NULL OR
+outr.col_datetime_key = '2009-09-27');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	outr	ALL	col_time_key,col_datetime_key	NULL	NULL	NULL	4	x
+SELECT
+outr.col_time_key AS x
+FROM c AS outr
+WHERE
+outr.col_varchar_nokey in ('c', 'x', 'i')
+AND (outr.col_time_key IS NULL OR
+outr.col_datetime_key = '2009-09-27');
+x
+DROP TABLE c;
+#
+# Bug#20913803: WL8149: SIG 11 IN DFIELD_DUP |
+# INNOBASE/INCLUDE/DATA0DATA.IC:253
+#
+CREATE TABLE A (
+col_varchar_nokey TEXT ,
+col_varchar_key TEXT GENERATED ALWAYS AS (REPEAT(col_varchar_nokey, 1000)),
+KEY (col_varchar_key(50))
+);
+INSERT INTO A (col_varchar_nokey) VALUES ('');
+CREATE TABLE D (
+pk INTEGER AUTO_INCREMENT,
+col_date_nokey BLOB,
+col_date_key BLOB GENERATED ALWAYS AS (REPEAT(col_date_nokey,1000)) VIRTUAL,
+col_datetime_nokey LONGBLOB,
+col_time_nokey LONGTEXT,
+col_datetime_key LONGBLOB GENERATED ALWAYS AS (REPEAT(col_datetime_nokey, 1000)),
+col_time_key LONGTEXT GENERATED ALWAYS AS (REPEAT(col_datetime_nokey, 1000)),
+col_varchar_nokey TEXT,
+col_varchar_key TEXT GENERATED ALWAYS AS (REPEAT(col_varchar_nokey, 1000)),
+PRIMARY KEY (pk),
+KEY (col_varchar_key(50)),
+KEY (col_date_key(20)),
+KEY (col_time_key(20)),
+KEY (col_datetime_key(20)),
+KEY (col_varchar_key(10), col_date_key(10), col_time_key(5), col_datetime_key(5))
+);
+INSERT INTO D (
+col_date_nokey,
+col_time_nokey,
+col_datetime_nokey,
+col_varchar_nokey
+) VALUES ('', '', '', ''),('', '', '', '');
+DELETE FROM OUTR1.* USING D AS OUTR1 RIGHT JOIN A AS OUTR2 ON
+( OUTR1 . `col_varchar_nokey` = OUTR2 . `col_varchar_nokey` );
+DROP TABLE IF EXISTS A,D;
+#
+# Bug#21024896: SIG 11 INNOBASE_ADD_ONE_VIRTUAL |
+# INNOBASE/HANDLER/HANDLER0ALTER.CC
+#
+CREATE TABLE t1 (
+col1 int(11) DEFAULT NULL,
+col2 int(11) DEFAULT NULL,
+col3 int(11) NOT NULL,
+col4 int(11) DEFAULT NULL,
+col5 int(11) GENERATED ALWAYS AS (col2 / col2) VIRTUAL,
+col7 int(11) GENERATED ALWAYS AS (col5 + col5) VIRTUAL,
+col8 int(11) GENERATED ALWAYS AS (col5 * col5) VIRTUAL,
+col9 text,
+col6 int(11) DEFAULT NULL,
+PRIMARY KEY (`col3`),
+UNIQUE KEY uidx (`col2`),
+KEY idx (`col5`)
+);
+INSERT INTO t1(col1,col2,col3,col4,col9,col6)
+VALUES(1,1,0,1,REPEAT(col1,1000),0), (3,2,1,1,REPEAT(col1,1000),NULL);
+ALTER TABLE t1 ADD COLUMN extra INT;
+DROP TABLE t1;
+#
+# Bug#21316860: WL8149:INNODB: FAILING ASSERTION:
+# TEMPL->CLUST_REC_FIELD_NO != ULINT_UNDEFINED
+#
+CREATE TABLE t1 (
+pk int(11) NOT NULL,
+col_int_nokey int(11),
+col_int_key int(11) GENERATED ALWAYS AS (col_int_nokey) VIRTUAL,
+col_date_nokey date,
+col_date_key date GENERATED ALWAYS AS (col_date_nokey) VIRTUAL,
+PRIMARY KEY (pk),
+UNIQUE KEY col_int_key (col_int_key)
+);
+ALTER TABLE t1 DROP COLUMN pk;
+DROP TABLE t1;
+# Remove the impact on PK choose by index on virtual generated column
+CREATE TABLE t1 (
+pk int(11) NOT NULL,
+col_int_nokey int(11) DEFAULT NULL,
+col_int_key int(11) GENERATED ALWAYS AS (col_int_nokey) VIRTUAL,
+UNIQUE KEY col_int_key (col_int_key)
+);
+ALTER TABLE t1 add unique index idx(pk);
+DESC t1;
+Field	Type	Null	Key	Default	Extra
+pk	int(11)	NO	PRI	NULL	
+col_int_nokey	int(11)	YES		NULL	
+col_int_key	int(11)	YES	UNI	NULL	VIRTUAL
+DROP TABLE t1;
+#
+# Bug#21346132: WL8149:INNODB: FAILING ASSERTION:
+# PRIMARY_KEY_NO == -1 || PRIMARY_KEY_NO == 0
+#
+CREATE TABLE t1 (
+col_int_nokey int(11) NOT NULL,
+col_int_key int(11) GENERATED ALWAYS AS (col_int_nokey),
+col_varchar_nokey varchar(1) NOT NULL,
+col_varchar_key varchar(2) GENERATED ALWAYS AS (col_varchar_nokey),
+UNIQUE KEY col_int_key (col_int_key),
+UNIQUE KEY col_varchar_key (col_varchar_key),
+UNIQUE KEY col_int_key_2 (col_int_key,col_varchar_key),
+UNIQUE KEY col_varchar_key_2 (col_varchar_key,col_varchar_nokey),
+KEY col_int_key_3 (col_int_key,col_int_nokey)
+);
+ALTER TABLE t1 DROP COLUMN col_varchar_key;
+DROP TABLE t1;
+#
+# Bug#21320151 WL8149: WRONG RESULT WITH INDEX SCAN
+#
+CREATE TABLE t1 (
+id INTEGER NOT NULL,
+b INTEGER GENERATED ALWAYS AS (id+1) VIRTUAL,
+UNIQUE KEY (b)
+);
+INSERT INTO t1 (id) VALUES (2),(3),(4),(5),(6),(7),(8),(9),(10);
+EXPLAIN SELECT b FROM t1 FORCE INDEX(b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	b	5	NULL	9	Using index
+SELECT b FROM t1 FORCE INDEX(b);
+b
+3
+4
+5
+6
+7
+8
+9
+10
+11
+EXPLAIN SELECT b FROM t1 FORCE INDEX(b) WHERE b BETWEEN 1 AND 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	5	NULL	3	Using where; Using index
+SELECT b FROM t1 FORCE INDEX(b) WHERE b BETWEEN 1 AND 5;
+b
+3
+4
+5
+DROP TABLE t1;
 
 # Testing data manipulation operations involving FOREIGN KEY
 # on generated columns can be found in:
@@ -296,6 +530,201 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	table1	system	PRIMARY	NULL	NULL	NULL	1	
 1	SIMPLE	table2	system	PRIMARY	NULL	NULL	NULL	1	
 DROP TABLE t1;
+#
+# Bug#21391781 ASSERT WHEN RUNNING ALTER TABLE ON A TABLE WITH INDEX
+#              ON VIRTUAL COLUMN
+#
+CREATE TABLE t1 (
+col1 INTEGER NOT NULL,
+col2 INTEGER NOT NULL,
+gcol1 INTEGER GENERATED ALWAYS AS (col1 + col2) VIRTUAL,
+col3 INTEGER NOT NULL,
+col4 INTEGER NOT NULL,
+col5 INTEGER DEFAULT NULL,
+col6 INTEGER DEFAULT NULL,
+col7 INTEGER DEFAULT NULL,
+col8 INTEGER DEFAULT NULL,
+col9 INTEGER DEFAULT NULL,
+col10 INTEGER DEFAULT NULL,
+col11 INTEGER DEFAULT NULL,
+col12 INTEGER DEFAULT NULL,
+col13 INTEGER DEFAULT NULL,
+col14 INTEGER DEFAULT NULL,
+col15 INTEGER DEFAULT NULL,
+col16 INTEGER DEFAULT NULL,
+col17 INTEGER DEFAULT NULL,
+col18 INTEGER DEFAULT NULL,
+col19 INTEGER DEFAULT NULL,
+col20 INTEGER DEFAULT NULL,
+col21 INTEGER DEFAULT NULL,
+col22 INTEGER DEFAULT NULL,
+col23 INTEGER DEFAULT NULL,
+col24 INTEGER DEFAULT NULL,
+col25 INTEGER DEFAULT NULL,
+col26 INTEGER DEFAULT NULL,
+col27 INTEGER DEFAULT NULL,
+col28 INTEGER DEFAULT NULL,
+col29 INTEGER DEFAULT NULL,
+col30 INTEGER DEFAULT NULL,
+col31 INTEGER DEFAULT NULL,
+col32 INTEGER DEFAULT NULL,
+col33 INTEGER DEFAULT NULL,
+col34 INTEGER DEFAULT NULL,
+col35 INTEGER DEFAULT NULL,
+col36 INTEGER DEFAULT NULL,
+col37 INTEGER DEFAULT NULL,
+col38 INTEGER DEFAULT NULL,
+col39 INTEGER DEFAULT NULL,
+col40 INTEGER DEFAULT NULL,
+col41 INTEGER DEFAULT NULL,
+col42 INTEGER DEFAULT NULL,
+col43 INTEGER DEFAULT NULL,
+col44 INTEGER DEFAULT NULL,
+col45 INTEGER DEFAULT NULL,
+col46 INTEGER DEFAULT NULL,
+col47 INTEGER DEFAULT NULL,
+col48 INTEGER DEFAULT NULL,
+col49 INTEGER DEFAULT NULL,
+col50 INTEGER DEFAULT NULL,
+col51 INTEGER DEFAULT NULL,
+col52 INTEGER DEFAULT NULL,
+col53 INTEGER DEFAULT NULL,
+col54 INTEGER DEFAULT NULL,
+col55 INTEGER DEFAULT NULL,
+col56 INTEGER DEFAULT NULL,
+col57 INTEGER DEFAULT NULL,
+col58 INTEGER DEFAULT NULL,
+col59 INTEGER DEFAULT NULL,
+col60 INTEGER DEFAULT NULL,
+col61 INTEGER DEFAULT NULL,
+col62 INTEGER DEFAULT NULL,
+col63 INTEGER DEFAULT NULL,
+col64 INTEGER DEFAULT NULL,
+col65 INTEGER DEFAULT NULL,
+gcol2 INTEGER GENERATED ALWAYS AS (col3 / col4) VIRTUAL,
+KEY idx1 (gcol1)
+);
+INSERT INTO t1 (col1, col2, col3, col4)
+VALUES (1,1,1,1), (2,2,2,2), (3,3,3,3), (4,4,4,4), (5,5,5,5);
+ALTER TABLE t1 ADD COLUMN extra INTEGER;
+SELECT gcol1 FROM t1 FORCE INDEX(idx1);
+gcol1
+2
+4
+6
+8
+10
+DROP TABLE t1;
+CREATE TABLE t1 (
+col1 INTEGER NOT NULL,
+col2 INTEGER NOT NULL,
+gcol1 INTEGER GENERATED ALWAYS AS (col1 + col2) VIRTUAL,
+col3 INTEGER NOT NULL,
+col4 INTEGER NOT NULL,
+col5 INTEGER DEFAULT NULL,
+col6 INTEGER DEFAULT NULL,
+col7 INTEGER DEFAULT NULL,
+col8 INTEGER DEFAULT NULL,
+col9 INTEGER DEFAULT NULL,
+col10 INTEGER DEFAULT NULL,
+col11 INTEGER DEFAULT NULL,
+col12 INTEGER DEFAULT NULL,
+col13 INTEGER DEFAULT NULL,
+col14 INTEGER DEFAULT NULL,
+col15 INTEGER DEFAULT NULL,
+col16 INTEGER DEFAULT NULL,
+col17 INTEGER DEFAULT NULL,
+col18 INTEGER DEFAULT NULL,
+col19 INTEGER DEFAULT NULL,
+col20 INTEGER DEFAULT NULL,
+col21 INTEGER DEFAULT NULL,
+col22 INTEGER DEFAULT NULL,
+col23 INTEGER DEFAULT NULL,
+col24 INTEGER DEFAULT NULL,
+col25 INTEGER DEFAULT NULL,
+col26 INTEGER DEFAULT NULL,
+col27 INTEGER DEFAULT NULL,
+col28 INTEGER DEFAULT NULL,
+col29 INTEGER DEFAULT NULL,
+col30 INTEGER DEFAULT NULL,
+col31 INTEGER DEFAULT NULL,
+col32 INTEGER DEFAULT NULL,
+col33 INTEGER DEFAULT NULL,
+col34 INTEGER DEFAULT NULL,
+col35 INTEGER DEFAULT NULL,
+col36 INTEGER DEFAULT NULL,
+col37 INTEGER DEFAULT NULL,
+col38 INTEGER DEFAULT NULL,
+col39 INTEGER DEFAULT NULL,
+col40 INTEGER DEFAULT NULL,
+col41 INTEGER DEFAULT NULL,
+col42 INTEGER DEFAULT NULL,
+col43 INTEGER DEFAULT NULL,
+col44 INTEGER DEFAULT NULL,
+col45 INTEGER DEFAULT NULL,
+col46 INTEGER DEFAULT NULL,
+col47 INTEGER DEFAULT NULL,
+col48 INTEGER DEFAULT NULL,
+col49 INTEGER DEFAULT NULL,
+col50 INTEGER DEFAULT NULL,
+col51 INTEGER DEFAULT NULL,
+col52 INTEGER DEFAULT NULL,
+col53 INTEGER DEFAULT NULL,
+col54 INTEGER DEFAULT NULL,
+col55 INTEGER DEFAULT NULL,
+col56 INTEGER DEFAULT NULL,
+col57 INTEGER DEFAULT NULL,
+col58 INTEGER DEFAULT NULL,
+col59 INTEGER DEFAULT NULL,
+col60 INTEGER DEFAULT NULL,
+col61 INTEGER DEFAULT NULL,
+col62 INTEGER DEFAULT NULL,
+col63 INTEGER DEFAULT NULL,
+col64 INTEGER DEFAULT NULL,
+col65 INTEGER DEFAULT NULL,
+gcol2 INTEGER GENERATED ALWAYS AS (col3 / col4) VIRTUAL,
+KEY idx1 (gcol2)
+);
+INSERT INTO t1 (col1, col2, col3, col4)
+VALUES (1,1,1,1), (2,2,2,2), (3,3,3,3), (4,4,4,4), (5,5,5,5);
+ALTER TABLE t1 ADD COLUMN extra INTEGER;
+SELECT gcol2 FROM t1 FORCE INDEX(idx1);
+gcol2
+1
+1
+1
+1
+1
+DROP TABLE t1;
+#
+# Bug#21628161 CRASH/MEMORY CORRUPTION ADDING INDEXES TO VIRTUAL COLUMN
+#
+CREATE TABLE t (a INT,
+b BOOLEAN GENERATED ALWAYS AS (a+10000) VIRTUAL,
+c BLOB GENERATED ALWAYS AS (b=2) VIRTUAL);
+INSERT INTO t(a) VALUES (1);
+SELECT * FROM t WHERE c = '0';
+a	b	c
+1	127	0
+ALTER TABLE t ADD UNIQUE INDEX (c(1));
+Warnings:
+Warning	1264	Out of range value for column 'b' at row 1
+SELECT * FROM t WHERE c = '0';
+a	b	c
+1	127	0
+DROP TABLE t;
+#
+# Bug#21688115 VIRTUAL COLUMN COMPUTATION SAVE_IN_FIELD()
+#              DID NOT RETURN TRUE WITH DIVIDE 0
+#
+CREATE TABLE t (a INT, b INT, h VARCHAR(10));
+INSERT INTO t VALUES (12, 3, "ss");
+INSERT INTO t VALUES (13, 4, "ss");
+INSERT INTO t VALUES (14, 0, "ss");
+ALTER TABLE t ADD c INT GENERATED ALWAYS AS (a/b) VIRTUAL;
+CREATE INDEX idx ON t(c);
+CALL mtr.add_suppression("\\[Warning\\] InnoDB: Compute virtual column values failed");
+DROP TABLE t;
 #
 # Bug#21770798 OPTIMIZER DOES NOT USE INDEX FOR GENERATED EXPRESSIONS
 #              WITH LOGICAL OPERATORS

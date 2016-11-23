@@ -574,7 +574,6 @@ int check_definition(MI_KEYDEF *t1_keyinfo, MI_COLUMNDEF *t1_recinfo,
   DBUG_RETURN(0);
 }
 
-
 extern "C" {
 
 int killed_ptr(HA_CHECK *param)
@@ -661,6 +660,25 @@ my_bool mi_killed_in_mariadb(MI_INFO *info)
   return (((TABLE*) (info->external_ref))->in_use->killed != 0);
 }
 
+static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
+{
+  TABLE *table= (TABLE*)(info->external_ref);
+  table->move_fields(table->field, record, table->field[0]->record_ptr());
+  if (keynum == -1) // update all vcols
+    return table->update_virtual_fields(VCOL_UPDATE_INDEXED);
+
+  // update only one key
+  KEY *key= table->key_info + keynum;
+  KEY_PART_INFO *kp= key->key_part, *end= kp + key->ext_key_parts;
+  for (; kp < end; kp++)
+  {
+    Field *f= table->field[kp->fieldnr - 1];
+    if (f->vcol_info)
+      table->update_virtual_field(f);
+  }
+  return 0;
+}
+
 }
 
 ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
@@ -668,6 +686,7 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
   int_table_flags(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |
                   HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
                   HA_CAN_VIRTUAL_COLUMNS | HA_CAN_EXPORT |
+                  HA_REQUIRES_KEY_COLUMNS_FOR_DELETE |
                   HA_DUPLICATE_POS | HA_CAN_INDEX_BLOBS | HA_AUTO_PART_KEY |
                   HA_FILE_BASED | HA_CAN_GEOMETRY | HA_NO_TRANSACTIONS |
                   HA_CAN_INSERT_DELAYED | HA_CAN_BIT_FIELD | HA_CAN_RTREEKEYS |
@@ -868,6 +887,27 @@ int ha_myisam::write_row(uchar *buf)
   return mi_write(file,buf);
 }
 
+void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
+{
+  if (file->s->base.reclength < file->s->vreclength)
+  {
+    param->fix_record= compute_vcols;
+    table->use_all_columns();
+    table->vcol_set= &table->s->all_set;
+  }
+  else
+    DBUG_ASSERT(file->s->base.reclength == file->s->vreclength);
+}
+
+void ha_myisam::restore_vcos_after_repair()
+{
+  if (file->s->base.reclength < file->s->vreclength)
+  {
+    table->move_fields(table->field, table->record[0], table->field[0]->record_ptr());
+    table->default_column_bitmaps();
+  }
+}
+
 int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
 {
   if (!file) return HA_ADMIN_INTERNAL_ERROR;
@@ -900,6 +940,8 @@ int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
        ((param.testflag & T_FAST) && (share->state.open_count ==
 				      (uint) (share->global_changed ? 1 : 0)))))
     return HA_ADMIN_ALREADY_DONE;
+
+  setup_vcols_for_repair(&param);
 
   error = chk_status(&param, file);		// Not fatal
   error = chk_size(&param, file);
@@ -953,6 +995,8 @@ int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
     file->update |= HA_STATE_CHANGED | HA_STATE_ROW_CHANGED;
   }
 
+  restore_vcos_after_repair();
+
   thd_proc_info(thd, old_proc_info);
   return error ? HA_ADMIN_CORRUPT : HA_ADMIN_OK;
 }
@@ -986,6 +1030,8 @@ int ha_myisam::analyze(THD *thd, HA_CHECK_OPT* check_opt)
   if (!(share->state.changed & STATE_NOT_ANALYZED))
     return HA_ADMIN_ALREADY_DONE;
 
+  setup_vcols_for_repair(&param);
+
   error = chk_key(&param, file);
   if (!error)
   {
@@ -995,6 +1041,9 @@ int ha_myisam::analyze(THD *thd, HA_CHECK_OPT* check_opt)
   }
   else if (!mi_is_crashed(file) && !thd->killed)
     mi_mark_crashed(file);
+
+  restore_vcos_after_repair();
+
   return error ? HA_ADMIN_CORRUPT : HA_ADMIN_OK;
 }
 
@@ -1017,6 +1066,9 @@ int ha_myisam::repair(THD* thd, HA_CHECK_OPT *check_opt)
   param.sort_buffer_length=  THDVAR(thd, sort_buffer_size);
   param.backup_time= check_opt->start_time;
   start_records=file->state->records;
+
+  setup_vcols_for_repair(&param);
+
   while ((error=repair(thd,param,0)) && param.retry_repair)
   {
     param.retry_repair=0;
@@ -1040,6 +1092,9 @@ int ha_myisam::repair(THD* thd, HA_CHECK_OPT *check_opt)
     }
     break;
   }
+
+  restore_vcos_after_repair();
+
   if (!error && start_records != file->state->records &&
       !(check_opt->flags & T_VERY_SILENT))
   {
@@ -1066,6 +1121,9 @@ int ha_myisam::optimize(THD* thd, HA_CHECK_OPT *check_opt)
                    T_REP_BY_SORT | T_STATISTICS | T_SORT_INDEX);
   param.tmpfile_createflag= O_RDWR | O_TRUNC;
   param.sort_buffer_length=  THDVAR(thd, sort_buffer_size);
+
+  setup_vcols_for_repair(&param);
+
   if ((error= repair(thd,param,1)) && param.retry_repair)
   {
     sql_print_warning("Warning: Optimize table got errno %d on %s.%s, retrying",
@@ -1073,6 +1131,9 @@ int ha_myisam::optimize(THD* thd, HA_CHECK_OPT *check_opt)
     param.testflag&= ~T_REP_BY_SORT;
     error= repair(thd,param,1);
   }
+
+  restore_vcos_after_repair();
+
   return error;
 }
 
@@ -1482,6 +1543,9 @@ int ha_myisam::enable_indexes(uint mode)
     param.sort_buffer_length=  THDVAR(thd, sort_buffer_size);
     param.stats_method= (enum_handler_stats_method)THDVAR(thd, stats_method);
     param.tmpdir=&mysql_tmpdir_list;
+
+    setup_vcols_for_repair(&param);
+
     if ((error= (repair(thd,param,0) != HA_ADMIN_OK)) && param.retry_repair)
     {
       sql_print_warning("Warning: Enabling keys got errno %d on %s.%s, retrying",
@@ -1507,6 +1571,8 @@ int ha_myisam::enable_indexes(uint mode)
     }
     info(HA_STATUS_CONST);
     thd_proc_info(thd, save_proc_info);
+
+    restore_vcos_after_repair();
   }
   else
   {
@@ -2012,14 +2078,14 @@ int ha_myisam::create(const char *name, register TABLE *table_arg,
   TABLE_SHARE *share= table_arg->s;
   uint options= share->db_options_in_use;
   DBUG_ENTER("ha_myisam::create");
-  for (i= 0; i < share->keys; i++)
-  {
-    if (table_arg->key_info[i].flags & HA_USES_PARSER)
-    {
+
+  for (i= 0; i < share->virtual_fields && !create_flags; i++)
+    if (table_arg->vfield[i]->flags & PART_KEY_FLAG)
       create_flags|= HA_CREATE_RELIES_ON_SQL_LAYER;
-      break;
-    }
-  }
+  for (i= 0; i < share->keys && !create_flags; i++)
+    if (table_arg->key_info[i].flags & HA_USES_PARSER)
+      create_flags|= HA_CREATE_RELIES_ON_SQL_LAYER;
+
   if ((error= table2myisam(table_arg, &keydef, &recinfo, &record_count)))
     DBUG_RETURN(error); /* purecov: inspected */
   bzero((char*) &create_info, sizeof(create_info));

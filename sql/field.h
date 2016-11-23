@@ -1175,6 +1175,11 @@ public:
     ptr=ptr_arg; null_ptr=null_ptr_arg; null_bit=null_bit_arg;
   }
   inline void move_field(uchar *ptr_arg) { ptr=ptr_arg; }
+  inline uchar *record_ptr() // record[0] or wherever the field was moved to
+  {
+    my_ptrdiff_t offset= table->s->field[field_index]->ptr - table->s->default_values;
+    return ptr - offset;
+  }
   virtual void move_field_offset(my_ptrdiff_t ptr_diff)
   {
     ptr=ADD_TO_PTR(ptr,ptr_diff, uchar*);

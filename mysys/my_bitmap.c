@@ -168,7 +168,7 @@ static inline uint get_first_set(my_bitmap_map value, uint word_pos)
 
 
 my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,
-                       my_bool thread_safe __attribute__((unused)))
+                       my_bool thread_safe)
 {
   DBUG_ENTER("my_bitmap_init");
   if (!buf)

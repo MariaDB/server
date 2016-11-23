@@ -1,3 +1,119 @@
+create table t1 (a int, b int as (a+1), c int, index(b));
+insert t1 (a,c) values (0x7890abcd, 0x76543210);
+insert t1 (a,c) select seq, sin(seq)*10000 from seq_1_to_1000;
+explain select * from t1 where b=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	b	b	5	const	1	
+select * from t1 where b=10;
+a	b	c
+9	10	4121
+
+MyISAM file:         datadir/test/t1
+Record format:       Fixed length
+Character set:       latin1_swedish_ci (8)
+Data records:                 1001  Deleted blocks:                 0
+Recordlength:                    9
+
+table description:
+Key Start Len Index   Type
+1   10    4   multip. long NULL            
+update t1 set a=20 where b=10;
+select * from t1 where b=10;
+a	b	c
+select * from t1 where b=21;
+a	b	c
+20	21	4121
+20	21	9129
+delete from t1 where b=21;
+select * from t1 where b=21;
+a	b	c
+alter table t1 add column d char(20) as (concat(a,c));
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+create index i on t1 (d);
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+check table t1 quick;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+check table t1 medium;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	b	1	b	A	999	NULL	NULL	YES	BTREE		
+t1	1	i	1	d	A	999	NULL	NULL	YES	BTREE		
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+delete from t1 where b=12;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	b	1	b	A	998	NULL	NULL	YES	BTREE		
+t1	1	i	1	d	A	998	NULL	NULL	YES	BTREE		
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	b	1	b	A	998	NULL	NULL	YES	BTREE		
+t1	1	i	1	d	A	998	NULL	NULL	YES	BTREE		
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+repair table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+repair table t1 quick;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+repair table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+repair table t1 use_frm;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	warning	Number of rows changed from 0 to 998
+test.t1	repair	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+update t1 set a=30 where b=11;
+select * from t1 where b=11;
+a	b	c	d
+select * from t1 where b=31;
+a	b	c	d
+30	31	-5440	30-5440
+30	31	-9880	30-9880
+drop table t1;
 SET @@session.storage_engine = 'MyISAM';
 #            - UNIQUE KEY
 #            - INDEX
@@ -7,7 +123,7 @@ SET @@session.storage_engine = 'MyISAM';
 #            - CHECK (allowed but not used)
 # UNIQUE
 create table t1 (a int, b int as (a*2) unique);
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
+drop table t1;
 create table t1 (a int, b int as (a*2) persistent unique);
 show create table t1;
 Table	Create Table
@@ -22,7 +138,7 @@ a	int(11)	YES		NULL
 b	int(11)	YES	UNI	NULL	PERSISTENT
 drop table t1;
 create table t1 (a int, b int as (a*2), unique key (b));
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
+drop table t1;
 create table t1 (a int, b int as (a*2) persistent, unique (b));
 show create table t1;
 Table	Create Table
@@ -38,7 +154,6 @@ b	int(11)	YES	UNI	NULL	PERSISTENT
 drop table t1;
 create table t1 (a int, b int as (a*2));
 alter table t1 add unique key (b);
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
 drop table t1;
 create table t1 (a int, b int as (a*2) persistent);
 alter table t1 add unique key (b);
@@ -50,9 +165,9 @@ drop table t1;
 # 
 # INDEX
 create table t1 (a int, b int as (a*2), index (b));
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
+drop table t1;
 create table t1 (a int, b int as (a*2), index (a,b));
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
+drop table t1;
 create table t1 (a int, b int as (a*2) persistent, index (b));
 show create table t1;
 Table	Create Table
@@ -81,9 +196,7 @@ b	int(11)	YES		NULL	PERSISTENT
 drop table t1;
 create table t1 (a int, b int as (a*2));
 alter table t1 add index (b);
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
 alter table t1 add index (a,b);
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
 drop table t1;
 create table t1 (a int, b int as (a*2) persistent);
 alter table t1 add index (b);
@@ -124,13 +237,6 @@ alter table t1 add foreign key (b) references t2(a) on update cascade;
 ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a computed column
 alter table t1 add foreign key (b) references t2(a) on delete set null;
 ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a computed column
-drop table t1;
-create table t1 (a int, b int as (a+1),
-foreign key (b) references t2(a));
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
-create table t1 (a int, b int as (a+1));
-alter table t1 add foreign key (b) references t2(a);
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
 drop table t1;
 # Allowed FK options.
 create table t2 (a int primary key, b char(5));

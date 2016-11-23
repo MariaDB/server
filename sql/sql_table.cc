@@ -3916,12 +3916,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  }
 	}
 #endif
-        if (!sql_field->stored_in_db())
-        {
-          /* Key fields must always be physically stored. */
-          my_error(ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN, MYF(0));
-          DBUG_RETURN(TRUE);
-        }
         if (key->type == Key::PRIMARY && sql_field->vcol_info)
         {
           my_error(ER_PRIMARY_KEY_BASED_ON_VIRTUAL_COLUMN, MYF(0));
@@ -6226,9 +6220,11 @@ static int compare_uint(const uint *s, const uint *t)
   Check if the column is computed and either
   is stored or is used in the partitioning expression.
 */
-static bool vcol_affecting_storage(const Virtual_column_info* vcol)
+static bool vcol_affecting_storage(const Virtual_column_info* vcol,
+                                   bool indexed)
 {
-  return vcol && (vcol->is_stored() || vcol->is_in_partitioning_expr());
+  return vcol &&
+    (vcol->is_stored() || vcol->is_in_partitioning_expr() || indexed);
 }
 
 /**
@@ -6437,15 +6433,28 @@ static bool fill_alter_inplace_info(THD *thd,
         ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_TYPE;
       }
 
-      if (vcol_affecting_storage(field->vcol_info) ||
-          vcol_affecting_storage(new_field->vcol_info))
+      if (vcol_affecting_storage(field->vcol_info,
+                                 field->flags & PART_KEY_FLAG) ||
+          vcol_affecting_storage(new_field->vcol_info, false))
       {
         if (is_equal == IS_EQUAL_NO ||
             !field->vcol_info || !new_field->vcol_info ||
             !field->vcol_info->is_equal(new_field->vcol_info))
           ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
         else
-          maybe_alter_vcol= true;
+        {
+          if (!(ha_alter_info->handler_flags & Alter_inplace_info::ALTER_COLUMN_VCOL) &&
+               (ha_alter_info->handler_flags & Alter_inplace_info::ALTER_COLUMN_DEFAULT))
+          { /*
+              a DEFAULT value of a some column was changed.
+              see if this vcol uses DEFAULT() function
+            */
+            if (field->vcol_info->expr_item->walk(
+                                 &Item::check_func_default_processor, 0, 0))
+              ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
+          }
+        }
+        maybe_alter_vcol= true;
       }
 
       /* Check if field was renamed */
@@ -6514,10 +6523,10 @@ static bool fill_alter_inplace_info(THD *thd,
   if (maybe_alter_vcol)
   {
     /*
-      No virtual column was altered, but perhaps one of the other columns was,
-      and that column was part of the vcol expression?
-      We don't detect this correctly (FIXME), so let's just say that a vcol
-      *might* be affected if any other column was altered.
+      What if one of the normal columns was altered and it was part of the some
+      virtual column expression?  Currently we don't detect this correctly
+      (FIXME), so let's just say that a vcol *might* be affected if any other
+      column was altered.
     */
     if (ha_alter_info->handler_flags &
           ( Alter_inplace_info::ALTER_COLUMN_TYPE

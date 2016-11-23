@@ -58,6 +58,7 @@ typedef enum
   MI_STATS_METHOD_IGNORE_NULLS
 } enum_handler_stats_method;
 
+struct st_myisam_info;
 
 typedef struct st_handler_check_param
 {
@@ -113,6 +114,8 @@ typedef struct st_handler_check_param
   uint stage, max_stage;
   uint progress_counter;             /* How often to call _report_progress() */
   ulonglong progress, max_progress;
+
+  int (*fix_record)(struct st_myisam_info *info, uchar *record, int keynum);
 
   mysql_mutex_t print_msg_mutex;
   my_bool need_print_msg_lock;

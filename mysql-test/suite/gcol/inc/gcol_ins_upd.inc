@@ -399,6 +399,7 @@ INSERT INTO t VALUES ();
 UPDATE t t1, t t2 SET t1.x = 1, t2.y = 2;
 SELECT * FROM t;
 SELECT gc FROM t;
+CHECK TABLE t;
 DROP TABLE t;
 }
 

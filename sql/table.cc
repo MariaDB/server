@@ -6211,7 +6211,11 @@ void TABLE::mark_columns_needed_for_delete()
     for (reg_field= field ; *reg_field ; reg_field++)
     {
       if ((*reg_field)->flags & PART_KEY_FLAG)
+      {
         bitmap_set_bit(read_set, (*reg_field)->field_index);
+        if ((*reg_field)->vcol_info)
+          mark_virtual_col(*reg_field);
+      }
     }
     need_signal= true;
   }
@@ -6544,7 +6548,8 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
     tmp_vfield= *vfield_ptr;
     if (bitmap_is_set(write_set, tmp_vfield->field_index))
       bitmap_updated= mark_virtual_col(tmp_vfield);
-    else if (tmp_vfield->vcol_info->stored_in_db)
+    else if (tmp_vfield->vcol_info->stored_in_db ||
+             (tmp_vfield->flags & PART_KEY_FLAG))
     {
       if (insert_fl)
       {
@@ -7311,10 +7316,15 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
       }
     case VCOL_UPDATE_FOR_READ:
       update= !vcol_info->stored_in_db
+           && !(key_read && vf->part_of_key.is_set(file->active_index))
            && bitmap_is_set(vcol_set, vf->field_index);
       break;
     case VCOL_UPDATE_FOR_WRITE:
       update= triggers || bitmap_is_set(vcol_set, vf->field_index);
+      break;
+    case VCOL_UPDATE_INDEXED:
+      update= !vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG)
+           && bitmap_is_set(vcol_set, vf->field_index);
       break;
     }
 

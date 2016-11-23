@@ -23,22 +23,21 @@
 --echo #            - CHECK (allowed but not used)
 
 --echo # UNIQUE
---error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 create table t1 (a int, b int as (a*2) unique);
+drop table t1;
 create table t1 (a int, b int as (a*2) persistent unique);
 show create table t1;
 describe t1;
 drop table t1;
 
---error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 create table t1 (a int, b int as (a*2), unique key (b));
+drop table t1;
 create table t1 (a int, b int as (a*2) persistent, unique (b));
 show create table t1;
 describe t1;
 drop table t1;
 
 create table t1 (a int, b int as (a*2));
---error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 alter table t1 add unique key (b);
 drop table t1;
 create table t1 (a int, b int as (a*2) persistent);
@@ -52,10 +51,10 @@ drop table t1;
 
 --echo # 
 --echo # INDEX
---error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 create table t1 (a int, b int as (a*2), index (b));
---error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
+drop table t1;
 create table t1 (a int, b int as (a*2), index (a,b));
+drop table t1;
 
 create table t1 (a int, b int as (a*2) persistent, index (b));
 show create table t1;
@@ -68,9 +67,7 @@ describe t1;
 drop table t1;
 
 create table t1 (a int, b int as (a*2));
---error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 alter table t1 add index (b);
---error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 alter table t1 add index (a,b);
 drop table t1;
 
@@ -125,14 +122,16 @@ alter table t1 add foreign key (b) references t2(a) on update cascade;
 alter table t1 add foreign key (b) references t2(a) on delete set null;
 drop table t1;
 
---error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
-create table t1 (a int, b int as (a+1),
-                 foreign key (b) references t2(a));
+if ($with_foreign_keys) {
+--error ER_CANT_CREATE_TABLE
+create table t1 (a int, b int as (a+1), foreign key (b) references t2(a));
 
 create table t1 (a int, b int as (a+1));
---error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
+--replace_regex /`#sql-.*`/`#sql-temporary`/
+--error ER_CANT_CREATE_TABLE
 alter table t1 add foreign key (b) references t2(a);
 drop table t1;
+}
 
 --echo # Allowed FK options.
 create table t2 (a int primary key, b char(5));

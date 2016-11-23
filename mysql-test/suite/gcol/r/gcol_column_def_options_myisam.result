@@ -49,13 +49,21 @@ alter table t1 add column b int generated always as (a+1) virtual AUTO_INCREMENT
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'AUTO_INCREMENT' at line 1
 drop table t1;
 # [PRIMARY] KEY
+create table t1 (a int, b int generated always as (a+1) virtual key);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key)' at line 1
 create table t1 (a int, b int generated always as (a+1) stored key);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key)' at line 1
+create table t1 (a int, b int generated always as (a+1) virtual primary key);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'primary key)' at line 1
 create table t1 (a int, b int generated always as (a+1) stored primary key);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'primary key)' at line 1
 create table t1 (a int);
+alter table t1 add column b int generated always as (a+1) virtual key;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key' at line 1
 alter table t1 add column b int generated always as (a+1) stored key;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key' at line 1
+alter table t1 add column c int generated always as (a+2) virtual primary key;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'primary key' at line 1
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -265,14 +273,6 @@ a	b	c
 1	-1	0
 2	-2	-1
 drop table t1,tt;
-# Bug#20769299: INCORRECT KEY ERROR WHEN TRYING TO CREATE INDEX ON
-#               VIRTUAL GC FOR MYISAM
-CREATE TABLE A (
-pk INTEGER,
-col_int_nokey INTEGER,
-col_int_key INTEGER GENERATED ALWAYS AS (pk + col_int_nokey) VIRTUAL, KEY
-(col_int_key));
-ERROR HY000: Key/Index cannot be defined on a non-stored computed column
 # Bug#20745142: GENERATED COLUMNS: ASSERTION FAILED:
 #   THD->CHANGE_LIST.IS_EMPTY()
 #
@@ -369,6 +369,36 @@ SELECT * FROM t1;
 c2	c1	5
 2	1	5
 DROP TABLE t1, t2;
+# Bug#21074624:i WL8149:SIG 11 INNOBASE_GET_COMPUTED_VALUE |
+#  INNOBASE/HANDLER/HA_INNODB.CC:19082
+CREATE TABLE t1 (
+col1 int(11) NOT NULL,
+col2 int(11) DEFAULT NULL,
+col3 int(11) NOT NULL,
+col4 int(11) DEFAULT NULL,
+col5 int(11) GENERATED ALWAYS AS (col2 % col4) VIRTUAL,
+col6 int(11) GENERATED ALWAYS AS (col3 + col3) VIRTUAL,
+col7 int(11) GENERATED ALWAYS AS (col5 / col5) VIRTUAL,
+col8 int(11) GENERATED ALWAYS AS (col6 / col5) VIRTUAL,
+col9 text,
+extra int(11) DEFAULT NULL,
+KEY idx (col5)
+);
+INSERT INTO t1(col1,col2,col3,col4,col9,extra)
+VALUES(0,6,3,4,REPEAT(4,1000),0);
+ALTER TABLE t1 DROP COLUMN col1;
+DROP TABLE t1;
+# Bug#21390605:VALGRIND ERROR ON DELETE FROM TABLE CONTAINING
+#  AN INDEXED VIRTUAL COLUMN
+CREATE TABLE t1 (
+a INTEGER,
+b INTEGER GENERATED ALWAYS AS (a) VIRTUAL,
+c INTEGER GENERATED ALWAYS AS (b) VIRTUAL,
+INDEX idx (b,c)
+);
+INSERT INTO t1 (a) VALUES (42);
+DELETE FROM t1 WHERE c = 42;
+DROP TABLE t1;
 # Bug#20757211: GENERATED COLUMNS: ALTER TABLE CRASHES
 #  IN FIND_FIELD_IN_TABLE
 #
@@ -459,6 +489,12 @@ info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t CHANGE dd d varchar(10);
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t ADD INDEX idx(c), ADD INDEX idx1(d);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t DROP INDEX idx, DROP INDEX idx1;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 DROP TABLE t;
 # Bug#21854004: GCOLS:INNODB: FAILING ASSERTION: I < TABLE->N_DEF
 CREATE TABLE t1(
@@ -487,19 +523,34 @@ col1	col2	col3	col4	vgc1	sgc1
 2	20	200	NULL	4000	0
 ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 + col3) VIRTUAL;
 ALTER TABLE t1 MODIFY COLUMN sgc1 INTEGER AS (col2 - col3) STORED;
+ALTER TABLE t1 ADD INDEX vgc1 (vgc1);
 ALTER TABLE t1 ADD INDEX sgc1 (sgc1);
+ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 * col3) VIRTUAL;
+SELECT * FROM t1 order by col1;
+col1	col2	col3	col4	vgc1	sgc1
+1	10	100	NULL	1000	-90
+2	20	200	NULL	4000	-180
+SELECT vgc1 FROM t1 order by vgc1;
+vgc1
+1000
+4000
 ALTER TABLE t1 MODIFY COLUMN sgc1 INTEGER AS (col2 / col3) STORED;
 SELECT * FROM t1 order by col1;
 col1	col2	col3	col4	vgc1	sgc1
-1	10	100	NULL	110	0
-2	20	200	NULL	220	0
+1	10	100	NULL	1000	0
+2	20	200	NULL	4000	0
 SELECT sgc1 FROM t1 order by sgc1;
 sgc1
 0
 0
+ALTER TABLE t1 DROP INDEX vgc1;
 ALTER TABLE t1 DROP INDEX sgc1;
+ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 + col3) VIRTUAL;
+ALTER TABLE t1 ADD UNIQUE INDEX vgc1 (vgc1);
 ALTER TABLE t1 MODIFY COLUMN sgc1 INTEGER AS (col2 - col3) STORED;
 ALTER TABLE t1 ADD UNIQUE INDEX sgc1 (sgc1);
+ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 / col3) VIRTUAL;
+ERROR 23000: Duplicate entry '0' for key 'vgc1'
 ALTER TABLE t1 MODIFY COLUMN sgc1 INTEGER AS (col2 / col3) STORED;
 ERROR 23000: Duplicate entry '0' for key 'sgc1'
 ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 * col3) VIRTUAL;
@@ -536,9 +587,72 @@ col1	col2	col3	col4	vgc1	sgc1
 2	20	200	222	4000	4000
 DROP TABLE t1;
 #
+# bug#22018979: RECORD NOT FOUND ON UPDATE,
+#                VIRTUAL COLUMN, ASSERTION 0
+SET @sql_mode_save= @@sql_mode;
+SET sql_mode= 'ANSI';
+CREATE TABLE t1 (
+a INT,
+b VARCHAR(10),
+c CHAR(3) GENERATED ALWAYS AS (substr(b,1,3)) VIRTUAL,
+PRIMARY KEY (a),
+KEY c(c)
+);
+INSERT INTO t1(a, b) values(1, 'bbbb'), (2, 'cc');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) NOT NULL,
+  "b" varchar(10) DEFAULT NULL,
+  "c" char(3) AS (substr(b,1,3)) VIRTUAL,
+  PRIMARY KEY ("a"),
+  KEY "c" ("c")
+)
+SELECT * FROM t1 order by a;
+a	b	c
+1	bbbb	bbb
+2	cc	cc
+SET sql_mode= '';
+FLUSH TABLE t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(10) DEFAULT NULL,
+  `c` char(3) AS (substr(b,1,3)) VIRTUAL,
+  PRIMARY KEY (`a`),
+  KEY `c` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1 order by a;
+a	b	c
+1	bbbb	bbb
+2	cc	cc
+DELETE FROM t1 where a= 2;
+SET sql_mode= @sql_mode_save;
+DROP TABLE t1;
+#
 # Bug#22680839: DEFAULT IS NOT DETERMINISTIC AND SHOULD NOT BE
 #               ALLOWED IN GENERATED COLUMNS
 #
+CREATE TABLE tzz(a INT DEFAULT 5,
+gc1 INT AS (a+DEFAULT(a)) VIRTUAL,
+gc2 INT AS (a+DEFAULT(a)) STORED,
+KEY k1(gc1));
+INSERT INTO tzz(A) VALUES (1);
+SELECT * FROM tzz;
+a	gc1	gc2
+1	6	6
+SELECT gc1 FROM tzz;
+gc1
+6
+ALTER TABLE tzz MODIFY COLUMN a INT DEFAULT 6;
+SELECT * FROM tzz;
+a	gc1	gc2
+1	7	7
+SELECT gc1 FROM tzz;
+gc1
+7
+DROP TABLE tzz;
 # Test 1: ALTER DEFAULT
 #
 CREATE TABLE t1(a INT PRIMARY KEY DEFAULT 5,
@@ -546,11 +660,11 @@ b INT AS (1 + DEFAULT(a)) STORED,
 c INT AS (1 + DEFAULT(a)) VIRTUAL);
 INSERT INTO t1 VALUES ();
 ALTER TABLE t1 ALTER COLUMN a SET DEFAULT 7;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 MODIFY COLUMN a INT DEFAULT 8;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 CHANGE COLUMN a a DOUBLE DEFAULT 5;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0

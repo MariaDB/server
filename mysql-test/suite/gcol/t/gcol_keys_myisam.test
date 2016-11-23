@@ -35,7 +35,8 @@ eval SET @@session.default_storage_engine = 'MyISAM';
 
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
-let $support_virtual_index= 0;
+let $support_virtual_index= 1;
+let $skip_foreign_key_check=1;
 --source suite/gcol/inc/gcol_keys.inc
 
 #------------------------------------------------------------------------------#

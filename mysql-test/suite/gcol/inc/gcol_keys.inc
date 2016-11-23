@@ -16,6 +16,7 @@
 
 if (!$support_virtual_index) {
   let $skip_spatial_index_check=1;
+  let $skip_foreign_key_check=1;
 }
 
 --echo #            - UNIQUE KEY
@@ -118,10 +119,10 @@ drop table t1;
 if (!$skip_spatial_index_check)
 {
   --echo # Error "All parts of a SPATIAL index must be geometrical"
-  --error 1687
+  --error ER_WRONG_ARGUMENTS
   create table t1 (a int, b int generated always as (a+1) stored, spatial index (b));
   create table t1 (a int, b int generated always as (a+1) stored);
-  --error 1687
+  --error ER_WRONG_ARGUMENTS
   alter table t1 add spatial index (b);
   drop table t1;
 }
@@ -148,7 +149,7 @@ alter table t1 add foreign key (b) references t2(a) on update cascade;
 alter table t1 add foreign key (b) references t2(a) on delete set null;
 drop table t1;
 
-if($support_virtual_index)
+if(!$skip_foreign_key_check)
 {
 --error ER_CANT_CREATE_TABLE
 create table t1 (a int, b int generated always as (a+1) virtual,
@@ -317,7 +318,7 @@ CREATE TABLE t1 (
   UNIQUE KEY col_int_key (col_int_key)
 );
 
-ALTER TABLE t1 add unique index idx(pk), algorithm=inplace;
+ALTER TABLE t1 add unique index idx(pk);
 DESC t1;
 DROP TABLE t1;
 
