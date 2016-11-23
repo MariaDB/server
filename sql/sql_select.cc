@@ -1466,6 +1466,7 @@ JOIN::optimize_inner()
   
   /* Calculate how to do the join */
   THD_STAGE_INFO(thd, stage_statistics);
+  result->prepare_to_read_rows();
   if (make_join_statistics(this, select_lex->leaf_tables, &keyuse) ||
       thd->is_fatal_error)
   {

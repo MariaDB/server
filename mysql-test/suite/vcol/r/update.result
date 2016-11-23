@@ -43,3 +43,14 @@ select * from t1;
 a	b	c
 b	2	b
 drop table t1;
+create table t (a int primary key, b int, c int as (b), index (c));
+insert t (a,b) values (9,0);
+create table t2 select * from t;
+update t, t2 set t.b=10 where t.a=t2.a;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c
+9	10	10
+drop table t, t2;

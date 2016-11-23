@@ -4455,6 +4455,9 @@ public:
 #endif
   virtual void update_used_tables() {}
 
+  /* this method is called just before the first row of the table can be read */
+  virtual void prepare_to_read_rows() {}
+
   void reset_offset_limit()
   {
     unit->offset_limit_cnt= 0;
@@ -5301,11 +5304,9 @@ public:
   int do_deletes();
   int do_table_deletes(TABLE *table, SORT_INFO *sort_info, bool ignore);
   bool send_eof();
-  inline ha_rows num_deleted()
-  {
-    return deleted;
-  }
+  inline ha_rows num_deleted() const { return deleted; }
   virtual void abort_result_set();
+  void prepare_to_read_rows();
 };
 
 
@@ -5349,16 +5350,11 @@ public:
   bool initialize_tables (JOIN *join);
   int  do_updates();
   bool send_eof();
-  inline ha_rows num_found()
-  {
-    return found;
-  }
-  inline ha_rows num_updated()
-  {
-    return updated;
-  }
+  inline ha_rows num_found() const { return found; }
+  inline ha_rows num_updated() const { return updated; }
   virtual void abort_result_set();
   void update_used_tables();
+  void prepare_to_read_rows();
 };
 
 class my_var : public Sql_alloc  {

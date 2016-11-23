@@ -55,3 +55,13 @@ replace t1 set a = 'a',b =1;
 insert t1 (a,b) values ('a', 1) on duplicate key update a='b', b=2;
 select * from t1;
 drop table t1;
+
+#
+# multi-UPDATE and const tables
+#
+create table t (a int primary key, b int, c int as (b), index (c));
+insert t (a,b) values (9,0);
+create table t2 select * from t;
+update t, t2 set t.b=10 where t.a=t2.a;
+check table t; select * from t;
+drop table t, t2;

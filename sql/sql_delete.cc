@@ -924,6 +924,15 @@ multi_delete::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   DBUG_RETURN(0);
 }
 
+void multi_delete::prepare_to_read_rows()
+{
+  /* see multi_update::prepare_to_read_rows() */
+  for (TABLE_LIST *walk= delete_tables; walk; walk= walk->next_local)
+  {
+    TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update();
+    tbl->table->mark_columns_needed_for_delete();
+  }
+}
 
 bool
 multi_delete::initialize_tables(JOIN *join)
@@ -953,7 +962,6 @@ multi_delete::initialize_tables(JOIN *join)
     }
   }
 
-
   walk= delete_tables;
 
   for (JOIN_TAB *tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS,
@@ -977,7 +985,6 @@ multi_delete::initialize_tables(JOIN *join)
 	normal_tables= 1;
       tbl->prepare_triggers_for_delete_stmt_or_event();
       tbl->prepare_for_position();
-      tbl->mark_columns_needed_for_delete();
     }
     else if ((tab->type != JT_SYSTEM && tab->type != JT_CONST) &&
              walk == delete_tables)
