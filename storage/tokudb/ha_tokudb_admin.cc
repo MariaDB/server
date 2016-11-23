@@ -225,7 +225,7 @@ int recount_rows_t::analyze_recount_rows_progress(
         _ticks = 0;
         uint64_t now = tokudb::time::microsec();
         _total_elapsed_time = now - _recount_start;
-        if ((_thd && thd_killed(_thd)) || cancelled()) {
+        if ((_thd && thd_kill_level(_thd)) || cancelled()) {
             // client killed
             return ER_ABORTING_CONNECTION;
         }
@@ -540,7 +540,7 @@ int standard_t::analyze_key_progress(void) {
         uint64_t now = tokudb::time::microsec();
         _total_elapsed_time = now - _analyze_start;
         _key_elapsed_time = now - _analyze_key_start;
-        if ((_thd && thd_killed(_thd)) || cancelled()) {
+        if ((_thd && thd_kill_level(_thd)) || cancelled()) {
             // client killed
             return ER_ABORTING_CONNECTION;
         } else if (_time_limit > 0 &&
@@ -876,7 +876,7 @@ typedef struct hot_optimize_context {
 
 static int hot_optimize_progress_fun(void *extra, float progress) {
     HOT_OPTIMIZE_CONTEXT context = (HOT_OPTIMIZE_CONTEXT)extra;
-    if (thd_killed(context->thd)) {
+    if (thd_kill_level(context->thd)) {
         sprintf(
             context->write_status_msg,
             "The process has been killed, aborting hot optimize.");
@@ -1003,7 +1003,7 @@ struct check_context {
 static int ha_tokudb_check_progress(void* extra, float progress) {
     struct check_context* context = (struct check_context*)extra;
     int result = 0;
-    if (thd_killed(context->thd))
+    if (thd_kill_level(context->thd))
         result = ER_ABORTING_CONNECTION;
     return result;
 }

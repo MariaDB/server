@@ -533,7 +533,7 @@ typedef struct index_read_info {
 
 static int ai_poll_fun(void *extra, float progress) {
     LOADER_CONTEXT context = (LOADER_CONTEXT)extra;
-    if (thd_killed(context->thd)) {
+    if (thd_kill_level(context->thd)) {
         sprintf(context->write_status_msg, "The process has been killed, aborting add index.");
         return ER_ABORTING_CONNECTION;
     }
@@ -548,7 +548,7 @@ static int ai_poll_fun(void *extra, float progress) {
 
 static int loader_poll_fun(void *extra, float progress) {
     LOADER_CONTEXT context = (LOADER_CONTEXT)extra;
-    if (thd_killed(context->thd)) {
+    if (thd_kill_level(context->thd)) {
         sprintf(context->write_status_msg, "The process has been killed, aborting bulk load.");
         return ER_ABORTING_CONNECTION;
     }
@@ -3435,7 +3435,7 @@ int ha_tokudb::end_bulk_insert(bool abort) {
     ai_metadata_update_required = false;
     loader_error = 0;
     if (loader) {
-        if (!abort_loader && !thd_killed(thd)) {
+        if (!abort_loader && !thd_kill_level(thd)) {
             DBUG_EXECUTE_IF("tokudb_end_bulk_insert_sleep", {
                 const char *orig_proc_info = tokudb_thd_get_proc_info(thd);
                 thd_proc_info(thd, "DBUG sleep");
@@ -3445,7 +3445,7 @@ int ha_tokudb::end_bulk_insert(bool abort) {
             error = loader->close(loader);
             loader = NULL;
             if (error) { 
-                if (thd_killed(thd)) {
+                if (thd_kill_level(thd)) {
                     my_error(ER_QUERY_INTERRUPTED, MYF(0));
                 }
                 goto cleanup; 
@@ -3580,7 +3580,7 @@ int ha_tokudb::is_index_unique(bool* is_unique, DB_TXN* txn, DB* db, KEY* key_in
                 share->row_count(),
                 key_info->name);
             thd_proc_info(thd, status_msg);
-            if (thd_killed(thd)) {
+            if (thd_kill_level(thd)) {
                 my_error(ER_QUERY_INTERRUPTED, MYF(0));
                 error = ER_QUERY_INTERRUPTED;
                 goto cleanup;
@@ -5245,7 +5245,7 @@ int ha_tokudb::fill_range_query_buf(
         // otherwise, if we simply see that the current key is no match,
         // we tell the cursor to continue and don't store
         // the key locally
-        if (result == ICP_OUT_OF_RANGE || thd_killed(thd)) {
+        if (result == ICP_OUT_OF_RANGE || thd_kill_level(thd)) {
             icp_went_out_of_range = true;
             error = 0;
             DEBUG_SYNC(ha_thd(), "tokudb_icp_asc_scan_out_of_range");
@@ -5613,7 +5613,7 @@ int ha_tokudb::get_next(
             static_cast<tokudb_trx_data*>(thd_get_ha_data(thd, tokudb_hton));
         trx->stmt_progress.queried++;
         track_progress(thd);
-        if (thd_killed(thd))
+        if (thd_kill_level(thd))
             error = ER_ABORTING_CONNECTION;
     }
 cleanup:
@@ -8351,7 +8351,7 @@ int ha_tokudb::tokudb_add_index(
                     (long long unsigned)share->row_count());
 #endif
 
-                if (thd_killed(thd)) {
+                if (thd_kill_level(thd)) {
                     error = ER_ABORTING_CONNECTION;
                     goto cleanup;
                 }
