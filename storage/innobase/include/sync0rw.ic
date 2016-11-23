@@ -134,17 +134,6 @@ rw_lock_get_reader_count(
 	return(0);
 }
 
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-UNIV_INLINE
-ib_mutex_t*
-rw_lock_get_mutex(
-/*==============*/
-	rw_lock_t*	lock)
-{
-	return(&(lock->mutex));
-}
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
-
 /******************************************************************//**
 Returns the value of writer_count for the lock. Does not reserve the lock
 mutex, so the caller must be sure it is not changed during the call.
@@ -221,7 +210,6 @@ rw_lock_lock_word_decr(
 	ulint		amount,		/*!< in: amount to decrement */
 	lint		threshold)	/*!< in: threshold of judgement */
 {
-#ifdef INNODB_RW_LOCKS_USE_ATOMICS
 	lint local_lock_word;
 
 	local_lock_word = lock->lock_word;
@@ -233,16 +221,6 @@ rw_lock_lock_word_decr(
 		}
 	}
 	return(false);
-#else /* INNODB_RW_LOCKS_USE_ATOMICS */
-	bool success = false;
-	mutex_enter(&(lock->mutex));
-	if (lock->lock_word > threshold) {
-		lock->lock_word -= amount;
-		success = true;
-	}
-	mutex_exit(&(lock->mutex));
-	return(success);
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 }
 
 /******************************************************************//**
@@ -263,20 +241,8 @@ rw_lock_set_writer_id_and_recursion_flag(
 					allowed */
 {
 	os_thread_id_t	curr_thread	= os_thread_get_curr_id();
-
-#ifdef INNODB_RW_LOCKS_USE_ATOMICS
-
 	my_atomic_storelong(&lock->writer_thread, (long) curr_thread);
 	lock->recursive = recursive;
-
-#else /* INNODB_RW_LOCKS_USE_ATOMICS */
-
-	mutex_enter(&lock->mutex);
-	lock->writer_thread = curr_thread;
-	lock->recursive = recursive;
-	mutex_exit(&lock->mutex);
-
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 }
 
 /******************************************************************//**
@@ -368,28 +334,14 @@ rw_lock_x_lock_func_nowait(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
-	ibool success;
 	ibool local_recursive= lock->recursive;
-
-#ifdef INNODB_RW_LOCKS_USE_ATOMICS
 	lint oldval = X_LOCK_DECR;
-	success = my_atomic_caslint(&lock->lock_word, &oldval, 0);
-#else
 
-	success = FALSE;
-	mutex_enter(&(lock->mutex));
-	if (lock->lock_word == X_LOCK_DECR) {
-		lock->lock_word = 0;
-		success = TRUE;
-	}
-	mutex_exit(&(lock->mutex));
-
-#endif
 	/* Note: recursive must be loaded before writer_thread see
 	comment for rw_lock_set_writer_id_and_recursion_flag().
 	To achieve this we load it before my_atomic_caslint(),
 	which implies full memory barrier in current implementation. */
-	if (success) {
+	if (my_atomic_caslint(&lock->lock_word, &oldval, 0)) {
 		rw_lock_set_writer_id_and_recursion_flag(lock, true);
 
 	} else if (local_recursive

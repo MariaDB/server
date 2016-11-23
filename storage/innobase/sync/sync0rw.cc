@@ -233,18 +233,6 @@ rw_lock_create_func(
 	/* If this is the very first time a synchronization object is
 	created, then the following call initializes the sync system. */
 
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-	mutex_create(LATCH_ID_RW_LOCK_MUTEX, rw_lock_get_mutex(lock));
-
-	lock->mutex.cfile_name = cfile_name;
-	lock->mutex.cline = cline;
-	lock->mutex.lock_name = cmutex_name;
-#else /* INNODB_RW_LOCKS_USE_ATOMICS */
-# ifdef UNIV_DEBUG
-	UT_NOT_USED(cmutex_name);
-# endif
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
-
 	lock->lock_word = X_LOCK_DECR;
 	lock->waiters = 0;
 
@@ -311,10 +299,6 @@ rw_lock_free_func(
 	ut_a(lock->lock_word == X_LOCK_DECR);
 
 	mutex_enter(&rw_lock_list_mutex);
-
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-	mutex_free(rw_lock_get_mutex(lock));
-#endif /* !INNODB_RW_LOCKS_USE_ATOMICS */
 
 	os_event_destroy(lock->event);
 
@@ -1219,10 +1203,6 @@ rw_lock_list_print_info(
 
 		count++;
 
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-		mutex_enter(&lock->mutex);
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
-
 		if (lock->lock_word != X_LOCK_DECR) {
 
 			fprintf(file, "RW-LOCK: %p ", (void*) lock);
@@ -1246,10 +1226,6 @@ rw_lock_list_print_info(
 
 			rw_lock_debug_mutex_exit();
 		}
-
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-		mutex_exit(&lock->mutex);
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 	}
 
 	fprintf(file, "Total number of rw-locks " ULINTPF "\n", count);
@@ -1269,15 +1245,6 @@ rw_lock_print(
 		"-------------\n"
 		"RW-LATCH INFO\n"
 		"RW-LATCH: %p ", (void*) lock);
-
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-	/* We used to acquire lock->mutex here, but it would cause a
-	recursive call to sync_thread_add_level() if UNIV_DEBUG
-	is defined.  Since this function is only invoked from
-	sync_thread_levels_g(), let us choose the smaller evil:
-	performing dirty reads instead of causing bogus deadlocks or
-	assertion failures. */
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 
 	if (lock->lock_word != X_LOCK_DECR) {
 

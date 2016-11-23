@@ -44,8 +44,6 @@ extern my_bool srv_instrument_semaphores;
 
 #endif /* !UNIV_HOTBACKUP */
 
-# define INNODB_RW_LOCKS_USE_ATOMICS
-
 /** Counters for RW locks. */
 struct rw_lock_stats_t {
 	typedef ib_counter_t<int64_t, IB_N_SLOTS> int64_counter_t;
@@ -681,11 +679,6 @@ struct rw_lock_t
 	/** The instrumentation hook */
 	struct PSI_rwlock*	pfs_psi;
 #endif /* UNIV_PFS_RWLOCK */
-
-#ifndef INNODB_RW_LOCKS_USE_ATOMICS
-	/** The mutex protecting rw_lock_t */
-	mutable ib_mutex_t mutex;
-#endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 
 #ifdef UNIV_DEBUG
 /** Value of rw_lock_t::magic_n */
