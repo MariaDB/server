@@ -54,3 +54,103 @@ select * from t;
 a	b	c
 9	10	10
 drop table t, t2;
+create table t1 (a int, b int, c int, d int, e int);
+insert t1 values (1,2,3,4,5), (1,2,3,4,5);
+create table t (a int primary key,
+b int, c blob as (b), index (c(57)),
+d blob, e blob as (d), index (e(57)))
+replace select * from t1;
+Warnings:
+Warning	1906	The value specified for computed column 'c' in table 't' ignored
+Warning	1906	The value specified for computed column 'e' in table 't' ignored
+Warning	1906	The value specified for computed column 'c' in table 't' ignored
+Warning	1906	The value specified for computed column 'e' in table 't' ignored
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+1	2	2	4	4
+update t set a=10, b=1, d=1;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+10	1	1	1	1
+replace t (a,b,d) values (10,2,2);
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+10	2	2	2	2
+insert t(a,b,d) values (10) on duplicate key update b=3;
+ERROR 21S01: Column count doesn't match value count at row 1
+insert t(a,b,d) values (10,2,2) on duplicate key update b=3, d=3;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+10	3	3	3	3
+replace t (a,b,d) select 10,4,4;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+10	4	4	4	4
+insert t(a,b,d) select 10,4,4 on duplicate key update b=5, d=5;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+10	5	5	5	5
+replace delayed t (a,b,d) values (10,6,6);
+flush tables;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+10	6	6	6	6
+insert delayed t(a,b,d) values (10,6,6) on duplicate key update b=7, d=7;
+flush tables;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+10	7	7	7	7
+load data infile 'MYSQLTEST_VARDIR/tmp/vblobs.txt' replace into table t;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+10	8	8	8	8
+update t set a=11, b=9, d=9 where a>5;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+11	9	9	9	9
+create table t2 select * from t;
+update t, t2 set t.b=10, t.d=10 where t.a=t2.a;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+11	10	10	10	10
+update t, t tt set t.b=11, tt.d=11 where t.a=tt.a;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select * from t;
+a	b	c	d	e
+11	11	11	11	11
+drop table t, t1, t2;

@@ -3324,6 +3324,9 @@ public:
   uint max_packed_col_length(uint max_length);
   void free() { value.free(); }
   inline void clear_temporary() { bzero((uchar*) &value, sizeof(value)); }
+  inline bool owns_ptr(uchar* p) const { return p == (uchar*)value.ptr(); }
+  inline void own_value_ptr()
+  { value.reset((char*)get_ptr(), get_length(), get_length(), value.charset()); }
   uint size_of() const { return sizeof(*this); }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }

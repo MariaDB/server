@@ -812,6 +812,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   info.update_values= &update_values;
   info.view= (table_list->view ? table_list : 0);
   info.table_list= table_list;
+  if (duplic != DUP_ERROR)
+  {
+    info.vblobs0.init(table);
+    info.vblobs1.init(table);
+  }
 
   /*
     Count warnings for all inserts.
@@ -1184,7 +1189,6 @@ values_loop_end:
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->first_cond_optimization= 0;
   }
-  
   DBUG_RETURN(FALSE);
 
 abort:
@@ -1698,9 +1702,12 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
       }
       if (table->vfield)
       {
+        info->vblobs0.make_orphans();
         table->move_fields(table->field, table->record[1], table->record[0]);
         table->update_virtual_fields(VCOL_UPDATE_INDEXED);
+        info->vblobs1.make_orphans();
         table->move_fields(table->field, table->record[0], table->record[1]);
+        info->vblobs0.adopt_orphans();
       }
       if (info->handle_duplicates == DUP_UPDATE)
       {
@@ -1861,6 +1868,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             trg_error= 1;
             goto ok_or_after_trg_err;
           }
+          info->vblobs1.free_orphans();
           /* Let us attempt do write_row() once more */
         }
       }
@@ -1911,6 +1919,7 @@ ok_or_after_trg_err:
     my_safe_afree(key,table->s->max_unique_length);
   if (!table->file->has_transactions())
     thd->transaction.stmt.modified_non_trans_table= TRUE;
+  info->vblobs1.free_orphans();
   DBUG_RETURN(trg_error);
 
 err:
@@ -1922,6 +1931,7 @@ before_trg_err:
   if (key)
     my_safe_afree(key, table->s->max_unique_length);
   table->column_bitmaps_set(save_read_set, save_write_set);
+  info->vblobs1.free_orphans();
   DBUG_RETURN(1);
 }
 
@@ -3130,10 +3140,14 @@ static void free_delayed_insert_blobs(register TABLE *table)
 {
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-    if ((*ptr)->flags & BLOB_FLAG)
+    Field_blob *f= (Field_blob*)(*ptr);
+    if (f->flags & BLOB_FLAG)
     {
-      my_free(((Field_blob *) (*ptr))->get_ptr());
-      ((Field_blob *) (*ptr))->reset();
+      if (f->vcol_info)
+        f->free();
+      else
+        my_free(f->get_ptr());
+      f->reset();
     }
   }
 }
@@ -3154,6 +3168,9 @@ bool Delayed_insert::handle_inserts(void)
 
   table->next_number_field=table->found_next_number_field;
   table->use_all_columns();
+
+  info.vblobs0.init(table);
+  info.vblobs1.init(table);
 
   THD_STAGE_INFO(&thd, stage_upgrading_lock);
   if (thr_upgrade_write_delay_lock(*thd.lock->locks, delayed_lock,
@@ -3261,6 +3278,8 @@ bool Delayed_insert::handle_inserts(void)
     if (info.handle_duplicates == DUP_UPDATE)
       table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
     thd.clear_error(); // reset error for binlog
+    if (table->vfield)
+      table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
     if (write_record(&thd, table, &info))
     {
       info.error_count++;				// Ignore errors
@@ -3367,6 +3386,8 @@ bool Delayed_insert::handle_inserts(void)
     DBUG_PRINT("error", ("HA_EXTRA_NO_CACHE failed after loop"));
     goto err;
   }
+  info.vblobs0.free();
+  info.vblobs1.free();
   query_cache_invalidate3(&thd, table, 1);
   mysql_mutex_lock(&mutex);
   DBUG_RETURN(0);
@@ -3375,6 +3396,8 @@ bool Delayed_insert::handle_inserts(void)
 #ifndef DBUG_OFF
   max_rows= 0;                                  // For DBUG output
 #endif
+  info.vblobs0.free();
+  info.vblobs1.free();
   /* Remove all not used rows */
   mysql_mutex_lock(&mutex);
   while ((row=rows.get()))
@@ -3622,6 +3645,11 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   restore_record(table,s->default_values);		// Get empty record
   table->reset_default_fields();
   table->next_number_field=table->found_next_number_field;
+  if (info.handle_duplicates != DUP_ERROR)
+  {
+    info.vblobs0.init(table);
+    info.vblobs1.init(table);
+  }
 
 #ifdef HAVE_REPLICATION
   if (thd->rgi_slave &&

@@ -65,3 +65,48 @@ create table t2 select * from t;
 update t, t2 set t.b=10 where t.a=t2.a;
 check table t; select * from t;
 drop table t, t2;
+
+#
+# blobs
+# This tests BLOB_VALUE_ORPHANAGE
+#
+create table t1 (a int, b int, c int, d int, e int);
+insert t1 values (1,2,3,4,5), (1,2,3,4,5);
+create table t (a int primary key,
+  b int, c blob as (b), index (c(57)),
+  d blob, e blob as (d), index (e(57)))
+  replace select * from t1;
+check table t; select * from t;
+update t set a=10, b=1, d=1;
+check table t; select * from t;
+replace t (a,b,d) values (10,2,2);
+check table t; select * from t;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+insert t(a,b,d) values (10) on duplicate key update b=3;
+insert t(a,b,d) values (10,2,2) on duplicate key update b=3, d=3;
+check table t; select * from t;
+replace t (a,b,d) select 10,4,4;
+check table t; select * from t;
+insert t(a,b,d) select 10,4,4 on duplicate key update b=5, d=5;
+check table t; select * from t;
+replace delayed t (a,b,d) values (10,6,6);
+flush tables;
+check table t; select * from t;
+insert delayed t(a,b,d) values (10,6,6) on duplicate key update b=7, d=7;
+flush tables;
+check table t; select * from t;
+--write_file $MYSQLTEST_VARDIR/tmp/vblobs.txt
+10	8	foo	8	foo
+EOF
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval load data infile '$MYSQLTEST_VARDIR/tmp/vblobs.txt' replace into table t
+--remove_file $MYSQLTEST_VARDIR/tmp/vblobs.txt
+check table t; select * from t;
+update t set a=11, b=9, d=9 where a>5;
+check table t; select * from t;
+create table t2 select * from t;
+update t, t2 set t.b=10, t.d=10 where t.a=t2.a;
+check table t; select * from t;
+update t, t tt set t.b=11, tt.d=11 where t.a=tt.a;
+check table t; select * from t;
+drop table t, t1, t2;
