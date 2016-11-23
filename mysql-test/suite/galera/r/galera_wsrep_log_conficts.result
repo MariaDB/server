@@ -1,0 +1,18 @@
+CREATE TABLE t1 (
+f1 VARCHAR(255) PRIMARY KEY
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO t1 VALUES ('abc');
+SELECT f1 = 'abc' FROM t1;
+f1 = 'abc'
+1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f1 = 'klm';
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f1 = 'xyz';
+COMMIT;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+include/assert_grep.inc [cluster conflict due to high priority abort for threads]
+DROP TABLE t1;
