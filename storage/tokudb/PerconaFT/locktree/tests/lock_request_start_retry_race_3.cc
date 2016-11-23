@@ -87,7 +87,7 @@ static void run_locker(locktree *lt, TXNID txnid, const DBT *key, pthread_barrie
             buffer.destroy();
 
             // retry pending lock requests
-            lock_request::retry_all_lock_requests(lt, after_retry_all);
+            lock_request::retry_all_lock_requests(lt, nullptr, after_retry_all);
         }
 
         request.destroy();

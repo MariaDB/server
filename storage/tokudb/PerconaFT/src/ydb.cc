@@ -1804,6 +1804,12 @@ env_set_lock_timeout_callback(DB_ENV *env, lock_timeout_callback callback) {
     return 0;
 }
 
+static int
+env_set_lock_wait_callback(DB_ENV *env, lock_wait_callback callback) {
+    env->i->lock_wait_needed_callback = callback;
+    return 0;
+}
+
 static void
 format_time(const time_t *timer, char *buf) {
     ctime_r(timer, buf);
@@ -2704,6 +2710,7 @@ toku_env_create(DB_ENV ** envp, uint32_t flags) {
     USENV(get_lock_timeout);
     USENV(set_lock_timeout);
     USENV(set_lock_timeout_callback);
+    USENV(set_lock_wait_callback);
     USENV(set_redzone);
     USENV(log_flush);
     USENV(log_archive);

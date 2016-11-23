@@ -405,6 +405,7 @@ static void print_db_env_struct (void) {
                              "int (*set_lock_timeout)                     (DB_ENV *env, uint64_t default_lock_wait_time_msec, uint64_t (*get_lock_wait_time_cb)(uint64_t default_lock_wait_time))",
                              "int (*get_lock_timeout)                     (DB_ENV *env, uint64_t *lock_wait_time_msec)",
                              "int (*set_lock_timeout_callback)            (DB_ENV *env, lock_timeout_callback callback)",
+                             "int (*set_lock_wait_callback)               (DB_ENV *env, lock_wait_callback callback)",
                              "int (*txn_xa_recover)                       (DB_ENV*, TOKU_XA_XID list[/*count*/], long count, /*out*/ long *retp, uint32_t flags)",
                              "int (*get_txn_from_xid)                     (DB_ENV*, /*in*/ TOKU_XA_XID *, /*out*/ DB_TXN **)",
                              "DB* (*get_db_for_directory)                 (DB_ENV*)",
@@ -751,6 +752,7 @@ int main (int argc, char *const argv[] __attribute__((__unused__))) {
     printf("void toku_dbt_array_resize(DBT_ARRAY *dbts, uint32_t size) %s;\n", VISIBLE);
 
     printf("typedef void (*lock_timeout_callback)(DB *db, uint64_t requesting_txnid, const DBT *left_key, const DBT *right_key, uint64_t blocking_txnid);\n");
+    printf("typedef void (*lock_wait_callback)(void *arg, uint64_t requesting_txnid, uint64_t blocking_txnid);\n");
     printf("typedef int (*iterate_row_locks_callback)(DB **db, DBT *left_key, DBT *right_key, void *extra);\n");
     printf("typedef int (*iterate_transactions_callback)(DB_TXN *dbtxn, iterate_row_locks_callback cb, void *locks_extra, void *extra);\n");
     printf("typedef int (*iterate_requests_callback)(DB *db, uint64_t requesting_txnid, const DBT *left_key, const DBT *right_key, uint64_t blocking_txnid, uint64_t start_time, void *extra);\n");

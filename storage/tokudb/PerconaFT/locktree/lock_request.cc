@@ -199,7 +199,8 @@ int lock_request::wait(uint64_t wait_time_ms) {
     return wait(wait_time_ms, 0, nullptr);
 }
 
-int lock_request::wait(uint64_t wait_time_ms, uint64_t killed_time_ms, int (*killed_callback)(void)) {
+int lock_request::wait(uint64_t wait_time_ms, uint64_t killed_time_ms, int (*killed_callback)(void),
+                       void (*lock_wait_callback)(void *, TXNID, TXNID)) {
     uint64_t t_now = toku_current_time_microsec();
     uint64_t t_start = t_now;
     uint64_t t_end = t_start + wait_time_ms * 1000;
@@ -208,7 +209,13 @@ int lock_request::wait(uint64_t wait_time_ms, uint64_t killed_time_ms, int (*kil
 
     // check again, this time locking out other retry calls
     if (m_state == state::PENDING) {
-        retry();
+        GrowableArray<TXNID> conflicts_collector;
+        conflicts_collector.init();
+        retry(&conflicts_collector);
+        if (m_state == state::PENDING) {
+            report_waits(&conflicts_collector, lock_wait_callback);
+        }
+        conflicts_collector.deinit();
     }
 
     while (m_state == state::PENDING) {
@@ -287,7 +294,7 @@ TXNID lock_request::get_conflicting_txnid(void) const {
     return m_conflicting_txnid;
 }
 
-int lock_request::retry(void) {
+int lock_request::retry(GrowableArray<TXNID> *conflicts_collector) {
     invariant(m_state == state::PENDING);
     int r;
 
@@ -308,13 +315,14 @@ int lock_request::retry(void) {
         toku_cond_broadcast(&m_wait_cond);
     } else {
         m_conflicting_txnid = conflicts.get(0);
+        add_conflicts_to_waits(&conflicts, conflicts_collector);
     }
     conflicts.destroy();
 
     return r;
 }
 
-void lock_request::retry_all_lock_requests(locktree *lt, void (*after_retry_all_test_callback)(void)) {
+void lock_request::retry_all_lock_requests(locktree *lt, void (*lock_wait_callback)(void *, TXNID, TXNID), void (*after_retry_all_test_callback)(void)) {
     lt_lock_request_info *info = lt->get_lock_request_info();
 
     info->retry_want++;
@@ -326,6 +334,9 @@ void lock_request::retry_all_lock_requests(locktree *lt, void (*after_retry_all_
         return;
 
     toku_mutex_lock(&info->mutex);
+
+    GrowableArray<TXNID> conflicts_collector;
+    conflicts_collector.init();
 
     // here is the group retry algorithm.
     // get the latest retry_want count and use it as the generation number of this retry operation.
@@ -344,7 +355,7 @@ void lock_request::retry_all_lock_requests(locktree *lt, void (*after_retry_all_
             // move on to the next lock request. otherwise
             // the request is gone from the list so we may
             // read the i'th entry for the next one.
-            r = request->retry();
+            r = request->retry(&conflicts_collector);
             if (r != 0) {
                 i++;
             }
@@ -354,6 +365,30 @@ void lock_request::retry_all_lock_requests(locktree *lt, void (*after_retry_all_
     }
 
     toku_mutex_unlock(&info->mutex);
+
+    report_waits(&conflicts_collector, lock_wait_callback);
+    conflicts_collector.deinit();
+}
+
+void lock_request::add_conflicts_to_waits(txnid_set *conflicts,
+                                          GrowableArray<TXNID> *wait_conflicts) {
+    size_t num_conflicts = conflicts->size();
+    for (size_t i = 0; i < num_conflicts; i++) {
+        wait_conflicts->push(m_txnid);
+        wait_conflicts->push(conflicts->get(i));
+    }
+}
+
+void lock_request::report_waits(GrowableArray<TXNID> *wait_conflicts,
+                                void (*lock_wait_callback)(void *, TXNID, TXNID)) {
+    if (!lock_wait_callback)
+        return;
+    size_t num_conflicts = wait_conflicts->get_size();
+    for (size_t i = 0; i < num_conflicts; i += 2) {
+        TXNID blocked_txnid = wait_conflicts->fetch_unchecked(i);
+        TXNID blocking_txnid = wait_conflicts->fetch_unchecked(i+1);
+        (*lock_wait_callback)(nullptr, blocked_txnid, blocking_txnid);
+    }
 }
 
 void *lock_request::get_extra(void) const {
