@@ -2620,6 +2620,10 @@ static void env_set_killed_callback(DB_ENV *env, uint64_t default_killed_time_ms
     env->i->killed_callback = killed_callback;
 }
 
+static void env_kill_waiter(DB_ENV *env, void *extra) {
+    env->i->ltm.kill_waiter(extra);
+}
+
 static void env_do_backtrace(DB_ENV *env) {
     if (env->i->errcall) {
         db_env_do_backtrace_errfunc((toku_env_err_func) toku_env_err, (const void *) env);
@@ -2719,6 +2723,7 @@ toku_env_create(DB_ENV ** envp, uint32_t flags) {
     USENV(set_dir_per_db);
     USENV(get_dir_per_db);
     USENV(get_data_dir);
+    USENV(kill_waiter);
 #undef USENV
     
     // unlocked methods

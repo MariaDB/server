@@ -425,6 +425,7 @@ static void print_db_env_struct (void) {
                              "bool (*set_dir_per_db)(DB_ENV *, bool new_val)",
                              "bool (*get_dir_per_db)(DB_ENV *)",
                              "const char *(*get_data_dir)(DB_ENV *env)",
+                             "void (*kill_waiter)(DB_ENV *, void *extra)",
                              NULL};
 
         sort_and_dump_fields("db_env", true, extra);
@@ -545,8 +546,8 @@ static void print_db_txn_struct (void) {
 	"int (*abort_with_progress)(DB_TXN*, TXN_PROGRESS_POLL_FUNCTION, void*)",
 	"int (*xa_prepare) (DB_TXN*, TOKU_XA_XID *, uint32_t flags)",
         "uint64_t (*id64) (DB_TXN*)",
-        "void (*set_client_id)(DB_TXN *, uint64_t client_id)",
-        "uint64_t (*get_client_id)(DB_TXN *)",
+        "void (*set_client_id)(DB_TXN *, uint64_t client_id, void *client_extra)",
+        "void (*get_client_id)(DB_TXN *, uint64_t *client_id, void **client_extra)",
         "bool (*is_prepared)(DB_TXN *)",
         "DB_TXN *(*get_child)(DB_TXN *)",
         "uint64_t (*get_start_time)(DB_TXN *)",
