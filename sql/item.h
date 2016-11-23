@@ -2665,7 +2665,7 @@ public:
   bool exclusive_dependence_on_table_processor(void *map);
   bool exclusive_dependence_on_grouping_fields_processor(void *arg);
   bool cleanup_excluding_outer_fields_processor(void *arg)
-  { return depended_from ? 0 :cleanup_processor(arg); }
+  { return depended_from ? 0 : cleanup_processor(arg); }
    
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_field>(thd, mem_root, this); }
@@ -4278,7 +4278,11 @@ public:
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_ref>(thd, mem_root, this); }
-};
+  bool exclusive_dependence_on_table_processor(void *map)
+  { return depended_from != NULL; }
+  bool exclusive_dependence_on_grouping_fields_processor(void *arg)
+  { return depended_from != NULL; }
+ };
 
 
 /*

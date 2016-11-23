@@ -7262,3 +7262,117 @@ i
 2
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-11315: condition with outer reference to mergeable derived
+#
+CREATE TABLE t1 (pk1 INT PRIMARY KEY, a INT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (10,7,1),(11,0,2);
+CREATE TABLE t2 (pk2 INT PRIMARY KEY, c INT, d DATETIME) ENGINE=MyISAM;
+INSERT INTO t2 VALUES 
+(1,4,'2008-09-27 00:34:58'),
+(2,5,'2007-05-28 00:00:00'),
+(3,6,'2009-07-25 09:21:20');
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+SELECT * FROM v1 AS sq 
+WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
+pk1	a	b
+10	7	1
+11	0	2
+EXPLAIN FORMAT=JSON
+SELECT * FROM v1 AS sq 
+WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "(<in_optimizer>(t1.b,<exists>(subquery#2)) or (t1.b = 100))"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "index_subquery",
+            "possible_keys": ["key0"],
+            "key": "key0",
+            "key_length": "4",
+            "used_key_parts": ["pk2"],
+            "ref": ["func"],
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 4,
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 3,
+                  "filtered": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT * FROM ( SELECT * FROM t1 ) AS sq 
+WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
+pk1	a	b
+10	7	1
+11	0	2
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT * FROM t1 ) AS sq 
+WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "(<in_optimizer>(t1.b,<exists>(subquery#3)) or (t1.b = 100))"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "index_subquery",
+            "possible_keys": ["key0"],
+            "key": "key0",
+            "key_length": "4",
+            "used_key_parts": ["pk2"],
+            "ref": ["func"],
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 4,
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 3,
+                  "filtered": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+DROP VIEW v1,v2;
+DROP TABLE t1,t2;
