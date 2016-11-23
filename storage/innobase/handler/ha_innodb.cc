@@ -4710,6 +4710,14 @@ innobase_commit_ordered_2(
 		/* Don't do write + flush right now. For group commit
 		to work we want to do the flush later. */
 		trx->flush_log_later = true;
+
+		/* Notify VTQ on System Versioned tables update */
+		if (trx->vtq_notify_on_commit) {
+			vers_notify_vtq(trx);
+			trx->vtq_notify_on_commit = false;
+		}
+	} else {
+		DBUG_ASSERT(!trx->vtq_notify_on_commit);
 	}
 
 	innobase_commit_low(trx);
