@@ -224,28 +224,6 @@ rw_lock_lock_word_decr(
 }
 
 /******************************************************************//**
-This function sets the lock->writer_thread and lock->recursive fields.
-For platforms where we are using atomic builtins instead of lock->mutex
-it sets the lock->writer_thread field using atomics to ensure memory
-ordering. Note that it is assumed that the caller of this function
-effectively owns the lock i.e.: nobody else is allowed to modify
-lock->writer_thread at this point in time.
-The protocol is that lock->writer_thread MUST be updated BEFORE the
-lock->recursive flag is set. */
-UNIV_INLINE
-void
-rw_lock_set_writer_id_and_recursion_flag(
-/*=====================================*/
-	rw_lock_t*	lock,		/*!< in/out: lock to work on */
-	bool		recursive)	/*!< in: true if recursion
-					allowed */
-{
-	os_thread_id_t	curr_thread	= os_thread_get_curr_id();
-	my_atomic_storelong(&lock->writer_thread, (long) curr_thread);
-	lock->recursive = recursive;
-}
-
-/******************************************************************//**
 Low-level function which tries to lock an rw-lock in s-mode. Performs no
 spinning.
 @return TRUE if success */
@@ -334,19 +312,12 @@ rw_lock_x_lock_func_nowait(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
-	ibool local_recursive= lock->recursive;
 	lint oldval = X_LOCK_DECR;
 
-	/* Note: recursive must be loaded before writer_thread see
-	comment for rw_lock_set_writer_id_and_recursion_flag().
-	To achieve this we load it before my_atomic_caslint(),
-	which implies full memory barrier in current implementation. */
 	if (my_atomic_caslint(&lock->lock_word, &oldval, 0)) {
-		rw_lock_set_writer_id_and_recursion_flag(lock, true);
+		lock->writer_thread = os_thread_get_curr_id();
 
-	} else if (local_recursive
-		   && os_thread_eq(lock->writer_thread,
-				   os_thread_get_curr_id())) {
+	} else if (os_thread_eq(lock->writer_thread, os_thread_get_curr_id())) {
 		/* Relock: this lock_word modification is safe since no other
 		threads can modify (lock, unlock, or reserve) lock_word while
 		there is an exclusive writer and this is the writer thread. */
@@ -435,15 +406,9 @@ rw_lock_x_unlock_func(
 	ut_ad(lock->lock_word == 0 || lock->lock_word == -X_LOCK_HALF_DECR
 	      || lock->lock_word <= -X_LOCK_DECR);
 
-	/* lock->recursive flag also indicates if lock->writer_thread is
-	valid or stale. If we are the last of the recursive callers
-	then we must unset lock->recursive flag to indicate that the
-	lock->writer_thread is now stale.
-	Note that since we still hold the x-lock we can safely read the
-	lock_word. */
 	if (lock->lock_word == 0) {
 		/* Last caller in a possible recursive chain. */
-		lock->recursive = FALSE;
+		lock->writer_thread = 0;
 	}
 
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_X));
@@ -500,9 +465,7 @@ rw_lock_sx_unlock_func(
 	if (lock->sx_recursive == 0) {
 		/* Last caller in a possible recursive chain. */
 		if (lock->lock_word > 0) {
-			lock->recursive = FALSE;
-			UNIV_MEM_INVALID(&lock->writer_thread,
-					 sizeof lock->writer_thread);
+			lock->writer_thread = 0;
 
 			if (my_atomic_addlint(&lock->lock_word, X_LOCK_HALF_DECR) <= 0) {
 				ut_error;

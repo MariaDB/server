@@ -510,22 +510,6 @@ rw_lock_lock_word_decr(
 	rw_lock_t*	lock,		/*!< in/out: rw-lock */
 	ulint		amount,		/*!< in: amount to decrement */
 	lint		threshold);	/*!< in: threshold of judgement */
-/******************************************************************//**
-This function sets the lock->writer_thread and lock->recursive fields.
-For platforms where we are using atomic builtins instead of lock->mutex
-it sets the lock->writer_thread field using atomics to ensure memory
-ordering. Note that it is assumed that the caller of this function
-effectively owns the lock i.e.: nobody else is allowed to modify
-lock->writer_thread at this point in time.
-The protocol is that lock->writer_thread MUST be updated BEFORE the
-lock->recursive flag is set. */
-UNIV_INLINE
-void
-rw_lock_set_writer_id_and_recursion_flag(
-/*=====================================*/
-	rw_lock_t*	lock,		/*!< in/out: lock to work on */
-	bool		recursive);	/*!< in: true if recursion
-					allowed */
 #ifdef UNIV_DEBUG
 /******************************************************************//**
 Checks if the thread has locked the rw-lock in the specified mode, with
@@ -612,17 +596,6 @@ struct rw_lock_t
 	/** 1: there are waiters */
 	volatile uint32_t	waiters;
 
-	/** Default value FALSE which means the lock is non-recursive.
-	The value is typically set to TRUE making normal rw_locks recursive.
-	In case of asynchronous IO, when a non-zero value of 'pass' is
-	passed then we keep the lock non-recursive.
-
-	This flag also tells us about the state of writer_thread field.
-	If this flag is set then writer_thread MUST contain the thread
-	id of the current x-holder or wait-x thread.  This flag must be
-	reset in x_unlock functions before incrementing the lock_word */
-	volatile bool	recursive;
-
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;
 
@@ -632,8 +605,12 @@ struct rw_lock_t
 	causing much memory bus traffic */
 	bool		writer_is_wait_ex;
 
-	/** Thread id of writer thread. Is only guaranteed to have sane
-	and non-stale value iff recursive flag is set. */
+	/** The value is typically set to thread id of a writer thread making
+	normal rw_locks recursive. In case of asynchronous IO, when a non-zero
+	value of 'pass' is passed then we keep the lock non-recursive.
+
+	writer_thread must be reset in x_unlock functions before incrementing
+	the lock_word. */
 	volatile os_thread_id_t	writer_thread;
 
 	/** Used by sync0arr.cc for thread queueing */

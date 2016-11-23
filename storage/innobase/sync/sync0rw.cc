@@ -104,31 +104,12 @@ sx-lock holder.
 
 The other members of the lock obey the following rules to remain consistent:
 
-recursive:	This and the writer_thread field together control the
-		behaviour of recursive x-locking or sx-locking.
-		lock->recursive must be FALSE in following states:
-			1) The writer_thread contains garbage i.e.: the
-			lock has just been initialized.
-			2) The lock is not x-held and there is no
-			x-waiter waiting on WAIT_EX event.
-			3) The lock is x-held or there is an x-waiter
-			waiting on WAIT_EX event but the 'pass' value
-			is non-zero.
-		lock->recursive is TRUE iff:
-			1) The lock is x-held or there is an x-waiter
-			waiting on WAIT_EX event and the 'pass' value
-			is zero.
-		This flag must be set after the writer_thread field
-		has been updated with a memory ordering barrier.
-		It is unset before the lock_word has been incremented.
-writer_thread:	Is used only in recursive x-locking. Can only be safely
-		read iff lock->recursive flag is TRUE.
-		This field is uninitialized at lock creation time and
-		is updated atomically when x-lock is acquired or when
-		move_ownership is called. A thread is only allowed to
-		set the value of this field to it's thread_id i.e.: a
-		thread cannot set writer_thread to some other thread's
-		id.
+writer_thread:	Is used only in recursive x-locking or sx-locking.
+		This field is 0 at lock creation time and is updated
+		when x-lock is acquired or when move_ownership is called.
+		A thread is only allowed to set the value of this field to
+		it's thread_id i.e.: a thread cannot set writer_thread to
+		some other thread's id.
 waiters:	May be set to 1 anytime, but to avoid unnecessary wake-up
 		signals, it should only be set to 1 when there are threads
 		waiting on event. Must be 1 when a writer starts waiting to
@@ -236,14 +217,8 @@ rw_lock_create_func(
 	lock->lock_word = X_LOCK_DECR;
 	lock->waiters = 0;
 
-	/* We set this value to signify that lock->writer_thread
-	contains garbage at initialization and cannot be used for
-	recursive x-locking. */
-	lock->recursive = FALSE;
 	lock->sx_recursive = 0;
-	/* Silence Valgrind when UNIV_DEBUG_VALGRIND is not enabled. */
-	memset((void*) &lock->writer_thread, 0, sizeof lock->writer_thread);
-	UNIV_MEM_INVALID(&lock->writer_thread, sizeof lock->writer_thread);
+	lock->writer_thread= 0;
 
 #ifdef UNIV_DEBUG
 	lock->m_rw_lock = true;
@@ -437,7 +412,7 @@ rw_lock_x_lock_move_ownership(
 {
 	ut_ad(rw_lock_is_locked(lock, RW_LOCK_X));
 
-	rw_lock_set_writer_id_and_recursion_flag(lock, true);
+	lock->writer_thread = os_thread_get_curr_id();
 }
 
 /******************************************************************//**
@@ -557,20 +532,17 @@ rw_lock_x_lock_low(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
-	ibool local_recursive= lock->recursive;
-
 	if (rw_lock_lock_word_decr(lock, X_LOCK_DECR, X_LOCK_HALF_DECR)) {
 
-
-		/* lock->recursive also tells us if the writer_thread
-		field is stale or active. As we are going to write
-		our own thread id in that field it must be that the
-		current writer_thread value is not active. */
-		ut_a(!lock->recursive);
+		/* As we are going to write our own thread id in that field it
+		must be that the current writer_thread value is not active. */
+		ut_a(!lock->writer_thread);
 
 		/* Decrement occurred: we are writer or next-writer. */
-		rw_lock_set_writer_id_and_recursion_flag(
-			lock, !pass);
+		if (!pass)
+		{
+			lock->writer_thread = os_thread_get_curr_id();
+		}
 
 		rw_lock_x_lock_wait(lock, pass, 0, file_name, line);
 
@@ -578,13 +550,8 @@ rw_lock_x_lock_low(
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
 
 		/* Decrement failed: An X or SX lock is held by either
-		this thread or another. Try to relock.
-		Note: recursive must be loaded before writer_thread see
-		comment for rw_lock_set_writer_id_and_recursion_flag().
-		To achieve this we load it before rw_lock_lock_word_decr(),
-		which implies full memory barrier in current implementation. */
-		if (!pass && local_recursive
-		    && os_thread_eq(lock->writer_thread, thread_id)) {
+		this thread or another. Try to relock. */
+		if (!pass && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* Other s-locks can be allowed. If it is request x
 			recursively while holding sx lock, this x lock should
 			be along with the latching-order. */
@@ -645,19 +612,17 @@ rw_lock_sx_lock_low(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
-	ibool local_recursive= lock->recursive;
-
 	if (rw_lock_lock_word_decr(lock, X_LOCK_HALF_DECR, X_LOCK_HALF_DECR)) {
 
-		/* lock->recursive also tells us if the writer_thread
-		field is stale or active. As we are going to write
-		our own thread id in that field it must be that the
-		current writer_thread value is not active. */
-		ut_a(!lock->recursive);
+		/* As we are going to write our own thread id in that field it
+		must be that the current writer_thread value is not active. */
+		ut_a(!lock->writer_thread);
 
 		/* Decrement occurred: we are the SX lock owner. */
-		rw_lock_set_writer_id_and_recursion_flag(
-			lock, !pass);
+		if (!pass)
+		{
+			lock->writer_thread = os_thread_get_curr_id();
+		}
 
 		lock->sx_recursive = 1;
 	} else {
@@ -665,13 +630,8 @@ rw_lock_sx_lock_low(
 
 		/* Decrement failed: It already has an X or SX lock by this
 		thread or another thread. If it is this thread, relock,
-		else fail.
-		Note: recursive must be loaded before writer_thread see
-		comment for rw_lock_set_writer_id_and_recursion_flag().
-		To achieve this we load it before rw_lock_lock_word_decr(),
-		which implies full memory barrier in current implementation. */
-		if (!pass && local_recursive
-		    && os_thread_eq(lock->writer_thread, thread_id)) {
+		else fail. */
+		if (!pass && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* This thread owns an X or SX lock */
 			if (lock->sx_recursive++ == 0) {
 				/* This thread is making first SX-lock request
