@@ -303,8 +303,14 @@ Conflicts: mariadb-server-core-10.0,
            mysql-server-core-5.6,
            mysql-server-core-5.7,
            virtual-mysql-server-core
-Breaks: mariadb-server-10.2 (<< ${source:Version})
-Replaces: mariadb-server-10.2 (<< ${source:Version}),
+Breaks: mariadb-server-10.2 (<< ${source:Version}),
+        mariadb-client-10.2 (<< ${source:Version}),
+        mariadb-client-10.1,
+        mariadb-client-10.0
+Replaces: mariadb-client-10.2 (<< ${source:Version}),
+          mariadb-client-10.1,
+          mariadb-client-10.0,
+          mariadb-server-10.2 (<< ${source:Version}),
           mariadb-server-core-10.0,
           mariadb-server-core-10.1,
           mariadb-server-core-5.1,
