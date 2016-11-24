@@ -94,11 +94,10 @@ int main(int argc, char **argv)
     (void) fflush(stderr);
     if ((check_param.error_printed | check_param.warning_printed) &&
 	(check_param.testflag & T_FORCE_CREATE) &&
-	(!(check_param.testflag & (T_REP | T_REP_BY_SORT | T_SORT_RECORDS |
-				   T_SORT_INDEX))))
+	(!(check_param.testflag & (T_REP_ANY | T_SORT_RECORDS | T_SORT_INDEX))))
     {
       ulonglong old_testflag=check_param.testflag;
-      if (!(check_param.testflag & T_REP))
+      if (!(check_param.testflag & T_REP_ANY))
 	check_param.testflag|= T_REP_BY_SORT;
       check_param.testflag&= ~T_EXTEND;			/* Don't needed  */
       error|=myisamchk(&check_param, argv[-1]);
@@ -1067,7 +1066,7 @@ static int myisamchk(HA_CHECK *param, char * filename)
 
 	  error=mi_sort_records(param,info,filename,param->opt_sort_key,
                              /* what is the following parameter for ? */
-				(my_bool) !(param->testflag & T_REP),
+				(my_bool) !(param->testflag & T_REP_ANY),
 				update_index);
 	  datafile=info->dfile;	/* This is now locked */
 	  if (!error && !update_index)

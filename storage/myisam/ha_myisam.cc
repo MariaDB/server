@@ -1031,9 +1031,9 @@ int ha_myisam::repair(THD* thd, HA_CHECK_OPT *check_opt)
       continue;
     }
     param.testflag&= ~T_QUICK;
-    if ((param.testflag & T_REP_BY_SORT))
+    if ((param.testflag & (T_REP_BY_SORT | T_REP_PARALLEL)))
     {
-      param.testflag= (param.testflag & ~T_REP_BY_SORT) | T_REP;
+      param.testflag= (param.testflag & ~T_REP_ANY) | T_REP;
       sql_print_information("Retrying repair of: '%s' with keycache",
                             table->s->path.str);
       continue;

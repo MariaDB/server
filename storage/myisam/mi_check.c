@@ -2207,7 +2207,7 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
     printf("- recovering (with sort) MyISAM-table '%s'\n",name);
     printf("Data records: %s\n", llstr(start_records,llbuff));
   }
-  param->testflag|=T_REP; /* for easy checking */
+  param->testflag|=T_REP_BY_SORT; /* for easy checking */
   param->retry_repair= 0;
   param->warning_printed= param->error_printed= param->note_printed= 0;
 
@@ -2637,7 +2637,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
     printf("- parallel recovering (with sort) MyISAM-table '%s'\n",name);
     printf("Data records: %s\n", llstr(start_records,llbuff));
   }
-  param->testflag|=T_REP; /* for easy checking */
+  param->testflag|=T_REP_PARALLEL; /* for easy checking */
   param->retry_repair= 0;
   param->warning_printed= 0;
   param->error_printed= 0;
@@ -3555,7 +3555,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	if (sort_param->calc_checksum)
 	  info->checksum= (*info->s->calc_check_checksum)(info,
                                                           sort_param->record);
-	if ((param->testflag & (T_EXTEND | T_REP)) || searching)
+	if ((param->testflag & (T_EXTEND | T_REP_ANY)) || searching)
 	{
 	  if (_mi_rec_check(info, sort_param->record, sort_param->rec_buff,
                             sort_param->find_length,
@@ -4509,7 +4509,7 @@ void update_auto_increment_key(HA_CHECK *param, MI_INFO *info,
     DBUG_VOID_RETURN;
   }
   if (!(param->testflag & T_SILENT) &&
-      !(param->testflag & T_REP))
+      !(param->testflag & T_REP_ANY))
     printf("Updating MyISAM file: %s\n", param->isam_file_name);
   /*
     We have to use an allocated buffer instead of info->rec_buff as 
