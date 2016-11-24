@@ -3010,6 +3010,12 @@ public:
     return false;
   }
 
+  int case_stmt_action_expr(Item* expr);
+  int case_stmt_action_when(Item *when, bool simple);
+  int case_stmt_action_then();
+  bool add_select_to_union_list(bool is_union_distinct,  bool is_top_level);
+  bool setup_select_in_parentheses();
+
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
   {
