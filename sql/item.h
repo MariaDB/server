@@ -1522,58 +1522,41 @@ public:
      (*traverser)(this, arg);
    }
 
-  virtual bool remove_dependence_processor(void * arg) { return 0; }
+  /*========= Item processors, to be used with Item::walk() ========*/
+  virtual bool remove_dependence_processor(void *arg) { return 0; }
   virtual bool cleanup_processor(void *arg);
-  virtual bool collect_item_field_processor(void * arg) { return 0; }
-  virtual bool add_field_to_set_processor(void * arg) { return 0; }
+  virtual bool cleanup_excluding_const_fields_processor(void *arg) { return cleanup_processor(arg); }
+  virtual bool collect_item_field_processor(void *arg) { return 0; }
+  virtual bool collect_outer_ref_processor(void *arg) {return 0; }
+  virtual bool check_inner_refs_processor(void *arg) { return 0; }
   virtual bool find_item_in_field_list_processor(void *arg) { return 0; }
   virtual bool find_item_processor(void *arg);
-  virtual bool change_context_processor(void *context) { return 0; }
-  virtual bool reset_query_id_processor(void *query_id_arg) { return 0; }
+  virtual bool change_context_processor(void *arg) { return 0; }
+  virtual bool reset_query_id_processor(void *arg) { return 0; }
   virtual bool is_expensive_processor(void *arg) { return 0; }
+
+  // FIXME reduce the number of "add field to bitmap" processors
+  virtual bool add_field_to_set_processor(void *arg) { return 0; }
   virtual bool register_field_in_read_map(void *arg) { return 0; }
   virtual bool register_field_in_write_map(void *arg) { return 0; }
+  virtual bool register_field_in_bitmap(void *arg) { return 0; }
+  virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
+
   virtual bool enumerate_field_refs_processor(void *arg) { return 0; }
   virtual bool mark_as_eliminated_processor(void *arg) { return 0; }
   virtual bool eliminate_subselect_processor(void *arg) { return 0; }
   virtual bool set_fake_select_as_master_processor(void *arg) { return 0; }
-  virtual bool update_table_bitmaps_processor(void *arg) { return 0; }
   virtual bool view_used_tables_processor(void *arg) { return 0; }
-  virtual bool eval_not_null_tables(void *opt_arg) { return 0; }
-  virtual bool is_subquery_processor (void *opt_arg) { return 0; }
+  virtual bool eval_not_null_tables(void *arg) { return 0; }
+  virtual bool is_subquery_processor(void *arg) { return 0; }
   virtual bool count_sargable_conds(void *arg) { return 0; }
-  virtual bool limit_index_condition_pushdown_processor(void *opt_arg)
-  {
-    return FALSE;
-  }
-  virtual bool exists2in_processor(void *opt_arg) { return 0; }
-  virtual bool find_selective_predicates_list_processor(void *opt_arg)
-  { return 0; }
-  virtual bool exclusive_dependence_on_table_processor(void *map)
-  { return 0; }
-  virtual bool exclusive_dependence_on_grouping_fields_processor(void *arg)
-  { return 0; }
-  virtual bool cleanup_excluding_const_fields_processor(void *arg)
-  { return cleanup_processor(arg); }
-
-  virtual Item *get_copy(THD *thd, MEM_ROOT *mem_root)=0;
-
-  /* To call bool function for all arguments */
-  struct bool_func_call_args
-  {
-    Item *original_func_item;
-    void (Item::*bool_function)();
-  };
-
-  /*
-    The next function differs from the previous one that a bitmap to be updated
-    is passed as uchar *arg.
-  */
-  virtual bool register_field_in_bitmap(void *arg) { return 0; }
-
-  bool cache_const_expr_analyzer(uchar **arg);
-  Item* cache_const_expr_transformer(THD *thd, uchar *arg);
-
+  virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
+  virtual bool exists2in_processor(void *arg) { return 0; }
+  virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
+  virtual bool exclusive_dependence_on_table_processor(void *arg) { return 0; }
+  virtual bool exclusive_dependence_on_grouping_fields_processor(void *arg) { return 0; }
+  virtual bool switch_to_nullable_fields_processor(void *arg) { return 0; }
+  virtual bool find_function_processor (void *arg) { return 0; }
   /*
     Check if a partition function is allowed
     SYNOPSIS
@@ -1625,21 +1608,39 @@ public:
     assumes that there are no multi-byte collations amongst the partition
     fields.
   */
-  virtual bool check_partition_func_processor(void *bool_arg) { return TRUE;}
-  /*
-    @brief
-    Processor used to mark virtual columns used in partitioning expression
+  virtual bool check_partition_func_processor(void *arg) { return 1;}
+  virtual bool vcol_in_partition_func_processor(void *arg) { return 0; }
+  /** Processor used to check acceptability of an item in the defining
+      expression for a virtual column 
 
-    @param
-    arg     always ignored
+    @param arg     always ignored
 
-    @retval
-      FALSE      always
+    @retval 0    the item is accepted in the definition of a virtual column
+    @retval 1    otherwise
   */
-  virtual bool vcol_in_partition_func_processor(void *arg)
+  struct vcol_func_processor_result
   {
-    return FALSE;
+    uint errors;                                /* Bits of possible errors */
+    const char *name;                           /* Not supported function */
+  };
+  virtual bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
+  virtual bool check_field_expression_processor(void *arg) { return 0; }
+
+  /*
+    Check if an expression value has allowed arguments, like DATE/DATETIME
+    for date functions. Also used by partitioning code to reject
+    timezone-dependent expressions in a (sub)partitioning function.
+  */
+  virtual bool check_valid_arguments_processor(void *arg) { return 0; }
+  /*============== End of Item processor list ======================*/
+
+  virtual Item *get_copy(THD *thd, MEM_ROOT *mem_root)=0;
+
+  bool cache_const_expr_analyzer(uchar **arg);
+  Item* cache_const_expr_transformer(THD *thd, uchar *arg);
 
   virtual Item* propagate_equal_fields(THD*, const Context &, COND_EQUAL *)
   {
@@ -1651,42 +1652,9 @@ public:
                                                     COND_EQUAL *cond,
                                                     Item **place);
 
-  /*
-    @brief
-    Processor used to check acceptability of an item in the defining
-    expression for a virtual column 
-    
-    @param
-      arg     always ignored
-      
-    @retval
-      FALSE    the item is accepted in the definition of a virtual column
-    @retval 
-      TRUE     otherwise
-  */
-  struct vcol_func_processor_result
-  {
-    uint errors;                                /* Bits of possible errors */
-    const char *name;                           /* Not supported function */
-  };
-  virtual bool check_vcol_func_processor(void *arg)
-  {
-    return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
-  }
-
-  virtual bool check_field_expression_processor(void *arg) { return FALSE; }
-
   /* arg points to REPLACE_EQUAL_FIELD_ARG object */
   virtual Item *replace_equal_field(THD *thd, uchar *arg) { return this; }
-  /*
-    Check if an expression value has allowed arguments, like DATE/DATETIME
-    for date functions. Also used by partitioning code to reject
-    timezone-dependent expressions in a (sub)partitioning function.
-  */
-  virtual bool check_valid_arguments_processor(void *bool_arg)
-  {
-    return FALSE;
-  }
+
   struct Collect_deps_prm
   {
     List<Item> *parameters;
@@ -1696,31 +1664,6 @@ public:
     int nest_level;
     bool collect;
   };
-  /**
-    Collect outer references
-  */
-  virtual bool collect_outer_ref_processor(void *arg) {return FALSE; }
-
-  /**
-    Find a function of a given type
-
-    @param   arg     the function type to search (enum Item_func::Functype)
-    @return
-      @retval TRUE   the function type we're searching for is found
-      @retval FALSE  the function type wasn't found
-
-    @description
-      This function can be used (together with Item::walk()) to find functions
-      in an item tree fragment.
-  */
-  virtual bool find_function_processor (void *arg)
-  {
-    return FALSE;
-  }
-
-  virtual bool check_inner_refs_processor(void *arg) { return FALSE; }
-
-  virtual bool switch_to_nullable_fields_processor(void *arg) { return FALSE; }
 
   /*
     For SP local variable returns pointer to Item representing its
