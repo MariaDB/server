@@ -27,6 +27,7 @@ class Field;
 class Item;
 class Type_std_attributes;
 class Sort_param;
+class Arg_comparator;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 
@@ -221,6 +222,16 @@ public:
   static const Type_handler *string_type_handler(uint max_octet_length);
   static const Type_handler *get_handler_by_field_type(enum_field_types type);
   static const Type_handler *get_handler_by_real_type(enum_field_types type);
+  static const Type_handler *get_handler_by_cmp_type(Item_result type);
+  static const Type_handler *get_handler_by_result_type(Item_result type)
+  {
+    /*
+      As result_type() returns STRING_RESULT for temporal Items,
+      type should never be equal to TIME_RESULT here.
+    */
+    DBUG_ASSERT(type != TIME_RESULT);
+    return get_handler_by_cmp_type(type);
+  }
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }
   virtual Item_result result_type() const= 0;
@@ -275,6 +286,59 @@ public:
 
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
+  virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
+};
+
+
+/*
+  Special handler for ROW
+*/
+class Type_handler_row: public Type_handler
+{
+public:
+  virtual ~Type_handler_row() {}
+  enum_field_types field_type() const
+  {
+    DBUG_ASSERT(0);
+    return MYSQL_TYPE_NULL;
+  };
+  Item_result result_type() const
+  {
+    return ROW_RESULT;
+  }
+  Item_result cmp_type() const
+  {
+    return ROW_RESULT;
+  }
+  Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  Field *make_conversion_table_field(TABLE *TABLE,
+                                     uint metadata,
+                                     const Field *target) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  void make_sort_key(uchar *to, Item *item,
+                     const SORT_FIELD_ATTR *sort_field,
+                     Sort_param *param) const
+  {
+    DBUG_ASSERT(0);
+  }
+  void sortlength(THD *thd, const Type_std_attributes *item,
+                            SORT_FIELD_ATTR *attr) const
+  {
+    DBUG_ASSERT(0);
+  }
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions) const
+  {
+    DBUG_ASSERT(0);
+    return 1;
+  }
+  bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
 
@@ -292,6 +356,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
 
@@ -308,6 +373,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
 
@@ -324,6 +390,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
 
@@ -338,6 +405,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
 
@@ -356,6 +424,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
 
@@ -704,7 +773,6 @@ public:
 class Type_handler_hybrid_field_type
 {
   const Type_handler *m_type_handler;
-  const Type_handler *get_handler_by_result_type(Item_result type) const;
 public:
   Type_handler_hybrid_field_type();
   Type_handler_hybrid_field_type(const Type_handler *handler)
@@ -730,13 +798,13 @@ public:
   }
   const Type_handler *set_handler_by_result_type(Item_result type)
   {
-    return (m_type_handler= get_handler_by_result_type(type));
+    return (m_type_handler= Type_handler::get_handler_by_result_type(type));
   }
   const Type_handler *set_handler_by_result_type(Item_result type,
                                                  uint max_octet_length,
                                                  CHARSET_INFO *cs)
   {
-    m_type_handler= get_handler_by_result_type(type);
+    m_type_handler= Type_handler::get_handler_by_result_type(type);
     return m_type_handler=
       m_type_handler->type_handler_adjusted_to_max_octet_length(max_octet_length,
                                                                 cs);
@@ -765,5 +833,8 @@ public:
   { }
 };
 
+
+extern Type_handler_row   type_handler_row;
+extern Type_handler_null  type_handler_null;
 
 #endif /* SQL_TYPE_H_INCLUDED */

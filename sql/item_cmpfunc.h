@@ -47,7 +47,7 @@ typedef int (*Item_field_cmpfunc)(Item *f1, Item *f2, void *arg);
 class Arg_comparator: public Sql_alloc
 {
   Item **a, **b;
-  Item_result m_compare_type;
+  const Type_handler *m_compare_handler;
   CHARSET_INFO *m_compare_collation;
   arg_cmp_func func;
   Item_func_or_sum *owner;
@@ -58,7 +58,7 @@ class Arg_comparator: public Sql_alloc
   THD *thd;
   Item *a_cache, *b_cache;         // Cached values of a and b items
                                    //   when one of arguments is NULL.
-  int set_compare_func(Item_func_or_sum *owner, Item_result type);
+
   int set_cmp_func(Item_func_or_sum *owner_arg, Item **a1, Item **a2);
 
   int compare_temporal(enum_field_types type);
@@ -68,17 +68,26 @@ public:
   /* Allow owner function to use string buffers. */
   String value1, value2;
 
-  Arg_comparator(): m_compare_type(STRING_RESULT),
+  Arg_comparator():
+    m_compare_handler(&type_handler_null),
     m_compare_collation(&my_charset_bin),
     set_null(TRUE), comparators(0), thd(0),
     a_cache(0), b_cache(0) {};
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),
-    m_compare_type(STRING_RESULT),
+    m_compare_handler(&type_handler_null),
     m_compare_collation(&my_charset_bin),
     set_null(TRUE), comparators(0), thd(0),
     a_cache(0), b_cache(0) {};
 
 public:
+  bool set_cmp_func_for_row_arguments();
+  bool set_cmp_func_row();
+  bool set_cmp_func_string();
+  bool set_cmp_func_temporal();
+  bool set_cmp_func_int();
+  bool set_cmp_func_real();
+  bool set_cmp_func_decimal();
+
   inline int set_cmp_func(Item_func_or_sum *owner_arg,
 			  Item **a1, Item **a2, bool set_null_arg)
   {
@@ -110,13 +119,13 @@ public:
 
   Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
                                   Item_result type);
-  static arg_cmp_func comparator_matrix [6][2];
   inline bool is_owner_equal_func()
   {
     return (owner->type() == Item::FUNC_ITEM &&
            ((Item_func*)owner)->functype() == Item_func::EQUAL_FUNC);
   }
-  Item_result compare_type() const { return m_compare_type; }
+  const Type_handler *compare_type_handler() const { return m_compare_handler; }
+  Item_result compare_type() const { return m_compare_handler->cmp_type(); }
   CHARSET_INFO *compare_collation() const { return m_compare_collation; }
   Arg_comparator *subcomparators() const { return comparators; }
   void cleanup()
