@@ -309,14 +309,6 @@ static my_bool opt_autocommit; ///< for --autocommit command-line option
 */
 static my_bool opt_verbose= 0;
 
-arg_cmp_func Arg_comparator::comparator_matrix[6][2] =
-{{&Arg_comparator::compare_string,     &Arg_comparator::compare_e_string},
- {&Arg_comparator::compare_real,       &Arg_comparator::compare_e_real},
- {&Arg_comparator::compare_int_signed, &Arg_comparator::compare_e_int},
- {&Arg_comparator::compare_row,        &Arg_comparator::compare_e_row},
- {&Arg_comparator::compare_decimal,    &Arg_comparator::compare_e_decimal},
- {&Arg_comparator::compare_datetime,   &Arg_comparator::compare_e_datetime}};
-
 /* Timer info to be used by the SQL layer */
 MY_TIMER_INFO sys_timer_info;
 

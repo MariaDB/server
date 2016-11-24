@@ -56,6 +56,7 @@ public:
   {}
 
   enum Type type() const { return ROW_ITEM; };
+  const Type_handler *type_handler() const { return &type_handler_row; }
   void illegal_method_call(const char *);
   bool is_null() { return null_value; }
   void make_field(THD *thd, Send_field *)

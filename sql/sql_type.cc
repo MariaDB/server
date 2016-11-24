@@ -39,7 +39,6 @@ static Type_handler_timestamp   type_handler_timestamp;
 static Type_handler_timestamp2  type_handler_timestamp2;
 static Type_handler_olddecimal  type_handler_olddecimal;
 static Type_handler_newdecimal  type_handler_newdecimal;
-static Type_handler_null        type_handler_null;
 static Type_handler_string      type_handler_string;
 static Type_handler_varchar     type_handler_varchar;
 static Type_handler_tiny_blob   type_handler_tiny_blob;
@@ -51,6 +50,10 @@ static Type_handler_geometry    type_handler_geometry;
 #endif
 static Type_handler_enum        type_handler_enum;
 static Type_handler_set         type_handler_set;
+
+
+Type_handler_null        type_handler_null;
+Type_handler_row         type_handler_row;
 
 
 /**
@@ -99,18 +102,17 @@ Type_handler_string_result::type_handler_adjusted_to_max_octet_length(
 
 
 const Type_handler *
-Type_handler_hybrid_field_type::get_handler_by_result_type(Item_result type)
-                                                           const
+Type_handler::get_handler_by_cmp_type(Item_result type)
 {
   switch (type) {
   case REAL_RESULT:       return &type_handler_double;
   case INT_RESULT:        return &type_handler_longlong;
   case DECIMAL_RESULT:    return &type_handler_newdecimal;
   case STRING_RESULT:     return &type_handler_long_blob;
-  case TIME_RESULT:
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
+  case TIME_RESULT:       return &type_handler_datetime;
+  case ROW_RESULT:        return &type_handler_row;
   }
+  DBUG_ASSERT(0);
   return &type_handler_string;
 }
 
@@ -684,3 +686,39 @@ int Type_handler_int_result::Item_save_in_field(Item *item, Field *field,
 {
   return item->save_int_in_field(field, no_conversions);
 }
+
+
+/***********************************************************************/
+
+bool Type_handler_row::set_comparator_func(Arg_comparator *cmp) const
+{
+  return cmp->set_cmp_func_row();
+}
+
+bool Type_handler_int_result::set_comparator_func(Arg_comparator *cmp) const
+{
+  return cmp->set_cmp_func_int();
+}
+
+bool Type_handler_real_result::set_comparator_func(Arg_comparator *cmp) const
+{
+  return cmp->set_cmp_func_real();
+}
+
+bool Type_handler_decimal_result::set_comparator_func(Arg_comparator *cmp) const
+{
+  return cmp->set_cmp_func_decimal();
+}
+
+bool Type_handler_string_result::set_comparator_func(Arg_comparator *cmp) const
+{
+  return cmp->set_cmp_func_string();
+}
+
+bool Type_handler_temporal_result::set_comparator_func(Arg_comparator *cmp) const
+{
+  return cmp->set_cmp_func_temporal();
+}
+
+
+/*************************************************************************/

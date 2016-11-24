@@ -532,78 +532,6 @@ void Item_bool_rowready_func2::fix_length_and_dec()
 }
 
 
-int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
-{
-  owner= item;
-  func= comparator_matrix[type]
-                         [is_owner_equal_func()];
-
-  switch (type) {
-  case TIME_RESULT:
-    m_compare_collation= &my_charset_numeric;
-    break;
-  case ROW_RESULT:
-  {
-    uint n= (*a)->cols();
-    if (n != (*b)->cols())
-    {
-      my_error(ER_OPERAND_COLUMNS, MYF(0), n);
-      comparators= 0;
-      return 1;
-    }
-    if (!(comparators= new Arg_comparator[n]))
-      return 1;
-    for (uint i=0; i < n; i++)
-    {
-      if ((*a)->element_index(i)->cols() != (*b)->element_index(i)->cols())
-      {
-	my_error(ER_OPERAND_COLUMNS, MYF(0), (*a)->element_index(i)->cols());
-	return 1;
-      }
-      if (comparators[i].set_cmp_func(owner, (*a)->addr(i),
-                                             (*b)->addr(i), set_null))
-        return 1;
-    }
-    break;
-  }
-  case INT_RESULT:
-  {
-    if (func == &Arg_comparator::compare_int_signed)
-    {
-      if ((*a)->unsigned_flag)
-        func= (((*b)->unsigned_flag)?
-               &Arg_comparator::compare_int_unsigned :
-               &Arg_comparator::compare_int_unsigned_signed);
-      else if ((*b)->unsigned_flag)
-        func= &Arg_comparator::compare_int_signed_unsigned;
-    }
-    else if (func== &Arg_comparator::compare_e_int)
-    {
-      if ((*a)->unsigned_flag ^ (*b)->unsigned_flag)
-        func= &Arg_comparator::compare_e_int_diff_signedness;
-    }
-    break;
-  }
-  case STRING_RESULT:
-  case DECIMAL_RESULT:
-    break;
-  case REAL_RESULT:
-  {
-    if ((*a)->decimals < NOT_FIXED_DEC && (*b)->decimals < NOT_FIXED_DEC)
-    {
-      precision= 5 / log_10[MY_MAX((*a)->decimals, (*b)->decimals) + 1];
-      if (func == &Arg_comparator::compare_real)
-        func= &Arg_comparator::compare_real_fixed;
-      else if (func == &Arg_comparator::compare_e_real)
-        func= &Arg_comparator::compare_e_real_fixed;
-    }
-    break;
-  }
-  }
-  return 0;
-}
-
-
 /**
   Prepare the comparator (set the comparison function) for comparing
   items *a1 and *a2 in the context of 'type'.
@@ -625,9 +553,51 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
   set_null= set_null && owner_arg;
   a= a1;
   b= a2;
-  m_compare_type= item_cmp_type(*a1, *a2);
+  m_compare_handler= Type_handler::get_handler_by_cmp_type(item_cmp_type(*a1,
+                                                                         *a2));
+  return m_compare_handler->set_comparator_func(this);
+}
 
-  if (m_compare_type == STRING_RESULT &&
+
+bool Arg_comparator::set_cmp_func_for_row_arguments()
+{
+  uint n= (*a)->cols();
+  if (n != (*b)->cols())
+  {
+    my_error(ER_OPERAND_COLUMNS, MYF(0), n);
+    comparators= 0;
+    return true;
+  }
+  if (!(comparators= new Arg_comparator[n]))
+    return true;
+  for (uint i=0; i < n; i++)
+  {
+    if ((*a)->element_index(i)->cols() != (*b)->element_index(i)->cols())
+    {
+      my_error(ER_OPERAND_COLUMNS, MYF(0), (*a)->element_index(i)->cols());
+      return true;
+    }
+    if (comparators[i].set_cmp_func(owner, (*a)->addr(i),
+                                           (*b)->addr(i), set_null))
+      return true;
+  }
+  return false;
+}
+
+
+bool Arg_comparator::set_cmp_func_row()
+{
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_row :
+                                &Arg_comparator::compare_row;
+  return set_cmp_func_for_row_arguments();
+}
+
+
+bool Arg_comparator::set_cmp_func_string()
+{
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_string :
+                                &Arg_comparator::compare_string;
+  if (compare_type() == STRING_RESULT &&
       (*a)->result_type() == STRING_RESULT &&
       (*b)->result_type() == STRING_RESULT)
   {
@@ -636,37 +606,87 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
       generated item, like in natural join
     */
     if (owner->agg_arg_charsets_for_comparison(&m_compare_collation, a, b))
-      return 1;
+      return true;
   }
+  a= cache_converted_constant(thd, a, &a_cache, compare_type());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type());
+  return false;
+}
 
-  if (m_compare_type == TIME_RESULT)
+
+bool Arg_comparator::set_cmp_func_temporal()
+{
+  enum_field_types f_type= a[0]->field_type_for_temporal_comparison(b[0]);
+  m_compare_collation= &my_charset_numeric;
+  if (f_type == MYSQL_TYPE_TIME)
   {
-    enum_field_types f_type= a[0]->field_type_for_temporal_comparison(b[0]);
-    if (f_type == MYSQL_TYPE_TIME)
-    {
-      func= is_owner_equal_func() ? &Arg_comparator::compare_e_time :
-                                    &Arg_comparator::compare_time;
-    }
-    else
-    {
-      func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
-                                    &Arg_comparator::compare_datetime;
-    }
-    return 0;
+    func= is_owner_equal_func() ? &Arg_comparator::compare_e_time :
+                                  &Arg_comparator::compare_time;
   }
-
-  if (m_compare_type == INT_RESULT &&
-      (*a)->field_type() == MYSQL_TYPE_YEAR &&
-      (*b)->field_type() == MYSQL_TYPE_YEAR)
+  else
   {
-    m_compare_type= TIME_RESULT;
     func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
                                   &Arg_comparator::compare_datetime;
   }
+  return false;
+}
 
-  a= cache_converted_constant(thd, a, &a_cache, m_compare_type);
-  b= cache_converted_constant(thd, b, &b_cache, m_compare_type);
-  return set_compare_func(owner_arg, m_compare_type);
+
+bool Arg_comparator::set_cmp_func_int()
+{
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_int :
+                                &Arg_comparator::compare_int_signed;
+  if ((*a)->field_type() == MYSQL_TYPE_YEAR &&
+      (*b)->field_type() == MYSQL_TYPE_YEAR)
+  {
+    func= is_owner_equal_func() ? &Arg_comparator::compare_e_datetime :
+                                  &Arg_comparator::compare_datetime;
+  }
+  else if (func == &Arg_comparator::compare_int_signed)
+  {
+    if ((*a)->unsigned_flag)
+      func= (((*b)->unsigned_flag)?
+             &Arg_comparator::compare_int_unsigned :
+             &Arg_comparator::compare_int_unsigned_signed);
+    else if ((*b)->unsigned_flag)
+      func= &Arg_comparator::compare_int_signed_unsigned;
+  }
+  else if (func== &Arg_comparator::compare_e_int)
+  {
+    if ((*a)->unsigned_flag ^ (*b)->unsigned_flag)
+      func= &Arg_comparator::compare_e_int_diff_signedness;
+  }
+  a= cache_converted_constant(thd, a, &a_cache, compare_type());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type());
+  return false;
+}
+
+
+bool Arg_comparator::set_cmp_func_real()
+{
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_real :
+                                &Arg_comparator::compare_real;
+  if ((*a)->decimals < NOT_FIXED_DEC && (*b)->decimals < NOT_FIXED_DEC)
+  {
+    precision= 5 / log_10[MY_MAX((*a)->decimals, (*b)->decimals) + 1];
+    if (func == &Arg_comparator::compare_real)
+      func= &Arg_comparator::compare_real_fixed;
+    else if (func == &Arg_comparator::compare_e_real)
+      func= &Arg_comparator::compare_e_real_fixed;
+  }
+  a= cache_converted_constant(thd, a, &a_cache, compare_type());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type());
+  return false;
+}
+
+
+bool Arg_comparator::set_cmp_func_decimal()
+{
+  func= is_owner_equal_func() ? &Arg_comparator::compare_e_decimal :
+                                &Arg_comparator::compare_decimal;
+  a= cache_converted_constant(thd, a, &a_cache, compare_type());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type());
+  return false;
 }
 
 
