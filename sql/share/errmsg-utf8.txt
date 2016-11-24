@@ -7502,8 +7502,8 @@ ER_VERS_FIELD_WRONG_TYPE
 ER_VERS_WRONG_PARAMS
         eng "Wrong parameters for versioned table %`s: %s"
 
-ER_VERS_TRX_ID_UNSUPPORTED
-        eng "Engine does not support versioned TRX_ID"
+ER_VERS_ENGINE_UNSUPPORTED
+        eng "Engine does not support System Versioning for %`s"
 
 ER_VERS_RANGE_UNITS_MISMATCH
         eng "Range units mismatch"

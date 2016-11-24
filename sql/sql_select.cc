@@ -769,7 +769,7 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LE
       {
         if (slex->vers_conditions.unit == UNIT_TRX_ID)
         {
-          my_error(ER_VERS_TRX_ID_UNSUPPORTED, MYF(0), table->table_name);
+          my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name);
           DBUG_RETURN(-1);
         }
       }
