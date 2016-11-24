@@ -7333,6 +7333,18 @@ int TABLE::update_virtual_fields(enum_vcol_update_mode update_mode)
   DBUG_RETURN(0);
 }
 
+int TABLE::update_virtual_field(Field *vf)
+{
+  DBUG_ENTER("TABLE::update_virtual_field");
+
+  in_use->reset_arena_for_cached_items(expr_arena);
+  bitmap_clear_all(&tmp_set);
+  vf->vcol_info->expr_item->walk(&Item::update_vcol_processor, 0, &tmp_set);
+  vf->vcol_info->expr_item->save_in_field(vf, 0);
+  in_use->reset_arena_for_cached_items(0);
+  DBUG_RETURN(0);
+}
+
 
 /**
   Update all DEFAULT and/or ON INSERT fields.

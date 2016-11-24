@@ -985,6 +985,18 @@ bool Item_field::check_field_expression_processor(void *arg)
   return 0;
 }
 
+bool Item_field::update_vcol_processor(void *arg)
+{
+  MY_BITMAP *map= (MY_BITMAP *) arg;
+  if (field->vcol_info &&
+      !bitmap_fast_test_and_set(map, field->field_index))
+  {
+    field->vcol_info->expr_item->walk(&Item::update_vcol_processor, 0, arg);
+    field->vcol_info->expr_item->save_in_field(field, 0);
+  }
+  return 0;
+}
+
 
 bool Item::check_cols(uint c)
 {
