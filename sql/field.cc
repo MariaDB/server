@@ -9797,7 +9797,7 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
 
   if (ret || (res.errors & filter))
   {
-    my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
+    my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
              vcol_type_name(type), name);
     return TRUE;
   }

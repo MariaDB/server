@@ -81,12 +81,12 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) VIRTUAL COMMENT 'my comment'
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL COMMENT 'my comment'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES		NULL	VIRTUAL
+b	int(11)	YES		NULL	VIRTUAL GENERATED
 drop table t1;
 create table t1 (a int, b int generated always as (a % 2) virtual);
 alter table t1 modify b int generated always as (a % 2) virtual comment 'my comment';
@@ -94,12 +94,12 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) VIRTUAL COMMENT 'my comment'
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL COMMENT 'my comment'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES		NULL	VIRTUAL
+b	int(11)	YES		NULL	VIRTUAL GENERATED
 insert into t1 (a) values (1);
 select * from t1;
 a	b
@@ -114,12 +114,12 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) VIRTUAL COMMENT 'my comment'
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL COMMENT 'my comment'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t2;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES		NULL	VIRTUAL
+b	int(11)	YES		NULL	VIRTUAL GENERATED
 insert into t2 (a) values (1);
 select * from t2;
 a	b
@@ -136,12 +136,12 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) PERSISTENT
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES		NULL	PERSISTENT
+b	int(11)	YES		NULL	STORED GENERATED
 insert into t1 (a) values (1);
 select * from t1;
 a	b
@@ -158,7 +158,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) PERSISTENT
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (a int, b int generated always as (a % 2) virtual);
@@ -168,7 +168,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 drop table t2;
@@ -178,11 +178,11 @@ create table t2 (a int);
 alter table t1 add constraint foreign key fk(d) references t2(a);
 ERROR 42000: Key column 'd' doesn't exist in table
 alter table t1 add constraint foreign key fk(c) references t2(a) on delete set null;
-ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a computed column
+ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a generated column
 alter table t1 add constraint foreign key fk(c) references t2(a) on update set null;
-ERROR HY000: Cannot define foreign key with ON UPDATE SET NULL clause on a computed column
+ERROR HY000: Cannot define foreign key with ON UPDATE SET NULL clause on a generated column
 alter table t1 add constraint foreign key fk(c) references t2(a) on update cascade;
-ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a computed column
+ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a generated column
 drop table t1;
 drop table t2;
 Generated always is optional
@@ -191,24 +191,24 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES		NULL	VIRTUAL
+b	int(11)	YES		NULL	VIRTUAL GENERATED
 drop table t1;
 create table t1 (a int, b int as (a % 2) stored);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) PERSISTENT
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES		NULL	PERSISTENT
+b	int(11)	YES		NULL	STORED GENERATED
 drop table t1;
 Default should be non-stored column
 create table t1 (a int, b int as (a % 2));
@@ -216,12 +216,12 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES		NULL	VIRTUAL
+b	int(11)	YES		NULL	VIRTUAL GENERATED
 drop table t1;
 Expression can be constant
 create table t1 (a int, b int as (5 * 2));
@@ -229,12 +229,12 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((5 * 2)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS ((5 * 2)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
-b	int(11)	YES		NULL	VIRTUAL
+b	int(11)	YES		NULL	VIRTUAL GENERATED
 drop table t1;
 Test generated columns referencing other generated columns
 create table t1 (a int unique, b int generated always as(-a) virtual, c int generated always as (b + 1) virtual);
@@ -294,9 +294,9 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` + 1)) VIRTUAL,
-  `c` varchar(12) AS ('aaaabb') PERSISTENT,
-  `d` blob AS (`c`) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS ((`a` + 1)) VIRTUAL,
+  `c` varchar(12) GENERATED ALWAYS AS ('aaaabb') STORED,
+  `d` blob GENERATED ALWAYS AS (`c`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT * FROM t1 order by a;
 a	b	c	d
@@ -307,9 +307,9 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` + 1)) VIRTUAL,
-  `c` varchar(12) AS ('aaaabb') PERSISTENT,
-  `d` blob AS (`c`) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS ((`a` + 1)) VIRTUAL,
+  `c` varchar(12) GENERATED ALWAYS AS ('aaaabb') STORED,
+  `d` blob GENERATED ALWAYS AS (`c`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t3 AS SELECT * FROM t1;
 SHOW CREATE TABLE t3;
@@ -356,13 +356,13 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (c1 INT, c2 INT AS (c1 * 2)) SELECT 1 AS c1, 5 AS c2;
 Warnings:
-Warning	1906	The value specified for computed column 'c2' in table 't1' ignored
+Warning	1906	The value specified for generated column 'c2' in table 't1' ignored
 CREATE TABLE t2 (a int);
 INSERT INTO t2 values(1);
 DROP TABLE t1;
 CREATE TABLE t1 (c1 INT, c2 INT AS (c1 * 2)) SELECT 1 AS c1, a AS c2 from t2;
 Warnings:
-Warning	1906	The value specified for computed column 'c2' in table 't1' ignored
+Warning	1906	The value specified for generated column 'c2' in table 't1' ignored
 DROP TABLE t1;
 CREATE TABLE t1 (c1 INT, c2 INT AS (c1 * 2)) SELECT 1 AS c1, 5;
 SELECT * FROM t1;
@@ -572,9 +572,9 @@ sgc1
 1000
 4000
 ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 * col3) STORED;
-ERROR HY000: This is not yet supported for computed columns
+ERROR HY000: This is not yet supported for generated columns
 ALTER TABLE t1 MODIFY COLUMN sgc1 INTEGER AS (col2 / col3) VIRTUAL;
-ERROR HY000: This is not yet supported for computed columns
+ERROR HY000: This is not yet supported for generated columns
 ALTER TABLE t1 MODIFY COLUMN col4 INTEGER AS (col1 + col2 + col3) STORED;
 SELECT * FROM t1 order by col1;
 col1	col2	col3	col4	vgc1	sgc1
@@ -604,7 +604,7 @@ Table	Create Table
 t1	CREATE TABLE "t1" (
   "a" int(11) NOT NULL,
   "b" varchar(10) DEFAULT NULL,
-  "c" char(3) AS (substr("b",1,3)) VIRTUAL,
+  "c" char(3) GENERATED ALWAYS AS (substr("b",1,3)) VIRTUAL,
   PRIMARY KEY ("a"),
   KEY "c" ("c")
 )
@@ -619,7 +619,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` varchar(10) DEFAULT NULL,
-  `c` char(3) AS (substr(`b`,1,3)) VIRTUAL,
+  `c` char(3) GENERATED ALWAYS AS (substr(`b`,1,3)) VIRTUAL,
   PRIMARY KEY (`a`),
   KEY `c` (`c`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

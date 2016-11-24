@@ -103,22 +103,22 @@ if (!$skip_spatial_index_check)
 --echo # FOREIGN KEY
 
 --echo # Rejected FK options.
---error ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN 
+--error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
 create table t1 (a int, b int as (a+1) persistent,
                  foreign key (b) references t2(a) on update set null);
---error ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN 
+--error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
 create table t1 (a int, b int as (a+1) persistent,
                  foreign key (b) references t2(a) on update cascade);
---error ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN 
+--error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
 create table t1 (a int, b int as (a+1) persistent,
                  foreign key (b) references t2(a) on delete set null);
 
 create table t1 (a int, b int as (a+1) persistent);
---error ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN 
+--error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
 alter table t1 add foreign key (b) references t2(a) on update set null;
---error ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN 
+--error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
 alter table t1 add foreign key (b) references t2(a) on update cascade;
---error ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN 
+--error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN 
 alter table t1 add foreign key (b) references t2(a) on delete set null;
 drop table t1;
 
@@ -161,23 +161,23 @@ drop table t1;
 # Restrictions when indexed:
 #
 
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a int, b timestamp as (now()), key (b));
 create table t1 (a int, b timestamp as (now()));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 alter table t1 add index (b);
 drop table t1;
 
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a int, b varchar(100) as (user()), key (b));
 create table t1 (a int, b varchar(100) as (user()));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 alter table t1 add index (b);
 drop table t1;
 
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a int, b double as (rand()), key (b));
 create table t1 (a int, b double as (rand()));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 alter table t1 add index (b);
 drop table t1;

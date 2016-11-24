@@ -154,11 +154,11 @@ if ($support_virtual_foreign)
 --error ER_CANT_CREATE_TABLE
 alter table t1 add constraint foreign key fk(b) references t2(a);
 }
---error ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN
+--error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
 alter table t1 add constraint foreign key fk(c) references t2(a) on delete set null;
---error ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN
+--error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
 alter table t1 add constraint foreign key fk(c) references t2(a) on update set null;
---error ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN
+--error ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
 alter table t1 add constraint foreign key fk(c) references t2(a) on update cascade;
 drop table t1;
 drop table t2;
@@ -213,7 +213,7 @@ if (!$support_virtual_index)
 {
 --echo # Bug#20769299: INCORRECT KEY ERROR WHEN TRYING TO CREATE INDEX ON
 --echo #               VIRTUAL GC FOR MYISAM
---error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
+--error ER_KEY_BASED_ON_GENERATED_GENERATED_COLUMN
 CREATE TABLE A (
 pk INTEGER,
 col_int_nokey INTEGER,
@@ -231,7 +231,7 @@ CREATE TABLE t1(a bigint AS (a between 1 and 1));
 --echo #  IN FIND_FIELD_IN_TABLE
 --echo #
 CREATE TABLE t1(a int);
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 ALTER TABLE t1 ADD COLUMN z int GENERATED ALWAYS AS
 ( 1 NOT IN (SELECT 1 FROM t1 WHERE c0006) ) virtual;
 DROP TABLE t1;
@@ -318,12 +318,12 @@ DROP TABLE t1;
 --echo #  IN FIND_FIELD_IN_TABLE
 --echo #
 CREATE TABLE t1(a int);
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 ALTER TABLE t1 ADD COLUMN z int GENERATED ALWAYS AS
 ( 1 NOT IN (SELECT 1 FROM t1 WHERE c0006) ) virtual;
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE t2(a int, b int as (1 NOT IN (SELECT 1 FROM t1 WHERE not_exist_col)));
---error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE t2(a int, b int as (1 NOT IN (SELECT 1 FROM dual)));
 DROP TABLE t1;
 
@@ -482,11 +482,11 @@ SELECT * FROM t1 order by col1;
 SELECT sgc1 FROM t1 order by sgc1;
 
 # Change virtual generated column to become stored
---error ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 ALTER TABLE t1 MODIFY COLUMN vgc1 INTEGER AS (col2 * col3) STORED;
 
 # Change stored generated column to become virtual
---error ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 ALTER TABLE t1 MODIFY COLUMN sgc1 INTEGER AS (col2 / col3) VIRTUAL;
 
 # Change base column to become stored generated column:

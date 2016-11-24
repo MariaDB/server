@@ -222,10 +222,10 @@ pos	base_pos
 65537	0
 DROP TABLE t1;
 CREATE TABLE t (a TEXT, b TEXT GENERATED ALWAYS AS (a), fulltext INDEX idx (b));
-ERROR HY000: This is not yet supported for computed columns
+ERROR HY000: This is not yet supported for generated columns
 CREATE TABLE t (a TEXT, b TEXT GENERATED ALWAYS AS (a));
 ALTER TABLE t ADD FULLTEXT INDEX (b);
-ERROR HY000: This is not yet supported for computed columns
+ERROR HY000: This is not yet supported for generated columns
 DROP TABLE t;
 CREATE TABLE t (a geometry not null, b geometry GENERATED ALWAYS AS (a), spatial INDEX idx (b));
 ERROR 42000: All parts of a SPATIAL index must be NOT NULL
@@ -386,9 +386,9 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` varchar(10000) DEFAULT NULL,
   `b` varchar(3000) DEFAULT NULL,
-  `c` varchar(14000) AS (concat(`a`,`b`)) VIRTUAL,
-  `d` varchar(5000) AS (`b`) VIRTUAL,
-  `e` int(11) AS (10) VIRTUAL,
+  `c` varchar(14000) GENERATED ALWAYS AS (concat(`a`,`b`)) VIRTUAL,
+  `d` varchar(5000) GENERATED ALWAYS AS (`b`) VIRTUAL,
+  `e` int(11) GENERATED ALWAYS AS (10) VIRTUAL,
   `h` int(11) NOT NULL,
   PRIMARY KEY (`h`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
@@ -546,9 +546,9 @@ t1	CREATE TABLE `t1` (
   `col2` int(11) NOT NULL,
   `col3` int(11) NOT NULL,
   `col4` int(11) DEFAULT NULL,
-  `col5` int(11) AS ((`col2` % `col3`)) VIRTUAL,
-  `col7` int(11) AS ((`col5` * `col5`)) VIRTUAL,
-  `col8` int(11) AS ((`col5` % `col5`)) VIRTUAL,
+  `col5` int(11) GENERATED ALWAYS AS ((`col2` % `col3`)) VIRTUAL,
+  `col7` int(11) GENERATED ALWAYS AS ((`col5` * `col5`)) VIRTUAL,
+  `col8` int(11) GENERATED ALWAYS AS ((`col5` % `col5`)) VIRTUAL,
   `col9` text DEFAULT NULL,
   `col6` int(11) DEFAULT NULL,
   UNIQUE KEY `uidx` (`col5`)
@@ -557,7 +557,7 @@ DROP TABLE t1;
 CREATE TABLE t (a INT, b INT GENERATED ALWAYS AS (a), c point, d point GENERATED ALWAYS AS (c), spatial index idx (d));
 ERROR 42000: All parts of a SPATIAL index must be NOT NULL
 CREATE TABLE t (a INT, b INT GENERATED ALWAYS AS (a), c CHAR(10), d char(20) GENERATED ALWAYS AS (c), fulltext index idx (d));
-ERROR HY000: This is not yet supported for computed columns
+ERROR HY000: This is not yet supported for generated columns
 CREATE TABLE t (a INT, b INT, c INT GENERATED ALWAYS AS(a+b), h VARCHAR(10), j INT, m INT  GENERATED ALWAYS AS(b + j), n VARCHAR(10), p VARCHAR(20) GENERATED ALWAYS AS(CONCAT(n, h)), INDEX idx1(c), INDEX idx2 (m), INDEX idx3(p));
 INSERT INTO t VALUES(11, 22, DEFAULT, "AAA", 8, DEFAULT, "XXX", DEFAULT);
 INSERT INTO t VALUES(1, 2, DEFAULT, "uuu", 9, DEFAULT, "uu", DEFAULT);
@@ -757,9 +757,9 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` varchar(10000) DEFAULT NULL,
   `b` varchar(3000) DEFAULT NULL,
-  `c` varchar(14000) AS (concat(`a`,`b`)) VIRTUAL,
-  `d` varchar(5000) AS (`b`) VIRTUAL,
-  `e` int(11) AS (10) VIRTUAL,
+  `c` varchar(14000) GENERATED ALWAYS AS (concat(`a`,`b`)) VIRTUAL,
+  `d` varchar(5000) GENERATED ALWAYS AS (`b`) VIRTUAL,
+  `e` int(11) GENERATED ALWAYS AS (10) VIRTUAL,
   `h` int(11) NOT NULL,
   PRIMARY KEY (`h`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
@@ -806,9 +806,9 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` varchar(10000) DEFAULT NULL,
   `b` varchar(3000) DEFAULT NULL,
-  `c` varchar(14000) AS (concat(`a`,`b`)) VIRTUAL,
-  `d` varchar(5000) AS (`b`) VIRTUAL,
-  `e` int(11) AS (10) VIRTUAL,
+  `c` varchar(14000) GENERATED ALWAYS AS (concat(`a`,`b`)) VIRTUAL,
+  `d` varchar(5000) GENERATED ALWAYS AS (`b`) VIRTUAL,
+  `e` int(11) GENERATED ALWAYS AS (10) VIRTUAL,
   `h` int(11) NOT NULL,
   PRIMARY KEY (`h`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
@@ -855,9 +855,9 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` varchar(10000) DEFAULT NULL,
   `b` varchar(3000) DEFAULT NULL,
-  `c` varchar(14000) AS (concat(`a`,`b`)) VIRTUAL,
-  `d` varchar(5000) AS (`b`) VIRTUAL,
-  `e` int(11) AS (10) VIRTUAL,
+  `c` varchar(14000) GENERATED ALWAYS AS (concat(`a`,`b`)) VIRTUAL,
+  `d` varchar(5000) GENERATED ALWAYS AS (`b`) VIRTUAL,
+  `e` int(11) GENERATED ALWAYS AS (10) VIRTUAL,
   `h` int(11) NOT NULL,
   PRIMARY KEY (`h`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
@@ -968,20 +968,20 @@ SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `col_int_nokey` int(11) DEFAULT NULL,
-  `col_int` int(11) AS ((`col_int_nokey` + `col_int_nokey`)) PERSISTENT,
-  `col_int_key` int(11) AS ((`col_int` + `col_int_nokey`)) VIRTUAL,
+  `col_int` int(11) GENERATED ALWAYS AS ((`col_int_nokey` + `col_int_nokey`)) STORED,
+  `col_int_key` int(11) GENERATED ALWAYS AS ((`col_int` + `col_int_nokey`)) VIRTUAL,
   `col_date_nokey` date DEFAULT NULL,
-  `col_date` date AS ((`col_date_nokey` + interval 30 day)) PERSISTENT,
-  `col_date_key` date AS ((`col_date` + interval 30 day)) VIRTUAL,
+  `col_date` date GENERATED ALWAYS AS ((`col_date_nokey` + interval 30 day)) STORED,
+  `col_date_key` date GENERATED ALWAYS AS ((`col_date` + interval 30 day)) VIRTUAL,
   `col_datetime_nokey` datetime DEFAULT NULL,
   `col_time_nokey` time DEFAULT NULL,
-  `col_datetime` datetime AS (addtime(`col_datetime_nokey`,`col_time_nokey`)) PERSISTENT,
-  `col_time` time AS (addtime(`col_datetime_nokey`,`col_time_nokey`)) PERSISTENT,
-  `col_datetime_key` datetime AS (addtime(`col_datetime`,`col_time_nokey`)) VIRTUAL,
-  `col_time_key` time AS (addtime(`col_datetime_nokey`,`col_time`)) VIRTUAL,
+  `col_datetime` datetime GENERATED ALWAYS AS (addtime(`col_datetime_nokey`,`col_time_nokey`)) STORED,
+  `col_time` time GENERATED ALWAYS AS (addtime(`col_datetime_nokey`,`col_time_nokey`)) STORED,
+  `col_datetime_key` datetime GENERATED ALWAYS AS (addtime(`col_datetime`,`col_time_nokey`)) VIRTUAL,
+  `col_time_key` time GENERATED ALWAYS AS (addtime(`col_datetime_nokey`,`col_time`)) VIRTUAL,
   `col_varchar_nokey` varchar(1) DEFAULT NULL,
-  `col_varchar` varchar(2) AS (concat(`col_varchar_nokey`,`col_varchar_nokey`)) PERSISTENT,
-  `col_varchar_key` varchar(2) AS (concat(`col_varchar`,'x')) VIRTUAL,
+  `col_varchar` varchar(2) GENERATED ALWAYS AS (concat(`col_varchar_nokey`,`col_varchar_nokey`)) STORED,
+  `col_varchar_key` varchar(2) GENERATED ALWAYS AS (concat(`col_varchar`,'x')) VIRTUAL,
   UNIQUE KEY `pk` (`col_int_key`),
   UNIQUE KEY `col_int_key` (`col_int_key`),
   UNIQUE KEY `col_int_key_2` (`col_int_key`,`col_varchar_key`),
@@ -1058,10 +1058,10 @@ ALTER TABLE t1 CHANGE  d d INT GENERATED ALWAYS AS(a+b) FIRST;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `d` int(11) AS ((`a` + `b`)) VIRTUAL,
+  `d` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
   `h` varchar(10) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -1366,8 +1366,8 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `d` int(11) AS (((`a` + `b`) + `b`)) VIRTUAL,
-  `e` int(11) AS (`a`) VIRTUAL,
+  `d` int(11) GENERATED ALWAYS AS (((`a` + `b`) + `b`)) VIRTUAL,
+  `e` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
   KEY `idx` (`d`),
   KEY `idx2` (`e`,`d`)
@@ -1382,9 +1382,9 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `e` int(11) AS (`a`) VIRTUAL,
+  `e` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
-  `c` int(11) AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
   KEY `idx2` (`e`),
   KEY `idx` (`e`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -1394,10 +1394,10 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `e` int(11) AS (`a`) VIRTUAL,
+  `e` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
-  `c` int(11) AS ((`a` + `b`)) VIRTUAL,
-  `x` varchar(10) AS (`h`) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
+  `x` varchar(10) GENERATED ALWAYS AS (`h`) VIRTUAL,
   KEY `idx2` (`e`),
   KEY `idx4` (`c`,`e`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -1409,10 +1409,10 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `e` int(11) AS (`a`) VIRTUAL,
+  `e` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
-  `c` int(11) AS ((`a` + `b`)) VIRTUAL,
-  `x` varchar(10) AS (`h`) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
+  `x` varchar(10) GENERATED ALWAYS AS (`h`) VIRTUAL,
   `j` int(11) DEFAULT NULL,
   KEY `idx2` (`e`),
   KEY `idx4` (`c`,`e`),
@@ -1426,12 +1426,12 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `e` int(11) AS (`a`) VIRTUAL,
+  `e` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
-  `c` int(11) AS ((`a` + `b`)) VIRTUAL,
-  `x` varchar(10) AS (`h`) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
+  `x` varchar(10) GENERATED ALWAYS AS (`h`) VIRTUAL,
   `j` int(11) DEFAULT NULL,
-  `i` int(11) AS (((`a` + `a`) + `b`)) VIRTUAL,
+  `i` int(11) GENERATED ALWAYS AS (((`a` + `a`) + `b`)) VIRTUAL,
   KEY `idx2` (`e`),
   KEY `idx4` (`c`,`e`),
   KEY `x` (`x`),

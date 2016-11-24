@@ -1913,11 +1913,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     {
       StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
       field->vcol_info->print(&str);
-      packet->append(STRING_WITH_LEN(" AS ("));
+      packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ("));
       packet->append(str);
       packet->append(STRING_WITH_LEN(")"));
       if (field->vcol_info->stored_in_db)
-        packet->append(STRING_WITH_LEN(" PERSISTENT"));
+        packet->append(STRING_WITH_LEN(" STORED"));
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
     }
@@ -5508,9 +5508,9 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     if (field->vcol_info)
     {
       if (field->vcol_info->stored_in_db)
-        table->field[17]->store(STRING_WITH_LEN("PERSISTENT"), cs);
+        table->field[17]->store(STRING_WITH_LEN("STORED GENERATED"), cs);
       else
-        table->field[17]->store(STRING_WITH_LEN("VIRTUAL"), cs);
+        table->field[17]->store(STRING_WITH_LEN("VIRTUAL GENERATED"), cs);
     }
     table->field[19]->store(field->comment.str, field->comment.length, cs);
     if (schema_table_store_record(thd, table))

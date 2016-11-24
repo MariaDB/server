@@ -89,7 +89,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
   KEY `idx` (`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SELECT * FROM t1;
@@ -128,7 +128,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
   KEY `idx` (`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SELECT * FROM t1;

@@ -13,9 +13,9 @@
 # Change:                                                                      #
 ################################################################################
 
---error ER_UNSUPPORTED_ENGINE_FOR_VIRTUAL_COLUMNS
+--error ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS
 create table t1 (a int, b int generated always as (a+1) virtual);
 create table t1 (a int);
---error ER_UNSUPPORTED_ENGINE_FOR_VIRTUAL_COLUMNS
+--error ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS
 alter table t1 add column b int generated always as (a+1) virtual;
 drop table t1;

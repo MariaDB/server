@@ -5,8 +5,8 @@ SHOW CREATE TABLE mysql57_virtual;
 Table	Create Table
 mysql57_virtual	CREATE TABLE `mysql57_virtual` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` + 1)) VIRTUAL,
-  `c` int(11) AS ((`a` + 3)) PERSISTENT
+  `b` int(11) GENERATED ALWAYS AS ((`a` + 1)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + 3)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into mysql57_virtual (a) values (1),(2);
 select * from mysql57_virtual;
@@ -20,8 +20,8 @@ SHOW CREATE TABLE mysql57_virtual;
 Table	Create Table
 mysql57_virtual	CREATE TABLE `mysql57_virtual` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` + 1)) VIRTUAL,
-  `c` int(11) AS ((`a` + 3)) PERSISTENT
+  `b` int(11) GENERATED ALWAYS AS ((`a` + 1)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + 3)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='I am now a MariaDB table'
 DROP TABLE mysql57_virtual;
 #
@@ -32,7 +32,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` + 1)) PERSISTENT,
-  `c` int(11) AS ((`a` + 2)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS ((`a` + 1)) STORED,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + 2)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;

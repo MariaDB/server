@@ -5,7 +5,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` + 1)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS ((`a` + 1)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (a int, b int as (a+1) virtual);
@@ -13,7 +13,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` + 1)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS ((`a` + 1)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (a int, b int generated always  as (a+1) persistent);
@@ -21,7 +21,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` + 1)) PERSISTENT
+  `b` int(11) GENERATED ALWAYS AS ((`a` + 1)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 set session sql_mode='ORACLE';
@@ -30,7 +30,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
   "a" int(11) DEFAULT NULL,
-  "b" int(11) AS (("a" + 1)) VIRTUAL
+  "b" int(11) GENERATED ALWAYS AS (("a" + 1)) VIRTUAL
 )
 drop table t1;
 create table t1 (a int, b int generated always as (a+1) virtual);
@@ -38,7 +38,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
   "a" int(11) DEFAULT NULL,
-  "b" int(11) AS (("a" + 1)) VIRTUAL
+  "b" int(11) GENERATED ALWAYS AS (("a" + 1)) VIRTUAL
 )
 drop table t1;
 create table t1 (a int, b int as (a+1) persistent);
@@ -46,7 +46,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
   "a" int(11) DEFAULT NULL,
-  "b" int(11) AS (("a" + 1)) PERSISTENT
+  "b" int(11) GENERATED ALWAYS AS (("a" + 1)) STORED
 )
 drop table t1;
 set session sql_mode=@OLD_SQL_MODE;

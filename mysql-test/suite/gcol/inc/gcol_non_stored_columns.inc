@@ -74,14 +74,14 @@ drop table t1;
 
 --echo # Case 7. ALTER. Modify virtual stored -> virtual non-stored
 eval create $opt_tmp table t1 (a int, b int generated always as (a % 2) stored);
---error ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table t1 modify b int generated always as (a % 2) virtual;
 show create table t1;
 drop table t1;
 
 --echo # Case 8. ALTER. Modify virtual non-stored -> virtual stored
 eval create $opt_tmp table t1 (a int, b int generated always as (a % 2) virtual);
---error ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table t1 modify b int generated always as (a % 2) stored;
 show create table t1;
 drop table t1;

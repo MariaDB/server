@@ -13953,7 +13953,7 @@ create_table_info_t::gcols_in_fulltext_or_spatial()
 				/* We do not support special (Fulltext or
 				Spatial) index on virtual columns */
 				if (innobase_is_v_fld(key_part->field)) {
-					my_error(ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN, MYF(0));
+					my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
 					return true;
 				}
 			}

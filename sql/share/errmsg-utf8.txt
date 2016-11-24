@@ -6965,28 +6965,28 @@ ER_LAST_MYSQL_ERROR_MESSAGE
 # MariaDB error numbers starts from 1900
 start-error-number 1900
 
-ER_VCOL_BASED_ON_VCOL
-  eng "A computed column cannot be based on a computed column"
-ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+ER_UNUSED_18
+  eng ""
+ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
   eng "Function or expression '%s' cannot be used in the %s clause of %`s"
-ER_DATA_CONVERSION_ERROR_FOR_VIRTUAL_COLUMN
-  eng "Generated value for computed column '%s' cannot be converted to type '%s'"
-ER_PRIMARY_KEY_BASED_ON_VIRTUAL_COLUMN
-  eng "Primary key cannot be defined upon a computed column"
+ER_UNUSED_19
+  eng ""
+ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN
+  eng "Primary key cannot be defined upon a generated column"
 ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
-  eng "Key/Index cannot be defined on a non-stored computed column"
-ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN
-  eng "Cannot define foreign key with %s clause on a computed column"
-ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN
-  eng "The value specified for computed column '%s' in table '%s' ignored"
-ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
-  eng "This is not yet supported for computed columns"
-ER_CONST_EXPR_IN_VCOL
-  eng "Constant expression in computed column function is not allowed"
-ER_ROW_EXPR_FOR_VCOL
-  eng "Expression for computed column cannot return a row"
-ER_UNSUPPORTED_ENGINE_FOR_VIRTUAL_COLUMNS
-        eng "%s storage engine does not support computed columns"
+  eng "Key/Index cannot be defined on a virtual generated column"
+ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
+  eng "Cannot define foreign key with %s clause on a generated column"
+ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+  eng "The value specified for generated column '%s' in table '%s' ignored"
+ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
+  eng "This is not yet supported for generated columns"
+ER_UNUSED_20
+  eng ""
+ER_UNUSED_21
+  eng ""
+ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS
+  eng "%s storage engine does not support generated columns"
 ER_UNKNOWN_OPTION
   eng "Unknown option '%-.64s'"
 ER_BAD_OPTION_VALUE

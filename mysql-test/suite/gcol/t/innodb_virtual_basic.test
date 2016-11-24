@@ -181,7 +181,7 @@ ALTER TABLE t1 add COLUMN (d INT generated always as (a+1) virtual, e INT as(5) 
 
 SELECT pos, base_pos FROM informatiON_schema.innodb_sys_virtual;
 
-#--error ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
+#--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 ALTER TABLE t1 add COLUMN (f INT generated always as (a+1) virtual, g INT as(5) virtual), DROP COLUMN e;
 
 SELECT pos, base_pos FROM informatiON_schema.innodb_sys_virtual;
@@ -226,10 +226,10 @@ SELECT pos, base_pos FROM informatiON_schema.innodb_sys_virtual;
 DROP TABLE t1;
 
 # We do not support Fulltext or Spatial INDEX ON Virtual Columns
---error ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 CREATE TABLE t (a TEXT, b TEXT GENERATED ALWAYS AS (a), fulltext INDEX idx (b));
 CREATE TABLE t (a TEXT, b TEXT GENERATED ALWAYS AS (a));
---error ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 ALTER TABLE t ADD FULLTEXT INDEX (b);
 DROP TABLE t;
 
@@ -528,7 +528,7 @@ DROP TABLE t1;
 --error ER_SPATIAL_CANT_HAVE_NULL
 CREATE TABLE t (a INT, b INT GENERATED ALWAYS AS (a), c point, d point GENERATED ALWAYS AS (c), spatial index idx (d));
 
---error ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 CREATE TABLE t (a INT, b INT GENERATED ALWAYS AS (a), c CHAR(10), d char(20) GENERATED ALWAYS AS (c), fulltext index idx (d));
 
 CREATE TABLE t (a INT, b INT, c INT GENERATED ALWAYS AS(a+b), h VARCHAR(10), j INT, m INT  GENERATED ALWAYS AS(b + j), n VARCHAR(10), p VARCHAR(20) GENERATED ALWAYS AS(CONCAT(n, h)), INDEX idx1(c), INDEX idx2 (m), INDEX idx3(p));

@@ -1866,8 +1866,8 @@ Thinkpad Laptop	black	ttt
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `color` char(32) AS (column_get(`dynamic_cols`,1 as char charset latin1)) PERSISTENT,
-  `cl` char(32) AS (column_get(column_add(column_create(1,'blue' AS char charset latin1 ),2,'ttt'),`i` as char charset latin1)) PERSISTENT,
+  `color` char(32) GENERATED ALWAYS AS (column_get(`dynamic_cols`,1 as char charset latin1)) STORED,
+  `cl` char(32) GENERATED ALWAYS AS (column_get(column_add(column_create(1,'blue' AS char charset latin1 ),2,'ttt'),`i` as char charset latin1)) STORED,
   `item_name` varchar(32) NOT NULL,
   `i` int(11) DEFAULT NULL,
   `dynamic_cols` blob DEFAULT NULL,
@@ -1888,7 +1888,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `n` int(11) DEFAULT NULL,
-  `c` char(32) AS (cast(cast(`n` as char charset latin1) as char charset latin1)) PERSISTENT
+  `c` char(32) GENERATED ALWAYS AS (cast(cast(`n` as char charset latin1) as char charset latin1)) STORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 set @@session.collation_server=filename;

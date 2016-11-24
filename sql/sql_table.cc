@@ -3881,7 +3881,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         {
           if (key->type == Key::PRIMARY)
           {
-            my_error(ER_PRIMARY_KEY_BASED_ON_VIRTUAL_COLUMN, MYF(0));
+            my_error(ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN, MYF(0));
             DBUG_RETURN(TRUE);
           }
           if (sql_field->vcol_info->flags & VCOL_NOT_STRICTLY_DETERMINISTIC)
@@ -7625,7 +7625,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       new_create_list.push_back(def, thd->mem_root);
       if (field->stored_in_db() != def->stored_in_db())
       {
-        my_error(ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN, MYF(0));
+        my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
         goto err;
       }
       if (!def->after)

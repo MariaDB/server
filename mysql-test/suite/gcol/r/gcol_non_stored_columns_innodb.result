@@ -85,23 +85,23 @@ drop table t1;
 # Case 7. ALTER. Modify virtual stored -> virtual non-stored
 create  table t1 (a int, b int generated always as (a % 2) stored);
 alter table t1 modify b int generated always as (a % 2) virtual;
-ERROR HY000: This is not yet supported for computed columns
+ERROR HY000: This is not yet supported for generated columns
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) PERSISTENT
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) STORED
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t1;
 # Case 8. ALTER. Modify virtual non-stored -> virtual stored
 create  table t1 (a int, b int generated always as (a % 2) virtual);
 alter table t1 modify b int generated always as (a % 2) stored;
-ERROR HY000: This is not yet supported for computed columns
+ERROR HY000: This is not yet supported for generated columns
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) AS ((`a` % 2)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t1;
 # Case 9. CREATE LIKE
@@ -182,7 +182,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `c` int(11) AS (dayofyear(`b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (dayofyear(`b`)) VIRTUAL,
   `b` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t1;
@@ -203,7 +203,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `c` int(11) AS (dayofyear(`b`)) PERSISTENT,
+  `c` int(11) GENERATED ALWAYS AS (dayofyear(`b`)) STORED,
   `b` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t1;
@@ -225,7 +225,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` datetime DEFAULT NULL,
-  `c` int(11) AS (week(`b`,1)) VIRTUAL
+  `c` int(11) GENERATED ALWAYS AS (week(`b`,1)) VIRTUAL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t1;
 DROP VIEW  IF EXISTS v1,v2;

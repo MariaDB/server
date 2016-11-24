@@ -43,7 +43,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
   KEY `idx` (`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -112,7 +112,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
   KEY `idx_1` (`c`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -158,9 +158,9 @@ c
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `a` int(11) AS (1) VIRTUAL,
+  `a` int(11) GENERATED ALWAYS AS (1) VIRTUAL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) AS (1) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (1) VIRTUAL,
   UNIQUE KEY `b` (`b`),
   UNIQUE KEY `c` (`c`),
   KEY `a` (`a`)
