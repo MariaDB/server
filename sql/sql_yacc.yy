@@ -291,22 +291,20 @@ static bool push_sp_empty_label(THD *thd)
   @return 0 on success
 */
 
-int case_stmt_action_expr(LEX *lex, Item* expr)
+int LEX::case_stmt_action_expr(Item* expr)
 {
-  sp_head *sp= lex->sphead;
-  sp_pcontext *parsing_ctx= lex->spcont;
-  int case_expr_id= parsing_ctx->register_case_expr();
+  int case_expr_id= spcont->register_case_expr();
   sp_instr_set_case_expr *i;
 
-  if (parsing_ctx->push_case_expr_id(case_expr_id))
+  if (spcont->push_case_expr_id(case_expr_id))
     return 1;
 
-  i= new (lex->thd->mem_root)
-    sp_instr_set_case_expr(sp->instructions(), parsing_ctx, case_expr_id, expr,
-                           lex);
+  i= new (thd->mem_root)
+    sp_instr_set_case_expr(sphead->instructions(), spcont, case_expr_id, expr,
+                           this);
 
-  sp->add_cont_backpatch(i);
-  return sp->add_instr(i);
+  sphead->add_cont_backpatch(i);
+  return sphead->add_instr(i);
 }
 
 /**
@@ -317,33 +315,30 @@ int case_stmt_action_expr(LEX *lex, Item* expr)
   @param simple true for simple cases, false for searched cases
 */
 
-int case_stmt_action_when(LEX *lex, Item *when, bool simple)
+int LEX::case_stmt_action_when(Item *when, bool simple)
 {
-  sp_head *sp= lex->sphead;
-  sp_pcontext *ctx= lex->spcont;
-  uint ip= sp->instructions();
+  uint ip= sphead->instructions();
   sp_instr_jump_if_not *i;
   Item_case_expr *var;
   Item *expr;
-  THD *thd= lex->thd;
 
   if (simple)
   {
     var= new (thd->mem_root)
-         Item_case_expr(thd, ctx->get_current_case_expr_id());
+         Item_case_expr(thd, spcont->get_current_case_expr_id());
 
 #ifndef DBUG_OFF
     if (var)
     {
-      var->m_sp= sp;
+      var->m_sp= sphead;
     }
 #endif
 
     expr= new (thd->mem_root) Item_func_eq(thd, var, when);
-    i= new (thd->mem_root) sp_instr_jump_if_not(ip, ctx, expr, lex);
+    i= new (thd->mem_root) sp_instr_jump_if_not(ip, spcont, expr, this);
   }
   else
-    i= new (thd->mem_root) sp_instr_jump_if_not(ip, ctx, when, lex);
+    i= new (thd->mem_root) sp_instr_jump_if_not(ip, spcont, when, this);
 
   /*
     BACKPATCH: Registering forward jump from
@@ -351,10 +346,11 @@ int case_stmt_action_when(LEX *lex, Item *when, bool simple)
     (jump_if_not from instruction 2 to 5, 5 to 8 ... in the example)
   */
 
-  return !MY_TEST(i) ||
-         sp->push_backpatch(thd, i, ctx->push_label(thd, empty_lex_str, 0)) ||
-         sp->add_cont_backpatch(i) ||
-         sp->add_instr(i);
+  return
+    !MY_TEST(i) ||
+    sphead->push_backpatch(thd, i, spcont->push_label(thd, empty_lex_str, 0)) ||
+    sphead->add_cont_backpatch(i) ||
+    sphead->add_instr(i);
 }
 
 /**
@@ -363,13 +359,11 @@ int case_stmt_action_when(LEX *lex, Item *when, bool simple)
   @param lex the parser lex context
 */
 
-int case_stmt_action_then(LEX *lex)
+int LEX::case_stmt_action_then()
 {
-  sp_head *sp= lex->sphead;
-  sp_pcontext *ctx= lex->spcont;
-  uint ip= sp->instructions();
-  sp_instr_jump *i= new (lex->thd->mem_root) sp_instr_jump(ip, ctx);
-  if (!MY_TEST(i) || sp->add_instr(i))
+  uint ip= sphead->instructions();
+  sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(ip, spcont);
+  if (!MY_TEST(i) || sphead->add_instr(i))
     return 1;
 
   /*
@@ -378,7 +372,7 @@ int case_stmt_action_then(LEX *lex)
     (jump_if_not from instruction 2 to 5, 5 to 8 ... in the example)
   */
 
-  sp->backpatch(ctx->pop_label());
+  sphead->backpatch(spcont->pop_label());
 
   /*
     BACKPATCH: Registering forward jump from
@@ -386,7 +380,7 @@ int case_stmt_action_then(LEX *lex)
     (jump from instruction 4 to 12, 7 to 12 ... in the example)
   */
 
-  return sp->push_backpatch(lex->thd, i, ctx->last_label());
+  return sphead->push_backpatch(thd, i, spcont->last_label());
 }
 
 static bool
@@ -674,43 +668,43 @@ Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
    @return <code>false</code> if successful, <code>true</code> if an error was
    reported. In the latter case parsing should stop.
  */
-bool add_select_to_union_list(LEX *lex, bool is_union_distinct, 
-                              bool is_top_level)
+bool LEX::add_select_to_union_list(bool is_union_distinct,
+                                   bool is_top_level)
 {
   /* 
      Only the last SELECT can have INTO. Since the grammar won't allow INTO in
      a nested SELECT, we make this check only when creating a top-level SELECT.
   */
-  if (is_top_level && lex->result)
+  if (is_top_level && result)
   {
     my_error(ER_WRONG_USAGE, MYF(0), "UNION", "INTO");
     return TRUE;
   }
-  if (lex->current_select->order_list.first && !lex->current_select->braces)
+  if (current_select->order_list.first && !current_select->braces)
   {
     my_error(ER_WRONG_USAGE, MYF(0), "UNION", "ORDER BY");
     return TRUE;
   }
 
-  if (lex->current_select->explicit_limit && !lex->current_select->braces)
+  if (current_select->explicit_limit && !current_select->braces)
   {
     my_error(ER_WRONG_USAGE, MYF(0), "UNION", "LIMIT");
     return TRUE;
   }
-  if (lex->current_select->linkage == GLOBAL_OPTIONS_TYPE)
+  if (current_select->linkage == GLOBAL_OPTIONS_TYPE)
   {
-    my_parse_error(lex->thd, ER_SYNTAX_ERROR);
+    my_parse_error(thd, ER_SYNTAX_ERROR);
     return TRUE;
   }
   /* This counter shouldn't be incremented for UNION parts */
-  lex->nest_level--;
-  if (mysql_new_select(lex, 0))
+  nest_level--;
+  if (mysql_new_select(this, 0))
     return TRUE;
-  mysql_init_select(lex);
-  lex->current_select->linkage=UNION_TYPE;
+  mysql_init_select(this);
+  current_select->linkage=UNION_TYPE;
   if (is_union_distinct) /* UNION DISTINCT - remember position */
-    lex->current_select->master_unit()->union_distinct=
-      lex->current_select;
+    current_select->master_unit()->union_distinct=
+      current_select;
   return FALSE;
 }
 
@@ -4108,7 +4102,7 @@ case_stmt_body:
           { Lex->sphead->reset_lex(thd); /* For expr $2 */ }
           expr
           {
-            if (case_stmt_action_expr(Lex, $2))
+            if (Lex->case_stmt_action_expr($2))
               MYSQL_YYABORT;
 
             if (Lex->sphead->restore_lex(thd))
@@ -4140,7 +4134,7 @@ simple_when_clause:
             /* Simple case: <caseval> = <whenval> */
 
             LEX *lex= Lex;
-            if (case_stmt_action_when(lex, $3, true))
+            if (lex->case_stmt_action_when($3, true))
               MYSQL_YYABORT;
             /* For expr $3 */
             if (lex->sphead->restore_lex(thd))
@@ -4149,8 +4143,7 @@ simple_when_clause:
           THEN_SYM
           sp_proc_stmts1
           {
-            LEX *lex= Lex;
-            if (case_stmt_action_then(lex))
+            if (Lex->case_stmt_action_then())
               MYSQL_YYABORT;
           }
         ;
@@ -4163,7 +4156,7 @@ searched_when_clause:
           expr
           {
             LEX *lex= Lex;
-            if (case_stmt_action_when(lex, $3, false))
+            if (lex->case_stmt_action_when($3, false))
               MYSQL_YYABORT;
             /* For expr $3 */
             if (lex->sphead->restore_lex(thd))
@@ -4172,8 +4165,7 @@ searched_when_clause:
           THEN_SYM
           sp_proc_stmts1
           {
-            LEX *lex= Lex;
-            if (case_stmt_action_then(lex))
+            if (Lex->case_stmt_action_then())
               MYSQL_YYABORT;
           }
         ;
@@ -16215,7 +16207,7 @@ union_clause:
 union_list:
           UNION_SYM union_option
           {
-            if (add_select_to_union_list(Lex, (bool)$2, TRUE))
+            if (Lex->add_select_to_union_list((bool)$2, TRUE))
               MYSQL_YYABORT;
           }
           union_list_part2
@@ -16231,7 +16223,7 @@ union_list:
 union_list_view:
           UNION_SYM union_option
           {
-            if (add_select_to_union_list(Lex, (bool)$2, TRUE))
+            if (Lex->add_select_to_union_list((bool)$2, TRUE))
               MYSQL_YYABORT;
           }
           query_expression_body_view
@@ -16272,7 +16264,7 @@ order_or_limit:
 union_head_non_top:
           UNION_SYM union_option
           {
-            if (add_select_to_union_list(Lex, (bool)$2, FALSE))
+            if (Lex->add_select_to_union_list((bool)$2, FALSE))
               MYSQL_YYABORT;
           }
         ;
