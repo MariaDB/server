@@ -1779,11 +1779,11 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       /* Print some debug information. */
       if (wsrep_debug)
       {
-        if ((request_thd->lex->sql_command == SQLCOM_DROP_TABLE))
+        if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
         {
           WSREP_DEBUG("DROP caused BF abort");
         }
-        else if ((granted_thd->wsrep_query_state == QUERY_COMMITTING))
+        else if (granted_thd->wsrep_query_state == QUERY_COMMITTING)
         {
           WSREP_DEBUG("MDL granted, but committing thd abort scheduled");
         }

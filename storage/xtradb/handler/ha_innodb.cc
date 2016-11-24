@@ -642,7 +642,7 @@ ha_create_table_option innodb_table_option_list[]=
 {
   /* With this option user can enable page compression feature for the
   table */
-  HA_TOPTION_BOOL("PAGE_COMPRESSED", page_compressed, compression_default),
+  HA_TOPTION_BOOL("PAGE_COMPRESSED", page_compressed, 0),
   /* With this option user can set zip compression level for page
   compression for this table*/
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, 0, 1, 9, 1),

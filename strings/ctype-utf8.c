@@ -4980,16 +4980,6 @@ static const uchar to_upper_utf8[] = {
   240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
 };
 
-static inline int bincmp(const uchar *s, const uchar *se,
-                         const uchar *t, const uchar *te)
-{
-  int slen= (int) (se-s), tlen= (int) (te-t);
-  int len=MY_MIN(slen,tlen);
-  int cmp= memcmp(s,t,len);
-  return cmp ? cmp : slen-tlen;
-}
-
-
 static int my_utf8_uni(CHARSET_INFO *cs __attribute__((unused)),
                        my_wc_t * pwc, const uchar *s, const uchar *e)
 {
@@ -5150,14 +5140,6 @@ my_toupper_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
     *wc= page[*wc & 0xFF].toupper;
 }
 
-
-static inline void
-my_tosort_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
-    *wc= page[*wc & 0xFF].sort;
-}
 
 static size_t my_caseup_utf8(CHARSET_INFO *cs, char *src, size_t srclen,
                              char *dst, size_t dstlen)
@@ -7390,17 +7372,6 @@ static uchar to_upper_utf8mb4[]=
   224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,
   240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
 };
-
-
-static inline int
-bincmp_utf8mb4(const uchar *s, const uchar *se,
-               const uchar *t, const uchar *te)
-{
-  int slen= (int) (se - s), tlen= (int) (te - t);
-  int len= MY_MIN(slen, tlen);
-  int cmp= memcmp(s, t, len);
-  return cmp ? cmp : slen - tlen;
-}
 
 
 static int

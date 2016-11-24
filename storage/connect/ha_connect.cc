@@ -1190,7 +1190,7 @@ char *ha_connect::GetRealString(const char *s)
 {
   char *sv;
 
-  if (IsPartitioned() && s && partname && *partname) {
+  if (IsPartitioned() && s && *partname) {
     sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
     PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
@@ -2868,7 +2868,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                 strncat(body, res->ptr(), res->length());
 
                 if (res->length() < 19)
-                  strcat(body, "1970-01-01 00:00:00" + res->length());
+                  strcat(body, &"1970-01-01 00:00:00"[res->length()]);
 
                 strcat(body, "'}");
                 break;
@@ -2897,7 +2897,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                     strncat(body, res->ptr(), res->length());
 
                     if (res->length() < 19)
-                      strcat(body, "1970-01-01 00:00:00" + res->length());
+                      strcat(body, &"1970-01-01 00:00:00"[res->length()]);
 
                     strcat(body, "'}");
                     break;

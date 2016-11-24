@@ -257,20 +257,6 @@ static File_option trigname_file_parameters[]=
 };
 
 
-const LEX_STRING trg_action_time_type_names[]=
-{
-  { C_STRING_WITH_LEN("BEFORE") },
-  { C_STRING_WITH_LEN("AFTER") }
-};
-
-const LEX_STRING trg_event_type_names[]=
-{
-  { C_STRING_WITH_LEN("INSERT") },
-  { C_STRING_WITH_LEN("UPDATE") },
-  { C_STRING_WITH_LEN("DELETE") }
-};
-
-
 class Handle_old_incorrect_sql_modes_hook: public Unknown_key_hook
 {
 private:
@@ -1993,7 +1979,7 @@ bool Trigger::change_on_table_name(void* param_arg)
 
   if (sql_create_definition_file(NULL, &trigname_file, &trigname_file_type,
                                  (uchar*)&trigname, trigname_file_parameters))
-    return this;
+    return true;
 
   /* Remove stale .TRN file in case of database upgrade */
   if (param->old_db_name)

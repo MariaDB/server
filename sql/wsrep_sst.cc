@@ -184,8 +184,6 @@ bool wsrep_sst_donor_update (sys_var *self, THD* thd, enum_var_type type)
     return 0;
 }
 
-static wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
-
 bool wsrep_before_SE()
 {
   return (wsrep_provider != NULL
