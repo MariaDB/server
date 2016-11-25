@@ -4690,8 +4690,14 @@ ibuf_merge_or_delete_for_page(
 
 			bitmap_page = ibuf_bitmap_get_map_page(space, page_no,
 							       zip_size, &mtr);
-			buf_page_print(bitmap_page, 0,
-				       BUF_PAGE_PRINT_NO_CRASH);
+			if (bitmap_page == NULL)
+			{
+				fputs("InnoDB: cannot retrieve bitmap page\n",
+				      stderr);
+			} else {
+				buf_page_print(bitmap_page, 0,
+					       BUF_PAGE_PRINT_NO_CRASH);
+			}
 			ibuf_mtr_commit(&mtr);
 
 			fputs("\nInnoDB: Dump of the page:\n", stderr);

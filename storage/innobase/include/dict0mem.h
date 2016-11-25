@@ -159,7 +159,7 @@ DEFAULT=0, ON = 1, OFF = 2
 		        + DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)
 
 /** A mask of all the known/used bits in table flags */
-#define DICT_TF_BIT_MASK	(~(~0 << DICT_TF_BITS))
+#define DICT_TF_BIT_MASK	(~(~0U << DICT_TF_BITS))
 
 /** Zero relative shift position of the COMPACT field */
 #define DICT_TF_POS_COMPACT		0
@@ -208,23 +208,23 @@ DEFAULT=0, ON = 1, OFF = 2
 		<< DICT_TF_POS_DATA_DIR)
 /** Bit mask of the PAGE_COMPRESSION field */
 #define DICT_TF_MASK_PAGE_COMPRESSION			\
-		((~(~0 << DICT_TF_WIDTH_PAGE_COMPRESSION)) \
+		((~(~0U << DICT_TF_WIDTH_PAGE_COMPRESSION)) \
 		<< DICT_TF_POS_PAGE_COMPRESSION)
 /** Bit mask of the PAGE_COMPRESSION_LEVEL field */
 #define DICT_TF_MASK_PAGE_COMPRESSION_LEVEL		\
-		((~(~0 << DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)) \
+		((~(~0U << DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)) \
 		<< DICT_TF_POS_PAGE_COMPRESSION_LEVEL)
 /** Bit mask of the ATOMIC_WRITES field */
 #define DICT_TF_MASK_ATOMIC_WRITES		\
-		((~(~0 << DICT_TF_WIDTH_ATOMIC_WRITES)) \
+		((~(~0U << DICT_TF_WIDTH_ATOMIC_WRITES)) \
 		<< DICT_TF_POS_ATOMIC_WRITES)
 /** Bit mask of the PAGE_ENCRYPTION field */
 #define DICT_TF_MASK_PAGE_ENCRYPTION			\
-		((~(~0 << DICT_TF_WIDTH_PAGE_ENCRYPTION))	\
+		((~(~0U << DICT_TF_WIDTH_PAGE_ENCRYPTION))	\
 		<< DICT_TF_POS_PAGE_ENCRYPTION)
 /** Bit mask of the PAGE_ENCRYPTION_KEY field */
 #define DICT_TF_MASK_PAGE_ENCRYPTION_KEY		\
-		((~(~0 << DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)) \
+		((~(~0U << DICT_TF_WIDTH_PAGE_ENCRYPTION_KEY)) \
 		<< DICT_TF_POS_PAGE_ENCRYPTION_KEY)
 
 /** Return the value of the COMPACT field */

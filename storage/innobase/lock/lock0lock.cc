@@ -2366,7 +2366,6 @@ lock_queue_validate(
 	ulint				space;
 	ulint				page_no;
 	ulint				rec_fold;
-	hash_table_t*		hash;
 	hash_cell_t*		cell;
 	lock_t*				next;
 	bool				wait_lock = false;

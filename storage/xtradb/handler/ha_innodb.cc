@@ -20248,7 +20248,7 @@ wsrep_fake_trx_id(
 	trx_id_t trx_id = trx_sys_get_new_trx_id();
 	mutex_exit(&trx_sys->mutex);
 
-	(void *)wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd), trx_id);
+	wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd), trx_id);
 }
 
 #endif /* WITH_WSREP */

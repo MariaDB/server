@@ -946,13 +946,6 @@ buf_page_print(
 #endif /* !UNIV_HOTBACKUP */
 	ulint		size = zip_size;
 
-	if (!read_buf) {
-		fprintf(stderr,
-			" InnoDB: Not dumping page as (in memory) pointer "
-			"is NULL\n");
-		return;
-	}
-
 	if (!size) {
 		size = UNIV_PAGE_SIZE;
 	}
@@ -4702,7 +4695,7 @@ buf_page_io_complete(
 	if (io_type == BUF_IO_READ) {
 		ulint	read_page_no;
 		ulint	read_space_id;
-		byte*	frame = NULL;
+		byte*	frame;
 
 		if (!buf_page_decrypt_after_read(bpage)) {
 			/* encryption error! */
