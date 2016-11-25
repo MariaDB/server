@@ -521,7 +521,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
 			    *enclosed, skip_lines, ignore);
 
     thd_proc_info(thd, "End bulk insert");
-    thd_progress_next_stage(thd);
+    if (!error)
+      thd_progress_next_stage(thd);
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
         table->file->ha_end_bulk_insert() && !error)
     {
