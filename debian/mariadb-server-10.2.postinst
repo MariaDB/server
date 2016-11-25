@@ -119,7 +119,7 @@ EOF
     # circumstances as it contains scripts that are executed by root.
     set +e
     chown -R 0:0 $mysql_statedir
-    chown -R mysql $mysql_datadir
+    find $mysql_datadir ! -uid $(id -u mysql) -print0 | xargs -0 -r chown mysql
     chown -R mysql:adm $mysql_logdir
     chmod 2750 $mysql_logdir
     set -e
@@ -144,7 +144,7 @@ EOF
     bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
     set -e
 
-    
+
     ## On every reconfiguration the maintenance user is recreated.
     #
     # - It is easier to regenerate the password every time but as people
@@ -163,7 +163,7 @@ EOF
     #   the old query which always succeeds and then the new which may or may not.
 
     # recreate the credentials file if not present or without mysql_upgrade stanza
-    dc=$mysql_cfgdir/debian.cnf; 
+    dc=$mysql_cfgdir/debian.cnf;
     if [ -e "$dc" -a -n "`fgrep mysql_upgrade $dc 2>/dev/null`" ]; then
         pass="`sed -n 's/^[     ]*password *= *// p' $dc | head -n 1`"
     else
