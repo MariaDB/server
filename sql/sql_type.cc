@@ -640,3 +640,47 @@ Field *Type_handler_set::make_conversion_table_field(TABLE *table,
                    metadata & 0x00ff/*pack_length()*/,
                    ((const Field_enum*) target)->typelib, target->charset());
 }
+
+/*************************************************************************/
+
+int Type_handler_time_common::Item_save_in_field(Item *item, Field *field,
+                                                 bool no_conversions) const
+{
+  return item->save_time_in_field(field, no_conversions);
+}
+
+int Type_handler_temporal_with_date::Item_save_in_field(Item *item,
+                                                        Field *field,
+                                                        bool no_conversions)
+                                                        const
+{
+  return item->save_date_in_field(field, no_conversions);
+}
+
+
+int Type_handler_string_result::Item_save_in_field(Item *item, Field *field,
+                                                   bool no_conversions) const
+{
+  return item->save_str_in_field(field, no_conversions);
+}
+
+
+int Type_handler_real_result::Item_save_in_field(Item *item, Field *field,
+                                                 bool no_conversions) const
+{
+  return item->save_real_in_field(field, no_conversions);
+}
+
+
+int Type_handler_decimal_result::Item_save_in_field(Item *item, Field *field,
+                                                    bool no_conversions) const
+{
+  return item->save_decimal_in_field(field, no_conversions);
+}
+
+
+int Type_handler_int_result::Item_save_in_field(Item *item, Field *field,
+                                                bool no_conversions) const
+{
+  return item->save_int_in_field(field, no_conversions);
+}

@@ -1199,3 +1199,24 @@ DROP TABLE t1;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-11331 Wrong result for INSERT INTO t1 (datetime_field) VALUES (hybrid_function_of_TIME_data_type)
+#
+SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:00:00');
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES (TIME'10:20:30');
+INSERT INTO t1 VALUES (COALESCE(TIME'10:20:30'));
+INSERT INTO t1 VALUES (LEAST(TIME'10:20:30',TIME'10:20:30'));
+SELECT * FROM t1;
+a
+2001-02-03 10:20:30
+2001-02-03 10:20:30
+2001-02-03 10:20:30
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+# End of 10.3 tests
+#

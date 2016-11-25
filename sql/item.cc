@@ -419,21 +419,21 @@ longlong Item::val_int_from_decimal()
   return result;
 }
 
-int Item::save_time_in_field(Field *field)
+int Item::save_time_in_field(Field *field, bool no_conversions)
 {
   MYSQL_TIME ltime;
   if (get_time(&ltime))
-    return set_field_to_null_with_conversions(field, 0);
+    return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
   return field->store_time_dec(&ltime, decimals);
 }
 
 
-int Item::save_date_in_field(Field *field)
+int Item::save_date_in_field(Field *field, bool no_conversions)
 {
   MYSQL_TIME ltime;
   if (get_date(&ltime, sql_mode_for_dates(field->table->in_use)))
-    return set_field_to_null_with_conversions(field, 0);
+    return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
   return field->store_time_dec(&ltime, decimals);
 }
@@ -6211,54 +6211,62 @@ int Item_null::save_safe_in_field(Field *field)
   Note: all Item_XXX::val_str(str) methods must NOT assume that
   str != str_value. For example, see fix for bug #44743.
 */
+int Item::save_str_in_field(Field *field, bool no_conversions)
+{
+  String *result;
+  CHARSET_INFO *cs= collation.collation;
+  char buff[MAX_FIELD_WIDTH];		// Alloc buffer for small columns
+  str_value.set_quick(buff, sizeof(buff), cs);
+  result=val_str(&str_value);
+  if (null_value)
+  {
+    str_value.set_quick(0, 0, cs);
+    return set_field_to_null_with_conversions(field, no_conversions);
+  }
+
+  /* NOTE: If null_value == FALSE, "result" must be not NULL.  */
+
+  field->set_notnull();
+  int error= field->store(result->ptr(),result->length(),cs);
+  str_value.set_quick(0, 0, cs);
+  return error;
+}
+
+
+int Item::save_real_in_field(Field *field, bool no_conversions)
+{
+  double nr= val_real();
+  if (null_value)
+    return set_field_to_null_with_conversions(field, no_conversions);
+  field->set_notnull();
+  return field->store(nr);
+}
+
+
+int Item::save_decimal_in_field(Field *field, bool no_conversions)
+{
+  my_decimal decimal_value;
+  my_decimal *value= val_decimal(&decimal_value);
+  if (null_value)
+    return set_field_to_null_with_conversions(field, no_conversions);
+  field->set_notnull();
+  return field->store_decimal(value);
+}
+
+
+int Item::save_int_in_field(Field *field, bool no_conversions)
+{
+  longlong nr= val_int();
+  if (null_value)
+    return set_field_to_null_with_conversions(field, no_conversions);
+  field->set_notnull();
+  return field->store(nr, unsigned_flag);
+}
+
 
 int Item::save_in_field(Field *field, bool no_conversions)
 {
-  int error;
-  if (result_type() == STRING_RESULT)
-  {
-    String *result;
-    CHARSET_INFO *cs= collation.collation;
-    char buff[MAX_FIELD_WIDTH];		// Alloc buffer for small columns
-    str_value.set_quick(buff, sizeof(buff), cs);
-    result=val_str(&str_value);
-    if (null_value)
-    {
-      str_value.set_quick(0, 0, cs);
-      return set_field_to_null_with_conversions(field, no_conversions);
-    }
-
-    /* NOTE: If null_value == FALSE, "result" must be not NULL.  */
-
-    field->set_notnull();
-    error=field->store(result->ptr(),result->length(),cs);
-    str_value.set_quick(0, 0, cs);
-  }
-  else if (result_type() == REAL_RESULT)
-  {
-    double nr= val_real();
-    if (null_value)
-      return set_field_to_null_with_conversions(field, no_conversions);
-    field->set_notnull();
-    error=field->store(nr);
-  }
-  else if (result_type() == DECIMAL_RESULT)
-  {
-    my_decimal decimal_value;
-    my_decimal *value= val_decimal(&decimal_value);
-    if (null_value)
-      return set_field_to_null_with_conversions(field, no_conversions);
-    field->set_notnull();
-    error=field->store_decimal(value);
-  }
-  else
-  {
-    longlong nr=val_int();
-    if (null_value)
-      return set_field_to_null_with_conversions(field, no_conversions);
-    field->set_notnull();
-    error=field->store(nr, unsigned_flag);
-  }
+  int error= type_handler()->Item_save_in_field(this, field, no_conversions);
   return error ? error : (field->table->in_use->is_error() ? 1 : 0);
 }
 

@@ -986,14 +986,9 @@ t1	CREATE TABLE `t1` (
   `a` decimal(30,6) DEFAULT COALESCE(CURRENT_TIMESTAMP(6))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES();
-Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
 INSERT IGNORE INTO t1 VALUES();
-Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
 SET sql_mode = 'STRICT_ALL_TABLES';
 INSERT INTO t1 VALUES();
-ERROR 01000: Data truncated for column 'a' at row 1
 SET sql_mode = DEFAULT;
 DROP TABLE t1;
 #
@@ -1006,8 +1001,6 @@ t1	CREATE TABLE `t1` (
   `a` decimal(30,6) DEFAULT COALESCE(CURRENT_TIME(6))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES();
-Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
 DROP TABLE t1;
 #
 # DECIMAL + CURRENT_DATE, no truncation
@@ -1019,8 +1012,6 @@ t1	CREATE TABLE `t1` (
   `a` decimal(30,6) DEFAULT COALESCE(CURRENT_DATE)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES();
-Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
 DROP TABLE t1;
 #
 # COALESCE for SQL Standard <datetime value function>
@@ -1077,10 +1068,10 @@ t1	CREATE TABLE `t1` (
 INSERT INTO t1 VALUES ();
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
-Warning	1265	Data truncated for column 'b' at row 1
+Note	1265	Data truncated for column 'b' at row 1
 SELECT * FROM t1;
 a	b
-20010101102030	2001
+20010101102030	20010101102030
 DROP TABLE t1;
 #
 # Check DEFAULT() function

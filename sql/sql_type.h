@@ -272,6 +272,9 @@ public:
   virtual void sortlength(THD *thd,
                           const Type_std_attributes *item,
                           SORT_FIELD_ATTR *attr) const= 0;
+
+  virtual int Item_save_in_field(Item *item, Field *field,
+                                 bool no_conversions) const= 0;
 };
 
 
@@ -288,6 +291,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
 };
 
 
@@ -303,6 +307,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
 };
 
 
@@ -318,6 +323,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
 };
 
 
@@ -349,6 +355,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
 };
 
 
@@ -463,28 +470,43 @@ public:
 };
 
 
-class Type_handler_time: public Type_handler_temporal_result
+class Type_handler_time_common: public Type_handler_temporal_result
+{
+public:
+  virtual ~Type_handler_time_common() { }
+  enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+};
+
+
+class Type_handler_time: public Type_handler_time_common
 {
 public:
   virtual ~Type_handler_time() {}
-  enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
 
 
-class Type_handler_time2: public Type_handler_temporal_result
+class Type_handler_time2: public Type_handler_time_common
 {
 public:
   virtual ~Type_handler_time2() {}
-  enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIME2; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
 
 
-class Type_handler_date: public Type_handler_temporal_result
+class Type_handler_temporal_with_date: public Type_handler_temporal_result
+{
+public:
+  virtual ~Type_handler_temporal_with_date() {}
+  int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+};
+
+
+class Type_handler_date: public Type_handler_temporal_with_date
 {
 public:
   virtual ~Type_handler_date() {}
@@ -494,7 +516,7 @@ public:
 };
 
 
-class Type_handler_newdate: public Type_handler_temporal_result
+class Type_handler_newdate: public Type_handler_temporal_with_date
 {
 public:
   virtual ~Type_handler_newdate() {}
@@ -504,7 +526,7 @@ public:
 };
 
 
-class Type_handler_datetime: public Type_handler_temporal_result
+class Type_handler_datetime: public Type_handler_temporal_with_date
 {
 public:
   virtual ~Type_handler_datetime() {}
@@ -514,7 +536,7 @@ public:
 };
 
 
-class Type_handler_datetime2: public Type_handler_temporal_result
+class Type_handler_datetime2: public Type_handler_temporal_with_date
 {
 public:
   virtual ~Type_handler_datetime2() {}
@@ -525,7 +547,7 @@ public:
 };
 
 
-class Type_handler_timestamp: public Type_handler_temporal_result
+class Type_handler_timestamp: public Type_handler_temporal_with_date
 {
 public:
   virtual ~Type_handler_timestamp() {}
@@ -535,7 +557,7 @@ public:
 };
 
 
-class Type_handler_timestamp2: public Type_handler_temporal_result
+class Type_handler_timestamp2: public Type_handler_temporal_with_date
 {
 public:
   virtual ~Type_handler_timestamp2() {}
