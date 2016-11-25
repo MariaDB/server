@@ -63,10 +63,6 @@ static os_event_t		dict_stats_disabled_event;
 /** This mutex protects the "recalc_pool" variable. */
 static ib_mutex_t		recalc_pool_mutex;
 
-/** The number of tables that can be added to "recalc_pool" before
-it is enlarged */
-static const ulint		RECALC_POOL_INITIAL_SLOTS = 128;
-
 /** Allocator type, used by std::vector */
 typedef ut_allocator<table_id_t>
 	recalc_pool_allocator_t;

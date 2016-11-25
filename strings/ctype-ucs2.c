@@ -53,17 +53,6 @@ static unsigned long lfactor[9]=
 
 
 #ifdef HAVE_CHARSET_mb2_or_mb4
-static inline int
-my_bincmp(const uchar *s, const uchar *se,
-          const uchar *t, const uchar *te)
-{
-  int slen= (int) (se - s), tlen= (int) (te - t);
-  int len= MY_MIN(slen, tlen);
-  int cmp= memcmp(s, t, len);
-  return cmp ? cmp : slen - tlen;
-}
-
-
 static size_t
 my_caseup_str_mb2_or_mb4(CHARSET_INFO * cs  __attribute__((unused)), 
                          char * s __attribute__((unused)))

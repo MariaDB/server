@@ -209,7 +209,7 @@ row_sel_sec_rec_is_for_clust_rec(
 		const dict_field_t*	ifield;
 		const dict_col_t*	col;
 		ulint			clust_pos = 0;
-		ulint			clust_len;
+		ulint			clust_len = 0;
 		ulint			len;
 		bool			is_virtual;
 
