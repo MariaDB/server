@@ -48,7 +48,7 @@ Created 12/18/1995 Heikki Tuuri
 					+ FSP_FLAGS_WIDTH_PAGE_SSIZE)
 /** Bit mask of the DATA_DIR field */
 #define FSP_FLAGS_MASK_DATA_DIR_ORACLE				\
-		((~(~0 << FSP_FLAGS_WIDTH_DATA_DIR))		\
+		((~(~0U << FSP_FLAGS_WIDTH_DATA_DIR))		\
 		<< FSP_FLAGS_POS_DATA_DIR_ORACLE)
 
 #define FSP_FLAGS_HAS_DATA_DIR_ORACLE(flags)			\

@@ -889,13 +889,6 @@ buf_page_print(
 #endif /* !UNIV_HOTBACKUP */
 	ulint		size = zip_size;
 
-	if (!read_buf) {
-		fprintf(stderr,
-			" InnoDB: Not dumping page as (in memory) pointer "
-			"is NULL\n");
-		return;
-	}
-
 	if (!size) {
 		size = UNIV_PAGE_SIZE;
 	}

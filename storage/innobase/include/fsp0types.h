@@ -275,7 +275,7 @@ is a tablespace with encryption. */
 				+ FSP_FLAGS_WIDTH_ATOMIC_WRITES )
 
 /** A mask of all the known/used bits in tablespace flags */
-#define FSP_FLAGS_MASK		(~(~0 << FSP_FLAGS_WIDTH))
+#define FSP_FLAGS_MASK		(~(~0U << FSP_FLAGS_WIDTH))
 
 /** Zero relative shift position of the POST_ANTELOPE field */
 #define FSP_FLAGS_POS_POST_ANTELOPE	0
@@ -348,15 +348,15 @@ is a tablespace with encryption. */
 		<< FSP_FLAGS_POS_ENCRYPTION)
 /** Bit mask of the PAGE_COMPRESSION field */
 #define FSP_FLAGS_MASK_PAGE_COMPRESSION			\
-		((~(~0 << FSP_FLAGS_WIDTH_PAGE_COMPRESSION))	\
+		((~(~0U << FSP_FLAGS_WIDTH_PAGE_COMPRESSION))	\
 		<< FSP_FLAGS_POS_PAGE_COMPRESSION)
 /** Bit mask of the PAGE_COMPRESSION_LEVEL field */
 #define FSP_FLAGS_MASK_PAGE_COMPRESSION_LEVEL		\
-		((~(~0 << FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL))	\
+		((~(~0U << FSP_FLAGS_WIDTH_PAGE_COMPRESSION_LEVEL))	\
 		<< FSP_FLAGS_POS_PAGE_COMPRESSION_LEVEL)
 /** Bit mask of the ATOMIC_WRITES field */
 #define FSP_FLAGS_MASK_ATOMIC_WRITES		\
-		((~(~0 << FSP_FLAGS_WIDTH_ATOMIC_WRITES))	\
+		((~(~0U << FSP_FLAGS_WIDTH_ATOMIC_WRITES))	\
 		<< FSP_FLAGS_POS_ATOMIC_WRITES)
 
 /** Return the value of the POST_ANTELOPE field */

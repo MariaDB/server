@@ -4189,9 +4189,10 @@ wait_again:
 				(total_static_cost + total_dynamic_cost)
 				* PCT_COST_MERGESORT_INDEX * 100;
 
-			bufend = innobase_convert_name(buf, sizeof buf,
+			bufend = innobase_convert_name(
+				buf, sizeof buf,
 				indexes[i]->name, strlen(indexes[i]->name),
-				trx ? trx->mysql_thd : NULL,
+				trx->mysql_thd,
 				FALSE);
 
 			buf[bufend - buf]='\0';
