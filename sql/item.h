@@ -991,8 +991,13 @@ public:
   // Check NULL value for a TIME, DATE or DATETIME expression
   bool is_null_from_temporal();
 
-  int save_time_in_field(Field *field);
-  int save_date_in_field(Field *field);
+  int save_time_in_field(Field *field, bool no_conversions);
+  int save_date_in_field(Field *field, bool no_conversions);
+  int save_str_in_field(Field *field, bool no_conversions);
+  int save_real_in_field(Field *field, bool no_conversions);
+  int save_int_in_field(Field *field, bool no_conversions);
+  int save_decimal_in_field(Field *field, bool no_conversions);
+
   int save_str_value_in_field(Field *field, String *result);
 
   virtual Field *get_tmp_table_field() { return 0; }
@@ -3459,7 +3464,7 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value)
   { return  val_decimal_from_date(decimal_value); }
   int save_in_field(Field *field, bool no_conversions)
-  { return save_date_in_field(field); }
+  { return save_date_in_field(field, no_conversions); }
 };
 
 

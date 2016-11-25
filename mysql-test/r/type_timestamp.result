@@ -950,3 +950,35 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-11333     MDEV-11333 Expect "Impossible where condition" for WHERE timestamp_field>=DATE_ADD(TIMESTAMP'9999-01-01 00:00:00',INTERVAL 1000 YEAR)
+#
+SELECT DATE_ADD(TIMESTAMP'9999-01-01 00:00:00',INTERVAL 1000 YEAR);
+DATE_ADD(TIMESTAMP'9999-01-01 00:00:00',INTERVAL 1000 YEAR)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+CREATE TABLE t1 (a TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES('2001-01-01'),('2002-02-02'),('2003-03-03');
+INSERT INTO t1 VALUES('2001-01-01'),('2002-02-02'),('2003-03-03');
+INSERT INTO t1 VALUES('2001-01-01'),('2002-02-02'),('2003-03-03');
+INSERT INTO t1 VALUES('2001-01-01'),('2002-02-02'),('2003-03-03');
+INSERT INTO t1 VALUES('2001-01-01'),('2002-02-02'),('2003-03-03');
+INSERT INTO t1 VALUES('2001-01-01'),('2002-02-02'),('2003-03-03');
+EXPLAIN SELECT * FROM t1 WHERE a >= DATE_ADD(TIMESTAMP'9999-01-01 00:00:00',INTERVAL 1000 YEAR);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+EXPLAIN SELECT * FROM t1 WHERE a >= COALESCE(DATE_ADD(TIMESTAMP'9999-01-01 00:00:00',INTERVAL 1000 YEAR));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#
