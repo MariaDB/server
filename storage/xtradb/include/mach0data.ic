@@ -38,7 +38,7 @@ mach_write_to_1(
 	ulint	n)	/*!< in: ulint integer to be stored, >= 0, < 256 */
 {
 	ut_ad(b);
-	ut_ad((n | 0xFFUL) <= 0xFFUL);
+	ut_ad((n & ~0xFFUL) == 0);
 
 	b[0] = (byte) n;
 }
@@ -67,7 +67,7 @@ mach_write_to_2(
 	ulint	n)	/*!< in: ulint integer to be stored */
 {
 	ut_ad(b);
-	ut_ad((n | 0xFFFFUL) <= 0xFFFFUL);
+	ut_ad((n & ~0xFFFFUL) == 0);
 
 	b[0] = (byte)(n >> 8);
 	b[1] = (byte)(n);
@@ -115,7 +115,7 @@ mach_write_to_3(
 	ulint	n)	/*!< in: ulint integer to be stored */
 {
 	ut_ad(b);
-	ut_ad((n | 0xFFFFFFUL) <= 0xFFFFFFUL);
+	ut_ad((n & ~0xFFFFFFUL) == 0);
 
 	b[0] = (byte)(n >> 16);
 	b[1] = (byte)(n >> 8);

@@ -1457,6 +1457,7 @@ buf_block_init(
 	block->frame = frame;
 
 	block->page.buf_pool_index = buf_pool_index(buf_pool);
+	block->page.flush_type = BUF_FLUSH_LRU;
 	block->page.state = BUF_BLOCK_NOT_USED;
 	block->page.buf_fix_count = 0;
 	block->page.io_fix = BUF_IO_NONE;
@@ -5130,6 +5131,7 @@ buf_page_init_low(
 	bpage->flush_type = BUF_FLUSH_LRU;
 	bpage->io_fix = BUF_IO_NONE;
 	bpage->buf_fix_count = 0;
+	bpage->old = 0;
 	bpage->freed_page_clock = 0;
 	bpage->access_time = 0;
 	bpage->newest_modification = 0;
