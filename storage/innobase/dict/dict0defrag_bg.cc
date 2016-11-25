@@ -43,10 +43,6 @@ static ib_mutex_t		defrag_pool_mutex;
 static mysql_pfs_key_t		defrag_pool_mutex_key;
 #endif
 
-/** The number of tables that can be added to "defrag_pool" before
-it is enlarged */
-static const ulint		DEFRAG_POOL_INITIAL_SLOTS = 128;
-
 /** Indices whose defrag stats need to be saved to persistent storage.*/
 struct defrag_pool_item_t {
 	table_id_t	table_id;

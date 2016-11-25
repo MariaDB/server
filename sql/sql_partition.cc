@@ -6649,7 +6649,8 @@ void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
       }
     }
     /* Ensure the share is destroyed and reopened. */
-    part_info= lpt->part_info->get_clone(thd);
+    if (part_info)
+      part_info= part_info->get_clone(thd);
     close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
   }
   else
@@ -6667,7 +6668,8 @@ err_exclusive_lock:
       the table cache.
     */
     mysql_lock_remove(thd, thd->lock, table);
-    part_info= lpt->part_info->get_clone(thd);
+    if (part_info)
+      part_info= part_info->get_clone(thd);
     close_thread_table(thd, &thd->open_tables);
     lpt->table_list->table= NULL;
   }
