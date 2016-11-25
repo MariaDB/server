@@ -399,7 +399,6 @@ find_sys_var_null_base(THD *thd, struct sys_var_with_base *tmp)
   Helper action for a SET statement.
   Used to push a system variable into the assignment list.
 
-  @param thd      the current thread
   @param tmp      the system variable with base name
   @param var_type the scope of the variable
   @param val      the value being assigned to the variable
@@ -407,16 +406,15 @@ find_sys_var_null_base(THD *thd, struct sys_var_with_base *tmp)
   @return TRUE if error, FALSE otherwise.
 */
 
-static bool
-set_system_variable(THD *thd, struct sys_var_with_base *tmp,
-                    enum enum_var_type var_type, Item *val)
+bool
+LEX::set_system_variable(struct sys_var_with_base *tmp,
+                         enum enum_var_type var_type, Item *val)
 {
   set_var *var;
-  LEX *lex= thd->lex;
 
   /* No AUTOCOMMIT from a stored function or trigger. */
-  if (lex->spcont && tmp->var == Sys_autocommit_ptr)
-    lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
+  if (spcont && tmp->var == Sys_autocommit_ptr)
+    sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
 
   if (val && val->type() == Item::FIELD_ITEM &&
       ((Item_field*)val)->table_name)
@@ -429,7 +427,7 @@ set_system_variable(THD *thd, struct sys_var_with_base *tmp,
          set_var(thd, var_type, tmp->var, &tmp->base_name, val)))
     return TRUE;
 
-  return lex->var_list.push_back(var, thd->mem_root);
+  return var_list.push_back(var, thd->mem_root);
 }
 
 
@@ -437,18 +435,16 @@ set_system_variable(THD *thd, struct sys_var_with_base *tmp,
   Helper action for a SET statement.
   Used to push a SP local variable into the assignment list.
 
-  @param thd      the current thread
   @param var_type the SP local variable
   @param val      the value being assigned to the variable
 
   @return TRUE if error, FALSE otherwise.
 */
 
-static bool
-set_local_variable(THD *thd, sp_variable *spv, Item *val)
+bool
+LEX::set_local_variable(sp_variable *spv, Item *val)
 {
   Item *it;
-  LEX *lex= thd->lex;
   sp_instr_set *sp_set;
 
   if (val)
@@ -463,11 +459,11 @@ set_local_variable(THD *thd, sp_variable *spv, Item *val)
   }
 
   sp_set= new (thd->mem_root)
-         sp_instr_set(lex->sphead->instructions(), lex->spcont,
-                                   spv->offset, it, spv->sql_type(),
-                                   lex, TRUE);
+         sp_instr_set(sphead->instructions(), spcont,
+                      spv->offset, it, spv->sql_type(),
+                      this, true);
 
-  return (sp_set == NULL || lex->sphead->add_instr(sp_set));
+  return (sp_set == NULL || sphead->add_instr(sp_set));
 }
 
 
@@ -475,17 +471,14 @@ set_local_variable(THD *thd, sp_variable *spv, Item *val)
   Helper action for a SET statement.
   Used to SET a field of NEW row.
 
-  @param thd      the current thread
   @param name     the field name
   @param val      the value being assigned to the row
 
   @return TRUE if error, FALSE otherwise.
 */
 
-static bool
-set_trigger_new_row(THD *thd, LEX_STRING *name, Item *val)
+bool LEX::set_trigger_new_row(LEX_STRING *name, Item *val)
 {
-  LEX *lex= thd->lex;
   Item_trigger_field *trg_fld;
   sp_instr_set_trigger_field *sp_fld;
 
@@ -493,12 +486,12 @@ set_trigger_new_row(THD *thd, LEX_STRING *name, Item *val)
   if (! val)
     val= new (thd->mem_root) Item_null(thd);
 
-  DBUG_ASSERT(lex->trg_chistics.action_time == TRG_ACTION_BEFORE &&
-              (lex->trg_chistics.event == TRG_EVENT_INSERT ||
-               lex->trg_chistics.event == TRG_EVENT_UPDATE));
+  DBUG_ASSERT(trg_chistics.action_time == TRG_ACTION_BEFORE &&
+              (trg_chistics.event == TRG_EVENT_INSERT ||
+               trg_chistics.event == TRG_EVENT_UPDATE));
 
   trg_fld= new (thd->mem_root)
-            Item_trigger_field(thd, lex->current_context(),
+            Item_trigger_field(thd, current_context(),
                                Item_trigger_field::NEW_ROW,
                                name->str, UPDATE_ACL, FALSE);
 
@@ -506,9 +499,8 @@ set_trigger_new_row(THD *thd, LEX_STRING *name, Item *val)
     return TRUE;
 
   sp_fld= new (thd->mem_root)
-        sp_instr_set_trigger_field(lex->sphead->instructions(),
-                                                 lex->spcont, trg_fld, val,
-         lex);
+        sp_instr_set_trigger_field(sphead->instructions(),
+                                   spcont, trg_fld, val, this);
 
   if (sp_fld == NULL)
     return TRUE;
@@ -517,16 +509,15 @@ set_trigger_new_row(THD *thd, LEX_STRING *name, Item *val)
     Let us add this item to list of all Item_trigger_field
     objects in trigger.
   */
-  lex->trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
+  trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
 
-  return lex->sphead->add_instr(sp_fld);
+  return sphead->add_instr(sp_fld);
 }
 
 
 /**
   Create an object to represent a SP variable in the Item-hierarchy.
 
-  @param  thd         The current thread.
   @param  name        The SP variable name.
   @param  spvar       The SP variable (optional).
   @param  start_in_q  Start position of the SP variable name in the query.
@@ -538,18 +529,16 @@ set_trigger_new_row(THD *thd, LEX_STRING *name, Item *val)
 
   @return An Item_splocal object representing the SP variable, or NULL on error.
 */
-static Item_splocal*
-create_item_for_sp_var(THD *thd, LEX_STRING name, sp_variable *spvar,
-                       const char *start_in_q, const char *end_in_q)
+Item_splocal*
+LEX::create_item_for_sp_var(LEX_STRING name, sp_variable *spvar,
+                            const char *start_in_q, const char *end_in_q)
 {
   Item_splocal *item;
-  LEX *lex= thd->lex;
   uint pos_in_q, len_in_q;
-  sp_pcontext *spc = lex->spcont;
 
   /* If necessary, look for the variable. */
-  if (spc && !spvar)
-    spvar= spc->find_variable(name, false);
+  if (spcont && !spvar)
+    spvar= spcont->find_variable(name, false);
 
   if (!spvar)
   {
@@ -557,10 +546,10 @@ create_item_for_sp_var(THD *thd, LEX_STRING name, sp_variable *spvar,
     return NULL;
   }
 
-  DBUG_ASSERT(spc && spvar);
+  DBUG_ASSERT(spcont && spvar);
 
   /* Position and length of the SP variable name in the query. */
-  pos_in_q= start_in_q - lex->sphead->m_tmp_query;
+  pos_in_q= start_in_q - sphead->m_tmp_query;
   len_in_q= end_in_q - start_in_q;
 
   item= new (thd->mem_root)
@@ -569,7 +558,7 @@ create_item_for_sp_var(THD *thd, LEX_STRING name, sp_variable *spvar,
 
 #ifndef DBUG_OFF
   if (item)
-    item->m_sp= lex->sphead;
+    item->m_sp= sphead;
 #endif
 
   return item;
@@ -709,20 +698,6 @@ bool LEX::add_select_to_union_list(bool is_union_distinct,
 }
 
 
-static bool add_create_index_prepare(LEX *lex, Table_ident *table)
-{
-  lex->sql_command= SQLCOM_CREATE_INDEX;
-  if (!lex->current_select->add_table_to_list(lex->thd, table, NULL,
-                                              TL_OPTION_UPDATING,
-                                              TL_READ_NO_INSERT,
-                                              MDL_SHARED_UPGRADABLE))
-    return TRUE;
-  lex->alter_info.reset();
-  lex->alter_info.flags= Alter_info::ALTER_ADD_INDEX;
-  lex->option_list= NULL;
-  return FALSE;
-}
-
 
 /**
   Create a separate LEX for each assignment if in SP.
@@ -833,12 +808,11 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
   return false;
 }
 
-
-static void add_key_to_list(LEX *lex, LEX_STRING *field_name,
-                            enum Key::Keytype type, bool check_exists)
+void LEX::add_key_to_list(LEX_STRING *field_name,
+                          enum Key::Keytype type, bool check_exists)
 {
   Key *key;
-  MEM_ROOT *mem_root= lex->thd->mem_root;
+  MEM_ROOT *mem_root= thd->mem_root;
   key= new (mem_root)
         Key(type, null_lex_str, HA_KEY_ALG_UNDEF, false,
              DDL_options(check_exists ?
@@ -846,7 +820,7 @@ static void add_key_to_list(LEX *lex, LEX_STRING *field_name,
                          DDL_options::OPT_NONE));
   key->columns.push_back(new (mem_root) Key_part_spec(*field_name, 0),
                          mem_root);
-  lex->alter_info.key_list.push_back(key, mem_root);
+  alter_info.key_list.push_back(key, mem_root);
 }
 
 void LEX::init_last_field(Column_definition *field, const char *field_name,
@@ -2578,7 +2552,7 @@ create:
           opt_key_algorithm_clause
           ON table_ident
           {
-            if (add_create_index_prepare(Lex, $8))
+            if (Lex->add_create_index_prepare($8))
               MYSQL_YYABORT;
             if (Lex->add_create_index($2, $5, $6, $1 | $4))
               MYSQL_YYABORT;
@@ -2588,7 +2562,7 @@ create:
         | create_or_replace fulltext INDEX_SYM opt_if_not_exists ident
           ON table_ident
           {
-            if (add_create_index_prepare(Lex, $7))
+            if (Lex->add_create_index_prepare($7))
               MYSQL_YYABORT;
             if (Lex->add_create_index($2, $5, HA_KEY_ALG_UNDEF, $1 | $4))
               MYSQL_YYABORT;
@@ -2598,7 +2572,7 @@ create:
         | create_or_replace spatial INDEX_SYM opt_if_not_exists ident
           ON table_ident
           {
-            if (add_create_index_prepare(Lex, $7))
+            if (Lex->add_create_index_prepare($7))
               MYSQL_YYABORT;
             if (Lex->add_create_index($2, $5, HA_KEY_ALG_UNDEF, $1 | $4))
               MYSQL_YYABORT;
@@ -3564,9 +3538,9 @@ simple_target_specification:
           ident
           {
             Lex_input_stream *lip= &thd->m_parser_state->m_lip;
-            $$= create_item_for_sp_var(thd, $1, NULL,
-                                       lip->get_tok_start(), lip->get_ptr());
-
+            $$= thd->lex->create_item_for_sp_var($1, NULL,
+                                                 lip->get_tok_start(),
+                                                 lip->get_ptr());
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -6162,9 +6136,9 @@ field_spec:
 
             $$->create_if_not_exists= Lex->check_exists;
             if ($$->flags & PRI_KEY_FLAG)
-              add_key_to_list(lex, &$1, Key::PRIMARY, Lex->check_exists);
+              lex->add_key_to_list(&$1, Key::PRIMARY, lex->check_exists);
             else if ($$->flags & UNIQUE_KEY_FLAG)
-              add_key_to_list(lex, &$1, Key::UNIQUE, Lex->check_exists);
+              lex->add_key_to_list(&$1, Key::UNIQUE, lex->check_exists);
           }
         ;
 
@@ -15085,7 +15059,7 @@ option_value_following_option_type:
             if ($1.var && $1.var != trg_new_row_fake_var)
             {
               /* It is a system variable. */
-              if (set_system_variable(thd, &$1, lex->option_type, $3))
+              if (lex->set_system_variable(&$1, lex->option_type, $3))
                 MYSQL_YYABORT;
             }
             else
@@ -15109,13 +15083,13 @@ option_value_no_option_type:
             if ($1.var == trg_new_row_fake_var)
             {
               /* We are in trigger and assigning value to field of new row */
-              if (set_trigger_new_row(thd, &$1.base_name, $3))
+              if (lex->set_trigger_new_row(&$1.base_name, $3))
                 MYSQL_YYABORT;
             }
             else if ($1.var)
             {
               /* It is a system variable. */
-              if (set_system_variable(thd, &$1, lex->option_type, $3))
+              if (lex->set_system_variable(&$1, lex->option_type, $3))
                 MYSQL_YYABORT;
             }
             else
@@ -15124,7 +15098,7 @@ option_value_no_option_type:
               sp_variable *spv= spc->find_variable($1.base_name, false);
 
               /* It is a local variable. */
-              if (set_local_variable(thd, spv, $3))
+              if (lex->set_local_variable(spv, $3))
                 MYSQL_YYABORT;
             }
           }
@@ -15148,7 +15122,7 @@ option_value_no_option_type:
               if (find_sys_var_null_base(thd, &tmp))
                 MYSQL_YYABORT;
             }
-            if (set_system_variable(thd, &tmp, $3, $6))
+            if (Lex->set_system_variable(&tmp, $3, $6))
               MYSQL_YYABORT;
           }
         | charset old_or_new_charset_name_or_default

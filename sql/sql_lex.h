@@ -41,6 +41,7 @@ class sp_head;
 class sp_name;
 class sp_instr;
 class sp_pcontext;
+class sp_variable;
 class st_alter_tablespace;
 class partition_info;
 class Event_parse_data;
@@ -3022,6 +3023,13 @@ public:
   int case_stmt_action_then();
   bool add_select_to_union_list(bool is_union_distinct,  bool is_top_level);
   bool setup_select_in_parentheses();
+  bool set_trigger_new_row(LEX_STRING *name, Item *val);
+  bool set_system_variable(struct sys_var_with_base *tmp,
+                           enum enum_var_type var_type, Item *val);
+  bool set_local_variable(sp_variable *spv, Item *val);
+  Item_splocal *create_item_for_sp_var(LEX_STRING name, sp_variable *spvar,
+                                       const char *start_in_q,
+                                       const char *end_in_q);
 
   // Check if "KEY IF NOT EXISTS name" used outside of ALTER context
   bool check_add_key(DDL_options_st ddl)
@@ -3053,6 +3061,25 @@ public:
     alter_info.key_list.push_back(last_key);
     return false;
   }
+  bool add_create_index_prepare(Table_ident *table)
+  {
+    sql_command= SQLCOM_CREATE_INDEX;
+    if (!current_select->add_table_to_list(thd, table, NULL,
+                                           TL_OPTION_UPDATING,
+                                           TL_READ_NO_INSERT,
+                                           MDL_SHARED_UPGRADABLE))
+      return true;
+    alter_info.reset();
+    alter_info.flags= Alter_info::ALTER_ADD_INDEX;
+    option_list= NULL;
+    return false;
+  }
+  /*
+    Add an UNIQUE or PRIMARY key which is a part of a column definition:
+      CREATE TABLE t1 (a INT PRIMARY KEY);
+  */
+  void add_key_to_list(LEX_STRING *field_name,
+                       enum Key::Keytype type, bool check_exists);
   // Add a constraint as a part of CREATE TABLE or ALTER TABLE
   bool add_constraint(LEX_STRING *name, Virtual_column_info *constr,
                       bool if_not_exists)
