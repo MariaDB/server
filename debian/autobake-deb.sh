@@ -30,9 +30,17 @@ fi
 
 
 # Look up distro-version specific stuff
+#
 # Always keep the actual packaging as up-to-date as possible following the latest
 # Debian policy and targetting Debian Sid. Then case-by-case run in autobake-deb.sh
 # tests for backwards compatibility and strip away parts on older builders.
+
+# If iproute2 is not available (before Debian Jessie and Ubuntu Trusty)
+# fall back to the old iproute package.
+if ! apt-cache madison iproute2 | grep 'iproute2 *|' >/dev/null 2>&1
+then
+ sed 's/iproute2/iproute/' -i debian/control
+fi
 
 # If libcrack2 (>= 2.9.0) is not available (before Debian Jessie and Ubuntu Trusty)
 # clean away the cracklib stanzas so the package can build without them.
