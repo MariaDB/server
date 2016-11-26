@@ -2083,14 +2083,14 @@ private:
   void dec_thread_count(void)
   {
     DBUG_ASSERT(thread_count > 0);
-    thread_safe_decrement32(const_cast<int32*>(&thread_count));
+    thread_safe_decrement32(&thread_count);
     signal_thd_deleted();
   }
 
 
   void inc_thread_count(void)
   {
-    thread_safe_increment32(const_cast<int32*>(&thread_count));
+    thread_safe_increment32(&thread_count);
   }
 
 public:
