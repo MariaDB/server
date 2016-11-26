@@ -2394,7 +2394,8 @@ row_upd_sec_index_entry(
 			<< " of table " << index->table->name
 			<< " was not found on update: " << *entry
 			<< " at: " << rec_index_print(rec, index);
-		srv_mbr_print((unsigned char*)entry->fields[0].data);
+		if (entry->fields[0].data)
+			srv_mbr_print((unsigned char*)entry->fields[0].data);
 #ifdef UNIV_DEBUG
 		mtr_commit(&mtr);
 		mtr_start(&mtr);

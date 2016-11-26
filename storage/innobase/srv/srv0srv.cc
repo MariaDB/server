@@ -45,8 +45,6 @@ Created 10/8/1995 Heikki Tuuri
 //
 // #include "mysql/psi/mysql_stage.h"
 // #include "mysql/psi/psi.h"
-// JAN: TODO: MySQL 5.7 missing header
-//#include "sql_thd_internal_api.h"
 
 #include "ha_prototypes.h"
 
@@ -2757,7 +2755,7 @@ DECLARE_THREAD(srv_worker_thread)(
 	srv_sys_mutex_exit();
 
 	/* We need to ensure that the worker threads exit after the
-	purge coordinator thread. Otherwise the purge coordinaor can
+	purge coordinator thread. Otherwise the purge coordinator can
 	end up waiting forever in trx_purge_wait_for_workers_to_complete() */
 
 	do {

@@ -30,10 +30,6 @@ Completed by Sunny Bains and Marko Makela
 
 #include "ha_prototypes.h"
 
-#include <math.h>
-
-#include "ha_prototypes.h"
-
 #include "row0merge.h"
 #include "row0ext.h"
 #include "row0log.h"
@@ -51,7 +47,6 @@ Completed by Sunny Bains and Marko Makela
 #include "fsp0sysspace.h"
 #include "ut0new.h"
 #include "ut0stage.h"
-#include "math.h" /* log() */
 #include "fil0crypt.h"
 
 float my_log2f(float n)

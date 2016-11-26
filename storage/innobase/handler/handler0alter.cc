@@ -520,19 +520,7 @@ check_v_col_in_order(
 
 		ut_ad(innobase_is_v_fld(field));
 
-		/* Check if this column is in drop list */
-		List_iterator_fast<Alter_drop> cf_it(
-			ha_alter_info->alter_info->drop_list);
-
-		while ((drop = (cf_it++)) != NULL) {
-			if (my_strcasecmp(system_charset_info,
-					  field->field_name, drop->name) == 0) {
-				dropped = true;
-				break;
-			}
-		}
-
-		if (dropped) {
+		if (field->flags & FIELD_IS_DROPPED) {
 			continue;
 		}
 
@@ -863,7 +851,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	     new_key++) {
 
 #ifdef MYSQL_VIRTUAL_COLUMNS
-		/* Do not support adding/droping a vritual column, while
+		/* Do not support adding/droping a virtual column, while
 		there is a table rebuild caused by adding a new FTS_DOC_ID */
 		if ((new_key->flags & HA_FULLTEXT) && add_drop_v_cols
 		    && !DICT_TF2_FLAG_IS_SET(m_prebuilt->table,
@@ -880,7 +868,8 @@ ha_innobase::check_if_supported_inplace_alter(
 		     key_part++) {
 			const Create_field*	new_field;
 
-			DBUG_ASSERT(key_part->fieldnr < altered_table->s->fields);
+			DBUG_ASSERT(key_part->fieldnr
+				    < altered_table->s->fields);
 
 			cf_it.rewind();
 			for (uint fieldnr = 0; (new_field = cf_it++);
@@ -1853,7 +1842,9 @@ null_field:
 }
 
 /*************************************************************//**
-Copies an InnoDB index entry to table->record[0]. */
+Copies an InnoDB index entry to table->record[0].
+This is used in preparation for print_keydup_error() from
+inline add index */
 void
 innobase_fields_to_mysql(
 /*=====================*/
@@ -1913,7 +1904,9 @@ innobase_fields_to_mysql(
 }
 
 /*************************************************************//**
-Copies an InnoDB row to table->record[0]. */
+Copies an InnoDB row to table->record[0].
+This is used in preparation for print_keydup_error() from
+row_log_table_apply() */
 void
 innobase_row_to_mysql(
 /*==================*/
@@ -3775,7 +3768,7 @@ prepare_inplace_add_virtual(
 				charset_no += MAX_CHAR_COLL_NUM;);
 
 			if (charset_no > MAX_CHAR_COLL_NUM) {
-				my_error(ER_WRONG_KEY_COLUMN, MYF(0),
+				my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
 					 field->field_name);
 				return(true);
 			}
@@ -3919,7 +3912,7 @@ prepare_inplace_drop_virtual(
 				charset_no += MAX_CHAR_COLL_NUM;);
 
 			if (charset_no > MAX_CHAR_COLL_NUM) {
-				my_error(ER_WRONG_KEY_COLUMN, MYF(0),
+				my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
 					 field->field_name);
 				return(true);
 			}
@@ -4548,10 +4541,8 @@ prepare_inplace_alter_table_dict(
 		}
 	}
 
-	/*
-	There should be no order change for virtual columns coming in
-	here
-	*/
+	/* There should be no order change for virtual columns coming in
+	here */
 	ut_ad(check_v_col_in_order(old_table, altered_table, ha_alter_info));
 #endif /* MYSQL_VIRTUAL_COLUMNS */
 
@@ -4792,7 +4783,7 @@ prepare_inplace_alter_table_dict(
 				if (charset_no > MAX_CHAR_COLL_NUM) {
 					dict_mem_table_free(
 						ctx->new_table);
-					my_error(ER_WRONG_KEY_COLUMN, MYF(0),
+					my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
 						 field->field_name);
 					goto new_clustered_failed;
 				}
@@ -5578,7 +5569,6 @@ rename_index_in_cache(
 	DBUG_VOID_RETURN;
 }
 
-#
 /**
 Rename all indexes in data dictionary cache of a given table that are
 specified in ha_alter_info.

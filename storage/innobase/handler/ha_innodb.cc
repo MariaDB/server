@@ -476,6 +476,7 @@ static mysql_pfs_key_t	pending_checkpoint_mutex_key;
 
 static PSI_mutex_info	all_pthread_mutexes[] = {
 	PSI_KEY(commit_cond_mutex),
+	PSI_KEY(pending_checkpoint_mutex),
 	PSI_KEY(innobase_share_mutex)
 };
 
@@ -871,13 +872,17 @@ innobase_map_isolation_level(
 
 /** Gets field offset for a field in a table.
 @param[in]	table	MySQL table object
-@param[in]	field	MySQL field object
+@param[in]	field	MySQL field object (from table->field array)
 @return offset */
 static inline
 uint
 get_field_offset(
 	const TABLE*	table,
-	const Field*	field);
+	const Field*	field)
+{
+	return field->offset(table->record[0]);
+}
+
 
 /*************************************************************//**
 Check for a valid value of innobase_compression_algorithm.
@@ -3980,12 +3985,6 @@ innobase_init(
 	innobase_hton->commit_by_xid = innobase_commit_by_xid;
 	innobase_hton->rollback_by_xid = innobase_rollback_by_xid;
 	innobase_hton->commit_checkpoint_request=innobase_checkpoint_request;
-
-#ifdef INNOBASE_CURSOR_VIEW
-	innobase_hton->create_cursor_read_view = innobase_create_cursor_view;
-	innobase_hton->set_cursor_read_view = innobase_set_cursor_view;
-	innobase_hton->close_cursor_read_view = innobase_close_cursor_view;
-#endif
 	innobase_hton->create = innobase_create_handler;
 
 #ifdef MYSQL_TABLESPACES
@@ -5686,7 +5685,7 @@ ha_innobase::table_flags() const
 		all InnoDB features such as GEOMETRY, FULLTEXT etc. */
 		/* JAN: TODO: MySQL 5.7
 		flags &= ~(HA_INNOPART_DISABLED_TABLE_FLAGS);
-
+                }
 		*/
 	}
 
@@ -6126,8 +6125,6 @@ innobase_match_index_columns(
 			if (innodb_idx_fld >= innodb_idx_fld_end) {
 				DBUG_RETURN(FALSE);
 			}
-
-			mtype = innodb_idx_fld->col->mtype;
 		}
 
 		/* MariaDB-5.5 compatibility */
@@ -7310,19 +7307,6 @@ ha_innobase::close()
 }
 
 /* The following accessor functions should really be inside MySQL code! */
-
-/** Gets field offset for a field in a table.
-@param[in]	table	MySQL table object
-@param[in]	field	MySQL field object
-@return offset */
-static inline
-uint
-get_field_offset(
-	const TABLE*	table,
-	const Field*	field)
-{
-	return(static_cast<uint>((field->ptr - table->record[0])));
-}
 
 #ifdef WITH_WSREP
 UNIV_INTERN
@@ -9649,7 +9633,7 @@ wsrep_calc_row_hash(
 }
 #endif /* WITH_WSREP */
 
-/*
+/**
 Updates a row given as a parameter to a new value. Note that we are given
 whole rows, not just the fields which are updated: this incurs some
 overhead for CPU when we check which fields are actually updated.
@@ -9694,10 +9678,9 @@ ha_innobase::update_row(
 			+ MAX_REF_PARTS * 3;
 
 		m_upd_buf = reinterpret_cast<uchar*>(
-			my_malloc(
-				m_upd_buf_size,
+			my_malloc(//PSI_INSTRUMENT_ME,
+                                  m_upd_buf_size,
 				MYF(MY_WME)));
-		/* JAN: TODO: MySQL 5.7: PSI_INSTRUMENT_ME,...*/
 
 		if (m_upd_buf == NULL) {
 			m_upd_buf_size = 0;
@@ -10942,10 +10925,7 @@ ha_innobase::ft_init_ext(
 
 	/* Allocate FTS handler, and instantiate it before return */
 	fts_hdl = reinterpret_cast<NEW_FT_INFO*>(
-		my_malloc(sizeof(NEW_FT_INFO), MYF(0)));
-		/* JAN: TODO: MySQL 5.7 PSI
-		my_malloc(PSI_INSTRUMENT_ME, sizeof(NEW_FT_INFO), MYF(0)));
-		*/
+		my_malloc(/*PSI_INSTRUMENT_ME,*/ sizeof(NEW_FT_INFO), MYF(0)));
 
 	fts_hdl->please = const_cast<_ft_vft*>(&ft_vft_result);
 	fts_hdl->could_you = const_cast<_ft_vft_ext*>(&ft_vft_ext_result);
@@ -12356,13 +12336,7 @@ create_index(
 		ind_type |= DICT_UNIQUE;
 	}
 
-	/* JAN: TODO: MySQL 5.7 PSI
-	field_lengths = (ulint*) my_malloc(PSI_INSTRUMENT_ME,
-		key->user_defined_key_parts * sizeof *
-				field_lengths, MYF(MY_FAE));
-	*/
-
-	field_lengths = (ulint*) my_malloc(
+	field_lengths = (ulint*) my_malloc(//PSI_INSTRUMENT_ME,
 		key->user_defined_key_parts * sizeof *
 				field_lengths, MYF(MY_FAE));
 
@@ -12589,8 +12563,7 @@ validate_tablespace_name(
 				err = HA_WRONG_CREATE_OPTION;
 			}
 		} else {
-			my_printf_error(
-				ER_WRONG_TABLESPACE_NAME,
+			my_printf_error(ER_WRONG_TABLESPACE_NAME,
 					"InnoDB: A general tablespace"
 					" name cannot start with `%s`.",
 					MYF(0), reserved_space_name_prefix);
@@ -13433,8 +13406,6 @@ index_bad:
 			DBUG_RETURN(false);
 		}
 	}
-
-	//rec_format_t row_format = m_form->s->row_type;
 
 	if (m_create_info->key_block_size > 0) {
 		/* The requested compressed page size (key_block_size)
@@ -15114,9 +15085,7 @@ innobase_drop_database(
 	}
 
 	ptr++;
-	namebuf = (char*) my_malloc((uint) len + 2, MYF(0));
-	// JAN: TODO: MySQL 5.7
-	//namebuf = (char*) my_malloc(PSI_INSTRUMENT_ME, (uint) len + 2, MYF(0));
+	namebuf = (char*) my_malloc(/*PSI_INSTRUMENT_ME,*/ (uint) len + 2, MYF(0));
 
 	memcpy(namebuf, ptr, len);
 	namebuf[len] = '/';
@@ -15366,8 +15335,9 @@ For other error codes, the server will fall back to counting records. */
 
 #ifdef MYSQL_57_SELECT_COUNT_OPTIMIZATION
 int
-ha_innobase::records(ha_rows* num_rows)
-/*===================================*/
+ha_innobase::records(
+/*==================*/
+	ha_rows*			num_rows) /*!< out: number of rows */
 {
 	DBUG_ENTER("ha_innobase::records()");
 
@@ -15439,16 +15409,15 @@ ha_innobase::records(ha_rows* num_rows)
 	case DB_LOCK_WAIT_TIMEOUT:
 		*num_rows = HA_POS_ERROR;
 		DBUG_RETURN(convert_error_code_to_mysql(ret, 0, m_user_thd));
-		break;
 	case DB_INTERRUPTED:
 		*num_rows = HA_POS_ERROR;
 		DBUG_RETURN(HA_ERR_QUERY_INTERRUPTED);
-		break;
 	default:
 		/* No other error besides the three below is returned from
 		row_scan_index_for_mysql(). Make a debug catch. */
 		*num_rows = HA_POS_ERROR;
 		ut_ad(0);
+		DBUG_RETURN(-1);
 	}
 
 	m_prebuilt->trx->op_info = "";
@@ -17894,12 +17863,8 @@ innodb_show_status(
 	/* allocate buffer for the string, and
 	read the contents of the temporary file */
 
-	/* JAN: TODO: MySQL 5.7 PSI */
-	if (!(str = (char*) my_malloc(
+	if (!(str = (char*) my_malloc(//PSI_INSTRUMENT_ME,
 				usable_len + 1, MYF(0)))) {
-		/*	if (!(str = (char*) my_malloc(PSI_INSTRUMENT_ME,
-				usable_len + 1, MYF(0)))) {
-		*/
 		mutex_exit(&srv_monitor_file_mutex);
 		DBUG_RETURN(1);
 	}
@@ -18334,15 +18299,9 @@ get_share(
 		grows too big */
 
 		share = reinterpret_cast<INNOBASE_SHARE*>(
-			my_malloc(
+			my_malloc(//PSI_INSTRUMENT_ME,
 				  sizeof(*share) + length + 1,
 				  MYF(MY_FAE | MY_ZEROFILL)));
-		/* JAN: TODO: MySQL 5.7 PSI
-		share = reinterpret_cast<INNOBASE_SHARE*>(
-			my_malloc(PSI_INSTRUMENT_ME,
-				  sizeof(*share) + length + 1,
-				  MYF(MY_FAE | MY_ZEROFILL)));
-		*/
 
 		share->table_name = reinterpret_cast<char*>(
 			memcpy(share + 1, table_name, length + 1));
@@ -19319,64 +19278,6 @@ innobase_rollback_by_xid(
 		return(XAER_NOTA);
 	}
 }
-
-#ifdef INNOBASE_CURSOR_VIEW
-
-/*******************************************************************//**
-Create a consistent view for a cursor based on current transaction
-which is created if the corresponding MySQL thread still lacks one.
-This consistent view is then used inside of MySQL when accessing records
-using a cursor.
-@return	pointer to cursor view or NULL */
-static
-void*
-innobase_create_cursor_view(
-/*========================*/
-	handlerton*	hton,	/*!< in: innobase hton */
-	THD*		thd)	/*!< in: user thread handle */
-{
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	return(read_cursor_view_create_for_mysql(check_trx_exists(thd)));
-}
-
-/*******************************************************************//**
-Close the given consistent cursor view of a transaction and restore
-global read view to a transaction read view. Transaction is created if the
-corresponding MySQL thread still lacks one. */
-static
-void
-innobase_close_cursor_view(
-/*=======================*/
-	handlerton*	hton,	/*!< in: innobase hton */
-	THD*		thd,	/*!< in: user thread handle */
-	void*		curview)/*!< in: Consistent read view to be closed */
-{
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	read_cursor_view_close_for_mysql(check_trx_exists(thd),
-					 (cursor_view_t*) curview);
-}
-
-/*******************************************************************//**
-Set the given consistent cursor view to a transaction which is created
-if the corresponding MySQL thread still lacks one. If the given
-consistent cursor view is NULL global read view of a transaction is
-restored to a transaction read view. */
-static
-void
-innobase_set_cursor_view(
-/*=====================*/
-	handlerton*	hton,	/*!< in: innobase hton */
-	THD*		thd,	/*!< in: user thread handle */
-	void*		curview)/*!< in: Consistent cursor view to be set */
-{
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	read_cursor_set_for_mysql(check_trx_exists(thd),
-				  (cursor_view_t*) curview);
-}
-#endif /* INNOBASE_CURSOR_VIEW */
 
 bool
 ha_innobase::check_if_incompatible_data(
@@ -20531,12 +20432,8 @@ innodb_monitor_validate(
 	by InnoDB, so we can access it in another callback
 	function innodb_monitor_update() and free it appropriately */
 	if (name) {
-		/* JAN: TODO: MySQL 5.7 PSI
-		monitor_name = my_strdup(PSI_INSTRUMENT_ME,
+		monitor_name = my_strdup(//PSI_INSTRUMENT_ME,
                                          name, MYF(0));
-		*/
-		monitor_name = my_strdup(
-					name, MYF(0));
 	} else {
 		return(1);
 	}
@@ -21860,7 +21757,7 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
     " write a constant magic number, do not allow values other than that"
     " magic number when reading;"
   " Files updated when this option is set to crc32 or strict_crc32 will"
-  " not be readable by InnoDB versions older than 5.6.3",
+  " not be readable by MariaDB versions older than 10.0.4",
   NULL, NULL, SRV_CHECKSUM_ALGORITHM_CRC32,
   &innodb_checksum_algorithm_typelib);
 
@@ -23786,11 +23683,6 @@ innobase_get_computed_value(
 		      stderr);
 		dtuple_print(stderr, row);
 #endif /* INNODB_VIRTUAL_DEBUG */
-		return(NULL);
-	}
-
-	/* we just want to store the data in passed in MySQL record */
-	if (ret != 0) {
 		return(NULL);
 	}
 

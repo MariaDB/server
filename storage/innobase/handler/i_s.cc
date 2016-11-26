@@ -9406,11 +9406,8 @@ i_s_innodb_mutexes_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	ib_mutex_t*	mutex;
 	rw_lock_t*	lock;
-	ulint		block_mutex_oswait_count = 0;
 	ulint		block_lock_oswait_count = 0;
-	ib_mutex_t*	block_mutex = NULL;
 	rw_lock_t*	block_lock = NULL;
 	Field**		fields = tables->table->field;
 
@@ -9425,6 +9422,9 @@ i_s_innodb_mutexes_fill_table(
 	// mutex_enter(&mutex_list_mutex);
 
 #ifdef JAN_TODO_FIXME
+	ib_mutex_t*	mutex;
+	ulint		block_mutex_oswait_count = 0;
+	ib_mutex_t*	block_mutex = NULL;
 	for (mutex = UT_LIST_GET_FIRST(os_mutex_list); mutex != NULL;
 	     mutex = UT_LIST_GET_NEXT(list, mutex)) {
 		if (mutex->count_os_wait == 0) {
