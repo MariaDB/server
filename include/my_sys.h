@@ -698,7 +698,7 @@ extern FILE *my_fdopen(File Filedes,const char *name, int Flags,myf MyFlags);
 extern FILE *my_freopen(const char *path, const char *mode, FILE *stream);
 extern int my_fclose(FILE *fd,myf MyFlags);
 extern int my_vfprintf(FILE *stream, const char* format, va_list args);
-extern void my_strerror(char *buf, size_t len, int nr);
+extern const char* my_strerror(char *buf, size_t len, int nr);
 extern int my_fprintf(FILE *stream, const char* format, ...);
 extern File my_fileno(FILE *fd);
 extern int my_chsize(File fd,my_off_t newlength, int filler, myf MyFlags);

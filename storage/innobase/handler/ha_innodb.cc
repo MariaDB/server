@@ -2619,11 +2619,10 @@ innobase_mysql_tmpfile(
 			char errbuf[MYSYS_STRERROR_SIZE];
 			DBUG_PRINT("error",("Got error %d on dup",fd2));
 			set_my_errno(errno);
-			my_strerror(errbuf, sizeof(errbuf), my_errno);
 			my_error(EE_OUT_OF_FILERESOURCES,
 				 MYF(0),
-				 "ib*", my_errno,
-				 errbuf);
+				 "ib*", errno,
+				  my_strerror(errbuf, sizeof(errbuf), errno));
 		}
 		my_close(fd, MYF(MY_WME));
 	}
@@ -16092,8 +16091,7 @@ ha_innobase::info_low(
 				char	errbuf[MYSYS_STRERROR_SIZE];
 
 				thd = ha_thd();
-				my_strerror(errbuf, sizeof(errbuf),
-					    errno);
+
 				push_warning_printf(
 					thd,
 					Sql_condition::WARN_LEVEL_WARN,
@@ -16105,8 +16103,8 @@ ha_innobase::info_low(
 					" the free space to zero."
 					" (errno: %d - %s)",
 					ib_table->name.m_name, errno,
-					errbuf);
-
+					my_strerror(errbuf, sizeof(errbuf),
+						    errno));
 
 				stats.delete_length = 0;
 			} else {
