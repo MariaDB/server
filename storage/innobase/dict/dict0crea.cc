@@ -2189,7 +2189,6 @@ Add a foreign key definition to the data dictionary tables.
 dberr_t
 dict_create_add_foreign_to_dictionary(
 /*==================================*/
-	dict_table_t*		table,	/*!< in: table */
 	const char*		name,	/*!< in: table name */
 	const dict_foreign_t*	foreign,/*!< in: foreign key */
 	trx_t*			trx)	/*!< in/out: dictionary transaction */
@@ -2231,8 +2230,7 @@ dict_create_add_foreign_to_dictionary(
 			char*	fk_def;
 
 			innobase_convert_name(tablename, MAX_TABLE_NAME_LEN,
-				table->name.m_name, strlen(table->name.m_name),
-				trx->mysql_thd);
+				name, strlen(name), trx->mysql_thd);
 
 			innobase_convert_name(buf, MAX_TABLE_NAME_LEN,
 				foreign->id, strlen(foreign->id), trx->mysql_thd);
@@ -2263,8 +2261,7 @@ dict_create_add_foreign_to_dictionary(
 			char*	fk_def;
 
 			innobase_convert_name(tablename, MAX_TABLE_NAME_LEN,
-				table->name.m_name, strlen(table->name.m_name),
-				trx->mysql_thd);
+				name, strlen(name), trx->mysql_thd);
 			innobase_convert_name(buf, MAX_TABLE_NAME_LEN,
 				foreign->id, strlen(foreign->id), trx->mysql_thd);
 			fk_def = dict_foreign_def_get((dict_foreign_t*)foreign, trx);
@@ -2513,7 +2510,7 @@ dict_create_add_foreigns_to_dictionary(
 		ut_ad(foreign->id != NULL);
 
 		error = dict_create_add_foreign_to_dictionary(
-			(dict_table_t*)table, table->name.m_name, foreign, trx);
+			table->name.m_name, foreign, trx);
 
 		if (error != DB_SUCCESS) {
 

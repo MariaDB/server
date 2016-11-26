@@ -7697,7 +7697,7 @@ innobase_update_foreign_try(
 		names, while the columns in ctx->old_table have not
 		been renamed yet. */
 		error = dict_create_add_foreign_to_dictionary(
-			(dict_table_t*)ctx->old_table,ctx->old_table->name.m_name, fk, trx);
+			ctx->old_table->name.m_name, fk, trx);
 
 		DBUG_EXECUTE_IF(
 			"innodb_test_cannot_add_fk_system",
