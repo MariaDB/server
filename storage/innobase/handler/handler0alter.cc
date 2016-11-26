@@ -2183,7 +2183,6 @@ innobase_create_index_field_def(
 #else
 	index_field->is_v_col = false;
 	index_field->col_no = key_part->fieldnr - num_m_v;
-	index_field->col_name = altered_table ? field->field_name : fields[key_part->fieldnr]->field_name;
 #endif /* MYSQL_VIRTUAL_COLUMNS */
 
 	if (DATA_LARGE_MTYPE(col_type)

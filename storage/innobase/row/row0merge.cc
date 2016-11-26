@@ -4509,9 +4509,7 @@ row_merge_create_index(
 			if (col_names && col_names[i]) {
 				name = col_names[i];
 			} else {
-				name = ifield->col_name ?
-					dict_table_get_col_name_for_mysql(table, ifield->col_name) :
-					dict_table_get_col_name(table, ifield->col_no);
+				name = dict_table_get_col_name(table, ifield->col_no);
 			}
 		}
 
