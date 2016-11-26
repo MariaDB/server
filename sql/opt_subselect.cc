@@ -5228,7 +5228,7 @@ int select_value_catcher::setup(List<Item> *items)
   List_iterator<Item> li(*items);
   for (uint i= 0; (sel_item= li++); i++)
   {
-    if (!(row[i]= Item_cache::get_cache(thd, sel_item)))
+    if (!(row[i]= sel_item->get_cache(thd)))
       return TRUE;
     row[i]->setup(thd, sel_item);
   }

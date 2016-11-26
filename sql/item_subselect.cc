@@ -1057,7 +1057,7 @@ void Item_maxmin_subselect::no_rows_in_result()
   */
   if (parsing_place != SELECT_LIST || const_item())
     return;
-  value= Item_cache::get_cache(thd, new (thd->mem_root) Item_null(thd));
+  value= (new (thd->mem_root) Item_null(thd))->get_cache(thd);
   null_value= 0;
   was_values= 0;
   make_const();
@@ -1075,7 +1075,7 @@ void Item_singlerow_subselect::no_rows_in_result()
   */
   if (parsing_place != SELECT_LIST || const_item())
     return;
-  value= Item_cache::get_cache(thd, new (thd->mem_root) Item_null(thd));
+  value= (new (thd->mem_root) Item_null(thd))->get_cache(thd);
   reset();
   make_const();
 }
@@ -1165,12 +1165,17 @@ void Item_singlerow_subselect::store(uint i, Item *item)
 
 enum Item_result Item_singlerow_subselect::result_type() const
 {
-  return engine->type();
+  return engine->result_type();
 }
 
 enum Item_result Item_singlerow_subselect::cmp_type() const
 {
-  return engine->cmptype();
+  return engine->cmp_type();
+}
+
+const Type_handler *Item_singlerow_subselect::type_handler() const
+{
+  return engine->type_handler();
 }
 
 /* 
@@ -3635,24 +3640,21 @@ void subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
 {
   Item *sel_item;
   List_iterator_fast<Item> li(item_list);
-  cmp_type= res_type= STRING_RESULT;
-  res_field_type= MYSQL_TYPE_VAR_STRING;
+  set_handler(&type_handler_varchar);
   for (uint i= 0; (sel_item= li++); i++)
   {
     item->max_length= sel_item->max_length;
-    res_type= sel_item->result_type();
-    cmp_type= sel_item->cmp_type();
-    res_field_type= sel_item->field_type();
+    set_handler(sel_item->type_handler());
     item->decimals= sel_item->decimals;
     item->unsigned_flag= sel_item->unsigned_flag;
     maybe_null= sel_item->maybe_null;
-    if (!(row[i]= Item_cache::get_cache(thd, sel_item, sel_item->cmp_type())))
+    if (!(row[i]= sel_item->get_cache(thd)))
       return;
     row[i]->setup(thd, sel_item);
  //psergey-backport-timours:   row[i]->store(sel_item);
   }
   if (item_list.elements > 1)
-    cmp_type= res_type= ROW_RESULT;
+    set_handler(&type_handler_row);
 }
 
 void subselect_single_select_engine::fix_length_and_dec(Item_cache **row)

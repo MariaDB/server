@@ -6936,7 +6936,7 @@ Item* Item::cache_const_expr_transformer(THD *thd, uchar *arg)
   if (*(bool*)arg)
   {
     *((bool*)arg)= FALSE;
-    Item_cache *cache= Item_cache::get_cache(thd, this);
+    Item_cache *cache= get_cache(thd);
     if (!cache)
       return NULL;
     cache->setup(thd, this);
@@ -7976,7 +7976,7 @@ Item_cache_wrapper::Item_cache_wrapper(THD *thd, Item *item_arg):
   name_length= item_arg->name_length;
   with_subselect=  orig_item->with_subselect;
 
-  if ((expr_value= Item_cache::get_cache(thd, orig_item)))
+  if ((expr_value= orig_item->get_cache(thd)))
     expr_value->setup(thd, orig_item);
 
   fixed= 1;
@@ -9281,41 +9281,6 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
   return 0;
 }
 
-Item_cache* Item_cache::get_cache(THD *thd, const Item *item)
-{
-  return get_cache(thd, item, item->cmp_type());
-}
-
-
-/**
-  Get a cache item of given type.
-
-  @param item         value to be cached
-  @param type         required type of cache
-
-  @return cache item
-*/
-
-Item_cache* Item_cache::get_cache(THD *thd, const Item *item,
-                                  const Item_result type)
-{
-  MEM_ROOT *mem_root= thd->mem_root;
-  switch (type) {
-  case INT_RESULT:
-    return new (mem_root) Item_cache_int(thd, item->field_type());
-  case REAL_RESULT:
-    return new (mem_root) Item_cache_real(thd);
-  case DECIMAL_RESULT:
-    return new (mem_root) Item_cache_decimal(thd);
-  case STRING_RESULT:
-    return new (mem_root) Item_cache_str(thd, item);
-  case ROW_RESULT:
-    return new (mem_root) Item_cache_row(thd);
-  case TIME_RESULT:
-    return new (mem_root) Item_cache_temporal(thd, item->field_type());
-  }
-  return 0;                                     // Impossible
-}
 
 void Item_cache::store(Item *item)
 {
@@ -9829,7 +9794,7 @@ bool Item_cache_row::setup(THD *thd, Item *item)
   {
     Item *el= item->element_index(i);
     Item_cache *tmp;
-    if (!(tmp= values[i]= Item_cache::get_cache(thd, el)))
+    if (!(tmp= values[i]= el->get_cache(thd)))
       return 1;
     tmp->setup(thd, el);
   }

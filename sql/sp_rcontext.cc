@@ -387,7 +387,7 @@ Item_cache *sp_rcontext::create_case_expr_holder(THD *thd,
 
   thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
 
-  holder= Item_cache::get_cache(thd, item);
+  holder= item->get_cache(thd);
 
   thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
 
