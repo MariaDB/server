@@ -301,7 +301,7 @@ bool Item_sum_hybrid_simple::add()
 
 void Item_sum_hybrid_simple::setup_hybrid(THD *thd, Item *item)
 {
-  if (!(value= Item_cache::get_cache(thd, item, item->cmp_type())))
+  if (!(value= item->get_cache(thd)))
     return;
   value->setup(thd, item);
   value->store(item);

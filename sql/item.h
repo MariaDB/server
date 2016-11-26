@@ -697,6 +697,10 @@ public:
   {
     return Type_handler::string_type_handler(max_length)->field_type();
   }
+  Item_cache* get_cache(THD *thd) const
+  {
+    return type_handler()->Item_get_cache(thd, this);
+  }
   virtual enum Type type() const =0;
   /*
     real_type() is the type of base item.  This is same as type() for
@@ -5241,8 +5245,6 @@ public:
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
 
-  static Item_cache* get_cache(THD *thd, const Item *item);
-  static Item_cache* get_cache(THD *thd, const Item* item, const Item_result type);
   virtual void keep_array() {}
   virtual void print(String *str, enum_query_type query_type);
   bool eq_def(const Field *field) 

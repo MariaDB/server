@@ -25,6 +25,7 @@
 
 class Field;
 class Item;
+class Item_cache;
 class Type_std_attributes;
 class Sort_param;
 class Arg_comparator;
@@ -286,6 +287,7 @@ public:
 
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
+  virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
 };
 
@@ -338,6 +340,7 @@ public:
     DBUG_ASSERT(0);
     return 1;
   }
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
@@ -356,6 +359,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
@@ -373,6 +377,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
@@ -390,6 +395,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
@@ -405,6 +411,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
@@ -424,6 +431,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
 };
 
@@ -836,5 +844,6 @@ public:
 
 extern Type_handler_row   type_handler_row;
 extern Type_handler_null  type_handler_null;
+extern Type_handler_varchar type_handler_varchar;
 
 #endif /* SQL_TYPE_H_INCLUDED */

@@ -608,8 +608,8 @@ bool Arg_comparator::set_cmp_func_string()
     if (owner->agg_arg_charsets_for_comparison(&m_compare_collation, a, b))
       return true;
   }
-  a= cache_converted_constant(thd, a, &a_cache, compare_type());
-  b= cache_converted_constant(thd, b, &b_cache, compare_type());
+  a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
   return false;
 }
 
@@ -656,8 +656,8 @@ bool Arg_comparator::set_cmp_func_int()
     if ((*a)->unsigned_flag ^ (*b)->unsigned_flag)
       func= &Arg_comparator::compare_e_int_diff_signedness;
   }
-  a= cache_converted_constant(thd, a, &a_cache, compare_type());
-  b= cache_converted_constant(thd, b, &b_cache, compare_type());
+  a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
   return false;
 }
 
@@ -674,8 +674,8 @@ bool Arg_comparator::set_cmp_func_real()
     else if (func == &Arg_comparator::compare_e_real)
       func= &Arg_comparator::compare_e_real_fixed;
   }
-  a= cache_converted_constant(thd, a, &a_cache, compare_type());
-  b= cache_converted_constant(thd, b, &b_cache, compare_type());
+  a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
   return false;
 }
 
@@ -684,8 +684,8 @@ bool Arg_comparator::set_cmp_func_decimal()
 {
   func= is_owner_equal_func() ? &Arg_comparator::compare_e_decimal :
                                 &Arg_comparator::compare_decimal;
-  a= cache_converted_constant(thd, a, &a_cache, compare_type());
-  b= cache_converted_constant(thd, b, &b_cache, compare_type());
+  a= cache_converted_constant(thd, a, &a_cache, compare_type_handler());
+  b= cache_converted_constant(thd, b, &b_cache, compare_type_handler());
   return false;
 }
 
@@ -709,18 +709,22 @@ bool Arg_comparator::set_cmp_func_decimal()
 
 Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
                                                 Item **cache_item,
-                                                Item_result type)
+                                                const Type_handler *handler)
 {
   /*
+    get_datetime_value creates Item_cache internally when comparing
+    values for the first row.
+    Arg_comparator::cache_converted_constant() is never called for TIME_RESULT.
+  */
+  DBUG_ASSERT(handler->cmp_type() != TIME_RESULT);
+  /*
     Don't need cache if doing context analysis only.
-    Also, get_datetime_value creates Item_cache internally.
-    Unless fixed, we should not do it here.
   */
   if (!thd_arg->lex->is_ps_or_view_context_analysis() &&
-      (*value)->const_item() && type != (*value)->result_type() &&
-      type != TIME_RESULT)
+      (*value)->const_item() &&
+      handler->cmp_type() != (*value)->cmp_type())
   {
-    Item_cache *cache= Item_cache::get_cache(thd_arg, *value, type);
+    Item_cache *cache= handler->Item_get_cache(thd_arg, *value);
     cache->setup(thd_arg, *value);
     *cache_item= cache;
     return cache_item;
@@ -1285,7 +1289,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
     args[0]= ((Item_in_subselect *)args[1])->left_expr;
   }
   if ((!(*ref0)->fixed && (*ref0)->fix_fields(thd, ref0)) ||
-      (!cache && !(cache= Item_cache::get_cache(thd, *ref0))))
+      (!cache && !(cache= (*ref0)->get_cache(thd))))
     DBUG_RETURN(1);
   /*
     During fix_field() expression could be substituted.
@@ -2710,7 +2714,7 @@ Item_func_nullif::fix_length_and_dec()
     */
     m_cache= args[0]->cmp_type() == STRING_RESULT ?
              new (thd->mem_root) Item_cache_str_for_nullif(thd, args[0]) :
-             Item_cache::get_cache(thd, args[0]);
+             args[0]->get_cache(thd);
     m_cache->setup(thd, args[0]);
     m_cache->store(args[0]);
     m_cache->set_used_tables(args[0]->used_tables());

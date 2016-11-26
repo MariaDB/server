@@ -118,7 +118,7 @@ public:
   int compare_e_time()     { return compare_e_temporal(MYSQL_TYPE_TIME); }
 
   Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
-                                  Item_result type);
+                                  const Type_handler *type);
   inline bool is_owner_equal_func()
   {
     return (owner->type() == Item::FUNC_ITEM &&

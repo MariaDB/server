@@ -40,7 +40,6 @@ static Type_handler_timestamp2  type_handler_timestamp2;
 static Type_handler_olddecimal  type_handler_olddecimal;
 static Type_handler_newdecimal  type_handler_newdecimal;
 static Type_handler_string      type_handler_string;
-static Type_handler_varchar     type_handler_varchar;
 static Type_handler_tiny_blob   type_handler_tiny_blob;
 static Type_handler_medium_blob type_handler_medium_blob;
 static Type_handler_long_blob   type_handler_long_blob;
@@ -54,6 +53,7 @@ static Type_handler_set         type_handler_set;
 
 Type_handler_null        type_handler_null;
 Type_handler_row         type_handler_row;
+Type_handler_varchar     type_handler_varchar;
 
 
 /**
@@ -722,3 +722,42 @@ bool Type_handler_temporal_result::set_comparator_func(Arg_comparator *cmp) cons
 
 
 /*************************************************************************/
+
+Item_cache *
+Type_handler_row::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_row(thd);
+}
+
+Item_cache *
+Type_handler_int_result::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_int(thd, item->field_type());
+}
+
+Item_cache *
+Type_handler_real_result::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_real(thd);
+}
+
+Item_cache *
+Type_handler_decimal_result::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_decimal(thd);
+}
+
+Item_cache *
+Type_handler_string_result::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_str(thd, item);
+}
+
+Item_cache *
+Type_handler_temporal_result::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_temporal(thd, item->field_type());
+}
+
+/*************************************************************************/
+
