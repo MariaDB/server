@@ -46,8 +46,8 @@ Conflicts: mariadb-galera-server-10.0 (<< 10.0.5),
            mariadb-server-5.2,
            mariadb-server-5.3,
            mariadb-server-5.5 (<< 5.5.33)
-Replaces: libmariadbclient18
-Provides: libmariadbclient18, default-libmysqlclient-dev, libmariadbclient-dev-compat
+Replaces: libmariadbclient18, libmysqlclient18, libmysqlclient19, libmysqlclient20
+Provides: libmariadbclient18, libmysqlclient18, libmysqlclient19, libmysqlclient20
 Description: MariaDB database client library
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -60,7 +60,6 @@ Package: libmysqlclient18
 Section: libs
 Architecture: any
 Depends: libmariadb3 (= ${binary:Version}), ${misc:Depends}
-Replaces: libmysqlclient18 (<< ${source:Version})
 Description: Virtual package to satisfy external depends
  This is an empty package that depends on the libmariadb3
  package.
