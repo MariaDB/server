@@ -3863,18 +3863,6 @@ public:
   }
 
   LEX_STRING *engine_name() { return hton_name(ht); }
-
-  /*
-    @brief
-    Check whether the engine supports virtual columns
-    
-    @retval
-      FALSE   if the engine does not support virtual columns    
-    @retval
-      TRUE    if the engine supports virtual columns
-  */
-
-  virtual bool check_if_supported_virtual_columns(void) { return FALSE;}
   
   TABLE* get_table() { return table; }
   TABLE_SHARE* get_table_share() { return table_share; }
