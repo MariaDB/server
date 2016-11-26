@@ -1453,6 +1453,7 @@ public:
   }
 
   bool save_in_field_default_value(bool view_eror_processing);
+  bool save_in_field_ignore_value(bool view_error_processing);
 
   friend int cre_myisam(char * name, register TABLE *form, uint options,
 			ulonglong auto_increment_value);

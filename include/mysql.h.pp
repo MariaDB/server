@@ -21,7 +21,8 @@ enum enum_indicator_type
 {
   STMT_INDICATOR_NONE= 0,
   STMT_INDICATOR_NULL,
-  STMT_INDICATOR_DEFAULT
+  STMT_INDICATOR_DEFAULT,
+  STMT_INDICATOR_IGNORE
 };
 struct st_vio;
 typedef struct st_vio Vio;

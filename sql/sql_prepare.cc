@@ -1012,6 +1012,9 @@ static bool insert_bulk_params(Prepared_statement *stmt,
       case STMT_INDICATOR_DEFAULT:
         param->set_default();
         break;
+      case STMT_INDICATOR_IGNORE:
+        param->set_ignore();
+        break;
       }
     }
     else

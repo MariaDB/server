@@ -12500,6 +12500,12 @@ expr_or_default:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
+        | IGNORE_SYM
+          {
+            $$= new (thd->mem_root) Item_ignore_value(thd, Lex->current_context());
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
         ;
 
 opt_insert_update:

@@ -10861,3 +10861,15 @@ bool Field::save_in_field_default_value(bool view_error_processing)
     validate_value_in_record_with_warn(thd, table->record[0]) &&
     thd->is_error() ? -1 : 0;
 }
+
+
+bool Field::save_in_field_ignore_value(bool view_error_processing)
+{
+  enum_sql_command com= table->in_use->lex->sql_command;
+  // All insert-like commands
+  if (com == SQLCOM_INSERT || com == SQLCOM_REPLACE ||
+      com == SQLCOM_INSERT_SELECT || com == SQLCOM_REPLACE_SELECT ||
+      com == SQLCOM_LOAD)
+    return save_in_field_default_value(view_error_processing);
+  return 0; // ignore
+}

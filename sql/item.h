@@ -2806,7 +2806,7 @@ public:
   {
     NO_VALUE, NULL_VALUE, INT_VALUE, REAL_VALUE,
     STRING_VALUE, TIME_VALUE, LONG_DATA_VALUE,
-    DECIMAL_VALUE, DEFAULT_VALUE
+    DECIMAL_VALUE, DEFAULT_VALUE, IGNORE_VALUE
   } state;
 
   struct CONVERSION_INFO
@@ -2898,6 +2898,7 @@ public:
   int  save_in_field(Field *field, bool no_conversions);
 
   void set_default();
+  void set_ignore();
   void set_null();
   void set_int(longlong i, uint32 max_length_arg);
   void set_double(double i);
@@ -5165,6 +5166,37 @@ public:
 
   Item *transform(THD *thd, Item_transformer transformer, uchar *args);
 };
+
+/**
+  This class is used as bulk parameter INGNORE representation.
+
+  It just do nothing when assigned to a field
+
+*/
+
+class Item_ignore_value : public Item_default_value
+{
+public:
+  Item_ignore_value(THD *thd, Name_resolution_context *context_arg)
+    :Item_default_value(thd, context_arg)
+  {};
+
+  void print(String *str, enum_query_type query_type);
+  int save_in_field(Field *field_arg, bool no_conversions);
+  bool save_in_param(THD *thd, Item_param *param)
+  {
+    param->set_ignore();
+    return false;
+  }
+
+  String *val_str(String *str);
+  double val_real();
+  longlong val_int();
+  my_decimal *val_decimal(my_decimal *decimal_value);
+  bool get_date(MYSQL_TIME *ltime,ulonglong fuzzydate);
+  bool send(Protocol *protocol, String *buffer);
+};
+
 
 /*
   Item_insert_value -- an implementation of VALUES() function.

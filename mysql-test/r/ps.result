@@ -4668,41 +4668,41 @@ a	b
 DROP TABLE t1;
 CREATE TABLE t1 (a INT DEFAULT 10);
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?+1)' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (CONCAT(?,?))' USING DEFAULT, 'test';
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP TABLE t1;
 CREATE TABLE t1 (a INT DEFAULT 10);
 INSERT INTO t1 VALUES (20);
 EXECUTE IMMEDIATE 'UPDATE t1 SET a=?+1' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'UPDATE t1 SET a=CONCAT(?,?)' USING DEFAULT, 'test';
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP TABLE t1;
 EXECUTE IMMEDIATE 'SELECT CAST(? AS SIGNED)' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SELECT CAST(? AS DOUBLE)' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SELECT CAST(? AS CHAR)' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SELECT CAST(? AS DECIMAL(10,1))' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SELECT CAST(? AS TIME)' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SELECT CAST(? AS DATE)' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SELECT CAST(? AS DATETIME)' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SELECT ?+1' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SELECT CONCAT(?,?)' USING DEFAULT,'test';
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SELECT 1 LIMIT ?' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 CREATE TABLE t1 (a INT DEFAULT 10);
 INSERT INTO t1 VALUES (1),(2),(3);
 EXECUTE IMMEDIATE 'SELECT * FROM t1 LIMIT ?' USING DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP TABLE t1;
 # The output of this query in 'Note' is a syntactically incorrect query.
 # But as it's never logged, it's ok. It should be human readable only.
@@ -4714,5 +4714,5 @@ Note	1003	select default AS `?`
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING DEFAULT,DEFAULT;
-ERROR HY000: Default value is not supported for such parameter usage
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 DROP TABLE t1;

@@ -130,7 +130,8 @@ enum enum_indicator_type
 {
   STMT_INDICATOR_NONE= 0,
   STMT_INDICATOR_NULL,
-  STMT_INDICATOR_DEFAULT
+  STMT_INDICATOR_DEFAULT,
+  STMT_INDICATOR_IGNORE
 };
 
 /* sql type stored in .frm files for virtual fields */

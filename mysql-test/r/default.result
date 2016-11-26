@@ -3080,3 +3080,153 @@ t3	CREATE TABLE `t3` (
   `max(c)` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1, t2, t3;
+# MDEV-11359: Implement IGNORE for bulk operation
+create table t1 (a int primary key default 0, b int default 3);
+insert into t1 values (1, ignore);
+insert into t1 values (2, ignore);
+replace into t1 values (2, ignore);
+replace into t1 values (3, ignore);
+replace into t1 values (4, 6);
+replace into t1 values (5, 7);
+update t1 set a=6,b=ignore where a=5;
+insert into t1 values (ignore, ignore);
+insert into t1 values (ignore, ignore);
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+select * from t1 order by a;
+a	b
+0	3
+1	3
+2	3
+3	3
+4	6
+6	7
+delete from t1 where a < 4;
+# actually insert default instead of ignoring
+# (but REPLACE is non standard operator)
+replace into t1 values (4, ignore);
+select * from t1 order by a;
+a	b
+4	3
+6	7
+drop table t1;
+create table t1 (a int default 100, b int, c varchar(60) default 'x');
+load data infile '../../std_data/rpl_loaddata.dat' into table t1 (a, @b) set b=@b+10, c=ignore;
+select * from t1;
+a	b	c
+NULL	20	x
+NULL	25	x
+drop table t1;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT);
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (1),(2),(3),(2);
+INSERT INTO t1 SELECT a FROM t2 ON DUPLICATE KEY UPDATE a=DEFAULT;
+SELECT * FROM t1 order by a;
+a
+0
+1
+3
+truncate table t1;
+INSERT INTO t1 SELECT a FROM t2 ON DUPLICATE KEY UPDATE a=IGNORE;
+SELECT * FROM t1 order by a;
+a
+0
+1
+3
+DROP TABLE t1,t2;
+create table t1 (a int primary key default 0, b int default 3);
+prepare insstmt from "insert into t1 values (?, ?)";
+prepare repstmt from "replace into t1 values (?, ?)";
+prepare updstmt from "update t1 set a=6,b=? where a=5";
+execute insstmt using 1, ignore;
+execute insstmt using 2, ignore;
+execute repstmt using 2, ignore;
+execute repstmt using 3, ignore;
+execute repstmt using 4, 6;
+execute repstmt using 5, 7;
+execute updstmt using ignore;
+execute insstmt using ignore, ignore;
+execute insstmt using ignore, ignore;
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+select * from t1 order by a;
+a	b
+0	3
+1	3
+2	3
+3	3
+4	6
+6	7
+delete from t1 where a < 4;
+execute repstmt using 4, ignore;
+select * from t1 order by a;
+a	b
+4	3
+6	7
+drop table t1;
+#
+# DEVAULT & PS adoption
+#
+CREATE TABLE t1 (a INT DEFAULT 10, b INT DEFAULT NULL);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?,?)' USING IGNORE, IGNORE;
+SELECT * FROM t1;
+a	b
+10	NULL
+UPDATE t1 SET a=20, b=30;
+SELECT * FROM t1;
+a	b
+20	30
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=?,b=?' USING IGNORE, IGNORE;
+SELECT * FROM t1;
+a	b
+20	30
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT 10);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?+1)' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (CONCAT(?,?))' USING IGNORE, 'test';
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t1;
+CREATE TABLE t1 (a INT DEFAULT 10);
+INSERT INTO t1 VALUES (20);
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=?+1' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'UPDATE t1 SET a=CONCAT(?,?)' USING IGNORE, 'test';
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t1;
+EXECUTE IMMEDIATE 'SELECT CAST(? AS SIGNED)' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS DOUBLE)' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS CHAR)' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS DECIMAL(10,1))' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS TIME)' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS DATE)' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CAST(? AS DATETIME)' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT ?+1' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT CONCAT(?,?)' USING IGNORE,'test';
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'SELECT 1 LIMIT ?' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+CREATE TABLE t1 (a INT DEFAULT 10);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXECUTE IMMEDIATE 'SELECT * FROM t1 LIMIT ?' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t1;
+# The output of this query in 'Note' is a syntactically incorrect query.
+# But as it's never logged, it's ok. It should be human readable only.
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT ?' USING IGNORE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select ignore AS `?`
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING DEFAULT,DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DROP TABLE t1;
+# end of 10.2 test

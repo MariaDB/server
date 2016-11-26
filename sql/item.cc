@@ -3611,6 +3611,10 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
     return field->save_in_field_default_value(field->table->pos_in_table_list->
                                               top_table() !=
                                               field->table->pos_in_table_list);
+  case IGNORE_VALUE:
+    return field->save_in_field_ignore_value(field->table->pos_in_table_list->
+                                             top_table() !=
+                                             field->table->pos_in_table_list);
   case NO_VALUE:
     DBUG_ASSERT(0); // Should not be possible
     return true;
@@ -3663,6 +3667,7 @@ double Item_param::val_real()
       time value for the placeholder.
     */
     return TIME_to_double(&value.time);
+  case IGNORE_VALUE:
   case DEFAULT_VALUE:
     invalid_default_param();
     // fall through
@@ -3698,6 +3703,7 @@ longlong Item_param::val_int()
     }
   case TIME_VALUE:
     return (longlong) TIME_to_ulonglong(&value.time);
+  case IGNORE_VALUE:
   case DEFAULT_VALUE:
     invalid_default_param();
     // fall through
@@ -3731,6 +3737,7 @@ my_decimal *Item_param::val_decimal(my_decimal *dec)
   {
     return TIME_to_my_decimal(&value.time, dec);
   }
+  case IGNORE_VALUE:
   case DEFAULT_VALUE:
     invalid_default_param();
     // fall through
@@ -3772,6 +3779,7 @@ String *Item_param::val_str(String* str)
     str->set_charset(&my_charset_bin);
     return str;
   }
+  case IGNORE_VALUE:
   case DEFAULT_VALUE:
     invalid_default_param();
     // fall through
@@ -3856,6 +3864,7 @@ const String *Item_param::query_val_str(THD *thd, String* str) const
                           thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
       return str;
     }
+  case IGNORE_VALUE:
   case DEFAULT_VALUE:
     return &my_default_string;
   case NULL_VALUE:
@@ -3911,6 +3920,7 @@ Item_param::clone_item(THD *thd)
   MEM_ROOT *mem_root= thd->mem_root;
   // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
+  case IGNORE_VALUE:
   case DEFAULT_VALUE:
     invalid_default_param();
     // fall through
@@ -3949,6 +3959,7 @@ Item_param::eq(const Item *item, bool binary_cmp) const
 
   // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
+  case IGNORE_VALUE:
   case DEFAULT_VALUE:
     invalid_default_param();
     return false;
@@ -3981,6 +3992,10 @@ void Item_param::print(String *str, enum_query_type query_type)
   else if (state == DEFAULT_VALUE)
   {
     str->append("default");
+  }
+  else if (state == IGNORE_VALUE)
+  {
+    str->append("ignore");
   }
   else
   {
@@ -4044,6 +4059,12 @@ void Item_param::set_default()
     Otherwise the callers of val_xxx() and get_date(), e.g. Item::send(),
     can misbehave (e.g. crash on asserts).
   */
+  null_value= true;
+}
+
+void Item_param::set_ignore()
+{
+  state= IGNORE_VALUE;
   null_value= true;
 }
 
@@ -8703,6 +8724,57 @@ Item *Item_default_value::transform(THD *thd, Item_transformer transformer,
   return (this->*transformer)(thd, args);
 }
 
+void Item_ignore_value::print(String *str, enum_query_type query_type)
+{
+    str->append(STRING_WITH_LEN("ignore"));
+}
+
+int Item_ignore_value::save_in_field(Field *field_arg, bool no_conversions)
+{
+  return field_arg->save_in_field_ignore_value(context->error_processor ==
+                                               &view_error_processor);
+}
+
+String *Item_ignore_value::val_str(String *str)
+{
+  DBUG_ASSERT(0); // never should be called
+  null_value= 1;
+  return 0;
+}
+
+double Item_ignore_value::val_real()
+{
+  DBUG_ASSERT(0); // never should be called
+  null_value= 1;
+  return 0.0;
+}
+
+longlong Item_ignore_value::val_int()
+{
+  DBUG_ASSERT(0); // never should be called
+  null_value= 1;
+  return 0;
+}
+
+my_decimal *Item_ignore_value::val_decimal(my_decimal *decimal_value)
+{
+  DBUG_ASSERT(0); // never should be called
+  null_value= 1;
+  return 0;
+}
+
+bool Item_ignore_value::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  DBUG_ASSERT(0); // never should be called
+  null_value= 1;
+  return TRUE;
+}
+
+bool Item_ignore_value::send(Protocol *protocol, String *buffer)
+{
+  DBUG_ASSERT(0); // never should be called
+  return TRUE;
+}
 
 bool Item_insert_value::eq(const Item *item, bool binary_cmp) const
 {
