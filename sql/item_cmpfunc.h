@@ -215,6 +215,7 @@ public:
   virtual longlong val_int();
   virtual void fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
+  enum precedence precedence() const { return CMP_PRECEDENCE; }
 
 protected:
   Item_func_truth(THD *thd, Item *a, bool a_value, bool a_affirmative):
@@ -480,6 +481,7 @@ public:
   {
     Item_func::print_op(str, query_type);
   }
+  enum precedence precedence() const { return CMP_PRECEDENCE; }
   Item *neg_transformer(THD *thd);
   virtual Item *negated_item(THD *thd);
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
@@ -535,6 +537,7 @@ public:
   Item_func_xor(THD *thd, Item *i1, Item *i2): Item_bool_func(thd, i1, i2) {}
   enum Functype functype() const { return XOR_FUNC; }
   const char *func_name() const { return "xor"; }
+  enum precedence precedence() const { return XOR_PRECEDENCE; }
   void print(String *str, enum_query_type query_type)
   { Item_func::print_op(str, query_type); }
   longlong val_int();
@@ -559,6 +562,7 @@ public:
   longlong val_int();
   enum Functype functype() const { return NOT_FUNC; }
   const char *func_name() const { return "not"; }
+  enum precedence precedence() const { return BANG_PRECEDENCE; }
   Item *neg_transformer(THD *thd);
   bool fix_fields(THD *, Item **);
   virtual void print(String *str, enum_query_type query_type);
@@ -866,6 +870,7 @@ public:
   longlong val_int();
   enum Functype functype() const   { return BETWEEN; }
   const char *func_name() const { return "between"; }
+  enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
   void fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
   bool eval_not_null_tables(void *opt_arg);
@@ -1550,6 +1555,7 @@ public:
   uint decimal_precision() const;
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
+  enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
   virtual void print(String *str, enum_query_type query_type);
   Item *find_item(String *str);
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
@@ -1661,7 +1667,8 @@ public:
   }
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
-  const char *func_name() const { return " IN "; }
+  const char *func_name() const { return "in"; }
+  enum precedence precedence() const { return CMP_PRECEDENCE; }
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(void *arg);
@@ -1752,6 +1759,8 @@ public:
     update_used_tables();
   }
   const char *func_name() const { return "isnull"; }
+  void print(String *str, enum_query_type query_type);
+  enum precedence precedence() const { return CMP_PRECEDENCE; }
   /* Optimize case of not_null_column IS NULL */
   virtual void update_used_tables()
   {
@@ -1813,10 +1822,11 @@ public:
   longlong val_int();
   enum Functype functype() const { return ISNOTNULL_FUNC; }
   const char *func_name() const { return "isnotnull"; }
+  enum precedence precedence() const { return CMP_PRECEDENCE; }
   table_map not_null_tables() const
   { return abort_on_null ? not_null_tables_cache : 0; }
   Item *neg_transformer(THD *thd);
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
   void top_level_item() { abort_on_null=1; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_isnotnull>(thd, mem_root, this); }
@@ -1947,6 +1957,7 @@ public:
     return this;
   }
   const char *func_name() const { return "like"; }
+  enum precedence precedence() const { return CMP_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
   {
@@ -2064,10 +2075,11 @@ public:
   longlong val_int();
   void fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
+  enum precedence precedence() const { return CMP_PRECEDENCE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_regex>(thd, mem_root, this); }
 
-  virtual inline void print(String *str, enum_query_type query_type)
+  void print(String *str, enum_query_type query_type)
   {
     print_op(str, query_type);
   }
@@ -2478,6 +2490,7 @@ public:
   enum Functype functype() const { return COND_AND_FUNC; }
   longlong val_int();
   const char *func_name() const { return "and"; }
+  enum precedence precedence() const { return AND_PRECEDENCE; }
   table_map not_null_tables() const
   { return abort_on_null ? not_null_tables_cache: and_tables_cache; }
   Item *copy_andor_structure(THD *thd);
@@ -2513,6 +2526,7 @@ public:
   enum Functype functype() const { return COND_OR_FUNC; }
   longlong val_int();
   const char *func_name() const { return "or"; }
+  enum precedence precedence() const { return OR_PRECEDENCE; }
   table_map not_null_tables() const { return and_tables_cache; }
   Item *copy_andor_structure(THD *thd);
   Item *neg_transformer(THD *thd);

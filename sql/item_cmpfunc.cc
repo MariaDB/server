@@ -286,20 +286,10 @@ longlong Item_func_not::val_int()
   return ((!null_value && value == 0) ? 1 : 0);
 }
 
-/*
-  We put any NOT expression into parenthesis to avoid
-  possible problems with internal view representations where
-  any '!' is converted to NOT. It may cause a problem if
-  '!' is used in an expression together with other operators
-  whose precedence is lower than the precedence of '!' yet
-  higher than the precedence of NOT.
-*/
-
 void Item_func_not::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
-  Item_func::print(str, query_type);
-  str->append(')');
+  str->append('!');
+  args[0]->print_parenthesised(str, query_type, precedence());
 }
 
 /**
@@ -1167,8 +1157,7 @@ void Item_func_truth::fix_length_and_dec()
 
 void Item_func_truth::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
-  args[0]->print(str, query_type);
+  args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" is "));
   if (! affirmative)
     str->append(STRING_WITH_LEN("not "));
@@ -1176,7 +1165,6 @@ void Item_func_truth::print(String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN("true"));
   else
     str->append(STRING_WITH_LEN("false"));
-  str->append(')');
 }
 
 
@@ -2240,15 +2228,13 @@ longlong Item_func_between::val_int()
 
 void Item_func_between::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
-  args[0]->print(str, query_type);
+  args[0]->print_parenthesised(str, query_type, precedence());
   if (negated)
     str->append(STRING_WITH_LEN(" not"));
   str->append(STRING_WITH_LEN(" between "));
-  args[1]->print(str, query_type);
+  args[1]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" and "));
-  args[2]->print(str, query_type);
-  str->append(')');
+  args[2]->print_parenthesised(str, query_type, precedence());
 }
 
 
@@ -3301,27 +3287,27 @@ uint Item_func_case::decimal_precision() const
 
 void Item_func_case::print(String *str, enum_query_type query_type)
 {
-  str->append(STRING_WITH_LEN("(case "));
+  str->append(STRING_WITH_LEN("case "));
   if (first_expr_num != -1)
   {
-    args[first_expr_num]->print(str, query_type);
+    args[first_expr_num]->print_parenthesised(str, query_type, precedence());
     str->append(' ');
   }
   for (uint i=0 ; i < ncases ; i+=2)
   {
     str->append(STRING_WITH_LEN("when "));
-    args[i]->print(str, query_type);
+    args[i]->print_parenthesised(str, query_type, precedence());
     str->append(STRING_WITH_LEN(" then "));
-    args[i+1]->print(str, query_type);
+    args[i+1]->print_parenthesised(str, query_type, precedence());
     str->append(' ');
   }
   if (else_expr_num != -1)
   {
     str->append(STRING_WITH_LEN("else "));
-    args[else_expr_num]->print(str, query_type);
+    args[else_expr_num]->print_parenthesised(str, query_type, precedence());
     str->append(' ');
   }
-  str->append(STRING_WITH_LEN("end)"));
+  str->append(STRING_WITH_LEN("end"));
 }
 
 
@@ -4299,13 +4285,12 @@ void Item_func_in::fix_length_and_dec()
 
 void Item_func_in::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
-  args[0]->print(str, query_type);
+  args[0]->print_parenthesised(str, query_type, precedence());
   if (negated)
     str->append(STRING_WITH_LEN(" not"));
   str->append(STRING_WITH_LEN(" in ("));
   print_args(str, 1, query_type);
-  str->append(STRING_WITH_LEN("))"));
+  str->append(STRING_WITH_LEN(")"));
 }
 
 
@@ -4823,19 +4808,17 @@ Item_cond::used_tables() const
 
 void Item_cond::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
   List_iterator_fast<Item> li(list);
   Item *item;
   if ((item=li++))
-    item->print(str, query_type);
+    item->print_parenthesised(str, query_type, precedence());
   while ((item=li++))
   {
     str->append(' ');
     str->append(func_name());
     str->append(' ');
-    item->print(str, query_type);
+    item->print_parenthesised(str, query_type, precedence());
   }
-  str->append(')');
 }
 
 
@@ -5027,6 +5010,13 @@ longlong Item_func_isnull::val_int()
 }
 
 
+void Item_func_isnull::print(String *str, enum_query_type query_type)
+{
+  args[0]->print_parenthesised(str, query_type, precedence());
+  str->append(STRING_WITH_LEN(" is null"));
+}
+
+
 longlong Item_is_not_null_test::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -5064,9 +5054,8 @@ longlong Item_func_isnotnull::val_int()
 
 void Item_func_isnotnull::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
-  args[0]->print(str, query_type);
-  str->append(STRING_WITH_LEN(" is not null)"));
+  args[0]->print_parenthesised(str, query_type, precedence());
+  str->append(STRING_WITH_LEN(" is not null"));
 }
 
 
@@ -5078,18 +5067,16 @@ bool Item_bool_func2::count_sargable_conds(void *arg)
 
 void Item_func_like::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
-  args[0]->print(str, query_type);
+  args[0]->print_parenthesised(str, query_type, precedence());
   str->append(' ');
   str->append(func_name());
   str->append(' ');
-  args[1]->print(str, query_type);
+  args[1]->print_parenthesised(str, query_type, precedence());
   if (escape_used_in_parsing)
   {
     str->append(STRING_WITH_LEN(" escape "));
     escape_item->print(str, query_type);
   }
-  str->append(')');
 }
 
 

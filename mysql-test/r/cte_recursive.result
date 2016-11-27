@@ -699,7 +699,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 2	UNCACHEABLE SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
 Warnings:
-Note	1003	with recursive ancestor_couple_ids as (select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where ((`a`.`father` is not null) and (`a`.`mother` is not null)))coupled_ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where (`test`.`folks`.`name` = 'Me') union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where (`test`.`p`.`id` = `fa`.`h_id`) union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where (`test`.`p`.`id` = `ma`.`w_id`)), select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where ((`h`.`id` = `c`.`h_id`) and (`w`.`id` = `c`.`w_id`))
+Note	1003	with recursive ancestor_couple_ids as (select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where `a`.`father` is not null and `a`.`mother` is not null)coupled_ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where `test`.`p`.`id` = `fa`.`h_id` union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where `test`.`p`.`id` = `ma`.`w_id`), select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where `h`.`id` = `c`.`h_id` and `w`.`id` = `c`.`w_id`
 # simple mutual recursion
 with recursive
 ancestor_couple_ids(h_id, w_id)
@@ -818,7 +818,7 @@ where p.id = a.father or p.id = a.mother
 select * from ancestors;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with recursive ancestors as (select `folks`.`id` AS `id`,`folks`.`name` AS `name`,`folks`.`dob` AS `dob`,`folks`.`father` AS `father`,`folks`.`mother` AS `mother` from `folks` where ((`folks`.`name` = 'Me') and (`folks`.`dob` = '2000-01-01')) union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `a`) where ((`p`.`id` = `a`.`father`) or (`p`.`id` = `a`.`mother`)))select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with recursive ancestors as (select `folks`.`id` AS `id`,`folks`.`name` AS `name`,`folks`.`dob` AS `dob`,`folks`.`father` AS `father`,`folks`.`mother` AS `mother` from `folks` where `folks`.`name` = 'Me' and `folks`.`dob` = '2000-01-01' union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `a`) where `p`.`id` = `a`.`father` or `p`.`id` = `a`.`mother`)select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`	latin1	latin1_swedish_ci
 select * from v1;
 id	name	dob	father	mother
 100	Me	2000-01-01	20	30
@@ -849,7 +849,7 @@ where p.id = ma.mother
 select * from ancestors;
 show create view v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS with recursive ancestors as (select `folks`.`id` AS `id`,`folks`.`name` AS `name`,`folks`.`dob` AS `dob`,`folks`.`father` AS `father`,`folks`.`mother` AS `mother` from `folks` where (`folks`.`name` = 'Me') union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `fa`) where (`p`.`id` = `fa`.`father`) union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `ma`) where (`p`.`id` = `ma`.`mother`))select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`	latin1	latin1_swedish_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS with recursive ancestors as (select `folks`.`id` AS `id`,`folks`.`name` AS `name`,`folks`.`dob` AS `dob`,`folks`.`father` AS `father`,`folks`.`mother` AS `mother` from `folks` where `folks`.`name` = 'Me' union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `fa`) where `p`.`id` = `fa`.`father` union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `ma`) where `p`.`id` = `ma`.`mother`)select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`	latin1	latin1_swedish_ci
 select * from v2;
 id	name	dob	father	mother
 100	Me	2000-01-01	20	30
@@ -882,7 +882,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (flat, BNL join)
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	with recursive ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where ((`test`.`folks`.`name` = 'Me') and (`test`.`folks`.`dob` = DATE'2000-01-01')) union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestors` `a` where ((`a`.`father` = `p`.`id`) or (`a`.`mother` = `p`.`id`)))select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`
+Note	1003	with recursive ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' and `test`.`folks`.`dob` = DATE'2000-01-01' union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestors` `a` where `a`.`father` = `p`.`id` or `a`.`mother` = `p`.`id`)select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`
 # recursive spec with two anchor selects and two recursive ones 
 with recursive
 ancestor_ids (id)
@@ -1358,7 +1358,7 @@ EXPLAIN
                     "access_type": "ALL",
                     "rows": 12,
                     "filtered": 100,
-                    "attached_condition": "(folks.`name` = 'Me2')"
+                    "attached_condition": "folks.`name` = 'Me2'"
                   }
                 }
               },
@@ -1370,7 +1370,7 @@ EXPLAIN
                     "access_type": "ALL",
                     "rows": 12,
                     "filtered": 100,
-                    "attached_condition": "(prev_gen.`id` < 345)",
+                    "attached_condition": "prev_gen.`id` < 345",
                     "materialized": {
                       "query_block": {
                         "recursive_union": {
@@ -1385,7 +1385,7 @@ EXPLAIN
                                   "access_type": "ALL",
                                   "rows": 12,
                                   "filtered": 100,
-                                  "attached_condition": "(folks.`name` = 'Me')"
+                                  "attached_condition": "folks.`name` = 'Me'"
                                 }
                               }
                             },
@@ -1409,7 +1409,7 @@ EXPLAIN
                                   "buffer_type": "flat",
                                   "buffer_size": "256Kb",
                                   "join_type": "BNL",
-                                  "attached_condition": "((prev_gen.father = folks.`id`) or (prev_gen.mother = folks.`id`))"
+                                  "attached_condition": "prev_gen.father = folks.`id` or prev_gen.mother = folks.`id`"
                                 }
                               }
                             }
@@ -1428,7 +1428,7 @@ EXPLAIN
                     "access_type": "ALL",
                     "rows": 24,
                     "filtered": 100,
-                    "attached_condition": "(ancestors.`id` < 234)"
+                    "attached_condition": "ancestors.`id` < 234"
                   }
                 }
               }
@@ -1489,7 +1489,7 @@ EXPLAIN
                     "access_type": "ALL",
                     "rows": 12,
                     "filtered": 100,
-                    "attached_condition": "((v.`name` = 'Me') and (v.father is not null) and (v.mother is not null))"
+                    "attached_condition": "v.`name` = 'Me' and v.father is not null and v.mother is not null"
                   },
                   "table": {
                     "table_name": "h",
@@ -1523,7 +1523,7 @@ EXPLAIN
                     "access_type": "ALL",
                     "rows": 2,
                     "filtered": 100,
-                    "attached_condition": "((a.father is not null) and (a.mother is not null))"
+                    "attached_condition": "a.father is not null and a.mother is not null"
                   },
                   "table": {
                     "table_name": "h",
@@ -1766,7 +1766,7 @@ EXPLAIN
                     "access_type": "ALL",
                     "rows": 10,
                     "filtered": 100,
-                    "attached_condition": "(t.a < 1000)"
+                    "attached_condition": "t.a < 1000"
                   }
                 }
               }

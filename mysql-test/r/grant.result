@@ -1093,10 +1093,10 @@ SHOW CREATE VIEW  mysqltest2.t_nn;
 ERROR HY000: 'mysqltest2.t_nn' is not VIEW
 SHOW CREATE VIEW mysqltest2.v_yy;
 View	Create View	character_set_client	collation_connection
-v_yy	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest2`.`v_yy` AS select `mysqltest2`.`t_nn`.`c1` AS `c1` from `mysqltest2`.`t_nn` where (`mysqltest2`.`t_nn`.`c1` = 55)	latin1	latin1_swedish_ci
+v_yy	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest2`.`v_yy` AS select `mysqltest2`.`t_nn`.`c1` AS `c1` from `mysqltest2`.`t_nn` where `mysqltest2`.`t_nn`.`c1` = 55	latin1	latin1_swedish_ci
 SHOW CREATE TABLE mysqltest2.v_yy;
 View	Create View	character_set_client	collation_connection
-v_yy	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest2`.`v_yy` AS select `mysqltest2`.`t_nn`.`c1` AS `c1` from `mysqltest2`.`t_nn` where (`mysqltest2`.`t_nn`.`c1` = 55)	latin1	latin1_swedish_ci
+v_yy	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest2`.`v_yy` AS select `mysqltest2`.`t_nn`.`c1` AS `c1` from `mysqltest2`.`t_nn` where `mysqltest2`.`t_nn`.`c1` = 55	latin1	latin1_swedish_ci
 connection master;
 SHOW CREATE TABLE mysqltest2.v_nn;
 View	Create View	character_set_client	collation_connection

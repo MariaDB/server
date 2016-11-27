@@ -157,7 +157,7 @@ select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select hex(column_create(1,'afaf' AS char charset utf8 ,2,1212 AS unsigned int,3,1212 AS int,4,12.12 AS double,(4 + 1),12.12 AS decimal,6,'2011-04-05' AS date,7,'- 0:45:49.000001' AS time,8,'2011-04-05 0:45:49.000001' AS datetime)) AS `hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
+Note	1003	select hex(column_create(1,'afaf' AS char charset utf8 ,2,1212 AS unsigned int,3,1212 AS int,4,12.12 AS double,4 + 1,12.12 AS decimal,6,'2011-04-05' AS date,7,'- 0:45:49.000001' AS time,8,'2011-04-05 0:45:49.000001' AS datetime)) AS `hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
 2, 1212 AS unsigned int,
 3, 1212 AS int,
 4, 12.12 AS double,

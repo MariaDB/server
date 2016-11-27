@@ -1171,6 +1171,7 @@ public:
   void fix_length_and_dec();
   bool eq(const Item *item, bool binary_cmp) const;
   const char *func_name() const { return "collate"; }
+  enum precedence precedence() const { return COLLATE_PRECEDENCE; }
   enum Functype functype() const { return COLLATE_FUNC; }
   virtual void print(String *str, enum_query_type query_type);
   Item_field *field_for_view_update()

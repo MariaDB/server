@@ -3487,13 +3487,11 @@ bool Item_func_set_collation::eq(const Item *item, bool binary_cmp) const
 
 void Item_func_set_collation::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
-  args[0]->print(str, query_type);
+  args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" collate "));
   DBUG_ASSERT(args[1]->basic_const_item() &&
               args[1]->type() == Item::STRING_ITEM);
   ((Item_string *)args[1])->print_value(str);
-  str->append(')');
 }
 
 String *Item_func_charset::val_str(String *str)

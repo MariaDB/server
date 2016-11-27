@@ -546,9 +546,9 @@ t1	CREATE TABLE `t1` (
   `col2` int(11) NOT NULL,
   `col3` int(11) NOT NULL,
   `col4` int(11) DEFAULT NULL,
-  `col5` int(11) GENERATED ALWAYS AS ((`col2` % `col3`)) VIRTUAL,
-  `col7` int(11) GENERATED ALWAYS AS ((`col5` * `col5`)) VIRTUAL,
-  `col8` int(11) GENERATED ALWAYS AS ((`col5` % `col5`)) VIRTUAL,
+  `col5` int(11) GENERATED ALWAYS AS (`col2` % `col3`) VIRTUAL,
+  `col7` int(11) GENERATED ALWAYS AS (`col5` * `col5`) VIRTUAL,
+  `col8` int(11) GENERATED ALWAYS AS (`col5` % `col5`) VIRTUAL,
   `col9` text DEFAULT NULL,
   `col6` int(11) DEFAULT NULL,
   UNIQUE KEY `uidx` (`col5`)
@@ -968,11 +968,11 @@ SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `col_int_nokey` int(11) DEFAULT NULL,
-  `col_int` int(11) GENERATED ALWAYS AS ((`col_int_nokey` + `col_int_nokey`)) STORED,
-  `col_int_key` int(11) GENERATED ALWAYS AS ((`col_int` + `col_int_nokey`)) VIRTUAL,
+  `col_int` int(11) GENERATED ALWAYS AS (`col_int_nokey` + `col_int_nokey`) STORED,
+  `col_int_key` int(11) GENERATED ALWAYS AS (`col_int` + `col_int_nokey`) VIRTUAL,
   `col_date_nokey` date DEFAULT NULL,
-  `col_date` date GENERATED ALWAYS AS ((`col_date_nokey` + interval 30 day)) STORED,
-  `col_date_key` date GENERATED ALWAYS AS ((`col_date` + interval 30 day)) VIRTUAL,
+  `col_date` date GENERATED ALWAYS AS (`col_date_nokey` + interval 30 day) STORED,
+  `col_date_key` date GENERATED ALWAYS AS (`col_date` + interval 30 day) VIRTUAL,
   `col_datetime_nokey` datetime DEFAULT NULL,
   `col_time_nokey` time DEFAULT NULL,
   `col_datetime` datetime GENERATED ALWAYS AS (addtime(`col_datetime_nokey`,`col_time_nokey`)) STORED,
@@ -1058,10 +1058,10 @@ ALTER TABLE t1 CHANGE  d d INT GENERATED ALWAYS AS(a+b) FIRST;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `d` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
+  `d` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -1366,7 +1366,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `d` int(11) GENERATED ALWAYS AS (((`a` + `b`) + `b`)) VIRTUAL,
+  `d` int(11) GENERATED ALWAYS AS (`a` + `b` + `b`) VIRTUAL,
   `e` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
   KEY `idx` (`d`),
@@ -1384,7 +1384,7 @@ t	CREATE TABLE `t` (
   `b` int(11) DEFAULT NULL,
   `e` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
-  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   KEY `idx2` (`e`),
   KEY `idx` (`e`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -1396,7 +1396,7 @@ t	CREATE TABLE `t` (
   `b` int(11) DEFAULT NULL,
   `e` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
-  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   `x` varchar(10) GENERATED ALWAYS AS (`h`) VIRTUAL,
   KEY `idx2` (`e`),
   KEY `idx4` (`c`,`e`)
@@ -1411,7 +1411,7 @@ t	CREATE TABLE `t` (
   `b` int(11) DEFAULT NULL,
   `e` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
-  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   `x` varchar(10) GENERATED ALWAYS AS (`h`) VIRTUAL,
   `j` int(11) DEFAULT NULL,
   KEY `idx2` (`e`),
@@ -1428,10 +1428,10 @@ t	CREATE TABLE `t` (
   `b` int(11) DEFAULT NULL,
   `e` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
   `h` varchar(10) DEFAULT NULL,
-  `c` int(11) GENERATED ALWAYS AS ((`a` + `b`)) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (`a` + `b`) VIRTUAL,
   `x` varchar(10) GENERATED ALWAYS AS (`h`) VIRTUAL,
   `j` int(11) DEFAULT NULL,
-  `i` int(11) GENERATED ALWAYS AS (((`a` + `a`) + `b`)) VIRTUAL,
+  `i` int(11) GENERATED ALWAYS AS (`a` + `a` + `b`) VIRTUAL,
   KEY `idx2` (`e`),
   KEY `idx4` (`c`,`e`),
   KEY `x` (`x`),

@@ -54,7 +54,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL COMMENT 'my comment'
+  `b` int(11) GENERATED ALWAYS AS (`a` % 2) VIRTUAL COMMENT 'my comment'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
@@ -67,7 +67,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL COMMENT 'my comment'
+  `b` int(11) GENERATED ALWAYS AS (`a` % 2) VIRTUAL COMMENT 'my comment'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
@@ -87,7 +87,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL COMMENT 'my comment'
+  `b` int(11) GENERATED ALWAYS AS (`a` % 2) VIRTUAL COMMENT 'my comment'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 describe t2;
 Field	Type	Null	Key	Default	Extra
@@ -109,7 +109,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) STORED
+  `b` int(11) GENERATED ALWAYS AS (`a` % 2) STORED
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 describe t1;
 Field	Type	Null	Key	Default	Extra
@@ -131,7 +131,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) STORED
+  `b` int(11) GENERATED ALWAYS AS (`a` % 2) STORED
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (a int, b int as (a % 2));
@@ -141,6 +141,6 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` % 2)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` % 2) VIRTUAL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t1;

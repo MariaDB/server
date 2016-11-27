@@ -16316,7 +16316,7 @@ set f1 = (f1 / 2); set f1 = (f1 * 2); set f1 = (f1 - 10); set f1 = (f1 + 10);
 return f1;
 END//
 SELECT fn4(-9.22e+15);
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP FUNCTION IF EXISTS fn5;
 CREATE FUNCTION fn5( f1 decimal) returns decimal
 BEGIN
@@ -16797,7 +16797,7 @@ set f1 = (f1 / 2); set f1 = (f1 * 2); set f1 = (f1 - 10); set f1 = (f1 + 10);
 return f1;
 END//
 SELECT fn56(-8388601);
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP FUNCTION IF EXISTS fn57;
 CREATE FUNCTION fn57( f1 numeric) returns numeric
 BEGIN
@@ -17065,7 +17065,7 @@ set f1 = (f1 / 2); set f1 = (f1 * 2); set f1 = (f1 - 10); set f1 = (f1 + 10);
 return f1;
 END//
 SELECT fn84(-32601);
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP FUNCTION IF EXISTS fn85;
 CREATE FUNCTION fn85( f1 tinyint) returns tinyint
 BEGIN
@@ -17100,7 +17100,7 @@ set f1 = (f1 / 2); set f1 = (f1 * 2); set f1 = (f1 - 10); set f1 = (f1 + 10);
 return f1;
 END//
 SELECT fn88(-101);
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP FUNCTION IF EXISTS fn89;
 CREATE FUNCTION fn89( f1 enum('1enum', '2enum')) returns enum('1enum', '2enum')
 BEGIN
@@ -17319,7 +17319,7 @@ set f1 = (f1 / 2); set f1 = (f1 * 2); set f1 = (f1 - 10); set f1 = (f1 + 10);
 SELECT f1;
 END//
 CALL sp4(-9.22e+15);
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP PROCEDURE IF EXISTS sp5;
 CREATE PROCEDURE sp5( f1 decimal)
 BEGIN
@@ -17876,7 +17876,7 @@ set f1 = (f1 / 2); set f1 = (f1 * 2); set f1 = (f1 - 10); set f1 = (f1 + 10);
 SELECT f1;
 END//
 CALL sp56(-8388601);
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP PROCEDURE IF EXISTS sp57;
 CREATE PROCEDURE sp57( f1 numeric)
 BEGIN
@@ -18208,7 +18208,7 @@ set f1 = (f1 / 2); set f1 = (f1 * 2); set f1 = (f1 - 10); set f1 = (f1 + 10);
 SELECT f1;
 END//
 CALL sp84(-32601);
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP PROCEDURE IF EXISTS sp85;
 CREATE PROCEDURE sp85( f1 tinyint)
 BEGIN
@@ -18243,7 +18243,7 @@ set f1 = (f1 / 2); set f1 = (f1 * 2); set f1 = (f1 - 10); set f1 = (f1 + 10);
 SELECT f1;
 END//
 CALL sp88(-101);
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP PROCEDURE IF EXISTS sp89;
 CREATE PROCEDURE sp89( f1 enum('1enum', '2enum'))
 BEGIN
@@ -18570,7 +18570,7 @@ CALL sp4(-9.22e+18, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute04();
-ERROR 22003: BIGINT value is out of range in '(f1@0 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f1@0 * 2'
 DROP PROCEDURE spexecute04;
 DROP PROCEDURE sp4;
 DROP PROCEDURE IF EXISTS sp6;
@@ -18683,7 +18683,7 @@ f7	f8	f9
 -9220000000000000000	-9220000000000000000	NULL
 f10	f11	f12
 -9220000000000000000	-9220000000000000000	NULL
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 * 2)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 * 2'
 DROP PROCEDURE spexecute07;
 DROP PROCEDURE sp07;
 DROP PROCEDURE IF EXISTS sp8;
@@ -18734,7 +18734,7 @@ CALL sp8(1.84e+17, var1, var2, -9.22e+18, var3, var4,
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute08();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute08;
 DROP PROCEDURE sp8;
 DROP PROCEDURE IF EXISTS sp9;
@@ -18785,7 +18785,7 @@ CALL sp9(-9.22e+15, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute09();
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP PROCEDURE spexecute09;
 DROP PROCEDURE sp9;
 DROP PROCEDURE IF EXISTS sp10;
@@ -18828,7 +18828,7 @@ CALL sp10(-1.00e+09, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute10();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute10;
 DROP PROCEDURE sp10;
 DROP PROCEDURE IF EXISTS sp11;
@@ -18860,7 +18860,7 @@ CALL sp11(--1.00e+09, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, 
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute11();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute11;
 DROP PROCEDURE sp11;
 DROP PROCEDURE IF EXISTS sp12;
@@ -18892,7 +18892,7 @@ CALL sp12(99999999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6,
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute12();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute12;
 DROP PROCEDURE sp12;
 DROP PROCEDURE IF EXISTS sp13;
@@ -18924,7 +18924,7 @@ CALL sp13(-1.00e+09, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute13();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute13;
 DROP PROCEDURE sp13;
 DROP PROCEDURE IF EXISTS sp14;
@@ -18956,7 +18956,7 @@ CALL sp14(-1.00e+21, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute14();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute14;
 DROP PROCEDURE sp14;
 DROP PROCEDURE IF EXISTS sp15;
@@ -18987,7 +18987,7 @@ CALL sp15(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute15();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute15;
 DROP PROCEDURE sp15;
 DROP PROCEDURE IF EXISTS sp16;
@@ -19018,7 +19018,7 @@ CALL sp16(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute16();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute16;
 DROP PROCEDURE sp16;
 DROP PROCEDURE IF EXISTS sp17;
@@ -19049,7 +19049,7 @@ CALL sp17(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute17();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute17;
 DROP PROCEDURE sp17;
 DROP PROCEDURE IF EXISTS sp18;
@@ -19080,7 +19080,7 @@ CALL sp18(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute18();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute18;
 DROP PROCEDURE sp18;
 DROP PROCEDURE IF EXISTS sp19;
@@ -19111,7 +19111,7 @@ CALL sp19(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute19();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute19;
 DROP PROCEDURE sp19;
 DROP PROCEDURE IF EXISTS sp20;
@@ -19142,7 +19142,7 @@ CALL sp20(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute20();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute20;
 DROP PROCEDURE sp20;
 DROP PROCEDURE IF EXISTS sp21;
@@ -19173,7 +19173,7 @@ CALL sp21(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute21();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute21;
 DROP PROCEDURE sp21;
 DROP PROCEDURE IF EXISTS sp22;
@@ -19204,7 +19204,7 @@ CALL sp22(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute22();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute22;
 DROP PROCEDURE sp22;
 DROP PROCEDURE IF EXISTS sp23;
@@ -19235,7 +19235,7 @@ CALL sp23(-999999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, 
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute23();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute23;
 DROP PROCEDURE sp23;
 DROP PROCEDURE IF EXISTS sp24;
@@ -19266,7 +19266,7 @@ CALL sp24(1.1, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.22e+
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute24();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute24;
 DROP PROCEDURE sp24;
 DROP PROCEDURE IF EXISTS sp25;
@@ -19297,7 +19297,7 @@ CALL sp25(-32701, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.2
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute25();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute25;
 DROP PROCEDURE sp25;
 DROP PROCEDURE IF EXISTS sp26;
@@ -19328,7 +19328,7 @@ CALL sp26( '1997-12-31', var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute26();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute26;
 DROP PROCEDURE sp26;
 DROP PROCEDURE IF EXISTS sp27;
@@ -19359,7 +19359,7 @@ CALL sp27( '23:59:59.999999', var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute27();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute27;
 DROP PROCEDURE sp27;
 DROP PROCEDURE IF EXISTS sp28;
@@ -19390,7 +19390,7 @@ CALL sp28('1997-12-31 23:59:59.999999', var1, var2, -9.22e+18, var3, var4, -9.22
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute28();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute28;
 DROP PROCEDURE sp28;
 DROP PROCEDURE IF EXISTS sp29;
@@ -19421,7 +19421,7 @@ CALL sp29(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute29();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute29;
 DROP PROCEDURE sp29;
 DROP PROCEDURE IF EXISTS sp30;
@@ -19452,7 +19452,7 @@ CALL sp30(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute30();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute30;
 DROP PROCEDURE sp30;
 DROP PROCEDURE IF EXISTS sp31;
@@ -19483,7 +19483,7 @@ CALL sp31(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute31();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute31;
 DROP PROCEDURE sp31;
 DROP PROCEDURE IF EXISTS sp32;
@@ -19514,7 +19514,7 @@ CALL sp32(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute32();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute32;
 DROP PROCEDURE sp32;
 DROP PROCEDURE IF EXISTS sp33;
@@ -19545,7 +19545,7 @@ CALL sp33(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute33();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute33;
 DROP PROCEDURE sp33;
 DROP PROCEDURE IF EXISTS sp34;
@@ -19576,7 +19576,7 @@ CALL sp34(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute34();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute34;
 DROP PROCEDURE sp34;
 DROP PROCEDURE IF EXISTS sp35;
@@ -19607,7 +19607,7 @@ CALL sp35(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute35();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute35;
 DROP PROCEDURE sp35;
 DROP PROCEDURE IF EXISTS sp36;
@@ -19638,7 +19638,7 @@ CALL sp36(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute36();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute36;
 DROP PROCEDURE sp36;
 DROP PROCEDURE IF EXISTS sp37;
@@ -19669,7 +19669,7 @@ CALL sp37(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute37();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute37;
 DROP PROCEDURE sp37;
 DROP PROCEDURE IF EXISTS sp38;
@@ -19700,7 +19700,7 @@ CALL sp38(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute38();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute38;
 DROP PROCEDURE sp38;
 DROP PROCEDURE IF EXISTS sp39;
@@ -19731,7 +19731,7 @@ CALL sp39(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute39();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute39;
 DROP PROCEDURE sp39;
 DROP PROCEDURE IF EXISTS sp40;
@@ -19762,7 +19762,7 @@ CALL sp40(1.1, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.22e+
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute40();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute40;
 DROP PROCEDURE sp40;
 DROP PROCEDURE IF EXISTS sp41;
@@ -19793,7 +19793,7 @@ CALL sp41(1.1, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.22e+
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute41();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute41;
 DROP PROCEDURE sp41;
 DROP PROCEDURE IF EXISTS sp42;
@@ -19824,7 +19824,7 @@ CALL sp42(1.1, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.22e+
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute42();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute42;
 DROP PROCEDURE sp42;
 DROP PROCEDURE IF EXISTS sp43;
@@ -19855,7 +19855,7 @@ CALL sp43(-999999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, 
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute43();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute43;
 DROP PROCEDURE sp43;
 DROP PROCEDURE IF EXISTS sp44;
@@ -19886,7 +19886,7 @@ CALL sp44(9999999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, 
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute44();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute44;
 DROP PROCEDURE sp44;
 DROP PROCEDURE IF EXISTS sp45;
@@ -19917,7 +19917,7 @@ CALL sp45(-99999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute45();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute45;
 DROP PROCEDURE sp45;
 DROP PROCEDURE IF EXISTS sp46;
@@ -19948,7 +19948,7 @@ CALL sp46(-999999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, 
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute46();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute46;
 DROP PROCEDURE sp46;
 DROP PROCEDURE IF EXISTS sp47;
@@ -19979,7 +19979,7 @@ CALL sp47(9999999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, 
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute47();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute47;
 DROP PROCEDURE sp47;
 DROP PROCEDURE IF EXISTS sp48;
@@ -20010,7 +20010,7 @@ CALL sp48(-99999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute48();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute48;
 DROP PROCEDURE sp48;
 DROP PROCEDURE IF EXISTS sp49;
@@ -20041,7 +20041,7 @@ CALL sp49(-999999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, 
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute49();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute49;
 DROP PROCEDURE sp49;
 DROP PROCEDURE IF EXISTS sp50;
@@ -20072,7 +20072,7 @@ CALL sp50(9999999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, 
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute50();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute50;
 DROP PROCEDURE sp50;
 DROP PROCEDURE IF EXISTS sp51;
@@ -20103,7 +20103,7 @@ CALL sp51(-99999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute51();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute51;
 DROP PROCEDURE sp51;
 DROP PROCEDURE IF EXISTS sp52;
@@ -20134,7 +20134,7 @@ CALL sp52(-1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute52();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute52;
 DROP PROCEDURE sp52;
 DROP PROCEDURE IF EXISTS sp53;
@@ -20165,7 +20165,7 @@ CALL sp53(-1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute53();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute53;
 DROP PROCEDURE sp53;
 DROP PROCEDURE IF EXISTS sp54;
@@ -20196,7 +20196,7 @@ CALL sp54(1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute54();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute54;
 DROP PROCEDURE sp54;
 DROP PROCEDURE IF EXISTS sp55;
@@ -20227,7 +20227,7 @@ CALL sp55(-1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute55();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute55;
 DROP PROCEDURE sp55;
 DROP PROCEDURE IF EXISTS sp56;
@@ -20564,7 +20564,7 @@ CALL sp65(999999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute65();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute65;
 DROP PROCEDURE sp65;
 DROP PROCEDURE IF EXISTS sp66;
@@ -20595,7 +20595,7 @@ CALL sp66(1.00e+16, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute66();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute66;
 DROP PROCEDURE sp66;
 DROP PROCEDURE IF EXISTS sp67;
@@ -20626,7 +20626,7 @@ CALL sp67(1.00e+16, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute67();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute67;
 DROP PROCEDURE sp67;
 DROP PROCEDURE IF EXISTS sp68;
@@ -20657,7 +20657,7 @@ CALL sp68(-1.00e+21, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute68();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute68;
 DROP PROCEDURE sp68;
 DROP PROCEDURE IF EXISTS sp69;
@@ -20688,7 +20688,7 @@ CALL sp69(-1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute69();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute69;
 DROP PROCEDURE sp69;
 DROP PROCEDURE IF EXISTS sp70;
@@ -20719,7 +20719,7 @@ CALL sp70(1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute70();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute70;
 DROP PROCEDURE sp70;
 DROP PROCEDURE IF EXISTS sp71;
@@ -20750,7 +20750,7 @@ CALL sp71(1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute71();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute71;
 DROP PROCEDURE sp71;
 DROP PROCEDURE IF EXISTS sp72;
@@ -20781,7 +20781,7 @@ CALL sp72(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute72();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute72;
 DROP PROCEDURE sp72;
 DROP PROCEDURE IF EXISTS sp73;
@@ -20812,7 +20812,7 @@ CALL sp73(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute73();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute73;
 DROP PROCEDURE sp73;
 DROP PROCEDURE IF EXISTS sp74;
@@ -20843,7 +20843,7 @@ CALL sp74(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute74();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute74;
 DROP PROCEDURE sp74;
 DROP PROCEDURE IF EXISTS sp75;
@@ -20874,7 +20874,7 @@ CALL sp75(-1.00e+09, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute75();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute75;
 DROP PROCEDURE sp75;
 DROP PROCEDURE IF EXISTS sp76;
@@ -20905,7 +20905,7 @@ CALL sp76(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute76();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute76;
 DROP PROCEDURE sp76;
 DROP PROCEDURE IF EXISTS sp77;
@@ -20936,7 +20936,7 @@ CALL sp77(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute77();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute77;
 DROP PROCEDURE sp77;
 DROP PROCEDURE IF EXISTS sp78;
@@ -20967,7 +20967,7 @@ CALL sp78(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute78();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute78;
 DROP PROCEDURE sp78;
 DROP PROCEDURE IF EXISTS sp79;
@@ -20998,7 +20998,7 @@ CALL sp79(1.00e+00, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute79();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute79;
 DROP PROCEDURE sp79;
 DROP PROCEDURE IF EXISTS sp80;
@@ -21029,7 +21029,7 @@ CALL sp80(-2.15e+09, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute80();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute80;
 DROP PROCEDURE sp80;
 DROP PROCEDURE IF EXISTS sp81;
@@ -21060,7 +21060,7 @@ CALL sp81(4.29e+09, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute81();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute81;
 DROP PROCEDURE sp81;
 DROP PROCEDURE IF EXISTS sp82;
@@ -21091,7 +21091,7 @@ CALL sp82(4.29e+09, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute82();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute82;
 DROP PROCEDURE sp82;
 DROP PROCEDURE IF EXISTS sp83;
@@ -21122,7 +21122,7 @@ CALL sp83(2.15e+08, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute83();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute83;
 DROP PROCEDURE sp83;
 DROP PROCEDURE IF EXISTS sp84;
@@ -21153,7 +21153,7 @@ CALL sp84(-8388600, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute84();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute84;
 DROP PROCEDURE sp84;
 DROP PROCEDURE IF EXISTS sp85;
@@ -21184,7 +21184,7 @@ CALL sp85(16777201, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute85();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute85;
 DROP PROCEDURE sp85;
 DROP PROCEDURE IF EXISTS sp86;
@@ -21215,7 +21215,7 @@ CALL sp86(16777210, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute86();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute86;
 DROP PROCEDURE sp86;
 DROP PROCEDURE IF EXISTS sp87;
@@ -21246,7 +21246,7 @@ CALL sp87(-8388601, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute87();
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP PROCEDURE spexecute87;
 DROP PROCEDURE sp87;
 DROP PROCEDURE IF EXISTS sp88;
@@ -21277,7 +21277,7 @@ CALL sp88(99999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute88();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute88;
 DROP PROCEDURE sp88;
 DROP PROCEDURE IF EXISTS sp89;
@@ -21308,7 +21308,7 @@ CALL sp89(99999999, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute89();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute89;
 DROP PROCEDURE sp89;
 DROP PROCEDURE IF EXISTS sp90;
@@ -21339,7 +21339,7 @@ CALL sp90(1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute90();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute90;
 DROP PROCEDURE sp90;
 DROP PROCEDURE IF EXISTS sp91;
@@ -21370,7 +21370,7 @@ CALL sp91(1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute91();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute91;
 DROP PROCEDURE sp91;
 DROP PROCEDURE IF EXISTS sp92;
@@ -21401,7 +21401,7 @@ CALL sp92(-1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute92();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute92;
 DROP PROCEDURE sp92;
 DROP PROCEDURE IF EXISTS sp93;
@@ -21432,7 +21432,7 @@ CALL sp93(1.00e+20, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute93();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute93;
 DROP PROCEDURE sp93;
 DROP PROCEDURE IF EXISTS sp94;
@@ -21463,7 +21463,7 @@ CALL sp94(-32701, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.2
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute94();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute94;
 DROP PROCEDURE sp94;
 DROP PROCEDURE IF EXISTS sp95;
@@ -21494,7 +21494,7 @@ CALL sp95(65531, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.22
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute95();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute95;
 DROP PROCEDURE sp95;
 DROP PROCEDURE IF EXISTS sp96;
@@ -21525,7 +21525,7 @@ CALL sp96(65531, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.22
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute96();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute96;
 DROP PROCEDURE sp96;
 DROP PROCEDURE IF EXISTS sp97;
@@ -21556,7 +21556,7 @@ CALL sp97(-32601, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.2
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute97();
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP PROCEDURE spexecute97;
 DROP PROCEDURE sp97;
 DROP PROCEDURE IF EXISTS sp98;
@@ -21587,7 +21587,7 @@ CALL sp98(-115, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.22e
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute98();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute98;
 DROP PROCEDURE sp98;
 DROP PROCEDURE IF EXISTS sp99;
@@ -21618,7 +21618,7 @@ CALL sp99(251, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.22e+
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute99();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute99;
 DROP PROCEDURE sp99;
 DROP PROCEDURE IF EXISTS sp100;
@@ -21649,7 +21649,7 @@ CALL sp100(201, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.22e
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute100();
-ERROR 22003: BIGINT value is out of range in '(f5@4 * 2)'
+ERROR 22003: BIGINT value is out of range in 'f5@4 * 2'
 DROP PROCEDURE spexecute100;
 DROP PROCEDURE sp100;
 DROP PROCEDURE IF EXISTS sp101;
@@ -21680,7 +21680,7 @@ CALL sp101(-101, var1, var2, -9.22e+18, var3, var4, -9.22e+18, var5, var6, -9.22
 SELECT var1, var2, var3, var4, var5, var6, var7, var8;
 END//
 CALL spexecute101();
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 DROP PROCEDURE spexecute101;
 DROP PROCEDURE sp101;
 USE db_storedproc;

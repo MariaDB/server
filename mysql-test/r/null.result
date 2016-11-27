@@ -6,7 +6,7 @@ explain extended select null,\N,isnull(null),isnull(1/0),isnull(1/0 = null),ifnu
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select NULL AS `NULL`,NULL AS `NULL`,isnull(NULL) AS `isnull(null)`,isnull((1 / 0)) AS `isnull(1/0)`,isnull(((1 / 0) = NULL)) AS `isnull(1/0 = null)`,ifnull(NULL,1) AS `ifnull(null,1)`,ifnull(NULL,'TRUE') AS `ifnull(null,"TRUE")`,ifnull('TRUE','ERROR') AS `ifnull("TRUE","ERROR")`,isnull((1 / 0)) AS `1/0 is null`,(1 is not null) AS `1 is not null`
+Note	1003	select NULL AS `NULL`,NULL AS `NULL`,NULL is null AS `isnull(null)`,1 / 0 is null AS `isnull(1/0)`,1 / 0 = NULL is null AS `isnull(1/0 = null)`,ifnull(NULL,1) AS `ifnull(null,1)`,ifnull(NULL,'TRUE') AS `ifnull(null,"TRUE")`,ifnull('TRUE','ERROR') AS `ifnull("TRUE","ERROR")`,1 / 0 is null AS `1/0 is null`,1 is not null AS `1 is not null`
 select 1 | NULL,1 & NULL,1+NULL,1-NULL;
 1 | NULL	1 & NULL	1+NULL	1-NULL
 NULL	NULL	NULL	NULL
@@ -32,7 +32,7 @@ explain extended select 2 between null and 1,2 between 3 AND NULL,NULL between 1
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select (2 between NULL and 1) AS `2 between null and 1`,(2 between 3 and NULL) AS `2 between 3 AND NULL`,(NULL between 1 and 2) AS `NULL between 1 and 2`,(2 between NULL and 3) AS `2 between NULL and 3`,(2 between 1 and NULL) AS `2 between 1 AND null`
+Note	1003	select 2 between NULL and 1 AS `2 between null and 1`,2 between 3 and NULL AS `2 between 3 AND NULL`,NULL between 1 and 2 AS `NULL between 1 and 2`,2 between NULL and 3 AS `2 between NULL and 3`,2 between 1 and NULL AS `2 between 1 AND null`
 SELECT NULL AND NULL, 1 AND NULL, NULL AND 1, NULL OR NULL, 0 OR NULL, NULL OR 0;
 NULL AND NULL	1 AND NULL	NULL AND 1	NULL OR NULL	0 OR NULL	NULL OR 0
 NULL	NULL	NULL	NULL	NULL	NULL
@@ -1372,7 +1372,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND NULLIF(10.1,a) IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 2010)
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
 SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL ELSE 10.1 END IS NULL;
 a
 2010
@@ -1380,7 +1380,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL EL
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 2010)
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
 DROP TABLE t1;
 # Two warnings expected
 CREATE TABLE t1 AS SELECT
@@ -1409,7 +1409,7 @@ EXPLAIN EXTENDED SELECT NULLIF(a,_utf8'a' COLLATE utf8_bin) IS NULL AS expr FROM
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	select isnull((case when convert(`test`.`t1`.`a` using utf8) = (_utf8'a' collate utf8_bin) then NULL else `test`.`t1`.`a` end)) AS `expr` from `test`.`t1`
+Note	1003	select (case when convert(`test`.`t1`.`a` using utf8) = _utf8'a' collate utf8_bin then NULL else `test`.`t1`.`a` end) is null AS `expr` from `test`.`t1`
 DROP TABLE t1;
 #
 # MDEV-8740 Wrong result for SELECT..WHERE year_field=10 AND NULLIF(year_field,2011.1)='2011'
@@ -1432,13 +1432,13 @@ SELECT * FROM t1 WHERE a=10 AND NULLIF(a,2011.1)='2011';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 2010) and ((case when 2010 = 2011 then NULL else `test`.`t1`.`a` end) = '2011'))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010 and (case when 2010 = 2011 then NULL else `test`.`t1`.`a` end) = '2011'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=10 AND NULLIF(a,2011.1)=CONCAT('2011',RAND());
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 2010) and ((case when 2010 = 2011 then NULL else `test`.`t1`.`a` end) = concat('2011',rand())))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010 and (case when 2010 = 2011 then NULL else `test`.`t1`.`a` end) = concat('2011',rand())
 DROP TABLE t1;
 #
 # MDEV-8754 Wrong result for SELECT..WHERE year_field=2020 AND NULLIF(year_field,2010)='2020'
@@ -1459,13 +1459,13 @@ SELECT * FROM t1 WHERE a=2020 AND NULLIF(a,2010)='2020';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 2020) and ((case when 2020 = 2010 then NULL else `test`.`t1`.`a` end) = '2020'))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2020 and (case when 2020 = 2010 then NULL else `test`.`t1`.`a` end) = '2020'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=2020 AND NULLIF(a,2010)=CONCAT('2020',RAND());
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 2020) and ((case when 2020 = 2010 then NULL else `test`.`t1`.`a` end) = concat('2020',rand())))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2020 and (case when 2020 = 2010 then NULL else `test`.`t1`.`a` end) = concat('2020',rand())
 DROP TABLE t1;
 #
 # MDEV-9181 (NULLIF(count(table.col)), 0) gives wrong result on 10.1.x
@@ -1584,7 +1584,7 @@ SELECT * FROM t1 WHERE ((c1 IS NOT NULL) >= (NOT TRUE)) IS NOT NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where (((`test`.`t1`.`c1` is not null) >= 0) is not null)
+Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where `test`.`t1`.`c1` is not null >= 0 is not null
 SELECT * FROM t1 WHERE ((c1 IS NOT NULL) >= (NOT TRUE)) IS NOT NULL;
 c1
 1

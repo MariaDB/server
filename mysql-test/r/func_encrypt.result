@@ -203,7 +203,7 @@ SELECT * FROM t1 WHERE a=1 AND DES_ENCRYPT('test',a)=_latin1 'abc' COLLATE latin
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 1) and (des_encrypt('test',`test`.`t1`.`a`) = 'abc'))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and des_encrypt('test',`test`.`t1`.`a`) = 'abc'
 DROP TABLE t1;
 #
 # End of 10.1 tests

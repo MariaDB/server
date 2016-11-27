@@ -6045,12 +6045,12 @@ select bug20777(9223372036854775810) as '9223372036854775810   2**63+2';
 9223372036854775810   2**63+2
 9223372036854775810
 select bug20777(-9223372036854775808) as 'lower bounds signed bigint';
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 select bug20777(9223372036854775807) as 'upper bounds signed bigint';
 upper bounds signed bigint
 9223372036854775807
 select bug20777(0) as 'lower bounds unsigned bigint';
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 select bug20777(18446744073709551615) as 'upper bounds unsigned bigint';
 upper bounds unsigned bigint
 18446744073709551615
@@ -6060,7 +6060,7 @@ upper bounds unsigned bigint + 1
 Warnings:
 Warning	1264	Out of range value for column 'f1' at row 1
 select bug20777(-1) as 'lower bounds unsigned bigint - 1';
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(f1@0 - 10)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in 'f1@0 - 10'
 create table examplebug20777 as select 
 0 as 'i',
 bug20777(9223372036854775806) as '2**63-2',

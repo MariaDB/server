@@ -3,10 +3,10 @@ create table t1 (a int check(a>10), b int check (b > 20), constraint `min` check
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL CHECK ((`a` > 10)),
-  `b` int(11) DEFAULT NULL CHECK ((`b` > 20)),
-  CONSTRAINT `min` CHECK (((`a` + `b`) > 100)),
-  CONSTRAINT `max` CHECK (((`a` + `b`) < 500))
+  `a` int(11) DEFAULT NULL CHECK (`a` > 10),
+  `b` int(11) DEFAULT NULL CHECK (`b` > 20),
+  CONSTRAINT `min` CHECK (`a` + `b` > 100),
+  CONSTRAINT `max` CHECK (`a` + `b` < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (100,100);
 insert into t1 values (1,1);
@@ -52,12 +52,12 @@ set check_constraint_checks=@save_check_constraint;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL CHECK ((`a` > 10)),
-  `b` int(11) DEFAULT NULL CHECK ((`b` > 20)),
-  `c` int(11) DEFAULT 0 CHECK ((`c` < 10)),
-  CONSTRAINT `min` CHECK (((`a` + `b`) > 100)),
-  CONSTRAINT `max` CHECK (((`a` + `b`) < 500)),
-  CONSTRAINT `CONSTRAINT_1` CHECK ((((`a` + `b`) + `c`) < 500))
+  `a` int(11) DEFAULT NULL CHECK (`a` > 10),
+  `b` int(11) DEFAULT NULL CHECK (`b` > 20),
+  `c` int(11) DEFAULT 0 CHECK (`c` < 10),
+  CONSTRAINT `min` CHECK (`a` + `b` > 100),
+  CONSTRAINT `max` CHECK (`a` + `b` < 500),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values(105,105,105);
 ERROR 23000: CONSTRAINT `c` failed for `test`.`t1`
@@ -75,12 +75,12 @@ create table t2 like t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL CHECK ((`a` > 10)),
-  `b` int(11) DEFAULT NULL CHECK ((`b` > 20)),
-  `c` int(11) DEFAULT 0 CHECK ((`c` < 10)),
-  CONSTRAINT `min` CHECK (((`a` + `b`) > 100)),
-  CONSTRAINT `max` CHECK (((`a` + `b`) < 500)),
-  CONSTRAINT `CONSTRAINT_1` CHECK ((((`a` + `b`) + `c`) < 500))
+  `a` int(11) DEFAULT NULL CHECK (`a` > 10),
+  `b` int(11) DEFAULT NULL CHECK (`b` > 20),
+  `c` int(11) DEFAULT 0 CHECK (`c` < 10),
+  CONSTRAINT `min` CHECK (`a` + `b` > 100),
+  CONSTRAINT `max` CHECK (`a` + `b` < 500),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t2 drop constraint c;
 ERROR 42000: Can't DROP CONSTRAINT `c`; check that it exists
@@ -91,11 +91,11 @@ alter table t2 drop constraint min;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL CHECK ((`a` > 10)),
-  `b` int(11) DEFAULT NULL CHECK ((`b` > 20)),
-  `c` int(11) DEFAULT 0 CHECK ((`c` < 10)),
-  CONSTRAINT `max` CHECK (((`a` + `b`) < 500)),
-  CONSTRAINT `CONSTRAINT_1` CHECK ((((`a` + `b`) + `c`) < 500))
+  `a` int(11) DEFAULT NULL CHECK (`a` > 10),
+  `b` int(11) DEFAULT NULL CHECK (`b` > 20),
+  `c` int(11) DEFAULT 0 CHECK (`c` < 10),
+  CONSTRAINT `max` CHECK (`a` + `b` < 500),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1,t2;
 create or replace table t1 (a int, b int, constraint check (a>b));
@@ -104,7 +104,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  CONSTRAINT `CONSTRAINT_1` CHECK ((`a` > `b`))
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` > `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a int, b int,
 constraint CONSTRAINT_1 check (a>1),
@@ -114,8 +114,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  CONSTRAINT `CONSTRAINT_1` CHECK ((`a` > 1)),
-  CONSTRAINT `CONSTRAINT_2` CHECK ((`b` > 1))
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` > 1),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`b` > 1)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a int, b int,
 constraint CONSTRAINT_1 check (a>1),
@@ -126,8 +126,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  CONSTRAINT `CONSTRAINT_1` CHECK ((`a` > 1)),
-  CONSTRAINT `CONSTRAINT_3` CHECK ((`b` > 1)),
-  CONSTRAINT `CONSTRAINT_2` CHECK ((`a` > `b`))
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` > 1),
+  CONSTRAINT `CONSTRAINT_3` CHECK (`b` > 1),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`a` > `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;

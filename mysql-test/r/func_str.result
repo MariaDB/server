@@ -587,15 +587,15 @@ select _latin1'B' in (_latin1'a',_latin1'b' collate latin1_bin);
 _latin1'B' in (_latin1'a',_latin1'b' collate latin1_bin)
 0
 select _latin2'B' in (_latin1'a',_latin1'b');
-ERROR HY000: Illegal mix of collations (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'in'
 select _latin1'B' in (_latin2'a',_latin1'b');
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE) for operation 'in'
 select _latin1'B' in (_latin1'a',_latin2'b');
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE), (latin1_swedish_ci,COERCIBLE), (latin2_general_ci,COERCIBLE) for operation 'in'
 select _latin1'B' COLLATE latin1_general_ci in (_latin1'a' COLLATE latin1_bin,_latin1'b');
-ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_bin,EXPLICIT), (latin1_swedish_ci,COERCIBLE) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_bin,EXPLICIT), (latin1_swedish_ci,COERCIBLE) for operation 'in'
 select _latin1'B' COLLATE latin1_general_ci in (_latin1'a',_latin1'b' COLLATE latin1_bin);
-ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_swedish_ci,COERCIBLE), (latin1_bin,EXPLICIT) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT), (latin1_swedish_ci,COERCIBLE), (latin1_bin,EXPLICIT) for operation 'in'
 select collation(bin(130)), coercibility(bin(130));
 collation(bin(130))	coercibility(bin(130))
 latin1_swedish_ci	4
@@ -841,7 +841,7 @@ explain extended select 'mood' sounds like 'mud';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select (soundex('mood') = soundex('mud')) AS `'mood' sounds like 'mud'`
+Note	1003	select soundex('mood') = soundex('mud') AS `'mood' sounds like 'mud'`
 explain extended select aes_decrypt(aes_encrypt('abc','1'),'1');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -921,7 +921,7 @@ explain extended select FIELD('b' COLLATE latin1_bin,'A','B');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select field(('b' collate latin1_bin),'A','B') AS `FIELD('b' COLLATE latin1_bin,'A','B')`
+Note	1003	select field('b' collate latin1_bin,'A','B') AS `FIELD('b' COLLATE latin1_bin,'A','B')`
 explain extended select FIND_IN_SET(_latin1'B', _latin1'a,b,c,d');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -976,7 +976,7 @@ explain extended select quote(1/0);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select quote((1 / 0)) AS `quote(1/0)`
+Note	1003	select quote(1 / 0) AS `quote(1/0)`
 explain extended select crc32("123");
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -1290,27 +1290,27 @@ EXPLAIN EXTENDED SELECT s FROM t1 WHERE TRIM(s) > 'ab';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where (trim(`test`.`t1`.`s`) > 'ab')
+Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where trim(`test`.`t1`.`s`) > 'ab'
 EXPLAIN EXTENDED SELECT s FROM t1 WHERE TRIM('y' FROM s) > 'ab';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where (trim(both 'y' from `test`.`t1`.`s`) > 'ab')
+Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where trim(both 'y' from `test`.`t1`.`s`) > 'ab'
 EXPLAIN EXTENDED SELECT s FROM t1 WHERE TRIM(LEADING 'y' FROM s) > 'ab';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where (trim(leading 'y' from `test`.`t1`.`s`) > 'ab')
+Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where trim(leading 'y' from `test`.`t1`.`s`) > 'ab'
 EXPLAIN EXTENDED SELECT s FROM t1 WHERE TRIM(TRAILING 'y' FROM s) > 'ab';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where (trim(trailing 'y' from `test`.`t1`.`s`) > 'ab')
+Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where trim(trailing 'y' from `test`.`t1`.`s`) > 'ab'
 EXPLAIN EXTENDED SELECT s FROM t1 WHERE TRIM(BOTH 'y' FROM s) > 'ab';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where (trim(both 'y' from `test`.`t1`.`s`) > 'ab')
+Note	1003	select `test`.`t1`.`s` AS `s` from `test`.`t1` where trim(both 'y' from `test`.`t1`.`s`) > 'ab'
 DROP TABLE t1;
 create table t1(f1 varchar(4));
 explain extended select encode(f1,'zxcv') as 'enc' from t1;
@@ -1400,7 +1400,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	const	PRIMARY	PRIMARY	12	const	1	100.00	Using index
 1	SIMPLE	t1	ref	code	code	13	const	3	100.00	Using where; Using index
 Warnings:
-Note	1003	select `test`.`t1`.`code` AS `code`,'a12' AS `id` from `test`.`t1` join `test`.`t2` where ((`test`.`t1`.`code` = 'a12') and (length(`test`.`t1`.`code`) = 5))
+Note	1003	select `test`.`t1`.`code` AS `code`,'a12' AS `id` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`code` = 'a12' and length(`test`.`t1`.`code`) = 5
 DROP TABLE t1,t2;
 select encode(NULL, NULL);
 encode(NULL, NULL)
@@ -4575,7 +4575,7 @@ SELECT * FROM t1 WHERE a=18446744073709551615 AND FORMAT(a,0)='18,446,744,073,70
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 18446744073709551615) and (format(`test`.`t1`.`a`,0) = '18,446,744,073,709,551,615'))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 18446744073709551615 and format(`test`.`t1`.`a`,0) = '18,446,744,073,709,551,615'
 DROP TABLE t1;
 #
 # Bug#58081 Duplicate entry error when doing GROUP BY

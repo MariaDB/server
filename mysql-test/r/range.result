@@ -2258,26 +2258,26 @@ explain extended select * from t2 where (b > 25 and b < 15) or a<44;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	range	a,b	a	5	NULL	43	100.00	Using index condition
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where (`test`.`t2`.`a` < 44)
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`a` < 44
 # EXPLAIN EXTENDED should show that 'b > 25 and b < 15' is removed from the WHERE:
 explain extended select * from t2 where a < 44 or (b > 25 and b < 15);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	range	a,b	a	5	NULL	43	100.00	Using index condition
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where (`test`.`t2`.`a` < 44)
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`a` < 44
 # Here, conditions b will not be removed, because "c<44" is not sargable
 #   and hence (b.. and .. b) part is not analyzed at all:
 explain extended select * from t2 where c < 44 or (b > 25 and b < 15);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	1000	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where ((`test`.`t2`.`c` < 44) or ((`test`.`t2`.`b` > 25) and (`test`.`t2`.`b` < 15)))
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`c` < 44 or `test`.`t2`.`b` > 25 and `test`.`t2`.`b` < 15
 # EXPLAIN EXTENDED should show that 'b > 25 and b < 15' is removed from the WHERE:
 explain extended select * from t2 where (b > 25 and b < 15) or c < 44;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	1000	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where ((`test`.`t2`.`c` < 44))
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`c` < 44
 # Try a case where both OR parts produce SEL_ARG::IMPOSSIBLE:
 explain extended select * from t2 where (b > 25 and b < 15) or (a>55 and a<44);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra

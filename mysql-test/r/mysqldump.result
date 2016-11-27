@@ -2086,7 +2086,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v2` AS select `t2`.`a` AS `a` from `t2` where (`t2`.`a` like 'a%') */
+/*!50001 VIEW `v2` AS select `t2`.`a` AS `a` from `t2` where `t2`.`a` like 'a%' */
 /*!50002 WITH CASCADED CHECK OPTION */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2254,7 +2254,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v2` AS select `t2`.`a` AS `a` from `t2` where (`t2`.`a` like 'a%') */
+/*!50001 VIEW `v2` AS select `t2`.`a` AS `a` from `t2` where `t2`.`a` like 'a%' */
 /*!50002 WITH CASCADED CHECK OPTION */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
@@ -2388,7 +2388,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v1` AS select `v3`.`a` AS `a`,`v3`.`b` AS `b`,`v3`.`c` AS `c` from `v3` where (`v3`.`b` in (1,2,3,4,5,6,7)) */;
+/*!50001 VIEW `v1` AS select `v3`.`a` AS `a`,`v3`.`b` AS `b`,`v3`.`c` AS `c` from `v3` where `v3`.`b` in (1,2,3,4,5,6,7) */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
@@ -2402,7 +2402,7 @@ SET character_set_client = @saved_cs_client;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v2` AS select `v3`.`a` AS `a` from (`v3` join `v1`) where ((`v1`.`a` = `v3`.`a`) and (`v3`.`b` = 3)) limit 1 */;
+/*!50001 VIEW `v2` AS select `v3`.`a` AS `a` from (`v3` join `v1`) where `v1`.`a` = `v3`.`a` and `v3`.`b` = 3 limit 1 */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
@@ -3414,7 +3414,7 @@ mysqldump {
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v1` AS select `t`.`qty` AS `qty`,`t`.`price` AS `price`,(`t`.`qty` * `t`.`price`) AS `value` from `t` */;
+/*!50001 VIEW `v1` AS select `t`.`qty` AS `qty`,`t`.`price` AS `price`,`t`.`qty` * `t`.`price` AS `value` from `t` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;

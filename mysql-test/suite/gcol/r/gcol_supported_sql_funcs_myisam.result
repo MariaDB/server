@@ -218,7 +218,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
-  `b` double GENERATED ALWAYS AS ((`a` / 2)) VIRTUAL
+  `b` double GENERATED ALWAYS AS (`a` / 2) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (2,default);
 select * from t1;
@@ -358,7 +358,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
-  `b` double GENERATED ALWAYS AS ((`a` - 1)) VIRTUAL
+  `b` double GENERATED ALWAYS AS (`a` - 1) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (2,default);
 select * from t1;
@@ -373,7 +373,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` % 10)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` % 10) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (11,default);
@@ -390,7 +390,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` % 10)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` % 10) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (11,default);
@@ -422,7 +422,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
-  `b` double GENERATED ALWAYS AS (format(((pi() * `a`) * `a`),6)) VIRTUAL
+  `b` double GENERATED ALWAYS AS (format(pi() * `a` * `a`,6)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 select * from t1;
@@ -437,7 +437,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` + 1)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 select * from t1;
@@ -593,7 +593,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
-  `b` double GENERATED ALWAYS AS ((`a` * 3)) VIRTUAL
+  `b` double GENERATED ALWAYS AS (`a` * 3) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (0,default);
 insert into t1 values (1,default);
@@ -633,7 +633,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` double DEFAULT NULL,
-  `b` double GENERATED ALWAYS AS (-(`a`)) VIRTUAL
+  `b` double GENERATED ALWAYS AS (-`a`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (-1,default);
@@ -973,7 +973,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` tinyint(1) GENERATED ALWAYS AS ((`a` like 'H%o')) VIRTUAL
+  `b` tinyint(1) GENERATED ALWAYS AS (`a` like 'H%o') VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('Hello',default);
 insert into t1 values ('MySQL',default);
@@ -1088,7 +1088,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` tinyint(1) GENERATED ALWAYS AS ((not((`a` like 'H%o')))) VIRTUAL
+  `b` tinyint(1) GENERATED ALWAYS AS (!(`a` like 'H%o')) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('Hello',default);
 insert into t1 values ('MySQL',default);
@@ -1105,7 +1105,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` tinyint(1) GENERATED ALWAYS AS ((not((`a` regexp 'H.+o')))) VIRTUAL
+  `b` tinyint(1) GENERATED ALWAYS AS (!(`a` regexp 'H.+o')) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('Hello',default);
 insert into t1 values ('hello',default);
@@ -1182,7 +1182,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` tinyint(1) GENERATED ALWAYS AS ((`a` regexp 'H.+o')) VIRTUAL
+  `b` tinyint(1) GENERATED ALWAYS AS (`a` regexp 'H.+o') VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('Hello',default);
 insert into t1 values ('hello',default);
@@ -1259,7 +1259,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` tinyint(1) GENERATED ALWAYS AS ((`a` regexp 'H.+o')) VIRTUAL
+  `b` tinyint(1) GENERATED ALWAYS AS (`a` regexp 'H.+o') VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('Hello',default);
 insert into t1 values ('MySQL',default);
@@ -1322,7 +1322,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
-  `c` tinyint(1) GENERATED ALWAYS AS ((soundex(`a`) = soundex(`b`))) VIRTUAL
+  `c` tinyint(1) GENERATED ALWAYS AS (soundex(`a`) = soundex(`b`)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('Hello','Hello',default);
 insert into t1 values ('Hello','MySQL',default);
@@ -1497,7 +1497,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` varchar(16) GENERATED ALWAYS AS ((case `a` when NULL then 'asd' when 'b' then 'B' else `a` end)) VIRTUAL
+  `b` varchar(16) GENERATED ALWAYS AS (case `a` when NULL then 'asd' when 'b' then 'B' else `a` end) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (NULL,default);
 insert into t1 values ('b',default);
@@ -1517,7 +1517,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) GENERATED ALWAYS AS (if((`a` = 1),`a`,`b`)) VIRTUAL
+  `c` int(11) GENERATED ALWAYS AS (if(`a` = 1,`a`,`b`)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,2,default);
 insert into t1 values (3,4,default);
@@ -1572,7 +1572,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` tinyint(1) GENERATED ALWAYS AS (((`a` > 0) and (`a` < 2))) VIRTUAL
+  `b` tinyint(1) GENERATED ALWAYS AS (`a` > 0 and `a` < 2) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (-1,default);
 insert into t1 values (1,default);
@@ -1589,7 +1589,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` tinyint(1) GENERATED ALWAYS AS ((`a` between 0 and 2)) VIRTUAL
+  `b` tinyint(1) GENERATED ALWAYS AS (`a` between 0 and 2) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (-1,default);
 insert into t1 values (1,default);
@@ -1623,7 +1623,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` & 5)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` & 5) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (0,default);
@@ -1640,7 +1640,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS (~(`a`)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (~`a`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 Warnings:
@@ -1657,7 +1657,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` | 5)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` | 5) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (0,default);
@@ -1676,7 +1676,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` ^ 5)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` ^ 5) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (0,default);
@@ -1695,7 +1695,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` DIV 5)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` DIV 5) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (7,default);
@@ -1713,7 +1713,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` tinyint(1) GENERATED ALWAYS AS ((`a` <=> `b`)) VIRTUAL
+  `c` tinyint(1) GENERATED ALWAYS AS (`a` <=> `b`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,1,default);
 insert into t1 values (NULL,NULL,default);
@@ -1733,7 +1733,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
-  `c` tinyint(1) GENERATED ALWAYS AS ((`a` = `b`)) VIRTUAL
+  `c` tinyint(1) GENERATED ALWAYS AS (`a` = `b`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('a','b',default);
 insert into t1 values ('a','a',default);
@@ -1751,7 +1751,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
-  `c` tinyint(1) GENERATED ALWAYS AS ((`a` >= `b`)) VIRTUAL
+  `c` tinyint(1) GENERATED ALWAYS AS (`a` >= `b`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('a','b',default);
 insert into t1 values ('a','a',default);
@@ -1769,7 +1769,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
-  `c` tinyint(1) GENERATED ALWAYS AS ((`a` > `b`)) VIRTUAL
+  `c` tinyint(1) GENERATED ALWAYS AS (`a` > `b`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('a','b',default);
 insert into t1 values ('a','a',default);
@@ -1786,7 +1786,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` tinyint(1) GENERATED ALWAYS AS ((`a` is not null)) VIRTUAL
+  `b` tinyint(1) GENERATED ALWAYS AS (`a` is not null) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (NULL,default);
@@ -1803,7 +1803,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` tinyint(1) GENERATED ALWAYS AS (isnull(`a`)) VIRTUAL
+  `b` tinyint(1) GENERATED ALWAYS AS (`a` is null) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (NULL,default);
@@ -1820,7 +1820,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` << 2)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` << 2) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (3,default);
@@ -1838,7 +1838,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
-  `c` tinyint(1) GENERATED ALWAYS AS ((`a` <= `b`)) VIRTUAL
+  `c` tinyint(1) GENERATED ALWAYS AS (`a` <= `b`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('b','a',default);
 insert into t1 values ('b','b',default);
@@ -1858,7 +1858,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
-  `c` tinyint(1) GENERATED ALWAYS AS ((`a` < `b`)) VIRTUAL
+  `c` tinyint(1) GENERATED ALWAYS AS (`a` < `b`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('b','a',default);
 insert into t1 values ('b','b',default);
@@ -1877,7 +1877,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` tinyint(1) GENERATED ALWAYS AS ((`a` not between 0 and 2)) VIRTUAL
+  `b` tinyint(1) GENERATED ALWAYS AS (`a` not between 0 and 2) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (-1,default);
 insert into t1 values (1,default);
@@ -1895,7 +1895,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
-  `c` tinyint(1) GENERATED ALWAYS AS ((`a` <> `b`)) VIRTUAL
+  `c` tinyint(1) GENERATED ALWAYS AS (`a` <> `b`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('b','a',default);
 insert into t1 values ('b','b',default);
@@ -1915,7 +1915,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) DEFAULT NULL,
-  `c` tinyint(1) GENERATED ALWAYS AS ((`a` <> `b`)) VIRTUAL
+  `c` tinyint(1) GENERATED ALWAYS AS (`a` <> `b`) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('b','a',default);
 insert into t1 values ('b','b',default);
@@ -1934,7 +1934,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS (((`a` > 5) or (`a` < 3))) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` > 5 or `a` < 3) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,default);
 insert into t1 values (4,default);
@@ -1951,7 +1951,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` >> 2)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` >> 2) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (8,default);
 insert into t1 values (3,default);
@@ -1968,7 +1968,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) GENERATED ALWAYS AS ((`a` xor 5)) VIRTUAL
+  `b` int(11) GENERATED ALWAYS AS (`a` xor 5) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (0,default);
 insert into t1 values (1,default);
@@ -1990,7 +1990,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
-  `b` datetime GENERATED ALWAYS AS ((`a` + interval 1 month)) VIRTUAL
+  `b` datetime GENERATED ALWAYS AS (`a` + interval 1 month) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('2008-08-31',default);
 select * from t1;
@@ -2035,7 +2035,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
-  `b` datetime GENERATED ALWAYS AS ((`a` + interval 1 month)) VIRTUAL
+  `b` datetime GENERATED ALWAYS AS (`a` + interval 1 month) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('2008-08-31',default);
 select * from t1;
@@ -2065,7 +2065,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
-  `b` datetime GENERATED ALWAYS AS ((`a` - interval 1 month)) VIRTUAL
+  `b` datetime GENERATED ALWAYS AS (`a` - interval 1 month) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('2008-08-31',default);
 select * from t1;
@@ -2095,7 +2095,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
-  `b` bigint(20) GENERATED ALWAYS AS ((to_days(`a`) - to_days('2000-01-01'))) VIRTUAL
+  `b` bigint(20) GENERATED ALWAYS AS (to_days(`a`) - to_days('2000-01-01')) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('2008-08-31',default);
 select * from t1;
@@ -2462,7 +2462,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
-  `b` datetime GENERATED ALWAYS AS ((`a` - interval 1 month)) VIRTUAL
+  `b` datetime GENERATED ALWAYS AS (`a` - interval 1 month) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('2008-08-31',default);
 select * from t1;
@@ -2568,7 +2568,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime DEFAULT NULL,
-  `b` timestamp GENERATED ALWAYS AS ((`a` + interval 1 minute)) VIRTUAL
+  `b` timestamp GENERATED ALWAYS AS (`a` + interval 1 minute) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ('2003-01-02',default);
 select * from t1;

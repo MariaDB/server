@@ -69,6 +69,30 @@ struct SARGABLE_PARAM;
 class RANGE_OPT_PARAM;
 class SEL_TREE;
 
+enum precedence {
+  LOWEST_PRECEDENCE,
+  ASSIGN_PRECEDENCE,    // :=
+  OR_PRECEDENCE,        // OR, || (unless PIPES_AS_CONCAT)
+  XOR_PRECEDENCE,       // XOR
+  AND_PRECEDENCE,       // AND, &&
+  NOT_PRECEDENCE,       // NOT (unless HIGH_NOT_PRECEDENCE)
+  BETWEEN_PRECEDENCE,   // BETWEEN, CASE, WHEN, THEN, ELSE
+  CMP_PRECEDENCE,       // =, <=>, >=, >, <=, <, <>, !=, IS, LIKE, REGEXP, IN
+  BITOR_PRECEDENCE,     // |
+  BITAND_PRECEDENCE,    // &
+  SHIFT_PRECEDENCE,     // <<, >>
+  ADDINTERVAL_PRECEDENCE, // first argument in +INTERVAL
+  ADD_PRECEDENCE,       // +, -
+  MUL_PRECEDENCE,       // *, /, DIV, %, MOD
+  BITXOR_PRECEDENCE,    // ^
+  PIPES_PRECEDENCE,     // || (if PIPES_AS_CONCAT)
+  NEG_PRECEDENCE,       // unary -, ~
+  BANG_PRECEDENCE,      // !, NOT (if HIGH_NOT_PRECEDENCE)
+  COLLATE_PRECEDENCE,   // BINARY, COLLATE
+  INTERVAL_PRECEDENCE,  // INTERVAL
+  DEFAULT_PRECEDENCE,
+  HIGHEST_PRECEDENCE
+};
 
 typedef Bounds_checked_array<Item*> Ref_ptr_array;
 
@@ -1263,13 +1287,13 @@ public:
     query and why they should be generated from the Item-tree, @see
     mysql_register_view().
   */
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    str->append(full_name());
-  }
+  virtual enum precedence precedence() const { return DEFAULT_PRECEDENCE; }
+  void print_parenthesised(String *str, enum_query_type query_type,
+                           enum precedence parent_prec);
+  virtual void print(String *str, enum_query_type query_type);
+  void print_item_w_name(String *str, enum_query_type query_type);
+  void print_value(String *str);
 
-  void print_item_w_name(String *, enum_query_type query_type);
-  void print_value(String *);
   virtual void update_used_tables() {}
   virtual COND *build_equal_items(THD *thd, COND_EQUAL *inheited,
                                   bool link_item_fields,

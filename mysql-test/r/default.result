@@ -270,8 +270,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT 1,
-  `b` int(11) DEFAULT ((`a` + 1)),
-  `c` int(11) DEFAULT ((`a` + `b`))
+  `b` int(11) DEFAULT (`a` + 1),
+  `c` int(11) DEFAULT (`a` + `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values ();
 insert into t1 (a) values (2);
@@ -345,11 +345,11 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT 1,
   `c` int(11) DEFAULT -1,
-  `d` int(11) DEFAULT ((1 + 1)),
+  `d` int(11) DEFAULT (1 + 1),
   `e` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `f` int(11) DEFAULT (((1 + 1) + 1)),
-  `g` int(11) NOT NULL DEFAULT ((((1 + 1) + 1) + 1)),
-  `h` int(11) DEFAULT ((((2 + 2) + 2) + 2))
+  `f` int(11) DEFAULT (1 + 1 + 1),
+  `g` int(11) NOT NULL DEFAULT (1 + 1 + 1 + 1),
+  `h` int(11) DEFAULT (2 + 2 + 2 + 2)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create table t2 like t1;
 show create table t2;
@@ -358,11 +358,11 @@ t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT 1,
   `c` int(11) DEFAULT -1,
-  `d` int(11) DEFAULT ((1 + 1)),
+  `d` int(11) DEFAULT (1 + 1),
   `e` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `f` int(11) DEFAULT (((1 + 1) + 1)),
-  `g` int(11) NOT NULL DEFAULT ((((1 + 1) + 1) + 1)),
-  `h` int(11) DEFAULT ((((2 + 2) + 2) + 2))
+  `f` int(11) DEFAULT (1 + 1 + 1),
+  `g` int(11) NOT NULL DEFAULT (1 + 1 + 1 + 1),
+  `h` int(11) DEFAULT (2 + 2 + 2 + 2)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t2 (a) values (100);
 select a,b,c,d,e,f,g,h from t2;
@@ -373,7 +373,7 @@ create table t1 (a int default (1----1), b int default - 1, c int default +1, e 
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT ((1 - -1)),
+  `a` int(11) DEFAULT (1 - -1),
   `b` int(11) DEFAULT -1,
   `c` int(11) DEFAULT 1,
   `e` int(11) DEFAULT 1
@@ -549,7 +549,7 @@ deallocate prepare stmt;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT ((1 + 1))
+  `a` int(11) DEFAULT (1 + 1)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 #
@@ -1094,7 +1094,7 @@ CREATE TABLE `t1` (`a` int(11) DEFAULT (3+3),`b` int(11) DEFAULT '1000');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT ((3 + 3)),
+  `a` int(11) DEFAULT (3 + 3),
   `b` int(11) DEFAULT 1000
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 values (1,1),(2,2);
@@ -1243,7 +1243,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT ((`a` DIV `b`))
+  `c` int(11) DEFAULT (`a` DIV `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a, b) VALUES (13, 3);
 SELECT * FROM t1;
@@ -1344,7 +1344,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` date DEFAULT ((`a` + interval `b` day))
+  `c` date DEFAULT (`a` + interval `b` day)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('2001-01-01', 30, DEFAULT);
 SELECT * FROM t1;
@@ -1964,7 +1964,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT ((case when `a` then `b` else 2 end))
+  `c` int(11) DEFAULT (case when `a` then `b` else 2 end)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (0, 1, DEFAULT);
 INSERT INTO t1 VALUES (1, 1, DEFAULT);
@@ -1978,13 +1978,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT (-(`a`))
+  `b` int(11) DEFAULT (-`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT (-(`a`))
+  `b` int(11) DEFAULT (-`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (10, DEFAULT);
 SELECT * FROM t1;
@@ -2025,8 +2025,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT ((`a` + `b`)),
-  `d` int(11) DEFAULT ((`a` - `b`))
+  `c` int(11) DEFAULT (`a` + `b`),
+  `d` int(11) DEFAULT (`a` - `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (2, 1, DEFAULT, DEFAULT);
 SELECT * FROM t1;
@@ -2039,18 +2039,18 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT ((`a` * `b`)),
-  `d` int(11) DEFAULT ((`a` / `b`)),
-  `e` int(11) DEFAULT ((`a` % `b`))
+  `c` int(11) DEFAULT (`a` * `b`),
+  `d` int(11) DEFAULT (`a` / `b`),
+  `e` int(11) DEFAULT (`a` % `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT ((`a` * `b`)),
-  `d` int(11) DEFAULT ((`a` / `b`)),
-  `e` int(11) DEFAULT ((`a` % `b`))
+  `c` int(11) DEFAULT (`a` * `b`),
+  `d` int(11) DEFAULT (`a` / `b`),
+  `e` int(11) DEFAULT (`a` % `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (7, 3, DEFAULT, DEFAULT, DEFAULT);
 SELECT * FROM t1;
@@ -2211,7 +2211,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT ((`a` | `b`))
+  `c` int(11) DEFAULT (`a` | `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES (1,2);
 SELECT * FROM t1;
@@ -2224,7 +2224,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT ((`a` & `b`))
+  `c` int(11) DEFAULT (`a` & `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES (5,4);
 SELECT * FROM t1;
@@ -2237,7 +2237,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT ((`a` ^ `b`))
+  `c` int(11) DEFAULT (`a` ^ `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES (11,3);
 SELECT * FROM t1;
@@ -2250,7 +2250,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT ((`a` & ~(`b`)))
+  `c` int(11) DEFAULT (`a` & ~`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES (5,1);
 SELECT * FROM t1;
@@ -2263,8 +2263,8 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `c` int(11) DEFAULT ((`a` << `b`)),
-  `d` int(11) DEFAULT ((`a` >> `b`))
+  `c` int(11) DEFAULT (`a` << `b`),
+  `d` int(11) DEFAULT (`a` >> `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES (5,1);
 SELECT * FROM t1;
@@ -2617,7 +2617,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` = 0))
+  `b` int(11) DEFAULT (`a` = 0)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (NULL),(0),(1);
 SELECT * FROM t1;
@@ -2632,7 +2632,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `x` int(11) DEFAULT ((`a` xor `b`))
+  `x` int(11) DEFAULT (`a` xor `b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES (0,0),(0,1),(1,0),(1,1);
 SELECT * FROM t1;
@@ -2647,8 +2647,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` is true)),
-  `c` int(11) DEFAULT ((`a` is not true))
+  `b` int(11) DEFAULT (`a` is true),
+  `c` int(11) DEFAULT (`a` is not true)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (NULL),(0),(1);
 SELECT * FROM t1;
@@ -2662,8 +2662,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` is false)),
-  `c` int(11) DEFAULT ((`a` is not false))
+  `b` int(11) DEFAULT (`a` is false),
+  `c` int(11) DEFAULT (`a` is not false)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (NULL),(0),(1);
 SELECT * FROM t1;
@@ -2677,8 +2677,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT (isnull(`a`)),
-  `c` int(11) DEFAULT ((`a` is not null))
+  `b` int(11) DEFAULT (`a` is null),
+  `c` int(11) DEFAULT (`a` is not null)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (NULL),(0),(1);
 SELECT * FROM t1;
@@ -2692,8 +2692,8 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT (isnull(`a`)),
-  `c` int(11) DEFAULT ((`a` is not null))
+  `b` int(11) DEFAULT (`a` is null),
+  `c` int(11) DEFAULT (`a` is not null)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (NULL),(0),(1);
 SELECT * FROM t1;
@@ -2711,13 +2711,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `eq` int(11) DEFAULT ((`a` = 0)),
-  `equal` int(11) DEFAULT ((`a` <=> 0)),
-  `ne` int(11) DEFAULT ((`a` <> 0)),
-  `lt` int(11) DEFAULT ((`a` < 0)),
-  `le` int(11) DEFAULT ((`a` <= 0)),
-  `gt` int(11) DEFAULT ((`a` > 0)),
-  `ge` int(11) DEFAULT ((`a` >= 0))
+  `eq` int(11) DEFAULT (`a` = 0),
+  `equal` int(11) DEFAULT (`a` <=> 0),
+  `ne` int(11) DEFAULT (`a` <> 0),
+  `lt` int(11) DEFAULT (`a` < 0),
+  `le` int(11) DEFAULT (`a` <= 0),
+  `gt` int(11) DEFAULT (`a` > 0),
+  `ge` int(11) DEFAULT (`a` >= 0)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES (NULL),(-1),(0),(1);
 SELECT * FROM t1;
@@ -2732,7 +2732,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` like 'a%'))
+  `b` int(11) DEFAULT (`a` like 'a%')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb');
 SELECT * FROM t1;
@@ -2746,7 +2746,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` regexp 'a$'))
+  `b` int(11) DEFAULT (`a` regexp 'a$')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb');
 SELECT * FROM t1;
@@ -2760,7 +2760,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` in ('aaa','bbb')))
+  `b` int(11) DEFAULT (`a` in ('aaa','bbb'))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
 SELECT * FROM t1;
@@ -2775,7 +2775,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` not in ('aaa','bbb')))
+  `b` int(11) DEFAULT (`a` not in ('aaa','bbb'))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
 SELECT * FROM t1;
@@ -2790,7 +2790,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` between 'aaa' and 'bbb'))
+  `b` int(11) DEFAULT (`a` between 'aaa' and 'bbb')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
 SELECT * FROM t1;
@@ -2805,7 +2805,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` not between 'aaa' and 'bbb'))
+  `b` int(11) DEFAULT (`a` not between 'aaa' and 'bbb')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('AAA'),('aaa'),('bbb'),('ccc');
 SELECT * FROM t1;
@@ -3052,7 +3052,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT 1,
-  `b` int(11) DEFAULT ((1 + 1)),
+  `b` int(11) DEFAULT (1 + 1),
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t1 alter a set default (2+3), alter b set default 4,
@@ -3062,9 +3062,9 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT ((2 + 3)),
+  `a` int(11) DEFAULT (2 + 3),
   `b` int(11) DEFAULT 4,
-  `c` int(11) DEFAULT (-(`a`))
+  `c` int(11) DEFAULT (-`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (a int default 5 check (a>10), b int default (5+5), c int as (a+b));
@@ -3073,8 +3073,8 @@ create table t3 as select max(a), max(b), max(c) from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT 5 CHECK ((`a` > 10)),
-  `b` int(11) DEFAULT ((5 + 5)),
+  `a` int(11) DEFAULT 5 CHECK (`a` > 10),
+  `b` int(11) DEFAULT (5 + 5),
   `c` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show create table t3;
@@ -3241,7 +3241,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
   "a" int(11) DEFAULT NULL,
-  "b" int(11) DEFAULT (("a" + 1))
+  "b" int(11) DEFAULT ("a" + 1)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert t1 (a) values (10);
 set sql_mode='';
@@ -3249,7 +3249,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` + 1))
+  `b` int(11) DEFAULT (`a` + 1)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert t1 (a) values (20);
 flush tables;
@@ -3257,7 +3257,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT ((`a` + 1))
+  `b` int(11) DEFAULT (`a` + 1)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert t1 (a) values (30);
 select * from t1;

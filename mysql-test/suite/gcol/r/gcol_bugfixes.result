@@ -486,7 +486,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(1) DEFAULT NULL,
   `b` char(1) DEFAULT NULL,
-  `c` char(2) GENERATED ALWAYS AS (((`a` <> 0) or (`b` <> 0))) VIRTUAL
+  `c` char(2) GENERATED ALWAYS AS (`a` <> 0 or `b` <> 0) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a,b) VALUES('1','1');
 SELECT * FROM t1;

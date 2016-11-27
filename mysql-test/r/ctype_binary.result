@@ -2869,7 +2869,7 @@ NULL
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Level	Code	Message
-Note	1003	select (v_LastPaymentDate@0 < current_timestamp()) AS `v_LastPaymentDate < NOW()`
+Note	1003	select v_LastPaymentDate@0 < current_timestamp() AS `v_LastPaymentDate < NOW()`
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
@@ -3014,7 +3014,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE '%'=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where ('%' = concat(`test`.`t1`.`c1`))
+Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where '%' = concat(`test`.`t1`.`c1`)
 DROP TABLE t1;
 #
 # MDEV-8694 Wrong result for SELECT..WHERE a NOT LIKE 'a ' AND a='a'
@@ -3036,7 +3036,7 @@ EXPLAIN EXTENDED SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where (`test`.`t1`.`a` = 'a')
+Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 DROP TABLE t1;
 #
 # End of MDEV-8694
@@ -3069,7 +3069,7 @@ EXPLAIN EXTENDED SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)`,crc32(`test`.`t1`.`a`) AS `CRC32(a)` from `test`.`t1` where (`test`.`t1`.`a` = 'a')
+Note	1003	select `test`.`t1`.`a` AS `a`,length(`test`.`t1`.`a`) AS `LENGTH(a)`,crc32(`test`.`t1`.`a`) AS `CRC32(a)` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 SELECT a, HEX(a) FROM t1 WHERE HEX(a)='61';
 a	HEX(a)
 a	61
@@ -3081,7 +3081,7 @@ EXPLAIN EXTENDED SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,hex(`test`.`t1`.`a`) AS `HEX(a)` from `test`.`t1` where (`test`.`t1`.`a` = 'a')
+Note	1003	select `test`.`t1`.`a` AS `a`,hex(`test`.`t1`.`a`) AS `HEX(a)` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 SELECT * FROM t1 WHERE a='a';
 a
 a
@@ -3107,7 +3107,7 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a ' AND LENGTH(a)=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 'a ')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a '
 DROP TABLE t1;
 #
 # MDEV-8723 Wrong result for SELECT..WHERE COLLATION(a)='binary' AND a='a'
@@ -3130,22 +3130,22 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE COLLATION(a)='binary' AND a='a';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 'a')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE CHARSET(a)='binary'   AND a='a';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 'a')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE COERCIBILITY(a)=2     AND a='a';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 'a')
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE WEIGHT_STRING(a)='a'  AND a='a';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 'a') and (weight_string(`test`.`t1`.`a`,0,0,1) = 'a'))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a' and weight_string(`test`.`t1`.`a`,0,0,1) = 'a'
 DROP TABLE t1;
 #
 # End of 10.1 tests

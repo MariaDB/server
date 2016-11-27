@@ -20,18 +20,18 @@ set role role1;
 create definer=current_role view test.v1 as select a+b,c from t1;
 show create view test.v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`role1` SQL SECURITY DEFINER VIEW `test`.`v1` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`role1` SQL SECURITY DEFINER VIEW `test`.`v1` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 set role none;
 create definer=role2 view test.v2 as select a+b,c,current_role() from t1;
 show create view test.v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`role2` SQL SECURITY DEFINER VIEW `test`.`v2` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c`,current_role() AS `current_role()` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`role2` SQL SECURITY DEFINER VIEW `test`.`v2` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c`,current_role() AS `current_role()` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 create definer=role3 view test.v3 as select a+b,c from t1;
 Warnings:
 Note	1449	The user specified as a definer ('role3'@'%') does not exist
 show create view test.v3;
 View	Create View	character_set_client	collation_connection
-v3	CREATE ALGORITHM=UNDEFINED DEFINER=`role3`@`%` SQL SECURITY DEFINER VIEW `test`.`v3` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`role3`@`%` SQL SECURITY DEFINER VIEW `test`.`v3` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 Warnings:
 Note	1449	The user specified as a definer ('role3'@'%') does not exist
 connect  c1, localhost, foo,,mysqltest1;
@@ -77,7 +77,7 @@ connection default;
 drop role role4;
 show create view test.v5;
 View	Create View	character_set_client	collation_connection
-v5	CREATE ALGORITHM=UNDEFINED DEFINER=`role4` SQL SECURITY DEFINER VIEW `test`.`v5` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
+v5	CREATE ALGORITHM=UNDEFINED DEFINER=`role4` SQL SECURITY DEFINER VIEW `test`.`v5` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 Warnings:
 Note	1449	The user specified as a definer ('role4'@'') does not exist
 select * from test.v5;
@@ -86,7 +86,7 @@ create user role4;
 grant select on mysqltest1.t1 to role4;
 show create view test.v5;
 View	Create View	character_set_client	collation_connection
-v5	CREATE ALGORITHM=UNDEFINED DEFINER=`role4` SQL SECURITY DEFINER VIEW `test`.`v5` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
+v5	CREATE ALGORITHM=UNDEFINED DEFINER=`role4` SQL SECURITY DEFINER VIEW `test`.`v5` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 Warnings:
 Note	1449	The user specified as a definer ('role4'@'') does not exist
 select * from test.v5;
@@ -94,7 +94,7 @@ ERROR HY000: The user specified as a definer ('role4'@'') does not exist
 flush tables;
 show create view test.v5;
 View	Create View	character_set_client	collation_connection
-v5	CREATE ALGORITHM=UNDEFINED DEFINER=`role4`@`%` SQL SECURITY DEFINER VIEW `test`.`v5` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
+v5	CREATE ALGORITHM=UNDEFINED DEFINER=`role4`@`%` SQL SECURITY DEFINER VIEW `test`.`v5` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
 select * from test.v5;
 a+b	c
 11	100
@@ -543,7 +543,7 @@ USE `test`;
 /*!50001 SET character_set_client      = latin1 */;
 /*!50001 SET character_set_results     = latin1 */;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED DEFINER=`role1` SQL SECURITY DEFINER VIEW `v1` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1` */;
+/*!50001 CREATE ALGORITHM=UNDEFINED DEFINER=`role1` SQL SECURITY DEFINER VIEW `v1` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
@@ -554,7 +554,7 @@ USE `test`;
 /*!50001 SET character_set_client      = latin1 */;
 /*!50001 SET character_set_results     = latin1 */;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED DEFINER=`role2` SQL SECURITY DEFINER VIEW `v2` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c`,current_role() AS `current_role()` from `mysqltest1`.`t1` */;
+/*!50001 CREATE ALGORITHM=UNDEFINED DEFINER=`role2` SQL SECURITY DEFINER VIEW `v2` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c`,current_role() AS `current_role()` from `mysqltest1`.`t1` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
@@ -567,7 +567,7 @@ USE `test`;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`role3`@`%` SQL SECURITY DEFINER */
-/*!50001 VIEW `v3` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1` */;
+/*!50001 VIEW `v3` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
@@ -580,7 +580,7 @@ USE `test`;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`foo`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v4` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1` */;
+/*!50001 VIEW `v4` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
@@ -593,7 +593,7 @@ USE `test`;
 /*!50001 SET collation_connection      = latin1_swedish_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`role4`@`%` SQL SECURITY DEFINER */
-/*!50001 VIEW `v5` AS select (`mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b`) AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1` */;
+/*!50001 VIEW `v5` AS select `mysqltest1`.`t1`.`a` + `mysqltest1`.`t1`.`b` AS `a+b`,`mysqltest1`.`t1`.`c` AS `c` from `mysqltest1`.`t1` */;
 /*!50001 SET character_set_client      = @saved_cs_client */;
 /*!50001 SET character_set_results     = @saved_cs_results */;
 /*!50001 SET collation_connection      = @saved_col_connection */;
