@@ -5069,6 +5069,8 @@ void Item_func_like::print(String *str, enum_query_type query_type)
 {
   args[0]->print_parenthesised(str, query_type, precedence());
   str->append(' ');
+  if (negated)
+    str->append(STRING_WITH_LEN(" not "));
   str->append(func_name());
   str->append(' ');
   args[1]->print_parenthesised(str, query_type, precedence());
@@ -5097,11 +5099,11 @@ longlong Item_func_like::val_int()
   }
   null_value=0;
   if (canDoTurboBM)
-    return turboBM_matches(res->ptr(), res->length()) ? 1 : 0;
+    return turboBM_matches(res->ptr(), res->length()) ? !negated : negated;
   return my_wildcmp(cmp_collation.collation,
 		    res->ptr(),res->ptr()+res->length(),
 		    res2->ptr(),res2->ptr()+res2->length(),
-		    escape,wild_one,wild_many) ? 0 : 1;
+		    escape,wild_one,wild_many) ? negated : !negated;
 }
 
 
@@ -5111,6 +5113,9 @@ longlong Item_func_like::val_int()
 
 bool Item_func_like::with_sargable_pattern() const
 {
+  if (negated)
+    return false;
+
   if (!args[1]->const_item() || args[1]->is_expensive())
     return false;
 

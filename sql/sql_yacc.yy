@@ -9035,9 +9035,7 @@ predicate:
                                                              Lex->escape_used);
             if (item == NULL)
               MYSQL_YYABORT;
-            $$= new (thd->mem_root) Item_func_not(thd, item);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
+            $$= item->neg_transformer(thd);
           }
         | bit_expr REGEXP bit_expr
           {

@@ -1854,6 +1854,7 @@ class Item_func_like :public Item_bool_func2
 
   bool escape_used_in_parsing;
   bool use_sampling;
+  bool negated;
 
   DTCollation cmp_collation;
   String cmp_value1, cmp_value2;
@@ -1874,7 +1875,7 @@ public:
   Item_func_like(THD *thd, Item *a, Item *b, Item *escape_arg, bool escape_used):
     Item_bool_func2(thd, a, b), canDoTurboBM(FALSE), pattern(0), pattern_len(0),
     bmGs(0), bmBc(0), escape_item(escape_arg),
-    escape_used_in_parsing(escape_used), use_sampling(0) {}
+    escape_used_in_parsing(escape_used), use_sampling(0), negated(0) {}
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
   void print(String *str, enum_query_type query_type);
@@ -1965,6 +1966,12 @@ public:
     agg_arg_charsets_for_comparison(cmp_collation, args, 2);
   }
   void cleanup();
+
+  Item *neg_transformer(THD *thd)
+  {
+    negated= !negated;
+    return this;
+  }
 
   bool find_selective_predicates_list_processor(void *arg);
   
