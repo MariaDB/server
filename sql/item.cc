@@ -43,6 +43,7 @@
 #include "sql_expression_cache.h"
 
 const String my_null_string("NULL", 4, default_charset_info);
+const String my_default_string("DEFAULT", 7, default_charset_info);
 
 static int save_field_in_field(Field *, bool *, Field *, bool);
 
@@ -3585,6 +3586,11 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
 {
   field->set_notnull();
 
+  /*
+    There's no "default" intentionally, to make compiler complain
+    when adding a new XXX_VALUE value.
+    Garbage (e.g. in case of a memory overrun) is handled after the switch.
+  */
   switch (state) {
   case INT_VALUE:
     return field->store(value.integer, unsigned_flag);
@@ -3606,10 +3612,18 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
                                               top_table() !=
                                               field->table->pos_in_table_list);
   case NO_VALUE:
-  default:
-    DBUG_ASSERT(0);
+    DBUG_ASSERT(0); // Should not be possible
+    return true;
   }
+  DBUG_ASSERT(0); // Garbage
   return 1;
+}
+
+
+void Item_param::invalid_default_param() const
+{
+  my_message(ER_INVALID_DEFAULT_PARAM,
+             ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
 }
 
 
@@ -3626,6 +3640,7 @@ bool Item_param::get_date(MYSQL_TIME *res, ulonglong fuzzydate)
 
 double Item_param::val_real()
 {
+  // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
   case REAL_VALUE:
     return value.real;
@@ -3648,20 +3663,23 @@ double Item_param::val_real()
       time value for the placeholder.
     */
     return TIME_to_double(&value.time);
+  case DEFAULT_VALUE:
+    invalid_default_param();
+    // fall through
   case NULL_VALUE:
     return 0.0;
-  case DEFAULT_VALUE:
-    my_message(ER_INVALID_DEFAULT_PARAM,
-               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
-  default:
-    DBUG_ASSERT(0);
+  case NO_VALUE:
+    DBUG_ASSERT(0); // Should not be possible
+    return 0.0;
   }
+  DBUG_ASSERT(0); // Garbage
   return 0.0;
 } 
 
 
 longlong Item_param::val_int() 
 { 
+  // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
   case REAL_VALUE:
     return (longlong) rint(value.real);
@@ -3681,19 +3699,22 @@ longlong Item_param::val_int()
   case TIME_VALUE:
     return (longlong) TIME_to_ulonglong(&value.time);
   case DEFAULT_VALUE:
-    my_message(ER_INVALID_DEFAULT_PARAM,
-               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
+    invalid_default_param();
+    // fall through
   case NULL_VALUE:
     return 0; 
-  default:
-    DBUG_ASSERT(0);
+  case NO_VALUE:
+    DBUG_ASSERT(0); // Should not be possible
+    return 0;
   }
+  DBUG_ASSERT(0); // Garbage
   return 0;
 }
 
 
 my_decimal *Item_param::val_decimal(my_decimal *dec)
 {
+  // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
   case DECIMAL_VALUE:
     return &decimal_value;
@@ -3711,19 +3732,22 @@ my_decimal *Item_param::val_decimal(my_decimal *dec)
     return TIME_to_my_decimal(&value.time, dec);
   }
   case DEFAULT_VALUE:
-    my_message(ER_INVALID_DEFAULT_PARAM,
-               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
+    invalid_default_param();
+    // fall through
   case NULL_VALUE:
-    return 0; 
-  default:
-    DBUG_ASSERT(0);
+    return 0;
+  case NO_VALUE:
+    DBUG_ASSERT(0); // Should not be possible
+    return 0;
   }
+  DBUG_ASSERT(0); // Gabrage
   return 0;
 }
 
 
 String *Item_param::val_str(String* str) 
 { 
+  // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
   case STRING_VALUE:
   case LONG_DATA_VALUE:
@@ -3749,14 +3773,16 @@ String *Item_param::val_str(String* str)
     return str;
   }
   case DEFAULT_VALUE:
-    my_message(ER_INVALID_DEFAULT_PARAM,
-               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
+    invalid_default_param();
+    // fall through
   case NULL_VALUE:
     return NULL; 
-  default:
-    DBUG_ASSERT(0);
+  case NO_VALUE:
+    DBUG_ASSERT(0); // Should not be possible
+    return NULL;
   }
-  return str;
+  DBUG_ASSERT(0); // Garbage
+  return NULL;
 }
 
 /**
@@ -3772,18 +3798,19 @@ String *Item_param::val_str(String* str)
 
 const String *Item_param::query_val_str(THD *thd, String* str) const
 {
+  // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
   case INT_VALUE:
     str->set_int(value.integer, unsigned_flag, &my_charset_bin);
-    break;
+    return str;
   case REAL_VALUE:
     str->set_real(value.real, NOT_FIXED_DEC, &my_charset_bin);
-    break;
+    return str;
   case DECIMAL_VALUE:
     if (my_decimal2string(E_DEC_FATAL_ERROR, &decimal_value,
                           0, 0, 0, str) > 1)
       return &my_null_string;
-    break;
+    return str;
   case TIME_VALUE:
     {
       static const uint32 typelen= 9; // "TIMESTAMP" is the longest type name
@@ -3818,7 +3845,7 @@ const String *Item_param::query_val_str(THD *thd, String* str) const
       ptr+= (uint) my_TIME_to_str(&value.time, ptr, decimals);
       *ptr++= '\'';
       str->length((uint32) (ptr - buf));
-      break;
+      return str;
     }
   case STRING_VALUE:
   case LONG_DATA_VALUE:
@@ -3827,17 +3854,18 @@ const String *Item_param::query_val_str(THD *thd, String* str) const
       append_query_string(value.cs_info.character_set_client, str,
                           str_value.ptr(), str_value.length(),
                           thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
-      break;
+      return str;
     }
   case DEFAULT_VALUE:
-    my_message(ER_INVALID_DEFAULT_PARAM,
-               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
+    return &my_default_string;
   case NULL_VALUE:
     return &my_null_string;
-  default:
-    DBUG_ASSERT(0);
+  case NO_VALUE:
+    DBUG_ASSERT(0); // Should not be possible
+    return NULL;
   }
-  return str;
+  DBUG_ASSERT(0); // Garbage
+  return NULL;
 }
 
 
@@ -3881,10 +3909,11 @@ Item *
 Item_param::clone_item(THD *thd)
 {
   MEM_ROOT *mem_root= thd->mem_root;
+  // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
   case DEFAULT_VALUE:
-    my_message(ER_INVALID_DEFAULT_PARAM,
-               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
+    invalid_default_param();
+    // fall through
   case NULL_VALUE:
     return new (mem_root) Item_null(thd, name);
   case INT_VALUE:
@@ -3894,6 +3923,8 @@ Item_param::clone_item(THD *thd)
   case REAL_VALUE:
     return new (mem_root) Item_float(thd, name, value.real, decimals,
                                      max_length);
+  case DECIMAL_VALUE:
+    return 0; // Should create Item_decimal. See MDEV-11361.
   case STRING_VALUE:
   case LONG_DATA_VALUE:
     return new (mem_root) Item_string(thd, name, str_value.c_ptr_quick(),
@@ -3901,11 +3932,11 @@ Item_param::clone_item(THD *thd)
                                       collation.derivation,
                                       collation.repertoire);
   case TIME_VALUE:
-    break;
+    return 0;
   case NO_VALUE:
-  default:
-    DBUG_ASSERT(0);
-  };
+    return 0;
+  }
+  DBUG_ASSERT(0);  // Garbage
   return 0;
 }
 
@@ -3916,10 +3947,11 @@ Item_param::eq(const Item *item, bool binary_cmp) const
   if (!basic_const_item())
     return FALSE;
 
+  // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
   case DEFAULT_VALUE:
-    my_message(ER_INVALID_DEFAULT_PARAM,
-               ER_THD(current_thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
+    invalid_default_param();
+    return false;
   case NULL_VALUE:
     return null_eq(item);
   case INT_VALUE:
@@ -3929,9 +3961,12 @@ Item_param::eq(const Item *item, bool binary_cmp) const
   case STRING_VALUE:
   case LONG_DATA_VALUE:
     return str_eq(&str_value, item, binary_cmp);
-  default:
-    break;
+  case DECIMAL_VALUE:
+  case TIME_VALUE:
+  case NO_VALUE:
+    return false;
   }
+  DBUG_ASSERT(0); // Garbage
   return FALSE;
 }
 
@@ -4001,6 +4036,15 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 void Item_param::set_default()
 {
   state= DEFAULT_VALUE;
+  /*
+    When Item_param is set to DEFAULT_VALUE:
+    - its val_str() and val_decimal() return NULL
+    - get_date() returns true
+    It's important also to have null_value==true for DEFAULT_VALUE.
+    Otherwise the callers of val_xxx() and get_date(), e.g. Item::send(),
+    can misbehave (e.g. crash on asserts).
+  */
+  null_value= true;
 }
 
 /**
@@ -6195,6 +6239,12 @@ int Item::save_in_field(Field *field, bool no_conversions)
     error=field->store(nr, unsigned_flag);
   }
   return error ? error : (field->table->in_use->is_error() ? 1 : 0);
+}
+
+
+bool Item::save_in_param(THD *thd, Item_param *param)
+{
+  return param->set_from_item(thd, this);
 }
 
 

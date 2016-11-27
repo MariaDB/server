@@ -1230,7 +1230,7 @@ insert_params_from_actual_params(Prepared_statement *stmt,
   {
     Item_param *param= *it;
     Item *ps_param= param_it++;
-    if (param->set_from_item(stmt->thd, ps_param) ||
+    if (ps_param->save_in_param(stmt->thd, param) ||
         param->convert_str_value(stmt->thd))
       DBUG_RETURN(1);
   }
@@ -1273,7 +1273,7 @@ insert_params_from_actual_params_with_log(Prepared_statement *stmt,
       (e.g. value.cs_info.character_set_client is used in the query_val_str()).
     */
     setup_one_conversion_function(thd, param, param->field_type());
-    if (param->set_from_item(thd, ps_param))
+    if (ps_param->save_in_param(thd, param))
       DBUG_RETURN(1);
 
     if (acc.append(param))

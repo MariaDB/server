@@ -2280,7 +2280,7 @@ execute_var_list:
         ;
 
 execute_var_ident:
-          expr
+          expr_or_default
           {
             if (Lex->prepared_stmt_params.push_back($1, thd->mem_root))
               MYSQL_YYABORT;

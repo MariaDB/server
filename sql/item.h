@@ -61,6 +61,7 @@ class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
 class Item_field;
+class Item_param;
 class user_var_entry;
 class JOIN;
 struct KEY_FIELD;
@@ -819,6 +820,7 @@ public:
   /* Function returns 1 on overflow and -1 on fatal errors */
   int save_in_field_no_warnings(Field *field, bool no_conversions);
   virtual int save_in_field(Field *field, bool no_conversions);
+  virtual bool save_in_param(THD *thd, Item_param *param);
   virtual void save_org_in_field(Field *field,
                                  fast_field_copier data
                                  __attribute__ ((__unused__)))
@@ -2959,6 +2961,8 @@ public:
   Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
 private:
+  void invalid_default_param() const;
+
   virtual bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 
   virtual void set_out_param_info(Send_field *info);
@@ -5143,6 +5147,13 @@ public:
   bool get_date(MYSQL_TIME *ltime,ulonglong fuzzydate);
   bool send(Protocol *protocol, String *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
+  bool save_in_param(THD *thd, Item_param *param)
+  {
+    // It should not be possible to have "EXECUTE .. USING DEFAULT(a)"
+    DBUG_ASSERT(arg == NULL);
+    param->set_default();
+    return false;
+  }
   table_map used_tables() const { return (table_map)0L; }
   Item_field *field_for_view_update() { return 0; }
 
