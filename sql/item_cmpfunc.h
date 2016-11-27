@@ -839,7 +839,6 @@ public:
   Item_func_opt_neg(THD *thd, List<Item> &list):
     Item_bool_func(thd, list), negated(0), pred_level(0) {}
 public:
-  inline void negate() { negated= !negated; }
   inline void top_level_item() { pred_level= 1; }
   bool is_top_level_item() const { return pred_level; }
   Item *neg_transformer(THD *thd)
