@@ -82,6 +82,9 @@ public class JdbcInterface {
 		  System.out.println("URL=" + parms[1]);
 	    
 	    CheckURL(parms[1], null);
+	    
+	    // This is required for drivers using context class loaders
+	    Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
 	      
     	if (parms[2] != null && !parms[2].isEmpty()) {
   	      if (DEBUG)
