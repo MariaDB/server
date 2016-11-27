@@ -1560,7 +1560,7 @@ public:
   { return 0; }
   virtual bool exclusive_dependence_on_grouping_fields_processor(void *arg)
   { return 0; }
-  virtual bool cleanup_excluding_outer_fields_processor(void *arg)
+  virtual bool cleanup_excluding_const_fields_processor(void *arg)
   { return cleanup_processor(arg); }
 
   virtual Item *get_copy(THD *thd, MEM_ROOT *mem_root)=0;
@@ -2664,9 +2664,9 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   bool exclusive_dependence_on_table_processor(void *map);
   bool exclusive_dependence_on_grouping_fields_processor(void *arg);
-  bool cleanup_excluding_outer_fields_processor(void *arg)
-  { return depended_from ? 0 : cleanup_processor(arg); }
-   
+  bool cleanup_excluding_const_fields_processor(void *arg)
+  { return field && const_item() ? 0 : cleanup_processor(arg); }
+  
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_field>(thd, mem_root, this); }
   bool is_outer_field() const
@@ -4282,7 +4282,15 @@ public:
   { return depended_from != NULL; }
   bool exclusive_dependence_on_grouping_fields_processor(void *arg)
   { return depended_from != NULL; }
- };
+  bool cleanup_excluding_const_fields_processor(void *arg)
+  { 
+    Item *item= real_item();
+    if (item && item->type() == FIELD_ITEM &&
+        ((Item_field *) item)->field && item->const_item())
+      return 0;
+    return cleanup_processor(arg);
+  }
+};
 
 
 /*

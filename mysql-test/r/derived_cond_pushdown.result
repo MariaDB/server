@@ -7087,10 +7087,10 @@ drop table t1;
 # MDEV-11072: pushdown of the condition obtained
 #             after constant row substitution
 #
-CREATE TABLE t1 (a INT);
-CREATE TABLE t2 (b INT);
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
 CREATE OR REPLACE VIEW v2 AS SELECT * FROM t2;
-CREATE TABLE t3 (c INT);
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
 CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
 SELECT * FROM t1 WHERE a IN ( 
 SELECT b FROM v2 WHERE b < a OR b IN ( 
@@ -7165,8 +7165,154 @@ EXPLAIN
     ]
   }
 }
-DROP VIEW v2,v3;
-DROP TABLE t1,t2,t3;
+CREATE TABLE t4 (d INT, e INT) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,10),(3,11),(2,10),(2,20),(3,21);
+CREATE OR REPLACE VIEW v4 AS 
+SELECT d, sum(e) AS s FROM t4 GROUP BY d;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for SELECT * FROM t1 WHERE a IN ( 
+SELECT b FROM v2 WHERE b < a OR b IN ( 
+SELECT d FROM v4 WHERE s > a 
+) 
+);
+a
+2
+SELECT * FROM t1 WHERE a IN ( 
+SELECT b FROM v2 WHERE b < a OR b IN ( 
+SELECT d FROM v4 WHERE s > a 
+) 
+);
+a
+2
+explain SELECT * FROM t1 WHERE a IN ( 
+SELECT b FROM v2 WHERE b < a OR b IN ( 
+SELECT d FROM v4 WHERE s > a 
+) 
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
+3	DEPENDENT SUBQUERY	<derived5>	index_subquery	key0	key0	5	func	2	Using where
+5	DERIVED	t4	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+explain format=json SELECT * FROM t1 WHERE a IN ( 
+SELECT b FROM v2 WHERE b < a OR b IN ( 
+SELECT d FROM v4 WHERE s > a 
+) 
+);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "const_condition": "(0 or <in_optimizer>(2,<exists>(subquery#3)))",
+    "table": {
+      "table_name": "t1",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "(t2.b = 2)",
+      "first_match": "t1"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "<derived5>",
+            "access_type": "index_subquery",
+            "possible_keys": ["key0"],
+            "key": "key0",
+            "key_length": "5",
+            "used_key_parts": ["d"],
+            "ref": ["func"],
+            "rows": 2,
+            "filtered": 100,
+            "materialized": {
+              "query_block": {
+                "select_id": 5,
+                "filesort": {
+                  "sort_key": "t4.d",
+                  "temporary_table": {
+                    "table": {
+                      "table_name": "t4",
+                      "access_type": "ALL",
+                      "rows": 5,
+                      "filtered": 100
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+DROP VIEW v2,v3,v4;
+DROP TABLE t1,t2,t3,t4;
+#
+# MDEV-10800: pushdown of the condition obtained
+#             after constant row substitution
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+SELECT * FROM 
+( SELECT * FROM t1
+WHERE EXISTS ( SELECT * FROM v2 WHERE b = a ) ) AS sq;
+a
+EXPLAIN FORMAT=JSON
+SELECT * FROM 
+( SELECT * FROM t1
+WHERE EXISTS ( SELECT * FROM v2 WHERE b = a ) ) AS sq;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "const_condition": "<in_optimizer>(1,exists(subquery#3))",
+    "table": {
+      "table_name": "t1",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "<derived4>",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "attached_condition": "(v2.b = 1)",
+            "materialized": {
+              "query_block": {
+                "select_id": 4,
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100,
+                  "attached_condition": "(t2.b = 1)"
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+DROP VIEW v2;
+DROP TABLE t1,t2;
 #
 # MDEV-11102: condition pushdown into materialized inner table 
 #              of outer join is not applied as not being valid 
@@ -7376,3 +7522,107 @@ EXPLAIN
 }
 DROP VIEW v1,v2;
 DROP TABLE t1,t2;
+#
+# MDEV-11313: pushdown of the condition obtained
+#             after constant row substitution
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (50);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+SELECT ( SELECT COUNT(*) FROM v1 WHERE a = t2.b ) AS f FROM t2 GROUP BY f;
+f
+0
+EXPLAIN FORMAT=JSON
+SELECT ( SELECT COUNT(*) FROM v1 WHERE a = t2.b ) AS f FROM t2 GROUP BY f;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "attached_condition": "(v1.a = 50)",
+            "materialized": {
+              "query_block": {
+                "select_id": 3,
+                "table": {
+                  "table_name": "t1",
+                  "access_type": "ALL",
+                  "rows": 2,
+                  "filtered": 100,
+                  "attached_condition": "(t1.a = 50)"
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+CREATE TABLE t3 (a INT, b INT) ENGINE=MYISAM;
+INSERT INTO t3 VALUES (1,10),(3,11),(2,10),(2,20),(3,21);
+CREATE VIEW v2 AS SELECT a, sum(b) AS s FROM t3 GROUP BY a ;
+SELECT ( SELECT COUNT(*) FROM v2 WHERE s < t2.b ) AS f FROM t2 GROUP BY f;
+f
+3
+EXPLAIN FORMAT=JSON
+SELECT ( SELECT COUNT(*) FROM v2 WHERE s < t2.b ) AS f FROM t2 GROUP BY f;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "<derived3>",
+            "access_type": "ALL",
+            "rows": 5,
+            "filtered": 100,
+            "attached_condition": "(v2.s < 50)",
+            "materialized": {
+              "query_block": {
+                "select_id": 3,
+                "filesort": {
+                  "sort_key": "t3.a",
+                  "temporary_table": {
+                    "table": {
+                      "table_name": "t3",
+                      "access_type": "ALL",
+                      "rows": 5,
+                      "filtered": 100
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+DROP VIEW v1,v2;
+DROP TABLE t1,t2,t3;

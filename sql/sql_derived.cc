@@ -1195,9 +1195,9 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
                                  (uchar*) sl);
       if (extracted_cond_copy)
       {
-       extracted_cond_copy->walk(
-         &Item::cleanup_excluding_outer_fields_processor, 0, 0);
-       sl->cond_pushed_into_where= extracted_cond_copy;
+        extracted_cond_copy->walk(
+          &Item::cleanup_excluding_const_fields_processor, 0, 0);
+        sl->cond_pushed_into_where= extracted_cond_copy;
       }      
   
       continue;
@@ -1230,9 +1230,9 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
         has been pushed into the where clause of sl
       */
       extracted_cond_copy= remove_pushed_top_conjuncts(thd, extracted_cond_copy);
-  
+
       cond_over_grouping_fields->walk(
-        &Item::cleanup_excluding_outer_fields_processor, 0, 0);
+        &Item::cleanup_excluding_const_fields_processor, 0, 0);
       sl->cond_pushed_into_where= cond_over_grouping_fields;
 
       if (!extracted_cond_copy)

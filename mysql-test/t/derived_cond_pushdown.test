@@ -957,10 +957,10 @@ drop table t1;
 --echo #             after constant row substitution
 --echo #
 
-CREATE TABLE t1 (a INT);
-CREATE TABLE t2 (b INT);
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
 CREATE OR REPLACE VIEW v2 AS SELECT * FROM t2;
-CREATE TABLE t3 (c INT);
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
 CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
 
 SELECT * FROM t1 WHERE a IN ( 
@@ -986,8 +986,50 @@ SELECT * FROM t1 WHERE a IN (
   ) 
 );
 
-DROP VIEW v2,v3;
-DROP TABLE t1,t2,t3;
+CREATE TABLE t4 (d INT, e INT) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,10),(3,11),(2,10),(2,20),(3,21);
+CREATE OR REPLACE VIEW v4 AS 
+SELECT d, sum(e) AS s FROM t4 GROUP BY d;
+
+let $query = 
+SELECT * FROM t1 WHERE a IN ( 
+  SELECT b FROM v2 WHERE b < a OR b IN ( 
+    SELECT d FROM v4 WHERE s > a 
+  ) 
+);
+
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query; 
+
+DROP VIEW v2,v3,v4;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-10800: pushdown of the condition obtained
+--echo #             after constant row substitution
+--echo #
+
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+ 
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+ 
+SELECT * FROM 
+( SELECT * FROM t1
+    WHERE EXISTS ( SELECT * FROM v2 WHERE b = a ) ) AS sq;
+
+EXPLAIN FORMAT=JSON
+SELECT * FROM 
+( SELECT * FROM t1
+    WHERE EXISTS ( SELECT * FROM v2 WHERE b = a ) ) AS sq;
+
+DROP VIEW v2;
+DROP TABLE t1,t2;
 
 --echo #
 --echo # MDEV-11102: condition pushdown into materialized inner table 
@@ -1058,3 +1100,29 @@ SELECT * FROM ( SELECT * FROM t1 ) AS sq
 
 DROP VIEW v1,v2;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-11313: pushdown of the condition obtained
+--echo #             after constant row substitution
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (50);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+
+SELECT ( SELECT COUNT(*) FROM v1 WHERE a = t2.b ) AS f FROM t2 GROUP BY f;
+EXPLAIN FORMAT=JSON
+SELECT ( SELECT COUNT(*) FROM v1 WHERE a = t2.b ) AS f FROM t2 GROUP BY f;
+
+CREATE TABLE t3 (a INT, b INT) ENGINE=MYISAM;
+INSERT INTO t3 VALUES (1,10),(3,11),(2,10),(2,20),(3,21);
+CREATE VIEW v2 AS SELECT a, sum(b) AS s FROM t3 GROUP BY a ;
+SELECT ( SELECT COUNT(*) FROM v2 WHERE s < t2.b ) AS f FROM t2 GROUP BY f;
+EXPLAIN FORMAT=JSON
+SELECT ( SELECT COUNT(*) FROM v2 WHERE s < t2.b ) AS f FROM t2 GROUP BY f;
+
+
+DROP VIEW v1,v2;
+DROP TABLE t1,t2,t3;
