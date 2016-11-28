@@ -1683,7 +1683,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  UPDATE_SYM                    /* SQL-2003-R */
 %token  UPGRADE_SYM
 %token  USAGE                         /* SQL-2003-N */
-%token  USER                          /* SQL-2003-R */
+%token  USER_SYM                      /* SQL-2003-R */
 %token  USE_FRM
 %token  USE_SYM
 %token  USING                         /* SQL-2003-R */
@@ -2632,7 +2632,7 @@ create:
             Lex->create_view_suid= TRUE;
           }
           view_or_trigger_or_sp_or_event { }
-        | create_or_replace USER opt_if_not_exists clear_privileges grant_list
+        | create_or_replace USER_SYM opt_if_not_exists clear_privileges grant_list
           opt_require_clause opt_resource_options
           {
             if (Lex->set_command_with_check(SQLCOM_CREATE_USER, $1 | $3))
@@ -2675,7 +2675,7 @@ server_options_list:
         ;
 
 server_option:
-          USER TEXT_STRING_sys
+          USER_SYM TEXT_STRING_sys
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.username.str == 0);
             Lex->server_options.username= $2;
@@ -7289,7 +7289,7 @@ alter:
             lex->server_options.reset($3);
           } OPTIONS_SYM '(' server_options_list ')' { }
           /* ALTER USER foo is allowed for MySQL compatibility. */
-        | ALTER opt_if_exists USER clear_privileges grant_list
+        | ALTER opt_if_exists USER_SYM clear_privileges grant_list
           opt_require_clause opt_resource_options
           {
             Lex->create_info.set($2);
@@ -8242,7 +8242,7 @@ rename:
           }
           table_to_table_list
           {}
-        | RENAME USER clear_privileges rename_list
+        | RENAME USER_SYM clear_privileges rename_list
           {
             Lex->sql_command = SQLCOM_RENAME_USER;
           }
@@ -9654,7 +9654,7 @@ function_call_keyword:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | USER '(' ')'
+        | USER_SYM '(' ')'
           {
             $$= new (thd->mem_root) Item_func_user(thd);
             if ($$ == NULL)
@@ -12189,7 +12189,7 @@ drop:
             lex->set_command(SQLCOM_DROP_PROCEDURE, $3);
             lex->spname= $4;
           }
-        | DROP USER opt_if_exists clear_privileges user_list
+        | DROP USER_SYM opt_if_exists clear_privileges user_list
           {
             Lex->set_command(SQLCOM_DROP_USER, $3);
           }
@@ -13039,14 +13039,14 @@ show_param:
             lex->sql_command= SQLCOM_SHOW_CREATE_TRIGGER;
             lex->spname= $3;
           }
-        | CREATE USER
+        | CREATE USER_SYM
           {
             Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
             if (!(Lex->grant_user= (LEX_USER*)thd->alloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user;
           }
-        | CREATE USER user
+        | CREATE USER_SYM user
           {
              Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
              Lex->grant_user= $3;
@@ -13492,7 +13492,7 @@ kill_expr:
         {
           Lex->value_list.push_front($$, thd->mem_root);
          }
-        | USER user
+        | USER_SYM user
           {
             Lex->users_list.push_back($2, thd->mem_root);
             Lex->kill_type= KILL_TYPE_USER;
@@ -14912,7 +14912,7 @@ keyword_sp:
         | UNDOFILE_SYM             {}
         | UNKNOWN_SYM              {}
         | UNTIL_SYM                {}
-        | USER                     {}
+        | USER_SYM                 {}
         | USE_FRM                  {}
         | VARIABLES                {}
         | VIEW_SYM                 {}
@@ -15817,7 +15817,7 @@ object_privilege:
         | SHOW VIEW_SYM           { Lex->grant |= SHOW_VIEW_ACL; }
         | CREATE ROUTINE_SYM      { Lex->grant |= CREATE_PROC_ACL; }
         | ALTER ROUTINE_SYM       { Lex->grant |= ALTER_PROC_ACL; }
-        | CREATE USER             { Lex->grant |= CREATE_USER_ACL; }
+        | CREATE USER_SYM         { Lex->grant |= CREATE_USER_ACL; }
         | EVENT_SYM               { Lex->grant |= EVENT_ACL;}
         | TRIGGER_SYM             { Lex->grant |= TRIGGER_ACL; }
         | CREATE TABLESPACE       { Lex->grant |= CREATE_TABLESPACE_ACL; }
