@@ -1804,6 +1804,12 @@ env_set_lock_timeout_callback(DB_ENV *env, lock_timeout_callback callback) {
     return 0;
 }
 
+static int
+env_set_lock_wait_callback(DB_ENV *env, lock_wait_callback callback) {
+    env->i->lock_wait_needed_callback = callback;
+    return 0;
+}
+
 static void
 format_time(const time_t *timer, char *buf) {
     ctime_r(timer, buf);
@@ -2620,6 +2626,10 @@ static void env_set_killed_callback(DB_ENV *env, uint64_t default_killed_time_ms
     env->i->killed_callback = killed_callback;
 }
 
+static void env_kill_waiter(DB_ENV *env, void *extra) {
+    env->i->ltm.kill_waiter(extra);
+}
+
 static void env_do_backtrace(DB_ENV *env) {
     if (env->i->errcall) {
         db_env_do_backtrace_errfunc((toku_env_err_func) toku_env_err, (const void *) env);
@@ -2700,6 +2710,7 @@ toku_env_create(DB_ENV ** envp, uint32_t flags) {
     USENV(get_lock_timeout);
     USENV(set_lock_timeout);
     USENV(set_lock_timeout_callback);
+    USENV(set_lock_wait_callback);
     USENV(set_redzone);
     USENV(log_flush);
     USENV(log_archive);
@@ -2719,6 +2730,7 @@ toku_env_create(DB_ENV ** envp, uint32_t flags) {
     USENV(set_dir_per_db);
     USENV(get_dir_per_db);
     USENV(get_data_dir);
+    USENV(kill_waiter);
 #undef USENV
     
     // unlocked methods

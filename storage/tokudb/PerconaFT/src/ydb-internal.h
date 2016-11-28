@@ -105,6 +105,7 @@ struct __toku_db_env_internal {
     TOKULOGGER logger;
     toku::locktree_manager ltm;
     lock_timeout_callback lock_wait_timeout_callback;   // Called when a lock request times out waiting for a lock.
+    lock_wait_callback lock_wait_needed_callback;       // Called when a lock request requires a wait.
 
     DB *directory;                                      // Maps dnames to inames
     DB *persistent_environment;                         // Stores environment settings, can be used for upgrade
