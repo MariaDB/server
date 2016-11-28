@@ -1126,36 +1126,11 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   if ((!item->fixed && item->fix_fields(thd, args)) ||
       (item= args[0])->check_cols(1))
     return TRUE;
-  Type_std_attributes::set(args[0]);
   with_subselect= args[0]->with_subselect;
 
-  Item *item2= item->real_item();
-  if (item2->type() == Item::FIELD_ITEM)
-    set_handler_by_field_type(((Item_field*) item2)->field->type());
-  else if (item->cmp_type() == TIME_RESULT)
-    set_handler_by_field_type(item2->field_type());
-  else
-    set_handler_by_result_type(item2->result_type(),
-                               max_length, collation.collation);
-
-  switch (Item_sum_hybrid::result_type()) {
-  case INT_RESULT:
-  case DECIMAL_RESULT:
-  case STRING_RESULT:
-    break;
-  case REAL_RESULT:
-    max_length= float_length(decimals);
-    break;
-  case ROW_RESULT:
-  case TIME_RESULT:
-    DBUG_ASSERT(0);
-  };
-  setup_hybrid(thd, args[0], NULL);
-  /* MIN/MAX can return NULL for empty set indepedent of the used column */
-  maybe_null= 1;
-  result_field=0;
-  null_value=1;
   fix_length_and_dec();
+  setup_hybrid(thd, args[0], NULL);
+  result_field=0;
 
   if (check_sum_func(thd, ref))
     return TRUE;
@@ -1163,6 +1138,14 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   orig_args[0]= args[0];
   fixed= 1;
   return FALSE;
+}
+
+
+void Item_sum_hybrid::fix_length_and_dec()
+{
+  DBUG_ASSERT(args[0]->field_type() == args[0]->real_item()->field_type());
+  DBUG_ASSERT(args[0]->result_type() == args[0]->real_item()->result_type());
+  (void) args[0]->type_handler()->Item_sum_hybrid_fix_length_and_dec(this);
 }
 
 
@@ -1201,7 +1184,6 @@ void Item_sum_hybrid::setup_hybrid(THD *thd, Item *item, Item *value_arg)
   cmp= new Arg_comparator();
   if (cmp)
     cmp->set_cmp_func(this, (Item**)&arg_cache, (Item**)&value, FALSE);
-  collation.set(item->collation);
 }
 
 
