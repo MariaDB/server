@@ -20758,9 +20758,10 @@ static MYSQL_SYSVAR_LONGLONG(buffer_pool_size, innobase_buffer_pool_size,
   "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
   NULL, NULL, 128*1024*1024L, 5*1024*1024L, LONGLONG_MAX, 1024*1024L);
 
-static MYSQL_SYSVAR_BOOL(buffer_pool_populate, srv_numa_interleave,
+static MYSQL_SYSVAR_BOOL(buffer_pool_populate, srv_buf_pool_populate,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Depricated. This option is temporary alias of --innodb-numa-interleave.",
+  "Preallocate (pre-fault) the page frames required for the mapping "
+  "established by the buffer pool memory region. Disabled by default.",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ENUM(foreground_preflush, srv_foreground_preflush,
