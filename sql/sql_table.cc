@@ -6407,9 +6407,11 @@ static bool fill_alter_inplace_info(THD *thd,
         if (field->vcol_info && new_field->vcol_info)
         {
           bool value_changes= is_equal == IS_EQUAL_NO;
-          Alter_inplace_info::HA_ALTER_FLAGS alter_expr= field->stored_in_db()
-                                           ? Alter_inplace_info::ALTER_STORED_GCOL_EXPR
-                                           : Alter_inplace_info::ALTER_VIRTUAL_GCOL_EXPR;
+          Alter_inplace_info::HA_ALTER_FLAGS alter_expr;
+          if (field->stored_in_db())
+            alter_expr= Alter_inplace_info::ALTER_STORED_GCOL_EXPR;
+          else
+            alter_expr= Alter_inplace_info::ALTER_VIRTUAL_GCOL_EXPR;
           if (!field->vcol_info->is_equal(new_field->vcol_info))
           {
             ha_alter_info->handler_flags|= alter_expr;
