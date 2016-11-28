@@ -26,6 +26,7 @@
 class Field;
 class Item;
 class Item_cache;
+class Item_sum_hybrid;
 class Type_std_attributes;
 class Sort_param;
 class Arg_comparator;
@@ -289,6 +290,7 @@ public:
                                  bool no_conversions) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
+  virtual bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const= 0;
 };
 
 
@@ -342,12 +344,31 @@ public:
   }
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+};
+
+
+/*
+  A common parent class for numeric data type handlers
+*/
+class Type_handler_numeric: public Type_handler
+{
+protected:
+  bool Item_sum_hybrid_fix_length_and_dec_numeric(Item_sum_hybrid *func,
+                                                  const Type_handler *handler)
+                                                  const;
+public:
+  virtual ~Type_handler_numeric() { }
 };
 
 
 /*** Abstract classes for every XXX_RESULT */
 
-class Type_handler_real_result: public Type_handler
+class Type_handler_real_result: public Type_handler_numeric
 {
 public:
   Item_result result_type() const { return REAL_RESULT; }
@@ -361,10 +382,11 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
 };
 
 
-class Type_handler_decimal_result: public Type_handler
+class Type_handler_decimal_result: public Type_handler_numeric
 {
 public:
   Item_result result_type() const { return DECIMAL_RESULT; }
@@ -379,10 +401,11 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
 };
 
 
-class Type_handler_int_result: public Type_handler
+class Type_handler_int_result: public Type_handler_numeric
 {
 public:
   Item_result result_type() const { return INT_RESULT; }
@@ -397,6 +420,7 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
 };
 
 
@@ -413,6 +437,7 @@ public:
                   SORT_FIELD_ATTR *attr) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
 };
 
 
@@ -433,6 +458,7 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
 };
 
 

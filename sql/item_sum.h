@@ -1006,6 +1006,7 @@ protected:
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
   bool fix_fields(THD *, Item **);
+  void fix_length_and_dec();
   void setup_hybrid(THD *thd, Item *item, Item *value_arg);
   void clear();
   double val_real();
