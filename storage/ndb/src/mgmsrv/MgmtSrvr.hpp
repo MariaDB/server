@@ -526,7 +526,7 @@ private:
   //  we signal with a condition variable to the waiting
   //  thread (receiveOptimisedResponse) that the signal has arrived.
   // Parameters:
-  //  signal: The recieved signal
+  //  signal: The received signal
   // Returns: -
   //**************************************************************************
 
@@ -566,7 +566,7 @@ private:
   /**
    *   This function is called from "outside" of MgmtSrvr
    *   when a signal is sent to MgmtSrvr.
-   *   @param  mgmtSrvr: The MgmtSrvr object which shall recieve the signal.
+   *   @param  mgmtSrvr: The MgmtSrvr object which shall receive the signal.
    *   @param  signal: The received signal.
    */
   static void signalReceivedNotification(void* mgmtSrvr, 
@@ -600,7 +600,7 @@ private:
   
   Uint32 theWaitNode;
   WaitSignalType theWaitState;
-  // State denoting a set of signals we accept to recieve.
+  // State denoting a set of signals we accept to receive.
 
   NdbCondition* theMgmtWaitForResponseCondPtr; 
   // Condition variable used when we wait for a signal to arrive/a 

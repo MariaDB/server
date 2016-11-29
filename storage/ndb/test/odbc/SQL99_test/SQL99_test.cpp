@@ -1611,7 +1611,7 @@ Function: AggretateFn():
 <char* szTableName> - name of the table
 <int nCol> - number of the column
 <double* pdIn> - pointer to double containing the value to be used in a call to COUNT; used only by this function
-<double* pdOut> - pointer to double that will recieve the result
+<double* pdOut> - pointer to double that will receive the result
 <attr_type attrType> - type of the attribute
 *************************************************/
 SQLRETURN AggregateFn(aggr_fn fn, char* szTableName, int nCol, double* pdIn, double* pdOut, attr_type attrType){

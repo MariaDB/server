@@ -601,7 +601,7 @@ handle_split_of_child(
 
     // We never set the rightmost blocknum to be the root.
     // Instead, we wait for the root to split and let promotion initialize the rightmost
-    // blocknum to be the first non-root leaf node on the right extreme to recieve an insert.
+    // blocknum to be the first non-root leaf node on the right extreme to receive an insert.
     BLOCKNUM rightmost_blocknum = toku_drd_unsafe_fetch(&ft->rightmost_blocknum);
     invariant(ft->h->root_blocknum.b != rightmost_blocknum.b);
     if (childa->blocknum.b == rightmost_blocknum.b) {

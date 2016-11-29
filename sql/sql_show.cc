@@ -2289,6 +2289,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   DBUG_VOID_RETURN;
 }
 
+
 int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
 {
   TABLE *table= tables->table;
