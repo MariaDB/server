@@ -7626,3 +7626,65 @@ EXPLAIN
 }
 DROP VIEW v1,v2;
 DROP TABLE t1,t2,t3;
+#
+# MDEV-10882: pushdown of the predicate with cached value
+#
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL) ENGINE=MyISAM;
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,2),(3,4);
+CREATE TABLE t2 (c INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (5),(6);
+SELECT a, GROUP_CONCAT(b) FROM v1
+WHERE b IN ( SELECT COUNT(c) FROM t2 ) GROUP BY a;
+a	GROUP_CONCAT(b)
+1	2
+EXPLAIN FORMAT=JSON
+SELECT a, GROUP_CONCAT(b) FROM v1
+WHERE b IN ( SELECT COUNT(c) FROM t2 ) GROUP BY a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "message": "Select tables optimized away"
+          }
+        }
+      }
+    },
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "v1.a",
+        "table": {
+          "table_name": "<derived3>",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100,
+          "attached_condition": "(v1.b = 2)",
+          "materialized": {
+            "query_block": {
+              "select_id": 3,
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100,
+                "attached_condition": "(t1.b = 2)"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+DROP VIEW v1;
+DROP TABLE t1,t2;

@@ -5456,6 +5456,15 @@ public:
     example->split_sum_func2(thd, ref_pointer_array, fields, &example, flags);
   }
   Item *get_example() const { return example; }
+  Item* build_clone(THD *thd, MEM_ROOT *mem_root)
+  {
+    Item_cache *copy= (Item_cache *) get_copy(thd, mem_root);
+    if (!copy)
+      return 0;
+    if (!( copy->example= example->build_clone(thd, mem_root)))
+      return 0;
+    return copy;
+  } 
 };
 
 
