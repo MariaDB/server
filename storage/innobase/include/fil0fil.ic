@@ -63,6 +63,8 @@ fil_get_page_type_name(
 		return (const char*)"PAGE_COMPRESSED";
 	case FIL_PAGE_INDEX:
 		return (const char*)"INDEX";
+	case FIL_PAGE_RTREE:
+		return (const char*)"RTREE";
 	case FIL_PAGE_UNDO_LOG:
 		return (const char*)"UNDO LOG";
 	case FIL_PAGE_INODE:
@@ -130,6 +132,7 @@ fil_page_type_validate(
 	if (!((page_type == FIL_PAGE_PAGE_COMPRESSED ||
 		page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ||
 		page_type == FIL_PAGE_INDEX ||
+		page_type == FIL_PAGE_RTREE ||
 		page_type == FIL_PAGE_UNDO_LOG ||
 		page_type == FIL_PAGE_INODE ||
 		page_type == FIL_PAGE_IBUF_FREE_LIST ||
@@ -169,6 +172,7 @@ fil_page_type_validate(
 		ut_ad(page_type == FIL_PAGE_PAGE_COMPRESSED ||
 			page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED ||
 			page_type == FIL_PAGE_INDEX ||
+			page_type == FIL_PAGE_RTREE ||
 			page_type == FIL_PAGE_UNDO_LOG ||
 			page_type == FIL_PAGE_INODE ||
 			page_type == FIL_PAGE_IBUF_FREE_LIST ||
