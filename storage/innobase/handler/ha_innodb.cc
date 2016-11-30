@@ -12854,6 +12854,7 @@ create_table_info_t::create_option_data_directory_is_valid()
 }
 
 
+#ifdef MYSQL_TABLESPACES
 #define IDENT_NAME_OK 0
 static int check_tablespace_name(const char *name)
 {
@@ -13046,6 +13047,7 @@ create_table_info_t::create_option_tablespace_is_valid()
 
 	return(true);
 }
+#endif
 
 #ifdef MYSQL_COMPRESSION
 /** Validate the COPMRESSION option.
@@ -13136,6 +13138,7 @@ create_table_info_t::create_options_are_invalid()
 	ut_ad(m_thd != NULL);
 	ut_ad(m_create_info != NULL);
 
+#ifdef MYSQL_TABLESPACES
 	/* The TABLESPACE designation on a CREATE TABLE is not subject to
 	non-strict-mode.  If it is incorrect or is incompatible with other
 	options, then we will return an error. Make sure the tablespace exists
@@ -13143,6 +13146,7 @@ create_table_info_t::create_options_are_invalid()
 	if (!create_option_tablespace_is_valid()) {
 		return("TABLESPACE");
 	}
+#endif
 
 	/* If innodb_strict_mode is not set don't do any more validation.
 	Also, if this table is being put into a shared general tablespace
