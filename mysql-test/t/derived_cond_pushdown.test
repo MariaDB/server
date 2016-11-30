@@ -1147,3 +1147,23 @@ SELECT a, GROUP_CONCAT(b) FROM v1
 
 DROP VIEW v1;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-10836: pushdown of the predicate with cached value
+--echo #
+
+CREATE TABLE t (pk INT PRIMARY KEY, f INT) ENGINE=MyISAM;
+CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
+INSERT INTO t VALUES (1,1),(3,2);
+ 
+SELECT * FROM v AS v1, v AS v2
+  WHERE v2.pk > v1.f AND v1.f IN ( SELECT COUNT(pk) FROM t );
+
+EXPLAIN FORMAT=JSON
+SELECT * FROM v AS v1, v AS v2
+  WHERE v2.pk > v1.f AND v1.f IN ( SELECT COUNT(pk) FROM t );
+
+DROP VIEW v;
+DROP TABLE t;
+
+
