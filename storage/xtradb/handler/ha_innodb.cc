@@ -20265,11 +20265,6 @@ static MYSQL_SYSVAR_LONGLONG(buffer_pool_size, innobase_buffer_pool_size,
   "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
   NULL, NULL, 128*1024*1024L, 5*1024*1024L, LONGLONG_MAX, 1024*1024L);
 
-static MYSQL_SYSVAR_BOOL(buffer_pool_populate, srv_numa_interleave,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Depricated. This option is temporary alias of --innodb-numa-interleave.",
-  NULL, NULL, FALSE);
-
 static MYSQL_SYSVAR_ENUM(foreground_preflush, srv_foreground_preflush,
   PLUGIN_VAR_OPCMDARG,
   "The algorithm InnoDB uses for the query threads at sync preflush.  "
