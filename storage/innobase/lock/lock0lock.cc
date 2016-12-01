@@ -2257,7 +2257,13 @@ has_higher_priority(
 		return false;
 	} else if (lock2 == NULL) {
 		return true;
-	}
+    }
+    // No preference. Compre them by wait mode and trx age.
+    if (!lock_get_wait(lock1)) {
+        return true;
+    } else if (!lock_get_wait(lock2)) {
+        return false;
+    }
 	// Ask the upper server layer if any of the two trx should be prefered.
 	int preference = thd_deadlock_victim_preference(lock1->trx->mysql_thd, lock2->trx->mysql_thd);
 	if (preference == -1) {
@@ -2266,12 +2272,6 @@ has_higher_priority(
 	} else if (preference == 1) {
 		// lock2 is preferred as a victim, so lock1 has higher priority
 		return true;
-	}
-	// No preference. Compre them by wait mode and trx age.
-	if (!lock_get_wait(lock1)) {
-		return true;
-	} else if (!lock_get_wait(lock2)) {
-		return false;
 	}
 	return lock1->trx->start_time_micro <= lock2->trx->start_time_micro;
 }
