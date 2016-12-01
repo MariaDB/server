@@ -1820,7 +1820,7 @@ lock_rec_insert_by_trx_age(
 
 	node = (lock_t *) cell->node;
 	// If in_lock is not a wait lock, we insert it to the head of the list.
-	if (node == NULL || !lock_get_wait(in_lock) || has_higher_priority(in_lock, node)) {
+	if (node == NULL || (!lock_get_wait(in_lock) && has_higher_priority(in_lock, node))) {
 		cell->node = in_lock;
 		in_lock->hash = node;
 		if (lock_get_wait(in_lock)) {
@@ -6367,8 +6367,10 @@ lock_rec_queue_validate(
 					mode, block, false, heap_no,
 					lock->trx);
 #ifdef WITH_WSREP
-			ut_a(!other_lock || wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE) ||
-			     wsrep_thd_is_BF(other_lock->trx->mysql_thd, FALSE));
+			ut_a(!other_lock
+			     || wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE)
+			     || wsrep_thd_is_BF(other_lock->trx->mysql_thd, FALSE));
+
 #else
 			ut_a(!other_lock);
 #endif /* WITH_WSREP */
