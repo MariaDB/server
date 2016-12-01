@@ -27,6 +27,7 @@ class Field;
 class Item;
 class Item_cache;
 class Item_sum_hybrid;
+class Item_func_hex;
 class Type_std_attributes;
 class Sort_param;
 class Arg_comparator;
@@ -291,6 +292,8 @@ public:
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
   virtual bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const= 0;
+  virtual String *Item_func_hex_val_str_ascii(Item_func_hex *item,
+                                              String *str) const= 0;
 };
 
 
@@ -349,6 +352,11 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
+  String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
 };
 
 
@@ -383,6 +391,7 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
+  String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
 };
 
 
@@ -402,6 +411,7 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
+  String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
 };
 
 
@@ -421,6 +431,7 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
+  String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
 };
 
 
@@ -438,6 +449,7 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
+  String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
 };
 
 
@@ -459,6 +471,7 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
+  String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
 };
 
 

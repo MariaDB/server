@@ -293,6 +293,9 @@ public:
   bool set(ulonglong num, CHARSET_INFO *cs) { return set_int((longlong)num, true, cs); }
   bool set_real(double num,uint decimals, CHARSET_INFO *cs);
 
+  bool set_hex(ulonglong num);
+  bool set_hex(const char *str, uint32 len);
+
   /* Take over handling of buffer from some other object */
   void reset(char *ptr_arg, uint32 length_arg, uint32 alloced_length_arg,
              CHARSET_INFO *cs)
@@ -569,6 +572,7 @@ public:
     qs_append(str, (uint32)strlen(str));
   }
   void qs_append(const char *str, uint32 len);
+  void qs_append_hex(const char *str, uint32 len);
   void qs_append(double d);
   void qs_append(double *d);
   inline void qs_append(const char c)
