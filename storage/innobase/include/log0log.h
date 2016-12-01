@@ -555,7 +555,11 @@ or the MySQL version that created the redo log file. */
 /** End of the log file creator field. */
 #define LOG_HEADER_CREATOR_END	(LOG_HEADER_CREATOR + 32)
 /** Contents of the LOG_HEADER_CREATOR field */
-#define LOG_HEADER_CREATOR_CURRENT	"MySQL " INNODB_VERSION_STR
+#define LOG_HEADER_CREATOR_CURRENT		\
+	"MariaDB "				\
+	IB_TO_STR(MYSQL_VERSION_MAJOR) "."	\
+	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
+	IB_TO_STR(MYSQL_VERSION_PATCH)
 
 /** The redo log format identifier corresponding to the current format version.
 Stored in LOG_HEADER_FORMAT. */
