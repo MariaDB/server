@@ -2242,8 +2242,6 @@ lock_rec_create(
 /*********************************************************************//**
 Check if lock1 has higher priority than lock2.
 NULL has lowest priority.
-Respect the preference of the upper server layer to reduce conflict
-during in-order parallel replication.
 If neither of them is wait lock, the first one has higher priority.
 If only one of them is a wait lock, it has lower priority.
 Otherwise, the one with an older transaction has higher priority.
@@ -2264,15 +2262,6 @@ has_higher_priority(
     } else if (!lock_get_wait(lock2)) {
         return false;
     }
-	// Ask the upper server layer if any of the two trx should be prefered.
-	int preference = thd_deadlock_victim_preference(lock1->trx->mysql_thd, lock2->trx->mysql_thd);
-	if (preference == -1) {
-		// lock1 is preferred as a victim, so lock2 has higher priority
-		return false;
-	} else if (preference == 1) {
-		// lock2 is preferred as a victim, so lock1 has higher priority
-		return true;
-	}
 	return lock1->trx->start_time_micro <= lock2->trx->start_time_micro;
 }
 
