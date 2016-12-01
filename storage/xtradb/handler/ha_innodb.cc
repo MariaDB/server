@@ -202,6 +202,8 @@ static long innobase_buffer_pool_instances = 1;
 static ulong innobase_log_block_size;
 
 static long long innobase_buffer_pool_size, innobase_log_file_size;
+/** Deprecated option that has no effect. */
+static my_bool innodb_buffer_pool_populate;
 
 /** Percentage of the buffer pool to reserve for 'old' blocks.
 Connected to buf_LRU_old_ratio. */
@@ -4280,6 +4282,15 @@ innobase_change_buffering_inited_ok:
 			"This option may be removed in future releases, "
 			"together with the InnoDB's internal memory "
 			"allocator.\n");
+	}
+
+	if (innodb_buffer_pool_populate) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			" InnoDB: Warning: Setting "
+			"innodb_buffer_pool_populate is DEPRECATED"
+			" and has no effect. "
+			"This option will be removed in MariaDB 10.2.3.\n");
 	}
 
 	srv_n_file_io_threads = (ulint) innobase_file_io_threads;
@@ -20758,9 +20769,10 @@ static MYSQL_SYSVAR_LONGLONG(buffer_pool_size, innobase_buffer_pool_size,
   "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
   NULL, NULL, 128*1024*1024L, 5*1024*1024L, LONGLONG_MAX, 1024*1024L);
 
-static MYSQL_SYSVAR_BOOL(buffer_pool_populate, srv_numa_interleave,
+static MYSQL_SYSVAR_BOOL(buffer_pool_populate, innodb_buffer_pool_populate,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Depricated. This option is temporary alias of --innodb-numa-interleave.",
+  "Deprecated. This option has no effect and "
+  "will be removed in MariaDB 10.2.3.",
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ENUM(foreground_preflush, srv_foreground_preflush,
