@@ -1961,6 +1961,8 @@ public:
 
   static const HA_ALTER_FLAGS ALTER_DROP_CHECK_CONSTRAINT= 1LL << 33;
 
+  static const HA_ALTER_FLAGS ALTER_ADD_COLUMN_COMPRESSED = 1LL << 34;
+
   /**
     Create options (like MAX_ROWS) for the new version of table.
 

@@ -6352,7 +6352,9 @@ static bool fill_alter_inplace_info(THD *thd,
     ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_CHECK_CONSTRAINT;
   if (alter_info->flags & Alter_info::ALTER_DROP_CHECK_CONSTRAINT)
     ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_CHECK_CONSTRAINT;
-
+  if (alter_info->flags & Alter_info::ALTER_ADD_COLUMN_COMPRESSED)
+    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_COLUMN_COMPRESSED;
+  
   /*
     If we altering table with old VARCHAR fields we will be automatically
     upgrading VARCHAR column types.

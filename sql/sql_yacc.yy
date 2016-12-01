@@ -6608,6 +6608,7 @@ attribute:
           {
             LEX *lex=Lex;
             lex->last_field->flags|= FIELD_IS_COMPRESSED;
+            lex->alter_info.flags|= Alter_info::ALTER_ADD_COLUMN_COMPRESSED;
           }  
         | UNIQUE_SYM
           {

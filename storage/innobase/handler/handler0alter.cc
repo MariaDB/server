@@ -652,7 +652,10 @@ ha_innobase::check_if_supported_inplace_alter(
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		}
 	}
-
+	if(ha_alter_info->handler_flags & Alter_inplace_info::ALTER_ADD_COLUMN_COMPRESSED)
+	{/* column with compress attributes, do not support inplace alter */
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
 		| INNOBASE_ALTER_NOREBUILD
