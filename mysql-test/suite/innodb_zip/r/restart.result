@@ -21,7 +21,7 @@ t1_restart	CREATE TABLE `t1_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000027 DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
 SELECT count(*) FROM t1_restart;
@@ -44,7 +44,7 @@ t2_restart	CREATE TABLE `t2_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000027 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
 SELECT count(*) FROM t2_restart;
@@ -67,7 +67,7 @@ t3_restart	CREATE TABLE `t3_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000027 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
 SELECT count(*) FROM t3_restart;
@@ -90,7 +90,7 @@ t4_restart	CREATE TABLE `t4_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000027 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 SELECT count(*) FROM t4_restart;
@@ -113,7 +113,7 @@ t5_restart	CREATE TABLE `t5_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000027 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 SELECT count(*) FROM t5_restart;
@@ -142,13 +142,13 @@ t6_restart	CREATE TABLE `t6_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
 /*!50100 PARTITION BY HASH (c1)
-(PARTITION p0 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir/' ENGINE = InnoDB,
- PARTITION p1 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir/' ENGINE = InnoDB,
- PARTITION p2 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir/' ENGINE = InnoDB) */
+(PARTITION p0 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB,
+ PARTITION p1 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB,
+ PARTITION p2 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB) */
 SELECT count(*) FROM t6_restart;
 count(*)
 16
@@ -178,64 +178,20 @@ t7_restart	CREATE TABLE `t7_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 /*!50100 PARTITION BY RANGE (c1)
 SUBPARTITION BY HASH (c1)
 (PARTITION p0 VALUES LESS THAN (10)
- (SUBPARTITION s0 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir/' ENGINE = InnoDB,
-  SUBPARTITION s1 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir/' ENGINE = InnoDB),
+ (SUBPARTITION s0 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB,
+  SUBPARTITION s1 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB),
  PARTITION p1 VALUES LESS THAN MAXVALUE
- (SUBPARTITION s2 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir/' ENGINE = InnoDB,
-  SUBPARTITION s3 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir/' ENGINE = InnoDB)) */
+ (SUBPARTITION s2 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB,
+  SUBPARTITION s3 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB)) */
 SELECT count(*) FROM t7_restart;
 count(*)
 16
-#
-# Create and insert records into a table that uses a general tablespace.
-#
-CREATE TABLESPACE s1_restart ADD DATAFILE 's1_restart.ibd';
-CREATE TABLE t8_restart(c1 DOUBLE AUTO_INCREMENT KEY, c2 CHAR(10), c3 VARCHAR(100), c4 DATE, c5 TEXT)
-ROW_FORMAT=COMPACT  ENGINE=InnoDB TABLESPACE=s1_restart;
-INSERT INTO t8_restart VALUES (1000000000, 'MySQL', 'InnoDB', '2011-11-11', 'Read this after reboot');
-INSERT INTO t8_restart (SELECT 0, c2, c3, c4, c5 FROM t2_restart);
-INSERT INTO t8_restart (SELECT 0, c2, c3, c4, c5 FROM t2_restart);
-INSERT INTO t8_restart (SELECT 0, c2, c3, c4, c5 FROM t2_restart);
-INSERT INTO t8_restart (SELECT 0, c2, c3, c4, c5 FROM t2_restart);
-SHOW CREATE TABLE t8_restart;
-Table	Create Table
-t8_restart	CREATE TABLE `t8_restart` (
-  `c1` double NOT NULL AUTO_INCREMENT,
-  `c2` char(10) DEFAULT NULL,
-  `c3` varchar(100) DEFAULT NULL,
-  `c4` date DEFAULT NULL,
-  `c5` text,
-  PRIMARY KEY (`c1`)
-) /*!50100 TABLESPACE `s1_restart` */ ENGINE=InnoDB AUTO_INCREMENT=1000000125 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
-SELECT count(*) FROM t8_restart;
-count(*)
-65
-CREATE TABLE t9_restart(c1 DOUBLE AUTO_INCREMENT KEY, c2 CHAR(10), c3 VARCHAR(100), c4 DATE, c5 TEXT)
-ROW_FORMAT=DYNAMIC  ENGINE=InnoDB TABLESPACE=s1_restart;
-INSERT INTO t9_restart VALUES (1000000000, 'MySQL', 'InnoDB', '2011-11-11', 'Read this after reboot');
-INSERT INTO t9_restart (SELECT 0, c2, c3, c4, c5 FROM t2_restart);
-INSERT INTO t9_restart (SELECT 0, c2, c3, c4, c5 FROM t2_restart);
-INSERT INTO t9_restart (SELECT 0, c2, c3, c4, c5 FROM t2_restart);
-INSERT INTO t9_restart (SELECT 0, c2, c3, c4, c5 FROM t2_restart);
-SHOW CREATE TABLE t9_restart;
-Table	Create Table
-t9_restart	CREATE TABLE `t9_restart` (
-  `c1` double NOT NULL AUTO_INCREMENT,
-  `c2` char(10) DEFAULT NULL,
-  `c3` varchar(100) DEFAULT NULL,
-  `c4` date DEFAULT NULL,
-  `c5` text,
-  PRIMARY KEY (`c1`)
-) /*!50100 TABLESPACE `s1_restart` */ ENGINE=InnoDB AUTO_INCREMENT=1000000125 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
-SELECT count(*) FROM t9_restart;
-count(*)
-65
 #
 # Show these tables in information_schema.
 #
@@ -253,8 +209,6 @@ test/t7_restart#p#p0#sp#s0	test/t7_restart#p#p0#sp#s0	97	8	Dynamic	0	Single
 test/t7_restart#p#p0#sp#s1	test/t7_restart#p#p0#sp#s1	97	8	Dynamic	0	Single
 test/t7_restart#p#p1#sp#s2	test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0	Single
 test/t7_restart#p#p1#sp#s3	test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0	Single
-test/t8_restart	s1_restart	129	8	Compact	0	General
-test/t9_restart	s1_restart	161	8	Dynamic	0	General
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 test/t1_restart	Single	DEFAULT	0	Compact or Redundant	MYSQLD_DATADIR/test/t1_restart.ibd
@@ -269,22 +223,6 @@ test/t7_restart#p#p0#sp#s0	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t
 test/t7_restart#p#p0#sp#s1	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
 test/t7_restart#p#p1#sp#s2	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
 test/t7_restart#p#p1#sp#s3	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
-s1_restart	General	DEFAULT	0	Any	MYSQLD_DATADIR/s1_restart.ibd
-=== information_schema.files ===
-Space_Name	File_Type	Engine	Status	Tablespace_Name	Path
-test/t1_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t1_restart.ibd
-test/t2_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t2_restart.ibd
-test/t3_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t3_restart.ibd
-test/t4_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t5_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd
-test/t6_restart#p#p0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
-test/t6_restart#p#p1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
-test/t6_restart#p#p2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p2.ibd
-test/t7_restart#p#p0#sp#s0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s0.ibd
-test/t7_restart#p#p0#sp#s1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
-test/t7_restart#p#p1#sp#s2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
-test/t7_restart#p#p1#sp#s3	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
-s1_restart	TABLESPACE	InnoDB	NORMAL	s1_restart	MYSQLD_DATADIR/s1_restart.ibd
 #
 # Shutdown the server and list the tablespace OS files
 #
@@ -303,13 +241,13 @@ t6_restart#p#p0.isl
 t6_restart#p#p1.isl
 t6_restart#p#p2.isl
 t6_restart.frm
+t6_restart.par
 t7_restart#p#p0#sp#s0.isl
 t7_restart#p#p0#sp#s1.isl
 t7_restart#p#p1#sp#s2.isl
 t7_restart#p#p1#sp#s3.isl
 t7_restart.frm
-t8_restart.frm
-t9_restart.frm
+t7_restart.par
 ---- MYSQL_TMP_DIR/alt_dir
 test
 ---- MYSQL_TMP_DIR/alt_dir/test
@@ -324,7 +262,6 @@ t7_restart#p#p1#sp#s3.ibd
 #
 # Start the server and show that tables are still visible and accessible.
 #
-# restart
 SHOW VARIABLES LIKE 'innodb_file_per_table';
 Variable_name	Value
 innodb_file_per_table	ON
@@ -335,7 +272,7 @@ t1_restart	CREATE TABLE `t1_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000020 DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
 SHOW CREATE TABLE t2_restart;
@@ -345,7 +282,7 @@ t2_restart	CREATE TABLE `t2_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000020 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
 SHOW CREATE TABLE t3_restart;
@@ -355,7 +292,7 @@ t3_restart	CREATE TABLE `t3_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000020 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
 SHOW CREATE TABLE t4_restart;
@@ -365,7 +302,7 @@ t4_restart	CREATE TABLE `t4_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000020 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 SHOW CREATE TABLE t5_restart;
@@ -375,7 +312,7 @@ t5_restart	CREATE TABLE `t5_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000020 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 SHOW CREATE TABLE t6_restart;
@@ -385,7 +322,7 @@ t6_restart	CREATE TABLE `t6_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
 /*!50100 PARTITION BY HASH (c1)
@@ -399,7 +336,7 @@ t7_restart	CREATE TABLE `t7_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 /*!50100 PARTITION BY RANGE (c1)
@@ -410,26 +347,6 @@ SUBPARTITION BY HASH (c1)
  PARTITION p1 VALUES LESS THAN MAXVALUE
  (SUBPARTITION s2 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB,
   SUBPARTITION s3 DATA DIRECTORY = 'MYSQL_TMP_DIR/alt_dir' ENGINE = InnoDB)) */
-SHOW CREATE TABLE t8_restart;
-Table	Create Table
-t8_restart	CREATE TABLE `t8_restart` (
-  `c1` double NOT NULL AUTO_INCREMENT,
-  `c2` char(10) DEFAULT NULL,
-  `c3` varchar(100) DEFAULT NULL,
-  `c4` date DEFAULT NULL,
-  `c5` text,
-  PRIMARY KEY (`c1`)
-) /*!50100 TABLESPACE `s1_restart` */ ENGINE=InnoDB AUTO_INCREMENT=1000000110 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
-SHOW CREATE TABLE t9_restart;
-Table	Create Table
-t9_restart	CREATE TABLE `t9_restart` (
-  `c1` double NOT NULL AUTO_INCREMENT,
-  `c2` char(10) DEFAULT NULL,
-  `c3` varchar(100) DEFAULT NULL,
-  `c4` date DEFAULT NULL,
-  `c5` text,
-  PRIMARY KEY (`c1`)
-) /*!50100 TABLESPACE `s1_restart` */ ENGINE=InnoDB AUTO_INCREMENT=1000000110 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 INSERT INTO t1_restart (SELECT 0, c2, c3, c4, c5 FROM t1_restart);
 INSERT INTO t2_restart (SELECT 0, c2, c3, c4, c5 FROM t2_restart);
 INSERT INTO t3_restart (SELECT 0, c2, c3, c4, c5 FROM t3_restart);
@@ -437,8 +354,6 @@ INSERT INTO t4_restart (SELECT 0, c2, c3, c4, c5 FROM t4_restart);
 INSERT INTO t5_restart (SELECT 0, c2, c3, c4, c5 FROM t5_restart);
 INSERT INTO t6_restart (SELECT 0, c2, c3, c4, c5 FROM t6_restart);
 INSERT INTO t7_restart (SELECT 0, c2, c3, c4, c5 FROM t7_restart);
-INSERT INTO t8_restart (SELECT 0, c2, c3, c4, c5 FROM t8_restart);
-INSERT INTO t9_restart (SELECT 0, c2, c3, c4, c5 FROM t9_restart);
 SELECT count(*) FROM t1_restart;
 count(*)
 32
@@ -460,12 +375,6 @@ count(*)
 SELECT count(*) FROM t7_restart;
 count(*)
 32
-SELECT count(*) FROM t8_restart;
-count(*)
-130
-SELECT count(*) FROM t9_restart;
-count(*)
-130
 #
 # Show these tables in information_schema.
 #
@@ -483,8 +392,6 @@ test/t7_restart#p#p0#sp#s0	test/t7_restart#p#p0#sp#s0	97	8	Dynamic	0	Single
 test/t7_restart#p#p0#sp#s1	test/t7_restart#p#p0#sp#s1	97	8	Dynamic	0	Single
 test/t7_restart#p#p1#sp#s2	test/t7_restart#p#p1#sp#s2	97	8	Dynamic	0	Single
 test/t7_restart#p#p1#sp#s3	test/t7_restart#p#p1#sp#s3	97	8	Dynamic	0	Single
-test/t8_restart	s1_restart	129	8	Compact	0	General
-test/t9_restart	s1_restart	161	8	Dynamic	0	General
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 test/t1_restart	Single	DEFAULT	0	Compact or Redundant	MYSQLD_DATADIR/test/t1_restart.ibd
@@ -499,28 +406,9 @@ test/t7_restart#p#p0#sp#s0	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t
 test/t7_restart#p#p0#sp#s1	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
 test/t7_restart#p#p1#sp#s2	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
 test/t7_restart#p#p1#sp#s3	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
-s1_restart	General	DEFAULT	0	Any	MYSQLD_DATADIR/s1_restart.ibd
-=== information_schema.files ===
-Space_Name	File_Type	Engine	Status	Tablespace_Name	Path
-test/t1_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t1_restart.ibd
-test/t2_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t2_restart.ibd
-test/t3_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t3_restart.ibd
-test/t4_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t5_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd
-test/t6_restart#p#p0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
-test/t6_restart#p#p1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
-test/t6_restart#p#p2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p2.ibd
-test/t7_restart#p#p0#sp#s0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s0.ibd
-test/t7_restart#p#p0#sp#s1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
-test/t7_restart#p#p1#sp#s2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
-test/t7_restart#p#p1#sp#s3	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
-s1_restart	TABLESPACE	InnoDB	NORMAL	s1_restart	MYSQLD_DATADIR/s1_restart.ibd
 DROP TABLE t1_restart;
 DROP TABLE t2_restart;
 DROP TABLE t3_restart;
-DROP TABLE t8_restart;
-DROP TABLE t9_restart;
-DROP TABLESPACE s1_restart;
 #
 # Truncate the remote tablespaces.
 #
@@ -538,17 +426,6 @@ test/t7_restart#p#p0#sp#s0	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t
 test/t7_restart#p#p0#sp#s1	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
 test/t7_restart#p#p1#sp#s2	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
 test/t7_restart#p#p1#sp#s3	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
-=== information_schema.files ===
-Space_Name	File_Type	Engine	Status	Tablespace_Name	Path
-test/t4_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t5_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd
-test/t6_restart#p#p0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
-test/t6_restart#p#p1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
-test/t6_restart#p#p2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p2.ibd
-test/t7_restart#p#p0#sp#s0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s0.ibd
-test/t7_restart#p#p0#sp#s1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
-test/t7_restart#p#p1#sp#s2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
-test/t7_restart#p#p1#sp#s3	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
 INSERT INTO t5_restart VALUES (1000000000, 'MySQL', 'InnoDB', '2011-11-11', 'Read this after reboot');
 INSERT INTO t5_restart (SELECT 0, c2, c3, c4, c5 FROM t5_restart);
 INSERT INTO t5_restart (SELECT 0, c2, c3, c4, c5 FROM t5_restart);
@@ -563,7 +440,7 @@ t5_restart	CREATE TABLE `t5_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000012 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 SELECT count(*) FROM t6_restart;
@@ -576,7 +453,7 @@ t6_restart	CREATE TABLE `t6_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
 /*!50100 PARTITION BY HASH (c1)
@@ -593,7 +470,7 @@ t7_restart	CREATE TABLE `t7_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 /*!50100 PARTITION BY RANGE (c1)
@@ -618,11 +495,13 @@ t6_restart#p#p0.isl
 t6_restart#p#p1.isl
 t6_restart#p#p2.isl
 t6_restart.frm
+t6_restart.par
 t7_restart#p#p0#sp#s0.isl
 t7_restart#p#p0#sp#s1.isl
 t7_restart#p#p1#sp#s2.isl
 t7_restart#p#p1#sp#s3.isl
 t7_restart.frm
+t7_restart.par
 ---- MYSQL_TMP_DIR/alt_dir/test
 t5_restart.ibd
 t5_restart.ibd.bak
@@ -636,7 +515,6 @@ t7_restart#p#p1#sp#s3.ibd
 #
 # Start the server and show the tablespaces.
 #
-# restart
 SHOW VARIABLES LIKE 'innodb_file_per_table';
 Variable_name	Value
 innodb_file_per_table	ON
@@ -651,17 +529,6 @@ test/t7_restart#p#p0#sp#s0	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t
 test/t7_restart#p#p0#sp#s1	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
 test/t7_restart#p#p1#sp#s2	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
 test/t7_restart#p#p1#sp#s3	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
-=== information_schema.files ===
-Space_Name	File_Type	Engine	Status	Tablespace_Name	Path
-test/t4_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t5_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t5_restart.ibd
-test/t6_restart#p#p0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p0.ibd
-test/t6_restart#p#p1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p1.ibd
-test/t6_restart#p#p2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t6_restart#p#p2.ibd
-test/t7_restart#p#p0#sp#s0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s0.ibd
-test/t7_restart#p#p0#sp#s1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p0#sp#s1.ibd
-test/t7_restart#p#p1#sp#s2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s2.ibd
-test/t7_restart#p#p1#sp#s3	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t7_restart#p#p1#sp#s3.ibd
 SELECT count(*) FROM t5_restart;
 count(*)
 8
@@ -672,7 +539,7 @@ t5_restart	CREATE TABLE `t5_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000009 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 SELECT count(*) FROM t6_restart;
@@ -685,7 +552,7 @@ t6_restart	CREATE TABLE `t6_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
 /*!50100 PARTITION BY HASH (c1)
@@ -702,7 +569,7 @@ t7_restart	CREATE TABLE `t7_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 /*!50100 PARTITION BY RANGE (c1)
@@ -719,7 +586,7 @@ SUBPARTITION BY HASH (c1)
 RENAME TABLE t5_restart TO t55_restart;
 ERROR 42S01: Table 't55_restart' already exists
 RENAME TABLE t5_restart TO t55_restart;
-ERROR HY000: Error on rename of './test/t5_restart' to './test/t55_restart' (errno: 184 - Tablespace already exists)
+ERROR HY000: Error on rename of './test/t5_restart' to './test/t55_restart' (errno: 184 "Tablespace already exists")
 ---- MYSQL_DATA_DIR/test
 t4_restart.frm
 t4_restart.ibd
@@ -729,11 +596,13 @@ t6_restart#p#p0.isl
 t6_restart#p#p1.isl
 t6_restart#p#p2.isl
 t6_restart.frm
+t6_restart.par
 t7_restart#p#p0#sp#s0.isl
 t7_restart#p#p0#sp#s1.isl
 t7_restart#p#p1#sp#s2.isl
 t7_restart#p#p1#sp#s3.isl
 t7_restart.frm
+t7_restart.par
 ---- MYSQL_TMP_DIR/alt_dir/test
 t5_restart.ibd
 t6_restart#p#p0.ibd
@@ -760,17 +629,6 @@ test/t77_restart#p#p0#sp#s0	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/
 test/t77_restart#p#p0#sp#s1	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s1.ibd
 test/t77_restart#p#p1#sp#s2	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s2.ibd
 test/t77_restart#p#p1#sp#s3	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s3.ibd
-=== information_schema.files ===
-Space_Name	File_Type	Engine	Status	Tablespace_Name	Path
-test/t4_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t55_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd
-test/t66_restart#p#p0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p0.ibd
-test/t66_restart#p#p1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p1.ibd
-test/t66_restart#p#p2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p2.ibd
-test/t77_restart#p#p0#sp#s0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s0.ibd
-test/t77_restart#p#p0#sp#s1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s1.ibd
-test/t77_restart#p#p1#sp#s2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s2.ibd
-test/t77_restart#p#p1#sp#s3	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s3.ibd
 INSERT INTO t55_restart (SELECT 0, c2, c3, c4, c5 FROM t55_restart);
 SELECT count(*) FROM t55_restart;
 count(*)
@@ -782,7 +640,7 @@ t55_restart	CREATE TABLE `t55_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000024 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 INSERT INTO t66_restart (SELECT 0, c2, c3, c4, c5 FROM t66_restart);
@@ -796,7 +654,7 @@ t66_restart	CREATE TABLE `t66_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=53 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
 /*!50100 PARTITION BY HASH (c1)
@@ -814,7 +672,7 @@ t77_restart	CREATE TABLE `t77_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 /*!50100 PARTITION BY RANGE (c1)
@@ -834,11 +692,13 @@ t66_restart#p#p0.isl
 t66_restart#p#p1.isl
 t66_restart#p#p2.isl
 t66_restart.frm
+t66_restart.par
 t77_restart#p#p0#sp#s0.isl
 t77_restart#p#p0#sp#s1.isl
 t77_restart#p#p1#sp#s2.isl
 t77_restart#p#p1#sp#s3.isl
 t77_restart.frm
+t77_restart.par
 ---- MYSQL_TMP_DIR/alt_dir/test
 t55_restart.ibd
 t66_restart#p#p0.ibd
@@ -851,7 +711,6 @@ t77_restart#p#p1#sp#s3.ibd
 #
 # Restart the server
 #
-# restart
 SHOW VARIABLES LIKE 'innodb_file_per_table';
 Variable_name	Value
 innodb_file_per_table	ON
@@ -866,17 +725,6 @@ test/t77_restart#p#p0#sp#s0	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/
 test/t77_restart#p#p0#sp#s1	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s1.ibd
 test/t77_restart#p#p1#sp#s2	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s2.ibd
 test/t77_restart#p#p1#sp#s3	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s3.ibd
-=== information_schema.files ===
-Space_Name	File_Type	Engine	Status	Tablespace_Name	Path
-test/t4_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t55_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t55_restart.ibd
-test/t66_restart#p#p0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p0.ibd
-test/t66_restart#p#p1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p1.ibd
-test/t66_restart#p#p2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t66_restart#p#p2.ibd
-test/t77_restart#p#p0#sp#s0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s0.ibd
-test/t77_restart#p#p0#sp#s1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p0#sp#s1.ibd
-test/t77_restart#p#p1#sp#s2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s2.ibd
-test/t77_restart#p#p1#sp#s3	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/alt_dir/test/t77_restart#p#p1#sp#s3.ibd
 INSERT INTO t55_restart (SELECT 0, c2, c3, c4, c5 FROM t55_restart);
 SELECT count(*) FROM t55_restart;
 count(*)
@@ -888,7 +736,7 @@ t55_restart	CREATE TABLE `t55_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000048 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 INSERT INTO t66_restart (SELECT 0, c2, c3, c4, c5 FROM t66_restart);
@@ -902,7 +750,7 @@ t66_restart	CREATE TABLE `t66_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=95 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
 /*!50100 PARTITION BY HASH (c1)
@@ -920,7 +768,7 @@ t77_restart	CREATE TABLE `t77_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=37 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 /*!50100 PARTITION BY RANGE (c1)
@@ -946,11 +794,13 @@ t66_restart#p#p0.isl
 t66_restart#p#p1.isl
 t66_restart#p#p2.isl
 t66_restart.frm
+t66_restart.par
 t77_restart#p#p0#sp#s0.isl
 t77_restart#p#p0#sp#s1.isl
 t77_restart#p#p1#sp#s2.isl
 t77_restart#p#p1#sp#s3.isl
 t77_restart.frm
+t77_restart.par
 ---- MYSQL_TMP_DIR/alt_dir/test
 t55_restart.ibd
 t66_restart#p#p0.ibd
@@ -974,11 +824,13 @@ t66_restart#p#p0.isl
 t66_restart#p#p1.isl
 t66_restart#p#p2.isl
 t66_restart.frm
+t66_restart.par
 t77_restart#p#p0#sp#s0.isl
 t77_restart#p#p0#sp#s1.isl
 t77_restart#p#p1#sp#s2.isl
 t77_restart#p#p1#sp#s3.isl
 t77_restart.frm
+t77_restart.par
 ---- MYSQL_TMP_DIR/alt_dir/test
 ---- MYSQL_TMP_DIR/new_dir/test
 t4_restart.ibd
@@ -993,7 +845,6 @@ t77_restart#p#p1#sp#s3.ibd
 #
 # Start the server and check tablespaces.
 #
-# restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 test/t4_restart	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd
@@ -1005,17 +856,6 @@ test/t77_restart#p#p0#sp#s0	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/new_dir/test/
 test/t77_restart#p#p0#sp#s1	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p0#sp#s1.ibd
 test/t77_restart#p#p1#sp#s2	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p1#sp#s2.ibd
 test/t77_restart#p#p1#sp#s3	Single	DEFAULT	0	Dynamic	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p1#sp#s3.ibd
-=== information_schema.files ===
-Space_Name	File_Type	Engine	Status	Tablespace_Name	Path
-test/t4_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/new_dir/test/t4_restart.ibd
-test/t55_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/new_dir/test/t55_restart.ibd
-test/t66_restart#p#p0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p0.ibd
-test/t66_restart#p#p1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p1.ibd
-test/t66_restart#p#p2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/new_dir/test/t66_restart#p#p2.ibd
-test/t77_restart#p#p0#sp#s0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p0#sp#s0.ibd
-test/t77_restart#p#p0#sp#s1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p0#sp#s1.ibd
-test/t77_restart#p#p1#sp#s2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p1#sp#s2.ibd
-test/t77_restart#p#p1#sp#s3	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQL_TMP_DIR/new_dir/test/t77_restart#p#p1#sp#s3.ibd
 INSERT INTO t4_restart (SELECT 0, c2, c3, c4, c5 FROM t4_restart);
 SELECT count(*) FROM t4_restart;
 count(*)
@@ -1027,9 +867,9 @@ t4_restart	CREATE TABLE `t4_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB AUTO_INCREMENT=1000000099 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB AUTO_INCREMENT=1000000099 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC DATA DIRECTORY='MYSQL_TMP_DIR/new_dir/'
 INSERT INTO t55_restart (SELECT 0, c2, c3, c4, c5 FROM t55_restart);
 SELECT count(*) FROM t55_restart;
 count(*)
@@ -1041,7 +881,7 @@ t55_restart	CREATE TABLE `t55_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000096 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC DATA DIRECTORY='MYSQL_TMP_DIR/new_dir/'
 INSERT INTO t66_restart (SELECT 0, c2, c3, c4, c5 FROM t66_restart);
@@ -1055,7 +895,7 @@ t66_restart	CREATE TABLE `t66_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=179 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
 /*!50100 PARTITION BY HASH (c1)
@@ -1073,7 +913,7 @@ t77_restart	CREATE TABLE `t77_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=73 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 /*!50100 PARTITION BY RANGE (c1)
@@ -1099,11 +939,13 @@ t66_restart#p#p0.isl
 t66_restart#p#p1.isl
 t66_restart#p#p2.isl
 t66_restart.frm
+t66_restart.par
 t77_restart#p#p0#sp#s0.isl
 t77_restart#p#p0#sp#s1.isl
 t77_restart#p#p1#sp#s2.isl
 t77_restart#p#p1#sp#s3.isl
 t77_restart.frm
+t77_restart.par
 ---- MYSQL_TMP_DIR/new_dir/test
 t4_restart.ibd
 t55_restart.ibd
@@ -1127,16 +969,17 @@ t66_restart#p#p0.ibd
 t66_restart#p#p1.ibd
 t66_restart#p#p2.ibd
 t66_restart.frm
+t66_restart.par
 t77_restart#p#p0#sp#s0.ibd
 t77_restart#p#p0#sp#s1.ibd
 t77_restart#p#p1#sp#s2.ibd
 t77_restart#p#p1#sp#s3.ibd
 t77_restart.frm
+t77_restart.par
 ---- MYSQL_TMP_DIR/new_dir/test
 #
 # Start the server and check tablespaces.
 #
-# restart
 === information_schema.innodb_sys_tablespaces and innodb_sys_datafiles ===
 Space_Name	Space_Type	Page_Size	Zip_Size	Formats_Permitted	Path
 test/t4_restart	Single	DEFAULT	0	Dynamic	MYSQLD_DATADIR/test/t4_restart.ibd
@@ -1148,17 +991,6 @@ test/t77_restart#p#p0#sp#s0	Single	DEFAULT	0	Dynamic	MYSQLD_DATADIR/test/t77_res
 test/t77_restart#p#p0#sp#s1	Single	DEFAULT	0	Dynamic	MYSQLD_DATADIR/test/t77_restart#p#p0#sp#s1.ibd
 test/t77_restart#p#p1#sp#s2	Single	DEFAULT	0	Dynamic	MYSQLD_DATADIR/test/t77_restart#p#p1#sp#s2.ibd
 test/t77_restart#p#p1#sp#s3	Single	DEFAULT	0	Dynamic	MYSQLD_DATADIR/test/t77_restart#p#p1#sp#s3.ibd
-=== information_schema.files ===
-Space_Name	File_Type	Engine	Status	Tablespace_Name	Path
-test/t4_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t4_restart.ibd
-test/t55_restart	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t55_restart.ibd
-test/t66_restart#p#p0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t66_restart#p#p0.ibd
-test/t66_restart#p#p1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t66_restart#p#p1.ibd
-test/t66_restart#p#p2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t66_restart#p#p2.ibd
-test/t77_restart#p#p0#sp#s0	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t77_restart#p#p0#sp#s0.ibd
-test/t77_restart#p#p0#sp#s1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t77_restart#p#p0#sp#s1.ibd
-test/t77_restart#p#p1#sp#s2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t77_restart#p#p1#sp#s2.ibd
-test/t77_restart#p#p1#sp#s3	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t77_restart#p#p1#sp#s3.ibd
 INSERT INTO t4_restart (SELECT 0, c2, c3, c4, c5 FROM t4_restart);
 SELECT count(*) FROM t4_restart;
 count(*)
@@ -1170,7 +1002,7 @@ t4_restart	CREATE TABLE `t4_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000195 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 INSERT INTO t55_restart (SELECT 0, c2, c3, c4, c5 FROM t55_restart);
@@ -1184,7 +1016,7 @@ t55_restart	CREATE TABLE `t55_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1000000192 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 INSERT INTO t66_restart (SELECT 0, c2, c3, c4, c5 FROM t66_restart);
@@ -1198,7 +1030,7 @@ t66_restart	CREATE TABLE `t66_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=347 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2
 /*!50100 PARTITION BY HASH (c1)
@@ -1216,7 +1048,7 @@ t77_restart	CREATE TABLE `t77_restart` (
   `c2` char(10) DEFAULT NULL,
   `c3` varchar(100) DEFAULT NULL,
   `c4` date DEFAULT NULL,
-  `c5` text,
+  `c5` text DEFAULT NULL,
   PRIMARY KEY (`c1`)
 ) ENGINE=InnoDB AUTO_INCREMENT=145 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 /*!50100 PARTITION BY RANGE (c1)

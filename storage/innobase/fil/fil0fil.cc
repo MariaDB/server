@@ -6798,62 +6798,6 @@ fil_get_space_names(
 }
 
 #ifndef UNIV_HOTBACKUP
-/** Return the next fil_node_t in the current or next fil_space_t.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in]	prev_node	Pointer to the previous fil_node_t.
-If NULL, use the first fil_space_t on fil_system->space_list.
-@return pointer to the next fil_node_t.
-@retval NULL if this was the last file node */
-const fil_node_t*
-fil_node_next(
-	const fil_node_t*	prev_node)
-{
-	fil_space_t*		space;
-	const fil_node_t*	node = prev_node;
-
-	mutex_enter(&fil_system->mutex);
-
-	if (node == NULL) {
-		space = UT_LIST_GET_FIRST(fil_system->space_list);
-
-		/* We can trust that space is not NULL because at least the
-		system tablespace is always present and loaded first. */
-		space->n_pending_ops++;
-
-		node = UT_LIST_GET_FIRST(space->chain);
-		ut_ad(node != NULL);
-	} else {
-		space = node->space;
-		ut_ad(space->n_pending_ops > 0);
-		node = UT_LIST_GET_NEXT(chain, node);
-
-		if (node == NULL) {
-			/* Move on to the next fil_space_t */
-			space->n_pending_ops--;
-			space = UT_LIST_GET_NEXT(space_list, space);
-
-			/* Skip spaces that are being dropped or truncated. */
-			while (space != NULL
-			       && (space->stop_new_ops
-				   || space->is_being_truncated)) {
-				space = UT_LIST_GET_NEXT(space_list, space);
-			}
-
-			if (space != NULL) {
-				space->n_pending_ops++;
-				node = UT_LIST_GET_FIRST(space->chain);
-				ut_ad(node != NULL);
-			}
-		}
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return(node);
-}
-
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table
 @param[in]	new_table	new table

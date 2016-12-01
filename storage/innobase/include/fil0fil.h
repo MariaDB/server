@@ -1609,18 +1609,6 @@ fil_get_space_names(
 				/*!< in/out: Vector for collecting the names. */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Return the next fil_node_t in the current or next fil_space_t.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in]	prev_node	Pointer to the previous fil_node_t.
-If NULL, use the first fil_space_t on fil_system->space_list.
-@return pointer to the next fil_node_t.
-@retval NULL if this was the last file node */
-const fil_node_t*
-fil_node_next(
-	const fil_node_t*	prev_node);
-
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table
 @param[in]	new_table	new table

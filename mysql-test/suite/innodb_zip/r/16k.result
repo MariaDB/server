@@ -41,12 +41,6 @@ test/t1	Single	DEFAULT	0	Compact or Redundant	MYSQLD_DATADIR/test/t1.ibd
 test/t2	Single	DEFAULT	0	Compact or Redundant	MYSQLD_DATADIR/test/t2.ibd
 test/t3	Single	DEFAULT	8192	Compressed	MYSQLD_DATADIR/test/t3.ibd
 test/t4	Single	DEFAULT	0	Dynamic	MYSQLD_DATADIR/test/t4.ibd
-=== information_schema.files ===
-Space_Name	File_Type	Engine	Status	Tablespace_Name	Path
-test/t1	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t1.ibd
-test/t2	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t2.ibd
-test/t3	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t3.ibd
-test/t4	TABLESPACE	InnoDB	NORMAL	innodb_file_per_table.##	MYSQLD_DATADIR/test/t4.ibd
 DROP TABLE t1, t2, t3, t4;
 # Test 4) The maximum row size is dependent upon the page size.
 #         Redundant: 8123, Compact: 8126.
