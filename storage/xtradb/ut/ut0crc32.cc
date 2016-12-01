@@ -299,8 +299,11 @@ void
 ut_crc32_init()
 /*===========*/
 {
-	bool            ut_crc32_sse2_enabled = false;
-#if defined(__GNUC__) && defined(__x86_64__)
+	ut_crc32_slice8_table_init();
+	ut_crc32 = ut_crc32_slice8;
+	ut_crc32_implementation = "Using generic crc32 instructions";
+
+#if defined(__GNUC__) && defined(__x86_64__) && !defined(UNIV_DEBUG_VALGRIND)
 	ib_uint32_t	vend[3];
 	ib_uint32_t	model;
 	ib_uint32_t	family;
@@ -327,23 +330,13 @@ ut_crc32_init()
 	probably kill your program.
 
 	*/
-#ifndef UNIV_DEBUG_VALGRIND
-	ut_crc32_sse2_enabled = (features_ecx >> 20) & 1;
-#endif /* UNIV_DEBUG_VALGRIND */
-
-#endif /* defined(__GNUC__) && defined(__x86_64__) */
-
-#ifdef HAVE_CRC32_VPMSUM
-	ut_crc32 = ut_crc32_power8;
-	ut_crc32_implementation = "Using POWER8 crc32 instructions";
-#else
-	if (ut_crc32_sse2_enabled) {
+	if ((features_ecx >> 20) & 1) {
 		ut_crc32 = ut_crc32_sse42;
 		ut_crc32_implementation = "Using SSE2 crc32 instructions";
-	} else {
-		ut_crc32_slice8_table_init();
-		ut_crc32 = ut_crc32_slice8;
-		ut_crc32_implementation = "Using generic crc32 instructions";
 	}
+
+#elif defined(HAVE_CRC32_VPMSUM)
+	ut_crc32 = ut_crc32_power8;
+	ut_crc32_implementation = "Using POWER8 crc32 instructions";
 #endif
 }
