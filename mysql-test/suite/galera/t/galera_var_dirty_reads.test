@@ -39,6 +39,13 @@ SET @@session.wsrep_dirty_reads=ON;
 
 SELECT * FROM t1;
 
+#Select query which does not access table should be allowed MDEV-11016
+SET @@session.wsrep_dirty_reads=OFF;
+SELECT 2;
+SELECT @@max_allowed_packet;
+SELECT 2+2 from DUAL;
+SELECT sysdate() from DUAL;
+
 --disable_query_log
 --eval SET @@global.wsrep_cluster_address = '$wsrep_cluster_address_saved'
 --enable_query_log
