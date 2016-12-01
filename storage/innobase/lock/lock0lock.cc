@@ -1730,9 +1730,9 @@ RecLock::lock_alloc(
 /*********************************************************************//**
 Check if lock1 has higher priority than lock2.
 NULL has lowest priority.
-If either is a high priority transaction, the lock has higher priority.
 If neither of them is wait lock, the first one has higher priority.
 If only one of them is a wait lock, it has lower priority.
+If either is a high priority transaction, the lock has higher priority.
 Otherwise, the one with an older transaction has higher priority.
 @returns true if lock1 has higher priority, false otherwise. */
 bool
@@ -1744,26 +1744,17 @@ has_higher_priority(
 		return false;
 	} else if (lock2 == NULL) {
 		return true;
-	}
-	// Ask the upper server layer if any of the two trx should be prefered.
-	int preference = thd_deadlock_victim_preference(lock1->trx->mysql_thd, lock2->trx->mysql_thd);
-	if (preference == -1) {
-		// lock1 is preferred as a victim, so lock2 has higher priority
-		return false;
-	} else if (preference == 1) {
-		// lock2 is preferred as a victim, so lock1 has higher priority
-		return true;
-	}
-	if (trx_is_high_priority(lock1->trx)) {
+    }
+    // Granted locks has higher priority.
+    if (!lock_get_wait(lock1)) {
+        return true;
+    } else if (!lock_get_wait(lock2)) {
+        return false;
+    }
+    if (trx_is_high_priority(lock1->trx)) {
 		return true;
 	}
 	if (trx_is_high_priority(lock2->trx)) {
-		return false;
-	}
-	// No preference. Compre them by wait mode and trx age.
-	if (!lock_get_wait(lock1)) {
-		return true;
-	} else if (!lock_get_wait(lock2)) {
 		return false;
 	}
 	return lock1->trx->start_time_micro <= lock2->trx->start_time_micro;
