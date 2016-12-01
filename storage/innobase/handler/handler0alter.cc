@@ -975,7 +975,7 @@ ha_innobase::check_if_supported_inplace_alter(
                                ha_alter_info->index_add_buffer[i]];
                if (key->flags & HA_SPATIAL) {
                        ha_alter_info->unsupported_reason = innobase_get_err_msg(
-                               ER_INNODB_FT_LIMIT);
+                             ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
 
                        DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
                }
@@ -1049,13 +1049,10 @@ ha_innobase::check_if_supported_inplace_alter(
 		}
 
 		if (innobase_spatial_exist(altered_table)) {
-#ifdef MYSQL_SPATIAL_INDEX
 			ha_alter_info->unsupported_reason =
 				innobase_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
-#endif
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
-				ER_INNODB_FT_LIMIT);
+
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		} else {
 			ha_alter_info->unsupported_reason =
