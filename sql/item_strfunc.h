@@ -913,17 +913,33 @@ public:
 
 class Item_func_hex :public Item_str_ascii_func
 {
+protected:
   String tmp_value;
+  /*
+    Calling arg[0]->type_handler() can be expensive on every row.
+    It's a virtual method, and in case if args[0] is a complex Item,
+    its type_handler() can call more virtual methods.
+    So let's cache it during fix_length_and_dec().
+  */
+  const Type_handler *m_arg0_type_handler;
 public:
   Item_func_hex(THD *thd, Item *a):
-    Item_str_ascii_func(thd, a) {}
+    Item_str_ascii_func(thd, a), m_arg0_type_handler(NULL) {}
   const char *func_name() const { return "hex"; }
-  String *val_str_ascii(String *);
+  String *val_str_ascii_from_val_int(String *str);
+  String *val_str_ascii_from_val_real(String *str);
+  String *val_str_ascii_from_val_str(String *str);
+  String *val_str_ascii(String *str)
+  {
+    DBUG_ASSERT(fixed);
+    return m_arg0_type_handler->Item_func_hex_val_str_ascii(this, str);
+  }
   void fix_length_and_dec()
   {
     collation.set(default_charset());
     decimals=0;
     fix_char_length(args[0]->max_length * 2);
+    m_arg0_type_handler= args[0]->type_handler();
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_hex>(thd, mem_root, this); }

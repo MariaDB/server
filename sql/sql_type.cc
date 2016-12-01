@@ -859,3 +859,44 @@ bool Type_handler_temporal_result::
 }
 
 /*************************************************************************/
+
+String *
+Type_handler_real_result::Item_func_hex_val_str_ascii(Item_func_hex *item,
+                                                      String *str) const
+{
+  return item->val_str_ascii_from_val_real(str);
+}
+
+
+String *
+Type_handler_decimal_result::Item_func_hex_val_str_ascii(Item_func_hex *item,
+                                                         String *str) const
+{
+  return item->val_str_ascii_from_val_real(str);
+}
+
+
+String *
+Type_handler_int_result::Item_func_hex_val_str_ascii(Item_func_hex *item,
+                                                     String *str) const
+{
+  return item->val_str_ascii_from_val_int(str);
+}
+
+
+String *
+Type_handler_temporal_result::Item_func_hex_val_str_ascii(Item_func_hex *item,
+                                                          String *str) const
+{
+  return item->val_str_ascii_from_val_str(str);
+}
+
+
+String *
+Type_handler_string_result::Item_func_hex_val_str_ascii(Item_func_hex *item,
+                                                        String *str) const
+{
+  return item->val_str_ascii_from_val_str(str);
+}
+
+/*************************************************************************/
