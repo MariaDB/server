@@ -46,7 +46,6 @@ typedef ib_uint32_t (*ib_ut_crc32_t)(const byte* ptr, ulint len);
 
 extern ib_ut_crc32_t	ut_crc32;
 
-extern bool	ut_crc32_sse2_enabled;
-extern bool     ut_crc32_power8_enabled;
+extern const char *ut_crc32_implementation;
 
 #endif /* ut0crc32_h */

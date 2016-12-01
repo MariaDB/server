@@ -96,6 +96,9 @@ ut_crc32_func_t	ut_crc32_legacy_big_endian;
 but very slow). */
 ut_crc32_func_t	ut_crc32_byte_by_byte;
 
+/** Text description of CRC32 implementation */
+const char *ut_crc32_implementation = NULL;
+
 /** Swap the byte order of an 8 byte integer.
 @param[in]	i	8-byte integer
 @return 8-byte integer */
@@ -115,10 +118,6 @@ ut_crc32_swap_byteorder(
 }
 
 /* CRC32 hardware implementation. */
-
-/* Flag that tells whether the CPU supports CRC32 or not */
-bool	ut_crc32_sse2_enabled = false;
-UNIV_INTERN bool	ut_crc32_power8_enabled = false;
 
 #ifdef HAVE_CRC32_VPMSUM
 extern "C" {
@@ -284,8 +283,6 @@ ut_crc32_hw(
 {
 	uint32_t	crc = 0xFFFFFFFFU;
 
-	ut_a(ut_crc32_sse2_enabled);
-
 	/* Calculate byte-by-byte up to an 8-byte aligned address. After
 	this consume the input 8-bytes at a time. */
 	while (len > 0 && (reinterpret_cast<uintptr_t>(buf) & 7) != 0) {
@@ -375,8 +372,6 @@ ut_crc32_legacy_big_endian_hw(
 {
 	uint32_t	crc = 0xFFFFFFFFU;
 
-	ut_a(ut_crc32_sse2_enabled);
-
 	/* Calculate byte-by-byte up to an 8-byte aligned address. After
 	this consume the input 8-bytes at a time. */
 	while (len > 0 && (reinterpret_cast<uintptr_t>(buf) & 7) != 0) {
@@ -426,8 +421,6 @@ ut_crc32_byte_by_byte_hw(
 	ulint		len)
 {
 	uint32_t	crc = 0xFFFFFFFFU;
-
-	ut_a(ut_crc32_sse2_enabled);
 
 	while (len > 0) {
 		ut_crc32_8_hw(&crc, &buf, &len);
@@ -706,6 +699,8 @@ void
 ut_crc32_init()
 /*===========*/
 {
+	bool            ut_crc32_sse2_enabled = false;
+	bool            ut_crc32_power8_enabled = false;
 #if defined(__GNUC__) && defined(__x86_64__)
 	uint32_t	vend[3];
 	uint32_t	model;
@@ -741,6 +736,7 @@ ut_crc32_init()
 		ut_crc32 = ut_crc32_hw;
 		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
 		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_hw;
+		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	}
 
 #endif /* defined(__GNUC__) && defined(__x86_64__) */
@@ -748,6 +744,7 @@ ut_crc32_init()
 #ifdef HAVE_CRC32_VPMSUM
 	ut_crc32_power8_enabled = true;
 	ut_crc32 = ut_crc32_power8;
+	ut_crc32_implementation = "Using POWER8 crc32 instructions";
 #endif
 
 	if (!ut_crc32_sse2_enabled && !ut_crc32_power8_enabled) {
@@ -755,5 +752,6 @@ ut_crc32_init()
 		ut_crc32 = ut_crc32_sw;
 		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_sw;
 		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_sw;
+		ut_crc32_implementation = "Using generic crc32 instructions";
 	}
 }
