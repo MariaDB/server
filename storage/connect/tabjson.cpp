@@ -1,6 +1,6 @@
 /************* tabjson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjson     Version 1.1                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2015  */
+/* PROGRAM NAME: tabjson     Version 1.2                               */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2016  */
 /*  This program are the JSON class DB execution routines.             */
 /***********************************************************************/
 
@@ -25,9 +25,9 @@
 //#include "resource.h"                        // for IDS_COLUMNS
 #include "tabjson.h"
 #include "filamap.h"
-#if defined(ZIP_SUPPORT)
-#include "filamzip.h"
-#endif   // ZIP_SUPPORT
+#if defined(GZ_SUPPORT)
+#include "filamgz.h"
+#endif   // GZ_SUPPORT
 #include "tabmul.h"
 #include "checklvl.h"
 #include "resource.h"
@@ -396,15 +396,15 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
                 (m == MODE_UPDATE || m == MODE_DELETE));
 
     if (Compressed) {
-#if defined(ZIP_SUPPORT)
+#if defined(GZ_SUPPORT)
       if (Compressed == 1)
-        txfp = new(g) ZIPFAM(this);
+        txfp = new(g) GZFAM(this);
       else
         txfp = new(g) ZLBFAM(this);
-#else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+#else   // !GZ_SUPPORT
+      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
-#endif  // !ZIP_SUPPORT
+#endif  // !GZ_SUPPORT
     } else if (map)
       txfp = new(g) MAPFAM(this);
     else

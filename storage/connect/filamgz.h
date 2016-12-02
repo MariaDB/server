@@ -1,16 +1,16 @@
-/************** FilAmZip H Declares Source Code File (.H) **************/
-/*  Name: FILAMZIP.H    Version 1.2                                    */
+/*************** FilAmGz H Declares Source Code File (.H) **************/
+/*  Name: FILAMGZ.H    Version 1.3                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2016    */
 /*                                                                     */
 /*  This file contains the GZIP access method classes declares.        */
 /***********************************************************************/
-#ifndef __FILAMZIP_H
-#define __FILAMZIP_H
+#ifndef __FILAMGZ_H
+#define __FILAMGZ_H
 
 #include "zlib.h"
 
-typedef class ZIPFAM *PZIPFAM;
+typedef class GZFAM *PGZFAM;
 typedef class ZBKFAM *PZBKFAM;
 typedef class ZIXFAM *PZIXFAM;
 typedef class ZLBFAM *PZLBFAM;
@@ -20,19 +20,19 @@ typedef class ZLBFAM *PZLBFAM;
 /*  variable record length files compressed using the gzip library     */
 /*  functions. File is accessed record by record (row).                */
 /***********************************************************************/
-class DllExport ZIPFAM : public TXTFAM {
+class DllExport GZFAM : public TXTFAM {
 //  friend class DOSCOL;
  public:
   // Constructor
-  ZIPFAM(PDOSDEF tdp) : TXTFAM(tdp) {Zfile = NULL; Zpos = 0;}
-  ZIPFAM(PZIPFAM txfp);
+  GZFAM(PDOSDEF tdp) : TXTFAM(tdp) {Zfile = NULL; Zpos = 0;}
+  GZFAM(PGZFAM txfp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
+  virtual AMT  GetAmType(void) {return TYPE_AM_GZ;}
   virtual int  GetPos(void);
   virtual int  GetNextPos(void);
   virtual PTXF Duplicate(PGLOBAL g)
-                {return (PTXF)new(g) ZIPFAM(this);}
+                {return (PTXF)new(g) GZFAM(this);}
 
   // Methods
   virtual void Reset(void);
@@ -57,14 +57,14 @@ class DllExport ZIPFAM : public TXTFAM {
   // Members
   gzFile  Zfile;              // Points to GZ file structure
   z_off_t Zpos;               // Uncompressed file position
-  }; // end of class ZIPFAM
+  }; // end of class GZFAM
 
 /***********************************************************************/
 /*  This is the access method class declaration for optimized variable */
 /*  record length files compressed using the gzip library functions.   */
 /*  The File is accessed by block (requires an opt file).              */
 /***********************************************************************/
-class DllExport ZBKFAM : public ZIPFAM {
+class DllExport ZBKFAM : public GZFAM {
  public:
   // Constructor
   ZBKFAM(PDOSDEF tdp);
@@ -167,4 +167,4 @@ class DllExport ZLBFAM : public BLKFAM {
   bool      Optimized;        // true when opt file is available
   }; // end of class ZLBFAM
 
-#endif // __FILAMZIP_H
+#endif // __FILAMGZ_H

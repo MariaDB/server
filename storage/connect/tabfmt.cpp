@@ -1,11 +1,11 @@
 /************* TabFmt C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFMT                                                */
 /* -------------                                                       */
-/*  Version 3.9                                                        */
+/*  Version 3.9.1                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2015  */
+/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2016  */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -51,9 +51,9 @@
 #include "plgdbsem.h"
 #include "mycat.h"
 #include "filamap.h"
-#if defined(ZIP_SUPPORT)
-#include "filamzip.h"
-#endif   // ZIP_SUPPORT
+#if defined(GZ_SUPPORT)
+#include "filamgz.h"
+#endif   // GZ_SUPPORT
 #include "tabfmt.h"
 #include "tabmul.h"
 #define  NO_FUNC
@@ -462,16 +462,16 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
       // Should be now compatible with UNIX
       txfp = new(g) MAPFAM(this);
     } else if (Compressed) {
-#if defined(ZIP_SUPPORT)
+#if defined(GZ_SUPPORT)
       if (Compressed == 1)
-        txfp = new(g) ZIPFAM(this);
+        txfp = new(g) GZFAM(this);
       else
         txfp = new(g) ZLBFAM(this);
 
-#else   // !ZIP_SUPPORT
+#else   // !GZ_SUPPORT
         strcpy(g->Message, "Compress not supported");
         return NULL;
-#endif  // !ZIP_SUPPORT
+#endif  // !GZ_SUPPORT
     } else
       txfp = new(g) DOSFAM(this);
 
@@ -498,7 +498,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
           if (map) {
             txfp = new(g) MBKFAM(this);
           } else if (Compressed) {
-#if defined(ZIP_SUPPORT)
+#if defined(GZ_SUPPORT)
             if (Compressed == 1)
               txfp = new(g) ZBKFAM(this);
             else {
@@ -506,7 +506,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
               ((PZLBFAM)txfp)->SetOptimized(To_Pos != NULL);
               } // endelse
 #else
-            sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+            sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
             return NULL;
 #endif
           } else
