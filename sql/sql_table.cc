@@ -3120,8 +3120,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
   @param key_info         Key meta-data info.
   @param key_list         List of existing keys.
 */
-static void check_duplicate_key(THD *thd,
-                                Key *key, KEY *key_info,
+static void check_duplicate_key(THD *thd, Key *key, KEY *key_info,
                                 List<Key> *key_list)
 {
   /*
@@ -3183,14 +3182,11 @@ static void check_duplicate_key(THD *thd,
 
     // Report a warning if we have two identical keys.
 
-    DBUG_ASSERT(thd->lex->query_tables->alias);
     if (all_columns_are_identical)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_DUP_INDEX, ER(ER_DUP_INDEX),
-                          key_info->name,
-                          thd->lex->query_tables->db,
-                          thd->lex->query_tables->alias);
+                          key_info->name);
       break;
     }
   }
