@@ -4075,7 +4075,7 @@ bool ha_rocksdb::same_table(const ha_rocksdb& other) const
   return m_tbl_def->base_tablename() == other.m_tbl_def->base_tablename();
 }
 
-#ifdef MARIAROCKS_NOT_YET
+
 bool ha_rocksdb::init_with_fields()
 {
   uint pk= table_share->primary_key;
@@ -4090,7 +4090,7 @@ bool ha_rocksdb::init_with_fields()
   cached_table_flags= table_flags();
   return false; /* Ok */
 }
-#endif
+
 
 /**
   Convert record from table->record[0] form into a form that can be written
@@ -4884,6 +4884,7 @@ int ha_rocksdb::open(const char *name, int mode, uint test_if_locked)
     DBUG_RETURN(err);
   }
 
+  init_with_fields();
   setup_field_converters();
 
   info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);

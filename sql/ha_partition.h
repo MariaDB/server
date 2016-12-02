@@ -307,6 +307,8 @@ public:
                  ha_partition *clone_arg,
                  MEM_ROOT *clone_mem_root_arg);
    ~ha_partition();
+
+   bool init_with_fields();
   /*
     A partition handler has no characteristics in itself. It only inherits
     those from the underlying handlers. Here we set-up those constants to
