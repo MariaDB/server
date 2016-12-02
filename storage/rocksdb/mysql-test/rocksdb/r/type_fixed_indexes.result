@@ -70,7 +70,7 @@ Warnings:
 Warning	1264	Out of range value for column 'd1' at row 6
 EXPLAIN SELECT DISTINCT n1+n2 FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	n1_n2	n1_n2	37	NULL	#	Using index; Using temporary
+1	SIMPLE	t1	index	NULL	n1_n2	37	NULL	#	Using index; Using temporary
 SELECT DISTINCT n1+n2 FROM t1;
 n1+n2
 0.0000
@@ -105,7 +105,7 @@ Warnings:
 Warning	1264	Out of range value for column 'd1' at row 6
 EXPLAIN SELECT d2, COUNT(*) FROM t1 GROUP BY d2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	d2	d2	29	NULL	#	Using index
+1	SIMPLE	t1	index	NULL	d2	29	NULL	#	Using index
 SELECT d2, COUNT(*) FROM t1 GROUP BY d2;
 d2	COUNT(*)
 0.0000000000	1
@@ -116,7 +116,7 @@ d2	COUNT(*)
 60.1234500000	2
 EXPLAIN SELECT d2, COUNT(*) FROM t1 IGNORE INDEX FOR GROUP BY (d2) GROUP BY d2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	d2	d2	29	NULL	#	Using index; Using temporary; Using filesort
+1	SIMPLE	t1	index	NULL	d2	29	NULL	#	Using index; Using temporary; Using filesort
 SELECT d2, COUNT(*) FROM t1 IGNORE INDEX FOR GROUP BY (d2) GROUP BY d2;
 d2	COUNT(*)
 0.0000000000	1

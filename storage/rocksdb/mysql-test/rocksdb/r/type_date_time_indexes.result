@@ -95,7 +95,7 @@ INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
 (DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),'23:18:18');
 EXPLAIN SELECT y, COUNT(*) FROM t1 GROUP BY y;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	y	y	6	NULL	#	Using index
+1	SIMPLE	t1	index	NULL	y	6	NULL	#	Using index
 SELECT y, COUNT(*) FROM t1 GROUP BY y;
 y	COUNT(*)
 1994	1
@@ -106,7 +106,7 @@ y	COUNT(*)
 2012	1
 EXPLAIN SELECT y, COUNT(*) FROM t1 USE INDEX FOR GROUP BY () GROUP BY y;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	y	y	6	NULL	#	Using index; Using temporary; Using filesort
+1	SIMPLE	t1	index	NULL	y	6	NULL	#	Using index; Using temporary; Using filesort
 SELECT y, COUNT(*) FROM t1 USE INDEX FOR GROUP BY () GROUP BY y;
 y	COUNT(*)
 1994	1
