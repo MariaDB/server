@@ -283,7 +283,12 @@ void Rdb_key_def::setup(const TABLE *tbl, const Rdb_tbl_def *tbl_def)
         key_part++;
         /*
           For "unique" secondary indexes, pretend they have
-          "index extensions"
+          "index extensions".
+
+          MariaDB also has this property: if an index has a partially-covered
+          column like KEY(varchar_col(N)), then the SQL layer will think it is
+          not "extended" with PK columns. The code below handles this case,
+          also.
          */
         if (secondary_key && src_i+1 == key_info->ext_key_parts)
         {

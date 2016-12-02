@@ -8464,11 +8464,25 @@ int ha_rocksdb::info(uint flag)
         if ((x == 0 && rocksdb_debug_optimizer_no_zero_cardinality) ||
             rocksdb_debug_optimizer_n_rows > 0)
         {
+          /*
+            Make MariaRocks behave the same way as MyRocks does:
+            1. SQL layer thinks that unique secondary indexes are not extended
+               with PK columns (both in MySQL and MariaDB)
+            2. MariaDB also thinks that indexes with partially-covered columns
+               are not extended with PK columns. Use the same number of
+               keyparts that MyRocks would use.
+          */
+          uint ext_key_parts2;
+          if (k->flags & HA_NOSAME)
+            ext_key_parts2= k->ext_key_parts;  // This is #1
+          else
+            ext_key_parts2= m_key_descr_arr[i]->get_key_parts(); // This is #2.
+
           // Fake cardinality implementation. For example, (idx1, idx2, idx3) index
           // will have rec_per_key for (idx1)=4, (idx1,2)=2, and (idx1,2,3)=1.
           // rec_per_key for the whole index is 1, and multiplied by 2^n if
           // n suffix columns of the index are not used.
-          x = 1 << (k->ext_key_parts-j-1);
+          x = 1 << (ext_key_parts2-j-1);
         }
         k->rec_per_key[j]= x;
       }
