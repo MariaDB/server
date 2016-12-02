@@ -1,11 +1,11 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.9                                                        */
+/*  Version 4.9.1                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2016    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -51,9 +51,9 @@
 #include "filamap.h"
 #include "filamfix.h"
 #include "filamdbf.h"
-#if defined(ZIP_SUPPORT)
-#include "filamzip.h"
-#endif   // ZIP_SUPPORT
+#if defined(GZ_SUPPORT)
+#include "filamgz.h"
+#endif   // GZ_SUPPORT
 #include "tabdos.h"
 #include "tabfix.h"
 #include "tabmul.h"
@@ -350,28 +350,28 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
     else if (map)
       txfp = new(g) MPXFAM(this);
     else if (Compressed) {
-#if defined(ZIP_SUPPORT)
+#if defined(GZ_SUPPORT)
       txfp = new(g) ZIXFAM(this);
-#else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+#else   // !GZ_SUPPORT
+      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
-#endif  // !ZIP_SUPPORT
+#endif  // !GZ_SUPPORT
     } else
       txfp = new(g) FIXFAM(this);
 
     tdbp = new(g) TDBFIX(this, txfp);
   } else {
     if (Compressed) {
-#if defined(ZIP_SUPPORT)
+#if defined(GZ_SUPPORT)
       if (Compressed == 1)
-        txfp = new(g) ZIPFAM(this);
+        txfp = new(g) GZFAM(this);
       else
         txfp = new(g) ZLBFAM(this);
 
-#else   // !ZIP_SUPPORT
-      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+#else   // !GZ_SUPPORT
+      sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
-#endif  // !ZIP_SUPPORT
+#endif  // !GZ_SUPPORT
     } else if (map)
       txfp = new(g) MAPFAM(this);
     else
@@ -396,7 +396,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
         if      (map) {
           txfp = new(g) MBKFAM(this);
         } else if (Compressed) {
-#if defined(ZIP_SUPPORT)
+#if defined(GZ_SUPPORT)
           if (Compressed == 1)
             txfp = new(g) ZBKFAM(this);
           else {
@@ -404,7 +404,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
             ((PZLBFAM)txfp)->SetOptimized(To_Pos != NULL);
             } // endelse
 #else
-          sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+          sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
           return NULL;
 #endif
         } else
@@ -531,13 +531,13 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
       // except for ZLIB access method.
       if        (Txfp->GetAmType() == TYPE_AM_MAP) {
         Txfp = new(g) MAPFAM((PDOSDEF)To_Def);
-#if defined(ZIP_SUPPORT)
-      } else if (Txfp->GetAmType() == TYPE_AM_ZIP) {
-        Txfp = new(g) ZIPFAM((PDOSDEF)To_Def);
+#if defined(GZ_SUPPORT)
+      } else if (Txfp->GetAmType() == TYPE_AM_GZ) {
+        Txfp = new(g) GZFAM((PDOSDEF)To_Def);
       } else if (Txfp->GetAmType() == TYPE_AM_ZLIB) {
         Txfp->Reset();
         ((PZLBFAM)Txfp)->SetOptimized(false);
-#endif   // ZIP_SUPPORT
+#endif   // GZ_SUPPORT
       } else if (Txfp->GetAmType() == TYPE_AM_BLK)
         Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
 
@@ -2079,10 +2079,10 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     /*******************************************************************/
     if (Txfp->GetAmType() == TYPE_AM_MAP && Mode == MODE_DELETE)
       Txfp = new(g) MAPFAM((PDOSDEF)To_Def);
-#if defined(ZIP_SUPPORT)
-    else if (Txfp->GetAmType() == TYPE_AM_ZIP)
-      Txfp = new(g) ZIPFAM((PDOSDEF)To_Def);
-#endif   // ZIP_SUPPORT
+#if defined(GZ_SUPPORT)
+    else if (Txfp->GetAmType() == TYPE_AM_GZ)
+      Txfp = new(g) GZFAM((PDOSDEF)To_Def);
+#endif   // GZ_SUPPORT
     else // if (Txfp->GetAmType() != TYPE_AM_DOS)    ???
       Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
 

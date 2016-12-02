@@ -20,14 +20,14 @@ SET(CONNECT_SOURCES
 ha_connect.cc connect.cc user_connect.cc mycat.cc
 fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
 array.cpp blkfil.cpp colblk.cpp csort.cpp
-filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamzip.cpp
+filamap.cpp filamdbf.cpp filamfix.cpp filamgz.cpp filamtxt.cpp
 filter.cpp json.cpp jsonudf.cpp maputil.cpp myconn.cpp myutil.cpp plgdbutl.cpp
 reldef.cpp tabcol.cpp tabdos.cpp tabfix.cpp tabfmt.cpp tabjson.cpp table.cpp
 tabmul.cpp tabmysql.cpp taboccur.cpp tabpivot.cpp tabsys.cpp tabtbl.cpp tabutil.cpp
 tabvir.cpp tabxcl.cpp valblk.cpp value.cpp xindex.cpp xobject.cpp
 
 array.h blkfil.h block.h catalog.h checklvl.h colblk.h connect.h csort.h
-engmsg.h filamap.h filamdbf.h filamfix.h filamtxt.h filamzip.h
+engmsg.h filamap.h filamdbf.h filamfix.h filamgz.h filamtxt.h
 filter.h global.h ha_connect.h inihandl.h json.h jsonudf.h maputil.h msgid.h
 mycat.h myconn.h myutil.h os.h osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h
 resource.h tabcol.h tabdos.h tabfix.h tabfmt.h tabjson.h tabmul.h tabmysql.h
@@ -38,7 +38,7 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 # Definitions that are shared for all OSes
 #
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
-add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT -DPIVOT_SUPPORT )
+add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT -DPIVOT_SUPPORT )
 
 
 #
@@ -270,9 +270,9 @@ IF(CONNECT_WITH_JDBC)
     # Find required libraries and include directories
     SET (JAVA_SOURCES JdbcInterface.java)
     add_jar(JdbcInterface ${JAVA_SOURCES})
-		install_jar(JdbcInterface DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
-    INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar 
-		  DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+    install_jar(JdbcInterface DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+    INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar
+      DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
     add_definitions(-DJDBC_SUPPORT)
   ELSE()
     SET(JDBC_LIBRARY "")
