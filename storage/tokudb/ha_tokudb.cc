@@ -3695,6 +3695,8 @@ int ha_tokudb::do_uniqueness_checks(uchar* record, DB_TXN* txn, THD* thd) {
     // first do uniqueness checks
     //
     if (share->has_unique_keys && do_unique_checks(thd, in_rpl_write_rows)) {
+        DBUG_EXECUTE_IF("tokudb_crash_if_rpl_does_uniqueness_check",
+                        DBUG_ASSERT(0););
         for (uint keynr = 0; keynr < table_share->keys; keynr++) {
             bool is_unique_key = (table->key_info[keynr].flags & HA_NOSAME) || (keynr == primary_key);
             bool is_unique = false;
@@ -5915,6 +5917,7 @@ int ha_tokudb::rnd_pos(uchar * buf, uchar * pos) {
     // test rpl slave by inducing a delay before the point query
     THD *thd = ha_thd();
     if (thd->slave_thread && (in_rpl_delete_rows || in_rpl_update_rows)) {
+        DBUG_EXECUTE_IF("tokudb_crash_if_rpl_looks_up_row", DBUG_ASSERT(0););
         uint64_t delay_ms = tokudb::sysvars::rpl_lookup_rows_delay(thd);
         if (delay_ms)
             usleep(delay_ms * 1000);
