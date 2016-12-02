@@ -1,7 +1,7 @@
 /************* RelDef CPP Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: RELDEF                                                */
 /* -------------                                                       */
-/*  Version 1.5                                                        */
+/*  Version 1.6                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -43,9 +43,9 @@
 #if defined(VCT_SUPPORT)
 #include "filamvct.h"
 #endif   // VCT_SUPPORT
-#if defined(ZIP_SUPPORT)
-#include "filamzip.h"
-#endif   // ZIP_SUPPORT
+#if defined(GZ_SUPPORT)
+#include "filamgz.h"
+#endif   // GZ_SUPPORT
 #include "tabdos.h"
 #include "valblk.h"
 #include "tabmul.h"
@@ -665,15 +665,15 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
   /*********************************************************************/
   if (!((PTDBDOS)tdbp)->GetTxfp()) {
     if (cmpr) {
-#if defined(ZIP_SUPPORT)
+#if defined(GZ_SUPPORT)
       if (cmpr == 1)
-        txfp = new(g) ZIPFAM(defp);
+        txfp = new(g) GZFAM(defp);
       else
         txfp = new(g) ZLBFAM(defp);
-#else   // !ZIP_SUPPORT
+#else   // !GZ_SUPPORT
       strcpy(g->Message, "Compress not supported");
       return NULL;
-#endif  // !ZIP_SUPPORT
+#endif  // !GZ_SUPPORT
     } else if (rfm == RECFM_VAR) {
       if (map)
         txfp = new(g) MAPFAM(defp);

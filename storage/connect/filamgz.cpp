@@ -1,11 +1,11 @@
-/*********** File AM Zip C++ Program Source Code File (.CPP) ***********/
-/* PROGRAM NAME: FILAMZIP                                              */
+/************ File AM GZ C++ Program Source Code File (.CPP) ***********/
+/* PROGRAM NAME: FILAMGZ                                               */
 /* -------------                                                       */
 /*  Version 1.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2016    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -56,7 +56,7 @@
 /***********************************************************************/
 //#define ZLIB_DLL
 
-#include "filamzip.h"
+#include "filamgz.h"
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -66,13 +66,13 @@ extern int num_read, num_there, num_eq[];                 // Statistics
 /* ------------------------------------------------------------------- */
 
 /***********************************************************************/
-/*  Implementation of the ZIPFAM class.                                */
+/*  Implementation of the GZFAM class.                                 */
 /***********************************************************************/
-ZIPFAM::ZIPFAM(PZIPFAM txfp) : TXTFAM(txfp)
+GZFAM::GZFAM(PGZFAM txfp) : TXTFAM(txfp)
   {
   Zfile = txfp->Zfile;
   Zpos = txfp->Zpos;
-  } // end of ZIPFAM copy constructor
+  } // end of GZFAM copy constructor
 
 /***********************************************************************/
 /*  Zerror: Error function for gz calls.                               */
@@ -82,7 +82,7 @@ ZIPFAM::ZIPFAM(PZIPFAM txfp) : TXTFAM(txfp)
 /*  library, errnum is set to Z_ERRNO and the application may consult  */
 /*  errno to get the exact error code.                                 */
 /***********************************************************************/
-int ZIPFAM::Zerror(PGLOBAL g)
+int GZFAM::Zerror(PGLOBAL g)
   {
   int errnum;
 
@@ -101,7 +101,7 @@ int ZIPFAM::Zerror(PGLOBAL g)
 /***********************************************************************/
 /*  Reset: reset position values at the beginning of file.             */
 /***********************************************************************/
-void ZIPFAM::Reset(void)
+void GZFAM::Reset(void)
   {
   TXTFAM::Reset();
 //gzrewind(Zfile);                  // Useful ?????
@@ -109,10 +109,10 @@ void ZIPFAM::Reset(void)
   } // end of Reset
 
 /***********************************************************************/
-/*  ZIP GetFileLength: returns an estimate of what would be the        */
+/*  GZ GetFileLength: returns an estimate of what would be the         */
 /*  uncompressed file size in number of bytes.                         */
 /***********************************************************************/
-int ZIPFAM::GetFileLength(PGLOBAL g)
+int GZFAM::GetFileLength(PGLOBAL g)
   {
   int len = TXTFAM::GetFileLength(g);
 
@@ -124,9 +124,9 @@ int ZIPFAM::GetFileLength(PGLOBAL g)
   } // end of GetFileLength
 
 /***********************************************************************/
-/*  ZIP Access Method opening routine.                                 */
+/*  GZ Access Method opening routine.                                  */
 /***********************************************************************/
-bool ZIPFAM::OpenTableFile(PGLOBAL g)
+bool GZFAM::OpenTableFile(PGLOBAL g)
   {
   char    opmode[4], filename[_MAX_PATH];
   MODE    mode = Tdbp->GetMode();
@@ -137,7 +137,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
       break;
     case MODE_UPDATE:
       /*****************************************************************/
-      /* Updating ZIP files not implemented yet.                       */
+      /* Updating GZ files not implemented yet.                        */
       /*****************************************************************/
       strcpy(g->Message, MSG(UPD_ZIP_NOT_IMP));
       return true;
@@ -152,7 +152,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 //      Last = Nrec;              // For ZBKFAM
         Tdbp->ResetSize();
       } else {
-        sprintf(g->Message, MSG(NO_PART_DEL), "ZIP");
+        sprintf(g->Message, MSG(NO_PART_DEL), "GZ");
         return true;
       } // endif filter
 
@@ -196,7 +196,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 /*  Allocate the line buffer. For mode Delete a bigger buffer has to   */
 /*  be allocated because is it also used to move lines into the file.  */
 /***********************************************************************/
-bool ZIPFAM::AllocateBuffer(PGLOBAL g)
+bool GZFAM::AllocateBuffer(PGLOBAL g)
   {
   MODE mode = Tdbp->GetMode();
 
@@ -223,7 +223,7 @@ bool ZIPFAM::AllocateBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  GetRowID: return the RowID of last read record.                    */
 /***********************************************************************/
-int ZIPFAM::GetRowID(void)
+int GZFAM::GetRowID(void)
   {
   return Rows;
   } // end of GetRowID
@@ -231,7 +231,7 @@ int ZIPFAM::GetRowID(void)
 /***********************************************************************/
 /*  GetPos: return the position of last read record.                   */
 /***********************************************************************/
-int ZIPFAM::GetPos(void)
+int GZFAM::GetPos(void)
   {
   return (int)Zpos;
   } // end of GetPos
@@ -239,7 +239,7 @@ int ZIPFAM::GetPos(void)
 /***********************************************************************/
 /*  GetNextPos: return the position of next record.                    */
 /***********************************************************************/
-int ZIPFAM::GetNextPos(void)
+int GZFAM::GetNextPos(void)
   {
   return gztell(Zfile);
   } // end of GetNextPos
@@ -247,9 +247,9 @@ int ZIPFAM::GetNextPos(void)
 /***********************************************************************/
 /*  SetPos: Replace the table at the specified position.               */
 /***********************************************************************/
-bool ZIPFAM::SetPos(PGLOBAL g, int pos __attribute__((unused)))
+bool GZFAM::SetPos(PGLOBAL g, int pos __attribute__((unused)))
   {
-  sprintf(g->Message, MSG(NO_SETPOS_YET), "ZIP");
+  sprintf(g->Message, MSG(NO_SETPOS_YET), "GZ");
   return true;
 #if 0
   Fpos = pos;
@@ -267,7 +267,7 @@ bool ZIPFAM::SetPos(PGLOBAL g, int pos __attribute__((unused)))
 /***********************************************************************/
 /*  Record file position in case of UPDATE or DELETE.                  */
 /***********************************************************************/
-bool ZIPFAM::RecordPos(PGLOBAL)
+bool GZFAM::RecordPos(PGLOBAL)
   {
   Zpos = gztell(Zfile);
   return false;
@@ -276,7 +276,7 @@ bool ZIPFAM::RecordPos(PGLOBAL)
 /***********************************************************************/
 /*  Skip one record in file.                                           */
 /***********************************************************************/
-int ZIPFAM::SkipRecord(PGLOBAL g, bool header)
+int GZFAM::SkipRecord(PGLOBAL g, bool header)
   {
   // Skip this record
   if (gzeof(Zfile))
@@ -293,7 +293,7 @@ int ZIPFAM::SkipRecord(PGLOBAL g, bool header)
 /***********************************************************************/
 /*  ReadBuffer: Read one line from a compressed text file.             */
 /***********************************************************************/
-int ZIPFAM::ReadBuffer(PGLOBAL g)
+int GZFAM::ReadBuffer(PGLOBAL g)
   {
   char *p;
   int   rc;
@@ -357,7 +357,7 @@ int ZIPFAM::ReadBuffer(PGLOBAL g)
 /*  WriteDB: Data Base write routine for ZDOS access method.           */
 /*  Update is not possible without using a temporary file (NIY).       */
 /***********************************************************************/
-int ZIPFAM::WriteBuffer(PGLOBAL g)
+int GZFAM::WriteBuffer(PGLOBAL g)
   {
   /*********************************************************************/
   /*  Prepare the write buffer.                                        */
@@ -376,7 +376,7 @@ int ZIPFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base delete line routine for ZDOS access method.  (NIY)       */
 /***********************************************************************/
-int ZIPFAM::DeleteRecords(PGLOBAL g, int)
+int GZFAM::DeleteRecords(PGLOBAL g, int)
   {
   strcpy(g->Message, MSG(NO_ZIP_DELETE));
   return RC_FX;
@@ -385,21 +385,21 @@ int ZIPFAM::DeleteRecords(PGLOBAL g, int)
 /***********************************************************************/
 /*  Data Base close routine for DOS access method.                     */
 /***********************************************************************/
-void ZIPFAM::CloseTableFile(PGLOBAL, bool)
+void GZFAM::CloseTableFile(PGLOBAL, bool)
   {
   int rc = gzclose(Zfile);
 
   if (trace)
-    htrc("ZIP CloseDB: closing %s rc=%d\n", To_File, rc);
+    htrc("GZ CloseDB: closing %s rc=%d\n", To_File, rc);
 
   Zfile = NULL;            // So we can know whether table is open
 //To_Fb->Count = 0;        // Avoid double closing by PlugCloseAll
   } // end of CloseTableFile
 
 /***********************************************************************/
-/*  Rewind routine for ZIP access method.                              */
+/*  Rewind routine for GZ access method.                               */
 /***********************************************************************/
-void ZIPFAM::Rewind(void)
+void GZFAM::Rewind(void)
   {
   gzrewind(Zfile);
   } // end of Rewind
@@ -409,7 +409,7 @@ void ZIPFAM::Rewind(void)
 /***********************************************************************/
 /*  Constructors.                                                      */
 /***********************************************************************/
-ZBKFAM::ZBKFAM(PDOSDEF tdp) : ZIPFAM(tdp)
+ZBKFAM::ZBKFAM(PDOSDEF tdp) : GZFAM(tdp)
   {
   Blocked = true;
   Block = tdp->GetBlock();
@@ -421,7 +421,7 @@ ZBKFAM::ZBKFAM(PDOSDEF tdp) : ZIPFAM(tdp)
   BlkPos = tdp->GetTo_Pos();
   } // end of ZBKFAM standard constructor
 
-ZBKFAM::ZBKFAM(PZBKFAM txfp) : ZIPFAM(txfp)
+ZBKFAM::ZBKFAM(PZBKFAM txfp) : GZFAM(txfp)
   {
   CurLine = txfp->CurLine;
   NxtLine = txfp->NxtLine;
@@ -505,7 +505,7 @@ int ZBKFAM::GetPos(void)
 /***********************************************************************/
 bool ZBKFAM::RecordPos(PGLOBAL /*g*/)
   {
-//strcpy(g->Message, "RecordPos not implemented for zip blocked tables");
+//strcpy(g->Message, "RecordPos not implemented for gz blocked tables");
 //return true;
   return RC_OK;
   } // end of RecordPos
@@ -515,7 +515,7 @@ bool ZBKFAM::RecordPos(PGLOBAL /*g*/)
 /***********************************************************************/
 int ZBKFAM::SkipRecord(PGLOBAL /*g*/, bool)
   {
-//strcpy(g->Message, "SkipRecord not implemented for zip blocked tables");
+//strcpy(g->Message, "SkipRecord not implemented for gz blocked tables");
 //return RC_FX;
   return RC_OK;
   } // end of SkipRecord
@@ -615,7 +615,7 @@ int ZBKFAM::WriteBuffer(PGLOBAL g)
 
   /*********************************************************************/
   /*  In Insert mode, blocs are added sequentialy to the file end.     */
-  /*  Note: Update mode is not handled for zip files.                  */
+  /*  Note: Update mode is not handled for gz files.                   */
   /*********************************************************************/
   if (++CurNum == Rbuf) {
     /*******************************************************************/
@@ -703,7 +703,7 @@ void ZBKFAM::CloseTableFile(PGLOBAL g, bool)
     rc = gzclose(Zfile);
 
   if (trace)
-    htrc("ZIP CloseDB: closing %s rc=%d\n", To_File, rc);
+    htrc("GZ CloseDB: closing %s rc=%d\n", To_File, rc);
 
   Zfile = NULL;            // So we can know whether table is open
 //To_Fb->Count = 0;        // Avoid double closing by PlugCloseAll
@@ -854,7 +854,7 @@ int ZIXFAM::WriteBuffer(PGLOBAL g)
   {
   /*********************************************************************/
   /*  In Insert mode, blocs are added sequentialy to the file end.     */
-  /*  Note: Update mode is not handled for zip files.                  */
+  /*  Note: Update mode is not handled for gz files.                   */
   /*********************************************************************/
   if (++CurNum == Rbuf) {
     /*******************************************************************/
@@ -1062,7 +1062,7 @@ int ZLBFAM::GetNextPos(void)
 /***********************************************************************/
 bool ZLBFAM::SetPos(PGLOBAL g, int pos __attribute__((unused)))
   {
-  sprintf(g->Message, MSG(NO_SETPOS_YET), "ZIP");
+  sprintf(g->Message, MSG(NO_SETPOS_YET), "GZ");
   return true;
 #if 0 // All this must be checked
   if (pos < 0) {
@@ -1423,4 +1423,4 @@ void ZLBFAM::Rewind(void)
 //Rbuf = 0;        commented out in case we reuse last read block
   } // end of Rewind
 
-/* ------------------------ End of ZipFam ---------------------------- */
+/* ------------------------ End of GzFam ---------------------------- */
