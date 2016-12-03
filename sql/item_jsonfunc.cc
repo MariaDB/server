@@ -877,6 +877,14 @@ void Item_func_json_array::fix_length_and_dec()
   ulonglong char_length= 4;
   uint n_arg;
 
+  if (arg_count == 0)
+  {
+    collation.set(&my_charset_utf8_general_ci);
+    tmp_val.set_charset(&my_charset_utf8_general_ci);
+    max_length= 2;
+    return;
+  }
+
   if (agg_arg_charsets_for_string_result(collation, args, arg_count))
     return;
 

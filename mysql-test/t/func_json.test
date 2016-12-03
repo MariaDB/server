@@ -13,6 +13,7 @@ select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key1');
 select json_query('{"key1": 1}', '$.key1');
 select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
 
+select json_array();
 select json_array(1);
 select json_array(1, "text", false, null);
 
@@ -63,6 +64,7 @@ set @j = '{"a": 1, "b": [2, 3]}';
 select json_remove(@j, '$.b');
 select json_remove(@j, '$.a');
 
+select json_object();
 select json_object("ki", 1, "mi", "ya");
 
 select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2");

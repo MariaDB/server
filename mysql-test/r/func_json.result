@@ -34,6 +34,9 @@ NULL
 select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
 json_query('{"key1":123, "key1": [1,2,3]}', '$.key1')
 [1,2,3]
+select json_array();
+json_array()
+[]
 select json_array(1);
 json_array(1)
 [1]
@@ -150,6 +153,9 @@ json_remove(@j, '$.b')
 select json_remove(@j, '$.a');
 json_remove(@j, '$.a')
 {"b": [2, 3]}
+select json_object();
+json_object()
+{}
 select json_object("ki", 1, "mi", "ya");
 json_object("ki", 1, "mi", "ya")
 {"ki": 1, "mi": "ya"}
