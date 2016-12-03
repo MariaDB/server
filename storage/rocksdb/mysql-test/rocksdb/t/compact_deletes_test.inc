@@ -37,8 +37,9 @@ let $wait_condition = select count(*) = 0
 --source include/wait_condition.inc
 --enable_query_log
 
-let $MYSQL_SST_DUMP=../storage/rocksdb/sst_dump
---exec bash ../storage/rocksdb/mysql-test/rocksdb/t/sst_count_rows.sh $MYSQLTEST_VARDIR $MYSQL_SST_DUMP $no_more_deletes
+let $MYSQL_SST_DUMP=../storage/rocksdb/sst_dump;
+exec bash ../storage/rocksdb/mysql-test/rocksdb/t/sst_count_rows.sh $MYSQLTEST_VARDIR $MYSQL_SST_DUMP $no_more_deletes ;
+
 eval SET GLOBAL rocksdb_compaction_sequential_deletes= $save_rocksdb_compaction_sequential_deletes;
 eval SET GLOBAL rocksdb_compaction_sequential_deletes_file_size= $save_rocksdb_compaction_sequential_deletes_file_size;
 eval SET GLOBAL rocksdb_compaction_sequential_deletes_window= $save_rocksdb_compaction_sequential_deletes_window;
