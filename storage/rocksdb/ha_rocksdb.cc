@@ -6160,7 +6160,7 @@ ulong ha_rocksdb::index_flags(uint inx, uint part, bool all_parts) const
       we need to explicitly "allow" them, otherwise SQL layer will miss some
       plans.
     */
-    base_flags |= HA_KEYREAD_ONLY;
+    base_flags |= HA_KEYREAD_ONLY | HA_CLUSTERED_INDEX;
   }
   else
   {

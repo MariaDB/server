@@ -1288,6 +1288,8 @@ drop table t1;
 #
 CREATE TABLE t1 (pk INT PRIMARY KEY, a SMALLINT, b INT, KEY (a)) ENGINE=RocksDB;
 INSERT IGNORE INTO t1 VALUES (1, 157, 0), (2, 1898, -504403), (1, -14659,  0);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
 SELECT * FROM t1;
 pk	a	b
 1	157	0
@@ -1807,7 +1809,7 @@ insert into t1 values (1,1),(2,2),(3,3);
 # The following must not use 'Using filesort':
 explain select * from t1 ORDER BY id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	#	NULL
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	#	
 drop table t1;
 #
 # Issue #26: Index-only scans for DATETIME and TIMESTAMP
