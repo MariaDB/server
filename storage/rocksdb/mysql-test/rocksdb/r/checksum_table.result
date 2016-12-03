@@ -66,6 +66,10 @@ col1 varchar(10),
 col2 tinyint,
 col3 double
 ) engine=rocksdb;
+# MariaDB has changed the checksumming algorithm
+# Enable the old algorithm:
+set @tmp_old=@@old;
+set old=1;
 checksum table t1;
 Table	Checksum
 test.t1	0
@@ -84,4 +88,5 @@ insert into t1 values (6, '',            NULL, 2.78);
 checksum table t1;
 Table	Checksum
 test.t1	3183101003
+set old=@tmp_old;
 drop table t1;

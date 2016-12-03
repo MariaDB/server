@@ -58,6 +58,12 @@ create table t1 (
   col3 double
 ) engine=rocksdb;
 
+--echo # MariaDB has changed the checksumming algorithm
+--echo # Enable the old algorithm:
+set @tmp_old=@@old;
+set old=1;
+
+
 checksum table t1;
 
 insert into t1 values (1, NULL,  NULL, NULL);
@@ -71,6 +77,8 @@ checksum table t1;
 insert into t1 values (5, 'xxxYYYzzzT',  NULL, 2.78);
 insert into t1 values (6, '',            NULL, 2.78);
 checksum table t1;
+
+set old=@tmp_old;
 
 drop table t1;
 
