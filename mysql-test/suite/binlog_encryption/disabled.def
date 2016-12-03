@@ -1,4 +1,3 @@
-encrypted_master_switch_to_unencrypted : MDEV-11288 - server crash
 binlog_incident                        : MDEV-11319 - mysqlbinlog crash or failure
 encrypted_master_lost_key              : MDEV-11323 - unspecified behavior for IO thread
 rpl_checksum_cache                     : MDEV-11486 - sporadic failure in IO thread
