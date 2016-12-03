@@ -13,6 +13,9 @@ json_valid('[false, true, null]')
 select json_valid(repeat('[', 1000));
 json_valid(repeat('[', 1000))
 0
+select json_valid(repeat('{"a":', 1000));
+json_valid(repeat('{"a":', 1000))
+0
 select json_value('{"key1":123}', '$.key2');
 json_value('{"key1":123}', '$.key2')
 NULL
