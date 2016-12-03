@@ -420,11 +420,7 @@ public:
   const char *func_name() const { return "cast_as_json"; }
   bool is_json_type() { return true; }
   void fix_length_and_dec();
-  String *val_str(String *str)
-  {
-    return args[0]->val_str(str);
-  }
-
+  String *val_str(String *str);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_json_typecast>(thd, mem_root, this); }
 };

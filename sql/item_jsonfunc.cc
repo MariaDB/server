@@ -2073,3 +2073,10 @@ void Item_json_typecast::fix_length_and_dec()
 }
 
 
+String *Item_json_typecast::val_str(String *str)
+{
+  String *vs= args[0]->val_str(str);
+  null_value= args[0]->null_value;
+  return vs;
+}
+
