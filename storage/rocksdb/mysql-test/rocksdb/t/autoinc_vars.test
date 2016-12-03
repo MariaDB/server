@@ -57,6 +57,8 @@ SET auto_increment_increment = 500;
 SET auto_increment_offset = 300;
 
 CREATE TABLE t1 (a TINYINT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+--echo # In MariaDB, this is an error:
+--error HA_ERR_AUTOINC_ERANGE
 INSERT INTO t1 (a) VALUES (NULL);
 SELECT LAST_INSERT_ID();
 SELECT a FROM t1 ORDER BY a;
