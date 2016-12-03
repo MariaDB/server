@@ -48,7 +48,7 @@ a	b
 5	e
 DELETE IGNORE t1.*, t2.* FROM t1, t2 WHERE c < b OR a != ( SELECT 1 UNION SELECT 2 );
 Warnings:
-Error	1242	Subquery returns more than 1 row
+Warning	1242	Subquery returns more than 1 row
 SELECT a,b FROM t1;
 a	b
 1	a

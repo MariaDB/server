@@ -25,7 +25,7 @@ ERROR 21000: Subquery returns more than 1 row
 UPDATE IGNORE t1, t2 SET b = 'upd2a', c = 'upd2b' 
 WHERE c < b OR a != ( SELECT 1 UNION SELECT 2 );
 Warnings:
-Error	1242	Subquery returns more than 1 row
+Warning	1242	Subquery returns more than 1 row
 SELECT a,b FROM t1 ORDER BY pk;
 a	b
 1	upd2a
