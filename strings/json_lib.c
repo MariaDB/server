@@ -126,8 +126,13 @@ static int syntax_error(json_engine_t *j)
 static int mark_object(json_engine_t *j)
 {
   j->state= JST_OBJ_START;
-  *(++j->stack_p)= JST_OBJ_CONT;
-  return 0;
+  if ((++j->stack_p) - j->stack < JSON_DEPTH_LIMIT)
+  {
+    *j->stack_p= JST_OBJ_CONT;
+    return 0;
+  }
+  j->s.error= JE_DEPTH;
+  return 1;
 }
 
 
@@ -137,8 +142,13 @@ static int read_obj(json_engine_t *j)
   j->state= JST_OBJ_START;
   j->value_type= JSON_VALUE_OBJECT;
   j->value= j->value_begin;
-  *(++j->stack_p)= JST_OBJ_CONT;
-  return 0;
+  if ((++j->stack_p) - j->stack < JSON_DEPTH_LIMIT)
+  {
+    *j->stack_p= JST_OBJ_CONT;
+    return 0;
+  }
+  j->s.error= JE_DEPTH;
+  return 1;
 }
 
 
@@ -146,9 +156,14 @@ static int read_obj(json_engine_t *j)
 static int mark_array(json_engine_t *j)
 {
   j->state= JST_ARRAY_START;
-  *(++j->stack_p)= JST_ARRAY_CONT;
-  j->value= j->value_begin;
-  return 0;
+  if ((++j->stack_p) - j->stack < JSON_DEPTH_LIMIT)
+  {
+    *j->stack_p= JST_ARRAY_CONT;
+    j->value= j->value_begin;
+    return 0;
+  }
+  j->s.error= JE_DEPTH;
+  return 1;
 }
 
 /* Read value of object. */
@@ -157,8 +172,13 @@ static int read_array(json_engine_t *j)
   j->state= JST_ARRAY_START;
   j->value_type= JSON_VALUE_ARRAY;
   j->value= j->value_begin;
-  *(++j->stack_p)= JST_ARRAY_CONT;
-  return 0;
+  if ((++j->stack_p) - j->stack < JSON_DEPTH_LIMIT)
+  {
+    *j->stack_p= JST_ARRAY_CONT;
+    return 0;
+  }
+  j->s.error= JE_DEPTH;
+  return 1;
 }
 
 
