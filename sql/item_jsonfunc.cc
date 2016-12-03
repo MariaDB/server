@@ -427,8 +427,8 @@ String *Item_func_json_extract::val_str(String *str)
   json_engine_t je;
   bool multiple_values_found= FALSE;
   const uchar *value;
-  const char *first_value= NULL, *first_p_value;
-  uint n_arg, v_len, first_len, first_p_len;
+  const char *first_value= NULL;
+  uint n_arg, v_len, first_len;
   uint array_counters[JSON_DEPTH_LIMIT];
 
   if ((null_value= args[0]->null_value))
@@ -487,13 +487,6 @@ String *Item_func_json_extract::val_str(String *str)
         */
         first_value= (const char *) value;
         first_len= v_len;
-        /*
-         We need this as we have to preserve quotes around string
-          constants if we use the value to create an array. Otherwise
-          we get the value without the quotes.
-        */
-        first_p_value= (const char *) je.value;
-        first_p_len= je.value_len;
         continue;
       }
       else
@@ -519,7 +512,7 @@ String *Item_func_json_extract::val_str(String *str)
 
   if (multiple_values_found ?
         str->append("]") :
-        str->append(first_p_value, first_p_len))
+        str->append(first_value, first_len))
     goto error; /* Out of memory. */
 
   return str;

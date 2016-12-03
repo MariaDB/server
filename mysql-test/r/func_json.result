@@ -90,7 +90,7 @@ json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.key2")
 1
 select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1");
 json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1")
-asd
+"asd"
 select json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY");
 json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY")
 NULL
@@ -102,7 +102,10 @@ json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2")
 [5, [2,3]]
 select json_extract('{"key0":true, "key1":"qwe"}', "$.key1");
 json_extract('{"key0":true, "key1":"qwe"}', "$.key1")
-qwe
+"qwe"
+select json_extract(json_object('foo', 'foobar'),'$');
+json_extract(json_object('foo', 'foobar'),'$')
+{"foo": "foobar"}
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
 json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word')
 {"a":1, "b":{"c":1, "k1":"word"}, "d":[1, 2]}
