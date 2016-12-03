@@ -2,3 +2,6 @@ cons_snapshot_serializable : Consistent read does not work on serializable
 level_read_uncommitted : Not supported
 level_serializable: Not supported
 
+
+# Tests that are (temporarily) disabled in MariaDB:
+slow_query_log: MDEV-11480
