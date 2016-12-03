@@ -46,6 +46,8 @@ a	b
 5	e
 6	f
 INSERT IGNORE INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
 INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z') ON DUPLICATE KEY UPDATE b = CONCAT(b,b);
 SELECT a,b FROM t1;
 a	b
