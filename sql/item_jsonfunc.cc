@@ -450,6 +450,9 @@ String *Item_func_json_extract::val_str(String *str)
       c_path->parsed= c_path->constant;
     }
 
+    if (args[n_arg]->null_value)
+      goto error;
+
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
 
@@ -546,6 +549,9 @@ longlong Item_func_json_extract::val_int()
         goto error;
       c_path->parsed= c_path->constant;
     }
+
+    if (args[n_arg]->null_value)
+      goto error;
 
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
@@ -661,6 +667,9 @@ longlong Item_func_json_contains::val_int()
       c_path->parsed= c_path->constant;
     }
 
+    if (args[n_arg]->null_value)
+      goto error;
+
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
 
@@ -767,6 +776,9 @@ longlong Item_func_json_contains_path::val_int()
         goto error;
       c_path->parsed= c_path->constant;
     }
+
+    if (args[n_arg]->null_value)
+      goto error;
 
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
@@ -1945,6 +1957,9 @@ String *Item_func_json_search::val_str(String *str)
       c_path->parsed= c_path->constant;
     }
   }
+
+  if (args[n_arg]->null_value)
+    goto null_return;
 
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
