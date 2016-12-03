@@ -1,4 +1,6 @@
 DROP TABLE IF EXISTS t1;
+set @save_time_zone=@@time_zone;
+set time_zone='UTC';
 CREATE TABLE t1 (
 d DATE ,
 dt DATETIME ,
@@ -50,4 +52,5 @@ d	dt	ts	t	y	y4	y2
 0000-00-00	0000-00-00 00:00:00	0000-00-00 00:00:00	00:00:00	2000	2000	00
 2012-04-09	2012-04-09 05:27:00	2012-04-09 05:27:00	05:27:00	2012	2012	12
 0000-00-00	0000-00-00 00:00:00	0000-00-00 00:00:00	-838:59:59	0000	0000	00
+set time_zone=@save_time_zone;
 DROP TABLE t1;

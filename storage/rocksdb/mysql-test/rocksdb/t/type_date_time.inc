@@ -6,7 +6,8 @@
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 --enable_warnings
-
+set @save_time_zone=@@time_zone;
+set time_zone='UTC';
 eval CREATE TABLE t1 (
   d DATE $extra_col_opts,
   dt DATETIME $extra_col_opts,
@@ -39,6 +40,7 @@ INSERT INTO t1 (d,dt,ts,t,y,y4,y2,pk) VALUES
 ('999-13-32', '999-11-31 00:00:00', '0', '-839:00:00', '1900', '1900', '-1','2012-12-12 12:12:16');
 
 SELECT d,dt,ts,t,y,y4,y2 FROM t1;
+set time_zone=@save_time_zone;
 
 DROP TABLE t1;
 

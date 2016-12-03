@@ -802,7 +802,11 @@ DROP TABLE t1;
 ########################
 # date and time columns
 ########################
+set @col_opt_nullsave_time_zone=@@time_zone;
+set time_zone='UTC';
 DROP TABLE IF EXISTS t1;
+set @save_time_zone=@@time_zone;
+set time_zone='UTC';
 CREATE TABLE t1 (
 d DATE NULL,
 dt DATETIME NULL,
@@ -854,6 +858,7 @@ d	dt	ts	t	y	y4	y2
 0000-00-00	0000-00-00 00:00:00	0000-00-00 00:00:00	00:00:00	2000	2000	00
 2012-04-09	2012-04-09 05:27:00	2012-04-09 05:27:00	05:27:00	2012	2012	12
 0000-00-00	0000-00-00 00:00:00	0000-00-00 00:00:00	-838:59:59	0000	0000	00
+set time_zone=@save_time_zone;
 DROP TABLE t1;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
@@ -1021,6 +1026,7 @@ pk	HEX(c2)
 2	C
 3	C
 DROP TABLE t1;
+set time_zone=@col_opt_nullsave_time_zone;
 ########################
 # ENUM columns
 ########################
