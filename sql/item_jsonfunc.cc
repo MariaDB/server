@@ -725,7 +725,8 @@ static int parse_one_or_all(Item *ooa_arg,
   {
     char buff[20];
     String *res, tmp(buff, sizeof(buff), &my_charset_bin);
-    res= ooa_arg->val_str(&tmp);
+    if ((res= ooa_arg->val_str(&tmp)) == NULL)
+      return TRUE;
     *mode_one=eq_ascii_string(res->charset(), "one",
                              res->ptr(), res->length());
     if (!*mode_one)
