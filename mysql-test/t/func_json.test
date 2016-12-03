@@ -92,6 +92,12 @@ select json_search(@j, 'all', 'abc', NULL, '$');
 select json_search(@j, 'all', '10', NULL, '$');
 select json_search(@j, 'all', '10', NULL, '$[*]');
 select json_search(@j, 'all', '10', NULL, '$[*][0].k');
+create table t1( json_col text );
+insert into t1 values
+('{ "a": "foobar" }'),
+  ('{ "a": "foobar", "b": "focus", "c": [ "arm", "foot", "shoulder" ] }');
+select json_search( json_col, 'all', 'foot' ) from t1;
+drop table t1;
 
 
 select json_unquote('"abc"');

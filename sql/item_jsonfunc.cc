@@ -1964,10 +1964,9 @@ String *Item_func_json_search::val_str(String *str)
         goto error;
       c_path->parsed= c_path->constant;
     }
+    if (args[n_arg]->null_value)
+      goto null_return;
   }
-
-  if (args[n_arg]->null_value)
-    goto null_return;
 
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
@@ -2063,6 +2062,7 @@ end:
       goto error;
   }
 
+  null_value= 0;
   return str;
 
 
