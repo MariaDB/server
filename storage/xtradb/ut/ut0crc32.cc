@@ -303,7 +303,7 @@ ut_crc32_init()
 	ut_crc32 = ut_crc32_slice8;
 	ut_crc32_implementation = "Using generic crc32 instructions";
 
-#if defined(__GNUC__) && defined(__x86_64__) && !defined(UNIV_DEBUG_VALGRIND)
+#if defined(__GNUC__) && defined(__x86_64__)
 	ib_uint32_t	vend[3];
 	ib_uint32_t	model;
 	ib_uint32_t	family;

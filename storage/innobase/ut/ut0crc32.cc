@@ -705,7 +705,7 @@ ut_crc32_init()
 	ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_sw;
 	ut_crc32_implementation = "Using generic crc32 instructions";
 
-#if defined(__GNUC__) && defined(__x86_64__) && !defined(UNIV_DEBUG_VALGRIND)
+#if defined(__GNUC__) && defined(__x86_64__)
 	uint32_t	vend[3];
 	uint32_t	model;
 	uint32_t	family;
