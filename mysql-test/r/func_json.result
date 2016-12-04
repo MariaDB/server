@@ -197,6 +197,8 @@ t1	CREATE TABLE `t1` (
   `json_quote('foo')` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+select json_merge('string');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_merge'
 select json_merge('string', 123);
 json_merge('string', 123)
 ["string", 123]

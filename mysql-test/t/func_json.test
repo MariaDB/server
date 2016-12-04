@@ -83,6 +83,8 @@ select * from t1;
 show create table t1;
 drop table t1;
 
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select json_merge('string');
 select json_merge('string', 123);
 
 select json_type('{"k1":123, "k2":345}');

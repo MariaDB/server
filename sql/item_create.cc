@@ -5192,7 +5192,7 @@ Create_func_json_merge::create_native(THD *thd, LEX_STRING name,
   int arg_count;
 
   if (item_list == NULL ||
-      (arg_count= item_list->elements) == 0)
+      (arg_count= item_list->elements) < 2) // json, json
   {
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
     func= NULL;
