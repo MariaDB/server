@@ -76,6 +76,8 @@ json_contains('"you"', '"you"')
 select json_contains('"youth"', '"you"');
 json_contains('"youth"', '"you"')
 0
+select json_contains('[1]', '[1]', '$', '$[0]');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_contains'
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
 json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]")
 1

@@ -30,6 +30,8 @@ SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x');
 select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
 select json_contains('"you"', '"you"');
 select json_contains('"youth"', '"you"');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select json_contains('[1]', '[1]', '$', '$[0]');
 
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]");

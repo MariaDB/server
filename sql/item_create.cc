@@ -5218,13 +5218,13 @@ Create_func_json_contains::create_native(THD *thd, LEX_STRING name,
   if (item_list != NULL)
     arg_count= item_list->elements;
 
-  if (arg_count < 2 /* json_doc, val, [path]...*/)
+  if (arg_count == 2 || arg_count == 3/* json_doc, val, [path] */)
   {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+    func= new (thd->mem_root) Item_func_json_contains(thd, *item_list);
   }
   else
   {
-    func= new (thd->mem_root) Item_func_json_contains(thd, *item_list);
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
   }
 
   return func;
