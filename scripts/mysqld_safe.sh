@@ -738,10 +738,6 @@ else
   logging=syslog
 fi
 
-# close stdout and stderr, everything goes to $logging now
-exec 1>&-
-exec 2>&-
-
 USER_OPTION=""
 if test -w / -o "$USER" = "root"
 then
@@ -987,8 +983,13 @@ do
 done
 cmd="$cmd $args"
 [ $dry_run -eq 1 ] && return
+
 # Avoid 'nohup: ignoring input' warning
 test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"
+
+# close stdout and stderr, everything goes to $logging now
+exec 1>&-
+exec 2>&-
 
 log_notice "Starting $MYSQLD daemon with databases from $DATADIR"
 
