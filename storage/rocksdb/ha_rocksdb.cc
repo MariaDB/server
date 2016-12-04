@@ -8636,6 +8636,19 @@ int ha_rocksdb::update_row(const uchar *old_data, uchar *new_data)
 }
 
 
+/*
+  MariaDB's temporary: MyRocks has this function in sql/handler.cc:
+*/
+
+bool can_hold_read_locks_on_select(THD *thd, thr_lock_type lock_type)
+{
+  return (lock_type == TL_READ_WITH_SHARED_LOCKS
+          || lock_type == TL_READ_NO_INSERT
+          || (lock_type != TL_IGNORE
+            && thd->lex->sql_command != SQLCOM_SELECT));
+}
+
+
 /* The following function was copied from ha_blackhole::store_lock: */
 THR_LOCK_DATA **ha_rocksdb::store_lock(THD *thd,
                                        THR_LOCK_DATA **to,
@@ -8668,11 +8681,7 @@ THR_LOCK_DATA **ha_rocksdb::store_lock(THD *thd,
       uint sql_command = my_core::thd_sql_command(thd);
       if ((lock_type == TL_READ && in_lock_tables) ||
           (lock_type == TL_READ_HIGH_PRIORITY && in_lock_tables) ||
-#ifdef MARIAROCKS_NOT_YET
           can_hold_read_locks_on_select(thd, lock_type))
-#else
-          false)
-#endif
       {
         ulong tx_isolation = my_core::thd_tx_isolation(thd);
         if (sql_command != SQLCOM_CHECKSUM &&
