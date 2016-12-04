@@ -165,6 +165,16 @@ json_object()
 select json_object("ki", 1, "mi", "ya");
 json_object("ki", 1, "mi", "ya")
 {"ki": 1, "mi": "ya"}
+create table t1 as select json_object('id', 87, 'name', 'carrot') as f;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` varchar(32) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from t1;
+f
+{"id": 87, "name": "carrot"}
+drop table t1;
 select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2");
 json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2")
 1

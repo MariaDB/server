@@ -68,6 +68,10 @@ select json_remove(@j, '$.a');
 
 select json_object();
 select json_object("ki", 1, "mi", "ya");
+create table t1 as select json_object('id', 87, 'name', 'carrot') as f;
+show create table t1;
+select * from t1;
+drop table t1;
 
 select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2");
 select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[1]");
