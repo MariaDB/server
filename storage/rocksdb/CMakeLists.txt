@@ -43,9 +43,9 @@ set_source_files_properties(${ROCKSDB_LIB_SOURCES} PROPERTIES COMPILE_FLAGS -frt
 set_source_files_properties(event_listener.cc PROPERTIES COMPILE_FLAGS -frtti)
 set_source_files_properties(rdb_cf_options.cc PROPERTIES COMPILE_FLAGS -frtti)
 
-
-SET(ROCKSDB_SOURCES
-  ha_rocksdb.cc ha_rocksdb.h ha_rocksdb_proto.h
+ADD_CONVENIENCE_LIBRARY(
+  ROCKSDB_AUX_LIB
+  ha_rocksdb_proto.h
   logger.h
   rdb_comparator.h
   rdb_datadic.cc rdb_datadic.h
@@ -62,6 +62,11 @@ SET(ROCKSDB_SOURCES
   rdb_threads.cc rdb_threads.h
   rdb_mariadb_port.h
   ${ROCKSDB_LIB_SOURCES}
+)
+
+SET(ROCKSDB_SOURCES
+  rdb_mariadb_server_port.cc rdb_mariadb_server_port.h
+  ha_rocksdb.cc ha_rocksdb.h
 )
 
 IF(WITH_FB_TSAN)
@@ -102,7 +107,7 @@ IF (NOT "$ENV{WITH_ZSTD}" STREQUAL "")
   ADD_DEFINITIONS(-DZSTD)
 ENDIF()
 
-SET(rocksdb_static_libs ${rocksdb_static_libs} ${ZLIB_LIBRARY} "-lrt")
+SET(rocksdb_static_libs ROCKSDB_AUX_LIB ${rocksdb_static_libs} ${ZLIB_LIBRARY} "-lrt")
 
 MYSQL_ADD_PLUGIN(rocksdb_se ${ROCKSDB_SOURCES} STORAGE_ENGINE DEFAULT STATIC_ONLY
   LINK_LIBRARIES ${rocksdb_static_libs}
@@ -121,11 +126,11 @@ IF (WITH_ROCKSDB_SE_STORAGE_ENGINE)
   )
   set_source_files_properties(${ROCKSDB_TOOL_SOURCES} PROPERTIES COMPILE_FLAGS -frtti)
   MYSQL_ADD_EXECUTABLE(sst_dump ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/tools/sst_dump.cc ${ROCKSDB_TOOL_SOURCES})
-  TARGET_LINK_LIBRARIES(sst_dump rocksdb_se)
+  TARGET_LINK_LIBRARIES(sst_dump ${rocksdb_static_libs})
 
   MYSQL_ADD_EXECUTABLE(ldb ${CMAKE_SOURCE_DIR}/storage/rocksdb/rocksdb/tools/ldb.cc ${ROCKSDB_TOOL_SOURCES})
-  TARGET_LINK_LIBRARIES(ldb rocksdb_se)
+  TARGET_LINK_LIBRARIES(ldb ${rocksdb_static_libs})
 
   MYSQL_ADD_EXECUTABLE(mysql_ldb ${CMAKE_SOURCE_DIR}/storage/rocksdb/tools/mysql_ldb.cc ${ROCKSDB_TOOL_SOURCES})
-  TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_se)
+  TARGET_LINK_LIBRARIES(mysql_ldb ${rocksdb_static_libs})
 ENDIF()

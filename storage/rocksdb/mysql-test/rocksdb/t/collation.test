@@ -1,5 +1,7 @@
 --source include/have_rocksdb.inc
---source include/have_fullregex.inc
+# MariaDB doesn't have server variables to check for GCC version, so the
+# following check is commented out:
+# --source include/have_fullregex.inc
 
 SET @start_global_value = @@global.ROCKSDB_STRICT_COLLATION_EXCEPTIONS;
 
@@ -165,6 +167,7 @@ CREATE TABLE b (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rock
 CREATE TABLE c (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 DROP TABLE a, b;
 
+call mtr.add_suppression("Invalid pattern in strict_collation_exceptions:");
 # test invalid regex (trailing escape)
 --exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
 SET GLOBAL rocksdb_strict_collation_exceptions="abc\\";

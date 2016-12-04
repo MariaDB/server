@@ -62,6 +62,7 @@
 #include "./rdb_index_merge.h"
 #include "./rdb_mutex_wrapper.h"
 #include "./rdb_threads.h"
+#include "./rdb_mariadb_server_port.h"
 
 #ifdef TARGET_OS_LINUX
 extern my_bool cachedev_enabled;
@@ -155,11 +156,9 @@ Rdb_binlog_manager binlog_manager;
 
 static Rdb_background_thread rdb_bg_thread;
 
-#ifdef MARIAROCKS_NOT_YET
 // List of table names (using regex) that are exceptions to the strict
 // collation check requirement.
 Regex_list_handler *rdb_collation_exceptions;
-#endif
 
 static const char* const ERRSTR_ROLLBACK_ONLY
   = "This transaction was rolled back and cannot be "
@@ -3345,13 +3344,11 @@ static int rocksdb_init_func(void *p)
   mysql_mutex_init(rdb_mem_cmp_space_mutex_key, &rdb_mem_cmp_space_mutex,
                    MY_MUTEX_INIT_FAST);
 
-#ifdef MARIAROCKS_NOT_YET
 #if defined(HAVE_PSI_INTERFACE)
   rdb_collation_exceptions = new Regex_list_handler(
       key_rwlock_collation_exception_list);
 #else
   rdb_collation_exceptions = new Regex_list_handler();
-#endif
 #endif
 
   mysql_mutex_init(rdb_sysvars_psi_mutex_key, &rdb_sysvars_mutex,
@@ -3731,9 +3728,9 @@ static int rocksdb_done_func(void *p)
   mysql_mutex_destroy(&rdb_open_tables.m_mutex);
   mysql_mutex_destroy(&rdb_sysvars_mutex);
 
-#ifdef MARIAROCKS_NOT_YET
+
   delete rdb_collation_exceptions;
-#endif
+
   mysql_mutex_destroy(&rdb_collation_data_mutex);
   mysql_mutex_destroy(&rdb_mem_cmp_space_mutex);
 
@@ -5126,11 +5123,7 @@ int ha_rocksdb::create_cfs(const TABLE *table_arg, Rdb_tbl_def *tbl_def_arg,
       {
         if (!rdb_is_index_collation_supported(
             table_arg->key_info[i].key_part[part].field) &&
-#ifdef MARIAROCKS_NOT_YET
             !rdb_collation_exceptions->matches(tablename_sys))
-#else
-            true)
-#endif
         {
           std::string collation_err;
           for (auto coll : RDB_INDEX_COLLATIONS)
@@ -10715,7 +10708,6 @@ rocksdb_set_rate_limiter_bytes_per_sec(
 
 void rdb_set_collation_exception_list(const char *exception_list)
 {
-#ifdef MARIAROCKS_NOT_YET
   DBUG_ASSERT(rdb_collation_exceptions != nullptr);
 
   if (!rdb_collation_exceptions->set_patterns(exception_list))
@@ -10723,7 +10715,6 @@ void rdb_set_collation_exception_list(const char *exception_list)
     my_core::warn_about_bad_patterns(rdb_collation_exceptions,
                                      "strict_collation_exceptions");
   }
-#endif
 }
 
 void
@@ -10736,7 +10727,9 @@ rocksdb_set_collation_exception_list(THD*                     thd,
 
   rdb_set_collation_exception_list(val);
 
-  *static_cast<const char**>(var_ptr) = val;
+  const char *val_copy= my_strdup(val, MYF(0));
+  my_free(*static_cast<char**>(var_ptr));
+  *static_cast<const char**>(var_ptr) = val_copy;
 }
 
 void

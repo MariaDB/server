@@ -116,6 +116,7 @@ CREATE TABLE b (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rock
 CREATE TABLE c (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 ERROR HY000: Unsupported collation on string indexed column test.c.value Use binary collation (binary, latin1_bin, utf8_bin).
 DROP TABLE a, b;
+call mtr.add_suppression("Invalid pattern in strict_collation_exceptions:");
 SET GLOBAL rocksdb_strict_collation_exceptions="abc\\";
  Invalid pattern in strict_collation_exceptions: abc\
 CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
