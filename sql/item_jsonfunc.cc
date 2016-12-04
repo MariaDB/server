@@ -287,12 +287,12 @@ bool Item_func_json_query::check_and_get_value(json_engine_t *je, String *res,
 
 void Item_func_json_quote::fix_length_and_dec()
 {
-  collation.set(args[0]->collation);
+  collation.set(&my_charset_utf8mb4_bin);
   /*
     Odd but realistic worst case is when all characters
     of the argument turn into '\uXXXX\uXXXX', which is 12.
   */
-  max_length= args[0]->max_length * 12;
+  max_length= args[0]->max_length * 12 + 2;
 }
 
 
@@ -300,13 +300,16 @@ String *Item_func_json_quote::val_str(String *str)
 {
   String *s= args[0]->val_str(&tmp_s);
 
-  if ((null_value= args[0]->null_value))
+  if ((null_value= (args[0]->null_value ||
+                    args[0]->result_type() != STRING_RESULT)))
     return NULL;
 
   str->length(0);
-  str->set_charset(s->charset());
+  str->set_charset(&my_charset_utf8mb4_bin);
 
-  if (st_append_escaped(str, s))
+  if (str->append("\"", 1) ||
+      st_append_escaped(str, s) ||
+      str->append("\"", 1))
   {
     /* Report an error. */
     null_value= 1;

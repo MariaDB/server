@@ -78,6 +78,10 @@ select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[1]");
 select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[10]");
 
 select json_quote('"string"');
+create table t1 as select json_quote('foo');
+select * from t1;
+show create table t1;
+drop table t1;
 
 select json_merge('string', 123);
 
