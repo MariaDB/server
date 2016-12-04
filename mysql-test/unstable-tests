@@ -307,7 +307,6 @@ sys_vars.keep_files_on_create_basic        : MDEV-10676 - timeout
 sys_vars.slow_query_log_file_basic         : Modified on 2016-08-09 (MDEV-10465)
 sys_vars.sysvars_innodb                    : MDEV-6958 - error-prone rdiffs
 sys_vars.sysvars_server_embedded           : MDEV-6958 - error-prone rdiffs
-sys_vars.innodb_buffer_pool_dump_pct_basic : MDEV-10651 - sporadic failure on file_exists
 sys_vars.innodb_fatal_semaphore_wait_threshold : MDEV-10513 - crashes
 sys_vars.sysvars_wsrep                         : Modified in 10.1.17
 sys_vars.wsrep_max_ws_size_basic               : Modified in 10.1.17

@@ -1,3 +1,4 @@
+SET @orig = @@global.innodb_buffer_pool_dump_pct;
 SELECT @@global.innodb_buffer_pool_dump_pct;
 @@global.innodb_buffer_pool_dump_pct
 25
@@ -33,3 +34,4 @@ SET GLOBAL innodb_buffer_pool_dump_pct='foo';
 ERROR 42000: Incorrect argument type to variable 'innodb_buffer_pool_dump_pct'
 SET innodb_buffer_pool_dump_pct=50;
 ERROR HY000: Variable 'innodb_buffer_pool_dump_pct' is a GLOBAL variable and should be set with SET GLOBAL
+SET GLOBAL innodb_buffer_pool_dump_pct=@orig;
