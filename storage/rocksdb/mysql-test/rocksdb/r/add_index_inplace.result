@@ -252,7 +252,7 @@ DROP INDEX kij ON t1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(11) NOT NULL DEFAULT '0',
+  `i` int(11) NOT NULL,
   `j` int(11) DEFAULT NULL,
   `k` int(11) DEFAULT NULL,
   PRIMARY KEY (`i`),
@@ -282,10 +282,10 @@ INSERT INTO t1 (a, b) VALUES (2, 6);
 INSERT INTO t1 (a, b) VALUES (3, 7);
 # crash_during_online_index_creation
 flush logs;
-SET SESSION debug="+d,crash_during_online_index_creation";
+SET SESSION debug_dbug="+d,crash_during_online_index_creation";
 ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
 ERROR HY000: Lost connection to MySQL server during query
-SET SESSION debug="-d,crash_during_online_index_creation";
+SET SESSION debug_dbug="-d,crash_during_online_index_creation";
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -301,14 +301,14 @@ DROP TABLE t1;
 CREATE TABLE t1 (i INT, j INT, k INT, PRIMARY KEY (i), KEY(j)) ENGINE = ROCKSDB PARTITION BY KEY(i) PARTITIONS 4;
 # crash_during_index_creation_partition
 flush logs;
-SET SESSION debug="+d,crash_during_index_creation_partition";
+SET SESSION debug_dbug="+d,crash_during_index_creation_partition";
 ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
 ERROR HY000: Lost connection to MySQL server during query
-SET SESSION debug="-d,crash_during_index_creation_partition";
+SET SESSION debug_dbug="-d,crash_during_index_creation_partition";
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(11) NOT NULL DEFAULT '0',
+  `i` int(11) NOT NULL,
   `j` int(11) DEFAULT NULL,
   `k` int(11) DEFAULT NULL,
   PRIMARY KEY (`i`),
@@ -336,17 +336,17 @@ DROP TABLE t1;
 CREATE TABLE t1 (i INT, j INT, k INT, PRIMARY KEY (i), KEY(j)) ENGINE = ROCKSDB PARTITION BY KEY(i) PARTITIONS 4;
 # crash_during_index_creation_partition
 flush logs;
-SET SESSION debug="+d,myrocks_simulate_index_create_rollback";
+SET SESSION debug_dbug="+d,myrocks_simulate_index_create_rollback";
 # expected assertion failure from sql layer here for alter rollback
 call mtr.add_suppression("Assertion `0' failed.");
 call mtr.add_suppression("Attempting backtrace. You can use the following information to find out");
 ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
 ERROR HY000: Lost connection to MySQL server during query
-SET SESSION debug="-d,myrocks_simulate_index_create_rollback";
+SET SESSION debug_dbug="-d,myrocks_simulate_index_create_rollback";
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(11) NOT NULL DEFAULT '0',
+  `i` int(11) NOT NULL,
   `j` int(11) DEFAULT NULL,
   `k` int(11) DEFAULT NULL,
   PRIMARY KEY (`i`),
@@ -358,7 +358,7 @@ ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(11) NOT NULL DEFAULT '0',
+  `i` int(11) NOT NULL,
   `j` int(11) DEFAULT NULL,
   `k` int(11) DEFAULT NULL,
   PRIMARY KEY (`i`),
@@ -371,8 +371,11 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 100
 DROP TABLE t1;
+set @tmp_rocksdb_strict_collation_check= @@rocksdb_strict_collation_check;
+set global rocksdb_strict_collation_check=1;
 CREATE TABLE t1 (a INT, b TEXT);
 ALTER TABLE t1 ADD KEY kb(b(10));
 ERROR HY000: Unsupported collation on string indexed column test.t1.b Use binary collation (binary, latin1_bin, utf8_bin).
 ALTER TABLE t1 ADD PRIMARY KEY(a);
 DROP TABLE t1;
+set global rocksdb_strict_collation_check= @tmp_rocksdb_strict_collation_check;
