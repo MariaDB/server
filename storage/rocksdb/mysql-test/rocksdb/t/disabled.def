@@ -6,3 +6,4 @@ level_serializable: Not supported
 # Tests that are (temporarily) disabled in MariaDB:
 slow_query_log: MDEV-11480
 select_for_update_skip_locked_nowait: MDEV-11481
+rpl_read_free: MDEV-10976
