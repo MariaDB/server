@@ -48,7 +48,7 @@ DROP TABLE t2;
 
 # Bug 1183625 (handler::update_global_table_stats crash).
 
-CREATE TABLE t2 (c1 INT UNSIGNED) ENGINE=InnoDB;
+CREATE TABLE t2 (c1 INT UNSIGNED);
 
 ALTER TABLE t2 MODIFY c1 FLOAT;
 

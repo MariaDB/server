@@ -1,5 +1,5 @@
 SET @default_storage_engine_old = @@session.default_storage_engine;
-SET SESSION default_storage_engine = INNODB;
+SET SESSION default_storage_engine = TOKUDB;
 FLUSH INDEX_STATISTICS;
 FLUSH TABLE_STATISTICS;
 SET @userstat_old= @@userstat;
