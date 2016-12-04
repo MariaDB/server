@@ -93,6 +93,7 @@ select json_type('{"k1":123, "k2":345}');
 select json_type('[123, "k2", 345]');
 select json_type("true");
 select json_type('123');
+select json_type('123.12');
 
 select json_keys('{"a":{"c":1, "d":2}, "b":2}');
 select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a");

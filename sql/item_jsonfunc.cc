@@ -1310,7 +1310,7 @@ String *Item_func_json_type::val_str(String *str)
     type= "STRING";
     break;
   case JSON_VALUE_NUMBER:
-    type= "NUMBER";
+    type= (je.num_flags & JSON_NUM_FRAC_PART) ?  "DOUBLE" : "INTEGER";
     break;
   case JSON_VALUE_TRUE:
   case JSON_VALUE_FALSE:

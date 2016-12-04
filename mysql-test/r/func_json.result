@@ -215,7 +215,10 @@ json_type("true")
 BOOLEAN
 select json_type('123');
 json_type('123')
-NUMBER
+INTEGER
+select json_type('123.12');
+json_type('123.12')
+DOUBLE
 select json_keys('{"a":{"c":1, "d":2}, "b":2}');
 json_keys('{"a":{"c":1, "d":2}, "b":2}')
 ["a", "b"]

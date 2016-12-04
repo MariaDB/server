@@ -172,6 +172,14 @@ enum json_value_types
 };
 
 
+enum json_num_flags
+{
+  JSON_NUM_NEG=1,        /* Number is negative. */
+  JSON_NUM_FRAC_PART=2,  /* The fractional part is not empty. */
+  JSON_NUM_EXP=4,        /* The number has the 'e' part. */
+};
+
+
 typedef struct st_json_engine_t
 {
   json_string_t s;  /* String to parse. */
@@ -185,6 +193,9 @@ typedef struct st_json_engine_t
   enum json_value_types value_type; /* type of the value.*/
   const uchar *value;      /* Points to the value. */
   const uchar *value_begin;/* Points to where the value starts in the JSON. */
+  uint num_flags;  /* the details of the JSON_VALUE_NUMBER, is it negative,
+                      or if it has the fractional part.
+                      See the enum json_num_flags. */
 
   /*
     In most cases the 'value' and 'value_begin' are equal.

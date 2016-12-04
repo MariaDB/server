@@ -477,13 +477,29 @@ static int json_num_states[NS_NUM_STATES][N_NUM_CLASSES]=
 };
 
 
+static uint json_num_state_flags[NS_NUM_STATES]=
+{
+/*OK*/   0,
+/*GO*/   0,
+/*GO1*/  JSON_NUM_NEG,
+/*ZERO*/ 0,
+/*ZE1*/  0,
+/*INT*/  0,
+/*FRAC*/ JSON_NUM_FRAC_PART,
+/*EX*/   JSON_NUM_EXP,
+/*EX1*/  0,
+};
+
+
 static int skip_num_constant(json_engine_t *j)
 {
   int state= json_num_states[NS_GO][json_num_chr_map[j->s.c_next]];
   int c_len;
 
+  j->num_flags= 0;
   for (;;)
   {
+    j->num_flags|= json_num_state_flags[state];
     if ((c_len= json_next_char(&j->s)) > 0)
     {
       if ((state= json_num_states[state][json_num_chr_map[j->s.c_next]]) > 0)
