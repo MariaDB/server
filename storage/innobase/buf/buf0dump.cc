@@ -322,6 +322,10 @@ buf_dump(
 			t_pages = buf_pool->curr_size
 					*  srv_buf_pool_dump_pct / 100;
 			if (n_pages > t_pages) {
+				buf_dump_status(STATUS_INFO,
+					"Instance %d, restricted to %u pages " \
+					"due to innodb_buf_pool_dump_pct (%d)",
+					i, t_pages, srv_buf_pool_dump_pct);
 				n_pages = t_pages;
 			}
 
