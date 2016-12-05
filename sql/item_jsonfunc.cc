@@ -461,52 +461,52 @@ String *Item_func_json_extract::val_str(String *str)
 
     c_path->cur_step= c_path->p.steps;
 
-    if (json_find_path(&je, &c_path->p, &c_path->cur_step, array_counters))
+    while (!json_find_path(&je, &c_path->p, &c_path->cur_step, array_counters))
     {
-      /* Path wasn't found. */
-      if (je.s.error)
+      if (json_read_value(&je))
         goto error;
 
-      continue;
-    }
-
-    if (json_read_value(&je))
-      goto error;
-
-    value= je.value_begin;
-    if (json_value_scalar(&je))
-      v_len= je.value_end - value;
-    else
-    {
-      if (json_skip_level(&je))
-        goto error;
-      v_len= je.s.c_str - value;
-    }
-
-    if (!multiple_values_found)
-    {
-      if (first_value == NULL)
-      {
-        /*
-          Just remember the first value as we don't know yet
-          if we need to create an array out of it or not.
-        */
-        first_value= (const char *) value;
-        first_len= v_len;
-        continue;
-      }
+      value= je.value_begin;
+      if (json_value_scalar(&je))
+        v_len= je.value_end - value;
       else
       {
-        multiple_values_found= TRUE; /* We have to make an JSON array. */
-        if (str->append("[", 1) ||
-            str->append(first_value, first_len))
-          goto error; /* Out of memory. */
+        if (json_skip_level(&je))
+          goto error;
+        v_len= je.s.c_str - value;
       }
 
+      if (json_scan_next(&je) && je.s.error)
+        goto error;
+
+      if (!multiple_values_found)
+      {
+        if (first_value == NULL)
+        {
+          /*
+             Just remember the first value as we don't know yet
+             if we need to create an array out of it or not.
+             */
+          first_value= (const char *) value;
+          first_len= v_len;
+          continue;
+        }
+        else
+        {
+          multiple_values_found= TRUE; /* We have to make an JSON array. */
+          if (str->append("[", 1) ||
+              str->append(first_value, first_len))
+            goto error; /* Out of memory. */
+        }
+
+      }
+      if (str->append(", ", 2) ||
+          str->append((const char *) value, v_len))
+        goto error; /* Out of memory. */
     }
-    if (str->append(", ", 2) ||
-        str->append((const char *) value, v_len))
-      goto error; /* Out of memory. */
+
+    if (je.s.error)
+      goto error;
   }
 
   if (first_value == NULL)
