@@ -277,3 +277,9 @@ NULL
 select json_depth(cast(NULL as JSON));
 json_depth(cast(NULL as JSON))
 NULL
+select json_depth('[[], {}]');
+json_depth('[[], {}]')
+2
+select json_depth('[[[1,2,3],"s"], {}, []]');
+json_depth('[[[1,2,3],"s"], {}, []]')
+4

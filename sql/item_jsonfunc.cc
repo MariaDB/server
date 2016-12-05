@@ -1235,7 +1235,7 @@ longlong Item_func_json_depth::val_int()
 {
   String *js= args[0]->val_str(&tmp_js);
   json_engine_t je;
-  uint depth= 0;
+  uint depth= 0, c_depth= 0;
   bool inc_depth= TRUE;
 
   if ((null_value= args[0]->null_value))
@@ -1252,13 +1252,21 @@ longlong Item_func_json_depth::val_int()
     case JST_VALUE:
       if (inc_depth)
       {
-        depth++;
+        c_depth++;
         inc_depth= FALSE;
+        if (c_depth > depth)
+          depth= c_depth;
       }
       break;
     case JST_OBJ_START:
     case JST_ARRAY_START:
       inc_depth= TRUE;
+      break;
+    case JST_OBJ_END:
+    case JST_ARRAY_END:
+      if (!inc_depth)
+        c_depth--;
+      inc_depth= FALSE;
       break;
     default:
       break;
