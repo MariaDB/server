@@ -3002,7 +3002,6 @@ public:
   void restore_set_statement_var();
 
   void init_last_field(Column_definition *field, const char *name, CHARSET_INFO *cs);
-  void set_last_field_type(const Lex_field_type_st &type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
 
   bool get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer);

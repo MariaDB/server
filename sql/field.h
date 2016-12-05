@@ -3774,9 +3774,10 @@ public:
 
   Column_definition():
     comment(null_lex_str),
-    on_update(0), sql_type(MYSQL_TYPE_NULL),
+    on_update(NULL), sql_type(MYSQL_TYPE_NULL), length(0), decimals(0),
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
-    interval(0), srid(0), geom_type(Field::GEOM_GEOMETRY),
+    interval(0), charset(&my_charset_bin),
+    srid(0), geom_type(Field::GEOM_GEOMETRY),
     option_list(NULL),
     vcol_info(0), default_value(0), check_constraint(0)
   {
@@ -3784,7 +3785,9 @@ public:
   }
 
   Column_definition(THD *thd, Field *field, Field *orig_field);
+  void set_attributes(const Lex_field_type_st &type, CHARSET_INFO *cs);
   void create_length_to_internal_length(void);
+
   /**
     Prepare a SET/ENUM field.
     Create "interval" from "interval_list" if needed, and adjust "length".
@@ -3797,39 +3800,10 @@ public:
                                         is not needed
   */
   bool prepare_interval_field(MEM_ROOT *mem_root,
-                              bool reuse_interval_list_values)
+                              bool reuse_interval_list_values);
+
+  void prepare_interval_field_calc_length()
   {
-    DBUG_ENTER("Column_definition::prepare_interval_field");
-    DBUG_ASSERT(sql_type == MYSQL_TYPE_ENUM || sql_type == MYSQL_TYPE_SET);
-    /*
-      Interval values are either in "interval" or in "interval_list",
-      but not in both at the same time, and are not empty at the same time.
-      - Values are in "interval_list" when we're coming from the parser
-        in CREATE TABLE or in CREATE {FUNCTION|PROCEDURE}.
-      - Values are in "interval" when we're in ALTER TABLE.
-
-      In a corner case with an empty set like SET(''):
-      - after the parser we have interval_list.elements==1
-      - in ALTER TABLE we have a non-NULL interval with interval->count==1,
-        with interval->type_names[0]=="" and interval->type_lengths[0]==0.
-      So the assert is still valid for this corner case.
-
-      ENUM and SET with no values at all (e.g. ENUM(), SET()) are not possible,
-      as the parser requires at least one element, so for a ENUM or SET field it
-      should never happen that both internal_list.elements and interval are 0.
-    */
-    DBUG_ASSERT((interval == NULL) == (interval_list.elements > 0));
-
-    /*
-      Create typelib from interval_list, and if necessary
-      convert strings from client character set to the
-      column character set.
-    */
-    if (interval_list.elements &&
-        create_interval_from_interval_list(mem_root,
-                                           reuse_interval_list_values))
-      DBUG_RETURN(true);
-
     uint32 field_length, dummy;
     if (sql_type == MYSQL_TYPE_SET)
     {
@@ -3842,7 +3816,6 @@ public:
       length= field_length;
     }
     set_if_smaller(length, MAX_FIELD_WIDTH - 1);
-    DBUG_RETURN(false);
   }
 
   bool prepare_blob_field(THD *thd);
