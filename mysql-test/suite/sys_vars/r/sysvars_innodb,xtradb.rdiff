@@ -32,7 +32,7 @@
 +DEFAULT_VALUE	OFF
 +VARIABLE_SCOPE	GLOBAL
 +VARIABLE_TYPE	BOOLEAN
-+VARIABLE_COMMENT	Depricated. This option is temporary alias of --innodb-numa-interleave.
++VARIABLE_COMMENT	Deprecated. This option has no effect and will be removed in MariaDB 10.2.3.
 +NUMERIC_MIN_VALUE	NULL
 +NUMERIC_MAX_VALUE	NULL
 +NUMERIC_BLOCK_SIZE	NULL
