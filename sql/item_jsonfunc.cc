@@ -1271,8 +1271,7 @@ longlong Item_func_json_length::val_int()
     return 0;
   }
     
-  return length;
-
+  return length - 1;
 }
 
 

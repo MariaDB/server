@@ -292,3 +292,12 @@ json_depth('[[], {}]')
 select json_depth('[[[1,2,3],"s"], {}, []]');
 json_depth('[[[1,2,3],"s"], {}, []]')
 4
+select json_length('');
+json_length('')
+NULL
+select json_length('{}');
+json_length('{}')
+0
+select json_length('[1, 2, {"a": 3}]');
+json_length('[1, 2, {"a": 3}]')
+3
