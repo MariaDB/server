@@ -451,6 +451,62 @@ class Item_func_hybrid_field_type: public Item_hybrid_func
     DBUG_ASSERT((res != NULL) ^ null_value);
     return res;
   }
+  bool make_zero_mysql_time(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    bzero(ltime, sizeof(*ltime));
+    return null_value|= !(fuzzydate & TIME_FUZZY_DATES);
+  }
+
+public:
+  // Value methods that involve no conversion
+  String *val_str_from_str_op(String *str)
+  {
+    return str_op_with_null_check(&str_value);
+  }
+  my_decimal *val_decimal_from_decimal_op(my_decimal *dec)
+  {
+    return decimal_op_with_null_check(dec);
+  }
+  longlong val_int_from_int_op()
+  {
+    return int_op();
+  }
+  double val_real_from_real_op()
+  {
+    return real_op();
+  }
+  bool get_date_from_date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return date_op(ltime,
+                   fuzzydate |
+                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0));
+  }
+
+  // Value methods that involve conversion
+  String *val_str_from_decimal_op(String *str);
+  String *val_str_from_real_op(String *str);
+  String *val_str_from_int_op(String *str);
+  String *val_str_from_date_op(String *str);
+
+  my_decimal *val_decimal_from_str_op(my_decimal *dec);
+  my_decimal *val_decimal_from_real_op(my_decimal *dec);
+  my_decimal *val_decimal_from_int_op(my_decimal *dec);
+  my_decimal *val_decimal_from_date_op(my_decimal *dec);
+
+  longlong val_int_from_str_op();
+  longlong val_int_from_real_op();
+  longlong val_int_from_decimal_op();
+  longlong val_int_from_date_op();
+
+  double val_real_from_str_op();
+  double val_real_from_decimal_op();
+  double val_real_from_date_op();
+  double val_real_from_int_op();
+
+  bool get_date_from_str_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date_from_real_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date_from_decimal_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date_from_int_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
 
 public:
   Item_func_hybrid_field_type(THD *thd):
@@ -469,11 +525,38 @@ public:
     Item_hybrid_func(thd, list)
   { collation.set_numeric(); }
 
-  double val_real();
-  longlong val_int();
-  my_decimal *val_decimal(my_decimal *);
-  String *val_str(String*str);
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  double val_real()
+  {
+    DBUG_ASSERT(fixed);
+    return Item_func_hybrid_field_type::type_handler()->
+           Item_func_hybrid_field_type_val_real(this);
+  }
+  longlong val_int()
+  {
+    DBUG_ASSERT(fixed);
+    return Item_func_hybrid_field_type::type_handler()->
+           Item_func_hybrid_field_type_val_int(this);
+  }
+  my_decimal *val_decimal(my_decimal *dec)
+  {
+    DBUG_ASSERT(fixed);
+    return Item_func_hybrid_field_type::type_handler()->
+           Item_func_hybrid_field_type_val_decimal(this, dec);
+  }
+  String *val_str(String*str)
+  {
+    DBUG_ASSERT(fixed);
+    String *res= Item_func_hybrid_field_type::type_handler()->
+                 Item_func_hybrid_field_type_val_str(this, str);
+    DBUG_ASSERT(null_value == (res == NULL));
+    return res;
+  }
+  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
+  {
+    DBUG_ASSERT(fixed);
+    return Item_func_hybrid_field_type::type_handler()->
+           Item_func_hybrid_field_type_get_date(this, res, fuzzy_date);
+  }
 
   /**
      @brief Performs the operation that this functions implements when the

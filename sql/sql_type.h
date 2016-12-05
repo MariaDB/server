@@ -28,6 +28,7 @@ class Item;
 class Item_cache;
 class Item_sum_hybrid;
 class Item_func_hex;
+class Item_func_hybrid_field_type;
 class Type_std_attributes;
 class Sort_param;
 class Arg_comparator;
@@ -294,6 +295,25 @@ public:
   virtual bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const= 0;
   virtual String *Item_func_hex_val_str_ascii(Item_func_hex *item,
                                               String *str) const= 0;
+
+  virtual
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const= 0;
+  virtual
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
+                                              const= 0;
+  virtual
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const= 0;
+  virtual
+  my_decimal *Item_func_hybrid_field_type_val_decimal(
+                                              Item_func_hybrid_field_type *,
+                                              my_decimal *) const= 0;
+  virtual
+  bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
+                                            MYSQL_TIME *,
+                                            ulonglong fuzzydate) const= 0;
+
 };
 
 
@@ -357,6 +377,39 @@ public:
     DBUG_ASSERT(0);
     return NULL;
   }
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
+                                              const
+  {
+    DBUG_ASSERT(0);
+    return 0.0;
+  }
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  my_decimal *Item_func_hybrid_field_type_val_decimal(
+                                              Item_func_hybrid_field_type *,
+                                              my_decimal *) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
+                                            MYSQL_TIME *,
+                                            ulonglong fuzzydate) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+
 };
 
 
@@ -392,6 +445,18 @@ public:
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const;
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
+                                              const;
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const;
+  my_decimal *Item_func_hybrid_field_type_val_decimal(
+                                              Item_func_hybrid_field_type *,
+                                              my_decimal *) const;
+  bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
+                                            MYSQL_TIME *,
+                                            ulonglong fuzzydate) const;
 };
 
 
@@ -412,6 +477,18 @@ public:
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const;
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
+                                              const;
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const;
+  my_decimal *Item_func_hybrid_field_type_val_decimal(
+                                              Item_func_hybrid_field_type *,
+                                              my_decimal *) const;
+  bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
+                                            MYSQL_TIME *,
+                                            ulonglong fuzzydate) const;
 };
 
 
@@ -432,6 +509,18 @@ public:
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const;
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
+                                              const;
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const;
+  my_decimal *Item_func_hybrid_field_type_val_decimal(
+                                              Item_func_hybrid_field_type *,
+                                              my_decimal *) const;
+  bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
+                                            MYSQL_TIME *,
+                                            ulonglong fuzzydate) const;
 };
 
 
@@ -450,6 +539,18 @@ public:
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const;
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
+                                              const;
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const;
+  my_decimal *Item_func_hybrid_field_type_val_decimal(
+                                              Item_func_hybrid_field_type *,
+                                              my_decimal *) const;
+  bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
+                                            MYSQL_TIME *,
+                                            ulonglong fuzzydate) const;
 };
 
 
@@ -472,6 +573,18 @@ public:
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
+  String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
+                                              String *) const;
+  double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
+                                              const;
+  longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
+                                               const;
+  my_decimal *Item_func_hybrid_field_type_val_decimal(
+                                              Item_func_hybrid_field_type *,
+                                              my_decimal *) const;
+  bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
+                                            MYSQL_TIME *,
+                                            ulonglong fuzzydate) const;
 };
 
 
