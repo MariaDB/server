@@ -1,3 +1,197 @@
+CREATE TABLE t1 (c1 int compressed) ENGINE=InnoDB;
+ERROR HY000: Field 'c1' is of a not allowed type to use compressed property
+CREATE TABLE t2 (c1 char(100) compressed) ENGINE=InnoDB;
+ERROR HY000: Field 'c1' is of a not allowed type to use compressed property
+CREATE TABLE t3 (c1 varchar(100) compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `c1` varchar(100) DEFAULT NULL /*!100203 COMPRESSED */
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+CREATE TABLE t4 (c1 blob compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `c1` blob DEFAULT NULL /*!100203 COMPRESSED */
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+CREATE TABLE t5 (c1 text compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t5;
+Table	Create Table
+t5	CREATE TABLE `t5` (
+  `c1` text DEFAULT NULL /*!100203 COMPRESSED */
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+CREATE TABLE t6(c1 longtext compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t6;
+Table	Create Table
+t6	CREATE TABLE `t6` (
+  `c1` longtext DEFAULT NULL /*!100203 COMPRESSED */
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+CREATE TABLE t7(c1 text compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t7;
+Table	Create Table
+t7	CREATE TABLE `t7` (
+  `c1` text DEFAULT NULL /*!100203 COMPRESSED */
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+CREATE TABLE t8 (c1 varbinary(1000) compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t8;
+Table	Create Table
+t8	CREATE TABLE `t8` (
+  `c1` varbinary(1000) DEFAULT NULL /*!100203 COMPRESSED */
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8;
+CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT compressed, c blob compressed) ENGINE=InnoDB;
+CREATE TABLE t2 like t1;
+CREATE TABLE t3 (a int primary key, b text compressed) engine=MyIsam;
+ERROR HY000: Field 'b' can not have compressed property in this enginess
+create index index_t1_b on t1(b(10));
+ERROR HY000: Field 'b' can not have compressed property and to be index at the sametime
+BEGIN;
+INSERT INTO t1 values(1,repeat('b',10),repeat('c',3000));
+SELECT a,length(b),length(c) from t1;
+a	length(b)	length(c)
+1	10	3000
+ROLLBACK;
+ALTER TABLE t2 add column d blob compressed;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  `b` text DEFAULT NULL /*!100203 COMPRESSED */,
+  `c` blob DEFAULT NULL /*!100203 COMPRESSED */,
+  `d` blob DEFAULT NULL /*!100203 COMPRESSED */,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+INSERT INTO t1 values(1,repeat('b',10),repeat('c',3000));
+INSERT INTO t1 values(2,repeat('d',10),repeat('e',3000));
+SELECT a,length(b),length(c) from t1;
+a	length(b)	length(c)
+1	10	3000
+2	10	3000
+UPDATE t1 set b='b',c='c';
+SELECT * from t1;
+a	b	c
+1	b	c
+2	b	c
+CREATE TEMPORARY TABLE t3(a blob compressed) ENGINE=InnoDB;
+INSERT INTO t3 values(repeat('a',3000));
+INSERT INTO t3 values('');
+SELECT length(a) from t3;
+length(a)
+3000
+0
+CREATE TABLE t4(
+id INT NOT NULL,
+name blob compressed
+)ENGINE=InnoDB
+PARTITION BY RANGE (name) (
+PARTITION p0 VALUES LESS THAN (6),
+PARTITION p1 VALUES LESS THAN (11)
+);
+ERROR HY000: A BLOB field is not allowed in partition function
+DROP TABLE IF EXISTS t1,t2,t3,t4;
+CREATE TABLE t1(c1 varchar(20480), c2 varbinary(20480))ENGINE=InnoDB;
+INSERT INTO t1 values('a', repeat('a',1000));
+INSERT INTO t1 values('','x');
+SELECT c1,length(c2) from t1;
+c1	length(c2)
+a	1000
+	1
+ALTER TABLE t1 change c1 c1 varchar(20480) compressed, change c2 c2 varbinary(20480) compressed;
+INSERT INTO t1 values('b', repeat('b',10000));
+INSERT INTO t1 values('','x');
+SELECT c1,length(c2) from t1;
+c1	length(c2)
+a	1000
+	1
+b	10000
+	1
+DROP TABLE t1;
+CREATE TABLE t1(c1 int,c2 blob compressed)ENGINE=InnoDB;
+INSERT INTO t1 values(1,repeat('a',1000));
+CREATE TABLE t2 like t1;
+INSERT INTO t2 (SELECT * from t1);
+SELECT c1,length(c2) from t2;
+c1	length(c2)
+1	1000
+SELECT c1,length(c2) FROM t2;
+c1	length(c2)
+1	1000
+set @default_storage_engine_old = @@default_storage_engine;
+set default_storage_engine = innodb;
+CREATE TABLE t3 SELECT * from t2;
+SELECT c1,length(c2) from t3;
+c1	length(c2)
+1	1000
+set default_storage_engine = @default_storage_engine_old;
+DROP TABLE t1,t2,t3;
+CREATE TABLE t1 (a int auto_increment primary key) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL);
+ALTER TABLE t1 add column b text compressed;
+INSERT INTO t1 (a) VALUES (NULL);
+ALTER TABLE t1 add column c varchar(1000) compressed;
+INSERT INTO t1 (a,b,c) VALUES (NULL, "hello!", "world!");
+ALTER TABLE t1 add column d varchar(10000) compressed default "hello, world! see you!";
+INSERT INTO t1 (a,b,c) VALUES (NULL, "hello", "world!");
+SELECT * from t1;
+a	b	c	d
+1	NULL	NULL	hello, world! see you!
+2	NULL	NULL	hello, world! see you!
+3	hello!	world!	hello, world! see you!
+4	hello	world!	hello, world! see you!
+CREATE TABLE t2 like t1;
+INSERT INTO t2 SELECT * from t1;
+ALTER TABLE t2 modify column d blob;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL AUTO_INCREMENT,
+  `b` text DEFAULT NULL /*!100203 COMPRESSED */,
+  `c` varchar(1000) DEFAULT NULL /*!100203 COMPRESSED */,
+  `d` blob DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=latin1
+checksum table t1,t2;
+Table	Checksum
+test.t1	4050951744
+test.t2	4050951744
+DROP TABLE IF EXISTS t1,t2;
+CREATE TABLE t1 (a tinytext compressed) engine = innodb;
+INSERT INTO t1(a) VALUES (repeat('abc',50));
+SELECT length(a) from t1;
+length(a)
+150
+DROP TABLE t1;
+CREATE TABLE t1 (a text compressed) engine = innodb;
+INSERT INTO t1(a) VALUES (repeat('abc',50));
+SELECT length(a) from t1;
+length(a)
+150
+DROP TABLE t1;
+CREATE TABLE t1 (a mediumtext compressed) engine = innodb;
+INSERT INTO t1(a) VALUES (repeat('abc',50));
+SELECT length(a) from t1;
+length(a)
+150
+DROP TABLE t1;
+CREATE TABLE t1 (a longtext compressed) engine = innodb;
+INSERT INTO t1(a) VALUES (repeat('abc',50));
+SELECT length(a) from t1;
+length(a)
+150
+DROP TABLE t1;
+CREATE TABLE t1 (a int primary key, b blob , key (b(20))) engine = innodb;
+INSERT INTO t1 VALUES (1,repeat('abc',10));
+INSERT INTO t1 VALUES (2,repeat('bca',10));
+INSERT INTO t1 VALUES (3,repeat('cab',10));
+SELECT a from t1 where b like 'abc%' order by a;
+a
+1
+UPDATE t1 set b = repeat('aaa',10);
+DROP TABLE t1;
+CREATE TABLE t1 (a blob, b text ,primary key(a(1))) engine = innodb;
+INSERT INTO t1 VALUES (REPEAT('a',8000),REPEAT('b',8000));
+UPDATE t1 set a = REPEAT('a',7999);
+DROP TABLE t1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT compressed) ENGINE=InnoDB;
 CREATE TABLE t3 (a INT PRIMARY KEY, b TEXT compressed, c TEXT compressed) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,REPEAT('a',30000)),(2,REPEAT('b',40000));
@@ -55,88 +249,3 @@ a
 1
 2
 DROP TABLE t1,t3;
-CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT compressed, c blob compressed) ENGINE=InnoDB;
-CREATE TABLE t2 like t1;
-create table t3 (a int primary key, b text compressed) engine=MyIsam;
-Got one of the listed errors
-create index index_t1_b on t1(b(10));
-Got one of the listed errors
-begin;
-insert into t1 values(1,repeat('b',10),repeat('c',3000));
-select a,length(b),length(c) from t1;
-a	length(b)	length(c)
-1	10	3000
-rollback;
-alter table t2 add column d blob compressed;
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) NOT NULL,
-  `b` text DEFAULT NULL /*!100203 COMPRESSED */,
-  `c` blob DEFAULT NULL /*!100203 COMPRESSED */,
-  `d` blob DEFAULT NULL /*!100203 COMPRESSED */,
-  PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1
-insert into t1 values(1,repeat('b',10),repeat('c',3000));
-insert into t1 values(2,repeat('d',10),repeat('e',3000));
-select a,length(b),length(c) from t1;
-a	length(b)	length(c)
-1	10	3000
-2	10	3000
-update t1 set b='b',c='c';
-select * from t1;
-a	b	c
-1	b	c
-2	b	c
-create temporary table t3(a blob compressed) ENGINE=InnoDB;
-insert into t3 values(repeat('a',3000));
-insert into t3 values('');
-select length(a) from t3;
-length(a)
-3000
-0
-CREATE TABLE employees (
-id INT NOT NULL,
-name blob compressed
-)ENGINE=InnoDB
-PARTITION BY RANGE (name) (
-PARTITION p0 VALUES LESS THAN (6),
-PARTITION p1 VALUES LESS THAN (11)
-);
-Got one of the listed errors
-DROP TABLE t1,t2,t3;
-create table t1(c1 varchar(20480), c2 varbinary(20480))ENGINE=InnoDB;
-insert into t1 values('a', repeat('a',1000));
-insert into t1 values('','x');
-select c1,length(c2) from t1;
-c1	length(c2)
-a	1000
-	1
-alter table t1 change c1 c1 varchar(20480) compressed, change c2 c2 varbinary(20480) compressed;
-insert into t1 values('b', repeat('b',10000));
-insert into t1 values('','x');
-select c1,length(c2) from t1;
-c1	length(c2)
-a	1000
-	1
-b	10000
-	1
-drop table t1;
-create table t1(c1 int,c2 varchar(20480) compressed)ENGINE=InnoDB;
-insert into t1 values(1,repeat('a',1000));
-create table t2 like t1;
-insert into t2 (select * from t1);
-select c1,length(c2) from t2;
-c1	length(c2)
-1	1000
-SELECT c1,length(c2) FROM t2;
-c1	length(c2)
-1	1000
-set @default_storage_engine_old = @@default_storage_engine;
-set default_storage_engine = innodb;
-create table t3 select * from t2;
-select c1,length(c2) from t3;
-c1	length(c2)
-1	1000
-set default_storage_engine = @default_storage_engine_old;
-drop table t1,t2,t3;

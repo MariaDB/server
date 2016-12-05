@@ -1,83 +1,51 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
 
-CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT compressed) ENGINE=InnoDB;
-CREATE TABLE t3 (a INT PRIMARY KEY, b TEXT compressed, c TEXT compressed) ENGINE=InnoDB;
-
-INSERT INTO t1 VALUES (1,REPEAT('a',30000)),(2,REPEAT('b',40000));
-BEGIN;
-# This will not block, because it will not store new BLOBs.
-UPDATE t1 SET a=a+2;
-ROLLBACK;
-BEGIN;
-UPDATE t1 SET b=CONCAT(b,'foo');
-
-SELECT a, RIGHT(b,20) FROM t1;
-
-
-INSERT INTO t1 VALUES (3,REPEAT('c',50000));
-
-# this one should see (3,NULL_BLOB)
-SELECT a, RIGHT(b,20) FROM t1;
-SELECT a FROM t1;
-
-
-CHECK TABLE t1;
-
-INSERT INTO t3 VALUES
-       (1,REPEAT('d',7000),REPEAT('e',100)),
-       (2,REPEAT('g',7000),REPEAT('h',100));
-UPDATE t3 SET c=REPEAT('f',3000) WHERE a=1;
-
-# this one should block
-SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
-
-
-
-
-UPDATE t3 SET c=REPEAT('i',3000) WHERE a=2;
-
-
-
-CHECK TABLE t1,t3;
-SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
-SELECT a FROM t3;
-
-
-UPDATE t3 SET c=REPEAT('j',3000) WHERE a=2;
-
-SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
-SELECT a FROM t3;
-DROP TABLE t1,t3;
+#only blob/text/varchar/varbinary was supported
+-- error ER_FIELD_TYPE_NOT_ALLOWED_AS_COMPRESSED_FIELD
+CREATE TABLE t1 (c1 int compressed) ENGINE=InnoDB;
+-- error ER_FIELD_TYPE_NOT_ALLOWED_AS_COMPRESSED_FIELD
+CREATE TABLE t2 (c1 char(100) compressed) ENGINE=InnoDB;
+CREATE TABLE t3 (c1 varchar(100) compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t3;
+CREATE TABLE t4 (c1 blob compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t4;
+CREATE TABLE t5 (c1 text compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t5;
+CREATE TABLE t6(c1 longtext compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t6;
+CREATE TABLE t7(c1 text compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t7;
+CREATE TABLE t8 (c1 varbinary(1000) compressed) ENGINE=InnoDB;
+SHOW CREATE TABLE t8;
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8;
 
 # test for blob compressed
-
 CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT compressed, c blob compressed) ENGINE=InnoDB;
 CREATE TABLE t2 like t1;
-
--- error ER_FIELD_CAN_NOT_COMPRESSED_IN_CURRENT_ENGINESS,1729
-create table t3 (a int primary key, b text compressed) engine=MyIsam;
-
--- error ER_FIELD_CAN_NOT_COMPRESSED_AND_INDEX,1728
+-- error ER_FIELD_CAN_NOT_COMPRESSED_IN_CURRENT_ENGINESS
+CREATE TABLE t3 (a int primary key, b text compressed) engine=MyIsam;
+-- error ER_FIELD_CAN_NOT_COMPRESSED_AND_INDEX
 create index index_t1_b on t1(b(10));
-begin;
-insert into t1 values(1,repeat('b',10),repeat('c',3000));
-select a,length(b),length(c) from t1;
-rollback;
-alter table t2 add column d blob compressed;
-show create table t2;
-insert into t1 values(1,repeat('b',10),repeat('c',3000));
-insert into t1 values(2,repeat('d',10),repeat('e',3000));
-select a,length(b),length(c) from t1;
-update t1 set b='b',c='c';
-select * from t1;
-create temporary table t3(a blob compressed) ENGINE=InnoDB;
-insert into t3 values(repeat('a',3000));
-insert into t3 values('');
-select length(a) from t3;
+BEGIN;
+INSERT INTO t1 values(1,repeat('b',10),repeat('c',3000));
+SELECT a,length(b),length(c) from t1;
+ROLLBACK;
+ALTER TABLE t2 add column d blob compressed;
+SHOW CREATE TABLE t2;
+INSERT INTO t1 values(1,repeat('b',10),repeat('c',3000));
+INSERT INTO t1 values(2,repeat('d',10),repeat('e',3000));
+SELECT a,length(b),length(c) from t1;
+UPDATE t1 set b='b',c='c';
+SELECT * from t1;
+CREATE TEMPORARY TABLE t3(a blob compressed) ENGINE=InnoDB;
+INSERT INTO t3 values(repeat('a',3000));
+INSERT INTO t3 values('');
+SELECT length(a) from t3;
 
--- error ER_BLOB_FIELD_IN_PART_FUNC_ERROR,1502
-CREATE TABLE employees (
+-- error ER_BLOB_FIELD_IN_PART_FUNC_ERROR
+CREATE TABLE t4(
     id INT NOT NULL,
     name blob compressed
 )ENGINE=InnoDB
@@ -85,31 +53,118 @@ PARTITION BY RANGE (name) (
     PARTITION p0 VALUES LESS THAN (6),
     PARTITION p1 VALUES LESS THAN (11)
 );
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2,t3,t4;
 
-DROP TABLE t1,t2,t3;
 
-create table t1(c1 varchar(20480), c2 varbinary(20480))ENGINE=InnoDB;
-insert into t1 values('a', repeat('a',1000));
-insert into t1 values('','x');
-select c1,length(c2) from t1;
-alter table t1 change c1 c1 varchar(20480) compressed, change c2 c2 varbinary(20480) compressed;
-insert into t1 values('b', repeat('b',10000));
-insert into t1 values('','x');
-select c1,length(c2) from t1;
-drop table t1;
+# test for varchar
+CREATE TABLE t1(c1 varchar(20480), c2 varbinary(20480))ENGINE=InnoDB;
+INSERT INTO t1 values('a', repeat('a',1000));
+INSERT INTO t1 values('','x');
+SELECT c1,length(c2) from t1;
+ALTER TABLE t1 change c1 c1 varchar(20480) compressed, change c2 c2 varbinary(20480) compressed;
+INSERT INTO t1 values('b', repeat('b',10000));
+INSERT INTO t1 values('','x');
+SELECT c1,length(c2) from t1;
+DROP TABLE t1;
 
-create table t1(c1 int,c2 varchar(20480) compressed)ENGINE=InnoDB;
-insert into t1 values(1,repeat('a',1000));
-create table t2 like t1;
-insert into t2 (select * from t1);
-select c1,length(c2) from t2;
+
+# change blob compress
+CREATE TABLE t1(c1 int,c2 blob compressed)ENGINE=InnoDB;
+INSERT INTO t1 values(1,repeat('a',1000));
+CREATE TABLE t2 like t1;
+INSERT INTO t2 (SELECT * from t1);
+SELECT c1,length(c2) from t2;
 SELECT c1,length(c2) FROM t2;
 
 set @default_storage_engine_old = @@default_storage_engine;
 set default_storage_engine = innodb;
-create table t3 select * from t2;
-select c1,length(c2) from t3;
-
+CREATE TABLE t3 SELECT * from t2;
+SELECT c1,length(c2) from t3;
 set default_storage_engine = @default_storage_engine_old;
+DROP TABLE t1,t2,t3;
 
-drop table t1,t2,t3;
+#test add column with default value
+CREATE TABLE t1 (a int auto_increment primary key) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL);
+ALTER TABLE t1 add column b text compressed;
+INSERT INTO t1 (a) VALUES (NULL);
+ALTER TABLE t1 add column c varchar(1000) compressed;
+INSERT INTO t1 (a,b,c) VALUES (NULL, "hello!", "world!");
+ALTER TABLE t1 add column d varchar(10000) compressed default "hello, world! see you!";
+INSERT INTO t1 (a,b,c) VALUES (NULL, "hello", "world!");
+SELECT * from t1;
+
+#test checksum
+CREATE TABLE t2 like t1;
+INSERT INTO t2 SELECT * from t1;
+ALTER TABLE t2 modify column d blob;
+SHOW CREATE TABLE t2;
+checksum table t1,t2;
+DROP TABLE IF EXISTS t1,t2;
+
+
+# use 1byte to store the uncompressed data length
+CREATE TABLE t1 (a tinytext compressed) engine = innodb;
+INSERT INTO t1(a) VALUES (repeat('abc',50));
+SELECT length(a) from t1;
+DROP TABLE t1;
+# use 2byte to store the uncompressed data length
+CREATE TABLE t1 (a text compressed) engine = innodb;
+INSERT INTO t1(a) VALUES (repeat('abc',50));
+SELECT length(a) from t1;
+DROP TABLE t1;
+# use 3byte to store the uncompressed data length
+CREATE TABLE t1 (a mediumtext compressed) engine = innodb;
+INSERT INTO t1(a) VALUES (repeat('abc',50));
+SELECT length(a) from t1;
+DROP TABLE t1;
+# use 4byte to store the uncompressed data length
+CREATE TABLE t1 (a longtext compressed) engine = innodb;
+INSERT INTO t1(a) VALUES (repeat('abc',50));
+SELECT length(a) from t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a int primary key, b blob , key (b(20))) engine = innodb;
+INSERT INTO t1 VALUES (1,repeat('abc',10));
+INSERT INTO t1 VALUES (2,repeat('bca',10));
+INSERT INTO t1 VALUES (3,repeat('cab',10));
+SELECT a from t1 where b like 'abc%' order by a;
+UPDATE t1 set b = repeat('aaa',10);
+DROP TABLE t1;
+CREATE TABLE t1 (a blob, b text ,primary key(a(1))) engine = innodb;
+INSERT INTO t1 VALUES (REPEAT('a',8000),REPEAT('b',8000));
+UPDATE t1 set a = REPEAT('a',7999);
+DROP TABLE t1;
+
+# rollback
+CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT compressed) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY, b TEXT compressed, c TEXT compressed) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,REPEAT('a',30000)),(2,REPEAT('b',40000));
+BEGIN;
+# This will not block, because it will not store new BLOBs.
+UPDATE t1 SET a=a+2;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET b=CONCAT(b,'foo');
+SELECT a, RIGHT(b,20) FROM t1;
+INSERT INTO t1 VALUES (3,REPEAT('c',50000));
+
+# this one should see (3,NULL_BLOB)
+SELECT a, RIGHT(b,20) FROM t1;
+SELECT a FROM t1;
+CHECK TABLE t1;
+INSERT INTO t3 VALUES
+       (1,REPEAT('d',7000),REPEAT('e',100)),
+       (2,REPEAT('g',7000),REPEAT('h',100));
+UPDATE t3 SET c=REPEAT('f',3000) WHERE a=1;
+
+# this one should block
+SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
+UPDATE t3 SET c=REPEAT('i',3000) WHERE a=2;
+CHECK TABLE t1,t3;
+SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
+SELECT a FROM t3;
+UPDATE t3 SET c=REPEAT('j',3000) WHERE a=2;
+SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
+SELECT a FROM t3;
+DROP TABLE t1,t3;
