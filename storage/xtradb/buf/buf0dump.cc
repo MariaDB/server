@@ -155,8 +155,7 @@ buf_load_status(
 		fmt, ap);
 
 	if (severity == STATUS_NOTICE || severity == STATUS_ERR) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr, " InnoDB: %s\n",
+		ib_logf((ib_log_level_t) severity, "%s",
 			export_vars.innodb_buffer_pool_load_status);
 	}
 
