@@ -55,6 +55,9 @@ json_array_append('["a", "b"]', '$', FALSE)
 select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
 json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2)
 {"k1":1, "k2":["a", "b", 2]}
+select json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2);
+json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2)
+[["a", 2], ["b", "c"], "d"]
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x');
 json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x')
 ["a", "x", {"b": [1, 2]}, [3, 4]]

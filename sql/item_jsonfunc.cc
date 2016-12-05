@@ -994,32 +994,69 @@ String *Item_func_json_array_append::val_str(String *str)
     if (json_read_value(&je))
       goto error;
 
-    if (je.value_type != JSON_VALUE_ARRAY)
-    {
-      /* Must be an array. */
-      goto error;
-    }
-
-    if (json_skip_level(&je))
-      goto error;
-
     str->length(0);
     str->set_charset(js->charset());
     if (str->reserve(js->length() + 8, 1024))
       goto error; /* Out of memory. */
-    ar_end= je.s.c_str - je.sav_c_len;
-    str_rest_len= js->length() - (ar_end - (const uchar *) js->ptr());
-    str->q_append(js->ptr(), ar_end-(const uchar *) js->ptr());
-    str->append(", ", 2);
-    if (append_json_value(str, args[n_arg+1], &tmp_val))
-      goto error; /* Out of memory. */
 
-    if (str->reserve(str_rest_len, 1024))
-      goto error; /* Out of memory. */
-    str->q_append((const char *) ar_end, str_rest_len);
+    if (je.value_type == JSON_VALUE_ARRAY)
+    {
+      if (json_skip_level(&je))
+        goto error;
+
+      ar_end= je.s.c_str - je.sav_c_len;
+      str_rest_len= js->length() - (ar_end - (const uchar *) js->ptr());
+      str->q_append(js->ptr(), ar_end-(const uchar *) js->ptr());
+      str->append(", ", 2);
+      if (append_json_value(str, args[n_arg+1], &tmp_val))
+        goto error; /* Out of memory. */
+
+      if (str->reserve(str_rest_len, 1024))
+        goto error; /* Out of memory. */
+      str->q_append((const char *) ar_end, str_rest_len);
+    }
+    else
+    {
+      const uchar *c_from, *c_to;
+
+      /* Wrap as an array. */
+      str->q_append(js->ptr(), (const char *) je.value_begin - js->ptr());
+      c_from= je.value_begin;
+
+      if (je.value_type == JSON_VALUE_OBJECT)
+      {
+        if (json_skip_level(&je))
+          goto error;
+        c_to= je.s.c_str;
+      }
+      else
+        c_to= je.value_end;
+
+      if (str->append("[", 1) ||
+          str->append((const char *) c_from, c_to - c_from) ||
+          str->append(", ", 2) ||
+          append_json_value(str, args[n_arg+1], &tmp_val) ||
+          str->append("]", 1) ||
+          str->append((const char *) je.s.c_str,
+                      js->end() - (const char *) je.s.c_str))
+        goto error;
+    }
+    {
+      /* Swap str and js. */
+      if (str == &tmp_js)
+      {
+        str= js;
+        js= &tmp_js;
+      }
+      else
+      {
+        js= str;
+        str= &tmp_js;
+      }
+    }
   }
 
-  return str;
+  return js;
 
 error:
   null_value= 1;
@@ -1123,9 +1160,17 @@ String *Item_func_json_array_insert::val_str(String *str)
       goto error; /* Out of memory. */
 
     {
-      String *tmp_str= str;
-      str= &tmp_js;
-      js= tmp_str;
+      /* Swap str and js. */
+      if (str == &tmp_js)
+      {
+        str= js;
+        js= &tmp_js;
+      }
+      else
+      {
+        js= str;
+        str= &tmp_js;
+      }
     }
   }
 
@@ -1539,9 +1584,17 @@ v_found:
       goto error; /* Out of memory. */
 continue_point:
     {
-      String *tmp= str;
-      str= &tmp_js;
-      js= tmp;
+      /* Swap str and js. */
+      if (str == &tmp_js)
+      {
+        str= js;
+        js= &tmp_js;
+      }
+      else
+      {
+        js= str;
+        str= &tmp_js;
+      }
     }
   }
 
@@ -1701,9 +1754,17 @@ v_found:
           goto error; /* Out of memory. */
 
     {
-      String *tmp= str;
-      str= &tmp_js;
-      js= tmp;
+      /* Swap str and js. */
+      if (str == &tmp_js)
+      {
+        str= js;
+        js= &tmp_js;
+      }
+      else
+      {
+        js= str;
+        str= &tmp_js;
+      }
     }
   }
 
