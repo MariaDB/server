@@ -8,7 +8,6 @@
 #####################################################################################
 show binlog events in 'master-bin.000001' from <start_pos>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Start_encryption	1	#	
 master-bin.000001	#	Gtid_list	1	#	[]
 master-bin.000001	#	Binlog_checkpoint	1	#	master-bin.000001
 master-bin.000001	#	Gtid	1	#	GTID 0-1-1

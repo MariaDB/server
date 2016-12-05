@@ -4,20 +4,11 @@
 # Please check all dependent tests after modifying it
 #
 # Usage:
-# --let $binlog_extra_length= X  # optional, default 0
 # --source extra/rpl_tests/multisource.inc
 #
 # By default, the script expects the length of the 2nd binary log to be
 # $binlog_start_pos + length(Gtid_list event) + 2 x length(Binlog_checkpoint event)
 # Some tests can have specific configuration which would change it, 
-# e.g. for encrypted binlogs there will be additional event 
-# Start_encryption of the length of 36. 
-# binlog_extra_length should compensate for the difference.
-
-if (!$binlog_extra_length)
-{
-    --let $binlog_extra_length= 0
-}
 
 #
 # Test basic replication functionality 
@@ -244,7 +235,7 @@ flush logs;
 --connection master1
 purge binary logs to 'master-bin.000002';
 # Additional events: 39 (Gtid_list) + 2 x 40 (Binlog_checkpoint) = 119
-let filesize=`select $binlog_start_pos+119+$binlog_extra_length`;
+let filesize=`select $binlog_start_pos+119`;
 --replace_result $filesize filesize
 show binary logs;
 insert into t1 (f1) values ('four');
