@@ -2643,7 +2643,7 @@ mysql_execute_command(THD *thd)
         !(thd->variables.wsrep_dirty_reads &&
           lex->sql_command == SQLCOM_SELECT) &&
         !(lex->sql_command == SQLCOM_SELECT    &&
-         !all_table)                           &&
+         !all_tables)                          &&
         !wsrep_is_show_query(lex->sql_command))
     {
       my_message(ER_UNKNOWN_COM_ERROR,
