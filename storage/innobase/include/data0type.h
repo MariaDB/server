@@ -166,10 +166,6 @@ be less than 256 */
 
 #define	DATA_N_SYS_COLS 3	/* number of system columns defined above */
 
-#define	DATA_ITT_N_SYS_COLS	2
-				/* number of system columns for intrinsic
-				temporary table */
-
 #define DATA_FTS_DOC_ID	3	/* Used as FTS DOC ID column */
 
 #define DATA_SYS_PRTYPE_MASK 0xF /* mask to extract the above from prtype */
@@ -195,6 +191,11 @@ be less than 256 */
 				MySQL uses 2 bytes to store the data len;
 				for shorter VARCHARs MySQL uses only 1 byte */
 #define	DATA_VIRTUAL	8192	/* Virtual column */
+
+/** Get the number of system columns in a table. */
+#define dict_table_get_n_sys_cols(table) DATA_N_SYS_COLS
+/** Check whether locking is disabled (never). */
+#define dict_table_is_locking_disabled(table) false
 
 /*-------------------------------------------*/
 

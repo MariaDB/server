@@ -1046,10 +1046,7 @@ srv_init(void)
 
 	srv_sys->n_sys_threads = n_sys_threads;
 
-	/* Even in read-only mode we flush pages related to intrinsic table
-	and so mutex creation is needed. */
-	{
-
+	if (!srv_read_only_mode) {
 		mutex_create(LATCH_ID_SRV_SYS, &srv_sys->mutex);
 
 		mutex_create(LATCH_ID_SRV_SYS_TASKS, &srv_sys->tasks_mutex);
@@ -1119,7 +1116,7 @@ srv_free(void)
 	mutex_free(&srv_innodb_monitor_mutex);
 	mutex_free(&page_zip_stat_per_index_mutex);
 
-	{
+	if (!srv_read_only_mode) {
 		mutex_free(&srv_sys->mutex);
 		mutex_free(&srv_sys->tasks_mutex);
 

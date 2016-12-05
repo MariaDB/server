@@ -1858,7 +1858,7 @@ fts_create_one_common_table(
 		TRX_DICT_OP_TABLE. */
 		trx_dict_op_t op = trx_get_dict_operation(trx);
 
-		error =	row_create_index_for_mysql(index, trx, NULL, NULL);
+		error =	row_create_index_for_mysql(index, trx, NULL);
 
 		trx->dict_operation = op;
 	}
@@ -1975,7 +1975,7 @@ fts_create_common_tables(
 
 	op = trx_get_dict_operation(trx);
 
-	error =	row_create_index_for_mysql(index, trx, NULL, NULL);
+	error =	row_create_index_for_mysql(index, trx, NULL);
 
 	trx->dict_operation = op;
 
@@ -2067,7 +2067,7 @@ fts_create_one_index_table(
 
 		trx_dict_op_t op = trx_get_dict_operation(trx);
 
-		error =	row_create_index_for_mysql(index, trx, NULL, NULL);
+		error =	row_create_index_for_mysql(index, trx, NULL);
 
 		trx->dict_operation = op;
 	}

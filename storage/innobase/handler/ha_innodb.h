@@ -203,9 +203,6 @@ public:
 
 	int ft_read(uchar* buf);
 
-	int enable_indexes(uint mode);
-	int disable_indexes(uint mode);
-
 	void position(const uchar *record);
 
 	int info(uint);
@@ -467,9 +464,6 @@ protected:
 	/** Resets a query execution 'template'.
 	@see build_template() */
 	void reset_template();
-
-	/** Write Row Interface optimized for Intrinsic table. */
-	int intrinsic_table_write_row(uchar* record);
 
 protected:
 	inline void update_thd(THD* thd);
@@ -832,14 +826,6 @@ public:
 
 	THD* thd() const
 	{ return(m_thd); }
-
-	inline bool is_intrinsic_temp_table() const
-	{
-		/* DICT_TF2_INTRINSIC implies DICT_TF2_TEMPORARY */
-		ut_ad(!(m_flags2 & DICT_TF2_INTRINSIC)
-		      || (m_flags2 & DICT_TF2_TEMPORARY));
-		return((m_flags2 & DICT_TF2_INTRINSIC) != 0);
-	}
 
 	/** Normalizes a table name string.
 	A normalized name consists of the database name catenated to '/' and

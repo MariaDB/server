@@ -3179,7 +3179,7 @@ err_exit:
 		ib::error() << "Table " << table->name << " in InnoDB"
 			" data dictionary contains invalid flags."
 			" SYS_TABLES.MIX_LEN=" << table->flags2;
-		table->flags2 &= ~(DICT_TF2_TEMPORARY|DICT_TF2_INTRINSIC);
+		table->flags2 &= ~DICT_TF2_TEMPORARY;
 		dict_table_remove_from_cache(table);
 		table = NULL;
 		err = DB_FAIL;

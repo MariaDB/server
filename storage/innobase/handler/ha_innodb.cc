@@ -1790,13 +1790,6 @@ innobase_srv_conc_enter_innodb(
 	}
 #endif /* WITH_WSREP */
 
-	/* We rely on server to do external_lock(F_UNLCK) to reset the
-	srv_conc.n_active counter. Since there are no locks on instrinsic
-	tables, we should skip this for intrinsic temporary tables. */
-	if (dict_table_is_intrinsic(prebuilt->table)) {
-		return;
-	}
-
 	trx_t*	trx	= prebuilt->trx;
 	if (srv_thread_concurrency) {
 		if (trx->n_tickets_to_enter_innodb > 0) {
@@ -1834,13 +1827,6 @@ innobase_srv_conc_exit_innodb(
 		return;
 	}
 #endif /* WITH_WSREP */
-
-	/* We rely on server to do external_lock(F_UNLCK) to reset the
-	srv_conc.n_active counter. Since there are no locks on instrinsic
-	tables, we should skip this for intrinsic temporary tab */
-	if (dict_table_is_intrinsic(prebuilt->table)) {
-		return;
-	}
 
 	trx_t*			trx = prebuilt->trx;
 #ifdef UNIV_DEBUG
@@ -1963,29 +1949,6 @@ thd_innodb_tmpdir(
 	return(tmp_dir);
 }
 
-/** Obtain the private handler of InnoDB session specific data.
-@param[in,out]	thd	MySQL thread handler.
-@return reference to private handler */
-MY_ATTRIBUTE((warn_unused_result))
-static
-innodb_session_t*&
-thd_to_innodb_session(
-	THD*	thd)
-{
-	innodb_session_t*& innodb_session =
-		*(innodb_session_t**) thd_ha_data(thd, innodb_hton_ptr);
-
-	if (innodb_session != NULL) {
-		return(innodb_session);
-	}
-
-	innodb_session = UT_NEW_NOKEY(innodb_session_t());
-
-	thd_set_ha_data(thd, innodb_hton_ptr, innodb_session);
-
-	return(innodb_session);
-}
-
 /** Obtain the InnoDB transaction of a MySQL thread.
 @param[in,out]	thd	MySQL thread handler.
 @return reference to transaction pointer */
@@ -1994,10 +1957,7 @@ trx_t*&
 thd_to_trx(
 	THD*	thd)
 {
-	innodb_session_t*& innodb_session = thd_to_innodb_session(thd);
-	ut_ad(innodb_session != NULL);
-
-	return(innodb_session->m_trx);
+	return(*(trx_t**) thd_ha_data(thd, innodb_hton_ptr));
 }
 
 #ifdef WITH_WSREP
@@ -2012,47 +1972,6 @@ thd_to_trx_id(
 	return(thd_to_trx(thd)->id);
 }
 #endif /* WITH_WSREP */
-
-/** Check if statement is of type INSERT .... SELECT that involves
-use of intrinsic tables.
-@param[in]	thd	thread handler
-@return true if INSERT .... SELECT statement. */
-static inline
-bool
-thd_is_ins_sel_stmt(THD* user_thd)
-{
-	/* If the session involves use of intrinsic table
-	and it is trying to fetch the result from non-temporary tables
-	it indicates "insert .... select" statement. For non-temporary
-	table this is verifed using the locked tables count but for
-	intrinsic table as external_lock is not invoked this count is
-	not updated.
-
-	Why is this needed ?
-	Use of AHI is blocked if statement is insert .... select statement. */
-	innodb_session_t*	innodb_priv = thd_to_innodb_session(user_thd);
-	return(innodb_priv->count_register_table_handler() > 0 ? true : false);
-}
-
-/** Add the table handler to thread cache.
-Obtain the InnoDB transaction of a MySQL thread.
-@param[in,out]	table		table handler
-@param[in,out]	heap		heap for allocating system columns.
-@param[in,out]	thd		MySQL thread handler */
-static inline
-void
-add_table_to_thread_cache(
-	dict_table_t*	table,
-	mem_heap_t*	heap,
-	THD*		thd)
-{
-	dict_table_add_system_columns(table, heap);
-
-	dict_table_set_big_rows(table);
-
-	innodb_session_t*& priv = thd_to_innodb_session(thd);
-	priv->register_table_handler(table->name.m_name, table);
-}
 
 /********************************************************************//**
 Call this function when mysqld passes control to the client. That is to
@@ -3110,16 +3029,12 @@ check_trx_exists(
 
 	if (trx == NULL) {
 		trx = innobase_trx_allocate(thd);
-		innodb_session_t* innodb_session = thd_to_innodb_session(thd);
-		innodb_session->m_trx = trx;
-
 		/* User trx can be forced to rollback,
 		so we unset the disable flag. */
 		ut_ad(trx->in_innodb & TRX_FORCE_ROLLBACK_DISABLE);
 		trx->in_innodb &= TRX_FORCE_ROLLBACK_MASK;
 	} else {
 		ut_a(trx->magic_n == TRX_MAGIC_N);
-
 		innobase_trx_init(thd, trx);
 	}
 
@@ -3362,8 +3277,7 @@ ha_innobase::update_thd(
 
 	TrxInInnoDB	trx_in_innodb(trx);
 
-	ut_ad(dict_table_is_intrinsic(m_prebuilt->table)
-	      || trx_in_innodb.is_aborted()
+	ut_ad(trx_in_innodb.is_aborted()
 	      || (trx->dict_operation_lock_mode == 0
 		  && trx->dict_operation == TRX_DICT_OP_NONE));
 
@@ -5620,10 +5534,6 @@ innobase_close_connection(
 		trx_free_for_mysql(trx);
 	}
 
-	UT_DELETE(thd_to_innodb_session(thd));
-
-	thd_to_innodb_session(thd) = NULL;
-
 	DBUG_RETURN(0);
 }
 
@@ -6740,18 +6650,6 @@ ha_innobase::innobase_initialize_autoinc()
 
 		col_name = field->field_name;
 
-		/* For intrinsic table, name of field has to be prefixed with
-		table name to maintain column-name uniqueness. */
-		if (m_prebuilt->table != NULL
-		    && dict_table_is_intrinsic(m_prebuilt->table)) {
-
-			ulint	col_no = dict_col_get_no(dict_table_get_nth_col(
-				m_prebuilt->table, field->field_index));
-
-			col_name = dict_table_get_col_name(
-				m_prebuilt->table, col_no);
-		}
-
 		index = innobase_get_index(table->s->next_number_index);
 
 		/* Execute SELECT MAX(col_name) FROM TABLE; */
@@ -6863,18 +6761,7 @@ ha_innobase::open(
 		ignore_err = DICT_ERR_IGNORE_FK_NOKEY;
 	}
 
-	/* Get pointer to a table object in InnoDB dictionary cache.
-	For intrinsic table, get it from session private data */
-	ib_table = thd_to_innodb_session(thd)->lookup_table_handler(norm_name);
-
-	if (ib_table == NULL) {
-
-		ib_table = open_dict_table(name, norm_name, is_part,
-					   ignore_err);
-	} else {
-		ib_table->acquire();
-		ut_ad(dict_table_is_intrinsic(ib_table));
-	}
+	ib_table = open_dict_table(name, norm_name, is_part, ignore_err);
 
 	if (ib_table != NULL
 	    && ((!DICT_TF2_FLAG_IS_SET(ib_table, DICT_TF2_FTS_HAS_DOC_ID)
@@ -8752,18 +8639,10 @@ ha_innobase::innobase_lock_autoinc(void)
 {
 	DBUG_ENTER("ha_innobase::innobase_lock_autoinc");
 	dberr_t		error = DB_SUCCESS;
-	long		lock_mode = innobase_autoinc_lock_mode;
 
-	ut_ad(!srv_read_only_mode
-	      || dict_table_is_intrinsic(m_prebuilt->table));
+	ut_ad(!srv_read_only_mode);
 
-	if (dict_table_is_intrinsic(m_prebuilt->table)) {
-		/* Intrinsic table are not shared accorss connection
-		so there is no need to AUTOINC lock the table. */
-		lock_mode = AUTOINC_NO_LOCKING;
-	}
-
-	switch (lock_mode) {
+	switch (innobase_autoinc_lock_mode) {
 	case AUTOINC_NO_LOCKING:
 		/* Acquire only the AUTOINC mutex. */
 		dict_table_autoinc_lock(m_prebuilt->table);
@@ -8839,30 +8718,6 @@ ha_innobase::innobase_set_max_autoinc(
 	return(error);
 }
 
-/** Write Row interface optimized for intrinisc table.
-@param[in]	record	a row in MySQL format.
-@return 0 on success or error code */
-int
-ha_innobase::intrinsic_table_write_row(uchar* record)
-{
-	dberr_t		err;
-
-	/* No auto-increment support for intrinsic table. */
-	ut_ad(!(table->next_number_field && record == table->record[0]));
-
-	if (m_prebuilt->mysql_template == NULL
-	    || m_prebuilt->template_type != ROW_MYSQL_WHOLE_ROW) {
-		/* Build the template used in converting quickly between
-		the two database formats */
-		build_template(true);
-	}
-
-	err = row_insert_for_mysql((byte*) record, m_prebuilt);
-
-	return(convert_error_code_to_mysql(
-		err, m_prebuilt->table->flags, m_user_thd));
-}
-
 /********************************************************************//**
 Stores a row in an InnoDB database, to the table specified in this
 handle.
@@ -8883,15 +8738,10 @@ ha_innobase::write_row(
 
 	DBUG_ENTER("ha_innobase::write_row");
 
-	if (dict_table_is_intrinsic(m_prebuilt->table)) {
-		DBUG_RETURN(intrinsic_table_write_row(record));
-	}
-
 	trx_t*		trx = thd_to_trx(m_user_thd);
 	TrxInInnoDB	trx_in_innodb(trx);
 
-	if (!dict_table_is_intrinsic(m_prebuilt->table)
-	    && trx_in_innodb.is_aborted()) {
+	if (trx_in_innodb.is_aborted()) {
 
 		innobase_rollback(ht, m_user_thd, false);
 
@@ -9338,7 +9188,7 @@ calc_row_difference(
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 	ulint		num_v = 0;
 
-	ut_ad(!srv_read_only_mode || dict_table_is_intrinsic(prebuilt->table));
+	ut_ad(!srv_read_only_mode);
 
 	n_fields = table->s->fields;
 	clust_index = dict_table_get_first_index(prebuilt->table);
@@ -9812,7 +9662,7 @@ ha_innobase::update_row(
 
 	ut_a(m_prebuilt->trx == trx);
 
-	if (high_level_read_only && !dict_table_is_intrinsic(m_prebuilt->table)) {
+	if (high_level_read_only) {
 		ib_senderrf(ha_thd(), IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	} else if (!trx_is_started(trx)) {
@@ -9862,8 +9712,7 @@ ha_innobase::update_row(
 		goto func_exit;
 	}
 
-	if (!dict_table_is_intrinsic(m_prebuilt->table)
-	    && TrxInInnoDB::is_aborted(trx)) {
+	if (TrxInInnoDB::is_aborted(trx)) {
 
 		innobase_rollback(ht, m_user_thd, false);
 
@@ -9977,8 +9826,7 @@ ha_innobase::delete_row(
 
 	DBUG_ENTER("ha_innobase::delete_row");
 
-	if (!dict_table_is_intrinsic(m_prebuilt->table)
-	    && trx_in_innodb.is_aborted()) {
+	if (trx_in_innodb.is_aborted()) {
 
 		innobase_rollback(ht, m_user_thd, false);
 
@@ -9988,7 +9836,7 @@ ha_innobase::delete_row(
 
 	ut_a(m_prebuilt->trx == trx);
 
-	if (high_level_read_only && !dict_table_is_intrinsic(m_prebuilt->table)) {
+	if (high_level_read_only) {
 		ib_senderrf(ha_thd(), IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	} else if (!trx_is_started(trx)) {
@@ -10038,28 +9886,7 @@ int
 ha_innobase::delete_all_rows()
 {
 	DBUG_ENTER("ha_innobase::delete_all_rows");
-
-	/* Currently enabled only for intrinsic tables. */
-	if (!dict_table_is_intrinsic(m_prebuilt->table)) {
-		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-	}
-
-	TrxInInnoDB	trx_in_innodb(m_prebuilt->trx);
-
-	if (!dict_table_is_intrinsic(m_prebuilt->table)
-	    && trx_in_innodb.is_aborted()) {
-
-		DBUG_RETURN(innobase_rollback(ht, m_user_thd, false));
-	}
-
-	dberr_t	error = row_delete_all_rows(m_prebuilt->table);
-
-	if (error == DB_SUCCESS) {
-		dict_stats_update(m_prebuilt->table, DICT_STATS_EMPTY_TABLE);
-	}
-
-	DBUG_RETURN(convert_error_code_to_mysql(
-			    error, m_prebuilt->table->flags, m_user_thd));
+	DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 /**********************************************************************//**
@@ -10073,11 +9900,7 @@ ha_innobase::unlock_row(void)
 {
 	DBUG_ENTER("ha_innobase::unlock_row");
 
-	/* Consistent read does not take any locks, thus there is
-	nothing to unlock.  There is no locking for intrinsic table. */
-
-	if (m_prebuilt->select_lock_type == LOCK_NONE
-	    || dict_table_is_intrinsic(m_prebuilt->table)) {
+	if (m_prebuilt->select_lock_type == LOCK_NONE) {
 		DBUG_VOID_RETURN;
 	}
 
@@ -10086,8 +9909,6 @@ ha_innobase::unlock_row(void)
 	if (trx_in_innodb.is_aborted()) {
 		DBUG_VOID_RETURN;
 	}
-
-	ut_ad(!dict_table_is_intrinsic(m_prebuilt->table));
 
 	/* Ideally, this assert must be in the beginning of the function.
 	But there are some calls to this function from the SQL layer when the
@@ -10175,8 +9996,6 @@ ha_innobase::index_end(void)
 /*========================*/
 {
 	DBUG_ENTER("index_end");
-
-	m_prebuilt->index->last_sel_cur->release();
 
 	active_index = MAX_KEY;
 
@@ -10379,28 +10198,16 @@ ha_innobase::index_read(
 
 		innobase_srv_conc_enter_innodb(m_prebuilt);
 
-		if (!dict_table_is_intrinsic(m_prebuilt->table)) {
+		if (TrxInInnoDB::is_aborted(m_prebuilt->trx)) {
 
-			if (TrxInInnoDB::is_aborted(m_prebuilt->trx)) {
+			innobase_rollback(ht, m_user_thd, false);
 
-				innobase_rollback(ht, m_user_thd, false);
-
-				DBUG_RETURN(convert_error_code_to_mysql(
-					DB_FORCED_ABORT, 0, m_user_thd));
-			}
-
-			m_prebuilt->ins_sel_stmt = thd_is_ins_sel_stmt(
-				m_user_thd);
-
-			ret = row_search_mvcc(
-				buf, mode, m_prebuilt, match_mode, 0);
-
-		} else {
-			m_prebuilt->session = thd_to_innodb_session(m_user_thd);
-
-			ret = row_search_no_mvcc(
-				buf, mode, m_prebuilt, match_mode, 0);
+			DBUG_RETURN(convert_error_code_to_mysql(
+					    DB_FORCED_ABORT, 0, m_user_thd));
 		}
+
+		ret = row_search_mvcc(
+			buf, mode, m_prebuilt, match_mode, 0);
 
 		innobase_srv_conc_exit_innodb(m_prebuilt);
 	} else {
@@ -10581,8 +10388,7 @@ ha_innobase::change_active_index(
 
 	TrxInInnoDB	trx_in_innodb(m_prebuilt->trx);
 
-	if (!dict_table_is_intrinsic(m_prebuilt->table)
-	    && trx_in_innodb.is_aborted()) {
+	if (trx_in_innodb.is_aborted()) {
 
 		innobase_rollback(ht, m_user_thd, false);
 
@@ -10709,9 +10515,7 @@ ha_innobase::general_fetch(
 
 	ut_ad(trx == thd_to_trx(m_user_thd));
 
-	bool	intrinsic = dict_table_is_intrinsic(m_prebuilt->table);
-
-	if (!intrinsic && TrxInInnoDB::is_aborted(trx)) {
+	if (TrxInInnoDB::is_aborted(trx)) {
 
 		innobase_rollback(ht, m_user_thd, false);
 
@@ -10721,17 +10525,8 @@ ha_innobase::general_fetch(
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	if (!intrinsic) {
-
-		ret = row_search_mvcc(
-			buf, PAGE_CUR_UNSUPP, m_prebuilt, match_mode,
-			direction);
-
-	} else {
-		ret = row_search_no_mvcc(
-			buf, PAGE_CUR_UNSUPP, m_prebuilt, match_mode,
-			direction);
-	}
+	ret = row_search_mvcc(
+		buf, PAGE_CUR_UNSUPP, m_prebuilt, match_mode, direction);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 
@@ -10885,8 +10680,7 @@ ha_innobase::rnd_init(
 {
 	TrxInInnoDB	trx_in_innodb(m_prebuilt->trx);
 
-	if (!dict_table_is_intrinsic(m_prebuilt->table)
-	    && trx_in_innodb.is_aborted()) {
+	if (trx_in_innodb.is_aborted()) {
 
 		return(innobase_rollback(ht, m_user_thd, false));
 	}
@@ -12136,25 +11930,6 @@ create_table_info_t::create_table_def()
 			continue;
 		}
 
-		/* Generate a unique column name by pre-pending table-name for
-		intrinsic tables. For other tables (including normal
-		temporary) column names are unique. If not, MySQL layer will
-		block such statement.
-		This is work-around fix till Optimizer can handle this issue
-		(probably 5.7.4+). */
-		char field_name[MAX_FULL_NAME_LEN + 2 + 10];
-
-		if (dict_table_is_intrinsic(table) && field->orig_table) {
-
-			ut_snprintf(field_name, sizeof(field_name),
-				    "%s_%s_%lu", field->orig_table->alias.c_ptr(),
-				    field->field_name, i);
-
-		} else {
-			ut_snprintf(field_name, sizeof(field_name),
-				    "%s", field->field_name);
-		}
-
 		col_type = get_innobase_type_from_mysql_type(
 			&unsigned_type, field);
 
@@ -12230,9 +12005,9 @@ create_table_info_t::create_table_def()
 
 		/* First check whether the column to be added has a
 		system reserved name. */
-		if (dict_col_name_is_reserved(field_name)){
+		if (dict_col_name_is_reserved(field->field_name)){
 			my_error(ER_WRONG_COLUMN_NAME, MYF(0),
-				 field_name);
+				 field->field_name);
 err_col:
 			dict_mem_table_free(table);
 			mem_heap_free(heap);
@@ -12244,7 +12019,7 @@ err_col:
 
 		if (!is_virtual) {
 			dict_mem_table_add_col(table, heap,
-				field_name, col_type,
+				field->field_name, col_type,
 				dtype_form_prtype(
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
@@ -12254,7 +12029,7 @@ err_col:
 		} else {
 #ifdef MYSQL_VIRTUAL_COLUMNS
 			dict_mem_table_add_v_col(table, heap,
-				field_name, col_type,
+				field->field_name, col_type,
 				dtype_form_prtype(
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
@@ -12370,18 +12145,8 @@ err_col:
 
 				temp_table_heap = mem_heap_create(256);
 
-				/* For intrinsic table (given that they are
-				not shared beyond session scope), add
-				it to session specific THD structure
-				instead of adding it to dictionary cache. */
-				if (dict_table_is_intrinsic(table)) {
-					add_table_to_thread_cache(
-						table, temp_table_heap, m_thd);
-
-				} else {
-					dict_table_add_to_cache(
-						table, FALSE, temp_table_heap);
-				}
+				dict_table_add_to_cache(
+					table, FALSE, temp_table_heap);
 
 				DBUG_EXECUTE_IF("ib_ddl_crash_during_create2",
 						DBUG_SUICIDE(););
@@ -12564,7 +12329,7 @@ create_index(
 
 		DBUG_RETURN(convert_error_code_to_mysql(
 				    row_create_index_for_mysql(
-					    index, trx, NULL, NULL),
+					    index, trx, NULL),
 				    flags, NULL));
 
 	}
@@ -12595,26 +12360,6 @@ create_index(
 	index = dict_mem_index_create(table_name, key->name, 0,
 				      ind_type, key->user_defined_key_parts);
 
-	innodb_session_t*& priv = thd_to_innodb_session(trx->mysql_thd);
-	dict_table_t* handler = priv->lookup_table_handler(table_name);
-
-	if (handler != NULL) {
-		/* This setting will enforce SQL NULL == SQL NULL.
-		For now this is turned-on for intrinsic tables
-		only but can be turned on for other tables if needed arises. */
-		index->nulls_equal =
-			(key->flags & HA_NULL_ARE_EQUAL) ? true : false;
-
-		/* Disable use of AHI for intrinsic table indexes as AHI
-		validates the predicated entry using index-id which has to be
-		system-wide unique that is not the case with indexes of
-		intrinsic table for performance reason.
-		Also given the lifetime of these tables and frequent delete
-		and update AHI would not help on performance front as it does
-		with normal tables. */
-		index->disable_ahi = true;
-	}
-
 	for (ulint i = 0; i < key->user_defined_key_parts; i++) {
 		KEY_PART_INFO*	key_part = key->key_part + i;
 		ulint		prefix_len;
@@ -12638,13 +12383,6 @@ create_index(
 		  ut_error;
 
 		const char*	field_name = key_part->field->field_name;
-		if (handler != NULL && dict_table_is_intrinsic(handler)) {
-
-			ut_ad(!innobase_is_v_fld(key_part->field));
-			ulint	col_no = dict_col_get_no(dict_table_get_nth_col(
-					handler, key_part->field->field_index));
-			field_name = dict_table_get_col_name(handler, col_no);
-		}
 
 		col_type = get_innobase_type_from_mysql_type(
 			&is_unsigned, key_part->field);
@@ -12694,12 +12432,8 @@ create_index(
 	sure we don't create too long indexes. */
 
 	error = convert_error_code_to_mysql(
-		row_create_index_for_mysql(index, trx, field_lengths, handler),
+		row_create_index_for_mysql(index, trx, field_lengths),
 		flags, NULL);
-
-	if (error && handler != NULL) {
-		priv->unregister_table_handler(table_name);
-	}
 
 	my_free(field_lengths);
 
@@ -12726,26 +12460,7 @@ create_clustered_index_when_no_primary(
 				      innobase_index_reserve_name,
 				      0, DICT_CLUSTERED, 0);
 
-	innodb_session_t*& priv = thd_to_innodb_session(trx->mysql_thd);
-
-	dict_table_t* handler = priv->lookup_table_handler(table_name);
-
-	if (handler != NULL) {
-		/* Disable use of AHI for intrinsic table indexes as AHI
-		validates the predicated entry using index-id which has to be
-		system-wide unique that is not the case with indexes of
-		intrinsic table for performance reason.
-		Also given the lifetime of these tables and frequent delete
-		and update AHI would not help on performance front as it does
-		with normal tables. */
-		index->disable_ahi = true;
-	}
-
-	error = row_create_index_for_mysql(index, trx, NULL, handler);
-
-	if (error != DB_SUCCESS && handler != NULL) {
-		priv->unregister_table_handler(table_name);
-	}
+	error = row_create_index_for_mysql(index, trx, NULL);
 
 	return(convert_error_code_to_mysql(error, flags, NULL));
 }
@@ -13862,22 +13577,6 @@ index_bad:
 
 	if (m_create_info->options & HA_LEX_CREATE_TMP_TABLE) {
 		m_flags2 |= DICT_TF2_TEMPORARY;
-		/* Intrinsic tables reside only in the shared temporary
-		tablespace and we will always use ROW_FORMAT=DYNAMIC. */
-
-#ifdef MYSQL_COMPRESSION
-		if ((m_create_info->options & HA_LEX_CREATE_INTERNAL_TMP_TABLE)
-		    && !m_use_file_per_table) {
-
-			/* We do not allow compressed instrinsic
-			temporary tables. */
-
-			ut_ad(zip_ssize == 0);
-			m_flags2 |= DICT_TF2_INTRINSIC;
-			innodb_row_format = REC_FORMAT_DYNAMIC;
-		}
-#endif
-
 	}
 
 	/* Set the table flags */
@@ -14188,7 +13887,7 @@ create_table_info_t::prepare_create_table(
 		DBUG_RETURN(HA_WRONG_CREATE_OPTION);
 	}
 
-	if (high_level_read_only && !is_intrinsic_temp_table()) {
+	if (high_level_read_only) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
 
@@ -14332,17 +14031,7 @@ create_table_info_t::create_table()
 
 	stmt = innobase_get_stmt_unsafe(m_thd, &stmt_len);
 
-	innodb_session_t*&	priv =
-		thd_to_innodb_session(m_trx->mysql_thd);
-	dict_table_t*		handler =
-		priv->lookup_table_handler(m_table_name);
-
-	ut_ad(handler == NULL
-	      || (handler != NULL && dict_table_is_intrinsic(handler)));
-
-	/* There is no concept of foreign key for intrinsic tables. */
-	if (stmt && (handler == NULL)) {
-
+	if (stmt) {
 		dberr_t	err = row_table_add_foreign_constraints(
 			m_trx, stmt, stmt_len, m_table_name,
 			m_create_info->options & HA_LEX_CREATE_TMP_TABLE);
@@ -14388,23 +14077,15 @@ create_table_info_t::create_table()
 		error = convert_error_code_to_mysql(err, m_flags, NULL);
 
 		if (error) {
-			if (handler != NULL) {
-				priv->unregister_table_handler(m_table_name);
-			}
 			DBUG_RETURN(error);
 		}
 	}
 
-	if (!is_intrinsic_temp_table()) {
-		innobase_table = dict_table_open_on_name(
-			m_table_name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
+	innobase_table = dict_table_open_on_name(
+		m_table_name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
 
-		if (innobase_table != NULL) {
-			dict_table_close(innobase_table, TRUE, FALSE);
-		}
-
-	} else {
-		innobase_table = NULL;
+	if (innobase_table != NULL) {
+		dict_table_close(innobase_table, TRUE, FALSE);
 	}
 
 	DBUG_RETURN(0);
@@ -14419,17 +14100,8 @@ create_table_info_t::create_table_update_dict()
 
 	DBUG_ENTER("create_table_update_dict");
 
-	innobase_table = thd_to_innodb_session(m_thd)->lookup_table_handler(
-		m_table_name);
-
-
-	if (innobase_table == NULL) {
-		innobase_table = dict_table_open_on_name(
-			m_table_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
-	} else {
-		innobase_table->acquire();
-		ut_ad(dict_table_is_intrinsic(innobase_table));
-	}
+	innobase_table = dict_table_open_on_name(
+		m_table_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 
 	DBUG_ASSERT(innobase_table != 0);
 	if (innobase_table->fts != NULL) {
@@ -14563,13 +14235,8 @@ ha_innobase::create(
 
 	/* Latch the InnoDB data dictionary exclusively so that no deadlocks
 	or lock waits can happen in it during a table create operation.
-	Drop table etc. do this latching in row0mysql.cc.
-	Avoid locking dictionary if table is intrinsic.
-	Table Object for such table is cached in THD instead of storing it
-	to dictionary. */
-	if (!info.is_intrinsic_temp_table()) {
-		row_mysql_lock_data_dictionary(trx);
-	}
+	Drop table etc. do this latching in row0mysql.cc. */
+	row_mysql_lock_data_dictionary(trx);
 
 	if ((error = info.create_table())) {
 		goto cleanup;
@@ -14577,14 +14244,12 @@ ha_innobase::create(
 
 	innobase_commit_low(trx);
 
-	if (!info.is_intrinsic_temp_table()) {
-		ut_ad(!srv_read_only_mode);
-		row_mysql_unlock_data_dictionary(trx);
-		/* Flush the log to reduce probability that the .frm files and
-		the InnoDB data dictionary get out-of-sync if the user runs
-		with innodb_flush_log_at_trx_commit = 0 */
-		log_buffer_flush_to_disk();
-	}
+	ut_ad(!srv_read_only_mode);
+	row_mysql_unlock_data_dictionary(trx);
+	/* Flush the log to reduce probability that the .frm files and
+	the InnoDB data dictionary get out-of-sync if the user runs
+	with innodb_flush_log_at_trx_commit = 0 */
+	log_buffer_flush_to_disk();
 
 	error = info.create_table_update_dict();
 
@@ -14599,38 +14264,7 @@ ha_innobase::create(
 
 cleanup:
 	trx_rollback_for_mysql(trx);
-
-	if (!info.is_intrinsic_temp_table()) {
-		row_mysql_unlock_data_dictionary(trx);
-	} else {
-		THD* thd = info.thd();
-
-		dict_table_t* intrinsic_table =
-			thd_to_innodb_session(thd)->lookup_table_handler(
-			info.table_name());
-
-		if (intrinsic_table != NULL) {
-			thd_to_innodb_session(thd)->unregister_table_handler(
-				info.table_name());
-
-			for (;;) {
-				dict_index_t*	index;
-				index = UT_LIST_GET_FIRST(
-					intrinsic_table->indexes);
-				if (index == NULL) {
-					break;
-				}
-				rw_lock_free(&index->lock);
-				UT_LIST_REMOVE(intrinsic_table->indexes, index);
-				dict_mem_index_free(index);
-				index = NULL;
-			}
-
-			dict_mem_table_free(intrinsic_table);
-			intrinsic_table = NULL;
-		}
-	}
-
+	row_mysql_unlock_data_dictionary(trx);
 	trx_free_for_mysql(trx);
 
 	DBUG_RETURN(error);
@@ -14785,11 +14419,6 @@ ha_innobase::truncate()
 {
 	DBUG_ENTER("ha_innobase::truncate");
 
-	/* Truncate of intrinsic table is not allowed truncate for now. */
-	if (dict_table_is_intrinsic(m_prebuilt->table)) {
-		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-	}
-
 	if (high_level_read_only) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
@@ -14868,17 +14497,7 @@ ha_innobase::delete_table(
 	extension, in contrast to ::create */
 	normalize_table_name(norm_name, name);
 
-	innodb_session_t*&	priv = thd_to_innodb_session(thd);
-	dict_table_t*		handler = priv->lookup_table_handler(norm_name);
-
-	if (handler != NULL) {
-		for (dict_index_t* index = UT_LIST_GET_FIRST(handler->indexes);
-		     index != NULL;
-		     index = UT_LIST_GET_NEXT(indexes, index)) {
-			index->last_ins_cur->release();
-			index->last_sel_cur->release();
-		}
-	} else if (srv_read_only_mode) {
+	if (srv_read_only_mode) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
 
@@ -14924,7 +14543,7 @@ ha_innobase::delete_table(
 
 	err = row_drop_table_for_mysql(
 		norm_name, trx, thd_sql_command(thd) == SQLCOM_DROP_DB,
-		false, handler);
+		false);
 
 	if (err == DB_TABLE_NOT_FOUND
 	    && innobase_get_lower_case_table_names() == 1) {
@@ -15024,20 +14643,16 @@ ha_innobase::delete_table(
 			err = row_drop_table_for_mysql(
 				par_case_name, trx,
 				thd_sql_command(thd) == SQLCOM_DROP_DB,
-				true, handler);
+				true);
 		}
 	}
 
-	if (handler == NULL) {
-		ut_ad(!srv_read_only_mode);
-		/* Flush the log to reduce probability that the .frm files and
-		the InnoDB data dictionary get out-of-sync if the user runs
-		with innodb_flush_log_at_trx_commit = 0 */
+	ut_ad(!srv_read_only_mode);
+	/* Flush the log to reduce probability that the .frm files and
+	the InnoDB data dictionary get out-of-sync if the user runs
+	with innodb_flush_log_at_trx_commit = 0 */
 
-		log_buffer_flush_to_disk();
-	} else if (err == DB_SUCCESS) {
-		priv->unregister_table_handler(norm_name);
-	}
+	log_buffer_flush_to_disk();
 
 	innobase_commit_low(trx);
 
@@ -16656,9 +16271,8 @@ ha_innobase::info_low(
 		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
 
 		if (os_file_get_status(
-			path, &stat_info, false,
-			(dict_table_is_intrinsic(ib_table)
-			? false : srv_read_only_mode)) == DB_SUCCESS) {
+			    path, &stat_info, false,
+			    srv_read_only_mode) == DB_SUCCESS) {
 			stats.create_time = (ulong) stat_info.ctime;
 		}
 	}
@@ -16719,72 +16333,6 @@ ha_innobase::info(
 	uint	flag)	/*!< in: what information is requested */
 {
 	return(info_low(flag, false /* not ANALYZE */));
-}
-
-/** Enable indexes.
-@param[in]	mode	enable index mode.
-@return HA_ERR_* error code or 0 */
-int
-ha_innobase::enable_indexes(
-	uint	mode)
-{
-	int	error = HA_ERR_WRONG_COMMAND;
-
-	/* Enable index only for intrinsic table. Behavior for all other
-	table continue to remain same. */
-
-	if (dict_table_is_intrinsic(m_prebuilt->table)) {
-		ut_ad(mode == HA_KEY_SWITCH_ALL);
-		for (dict_index_t* index
-			= UT_LIST_GET_FIRST(m_prebuilt->table->indexes);
-		     index != NULL;
-		     index = UT_LIST_GET_NEXT(indexes, index)) {
-
-			/* InnoDB being clustered index we can't disable/enable
-			clustered index itself. */
-			if (dict_index_is_clust(index)) {
-				continue;
-			}
-
-			index->allow_duplicates = false;
-		}
-		error = 0;
-	}
-
-	return(error);
-}
-
-/** Disable indexes.
-@param[in]	mode	disable index mode.
-@return HA_ERR_* error code or 0 */
-int
-ha_innobase::disable_indexes(
-	uint	mode)
-{
-	int	error = HA_ERR_WRONG_COMMAND;
-
-	/* Disable index only for intrinsic table. Behavior for all other
-	table continue to remain same. */
-
-	if (dict_table_is_intrinsic(m_prebuilt->table)) {
-		ut_ad(mode == HA_KEY_SWITCH_ALL);
-		for (dict_index_t* index
-			= UT_LIST_GET_FIRST(m_prebuilt->table->indexes);
-		     index != NULL;
-		     index = UT_LIST_GET_NEXT(indexes, index)) {
-
-			/* InnoDB being clustered index we can't disable/enable
-			clustered index itself. */
-			if (dict_index_is_clust(index)) {
-				continue;
-			}
-
-			index->allow_duplicates = true;
-		}
-		error = 0;
-	}
-
-	return(error);
 }
 
 /*
@@ -17910,16 +17458,6 @@ ha_innobase::start_stmt(
 
 	TrxInInnoDB	trx_in_innodb(trx);
 
-	if (dict_table_is_intrinsic(m_prebuilt->table)) {
-
-		if (thd_sql_command(thd) == SQLCOM_ALTER_TABLE) {
-
-			DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-		}
-
-		DBUG_RETURN(0);
-	}
-
 	trx = m_prebuilt->trx;
 
 	innobase_srv_conc_force_exit_innodb(trx);
@@ -18048,18 +17586,6 @@ ha_innobase::external_lock(
 	trx_t*		trx = m_prebuilt->trx;
 
 	ut_ad(m_prebuilt->table);
-
-	if (dict_table_is_intrinsic(m_prebuilt->table)) {
-
-		if (thd_sql_command(thd) == SQLCOM_ALTER_TABLE) {
-
-			DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-		}
-
-		TrxInInnoDB::begin_stmt(trx);
-
-		DBUG_RETURN(0);
-	}
 
 	/* Statement based binlogging does not work in isolation level
 	READ UNCOMMITTED and READ COMMITTED since the necessary
@@ -18983,7 +18509,6 @@ ha_innobase::store_lock(
 	const uint sql_command = thd_sql_command(thd);
 
 	if (srv_read_only_mode
-	    && !dict_table_is_intrinsic(m_prebuilt->table)
 	    && (sql_command == SQLCOM_UPDATE
 		|| sql_command == SQLCOM_INSERT
 		|| sql_command == SQLCOM_REPLACE

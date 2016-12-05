@@ -160,8 +160,6 @@ dict_mem_table_create(
 	dict_table_autoinc_create_lazy(table);
 
 	table->autoinc = 0;
-	table->sess_row_id = 0;
-	table->sess_trx_id = 0;
 
 	/* The number of transactions that are either waiting on the
 	AUTOINC lock or have been granted the lock. */

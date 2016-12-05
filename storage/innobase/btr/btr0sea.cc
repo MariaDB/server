@@ -1214,7 +1214,9 @@ retry:
 	(buf_fix_count == 0 when DROP TABLE or similar is executing
 	buf_LRU_drop_page_hash_for_tablespace()). */
 	ut_a(index == block->index);
+#ifdef MYSQL_INDEX_DISABLE_AHI
 	ut_ad(!index->disable_ahi);
+#endif
 
 	ut_ad(block->page.id.space() == index->space);
 	ut_a(index_id == index->id);
@@ -1437,7 +1439,10 @@ btr_search_build_page_hash_index(
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*		offsets		= offsets_;
 
-	if (index->disable_ahi || !btr_search_enabled) {
+#ifdef MYSQL_INDEX_DISABLE_AHI
+	if (index->disable_ahi) return;
+#endif
+	if (!btr_search_enabled) {
 		return;
 	}
 
@@ -1614,14 +1619,12 @@ btr_search_move_or_delete_hash_entries(
 	buf_block_t*	block,
 	dict_index_t*	index)
 {
-	/* AHI is disabled for intrinsic table as it depends on index-id
-	which is dynamically assigned for intrinsic table indexes and not
-	through a centralized index generator. */
-	if (index->disable_ahi || !btr_search_enabled) {
+#ifdef MYSQL_INDEX_DISABLE_AHI
+	if (index->disable_ahi) return;
+#endif
+	if (!btr_search_enabled) {
 		return;
 	}
-
-	ut_ad(!dict_table_is_intrinsic(index->table));
 
 	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_X));
 	ut_ad(rw_lock_own(&(new_block->lock), RW_LOCK_X));
@@ -1681,7 +1684,10 @@ btr_search_update_hash_on_delete(btr_cur_t* cursor)
 	mem_heap_t*	heap		= NULL;
 	rec_offs_init(offsets_);
 
-	if (cursor->index->disable_ahi || !btr_search_enabled) {
+#ifdef MYSQL_INDEX_DISABLE_AHI
+	if (cursor->index->disable_ahi) return;
+#endif
+	if (!btr_search_enabled) {
 		return;
 	}
 
@@ -1740,7 +1746,10 @@ btr_search_update_hash_node_on_insert(btr_cur_t* cursor)
 	dict_index_t*	index;
 	rec_t*		rec;
 
-	if (cursor->index->disable_ahi || !btr_search_enabled) {
+#ifdef MYSQL_INDEX_DISABLE_AHI
+	if (cursor->index->disable_ahi) return;
+#endif
+	if (!btr_search_enabled) {
 		return;
 	}
 
@@ -1817,7 +1826,10 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor)
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	if (cursor->index->disable_ahi || !btr_search_enabled) {
+#ifdef MYSQL_INDEX_DISABLE_AHI
+	if (cursor->index->disable_ahi) return;
+#endif
+	if (!btr_search_enabled) {
 		return;
 	}
 
@@ -1839,7 +1851,9 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor)
 
 	rec = btr_cur_get_rec(cursor);
 
+#ifdef MYSQL_INDEX_DISABLE_AHI
 	ut_a(!index->disable_ahi);
+#endif
 	ut_a(index == cursor->index);
 	ut_a(!dict_index_is_ibuf(index));
 

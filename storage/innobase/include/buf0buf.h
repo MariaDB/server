@@ -570,9 +570,6 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[in]	line		line where called
 @param[in]	mtr		mini-transaction
 @param[out]	err		DB_SUCCESS or error code
-@param[in]	dirty_with_no_latch
-				mark page as dirty even if page
-				is being pinned without any latch
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
@@ -584,8 +581,7 @@ buf_page_get_gen(
 	const char*		file,
 	ulint			line,
 	mtr_t*			mtr,
-	dberr_t*		err,
-	bool			dirty_with_no_latch = false);
+	dberr_t*		err);
 
 /** Initializes a page to the buffer buf_pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
@@ -1901,12 +1897,6 @@ struct buf_block_t{
 					complete, though: there may
 					have been hash collisions,
 					record deletions, etc. */
-	bool		made_dirty_with_no_latch;
-					/*!< true if block has been made dirty
-					without acquiring X/SX latch as the
-					block belongs to temporary tablespace
-					and block is always accessed by a
-					single thread. */
 	bool		skip_flush_check;
 					/*!< Skip check in buf_dblwr_check_block
 					during bulk load, protected by lock.*/

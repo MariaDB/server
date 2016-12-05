@@ -4934,8 +4934,7 @@ fil_space_extend(
 	fil_space_t*	space,
 	ulint		size)
 {
-	/* In read-only mode we allow write to shared temporary tablespace
-	as intrinsic table created by Optimizer reside in this tablespace. */
+	/* In read-only mode we allow writes to temporary tables. */
 	ut_ad(!srv_read_only_mode || fsp_is_system_temporary(space->id));
 
 retry:
