@@ -1051,7 +1051,7 @@ String *Item_func_json_array_insert::val_str(String *str)
       if (s_p &&
           (json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
                            (const uchar *) s_p->ptr() + s_p->length()) ||
-           c_path->p.last_step - 1 > c_path->p.steps ||
+           c_path->p.last_step - 1 < c_path->p.steps ||
            c_path->p.last_step->type != JSON_PATH_ARRAY))
         goto error;
       c_path->parsed= c_path->constant;

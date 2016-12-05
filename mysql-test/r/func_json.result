@@ -55,18 +55,21 @@ json_array_append('["a", "b"]', '$', FALSE)
 select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
 json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2)
 {"k1":1, "k2":["a", "b", 2]}
-SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x');
-JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x')
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x')
 ["a", "x", {"b": [1, 2]}, [3, 4]]
-SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x');
-JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x')
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x')
 ["a", {"b": [1, 2]}, "x", [3, 4]]
-SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x');
-JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x')
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x')
 ["a", {"b": [1, 2]}, [3, 4], "x"]
-SELECT JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x');
-JSON_ARRAY_INSERT('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x')
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x')
 ["a", {"b": [1, 2]}, [3, 4], "x"]
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x')
+["a", {"b": [ "x",1, 2]}, [3, 4]]
 select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
 json_contains('{"k1":123, "k2":345}', '123', '$.k1')
 1
