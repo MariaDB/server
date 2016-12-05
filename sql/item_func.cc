@@ -830,237 +830,196 @@ void Item_func_num1::fix_length_and_dec()
 }
 
 
-String *Item_func_hybrid_field_type::val_str(String *str)
+String *Item_func_hybrid_field_type::val_str_from_decimal_op(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
-  switch (Item_func_hybrid_field_type::cmp_type()) {
-  case DECIMAL_RESULT:
-  {
-    my_decimal decimal_value, *val;
-    if (!(val= decimal_op_with_null_check(&decimal_value)))
-      return 0;                                 // null is set
-    my_decimal_round(E_DEC_FATAL_ERROR, val, decimals, FALSE, val);
-    str->set_charset(collation.collation);
-    my_decimal2string(E_DEC_FATAL_ERROR, val, 0, 0, 0, str);
-    break;
-  }
-  case INT_RESULT:
-  {
-    longlong nr= int_op();
-    if (null_value)
-      return 0; /* purecov: inspected */
-    str->set_int(nr, unsigned_flag, collation.collation);
-    break;
-  }
-  case REAL_RESULT:
-  {
-    double nr= real_op();
-    if (null_value)
-      return 0; /* purecov: inspected */
-    str->set_real(nr, decimals, collation.collation);
-    break;
-  }
-  case TIME_RESULT:
-  {
-    MYSQL_TIME ltime;
-    if (date_op_with_null_check(&ltime) ||
-        (null_value= str->alloc(MAX_DATE_STRING_REP_LENGTH)))
-      return (String *) 0;
-    ltime.time_type= mysql_type_to_time_type(field_type());
-    str->length(my_TIME_to_str(&ltime, const_cast<char*>(str->ptr()), decimals));
-    str->set_charset(&my_charset_bin);
-    DBUG_ASSERT(!null_value);
-    return str;
-  }
-  case STRING_RESULT:
-    return str_op_with_null_check(&str_value);
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
-  }
-  DBUG_ASSERT(!null_value || (str == NULL));
+  my_decimal decimal_value, *val;
+  if (!(val= decimal_op_with_null_check(&decimal_value)))
+    return 0;                                 // null is set
+  DBUG_ASSERT(!null_value);
+  my_decimal_round(E_DEC_FATAL_ERROR, val, decimals, FALSE, val);
+  str->set_charset(collation.collation);
+  my_decimal2string(E_DEC_FATAL_ERROR, val, 0, 0, 0, str);
   return str;
 }
 
-
-double Item_func_hybrid_field_type::val_real()
+double Item_func_hybrid_field_type::val_real_from_decimal_op()
 {
-  DBUG_ASSERT(fixed == 1);
-  switch (Item_func_hybrid_field_type::cmp_type()) {
-  case DECIMAL_RESULT:
-  {
-    my_decimal decimal_value, *val;
-    double result;
-    if (!(val= decimal_op_with_null_check(&decimal_value)))
-      return 0.0;                               // null is set
-    my_decimal2double(E_DEC_FATAL_ERROR, val, &result);
-    return result;
-  }
-  case INT_RESULT:
-  {
-    longlong result= int_op();
-    return unsigned_flag ? (double) ((ulonglong) result) : (double) result;
-  }
-  case REAL_RESULT:
-    return real_op();
-  case TIME_RESULT:
-  {
-    MYSQL_TIME ltime;
-    if (date_op_with_null_check(&ltime))
-      return 0;
-    ltime.time_type= mysql_type_to_time_type(field_type());
-    return TIME_to_double(&ltime);
-  }
-  case STRING_RESULT:
-  {
-    String *res= str_op_with_null_check(&str_value);
-    return res ? double_from_string_with_check(res) : 0.0;
-  }
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
-  }
-  return 0.0;
+  my_decimal decimal_value, *val;
+  if (!(val= decimal_op_with_null_check(&decimal_value)))
+    return 0.0;                               // null is set
+  double result;
+  my_decimal2double(E_DEC_FATAL_ERROR, val, &result);
+  return result;
 }
 
-
-longlong Item_func_hybrid_field_type::val_int()
+longlong Item_func_hybrid_field_type::val_int_from_decimal_op()
 {
-  DBUG_ASSERT(fixed == 1);
-  switch (Item_func_hybrid_field_type::cmp_type()) {
-  case DECIMAL_RESULT:
-  {
-    my_decimal decimal_value, *val;
-    if (!(val= decimal_op_with_null_check(&decimal_value)))
-      return 0;                                 // null is set
-    longlong result;
-    my_decimal2int(E_DEC_FATAL_ERROR, val, unsigned_flag, &result);
-    return result;
-  }
-  case INT_RESULT:
-    return int_op();
-  case REAL_RESULT:
-    return (longlong) rint(real_op());
-  case TIME_RESULT:
-  {
-    MYSQL_TIME ltime;
-    if (date_op_with_null_check(&ltime))
-      return 0;
-    ltime.time_type= mysql_type_to_time_type(field_type());
-    return TIME_to_ulonglong(&ltime);
-  }
-  case STRING_RESULT:
-  {
-    String *res= str_op_with_null_check(&str_value);
-    return res ? longlong_from_string_with_check(res) : 0;
-  }
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
-  }
-  return 0;
+  my_decimal decimal_value, *val;
+  if (!(val= decimal_op_with_null_check(&decimal_value)))
+    return 0;                                 // null is set
+  longlong result;
+  my_decimal2int(E_DEC_FATAL_ERROR, val, unsigned_flag, &result);
+  return result;
 }
 
-
-my_decimal *Item_func_hybrid_field_type::val_decimal(my_decimal *decimal_value)
+bool Item_func_hybrid_field_type::get_date_from_decimal_op(MYSQL_TIME *ltime,
+                                                           ulonglong fuzzydate)
 {
-  my_decimal *val= decimal_value;
-  DBUG_ASSERT(fixed == 1);
-  switch (Item_func_hybrid_field_type::cmp_type()) {
-  case DECIMAL_RESULT:
-    val= decimal_op_with_null_check(decimal_value);
-    break;
-  case INT_RESULT:
-  {
-    longlong result= int_op();
-    if (null_value)
-      return NULL;
-    int2my_decimal(E_DEC_FATAL_ERROR, result, unsigned_flag, decimal_value);
-    break;
-  }
-  case REAL_RESULT:
-  {
-    double result= (double)real_op();
-    if (null_value)
-      return NULL;
-    double2my_decimal(E_DEC_FATAL_ERROR, result, decimal_value);
-    break;
-  }
-  case TIME_RESULT:
-  {
-    MYSQL_TIME ltime;
-    if (date_op_with_null_check(&ltime))
-    {
-      my_decimal_set_zero(decimal_value);
-      return 0;
-    }
-    ltime.time_type= mysql_type_to_time_type(field_type());
-    return date2my_decimal(&ltime, decimal_value);
-  }
-  case STRING_RESULT:
-  {
-    String *res= str_op_with_null_check(&str_value);
-    return res ? decimal_from_string_with_check(decimal_value, res) : 0;
-  }  
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
-  }
-  return val;
-}
-
-
-bool Item_func_hybrid_field_type::get_date(MYSQL_TIME *ltime,
-                                            ulonglong fuzzydate)
-{
-  DBUG_ASSERT(fixed == 1);
-  switch (Item_func_hybrid_field_type::cmp_type()) {
-  case DECIMAL_RESULT:
-  {
-    my_decimal value, *res;
-    if (!(res= decimal_op_with_null_check(&value)) ||
-        decimal_to_datetime_with_warn(res, ltime, fuzzydate,
-                                      field_name_or_null()))
-      goto err;
-    break;
-  }
-  case INT_RESULT:
-  {
-    longlong value= int_op();
-    bool neg= !unsigned_flag && value < 0;
-    if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
-                                                ltime, fuzzydate,
-                                                field_name_or_null()))
-      goto err;
-    break;
-  }
-  case REAL_RESULT:
-  {
-    double value= real_op();
-    if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
-                                                   field_name_or_null()))
-      goto err;
-    break;
-  }
-  case TIME_RESULT:
-    return date_op(ltime,
-                   fuzzydate |
-                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0));
-  case STRING_RESULT:
-  {
-    char buff[40];
-    String tmp(buff,sizeof(buff), &my_charset_bin),*res;
-    if (!(res= str_op_with_null_check(&tmp)) ||
-        str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
-                                  ltime, fuzzydate))
-      goto err;
-    break;
-  }
-  case ROW_RESULT:
-    DBUG_ASSERT(0);
-  }
-
+  my_decimal value, *res;
+  if (!(res= decimal_op_with_null_check(&value)) ||
+      decimal_to_datetime_with_warn(res, ltime, fuzzydate,
+                                    field_name_or_null()))
+    return make_zero_mysql_time(ltime, fuzzydate);
   return (null_value= 0);
+}
 
-err:
-  bzero(ltime, sizeof(*ltime));
-  return null_value|= !(fuzzydate & TIME_FUZZY_DATES);  
+
+String *Item_func_hybrid_field_type::val_str_from_int_op(String *str)
+{
+  longlong nr= int_op();
+  if (null_value)
+    return 0; /* purecov: inspected */
+  str->set_int(nr, unsigned_flag, collation.collation);
+  return str;
+}
+
+double Item_func_hybrid_field_type::val_real_from_int_op()
+{
+  longlong result= int_op();
+  return unsigned_flag ? (double) ((ulonglong) result) : (double) result;
+}
+
+my_decimal *
+Item_func_hybrid_field_type::val_decimal_from_int_op(my_decimal *dec)
+{
+  longlong result= int_op();
+  if (null_value)
+    return NULL;
+  int2my_decimal(E_DEC_FATAL_ERROR, result, unsigned_flag, dec);
+  return dec;
+}
+
+bool Item_func_hybrid_field_type::get_date_from_int_op(MYSQL_TIME *ltime,
+                                                       ulonglong fuzzydate)
+{
+  longlong value= int_op();
+  bool neg= !unsigned_flag && value < 0;
+  if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
+                                              ltime, fuzzydate,
+                                              field_name_or_null()))
+    return make_zero_mysql_time(ltime, fuzzydate);
+  return (null_value= 0);
+}
+
+
+String *Item_func_hybrid_field_type::val_str_from_real_op(String *str)
+{
+  double nr= real_op();
+  if (null_value)
+    return 0; /* purecov: inspected */
+  str->set_real(nr, decimals, collation.collation);
+  return str;
+}
+
+longlong Item_func_hybrid_field_type::val_int_from_real_op()
+{
+  return (longlong) rint(real_op());
+}
+
+my_decimal *
+Item_func_hybrid_field_type::val_decimal_from_real_op(my_decimal *dec)
+{
+  double result= (double) real_op();
+  if (null_value)
+    return NULL;
+  double2my_decimal(E_DEC_FATAL_ERROR, result, dec);
+  return dec;
+}
+
+bool Item_func_hybrid_field_type::get_date_from_real_op(MYSQL_TIME *ltime,
+                                                        ulonglong fuzzydate)
+{
+  double value= real_op();
+  if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
+                                                 field_name_or_null()))
+    return make_zero_mysql_time(ltime, fuzzydate);
+  return (null_value= 0);
+}
+
+
+String *Item_func_hybrid_field_type::val_str_from_date_op(String *str)
+{
+  MYSQL_TIME ltime;
+  if (date_op_with_null_check(&ltime) ||
+      (null_value= str->alloc(MAX_DATE_STRING_REP_LENGTH)))
+    return (String *) 0;
+  ltime.time_type= mysql_type_to_time_type(field_type());
+  str->length(my_TIME_to_str(&ltime, const_cast<char*>(str->ptr()), decimals));
+  str->set_charset(&my_charset_bin);
+  DBUG_ASSERT(!null_value);
+  return str;
+}
+
+double Item_func_hybrid_field_type::val_real_from_date_op()
+{
+  MYSQL_TIME ltime;
+  if (date_op_with_null_check(&ltime))
+    return 0;
+  ltime.time_type= mysql_type_to_time_type(field_type());
+  return TIME_to_double(&ltime);
+}
+longlong Item_func_hybrid_field_type::val_int_from_date_op()
+{
+  MYSQL_TIME ltime;
+  if (date_op_with_null_check(&ltime))
+    return 0;
+  ltime.time_type= mysql_type_to_time_type(field_type());
+  return TIME_to_ulonglong(&ltime);
+}
+
+my_decimal *
+Item_func_hybrid_field_type::val_decimal_from_date_op(my_decimal *dec)
+{
+  MYSQL_TIME ltime;
+  if (date_op_with_null_check(&ltime))
+  {
+    my_decimal_set_zero(dec);
+    return 0;
+  }
+  ltime.time_type= mysql_type_to_time_type(field_type());
+  return date2my_decimal(&ltime, dec);
+}
+
+
+double Item_func_hybrid_field_type::val_real_from_str_op()
+{
+  String *res= str_op_with_null_check(&str_value);
+  return res ? double_from_string_with_check(res) : 0.0;
+}
+
+longlong Item_func_hybrid_field_type::val_int_from_str_op()
+{
+  String *res= str_op_with_null_check(&str_value);
+  return res ? longlong_from_string_with_check(res) : 0;
+}
+
+my_decimal *
+Item_func_hybrid_field_type::val_decimal_from_str_op(my_decimal *decimal_value)
+{
+  String *res= str_op_with_null_check(&str_value);
+  return res ? decimal_from_string_with_check(decimal_value, res) : 0;
+}
+
+bool Item_func_hybrid_field_type::get_date_from_str_op(MYSQL_TIME *ltime,
+                                                       ulonglong fuzzydate)
+{
+  StringBuffer<40> tmp;
+  String *res;
+  if (!(res= str_op_with_null_check(&tmp)) ||
+      str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
+                                ltime, fuzzydate))
+    return make_zero_mysql_time(ltime, fuzzydate);
+  return (null_value= 0);
 }
 
 
