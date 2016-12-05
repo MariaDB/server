@@ -237,6 +237,9 @@ NULL
 select json_merge('a','b');
 json_merge('a','b')
 NULL
+select json_merge('{"a":"b"}','{"c":"d"}');
+json_merge('{"a":"b"}','{"c":"d"}')
+{"a":"b", "c":"d"}
 select json_type('{"k1":123, "k2":345}');
 json_type('{"k1":123, "k2":345}')
 OBJECT
