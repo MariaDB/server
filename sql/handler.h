@@ -286,6 +286,9 @@ enum enum_alter_inplace_result {
  */
 #define HA_BINLOG_FLAGS (HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE)
 
+/* The following is for partition handler */
+#define HA_CAN_MULTISTEP_MERGE (1LL << 53)
+
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
 #define HA_READ_PREV            2       /* supports ::index_prev */
@@ -1413,6 +1416,7 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 #define HTON_TEMPORARY_NOT_SUPPORTED (1 << 6) //Having temporary tables not supported
 #define HTON_SUPPORT_LOG_TABLES      (1 << 7) //Engine supports log tables
 #define HTON_NO_PARTITION            (1 << 8) //Not partition of these tables
+#define HTON_CAN_MULTISTEP_MERGE     (1 << 9) //You can merge mearged tables
 
 /*
   This flag should be set when deciding that the engine does not allow
@@ -2774,6 +2778,11 @@ public:
   virtual void unbind_psi();
   virtual void rebind_psi();
 
+  bool set_top_table_fields;
+  struct TABLE *top_table;
+  Field **top_table_field;
+  uint top_table_fields;
+
 private:
   /**
     The lock type set by when calling::ha_external_lock(). This is 
@@ -2808,7 +2817,9 @@ public:
     pushed_idx_cond(NULL),
     pushed_idx_cond_keyno(MAX_KEY),
     auto_inc_intervals_count(0),
-    m_psi(NULL), m_lock_type(F_UNLCK), ha_share(NULL)
+    m_psi(NULL), set_top_table_fields(FALSE), top_table(0),
+    top_table_field(0), top_table_fields(0),
+    m_lock_type(F_UNLCK), ha_share(NULL)
   {
     DBUG_PRINT("info",
                ("handler created F_UNLCK %d F_RDLCK %d F_WRLCK %d",
@@ -3656,6 +3667,36 @@ public:
    Pops the top if condition stack, if stack is not empty.
  */
  virtual void cond_pop() { return; };
+
+ /**
+    This function is used to get correlating of a parent (table/column)
+    and children (table/column). When conditions are pushed down to child
+    table (like child of myisam_merge), child table needs to know about
+    which table/column is my parent for understanding conditions.
+ */
+ virtual int set_top_table_and_fields(TABLE *top_table,
+                                      Field **top_table_field,
+                                      uint top_table_fields)
+ {
+   if (!set_top_table_fields)
+   {
+     set_top_table_fields= TRUE;
+     this->top_table= top_table;
+     this->top_table_field= top_table_field;
+     this->top_table_fields= top_table_fields;
+   }
+   return 0;
+ }
+ virtual void clear_top_table_fields()
+ {
+   if (set_top_table_fields)
+   {
+     set_top_table_fields= FALSE;
+     top_table= NULL;
+     top_table_field= NULL;
+     top_table_fields= 0;
+   }
+ }
 
  /**
    Push down an index condition to the handler.

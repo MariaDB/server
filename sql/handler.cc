@@ -6000,6 +6000,7 @@ int handler::ha_reset()
   /* Reset information about pushed engine conditions */
   cancel_pushed_idx_cond();
   /* Reset information about pushed index conditions */
+  clear_top_table_fields();
   DBUG_RETURN(reset());
 }
 
