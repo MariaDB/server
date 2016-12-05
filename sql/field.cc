@@ -9801,6 +9801,84 @@ err:
 }
 
 
+bool Column_definition::prepare_interval_field(MEM_ROOT *mem_root,
+                                               bool reuse_interval_list_values)
+{
+  DBUG_ENTER("Column_definition::prepare_interval_field");
+  DBUG_ASSERT(sql_type == MYSQL_TYPE_ENUM || sql_type == MYSQL_TYPE_SET);
+  /*
+    Interval values are either in "interval" or in "interval_list",
+    but not in both at the same time, and are not empty at the same time.
+    - Values are in "interval_list" when we're coming from the parser
+      in CREATE TABLE or in CREATE {FUNCTION|PROCEDURE}.
+    - Values are in "interval" when we're in ALTER TABLE.
+
+    In a corner case with an empty set like SET(''):
+    - after the parser we have interval_list.elements==1
+    - in ALTER TABLE we have a non-NULL interval with interval->count==1,
+      with interval->type_names[0]=="" and interval->type_lengths[0]==0.
+    So the assert is still valid for this corner case.
+
+    ENUM and SET with no values at all (e.g. ENUM(), SET()) are not possible,
+    as the parser requires at least one element, so for a ENUM or SET field it
+    should never happen that both internal_list.elements and interval are 0.
+  */
+  DBUG_ASSERT((interval == NULL) == (interval_list.elements > 0));
+
+  /*
+    Create typelib from interval_list, and if necessary
+    convert strings from client character set to the
+    column character set.
+  */
+  if (interval_list.elements &&
+      create_interval_from_interval_list(mem_root,
+                                         reuse_interval_list_values))
+    DBUG_RETURN(true);
+
+  if (!reuse_interval_list_values)
+  {
+    /*
+      We're initializing from an existing table or view Field_enum
+      (e.g. for a %TYPE variable) rather than from the parser.
+      The constructor Column_definition(THD*,Field*,Field*) has already
+      copied the TYPELIB pointer from the original Field_enum.
+      Now we need to make a permanent copy of that TYPELIB,
+      as the original field can be freed before the end of the life
+      cycle of "this".
+    */
+    DBUG_ASSERT(interval);
+    if (!(interval= copy_typelib(mem_root, interval)))
+      DBUG_RETURN(true);
+  }
+  prepare_interval_field_calc_length();
+  DBUG_RETURN(false);
+}
+
+
+void Column_definition::set_attributes(const Lex_field_type_st &type,
+                                       CHARSET_INFO *cs)
+{
+  DBUG_ASSERT(sql_type == MYSQL_TYPE_NULL);
+  DBUG_ASSERT(charset == &my_charset_bin || charset == NULL);
+  DBUG_ASSERT(length == 0);
+  DBUG_ASSERT(decimals == 0);
+
+  sql_type= type.field_type();
+  charset= cs;
+
+  if (type.length())
+  {
+    int err;
+    length= my_strtoll10(type.length(), NULL, &err);
+    if (err)
+      length= ~0ULL; // safety
+  }
+
+  if (type.dec())
+    decimals= (uint) atoi(type.dec());
+}
+
+
 /**
   Convert create_field::length from number of characters to number of bytes.
 */
@@ -10540,6 +10618,7 @@ Field *make_field(TABLE_SHARE *share,
 Column_definition::Column_definition(THD *thd, Field *old_field,
                                                Field *orig_field)
 {
+  on_update=  NULL;
   field_name= old_field->field_name;
   length=     old_field->field_length;
   flags=      old_field->flags;

@@ -833,23 +833,6 @@ void LEX::init_last_field(Column_definition *field, const char *field_name,
   charset= cs;
 }
 
-void LEX::set_last_field_type(const Lex_field_type_st &type)
-{
-  last_field->sql_type= type.field_type();
-  last_field->charset= charset;
-
-  if (type.length())
-  {
-    int err;
-    last_field->length= my_strtoll10(type.length(), NULL, &err);
-    if (err)
-      last_field->length= ~0ULL; // safety
-  }
-  else
-    last_field->length= 0;
-
-  last_field->decimals= type.dec() ? (uint)atoi(type.dec()) : 0;
-}
 
 bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
 {
@@ -6109,7 +6092,7 @@ field_spec:
             lex->init_last_field(f, $1.str, NULL);
             $<create_field>$= f;
           }
-          field_type  { Lex->set_last_field_type($3); }
+          field_type  { Lex->last_field->set_attributes($3, Lex->charset); }
           field_def
           {
             LEX *lex=Lex;
@@ -6615,7 +6598,7 @@ type_with_opt_collate:
             if (!(Lex->charset= merge_charset_and_collation(Lex->charset, $2)))
               MYSQL_YYABORT;
           }
-          Lex->set_last_field_type($1);
+          Lex->last_field->set_attributes($1, Lex->charset);
         }
         ;
 
