@@ -275,6 +275,10 @@ private:
   MY_BITMAP m_key_not_found_partitions;
   bool m_key_not_found;
 public:
+  handler **get_child_handlers()
+  {
+    return m_file;
+  }
   Partition_share *get_part_share() { return part_share; }
   handler *clone(const char *name, MEM_ROOT *mem_root);
   virtual void set_part_info(partition_info *part_info)
@@ -1203,6 +1207,7 @@ public:
   */
     virtual const COND *cond_push(const COND *cond);
     virtual void cond_pop();
+    virtual void clear_top_table_fields();
 
     private:
     int handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt, uint flags);

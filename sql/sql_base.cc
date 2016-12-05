@@ -1096,14 +1096,32 @@ unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
 
   table= table->find_table_for_update();
 
-  if (table->table && table->table->file->ht->db_type == DB_TYPE_MRG_MYISAM)
+  if (table->table &&
+      table->table->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
   {
     TABLE_LIST *child;
     dup= NULL;
     /* Check duplicates of all merge children. */
-    for (child= table->next_global; child && child->parent_l == table;
+    for (child= table->next_global; child;
          child= child->next_global)
     {
+      if (child->table &&
+          child->table->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
+        continue;
+
+      /*
+        Ensure that the child has one parent that is the table that is
+        updated.
+      */
+      TABLE_LIST *tmp_parent= child;
+      while ((tmp_parent= tmp_parent->parent_l))
+      {
+        if (tmp_parent == table)
+          break;
+      }
+      if (!tmp_parent)
+        break;
+
       if ((dup= find_dup_table(thd, child, child->next_global, check_alias)))
         break;
     }
@@ -1112,6 +1130,8 @@ unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
     dup= find_dup_table(thd, table, table_list, check_alias);
   return dup;
 }
+
+
 /*
   Issue correct error message in case we found 2 duplicate tables which
   prevent some update operation
@@ -4056,7 +4076,7 @@ restart:
       continue;
 
     /* Schema tables may not have a TABLE object here. */
-    if (tbl->file->ht->db_type == DB_TYPE_MRG_MYISAM)
+    if (tbl->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
     {
       /* MERGE tables need to access parent and child TABLE_LISTs. */
       DBUG_ASSERT(tbl->pos_in_table_list == tables);
@@ -4602,7 +4622,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type lock_type,
     */
     DBUG_ASSERT(table_list->table);
     table= table_list->table;
-    if (table->file->ht->db_type == DB_TYPE_MRG_MYISAM)
+    if (table->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
     {
       /* A MERGE table must not come here. */
       /* purecov: begin tested */

@@ -3537,6 +3537,13 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
       name_buffer_ptr+= strlen(name_buffer_ptr) + 1;
     } while (*(++file));
   }
+  /*
+    We want to know the upper bound for locks, to allocate enough memory.
+    There is no performance lost if we simply return in lock_count() the
+    maximum number locks needed, only some minor over allocation of memory
+    in get_lock_data().
+  */
+  m_num_locks*= m_tot_parts;
   
   file= m_file;
   ref_length= (*file)->ref_length;
@@ -3978,25 +3985,14 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
   @returns Number of locks returned in call to store_lock
 
   @desc
-    Returns the number of store locks needed in call to store lock.
-    We return number of partitions we will lock multiplied with number of
-    locks needed by each partition. Assists the above functions in allocating
-    sufficient space for lock structures.
+    Returns the maxinum possible number of store locks needed in call to
+    store lock.
 */
 
 uint ha_partition::lock_count() const
 {
   DBUG_ENTER("ha_partition::lock_count");
-  /*
-    The caller want to know the upper bound, to allocate enough memory.
-    There is no performance lost if we simply return maximum number locks
-    needed, only some minor over allocation of memory in get_lock_data().
-
-    Also notice that this may be called for another thread != table->in_use,
-    when mysql_lock_abort_for_thread() is called. So this is more safe, then
-    using number of partitions after pruning.
-  */
-  DBUG_RETURN(m_tot_parts * m_num_locks);
+  DBUG_RETURN(m_num_locks);
 }
 
 
@@ -7253,19 +7249,36 @@ int ha_partition::extra(enum ha_extra_function operation)
   }
     /* Category 9) Operations only used by MERGE */
   case HA_EXTRA_ADD_CHILDREN_LIST:
+    DBUG_RETURN(loop_extra(operation));
   case HA_EXTRA_ATTACH_CHILDREN:
-  case HA_EXTRA_IS_ATTACHED_CHILDREN:
-  case HA_EXTRA_DETACH_CHILDREN:
   {
-    /* Special actions for MERGE tables. Ignore. */
+    int result;
+    uint num_locks= 0;
+    handler **file;
+    if ((result = loop_extra(operation)))
+      DBUG_RETURN(result);
+
+    /* Recalculate lock count as each child may have different set of locks */
+    num_locks = 0;
+    file = m_file;
+    do
+    {
+      num_locks+= (*file)->lock_count();
+    } while (*(++file));
+
+    m_num_locks= num_locks;
     break;
   }
+  case HA_EXTRA_IS_ATTACHED_CHILDREN:
+    DBUG_RETURN(loop_extra(operation));
+  case HA_EXTRA_DETACH_CHILDREN:
+    DBUG_RETURN(loop_extra(operation));
+  case HA_EXTRA_MARK_AS_LOG_TABLE:
   /*
     http://dev.mysql.com/doc/refman/5.1/en/partitioning-limitations.html
     says we no longer support logging to partitioned tables, so we fail
     here.
   */
-  case HA_EXTRA_MARK_AS_LOG_TABLE:
     DBUG_RETURN(ER_UNSUPORTED_LOG_ENGINE);
   default:
   {
@@ -9139,6 +9152,22 @@ const COND *ha_partition::cond_push(const COND *cond)
   COND *res_cond = NULL;
   DBUG_ENTER("ha_partition::cond_push");
 
+  if (set_top_table_fields)
+  {
+    /*
+      We want to do this in a separate loop to not come into a situation
+      where we have only done cond_push() to some of the tables
+    */
+    do
+    {
+      if (((*file)->set_top_table_and_fields(top_table,
+                                             top_table_field,
+                                             top_table_fields)))
+        DBUG_RETURN(cond);                      // Abort cond push, no error
+    } while (*(++file));
+    file= m_file;
+  }
+
   do
   {
     if ((*file)->pushed_cond != cond)
@@ -9163,6 +9192,17 @@ void ha_partition::cond_pop()
     (*file)->cond_pop();
   } while (*(++file));
   DBUG_VOID_RETURN;
+}
+
+void ha_partition::clear_top_table_fields()
+{
+  handler **file;
+  if (set_top_table_fields)
+  {
+    set_top_table_fields = FALSE;
+    for (file= m_file; *file; file++)
+      (*file)->clear_top_table_fields();
+  }
 }
 
 
