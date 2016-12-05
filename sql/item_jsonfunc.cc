@@ -1667,9 +1667,7 @@ String *Item_func_json_remove::val_str(String *str)
             rem_start= (const char *) (je.s.c_str - je.sav_c_len);
           json_string_set_str(&key_name, lp->key, lp->key_end);
           if (json_key_matches(&je, &key_name))
-          {
             goto v_found;
-          }
 
           if (json_skip_key(&je))
             goto error;
@@ -1693,7 +1691,7 @@ v_found:
     if (json_skip_key(&je) || json_scan_next(&je))
       goto error;
 
-    rem_end= (je.state == JST_VALUE) ? 
+    rem_end= (je.state == JST_VALUE && n_item == 0) ? 
       (const char *) je.s.c_str : (const char *) (je.s.c_str - je.sav_c_len);
 
     str->length(0);

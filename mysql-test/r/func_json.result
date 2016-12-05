@@ -150,7 +150,7 @@ json_remove(@j, '$[0]')
 [ ["b", "c"], "d"]
 select json_remove(@j, '$[1]');
 json_remove(@j, '$[1]')
-["a" "d"]
+["a", "d"]
 select json_remove(@j, '$[2]');
 json_remove(@j, '$[2]')
 ["a", ["b", "c"]]
