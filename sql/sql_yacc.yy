@@ -13235,10 +13235,11 @@ opt_extended_describe:
 
 opt_format_json:
           /* empty */ {}
-        | FORMAT_SYM '=' JSON_SYM { Lex->explain_json= true; }
         | FORMAT_SYM '=' ident_or_text
           {
-            if (!my_strcasecmp(system_charset_info, $3.str, "TRADITIONAL"))
+            if (!my_strcasecmp(system_charset_info, $3.str, "JSON"))
+              Lex->explain_json= true;
+            else if (!my_strcasecmp(system_charset_info, $3.str, "TRADITIONAL"))
               DBUG_ASSERT(Lex->explain_json==false);
             else
               my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0), $3.str));
@@ -14738,6 +14739,7 @@ keyword_sp:
         | IPC_SYM                  {}
         | ISOLATION                {}
         | ISSUER_SYM               {}
+        | JSON_SYM                 {}
         | INSERT_METHOD            {}
         | KEY_BLOCK_SIZE           {}
         | LAST_VALUE               {}

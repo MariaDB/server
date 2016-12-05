@@ -310,3 +310,10 @@ json_length('{}')
 select json_length('[1, 2, {"a": 3}]');
 json_length('[1, 2, {"a": 3}]')
 3
+create table json (j INT);
+show create table json;
+Table	Create Table
+json	CREATE TABLE `json` (
+  `j` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table json;
