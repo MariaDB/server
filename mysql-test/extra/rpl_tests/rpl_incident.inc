@@ -1,0 +1,54 @@
+#
+# This include file is used by more than one test suite
+# (currently rpl and binlog_encryption).
+# Please check all dependent tests after modifying it
+#
+
+--source include/master-slave.inc
+--source include/have_debug.inc
+
+--echo **** On Master ****
+CREATE TABLE t1 (a INT);
+
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1;
+
+let $debug_save= `SELECT @@GLOBAL.debug`;
+SET GLOBAL debug_dbug= '+d,incident_database_resync_on_replace,*';
+
+# This will generate an incident log event and store it in the binary
+# log before the replace statement.
+REPLACE INTO t1 VALUES (4);
+--save_master_pos
+SELECT * FROM t1;
+
+--disable_query_log
+eval SET GLOBAL debug_dbug= '$debug_save';
+--enable_query_log
+
+connection slave;
+# Wait until SQL thread stops with error LOST_EVENT on master
+call mtr.add_suppression("Slave SQL.*The incident LOST_EVENTS occurred on the master.* 1590");
+let $slave_sql_errno= 1590;
+let $show_slave_sql_error= 1;
+source include/wait_for_slave_sql_error.inc;
+
+# The 4 should not be inserted into the table, since the incident log
+# event should have stop the slave.
+--echo **** On Slave ****
+SELECT * FROM t1;
+
+SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
+START SLAVE;
+--sync_with_master
+
+# Now, we should have inserted the row into the table and the slave
+# should be running. We should also have rotated to a new binary log.
+
+SELECT * FROM t1;
+source include/check_slave_is_running.inc;
+
+connection master;
+DROP TABLE t1;
+--sync_slave_with_master
+--source include/rpl_end.inc

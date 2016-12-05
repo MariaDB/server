@@ -1,0 +1,9 @@
+!include my.cnf
+
+[mysqld.1]
+binlog-checksum=CRC32
+master-verify-checksum=1
+
+[mysqld.2]
+binlog-checksum=CRC32
+slave-sql-verify-checksum=1

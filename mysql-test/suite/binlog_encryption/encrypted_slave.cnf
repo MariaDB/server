@@ -1,0 +1,12 @@
+!include my.cnf
+
+[mysqld.1]
+encrypt-binlog=0
+
+[mysqld.2]
+#log-slave-updates
+encrypt-binlog
+plugin-load-add= @ENV.FILE_KEY_MANAGEMENT_SO
+file-key-management
+loose-file-key-management-filename= @ENV.MYSQL_TEST_DIR/std_data/keys.txt
+binlog_checksum=NONE

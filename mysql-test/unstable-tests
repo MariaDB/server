@@ -89,6 +89,10 @@ binlog.binlog_xa_recover                  : MDEV-8517 - Extra checkpoint
 
 #----------------------------------------------------------------
 
+binlog_encryption.*                : Added in 10.1.20
+
+#----------------------------------------------------------------
+
 connect.tbl             : MDEV-9844, MDEV-10179 - sporadic crashes, valgrind warnings, wrong results
 connect.jdbc            : New test, added on 2016-07-15
 connect.jdbc-new        : New test, added on 2016-07-14
