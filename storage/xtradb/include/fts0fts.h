@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -366,8 +367,8 @@ extern ulong		fts_min_token_size;
 need a sync to free some memory */
 extern bool		fts_need_sync;
 
-/** Maximum possible Fulltext word length */
-#define FTS_MAX_WORD_LEN		HA_FT_MAXBYTELEN
+/** Maximum possible Fulltext word length in bytes (assuming mbmaxlen=4) */
+#define FTS_MAX_WORD_LEN		(HA_FT_MAXCHARLEN * 4)
 
 /** Maximum possible Fulltext word length (in characters) */
 #define FTS_MAX_WORD_LEN_IN_CHAR	HA_FT_MAXCHARLEN
