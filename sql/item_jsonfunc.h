@@ -278,7 +278,7 @@ public:
 class Item_func_json_merge: public Item_func_json_array
 {
 protected:
-  String tmp_val;
+  String tmp_js1, tmp_js2;
 public:
   Item_func_json_merge(THD *thd, List<Item> &list):
     Item_func_json_array(thd, list) {}

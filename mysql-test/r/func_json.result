@@ -218,7 +218,22 @@ select json_merge('string');
 ERROR 42000: Incorrect parameter count in the call to native function 'json_merge'
 select json_merge('string', 123);
 json_merge('string', 123)
+NULL
+select json_merge('"string"', 123);
+json_merge('"string"', 123)
 ["string", 123]
+select json_merge('[1, 2]', '[true, false]');
+json_merge('[1, 2]', '[true, false]')
+[1, 2, true, false]
+select json_merge('{"1": 2}', '{"true": false}');
+json_merge('{"1": 2}', '{"true": false}')
+{"1": 2, "true": false}
+select json_merge('{"1": 2}', '{"true": false}', '{"3": 4}');
+json_merge('{"1": 2}', '{"true": false}', '{"3": 4}')
+{"1": 2, "true": false, "3": 4}
+select json_merge(NULL,json_object('foo', 1));
+json_merge(NULL,json_object('foo', 1))
+NULL
 select json_type('{"k1":123, "k2":345}');
 json_type('{"k1":123, "k2":345}')
 OBJECT

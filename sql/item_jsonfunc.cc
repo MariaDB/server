@@ -1219,28 +1219,74 @@ err_return:
 String *Item_func_json_merge::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
+  json_engine_t je1, je2;
+  String *js1= args[0]->val_str(&tmp_js1);
   uint n_arg;
 
-  str->length(0);
-
-  if (str->append("[", 1) ||
-      ((arg_count > 0) && append_json_value(str, args[0], &tmp_val)))
-    goto err_return;
+  if (args[0]->null_value)
+    goto error_return;
 
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
-    if (str->append(", ", 2) ||
-        append_json_value(str, args[n_arg], &tmp_val))
-      goto err_return;
+    String *js2= args[n_arg]->val_str(&tmp_js2);
+    if (args[n_arg]->null_value)
+      goto error_return;
+
+    json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
+                    (const uchar *) js1->ptr() + js1->length());
+
+    json_scan_start(&je2, js2->charset(),(const uchar *) js2->ptr(),
+                    (const uchar *) js2->ptr() + js2->length());
+
+    if (json_read_value(&je1) || json_read_value(&je2))
+      goto error_return;
+
+    str->length(0);
+    if ((je1.value_type == JSON_VALUE_ARRAY &&
+         je2.value_type == JSON_VALUE_ARRAY)  ||
+        (je1.value_type == JSON_VALUE_OBJECT &&
+         je2.value_type == JSON_VALUE_OBJECT))
+    {
+      /* Merge the adjancent arrays or objects. */
+      if (json_skip_level(&je1))
+        goto error_return;
+      if (str->append(js1->ptr(),
+                 ((const char *)je1.s.c_str - js1->ptr()) - je1.sav_c_len) ||
+          str->append(", ", 2) ||
+          str->append((const char *)je2.s.c_str,
+                 js2->length() - ((const char *)je2.s.c_str - js2->ptr())))
+        goto error_return;
+    }
+    else
+    {
+      /* Wrap as an array. */
+      if (str->append("[", 1) ||
+          str->append(js1->ptr(), js1->length()) ||
+          str->append(", ", 2) ||
+          str->append(js2->ptr(), js2->length()) ||
+          str->append("]", 1))
+        goto error_return;
+    }
+
+    {
+      /* Swap str and js1. */
+      if (str == &tmp_js1)
+      {
+        str= js1;
+        js1= &tmp_js1;
+      }
+      else
+      {
+        js1= str;
+        str= &tmp_js1;
+      }
+    }
   }
 
-  if (str->append("]", 1))
-    goto err_return;
+  null_value= 0;
+  return js1;
 
-  return str;
-
-err_return:
-  /*TODO: Launch out of memory error. */
+error_return:
   null_value= 1;
   return NULL;
 }
