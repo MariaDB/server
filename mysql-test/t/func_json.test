@@ -28,6 +28,7 @@ select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x');
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x');
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x');
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x');
+select json_array_insert('true', '$', 1);
 
 select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
 select json_contains('"you"', '"you"');
