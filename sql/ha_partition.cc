@@ -1538,7 +1538,8 @@ int ha_partition::prepare_new_partition(TABLE *tbl,
   if ((error= set_up_table_before_create(tbl, part_name, create_info, p_elem)))
     goto error_create;
 
-  tbl->s->connect_string = p_elem->connect_string;
+  if (!(file->ht->flags & HTON_CAN_READ_CONNECT_STRING_IN_PARTITION))
+    tbl->s->connect_string= p_elem->connect_string;
   if ((error= file->ha_create(part_name, tbl, create_info)))
   {
     /*
@@ -2115,7 +2116,8 @@ void ha_partition::update_create_info(HA_CREATE_INFO *create_info)
   my_bool from_alter = (create_info->data_file_name == (const char*) -1);
   create_info->data_file_name= create_info->index_file_name = NULL;
 
-  create_info->connect_string= null_lex_str;
+  if (!(m_file[0]->ht->flags & HTON_CAN_READ_CONNECT_STRING_IN_PARTITION))
+    create_info->connect_string= null_lex_str;
 
   /*
     We do not need to update the individual partition DATA DIRECTORY settings
@@ -3523,14 +3525,17 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
    file= m_file;
    do
    {
+      LEX_STRING save_connect_string= table->s->connect_string;
       if ((error= create_partition_name(name_buff, sizeof(name_buff), name,
                                 name_buffer_ptr, NORMAL_PART_NAME, FALSE)))
         goto err_handler;
-      table->s->connect_string = m_connect_string[(uint)(file-m_file)];
-      if ((error= (*file)->ha_open(table, name_buff, mode,
-                                   test_if_locked | HA_OPEN_NO_PSI_CALL)))
+      if (!((*file)->ht->flags & HTON_CAN_READ_CONNECT_STRING_IN_PARTITION))
+        table->s->connect_string= m_connect_string[(uint)(file-m_file)];
+      error= (*file)->ha_open(table, name_buff, mode,
+                              test_if_locked | HA_OPEN_NO_PSI_CALL);
+      table->s->connect_string= save_connect_string;
+      if (error)
         goto err_handler;
-      bzero(&table->s->connect_string, sizeof(LEX_STRING));
       if (m_file == file)
         m_num_locks= (*file)->lock_count();
       DBUG_ASSERT(m_num_locks == (*file)->lock_count());

@@ -1394,6 +1394,8 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 #define HTON_SUPPORT_LOG_TABLES      (1 << 7) //Engine supports log tables
 #define HTON_NO_PARTITION            (1 << 8) //Not partition of these tables
 #define HTON_CAN_MULTISTEP_MERGE     (1 << 9) //You can merge mearged tables
+// Engine needs to access the main connect string in partitions
+#define HTON_CAN_READ_CONNECT_STRING_IN_PARTITION (1 << 10)
 
 /*
   This flag should be set when deciding that the engine does not allow
