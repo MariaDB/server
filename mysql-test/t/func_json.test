@@ -121,6 +121,7 @@ drop table t1;
 
 
 select json_unquote('"abc"');
+select json_unquote('abc');
 
 select json_object("a", json_object("b", "abcd"));
 select json_object("a", '{"b": "abcd"}');

@@ -359,8 +359,8 @@ String *Item_func_json_unquote::val_str(String *str)
   return str;
 
 error:
-  null_value= 1;
-  return 0;
+  /* We just return the argument's value in the case of error. */
+  return js;
 }
 
 
