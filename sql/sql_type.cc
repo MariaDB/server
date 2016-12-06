@@ -23,7 +23,6 @@
 static Type_handler_tiny        type_handler_tiny;
 static Type_handler_short       type_handler_short;
 static Type_handler_long        type_handler_long;
-static Type_handler_longlong    type_handler_longlong;
 static Type_handler_int24       type_handler_int24;
 static Type_handler_year        type_handler_year;
 static Type_handler_bit         type_handler_bit;
@@ -38,7 +37,6 @@ static Type_handler_datetime2   type_handler_datetime2;
 static Type_handler_timestamp   type_handler_timestamp;
 static Type_handler_timestamp2  type_handler_timestamp2;
 static Type_handler_olddecimal  type_handler_olddecimal;
-static Type_handler_newdecimal  type_handler_newdecimal;
 static Type_handler_string      type_handler_string;
 static Type_handler_tiny_blob   type_handler_tiny_blob;
 static Type_handler_medium_blob type_handler_medium_blob;
@@ -54,6 +52,8 @@ static Type_handler_set         type_handler_set;
 Type_handler_null        type_handler_null;
 Type_handler_row         type_handler_row;
 Type_handler_varchar     type_handler_varchar;
+Type_handler_longlong    type_handler_longlong;
+Type_handler_newdecimal  type_handler_newdecimal;
 
 
 /**
@@ -120,6 +120,55 @@ Type_handler::get_handler_by_cmp_type(Item_result type)
 Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
   :m_type_handler(&type_handler_double)
 {
+}
+
+
+/*
+  Collect built-in data type handlers for comparison.
+  This method is very similar to item_cmp_type() defined in item.cc.
+  Now they coexist. Later item_cmp_type() will be removed.
+  In addition to item_cmp_type(), this method correctly aggregates
+  TIME with DATETIME/TIMESTAMP/DATE, so no additional find_date_time_item()
+  is needed after this call.
+*/
+void
+Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
+{
+  Item_result a= cmp_type();
+  Item_result b= h->cmp_type();
+  if (a == STRING_RESULT && b == STRING_RESULT)
+    m_type_handler= &type_handler_long_blob;
+  else if (a == INT_RESULT && b == INT_RESULT)
+    m_type_handler= &type_handler_longlong;
+  else if (a == ROW_RESULT || b == ROW_RESULT)
+    m_type_handler= &type_handler_row;
+  else if (a == TIME_RESULT || b == TIME_RESULT)
+  {
+    if ((a == TIME_RESULT) + (b == TIME_RESULT) == 1)
+    {
+      /*
+        We're here if there's only one temporal data type:
+        either m_type_handler or h.
+      */
+      if (b == TIME_RESULT)
+        m_type_handler= h; // Temporal types bit non-temporal types
+    }
+    else
+    {
+      /*
+        We're here if both m_type_handler and h are temporal data types.
+      */
+      if (field_type() != MYSQL_TYPE_TIME || h->field_type() != MYSQL_TYPE_TIME)
+        m_type_handler= &type_handler_datetime; // DATETIME bits TIME
+    }
+  }
+  else if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
+           (b == INT_RESULT || b == DECIMAL_RESULT))
+  {
+    m_type_handler= &type_handler_newdecimal;
+  }
+  else
+    m_type_handler= &type_handler_double;
 }
 
 
@@ -1138,6 +1187,46 @@ Type_handler_string_result::Item_func_hybrid_field_type_get_date(
                                              ulonglong fuzzydate) const
 {
   return item->get_date_from_str_op(ltime, fuzzydate);
+}
+
+/***************************************************************************/
+
+longlong Type_handler_row::
+           Item_func_between_val_int(Item_func_between *func) const
+{
+  DBUG_ASSERT(0);
+  func->null_value= true;
+  return 0;
+}
+
+longlong Type_handler_string_result::
+           Item_func_between_val_int(Item_func_between *func) const
+{
+  return func->val_int_cmp_string();
+}
+
+longlong Type_handler_temporal_result::
+           Item_func_between_val_int(Item_func_between *func) const
+{
+  return func->val_int_cmp_temporal();
+}
+
+longlong Type_handler_int_result::
+           Item_func_between_val_int(Item_func_between *func) const
+{
+  return func->val_int_cmp_int();
+}
+
+longlong Type_handler_real_result::
+           Item_func_between_val_int(Item_func_between *func) const
+{
+  return func->val_int_cmp_real();
+}
+
+longlong Type_handler_decimal_result::
+           Item_func_between_val_int(Item_func_between *func) const
+{
+  return func->val_int_cmp_decimal();
 }
 
 /***************************************************************************/

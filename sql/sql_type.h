@@ -29,6 +29,7 @@ class Item_cache;
 class Item_sum_hybrid;
 class Item_func_hex;
 class Item_func_hybrid_field_type;
+class Item_func_between;
 class Type_std_attributes;
 class Sort_param;
 class Arg_comparator;
@@ -314,6 +315,8 @@ public:
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const= 0;
 
+  virtual longlong
+  Item_func_between_val_int(Item_func_between *func) const= 0;
 };
 
 
@@ -410,6 +413,7 @@ public:
     return true;
   }
 
+  longlong Item_func_between_val_int(Item_func_between *func) const;
 };
 
 
@@ -457,6 +461,7 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  longlong Item_func_between_val_int(Item_func_between *func) const;
 };
 
 
@@ -489,6 +494,7 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  longlong Item_func_between_val_int(Item_func_between *func) const;
 };
 
 
@@ -521,6 +527,7 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  longlong Item_func_between_val_int(Item_func_between *func) const;
 };
 
 
@@ -551,6 +558,7 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  longlong Item_func_between_val_int(Item_func_between *func) const;
 };
 
 
@@ -585,6 +593,7 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  longlong Item_func_between_val_int(Item_func_between *func) const;
 };
 
 
@@ -960,6 +969,10 @@ public:
   {
     return (m_type_handler= Type_handler::get_handler_by_result_type(type));
   }
+  const Type_handler *set_handler_by_cmp_type(Item_result type)
+  {
+    return (m_type_handler= Type_handler::get_handler_by_cmp_type(type));
+  }
   const Type_handler *set_handler_by_result_type(Item_result type,
                                                  uint max_octet_length,
                                                  CHARSET_INFO *cs)
@@ -977,6 +990,8 @@ public:
   {
     return (m_type_handler= Type_handler::get_handler_by_real_type(type));
   }
+  void aggregate_for_comparison(const Type_handler *other);
+  bool aggregate_for_comparison(Item **items, uint nitems);
 };
 
 
@@ -997,5 +1012,7 @@ public:
 extern Type_handler_row   type_handler_row;
 extern Type_handler_null  type_handler_null;
 extern Type_handler_varchar type_handler_varchar;
+extern Type_handler_longlong type_handler_longlong;
+extern Type_handler_newdecimal type_handler_newdecimal;
 
 #endif /* SQL_TYPE_H_INCLUDED */
