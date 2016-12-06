@@ -248,7 +248,7 @@ our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
 
 our $opt_gcov;
-our $opt_gcov_src_dir;
+our $opt_gcov_src_dir=".";
 our $opt_gcov_exe= "gcov";
 our $opt_gcov_err= "mysql-test-gcov.err";
 our $opt_gcov_msg= "mysql-test-gcov.msg";

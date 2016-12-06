@@ -27,7 +27,7 @@ sub gcov_prepare ($) {
   print "Purging gcov information from '$dir'...\n";
 
   system("find $dir -name \*.gcov -o -name \*.da"
-             . " -o -name \*.gcda | grep -v 'README.gcov\$' | xargs rm");
+             . " -o -name \*.gcda | xargs rm");
 }
 
 #

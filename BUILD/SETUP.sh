@@ -293,7 +293,7 @@ gcov_compile_flags="$gcov_compile_flags -DMYSQL_SERVER_SUFFIX=-gcov -DHAVE_gcov"
 # GCC4 needs -fprofile-arcs -ftest-coverage on the linker command line (as well
 # as on the compiler command line), and this requires setting LDFLAGS for BDB.
 
-gcov_link_flags="-fprofile-arcs -ftest-coverage"
+gcov_link_flags="-fprofile-arcs -ftest-coverage -lgcov"
 
 gcov_configs="--with-gcov"
 
