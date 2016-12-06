@@ -3853,7 +3853,7 @@ public:
   Column_definition(const char *name, enum_field_types type):
     field_name(name),
     comment(null_lex_str),
-    on_update(0), sql_type(type), length(0), decimals(0),
+    on_update(NULL), sql_type(type), length(0), decimals(0),
     flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
@@ -3947,6 +3947,43 @@ public:
   {
     return unireg_check == Field::TIMESTAMP_DN_FIELD
         || unireg_check == Field::TIMESTAMP_DNUN_FIELD;
+  }
+
+  // Replace the entire value by another definition
+  void set_column_definition(const Column_definition *def)
+  {
+    *this= *def;
+  }
+};
+
+
+/**
+  This class is used during a stored routine or a trigger execution,
+  at sp_rcontext::create() time.
+  Currently it can represent:
+  - variables with explicit data types:   DECLARE a INT;
+  - variables with data type references:  DECLARE a t1.a%TYPE;
+
+  Data type references to other object types will be added soon, e.g.:
+  - DECLARE a table_name%ROWTYPE;
+  - DECLARE a cursor_name%ROWTYPE;
+  - DECLARE a record_name%TYPE;
+  - DECLARE a variable_name%TYPE;
+*/
+class Spvar_definition: public Column_definition
+{
+  class Qualified_column_ident *m_column_type_ref; // for %TYPE
+public:
+  Spvar_definition()
+   :m_column_type_ref(NULL) { }
+  bool is_column_type_ref() const { return m_column_type_ref != 0; }
+  class Qualified_column_ident *column_type_ref() const
+  {
+    return m_column_type_ref;
+  }
+  void set_column_type_ref(class Qualified_column_ident *ref)
+  {
+    m_column_type_ref= ref;
   }
 };
 

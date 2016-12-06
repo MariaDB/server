@@ -1440,6 +1440,7 @@ public:
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
+  Field *find_field_by_name(const char *str) const;
 };
 
 

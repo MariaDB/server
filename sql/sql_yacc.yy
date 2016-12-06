@@ -2940,7 +2940,7 @@ sp_decl_body:
           sp_opt_default
           {
             if (Lex->sp_variable_declarations_finalize(thd, $1,
-                                                       Lex->last_field[0], $4))
+                                                       &Lex->last_field[0], $4))
               MYSQL_YYABORT;
             $$.vars= $1;
             $$.conds= $$.hndlrs= $$.curs= 0;

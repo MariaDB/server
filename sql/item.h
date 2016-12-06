@@ -2122,6 +2122,40 @@ public:
   Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 };
 
+
+/**
+  An Item_splocal variant whose data type becomes known only at
+  sp_rcontext creation time, e.g. "DECLARE var1 t1.col1%TYPE".
+*/
+class Item_splocal_with_delayed_data_type: public Item_splocal
+{
+public:
+  Item_splocal_with_delayed_data_type(THD *thd,
+                                      const LEX_STRING &sp_var_name,
+                                      uint sp_var_idx,
+                                      uint pos_in_q, uint len_in_q)
+   :Item_splocal(thd, sp_var_name, sp_var_idx, MYSQL_TYPE_NULL,
+                 pos_in_q, len_in_q)
+  { }
+  bool fix_fields(THD *thd, Item **it)
+  {
+    if (Item_splocal::fix_fields(thd, it))
+      return true;
+    set_handler(this_item()->type_handler());
+    return false;
+  }
+  /*
+    Override the inherited create_field_for_create_select(),
+    because we want to preserve the exact data type for:
+      DECLARE a t1.a%TYPE;
+      CREATE TABLE t1 AS SELECT a;
+    The inherited implementation would create a column
+    based on result_type(), which is less exact.
+  */
+  Field *create_field_for_create_select(TABLE *table)
+  { return tmp_table_field_from_field_type(table, false, true); }
+};
+
 /*****************************************************************************
   Item_splocal inline implementation.
 *****************************************************************************/

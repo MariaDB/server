@@ -5370,6 +5370,26 @@ public:
   }
 };
 
+
+class Qualified_column_ident: public Table_ident
+{
+public:
+  LEX_STRING m_column;
+public:
+  Qualified_column_ident(const LEX_STRING table, const LEX_STRING column)
+   :Table_ident(table),
+    m_column(column)
+  { }
+  Qualified_column_ident(THD *thd,
+                         const LEX_STRING db,
+                         const LEX_STRING table,
+                         const LEX_STRING column)
+   :Table_ident(thd, db, table, false),
+    m_column(column)
+  { }
+};
+
+
 // this is needed for user_vars hash
 class user_var_entry
 {

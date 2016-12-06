@@ -17086,11 +17086,11 @@ bool Virtual_tmp_table::init(uint field_count)
 };
 
 
-bool Virtual_tmp_table::add(List<Column_definition> &field_list)
+bool Virtual_tmp_table::add(List<Spvar_definition> &field_list)
 {
   /* Create all fields and calculate the total length of record */
-  Column_definition *cdef;            /* column definition */
-  List_iterator_fast<Column_definition> it(field_list);
+  Spvar_definition *cdef;            /* column definition */
+  List_iterator_fast<Spvar_definition> it(field_list);
   for ( ; (cdef= it++); )
   {
     Field *tmp;

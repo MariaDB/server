@@ -209,6 +209,7 @@ void ORAerror(THD *thd, const char *s)
   String *string;
   TABLE_LIST *table_list;
   Table_ident *table;
+  Qualified_column_ident *qualified_column_ident;
   char *simple_string;
   const char *const_simple_string;
   chooser_compare_func_creator boolfunc2creator;
@@ -1002,6 +1003,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
         opt_constraint constraint opt_ident
         label_declaration_oracle ident_directly_assignable
+        sp_decl_ident
         sp_block_label
 
 %type <lex_string_with_metadata>
@@ -1014,6 +1016,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <table>
         table_ident table_ident_nodb references xid
         table_ident_opt_wild create_like
+
+%type <qualified_column_ident>
+        qualified_column_ident
 
 %type <simple_string>
         remember_name remember_end opt_db remember_tok_start
@@ -1184,6 +1189,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <symbol> keyword keyword_sp
                keyword_directly_assignable
                keyword_directly_not_assignable
+               sp_decl_ident_keyword
+               keyword_sp_data_type
+               keyword_sp_not_data_type
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
                  admin_option_for_role user_maybe_role
@@ -2307,6 +2315,10 @@ sp_param_name_and_type:
             if (Lex->sp_param_fill_definition($$= $1))
               MYSQL_YYABORT;
           }
+        | sp_param_name qualified_column_ident '%' TYPE_SYM
+          {
+            Lex->sphead->fill_spvar_using_type_reference($$= $1, $2);
+          }
         ;
 
 /* Stored PROCEDURE parameter declaration list */
@@ -2326,6 +2338,10 @@ sp_pdparam:
             $1->mode= $2;
             if (Lex->sp_param_fill_definition($1))
               MYSQL_YYABORT;
+          }
+        | sp_param_name sp_opt_inout qualified_column_ident '%' TYPE_SYM
+          {
+            Lex->sphead->fill_spvar_using_type_reference($1, $3);
           }
         ;
 
@@ -2406,6 +2422,20 @@ sp_decl_body_list:
           }
         ;
 
+qualified_column_ident:
+          sp_decl_ident '.' ident
+          {
+            if (!($$= new (thd->mem_root) Qualified_column_ident($1, $3)))
+              MYSQL_YYABORT;
+          }
+        | sp_decl_ident '.' ident '.' ident
+          {
+            if (!($$= new (thd->mem_root) Qualified_column_ident(thd,
+                                                                 $1, $3, $5)))
+              MYSQL_YYABORT;
+          }
+        ;
+
 sp_decl_body:
           sp_decl_idents
           {
@@ -2415,10 +2445,20 @@ sp_decl_body:
           sp_opt_default
           {
             if (Lex->sp_variable_declarations_finalize(thd, $1,
-                                                       Lex->last_field[0], $4))
+                                                       &Lex->last_field[0], $4))
               MYSQL_YYABORT;
-            $$.vars= $1;
-            $$.conds= $$.hndlrs= $$.curs= 0;
+            $$.init_using_vars($1);
+          }
+        | sp_decl_idents
+          {
+            Lex->sp_variable_declarations_init(thd, $1);
+          }
+          qualified_column_ident '%' TYPE_SYM
+          sp_opt_default
+          {
+            if (Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $3, $6))
+              MYSQL_YYABORT;
+            $$.init_using_vars($1);
           }
         | ident_directly_assignable CONDITION_SYM FOR_SYM sp_cond
           {
@@ -2875,8 +2915,25 @@ condition_information_item_name:
           { $$= Condition_information_item::RETURNED_SQLSTATE; }
         ;
 
+sp_decl_ident:
+          IDENT_sys
+        | sp_decl_ident_keyword
+          {
+            $$.str= thd->strmake($1.str, $1.length);
+            if ($$.str == NULL)
+              MYSQL_YYABORT;
+            $$.length= $1.length;
+          }
+        ;
+
+sp_decl_ident_keyword:
+          keyword_directly_assignable
+        | keyword_sp_not_data_type
+        ;
+
+
 sp_decl_idents:
-          ident_directly_assignable
+          sp_decl_ident
           {
             /* NOTE: field definition is filled in sp_decl section. */
 
@@ -14276,6 +14333,48 @@ keyword_directly_not_assignable:
  * conflicts.
  */
 keyword_sp:
+          keyword_sp_data_type
+        | keyword_sp_not_data_type
+        ;
+
+
+/*
+  These keywords are generally allowed as identifiers,
+  but not allowed as non-delimited SP variable names.
+*/
+keyword_sp_data_type:
+          BIT_SYM                  {}
+        | BOOLEAN_SYM              {} /* PLSQL-R */
+        | BOOL_SYM                 {}
+        | CLOB                     {}
+        | DATE_SYM                 {} /* Oracle-R, PLSQL-R */
+        | DATETIME                 {}
+        | ENUM                     {}
+        | FIXED_SYM                {}
+        | GEOMETRYCOLLECTION       {}
+        | GEOMETRY_SYM             {}
+        | LINESTRING               {}
+        | MEDIUM_SYM               {}
+        | MULTILINESTRING          {}
+        | MULTIPOINT               {}
+        | MULTIPOLYGON             {}
+        | NATIONAL_SYM             {}
+        | NCHAR_SYM                {}
+        | NUMBER_SYM               {} /* Oracle-R, PLSQL-R */
+        | NVARCHAR_SYM             {}
+        | POINT_SYM                {}
+        | POLYGON                  {}
+        | RAW                      {} /* Oracle-R */
+        | SERIAL_SYM               {}
+        | TEXT_SYM                 {}
+        | TIMESTAMP                {}
+        | TIME_SYM                 {} /* Oracle-R */
+        | VARCHAR2                 {} /* Oracle-R, PLSQL-R */
+        | YEAR_SYM                 {}
+        ;
+
+
+keyword_sp_not_data_type:
           ACTION                   {}
         | ADDDATE_SYM              {}
         | ADMIN_SYM                {}
@@ -14293,10 +14392,7 @@ keyword_sp:
         | AUTO_SYM                 {}
         | AVG_ROW_LENGTH           {}
         | AVG_SYM                  {}
-        | BIT_SYM                  {}
         | BLOCK_SYM                {}
-        | BOOL_SYM                 {}
-        | BOOLEAN_SYM              {}
         | BTREE_SYM                {}
         | CASCADED                 {}
         | CATALOG_NAME_SYM         {}
@@ -14305,7 +14401,6 @@ keyword_sp:
         | CIPHER_SYM               {}
         | CLIENT_SYM               {}
         | CLASS_ORIGIN_SYM         {}
-        | CLOB                     {}
         | COALESCE                 {}
         | CODE_SYM                 {}
         | COLLATION_SYM            {}
@@ -14334,8 +14429,6 @@ keyword_sp:
         | CURSOR_NAME_SYM          {}
         | DATA_SYM                 {}
         | DATAFILE_SYM             {}
-        | DATETIME                 {}
-        | DATE_SYM                 {}
         | DAY_SYM                  {}
         | DECODE_SYM               {}
         | DEFINER_SYM              {}
@@ -14350,7 +14443,6 @@ keyword_sp:
         | DUPLICATE_SYM            {}
         | DYNAMIC_SYM              {}
         | ENDS_SYM                 {}
-        | ENUM                     {}
         | ENGINE_SYM               {}
         | ENGINES_SYM              {}
         | ERROR_SYM                {}
@@ -14371,11 +14463,8 @@ keyword_sp:
         | FULL                     {}
         | FILE_SYM                 {}
         | FIRST_SYM                {}
-        | FIXED_SYM                {}
         | GENERAL                  {}
         | GENERATED_SYM            {}
-        | GEOMETRY_SYM             {}
-        | GEOMETRYCOLLECTION       {}
         | GET_FORMAT               {}
         | GRANTS                   {}
         | GLOBAL_SYM               {}
@@ -14404,7 +14493,6 @@ keyword_sp:
         | LEAVES                   {}
         | LESS_SYM                 {}
         | LEVEL_SYM                {}
-        | LINESTRING               {}
         | LIST_SYM                 {}
         | LOCAL_SYM                {}
         | LOCKS_SYM                {}
@@ -14438,7 +14526,6 @@ keyword_sp:
         | MAX_STATEMENT_TIME_SYM   {}
         | MAX_UPDATES_PER_HOUR     {}
         | MAX_USER_CONNECTIONS_SYM {}
-        | MEDIUM_SYM               {}
         | MEMORY_SYM               {}
         | MERGE_SYM                {}
         | MESSAGE_TEXT_SYM         {}
@@ -14449,24 +14536,17 @@ keyword_sp:
         | MODIFY_SYM               {}
         | MODE_SYM                 {}
         | MONTH_SYM                {}
-        | MULTILINESTRING          {}
-        | MULTIPOINT               {}
-        | MULTIPOLYGON             {}
         | MUTEX_SYM                {}
         | MYSQL_SYM                {}
         | MYSQL_ERRNO_SYM          {}
         | NAME_SYM                 {}
         | NAMES_SYM                {}
-        | NATIONAL_SYM             {}
-        | NCHAR_SYM                {}
         | NEXT_SYM                 {}
         | NEW_SYM                  {}
         | NO_WAIT_SYM              {}
         | NODEGROUP_SYM            {}
         | NONE_SYM                 {}
         | NOTFOUND_SYM             {}
-        | NUMBER_SYM               {}
-        | NVARCHAR_SYM             {}
         | OFFSET_SYM               {}
         | OLD_PASSWORD_SYM         {}
         | ONE_SYM                  {}
@@ -14482,8 +14562,6 @@ keyword_sp:
         | PHASE_SYM                {}
         | PLUGIN_SYM               {}
         | PLUGINS_SYM              {}
-        | POINT_SYM                {}
-        | POLYGON                  {}
         | PRESERVE_SYM             {}
         | PREV_SYM                 {}
         | PRIVILEGES               {}
@@ -14495,7 +14573,6 @@ keyword_sp:
         | QUARTER_SYM              {}
         | QUERY_SYM                {}
         | QUICK                    {}
-        | RAW                      {}
         | READ_ONLY_SYM            {}
         | REBUILD_SYM              {}
         | RECOVER_SYM              {}
@@ -14528,7 +14605,6 @@ keyword_sp:
         | SCHEDULE_SYM             {}
         | SCHEMA_NAME_SYM          {}
         | SECOND_SYM               {}
-        | SERIAL_SYM               {}
         | SERIALIZABLE_SYM         {}
         | SESSION_SYM              {}
         | SIMPLE_SYM               {}
@@ -14563,15 +14639,12 @@ keyword_sp:
         | TABLESPACE               {}
         | TEMPORARY                {}
         | TEMPTABLE_SYM            {}
-        | TEXT_SYM                 {}
         | THAN_SYM                 {}
         | TRANSACTION_SYM          {}
         | TRANSACTIONAL_SYM        {}
         | TRIGGERS_SYM             {}
-        | TIMESTAMP                {}
         | TIMESTAMP_ADD            {}
         | TIMESTAMP_DIFF           {}
-        | TIME_SYM                 {}
         | TYPES_SYM                {}
         | TYPE_SYM                 {}
         | UDF_RETURNS_SYM          {}
@@ -14584,7 +14657,6 @@ keyword_sp:
         | UNTIL_SYM                {}
         | USER_SYM                 {}
         | USE_FRM                  {}
-        | VARCHAR2                 {}
         | VARIABLES                {}
         | VIEW_SYM                 {}
         | VIRTUAL_SYM              {}
@@ -14596,7 +14668,6 @@ keyword_sp:
         | WORK_SYM                 {}
         | X509_SYM                 {}
         | XML_SYM                  {}
-        | YEAR_SYM                 {}
         | VIA_SYM                  {}
         ;
 

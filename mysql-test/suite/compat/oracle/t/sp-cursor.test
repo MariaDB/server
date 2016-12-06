@@ -750,3 +750,36 @@ DROP PROCEDURE p1;
 --echo #
 --echo # End of MDEV-10597 Cursors with parameters
 --echo #
+
+
+--echo #
+--echo # MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10),c DATETIME(3));
+INSERT INTO t1 VALUES (1,'b1','2001-01-01 10:20:30.123');
+INSERT INTO t1 VALUES (2,'b2','2001-01-02 10:20:30.123');
+CREATE TABLE t2 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  v_a t1.a%TYPE;
+  v_b t1.b%TYPE;
+  v_c t1.c%TYPE;
+  CURSOR c IS SELECT a,b,c FROM t1;
+BEGIN
+  OPEN c;
+  LOOP
+    FETCH c INTO v_a, v_b, v_c;
+    EXIT WHEN c%NOTFOUND;
+    INSERT INTO t2 (a,b,c) VALUES (v_a, v_b, v_c);
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t1;

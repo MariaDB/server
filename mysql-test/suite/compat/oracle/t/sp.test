@@ -1348,3 +1348,648 @@ DROP TABLE t1, t2;
 --echo #
 --echo # End of MDEV-10583 sql_mode=ORACLE: SQL%ROWCOUNT
 --echo #
+
+--echo #
+--echo # MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
+--echo #
+
+--echo #
+--echo # Missing table
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Missing column
+--echo #
+
+CREATE TABLE t1 (b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_BAD_FIELD_ERROR
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # One %TYPE variable
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE;
+BEGIN
+  a:= 123;
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Two %TYPE variables, with a truncation warning on assignment
+--echo #
+
+CREATE TABLE t1 (a TINYINT, b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE;
+  b t1.b%TYPE;
+BEGIN
+  a:= 200;
+  b:= 200;
+  SELECT a, b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # %TYPE variables for fields with various attributes
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+  a TINYINT NOT NULL,
+  b INT NOT NULL,
+  ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE(a)
+);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  id t1.id%TYPE;
+  a t1.a%TYPE;
+  b t1.b%TYPE;
+  ts t1.ts%TYPE;
+BEGIN
+  SELECT id, a, b, ts;
+  CREATE TABLE t2 AS SELECT id, a, b, ts;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # %TYPE + virtual columns
+--echo #
+
+#
+# TODO: Changing 'a + 10' to 'a mod 10' make it fail, because 
+# it's Item::print() returns 'a % 10' which makes grammar conflict
+# with cursor attributes
+
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  b VARCHAR(32),
+  c INT AS (a + 10) VIRTUAL,
+  d VARCHAR(5) AS (left(b,5)) PERSISTENT
+);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  c t1.c%TYPE;
+  d t1.d%TYPE;
+BEGIN
+  SELECT c, d;
+  CREATE TABLE t2 AS SELECT c, d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # %TYPE + the ZEROFILL attribute
+--echo #
+
+CREATE TABLE t1 (
+  dz DECIMAL(10,3) ZEROFILL
+);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  dzr t1.dz%TYPE := 10;
+  dzt DECIMAL(10,3) ZEROFILL := 10;
+BEGIN
+  SELECT dzr, dzt;
+  CREATE TABLE t2 AS SELECT dzr,dzt;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Temporary tables shadow real tables for %TYPE purposes
+--echo #
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('t1');
+CREATE TEMPORARY TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE:=11;
+BEGIN
+  CREATE TABLE t2 AS SELECT a;
+END;
+$$
+DELIMITER ;$$
+--echo #
+--echo # Should use INT(11) as %TYPE, as in the temporary table
+--echo #
+CALL p1();
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+SELECT * FROM t1;
+DROP TEMPORARY TABLE t1;
+SELECT * FROM t1;
+--echo #
+--echo # Should use VARCHAR(10) as %TYPE, as in the real table
+--echo #
+CALL p1();
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # t1.a%TYPE searches for "t1" in the current database
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10));
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE:=11;
+BEGIN
+  CREATE TABLE test.t2 AS SELECT a;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # This interprets t1.a%TYPE as VARCHAR(10), as in test.t1.a
+--echo #
+
+USE test;
+CALL test.p1();
+SHOW CREATE TABLE test.t2;
+DROP TABLE test.t2;
+
+--echo #
+--echo # This interprets t1.a%TYPE as INT, as in test1.t1.a
+--echo #
+
+USE test1;
+CALL test.p1();
+SHOW CREATE TABLE test.t2;
+DROP TABLE test.t2;
+
+--echo #
+--echo # Error if there is no an active database
+--echo #
+
+DROP DATABASE test1;
+--error ER_NO_DB_ERROR
+CALL test.p1();
+
+USE test;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A reference to a table in a non-existing database
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a test1.t1.a%TYPE;
+BEGIN
+  CREATE TABLE t1 AS SELECT a;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A reference to a table in a different database
+--echo #
+CREATE TABLE t1(a INT);
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE;
+  b test1.t1.a%TYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT a,b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SHOW CREATE TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP DATABASE test1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Using a table before it appears in a %TYPE declaration + multiple %TYPE declarations
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 (a,b) VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  INSERT INTO t1 (a,b) VALUES (11, 'b11');
+  SELECT * FROM t1;
+  DECLARE
+    va t1.a%TYPE:= 30;
+    vb t1.b%TYPE:= 'b30';
+  BEGIN
+    INSERT INTO t1 (a,b) VALUES (12,'b12');
+    SELECT * FROM t1;
+    INSERT INTO t1 (a,b) VALUES (va, vb);
+    SELECT * FROM t1;
+  END;
+  DECLARE
+    va t1.a%TYPE:= 40;
+    vb t1.b%TYPE:= 'b40';
+  BEGIN
+   INSERT INTO t1 (a,b) VALUES (va,vb);
+   SELECT * FROM t1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # %TYPE variables + TABLE vs VIEW
+--echo #
+
+CREATE TABLE t1 (
+  bit6 BIT(6),
+  bit7 BIT(7),
+  bit8 BIT(8),
+  i1 TINYINT,
+  i2 SMALLINT,
+  i3 MEDIUMINT,
+  i4 INT,
+  i8 BIGINT,
+  ff FLOAT,
+  fd DOUBLE,
+  cc CHAR(10),
+  cv VARCHAR(10),
+  cvu VARCHAR(10) CHARACTER SET utf8,
+  t1 TINYTEXT,
+  t2 TEXT,
+  t3 MEDIUMTEXT,
+  t4 LONGTEXT,
+  enum1 ENUM('a','b','c'),
+  set1  SET('a','b','c'),
+  blob1 TINYBLOB,
+  blob2 BLOB,
+  blob3 MEDIUMBLOB,
+  blob4 LONGBLOB,
+  yy  YEAR,
+  dd  DATE,
+  tm0 TIME,
+  tm3 TIME(3),
+  tm6 TIME(6),
+  dt0 DATETIME,
+  dt3 DATETIME(3),
+  dt6 DATETIME(6),
+  ts0 TIMESTAMP,
+  ts3 TIMESTAMP(3),
+  ts6 TIMESTAMP(6),
+  dc100 DECIMAL(10,0),
+  dc103 DECIMAL(10,3),
+  dc209 DECIMAL(20,9)
+);
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(command enum('create','select'))
+AS
+  bit6  t1.bit6%TYPE := 0x30;
+  bit7  t1.bit7%TYPE := 0x41;
+  bit8  t1.bit8%TYPE := 0x7E;
+  i1  t1.i1%TYPE := 11;
+  i2  t1.i2%TYPE := 12;
+  i3  t1.i3%TYPE := 13;
+  i4  t1.i4%TYPE := 14;
+  i8  t1.i8%TYPE := 18;
+  ff  t1.ff%TYPE := 21;
+  fd  t1.fd%TYPE := 22;
+  cc  t1.cc%TYPE := 'char';
+  cv  t1.cv%TYPE := 'varchar';
+  cvu t1.cvu%TYPE := 'varcharu8';
+  t1  t1.t1%TYPE := 'text1';
+  t2  t1.t2%TYPE := 'text2';
+  t3  t1.t3%TYPE := 'text3';
+  t4  t1.t4%TYPE := 'text4';
+  enum1 t1.enum1%TYPE := 'b';
+  set1  t1.set1%TYPE  := 'a,c';
+  blob1 t1.blob1%TYPE := 'blob1';
+  blob2 t1.blob2%TYPE := 'blob2';
+  blob3 t1.blob3%TYPE := 'blob3';
+  blob4 t1.blob4%TYPE := 'blob4';
+  yy  t1.yy%TYPE := 2001;
+  dd  t1.dd%TYPE := '2001-01-01';
+  tm0 t1.tm0%TYPE := '00:00:01';
+  tm3 t1.tm3%TYPE := '00:00:03.333';
+  tm6 t1.tm6%TYPE := '00:00:06.666666';
+  dt0 t1.dt0%TYPE := '2001-01-01 00:00:01';
+  dt3 t1.dt3%TYPE := '2001-01-03 00:00:01.333';
+  dt6 t1.dt6%TYPE := '2001-01-06 00:00:01.666666';
+  ts0 t1.ts0%TYPE := '2002-01-01 00:00:01';
+  ts3 t1.ts3%TYPE := '2002-01-03 00:00:01.333';
+  ts6 t1.ts6%TYPE := '2002-01-06 00:00:01.666666';
+  dc100 t1.dc100%TYPE := 10;
+  dc103 t1.dc103%TYPE := 10.123;
+  dc209 t1.dc209%TYPE := 10.123456789;
+BEGIN
+  CASE
+  WHEN command='create' THEN
+    CREATE TABLE t2 AS SELECT
+      bit6, bit7, bit8,
+      i1,i2,i3,i4,i8,
+      ff,fd, dc100, dc103, dc209,
+      cc,cv,cvu,
+      t1,t2,t3,t4,
+      enum1, set1,
+      blob1, blob2, blob3, blob4,
+      dd, yy,
+      tm0, tm3, tm6,
+      dt0, dt3, dt6,
+      ts0, ts3, ts6;
+  WHEN command='select' THEN
+    SELECT
+      bit6, bit7, bit8,
+      i1,i2,i3,i4,i8,
+      ff,fd, dc100, dc103, dc209,
+      cc,cv,cvu,
+      t1,t2,t3,t4,
+      enum1, set1,
+      blob1, blob2, blob3, blob4,
+      dd, yy,
+      tm0, tm3, tm6,
+      dt0, dt3, dt6,
+      ts0, ts3, ts6;
+  END CASE;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # TABLE
+--echo #
+CALL p1('create');
+SHOW CREATE TABLE t2;
+--vertical_results
+SELECT * FROM t2;
+--horizontal_results
+DROP TABLE t2;
+
+--disable_ps_protocol
+--enable_metadata
+--vertical_results
+CALL p1('select');
+--horizontal_results
+--disable_metadata
+--enable_ps_protocol
+
+--echo #
+--echo # VIEW
+--echo #
+ALTER TABLE t1 RENAME t0;
+CREATE VIEW t1 AS SELECT * FROM t0;
+
+CALL p1('create');
+SHOW CREATE TABLE t2;
+--vertical_results
+SELECT * FROM t2;
+--horizontal_results
+DROP TABLE t2;
+
+--disable_ps_protocol
+--enable_metadata
+--vertical_results
+CALL p1('select');
+--horizontal_results
+--disable_metadata
+--enable_ps_protocol
+
+DROP VIEW t1;
+DROP TABLE t0;
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # VIEW with subqueries
+--echo #
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (10,1),(20,2),(30,3),(40,4);
+SELECT AVG(a) FROM t1;
+CREATE VIEW v1 AS SELECT a,1 as b FROM t1 WHERE a>(SELECT AVG(a) FROM t1) AND b>(SELECT 1);
+SELECT * FROM v1;
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a v1.a%TYPE := 10;
+  b v1.b%TYPE := 1;
+BEGIN
+  SELECT a,b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN INT
+AS
+  a v1.a%TYPE := 10;
+  b v1.b%TYPE := 1;
+BEGIN
+  RETURN a+b;
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # %TYPE variables + INFORMATION_SCHEMA
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  tables_table_name INFORMATION_SCHEMA.TABLES.TABLE_NAME%TYPE;
+  tables_table_rows INFORMATION_SCHEMA.TABLES.TABLE_ROWS%TYPE;
+  processlist_info INFORMATION_SCHEMA.PROCESSLIST.INFO%TYPE;
+  processlist_info_binary INFORMATION_SCHEMA.PROCESSLIST.INFO_BINARY%TYPE;
+BEGIN
+  CREATE TABLE t1 AS SELECT
+    tables_table_name,
+    tables_table_rows,
+    processlist_info,
+    processlist_info_binary;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # %TYPE + Table structure change
+--echo # Data type for both a0 and a1 is chosen in the very beginning
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a0 t1.a%TYPE;
+BEGIN
+  ALTER TABLE t1 MODIFY a VARCHAR(10); -- This does not affect a1
+  DECLARE
+    a1 t1.a%TYPE;
+  BEGIN
+    CREATE TABLE t2 AS SELECT a0, a1;
+    SHOW CREATE TABLE t2;
+    DROP TABLE t2;
+  END;
+END
+$$
+DELIMITER ;$$
+CREATE TABLE t1 (a INT);
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # %TYPE in parameters
+--echo #
+CREATE TABLE t1 (a VARCHAR(10));
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (b SMALLINT);
+DELIMITER $$;
+CREATE PROCEDURE p1(a t1.a%TYPE, b test1.t1.b%TYPE)
+AS
+BEGIN
+  CREATE TABLE t2 AS SELECT a, b;
+END;
+$$
+DELIMITER ;$$
+CALL p1('test', 123);
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE test1.t1;
+DROP DATABASE test1;
+DROP TABLE t1;
+
+--echo #
+--echo # %TYPE in a stored function variables and arguments
+--echo #
+
+CREATE TABLE t1 (a INT);
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE FUNCTION f1 (prm t1.a%TYPE) RETURN INT
+AS
+  a t1.a%TYPE:= prm;
+BEGIN
+  RETURN a;
+END;
+$$
+DELIMITER ;$$
+SELECT f1(20);
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # %TYPE in function RETURN clause is not supported yet
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION f1 RETURN t1.a%TYPE
+AS
+BEGIN
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # End of MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
+--echo #

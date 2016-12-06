@@ -6100,8 +6100,11 @@ Field *Item::make_string_field(TABLE *table)
 /**
   Create a field based on field_type of argument.
 
-  For now, this is only used to create a field for
-  IFNULL(x,something) and time functions
+  This is used to create a field for
+  - IFNULL(x,something)
+  - time functions
+  - prepared statement placeholders
+  - SP variables with data type references: DECLARE a t1.a%TYPE;
 
   @retval
     NULL  error

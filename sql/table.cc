@@ -8202,3 +8202,14 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   };
   return names + opt;
 }
+
+
+Field *TABLE::find_field_by_name(const char *str) const
+{
+  for (Field **tmp= field; *tmp; tmp++)
+  {
+    if (!my_strcasecmp(system_charset_info, (*tmp)->field_name, str))
+      return *tmp;
+  }
+  return NULL;
+}

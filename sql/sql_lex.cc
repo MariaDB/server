@@ -5098,11 +5098,7 @@ sp_variable *LEX::sp_param_init(LEX_STRING name)
 
 bool LEX::sp_param_fill_definition(sp_variable *spvar)
 {
-  if (sphead->fill_field_definition(thd, last_field))
-    return true;
-  spvar->field_def.field_name= spvar->name.str;
-  spvar->field_def.pack_flag |= FIELDFLAG_MAYBE_NULL;
-  return false;
+  return sphead->fill_spvar_definition(thd, last_field, spvar->name.str);
 }
 
 
@@ -5222,7 +5218,7 @@ void LEX::sp_variable_declarations_init(THD *thd, int nvars)
 }
 
 bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
-                                            const Column_definition &cdef,
+                                            const Column_definition *cdef,
                                             Item *dflt_value_item)
 {
   uint num_vars= spcont->context_var_count();
@@ -5241,16 +5237,15 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
     if (!spvar)
       return true;
 
-    if (!last)
-      spvar->field_def= cdef;
-
     spvar->default_value= dflt_value_item;
-    spvar->field_def.field_name= spvar->name.str;
 
-    if (sphead->fill_field_definition(thd, &spvar->field_def))
-      return true;
-
-    spvar->field_def.pack_flag |= FIELDFLAG_MAYBE_NULL;
+    if (cdef)
+    {
+      if (!last)
+        spvar->field_def.set_column_definition(cdef);
+      if (sphead->fill_spvar_definition(thd, &spvar->field_def, spvar->name.str))
+        return true;
+    }
 
     /* The last instruction is responsible for freeing LEX. */
     sp_instr_set *is= new (this->thd->mem_root)
@@ -5263,6 +5258,23 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
 
   spcont->declare_var_boundary(0);
   return sphead->restore_lex(thd);
+}
+
+
+bool
+LEX::sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
+                                                Qualified_column_ident *ref,
+                                                Item *def)
+{
+  uint num_vars= spcont->context_var_count();
+  for (uint i= num_vars - nvars; i < num_vars; i++)
+  {
+    sp_variable *spvar= spcont->find_context_variable(i);
+    spvar->field_def.set_column_type_ref(ref);
+    spvar->field_def.field_name= spvar->name.str;
+  }
+  sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+  return sp_variable_declarations_finalize(thd, nvars, NULL, def);
 }
 
 
@@ -5295,8 +5307,9 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_STRING name,
 {
   sp_variable *spvar= spcont->add_variable(thd, name);
   spcont->declare_var_boundary(1);
-  spvar->field_def= Column_definition(spvar->name.str, MYSQL_TYPE_LONGLONG);
-  if (sp_variable_declarations_finalize(thd, 1, spvar->field_def, value))
+  spvar->field_def.field_name= spvar->name.str;
+  spvar->field_def.sql_type= MYSQL_TYPE_LONGLONG;
+  if (sp_variable_declarations_finalize(thd, 1, NULL, value))
     return NULL;
   return spvar;
 }
@@ -6016,10 +6029,14 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_STRING name,
       return NULL;
     }
 
-    Item_splocal *splocal;
-    splocal= new (thd->mem_root) Item_splocal(thd, name,
-                                              spv->offset, spv->sql_type(),
-                                              start_in_q, length_in_q);
+    Item_splocal *splocal= spv->field_def.is_column_type_ref() ?
+      new (thd->mem_root) Item_splocal_with_delayed_data_type(thd, name,
+                                                              spv->offset,
+                                                              start_in_q,
+                                                              length_in_q) :
+      new (thd->mem_root) Item_splocal(thd, name,
+                                       spv->offset, spv->sql_type(),
+                                       start_in_q, length_in_q);
     if (splocal == NULL)
       return NULL;
 #ifndef DBUG_OFF
