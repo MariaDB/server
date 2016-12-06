@@ -73,6 +73,9 @@ Format_description_log_event* wsrep_get_apply_format(THD* thd)
   {
     return (Format_description_log_event*) thd->wsrep_apply_format;
   }
+
+  DBUG_ASSERT(thd->wsrep_rgi);
+
   return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
 }
 
