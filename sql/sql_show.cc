@@ -4191,6 +4191,7 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
   /* Prepare temporary LEX. */
   thd->lex= lex= &temp_lex;
   lex_start(thd);
+  lex->sql_command= old_lex->sql_command;
 
   /* Disable constant subquery evaluation as we won't be locking tables. */
   lex->context_analysis_only= CONTEXT_ANALYSIS_ONLY_VIEW;
@@ -4243,26 +4244,8 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     table_list->i_s_requested_object= schema_table->i_s_requested_object;
   }
 
-  /*
-    Let us set fake sql_command so views won't try to merge
-    themselves into main statement. If we don't do this,
-    SELECT * from information_schema.xxxx will cause problems.
-    SQLCOM_SHOW_FIELDS is used because it satisfies
-    'only_view_structure()'.
-  */
-  lex->sql_command= SQLCOM_SHOW_FIELDS;
-  result= (thd->open_temporary_tables(table_list) ||
-           open_normal_and_derived_tables(thd, table_list,
-                                          (MYSQL_OPEN_IGNORE_FLUSH |
-                                           MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |
-                                           (can_deadlock ?
-                                            MYSQL_OPEN_FAIL_ON_MDL_CONFLICT : 0)),
-                                          DT_PREPARE | DT_CREATE));
-  /*
-    Restore old value of sql_command back as it is being looked at in
-    process_table() function.
-  */
-  lex->sql_command= old_lex->sql_command;
+  DBUG_ASSERT(thd->lex == lex);
+  result= open_tables_only_view_structure(thd, table_list, can_deadlock);
 
   DEBUG_SYNC(thd, "after_open_table_ignore_flush");
 

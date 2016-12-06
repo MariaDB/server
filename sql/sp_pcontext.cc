@@ -533,7 +533,7 @@ const sp_pcursor *sp_pcontext::find_cursor(const LEX_STRING name,
 
 
 void sp_pcontext::retrieve_field_definitions(
-  List<Column_definition> *field_def_lst) const
+  List<Spvar_definition> *field_def_lst) const
 {
   /* Put local/context fields in the result list. */
 

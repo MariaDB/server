@@ -2026,6 +2026,8 @@ public:
     bzero(this, sizeof(*this));
     temp_pool_slot= MY_BIT_NONE;
     in_use= thd;
+    copy_blobs= true;
+    alias.set("", 0, &my_charset_bin);
   }
 
   ~Virtual_tmp_table()
@@ -2068,11 +2070,11 @@ public:
   }
 
   /**
-    Add fields from a Column_definition list
+    Add fields from a Spvar_definition list
     @returns false - on success.
     @returns true  - on error.
   */
-  bool add(List<Column_definition> &field_list);
+  bool add(List<Spvar_definition> &field_list);
 
   /**
     Open a virtual table for read/write:
@@ -2110,7 +2112,7 @@ public:
 */
 
 inline TABLE *
-create_virtual_tmp_table(THD *thd, List<Column_definition> &field_list)
+create_virtual_tmp_table(THD *thd, List<Spvar_definition> &field_list)
 {
   Virtual_tmp_table *table;
   if (!(table= new(thd) Virtual_tmp_table(thd)))

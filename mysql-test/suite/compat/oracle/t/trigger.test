@@ -84,3 +84,23 @@ INSERT INTO t1 VALUES (NULL, 1, NULL);
 INSERT INTO t1 VALUES (1, 1, NULL);
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, total INT);
+DELIMITER $$;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1
+FOR EACH ROW
+DECLARE
+  va t1.a%TYPE:= :NEW.a;
+  vb t1.b%TYPE:= :NEW.b;
+BEGIN
+  :NEW.total:= va + vb;
+END;
+$$
+DELIMITER ;$$
+INSERT INTO t1 (a,b) VALUES (10, 20);
+SELECT * FROM t1;
+DROP TABLE t1;

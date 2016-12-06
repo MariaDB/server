@@ -70,7 +70,8 @@ public:
   /// @return valid sp_rcontext object or NULL in case of OOM-error.
   static sp_rcontext *create(THD *thd,
                              const sp_pcontext *root_parsing_ctx,
-                             Field *return_value_fld);
+                             Field *return_value_fld,
+                             bool resolve_type_refs);
 
   ~sp_rcontext();
 
@@ -185,8 +186,7 @@ public:
   // SP-variables.
   /////////////////////////////////////////////////////////////////////////
 
-  int set_variable(THD *thd, uint var_idx, Item **value)
-  { return set_variable(thd, m_var_table->field[var_idx], value); }
+  int set_variable(THD *thd, uint var_idx, Item **value);
 
   Item *get_item(uint var_idx) const
   { return m_var_items[var_idx]; }
@@ -334,7 +334,11 @@ private:
   /// @return error flag.
   /// @retval false on success.
   /// @retval true on error.
-  bool init_var_table(THD *thd);
+  bool init_var_table(THD *thd, List<Spvar_definition> &defs);
+
+  bool resolve_type_refs(THD *, List<Spvar_definition> &defs);
+  bool resolve_type_ref(THD *thd, Column_definition *def,
+                                  Qualified_column_ident *ref);
 
   /// Create and initialize an Item-adapter (Item_field) for each SP-var field.
   ///
@@ -343,7 +347,7 @@ private:
   /// @return error flag.
   /// @retval false on success.
   /// @retval true on error.
-  bool init_var_items(THD *thd);
+  bool init_var_items(THD *thd, List<Spvar_definition> &defs);
 
   /// Create an instance of appropriate Item_cache class depending on the
   /// specified type in the callers arena.
@@ -356,8 +360,6 @@ private:
   ///
   /// @return Pointer to valid object on success, or NULL in case of error.
   Item_cache *create_case_expr_holder(THD *thd, const Item *item) const;
-
-  int set_variable(THD *thd, Field *field, Item **value);
 
 private:
   /// Top-level (root) parsing context for this runtime context.

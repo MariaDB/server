@@ -4763,6 +4763,51 @@ end:
 }
 
 
+/**
+  Open a table to read its structure, e.g. for:
+  - SHOW FIELDS
+  - delayed SP variable data type definition: DECLARE a t1.a%TYPE
+
+  The flag MYSQL_OPEN_GET_NEW_TABLE is passed to make %TYPE work
+  in stored functions, as during a stored function call
+  (e.g. in a SELECT query) the tables referenced in %TYPE can already be locked,
+  and attempt to open it again would return an error in open_table().
+
+  The flag MYSQL_OPEN_GET_NEW_TABLE is not really needed for
+  SHOW FIELDS or for a "CALL sp()" statement, but it's not harmful,
+  so let's pass it unconditionally.
+*/
+
+bool open_tables_only_view_structure(THD *thd, TABLE_LIST *table_list,
+                                     bool can_deadlock)
+{
+  DBUG_ENTER("open_tables_only_view_structure");
+  /*
+    Let us set fake sql_command so views won't try to merge
+    themselves into main statement. If we don't do this,
+    SELECT * from information_schema.xxxx will cause problems.
+    SQLCOM_SHOW_FIELDS is used because it satisfies
+    'LEX::only_view_structure()'.
+  */
+  enum_sql_command save_sql_command= thd->lex->sql_command;
+  thd->lex->sql_command= SQLCOM_SHOW_FIELDS;
+  bool rc= (thd->open_temporary_tables(table_list) ||
+           open_normal_and_derived_tables(thd, table_list,
+                                          (MYSQL_OPEN_IGNORE_FLUSH |
+                                           MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |
+                                           MYSQL_OPEN_GET_NEW_TABLE |
+                                           (can_deadlock ?
+                                            MYSQL_OPEN_FAIL_ON_MDL_CONFLICT : 0)),
+                                          DT_PREPARE | DT_CREATE));
+  /*
+    Restore old value of sql_command back as it is being looked at in
+    process_table() function.
+  */
+  thd->lex->sql_command= save_sql_command;
+  DBUG_RETURN(rc);
+}
+
+
 /*
   Mark all real tables in the list as free for reuse.
 

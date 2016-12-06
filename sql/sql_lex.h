@@ -3066,8 +3066,11 @@ public:
   bool set_variable(struct sys_var_with_base *variable, Item *item);
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
-                                         const Column_definition &cdef,
+                                         const Column_definition *cdef,
                                          Item *def);
+  bool sp_variable_declarations_with_ref_finalize(THD *thd, int nvars,
+                                                  Qualified_column_ident *col,
+                                                  Item *def);
   bool sp_handler_declaration_init(THD *thd, int type);
   bool sp_handler_declaration_finalize(THD *thd, int type);
 

@@ -26,6 +26,9 @@
 #include "sp_rcontext.h"
 #include "sp_pcontext.h"
 #include "sql_select.h"                     // create_virtual_tmp_table
+#include "sql_base.h"                       // open_tables_only_view_structure
+#include "sql_acl.h"                        // SELECT_ACL
+#include "sql_parse.h"                      // check_table_access
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext implementation.
@@ -59,7 +62,8 @@ sp_rcontext::~sp_rcontext()
 
 sp_rcontext *sp_rcontext::create(THD *thd,
                                  const sp_pcontext *root_parsing_ctx,
-                                 Field *return_value_fld)
+                                 Field *return_value_fld,
+                                 bool resolve_type_refs)
 {
   sp_rcontext *ctx= new (thd->mem_root) sp_rcontext(root_parsing_ctx,
                                                     return_value_fld,
@@ -68,9 +72,13 @@ sp_rcontext *sp_rcontext::create(THD *thd,
   if (!ctx)
     return NULL;
 
+  List<Spvar_definition> field_def_lst;
+  ctx->m_root_parsing_ctx->retrieve_field_definitions(&field_def_lst);
+
   if (ctx->alloc_arrays(thd) ||
-      ctx->init_var_table(thd) ||
-      ctx->init_var_items(thd))
+      (resolve_type_refs && ctx->resolve_type_refs(thd, field_def_lst)) ||
+      ctx->init_var_table(thd, field_def_lst) ||
+      ctx->init_var_items(thd, field_def_lst))
   {
     delete ctx;
     return NULL;
@@ -102,28 +110,107 @@ bool sp_rcontext::alloc_arrays(THD *thd)
 }
 
 
-bool sp_rcontext::init_var_table(THD *thd)
+bool sp_rcontext::init_var_table(THD *thd,
+                                 List<Spvar_definition> &field_def_lst)
 {
-  List<Column_definition> field_def_lst;
-
   if (!m_root_parsing_ctx->max_var_index())
     return false;
-
-  m_root_parsing_ctx->retrieve_field_definitions(&field_def_lst);
 
   DBUG_ASSERT(field_def_lst.elements == m_root_parsing_ctx->max_var_index());
 
   if (!(m_var_table= create_virtual_tmp_table(thd, field_def_lst)))
     return true;
 
-  m_var_table->copy_blobs= true;
-  m_var_table->alias.set("", 0, m_var_table->alias.charset());
-
   return false;
 }
 
 
-bool sp_rcontext::init_var_items(THD *thd)
+/**
+  Check if we have access to use a column as a %TYPE reference.
+  @return false - OK
+  @return true  - access denied
+*/
+static inline bool
+check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
+                                const Qualified_column_ident *col)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  table_list->table->grant.want_privilege= SELECT_ACL;
+  return check_column_grant_in_table_ref(thd, table_list,
+                                         col->m_column.str,
+                                         col->m_column.length);
+#else
+  return false;
+#endif
+}
+
+
+/**
+  This method implementation is very close to fill_schema_table_by_open().
+*/
+bool sp_rcontext::resolve_type_ref(THD *thd, Column_definition *def,
+                                   Qualified_column_ident *ref)
+{
+  Open_tables_backup open_tables_state_backup;
+  thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
+
+  TABLE_LIST *table_list;
+  Field *src;
+  LEX *save_lex= thd->lex;
+  bool rc= true;
+
+  sp_lex_local lex(thd, thd->lex);
+  thd->lex= &lex;
+
+  lex.context_analysis_only= CONTEXT_ANALYSIS_ONLY_VIEW;
+  // Make %TYPE variables see temporary tables that shadow permanent tables
+  thd->temporary_tables= open_tables_state_backup.temporary_tables;
+
+  if ((table_list= lex.select_lex.add_table_to_list(thd, ref, NULL, 0,
+                                                    TL_READ_NO_INSERT,
+                                                    MDL_SHARED_READ)) &&
+      !check_table_access(thd, SELECT_ACL, table_list, TRUE, UINT_MAX, FALSE) &&
+      !open_tables_only_view_structure(thd, table_list,
+                                       thd->mdl_context.has_locks()))
+  {
+    if ((src= lex.query_tables->table->find_field_by_name(ref->m_column.str)))
+    {
+      if (!(rc= check_column_grant_for_type_ref(thd, table_list, ref)))
+      {
+        *def= Column_definition(thd, src, NULL/*No defaults,no constraints*/);
+        def->flags&= (uint) ~NOT_NULL_FLAG;
+        rc= def->sp_prepare_create_field(thd, thd->mem_root);
+      }
+    }
+    else
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), ref->m_column.str, ref->table.str);
+  }
+
+  lex.unit.cleanup();
+  thd->temporary_tables= NULL; // Avoid closing temporary tables
+  close_thread_tables(thd);
+  thd->lex= save_lex;
+  thd->restore_backup_open_tables_state(&open_tables_state_backup);
+  return rc;
+}
+
+
+bool sp_rcontext::resolve_type_refs(THD *thd, List<Spvar_definition> &defs)
+{
+  List_iterator<Spvar_definition> it(defs);
+  Spvar_definition *def;
+  while ((def= it++))
+  {
+    if (def->is_column_type_ref() &&
+        resolve_type_ref(thd, def, def->column_type_ref()))
+      return true;
+  }
+  return false;
+};
+
+
+bool sp_rcontext::init_var_items(THD *thd,
+                                 List<Spvar_definition> &field_def_lst)
 {
   uint num_vars= m_root_parsing_ctx->max_var_index();
 
@@ -360,8 +447,9 @@ uint sp_rcontext::exit_handler(Diagnostics_area *da)
 }
 
 
-int sp_rcontext::set_variable(THD *thd, Field *field, Item **value)
+int sp_rcontext::set_variable(THD *thd, uint idx, Item **value)
 {
+  Field *field= m_var_table->field[idx];
   if (!value)
   {
     field->set_null();

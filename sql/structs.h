@@ -646,6 +646,11 @@ public:
   {
     vars= conds= hndlrs= curs= 0;
   }
+  void init_using_vars(uint nvars)
+  {
+    vars= nvars;
+    conds= hndlrs= curs= 0;
+  }
   void join(const Lex_spblock_st &b1, const Lex_spblock_st &b2)
   {
     vars= b1.vars + b2.vars;

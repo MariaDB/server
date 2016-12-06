@@ -172,7 +172,11 @@ public:
       b) because in CONTAINS SQL case they don't provide enough
       information anyway.
      */
-    MODIFIES_DATA= 4096
+    MODIFIES_DATA= 4096,
+    /*
+      Marks routines that have column type references: DECLARE a t1.a%TYPE;
+    */
+    HAS_COLUMN_TYPE_REFS= 8192
   };
 
   stored_procedure_type m_type;
@@ -210,6 +214,9 @@ public:
   {
     m_sp_cache_version= version_arg;
   }
+
+  sp_rcontext *rcontext_create(THD *thd, bool is_proc, Field *ret_value);
+
 private:
   /**
     Version of the stored routine cache at the moment when the
@@ -548,7 +555,8 @@ public:
 
   /**
     Check and prepare an instance of Column_definition for field creation
-    (fill all necessary attributes).
+    (fill all necessary attributes), for variables, parameters and
+    function return values.
 
     @param[in]  thd          Thread handle
     @param[in]  lex          Yacc parsing context
@@ -562,6 +570,32 @@ public:
     return field_def->check(thd) ||
            field_def->sp_prepare_create_field(thd, mem_root);
   }
+  /**
+    Check and prepare a Column_definition for a variable or a parameter.
+  */
+  bool fill_spvar_definition(THD *thd, Column_definition *def)
+  {
+    if (fill_field_definition(thd, def))
+      return true;
+    def->pack_flag|= FIELDFLAG_MAYBE_NULL;
+    return false;
+  }
+  bool fill_spvar_definition(THD *thd, Column_definition *def, const char *name)
+  {
+    def->field_name= name;
+    return fill_spvar_definition(thd, def);
+  }
+  /**
+    Set a column type reference for a parameter definition
+  */
+  void fill_spvar_using_type_reference(sp_variable *spvar,
+                                       Qualified_column_ident *ref)
+  {
+    spvar->field_def.set_column_type_ref(ref);
+    spvar->field_def.field_name= spvar->name.str;
+    m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+  }
+
   void set_info(longlong created, longlong modified,
 		st_sp_chistics *chistics, sql_mode_t sql_mode);
 
