@@ -573,6 +573,7 @@ buf_load()
 		fscanf_ret = fscanf(f, ULINTPF "," ULINTPF,
 				    &space_id, &page_no);
 
+		DEBUG_SYNC_C("buf_load");
 		if (fscanf_ret != 2) {
 			if (feof(f)) {
 				break;
