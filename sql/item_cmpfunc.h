@@ -834,10 +834,10 @@ class Item_func_opt_neg :public Item_bool_func
 {
 protected:
   /*
-    The result type that will be used for comparison.
-    cmp_type() of all arguments are collected to here.
+    The data type handler that will be used for comparison.
+    Data type handlers of all arguments are mixed to here.
   */
-  Item_result m_compare_type;
+  Type_handler_hybrid_field_type m_comparator;
   /*
     The collation that will be used for comparison in case
     when m_compare_type is STRING_RESULT.
@@ -872,11 +872,13 @@ protected:
                              Field *field, Item *value);
 public:
   String value0,value1,value2;
-  /* TRUE <=> arguments will be compared as dates. */
-  Item *compare_as_dates;
   Item_func_between(THD *thd, Item *a, Item *b, Item *c):
-    Item_func_opt_neg(thd, a, b, c), compare_as_dates(FALSE) { }
-  longlong val_int();
+    Item_func_opt_neg(thd, a, b, c) { }
+  longlong val_int()
+  {
+    DBUG_ASSERT(fixed);
+    return m_comparator.type_handler()->Item_func_between_val_int(this);
+  }
   enum Functype functype() const   { return BETWEEN; }
   const char *func_name() const { return "between"; }
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
@@ -893,13 +895,19 @@ public:
   {
     Item_args::propagate_equal_fields(thd,
                                       Context(ANY_SUBST,
-                                              m_compare_type,
+                                              m_comparator.cmp_type(),
                                               compare_collation()),
                                       cond);
     return this;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_between>(thd, mem_root, this); }
+
+  longlong val_int_cmp_string();
+  longlong val_int_cmp_temporal();
+  longlong val_int_cmp_int();
+  longlong val_int_cmp_real();
+  longlong val_int_cmp_decimal();
 };
 
 
@@ -1664,7 +1672,7 @@ public:
       will be replaced to a zero-filled Item_string.
       Such a change would require rebuilding of cmp_items.
     */
-    Context cmpctx(ANY_SUBST, m_compare_type,
+    Context cmpctx(ANY_SUBST, m_comparator.cmp_type(),
                    Item_func_in::compare_collation());
     for (uint i= 0; i < arg_count; i++)
     {

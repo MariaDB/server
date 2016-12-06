@@ -577,5 +577,16 @@ EXPLAIN SELECT * FROM t1 WHERE a >= COALESCE(DATE_ADD(TIMESTAMP'9999-01-01 00:00
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-11482 Incorrect result for (time_expr BETWEEN timestamp_exp1 AND timestamp_expr2)
+--echo #
+SET @@sql_mode=DEFAULT;
+SET @@timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+CREATE TABLE t1 (a TIMESTAMP,b TIMESTAMP);
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00','2001-01-01 23:59:59');
+SELECT * FROM t1 WHERE TIME'10:20:30' BETWEEN a and b;
+DROP TABLE t1;
+SET @@timestamp=DEFAULT;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
