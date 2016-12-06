@@ -631,7 +631,7 @@ buf_load()
 		ut_sprintf_timestamp(now);
 		buf_load_status(STATUS_INFO,
 				"Buffer pool(s) load completed at %s"
-				" (%s was empty)", now, full_filename);
+				" (%s was empty or had errors)", now, full_filename);
 		return;
 	}
 
@@ -720,6 +720,12 @@ buf_load()
 
 		buf_load_throttle_if_needed(
 			&last_check_time, &last_activity_cnt, i);
+
+#ifdef UNIV_DEBUG
+		if ((i+1) >= srv_buf_pool_load_pages_abort) {
+			buf_load_abort_flag = 1;
+		}
+#endif
 	}
 
 	if (space != NULL) {

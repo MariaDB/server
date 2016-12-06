@@ -381,8 +381,6 @@ extern ulong	srv_n_page_hash_locks;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
 extern ulong	srv_LRU_scan_depth;
 /** Whether or not to flush neighbors of a block */
-extern ulong	srv_buf_pool_dump_pct;	/*!< dump that may % of each buffer
-					pool during BP dump */
 extern ulong	srv_flush_neighbors;
 /** Previously requested size */
 extern ulint	srv_buf_pool_old_size;
@@ -392,6 +390,10 @@ extern ulint	srv_buf_pool_base_size;
 extern ulint	srv_buf_pool_curr_size;
 /** Dump this % of each buffer pool during BP dump */
 extern ulong	srv_buf_pool_dump_pct;
+#ifdef UNIV_DEBUG
+/** Abort load after this amount of pages */
+extern ulong srv_buf_pool_load_pages_abort;
+#endif
 /** Lock table size in bytes */
 extern ulint	srv_lock_table_size;
 
