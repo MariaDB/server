@@ -5855,9 +5855,30 @@ create_table_option:
 	  }
         | WITH_SYSTEM_SYM VERSIONING
           {
+            const char *table_name=
+                Lex->create_last_non_select_table->table_name;
             Vers_parse_info &info= Lex->vers_get_info();
-            info.declared_system_versioning= true;
+            if (info.declared_with_system_versioning ||
+                info.declared_without_system_versioning)
+              my_yyabort_error(
+                  (ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+                   "Versioning specified more than once for the same table"));
+
+            info.declared_with_system_versioning= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
+          }
+	| WITHOUT SYSTEM VERSIONING
+          {
+            const char *table_name=
+                Lex->create_last_non_select_table->table_name;
+            Vers_parse_info &info= Lex->vers_get_info();
+            if (info.declared_with_system_versioning ||
+                info.declared_without_system_versioning)
+              my_yyabort_error(
+                  (ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+                   "Versioning specified more than once for the same table"));
+
+            info.declared_without_system_versioning= true;
           }
         ;
 
@@ -6679,12 +6700,26 @@ serial_attribute:
           }
         | WITH_SYSTEM_SYM VERSIONING
           {
+            if (Lex->last_field->versioning !=
+                Column_definition::VERSIONING_NOT_SET)
+              my_yyabort_error(
+                  (ER_VERS_WRONG_PARAMS, MYF(0),
+                   Lex->create_last_non_select_table->table_name,
+                   "Versioning specified more than once for the same field"));
+
             Lex->last_field->versioning = Column_definition::WITH_VERSIONING;
             Lex->create_info.vers_info.has_versioned_fields= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
         | WITHOUT SYSTEM VERSIONING
           {
+            if (Lex->last_field->versioning !=
+                Column_definition::VERSIONING_NOT_SET)
+              my_yyabort_error(
+                  (ER_VERS_WRONG_PARAMS, MYF(0),
+                   Lex->create_last_non_select_table->table_name,
+                   "Versioning specified more than once for the same field"));
+
             Lex->last_field->versioning = Column_definition::WITHOUT_VERSIONING;
             Lex->create_info.vers_info.has_unversioned_fields= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;

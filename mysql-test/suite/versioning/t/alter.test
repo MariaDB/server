@@ -1,0 +1,170 @@
+create table t(
+  a int
+);
+show create table t;
+--error ER_VERS_WRONG_PARAMS
+alter table t without system versioning;
+--error ER_VERS_WRONG_PARAMS
+alter table t with system versioning without system versioning;
+
+alter table t with system versioning;
+show create table t;
+
+alter table t without system versioning;
+show create table t;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+alter table t
+  add column trx_start bigint(20) unsigned generated always as row start,
+  add column trx_end bigint(20) unsigned generated always as row end,
+  add period for system_time(trx_start, trx_end),
+  with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+alter table t
+  add column trx_start timestamp generated always as row start,
+  add column trx_end timestamp generated always as row end,
+  add period for system_time(trx_start, trx_end),
+  with system versioning;
+
+--error ER_PARSE_ERROR
+alter table t
+  add column trx_start timestamp(6) not null generated always as row start,
+  add column trx_end timestamp(6) not null generated always as row end,
+  add period for system_time(trx_start, trx_end),
+  with system versioning;
+
+alter table t
+  add column trx_start timestamp(6) generated always as row start,
+  add column trx_end timestamp(6) generated always as row end,
+  add period for system_time(trx_start, trx_end),
+  with system versioning;
+show create table t;
+
+alter table t without system versioning;
+show create table t;
+
+alter table t with system versioning;
+show create table t;
+
+alter table t add column b int;
+show create table t;
+
+alter table t add column c int;
+show create table t;
+
+alter table t add column d int first;
+show create table t;
+
+alter table t add column e int after d;
+show create table t;
+
+--error ER_VERS_WRONG_PARAMS
+alter table t add column f int after sys_trx_start;
+--error ER_VERS_WRONG_PARAMS
+alter table t add column f int after sys_trx_end;
+
+alter table t drop column a;
+show create table t;
+
+--error ER_VERS_WRONG_PARAMS
+alter table t drop column sys_trx_start;
+--error ER_VERS_WRONG_PARAMS
+alter table t drop column sys_trx_end;
+
+create or replace table t(
+  a int
+);
+insert into t values(1);
+alter table t with system versioning;
+show create table t;
+insert into t values(2);
+select * from t for system_time all;
+select * from t;
+
+update t set a=3 where a=1;
+select * from t;
+select * from t for system_time all;
+select sys_trx_start from t where a=3 into @tm;
+alter table t add column b int;
+select @tm=sys_trx_start from t where a=3;
+show create table t;
+select * from t;
+select * from t for system_time all;
+
+alter table t without system versioning;
+select * from t;
+show create table t;
+
+--error ER_VERS_WRONG_PARAMS
+alter table t modify a int with system versioning;
+--error ER_VERS_WRONG_PARAMS
+alter table t modify a int with system versioning with system versioning;
+--error ER_VERS_WRONG_PARAMS
+alter table t modify a int with system versioning without system versioning;
+
+alter table t with system versioning;
+
+alter table t modify a int without system versioning;
+show create table t;
+
+alter table t modify a int with system versioning;
+show create table t;
+
+-- source suite/versioning/common.inc
+create or replace table t(
+  a int
+) engine=innodb;
+
+insert into t values(1);
+select * from t;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+alter table t
+  add column trx_start timestamp(6) generated always as row start,
+  add column trx_end timestamp(6) generated always as row end,
+  add period for system_time(trx_start, trx_end),
+  with system versioning;
+
+alter table t
+  add column trx_start bigint(20) unsigned generated always as row start,
+  add column trx_end bigint(20) unsigned generated always as row end,
+  add period for system_time(trx_start, trx_end),
+  with system versioning;
+show create table t;
+alter table t without system versioning;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t with system versioning, algorithm=inplace;
+
+alter table t with system versioning, algorithm=copy;
+show create table t;
+
+update t set a=2;
+select * from t for system_time all;
+
+alter table t add column b int, algorithm=copy;
+show create table t;
+select * from t;
+
+alter table t drop column b, algorithm=copy;
+show create table t;
+select * from t for system_time all;
+
+alter table t add column b int, algorithm=inplace;
+show create table t;
+select * from t;
+
+alter table t drop column b, algorithm=inplace;
+show create table t;
+select * from t for system_time all;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t without system versioning, algorithm=inplace;
+
+alter table t without system versioning, algorithm=copy;
+show create table t;
+
+call verify_vtq;
+drop table t;
+drop procedure verify_vtq;

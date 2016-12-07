@@ -2551,44 +2551,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   else
   {
     DBUG_PRINT("info", ("Setting system versioning informations"));
-    uint16 row_start = uint2korr(system_period);
-    uint16 row_end =  uint2korr(system_period + sizeof(uint16));
+    uint16 row_start= uint2korr(system_period);
+    uint16 row_end= uint2korr(system_period + sizeof(uint16));
     if (row_start >= share->fields || row_end >= share->fields)
       goto err;
-    DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
+    DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start,
+                        row_end));
     share->enable_system_versioning(row_start, row_end);
     vers_start_field()->flags|= VERS_SYS_START_FLAG;
     vers_end_field()->flags|= VERS_SYS_END_FLAG;
-
-    DBUG_ASSERT(db_type());
-    if (db_type()->versioned())
-    {
-      if (vers_start_field()->type() != MYSQL_TYPE_LONGLONG
-        || !(vers_start_field()->flags & UNSIGNED_FLAG))
-      {
-        my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), vers_start_field()->field_name, "BIGINT UNSIGNED", share->table_name);
-        goto err;
-      }
-      if (vers_end_field()->type() != MYSQL_TYPE_LONGLONG
-        || !(vers_end_field()->flags & UNSIGNED_FLAG))
-      {
-        my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), vers_end_field()->field_name, "BIGINT UNSIGNED", share->table_name);
-        goto err;
-      }
-    }
-    else
-    {
-      if (vers_start_field()->type() != MYSQL_TYPE_TIMESTAMP)
-      {
-        my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), vers_start_field()->field_name, "TIMESTAMP", share->table_name);
-        goto err;
-      }
-      if (vers_end_field()->type() != MYSQL_TYPE_TIMESTAMP)
-      {
-        my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), vers_end_field()->field_name, "TIMESTAMP", share->table_name);
-        goto err;
-      }
-    } // if (db_type()->versioned())
   } // if (system_period == NULL)
 
   delete handler_file;

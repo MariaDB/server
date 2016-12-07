@@ -169,4 +169,39 @@ create or replace table t1 (
   A int without system versioning
 ) with system versioning;
 
+--error ER_VERS_WRONG_PARAMS
+create or replace table t1 (
+  A int without system versioning with system versioning
+);
+
+--error ER_VERS_WRONG_PARAMS
+create or replace table t1 (
+  A int with system versioning without system versioning
+);
+
+--error ER_VERS_WRONG_PARAMS
+create table t(
+  a int
+) without system versioning;
+
+--error ER_VERS_WRONG_PARAMS
+create or replace table t1 (
+  A int
+) without system versioning with system versioning;
+
+--error ER_VERS_WRONG_PARAMS
+create or replace table t1 (
+  A int
+) with system versioning without system versioning;
+
+--error ER_VERS_WRONG_PARAMS
+create or replace table t1 (
+  A int
+) with system versioning with system versioning;
+
+--error ER_VERS_WRONG_PARAMS
+create or replace table t1 (
+  A int
+) without system versioning without system versioning;
+
 drop table t1;

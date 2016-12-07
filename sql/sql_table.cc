@@ -55,6 +55,8 @@
 #include "transaction.h"
 #include "sql_audit.h"
 #include "sql_sequence.h"
+#include "tztime.h"
+
 
 #ifdef __WIN__
 #include <io.h>
@@ -8718,6 +8720,12 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   if (check_engine(thd, alter_ctx.new_db, alter_ctx.new_name, create_info))
     DBUG_RETURN(true);
 
+  if (create_info->vers_info.check_and_fix_alter(thd, alter_info, create_info,
+                                                 table->s))
+  {
+    DBUG_RETURN(true);
+  }
+
   if ((create_info->db_type != table->s->db_type() ||
        alter_info->flags & Alter_info::ALTER_PARTITION) &&
       !table->file->can_switch_engines())
@@ -9654,6 +9662,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   sql_mode_t save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
   Field **dfield_ptr= to->default_field;
+  bool make_versioned= !from->versioned() && to->versioned();
+  bool make_unversioned= from->versioned() && !to->versioned();
+  Field *to_sys_trx_start= NULL, *from_sys_trx_end= NULL, *to_sys_trx_end= NULL;
+  MYSQL_TIME now;
   DBUG_ENTER("copy_data_between_tables");
 
   /* Two or 3 stages; Sorting, copying data and update indexes */
@@ -9753,6 +9765,19 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     thd_progress_next_stage(thd);
   }
 
+  if (make_versioned)
+  {
+    thd->variables.time_zone->gmt_sec_to_TIME(&now, thd->query_start());
+    now.second_part= thd->query_start_sec_part();
+    thd->time_zone_used= 1;
+    to_sys_trx_start= to->field[to->s->row_start_field];
+    to_sys_trx_end= to->field[to->s->row_end_field];
+  }
+  else if (make_unversioned)
+  {
+    from_sys_trx_end= from->field[from->s->row_end_field];
+  }
+
   THD_STAGE_INFO(thd, stage_copy_to_tmp_table);
   /* Tell handler that we have values for all columns in the to table */
   to->use_all_columns();
@@ -9806,6 +9831,25 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     {
       copy_ptr->do_copy(copy_ptr);
     }
+
+    if (make_versioned)
+    {
+      to_sys_trx_start->set_notnull(to_sys_trx_start->null_offset());
+      // TODO: write directly to record bypassing the same checks on every call
+      to_sys_trx_start->store_time(&now);
+
+      static const timeval max_tv= {0x7fffffff, 0};
+      static const uint dec= 6;
+      to_sys_trx_end->set_notnull(to_sys_trx_end->null_offset());
+      my_timestamp_to_binary(&max_tv, to_sys_trx_end->ptr, dec);
+    }
+    else if (make_unversioned)
+    {
+      // Drop history rows.
+      if (!from_sys_trx_end->is_max())
+        continue;
+    }
+
     prev_insert_id= to->file->next_insert_id;
     if (to->default_field)
       to->update_default_fields(0, ignore);

@@ -1674,7 +1674,8 @@ struct Schema_specification_st
 struct Vers_parse_info
 {
   Vers_parse_info() :
-    declared_system_versioning(false),
+    declared_with_system_versioning(false),
+    declared_without_system_versioning(false),
     has_versioned_fields(false),
     has_unversioned_fields(false)
   {}
@@ -1698,12 +1699,36 @@ struct Vers_parse_info
   }
 
 private:
+  bool is_trx_start(const char *name) const;
+  bool is_trx_end(const char *name) const;
   bool fix_implicit(THD *thd, Alter_info *alter_info, bool integer_fields);
+  bool need_to_check() const
+  {
+    return
+      has_versioned_fields ||
+      has_unversioned_fields ||
+      declared_with_system_versioning ||
+      declared_without_system_versioning ||
+      period_for_system_time.start ||
+      period_for_system_time.end ||
+      generated_as_row.start ||
+      generated_as_row.end;
+  }
+  bool check_with_conditions(const char *table_name) const;
+  bool check_generated_type(const char *table_name, Alter_info *alter_info,
+                            bool integer_fields) const;
+
 public:
-  bool check_and_fix_implicit(THD *thd, Alter_info *alter_info, bool integer_fields, const char* table_name);
+  bool check_and_fix_implicit(THD *thd, Alter_info *alter_info,
+                              bool integer_fields, const char *table_name);
+  bool check_and_fix_alter(THD *thd, Alter_info *alter_info,
+                           HA_CREATE_INFO *create_info, TABLE_SHARE *share);
 
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
-  bool declared_system_versioning : 1;
+  bool declared_with_system_versioning : 1;
+
+  /** Use has added 'WITHOUT SYSTEM VERSIONING' to ALTER TABLE */
+  bool declared_without_system_versioning : 1;
 
   /**
      At least one field was specified 'WITH SYSTEM VERSIONING'. Useful for

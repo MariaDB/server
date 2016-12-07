@@ -6553,6 +6553,18 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
   DBUG_RETURN(res);
 }
 
+bool Vers_parse_info::is_trx_start(const char *name) const
+{
+  DBUG_ASSERT(name);
+  return generated_as_row.start &&
+         !strcmp(generated_as_row.start->c_ptr(), name);
+}
+bool Vers_parse_info::is_trx_end(const char *name) const
+{
+  DBUG_ASSERT(name);
+  return generated_as_row.end && !strcmp(generated_as_row.end->c_ptr(), name);
+}
+
 static bool create_string(MEM_ROOT *mem_root, String **s, const char *value)
 {
   *s= new (mem_root) String(value, system_charset_info);
@@ -6581,7 +6593,7 @@ static bool create_sys_trx_field(THD *thd, const char *field_name,
   else
   {
     f->sql_type= MYSQL_TYPE_TIMESTAMP2;
-    f->length= 6;
+    f->length= MAX_DATETIME_PRECISION;
   }
 
   if (f->check(thd))
@@ -6594,37 +6606,17 @@ static bool create_sys_trx_field(THD *thd, const char *field_name,
   return false;
 }
 
-bool Vers_parse_info::fix_implicit(
-  THD *thd,
-  Alter_info *alter_info,
-  bool integer_fields)
+bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
+                                   bool integer_fields)
 {
-  List_iterator<Create_field> it(alter_info->create_list);
-  while (Create_field *f= it++)
-  {
-    const char *name= f->field_name;
-    size_t len= strlen(name);
-    if (generated_as_row.start &&
-        !strncmp(name, generated_as_row.start->c_ptr(), len))
-      continue;
-    if (generated_as_row.end &&
-        !strncmp(name, generated_as_row.end->c_ptr(), len))
-      continue;
-
-    if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
-      !declared_system_versioning) ||
-      f->versioning == Column_definition::WITHOUT_VERSIONING)
-    {
-      f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
-    }
-  }
-
   // If user specified some of these he must specify the others too. Do nothing.
   if (generated_as_row.start || generated_as_row.end ||
       period_for_system_time.start || period_for_system_time.end)
     return false;
 
-  return create_sys_trx_field(thd,"sys_trx_start", alter_info,
+  alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
+
+  return create_sys_trx_field(thd, "sys_trx_start", alter_info,
                               &generated_as_row.start, VERS_SYS_START_FLAG,
                               integer_fields) ||
          create_sys_trx_field(thd, "sys_trx_end", alter_info,
@@ -6642,91 +6634,255 @@ bool Vers_parse_info::check_and_fix_implicit(
   bool integer_fields,
   const char* table_name)
 {
-  if (!(
-    has_versioned_fields ||
-    has_unversioned_fields ||
-    declared_system_versioning ||
-    period_for_system_time.start ||
-    period_for_system_time.end ||
-    generated_as_row.start ||
-    generated_as_row.end))
-  {
+  if (!need_to_check())
     return false;
+
+  if (declared_without_system_versioning)
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+             "'WITHOUT SYSTEM VERSIONING' is not allowed");
+    return true;
   }
 
-  if (!declared_system_versioning && !has_versioned_fields)
+  if (!declared_with_system_versioning && !has_versioned_fields)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'WITH SYSTEM VERSIONING' missing");
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+             "'WITH SYSTEM VERSIONING' missing");
     return true;
+  }
+
+  List_iterator<Create_field> it(alter_info->create_list);
+  while (Create_field *f= it++)
+  {
+    if (is_trx_start(f->field_name) || is_trx_end(f->field_name))
+      continue;
+
+    if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
+         !declared_with_system_versioning) ||
+        f->versioning == Column_definition::WITHOUT_VERSIONING)
+    {
+      f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
+    }
   }
 
   if (fix_implicit(thd, alter_info, integer_fields))
     return true;
 
+  int not_set= 0;
+  int with= 0;
+  it.rewind();
+  while (const Create_field *f= it++)
   {
-    int not_set= 0;
-    int with= 0;
-    List_iterator<Create_field> it(alter_info->create_list);
-    while (const Create_field *f= it++)
-    {
-      const char *name= f->field_name;
-      size_t len= strlen(name);
-      if (generated_as_row.start &&
-          !strncmp(name, generated_as_row.start->c_ptr(), len))
-        continue;
-      if (generated_as_row.end &&
-          !strncmp(name, generated_as_row.end->c_ptr(), len))
-        continue;
+    if (is_trx_start(f->field_name) || is_trx_end(f->field_name))
+      continue;
 
-      if (f->versioning == Column_definition::VERSIONING_NOT_SET)
-        not_set++;
-      else if (f->versioning == Column_definition::WITH_VERSIONING)
-        with++;
-    }
-
-    bool table_with_system_versioning=
-        declared_system_versioning || generated_as_row.start ||
-        generated_as_row.end || period_for_system_time.start ||
-        period_for_system_time.end;
-
-    if ((table_with_system_versioning && not_set == 0 && with == 0) ||
-        (!table_with_system_versioning && with == 0))
-    {
-      my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "versioned fields missing");
-      return true;
-    }
+    if (f->versioning == Column_definition::VERSIONING_NOT_SET)
+      not_set++;
+    else if (f->versioning == Column_definition::WITH_VERSIONING)
+      with++;
   }
 
+  bool table_with_system_versioning=
+      generated_as_row.start || generated_as_row.end ||
+      period_for_system_time.start || period_for_system_time.end;
+
+  if (with == 0 && (not_set == 0 || !table_with_system_versioning))
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+             "versioned fields missing");
+    return true;
+  }
+
+  return check_with_conditions(table_name) ||
+         check_generated_type(table_name, alter_info, integer_fields);
+}
+
+static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
+                                   Field *field)
+{
+  DBUG_ASSERT(field);
+  DBUG_ASSERT(field->field_name);
+  Alter_drop *ad= new (thd->mem_root)
+      Alter_drop(Alter_drop::COLUMN, field->field_name, false);
+  return !ad || alter_info->drop_list.push_back(ad, thd->mem_root);
+}
+
+bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
+                                          HA_CREATE_INFO *create_info,
+                                          TABLE_SHARE *share)
+{
+  bool integer_fields=
+      create_info->db_type->flags & HTON_SUPPORTS_SYS_VERSIONING;
+  const char *table_name= share->table_name.str;
+
+  if (!need_to_check() && !share->versioned)
+    return false;
+
+  if (declared_without_system_versioning)
+  {
+    if (!share->versioned)
+    {
+      my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+               "table is not versioned");
+      return true;
+    }
+
+    if (add_field_to_drop_list(thd, alter_info, share->vers_start_field()) ||
+        add_field_to_drop_list(thd, alter_info, share->vers_end_field()))
+      return true;
+
+    alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
+    return false;
+  }
+
+  if ((has_versioned_fields || has_unversioned_fields) && !share->versioned)
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+             "Can not change fields versioning mode in a non-versioned table");
+    return true;
+  }
+
+  if (share->versioned)
+  {
+    // copy info from existing table
+    create_info->options|= HA_VERSIONED_TABLE;
+
+    DBUG_ASSERT(share->vers_start_field() && share->vers_end_field());
+    const char *start= share->vers_start_field()->field_name;
+    const char *end= share->vers_end_field()->field_name;
+    DBUG_ASSERT(start && end);
+
+    if (create_string(thd->mem_root, &generated_as_row.start, start) ||
+        create_string(thd->mem_root, &generated_as_row.end, end) ||
+        create_string(thd->mem_root, &period_for_system_time.start, start) ||
+        create_string(thd->mem_root, &period_for_system_time.end, end))
+      return true;
+
+    if (alter_info->create_list.elements)
+    {
+      DBUG_ASSERT(share->fields > 2);
+      const char *after_this= share->field[share->fields - 3]->field_name;
+      List_iterator<Create_field> it(alter_info->create_list);
+      while (Create_field *f= it++)
+      {
+        if (f->versioning == Column_definition::WITHOUT_VERSIONING)
+          f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
+
+        if (f->change)
+          continue;
+
+        if (f->after)
+        {
+          if (is_trx_start(f->after) || is_trx_end(f->after))
+          {
+            my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+                     "Can not put new field after system versioning field");
+            return true;
+          }
+
+          continue;
+        }
+
+        // TODO: ALTER_COLUMN_ORDER?
+        f->after= after_this;
+      }
+    }
+
+    if (alter_info->drop_list.elements)
+    {
+      List_iterator<Alter_drop> it(alter_info->drop_list);
+      while (Alter_drop* d= it++)
+      {
+        if (is_trx_start(d->name) || is_trx_end(d->name))
+        {
+          my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+                   "Can not drop system versioning field");
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  return fix_implicit(thd, alter_info, integer_fields) ||
+         (declared_with_system_versioning &&
+          (check_with_conditions(table_name) ||
+           check_generated_type(table_name, alter_info, integer_fields)));
+}
+
+bool Vers_parse_info::check_with_conditions(const char *table_name) const
+{
   if (!generated_as_row.start)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'GENERATED AS ROW START' column missing");
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+             "'GENERATED AS ROW START' column missing");
     return true;
   }
 
   if (!generated_as_row.end)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'GENERATED AS ROW END' column missing");
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+             "'GENERATED AS ROW END' column missing");
     return true;
   }
 
   if (!period_for_system_time.start || !period_for_system_time.end)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'PERIOD FOR SYSTEM_TIME' missing");
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+             "'PERIOD FOR SYSTEM_TIME' missing");
     return true;
   }
 
   if (my_strcasecmp(system_charset_info, generated_as_row.start->c_ptr(),
                     period_for_system_time.start->c_ptr()))
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW START' mismatch");
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+             "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW START' mismatch");
     return true;
   }
 
   if (my_strcasecmp(system_charset_info, generated_as_row.end->c_ptr(),
                     period_for_system_time.end->c_ptr()))
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW END' mismatch");
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+             "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW END' mismatch");
     return true;
+  }
+
+  return false;
+}
+
+bool Vers_parse_info::check_generated_type(const char *table_name,
+                                           Alter_info *alter_info,
+                                           bool integer_fields) const
+{
+  List_iterator<Create_field> it(alter_info->create_list);
+  while (Create_field *f= it++)
+  {
+    if (is_trx_start(f->field_name) || is_trx_end(f->field_name))
+    {
+      if (integer_fields)
+      {
+        if (f->sql_type != MYSQL_TYPE_LONGLONG || !(f->flags & UNSIGNED_FLAG) ||
+            f->length != (MY_INT64_NUM_DECIMAL_DIGITS - 1))
+        {
+          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name,
+                   "BIGINT(20) UNSIGNED", table_name);
+          return true;
+        }
+      }
+      else
+      {
+        if (f->sql_type != MYSQL_TYPE_TIMESTAMP2 ||
+            f->length != MAX_DATETIME_FULL_WIDTH)
+        {
+          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name,
+                   "TIMESTAMP(6)", table_name);
+          return true;
+        }
+      }
+    }
   }
 
   return false;

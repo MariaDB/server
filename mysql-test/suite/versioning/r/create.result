@@ -88,35 +88,35 @@ Sys_start int generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: `Sys_start` must be of type `TIMESTAMP` for versioned table `t1`
+ERROR HY000: `Sys_start` must be of type `TIMESTAMP(6)` for versioned table `t1`
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end int generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: `Sys_end` must be of type `TIMESTAMP` for versioned table `t1`
+ERROR HY000: `Sys_end` must be of type `TIMESTAMP(6)` for versioned table `t1`
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end bigint generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
-ERROR HY000: `Sys_start` must be of type `BIGINT UNSIGNED` for versioned table `t1`
+ERROR HY000: `Sys_start` must be of type `BIGINT(20) UNSIGNED` for versioned table `t1`
 create or replace table t1 (
 XNo int unsigned,
 Sys_start bigint generated always as row start,
 Sys_end bigint generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
-ERROR HY000: `Sys_start` must be of type `BIGINT UNSIGNED` for versioned table `t1`
+ERROR HY000: `Sys_start` must be of type `BIGINT(20) UNSIGNED` for versioned table `t1`
 create or replace table t1 (
 XNo int unsigned,
 Sys_start bigint unsigned generated always as row start,
 Sys_end bigint generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
-ERROR HY000: `Sys_end` must be of type `BIGINT UNSIGNED` for versioned table `t1`
+ERROR HY000: `Sys_end` must be of type `BIGINT(20) UNSIGNED` for versioned table `t1`
 create or replace table t1 (
 A int with system versioning,
 B int
@@ -195,4 +195,32 @@ create or replace table t1 (
 A int without system versioning
 ) with system versioning;
 ERROR HY000: Wrong parameters for versioned table `t1`: versioned fields missing
+create or replace table t1 (
+A int without system versioning with system versioning
+);
+ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same field
+create or replace table t1 (
+A int with system versioning without system versioning
+);
+ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same field
+create table t(
+a int
+) without system versioning;
+ERROR HY000: Wrong parameters for versioned table `t`: 'WITHOUT SYSTEM VERSIONING' is not allowed
+create or replace table t1 (
+A int
+) without system versioning with system versioning;
+ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same table
+create or replace table t1 (
+A int
+) with system versioning without system versioning;
+ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same table
+create or replace table t1 (
+A int
+) with system versioning with system versioning;
+ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same table
+create or replace table t1 (
+A int
+) without system versioning without system versioning;
+ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same table
 drop table t1;
