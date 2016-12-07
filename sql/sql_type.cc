@@ -123,7 +123,7 @@ Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
 }
 
 
-/*
+/**
   Collect built-in data type handlers for comparison.
   This method is very similar to item_cmp_type() defined in item.cc.
   Now they coexist. Later item_cmp_type() will be removed.
@@ -131,6 +131,7 @@ Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
   TIME with DATETIME/TIMESTAMP/DATE, so no additional find_date_time_item()
   is needed after this call.
 */
+
 void
 Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 {
