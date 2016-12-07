@@ -1754,9 +1754,9 @@ RecLock::lock_alloc(
 /*********************************************************************//**
 Check if lock1 has higher priority than lock2.
 NULL has lowest priority.
-If either is a high priority transaction, the lock has higher priority.
 If neither of them is wait lock, the first one has higher priority.
 If only one of them is a wait lock, it has lower priority.
+If either is a high priority transaction, the lock has higher priority.
 Otherwise, the one with an older transaction has higher priority.
 @returns true if lock1 has higher priority, false otherwise. */
 bool
@@ -1769,10 +1769,13 @@ has_higher_priority(
 	} else if (lock2 == NULL) {
 		return true;
 	}
-	// No preference. Compre them by wait mode and trx age.
+	// Granted locks has higher priority.
 	if (!lock_get_wait(lock1)) {
 		return true;
 	} else if (!lock_get_wait(lock2)) {
+		return false;
+	}
+	if (trx_is_high_priority(lock1->trx)) {
 		return false;
 	}
 	return lock1->trx->start_time_micro <= lock2->trx->start_time_micro;
