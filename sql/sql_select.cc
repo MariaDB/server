@@ -3144,6 +3144,7 @@ JOIN::destroy()
     */
     tmp_table_param.cleanup();
     tmp_join->tmp_table_param.copy_field= 0;
+    cleanup(1);
     DBUG_RETURN(tmp_join->destroy());
   }
   cond_equal= 0;
