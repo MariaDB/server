@@ -262,3 +262,30 @@ select * from v1;
 'foo!' like 'foo!!'	'foo!' like 'foo!!' escape '!'
 0	1
 drop view v1;
+create table t1 (a varchar(100),
+b int default (a like '%f\\_'),
+c int default (a like '%f\\_' escape ''),
+d int default (a like '%f\\_' escape '\\'));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(100) DEFAULT NULL,
+  `b` int(11) DEFAULT (`a` like '%f\\_'),
+  `c` int(11) DEFAULT (`a` like '%f\\_' escape ''),
+  `d` int(11) DEFAULT (`a` like '%f\\_' escape '\\')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t1 (a) values ('1 f_'), ('1 f\\_');
+set sql_mode=no_backslash_escapes;
+insert t1 (a) values ('2 f_'), ('2 f\_');
+flush tables;
+insert t1 (a) values ('3 f_'), ('3 f\_');
+set sql_mode=default;
+select * from t1;
+a	b	c	d
+1 f_	1	0	1
+1 f\_	0	1	0
+2 f_	1	0	1
+2 f\_	0	1	0
+3 f_	1	0	1
+3 f\_	0	1	0
+drop table t1;
