@@ -87,6 +87,7 @@ create table t1 (a int);
 # testing that binlog rotation preserves opt_binlog_checksum value
 flush logs;
 flush logs;
+-- source include/wait_for_binlog_checkpoint.inc
 flush logs;
 
 sync_slave_with_master;
