@@ -1451,13 +1451,13 @@ ulint
 buf_pool_size_align(
 	ulint	size)
 {
-	const ulint	m = srv_buf_pool_instances * srv_buf_pool_chunk_unit;
+	const ib_uint64_t	m = ((ib_uint64_t)srv_buf_pool_instances) * srv_buf_pool_chunk_unit;
 	size = ut_max(size, srv_buf_pool_min_size);
 
 	if (size % m == 0) {
 		return(size);
 	} else {
-		return((size / m + 1) * m);
+		return (ulint)((size / m + 1) * m);
 	}
 }
 
