@@ -45,16 +45,14 @@ INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,
 @a,@a,@a,@a
 );
 
-SET GLOBAL innodb_buffer_pool_dump_at_shutdown=1;
+SET GLOBAL innodb_buffer_pool_dump_at_shutdown=1, GLOBAL innodb_fast_shutdown=0;
 # Dump on shutdown has been set - shutdown now
 
 --echo
 --echo # Restart server
---let $shutdown_timeout= 10
---let $allow_rpl_inited= 1
 --source include/restart_mysqld.inc
 
-SET debug_sync="buf_load SIGNAL stalling",
+SET debug_sync="buf_load WAIT_FOR shutdown",
     GLOBAL innodb_buffer_pool_load_now=1,
     GLOBAL innodb_buffer_pool_dump_at_shutdown=1;
 

@@ -4,7 +4,7 @@ SELECT variable_name, variable_value
 FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_incomplete';
 variable_name	variable_value
-INNODB_BUFFER_POOL_LOAD_INCOMPLETE	0
+INNODB_BUFFER_POOL_LOAD_INCOMPLETE	OFF
 
 # populate with data
 CREATE TABLE t1 (
@@ -37,17 +37,17 @@ INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,
 @a,@a,@a,@a,@a,
 @a,@a,@a,@a
 );
-SET GLOBAL innodb_buffer_pool_dump_at_shutdown=1;
+SET GLOBAL innodb_buffer_pool_dump_at_shutdown=1, GLOBAL innodb_fast_shutdown=0;
 
 # Restart server
-SET debug_sync="buf_load SIGNAL stalling",
+SET debug_sync="buf_load WAIT_FOR shutdown",
 GLOBAL innodb_buffer_pool_load_now=1,
 GLOBAL innodb_buffer_pool_dump_at_shutdown=1;
 SELECT variable_name, variable_value
 FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_incomplete';
 variable_name	variable_value
-INNODB_BUFFER_POOL_LOAD_INCOMPLETE	1
+INNODB_BUFFER_POOL_LOAD_INCOMPLETE	ON
 
 # Restart server
 
@@ -64,7 +64,7 @@ SELECT variable_name, variable_value
 FROM information_schema.global_status
 WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_incomplete';
 variable_name	variable_value
-INNODB_BUFFER_POOL_LOAD_INCOMPLETE	0
+INNODB_BUFFER_POOL_LOAD_INCOMPLETE	OFF
 
 # Load it again and abort with innodb_buffer_pool_load_abort=1
 SET debug_sync="buf_load WAIT_FOR abort_release",
@@ -78,7 +78,7 @@ FROM information_schema.global_status
 WHERE LOWER(variable_name) IN ('innodb_buffer_pool_load_incomplete', 'innodb_buffer_pool_load_status');
 variable_name	variable_value
 INNODB_BUFFER_POOL_LOAD_STATUS	Buffer pool(s) load aborted on request
-INNODB_BUFFER_POOL_LOAD_INCOMPLETE	1
+INNODB_BUFFER_POOL_LOAD_INCOMPLETE	ON
 
 # innodb_buffer_pool_dump_now=1 should reset the innodb_buffer_pool_load_incomplete status
 SET GLOBAL innodb_buffer_pool_dump_now=1;
@@ -87,7 +87,7 @@ FROM information_schema.global_status
 WHERE LOWER(variable_name) IN ('innodb_buffer_pool_load_incomplete', 'innodb_buffer_pool_dump_status');
 variable_name	VALUE
 INNODB_BUFFER_POOL_DUMP_STATUS	Buffer pool(s) dump completed at 
-INNODB_BUFFER_POOL_LOAD_INCOMPLETE	0
+INNODB_BUFFER_POOL_LOAD_INCOMPLETE	OFF
 SET DEBUG_SYNC= 'RESET';
 
 # Clean up
