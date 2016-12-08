@@ -9,6 +9,7 @@ disconnect con1;
 connection con2;
 SELECT * FROM t1;
 a
+10
 DROP TABLE t1;
 connection default;
 disconnect con2;

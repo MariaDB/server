@@ -196,6 +196,12 @@ enum enum_mdl_type {
   */
   MDL_SHARED_UPGRADABLE,
   /*
+    A shared metadata lock for cases when we need to read data from table
+    and block all concurrent modifications to it (for both data and metadata).
+    Used by LOCK TABLES READ statement.
+  */
+  MDL_SHARED_READ_ONLY,
+  /*
     An upgradable shared metadata lock which blocks all attempts to update
     table data, allowing reads.
     A connection holding this kind of lock can read table metadata and read
@@ -465,6 +471,19 @@ public:
   {
     DBUG_ASSERT(ticket == NULL);
     type= type_arg;
+  }
+
+  /**
+    Is this a request for a lock which allow data to be updated?
+
+    @note This method returns true for MDL_SHARED_UPGRADABLE type of
+          lock. Even though this type of lock doesn't allow updates
+          it will always be upgraded to one that does.
+  */
+  bool is_write_lock_request() const
+  {
+    return (type >= MDL_SHARED_WRITE &&
+            type != MDL_SHARED_READ_ONLY);
   }
 
   /*
