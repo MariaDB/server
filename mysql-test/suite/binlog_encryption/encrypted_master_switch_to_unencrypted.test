@@ -56,6 +56,10 @@ INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
 --let SEARCH_PATTERN= table1_no_encryption
 --source include/search_pattern_in_file.inc
 
+# We are storing the position now, because up to this point the slave
+# should be able to synchronize with master
+--save_master_pos
+
 --echo #####################################################
 --echo # Part 2: restart master, now with binlog encryption
 --echo #####################################################
@@ -102,14 +106,22 @@ INSERT INTO table3_no_encryption VALUES (NULL,NOW(),'data_no_encryption');
 INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
 INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
 
---save_master_pos
-
 --echo #####################################################
 --echo # Check: resume replication and check how it goes
 --echo #####################################################
---connection server_2
 
+--connection server_2
 start slave;
+# The slave should be able to synchronize with master up to 
+# the previously saved position (when the log was still unencrypted)
+--sync_with_master
+
+--connection server_1
+# Now save the current position and make slave to try to syncrhonize.
+# It shouldn't work, the slave IO thread is expected to abort with an error
+--save_master_pos
+
+--connection server_2
 --let slave_io_errno=1236
 --source include/wait_for_slave_io_error.inc
 

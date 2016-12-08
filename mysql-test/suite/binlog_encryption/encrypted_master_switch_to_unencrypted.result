@@ -56,6 +56,8 @@ INSERT INTO table3_no_encryption SELECT NULL,NOW(),b FROM table3_no_encryption;
 #####################################################
 connection server_2;
 start slave;
+connection server_1;
+connection server_2;
 include/wait_for_slave_io_error.inc [errno=1236]
 connection server_2;
 connection server_2;
