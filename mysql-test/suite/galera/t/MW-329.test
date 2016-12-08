@@ -1,0 +1,61 @@
+#
+# #MW-329 Fix incorrect affected rows count after replay
+#
+
+--source include/galera_cluster.inc
+
+CREATE TABLE t1 (f1 INTEGER, f2 CHAR(20) DEFAULT 'abc') ENGINE=InnoDB;
+
+# We start with a populated table
+INSERT INTO t1 (f1) VALUES (1),(65535);
+
+# Clear the wsrep_local_replays counter
+
+FLUSH STATUS;
+SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays';
+
+#
+# Run concurrent INSERTs 
+#
+
+DELIMITER |;
+CREATE PROCEDURE proc_insert ()
+BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+        SET SESSION wsrep_sync_wait = 0;
+        WHILE 1 DO
+		INSERT INTO t1 (f1) VALUES (FLOOR( 1 + RAND( ) * 65535 ));
+        END WHILE;
+END|
+DELIMITER ;|
+
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1b
+--send CALL proc_insert();
+
+#
+# Run concurrent UPDATEs. We expect that each UPDATE will report that
+# some rows were matched and updated
+#
+
+--connection node_2
+--let $count = 10
+while ($count)
+{
+	--let $signature = `SELECT LEFT(MD5(RAND()), 10)`
+	--disable_query_log
+	--eval UPDATE t1 SET f2 = '$signature'
+	--enable_query_log
+	SELECT ROW_COUNT() > 0;
+	SELECT FOUND_ROWS() > 0;
+	--dec $count
+}
+
+#
+# Confirm that some transaction replays occurred
+#
+
+SELECT VARIABLE_VALUE > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays';
+
+DROP PROCEDURE proc_insert;
+DROP TABLE t1;
