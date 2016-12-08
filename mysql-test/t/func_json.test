@@ -54,6 +54,7 @@ select json_extract('{"key0":true, "key1":"qwe"}', "$.key1");
 select json_extract(json_object('foo', 'foobar'),'$');
 select json_extract('[10, 20, [30, 40]]', '$[2][*]');
 select json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]');
+select json_extract('1', '$');
 
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3);

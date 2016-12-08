@@ -476,9 +476,6 @@ String *Item_func_json_extract::val_str(String *str)
         v_len= je.s.c_str - value;
       }
 
-      if (json_scan_next(&je) && je.s.error)
-        goto error;
-
       if (!multiple_values_found)
       {
         if (first_value == NULL)
@@ -489,7 +486,6 @@ String *Item_func_json_extract::val_str(String *str)
              */
           first_value= (const char *) value;
           first_len= v_len;
-          continue;
         }
         else
         {
@@ -500,14 +496,19 @@ String *Item_func_json_extract::val_str(String *str)
         }
 
       }
-      if (str->append(", ", 2) ||
-          str->append((const char *) value, v_len))
+      if (multiple_values_found &&
+          (str->append(", ", 2) ||
+           str->append((const char *) value, v_len)))
         goto error; /* Out of memory. */
-    }
 
-    if (je.s.error)
-      goto error;
+      if (json_scan_next(&je))
+        break;
+
+    }
   }
+
+  if (je.s.error)
+    goto error;
 
   if (first_value == NULL)
   {

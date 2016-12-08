@@ -138,6 +138,9 @@ json_extract('[10, 20, [30, 40]]', '$[2][*]')
 select json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]');
 json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]')
 [{"a":3}, 30, 40]
+select json_extract('1', '$');
+json_extract('1', '$')
+1
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
 json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word')
 {"a":1, "b":{"c":1, "k1":"word"}, "d":[1, 2]}
