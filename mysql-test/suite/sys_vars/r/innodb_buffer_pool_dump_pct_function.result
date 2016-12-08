@@ -1,4 +1,3 @@
-SET GLOBAL innodb_buffer_pool_dump_pct=25, global innodb_buffer_pool_dump_at_shutdown=1;;
 # populate with data
 CREATE TABLE t1 (
 c01 blob, c02 blob, c03 blob, c04 blob, c05 blob,
@@ -31,6 +30,7 @@ INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,
 @a,@a,@a,@a
 );
 insert into t1 select * from t1;
+SET GLOBAL innodb_buffer_pool_dump_pct=25,GLOBAL innodb_fast_shutdown=0, GLOBAL innodb_buffer_pool_dump_at_shutdown=1;
 # Restart server
 SET GLOBAL innodb_buffer_pool_load_now=1;
 # Case 1: Limit from innodb_buffer_pool_dump_pct

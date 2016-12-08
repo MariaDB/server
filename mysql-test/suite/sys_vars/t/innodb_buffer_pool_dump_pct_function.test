@@ -7,10 +7,6 @@
 
 -- source include/have_innodb.inc
 
---let $PCT=25
-
---eval SET GLOBAL innodb_buffer_pool_dump_pct=$PCT, global innodb_buffer_pool_dump_at_shutdown=1;
-
 --echo # populate with data
 
 CREATE TABLE t1 (
@@ -49,11 +45,12 @@ insert into t1 select * from t1;
 
 --let $blob_pages=`select count(*)  from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE`
 
+--let $PCT=25
+--eval SET GLOBAL innodb_buffer_pool_dump_pct=$PCT,GLOBAL innodb_fast_shutdown=0, GLOBAL innodb_buffer_pool_dump_at_shutdown=1
+
 # Dump on shutdown has been set - shutdown now
 
 --echo # Restart server
---let $shutdown_timeout= 10
---let $allow_rpl_inited= 1
 --source include/restart_mysqld.inc
 
 SET GLOBAL innodb_buffer_pool_load_now=1;
