@@ -5665,9 +5665,6 @@ innobase_kill_query(
 		/* Cancel a pending lock request if there are any */
 		bool lock_mutex_taken = false;
 		bool trx_mutex_taken = false;
-		bool already_have_lock_mutex = false;
-		bool already_have_trx_mutex = false;
-		dberr_t err = DB_SUCCESS;
 
 		if (trx->lock.wait_lock) {
 			WSREP_DEBUG("Killing victim trx %p BF %d trx BF %d trx_id " IB_ID_FMT " ABORT %d thd %p"
@@ -5681,37 +5678,29 @@ innobase_kill_query(
 		}
 
 		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
-			ut_ad(!lock_mutex_own());
 			lock_mutex_enter();
 			lock_mutex_taken = true;
-		} else {
-			already_have_lock_mutex = true;
 		}
 
 		if (trx->abort_type != TRX_WSREP_ABORT) {
-			ut_ad(!trx_mutex_own(trx));
 			trx_mutex_enter(trx);
 			trx_mutex_taken = true;
-		} else {
-			already_have_trx_mutex = true;
 		}
 
-		err = lock_trx_handle_wait(trx,
-			(lock_mutex_taken || already_have_lock_mutex),
-			(trx_mutex_taken || already_have_trx_mutex));
+#ifdef UNIV_DEBUG
+		dberr_t err =
+#endif
+		lock_trx_handle_wait(trx, true, true);
+
+		ut_ad(err == DB_SUCCESS || err == DB_LOCK_WAIT
+		      || err == DB_DEADLOCK);
 
 		if (lock_mutex_taken) {
-			ut_ad(lock_mutex_own());
 			lock_mutex_exit();
 		}
 
 		if (trx_mutex_taken) {
-			ut_ad(trx_mutex_own(trx));
 			trx_mutex_exit(trx);
-		}
-
-		if (err != DB_SUCCESS && err != DB_LOCK_WAIT) {
-			ib::warn() << "Killing connection failed " << ut_strerr(err) << "("<<err<<")";
 		}
 	}
 
