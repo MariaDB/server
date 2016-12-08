@@ -31,6 +31,7 @@ DELIMITER ;|
 
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1b
+--let $connection_id = `SELECT CONNECTION_ID()`
 --send CALL proc_insert();
 
 #
@@ -44,10 +45,15 @@ while ($count)
 {
 	--let $signature = `SELECT LEFT(MD5(RAND()), 10)`
 	--disable_query_log
+	--error 0,ER_LOCK_DEADLOCK
 	--eval UPDATE t1 SET f2 = '$signature'
 	--enable_query_log
-	SELECT ROW_COUNT() > 0;
-	SELECT FOUND_ROWS() > 0;
+	--let $row_count = `SELECT ROW_COUNT()`
+	if (`SELECT @@error_count = 0`) {
+		if (`SELECT $row_count = 0`) {
+			--die ROW_COUNT() = 0
+		}
+	}
 	--dec $count
 }
 
@@ -57,5 +63,19 @@ while ($count)
 
 SELECT VARIABLE_VALUE > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays';
 
+#
+# Terminate the stored procedure
+#
+
+--connection node_1
+--disable_query_log
+--eval KILL CONNECTION $connection_id
+--enable_query_log
+
+--connection node_1b
+--error 0,2013,1317
+--reap
+
+--connection node_1
 DROP PROCEDURE proc_insert;
 DROP TABLE t1;
