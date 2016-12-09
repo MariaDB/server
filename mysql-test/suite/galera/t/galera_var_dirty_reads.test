@@ -36,12 +36,18 @@ SET @@session.wsrep_dirty_reads=ON;
 
 SELECT * FROM t1;
 
-#Select query which does not access table should be allowed MDEV-11016
+--echo #
+--echo # MDEV-11016: wsrep_node_is_ready() check is too strict
+--echo #
 SET @@session.wsrep_dirty_reads=OFF;
 SELECT 2;
-SELECT @@max_allowed_packet;
 SELECT 2+2 from DUAL;
-SELECT sysdate() from DUAL;
+SET @VAR=1;
+SELECT @VAR;
+--disable_result_log
+SELECT @@max_allowed_packet;
+SELECT SYSDATE() from DUAL;
+--enable_result_log
 
 --disable_query_log
 --eval SET @@global.wsrep_cluster_address = '$wsrep_cluster_address_saved'
