@@ -668,9 +668,9 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
 }
 
 static int
-setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *slex)
+vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *slex)
 {
-  DBUG_ENTER("setup_for_system_time");
+  DBUG_ENTER("vers_setup_select");
 #define newx new (thd->mem_root)
 
   TABLE_LIST *table;
@@ -693,7 +693,14 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LE
   }
 
   if (versioned_tables == 0)
+  {
+    if (slex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+    {
+      my_error(ER_VERSIONING_REQUIRED, MYF(0), "`FOR SYSTEM_TIME` query");
+      DBUG_RETURN(-1);
+    }
     DBUG_RETURN(0);
+  }
 
   /* For prepared statements we create items on statement arena,
      because they must outlive execution phase for multiple executions. */
@@ -980,7 +987,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   }
 
   /* Handle FOR SYSTEM_TIME clause. */
-  if (setup_for_system_time(thd, tables_list, &conds, select_lex) < 0)
+  if (vers_setup_select(thd, tables_list, &conds, select_lex) < 0)
     DBUG_RETURN(-1);
 
   /*

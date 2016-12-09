@@ -108,7 +108,7 @@ call test_01('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_start)');
 call test_02('timestamp(6)', 'myisam', 'sys_start');
 call test_02('bigint unsigned', 'innodb', 'vtq_commit_ts(sys_start)');
 
-# Test wildcard expansion on hidden fields.
+# wildcard expansion on hidden fields.
 create table t1(
   A int
 ) with system versioning engine=myisam;
@@ -121,8 +121,12 @@ create or replace table t1(
 insert into t1 values(1);
 select * from t1;
 
+create or replace table t1 (x int);
+insert into t1 values (1);
+--error ER_VERSIONING_REQUIRED
+select * from t1 for system_time all;
+
 drop table t1;
-# End test wildcard expansion.
 
 call verify_vtq;
 

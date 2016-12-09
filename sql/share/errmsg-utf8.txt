@@ -7487,8 +7487,8 @@ ER_UNKNOWN_VIEW 42S02
 
 # MariaDB error numbers related to System Versioning
 
-ER_TABLE_DOESNT_SUPPORT_SYSTEM_VERSIONING
-        eng "Table %`s doesn't support system versioning"
+ER_VERSIONING_REQUIRED
+        eng "System Versioning required: %s"
 
 ER_VERS_READONLY_FIELD
         eng "System field %`s is read-only"
