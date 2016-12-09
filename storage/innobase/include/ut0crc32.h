@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -54,6 +55,6 @@ extern ut_crc32_func_t	ut_crc32_legacy_big_endian;
 but very slow). */
 extern ut_crc32_func_t	ut_crc32_byte_by_byte;
 
-extern const char *ut_crc32_implementation;
+extern const char*	ut_crc32_implementation;
 
 #endif /* ut0crc32_h */

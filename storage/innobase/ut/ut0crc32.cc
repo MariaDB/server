@@ -2,6 +2,7 @@
 
 Copyright (c) 2009, 2010 Facebook, Inc. All Rights Reserved.
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -97,7 +98,7 @@ but very slow). */
 ut_crc32_func_t	ut_crc32_byte_by_byte;
 
 /** Text description of CRC32 implementation */
-const char *ut_crc32_implementation = NULL;
+const char*	ut_crc32_implementation;
 
 /** Swap the byte order of an 8 byte integer.
 @param[in]	i	8-byte integer
@@ -731,7 +732,7 @@ ut_crc32_init()
 
 	*/
 
-	if ((features_ecx >> 20) & 1) {
+	if (features_ecx & 1 << 20) {
 		ut_crc32 = ut_crc32_hw;
 		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
 		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_hw;
