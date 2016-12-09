@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -54,8 +55,6 @@ extern ut_crc32_func_t	ut_crc32_legacy_big_endian;
 but very slow). */
 extern ut_crc32_func_t	ut_crc32_byte_by_byte;
 
-/** Flag that tells whether the CPU supports CRC32 or not */
-extern bool		ut_crc32_sse2_enabled;
-extern bool		ut_crc32_power8_enabled;
+extern const char*	ut_crc32_implementation;
 
 #endif /* ut0crc32_h */
