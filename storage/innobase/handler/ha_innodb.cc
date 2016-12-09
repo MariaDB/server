@@ -23288,19 +23288,6 @@ not_found:
 
 static
 inline
-trx_id_t rec_get_trx_id(const rec_t* rec, ulint nfield)
-{
-	ulint		len;
-	const byte*	field;
-	field = rec_get_nth_field_old(
-		rec, nfield, &len);
-
-	ut_ad(len == sizeof(trx_id_t));
-	return mach_read_from_8(field);
-}
-
-static
-inline
 void rec_get_timeval(const rec_t* rec, ulint nfield, timeval& out)
 {
 	ulint		len;
