@@ -120,7 +120,57 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   int error;
   uchar *frm_ptr, *pos;
   LEX_CUSTRING frm= {0,0};
+  my_bool is_sport_blob_compressed = db_file->ha_table_flags() & HA_CAN_FIELD_COMPRESSED ? TRUE : FALSE;
   DBUG_ENTER("build_frm_image");
+
+  if (!is_sport_blob_compressed)
+  {
+    List_iterator<Create_field> it_field(create_fields);
+    my_bool is_compressed;
+    Create_field *cur_field = NULL;
+    while(cur_field = it_field++)
+    {
+      /* cur_field->field->is_compressed(); */
+      is_compressed = (cur_field->unireg_check == Field::COMPRESSED_PROPERTY_FIELD);
+      if(is_compressed)
+      {
+        /* if the engine does not support blob compressed function, error */
+        my_error(ER_FIELD_CAN_NOT_COMPRESSED_IN_CURRENT_ENGINESS, MYF(0), cur_field->field_name);
+        DBUG_RETURN(frm);
+      }
+    }
+  }
+
+  
+  for (int key_i = 0; key_i < keys; key_i++)
+  {
+    uint key_parts_i = 0;
+    uint key_parts = key_info[key_i].user_defined_key_parts;
+
+    for(key_parts_i = 0; key_parts_i < key_parts; key_parts_i++)
+    {
+      uint16 field_i = 0;
+      my_bool is_compressed = FALSE;
+      uint16 field_num = key_info[key_i].key_part[key_parts_i].fieldnr;
+      List_iterator<Create_field> it_field(create_fields);
+      Create_field *cur_field = NULL;
+
+      while(cur_field = it_field++)
+      {
+        if(field_i == field_num)
+        {
+          is_compressed = (cur_field->unireg_check == Field::COMPRESSED_PROPERTY_FIELD);
+
+          if(is_compressed)
+          {/* column has blob compressed property can not be an index */
+            my_error(ER_FIELD_CAN_NOT_COMPRESSED_AND_INDEX, MYF(0), cur_field->field_name);
+            DBUG_RETURN(frm);
+          }
+        }
+        field_i++;
+      }
+    }
+  }
 
  /* If fixed row records, we need one bit to check for deleted rows */
   if (!(create_info->table_options & HA_OPTION_PACK_RECORD))

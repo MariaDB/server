@@ -2903,7 +2903,11 @@ int prepare_create_field(Column_definition *sql_field,
       sql_field->pack_flag|=FIELDFLAG_BINARY;
     sql_field->length=8;			// Unireg field length
     sql_field->unireg_check=Field::BLOB_FIELD;
-    (*blob_columns)++;
+    if(sql_field->flags & FIELD_IS_COMPRESSED)
+    {/* save compressed property */
+      sql_field->unireg_check = Field::COMPRESSED_PROPERTY_FIELD;
+    }
+	  (*blob_columns)++;
     break;
   case MYSQL_TYPE_GEOMETRY:
 #ifdef HAVE_SPATIAL
@@ -2945,6 +2949,10 @@ int prepare_create_field(Column_definition *sql_field,
       }
     }
 #endif
+    if(sql_field->flags & FIELD_IS_COMPRESSED)
+    {/* save compressed property */
+      sql_field->unireg_check = Field::COMPRESSED_PROPERTY_FIELD;
+    }
     /* fall through */
   case MYSQL_TYPE_STRING:
     sql_field->pack_flag=0;
@@ -6344,7 +6352,9 @@ static bool fill_alter_inplace_info(THD *thd,
     ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_CHECK_CONSTRAINT;
   if (alter_info->flags & Alter_info::ALTER_DROP_CHECK_CONSTRAINT)
     ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_CHECK_CONSTRAINT;
-
+  if (alter_info->flags & Alter_info::ALTER_ADD_COLUMN_COMPRESSED)
+    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_COLUMN_COMPRESSED;
+  
   /*
     If we altering table with old VARCHAR fields we will be automatically
     upgrading VARCHAR column types.

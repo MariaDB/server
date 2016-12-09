@@ -1958,6 +1958,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       if (field->unireg_check == Field::NEXT_NUMBER &&
           !(sql_mode & MODE_NO_FIELD_OPTIONS))
         packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
+
+      if (field->is_compressed() )
+      {/* hint for compress, current mariadb version: 100203 */
+        packet->append(STRING_WITH_LEN(" /*!100203 COMPRESSED */"));
+      }
     }
     if (field->check_constraint)
     {

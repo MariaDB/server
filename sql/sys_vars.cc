@@ -1396,6 +1396,15 @@ static Sys_var_ulong Sys_max_connections(
        DEFAULT(MAX_CONNECTIONS_DEFAULT), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_max_connections));
 
+
+/*  The column data length >= field_compress_min_len would be compressed 
+if use blob/text/varchar/varbinary compressed */
+static Sys_var_ulong Sys_blob_compress_min_len(
+       "field_compress_min_len", "the threshold of blob/varchar compress length",
+        GLOBAL_VAR(opt_field_compress_min_len), CMD_LINE(REQUIRED_ARG),
+        VALID_RANGE(1, ULONG_MAX),
+        DEFAULT(128), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_max_connect_errors(
        "max_connect_errors",
        "If there is more than this number of interrupted connections from "

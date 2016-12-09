@@ -45,7 +45,8 @@ struct SysIndexCallback;
 extern ibool row_rollback_on_timeout;
 
 struct row_prebuilt_t;
-
+#define FIELD_COMPRESSED_HEADER_LEN 1
+#define FIELD_COMPRESSED_ORIGINAL_LENGTH_MAX_BYTES 4
 /*******************************************************************//**
 Frees the blob heap in prebuilt when no longer needed. */
 void
@@ -76,6 +77,19 @@ row_mysql_read_true_varchar(
 	const byte*	field,	/*!< in: field in the MySQL format */
 	ulint		lenlen);/*!< in: storage length of len: either 1
 				or 2 bytes */
+
+/*******************************************************************//**
+Reads a reference to a BLOB in the MySQL format and compress the blob field
+@return	pointer to BLOB data after compress*/
+UNIV_INTERN
+const byte*
+row_mysql_read_true_varchar_and_compress(
+  /*====================*/
+  ulint*		len,		/*!< out: varstring compressed length */
+  const byte*	field,		/*!< in: varstring reference in the MySQL format */
+  ulint		col_len,	/*!< in: varstring reference length (not varstring length) */
+  row_prebuilt_t*	prebuilt);
+
 /*******************************************************************//**
 Stores a reference to a BLOB in the MySQL format. */
 void
@@ -103,6 +117,19 @@ row_mysql_read_blob_ref(
 					MySQL format */
 	ulint		col_len);	/*!< in: BLOB reference length
 					(not BLOB length) */
+
+/*******************************************************************//**
+Reads a reference to a BLOB in the MySQL format and compress the blob field
+@return	pointer to BLOB data after compress*/
+UNIV_INTERN
+const byte*
+row_mysql_read_blob_ref_and_compress(
+/*====================*/
+	ulint*		len,		/*!< out: BLOB length */
+	const byte*	ref,		/*!< in: BLOB reference in the MySQL format */
+	ulint		col_len,	/*!< in: BLOB reference length (not BLOB length) */
+	row_prebuilt_t*	prebuilt);
+
 /*******************************************************************//**
 Converts InnoDB geometry data format to MySQL data format. */
 void
@@ -176,7 +203,10 @@ row_mysql_store_col_in_innobase_format(
 					necessarily the length of the actual
 					payload data; if the column is a true
 					VARCHAR then this is irrelevant */
-	ulint		comp);		/*!< in: nonzero=compact format */
+	ulint		comp,		/*!< in: nonzero=compact format */
+	row_prebuilt_t*	prebuilt, 
+	int         i);
+	
 /****************************************************************//**
 Handles user errors and lock waits detected by the database engine.
 @return true if it was a lock wait and we should continue running the
@@ -591,6 +621,55 @@ void
 row_mysql_close(void);
 /*=================*/
 
+/*******************************************************/
+/*
+Record Header: 1 Byte
+7 Bit: Always 1, mean compressed;
+5-6 Bit: Compressed algorithm - Always 0, means zlib
+It maybe support other compression algorithm in the future.
+0-3 Bit: Bytes of "Record Original Length"
+Record Original Length: 1-4 Bytes*/
+int
+row_col_compress_head_read(
+	const byte  *data, 
+	ulint		data_len,
+	my_bool		*isCompress,
+	ulint		*len,
+	int			*algo_type);
+
+
+/*************************************************************************
+7 Bit: Always 1, mean compressed;
+5-6 Bit: Compressed algorithm - Always 0, means zlib
+It maybe support other compression algorithm in the future.
+0-3 Bit: Bytes of "Record Original Length"
+/************************************************************************/
+void
+row_col_compress_head_write(
+	byte		*head,		/*!< out: 1 byte, store head*/
+	my_bool 	isCompress,
+	ulint		len,		/* the compressed len */
+	int			algo_type);	/* algorithm type */
+
+
+byte*
+row_col_compress_alloc(/* return the compressed data */
+	const byte			*packet,     /*!<in: the data to be compressed*/
+	ulint				len,         /*!<in: the length of the origin data */
+	ulint				*complen,	 /*!<out: the length of the data after compress*/
+	row_prebuilt_t		*prebuilt);	 /*!<in/out: blob_heap */
+
+
+/************************************************************************/
+/*  Decompress the content in 'packet' with length of 'len' to 'data' and return 'data'.
+*/
+const byte*
+row_col_decompress(
+	const byte			*packet,     /*! in: data to be decompress */
+	ulint				len,         /*! in: the length of the data*/
+	ulint				*complen,	 /*! out: the lenght of the data after decompress*/
+	row_prebuilt_t		*prebuilt);	 /*<in/out: blob_head */
+
 /*********************************************************************//**
 Reassigns the table identifier of a table.
 @return error code or DB_SUCCESS */
@@ -856,6 +935,8 @@ struct row_prebuilt_t {
 					fetched row in fetch_cache */
 	ulint		n_fetch_cached;	/*!< number of not yet fetched rows
 					in fetch_cache */
+	mem_heap_t* compress_heap;/*used to malloc memory for blob
+				    field compressed.*/
 	mem_heap_t*	blob_heap;	/*!< in SELECTS BLOB fields are copied
 					to this heap */
 	mem_heap_t*	old_vers_heap;	/*!< memory heap where a previous

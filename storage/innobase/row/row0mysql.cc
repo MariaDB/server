@@ -69,6 +69,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "trx0undo.h"
 #include "row0ext.h"
 #include "ut0new.h"
+#include "zlib.h"
 
 #include <algorithm>
 #include <deque>
@@ -256,6 +257,36 @@ row_mysql_read_true_varchar(
 	return(field + 1);
 }
 
+
+/*******************************************************************//**
+Reads a reference to a BLOB in the MySQL format and compress the blob field
+@return	pointer to BLOB data after compress*/
+UNIV_INTERN
+const byte*
+row_mysql_read_true_varchar_and_compress(
+/*====================*/
+	ulint*		len,		/*!< out: varstring compressed length */
+	const byte*	field,		/*!< in: varstring reference in the MySQL format */
+	ulint		col_len,	/*!< in: varstring reference length (not varstring length) */
+	row_prebuilt_t*	prebuilt)
+{
+	const byte*	data_uncompress;
+	ulint	data_uncompress_len = 0;
+	byte*	data;
+	data_uncompress = row_mysql_read_true_varchar(&data_uncompress_len, field, col_len);
+
+	if(prebuilt->compress_heap == NULL)
+		prebuilt->compress_heap = mem_heap_create(UNIV_PAGE_SIZE);
+	data = row_col_compress_alloc(data_uncompress, data_uncompress_len, len, prebuilt);
+	if(!data)
+	{
+		ut_print_timestamp(stderr);
+		fprintf(stderr, " [InnoDB compress ERROR] out of memory, orginal len : "ULINTPF", compressed len :"ULINTPF" \n", data_uncompress_len, *len); 
+	}
+	
+	return data;
+}
+
 /*******************************************************************//**
 Stores a reference to a BLOB in the MySQL format. */
 void
@@ -311,6 +342,38 @@ row_mysql_read_blob_ref(
 	memcpy(&data, ref + col_len - 8, sizeof data);
 
 	return(data);
+}
+
+/*******************************************************************//**
+Reads a reference to a BLOB in the MySQL format and compress the blob field
+@return	pointer to BLOB data after compress*/
+UNIV_INTERN
+const byte*
+row_mysql_read_blob_ref_and_compress(
+/*====================*/
+	ulint*		len,		/*!< out: BLOB compressed length */
+	const byte*	ref,		/*!< in: BLOB reference in the MySQL format */
+	ulint		col_len,	/*!< in: BLOB reference length (not BLOB length) */
+	row_prebuilt_t*	prebuilt)
+{
+	const byte*	data_uncompress;
+	ulint	data_uncompress_len = 0;
+	byte*	data;
+	
+	data_uncompress = row_mysql_read_blob_ref(&data_uncompress_len, ref, col_len);
+
+	if(prebuilt->compress_heap == NULL)
+		prebuilt->compress_heap = mem_heap_create(UNIV_PAGE_SIZE);
+
+	data = row_col_compress_alloc(data_uncompress, data_uncompress_len, len, prebuilt);
+	if(!data)
+	{
+		ut_print_timestamp(stderr);
+		fprintf(stderr, " [InnoDB compress ERROR] out of memory, orginal len : "ULINTPF", compressed len :"ULINTPF" \n", data_uncompress_len, *len); 
+		ut_error;
+	}
+	
+	return data;
 }
 
 /*******************************************************************//**
@@ -496,7 +559,9 @@ row_mysql_store_col_in_innobase_format(
 					necessarily the length of the actual
 					payload data; if the column is a true
 					VARCHAR then this is irrelevant */
-	ulint		comp)		/*!< in: nonzero=compact format */
+	ulint		comp,		/*!< in: nonzero=compact format */
+	row_prebuilt_t*	prebuilt, 
+	int         i)             /* the i'th col */
 {
 	const byte*	ptr	= mysql_data;
 	const dtype_t*	dtype;
@@ -549,8 +614,14 @@ row_mysql_store_col_in_innobase_format(
 				lenlen = 2;
 			}
 
-			ptr = row_mysql_read_true_varchar(&col_len, mysql_data,
-							  lenlen);
+			if(prebuilt == NULL || !dict_col_is_compressed(&prebuilt->table->cols[i]))
+			{
+				ptr = row_mysql_read_true_varchar(&col_len, mysql_data, lenlen);
+			}
+			else
+			{/* compress the varstring field */
+				ptr = row_mysql_read_true_varchar_and_compress(&col_len, mysql_data, lenlen, prebuilt);
+			}
 		} else {
 			/* Remove trailing spaces from old style VARCHAR
 			columns. */
@@ -635,8 +706,14 @@ row_mysql_store_col_in_innobase_format(
 		since the length is always stored in 2 bytes,
 		we need do nothing here. */
 	} else if (type == DATA_BLOB) {
-
-		ptr = row_mysql_read_blob_ref(&col_len, mysql_data, col_len);
+		if(prebuilt == NULL || !dict_col_is_compressed(&prebuilt->table->cols[i]))
+		{
+			ptr = row_mysql_read_blob_ref(&col_len, mysql_data, col_len);
+		}
+		else
+		{/* compress the blob field */
+			ptr = row_mysql_read_blob_ref_and_compress(&col_len, mysql_data, col_len, prebuilt);
+		}
 	} else if (DATA_GEOMETRY_MTYPE(type)) {
 		/* We use blob to store geometry data except DATA_POINT
 		internally, but in MySQL Layer the datatype is always blob. */
@@ -710,7 +787,9 @@ row_mysql_convert_row_to_innobase(
 			TRUE, /* MySQL row format data */
 			mysql_rec + templ->mysql_col_offset,
 			templ->mysql_col_len,
-			dict_table_is_comp(prebuilt->table));
+			dict_table_is_comp(prebuilt->table),
+			prebuilt,
+			i);
 
 		/* server has issue regarding handling BLOB virtual fields,
 		and we need to duplicate it with our own memory here */
@@ -1062,6 +1141,10 @@ row_prebuilt_free(
 
 	if (prebuilt->blob_heap) {
 		row_mysql_prebuilt_free_blob_heap(prebuilt);
+	}
+	if (prebuilt->compress_heap) {
+		mem_heap_free(prebuilt->compress_heap);
+		prebuilt->compress_heap = NULL;
 	}
 
 	if (prebuilt->old_vers_heap) {
@@ -1554,11 +1637,23 @@ row_mysql_to_innobase(
 			      || dtype->mtype == DATA_BINARY);
 
 			col_len = 0;
-			row_mysql_read_true_varchar(
-				&col_len, ptr, templ->mysql_length_bytes);
-			ptr += templ->mysql_length_bytes;
+			if(prebuilt == NULL || !dict_col_is_compressed(&prebuilt->table->cols[i]))
+			{
+				ptr = row_mysql_read_true_varchar(&col_len, ptr, templ->mysql_length_bytes);
+			}
+			else
+			{/* compress the varstring field */
+				ptr = row_mysql_read_true_varchar_and_compress(&col_len, ptr, templ->mysql_length_bytes, prebuilt);
+			}
 		} else if (dtype->mtype == DATA_BLOB) {
-			ptr = row_mysql_read_blob_ref(&col_len, ptr, col_len);
+			if(prebuilt == NULL || !dict_col_is_compressed(&prebuilt->table->cols[i]))
+			{
+				ptr = row_mysql_read_blob_ref(&col_len, ptr, col_len);
+			}
+			else
+			{/* compress the blob field */
+				ptr = row_mysql_read_blob_ref_and_compress(&col_len, ptr, col_len, prebuilt);
+			}
 		} else if (DATA_GEOMETRY_MTYPE(dtype->mtype)) {
 			/* Point, Var-Point, Geometry */
 			ptr = row_mysql_read_geometry(&col_len, ptr, col_len);
@@ -6148,4 +6243,252 @@ row_mysql_close(void)
 	mutex_free(&row_drop_list_mutex);
 
 	row_mysql_drop_list_inited = FALSE;
+}
+
+/************************************************************************/
+/* this function used to compress the col when the col can satisfy	
+   the conditions of compressing
+   
+   Compress buf from 'packet' to 'compbuf'.
+   Return compbuf.
+**/
+byte*
+row_col_compress_alloc(/* return the compressed data */
+	const byte   *packet,     /*!<in: the data to be compressed*/
+	ulint         len,         /*!<in: the length of the origin data */
+	ulint         *complen,	   /*!<out: the length of the data after compress*/
+	row_prebuilt_t *prebuilt)
+{
+	byte *compbuf;
+	ut_a(len <= 0xFFFFFFFF);
+	if (len < opt_field_compress_min_len)
+	{
+		compbuf = (byte*)mem_heap_alloc(prebuilt->compress_heap, len + 1);
+		if(!compbuf)
+		{
+			ut_print_timestamp(stderr);
+			fprintf(stderr, " [InnoDB compress ERROR] BLOB COMPRESS FAILED, table_name : %s, out of memory\n", 
+			prebuilt->table->name);
+			return NULL; //malloc failed
+		}
+		memcpy(compbuf + 1, packet, len);
+		row_col_compress_head_write(&compbuf[0], 0, 0, 0);
+		*complen=len + 1;
+	}
+	else
+	{
+		int res;
+		int n = 0;
+		byte head;
+
+		*complen=  compressBound(len) + FIELD_COMPRESSED_HEADER_LEN + FIELD_COMPRESSED_ORIGINAL_LENGTH_MAX_BYTES;
+
+		memset(&head, 0, 1);
+		compbuf = (byte*)mem_heap_alloc(prebuilt->compress_heap, *complen);
+		if(!compbuf)
+		{
+			ut_print_timestamp(stderr);
+			fprintf(stderr, " [InnoDB compress ERROR] BLOB COMPRESS FAILED, table_name : %s, out of memory\n", 
+				prebuilt->table->name);
+			
+			return NULL; //malloc failed
+		}
+
+		if (len & 0xFF000000)
+		{
+			mach_write_to_4(compbuf+1, len);
+			n = 4;
+		}
+		else if (len & 0x00FF0000)
+		{
+			mach_write_to_3(compbuf+1, len);
+			n = 3;
+		}
+		else if (len & 0x0000ff00)
+		{
+			mach_write_to_2(compbuf+1, len);
+			n = 2;
+		}
+		else 
+		{
+			ut_a(len < 256);
+			mach_write_to_1(compbuf+1, len);
+			n = 1;
+		}
+
+		res = compress((Bytef*)(compbuf+n+1), complen, (Bytef*) packet, (uLong) len);
+		if (res != Z_OK)
+		{
+			ut_print_timestamp(stderr);
+			fprintf(stderr, " [InnoDB compress ERROR] orginal len : "ULINTPF", compressed len :"ULINTPF" \n", len, *complen); 
+
+			ut_a( n <= 4);
+			row_col_compress_head_write(&head, 0, 0, 0);
+			memcpy(compbuf, &head, 1);
+			memcpy(compbuf+1, packet, len);
+			*complen = len + 1;
+			return compbuf;
+		}
+		else if(*complen > len)
+		{/* if the length is longer after compression */
+			row_col_compress_head_write(&head, 0, 0, 0);
+			memcpy(compbuf, &head, 1);
+			memcpy(compbuf+1, packet, len);
+			*complen = len + 1;
+			return compbuf;
+		}
+		else
+		{/* normal compression */
+			row_col_compress_head_write(&head, 1, n, 0);
+			memcpy(compbuf, &head, 1);
+			*complen += n+1;
+		}
+	}
+	return compbuf;
+}
+
+
+
+/************************************************************************/
+/*  Decompress the content in 'packet' with length of 'len' to 'data' and return 'data'.
+*/
+const byte*
+row_col_decompress(
+	const byte     *packet,     /*!<in: data to be decompress */
+	ulint          len,         /*!<in: the length of the data */
+	ulint          *complen,	/*!<out: the lenght of the data after decompress */
+	row_prebuilt_t *prebuilt)
+{
+	uLongf tmp_complen = 0;
+	byte* data = NULL;
+	my_bool isCompress = FALSE;
+	ulint data_byte;
+	uint data_len;
+	int algo_type = 0;
+	int result;
+	uint compress_len;
+
+	if (row_col_compress_head_read(packet, len, &isCompress, &data_byte, &algo_type))
+		return NULL;
+	if (prebuilt->compress_heap == NULL) 
+		prebuilt->compress_heap = mem_heap_create(UNIV_PAGE_SIZE);
+	if(isCompress)
+	{/* decompress */
+		if(data_byte == 4)
+			data_len = mach_read_from_4(packet+1);
+		else if(data_byte == 3)
+			data_len = mach_read_from_3(packet+1);
+		else if(data_byte == 2)
+			data_len = mach_read_from_2(packet+1);
+		else
+			data_len = mach_read_from_1(packet+1);
+
+		data = (byte*)mem_heap_alloc(prebuilt->compress_heap, data_len );
+
+		if(!data)
+		{
+			ut_print_timestamp(stderr);
+			fprintf(stderr, " [InnoDB compress ERROR] FIELD UNCOMPRESS FAILED, table_name : %s, out of memory\n", 
+				prebuilt->table->name);
+			
+			return NULL;
+		}
+		compress_len = len - 1 - data_byte;
+		ut_a(compress_len > 0);
+		tmp_complen = (uint) data_len;
+		
+		switch(algo_type)
+		{
+		case 0:
+			// zlib
+			result = uncompress((Bytef*) data, &tmp_complen, (Bytef*) (packet+1+data_byte), (uLong) compress_len);
+			if(result != Z_OK)
+			return NULL;
+			break;
+		default:
+		//TODO
+		//bad algorithm
+			return NULL;
+		}
+		ut_a(data_len == tmp_complen);
+		*complen = data_len;
+	}
+	else
+	{/* process the head */
+		data = (byte*)mem_heap_alloc(prebuilt->compress_heap, len-1);
+		memcpy(data, packet+1, len-1);
+		*complen = len-1;
+	}
+	return data;
+}
+
+
+
+/*************************************************************************
+7 Bit: Always 1, mean compressed;
+5-6 Bit: Compressed algorithm - Always 0, means zlib
+It maybe support other compression algorithm in the future.
+0-3 Bit: Bytes of "Record Original Length"
+/************************************************************************/
+void
+row_col_compress_head_write(
+	byte		*head,		/*!< out: 1 byte, store head*/
+	my_bool 	isCompress,
+	ulint		len,		/* the compressed len */
+	int			algo_type)	/* algorithm type */
+{
+	ut_a(algo_type == 0);
+
+	memset(head, 0, 1);
+	ut_a(len <= 4);
+	if(isCompress)
+	{/* compress */
+		(*head) |= 0x80;
+		(*head) |= (byte)(algo_type << 5);
+		(*head) |= (byte)len;
+	}		
+}
+
+
+/*******************************************************/
+/*
+Record Header: 1 Byte
+7 Bit: Always 1, mean compressed;
+5-6 Bit: Compressed algorithm - Always 0, means zlib
+It maybe support other compression algorithm in the future.
+0-3 Bit: Bytes of "Record Original Length"
+Record Original Length: 1-4 Bytes*/
+int
+row_col_compress_head_read(
+	const byte	*data, 
+	ulint       data_len,
+	my_bool     *isCompress,
+	ulint       *len,
+	int         *algo_type)
+{
+	byte head;
+
+	if (data_len < 1)
+		return -1;
+	
+	head = data[0];
+	if(head & 0x80)
+	{
+		*isCompress = TRUE;
+		*len = (head & 0x07);
+		*algo_type = (head>>5) & 0x03;
+
+		if (*algo_type != 0 || *len == 0 || *len > 4 || data_len < 1 + *len)
+			return -1;
+	}
+	else
+	{
+		*isCompress = FALSE;
+		*len = 0;
+		*algo_type = 0;
+
+		if (head != 0)
+			return  -1;
+	}
+	return 0;
 }

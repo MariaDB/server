@@ -2753,7 +2753,7 @@ row_sel_convert_mysql_key_to_innobase(
 					dfield, buf,
 					FALSE, /* MySQL key value format col */
 					key_ptr + data_offset, data_len,
-					dict_table_is_comp(index->table));
+					dict_table_is_comp(index->table), NULL, 0);
 			ut_a(buf <= original_buf + buf_len);
 		}
 
@@ -3064,7 +3064,7 @@ row_sel_store_mysql_field_func(
 
 	const byte*	data;
 	ulint		len;
-
+	uint		pos_in_mysql = templ->col_no;
 	ut_ad(prebuilt->default_rec);
 	ut_ad(templ);
 	ut_ad(templ >= prebuilt->mysql_template);
@@ -3120,6 +3120,11 @@ row_sel_store_mysql_field_func(
 		}
 
 		ut_a(len != UNIV_SQL_NULL);
+		if(dict_col_is_compressed(&prebuilt->table->cols[pos_in_mysql])) {
+         /* extern store£¬ decompress */
+			data = row_col_decompress(data, len, &len, prebuilt);
+			ut_a(data!=NULL);
+    }
 
 		row_sel_field_store_in_mysql_format(
 			mysql_rec + templ->mysql_col_offset,
@@ -3173,9 +3178,16 @@ row_sel_store_mysql_field_func(
 						    prebuilt->blob_heap));
 			}
 
-			data = static_cast<byte*>(
-				mem_heap_dup(prebuilt->blob_heap, data, len));
+			if(!dict_col_is_compressed(&prebuilt->table->cols[pos_in_mysql])) {
+				data = static_cast<byte*>(mem_heap_dup(prebuilt->blob_heap, data, len));
+			}
 		}
+
+	/* decompress */
+	if(dict_col_is_compressed(&prebuilt->table->cols[pos_in_mysql])) {
+		data = row_col_decompress(data, len, &len, prebuilt);
+		ut_a(data!=NULL);
+	}
 
 		row_sel_field_store_in_mysql_format(
 			mysql_rec + templ->mysql_col_offset,
@@ -3226,6 +3238,10 @@ row_sel_store_mysql_rec(
 
 	if (UNIV_LIKELY_NULL(prebuilt->blob_heap)) {
 		row_mysql_prebuilt_free_blob_heap(prebuilt);
+	}
+	if (prebuilt->compress_heap) {
+		mem_heap_free(prebuilt->compress_heap);
+		prebuilt->compress_heap = NULL;
 	}
 
 	for (i = 0; i < prebuilt->n_template; i++) {

@@ -282,6 +282,14 @@ dict_col_get_sql_null_size(
 	ulint			comp)	/*!< in: nonzero=ROW_FORMAT=COMPACT  */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
+Returns if the col has compressed property. */
+UNIV_INLINE
+ibool
+dict_col_is_compressed(
+/*===================*/
+  const dict_col_t*	col); /*!< in: dict column */
+
+/*********************************************************************//**
 Gets the column number.
 @return col->ind, table column position (starting from 0) */
 UNIV_INLINE

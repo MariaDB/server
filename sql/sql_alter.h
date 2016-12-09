@@ -127,6 +127,8 @@ public:
   static const uint ALTER_ADD_CHECK_CONSTRAINT  = 1L << 27;
   static const uint ALTER_DROP_CHECK_CONSTRAINT = 1L << 28;
 
+  static const uint ALTER_ADD_COLUMN_COMPRESSED = 1L << 29;
+
   enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };
 
   /**

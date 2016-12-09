@@ -204,6 +204,9 @@ enum enum_alter_inplace_result {
 /* old name for the same flag */
 #define HA_MUST_USE_TABLE_CONDITION_PUSHDOWN HA_CAN_TABLE_CONDITION_PUSHDOWN
 
+/* Engine supports  filed like varchar/blob/text to be compressed. 
+Currently only innobase supports this function. */
+#define HA_CAN_FIELD_COMPRESSED				 (1ULL << 50)
 /**
   The handler supports read before write removal optimization
 
@@ -1957,6 +1960,8 @@ public:
   static const HA_ALTER_FLAGS ALTER_ADD_CHECK_CONSTRAINT = 1LL << 32;
 
   static const HA_ALTER_FLAGS ALTER_DROP_CHECK_CONSTRAINT= 1LL << 33;
+
+  static const HA_ALTER_FLAGS ALTER_ADD_COLUMN_COMPRESSED = 1LL << 34;
 
   /**
     Create options (like MAX_ROWS) for the new version of table.
