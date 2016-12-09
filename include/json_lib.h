@@ -69,17 +69,26 @@ int json_read_string_const_chr(json_string_t *js);
 */
 
 
+/* Path step types - actually bitmasks to let '&' or '|' operations. */
 enum json_path_step_types
 {
-  JSON_PATH_KEY=0,
-  JSON_PATH_ARRAY=1
+  JSON_PATH_KEY_NULL=0,
+  JSON_PATH_KEY=1,   /* Must be equal to JSON_VALUE_OBJECT. */
+  JSON_PATH_ARRAY=2, /* Must be equal to JSON_VALUE_ARRAY. */
+  JSON_PATH_KEY_OR_ARRAY=3,
+  JSON_PATH_WILD=4, /* Step like .* or [*] */
+  JSON_PATH_DOUBLE_WILD=8, /* Step like **.k or **[1] */
+  JSON_PATH_KEY_WILD= 1+4,
+  JSON_PATH_KEY_DOUBLEWILD= 1+8,
+  JSON_PATH_ARRAY_WILD= 2+4,
+  JSON_PATH_ARRAY_DOUBLEWILD= 2+8
 };
 
 
 typedef struct st_json_path_step_t
 {
-  enum json_path_step_types type;  /* The type of the step - KEY or ARRAY */
-  int wild;         /* If the step is a wildcard */
+  enum json_path_step_types type;  /* The type of the step -   */
+                                   /* see json_path_step_types */
   const uchar *key; /* Pointer to the beginning of the key. */
   const uchar *key_end;  /* Pointer to the end of the key. */
   uint n_item;      /* Item number in an array. No meaning for the key step. */
@@ -162,8 +171,8 @@ enum json_states {
 
 enum json_value_types
 {
-  JSON_VALUE_OBJECT=0,
-  JSON_VALUE_ARRAY=1,
+  JSON_VALUE_OBJECT=1,
+  JSON_VALUE_ARRAY=2,
   JSON_VALUE_STRING,
   JSON_VALUE_NUMBER,
   JSON_VALUE_TRUE,

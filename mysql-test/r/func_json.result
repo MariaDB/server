@@ -40,6 +40,9 @@ NULL
 select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
 json_query('{"key1":123, "key1": [1,2,3]}', '$.key1')
 [1,2,3]
+select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000)));
+json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000)))
+NULL
 select json_array();
 json_array()
 []
@@ -288,6 +291,9 @@ json_search(@j, 'all', '10', NULL, '$[*]')
 "$[1][0].k"
 select json_search(@j, 'all', '10', NULL, '$[*][0].k');
 json_search(@j, 'all', '10', NULL, '$[*][0].k')
+"$[1][0].k"
+select json_search(@j, 'all', '10', NULL, '$**.k');
+json_search(@j, 'all', '10', NULL, '$**.k')
 "$[1][0].k"
 create table t1( json_col text );
 insert into t1 values

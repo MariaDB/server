@@ -117,11 +117,11 @@ test_path_parsing()
   if (json_path_setup(&p, ci, s_e(p0)))
     return;
   ok(p.last_step - p.steps == 4 && 
-     p.steps[0].type == JSON_PATH_ARRAY && p.steps[0].wild == 1 &&
-     p.steps[1].type == JSON_PATH_KEY && p.steps[1].wild == 0 &&
+     p.steps[0].type == JSON_PATH_ARRAY_WILD &&
+     p.steps[1].type == JSON_PATH_KEY &&
      p.steps[2].type == JSON_PATH_ARRAY && p.steps[2].n_item == 12 &&
-     p.steps[3].type == JSON_PATH_KEY && p.steps[3].wild == 1 &&
-     p.steps[4].type == JSON_PATH_ARRAY && p.steps[4].wild == 1,
+     p.steps[3].type == JSON_PATH_KEY_WILD &&
+     p.steps[4].type == JSON_PATH_ARRAY_WILD,
      "path");
 }
 

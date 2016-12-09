@@ -1506,7 +1506,7 @@ String *Item_func_json_insert::val_str(String *str)
       goto error;
 
     lp= c_path->p.last_step+1;
-    if (lp->type == JSON_PATH_ARRAY)
+    if (lp->type & JSON_PATH_ARRAY)
     {
       uint n_item= 0;
 
@@ -1722,7 +1722,7 @@ String *Item_func_json_remove::val_str(String *str)
       goto error;
 
     lp= c_path->p.last_step+1;
-    if (lp->type == JSON_PATH_ARRAY)
+    if (lp->type & JSON_PATH_ARRAY)
     {
       if (je.value_type != JSON_VALUE_ARRAY)
         continue;
@@ -1982,7 +1982,7 @@ static int append_json_path(String *str, const json_path_t *p)
 
   for (c= p->steps+1; c <= p->last_step; c++)
   {
-    if (c->type == JSON_PATH_KEY)
+    if (c->type & JSON_PATH_KEY)
     {
       if (str->append(".", 1) ||
           append_simple(str, c->key, c->key_end-c->key))
@@ -2002,6 +2002,7 @@ static int append_json_path(String *str, const json_path_t *p)
 }
 
 
+#ifdef DUMMY
 static int json_path_compare(const json_path_t *a, const json_path_t *b)
 {
   uint i, a_len= a->last_step - a->steps, b_len= b->last_step - b->steps;
@@ -2014,17 +2015,17 @@ static int json_path_compare(const json_path_t *a, const json_path_t *b)
     const json_path_step_t *sa= a->steps + i;
     const json_path_step_t *sb= b->steps + i;
 
-    if (sa->type != sb->type)
+    if (!((sa->type & sb->type) & JSON_PATH_KEY_OR_ARRAY))
       return -1;
     
-    if (sa->type == JSON_PATH_ARRAY)
+    if (sa->type & JSON_PATH_ARRAY)
     {
-      if (!sa->wild && sa->n_item != sb->n_item)
+      if (!(sa->type & JSON_PATH_WILD) && sa->n_item != sb->n_item)
         return -1;
     }
     else /* JSON_PATH_KEY */
     {
-      if (!sa->wild &&
+      if (!(sa->type & JSON_PATH_WILD) &&
           (sa->key_end - sa->key != sb->key_end - sb->key ||
            memcmp(sa->key, sb->key, sa->key_end - sa->key) != 0))
         return -1;
@@ -2032,6 +2033,49 @@ static int json_path_compare(const json_path_t *a, const json_path_t *b)
   }
 
   return b_len > a_len;
+}
+#endif /*DUMMY*/
+
+
+static int json_path_compare(const json_path_t *a, const json_path_t *b)
+{
+  const json_path_step_t *sa= a->steps + 1;
+  const json_path_step_t *sb= b->steps + 1;
+
+  if (a->last_step - sa > b->last_step - sb)
+    return -2;
+
+  while (sa <= a->last_step)
+  {
+    if (sb > b->last_step)
+      return -2;
+    
+    if (!((sa->type & sb->type) & JSON_PATH_KEY_OR_ARRAY))
+      goto step_failed;
+    
+    if (sa->type & JSON_PATH_ARRAY)
+    {
+      if (!(sa->type & JSON_PATH_WILD) && sa->n_item != sb->n_item)
+        goto step_failed;
+    }
+    else /* JSON_PATH_KEY */
+    {
+      if (!(sa->type & JSON_PATH_WILD) &&
+          (sa->key_end - sa->key != sb->key_end - sb->key ||
+           memcmp(sa->key, sb->key, sa->key_end - sa->key) != 0))
+        goto step_failed;
+    }
+    sb++;
+    sa++;
+    continue;
+
+step_failed:
+    if (!(sa->type & JSON_PATH_DOUBLE_WILD))
+      return -1;
+    sb++;
+  }
+
+  return sb <= b->last_step;
 }
 
 
@@ -2088,8 +2132,7 @@ String *Item_func_json_search::val_str(String *str)
                   (const uchar *) js->ptr() + js->length());
 
   p.last_step= p.steps;
-  p.steps[0].wild= 0;
-  p.steps[0].type= JSON_PATH_ARRAY;
+  p.steps[0].type= JSON_PATH_ARRAY_WILD;
   p.steps[0].n_item= 0;
 
   do
@@ -2133,27 +2176,21 @@ String *Item_func_json_search::val_str(String *str)
           if (mode_one)
             goto end;
         }
-        if (p.last_step->type == JSON_PATH_ARRAY)
+        if (p.last_step->type & JSON_PATH_ARRAY)
           p.last_step->n_item++;
 
       }
       else
       {
         p.last_step++;
-        if (je.value_type == JSON_VALUE_ARRAY)
-        {
-          p.last_step->type= JSON_PATH_ARRAY;
-          p.last_step->n_item= 0;
-        }
-        else /*JSON_VALUE_OBJECT*/
-          p.last_step->type= JSON_PATH_KEY;
+        p.last_step->type= (enum json_path_step_types) je.value_type;
+        p.last_step->n_item= 0;
       }
-
       break;
     case JST_OBJ_END:
     case JST_ARRAY_END:
       p.last_step--;
-      if (p.last_step->type == JSON_PATH_ARRAY)
+      if (p.last_step->type & JSON_PATH_ARRAY)
         p.last_step->n_item++;
       break;
     default:
