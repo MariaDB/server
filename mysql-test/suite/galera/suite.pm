@@ -37,6 +37,7 @@ push @::global_suppressions,
      qr|WSREP: access file\(.*gvwstate.dat\) failed\(No such file or directory\)|,
      qr|WSREP: no nodes coming from prim view, prim not possible|,
      qr(WSREP: SYNC message from member .* in non-primary configuration. Ignored.),
+     qr(WSREP: discarding established .*),
    );
 
 
