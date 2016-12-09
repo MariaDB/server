@@ -127,12 +127,14 @@ btr_pcur_store_position(
 		ut_ad((mtr_memo_contains_flagged(
 				mtr, dict_index_get_lock(index),
 				MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK)
-		       || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_S_FIX)
-		       || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX))
+		       || mtr_memo_contains_flagged(mtr, block,
+						    MTR_MEMO_PAGE_S_FIX
+						    | MTR_MEMO_PAGE_X_FIX))
 		      && (block->page.buf_fix_count > 0));
 	} else {
-		ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_S_FIX)
-		      || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX)
+		ut_ad(mtr_memo_contains_flagged(mtr, block,
+						MTR_MEMO_PAGE_S_FIX
+						| MTR_MEMO_PAGE_X_FIX)
 		      || dict_table_is_intrinsic(index->table));
 	}
 #endif /* UNIV_DEBUG */
