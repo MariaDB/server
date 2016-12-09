@@ -445,7 +445,6 @@ void
 ut_crc32_slice8_table_init()
 /*========================*/
 {
-#ifndef HAVE_CRC32_VPMSUM
 	/* bit-reversed poly 0x1EDC6F41 (from SSE42 crc32 instruction) */
 	static const uint32_t	poly = 0x82f63b78;
 	uint32_t		n;
@@ -469,7 +468,6 @@ ut_crc32_slice8_table_init()
 	}
 
 	ut_crc32_slice8_table_initialized = true;
-#endif
 }
 
 /** Calculate CRC32 over 8-bit data using a software implementation.
