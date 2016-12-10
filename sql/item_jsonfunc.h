@@ -174,17 +174,15 @@ class Item_func_json_contains: public Item_int_func
 {
 protected:
   String tmp_js;
-  json_path_with_flags *paths;
-  String *tmp_paths;
+  json_path_with_flags path;
+  String tmp_path;
   bool a2_constant, a2_parsed;
   String tmp_val, *val;
 public:
   Item_func_json_contains(THD *thd, List<Item> &list):
-    Item_int_func(thd, list), tmp_paths(0) {}
+    Item_int_func(thd, list) {}
   const char *func_name() const { return "json_contains"; }
-  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
-  void cleanup();
   longlong val_int();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_contains>(thd, mem_root, this); }

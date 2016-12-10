@@ -36,6 +36,23 @@ select json_contains('"you"', '"you"');
 select json_contains('"youth"', '"you"');
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 select json_contains('[1]', '[1]', '$', '$[0]');
+select json_contains('', '', '$');
+select json_contains('null', 'null', '$');
+select json_contains('"10"', '"10"', '$');
+select json_contains('"10"', '10', '$');
+select json_contains('10.1', '10', '$');
+select json_contains('10.0', '10', '$');
+select json_contains('[1]', '1');
+select json_contains('[2, 1]', '1');
+select json_contains('[2, [2, 3], 1]', '1');
+select json_contains('[4, [2, 3], 1]', '2');
+select json_contains('[2, 1]', '[1, 2]');
+select json_contains('[2, 1]', '[1, 0, 2]');
+select json_contains('[2, 0, 3, 1]', '[1, 2]');
+select json_contains('{"b":[1,2], "a":1}', '{"a":1, "b":2}');
+select json_contains('{"a":1}', '{}');
+select json_contains('[1, {"a":1}]', '{}');
+select json_contains('[1, {"a":1}]', '{"a":1}');
 
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]");

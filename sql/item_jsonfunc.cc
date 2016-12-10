@@ -596,39 +596,162 @@ error:
 }
 
 
-bool Item_func_json_contains::fix_fields(THD *thd, Item **ref)
-{
-  return alloc_tmp_paths(thd, arg_count-2, &paths, &tmp_paths) ||
-         Item_int_func::fix_fields(thd, ref);
-}
-
-
 void Item_func_json_contains::fix_length_and_dec()
 {
   a2_constant= args[1]->const_item();
   a2_parsed= FALSE;
-  mark_constant_paths(paths, args+2, arg_count-2);
+  if (arg_count > 2)
+    path.set_constant_flag(args[2]->const_item());
   Item_int_func::fix_length_and_dec();
 }
 
 
-void Item_func_json_contains::cleanup()
+static int find_key_in_object(json_engine_t *j, json_string_t *key)
 {
-  if (tmp_paths)
+  const uchar *c_str= key->c_str;
+
+  while (json_scan_next(j) == 0 && j->state != JST_OBJ_END)
   {
-    for (uint i= arg_count-2; i>0; i--)
-      tmp_paths[i-1].free();
-    tmp_paths= 0;
+    DBUG_ASSERT(j->state == JST_KEY);
+    if (json_key_matches(j, key))
+      return TRUE;
+    if (json_skip_key(j))
+      return FALSE;
+    key->c_str= c_str;
   }
-  Item_int_func::cleanup();
+
+  return FALSE;
+}
+
+
+static int check_contains(json_engine_t *js, json_engine_t *value)
+{
+  json_engine_t loc_js;
+  bool set_js;
+
+  switch (js->value_type)
+  {
+  case JSON_VALUE_OBJECT:
+  {
+    json_string_t key_name;
+
+    if (value->value_type != JSON_VALUE_OBJECT)
+      return FALSE;
+
+    loc_js= *js;
+    set_js= FALSE;
+    json_string_set_cs(&key_name, value->s.cs);
+    while (json_scan_next(value) == 0 && value->state != JST_OBJ_END)
+    {
+      const uchar *k_start, *k_end;
+
+      DBUG_ASSERT(value->state == JST_KEY);
+      k_start= value->s.c_str;
+      while (json_read_keyname_chr(value) == 0)
+        k_end= value->s.c_str;
+
+      if (value->s.error || json_read_value(value))
+        return FALSE;
+
+      if (set_js)
+        *js= loc_js;
+      else
+        set_js= TRUE;
+
+      json_string_set_str(&key_name, k_start, k_end);
+      if (!find_key_in_object(js, &key_name) ||
+          json_read_value(js) ||
+          !check_contains(js, value))
+        return FALSE;
+    }
+
+    return value->state == JST_OBJ_END && !json_skip_level(js);
+  }
+  case JSON_VALUE_ARRAY:
+    if (value->value_type != JSON_VALUE_ARRAY)
+    {
+      while (json_scan_next(js) == 0 && js->state != JST_ARRAY_END)
+      {
+        DBUG_ASSERT(js->state == JST_VALUE);
+        if (json_read_value(js))
+          return FALSE;
+
+        if (check_contains(js, value))
+        {
+          if (json_skip_level(js))
+            return FALSE;
+          return TRUE;
+        }
+        if (value->s.error || js->s.error)
+          return FALSE;
+      }
+      return FALSE;
+    }
+    /* else */
+    loc_js= *js;
+    set_js= FALSE;
+    while (json_scan_next(value) == 0 && value->state != JST_ARRAY_END)
+    {
+      DBUG_ASSERT(value->state == JST_VALUE);
+      if (json_read_value(value))
+        return FALSE;
+
+      if (set_js)
+        *js= loc_js;
+      else
+        set_js= TRUE;
+      if (!check_contains(js, value))
+        return FALSE;
+    }
+
+    return value->state == JST_ARRAY_END;
+
+  case JSON_VALUE_STRING:
+    if (value->value_type != JSON_VALUE_STRING)
+      return FALSE;
+    /*
+       TODO: make proper json-json comparison here that takes excapint
+             into account.
+     */
+    return value->value_len == js->value_len &&
+           memcmp(value->value, js->value, value->value_len) == 0;
+  case JSON_VALUE_NUMBER:
+    if (value->value_type == JSON_VALUE_NUMBER)
+    {
+      double d_j, d_v;
+      char *end;
+      int err;
+
+      d_j= my_strntod(js->s.cs, (char *) js->value, js->value_len,
+                      &end, &err);;
+      d_v= my_strntod(value->s.cs, (char *) value->value, value->value_len,
+                      &end, &err);;
+
+      return (fabs(d_j - d_v) < 1e-12);
+    }
+    else
+      return FALSE;
+
+  default:
+    break;
+  }
+
+  /*
+    We have these not mentioned in the 'switch' above:
+
+    case JSON_VALUE_TRUE:
+    case JSON_VALUE_FALSE:
+    case JSON_VALUE_NULL:
+  */
+  return value->value_type == js->value_type;
 }
 
 
 longlong Item_func_json_contains::val_int()
 {
   String *js= args[0]->val_str(&tmp_js);
-  json_engine_t je;
-  uint n_arg;
+  json_engine_t je, ve;
+  int result;
 
   if ((null_value= args[0]->null_value))
     return 0;
@@ -648,54 +771,37 @@ longlong Item_func_json_contains::val_int()
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
 
-  if (arg_count<3) /* No path specified. */
-  {
-    if (json_read_value(&je))
-      goto error;
-    String jv_str((const char *)je.value_begin,
-                  je.value_end - je.value_begin, js->charset());
-    return val->eq(&jv_str, js->charset());
-  }
-
-  for (n_arg=2; n_arg < arg_count; n_arg++)
+  if (arg_count>2) /* Path specified. */
   {
     uint array_counters[JSON_DEPTH_LIMIT];
-    json_path_with_flags *c_path= paths + n_arg - 2;
-    if (!c_path->parsed)
+    if (!path.parsed)
     {
-      String *s_p= args[n_arg]->val_str(tmp_paths+(n_arg-2));
+      String *s_p= args[2]->val_str(&tmp_path);
       if (s_p &&
-          json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
-                          (const uchar *) s_p->ptr() + s_p->length()))
+          json_path_setup(&path.p,s_p->charset(),(const uchar *) s_p->ptr(),
+                          (const uchar *) s_p->end()))
         goto error;
-      c_path->parsed= c_path->constant;
+      path.parsed= path.constant;
     }
-
-    if (args[n_arg]->null_value)
+    if (args[2]->null_value)
       goto error;
 
-    json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
-                    (const uchar *) js->ptr() + js->length());
-
-    c_path->cur_step= c_path->p.steps;
-    if (json_find_path(&je, &c_path->p, &c_path->cur_step, array_counters))
-    {
-      /* Path wasn't found. */
-      if (je.s.error)
-        goto error;
-      continue;
-    }
-
-    if (json_read_value(&je))
+    path.cur_step= path.p.steps;
+    if (json_find_path(&je, &path.p, &path.cur_step, array_counters))
       goto error;
-    String jv_str((const char *)je.value_begin,
-                  je.value_end - je.value_begin, js->charset());
-    if (val->eq(&jv_str, js->charset()))
-      return 1;
   }
 
+  json_scan_start(&ve, val->charset(),(const uchar *) val->ptr(),
+                  (const uchar *) val->end());
 
-  return 0;
+  if (json_read_value(&je) || json_read_value(&ve))
+    return FALSE;
+
+  result= check_contains(&je, &ve);
+  if (je.s.error || ve.s.error)
+    goto error;
+
+  return result;
 
 error:
   null_value= 1;
@@ -2000,41 +2106,6 @@ static int append_json_path(String *str, const json_path_t *p)
 
   return str->append("\"", 1);
 }
-
-
-#ifdef DUMMY
-static int json_path_compare(const json_path_t *a, const json_path_t *b)
-{
-  uint i, a_len= a->last_step - a->steps, b_len= b->last_step - b->steps;
-
-  if (a_len > b_len)
-    return -2;
-
-  for (i=0; i <= a_len; i++)
-  {
-    const json_path_step_t *sa= a->steps + i;
-    const json_path_step_t *sb= b->steps + i;
-
-    if (!((sa->type & sb->type) & JSON_PATH_KEY_OR_ARRAY))
-      return -1;
-    
-    if (sa->type & JSON_PATH_ARRAY)
-    {
-      if (!(sa->type & JSON_PATH_WILD) && sa->n_item != sb->n_item)
-        return -1;
-    }
-    else /* JSON_PATH_KEY */
-    {
-      if (!(sa->type & JSON_PATH_WILD) &&
-          (sa->key_end - sa->key != sb->key_end - sb->key ||
-           memcmp(sa->key, sb->key, sa->key_end - sa->key) != 0))
-        return -1;
-    }
-  }
-
-  return b_len > a_len;
-}
-#endif /*DUMMY*/
 
 
 static int json_path_compare(const json_path_t *a, const json_path_t *b)

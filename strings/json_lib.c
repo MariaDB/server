@@ -1182,6 +1182,13 @@ int json_skip_level(json_engine_t *j)
 
 int json_skip_key(json_engine_t *j)
 {
+  if (j->state == JST_KEY)
+  {
+    while (json_read_keyname_chr(j) == 0);
+    if (j->s.error)
+      return 1;
+  }
+
   if (json_read_value(j))
     return 1;
 

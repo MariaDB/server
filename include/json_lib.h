@@ -311,6 +311,7 @@ int json_skip_level(json_engine_t *j);
 */
 #define json_value_scalar(je)  ((je)->value_type > JSON_VALUE_ARRAY)
 
+
 /*
   Look for the JSON PATH in the json string.
   Function can be called several times with same JSON/PATH to
