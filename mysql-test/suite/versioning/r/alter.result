@@ -276,7 +276,7 @@ t	CREATE TABLE `t` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t without system versioning;
 alter table t with system versioning, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 alter table t with system versioning, algorithm=copy;
 show create table t;
 Table	Create Table
@@ -346,7 +346,7 @@ a
 2
 1
 alter table t without system versioning, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY.
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 alter table t without system versioning, algorithm=copy;
 show create table t;
 Table	Create Table

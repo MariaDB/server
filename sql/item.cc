@@ -2760,19 +2760,17 @@ void Item_field::set_field(Field *field_par)
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE)
     any_privileges= 0;
 
-  if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context && context->select_lex &&
-      context->select_lex->vers_conditions.type !=
-          FOR_SYSTEM_TIME_UNSPECIFIED &&
-      !field->force_null)
+  field->force_null= false;
+  if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context &&
+      context->select_lex &&
+      context->select_lex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
   {
-    DBUG_ASSERT(context->select_lex->parent_lex &&
-                context->select_lex->parent_lex->thd);
     field->force_null= true;
-    THD *thd= context->select_lex->parent_lex->thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY,
-                        ER_THD(thd, ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY),
-                        field_name);
+    push_warning_printf(
+        current_thd, Sql_condition::WARN_LEVEL_WARN,
+        ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY,
+        ER_THD(current_thd, ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY),
+        field_name);
   }
 }
 
@@ -5922,8 +5920,6 @@ void Item_field::cleanup()
     it will be linked correctly next time by name of field and table alias.
     I.e. we can drop 'field'.
    */
-  if (field)
-    field->force_null= false;
   field= 0;
   item_equal= NULL;
   null_value= FALSE;

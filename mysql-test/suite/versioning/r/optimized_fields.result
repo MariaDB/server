@@ -18,6 +18,7 @@ a	b	b+0
 3	NULL	NULL
 Warnings:
 Warning	4075	Attempt to read unversioned field `b` in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
 select * from t for system_time as of timestamp now(6);
 a	b
 1	NULL
