@@ -30,6 +30,8 @@ class Item_sum_hybrid;
 class Item_func_hex;
 class Item_func_hybrid_field_type;
 class Item_func_between;
+class Item_func_in;
+class in_vector;
 class Type_std_attributes;
 class Sort_param;
 class Arg_comparator;
@@ -317,6 +319,13 @@ public:
 
   virtual longlong
   Item_func_between_val_int(Item_func_between *func) const= 0;
+
+  virtual in_vector *
+  make_in_vector(THD *thd, const Item_func_in *func, uint nargs) const= 0;
+
+  virtual bool
+  Item_func_in_fix_comparator_compatible_types(THD *thd, Item_func_in *)
+                                                               const= 0;
 };
 
 
@@ -414,6 +423,9 @@ public:
   }
 
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const;
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *) const;
 };
 
 
@@ -462,6 +474,10 @@ public:
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *) const;
+
 };
 
 
@@ -495,6 +511,9 @@ public:
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *) const;
 };
 
 
@@ -528,6 +547,9 @@ public:
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *) const;
 };
 
 
@@ -559,6 +581,8 @@ public:
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *) const;
 };
 
 
@@ -594,6 +618,9 @@ public:
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
+  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *) const;
 };
 
 
@@ -714,6 +741,7 @@ public:
   virtual ~Type_handler_time_common() { }
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
 };
 
 
@@ -741,6 +769,7 @@ class Type_handler_temporal_with_date: public Type_handler_temporal_result
 public:
   virtual ~Type_handler_temporal_with_date() {}
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
 };
 
 
@@ -1014,5 +1043,6 @@ extern Type_handler_null  type_handler_null;
 extern Type_handler_varchar type_handler_varchar;
 extern Type_handler_longlong type_handler_longlong;
 extern Type_handler_newdecimal type_handler_newdecimal;
+extern Type_handler_datetime type_handler_datetime;
 
 #endif /* SQL_TYPE_H_INCLUDED */
