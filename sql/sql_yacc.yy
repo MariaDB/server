@@ -15178,6 +15178,7 @@ grant_role:
             CHARSET_INFO *cs= system_charset_info;
             /* trim end spaces (as they'll be lost in mysql.user anyway) */
             $1.length= cs->cset->lengthsp(cs, $1.str, $1.length);
+            $1.str[$1.length] = '\0';
             if ($1.length == 0)
             {
               my_error(ER_INVALID_ROLE, MYF(0), "");
