@@ -1817,7 +1817,8 @@ enum vers_range_type_t
   FOR_SYSTEM_TIME_UNSPECIFIED = 0,
   FOR_SYSTEM_TIME_AS_OF,
   FOR_SYSTEM_TIME_FROM_TO,
-  FOR_SYSTEM_TIME_BETWEEN
+  FOR_SYSTEM_TIME_BETWEEN,
+  FOR_SYSTEM_TIME_ALL
 };
 
 enum vers_range_unit_t
@@ -1843,7 +1844,7 @@ struct vers_select_conds_t
   void init(
     vers_range_type_t t,
     vers_range_unit_t u,
-    Item * s,
+    Item * s= NULL,
     Item * e= NULL)
   {
     type= t;

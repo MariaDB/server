@@ -676,11 +676,9 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
   TABLE_LIST *table;
   int versioned_tables= 0;
   Query_arena *arena= 0, backup;
-  bool is_prepare= thd->stmt_arena->is_stmt_prepare();
 
-  if (!thd->stmt_arena->is_conventional()
-    && !is_prepare
-    && !thd->stmt_arena->is_sp_execute())
+  if (!thd->stmt_arena->is_conventional() &&
+      !thd->stmt_arena->is_stmt_prepare() && !thd->stmt_arena->is_sp_execute())
   {
     // statement is already prepared
     DBUG_RETURN(0);
@@ -699,6 +697,11 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
       my_error(ER_VERSIONING_REQUIRED, MYF(0), "`FOR SYSTEM_TIME` query");
       DBUG_RETURN(-1);
     }
+    DBUG_RETURN(0);
+  }
+
+  if (slex->vers_conditions.type == FOR_SYSTEM_TIME_ALL)
+  {
     DBUG_RETURN(0);
   }
 
