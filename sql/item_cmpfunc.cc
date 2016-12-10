@@ -3718,16 +3718,22 @@ void in_datetime::set(uint pos,Item *item)
 {
   struct packed_longlong *buff= &((packed_longlong*) base)[pos];
 
-  buff->val= item->val_temporal_packed(warn_item);
+  buff->val= item->val_datetime_packed();
   buff->unsigned_flag= 1L;
 }
 
-uchar *in_datetime::get_value(Item *item)
+void in_time::set(uint pos,Item *item)
+{
+  struct packed_longlong *buff= &((packed_longlong*) base)[pos];
+
+  buff->val= item->val_time_packed();
+  buff->unsigned_flag= 1L;
+}
+
+uchar *in_temporal::get_value_internal(Item *item, enum_field_types f_type)
 {
   bool is_null;
   Item **tmp_item= lval_cache ? &lval_cache : &item;
-  enum_field_types f_type=
-    tmp_item[0]->field_type_for_temporal_comparison(warn_item);
   tmp.val= get_datetime_value(thd, &tmp_item, &lval_cache, f_type, &is_null);
   if (item->null_value)
     return 0;
@@ -3735,7 +3741,7 @@ uchar *in_datetime::get_value(Item *item)
   return (uchar*) &tmp;
 }
 
-Item *in_datetime::create_item(THD *thd)
+Item *in_temporal::create_item(THD *thd)
 { 
   return new (thd->mem_root) Item_datetime(thd);
 }
@@ -3855,19 +3861,22 @@ cmp_item_row::~cmp_item_row()
 }
 
 
-void cmp_item_row::alloc_comparators()
+bool cmp_item_row::alloc_comparators(THD *thd, uint cols)
 {
-  if (!comparators)
-    comparators= (cmp_item **) current_thd->calloc(sizeof(cmp_item *)*n);
+  if (comparators)
+  {
+    DBUG_ASSERT(cols == n);
+    return false;
+  }
+  return
+    !(comparators= (cmp_item **) thd->calloc(sizeof(cmp_item *) * (n= cols)));
 }
 
 
 void cmp_item_row::store_value(Item *item)
 {
   DBUG_ENTER("cmp_item_row::store_value");
-  n= item->cols();
-  alloc_comparators();
-  if (comparators)
+  if (!alloc_comparators(current_thd, item->cols()))
   {
     item->bring_value();
     item->null_value= 0;
@@ -3875,6 +3884,20 @@ void cmp_item_row::store_value(Item *item)
     {
       if (!comparators[i])
       {
+        /**
+          Comparators for the row elements that have temporal data types
+          are installed at initialization time by prepare_comparators().
+          Here we install comparators for the other data types.
+          There is a bug in the below code. See MDEV-11511.
+          When performing:
+           (predicant0,predicant1) IN ((value00,value01),(value10,value11))
+          It uses only the data type and the collation of the predicant
+          elements only. It should be fixed to aggregate the data type and
+          the collation for all elements at the N-th positions of the
+          predicate and all values:
+          - predicate0, value00, value01
+          - predicate1, value10, value11
+        */
         DBUG_ASSERT(item->element_index(i)->cmp_type() != TIME_RESULT);
         if (!(comparators[i]=
               cmp_item::get_comparator(item->element_index(i)->result_type(), 0,
@@ -4105,208 +4128,202 @@ void Item_func_in::fix_after_pullout(st_select_lex *new_parent, Item **ref)
   eval_not_null_tables(NULL);
 }
 
-static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
-{
-  return cs->coll->strnncollsp(cs,
-                               (uchar *) x->ptr(),x->length(),
-                               (uchar *) y->ptr(),y->length());
-}
 
 void Item_func_in::fix_length_and_dec()
 {
-  Item **arg, **arg_end;
-  bool const_itm= 1;
   THD *thd= current_thd;
-  /* TRUE <=> arguments values will be compared as DATETIMEs. */
-  Item *date_arg= 0;
   uint found_types= 0;
   uint type_cnt= 0, i;
   m_comparator.set_handler(&type_handler_varchar);
   left_cmp_type= args[0]->cmp_type();
+  max_length= 1;
   if (!(found_types= collect_cmp_types(args, arg_count, true)))
     return;
   
-  for (arg= args + 1, arg_end= args + arg_count; arg != arg_end ; arg++)
-  {
-    if (!arg[0]->const_item())
-    {
-      const_itm= 0;
-      break;
-    }
-  }
   for (i= 0; i <= (uint)TIME_RESULT; i++)
   {
     if (found_types & (1U << i))
     {
       (type_cnt)++;
-      m_comparator.set_handler_by_cmp_type((Item_result) i);
-    }
-  }
-
-  /*
-    First conditions for bisection to be possible:
-     1. All types are similar, and
-     2. All expressions in <in value list> are const
-  */
-  bool bisection_possible=
-    type_cnt == 1 &&                                   // 1
-    const_itm;                                         // 2
-  if (bisection_possible)
-  {
-    /*
-      In the presence of NULLs, the correct result of evaluating this item
-      must be UNKNOWN or FALSE. To achieve that:
-      - If type is scalar, we can use bisection and the "have_null" boolean.
-      - If type is ROW, we will need to scan all of <in value list> when
-        searching, so bisection is impossible. Unless:
-        3. UNKNOWN and FALSE are equivalent results
-        4. Neither left expression nor <in value list> contain any NULL value
-      */
-
-    if (m_comparator.cmp_type() == ROW_RESULT &&
-        ((!is_top_level_item() || negated) &&              // 3
-         (list_contains_null() || args[0]->maybe_null)))   // 4
-      bisection_possible= false;
-  }
-
-  if (type_cnt == 1)
-  {
-    if (m_comparator.cmp_type() == STRING_RESULT &&
-        agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
-      return;
-    arg_types_compatible= TRUE;
-
-    if (m_comparator.cmp_type() == ROW_RESULT)
-    {
-      uint cols= args[0]->cols();
-      cmp_item_row *cmp= 0;
-
-      if (bisection_possible)
+      if ((Item_result) i == TIME_RESULT)
       {
-        array= new (thd->mem_root) in_row(thd, arg_count-1, 0);
-        cmp= &((in_row*)array)->tmp;
+        Item *date_arg= find_date_time_item(args, arg_count, 0);
+        m_comparator.set_handler(date_arg ? date_arg->type_handler() :
+                                            &type_handler_datetime);
       }
       else
-      {
-        if (!(cmp= new (thd->mem_root) cmp_item_row))
-          return;
-        cmp_items[ROW_RESULT]= cmp;
-      }
-      cmp->n= cols;
-      cmp->alloc_comparators();
-
-      for (uint col= 0; col < cols; col++)
-      {
-        date_arg= find_date_time_item(args, arg_count, col);
-        if (date_arg)
-        {
-          cmp_item **cmp= 0;
-          if (array)
-            cmp= ((in_row*)array)->tmp.comparators + col;
-          else
-            cmp= ((cmp_item_row*)cmp_items[ROW_RESULT])->comparators + col;
-          *cmp= new (thd->mem_root) cmp_item_datetime(date_arg);
-        }
-      }
+        m_comparator.set_handler_by_cmp_type((Item_result) i);
     }
   }
 
-  if (bisection_possible)
+  if (type_cnt == 1) // Bisection condition #1
   {
-    /*
-      IN must compare INT columns and constants as int values (the same
-      way as equality does).
-      So we must check here if the column on the left and all the constant 
-      values on the right can be compared as integers and adjust the 
-      comparison type accordingly.
-
-      See the comment about the similar block in Item_bool_func2
-    */  
-    if (args[0]->real_item()->type() == FIELD_ITEM &&
-        !thd->lex->is_view_context_analysis() &&
-        m_comparator.cmp_type() != INT_RESULT)
-    {
-      Item_field *field_item= (Item_field*) (args[0]->real_item());
-      if (field_item->field_type() ==  MYSQL_TYPE_LONGLONG ||
-          field_item->field_type() ==  MYSQL_TYPE_YEAR)
-      {
-        bool all_converted= TRUE;
-        for (arg=args+1, arg_end=args+arg_count; arg != arg_end ; arg++)
-        {
-           if (!convert_const_to_int(thd, field_item, &arg[0]))
-            all_converted= FALSE;
-        }
-        if (all_converted)
-          m_comparator.set_handler(&type_handler_longlong);
-      }
-    }
-    switch (m_comparator.cmp_type()) {
-    case STRING_RESULT:
-      array=new (thd->mem_root) in_string(thd, arg_count - 1,
-                                          (qsort2_cmp) srtcmp_in,
-                                          cmp_collation.collation);
-      break;
-    case INT_RESULT:
-      array= new (thd->mem_root) in_longlong(thd, arg_count - 1);
-      break;
-    case REAL_RESULT:
-      array= new (thd->mem_root) in_double(thd, arg_count - 1);
-      break;
-    case ROW_RESULT:
-      /*
-        The row comparator was created at the beginning but only DATETIME
-        items comparators were initialized. Call store_value() to setup
-        others.
-      */
-      ((in_row*)array)->tmp.store_value(args[0]);
-      break;
-    case DECIMAL_RESULT:
-      array= new (thd->mem_root) in_decimal(thd, arg_count - 1);
-      break;
-    case TIME_RESULT:
-      date_arg= find_date_time_item(args, arg_count, 0);
-      array= new (thd->mem_root) in_datetime(thd, date_arg, arg_count - 1);
-      break;
-    }
-    if (!array || thd->is_fatal_error)		// OOM
-      return;
-    uint j=0;
-    for (uint i=1 ; i < arg_count ; i++)
-    {
-      array->set(j,args[i]);
-      if (!args[i]->null_value)
-        j++; // include this cell in the array.
-      else
-      {
-        /*
-          We don't put NULL values in array, to avoid erronous matches in
-          bisection.
-        */
-        have_null= 1;
-      }
-    }
-    if ((array->used_count= j))
-      array->sort();
+    arg_types_compatible= true;
+    m_comparator.type_handler()->
+      Item_func_in_fix_comparator_compatible_types(thd, this);
   }
   else
   {
-    if (found_types & (1U << TIME_RESULT))
-      date_arg= find_date_time_item(args, arg_count, 0);
-    if (found_types & (1U << STRING_RESULT) &&
-        agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
-      return;
-    for (i= 0; i <= (uint) TIME_RESULT; i++)
+    DBUG_ASSERT(m_comparator.cmp_type() != ROW_RESULT);
+    fix_for_scalar_comparison_using_cmp_items(found_types);
+  }
+
+  DBUG_EXECUTE_IF("Item_func_in",
+                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_UNKNOWN_ERROR, "types_compatible=%s bisect=%s",
+                  arg_types_compatible ? "yes" : "no",
+                  array != NULL ? "yes" : "no"););
+}
+
+
+/**
+  Populate Item_func_in::array with constant not-NULL arguments and sort them.
+*/
+void Item_func_in::fix_in_vector()
+{
+  DBUG_ASSERT(array);
+  uint j=0;
+  for (uint i=1 ; i < arg_count ; i++)
+  {
+    array->set(j,args[i]);
+    if (!args[i]->null_value)
+      j++; // include this cell in the array.
+    else
     {
-      if (found_types & (1U << i) && !cmp_items[i])
-      {
-        if (!cmp_items[i] && !(cmp_items[i]=
-            cmp_item::get_comparator((Item_result)i, date_arg,
-                                     cmp_collation.collation)))
-          return;
-      }
+      /*
+        We don't put NULL values in array, to avoid erronous matches in
+        bisection.
+      */
+      have_null= 1;
     }
   }
-  max_length= 1;
+  if ((array->used_count= j))
+    array->sort();
+}
+
+
+/**
+  Convert all items in <in value list> to INT.
+
+  IN must compare INT columns and constants as int values (the same
+  way as equality does).
+  So we must check here if the column on the left and all the constant
+  values on the right can be compared as integers and adjust the
+  comparison type accordingly.
+
+  See the comment about the similar block in Item_bool_func2
+*/
+bool Item_func_in::value_list_convert_const_to_int(THD *thd)
+{
+  if (args[0]->real_item()->type() == FIELD_ITEM &&
+      !thd->lex->is_view_context_analysis())
+  {
+    Item_field *field_item= (Item_field*) (args[0]->real_item());
+    if (field_item->field_type() == MYSQL_TYPE_LONGLONG ||
+        field_item->field_type() == MYSQL_TYPE_YEAR)
+    {
+      bool all_converted= TRUE;
+      Item **arg, **arg_end;
+      for (arg=args+1, arg_end=args+arg_count; arg != arg_end ; arg++)
+      {
+         if (!convert_const_to_int(thd, field_item, &arg[0]))
+          all_converted= FALSE;
+      }
+      if (all_converted)
+        m_comparator.set_handler(&type_handler_longlong);
+    }
+  }
+  return thd->is_fatal_error; // Catch errrors in convert_const_to_int
+}
+
+
+/**
+  Historically this code installs comparators at initialization time
+  for temporal ROW elements only. All other comparators are installed later,
+  during the first store_value(). This causes the bug MDEV-11511.
+  See also comments in cmp_item_row::store_value().
+*/
+bool cmp_item_row::prepare_comparators(THD *thd, Item **args, uint arg_count)
+{
+  for (uint col= 0; col < n; col++)
+  {
+    Item *date_arg= find_date_time_item(args, arg_count, col);
+    if (date_arg)
+    {
+      if (!(comparators[col]= new (thd->mem_root) cmp_item_datetime(date_arg)))
+        return true;
+    }
+  }
+  return false;
+}
+
+
+bool Item_func_in::fix_for_row_comparison_using_bisection(THD *thd)
+{
+  uint cols= args[0]->cols();
+  if (!(array= new (thd->mem_root) in_row(thd, arg_count-1, 0)))
+    return true;
+  cmp_item_row *cmp= &((in_row*)array)->tmp;
+  if (cmp->alloc_comparators(thd, cols) ||
+      cmp->prepare_comparators(thd, args, arg_count))
+    return true;
+  /*
+    Only DATETIME items comparators were initialized.
+    Call store_value() to setup others.
+  */
+  cmp->store_value(args[0]);
+  if (thd->is_fatal_error)            // OOM
+    return true;
+  fix_in_vector();
+  return false;
+}
+
+
+/**
+  This method is called for scalar data types when bisection is not possible,
+    for example:
+  - Some of args[1..arg_count] are not constants.
+  - args[1..arg_count] are constants, but pairs {args[0],args[1..arg_count]}
+    are compared by different data types, e.g.:
+      WHERE decimal_expr IN (1, 1e0)
+    The pair {args[0],args[1]} is compared by type_handler_decimal.
+    The pair {args[0],args[2]} is compared by type_handler_double.
+*/
+bool Item_func_in::fix_for_scalar_comparison_using_cmp_items(uint found_types)
+{
+  Item *date_arg;
+  if (found_types & (1U << TIME_RESULT))
+    date_arg= find_date_time_item(args, arg_count, 0);
+  if (found_types & (1U << STRING_RESULT) &&
+      agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
+    return true;
+  for (uint i= 0; i <= (uint) TIME_RESULT; i++)
+  {
+    if (found_types & (1U << i) && !cmp_items[i])
+    {
+      if (!cmp_items[i] && !(cmp_items[i]=
+          cmp_item::get_comparator((Item_result)i, date_arg,
+                                   cmp_collation.collation)))
+        return true;
+    }
+  }
+  return false;
+}
+
+
+/**
+  This method is called for the ROW data type when bisection is not possible.
+*/
+bool Item_func_in::fix_for_row_comparison_using_cmp_items(THD *thd)
+{
+  uint cols= args[0]->cols();
+  cmp_item_row *cmp_row;
+  if (!(cmp_row= new (thd->mem_root) cmp_item_row) ||
+      cmp_row->alloc_comparators(thd, cols) ||
+      cmp_row->prepare_comparators(thd, args, arg_count))
+    return true;
+  cmp_items[ROW_RESULT]= cmp_row;
+  return false;
 }
 
 

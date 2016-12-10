@@ -32,7 +32,6 @@ static Type_handler_time        type_handler_time;
 static Type_handler_time2       type_handler_time2;
 static Type_handler_date        type_handler_date;
 static Type_handler_newdate     type_handler_newdate;
-static Type_handler_datetime    type_handler_datetime;
 static Type_handler_datetime2   type_handler_datetime2;
 static Type_handler_timestamp   type_handler_timestamp;
 static Type_handler_timestamp2  type_handler_timestamp2;
@@ -54,6 +53,7 @@ Type_handler_row         type_handler_row;
 Type_handler_varchar     type_handler_varchar;
 Type_handler_longlong    type_handler_longlong;
 Type_handler_newdecimal  type_handler_newdecimal;
+Type_handler_datetime    type_handler_datetime;
 
 
 /**
@@ -1228,6 +1228,146 @@ longlong Type_handler_decimal_result::
            Item_func_between_val_int(Item_func_between *func) const
 {
   return func->val_int_cmp_decimal();
+}
+
+/***************************************************************************/
+
+static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
+{
+  return cs->coll->strnncollsp(cs,
+                               (uchar *) x->ptr(),x->length(),
+                               (uchar *) y->ptr(),y->length());
+}
+
+in_vector *Type_handler_string_result::make_in_vector(THD *thd,
+                                                      const Item_func_in *func,
+                                                      uint nargs) const
+{
+  return new (thd->mem_root) in_string(thd, nargs, (qsort2_cmp) srtcmp_in,
+                                       func->compare_collation());
+
+}
+
+
+in_vector *Type_handler_int_result::make_in_vector(THD *thd,
+                                                   const Item_func_in *func,
+                                                   uint nargs) const
+{
+  return new (thd->mem_root) in_longlong(thd, nargs);
+}
+
+
+in_vector *Type_handler_real_result::make_in_vector(THD *thd,
+                                                    const Item_func_in *func,
+                                                    uint nargs) const
+{
+  return new (thd->mem_root) in_double(thd, nargs);
+}
+
+
+in_vector *Type_handler_decimal_result::make_in_vector(THD *thd,
+                                                       const Item_func_in *func,
+                                                       uint nargs) const
+{
+  return new (thd->mem_root) in_decimal(thd, nargs);
+}
+
+
+in_vector *Type_handler_time_common::make_in_vector(THD *thd,
+                                                    const Item_func_in *func,
+                                                    uint nargs) const
+{
+  return new (thd->mem_root) in_time(thd, nargs);
+}
+
+
+in_vector *
+Type_handler_temporal_with_date::make_in_vector(THD *thd,
+                                                const Item_func_in *func,
+                                                uint nargs) const
+{
+  return new (thd->mem_root) in_datetime(thd, nargs);
+}
+
+
+in_vector *Type_handler_row::make_in_vector(THD *thd,
+                                            const Item_func_in *func,
+                                            uint nargs) const
+{
+  return new (thd->mem_root) in_row(thd, nargs, 0);
+}
+
+/***************************************************************************/
+
+bool Type_handler_string_result::
+       Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *func) const
+{
+  if (func->agg_all_arg_charsets_for_comparison())
+    return true;
+  if (func->compatible_types_scalar_bisection_possible())
+  {
+    return func->value_list_convert_const_to_int(thd) ||
+           func->fix_for_scalar_comparison_using_bisection(thd);
+  }
+  return
+    func->fix_for_scalar_comparison_using_cmp_items(1U << (uint) STRING_RESULT);
+}
+
+
+bool Type_handler_int_result::
+       Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *func) const
+{
+  /*
+     Does not need to call value_list_convert_const_to_int()
+     as already handled by int handler.
+  */
+  return func->compatible_types_scalar_bisection_possible() ?
+    func->fix_for_scalar_comparison_using_bisection(thd) :
+    func->fix_for_scalar_comparison_using_cmp_items(1U << (uint) INT_RESULT);
+}
+
+
+bool Type_handler_real_result::
+       Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *func) const
+{
+  return func->compatible_types_scalar_bisection_possible() ?
+    (func->value_list_convert_const_to_int(thd) ||
+     func->fix_for_scalar_comparison_using_bisection(thd)) :
+    func->fix_for_scalar_comparison_using_cmp_items(1U << (uint) REAL_RESULT);
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *func) const
+{
+  return func->compatible_types_scalar_bisection_possible() ?
+    (func->value_list_convert_const_to_int(thd) ||
+     func->fix_for_scalar_comparison_using_bisection(thd)) :
+    func->fix_for_scalar_comparison_using_cmp_items(1U << (uint) DECIMAL_RESULT);
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                                    Item_func_in *func) const
+{
+  return func->compatible_types_scalar_bisection_possible() ?
+    (func->value_list_convert_const_to_int(thd) ||
+     func->fix_for_scalar_comparison_using_bisection(thd)) :
+    func->fix_for_scalar_comparison_using_cmp_items(1U << (uint) TIME_RESULT);
+}
+
+
+bool Type_handler_row::Item_func_in_fix_comparator_compatible_types(THD *thd,
+                                              Item_func_in *func) const
+{
+  return func->compatible_types_row_bisection_possible() ?
+         func->fix_for_row_comparison_using_bisection(thd) :
+         func->fix_for_row_comparison_using_cmp_items(thd);
 }
 
 /***************************************************************************/

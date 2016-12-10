@@ -1260,20 +1260,18 @@ public:
   If the left item is a constant one then its value is cached in the
   lval_cache variable.
 */
-class in_datetime :public in_longlong
+class in_temporal :public in_longlong
 {
+protected:
+  uchar *get_value_internal(Item *item, enum_field_types f_type);
 public:
   THD *thd;
-  /* An item used to issue warnings. */
-  Item *warn_item;
   /* Cache for the left item. */
   Item *lval_cache;
 
-  in_datetime(THD *thd, Item *warn_item_arg, uint elements)
-    :in_longlong(thd, elements), thd(current_thd), warn_item(warn_item_arg),
+  in_temporal(THD *thd, uint elements)
+    :in_longlong(thd, elements), thd(current_thd),
      lval_cache(0) {};
-  void set(uint pos,Item *item);
-  uchar *get_value(Item *item);
   Item *create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
   {
@@ -1282,6 +1280,30 @@ public:
     dt->set(val->val);
   }
   friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
+};
+
+
+class in_datetime :public in_temporal
+{
+public:
+  in_datetime(THD *thd, uint elements)
+   :in_temporal(thd, elements)
+  {}
+  void set(uint pos,Item *item);
+  uchar *get_value(Item *item)
+  { return get_value_internal(item, MYSQL_TYPE_DATETIME); }
+};
+
+
+class in_time :public in_temporal
+{
+public:
+  in_time(THD *thd, uint elements)
+   :in_temporal(thd, elements)
+  {}
+  void set(uint pos,Item *item);
+  uchar *get_value(Item *item)
+  { return get_value_internal(item, MYSQL_TYPE_TIME); }
 };
 
 
@@ -1597,12 +1619,24 @@ public:
 
   The current implementation distinguishes 2 cases:
   1) all items in <in value list> are constants and have the same
-    result type. This case is handled by in_vector class.
+    result type. This case is handled by in_vector class,
+    implementing fast bisection search.
   2) otherwise Item_func_in employs several cmp_item objects to perform
     comparisons of in_expr and an item from <in value list>. One cmp_item
     object for each result type. Different result types are collected in the
     fix_length_and_dec() member function by means of collect_cmp_types()
     function.
+
+  Bisection is possible when:
+  1. All types are similar
+  2. All expressions in <in value list> are const
+  In the presence of NULLs, the correct result of evaluating this item
+  must be UNKNOWN or FALSE. To achieve that:
+  - If type is scalar, we can use bisection and the "have_null" boolean.
+  - If type is ROW, we will need to scan all of <in value list> when
+    searching, so bisection is impossible. Unless:
+  3. UNKNOWN and FALSE are equivalent results
+  4. Neither left expression nor <in value list> contain any NULL value
 */
 class Item_func_in :public Item_func_opt_neg
 {
@@ -1612,6 +1646,15 @@ class Item_func_in :public Item_func_opt_neg
      IN ( (-5, (12,NULL)), ... ).
   */
   bool list_contains_null();
+  bool all_items_are_consts(Item **items, uint nitems) const
+  {
+    for (uint i= 0; i < nitems; i++)
+    {
+      if (!items[i]->const_item())
+        return false;
+    }
+    return true;
+  }
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value);
@@ -1643,6 +1686,38 @@ public:
   longlong val_int();
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
+  bool compatible_types_scalar_bisection_possible()
+  {
+    DBUG_ASSERT(m_comparator.cmp_type() != ROW_RESULT);
+    return all_items_are_consts(args + 1, arg_count - 1);     // Bisection #2
+  }
+  bool compatible_types_row_bisection_possible()
+  {
+    DBUG_ASSERT(m_comparator.cmp_type() == ROW_RESULT);
+    return all_items_are_consts(args + 1, arg_count - 1) &&   // Bisection #2
+           ((is_top_level_item() && !negated) ||              // Bisection #3
+            (!list_contains_null() && !args[0]->maybe_null)); // Bisection #4
+
+  }
+  bool agg_all_arg_charsets_for_comparison()
+  {
+    return agg_arg_charsets_for_comparison(cmp_collation, args, arg_count);
+  }
+  void fix_in_vector();
+  bool value_list_convert_const_to_int(THD *thd);
+  bool fix_for_scalar_comparison_using_bisection(THD *thd)
+  {
+    array= m_comparator.type_handler()->make_in_vector(thd, this, arg_count - 1);
+    if (!array)      // OOM
+      return true;
+    fix_in_vector();
+    return false;
+  }
+  bool fix_for_scalar_comparison_using_cmp_items(uint found_types);
+
+  bool fix_for_row_comparison_using_cmp_items(THD *thd);
+  bool fix_for_row_comparison_using_bisection(THD *thd);
+
   void cleanup()
   {
     uint i;
@@ -1705,12 +1780,13 @@ public:
   cmp_item_row(): comparators(0), n(0) {}
   ~cmp_item_row();
   void store_value(Item *item);
-  inline void alloc_comparators();
+  bool alloc_comparators(THD *thd, uint n);
+  bool prepare_comparators(THD *, Item **args, uint arg_count);
   int cmp(Item *arg);
   int compare(cmp_item *arg);
   cmp_item *make_same();
   void store_value_by_template(THD *thd, cmp_item *tmpl, Item *);
-  friend void Item_func_in::fix_length_and_dec();
+  friend class Item_func_in;
 };
 
 
@@ -1722,7 +1798,7 @@ public:
   ~in_row();
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
-  friend void Item_func_in::fix_length_and_dec();
+  friend class Item_func_in;
   Item_result result_type() { return ROW_RESULT; }
 };
 
