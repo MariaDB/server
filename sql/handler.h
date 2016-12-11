@@ -1390,7 +1390,6 @@ struct handlerton
    /*
      System Versioning
    */
-   bool versioned() const;
    bool (*vers_query_trx_id)(THD* thd, void *out, ulonglong trx_id, vtq_field_t field);
    bool (*vers_query_commit_ts)(THD* thd, void *out, const MYSQL_TIME &commit_ts, vtq_field_t field, bool backwards);
    bool (*vers_trx_sees)(THD *thd, bool &result, ulonglong trx_id1, ulonglong trx_id0, ulonglong commit_id1, uchar iso_level1, ulonglong commit_id0);
@@ -4332,6 +4331,13 @@ public:
   */
   virtual int find_unique_row(uchar *record, uint unique_ref)
   { return -1; /*unsupported */}
+
+  virtual bool versioned() const
+  { DBUG_ASSERT(ht); return partition_ht()->flags & HTON_SUPPORTS_SYS_VERSIONING; }
+  virtual ha_rows part_recs_slow(void *_part_elem)
+  { DBUG_ASSERT(0); return false; }
+  virtual handler* part_handler(uint32 part_id)
+  { DBUG_ASSERT(0); return NULL; }
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);
@@ -4522,10 +4528,4 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
-
-inline
-bool handlerton::versioned() const
-{
-  return flags & HTON_SUPPORTS_SYS_VERSIONING;
-}
 #endif /* HANDLER_INCLUDED */

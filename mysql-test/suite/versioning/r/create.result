@@ -32,14 +32,14 @@ Sys_start2 timestamp(6) generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Wrong parameters for versioned table `t1`: multiple 'GENERATED ALWAYS AS ROW START'
+ERROR HY000: Wrong parameters for `t1`: multiple 'GENERATED ALWAYS AS ROW START'
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end2 timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Wrong parameters for versioned table `t1`: 'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW END' mismatch
+ERROR HY000: Wrong parameters for `t1`: 'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW END' mismatch
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
@@ -47,12 +47,12 @@ Sys_end timestamp(6) generated always as row end,
 Sys_end2 timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Wrong parameters for versioned table `t1`: multiple 'GENERATED ALWAYS AS ROW END'
+ERROR HY000: Wrong parameters for `t1`: multiple 'GENERATED ALWAYS AS ROW END'
 create or replace table t1 (
 XNo int unsigned,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Wrong parameters for versioned table `t1`: 'GENERATED AS ROW START' column missing
+ERROR HY000: Wrong parameters for `t1`: 'GENERATED AS ROW START' column missing
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
@@ -60,28 +60,28 @@ Sys_end timestamp(6) generated always as row end,
 Sys_end2 timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 );
-ERROR HY000: Wrong parameters for versioned table `t1`: multiple 'GENERATED ALWAYS AS ROW END'
+ERROR HY000: Wrong parameters for `t1`: multiple 'GENERATED ALWAYS AS ROW END'
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (sys_insert, sys_remove)
 ) with system versioning;
-ERROR HY000: Wrong parameters for versioned table `t1`: 'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW START' mismatch
+ERROR HY000: Wrong parameters for `t1`: 'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW START' mismatch
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 );
-ERROR HY000: Wrong parameters for versioned table `t1`: 'WITH SYSTEM VERSIONING' missing
+ERROR HY000: Wrong parameters for `t1`: 'WITH SYSTEM VERSIONING' missing
 create or replace table t1 (
 XNo int unsigned,
 Sys_start timestamp(6) generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_start)
 );
-ERROR HY000: Wrong parameters for versioned table `t1`: 'PERIOD FOR SYSTEM_TIME' columns must be different
+ERROR HY000: Wrong parameters for `t1`: 'PERIOD FOR SYSTEM_TIME' columns must be different
 create or replace table t1 (
 XNo int unsigned,
 Sys_start int generated always as row start,
@@ -147,7 +147,7 @@ create or replace table t1 (
 A int,
 B int without system versioning
 );
-ERROR HY000: Wrong parameters for versioned table `t1`: 'WITH SYSTEM VERSIONING' missing
+ERROR HY000: Wrong parameters for `t1`: 'WITH SYSTEM VERSIONING' missing
 create or replace table t1 (
 A int,
 B int without system versioning
@@ -190,37 +190,37 @@ t1	CREATE TABLE `t1` (
 create or replace table t1 (
 A int without system versioning
 );
-ERROR HY000: Wrong parameters for versioned table `t1`: 'WITH SYSTEM VERSIONING' missing
+ERROR HY000: Wrong parameters for `t1`: 'WITH SYSTEM VERSIONING' missing
 create or replace table t1 (
 A int without system versioning
 ) with system versioning;
-ERROR HY000: Wrong parameters for versioned table `t1`: versioned fields missing
+ERROR HY000: Wrong parameters for `t1`: versioned fields missing
 create or replace table t1 (
 A int without system versioning with system versioning
 );
-ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same field
+ERROR HY000: Wrong parameters for `t1`: Versioning specified more than once for the same field
 create or replace table t1 (
 A int with system versioning without system versioning
 );
-ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same field
+ERROR HY000: Wrong parameters for `t1`: Versioning specified more than once for the same field
 create table t(
 a int
 ) without system versioning;
-ERROR HY000: Wrong parameters for versioned table `t`: 'WITHOUT SYSTEM VERSIONING' is not allowed
+ERROR HY000: Wrong parameters for `t`: 'WITHOUT SYSTEM VERSIONING' is not allowed
 create or replace table t1 (
 A int
 ) without system versioning with system versioning;
-ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same table
+ERROR HY000: Wrong parameters for `t1`: Versioning specified more than once for the same table
 create or replace table t1 (
 A int
 ) with system versioning without system versioning;
-ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same table
+ERROR HY000: Wrong parameters for `t1`: Versioning specified more than once for the same table
 create or replace table t1 (
 A int
 ) with system versioning with system versioning;
-ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same table
+ERROR HY000: Wrong parameters for `t1`: Versioning specified more than once for the same table
 create or replace table t1 (
 A int
 ) without system versioning without system versioning;
-ERROR HY000: Wrong parameters for versioned table `t1`: Versioning specified more than once for the same table
+ERROR HY000: Wrong parameters for `t1`: Versioning specified more than once for the same table
 drop table t1;

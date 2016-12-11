@@ -26,7 +26,8 @@ enum partition_type {
   NOT_A_PARTITION= 0,
   RANGE_PARTITION,
   HASH_PARTITION,
-  LIST_PARTITION
+  LIST_PARTITION,
+  VERSIONING_PARTITION
 };
 
 enum partition_state {
@@ -89,6 +90,37 @@ typedef struct p_elem_val
 
 struct st_ddl_log_memory_entry;
 
+class Stat_timestampf : public Sql_alloc
+{
+  static const uint buf_size= 4 + (TIME_SECOND_PART_DIGITS + 1) / 2;
+  uchar min_buf[buf_size];
+  uchar max_buf[buf_size];
+  Field_timestampf min_value;
+  Field_timestampf max_value;
+
+public:
+  Stat_timestampf(const char *field_name, TABLE_SHARE *share) :
+    min_value(min_buf, NULL, 0, Field::NONE, field_name, share, 6),
+    max_value(max_buf, NULL, 0, Field::NONE, field_name, share, 6)
+  {
+    min_value.set_max();
+    memset(max_buf, 0, buf_size);
+  }
+  void update(Field *from)
+  {
+    from->update_min(&min_value, false);
+    from->update_max(&max_value, false);
+  }
+  my_time_t min_time()
+  {
+    return min_value.get_timestamp();
+  }
+  my_time_t max_time()
+  {
+    return max_value.get_timestamp();
+  }
+};
+
 class partition_element :public Sql_alloc {
 public:
   List<partition_element> subpartitions;
@@ -109,6 +141,17 @@ public:
   bool has_null_value;
   bool signed_flag;                          // Range value signed
   bool max_value;                            // MAXVALUE range
+  uint32 id;
+
+  enum elem_type
+  {
+    CONVENTIONAL= 0,
+    AS_OF_NOW,
+    VERSIONING
+  };
+
+  elem_type type;
+  Stat_timestampf *stat_trx_end;
 
   partition_element()
   : part_max_rows(0), part_min_rows(0), range_value(0),
@@ -117,7 +160,10 @@ public:
     data_file_name(NULL), index_file_name(NULL),
     engine_type(NULL), connect_string(null_lex_str), part_state(PART_NORMAL),
     nodegroup_id(UNDEF_NODEGROUP), has_null_value(FALSE),
-    signed_flag(FALSE), max_value(FALSE)
+    signed_flag(FALSE), max_value(FALSE),
+    id(UINT32_MAX),
+    type(CONVENTIONAL),
+    stat_trx_end(NULL)
   {
   }
   partition_element(partition_element *part_elem)
@@ -132,7 +178,10 @@ public:
     connect_string(null_lex_str),
     part_state(part_elem->part_state),
     nodegroup_id(part_elem->nodegroup_id),
-    has_null_value(FALSE)
+    has_null_value(FALSE),
+    id(part_elem->id),
+    type(part_elem->type),
+    stat_trx_end(NULL)
   {
   }
   ~partition_element() {}

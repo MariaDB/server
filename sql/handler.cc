@@ -6571,7 +6571,7 @@ static bool create_string(MEM_ROOT *mem_root, String **s, const char *value)
   return *s == NULL;
 }
 
-static bool create_sys_trx_field(THD *thd, const char *field_name,
+static bool vers_create_sys_field(THD *thd, const char *field_name,
                                  Alter_info *alter_info, String **s,
                                  int flags,
                                  bool integer_fields)
@@ -6616,16 +6616,19 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
 
   alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
 
-  return create_sys_trx_field(thd, "sys_trx_start", alter_info,
+  static const char * sys_trx_start= "sys_trx_start";
+  static const char * sys_trx_end= "sys_trx_end";
+
+  return vers_create_sys_field(thd, sys_trx_start, alter_info,
                               &generated_as_row.start, VERS_SYS_START_FLAG,
                               integer_fields) ||
-         create_sys_trx_field(thd, "sys_trx_end", alter_info,
+         vers_create_sys_field(thd, sys_trx_end, alter_info,
                               &generated_as_row.end, VERS_SYS_END_FLAG,
                               integer_fields) ||
          create_string(thd->mem_root, &period_for_system_time.start,
-                       "sys_trx_start") ||
+                       sys_trx_start) ||
          create_string(thd->mem_root, &period_for_system_time.end,
-                       "sys_trx_end");
+                       sys_trx_end);
 }
 
 bool Vers_parse_info::check_and_fix_implicit(

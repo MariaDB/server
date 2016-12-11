@@ -5716,9 +5716,9 @@ ER_TOO_MANY_PARTITIONS_ERROR
         ger "Es wurden zu vielen Partitionen (einschließlich Unterpartitionen) definiert"
         swe "För många partitioner (inkluderande subpartitioner) definierades"
 ER_SUBPARTITION_ERROR
-        eng "It is only possible to mix RANGE/LIST partitioning with HASH/KEY partitioning for subpartitioning"
-        ger "RANGE/LIST-Partitionierung kann bei Unterpartitionen nur zusammen mit HASH/KEY-Partitionierung verwendet werden"
-        swe "Det är endast möjligt att blanda RANGE/LIST partitionering med HASH/KEY partitionering för subpartitionering"
+        eng "It is only possible to mix RANGE/LIST/SYSTEM_TIME partitioning with HASH/KEY partitioning for subpartitioning"
+        ger "RANGE/LIST-Partitionierung kann bei Unterpartitionen nur zusammen mit HASH/KEY/SYSTEM_TIME-Partitionierung verwendet werden"
+        swe "Det är endast möjligt att blanda RANGE/LIST/SYSTEM_TIME partitionering med HASH/KEY partitionering för subpartitionering"
 ER_CANT_CREATE_HANDLER_FILE
         eng "Failed to create specific handler file"
         ger "Erzeugen einer spezifischen Handler-Datei fehlgeschlagen"
@@ -7500,7 +7500,7 @@ ER_VERS_FIELD_WRONG_TYPE
         eng "%`s must be of type %`s for versioned table %`s"
 
 ER_VERS_WRONG_PARAMS
-        eng "Wrong parameters for versioned table %`s: %s"
+        eng "Wrong parameters for %`s: %s"
 
 ER_VERS_ENGINE_UNSUPPORTED
         eng "Engine does not support System Versioning for %`s"
@@ -7510,3 +7510,15 @@ ER_VERS_RANGE_UNITS_MISMATCH
 
 ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY
         eng "Attempt to read unversioned field %`s in historical query"
+
+ER_PARTITION_WRONG_TYPE
+        eng "Wrong partition type, expected type: %`s"
+
+WARN_VERS_PART_FULL
+        eng "Using full partition %`s, need more VERSIONING partitions!"
+
+WARN_VERS_PARAMETERS
+        eng "Maybe missing parameters: %s"
+
+WARN_VERS_PART_ROTATION
+        eng "Switching from partition %`s to %`s"

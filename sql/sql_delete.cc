@@ -221,7 +221,8 @@ int TABLE::delete_row()
   else
   {
     store_record(this, record[1]);
-    vers_end_field()->set_time();
+    Field *sys_trx_end= vers_end_field();
+    sys_trx_end->set_time();
     error= file->ha_update_row(record[1], record[0]);
   }
   return error;

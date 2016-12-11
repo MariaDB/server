@@ -87,7 +87,8 @@ const LEX_STRING partition_keywords[]=
 {
   { C_STRING_WITH_LEN("HASH") },
   { C_STRING_WITH_LEN("RANGE") },
-  { C_STRING_WITH_LEN("LIST") }, 
+  { C_STRING_WITH_LEN("LIST") },
+  { C_STRING_WITH_LEN("SYSTEM_TIME") },
   { C_STRING_WITH_LEN("KEY") },
   { C_STRING_WITH_LEN("MAXVALUE") },
   { C_STRING_WITH_LEN("LINEAR ") },
@@ -108,6 +109,7 @@ static int get_partition_id_list_col(partition_info *, uint32 *, longlong *);
 static int get_partition_id_list(partition_info *, uint32 *, longlong *);
 static int get_partition_id_range_col(partition_info *, uint32 *, longlong *);
 static int get_partition_id_range(partition_info *, uint32 *, longlong *);
+static int vers_get_partition_id(partition_info *, uint32 *, longlong *);
 static int get_part_id_charset_func_part(partition_info *, uint32 *, longlong *);
 static int get_part_id_charset_func_subpart(partition_info *, uint32 *);
 static int get_partition_id_hash_nosub(partition_info *, uint32 *, longlong *);
@@ -1318,6 +1320,24 @@ static void set_up_partition_func_pointers(partition_info *part_info)
           part_info->get_subpartition_id= get_partition_id_hash_sub;
       }
     }
+    else if (part_info->part_type == VERSIONING_PARTITION)
+    {
+      part_info->get_part_partition_id= vers_get_partition_id;
+      if (part_info->list_of_subpart_fields)
+      {
+        if (part_info->linear_hash_ind)
+          part_info->get_subpartition_id= get_partition_id_linear_key_sub;
+        else
+          part_info->get_subpartition_id= get_partition_id_key_sub;
+      }
+      else
+      {
+        if (part_info->linear_hash_ind)
+          part_info->get_subpartition_id= get_partition_id_linear_hash_sub;
+        else
+          part_info->get_subpartition_id= get_partition_id_hash_sub;
+      }
+    }
     else /* LIST Partitioning */
     {
       if (part_info->column_list)
@@ -1357,6 +1377,10 @@ static void set_up_partition_func_pointers(partition_info *part_info)
         part_info->get_partition_id= get_partition_id_list_col;
       else
         part_info->get_partition_id= get_partition_id_list;
+    }
+    else if (part_info->part_type == VERSIONING_PARTITION)
+    {
+      part_info->get_partition_id= vers_get_partition_id;
     }
     else /* HASH partitioning */
     {
@@ -1630,6 +1654,7 @@ bool fix_partition_func(THD *thd, TABLE *table,
     }
   }
   DBUG_ASSERT(part_info->part_type != NOT_A_PARTITION);
+  DBUG_ASSERT(part_info->part_type != VERSIONING_PARTITION || part_info->column_list);
   /*
     Partition is defined. We need to verify that partitioning
     function is correct.
@@ -1662,6 +1687,9 @@ bool fix_partition_func(THD *thd, TABLE *table,
     const char *error_str;
     if (part_info->column_list)
     {
+      if (part_info->part_type == VERSIONING_PARTITION &&
+        part_info->vers_setup_1(thd))
+        goto end;
       List_iterator<char> it(part_info->part_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, FALSE)))
         goto end;
@@ -1684,6 +1712,10 @@ bool fix_partition_func(THD *thd, TABLE *table,
       error_str= partition_keywords[PKW_LIST].str; 
       if (unlikely(part_info->check_list_constants(thd)))
         goto end;
+    }
+    else if (part_info->part_type == VERSIONING_PARTITION)
+    {
+      error_str= partition_keywords[PKW_SYSTEM_TIME].str;
     }
     else
     {
@@ -2355,6 +2387,23 @@ static int add_partition_values(File fptr, partition_info *part_info,
     } while (++i < num_items);
     err+= add_end_parenthesis(fptr);
   }
+  else if (part_info->part_type == VERSIONING_PARTITION)
+  {
+    switch (p_elem->type)
+    {
+    case partition_element::AS_OF_NOW:
+      err+= add_string(fptr, " AS OF NOW");
+      break;
+    case partition_element::VERSIONING:
+      err+= add_string(fptr, " VERSIONING");
+      DBUG_ASSERT(part_info->vers_info);
+      if (part_info->vers_info->hist_default == p_elem->id)
+        err+= add_string(fptr, " DEFAULT");
+      break;
+    default:
+      DBUG_ASSERT(0 && "wrong p_elem->type");
+    }
+  }
 end:
   return err;
 }
@@ -2497,13 +2546,32 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
       else
         err+= add_part_key_word(fptr, partition_keywords[PKW_HASH].str);
       break;
+    case VERSIONING_PARTITION:
+      err+= add_part_key_word(fptr, partition_keywords[PKW_SYSTEM_TIME].str);
+      break;
     default:
       DBUG_ASSERT(0);
       /* We really shouldn't get here, no use in continuing from here */
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
       DBUG_RETURN(NULL);
   }
-  if (part_info->part_expr)
+  if (part_info->part_type == VERSIONING_PARTITION)
+  {
+    Vers_part_info *vers_info= part_info->vers_info;
+    DBUG_ASSERT(vers_info);
+    if (vers_info->interval)
+    {
+      err+= add_string(fptr, "INTERVAL ");
+      err+= add_int(fptr, vers_info->interval);
+      err+= add_string(fptr, " SECOND ");
+    }
+    if (vers_info->limit)
+    {
+      err+= add_string(fptr, "LIMIT ");
+      err+= add_int(fptr, vers_info->limit);
+    }
+  }
+  else if (part_info->part_expr)
   {
     err+= add_begin_parenthesis(fptr);
     err+= add_string_len(fptr, part_info->part_func_string,
@@ -3344,6 +3412,73 @@ int get_partition_id_range_col(partition_info *part_info,
       (cmp_rec_and_tuple(range_col_array + loc_part_id*num_columns,
                          num_columns) >= 0))
     DBUG_RETURN(HA_ERR_NO_PARTITION_FOUND);
+
+  DBUG_PRINT("exit",("partition: %d", *part_id));
+  DBUG_RETURN(0);
+}
+
+
+int vers_get_partition_id(partition_info *part_info,
+                          uint32 *part_id,
+                          longlong *func_value)
+{
+  DBUG_ENTER("vers_get_partition_id");
+  Field *sys_trx_end= part_info->part_field_array[0];
+  DBUG_ASSERT(sys_trx_end);
+  DBUG_ASSERT(part_info->table);
+  Vers_part_info *vers_info= part_info->vers_info;
+  DBUG_ASSERT(vers_info && vers_info->initialized());
+  DBUG_ASSERT(sys_trx_end->table == part_info->table && part_info->table->versioned());
+  DBUG_ASSERT(part_info->table->vers_end_field() == sys_trx_end);
+
+  // new rows have NULL in sys_trx_end
+  if (sys_trx_end->is_max() || sys_trx_end->is_null())
+  {
+    *part_id= vers_info->now_part->id;
+  }
+  else // row is historical
+  {
+    partition_element *part= vers_info->hist_part;
+    THD *thd= current_thd;
+    TABLE *table= part_info->table;
+
+    switch (thd->lex->sql_command)
+    {
+    case SQLCOM_DELETE:
+    case SQLCOM_DELETE_MULTI:
+    case SQLCOM_UPDATE:
+    case SQLCOM_UPDATE_MULTI:
+    case SQLCOM_ALTER_TABLE:
+      mysql_mutex_lock(&table->s->LOCK_rotation);
+      if (table->s->busy_rotation)
+      {
+        table->s->vers_wait_rotation();
+        part_info->vers_hist_part();
+      }
+      else
+      {
+        table->s->busy_rotation= true;
+        mysql_mutex_unlock(&table->s->LOCK_rotation);
+        if (part_info->vers_limit_exceed() || part_info->vers_interval_exceed(sys_trx_end->get_timestamp()))
+        {
+          part= part_info->vers_part_rotate(thd);
+        }
+        mysql_mutex_lock(&table->s->LOCK_rotation);
+        mysql_cond_broadcast(&table->s->COND_rotation);
+        table->s->busy_rotation= false;
+      }
+      mysql_mutex_unlock(&table->s->LOCK_rotation);
+      if (vers_info->interval)
+      {
+        DBUG_ASSERT(part->stat_trx_end);
+        part->stat_trx_end->update(sys_trx_end);
+      }
+      break;
+    default:
+      ;
+    }
+    *part_id= vers_info->hist_part->id;
+  }
 
   DBUG_PRINT("exit",("partition: %d", *part_id));
   DBUG_RETURN(0);
@@ -4954,7 +5089,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         must know the number of new partitions in this case.
       */
       if (thd->lex->no_write_to_binlog &&
-          tab_part_info->part_type != HASH_PARTITION)
+          tab_part_info->part_type != HASH_PARTITION &&
+          tab_part_info->part_type != VERSIONING_PARTITION)
       {
         my_error(ER_NO_BINLOG_ERROR, MYF(0));
         goto err;
@@ -5206,16 +5342,27 @@ that are reorganised.
       List_iterator<partition_element> part_it(tab_part_info->partitions);
 
       tab_part_info->is_auto_partitioned= FALSE;
-      if (!(tab_part_info->part_type == RANGE_PARTITION ||
-            tab_part_info->part_type == LIST_PARTITION))
+      if (tab_part_info->part_type == VERSIONING_PARTITION)
       {
-        my_error(ER_ONLY_ON_RANGE_LIST_PARTITION, MYF(0), "DROP");
-        goto err;
+        if (num_parts_dropped >= tab_part_info->num_parts - 1)
+        {
+          my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "one `AS OF NOW` and at least one `VERSIONING` partition required");
+          goto err;
+        }
       }
-      if (num_parts_dropped >= tab_part_info->num_parts)
+      else
       {
-        my_error(ER_DROP_LAST_PARTITION, MYF(0));
-        goto err;
+        if (!(tab_part_info->part_type == RANGE_PARTITION ||
+              tab_part_info->part_type == LIST_PARTITION))
+        {
+          my_error(ER_ONLY_ON_RANGE_LIST_PARTITION, MYF(0), "DROP");
+          goto err;
+        }
+        if (num_parts_dropped >= tab_part_info->num_parts)
+        {
+          my_error(ER_DROP_LAST_PARTITION, MYF(0));
+          goto err;
+        }
       }
       do
       {
@@ -5223,6 +5370,11 @@ that are reorganised.
         if (is_name_in_list(part_elem->partition_name,
                             alter_info->partition_names))
         {
+          if (part_elem->type == partition_element::AS_OF_NOW)
+          {
+            my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "`AS OF NOW` partition can not be dropped");
+            goto err;
+          }
           /*
             Set state to indicate that the partition is to be dropped.
           */

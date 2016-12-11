@@ -23,7 +23,7 @@
 
 enum partition_keywords
 {
-  PKW_HASH= 0, PKW_RANGE, PKW_LIST, PKW_KEY, PKW_MAXVALUE, PKW_LINEAR,
+  PKW_HASH= 0, PKW_RANGE, PKW_LIST, PKW_SYSTEM_TIME, PKW_KEY, PKW_MAXVALUE, PKW_LINEAR,
   PKW_COLUMNS, PKW_ALGORITHM
 };
 
@@ -1275,6 +1275,38 @@ public:
     for (uint i=1; i < m_tot_parts; i++)
       DBUG_ASSERT(h == m_file[i]->ht);
     return h;
+  }
+
+  virtual bool versioned() const
+  {
+    return m_innodb;
+  }
+
+  virtual ha_rows part_recs_slow(void *_part_elem)
+  {
+    partition_element *part_elem= reinterpret_cast<partition_element *>(_part_elem);
+    DBUG_ASSERT(m_part_info);
+    uint32 sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
+    uint32 part_id= part_elem->id * sub_factor;
+    uint32 part_id_end= part_id + sub_factor;
+    DBUG_ASSERT(part_id_end <= m_tot_parts);
+    ha_rows part_recs= 0;
+    for (; part_id < part_id_end; ++part_id)
+    {
+      handler *file= m_file[part_id];
+      DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
+      file->info(HA_STATUS_TIME | HA_STATUS_VARIABLE |
+        HA_STATUS_VARIABLE_EXTRA | HA_STATUS_NO_LOCK);
+
+      part_recs+= file->stats.records;
+    }
+    return part_recs;
+  }
+
+  virtual handler* part_handler(uint32 part_id)
+  {
+    DBUG_ASSERT(part_id < m_tot_parts);
+    return m_file[part_id];
   }
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);

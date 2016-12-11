@@ -64,10 +64,8 @@ create table MIN(a int);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MIN(a int)' at line 1
 create table MIN (a int);
 drop table MIN;
-create table NOW(a int);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOW(a int)' at line 1
 create table NOW (a int);
-drop table NOW;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOW (a int)' at line 1
 create table POSITION(a int);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'POSITION(a int)' at line 1
 create table POSITION (a int);

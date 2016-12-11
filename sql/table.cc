@@ -426,6 +426,9 @@ void TABLE_SHARE::destroy()
   DBUG_ENTER("TABLE_SHARE::destroy");
   DBUG_PRINT("info", ("db: %s table: %s", db.str, table_name.str));
 
+  if (versioned)
+    vers_destroy();
+
   if (ha_share)
   {
     delete ha_share;
@@ -2546,7 +2549,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   /* Set system versioning information. */
   if (system_period == NULL)
   {
-    share->disable_system_versioning();
+    versioned= false;
+    row_start_field = 0;
+    row_end_field = 0;
   }
   else
   {
@@ -2555,9 +2560,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     uint16 row_end= uint2korr(system_period + sizeof(uint16));
     if (row_start >= share->fields || row_end >= share->fields)
       goto err;
-    DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start,
-                        row_end));
-    share->enable_system_versioning(row_start, row_end);
+    DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
+    versioned= true;
+    vers_init();
+    row_start_field = row_start;
+    row_end_field = row_end;
     vers_start_field()->flags|= VERS_SYS_START_FLAG;
     vers_end_field()->flags|= VERS_SYS_END_FLAG;
   } // if (system_period == NULL)
@@ -3402,6 +3409,17 @@ partititon_err:
 
   if (outparam->no_replicate || !binlog_filter->db_ok(outparam->s->db.str))
     outparam->s->cached_row_logging_check= 0;   // No row based replication
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (outparam->part_info &&
+    outparam->part_info->part_type == VERSIONING_PARTITION &&
+    outparam->part_info->vers_setup_2(thd, is_create_table))
+  {
+    error= OPEN_FRM_OPEN_ERROR;
+    error_reported= true;
+    goto err;
+  }
+#endif
 
   /* Increment the opened_tables counter, only when open flags set. */
   if (db_stat)

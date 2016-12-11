@@ -561,6 +561,9 @@ struct TABLE_STATISTICS_CB
   bool histograms_are_read;   
 };
 
+#ifndef UINT32_MAX
+#define UINT32_MAX             (4294967295U)
+#endif
 
 /**
   This structure is shared between different table objects. There is one
@@ -748,19 +751,27 @@ struct TABLE_SHARE
   bool versioned;
   uint16 row_start_field;
   uint16 row_end_field;
+  uint32 hist_part_id;
+  List<void> free_parts;
+  bool free_parts_init;
+  bool busy_rotation;
+  mysql_mutex_t LOCK_rotation;
+  mysql_cond_t COND_rotation;
 
-  void enable_system_versioning(uint16 row_start, uint row_end)
+  void vers_init()
   {
-    versioned = true;
-    row_start_field = row_start;
-    row_end_field = row_end;
+    hist_part_id= UINT32_MAX;
+    busy_rotation= false;
+    free_parts.empty();
+    free_parts_init= true;
+    mysql_mutex_init(key_TABLE_SHARE_LOCK_rotation, &LOCK_rotation, MY_MUTEX_INIT_FAST);
+    mysql_cond_init(key_TABLE_SHARE_COND_rotation, &COND_rotation, NULL);
   }
 
-  void disable_system_versioning()
+  void vers_destroy()
   {
-    versioned = false;
-    row_start_field = 0;
-    row_end_field = 0;
+    mysql_mutex_destroy(&LOCK_rotation);
+    mysql_cond_destroy(&COND_rotation);
   }
 
   Field *vers_start_field()
@@ -771,6 +782,18 @@ struct TABLE_SHARE
   Field *vers_end_field()
   {
     return field[row_end_field];
+  }
+
+  void vers_part_rotate()
+  {
+    DBUG_ASSERT(!free_parts.is_empty());
+    hist_part_id= (ulong)(void *)(free_parts.pop());
+  }
+
+  void vers_wait_rotation()
+  {
+    while (busy_rotation)
+      mysql_cond_wait(&COND_rotation, &LOCK_rotation);
   }
 
   /**
@@ -1495,8 +1518,8 @@ public:
   /* Versioned by SQL layer */
   bool versioned_by_sql() const
   {
-    DBUG_ASSERT(s->db_type());
-    return s->versioned && !s->db_type()->versioned();
+    DBUG_ASSERT(file);
+    return s->versioned && !file->versioned();
   }
 
   Field *vers_start_field() const

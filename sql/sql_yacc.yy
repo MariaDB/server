@@ -1560,7 +1560,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  VARIANCE_SYM
 %token  VARYING                       /* SQL-2003-R */
 %token  VAR_SAMP_SYM
-%token  VERSIONING                    /* 32N2439 */
+%token  VERSIONING_SYM                /* 32N2439 */
 %token  VIA_SYM
 %token  VIEW_SYM                      /* SQL-2003-N */
 %token  VIRTUAL_SYM
@@ -4910,6 +4910,10 @@ part_type_def:
           { Lex->part_info->part_type= LIST_PARTITION; }
         | LIST_SYM part_column_list
           { Lex->part_info->part_type= LIST_PARTITION; }
+        | SYSTEM_TIME_SYM
+          { if (Lex->part_info->vers_init_info(thd)) MYSQL_YYABORT; }
+          opt_versioning_interval
+          opt_versioning_limit
         ;
 
 opt_linear:
@@ -5117,6 +5121,7 @@ part_definition:
               MYSQL_YYABORT;
             }
             p_elem->part_state= PART_NORMAL;
+            p_elem->id= part_info->partitions.elements - 1;
             part_info->curr_part_elem= p_elem;
             part_info->current_partition= p_elem;
             part_info->use_default_partitions= FALSE;
@@ -5185,6 +5190,42 @@ opt_part_values:
               part_info->part_type= LIST_PARTITION;
           }
           part_values_in {}
+        | AS OF_SYM NOW_SYM
+          {
+            LEX *lex= Lex;
+            partition_info *part_info= lex->part_info;
+            if (! lex->is_partition_management())
+            {
+              if (part_info->part_type != VERSIONING_PARTITION)
+                my_yyabort_error((ER_PARTITION_WRONG_TYPE, MYF(0),
+                                  "BY SYSTEM_TIME"));
+            }
+            else
+            {
+              part_info->vers_init_info(thd);
+            }
+            partition_element *elem= part_info->curr_part_elem;
+            elem->type= partition_element::AS_OF_NOW;
+            DBUG_ASSERT(part_info->vers_info);
+            part_info->vers_info->now_part= elem;
+          }
+        | VERSIONING_SYM
+          {
+            LEX *lex= Lex;
+            partition_info *part_info= lex->part_info;
+            if (! lex->is_partition_management())
+            {
+              if (part_info->part_type != VERSIONING_PARTITION)
+                my_yyabort_error((ER_PARTITION_WRONG_TYPE, MYF(0),
+                                  "BY SYSTEM_TIME"));
+            }
+            else
+            {
+              part_info->vers_init_info(thd);
+            }
+            part_info->curr_part_elem->type= partition_element::VERSIONING;
+          }
+          opt_default_hist_part
         | DEFAULT
          {
             LEX *lex= Lex;
@@ -5430,6 +5471,7 @@ sub_part_definition:
               mem_alloc_error(sizeof(partition_element));
               MYSQL_YYABORT;
             }
+            sub_p_elem->id= curr_part->subpartitions.elements - 1;
             part_info->curr_part_elem= sub_p_elem;
             part_info->use_default_subpartitions= FALSE;
             part_info->use_default_num_subpartitions= FALSE;
@@ -5484,6 +5526,45 @@ opt_part_option:
           { Lex->part_info->curr_part_elem->index_file_name= $4.str; }
         | COMMENT_SYM opt_equal TEXT_STRING_sys
           { Lex->part_info->curr_part_elem->part_comment= $3.str; }
+        ;
+
+opt_versioning_interval:
+         /* empty */ {}
+       | INTERVAL_SYM expr interval
+         {
+           partition_info *part_info= Lex->part_info;
+           DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
+           INTERVAL interval;
+           if (get_interval_value($2, $3, &interval))
+             my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "wrong INTERVAL value"));
+           if (part_info->vers_set_interval(interval))
+             MYSQL_YYABORT;
+         }
+       ;
+
+opt_versioning_limit:
+         /* empty */ {}
+       | LIMIT ulonglong_num
+         {
+           partition_info *part_info= Lex->part_info;
+           DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
+           if (part_info->vers_set_limit($2))
+             MYSQL_YYABORT;
+         }
+       ;
+
+opt_default_hist_part:
+          /* empty */ {}
+        | DEFAULT
+          {
+            partition_info *part_info= Lex->part_info;
+            DBUG_ASSERT(part_info && part_info->vers_info && part_info->curr_part_elem);
+            if (part_info->vers_info->hist_part)
+              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0),
+                "BY SYSTEM_TIME", "multiple `DEFAULT` partitions"));
+            part_info->vers_info->hist_part= part_info->curr_part_elem;
+            part_info->vers_info->hist_default= part_info->curr_part_elem->id;
+          }
         ;
 
 /*
@@ -5853,7 +5934,7 @@ create_table_option:
 	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
             Lex->create_info.sequence= $3;
 	  }
-        | WITH_SYSTEM_SYM VERSIONING
+        | WITH_SYSTEM_SYM VERSIONING_SYM
           {
             const char *table_name=
                 Lex->create_last_non_select_table->table_name;
@@ -5867,7 +5948,7 @@ create_table_option:
             info.declared_with_system_versioning= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
-	| WITHOUT SYSTEM VERSIONING
+	| WITHOUT SYSTEM VERSIONING_SYM
           {
             const char *table_name=
                 Lex->create_last_non_select_table->table_name;
@@ -6086,10 +6167,9 @@ period_for_system_time:
             Vers_parse_info &info= Lex->vers_get_info();
             if (!my_strcasecmp(system_charset_info, $4->c_ptr(), $6->c_ptr()))
             {
-              my_error(ER_VERS_WRONG_PARAMS, MYF(0),
+              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0),
                 Lex->create_last_non_select_table->table_name,
-                "'PERIOD FOR SYSTEM_TIME' columns must be different");
-              MYSQL_YYABORT;
+                "'PERIOD FOR SYSTEM_TIME' columns must be different"));
             }
             info.set_period_for_system_time($4, $6);
           }
@@ -6221,8 +6301,7 @@ field_def:
             }
             if (*p)
             {
-              my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name, err);
-              MYSQL_YYABORT;
+              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), table_name, err));
             }
             *p= field_name;
           }
@@ -6698,7 +6777,7 @@ serial_attribute:
             new (thd->mem_root)
               engine_option_value($1, &Lex->last_field->option_list, &Lex->option_list_last);
           }
-        | WITH_SYSTEM_SYM VERSIONING
+        | WITH_SYSTEM_SYM VERSIONING_SYM
           {
             if (Lex->last_field->versioning !=
                 Column_definition::VERSIONING_NOT_SET)
@@ -6711,7 +6790,7 @@ serial_attribute:
             Lex->create_info.vers_info.has_versioned_fields= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
-        | WITHOUT SYSTEM VERSIONING
+        | WITHOUT SYSTEM VERSIONING_SYM
           {
             if (Lex->last_field->versioning !=
                 Column_definition::VERSIONING_NOT_SET)

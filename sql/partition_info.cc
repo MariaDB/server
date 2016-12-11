@@ -30,6 +30,7 @@
 #include "sql_parse.h"
 #include "sql_acl.h"                          // *_ACL
 #include "sql_base.h"                         // fill_record
+#include "sql_statistics.h"                   // vers_stat_end
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -114,6 +115,19 @@ partition_info *partition_info::get_clone(THD *thd)
       part_clone->list_val_list.push_back(new_val, mem_root);
     }
   }
+  if (part_type == VERSIONING_PARTITION && vers_info)
+  {
+    // clone Vers_part_info; set now_part, hist_part
+    clone->vers_info= new (mem_root) Vers_part_info(*vers_info);
+    List_iterator<partition_element> it(clone->partitions);
+    while ((part= it++))
+    {
+      if (vers_info->now_part && part->id == vers_info->now_part->id)
+        clone->vers_info->now_part= part;
+      else if (vers_info->hist_part && part->id == vers_info->hist_part->id)
+        clone->vers_info->hist_part= part;
+    } // while ((part= it++))
+  } // if (part_type == VERSIONING_PARTITION ...
   DBUG_RETURN(clone);
 }
 
@@ -777,6 +791,216 @@ bool partition_info::has_unique_name(partition_element *element)
   DBUG_RETURN(TRUE);
 }
 
+bool partition_info::vers_init_info(THD * thd)
+{
+  part_type= VERSIONING_PARTITION;
+  list_of_part_fields= TRUE;
+  column_list= TRUE;
+  vers_info= new (thd->mem_root) Vers_part_info;
+  if (!vers_info)
+  {
+    mem_alloc_error(sizeof(Vers_part_info));
+    return true;
+  }
+  return false;
+}
+
+bool partition_info::vers_set_interval(const INTERVAL & i)
+{
+  if (i.neg)
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "negative INTERVAL");
+    return true;
+  }
+  if (i.second_part)
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "second fractions in INTERVAL");
+    return true;
+  }
+
+  DBUG_ASSERT(vers_info);
+
+  // TODO: INTERVAL conversion to seconds leads to mismatch with calendar intervals (MONTH and YEAR)
+  vers_info->interval=
+    i.second +
+    i.minute * 60 +
+    i.hour * 60 * 60 +
+    i.day * 24 * 60 * 60 +
+    i.month * 30 * 24 * 60 * 60 +
+    i.year * 365 * 30 * 24 * 60 * 60;
+
+  if (vers_info->interval == 0)
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "zero INTERVAL");
+    return true;
+  }
+  return false;
+}
+
+bool partition_info::vers_set_limit(ulonglong limit)
+{
+  if (limit < 1)
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "non-positive LIMIT");
+    return true;
+  }
+  DBUG_ASSERT(vers_info);
+
+  vers_info->limit= limit;
+  return false;
+}
+
+partition_element*
+partition_info::vers_part_rotate(THD * thd)
+{
+  DBUG_ASSERT(table && table->s);
+  if (table->s->free_parts.is_empty())
+  {
+    push_warning_printf(thd,
+      Sql_condition::WARN_LEVEL_WARN,
+      WARN_VERS_PART_FULL,
+      ER_THD(thd, WARN_VERS_PART_FULL),
+      vers_info->hist_part->partition_name);
+    return vers_info->hist_part;
+  }
+
+  table->s->vers_part_rotate();
+  DBUG_ASSERT(table->s->hist_part_id < num_parts);
+  const char* old_part_name= vers_info->hist_part->partition_name;
+  vers_hist_part();
+
+  push_warning_printf(thd,
+    Sql_condition::WARN_LEVEL_NOTE,
+    WARN_VERS_PART_ROTATION,
+    ER_THD(thd, WARN_VERS_PART_ROTATION),
+    old_part_name,
+    vers_info->hist_part->partition_name);
+
+  return vers_info->hist_part;
+}
+
+bool partition_info::vers_setup_1(THD * thd)
+{
+  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+  if (!table->versioned())
+  {
+    my_error(ER_VERSIONING_REQUIRED, MYF(0), "`BY SYSTEM_TIME` partitioning");
+    return true;
+  }
+  Field *sys_trx_end= table->vers_end_field();
+  part_field_list.empty();
+  part_field_list.push_back(const_cast<char *>(sys_trx_end->field_name), thd->mem_root);
+  sys_trx_end->flags|= GET_FIXED_FIELDS_FLAG; // needed in handle_list_of_fields()
+  return false;
+}
+
+
+// scan table for min/max sys_trx_end
+inline
+bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
+{
+  uint32 sub_factor= num_subparts ? num_subparts : 1;
+  uint32 part_id= part->id * sub_factor;
+  uint32 part_id_end= part_id + sub_factor;
+  for (; part_id < part_id_end; ++part_id)
+  {
+    handler *file= table->file->part_handler(part_id);
+    int rc= file->ha_external_lock(thd, F_RDLCK);
+    if (rc)
+      goto error;
+    rc= file->ha_rnd_init(true);
+    if (!rc)
+    {
+      while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
+      {
+        if (thd->killed)
+        {
+          file->ha_rnd_end();
+          return true;
+        }
+        if (rc)
+        {
+          if (rc == HA_ERR_RECORD_DELETED)
+            continue;
+          break;
+        }
+        part->stat_trx_end->update(table->vers_end_field());
+      }
+      file->ha_rnd_end();
+    }
+    file->ha_external_lock(thd, F_UNLCK);
+    if (rc != HA_ERR_END_OF_FILE)
+    {
+    error:
+      my_error(ER_INTERNAL_ERROR, MYF(0), "partition/subpartition scan failed in versioned partitions setup");
+      return true;
+    }
+  }
+  return false;
+}
+
+
+// setup at open stage (TABLE_SHARE is initialized)
+bool partition_info::vers_setup_2(THD * thd, bool is_create_table_ind)
+{
+  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+  DBUG_ASSERT(vers_info && vers_info->initialized(is_create_table_ind) && vers_info->hist_default != UINT32_MAX);
+  DBUG_ASSERT(table && table->s);
+  if (!table->versioned_by_sql())
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table->s->table_name.str, "selected engine is not supported in `BY SYSTEM_TIME` partitioning");
+    return true;
+  }
+  mysql_mutex_lock(&table->s->LOCK_rotation);
+  if (table->s->busy_rotation)
+  {
+    table->s->vers_wait_rotation();
+    vers_hist_part();
+  }
+  else
+  {
+    table->s->busy_rotation= true;
+    mysql_mutex_unlock(&table->s->LOCK_rotation);
+    // build freelist, scan min/max, assign hist_part
+    List_iterator<partition_element> it(partitions);
+    partition_element *el;
+    while ((el= it++))
+    {
+      DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
+      if (el->type == partition_element::VERSIONING)
+      {
+        DBUG_ASSERT(!el->stat_trx_end);
+        el->stat_trx_end= new (&table->mem_root)
+          Stat_timestampf(table->s->vers_end_field()->field_name, table->s);
+        if (!is_create_table_ind && vers_scan_min_max(thd, el))
+          return true;
+      }
+      if (el == vers_info->now_part || el == vers_info->hist_part)
+        continue;
+      if (!vers_info->hist_part && el->id == vers_info->hist_default)
+      {
+        vers_info->hist_part= el;
+      }
+      if (is_create_table_ind || (
+        table->s->free_parts_init &&
+        !vers_limit_exceed(el) &&
+        !vers_interval_exceed(el)))
+      {
+        table->s->free_parts.push_back((void *) el->id, &table->s->mem_root);
+      }
+    }
+    table->s->hist_part_id= vers_info->hist_part->id;
+    if (!is_create_table_ind && (vers_limit_exceed() || vers_interval_exceed()))
+      vers_part_rotate(thd);
+    table->s->free_parts_init= false;
+    mysql_mutex_lock(&table->s->LOCK_rotation);
+    mysql_cond_broadcast(&table->s->COND_rotation);
+    table->s->busy_rotation= false;
+  }
+  mysql_mutex_unlock(&table->s->LOCK_rotation);
+  return false;
+}
+
 
 /*
   Check that the partition/subpartition is setup to use the correct
@@ -1383,6 +1607,9 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   uint i, tot_partitions;
   bool result= TRUE, table_engine_set;
   char *same_name;
+  uint32 hist_parts= 0;
+  uint32 now_parts= 0;
+  const char* hist_default= NULL;
   DBUG_ENTER("partition_info::check_partition_info");
   DBUG_ASSERT(default_engine_type != partition_hton);
 
@@ -1424,7 +1651,8 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   }
   if (unlikely(is_sub_partitioned() &&
               (!(part_type == RANGE_PARTITION || 
-                 part_type == LIST_PARTITION))))
+                 part_type == LIST_PARTITION ||
+                 part_type == VERSIONING_PARTITION))))
   {
     /* Only RANGE and LIST partitioning can be subpartitioned */
     my_error(ER_SUBPARTITION_ERROR, MYF(0));
@@ -1485,6 +1713,23 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   {
     my_error(ER_SAME_NAME_PARTITION, MYF(0), same_name);
     goto end;
+  }
+
+  if (part_type == VERSIONING_PARTITION)
+  {
+    if (num_parts < 2)
+    {
+      my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "unexpected number of partitions (expected > 1)");
+      goto end;
+    }
+    DBUG_ASSERT(vers_info);
+    if (!vers_info->now_part)
+    {
+      my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "no `AS OF NOW` partition defined");
+      goto end;
+    }
+    DBUG_ASSERT(vers_info->initialized(false));
+    DBUG_ASSERT(num_parts == partitions.elements);
   }
   i= 0;
   {
@@ -1566,6 +1811,25 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
           }
         }
       }
+      if (part_type == VERSIONING_PARTITION)
+      {
+        if (part_elem->type == partition_element::VERSIONING)
+        {
+          hist_parts++;
+          if (vers_info->hist_default == UINT32_MAX)
+          {
+            vers_info->hist_default= part_elem->id;
+            hist_default= part_elem->partition_name;
+          }
+          if (vers_info->hist_default == part_elem->id)
+            vers_info->hist_part= part_elem;
+        }
+        else
+        {
+          DBUG_ASSERT(part_elem->type == partition_element::AS_OF_NOW);
+          now_parts++;
+        }
+      }
     } while (++i < num_parts);
     if (!table_engine_set &&
         num_parts_not_set != 0 &&
@@ -1602,6 +1866,31 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
                  (part_type == LIST_PARTITION &&
                   check_list_constants(thd))))
       goto end;
+  }
+
+  if (hist_parts > 1)
+  {
+    if (vers_info->limit == 0 && vers_info->interval == 0)
+    {
+      push_warning_printf(thd,
+        Sql_condition::WARN_LEVEL_WARN,
+        WARN_VERS_PARAMETERS,
+        ER_THD(thd, WARN_VERS_PARAMETERS),
+        "no rotation condition for multiple `VERSIONING` partitions.");
+    }
+    if (hist_default)
+    {
+      push_warning_printf(thd,
+        Sql_condition::WARN_LEVEL_WARN,
+        WARN_VERS_PARAMETERS,
+        "No `DEFAULT` for `VERSIONING` partitions. Setting `%s` as default.",
+        hist_default);
+    }
+  }
+  if (now_parts > 1)
+  {
+    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "multiple `AS OF NOW` partitions");
+    goto end;
   }
   result= FALSE;
 end:

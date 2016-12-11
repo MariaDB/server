@@ -933,6 +933,9 @@ PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
   key_LOCK_slave_background;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
 
+PSI_mutex_key key_TABLE_SHARE_LOCK_rotation;
+PSI_cond_key key_TABLE_SHARE_COND_rotation;
+
 static PSI_mutex_info all_server_mutexes[]=
 {
 #ifdef HAVE_MMAP
@@ -993,6 +996,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_structure_guard_mutex, "Query_cache::structure_guard_mutex", 0},
   { &key_TABLE_SHARE_LOCK_ha_data, "TABLE_SHARE::LOCK_ha_data", 0},
   { &key_TABLE_SHARE_LOCK_share, "TABLE_SHARE::LOCK_share", 0},
+  { &key_TABLE_SHARE_LOCK_rotation, "TABLE_SHARE::LOCK_rotation", 0},
   { &key_LOCK_error_messages, "LOCK_error_messages", PSI_FLAG_GLOBAL},
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_after_binlog_sync, "LOCK_after_binlog_sync", PSI_FLAG_GLOBAL},
@@ -1108,7 +1112,8 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_slave_background, "COND_slave_background", 0},
   { &key_COND_start_thread, "COND_start_thread", PSI_FLAG_GLOBAL},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
-  { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0}
+  { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0},
+  { &key_TABLE_SHARE_COND_rotation, "TABLE_SHARE::COND_rotation", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,

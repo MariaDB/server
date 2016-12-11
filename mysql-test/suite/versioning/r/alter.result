@@ -7,9 +7,9 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t without system versioning;
-ERROR HY000: Wrong parameters for versioned table `t`: table is not versioned
+ERROR HY000: Wrong parameters for `t`: table is not versioned
 alter table t with system versioning without system versioning;
-ERROR HY000: Wrong parameters for versioned table `t`: Versioning specified more than once for the same table
+ERROR HY000: Wrong parameters for `t`: Versioning specified more than once for the same table
 alter table t with system versioning;
 show create table t;
 Table	Create Table
@@ -119,9 +119,9 @@ t	CREATE TABLE `t` (
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column f int after sys_trx_start;
-ERROR HY000: Wrong parameters for versioned table `t`: Can not put new field after system versioning field
+ERROR HY000: Wrong parameters for `t`: Can not put new field after system versioning field
 alter table t add column f int after sys_trx_end;
-ERROR HY000: Wrong parameters for versioned table `t`: Can not put new field after system versioning field
+ERROR HY000: Wrong parameters for `t`: Can not put new field after system versioning field
 alter table t drop column a;
 show create table t;
 Table	Create Table
@@ -135,9 +135,9 @@ t	CREATE TABLE `t` (
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop column sys_trx_start;
-ERROR HY000: Wrong parameters for versioned table `t`: Can not drop system versioning field
+ERROR HY000: Wrong parameters for `t`: Can not drop system versioning field
 alter table t drop column sys_trx_end;
-ERROR HY000: Wrong parameters for versioned table `t`: Can not drop system versioning field
+ERROR HY000: Wrong parameters for `t`: Can not drop system versioning field
 create or replace table t(
 a int
 );
@@ -205,11 +205,11 @@ t	CREATE TABLE `t` (
   `b` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t modify a int with system versioning;
-ERROR HY000: Wrong parameters for versioned table `t`: Can not change fields versioning mode in a non-versioned table
+ERROR HY000: Wrong parameters for `t`: Can not change fields versioning mode in a non-versioned table
 alter table t modify a int with system versioning with system versioning;
-ERROR HY000: Wrong parameters for versioned table `t`: Versioning specified more than once for the same field
+ERROR HY000: Wrong parameters for `t`: Versioning specified more than once for the same field
 alter table t modify a int with system versioning without system versioning;
-ERROR HY000: Wrong parameters for versioned table `t`: Versioning specified more than once for the same field
+ERROR HY000: Wrong parameters for `t`: Versioning specified more than once for the same field
 alter table t with system versioning;
 alter table t modify a int without system versioning;
 show create table t;

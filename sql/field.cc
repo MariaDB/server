@@ -5468,8 +5468,15 @@ my_time_t Field_timestampf::get_timestamp(const uchar *pos,
                                           ulong *sec_part) const
 {
   struct timeval tm;
-  my_timestamp_from_binary(&tm, pos, dec);
-  *sec_part= tm.tv_usec;
+  if (sec_part)
+  {
+    my_timestamp_from_binary(&tm, pos ? pos : ptr, dec);
+    *sec_part= tm.tv_usec;
+  }
+  else
+  {
+    my_timestamp_from_binary(&tm, pos ? pos : ptr, 0);
+  }
   return tm.tv_sec;
 }
 

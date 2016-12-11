@@ -308,7 +308,8 @@ extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
 
 extern PSI_mutex_key key_TABLE_SHARE_LOCK_share, key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
-  key_LOCK_global_index_stats, key_LOCK_wakeup_ready, key_LOCK_wait_commit;
+  key_LOCK_global_index_stats, key_LOCK_wakeup_ready, key_LOCK_wait_commit,
+  key_TABLE_SHARE_LOCK_rotation;
 extern PSI_mutex_key key_LOCK_gtid_waiting;
 
 extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
@@ -342,6 +343,7 @@ extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
   key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer;
 extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
+extern PSI_cond_key key_TABLE_SHARE_COND_rotation;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,

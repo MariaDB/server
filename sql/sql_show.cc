@@ -7030,6 +7030,11 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
                        partition_keywords[PKW_HASH].length);
       table->field[7]->store(tmp_res.ptr(), tmp_res.length(), cs);
       break;
+    case VERSIONING_PARTITION:
+      tmp_res.length(0);
+      tmp_res.append(partition_keywords[PKW_SYSTEM_TIME].str,
+                    partition_keywords[PKW_SYSTEM_TIME].length);
+      break;
     default:
       DBUG_ASSERT(0);
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));

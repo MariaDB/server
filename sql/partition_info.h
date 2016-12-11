@@ -34,6 +34,46 @@ typedef int (*get_subpart_id_func)(partition_info *part_info,
  
 struct st_ddl_log_memory_entry;
 
+struct Vers_part_info : public Sql_alloc
+{
+  Vers_part_info() :
+    interval(0),
+    limit(0),
+    now_part(NULL),
+    hist_part(NULL),
+    hist_default(UINT32_MAX)
+  {
+  }
+  Vers_part_info(Vers_part_info &src) :
+    interval(src.interval),
+    limit(src.limit),
+    now_part(NULL),
+    hist_part(NULL),
+    hist_default(src.hist_default)
+  {
+  }
+  bool initialized(bool fully= true)
+  {
+    if (now_part)
+    {
+      DBUG_ASSERT(
+        now_part->id != UINT32_MAX &&
+        now_part->type == partition_element::AS_OF_NOW &&
+        (fully ? (bool) hist_part : true) &&
+        (!hist_part || (
+          hist_part->id != UINT32_MAX &&
+          hist_part->type == partition_element::VERSIONING)));
+      return true;
+    }
+    return false;
+  }
+  my_time_t interval;
+  ulonglong limit;
+  partition_element *now_part;
+  partition_element *hist_part;
+  uint32 hist_default;
+};
+
 class partition_info : public Sql_alloc
 {
 public:
@@ -142,6 +182,7 @@ public:
     LIST_PART_ENTRY *list_array;
     part_column_list_val *range_col_array;
     part_column_list_val *list_col_array;
+    Vers_part_info *vers_info;
   };
   
   /********************************************
@@ -354,6 +395,74 @@ private:
   bool add_named_partition(const char *part_name, uint length);
 public:
   bool has_unique_name(partition_element *element);
+
+  bool vers_init_info(THD *thd);
+  bool vers_set_interval(const INTERVAL &i);
+  bool vers_set_limit(ulonglong limit);
+  partition_element* vers_part_rotate(THD *thd);
+  bool vers_setup_1(THD *thd);
+  bool vers_setup_2(THD *thd, bool is_create_table_ind);
+  bool vers_scan_min_max(THD *thd, partition_element *part);
+
+  partition_element *vers_hist_part()
+  {
+    DBUG_ASSERT(table && table->s);
+    DBUG_ASSERT(vers_info && vers_info->initialized());
+    DBUG_ASSERT(table->s->hist_part_id != UINT32_MAX);
+    if (table->s->hist_part_id == vers_info->hist_part->id)
+      return vers_info->hist_part;
+
+    List_iterator<partition_element> it(partitions);
+    partition_element *el;
+    while ((el= it++))
+    {
+      DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
+      if (el->type == partition_element::VERSIONING &&
+        el->id == table->s->hist_part_id)
+      {
+        vers_info->hist_part= el;
+        return vers_info->hist_part;
+      }
+    }
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  bool vers_limit_exceed(partition_element *part= NULL)
+  {
+    DBUG_ASSERT(vers_info);
+    if (!vers_info->limit)
+      return false;
+    if (!part)
+    {
+      DBUG_ASSERT(vers_info->initialized());
+      part= vers_hist_part();
+    }
+    // TODO: cache thread-shared part_recs and increment on INSERT
+    return table->file->part_recs_slow(part) >= vers_info->limit;
+  }
+  bool vers_interval_exceed(my_time_t max_time, partition_element *part= NULL)
+  {
+    DBUG_ASSERT(vers_info);
+    if (!vers_info->interval)
+      return false;
+    if (!part)
+    {
+      DBUG_ASSERT(vers_info->initialized());
+      part= vers_hist_part();
+    }
+    DBUG_ASSERT(part->stat_trx_end);
+    max_time-= part->stat_trx_end->min_time();
+    return max_time > vers_info->interval;
+  }
+  bool vers_interval_exceed(partition_element *part)
+  {
+    DBUG_ASSERT(part->stat_trx_end);
+    return vers_interval_exceed(part->stat_trx_end->max_time(), part);
+  }
+  bool vers_interval_exceed()
+  {
+    return vers_interval_exceed(vers_hist_part());
+  }
 };
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);

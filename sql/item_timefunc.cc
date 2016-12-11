@@ -3314,7 +3314,7 @@ VTQ_common<Item_func_X>::init_hton()
         f->field->table &&
         f->field->table->s &&
         f->field->table->s->db_plugin);
-      hton= plugin_hton(f->field->table->s->db_plugin);
+      hton= f->field->table->file->partition_ht();
       DBUG_ASSERT(hton);
     }
     else if (innodb_plugin)
@@ -3322,7 +3322,7 @@ VTQ_common<Item_func_X>::init_hton()
       hton= plugin_hton(plugin_int_to_ref(innodb_plugin));
       DBUG_ASSERT(hton);
     }
-    if (hton && !hton->versioned())
+    if (hton && !(hton->flags & HTON_SUPPORTS_SYS_VERSIONING))
     {
       my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), Item::name ? Item::name : this->func_name());
       hton= NULL;
