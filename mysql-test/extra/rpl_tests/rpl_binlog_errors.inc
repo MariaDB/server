@@ -275,7 +275,7 @@ SET GLOBAL debug_dbug=@old_debug;
 ###            while registering the index file and the binary log
 ###            file or failure to write the rotate event.
 
-call mtr.add_suppression("MSYQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
 call mtr.add_suppression("Could not open .*");
 
 RESET MASTER;
@@ -380,7 +380,7 @@ RESET MASTER;
 call mtr.add_suppression("Slave I/O: Relay log write failure: could not queue event from master.*");
 call mtr.add_suppression("Error writing file .*");
 call mtr.add_suppression("Could not open .*");
-call mtr.add_suppression("MSYQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
 call mtr.add_suppression("Can't generate a unique log-filename .*");
 -- echo ###################### TEST #13
 

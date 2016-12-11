@@ -5798,6 +5798,12 @@ int mysqld_main(int argc, char **argv)
     setbuf(stderr, NULL);
     FreeConsole();				// Remove window
   }
+
+  if (fileno(stdin) >= 0)
+  {
+    /* Disable CRLF translation (MDEV-9409). */
+    _setmode(fileno(stdin), O_BINARY);
+  }
 #endif
 
 #ifdef WITH_WSREP

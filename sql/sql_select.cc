@@ -3274,6 +3274,7 @@ JOIN::destroy()
     */
     tmp_table_param.cleanup();
     tmp_join->tmp_table_param.copy_field= 0;
+    cleanup(1);
     DBUG_RETURN(tmp_join->destroy());
   }
   cond_equal= 0;
@@ -15162,20 +15163,9 @@ bool cond_is_datetime_is_null(Item *cond)
   if (cond->type() == Item::FUNC_ITEM &&
       ((Item_func*) cond)->functype() == Item_func::ISNULL_FUNC)
   {
-    Item **args= ((Item_func_isnull*) cond)->arguments();
-    if (args[0]->type() == Item::FIELD_ITEM)
-    {
-      Field *field=((Item_field*) args[0])->field;
-
-      if (((field->type() == MYSQL_TYPE_DATE) ||
-           (field->type() == MYSQL_TYPE_DATETIME)) &&
-          (field->flags & NOT_NULL_FLAG))
-      {
-        return TRUE;
-      }
-    }
+    return ((Item_func_isnull*) cond)->arg_is_datetime_notnull_field();
   }
-  return FALSE;
+  return false;
 }
 
 

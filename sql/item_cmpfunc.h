@@ -1676,10 +1676,26 @@ public:
     update_used_tables();
   }
   const char *func_name() const { return "isnull"; }
+
+  bool arg_is_datetime_notnull_field()
+  {
+    Item **args= arguments();
+    if (args[0]->type() == Item::FIELD_ITEM)
+    {
+      Field *field=((Item_field*) args[0])->field;
+
+      if (((field->type() == MYSQL_TYPE_DATE) ||
+          (field->type() == MYSQL_TYPE_DATETIME)) &&
+          (field->flags & NOT_NULL_FLAG))
+        return true;
+    }
+    return false;
+  }
+
   /* Optimize case of not_null_column IS NULL */
   virtual void update_used_tables()
   {
-    if (!args[0]->maybe_null)
+    if (!args[0]->maybe_null && !arg_is_datetime_notnull_field())
     {
       used_tables_cache= 0;			/* is always false */
       const_item_cache= 1;

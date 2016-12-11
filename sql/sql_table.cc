@@ -665,7 +665,7 @@ static bool read_ddl_log_file_entry(uint entry_no)
   bool error= FALSE;
   File file_id= global_ddl_log.file_id;
   uchar *file_entry_buf= (uchar*)global_ddl_log.file_entry_buf;
-  uint io_size= global_ddl_log.io_size;
+  size_t io_size= global_ddl_log.io_size;
   DBUG_ENTER("read_ddl_log_file_entry");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
@@ -3101,8 +3101,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
   @param key_info         Key meta-data info.
   @param key_list         List of existing keys.
 */
-static void check_duplicate_key(THD *thd,
-                                Key *key, KEY *key_info,
+static void check_duplicate_key(THD *thd, Key *key, KEY *key_info,
                                 List<Key> *key_list)
 {
   /*
@@ -3164,14 +3163,11 @@ static void check_duplicate_key(THD *thd,
 
     // Report a warning if we have two identical keys.
 
-    DBUG_ASSERT(thd->lex->query_tables->alias);
     if (all_columns_are_identical)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_DUP_INDEX, ER_THD(thd, ER_DUP_INDEX),
-                          key_info->name,
-                          thd->lex->query_tables->db,
-                          thd->lex->query_tables->alias);
+                          key_info->name);
       break;
     }
   }

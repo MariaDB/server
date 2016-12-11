@@ -2934,6 +2934,14 @@ prepare_inplace_alter_table_dict(
 			mem_heap_alloc(ctx->heap,
 				altered_table->s->fields * sizeof(ulint)));
 
+		/* This is currently required for valgrind because MariaDB does
+		not currently support compressed columns. */
+		for (size_t field_idx = 0;
+		     field_idx < altered_table->s->fields;
+		     ++field_idx) {
+			zip_dict_ids[field_idx] = ULINT_UNDEFINED;
+		}
+
 		const char*	err_zip_dict_name = 0;
 		if (!innobase_check_zip_dicts(altered_table, zip_dict_ids,
 			ctx->trx, &err_zip_dict_name)) {
@@ -3311,6 +3319,7 @@ op_ok:
 
 	DBUG_ASSERT(error == DB_SUCCESS);
 
+#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
 	/*
 	Adding compression dictionary <-> compressed table column links
 	to the SYS_ZIP_DICT_COLS table.
@@ -3319,6 +3328,7 @@ op_ok:
 		innobase_create_zip_dict_references(altered_table,
 			ctx->trx->table_id, zip_dict_ids, ctx->trx);
 	}
+#endif
 
 	/* Commit the data dictionary transaction in order to release
 	the table locks on the system tables.  This means that if

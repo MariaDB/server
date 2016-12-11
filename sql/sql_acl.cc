@@ -1751,7 +1751,7 @@ bool acl_reload(THD *thd)
   my_hash_init2(&acl_roles,50, &my_charset_utf8_bin,
                 0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
                 (void (*)(void *))free_acl_role, 0);
-  my_hash_init2(&acl_roles_mappings, 50, system_charset_info, 0, 0, 0,
+  my_hash_init2(&acl_roles_mappings, 50, &my_charset_utf8_bin, 0, 0, 0,
                 (my_hash_get_key) acl_role_map_get_key, 0, 0, 0);
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);

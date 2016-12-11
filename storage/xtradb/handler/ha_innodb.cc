@@ -2601,11 +2601,16 @@ innobase_get_stmt(
 	THD*	thd,		/*!< in: MySQL thread handle */
 	size_t*	length)		/*!< out: length of the SQL statement */
 {
-	LEX_STRING* stmt;
-
-	stmt = thd_query_string(thd);
-	*length = stmt->length;
-	return(stmt->str);
+	const char* query = NULL;
+	LEX_STRING *stmt = NULL;
+	if (thd) {
+		stmt = thd_query_string(thd);
+		if (stmt) {
+			*length = stmt->length;
+			query = stmt->str;
+		}
+	}
+	return (query);
 }
 
 /**********************************************************************//**
@@ -8292,7 +8297,66 @@ build_template_field(
 	UNIV_MEM_INVALID(templ, sizeof *templ);
 	templ->col_no = i;
 	templ->clust_rec_field_no = dict_col_get_clust_pos(col, clust_index);
-	ut_a(templ->clust_rec_field_no != ULINT_UNDEFINED);
+
+	/* If clustered index record field is not found, lets print out
+	field names and all the rest to understand why field is not found. */
+	if (templ->clust_rec_field_no == ULINT_UNDEFINED) {
+		const char* tb_col_name = dict_table_get_col_name(clust_index->table, i);
+		dict_field_t* field=NULL;
+		size_t size = 0;
+
+		for(ulint j=0; j < clust_index->n_user_defined_cols; j++) {
+			dict_field_t* ifield = &(clust_index->fields[j]);
+			if (ifield && !memcmp(tb_col_name, ifield->name,
+					strlen(tb_col_name))) {
+				field = ifield;
+				break;
+			}
+		}
+
+		ib_logf(IB_LOG_LEVEL_INFO,
+			"Looking for field %lu name %s from table %s",
+			i,
+			(tb_col_name ? tb_col_name : "NULL"),
+			clust_index->table->name);
+
+
+		for(ulint j=0; j < clust_index->n_user_defined_cols; j++) {
+			dict_field_t* ifield = &(clust_index->fields[j]);
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"InnoDB Table %s field %lu name %s",
+				clust_index->table->name,
+				j,
+				(ifield ? ifield->name : "NULL"));
+		}
+
+		for(ulint j=0; j < table->s->stored_fields; j++) {
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"MySQL table %s field %lu name %s",
+				table->s->table_name.str,
+				j,
+				table->field[j]->field_name);
+		}
+
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Clustered record field for column %lu"
+			" not found table n_user_defined %d"
+			" index n_user_defined %d"
+			" InnoDB table %s field name %s"
+			" MySQL table %s field name %s n_fields %d"
+			" query %s",
+			i,
+			clust_index->n_user_defined_cols,
+			clust_index->table->n_cols - DATA_N_SYS_COLS,
+			clust_index->table->name,
+			(field ? field->name : "NULL"),
+			table->s->table_name.str,
+			(tb_col_name ? tb_col_name : "NULL"),
+			table->s->stored_fields,
+			innobase_get_stmt(current_thd, &size));
+
+		ut_a(templ->clust_rec_field_no != ULINT_UNDEFINED);
+	}
 	templ->rec_field_is_prefix = FALSE;
 
 	if (dict_index_is_clust(index)) {
@@ -9004,12 +9068,6 @@ no_commit:
 	error = row_insert_for_mysql((byte*) record, prebuilt);
 	DEBUG_SYNC(user_thd, "ib_after_row_insert");
 
-#ifdef EXTENDED_FOR_USERSTAT
-	if (UNIV_LIKELY(error == DB_SUCCESS && !trx->fake_changes)) {
-		rows_changed++;
-	}
-#endif
-
 	/* Handle duplicate key errors */
 	if (auto_inc_used) {
 		ulonglong	auto_inc;
@@ -9677,12 +9735,6 @@ ha_innobase::update_row(
 		}
 	}
 
-#ifdef EXTENDED_FOR_USERSTAT
-	if (UNIV_LIKELY(error == DB_SUCCESS && !trx->fake_changes)) {
-		rows_changed++;
-	}
-#endif
-
 	innobase_srv_conc_exit_innodb(trx);
 
 func_exit:
@@ -9778,12 +9830,6 @@ ha_innobase::delete_row(
 	innobase_srv_conc_enter_innodb(trx);
 
 	error = row_update_for_mysql((byte*) record, prebuilt);
-
-#ifdef EXTENDED_FOR_USERSTAT
-	if (UNIV_LIKELY(error == DB_SUCCESS && !trx->fake_changes)) {
-		rows_changed++;
-	}
-#endif
 
 	innobase_srv_conc_exit_innodb(trx);
 
@@ -10155,11 +10201,6 @@ ha_innobase::index_read(
 			srv_stats.n_rows_read.add(
 				(size_t) prebuilt->trx->id, 1);
 		}
-#ifdef EXTENDED_FOR_USERSTAT
-		rows_read++;
-		if (active_index < MAX_KEY)
-			index_rows_read[active_index]++;
-#endif
 		break;
 	case DB_RECORD_NOT_FOUND:
 		error = HA_ERR_KEY_NOT_FOUND;
@@ -10456,11 +10497,6 @@ ha_innobase::general_fetch(
 		error = 0;
 		table->status = 0;
 		srv_stats.n_rows_read.add((size_t) prebuilt->trx->id, 1);
-#ifdef EXTENDED_FOR_USERSTAT
-		rows_read++;
-		if (active_index < MAX_KEY)
-			index_rows_read[active_index]++;
-#endif
 		break;
 	case DB_RECORD_NOT_FOUND:
 		error = HA_ERR_END_OF_FILE;
@@ -12905,6 +12941,12 @@ ha_innobase::create(
 	heap = mem_heap_create(form->s->fields * sizeof(ulint));
 	zip_dict_ids = static_cast<ulint*>(
 		mem_heap_alloc(heap, form->s->fields * sizeof(ulint)));
+
+	/* This is currently required for valgrind because MariaDB does
+	not currently support compressed columns. */
+	for (size_t field_idx = 0; field_idx < form->s->fields; ++field_idx) {
+		zip_dict_ids[field_idx] = ULINT_UNDEFINED;
+	}
 
 	const char*	err_zip_dict_name = 0;
 	if (!innobase_check_zip_dicts(form, zip_dict_ids,

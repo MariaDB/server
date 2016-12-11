@@ -1027,3 +1027,24 @@ drop table t1,t2;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
 
+--echo #
+--echo # Bug mdev-11364: IS NULL over not nullable datetime column
+--echo #                 in mergeable derived
+--echo #
+
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+set HISTOGRAM_SIZE = 255;
+
+CREATE TABLE t1 (t TIME, d DATE NOT NULL);
+INSERT INTO t1 VALUES ('10:00:00', '0000-00-00'),('11:00:00','0000-00-00');
+ 
+ANALYZE TABLE t1;
+
+SELECT * FROM (SELECT t FROM t1 WHERE d IS NULL) sq;
+
+DROP TABLE t1;
+
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
