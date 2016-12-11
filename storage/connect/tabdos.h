@@ -28,6 +28,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   friend class TDBFIX;
   friend class TXTFAM;
   friend class DBFBASE;
+	friend class ZIPFAM;
  public:
   // Constructor
   DOSDEF(void);
@@ -58,7 +59,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
 
   // Methods
   virtual int  Indexable(void)
-          {return (!Multiple && Compressed != 1) ? 1 : 0;}
+          {return (!Multiple && !Zipfn && Compressed != 1) ? 1 : 0;}
   virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
@@ -72,7 +73,8 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   // Members
   PSZ     Fn;                 /* Path/Name of corresponding file       */
   PSZ     Ofn;                /* Base Path/Name of matching index files*/
-  PIXDEF  To_Indx;            /* To index definitions blocks           */
+	PSZ     Zipfn;						  /* Zip container name										 */
+	PIXDEF  To_Indx;            /* To index definitions blocks           */
   RECFM   Recfm;              /* 0:VAR, 1:FIX, 2:BIN, 3:VCT, 6:DBF     */
   bool    Mapped;             /* 0: disk file, 1: memory mapped file   */
   bool    Padded;             /* true for padded table file            */
