@@ -3989,7 +3989,7 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
   THD *thd= current_thd;
 
-  if (likely(is_thread_specific))  /* If thread specific memory */
+  if (is_thread_specific)  /* If thread specific memory */
   {
     /*
       When thread specfic is set, both mysqld_server_initialized and thd
@@ -4006,8 +4006,7 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
   else if (likely(thd))
   {
     DBUG_PRINT("info", ("global thd memory_used: %lld  size: %lld",
-                        (longlong) thd->status_var.global_memory_used,
-                        size));
+                        (longlong) thd->status_var.global_memory_used, size));
     thd->status_var.global_memory_used+= size;
   }
   else
