@@ -1,5 +1,5 @@
 /************* tabjson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjson     Version 1.2                               */
+/* PROGRAM NAME: tabjson     Version 1.3                               */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2016  */
 /*  This program are the JSON class DB execution routines.             */
 /***********************************************************************/
@@ -28,6 +28,9 @@
 #if defined(GZ_SUPPORT)
 #include "filamgz.h"
 #endif   // GZ_SUPPORT
+#if defined(ZIP_SUPPORT)
+#include "filamzip.h"
+#endif   // ZIP_SUPPORT
 #include "tabmul.h"
 #include "checklvl.h"
 #include "resource.h"
@@ -67,7 +70,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE, FLD_TYPENAME, FLD_PREC, 
                           FLD_LENGTH, FLD_SCALE, FLD_NULL, FLD_FORMAT};
   static unsigned int length[] = {0, 6, 8, 10, 10, 6, 6, 0};
-  char   *fn, colname[65], fmt[129];
+  char    colname[65], fmt[129];
   int     i, j, lvl, n = 0;
   int     ncol = sizeof(buftyp) / sizeof(int);
   PVAL    valp;
@@ -94,16 +97,21 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
   /*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
-  if (!(fn = GetStringTableOption(g, topt, "Filename", NULL))) {
-    strcpy(g->Message, MSG(MISSING_FNAME));
-    return NULL;
-  } else {
-    lvl = GetIntegerTableOption(g, topt, "Level", 0);
-    lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
-  } // endif fn
+  lvl = GetIntegerTableOption(g, topt, "Level", 0);
+  lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
 
   tdp = new(g) JSONDEF;
-  tdp->Fn = fn;
+#if defined(ZIP_SUPPORT)
+	tdp->Zipfn = GetStringTableOption(g, topt, "Zipfile", NULL);
+	tdp->Multiple = GetIntegerTableOption(g, topt, "Multiple", 0);
+#endif   // ZIP_SUPPORT
+	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
+
+	if (!tdp->Fn && !tdp->Zipfn && !tdp->Multiple) {
+		strcpy(g->Message, MSG(MISSING_FNAME));
+		return NULL;
+	} // endif Fn
+
   tdp->Database = SetPath(g, db);
   tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
   tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
@@ -114,7 +122,10 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
           tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
 
   if (tdp->Pretty == 2) {
-    tjsp = new(g) TDBJSON(tdp, new(g) MAPFAM(tdp));
+		if (tdp->Zipfn)
+      tjsp = new(g) TDBJSON(tdp, new(g) ZIPFAM(tdp));
+		else
+		  tjsp = new(g) TDBJSON(tdp, new(g) MAPFAM(tdp));
 
     if (tjsp->MakeDocument(g))
       return NULL;
@@ -127,10 +138,28 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
       } // endif lrecl
 
     tdp->Ending = GetIntegerTableOption(g, topt, "Ending", CRLF);
-    tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
+
+		if (tdp->Zipfn)
+			tjnp = new(g) TDBJSN(tdp, new(g) ZIPFAM(tdp));
+		else
+			tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
+
     tjnp->SetMode(MODE_READ);
 
-    if (tjnp->OpenDB(g))
+#if USE_G
+		// Allocate the parse work memory
+		PGLOBAL G = (PGLOBAL)PlugSubAlloc(g, NULL, sizeof(GLOBAL));
+		memset(G, 0, sizeof(GLOBAL));
+		G->Sarea_Size = tdp->Lrecl * 10;
+		G->Sarea = PlugSubAlloc(g, NULL, G->Sarea_Size);
+		PlugSubSet(G, G->Sarea, G->Sarea_Size);
+		G->jump_level = -1;
+		tjnp->SetG(G);
+#else
+		tjnp->SetG(g);
+#endif
+
+		if (tjnp->OpenDB(g))
       return NULL;
 
     switch (tjnp->ReadDB(g)) {
@@ -395,7 +424,14 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
                 !(tmp == TMP_FORCE &&
                 (m == MODE_UPDATE || m == MODE_DELETE));
 
-    if (Compressed) {
+		if (Zipfn) {
+#if defined(ZIP_SUPPORT)
+			txfp = new(g) ZIPFAM(this);
+#else   // !ZIP_SUPPORT
+			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+			return NULL;
+#endif  // !ZIP_SUPPORT
+		} else if (Compressed) {
 #if defined(GZ_SUPPORT)
       if (Compressed == 1)
         txfp = new(g) GZFAM(this);
@@ -426,12 +462,16 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 		((TDBJSN*)tdbp)->G = g;
 #endif
 	} else {
-    txfp = new(g) MAPFAM(this);
+		if (Zipfn)
+			txfp = new(g) ZIPFAM(this);
+		else
+			txfp = new(g) MAPFAM(this);
+
     tdbp = new(g) TDBJSON(this, txfp);
 		((TDBJSON*)tdbp)->G = g;
   } // endif Pretty
 
-  if (Multiple)
+  if (Multiple && !Zipfn)
     tdbp = new(g) TDBMUL(tdbp);
 
   return tdbp;

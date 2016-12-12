@@ -171,9 +171,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0008 October 20, 2016";
+       char version[]= "Version 1.04.0009 December 09, 2016";
 #if defined(__WIN__)
-       char compver[]= "Version 1.04.0008 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.04.0009 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -4165,7 +4165,8 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
     case TAB_DIR:
     case TAB_MAC:
     case TAB_WMI:
-    case TAB_OEM:
+		case TAB_ZIP:
+		case TAB_OEM:
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
       return false;
 #endif
@@ -5173,13 +5174,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   char        v=0, spc= ',', qch= 0;
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
-  const char *col, *ocl, *rnk, *pic, *fcl, *skc;
+  const char *col, *ocl, *rnk, *pic, *fcl, *skc, *zfn;
   char       *tab, *dsn, *shm, *dpath; 
 #if defined(__WIN__)
   char       *nsp= NULL, *cls= NULL;
 #endif   // __WIN__
-  int         port= 0, hdr= 0, mxr= 0, mxe= 0, rc= 0;
-  int         cop __attribute__((unused))= 0, lrecl= 0;
+//int         hdr, mxe;
+	int         port = 0, mxr = 0, rc = 0, mul = 0, lrecl = 0;
 #if defined(ODBC_SUPPORT)
   POPARM      sop= NULL;
   char       *ucnc= NULL;
@@ -5211,7 +5212,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= dsn= NULL;
+  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= zfn= dsn= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -5224,7 +5225,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   sep= topt->separator;
   spc= (!sep) ? ',' : *sep;
   qch= topt->qchar ? *topt->qchar : (signed)topt->quoted >= 0 ? '"' : 0;
-  hdr= (int)topt->header;
+	mul = (int)topt->multiple;
 	tbl= topt->tablist;
   col= topt->colist;
 
@@ -5260,11 +5261,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 //	prop = GetListOption(g, "Properties", topt->oplist, NULL);
 		tabtyp = GetListOption(g, "Tabtype", topt->oplist, NULL);
 #endif   // JDBC_SUPPORT
-    mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
 #if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
 #endif   // PROMPT_OK
-  } else {
+#if defined(ZIP_SUPPORT)
+		zfn = GetListOption(g, "Zipfile", topt->oplist, NULL);
+#endif   // ZIP_SUPPORT
+	} else {
     host= "localhost";
     user= (ttp == TAB_ODBC ? NULL : "root");
   } // endif option_list
@@ -5471,7 +5474,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     case TAB_XML:
 #endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
     case TAB_JSON:
-      if (!fn)
+      if (!fn && !zfn && !mul)
         sprintf(g->Message, "Missing %s file name", topt->type);
       else
         ok= true;
@@ -5585,7 +5588,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
                        NULL, port, fnc == FNC_COL);
         break;
       case TAB_CSV:
-        qrp= CSVColumns(g, dpath, fn, spc, qch, hdr, mxe, fnc == FNC_COL);
+				qrp = CSVColumns(g, dpath, topt, fnc == FNC_COL);
         break;
 #if defined(__WIN__)
       case TAB_WMI:

@@ -279,6 +279,18 @@ IF(CONNECT_WITH_JDBC)
   ENDIF()
 ENDIF(CONNECT_WITH_JDBC)
 
+#
+# ZIP
+#
+
+OPTION(CONNECT_WITH_ZIP "Compile CONNECT storage engine with ZIP support" ON)
+
+IF(CONNECT_WITH_ZIP)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} filamzip.cpp tabzip.cpp unzip.c ioapi.c zip.c
+    filamzip.h tabzip.h ioapi.h unzip.h zip.h)
+  add_definitions(-DZIP_SUPPORT -DNOCRYPT)
+ENDIF(CONNECT_WITH_ZIP)
+
 
 #
 # XMAP

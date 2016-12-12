@@ -1,7 +1,7 @@
 /************* TabFmt C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFMT                                                */
 /* -------------                                                       */
-/*  Version 3.9.1                                                      */
+/*  Version 3.9.2                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -54,6 +54,9 @@
 #if defined(GZ_SUPPORT)
 #include "filamgz.h"
 #endif   // GZ_SUPPORT
+#if defined(ZIP_SUPPORT)
+#include "filamzip.h"
+#endif   // ZIP_SUPPORT
 #include "tabfmt.h"
 #include "tabmul.h"
 #define  NO_FUNC
@@ -78,20 +81,24 @@ USETEMP UseTemp(void);
 /* of types (TYPE_STRING < TYPE_DOUBLE < TYPE_INT) (1 < 2 < 7).        */
 /* If these values are changed, this will have to be revisited.        */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
-                   char q, int hdr, int mxr, bool info)
+PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,   TYPE_INT, TYPE_SHORT};
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,   FLD_TYPENAME,
                           FLD_PREC, FLD_LENGTH, FLD_SCALE};
   static unsigned int length[] = {6, 6, 8, 10, 10, 6};
-  char   *p, *colname[MAXCOL], dechar, filename[_MAX_PATH], buf[4096];
+	const char *fn;
+	char    sep, q;
+	int     rc, mxr;
+	bool    hdr;
+  char   *p, *colname[MAXCOL], dechar, buf[8];
   int     i, imax, hmax, n, nerr, phase, blank, digit, dec, type;
   int     ncol = sizeof(buftyp) / sizeof(int);
   int     num_read = 0, num_max = 10000000;     // Statistics
   int     len[MAXCOL], typ[MAXCOL], prc[MAXCOL];
-  FILE   *infile;
+	PCSVDEF tdp;
+	PTDBCSV tdbp;
   PQRYRES qrp;
   PCOLRES crp;
 
@@ -102,26 +109,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
     } // endif info
 
 //      num_max = atoi(p+1);             // Max num of record to test
-#if defined(__WIN__)
-  if (sep == ',' || strnicmp(setlocale(LC_NUMERIC, NULL), "French", 6))
-    dechar = '.';
-  else
-    dechar = ',';
-#else   // !__WIN__
-  dechar = '.';
-#endif  // !__WIN__
-
-  if (trace)
-    htrc("File %s sep=%c q=%c hdr=%d mxr=%d\n",
-          SVP(fn), sep, q, hdr, mxr);
-
-  if (!fn) {
-    strcpy(g->Message, MSG(MISSING_FNAME));
-    return NULL;
-    } // endif fn
-
   imax = hmax = nerr = 0;
-  mxr = MY_MAX(0, mxr);
 
   for (i = 0; i < MAXCOL; i++) {
     colname[i] = NULL;
@@ -131,12 +119,73 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
     } // endfor i
 
   /*********************************************************************/
-  /*  Open the input file.                                             */
+  /*  Get the CSV table description block.                             */
   /*********************************************************************/
-  PlugSetPath(filename, fn, dp);
+	tdp = new(g) CSVDEF;
+#if defined(ZIP_SUPPORT)
+	tdp->Zipfn = GetStringTableOption(g, topt, "Zipfile", NULL);
+	tdp->Multiple = GetIntegerTableOption(g, topt, "Multiple", 0);
+#endif   // ZIP_SUPPORT
+	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
-  if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "r")))
-    return NULL;
+	if (!tdp->Fn && !tdp->Zipfn && !tdp->Multiple) {
+		strcpy(g->Message, MSG(MISSING_FNAME));
+		return NULL;
+	} // endif Fn
+
+	fn = (tdp->Fn) ? tdp->Fn : "unnamed";
+
+	if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))
+		tdp->Lrecl = 4096;
+
+	p = GetStringTableOption(g, topt, "Separator", ",");
+	tdp->Sep = (strlen(p) == 2 && p[0] == '\\' && p[1] == 't') ? '\t' : *p;
+
+#if defined(__WIN__)
+	if (tdp->Sep == ',' || strnicmp(setlocale(LC_NUMERIC, NULL), "French", 6))
+		dechar = '.';
+	else
+		dechar = ',';
+#else   // !__WIN__
+	dechar = '.';
+#endif  // !__WIN__
+
+	sep = tdp->Sep;
+	tdp->Quoted = GetIntegerTableOption(g, topt, "Quoted", -1);
+	p = GetStringTableOption(g, topt, "Qchar", "");
+	tdp->Qot = *p;
+
+	if (tdp->Qot && tdp->Quoted < 0)
+		tdp->Quoted = 0;
+	else if (!tdp->Qot && tdp->Quoted >= 0)
+		tdp->Qot = '"';
+
+	q = tdp->Qot;
+	hdr = GetBooleanTableOption(g, topt, "Header", false);
+	tdp->Maxerr = GetIntegerTableOption(g, topt, "Maxerr", 0);
+	tdp->Accept = GetBooleanTableOption(g, topt, "Accept", false);
+
+	if (tdp->Accept && tdp->Maxerr == 0)
+		tdp->Maxerr = INT_MAX32;       // Accept all bad lines
+
+	mxr = MY_MAX(0, tdp->Maxerr);
+
+	if (trace)
+		htrc("File %s Sep=%c Qot=%c Header=%d maxerr=%d\n",
+		SVP(tdp->Fn), tdp->Sep, tdp->Qot, tdp->Header, tdp->Maxerr);
+
+	if (tdp->Zipfn)
+		tdbp = new(g) TDBCSV(tdp, new(g) ZIPFAM(tdp));
+	else
+		tdbp = new(g) TDBCSV(tdp, new(g) DOSFAM(tdp));
+
+	tdbp->SetMode(MODE_READ);
+
+	/*********************************************************************/
+	/*  Open the CSV file.                                               */
+	/*********************************************************************/
+	if (tdbp->OpenDB(g))
+		return NULL;
 
   if (hdr) {
     /*******************************************************************/
@@ -144,16 +193,8 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
     /*******************************************************************/
     phase = 0;
 
-    if (fgets(buf, sizeof(buf), infile)) {
-      n = strlen(buf) + 1;
-      buf[n - 2] = '\0';
-#if !defined(__WIN__)
-      // The file can be imported from Windows
-      if (buf[n - 3] == '\r')
-        buf[n - 3] = 0;
-#endif   // UNIX
-      p = (char*)PlugSubAlloc(g, NULL, n);
-      memcpy(p, buf, n);
+    if ((rc = tdbp->ReadDB(g)) == RC_OK) {
+			p = PlgDBDup(g, tdbp->To_Line);
 
       //skip leading blanks
       for (; *p == ' '; p++) ;
@@ -165,10 +206,11 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
         } // endif q
 
       colname[0] = p;
-    } else {
+    } else if (rc == RC_EF) {
       sprintf(g->Message, MSG(FILE_IS_EMPTY), fn);
       goto err;
-    } // endif's
+		} else
+			goto err;
 
     for (i = 1; *p; p++)
       if (phase == 1 && *p == q) {
@@ -201,15 +243,8 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
     /*******************************************************************/
     /*  Now start the reading process. Read one line.                  */
     /*******************************************************************/
-    if (fgets(buf, sizeof(buf), infile)) {
-      n = strlen(buf);
-      buf[n - 1] = '\0';
-#if !defined(__WIN__)
-      // The file can be imported from Windows
-      if (buf[n - 2] == '\r')
-        buf[n - 2] = 0;
-#endif   // UNIX
-    } else if (feof(infile)) {
+		if ((rc = tdbp->ReadDB(g)) == RC_OK) {
+    } else if (rc == RC_EF) {
       sprintf(g->Message, MSG(EOF_AFTER_LINE), num_read -1);
       break;
     } else {
@@ -222,7 +257,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
     /*******************************************************************/
     i = n = phase = blank = digit = dec = 0;
 
-    for (p = buf; *p; p++)
+    for (p = tdbp->To_Line; *p; p++)
       if (*p == sep) {
         if (phase != 1) {
           if (i == MAXCOL - 1) {
@@ -331,7 +366,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
     htrc("\n");
   } // endif trace
 
-  fclose(infile);
+	tdbp->CloseDB(g);
 
  skipit:
   if (trace)
@@ -381,7 +416,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
   return qrp;
 
  err:
-  fclose(infile);
+  tdbp->CloseDB(g);
   return NULL;
   } // end of CSVCColumns
 
@@ -458,7 +493,21 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
     /*******************************************************************/
     /*  Allocate a file processing class of the proper type.           */
     /*******************************************************************/
-    if (map) {
+		if (Zipfn) {
+#if defined(ZIP_SUPPORT)
+			txfp = new(g) ZIPFAM(this);
+
+			if (!Fmtd)
+				tdbp = new(g) TDBCSV(this, txfp);
+			else
+				tdbp = new(g) TDBFMT(this, txfp);
+
+			return tdbp;
+#else   // !ZIP_SUPPORT
+			strcpy(g->Message, "ZIP not supported");
+			return NULL;
+#endif  // !ZIP_SUPPORT
+		} else if (map) {
       // Should be now compatible with UNIX
       txfp = new(g) MAPFAM(this);
     } else if (Compressed) {
@@ -1476,21 +1525,16 @@ void CSVCOL::WriteColumn(PGLOBAL g)
 /*  TDBCCL class constructor.                                          */
 /***********************************************************************/
 TDBCCL::TDBCCL(PCSVDEF tdp) : TDBCAT(tdp)
-  {
-  Fn  = tdp->GetFn();
-  Hdr = tdp->Header;
-  Mxr = tdp->Maxerr;
-  Qtd = tdp->Quoted;
-  Sep = tdp->Sep;
-  } // end of TDBCCL constructor
+{
+	Topt = tdp->GetTopt();
+} // end of TDBCCL constructor
 
 /***********************************************************************/
 /*  GetResult: Get the list the CSV file columns.                      */
 /***********************************************************************/
 PQRYRES TDBCCL::GetResult(PGLOBAL g)
   {
-  return CSVColumns(g, ((PTABDEF)To_Def)->GetPath(), 
-                    Fn, Sep, Qtd, Hdr, Mxr, false);
+  return CSVColumns(g, ((PTABDEF)To_Def)->GetPath(), Topt, false);
   } // end of GetResult
 
 /* ------------------------ End of TabFmt ---------------------------- */

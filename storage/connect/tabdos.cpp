@@ -1,7 +1,7 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.9.1                                                      */
+/*  Version 4.9.2                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -54,6 +54,9 @@
 #if defined(GZ_SUPPORT)
 #include "filamgz.h"
 #endif   // GZ_SUPPORT
+#if defined(ZIP_SUPPORT)
+#include "filamzip.h"
+#endif   // ZIP_SUPPORT
 #include "tabdos.h"
 #include "tabfix.h"
 #include "tabmul.h"
@@ -93,6 +96,7 @@ DOSDEF::DOSDEF(void)
   Pseudo = 3;
   Fn = NULL;
   Ofn = NULL;
+	Zipfn = NULL;
   To_Indx = NULL;
   Recfm = RECFM_VAR;
   Mapped = false;
@@ -126,7 +130,20 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
              : (am && (*am == 'B' || *am == 'b')) ? "B"
              : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
-  Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
+	if (*dfm != 'D')
+		Zipfn = GetStringCatInfo(g, "Zipfile", NULL);
+
+	if (Zipfn && Multiple) {
+		// Prevent Fn to default to table name
+		Desc = GetStringCatInfo(g, "Filename", NULL);
+		Fn = GetStringCatInfo(g, "Filename", "<%>");
+
+		if (!strcmp(Fn, "<%>"))
+			Fn = NULL;
+
+	} else
+	  Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
+
   Ofn = GetStringCatInfo(g, "Optname", Fn);
   GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
@@ -333,7 +350,20 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   /*  Allocate table and file processing class of the proper type.     */
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
-  if (Recfm == RECFM_DBF) {
+	if (Zipfn) {
+#if defined(ZIP_SUPPORT)
+		if (Recfm == RECFM_VAR)
+		  txfp = new(g) ZIPFAM(this);
+		else
+			txfp = new(g) ZPXFAM(this);
+
+		tdbp = new(g) TDBDOS(this, txfp);
+		return tdbp;
+#else   // !ZIP_SUPPORT
+		strcpy(g->Message, "ZIP not supported");
+		return NULL;
+#endif  // !ZIP_SUPPORT
+	} else if (Recfm == RECFM_DBF) {
     if (Catfunc == FNC_NO) {
       if (map)
         txfp = new(g) DBMFAM(this);
