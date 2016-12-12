@@ -329,6 +329,7 @@ thd_destructor_proxy(void *)
 
 	thd_destructor_myvar = _my_thread_var();
 	THD *thd= create_thd();
+	thd_proc_info(thd, "InnoDB background thread");
 
 	mysql_mutex_lock(&thd_destructor_mutex);
 	thd_destructor_myvar->current_mutex = &thd_destructor_mutex;
@@ -1779,6 +1780,7 @@ innobase_create_background_thd()
 /*============================*/
 {
 	MYSQL_THD thd= create_thd();
+	thd_proc_info(thd, "InnoDB background thread");
 	THDVAR(thd, background_thread) = true;
 	return thd;
 }

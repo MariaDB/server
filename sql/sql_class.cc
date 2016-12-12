@@ -796,6 +796,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   mysql_audit_init_thd(this);
   net.vio=0;
   net.buff= 0;
+  net.reading_or_writing= 0;
   client_capabilities= 0;                       // minimalistic client
   system_thread= NON_SYSTEM_THREAD;
   cleanup_done= free_connection_done= abort_on_warning= 0;
@@ -4448,6 +4449,7 @@ MYSQL_THD create_thd()
   thd->store_globals();
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
+  thd->security_ctx->host_or_ip="";
   add_to_active_threads(thd);
   return thd;
 }
