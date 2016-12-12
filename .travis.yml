@@ -27,9 +27,12 @@ addons:
       - libjudy-dev
       - libncurses5-dev
       - libpam0g-dev
+      - libpcre3-dev
       - libreadline-gplv2-dev
+      - libstemmer-dev
       - libssl-dev
       - libnuma-dev
+      - libxml2-dev
       - lsb-release
       - perl
       - po-debconf
@@ -38,6 +41,11 @@ addons:
       - libcrack2-dev
       - libjemalloc-dev
       - devscripts # implicit for any build on Ubuntu
+
+# libsnappy-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3880
+# liblzma-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3879
+# libzmq-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3881
+# libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
 
 script:
   - ${CC} --version ; ${CXX} --version
