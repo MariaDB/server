@@ -87,7 +87,7 @@ int MAPFAM::GetFileLength(PGLOBAL g)
   {
   int len;
 
-  len = (To_Fb) ? To_Fb->Length : TXTFAM::GetFileLength(g);
+  len = (To_Fb && To_Fb->Count) ? To_Fb->Length : TXTFAM::GetFileLength(g);
 
   if (trace)
     htrc("Mapped file length=%d\n", len);
@@ -413,7 +413,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 
   if (Tpos == Spos) {
     /*******************************************************************/
-    /*  First line to delete. Move of eventual preceeding lines is     */
+    /*  First line to delete. Move of eventual preceding lines is     */
     /*  not required here, just setting of future Spos and Tpos.       */
     /*******************************************************************/
     Tpos = Spos = Fpos;
@@ -498,7 +498,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 void MAPFAM::CloseTableFile(PGLOBAL g, bool)
   {
   PlugCloseFile(g, To_Fb);
-  To_Fb = NULL;              // To get correct file size in Cardinality
+//To_Fb = NULL;              // To get correct file size in Cardinality
 
   if (trace)
     htrc("MAP Close: closing %s count=%d\n",
