@@ -457,6 +457,10 @@ The following options may be given as the first argument:
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
  based on a key
+ --max-session-mem-used=# 
+ Amount of memory a single user session is allowed to
+ allocate. This limits the value of the session variable
+ MEM_USED
  --max-sort-length=# The number of bytes to use when sorting BLOB or TEXT
  values (only the first max_sort_length bytes of each
  value are used; the rest are ignored)
@@ -1266,6 +1270,7 @@ max-long-data-size 4194304
 max-prepared-stmt-count 16382
 max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
+max-session-mem-used 9223372036854775807
 max-sort-length 1024
 max-sp-recursion-depth 0
 max-statement-time 0

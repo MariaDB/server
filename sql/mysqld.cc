@@ -4001,6 +4001,15 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
                         (longlong) thd->status_var.local_memory_used,
                         size));
     thd->status_var.local_memory_used+= size;
+    if (thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
+        !thd->killed)
+    {
+      char buf[1024];
+      thd->killed= KILL_QUERY;
+      my_snprintf(buf, sizeof(buf), "--max-thread-mem-used=%llu",
+                  thd->variables.max_mem_used);
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
+    }
     DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0);
   }
   else if (likely(thd))

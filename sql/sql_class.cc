@@ -906,8 +906,8 @@ THD::THD(bool is_wsrep_applier)
 #endif
 {
   ulong tmp;
+  bzero(&variables, sizeof(variables));
 
-  mdl_context.init(this);
   /*
     We set THR_THD to temporally point to this THD to register all the
     variables that allocates memory for this THD
@@ -916,7 +916,10 @@ THD::THD(bool is_wsrep_applier)
   set_current_thd(this);
   status_var.local_memory_used= sizeof(THD);
   status_var.global_memory_used= 0;
+  variables.max_mem_used= global_system_variables.max_mem_used;
   main_da.init();
+
+  mdl_context.init(this);
 
   /*
     Pass nominal parameters to init_alloc_root only to ensure that
@@ -964,7 +967,6 @@ THD::THD(bool is_wsrep_applier)
   connection_name.str= 0;
   connection_name.length= 0;
 
-  bzero(&variables, sizeof(variables));
   file_id = 0;
   query_id= 0;
   query_name_consts= 0;
