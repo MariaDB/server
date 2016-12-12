@@ -138,6 +138,39 @@ DROP TABLE t1,t2;
 --echo # End of 10.0 tests
 --echo #
 
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-11060: sql/protocol.cc:532: void Protocol::end_statement(): Assertion `0' failed
+--echo #
+
+
+set optimizer_use_condition_selectivity=4;
+
+--disable_warnings
+drop view if exists v1;
+--enable_warnings
+
+create table t1 (a int not null, b int, c int) engine=InnoDB;
+create trigger trgi before insert on t1 for each row set new.a=if(new.a is null,new.b,new.c);
+
+create table t2 (d int, e int) engine=InnoDB;
+update t1, t2 set a=NULL, b=2, c=NULL where b=d and e=200;
+
+create view v1 as select * from t1, t2 where d=2;
+--error ER_BAD_NULL_ERROR
+insert v1 (a,c) values (NULL, 20);
+
+drop table t1,t2;
+drop view v1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
 set use_stat_tables= @tmp_ust;
 set optimizer_use_condition_selectivity= @tmp_oucs;
 SET SESSION STORAGE_ENGINE=DEFAULT;

@@ -3112,6 +3112,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     }
 
   free_alloc:
+    thd->no_errors= 0;
     thd->mem_root= param.old_root;
     free_root(&alloc, MYF(0));
 
