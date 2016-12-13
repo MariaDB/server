@@ -92,7 +92,9 @@ select json_contains('[1]', '[1]', '$', '$[0]');
 ERROR 42000: Incorrect parameter count in the call to native function 'json_contains'
 select json_contains('', '', '$');
 json_contains('', '', '$')
-0
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_contains'
 select json_contains('null', 'null', '$');
 json_contains('null', 'null', '$')
 1
@@ -276,6 +278,8 @@ ERROR 42000: Incorrect parameter count in the call to native function 'json_merg
 select json_merge('string', 123);
 json_merge('string', 123)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge' at position 1
 select json_merge('"string"', 123);
 json_merge('"string"', 123)
 ["string", 123]
@@ -294,6 +298,8 @@ NULL
 select json_merge('a','b');
 json_merge('a','b')
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge' at position 1
 select json_merge('{"a":"b"}','{"c":"d"}');
 json_merge('{"a":"b"}','{"c":"d"}')
 {"a":"b", "c":"d"}
@@ -321,6 +327,11 @@ json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a")
 select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b");
 json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b")
 NULL
+select json_keys('foo');
+json_keys('foo')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 1
 SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
 select json_search(@j, 'one', 'abc');
 json_search(@j, 'one', 'abc')
@@ -385,6 +396,8 @@ json_depth('[[[1,2,3],"s"], {}, []]')
 select json_length('');
 json_length('')
 NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_length'
 select json_length('{}');
 json_length('{}')
 0

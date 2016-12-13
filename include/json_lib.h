@@ -102,6 +102,7 @@ typedef struct st_json_path_t
   json_path_step_t *last_step; /* Points to the last step. */
 
   int mode_strict; /* TRUE if the path specified as 'strict' */
+  enum json_path_step_types types_used; /* The '|' of all step's 'type'-s */
 } json_path_t;
 
 

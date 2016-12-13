@@ -113,12 +113,131 @@ static int st_append_escaped(String *s, const String *a)
 }
 
 
+#define report_json_error(js, je, n_param) \
+  report_json_error_ex(js, je, func_name(), n_param, \
+      Sql_condition::WARN_LEVEL_WARN)
+
+static void report_json_error_ex(String *js, json_engine_t *je,
+                                 const char *fname, int n_param,
+                                 Sql_condition::enum_warning_level lv)
+{
+  THD *thd= current_thd;
+  int position= (const char *) je->s.c_str - js->ptr();
+  uint code;
+
+  n_param++;
+
+  switch (je->s.error)
+  {
+  case JE_BAD_CHR:
+    code= ER_JSON_BAD_CHR;
+    break;
+
+  case JE_NOT_JSON_CHR:
+    code= ER_JSON_NOT_JSON_CHR;
+    break;
+
+  case JE_EOS:
+    code= ER_JSON_EOS;
+    break;
+
+  case JE_SYN:
+  case JE_STRING_CONST:
+    code= ER_JSON_SYNTAX;
+    break;
+
+  case JE_ESCAPING:
+    code= ER_JSON_ESCAPING;
+    break;
+
+  case JE_DEPTH:
+    code= ER_JSON_DEPTH;
+    push_warning_printf(thd, lv, code, ER_THD(thd, code), JSON_DEPTH_LIMIT,
+                        n_param, fname, position);
+    return;
+
+  default:
+    return;
+  }
+
+  push_warning_printf(thd, lv, code, ER_THD(thd, code),
+                      n_param, fname, position);
+}
+
+
+
+#define NO_WILDCARD_ALLOWED 1
+#define SHOULD_END_WITH_ARRAY 2
+
+#define report_path_error(js, je, n_param) \
+  report_path_error_ex(js, je, func_name(), n_param,\
+      Sql_condition::WARN_LEVEL_WARN)
+
+static void report_path_error_ex(String *ps, json_path_t *p,
+                                 const char *fname, int n_param,
+                                 Sql_condition::enum_warning_level lv)
+{
+  THD *thd= current_thd;
+  int position= (const char *) p->s.c_str - ps->ptr() + 1;
+  uint code;
+
+  n_param++;
+
+  switch (p->s.error)
+  {
+  case JE_BAD_CHR:
+  case JE_NOT_JSON_CHR:
+  case JE_SYN:
+    code= ER_JSON_PATH_SYNTAX;
+    break;
+
+  case JE_EOS:
+    code= ER_JSON_PATH_EOS;
+    break;
+
+  case JE_DEPTH:
+    code= ER_JSON_PATH_DEPTH;
+    push_warning_printf(thd, lv, code, ER_THD(thd, code),
+                        JSON_DEPTH_LIMIT, n_param, fname, position);
+    return;
+
+  case NO_WILDCARD_ALLOWED:
+    code= ER_JSON_PATH_NO_WILDCARD;
+    break;
+
+  default:
+    return;
+  }
+  push_warning_printf(thd, lv, code, ER_THD(thd, code),
+                      n_param, fname, position);
+}
+
+
+
+/*
+  Checks if the path has '.*' '[*]' or '**' constructions
+  and sets the NO_WILDCARD_ALLOWED error if the case.
+*/
+static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
+                          const uchar *str, const uchar *end)
+{
+  if (!json_path_setup(p, i_cs, str, end))
+  {
+    if ((p->types_used & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD)) == 0)
+      return 0;
+    p->s.error= NO_WILDCARD_ALLOWED;
+  }
+
+  return 1;
+}
+
+
 longlong Item_func_json_valid::val_int()
 {
   String *js= args[0]->val_str(&tmp_value);
   json_engine_t je;
 
-  if ((null_value= args[0]->null_value) || js == NULL)
+  if ((null_value= args[0]->null_value))
     return 0;
 
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
@@ -339,6 +458,8 @@ String *Item_func_json_unquote::val_str(String *str)
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
 
+  je.value_type= (enum json_value_types) -1; /* To report errors right. */
+
   if (json_read_value(&je))
     goto error;
 
@@ -359,6 +480,8 @@ String *Item_func_json_unquote::val_str(String *str)
   return str;
 
 error:
+  if (je.value_type == JSON_VALUE_STRING)
+    report_json_error(js, &je, 0);
   /* We just return the argument's value in the case of error. */
   return js;
 }
@@ -449,12 +572,12 @@ String *Item_func_json_extract::val_str(String *str)
       if (s_p &&
           json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
                           (const uchar *) s_p->ptr() + s_p->length()))
-        goto error;
+        goto return_null;
       c_path->parsed= c_path->constant;
     }
 
     if (args[n_arg]->null_value)
-      goto error;
+      goto return_null;
 
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
@@ -513,8 +636,7 @@ String *Item_func_json_extract::val_str(String *str)
   if (first_value == NULL)
   {
     /* Nothing was found. */
-    null_value= 1;
-    return 0;
+    goto return_null;
   }
 
   if (multiple_values_found ?
@@ -525,6 +647,8 @@ String *Item_func_json_extract::val_str(String *str)
   return str;
 
 error:
+  report_json_error(js, &je, 0);
+return_null:
   /* TODO: launch error messages. */
   null_value= 1;
   return 0;
@@ -778,24 +902,35 @@ longlong Item_func_json_contains::val_int()
     {
       String *s_p= args[2]->val_str(&tmp_path);
       if (s_p &&
-          json_path_setup(&path.p,s_p->charset(),(const uchar *) s_p->ptr(),
-                          (const uchar *) s_p->end()))
-        goto error;
+          path_setup_nwc(&path.p,s_p->charset(),(const uchar *) s_p->ptr(),
+                         (const uchar *) s_p->end()))
+      {
+        report_path_error(s_p, &path.p, 2);
+        goto return_null;
+      }
       path.parsed= path.constant;
     }
     if (args[2]->null_value)
-      goto error;
+      goto return_null;
 
     path.cur_step= path.p.steps;
     if (json_find_path(&je, &path.p, &path.cur_step, array_counters))
-      goto error;
+    {
+      if (je.s.error)
+      {
+        ve.s.error= 0;
+        goto error;
+      }
+
+      return FALSE;
+    }
   }
 
   json_scan_start(&ve, val->charset(),(const uchar *) val->ptr(),
                   (const uchar *) val->end());
 
   if (json_read_value(&je) || json_read_value(&ve))
-    return FALSE;
+    goto error;
 
   result= check_contains(&je, &ve);
   if (je.s.error || ve.s.error)
@@ -804,6 +939,11 @@ longlong Item_func_json_contains::val_int()
   return result;
 
 error:
+  if (je.s.error)
+    report_json_error(js, &je, 0);
+  if (ve.s.error)
+    report_json_error(val, &ve, 1);
+return_null:
   null_value= 1;
   return 0;
 }
@@ -837,7 +977,7 @@ void Item_func_json_contains_path::cleanup()
 }
 
 
-static int parse_one_or_all(Item *ooa_arg,
+static int parse_one_or_all(const Item_func *f, Item *ooa_arg,
                             bool *ooa_parsed, bool ooa_constant, bool *mode_one)
 {
   if (!*ooa_parsed)
@@ -846,12 +986,20 @@ static int parse_one_or_all(Item *ooa_arg,
     String *res, tmp(buff, sizeof(buff), &my_charset_bin);
     if ((res= ooa_arg->val_str(&tmp)) == NULL)
       return TRUE;
+
     *mode_one=eq_ascii_string(res->charset(), "one",
                              res->ptr(), res->length());
     if (!*mode_one)
     {
       if (!eq_ascii_string(res->charset(), "all", res->ptr(), res->length()))
+      {
+        THD *thd= current_thd;
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_JSON_ONE_OR_ALL, ER_THD(thd, ER_JSON_ONE_OR_ALL),
+                            f->func_name());
+        *mode_one= TRUE;
         return TRUE;
+      }
     }
     *ooa_parsed= ooa_constant;
   }
@@ -869,8 +1017,8 @@ longlong Item_func_json_contains_path::val_int()
   if ((null_value= args[0]->null_value))
     return 0;
 
-  if (parse_one_or_all(args[1], &ooa_parsed, ooa_constant, &mode_one))
-    goto error;
+  if (parse_one_or_all(this, args[1], &ooa_parsed, ooa_constant, &mode_one))
+    goto return_null;
 
   result= !mode_one;
   for (n_arg=2; n_arg < arg_count; n_arg++)
@@ -881,14 +1029,17 @@ longlong Item_func_json_contains_path::val_int()
     {
       String *s_p= args[n_arg]->val_str(tmp_paths+(n_arg-2));
       if (s_p &&
-          json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
-                          (const uchar *) s_p->ptr() + s_p->length()))
-        goto error;
+          path_setup_nwc(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
+                         (const uchar *) s_p->ptr() + s_p->length()))
+      {
+        report_path_error(s_p, &c_path->p, n_arg-2);
+        goto return_null;
+      }
       c_path->parsed= c_path->constant;
     }
 
     if (args[n_arg]->null_value)
-      goto error;
+      goto return_null;
 
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
@@ -898,7 +1049,7 @@ longlong Item_func_json_contains_path::val_int()
     {
       /* Path wasn't found. */
       if (je.s.error)
-        goto error;
+        goto js_error;
 
       if (!mode_one)
       {
@@ -916,7 +1067,9 @@ longlong Item_func_json_contains_path::val_int()
 
   return result;
 
-error:
+js_error:
+  report_json_error(js, &je, 0);
+return_null:
   null_value= 1;
   return 0;
 }
@@ -1014,7 +1167,7 @@ String *Item_func_json_array::val_str(String *str)
   str->length(0);
 
   if (str->append("[", 1) ||
-      ((arg_count > 0) && append_json_value(str, args[0],&tmp_val)))
+      ((arg_count > 0) && append_json_value(str, args[0], &tmp_val)))
     goto err_return;
 
   for (n_arg=1; n_arg < arg_count; n_arg++)
@@ -1074,16 +1227,16 @@ String *Item_func_json_array_append::val_str(String *str)
     {
       String *s_p= args[n_arg]->val_str(tmp_paths+n_path);
       if (s_p &&
-          json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
-                          (const uchar *) s_p->ptr() + s_p->length()))
-        goto error;
+          path_setup_nwc(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
+                         (const uchar *) s_p->ptr() + s_p->length()))
+      {
+        report_path_error(s_p, &c_path->p, n_arg);
+        goto return_null;
+      }
       c_path->parsed= c_path->constant;
     }
     if (args[n_arg]->null_value)
-    {
-      null_value= 1;
-      return 0;
-    }
+      goto return_null;
 
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
@@ -1093,33 +1246,33 @@ String *Item_func_json_array_append::val_str(String *str)
     if (json_find_path(&je, &c_path->p, &c_path->cur_step, array_counters))
     {
       if (je.s.error)
-        goto error;
-      null_value= 1;
-      return 0;
+        goto js_error;
+
+      goto return_null;
     }
 
     if (json_read_value(&je))
-      goto error;
+      goto js_error;
 
     str->length(0);
     str->set_charset(js->charset());
     if (str->reserve(js->length() + 8, 1024))
-      goto error; /* Out of memory. */
+      goto return_null; /* Out of memory. */
 
     if (je.value_type == JSON_VALUE_ARRAY)
     {
       if (json_skip_level(&je))
-        goto error;
+        goto js_error;
 
       ar_end= je.s.c_str - je.sav_c_len;
       str_rest_len= js->length() - (ar_end - (const uchar *) js->ptr());
       str->q_append(js->ptr(), ar_end-(const uchar *) js->ptr());
       str->append(", ", 2);
       if (append_json_value(str, args[n_arg+1], &tmp_val))
-        goto error; /* Out of memory. */
+        goto return_null; /* Out of memory. */
 
       if (str->reserve(str_rest_len, 1024))
-        goto error; /* Out of memory. */
+        goto return_null; /* Out of memory. */
       str->q_append((const char *) ar_end, str_rest_len);
     }
     else
@@ -1133,7 +1286,7 @@ String *Item_func_json_array_append::val_str(String *str)
       if (je.value_type == JSON_VALUE_OBJECT)
       {
         if (json_skip_level(&je))
-          goto error;
+          goto js_error;
         c_to= je.s.c_str;
       }
       else
@@ -1146,7 +1299,7 @@ String *Item_func_json_array_append::val_str(String *str)
           str->append("]", 1) ||
           str->append((const char *) je.s.c_str,
                       js->end() - (const char *) je.s.c_str))
-        goto error;
+        goto return_null; /* Out of memory. */
     }
     {
       /* Swap str and js. */
@@ -1165,7 +1318,10 @@ String *Item_func_json_array_append::val_str(String *str)
 
   return js;
 
-error:
+js_error:
+  report_json_error(js, &je, 0);
+
+return_null:
   null_value= 1;
   return 0;
 }
@@ -1193,16 +1349,23 @@ String *Item_func_json_array_insert::val_str(String *str)
     {
       String *s_p= args[n_arg]->val_str(tmp_paths+n_path);
       if (s_p &&
-          (json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
-                           (const uchar *) s_p->ptr() + s_p->length()) ||
+          (path_setup_nwc(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
+                          (const uchar *) s_p->ptr() + s_p->length()) ||
            c_path->p.last_step - 1 < c_path->p.steps ||
            c_path->p.last_step->type != JSON_PATH_ARRAY))
-        goto error;
+      {
+        if (c_path->p.s.error == 0)
+          c_path->p.s.error= SHOULD_END_WITH_ARRAY;
+        
+        report_path_error(s_p, &c_path->p, n_arg);
+
+        goto return_null;
+      }
       c_path->parsed= c_path->constant;
       c_path->p.last_step--;
     }
     if (args[n_arg]->null_value)
-      goto null_return;
+      goto return_null;
 
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
@@ -1212,19 +1375,19 @@ String *Item_func_json_array_insert::val_str(String *str)
     if (json_find_path(&je, &c_path->p, &c_path->cur_step, array_counters))
     {
       if (je.s.error)
-        goto error;
+        goto js_error;
 
       /* Can't find the array to insert. */
-      goto null_return;
+      continue;
     }
 
     if (json_read_value(&je))
-      goto error;
+      goto js_error;
 
     if (je.value_type != JSON_VALUE_ARRAY)
     {
       /* Must be an array. */
-      goto null_return;
+      continue;
     }
 
     item_pos= 0;
@@ -1253,6 +1416,9 @@ String *Item_func_json_array_insert::val_str(String *str)
       }
     }
 
+    if (je.s.error)
+      goto js_error;
+
     str->length(0);
     str->set_charset(js->charset());
     if (!item_pos)
@@ -1264,7 +1430,7 @@ String *Item_func_json_array_insert::val_str(String *str)
         append_json_value(str, args[n_arg+1], &tmp_val) ||
         (je.state != JST_ARRAY_END && str->append(",", 1)) ||
         append_simple(str, item_pos, js->end() - item_pos))
-      goto error; /* Out of memory. */
+      goto return_null; /* Out of memory. */
 
     {
       /* Swap str and js. */
@@ -1283,8 +1449,9 @@ String *Item_func_json_array_insert::val_str(String *str)
 
   return js;
 
-null_return:
-error:
+js_error:
+  report_json_error(js, &je, 0);
+return_null:
   null_value= 1;
   return 0;
 }
@@ -1327,17 +1494,17 @@ String *Item_func_json_merge::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   json_engine_t je1, je2;
-  String *js1= args[0]->val_str(&tmp_js1);
+  String *js1= args[0]->val_str(&tmp_js1), *js2;
   uint n_arg;
 
   if (args[0]->null_value)
-    goto error_return;
+    goto null_return;
 
   for (n_arg=1; n_arg < arg_count; n_arg++)
   {
-    String *js2= args[n_arg]->val_str(&tmp_js2);
+    js2= args[n_arg]->val_str(&tmp_js2);
     if (args[n_arg]->null_value)
-      goto error_return;
+      goto null_return;
 
     json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
                     (const uchar *) js1->ptr() + js1->length());
@@ -1394,6 +1561,11 @@ String *Item_func_json_merge::val_str(String *str)
   return js1;
 
 error_return:
+  if (je1.s.error)
+    report_json_error(js1, &je1, 0);
+  if (je2.s.error)
+    report_json_error(js2, &je2, n_arg);
+null_return:
   null_value= 1;
   return NULL;
 }
@@ -1418,13 +1590,12 @@ longlong Item_func_json_length::val_int()
       length++;
   } while (json_scan_next(&je) == 0);
 
-  if (je.s.error)
-  {
-    null_value= 1;
-    return 0;
-  }
-    
-  return length - 1;
+  if (!je.s.error)
+    return length - 1;
+
+  report_json_error(js, &je, 0);
+  null_value= 1;
+  return 0;
 }
 
 
@@ -1470,13 +1641,12 @@ longlong Item_func_json_depth::val_int()
     }
   } while (json_scan_next(&je) == 0);
 
-  if (je.s.error)
-  {
-    null_value= 1;
-    return 0;
-  }
-    
-  return depth;
+  if (!je.s.error)
+    return depth;
+
+  report_json_error(js, &je, 0);
+  null_value= 1;
+  return 0;
 }
 
 
@@ -1530,6 +1700,7 @@ String *Item_func_json_type::val_str(String *str)
   return str;
 
 error:
+  report_json_error(js, &je, 0);
   null_value= 1;
   return 0;
 }
@@ -1580,10 +1751,13 @@ String *Item_func_json_insert::val_str(String *str)
       String *s_p= args[n_arg]->val_str(tmp_paths+n_path);
       if (s_p)
       {
-        if (json_path_setup(&c_path->p,s_p->charset(),
-                            (const uchar *) s_p->ptr(),
-                            (const uchar *) s_p->ptr() + s_p->length()))
-          goto error;
+        if (path_setup_nwc(&c_path->p,s_p->charset(),
+                           (const uchar *) s_p->ptr(),
+                           (const uchar *) s_p->ptr() + s_p->length()))
+        {
+          report_path_error(s_p, &c_path->p, n_arg);
+          goto return_null;
+        }
 
         /* We search to the last step. */
         c_path->p.last_step--;
@@ -1591,10 +1765,7 @@ String *Item_func_json_insert::val_str(String *str)
       c_path->parsed= c_path->constant;
     }
     if (args[n_arg]->null_value)
-    {
-      null_value= 1;
-      return 0;
-    }
+      goto return_null;
 
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
@@ -1605,11 +1776,11 @@ String *Item_func_json_insert::val_str(String *str)
         json_find_path(&je, &c_path->p, &c_path->cur_step, array_counters))
     {
       if (je.s.error)
-        goto error;
+        goto js_error;
     }
 
     if (json_read_value(&je))
-      goto error;
+      goto js_error;
 
     lp= c_path->p.last_step+1;
     if (lp->type & JSON_PATH_ARRAY)
@@ -1626,12 +1797,12 @@ String *Item_func_json_insert::val_str(String *str)
         /* Wrap the value as an array. */
         if (append_simple(str, js->ptr(), (const char *) v_from - js->ptr()) ||
             str->append("[", 1))
-          goto error; /* Out of memory. */
+          goto js_error; /* Out of memory. */
 
         if (je.value_type == JSON_VALUE_OBJECT)
         {
           if (json_skip_level(&je))
-            goto error;
+            goto js_error;
         }
 
         if (append_simple(str, v_from, je.s.c_str - v_from) ||
@@ -1639,7 +1810,7 @@ String *Item_func_json_insert::val_str(String *str)
             append_json_value(str, args[n_arg+1], &tmp_val) ||
             str->append("]", 1) ||
             append_simple(str, je.s.c_str, js->end()-(const char *) je.s.c_str))
-          goto error; /* Out of memory. */
+          goto js_error; /* Out of memory. */
 
         goto continue_point;
       }
@@ -1653,7 +1824,7 @@ String *Item_func_json_insert::val_str(String *str)
             goto v_found;
           n_item++;
           if (json_skip_array_item(&je))
-            goto error;
+            goto js_error;
           break;
         default:
           break;
@@ -1661,7 +1832,7 @@ String *Item_func_json_insert::val_str(String *str)
       }
 
       if (je.s.error)
-        goto error;
+        goto js_error;
 
       if (!mode_insert)
         continue;
@@ -1672,7 +1843,7 @@ String *Item_func_json_insert::val_str(String *str)
           str->append(", ", 2) ||
           append_json_value(str, args[n_arg+1], &tmp_val) ||
           append_simple(str, v_to, js->end() - v_to))
-        goto error; /* Out of memory. */
+        goto js_error; /* Out of memory. */
     }
     else /*JSON_PATH_KEY*/
     {
@@ -1688,7 +1859,7 @@ String *Item_func_json_insert::val_str(String *str)
           if (json_key_matches(&je, &key_name))
             goto v_found;
           if (json_skip_key(&je))
-            goto error;
+            goto js_error;
           break;
         default:
           break;
@@ -1696,7 +1867,7 @@ String *Item_func_json_insert::val_str(String *str)
       }
 
       if (je.s.error)
-        goto error;
+        goto js_error;
 
       if (!mode_insert)
         continue;
@@ -1709,7 +1880,7 @@ String *Item_func_json_insert::val_str(String *str)
           str->append("\":", 2) ||
           append_json_value(str, args[n_arg+1], &tmp_val) ||
           append_simple(str, v_to, js->end() - v_to))
-        goto error; /* Out of memory. */
+        goto js_error; /* Out of memory. */
     }
 
     goto continue_point;
@@ -1720,20 +1891,20 @@ v_found:
       continue;
 
     if (json_read_value(&je))
-      goto error;
+      goto js_error;
 
     v_to= (const char *) je.value_begin;
     str->length(0);
     if (!json_value_scalar(&je))
     {
       if (json_skip_level(&je))
-        goto error;
+        goto js_error;
     }
 
     if (append_simple(str, js->ptr(), v_to - js->ptr()) ||
         append_json_value(str, args[n_arg+1], &tmp_val) ||
         append_simple(str, je.s.c_str, js->end()-(const char *) je.s.c_str))
-      goto error; /* Out of memory. */
+      goto js_error; /* Out of memory. */
 continue_point:
     {
       /* Swap str and js. */
@@ -1752,7 +1923,9 @@ continue_point:
 
   return js;
 
-error:
+js_error:
+  report_json_error(js, &je, 0);
+return_null:
   null_value= 1;
   return 0;
 }
@@ -1795,10 +1968,13 @@ String *Item_func_json_remove::val_str(String *str)
       String *s_p= args[n_arg]->val_str(tmp_paths+n_path);
       if (s_p)
       {
-        if (json_path_setup(&c_path->p,s_p->charset(),
-                            (const uchar *) s_p->ptr(),
-                            (const uchar *) s_p->ptr() + s_p->length()))
-          goto error;
+        if (path_setup_nwc(&c_path->p,s_p->charset(),
+                           (const uchar *) s_p->ptr(),
+                           (const uchar *) s_p->ptr() + s_p->length()))
+        {
+          report_path_error(s_p, &c_path->p, n_arg);
+          goto null_return;
+        }
 
         /* We search to the last step. */
         c_path->p.last_step--;
@@ -1808,10 +1984,7 @@ String *Item_func_json_remove::val_str(String *str)
       c_path->parsed= c_path->constant;
     }
     if (args[n_arg]->null_value)
-    {
-      null_value= 1;
-      return 0;
-    }
+      goto null_return;
 
     json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                     (const uchar *) js->ptr() + js->length());
@@ -1821,11 +1994,11 @@ String *Item_func_json_remove::val_str(String *str)
     if (json_find_path(&je, &c_path->p, &c_path->cur_step, array_counters))
     {
       if (je.s.error)
-        goto error;
+        goto js_error;
     }
 
     if (json_read_value(&je))
-      goto error;
+      goto js_error;
 
     lp= c_path->p.last_step+1;
     if (lp->type & JSON_PATH_ARRAY)
@@ -1846,7 +2019,7 @@ String *Item_func_json_remove::val_str(String *str)
           }
           n_item++;
           if (json_skip_array_item(&je))
-            goto error;
+            goto js_error;
           break;
         default:
           break;
@@ -1854,7 +2027,7 @@ String *Item_func_json_remove::val_str(String *str)
       }
 
       if (je.s.error)
-        goto error;
+        goto js_error;
 
       continue;
     }
@@ -1875,7 +2048,7 @@ String *Item_func_json_remove::val_str(String *str)
             goto v_found;
 
           if (json_skip_key(&je))
-            goto error;
+            goto js_error;
 
           rem_start= (const char *) je.s.c_str;
           n_item++;
@@ -1886,7 +2059,7 @@ String *Item_func_json_remove::val_str(String *str)
       }
 
       if (je.s.error)
-        goto error;
+        goto js_error;
 
       continue;
     }
@@ -1894,7 +2067,7 @@ String *Item_func_json_remove::val_str(String *str)
 v_found:
 
     if (json_skip_key(&je) || json_scan_next(&je))
-      goto error;
+      goto js_error;
 
     rem_end= (je.state == JST_VALUE && n_item == 0) ? 
       (const char *) je.s.c_str : (const char *) (je.s.c_str - je.sav_c_len);
@@ -1903,7 +2076,7 @@ v_found:
 
     if (append_simple(str, js->ptr(), rem_start - js->ptr()) ||
         append_simple(str, rem_end, js->end() - rem_end))
-          goto error; /* Out of memory. */
+          goto js_error; /* Out of memory. */
 
     {
       /* Swap str and js. */
@@ -1922,8 +2095,9 @@ v_found:
 
   return js;
 
+js_error:
+  report_json_error(js, &je, 0);
 null_return:
-error:
   null_value= 1;
   return 0;
 }
@@ -1958,9 +2132,12 @@ String *Item_func_json_keys::val_str(String *str)
   {
     String *s_p= args[1]->val_str(&tmp_path);
     if (s_p &&
-        json_path_setup(&path.p, s_p->charset(), (const uchar *) s_p->ptr(),
-                        (const uchar *) s_p->ptr() + s_p->length()))
-      goto err_return;
+        path_setup_nwc(&path.p, s_p->charset(), (const uchar *) s_p->ptr(),
+                       (const uchar *) s_p->ptr() + s_p->length()))
+      {
+        report_path_error(s_p, &path.p, 1);
+        goto null_return;
+      }
     path.parsed= path.constant;
   }
 
@@ -2024,8 +2201,9 @@ skip_search:
   null_value= 0;
   return str;
 
-null_return:
 err_return:
+  report_json_error(js, &je, 0);
+null_return:
   null_value= 1;
   return 0;
 }
@@ -2173,10 +2351,7 @@ String *Item_func_json_search::val_str(String *str)
   if (args[0]->null_value || args[2]->null_value)
     goto null_return;
 
-  if (parse_one_or_all(args[1], &ooa_parsed, ooa_constant, &mode_one))
-    goto error;
-
-  if (args[1]->null_value)
+  if (parse_one_or_all(this, args[1], &ooa_parsed, ooa_constant, &mode_one))
     goto null_return;
 
   n_path_found= 0;
@@ -2192,7 +2367,10 @@ String *Item_func_json_search::val_str(String *str)
       if (s_p &&
           json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
                           (const uchar *) s_p->ptr() + s_p->length()))
-        goto error;
+      {
+        report_path_error(s_p, &c_path->p, n_arg);
+        goto null_return;
+      }
       c_path->parsed= c_path->constant;
     }
     if (args[n_arg]->null_value)
@@ -2215,12 +2393,12 @@ String *Item_func_json_search::val_str(String *str)
       while (json_read_keyname_chr(&je) == 0)
         p.last_step->key_end= je.s.c_str;
       if (je.s.error)
-        goto error;
+        goto js_error;
       /* Now we have je.state == JST_VALUE, so let's handle it. */
 
     case JST_VALUE:
       if (json_read_value(&je))
-        goto error;
+        goto js_error;
       if (json_value_scalar(&je))
       {
         if ((arg_count < 5 || path_ok(paths, n_arg - 4, &p)) &&
@@ -2238,10 +2416,10 @@ String *Item_func_json_search::val_str(String *str)
             {
               if (str->append("[", 1) ||
                   append_json_path(str, &sav_path))
-                goto error;
+                goto js_error;
             }
             if (str->append(", ", 2) || append_json_path(str, &p))
-              goto error;
+              goto js_error;
           }
 
           if (mode_one)
@@ -2270,7 +2448,7 @@ String *Item_func_json_search::val_str(String *str)
   } while (json_scan_next(&je) == 0);
 
   if (je.s.error)
-    goto error;
+    goto js_error;
 
 end:
   if (n_path_found == 0)
@@ -2278,20 +2456,21 @@ end:
   if (n_path_found == 1)
   {
     if (append_json_path(str, &sav_path))
-      goto error;
+      goto js_error;
   }
   else
   {
     if (str->append("]", 1))
-      goto error;
+      goto js_error;
   }
 
   null_value= 0;
   return str;
 
 
+js_error:
+  report_json_error(js, &je, 0);
 null_return:
-error:
   /* TODO: launch error messages. */
   null_value= 1;
   return 0;

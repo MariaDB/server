@@ -129,6 +129,7 @@ select json_type('123.12');
 select json_keys('{"a":{"c":1, "d":2}, "b":2}');
 select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a");
 select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b");
+select json_keys('foo');
 
 SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
 select json_search(@j, 'one', 'abc');

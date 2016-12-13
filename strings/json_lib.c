@@ -392,12 +392,12 @@ static int v_string(json_engine_t *j)
 static int read_strn(json_engine_t *j)
 {
   j->value= j->s.c_str;
+  j->value_type= JSON_VALUE_STRING;
 
   if (skip_str_constant(j))
     return 1;
 
   j->state= *j->stack_p;
-  j->value_type= JSON_VALUE_STRING;
   j->value_len= (j->s.c_str - j->value) - 1;
   return 0;
 }
@@ -556,9 +556,9 @@ static int skip_string_verbatim(json_string_t *s, const char *str)
         s->c_str+= c_len;
         continue;
       }
-      return JE_SYN;
+      return s->error= JE_SYN;
     }
-    return json_eos(s) ? JE_EOS : JE_BAD_CHR; 
+    return s->error= json_eos(s) ? JE_EOS : JE_BAD_CHR; 
   }
 
   return 0;
@@ -1078,6 +1078,7 @@ int json_path_setup(json_path_t *p,
   p->steps[0].type= JSON_PATH_ARRAY_WILD;
   p->last_step= p->steps;
   p->mode_strict= FALSE;
+  p->types_used= JSON_PATH_KEY_NULL;
 
   do
   {
@@ -1109,6 +1110,7 @@ int json_path_setup(json_path_t *p,
       if (p->last_step->type & JSON_PATH_DOUBLE_WILD)
         return p->s.error= JE_SYN;
       p->last_step->type|= JSON_PATH_WILD;
+      p->types_used|= JSON_PATH_WILD;
       continue;
     case PS_INT:
       p->last_step->n_item*= 10;
@@ -1122,7 +1124,7 @@ int json_path_setup(json_path_t *p,
       p->last_step++;
       if (p->last_step - p->steps >= JSON_DEPTH_LIMIT)
         return p->s.error= JE_DEPTH;
-      p->last_step->type= JSON_PATH_KEY | double_wildcard;
+      p->types_used|= p->last_step->type= JSON_PATH_KEY | double_wildcard;
       double_wildcard= JSON_PATH_KEY_NULL;
       p->last_step->key= p->s.c_str;
       continue;
@@ -1134,7 +1136,7 @@ int json_path_setup(json_path_t *p,
       p->last_step++;
       if (p->last_step - p->steps >= JSON_DEPTH_LIMIT)
         return p->s.error= JE_DEPTH;
-      p->last_step->type= JSON_PATH_ARRAY | double_wildcard;
+      p->types_used|= p->last_step->type= JSON_PATH_ARRAY | double_wildcard;
       double_wildcard= JSON_PATH_KEY_NULL;
       p->last_step->n_item= 0;
       continue;

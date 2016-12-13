@@ -7414,3 +7414,27 @@ ER_BINLOG_NON_SUPPORTED_BULK
         eng "Only row based replication supported for bulk operations"
 ER_BINLOG_UNCOMPRESS_ERROR
         eng "Uncompress the compressed binlog failed"
+ER_JSON_BAD_CHR
+        eng "Broken JSON string in argument %d to function '%s' at position %d"
+ER_JSON_NOT_JSON_CHR
+        eng "Character disallowd in JSON in argument %d to function '%s' at position %d"
+ER_JSON_EOS
+        eng "Unexpected end of JSON text in argument %d to function '%s'"
+ER_JSON_SYNTAX
+        eng "Syntax error in JSON text in argument %d to function '%s' at position %d"
+ER_JSON_ESCAPING
+        eng "Incorrect escaping in JSON text in argument %d to function '%s' at position %d"
+ER_JSON_DEPTH
+        eng "Limit of %d on JSON nested strucures depth is reached in argument %d to function '%s' at position %d"
+ER_JSON_PATH_EOS
+        eng "Unexpected end of JSON path in argument %d to function '%s'"
+ER_JSON_PATH_SYNTAX
+        eng "Syntax error in JSON path in argument %d to function '%s' at position %d"
+ER_JSON_PATH_DEPTH
+        eng "Limit of %d on JSON path depth is reached in argument %d to function '%s' at position %d"
+ER_JSON_PATH_NO_WILDCARD
+        eng "Wildcards in JSON path not allowed in argument %d to function '%s'"
+ER_JSON_PATH_ARRAY
+        eng "JSON path should end with an array identifier in argument %d to function '%s'"
+ER_JSON_ONE_OR_ALL
+        eng "Argument 2 to function '%s' must be "one" or "all"."
