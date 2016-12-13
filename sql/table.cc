@@ -2875,7 +2875,7 @@ unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root, TABLE *table,
 
   DBUG_ASSERT(vcol->expr == NULL);
   
-  if (parser_state.init(thd, expr_str->c_ptr(), expr_str->length()))
+  if (parser_state.init(thd, expr_str->c_ptr_safe(), expr_str->length()))
     goto end;
 
   if (init_lex_with_single_table(thd, table, &lex))
