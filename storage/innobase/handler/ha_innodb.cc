@@ -1106,6 +1106,8 @@ static SHOW_VAR innodb_status_variables[]= {
   {"scrub_background_page_split_failures_unknown",
    (char*) &export_vars.innodb_scrub_page_split_failures_unknown,
    SHOW_LONG},
+  {"encryption_num_key_requests",
+   (char*) &export_vars.innodb_encryption_key_requests, SHOW_LONGLONG},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -5935,9 +5937,8 @@ table_opened:
 		or used key_id is not available. */
 		if (ib_table) {
 			fil_space_crypt_t* crypt_data = ib_table->crypt_data;
-			if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-				(srv_encrypt_tables &&
-					crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+
+			if (crypt_data && crypt_data->should_encrypt()) {
 
 				if (!encryption_key_id_exists(crypt_data->key_id)) {
 					push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -20735,12 +20736,12 @@ ib_push_warning(
 	const char	*format,/*!< in: warning message */
 	...)
 {
-	va_list args;
-	THD *thd = (THD *)trx->mysql_thd;
-	char *buf;
+	if (trx && trx->mysql_thd) {
+		THD *thd = (THD *)trx->mysql_thd;
+		va_list args;
+		char *buf;
 #define MAX_BUF_SIZE 4*1024
 
-	if (thd) {
 		va_start(args, format);
 		buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
 		vsprintf(buf,format, args);

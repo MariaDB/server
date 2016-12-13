@@ -6327,12 +6327,12 @@ buf_page_encrypt_before_write(
 		return src_frame;
 	}
 
-	if (crypt_data != NULL && crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
+	if (crypt_data != NULL && crypt_data->not_encrypted()) {
 		/* Encryption is disabled */
 		encrypted = false;
 	}
 
-	if (!srv_encrypt_tables && (crypt_data == NULL || crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+	if (!srv_encrypt_tables && (crypt_data == NULL || crypt_data->is_default_encryption())) {
 		/* Encryption is disabled */
 		encrypted = false;
 	}

@@ -2076,6 +2076,8 @@ srv_export_innodb_status(void)
 		crypt_stat.pages_flushed;
 	export_vars.innodb_encryption_rotation_estimated_iops =
 		crypt_stat.estimated_iops;
+	export_vars.innodb_encryption_key_requests =
+		srv_stats.n_key_requests;
 
 	export_vars.innodb_scrub_page_reorganizations =
 		scrub_stat.page_reorganizations;

@@ -2073,9 +2073,7 @@ fil_read_first_page(
 
 	/* If file space is encrypted we need to have at least some
 	encryption service available where to get keys */
-	if ((cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-		(srv_encrypt_tables &&
-			cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+	if (cdata && cdata->should_encrypt()) {
 
 		if (!encryption_key_id_exists(cdata->key_id)) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
@@ -6569,10 +6567,7 @@ fil_iterate(
 		bool encrypted = false;
 
 		/* Use additional crypt io buffer if tablespace is encrypted */
-		if ((iter.crypt_data != NULL && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-				(srv_encrypt_tables &&
-					iter.crypt_data && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
-
+		if (iter.crypt_data != NULL && iter.crypt_data->should_encrypt()) {
 			encrypted = true;
 			readptr = iter.crypt_io_buffer;
 			writeptr = iter.crypt_io_buffer;
@@ -7293,7 +7288,7 @@ fil_space_get_crypt_data(
 
 		if (!space->page_0_crypt_read) {
 			ib_logf(IB_LOG_LEVEL_WARN,
-				"Space %lu name %s contains encryption %d information for key_id %d but page0 is not read.",
+				"Space %lu name %s contains encryption %d information for key_id %u but page0 is not read.",
 				space->id,
 				space->name,
 				space->crypt_data ? space->crypt_data->encryption : 0,
