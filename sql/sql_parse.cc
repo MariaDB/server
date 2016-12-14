@@ -2635,15 +2635,11 @@ mysql_execute_command(THD *thd)
     /*
       Bail out if DB snapshot has not been installed. We however,
       allow SET and SHOW queries.
-      SHOW and SELECT queries (only if wsrep_dirty_reads is set or when it
-      does not access ant table)
     */
     if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready &&
         lex->sql_command != SQLCOM_SET_OPTION &&
         !(thd->variables.wsrep_dirty_reads &&
           lex->sql_command == SQLCOM_SELECT) &&
-        !(lex->sql_command == SQLCOM_SELECT    &&
-         !all_tables)                          &&
         !wsrep_is_show_query(lex->sql_command))
     {
       my_message(ER_UNKNOWN_COM_ERROR,

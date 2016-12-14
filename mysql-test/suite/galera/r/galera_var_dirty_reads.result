@@ -18,22 +18,6 @@ SET @@session.wsrep_dirty_reads=ON;
 SELECT * FROM t1;
 i
 1
-#
-# MDEV-11016: wsrep_node_is_ready() check is too strict
-#
-SET @@session.wsrep_dirty_reads=OFF;
-SELECT 2;
-2
-2
-SELECT 2+2 from DUAL;
-2+2
-4
-SET @VAR=1;
-SELECT @VAR;
-@VAR
-1
-SELECT @@max_allowed_packet;
-SELECT SYSDATE() from DUAL;
 SELECT * FROM t1;
 i
 1
