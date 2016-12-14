@@ -2668,7 +2668,7 @@ srv_purge_should_exit(
 	ulint		n_purged)	/*!< in: pages purged in last batch */
 {
 	if (thd_kill_level(thd)) {
-		return(true);
+		return(srv_fast_shutdown != 0 || n_purged == 0);
 	}
 
 	switch (srv_shutdown_state) {
