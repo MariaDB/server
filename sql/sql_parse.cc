@@ -2386,13 +2386,16 @@ mysql_execute_command(THD *thd)
     }
 
     /*
-      Bail out if DB snapshot has not been installed. We however,
-      allow SET and SHOW queries.
+      Bail out if DB snapshot has not been installed. SET and SHOW commands,
+      however, are always allowed.
+
+      We additionally allow all other commands that do not change data in
+      case wsrep_dirty_reads is enabled.
     */
     if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready &&
         lex->sql_command != SQLCOM_SET_OPTION &&
         !(thd->variables.wsrep_dirty_reads &&
-          lex->sql_command == SQLCOM_SELECT) &&
+         !is_update_query(lex->sql_command))  &&
         !wsrep_is_show_query(lex->sql_command))
     {
 #if DIRTY_HACK
