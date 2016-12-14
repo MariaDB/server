@@ -5422,15 +5422,14 @@ public:
     example->split_sum_func2(thd, ref_pointer_array, fields, &example, flags);
   }
   Item *get_example() const { return example; }
-  Item* build_clone(THD *thd, MEM_ROOT *mem_root)
-  {
-    Item_cache *copy= (Item_cache *) get_copy(thd, mem_root);
-    if (!copy)
-      return 0;
-    if (!( copy->example= example->build_clone(thd, mem_root)))
-      return 0;
-    return copy;
-  } 
+
+  virtual Item *convert_to_basic_const_item(THD *thd) { return 0; };
+  Item *derived_field_transformer_for_having(THD *thd, uchar *arg)
+  { return convert_to_basic_const_item(thd); }
+  Item *derived_field_transformer_for_where(THD *thd, uchar *arg)
+  { return convert_to_basic_const_item(thd); }
+  Item *derived_grouping_field_transformer_for_where(THD *thd, uchar *arg)
+  { return convert_to_basic_const_item(thd); }
 };
 
 
@@ -5451,6 +5450,7 @@ public:
   enum Item_result result_type() const { return INT_RESULT; }
   bool cache_value();
   int save_in_field(Field *field, bool no_conversions);
+  Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_cache_int>(thd, mem_root, this); }
 };
@@ -5477,6 +5477,7 @@ public:
     Important when storing packed datetime values.
   */
   Item *clone_item(THD *thd);
+  Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_cache_temporal>(thd, mem_root, this); }
 };
@@ -5495,6 +5496,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type() const { return REAL_RESULT; }
   bool cache_value();
+  Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_cache_real>(thd, mem_root, this); }
 };
@@ -5513,6 +5515,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type() const { return DECIMAL_RESULT; }
   bool cache_value();
+  Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_cache_decimal>(thd, mem_root, this); }
 };
@@ -5541,6 +5544,7 @@ public:
   CHARSET_INFO *charset() const { return value->charset(); };
   int save_in_field(Field *field, bool no_conversions);
   bool cache_value();
+  Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_cache_str>(thd, mem_root, this); }
 };

@@ -7766,3 +7766,377 @@ EXPLAIN
 }
 DROP VIEW v;
 DROP TABLE t;
+#
+# MDEV-11488: pushdown of the predicate with cached value
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(3),(2);
+CREATE TABLE t2 (j INT, KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+i
+3
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "message": "Select tables optimized away"
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "(sq.i = 3)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100,
+            "attached_condition": "(t1.i = 3)"
+          }
+        }
+      }
+    }
+  }
+}
+UPDATE t2 SET j = 2 WHERE j = 3;
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+i
+2
+DROP TABLE t1,t2;
+CREATE TABLE t1 (i FLOAT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1.5),(3.2),(2.71);
+CREATE TABLE t2 (j FLOAT, KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3.2),(2.71);
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+i
+2.71
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "message": "Select tables optimized away"
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "(sq.i = 2.7100000381469727)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100,
+            "attached_condition": "(t1.i = 2.7100000381469727)"
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1,t2;
+CREATE TABLE t1 (i DECIMAL(10,2)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1.5),(3.21),(2.47);
+CREATE TABLE t2 (j DECIMAL(10,2), KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3.21),(4.55);
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+i
+3.21
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "message": "Select tables optimized away"
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "(sq.i = 3.21)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100,
+            "attached_condition": "(t1.i = 3.21)"
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1,t2;
+CREATE TABLE t1 (i VARCHAR(32)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('cc'),('aa'),('ddd');
+CREATE TABLE t2 (j VARCHAR(16), KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('bbb'),('aa');
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+i
+aa
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "message": "Select tables optimized away"
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "(sq.i = 'aa')",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100,
+            "attached_condition": "(t1.i = 'aa')"
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1,t2;
+CREATE TABLE t1 (i DATETIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+('2008-09-27 00:34:58'),('2007-05-28 00:00:00'), ('2009-07-25 09:21:20');
+CREATE TABLE t2 (j DATETIME, KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+('2007-05-28 00:00:00'), ('2010-08-25 00:00:00');
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+i
+2007-05-28 00:00:00
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "message": "Select tables optimized away"
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "(sq.i = 2007-05-28 00:00:00)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100,
+            "attached_condition": "(t1.i = TIMESTAMP'2007-05-28 00:00:00')"
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1,t2;
+CREATE TABLE t1 (i DATE) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('2008-09-27'),('2007-05-28'), ('2009-07-25');
+CREATE TABLE t2 (j DATE, KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('2007-05-28'), ('2010-08-25');
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+i
+2007-05-28
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "message": "Select tables optimized away"
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "(sq.i = 2007-05-28)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100,
+            "attached_condition": "(t1.i = TIMESTAMP'2007-05-28 00:00:00')"
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1,t2;
+CREATE TABLE t1 (i TIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('00:34:58'),('10:00:02'), ('09:21:20');
+CREATE TABLE t2 (j TIME, KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('10:00:02'), ('11:00:10');
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+i
+10:00:02
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "message": "Select tables optimized away"
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "(sq.i = 10:00:02)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100,
+            "attached_condition": "(t1.i = TIME'10:00:02')"
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1,t2;

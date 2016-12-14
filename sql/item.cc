@@ -9406,6 +9406,17 @@ int Item_cache_int::save_in_field(Field *field, bool no_conversions)
 }
 
 
+Item *Item_cache_int::convert_to_basic_const_item(THD *thd)
+{
+  Item *new_item;
+  DBUG_ASSERT(value_cached || example != 0);
+  new_item= null_value ?
+            (Item*) new (thd->mem_root) Item_null(thd) :
+	    (Item*) new (thd->mem_root) Item_int(thd, val_int(), max_length);
+  return new_item;
+} 
+
+
 Item_cache_temporal::Item_cache_temporal(THD *thd,
                                          enum_field_types field_type_arg):
   Item_cache_int(thd, field_type_arg)
@@ -9561,6 +9572,23 @@ Item *Item_cache_temporal::clone_item(THD *thd)
 }
 
 
+Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
+{
+  Item *new_item;
+  DBUG_ASSERT(value_cached || example != 0);
+  if (null_value)
+    new_item= (Item*) new (thd->mem_root) Item_null(thd);
+  else
+  {
+    MYSQL_TIME ltime;
+    unpack_time(val_datetime_packed(), &ltime);
+    new_item= (Item*) new (thd->mem_root) Item_datetime_literal(thd, &ltime,
+                                                                decimals);
+  }
+  return new_item;
+}
+
+
 bool Item_cache_real::cache_value()
 {
   if (!example)
@@ -9607,6 +9635,18 @@ my_decimal *Item_cache_real::val_decimal(my_decimal *decimal_val)
   double2my_decimal(E_DEC_FATAL_ERROR, value, decimal_val);
   return decimal_val;
 }
+
+
+Item *Item_cache_real::convert_to_basic_const_item(THD *thd)
+{
+  Item *new_item;
+  DBUG_ASSERT(value_cached || example != 0);
+  new_item= null_value ?
+            (Item*) new (thd->mem_root) Item_null(thd) :
+	    (Item*) new (thd->mem_root) Item_float(thd, val_real(),
+                                                   decimals);
+  return new_item;
+} 
 
 
 bool Item_cache_decimal::cache_value()
@@ -9658,6 +9698,19 @@ my_decimal *Item_cache_decimal::val_decimal(my_decimal *val)
     return NULL;
   return &decimal_value;
 }
+
+
+Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
+{
+  Item *new_item;
+  my_decimal decimal_value;
+  my_decimal *result= val_decimal(&decimal_value);
+  DBUG_ASSERT(value_cached || example != 0);
+  new_item= null_value ?
+            (Item*) new (thd->mem_root) Item_null(thd) :
+	    (Item*) new (thd->mem_root) Item_decimal(thd, result);
+  return new_item;
+} 
 
 
 bool Item_cache_str::cache_value()
@@ -9736,6 +9789,26 @@ bool Item_cache_row::allocate(THD *thd, uint num)
   item_count= num;
   return (!(values= 
 	    (Item_cache **) thd->calloc(sizeof(Item_cache *)*item_count)));
+}
+
+
+Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
+{
+  Item *new_item;
+  char buff[MAX_FIELD_WIDTH];
+  String tmp(buff, sizeof(buff), value->charset());
+  String *result= val_str(&tmp);
+  DBUG_ASSERT(value_cached || example != 0);
+  if (null_value)
+    new_item= (Item*) new (thd->mem_root) Item_null(thd);
+  else
+  {
+    uint length= result->length();
+    char *tmp_str= thd->strmake(result->ptr(), length);
+    new_item= new (thd->mem_root) Item_string(thd, tmp_str, length,
+                                              result->charset());
+  }
+  return new_item;
 }
 
 
