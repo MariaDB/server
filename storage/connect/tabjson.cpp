@@ -94,7 +94,12 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
     goto skipit;
     } // endif info
 
-  /*********************************************************************/
+	if (GetIntegerTableOption(g, topt, "Multiple", 0)) {
+		strcpy(g->Message, "Cannot find column definition for multiple table");
+		return NULL;
+	}	// endif Multiple
+
+	/*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
   lvl = GetIntegerTableOption(g, topt, "Level", 0);
@@ -103,7 +108,6 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
   tdp = new(g) JSONDEF;
 #if defined(ZIP_SUPPORT)
 	tdp->Entry = GetStringTableOption(g, topt, "Entry", NULL);
-	tdp->Multiple = GetIntegerTableOption(g, topt, "Multiple", 0);
 	tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false);
 #endif   // ZIP_SUPPORT
 	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);

@@ -48,7 +48,7 @@
 ZIPFAM::ZIPFAM(PDOSDEF tdp) : MAPFAM(tdp)
 {
 	zipfile = NULL;
-	zfn = tdp->Fn;
+//zfn = tdp->Fn;
 	target = tdp->Entry;
 //*fn = 0;
 	entryopen = false;
@@ -65,7 +65,7 @@ ZIPFAM::ZIPFAM(PDOSDEF tdp) : MAPFAM(tdp)
 ZIPFAM::ZIPFAM(PZIPFAM txfp) : MAPFAM(txfp)
 {
 	zipfile = txfp->zipfile;
-	zfn = txfp->zfn;
+//zfn = txfp->zfn;
 	target = txfp->target;
 //strcpy(fn, txfp->fn);
 	finfo = txfp->finfo;
@@ -129,7 +129,7 @@ int ZIPFAM::GetFileLength(PGLOBAL g)
 bool ZIPFAM::open(PGLOBAL g, const char *filename)
 {
 	if (!zipfile && !(zipfile = unzOpen64(filename)))
-		sprintf(g->Message, "Zipfile open error");
+		sprintf(g->Message, "Zipfile open error on %s", filename);
 
 	return (zipfile == NULL);
 }	// end of open
@@ -205,7 +205,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 	/*********************************************************************/
 	if (mode == MODE_READ) {
 		//  We used the file name relative to recorded datapath
-		PlugSetPath(filename, zfn, Tdbp->GetPath());
+		PlugSetPath(filename, To_File, Tdbp->GetPath());
 
 		bool b = open(g, filename);
 
@@ -258,7 +258,8 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 			} // endif fp
 
 			To_Fb = fp;                               // Useful when closing
-		}	// endif b
+		} else
+			return true;
 
 	} else {
 		strcpy(g->Message, "Only READ mode supported for ZIP files");
