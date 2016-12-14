@@ -51,7 +51,7 @@ protected:
 
 	// Members
 	unzFile         zipfile;							   // The ZIP container file
-	PSZ             zfn;									   // The ZIP file name
+//PSZ             zfn;									   // The ZIP file name
 	PSZ             target;									 // The target file name
 	unz_file_info   finfo;									 // The current file info
 //char            fn[FILENAME_MAX];     	 // The current file name

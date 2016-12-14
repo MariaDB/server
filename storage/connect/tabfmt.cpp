@@ -108,6 +108,11 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
     goto skipit;
     } // endif info
 
+	if (GetIntegerTableOption(g, topt, "Multiple", 0)) {
+		strcpy(g->Message, "Cannot find column definition for multiple table");
+		return NULL;
+	}	// endif Multiple
+
 //      num_max = atoi(p+1);             // Max num of record to test
   imax = hmax = nerr = 0;
 
@@ -124,17 +129,14 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 	tdp = new(g) CSVDEF;
 #if defined(ZIP_SUPPORT)
 	tdp->Entry = GetStringTableOption(g, topt, "Entry", NULL);
-	tdp->Multiple = GetIntegerTableOption(g, topt, "Multiple", 0);
 	tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false);
 #endif   // ZIP_SUPPORT
-	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
+	fn = tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
 	if (!tdp->Fn) {
 		strcpy(g->Message, MSG(MISSING_FNAME));
 		return NULL;
 	} // endif Fn
-
-	fn = (tdp->Fn) ? tdp->Fn : "unnamed";
 
 	if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))
 		tdp->Lrecl = 4096;
@@ -497,12 +499,6 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 		if (Zipped) {
 #if defined(ZIP_SUPPORT)
 			txfp = new(g) ZIPFAM(this);
-
-			if (!Fmtd)
-				tdbp = new(g) TDBCSV(this, txfp);
-			else
-				tdbp = new(g) TDBFMT(this, txfp);
-
 #else   // !ZIP_SUPPORT
 			strcpy(g->Message, "ZIP not supported");
 			return NULL;
