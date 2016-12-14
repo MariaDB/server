@@ -2650,15 +2650,12 @@ mysql_execute_command(THD *thd)
 
     /*
       Bail out if DB snapshot has not been installed. We however, allow SET,
-      SHOW and SELECT queries (only if wsrep_dirty_reads is set or when it
-      does not access any table).
+      SHOW and SELECT queries (only if wsrep_dirty_reads is set).
     */
     if (lex->sql_command != SQLCOM_SET_OPTION  &&
         !wsrep_is_show_query(lex->sql_command) &&
         !(thd->variables.wsrep_dirty_reads     &&
           lex->sql_command == SQLCOM_SELECT)   &&
-        !(lex->sql_command == SQLCOM_SELECT    &&
-          !all_tables)                         &&
         !wsrep_node_is_ready(thd))
       goto error;
   }
