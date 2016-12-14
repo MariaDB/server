@@ -88,6 +88,7 @@ extern ulong       wsrep_retry_autocommit;
 extern my_bool     wsrep_auto_increment_control;
 extern my_bool     wsrep_drupal_282555_workaround;
 extern my_bool     wsrep_incremental_data_collection;
+extern bool        wsrep_dirty_reads;
 extern const char* wsrep_start_position;
 extern ulong       wsrep_max_ws_size;
 extern ulong       wsrep_max_ws_rows;

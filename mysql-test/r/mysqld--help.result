@@ -1080,6 +1080,8 @@ The following options may be given as the first argument:
  DBUG options to provider library
  --wsrep-debug       To enable debug level logging
  --wsrep-desync      To desynchronize the node from the cluster
+ --wsrep-dirty-reads Allow reads even when the node is not in the primary
+ component.
  --wsrep-drupal-282555-workaround 
  To use a workaround forbad autoincrement value
  --wsrep-forced-binlog-format=name 
@@ -1454,6 +1456,7 @@ wsrep-convert-LOCK-to-trx FALSE
 wsrep-dbug-option 
 wsrep-debug FALSE
 wsrep-desync FALSE
+wsrep-dirty-reads FALSE
 wsrep-drupal-282555-workaround FALSE
 wsrep-forced-binlog-format NONE
 wsrep-load-data-splitting TRUE
