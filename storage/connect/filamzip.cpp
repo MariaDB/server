@@ -48,11 +48,11 @@
 ZIPFAM::ZIPFAM(PDOSDEF tdp) : MAPFAM(tdp)
 {
 	zipfile = NULL;
-	zfn = tdp->Zipfn;
-	target = tdp->Fn;
+	zfn = tdp->Fn;
+	target = tdp->Entry;
 //*fn = 0;
 	entryopen = false;
-	multiple = tdp->Multiple;
+	multiple = (target && !(strchr(target, '*') || strchr(target, '?'))) ? 0 : 1;
 
 	// Init the case mapping table.
 #if defined(__WIN__)
@@ -218,7 +218,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 
 					if (rc == UNZ_END_OF_LIST_OF_FILE) {
 						sprintf(g->Message, "Target file %s not in %s", target, filename);
-						return true;
+						return false;
 					} else if (rc != UNZ_OK) {
 						sprintf(g->Message, "unzLocateFile rc=%d", rc);
 						return true;
@@ -229,7 +229,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 						return true;
 					else if (rc == RC_NF) {
 						sprintf(g->Message, "No match of %s in %s", target, filename);
-						return true;
+						return false;
 					} // endif rc
 
 				} // endif multiple

@@ -171,9 +171,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.04.0009 December 09, 2016";
+       char version[]= "Version 1.05.0001 December 13, 2016";
 #if defined(__WIN__)
-       char compver[]= "Version 1.04.0009 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.05.0001 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -512,13 +512,13 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_NUMBER("QUOTED", quoted, (ulonglong) -1, 0, 3, 1),
   HA_TOPTION_NUMBER("ENDING", ending, (ulonglong) -1, 0, INT_MAX32, 1),
   HA_TOPTION_NUMBER("COMPRESS", compressed, 0, 0, 2, 1),
-//HA_TOPTION_BOOL("COMPRESS", compressed, 0),
   HA_TOPTION_BOOL("MAPPED", mapped, 0),
   HA_TOPTION_BOOL("HUGE", huge, 0),
   HA_TOPTION_BOOL("SPLIT", split, 0),
   HA_TOPTION_BOOL("READONLY", readonly, 0),
   HA_TOPTION_BOOL("SEPINDEX", sepindex, 0),
-  HA_TOPTION_END
+	HA_TOPTION_BOOL("ZIPPED", zipped, 0),
+	HA_TOPTION_END
 };
 
 
@@ -532,7 +532,6 @@ ha_create_table_option connect_field_option_list[]=
 {
   HA_FOPTION_NUMBER("FLAG", offset, (ulonglong) -1, 0, INT_MAX32, 1),
   HA_FOPTION_NUMBER("MAX_DIST", freq, 0, 0, INT_MAX32, 1), // BLK_INDX
-//HA_FOPTION_NUMBER("DISTRIB", opt, 0, 0, 2, 1),  // used for BLK_INDX
   HA_FOPTION_NUMBER("FIELD_LENGTH", fldlen, 0, 0, INT_MAX32, 1),
   HA_FOPTION_STRING("DATE_FORMAT", dateformat),
   HA_FOPTION_STRING("FIELD_FORMAT", fieldformat),
@@ -678,7 +677,6 @@ static int connect_init_func(void *p)
   connect_hton= (handlerton *)p;
   connect_hton->state= SHOW_OPTION_YES;
   connect_hton->create= connect_create_handler;
-//connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
   connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED;
   connect_hton->table_options= connect_table_option_list;
   connect_hton->field_options= connect_field_option_list;
@@ -1135,7 +1133,9 @@ bool GetBooleanTableOption(PGLOBAL g, PTOS options, char *opname, bool bdef)
     opval= options->sepindex;
   else if (!stricmp(opname, "Header"))
     opval= (options->header != 0);   // Is Boolean for some table types
-  else if (options->oplist)
+	else if (!stricmp(opname, "Zipped"))
+		opval = options->zipped;
+	else if (options->oplist)
     if ((pv= GetListOption(g, opname, options->oplist)))
       opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
 

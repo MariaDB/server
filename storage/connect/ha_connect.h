@@ -83,42 +83,9 @@ extern handlerton *connect_hton;
 
   These can be specified in the CREATE TABLE:
   CREATE TABLE ( ... ) {...here...}
-*/
-#if 0  // moved to mycat.h
-typedef struct ha_table_option_struct TOS, *PTOS;
 
-struct ha_table_option_struct {
-  const char *type;
-  const char *filename;
-  const char *optname;
-  const char *tabname;
-  const char *tablist;
-  const char *dbname;
-  const char *separator;
-//const char *connect;
-  const char *qchar;
-  const char *module;
-  const char *subtype;
-  const char *catfunc;
-  const char *srcdef;
-  const char *colist;
-  const char *oplist;
-  const char *data_charset;
-  ulonglong lrecl;
-  ulonglong elements;
-//ulonglong estimate;
-  ulonglong multiple;
-  ulonglong header;
-  ulonglong quoted;
-  ulonglong ending;
-  ulonglong compressed;
-  bool mapped;
-  bool huge;
-  bool split;
-  bool readonly;
-  bool sepindex;
-  };
-#endif // 0
+	------ Was moved to mycat.h ------
+	*/
 
 /**
   structure for CREATE TABLE options (field options)
