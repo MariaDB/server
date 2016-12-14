@@ -48,11 +48,11 @@
 ZIPFAM::ZIPFAM(PDOSDEF tdp) : MAPFAM(tdp)
 {
 	zipfile = NULL;
-	zfn = tdp->Zipfn;
-	target = tdp->Fn;
+//zfn = tdp->Fn;
+	target = tdp->Entry;
 //*fn = 0;
 	entryopen = false;
-	multiple = tdp->Multiple;
+	multiple = (target && !(strchr(target, '*') || strchr(target, '?'))) ? 0 : 1;
 
 	// Init the case mapping table.
 #if defined(__WIN__)
@@ -65,7 +65,7 @@ ZIPFAM::ZIPFAM(PDOSDEF tdp) : MAPFAM(tdp)
 ZIPFAM::ZIPFAM(PZIPFAM txfp) : MAPFAM(txfp)
 {
 	zipfile = txfp->zipfile;
-	zfn = txfp->zfn;
+//zfn = txfp->zfn;
 	target = txfp->target;
 //strcpy(fn, txfp->fn);
 	finfo = txfp->finfo;
@@ -129,7 +129,7 @@ int ZIPFAM::GetFileLength(PGLOBAL g)
 bool ZIPFAM::open(PGLOBAL g, const char *filename)
 {
 	if (!zipfile && !(zipfile = unzOpen64(filename)))
-		sprintf(g->Message, "Zipfile open error");
+		sprintf(g->Message, "Zipfile open error on %s", filename);
 
 	return (zipfile == NULL);
 }	// end of open
@@ -205,7 +205,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 	/*********************************************************************/
 	if (mode == MODE_READ) {
 		//  We used the file name relative to recorded datapath
-		PlugSetPath(filename, zfn, Tdbp->GetPath());
+		PlugSetPath(filename, To_File, Tdbp->GetPath());
 
 		bool b = open(g, filename);
 
@@ -218,7 +218,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 
 					if (rc == UNZ_END_OF_LIST_OF_FILE) {
 						sprintf(g->Message, "Target file %s not in %s", target, filename);
-						return true;
+						return false;
 					} else if (rc != UNZ_OK) {
 						sprintf(g->Message, "unzLocateFile rc=%d", rc);
 						return true;
@@ -229,7 +229,7 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 						return true;
 					else if (rc == RC_NF) {
 						sprintf(g->Message, "No match of %s in %s", target, filename);
-						return true;
+						return false;
 					} // endif rc
 
 				} // endif multiple
@@ -258,7 +258,8 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 			} // endif fp
 
 			To_Fb = fp;                               // Useful when closing
-		}	// endif b
+		} else
+			return true;
 
 	} else {
 		strcpy(g->Message, "Only READ mode supported for ZIP files");

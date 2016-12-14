@@ -94,7 +94,12 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
     goto skipit;
     } // endif info
 
-  /*********************************************************************/
+	if (GetIntegerTableOption(g, topt, "Multiple", 0)) {
+		strcpy(g->Message, "Cannot find column definition for multiple table");
+		return NULL;
+	}	// endif Multiple
+
+	/*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
   lvl = GetIntegerTableOption(g, topt, "Level", 0);
@@ -102,12 +107,12 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 
   tdp = new(g) JSONDEF;
 #if defined(ZIP_SUPPORT)
-	tdp->Zipfn = GetStringTableOption(g, topt, "Zipfile", NULL);
-	tdp->Multiple = GetIntegerTableOption(g, topt, "Multiple", 0);
+	tdp->Entry = GetStringTableOption(g, topt, "Entry", NULL);
+	tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false);
 #endif   // ZIP_SUPPORT
 	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
-	if (!tdp->Fn && !tdp->Zipfn && !tdp->Multiple) {
+	if (!tdp->Fn) {
 		strcpy(g->Message, MSG(MISSING_FNAME));
 		return NULL;
 	} // endif Fn
@@ -122,7 +127,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
           tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
 
   if (tdp->Pretty == 2) {
-		if (tdp->Zipfn)
+		if (tdp->Zipped)
       tjsp = new(g) TDBJSON(tdp, new(g) ZIPFAM(tdp));
 		else
 		  tjsp = new(g) TDBJSON(tdp, new(g) MAPFAM(tdp));
@@ -139,7 +144,7 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 
     tdp->Ending = GetIntegerTableOption(g, topt, "Ending", CRLF);
 
-		if (tdp->Zipfn)
+		if (tdp->Zipped)
 			tjnp = new(g) TDBJSN(tdp, new(g) ZIPFAM(tdp));
 		else
 			tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
@@ -424,7 +429,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
                 !(tmp == TMP_FORCE &&
                 (m == MODE_UPDATE || m == MODE_DELETE));
 
-		if (Zipfn) {
+		if (Zipped) {
 #if defined(ZIP_SUPPORT)
 			txfp = new(g) ZIPFAM(this);
 #else   // !ZIP_SUPPORT
@@ -462,7 +467,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 		((TDBJSN*)tdbp)->G = g;
 #endif
 	} else {
-		if (Zipfn)
+		if (Zipped)
 			txfp = new(g) ZIPFAM(this);
 		else
 			txfp = new(g) MAPFAM(this);
@@ -471,7 +476,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 		((TDBJSON*)tdbp)->G = g;
   } // endif Pretty
 
-  if (Multiple && !Zipfn)
+  if (Multiple)
     tdbp = new(g) TDBMUL(tdbp);
 
   return tdbp;
