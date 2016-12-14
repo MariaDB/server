@@ -7804,7 +7804,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "(sq.i = 3)",
+      "attached_condition": "sq.i = 3",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -7813,7 +7813,7 @@ EXPLAIN
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "(t1.i = 3)"
+            "attached_condition": "t1.i = 3"
           }
         }
       }
@@ -7861,7 +7861,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "(sq.i = 2.7100000381469727)",
+      "attached_condition": "sq.i = 2.7100000381469727",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -7870,7 +7870,7 @@ EXPLAIN
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "(t1.i = 2.7100000381469727)"
+            "attached_condition": "t1.i = 2.7100000381469727"
           }
         }
       }
@@ -7913,7 +7913,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "(sq.i = 3.21)",
+      "attached_condition": "sq.i = 3.21",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -7922,7 +7922,7 @@ EXPLAIN
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "(t1.i = 3.21)"
+            "attached_condition": "t1.i = 3.21"
           }
         }
       }
@@ -7965,7 +7965,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "(sq.i = 'aa')",
+      "attached_condition": "sq.i = 'aa'",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -7974,7 +7974,7 @@ EXPLAIN
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "(t1.i = 'aa')"
+            "attached_condition": "t1.i = 'aa'"
           }
         }
       }
@@ -8019,7 +8019,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "(sq.i = 2007-05-28 00:00:00)",
+      "attached_condition": "sq.i = 2007-05-28 00:00:00",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -8028,7 +8028,7 @@ EXPLAIN
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "(t1.i = TIMESTAMP'2007-05-28 00:00:00')"
+            "attached_condition": "t1.i = TIMESTAMP'2007-05-28 00:00:00'"
           }
         }
       }
@@ -8071,7 +8071,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "(sq.i = 2007-05-28)",
+      "attached_condition": "sq.i = 2007-05-28",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -8080,7 +8080,7 @@ EXPLAIN
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "(t1.i = TIMESTAMP'2007-05-28 00:00:00')"
+            "attached_condition": "t1.i = TIMESTAMP'2007-05-28 00:00:00'"
           }
         }
       }
@@ -8123,7 +8123,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "(sq.i = 10:00:02)",
+      "attached_condition": "sq.i = 10:00:02",
       "materialized": {
         "query_block": {
           "select_id": 2,
@@ -8132,7 +8132,7 @@ EXPLAIN
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "(t1.i = TIME'10:00:02')"
+            "attached_condition": "t1.i = TIME'10:00:02'"
           }
         }
       }
