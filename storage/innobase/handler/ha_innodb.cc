@@ -340,6 +340,12 @@ thd_destructor_proxy(void *)
 	mysql_mutex_unlock(&thd_destructor_mutex);
 	thd_destructor_myvar = NULL;
 
+	srv_fast_shutdown = (ulint) innobase_fast_shutdown;
+	if (srv_fast_shutdown == 0) {
+		while (trx_sys_any_active_transactions()) {
+			os_thread_sleep(1000);
+		}
+	}
 	srv_purge_wakeup();
 
 	destroy_thd(thd);

@@ -3073,6 +3073,12 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		n_pages_purged = trx_purge(1, srv_purge_batch_size, false);
 	}
 
+#ifdef UNIV_DEBUG
+	if (srv_fast_shutdown == 0) {
+		trx_commit_disallowed = true;
+	}
+#endif /* UNIV_DEBUG */
+
 	/* This trx_purge is called to remove any undo records (added by
 	background threads) after completion of the above loop. When
 	srv_fast_shutdown != 0, a large batch size can cause significant
