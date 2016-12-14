@@ -20,8 +20,12 @@ addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
+# below requires https://github.com/travis-ci/apt-source-whitelist/pull/309
 #      - llvm-toolchain-trusty-3.8
 #      - llvm-toolchain-trusty-3.9
+# llvm urls awaiting fix
+# https://github.com/travis-ci/apt-source-whitelist/pull/288
+# https://github.com/travis-ci/apt-source-whitelist/pull/309
     packages: # make sure these match debian/control contents
       - gcc-5
       - g++-5
