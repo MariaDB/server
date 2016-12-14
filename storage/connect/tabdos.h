@@ -59,7 +59,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
 
   // Methods
   virtual int  Indexable(void)
-          {return (!Multiple && !Zipfn && Compressed != 1) ? 1 : 0;}
+          {return (!Multiple && !Zipped && Compressed != 1) ? 1 : 0;}
   virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
@@ -73,11 +73,12 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   // Members
   PSZ     Fn;                 /* Path/Name of corresponding file       */
   PSZ     Ofn;                /* Base Path/Name of matching index files*/
-	PSZ     Zipfn;						  /* Zip container name										 */
+	PSZ     Entry;						  /* Zip entry name or pattern						 */
 	PIXDEF  To_Indx;            /* To index definitions blocks           */
   RECFM   Recfm;              /* 0:VAR, 1:FIX, 2:BIN, 3:VCT, 6:DBF     */
   bool    Mapped;             /* 0: disk file, 1: memory mapped file   */
-  bool    Padded;             /* true for padded table file            */
+	bool    Zipped;             /* true for zipped table file            */
+	bool    Padded;             /* true for padded table file            */
   bool    Huge;               /* true for files larger than 2GB        */
   bool    Accept;             /* true if wrong lines are accepted      */
   bool    Eof;                /* true if an EOF (0xA) character exists */

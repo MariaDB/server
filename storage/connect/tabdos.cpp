@@ -96,11 +96,12 @@ DOSDEF::DOSDEF(void)
   Pseudo = 3;
   Fn = NULL;
   Ofn = NULL;
-	Zipfn = NULL;
+	Entry = NULL;
   To_Indx = NULL;
   Recfm = RECFM_VAR;
   Mapped = false;
-  Padded = false;
+	Zipped = false;
+	Padded = false;
   Huge = false;
   Accept = false;
   Eof = false;
@@ -131,20 +132,11 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
              : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
 	if (*dfm != 'D')
-		Zipfn = GetStringCatInfo(g, "Zipfile", NULL);
+		Zipped = GetBoolCatInfo("Zipped", false);
 
-	if (Zipfn && Multiple) {
-		// Prevent Fn to default to table name
-		Desc = GetStringCatInfo(g, "Filename", NULL);
-		Fn = GetStringCatInfo(g, "Filename", "<%>");
-
-		if (!strcmp(Fn, "<%>"))
-			Fn = NULL;
-
-	} else
-	  Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
-
+  Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
   Ofn = GetStringCatInfo(g, "Optname", Fn);
+	Entry = GetStringCatInfo(g, "Entry", NULL);
   GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
           (toupper(*buf) == 'B') ? RECFM_BIN :
@@ -350,7 +342,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   /*  Allocate table and file processing class of the proper type.     */
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
-	if (Zipfn) {
+	if (Zipped) {
 #if defined(ZIP_SUPPORT)
 		if (Recfm == RECFM_VAR)
 		  txfp = new(g) ZIPFAM(this);
@@ -358,7 +350,6 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 			txfp = new(g) ZPXFAM(this);
 
 		tdbp = new(g) TDBDOS(this, txfp);
-		return tdbp;
 #else   // !ZIP_SUPPORT
 		strcpy(g->Message, "ZIP not supported");
 		return NULL;

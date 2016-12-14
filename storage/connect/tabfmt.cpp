@@ -123,12 +123,13 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
   /*********************************************************************/
 	tdp = new(g) CSVDEF;
 #if defined(ZIP_SUPPORT)
-	tdp->Zipfn = GetStringTableOption(g, topt, "Zipfile", NULL);
+	tdp->Entry = GetStringTableOption(g, topt, "Entry", NULL);
 	tdp->Multiple = GetIntegerTableOption(g, topt, "Multiple", 0);
+	tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false);
 #endif   // ZIP_SUPPORT
 	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
-	if (!tdp->Fn && !tdp->Zipfn && !tdp->Multiple) {
+	if (!tdp->Fn) {
 		strcpy(g->Message, MSG(MISSING_FNAME));
 		return NULL;
 	} // endif Fn
@@ -174,7 +175,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 		htrc("File %s Sep=%c Qot=%c Header=%d maxerr=%d\n",
 		SVP(tdp->Fn), tdp->Sep, tdp->Qot, tdp->Header, tdp->Maxerr);
 
-	if (tdp->Zipfn)
+	if (tdp->Zipped)
 		tdbp = new(g) TDBCSV(tdp, new(g) ZIPFAM(tdp));
 	else
 		tdbp = new(g) TDBCSV(tdp, new(g) DOSFAM(tdp));
@@ -493,7 +494,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
     /*******************************************************************/
     /*  Allocate a file processing class of the proper type.           */
     /*******************************************************************/
-		if (Zipfn) {
+		if (Zipped) {
 #if defined(ZIP_SUPPORT)
 			txfp = new(g) ZIPFAM(this);
 
@@ -502,7 +503,6 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 			else
 				tdbp = new(g) TDBFMT(this, txfp);
 
-			return tdbp;
 #else   // !ZIP_SUPPORT
 			strcpy(g->Message, "ZIP not supported");
 			return NULL;
