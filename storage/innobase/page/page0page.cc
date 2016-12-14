@@ -228,6 +228,40 @@ page_set_max_trx_id(
 	}
 }
 
+/** Persist the AUTO_INCREMENT value on a clustered index root page.
+@param[in,out]	block	clustered index root page
+@param[in]	index	clustered index
+@param[in]	autoinc	next available AUTO_INCREMENT value
+@param[in,out]	mtr	mini-transaction
+@param[in]	reset	whether to reset the AUTO_INCREMENT
+			to a possibly smaller value than currently
+			exists in the page */
+void
+page_set_autoinc(
+	buf_block_t*		block,
+	const dict_index_t*	index MY_ATTRIBUTE((unused)),
+	ib_uint64_t		autoinc,
+	mtr_t*			mtr,
+	bool			reset)
+{
+	ut_ad(mtr_memo_contains_flagged(
+		      mtr, block, MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->page == block->page.id.page_no());
+	ut_ad(index->space == block->page.id.space());
+
+	byte*	field = PAGE_HEADER + PAGE_ROOT_AUTO_INC
+		+ buf_block_get_frame(block);
+	if (!reset && mach_read_from_8(field) >= autoinc) {
+		/* nothing to update */
+	} else if (page_zip_des_t* page_zip = buf_block_get_page_zip(block)) {
+		mach_write_to_8(field, autoinc);
+		page_zip_write_header(page_zip, field, 8, mtr);
+	} else {
+		mlog_write_ull(field, autoinc, mtr);
+	}
+}
+
 /************************************************************//**
 Allocates a block of memory from the heap of an index page.
 @return pointer to start of allocated buffer, or NULL if allocation fails */

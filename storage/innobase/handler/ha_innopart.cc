@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -827,17 +828,6 @@ ha_innopart::alter_table_flags(
 	return(HA_PARTITION_FUNCTION_SUPPORTED | HA_FAST_CHANGE_PARTITION);
 }
 
-/** Internally called for initializing auto increment value.
-Only called from ha_innobase::discard_or_import_table_space()
-and should not do anything, since it is ha_innopart will initialize
-it on first usage. */
-int
-ha_innopart::innobase_initialize_autoinc()
-{
-	ut_ad(0);
-	return(0);
-}
-
 /** Set the autoinc column max value.
 This should only be called once from ha_innobase::open().
 Therefore there's no need for a covering lock.
@@ -892,78 +882,33 @@ ha_innopart::initialize_auto_increment(
 		my_error(ER_AUTOINC_READ_FAILED, MYF(0));
 		error = HA_ERR_AUTOINC_READ_FAILED;
 	} else {
-		dict_index_t*	index;
-		const char*	col_name;
-		ib_uint64_t	read_auto_inc;
-		ib_uint64_t	max_auto_inc = 0;
-		ulint		err;
-		dict_table_t*	ib_table;
-		ulonglong	col_max_value;
-
-		col_max_value = field->get_max_int_value();
+		ib_uint64_t	col_max_value = field->get_max_int_value();
 
 		update_thd(ha_thd());
 
-		col_name = field->field_name;
 		for (uint part = 0; part < m_tot_parts; part++) {
-			ib_table = m_part_share->get_table_part(part);
+			dict_table_t*	ib_table
+				= m_part_share->get_table_part(part);
 			dict_table_autoinc_lock(ib_table);
-			read_auto_inc = dict_table_autoinc_read(ib_table);
-			if (read_auto_inc != 0) {
-				set_if_bigger(max_auto_inc, read_auto_inc);
-				dict_table_autoinc_unlock(ib_table);
-				continue;
-			}
-			/* Execute SELECT MAX(col_name) FROM TABLE; */
-			index = m_part_share->get_index(
-					part, table->s->next_number_index);
-			err = row_search_max_autoinc(
-				index, col_name, &read_auto_inc);
+			ut_ad(ib_table->persistent_autoinc);
+			ib_uint64_t	read_auto_inc
+				= dict_table_autoinc_read(ib_table);
+			if (read_auto_inc == 0) {
+				read_auto_inc = btr_read_autoinc(
+					dict_table_get_first_index(ib_table));
 
-			switch (err) {
-			case DB_SUCCESS: {
 				/* At the this stage we do not know the
 				increment nor the offset,
 				so use a default increment of 1. */
 
-				auto_inc = innobase_next_autoinc(
+				read_auto_inc = innobase_next_autoinc(
 					read_auto_inc, 1, 1, 0, col_max_value);
-				set_if_bigger(max_auto_inc, auto_inc);
 				dict_table_autoinc_initialize(ib_table,
-					auto_inc);
-				break;
+					read_auto_inc);
 			}
-			case DB_RECORD_NOT_FOUND:
-				ib::error() << "MySQL and InnoDB data"
-					" dictionaries are out of sync. Unable"
-					" to find the AUTOINC column "
-					<< col_name << " in the InnoDB table "
-					<< index->table->name << ". We set the"
-					" next AUTOINC column value to 0, in"
-					" effect disabling the AUTOINC next"
-					" value generation.";
-
-				ib::info() << "You can either set the next"
-					" AUTOINC value explicitly using ALTER"
-					" TABLE or fix the data dictionary by"
-					" recreating the table.";
-
-				/* We want the open to succeed, so that the
-				user can take corrective action. ie. reads
-				should succeed but updates should fail. */
-
-				/* This will disable the AUTOINC generation. */
-				auto_inc = 0;
-				goto done;
-			default:
-				/* row_search_max_autoinc() should only return
-				one of DB_SUCCESS or DB_RECORD_NOT_FOUND. */
-
-				ut_error;
-			}
+			set_if_bigger(auto_inc, read_auto_inc);
 			dict_table_autoinc_unlock(ib_table);
 		}
-		auto_inc = max_auto_inc;
 	}
 
 done:
@@ -1576,22 +1521,6 @@ ha_innopart::update_partition(
 	}
 	m_last_part = part_id;
 	DBUG_VOID_RETURN;
-}
-
-/** Save currently highest auto increment value.
-@param[in]	nr	Auto increment value to save. */
-void
-ha_innopart::save_auto_increment(
-	ulonglong	nr)
-{
-
-	/* Store it in the shared dictionary of the partition.
-	TODO: When the new DD is done, store it in the table and make it
-	persistent! */
-
-	dict_table_autoinc_lock(m_prebuilt->table);
-	dict_table_autoinc_update_if_greater(m_prebuilt->table, nr + 1);
-	dict_table_autoinc_unlock(m_prebuilt->table);
 }
 
 /** Was the last returned row semi consistent read.

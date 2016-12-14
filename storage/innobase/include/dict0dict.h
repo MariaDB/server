@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation.
+Copyright (c) 2013, 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -327,46 +327,52 @@ dict_table_autoinc_lock(
 /*====================*/
 	dict_table_t*	table)	/*!< in/out: table */
 	MY_ATTRIBUTE((nonnull));
-/********************************************************************//**
-Unconditionally set the autoinc counter. */
+/** Unconditionally set the AUTO_INCREMENT counter.
+@param[in,out]	table	table or partition
+@param[in]	value	next available AUTO_INCREMENT value */
+MY_ATTRIBUTE((nonnull))
+UNIV_INLINE
 void
-dict_table_autoinc_initialize(
-/*==========================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	ib_uint64_t	value)	/*!< in: next value to assign to a row */
-	MY_ATTRIBUTE((nonnull));
+dict_table_autoinc_initialize(dict_table_t* table, ib_uint64_t value)
+{
+	ut_ad(dict_table_autoinc_own(table));
+	table->autoinc = value;
+}
 
-/** Store autoinc value when the table is evicted.
-@param[in]	table	table evicted */
-void
-dict_table_autoinc_store(
-	const dict_table_t*	table);
-
-/** Restore autoinc value when the table is loaded.
-@param[in]	table	table loaded */
-void
-dict_table_autoinc_restore(
-	dict_table_t*	table);
-
-/********************************************************************//**
-Reads the next autoinc value (== autoinc counter value), 0 if not yet
-initialized.
-@return value for a new row, or 0 */
+/**
+@param[in]	table	table or partition
+@return the next AUTO_INCREMENT counter value
+@retval	0	if AUTO_INCREMENT is not yet initialized */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
+UNIV_INLINE
 ib_uint64_t
-dict_table_autoinc_read(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/********************************************************************//**
-Updates the autoinc counter if the value supplied is greater than the
-current value. */
-void
-dict_table_autoinc_update_if_greater(
-/*=================================*/
+dict_table_autoinc_read(const dict_table_t* table)
+{
+	ut_ad(dict_table_autoinc_own(table));
+	return(table->autoinc);
+}
 
-	dict_table_t*	table,	/*!< in/out: table */
-	ib_uint64_t	value)	/*!< in: value which was assigned to a row */
-	MY_ATTRIBUTE((nonnull));
+/** Update the AUTO_INCREMENT sequence if the value supplied is greater
+than the current value.
+@param[in,out]	table	table or partition
+@param[in]	value	AUTO_INCREMENT value that was assigned to a row
+@return	whether the AUTO_INCREMENT sequence was updated */
+MY_ATTRIBUTE((nonnull))
+UNIV_INLINE
+bool
+dict_table_autoinc_update_if_greater(dict_table_t* table, ib_uint64_t value)
+{
+	ut_ad(dict_table_autoinc_own(table));
+
+	if (value > table->autoinc) {
+
+		table->autoinc = value;
+		return(true);
+	}
+
+	return(false);
+}
+
 /********************************************************************//**
 Release the autoinc lock. */
 void
@@ -412,8 +418,9 @@ void
 dict_table_remove_from_cache_low(
 /*=============================*/
 	dict_table_t*	table,		/*!< in, own: table */
-	ibool		lru_evict);	/*!< in: TRUE if table being evicted
+	ibool		lru_evict)	/*!< in: TRUE if table being evicted
 					to make room in the table LRU list */
+	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Renames a table object.
 @return TRUE if success */
@@ -1746,8 +1753,6 @@ extern dict_sys_t*	dict_sys;
 /** the data dictionary rw-latch protecting dict_sys */
 extern rw_lock_t*	dict_operation_lock;
 
-typedef std::map<table_id_t, ib_uint64_t> autoinc_map_t;
-
 /* Dictionary system struct */
 struct dict_sys_t{
 	DictSysMutex	mutex;		/*!< mutex protecting the data
@@ -1783,8 +1788,6 @@ struct dict_sys_t{
 	UT_LIST_BASE_NODE_T(dict_table_t)
 			table_non_LRU;	/*!< List of tables that can't be
 					evicted from the cache */
-	autoinc_map_t*	autoinc_map;	/*!< Map to store table id and autoinc
-					when table is evicted */
 };
 #endif /* !UNIV_HOTBACKUP */
 
@@ -2052,18 +2055,6 @@ dict_index_node_ptr_max_size(
 /*=========================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
-/*****************************************************************//**
-Get index by first field of the index
-@return index which is having first field matches
-with the field present in field_index position of table */
-UNIV_INLINE
-dict_index_t*
-dict_table_get_index_on_first_col(
-/*==============================*/
-	const dict_table_t*	table,		/*!< in: table */
-	ulint			col_index,	/*!< in: position of column
-						in table */
-	const char*		field_name);	/*!< in: field name */
 /** Check if a column is a virtual column
 @param[in]	col	column
 @return true if it is a virtual column, false otherwise */

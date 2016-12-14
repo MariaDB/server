@@ -50,6 +50,7 @@ Created 6/2/1994 Heikki Tuuri
 #include "gis0geo.h"
 #include "ut0new.h"
 #include "dict0boot.h"
+#include "row0sel.h" /* row_search_max_autoinc() */
 
 /**************************************************************//**
 Checks if the page in the cursor can be merged with given page.
@@ -1405,6 +1406,117 @@ btr_free(
 	btr_free_root(block, &mtr);
 	mtr.commit();
 }
+
+/** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.
+@param[in,out]	index	clustered index
+@return	the last used AUTO_INCREMENT value
+@retval	0 on error or if no AUTO_INCREMENT value was used yet */
+ib_uint64_t
+btr_read_autoinc(dict_index_t* index)
+{
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->table->persistent_autoinc);
+	ut_ad(!dict_table_is_temporary(index->table));
+
+	if (fil_space_t* space = fil_space_acquire(index->space)) {
+		mtr_t		mtr;
+		mtr.start();
+		ib_uint64_t	autoinc;
+		if (buf_block_t* block = buf_page_get(
+			    page_id_t(index->space, index->page),
+			    page_size_t(space->flags),
+			    RW_S_LATCH, &mtr)) {
+			autoinc = page_get_autoinc(block->frame);
+		} else {
+			autoinc = 0;
+		}
+		mtr.commit();
+		fil_space_release(space);
+		return(autoinc);
+	}
+
+	return(0);
+}
+
+/** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC,
+or fall back to MAX(auto_increment_column).
+@param[in]	table	table containing an AUTO_INCREMENT column
+@param[in]	col_no	index of the AUTO_INCREMENT column
+@return	the AUTO_INCREMENT value
+@retval	0 on error or if no AUTO_INCREMENT value was used yet */
+ib_uint64_t
+btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
+{
+	ut_ad(table->persistent_autoinc);
+	ut_ad(!dict_table_is_temporary(table));
+
+	dict_index_t*	index = dict_table_get_first_index(table);
+
+	if (index == NULL) {
+	} else if (fil_space_t* space = fil_space_acquire(index->space)) {
+		mtr_t		mtr;
+		mtr.start();
+		buf_block_t*	block = buf_page_get(
+			page_id_t(index->space, index->page),
+			page_size_t(space->flags),
+			RW_S_LATCH, &mtr);
+
+		ib_uint64_t	autoinc	= block
+			? page_get_autoinc(block->frame) : 0;
+		const bool	retry	= block && autoinc == 0
+			&& !page_is_empty(block->frame);
+		mtr.commit();
+		fil_space_release(space);
+
+		if (retry) {
+			/* This should be an old data file where
+			PAGE_ROOT_AUTO_INC was initialized to 0.
+			Fall back to reading MAX(autoinc_col).
+			There should be an index on it. */
+			const dict_col_t*	autoinc_col
+				= dict_table_get_nth_col(table, col_no);
+			while (index != NULL
+			       && index->fields[0].col != autoinc_col) {
+				index = dict_table_get_next_index(index);
+			}
+
+			if (index != NULL && index->space == space->id) {
+				autoinc = row_search_max_autoinc(index);
+			}
+		}
+
+		return(autoinc);
+	}
+
+	return(0);
+}
+
+/** Write the next available AUTO_INCREMENT value to PAGE_ROOT_AUTO_INC.
+@param[in,out]	index	clustered index
+@param[in]	autoinc	the AUTO_INCREMENT value
+@param[in]	reset	whether to reset the AUTO_INCREMENT
+			to a possibly smaller value than currently
+			exists in the page */
+void
+btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
+{
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->table->persistent_autoinc);
+	ut_ad(!dict_table_is_temporary(index->table));
+
+	if (fil_space_t* space = fil_space_acquire(index->space)) {
+		mtr_t		mtr;
+		mtr.start();
+		mtr.set_named_space(space);
+		page_set_autoinc(buf_page_get(
+					 page_id_t(index->space, index->page),
+					 page_size_t(space->flags),
+					 RW_SX_LATCH, &mtr),
+				 index, autoinc, &mtr, reset);
+		mtr.commit();
+		fil_space_release(space);
+	}
+}
 #endif /* !UNIV_HOTBACKUP */
 
 /*************************************************************//**
@@ -1499,21 +1611,28 @@ btr_page_reorganize_low(
 					page_get_infimum_rec(temp_page),
 					index, mtr);
 
-	/* Multiple transactions cannot simultaneously operate on the
-	same temp-table in parallel.
-	max_trx_id is ignored for temp tables because it not required
-	for MVCC. */
-	if (dict_index_is_sec_or_ibuf(index)
-	    && page_is_leaf(page)
-	    && !dict_table_is_temporary(index->table)) {
-		/* Copy max trx id to recreated page */
-		trx_id_t	max_trx_id = page_get_max_trx_id(temp_page);
-		page_set_max_trx_id(block, NULL, max_trx_id, mtr);
-		/* In crash recovery, dict_index_is_sec_or_ibuf() always
-		holds, even for clustered indexes.  max_trx_id is
-		unused in clustered index pages. */
-		ut_ad(max_trx_id != 0 || recovery);
-	}
+	/* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
+	memcpy(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
+	       temp_page + (PAGE_HEADER + PAGE_MAX_TRX_ID), 8);
+	/* PAGE_MAX_TRX_ID is unused in clustered index pages,
+	non-leaf pages, and in temporary tables. It was always
+	zero-initialized in page_create() in all InnoDB versions.
+	PAGE_MAX_TRX_ID must be nonzero on dict_index_is_sec_or_ibuf()
+	leaf pages.
+
+	During redo log apply, dict_index_is_sec_or_ibuf() always
+	holds, even for clustered indexes. */
+	ut_ad(recovery || dict_table_is_temporary(index->table)
+	      || !page_is_leaf(temp_page)
+	      || !dict_index_is_sec_or_ibuf(index)
+	      || page_get_max_trx_id(page) != 0);
+	/* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
+	clustered index root pages. */
+	ut_ad(recovery
+	      || page_get_max_trx_id(page) == 0
+	      || (dict_index_is_sec_or_ibuf(index)
+		  ? page_is_leaf(temp_page)
+		  : page_is_root(temp_page)));
 
 	/* If innodb_log_compressed_pages is ON, page reorganize should log the
 	compressed page image.*/

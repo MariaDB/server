@@ -6045,29 +6045,7 @@ row_search_autoinc_read_column(
 
 	data = rec_get_nth_field(rec, offsets, col_no, &len);
 
-	switch (mtype) {
-	case DATA_INT:
-		ut_a(len <= sizeof value);
-		value = mach_read_int_type(data, len, unsigned_type);
-		break;
-
-	case DATA_FLOAT:
-		ut_a(len == sizeof(float));
-		value = (ib_uint64_t) mach_float_read(data);
-		break;
-
-	case DATA_DOUBLE:
-		ut_a(len == sizeof(double));
-		value = (ib_uint64_t) mach_double_read(data);
-		break;
-
-	default:
-		ut_error;
-	}
-
-	if (!unsigned_type && static_cast<int64_t>(value) < 0) {
-		value = 0;
-	}
+	value = row_parse_int(data, len, mtype, unsigned_type);
 
 func_exit:
 	if (UNIV_LIKELY_NULL(heap)) {
@@ -6113,42 +6091,27 @@ row_search_get_max_rec(
 	return(rec);
 }
 
-/*******************************************************************//**
-Read the max AUTOINC value from an index.
-@return DB_SUCCESS if all OK else error code, DB_RECORD_NOT_FOUND if
-column name can't be found in index */
-dberr_t
-row_search_max_autoinc(
-/*===================*/
-	dict_index_t*	index,		/*!< in: index to search */
-	const char*	col_name,	/*!< in: name of autoinc column */
-	ib_uint64_t*	value)		/*!< out: AUTOINC value read */
+/** Read the max AUTOINC value from an index.
+@param[in] index	index starting with an AUTO_INCREMENT column
+@return	the largest AUTO_INCREMENT value
+@retval	0	if no records were found */
+ib_uint64_t
+row_search_max_autoinc(dict_index_t* index)
 {
-	dict_field_t*	dfield = dict_index_get_nth_field(index, 0);
-	dberr_t		error = DB_SUCCESS;
-	*value = 0;
+	const dict_field_t*	dfield = dict_index_get_nth_field(index, 0);
 
-	if (strcmp(col_name, dfield->name) != 0) {
-		error = DB_RECORD_NOT_FOUND;
-	} else {
-		mtr_t		mtr;
-		const rec_t*	rec;
+	ib_uint64_t	value = 0;
 
-		mtr_start(&mtr);
+	mtr_t		mtr;
+	mtr.start();
 
-		rec = row_search_get_max_rec(index, &mtr);
-
-		if (rec != NULL) {
-			ibool unsigned_type = (
-				dfield->col->prtype & DATA_UNSIGNED);
-
-			*value = row_search_autoinc_read_column(
-				index, rec, 0,
-				dfield->col->mtype, unsigned_type);
-		}
-
-		mtr_commit(&mtr);
+	if (const rec_t* rec = row_search_get_max_rec(index, &mtr)) {
+		value = row_search_autoinc_read_column(
+			index, rec, 0,
+			dfield->col->mtype,
+			dfield->col->prtype & DATA_UNSIGNED);
 	}
 
-	return(error);
+	mtr.commit();
+	return(value);
 }

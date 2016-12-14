@@ -6739,33 +6739,35 @@ innobase_get_int_col_max_value(
 
 	return(max_value);
 }
-/************************************************************************
-Set the autoinc column max value. This should only be called once from
-ha_innobase::open(). Therefore there's no need for a covering lock. */
 
+/** Initialize the AUTO_INCREMENT column metadata.
+
+Since a partial table definition for a persistent table can already be
+present in the InnoDB dict_sys cache before it is accessed from SQL,
+we have to initialize the AUTO_INCREMENT counter on the first
+ha_innobase::open().
+
+@param[in,out]	table	persistent table
+@param[in]	field	the AUTO_INCREMENT column */
+static
 void
-ha_innobase::innobase_initialize_autoinc()
-/*======================================*/
+initialize_auto_increment(dict_table_t* table, const Field* field)
 {
-	ulonglong	auto_inc;
-	const Field*	field = table->found_next_number_field;
+	ut_ad(!dict_table_is_temporary(table));
 
-	if (field != NULL) {
-		auto_inc = innobase_get_int_col_max_value(field);
-		ut_ad(!innobase_is_v_fld(field));
+	const unsigned	col_no = innodb_col_no(field);
 
-		/* autoinc column cannot be virtual column */
-		ut_ad(!innobase_is_v_fld(field));
-	} else {
-		/* We have no idea what's been passed in to us as the
-		autoinc column. We set it to the 0, effectively disabling
-		updates to the table. */
-		auto_inc = 0;
+	dict_table_autoinc_lock(table);
 
-		ib::info() << "Unable to determine the AUTOINC column name";
-	}
+	table->persistent_autoinc = 1
+		+ dict_table_get_nth_col_pos(table, col_no, NULL);
 
-	if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
+	if (table->autoinc) {
+		/* Already initialized. Our caller checked
+		table->persistent_autoinc without
+		dict_table_autoinc_lock(), and there might be multiple
+		ha_innobase::open() executing concurrently. */
+	} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
 		/* If the recovery level is set so high that writes
 		are disabled we force the AUTOINC counter to 0
 		value effectively disabling writes to the table.
@@ -6776,70 +6778,16 @@ ha_innobase::innobase_initialize_autoinc()
 		tables can be dumped with minimal hassle.  If an error
 		were returned in this case, the first attempt to read
 		the table would fail and subsequent SELECTs would succeed. */
-		auto_inc = 0;
-	} else if (field == NULL) {
-		/* This is a far more serious error, best to avoid
-		opening the table and return failure. */
-		my_error(ER_AUTOINC_READ_FAILED, MYF(0));
-	} else {
-		dict_index_t*	index;
-		const char*	col_name;
-		ib_uint64_t	read_auto_inc;
-		ulint		err;
-
-		update_thd(ha_thd());
-
-		col_name = field->field_name;
-
-		index = innobase_get_index(table->s->next_number_index);
-
-		/* Execute SELECT MAX(col_name) FROM TABLE; */
-		err = row_search_max_autoinc(index, col_name, &read_auto_inc);
-
-		switch (err) {
-		case DB_SUCCESS: {
-			ulonglong	col_max_value;
-
-			col_max_value =  innobase_get_int_col_max_value(field);
-
-			/* At the this stage we do not know the increment
-			nor the offset, so use a default increment of 1. */
-
-			auto_inc = innobase_next_autoinc(
-				read_auto_inc, 1, 1, 0, col_max_value);
-
-			break;
-		}
-		case DB_RECORD_NOT_FOUND:
-			ib::error() << "MariaDB and InnoDB data dictionaries are"
-				" out of sync. Unable to find the AUTOINC"
-				" column " << col_name << " in the InnoDB"
-				" table " << index->table->name << ". We set"
-				" the next AUTOINC column value to 0, in"
-				" effect disabling the AUTOINC next value"
-				" generation.";
-
-			ib::info() << "You can either set the next AUTOINC"
-				" value explicitly using ALTER TABLE or fix"
-				" the data dictionary by recreating the"
-				" table.";
-
-			/* This will disable the AUTOINC generation. */
-			auto_inc = 0;
-
-			/* We want the open to succeed, so that the user can
-			take corrective action. ie. reads should succeed but
-			updates should fail. */
-			err = DB_SUCCESS;
-			break;
-		default:
-			/* row_search_max_autoinc() should only return
-			one of DB_SUCCESS or DB_RECORD_NOT_FOUND. */
-			ut_error;
-		}
+	} else if (table->persistent_autoinc) {
+		table->autoinc = innobase_next_autoinc(
+			btr_read_autoinc_with_fallback(table, col_no),
+			1 /* need */,
+			1 /* auto_increment_increment */,
+			0 /* auto_increment_offset */,
+			innobase_get_int_col_max_value(field));
 	}
 
-	dict_table_autoinc_initialize(m_prebuilt->table, auto_inc);
+	dict_table_autoinc_unlock(table);
 }
 
 /*****************************************************************//**
@@ -7199,22 +7147,12 @@ ha_innobase::open(
 			dict_table_get_format(m_prebuilt->table));
 	}
 
-	/* Only if the table has an AUTOINC column. */
-	if (m_prebuilt->table != NULL
-	    && !m_prebuilt->table->ibd_file_missing
-	    && table->found_next_number_field != NULL) {
-		dict_table_autoinc_lock(m_prebuilt->table);
-
-		/* Since a table can already be "open" in InnoDB's internal
-		data dictionary, we only init the autoinc counter once, the
-		first time the table is loaded. We can safely reuse the
-		autoinc value from a previous MySQL open. */
-		if (dict_table_autoinc_read(m_prebuilt->table) == 0) {
-
-			innobase_initialize_autoinc();
-		}
-
-		dict_table_autoinc_unlock(m_prebuilt->table);
+	if (m_prebuilt->table == NULL
+	    || dict_table_is_temporary(m_prebuilt->table)
+	    || m_prebuilt->table->persistent_autoinc
+	    || m_prebuilt->table->ibd_file_missing) {
+	} else if (const Field* ai = table->found_next_number_field) {
+		initialize_auto_increment(m_prebuilt->table, ai);
 	}
 
 	/* Set plugin parser for fulltext index */
@@ -7268,6 +7206,24 @@ ha_innobase::open(
 #endif
 
 	DBUG_RETURN(0);
+}
+
+/** Convert MySQL column number to dict_table_t::cols[] offset.
+@param[in]	field	non-virtual column
+@return	column number relative to dict_table_t::cols[] */
+unsigned
+innodb_col_no(const Field* field)
+{
+	ut_ad(!innobase_is_s_fld(field));
+	const TABLE*	table	= field->table;
+	unsigned	col_no	= 0;
+	ut_ad(field == table->field[field->field_index]);
+	for (unsigned i = 0; i < field->field_index; i++) {
+		if (table->field[i]->stored_in_db()) {
+			col_no++;
+		}
+	}
+	return(col_no);
 }
 
 /** Opens dictionary table object using table name. For partition, we need to
@@ -9250,28 +9206,32 @@ innodb_fill_old_vcol_val(
 	return(buf);
 }
 
-/**********************************************************************//**
-Checks which fields have changed in a row and stores information
-of them to an update vector.
+/** Calculate an update vector corresponding to the changes
+between old_row and new_row.
+@param[out]	uvect		update vector
+@param[in]	old_row		current row in MySQL format
+@param[in]	new_row		intended updated row in MySQL format
+@param[in]	table		MySQL table handle
+@param[in,out]	upd_buff	buffer to use for converted values
+@param[in]	buff_len	length of upd_buff
+@param[in,out]	prebuilt	InnoDB execution context
+@param[out]	auto_inc	updated AUTO_INCREMENT value, or 0 if none
 @return DB_SUCCESS or error code */
 static
 dberr_t
 calc_row_difference(
-/*================*/
-	upd_t*		uvect,		/*!< in/out: update vector */
-	const uchar*	old_row,	/*!< in: old row in MySQL format */
-	uchar*		new_row,	/*!< in: new row in MySQL format */
-	TABLE*		table,		/*!< in: table in MySQL data
-					dictionary */
-	uchar*		upd_buff,	/*!< in: buffer to use */
-	ulint		buff_len,	/*!< in: buffer length */
-	row_prebuilt_t*	prebuilt,	/*!< in: InnoDB prebuilt struct */
-	THD*		thd)		/*!< in: user thread */
+	upd_t*		uvect,
+	const uchar*	old_row,
+	uchar*		new_row,
+	TABLE*		table,
+	uchar*		upd_buff,
+	ulint		buff_len,
+	row_prebuilt_t*	prebuilt,
+	ib_uint64_t&	auto_inc)
 {
 	uchar*		original_upd_buff = upd_buff;
 	Field*		field;
 	enum_field_types field_mysql_type;
-	uint		n_fields;
 	ulint		o_len;
 	ulint		n_len;
 	ulint		col_pack_len;
@@ -9288,19 +9248,19 @@ calc_row_difference(
 	uint		i;
 	ibool		changes_fts_column = FALSE;
 	ibool		changes_fts_doc_col = FALSE;
-	trx_t*		trx = thd_to_trx(thd);
+	trx_t* const	trx = prebuilt->trx;
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 	ulint		num_v = 0;
 
 	ut_ad(!srv_read_only_mode);
 
-	n_fields = table->s->fields;
 	clust_index = dict_table_get_first_index(prebuilt->table);
+	auto_inc = 0;
 
 	/* We use upd_buff to convert changed fields */
 	buf = (byte*) upd_buff;
 
-	for (i = 0; i < n_fields; i++) {
+	for (i = 0; i < table->s->fields; i++) {
 		field = table->field[i];
 		bool		is_virtual = innobase_is_v_fld(field);
 		dict_col_t*	col;
@@ -9521,11 +9481,22 @@ calc_row_difference(
 					dfield_set_null(vfield);
 				}
 				num_v++;
+				ut_ad(field != table->found_next_number_field);
 			} else {
 				ufield->field_no = dict_col_get_clust_pos(
 					&prebuilt->table->cols[i - num_v],
 					clust_index);
 				ufield->old_v_val = NULL;
+				if (field != table->found_next_number_field
+				    || dfield_is_null(&ufield->new_val)) {
+				} else {
+					auto_inc = row_parse_int(
+						static_cast<const byte*>(
+							ufield->new_val.data),
+						ufield->new_val.len,
+						col->mtype,
+						col->prtype & DATA_UNSIGNED);
+				}
 			}
 			n_changed++;
 
@@ -9576,7 +9547,7 @@ calc_row_difference(
 	other changes. We piggy back our changes on the normal UPDATE
 	to reduce processing and IO overhead. */
 	if (!prebuilt->table->fts) {
-			trx->fts_next_doc_id = 0;
+		trx->fts_next_doc_id = 0;
 	} else if (changes_fts_column || changes_fts_doc_col) {
 		dict_table_t*   innodb_table = prebuilt->table;
 
@@ -9787,20 +9758,15 @@ ha_innobase::update_row(
 		}
 	}
 
-	upd_t*		uvect;
-
-	if (m_prebuilt->upd_node) {
-		uvect = m_prebuilt->upd_node->update;
-	} else {
-		uvect = row_get_prebuilt_update_vector(m_prebuilt);
-	}
+	upd_t*		uvect = row_get_prebuilt_update_vector(m_prebuilt);
+	ib_uint64_t	autoinc;
 
 	/* Build an update vector from the modified fields in the rows
 	(uses m_upd_buf of the handle) */
 
 	error = calc_row_difference(
 		uvect, old_row, new_row, table, m_upd_buf, m_upd_buf_size,
-		m_prebuilt, m_user_thd);
+		m_prebuilt, autoinc);
 
 	if (error != DB_SUCCESS) {
 		goto func_exit;
@@ -9821,42 +9787,29 @@ ha_innobase::update_row(
 
 	error = row_update_for_mysql((byte*) old_row, m_prebuilt);
 
-	/* We need to do some special AUTOINC handling for the following case:
+	if (error == DB_SUCCESS && autoinc) {
+		/* A value for an AUTO_INCREMENT column
+		was specified in the UPDATE statement. */
 
-	INSERT INTO t (c1,c2) VALUES(x,y) ON DUPLICATE KEY UPDATE ...
+		autoinc = innobase_next_autoinc(
+			autoinc, 1,
+			m_prebuilt->autoinc_increment,
+			m_prebuilt->autoinc_offset,
+			innobase_get_int_col_max_value(
+				table->found_next_number_field));
 
-	We need to use the AUTOINC counter that was actually used by
-	MySQL in the UPDATE statement, which can be different from the
-	value used in the INSERT statement. */
+		error = innobase_set_max_autoinc(autoinc);
 
-	if (error == DB_SUCCESS
-	    && table->next_number_field
-	    && new_row == table->record[0]
-	    && thd_sql_command(m_user_thd) == SQLCOM_INSERT
-	    && trx->duplicates)  {
-
-		ulonglong	auto_inc;
-		ulonglong	col_max_value;
-
-		auto_inc = table->next_number_field->val_int();
-
-		/* We need the upper limit of the col type to check for
-		whether we update the table autoinc counter or not. */
-		col_max_value =
-			innobase_get_int_col_max_value(table->next_number_field);
-
-		if (auto_inc <= col_max_value && auto_inc != 0) {
-
-			ulonglong	offset;
-			ulonglong	increment;
-
-			offset = m_prebuilt->autoinc_offset;
-			increment = m_prebuilt->autoinc_increment;
-
-			auto_inc = innobase_next_autoinc(
-				auto_inc, 1, increment, offset, col_max_value);
-
-			error = innobase_set_max_autoinc(auto_inc);
+		if (m_prebuilt->table->persistent_autoinc) {
+			/* Update the PAGE_ROOT_AUTO_INC. Yes, we do
+			this even if dict_table_t::autoinc already was
+			greater than autoinc, because we cannot know
+			if any INSERT actually used (and wrote to
+			PAGE_ROOT_AUTO_INC) a value bigger than our
+			autoinc. */
+			btr_write_autoinc(dict_table_get_first_index(
+						  m_prebuilt->table),
+					  autoinc);
 		}
 	}
 
@@ -14271,34 +14224,40 @@ create_table_info_t::create_table_update_dict()
 		}
 	}
 
-	/* Note: We can't call update_thd() as m_prebuilt will not be
-	setup at this stage and so we use thd. */
+	if (const Field* ai = m_form->found_next_number_field) {
+		ut_ad(!innobase_is_v_fld(ai));
 
-	/* We need to copy the AUTOINC value from the old table if
-	this is an ALTER|OPTIMIZE TABLE or CREATE INDEX because CREATE INDEX
-	does a table copy too. If query was one of :
+		ib_uint64_t	autoinc = m_create_info->auto_increment_value;
 
-		CREATE TABLE ...AUTO_INCREMENT = x; or
-		ALTER TABLE...AUTO_INCREMENT = x;   or
-		OPTIMIZE TABLE t; or
-		CREATE INDEX x on t(...);
-
-	Find out a table definition from the dictionary and get
-	the current value of the auto increment field. Set a new
-	value to the auto increment field if the value is greater
-	than the maximum value in the column. */
-
-	if (((m_create_info->used_fields & HA_CREATE_USED_AUTO)
-	     || thd_sql_command(m_thd) == SQLCOM_ALTER_TABLE
-	     || thd_sql_command(m_thd) == SQLCOM_OPTIMIZE
-	     || thd_sql_command(m_thd) == SQLCOM_CREATE_INDEX)
-	    && m_create_info->auto_increment_value > 0) {
-		ib_uint64_t	auto_inc_value;
-
-		auto_inc_value = m_create_info->auto_increment_value;
+		if (autoinc == 0) {
+			autoinc = 1;
+		}
 
 		dict_table_autoinc_lock(innobase_table);
-		dict_table_autoinc_initialize(innobase_table, auto_inc_value);
+		dict_table_autoinc_initialize(innobase_table, autoinc);
+
+		if (dict_table_is_temporary(innobase_table)) {
+			/* AUTO_INCREMENT is not persistent for
+			TEMPORARY TABLE. Temporary tables are never
+			evicted. Keep the counter in memory only. */
+		} else {
+			const unsigned	col_no = innodb_col_no(ai);
+
+			innobase_table->persistent_autoinc = 1
+				+ dict_table_get_nth_col_pos(
+					innobase_table, col_no, NULL);
+
+			/* Persist the "last used" value, which
+			typically is AUTO_INCREMENT - 1.
+			In btr_create(), the value 0 was already written. */
+			if (--autoinc) {
+				btr_write_autoinc(
+					dict_table_get_first_index(
+						innobase_table),
+					autoinc);
+			}
+		}
+
 		dict_table_autoinc_unlock(innobase_table);
 	}
 
@@ -16412,18 +16371,7 @@ ha_innobase::info_low(
 	}
 
 	if ((flag & HA_STATUS_AUTO) && table->found_next_number_field) {
-
-		ulonglong auto_inc_val = innobase_peek_autoinc();
-		/* Initialize autoinc value if not set. */
-		if (auto_inc_val == 0) {
-
-			dict_table_autoinc_lock(m_prebuilt->table);
-			innobase_initialize_autoinc();
-			dict_table_autoinc_unlock(m_prebuilt->table);
-
-			auto_inc_val = innobase_peek_autoinc();
-		}
-		stats.auto_increment_value = auto_inc_val;
+		stats.auto_increment_value = innobase_peek_autoinc();
 	}
 
 func_exit:
