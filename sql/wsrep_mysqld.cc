@@ -96,6 +96,8 @@ bool wsrep_new_cluster                 = false; // Bootstrap the cluster ?
 bool wsrep_gtid_mode                   = 0;
 // gtid_domain_id for galera transactions.
 uint32 wsrep_gtid_domain_id            = 0;
+// Allow reads even if the node is not in the primary component.
+bool wsrep_dirty_reads                 = false;
 
 /*
  * End configuration options
@@ -958,6 +960,8 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
 {
   return (thd->variables.wsrep_sync_wait & mask) &&
     thd->variables.wsrep_on &&
+    !(thd->variables.wsrep_dirty_reads &&
+      !is_update_query(thd->lex->sql_command)) &&
     !thd->in_active_multi_stmt_transaction() &&
     thd->wsrep_conflict_state != REPLAYING &&
     thd->wsrep_sync_wait_gtid.seqno == WSREP_SEQNO_UNDEFINED;
