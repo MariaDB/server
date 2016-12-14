@@ -2769,6 +2769,21 @@ srv_fts_close(void)
 }
 #endif
 
+
+/****************************************************************//**
+Shuts down background threads that can generate undo pages. */
+void
+srv_shutdown_bg_undo_sources(void)
+/*===========================*/
+{
+	fts_optimize_shutdown();
+	dict_stats_shutdown();
+
+	/* Shutdown key rotation threads */
+	fil_crypt_threads_end();
+}
+
+
 /****************************************************************//**
 Shuts down the InnoDB database.
 @return DB_SUCCESS or error code */
@@ -2785,12 +2800,8 @@ innobase_shutdown_for_mysql(void)
 		return(DB_SUCCESS);
 	}
 
-	if (!srv_read_only_mode) {
-		fts_optimize_shutdown();
-		dict_stats_shutdown();
-
-		/* Shutdown key rotation threads */
-		fil_crypt_threads_end();
+	if (!srv_read_only_mode && srv_fast_shutdown) {
+		srv_shutdown_bg_undo_sources();
 	}
 
 	/* 1. Flush the buffer pool to disk, write the current lsn to

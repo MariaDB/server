@@ -88,6 +88,11 @@ Shuts down the Innobase database.
 dberr_t
 innobase_shutdown_for_mysql(void);
 
+/****************************************************************//**
+Shuts down background threads that can generate undo pages. */
+void
+srv_shutdown_bg_undo_sources(void);
+
 /********************************************************************
 Signal all per-table background threads to shutdown, and wait for them to do
 so. */

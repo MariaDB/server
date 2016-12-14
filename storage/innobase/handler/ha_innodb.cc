@@ -345,6 +345,11 @@ thd_destructor_proxy(void *)
 		while (trx_sys_any_active_transactions()) {
 			os_thread_sleep(1000);
 		}
+
+		/* Some background threads might generate undo pages that will
+		need to be purged, so they have to be shut down before purge
+		threads if slow shutdown is requested.  */
+		srv_shutdown_bg_undo_sources();
 	}
 	srv_purge_wakeup();
 
