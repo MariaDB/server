@@ -1,6 +1,8 @@
 --source include/have_rocksdb.inc
 source include/master-slave.inc;
 
+source include/have_binlog_format_statement.inc;
+
 connection master;
 --disable_warnings
 drop table if exists t1;
