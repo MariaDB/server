@@ -7602,8 +7602,7 @@ void TABLE::vers_update_fields()
 
   if (vers_start_field()->set_time())
     DBUG_ASSERT(0);
-  if (vers_end_field()->set_max())
-    DBUG_ASSERT(0);
+  vers_end_field()->set_max();
 
   DBUG_VOID_RETURN;
 }

@@ -677,8 +677,8 @@ public:
   /**
      Used by System Versioning.
    */
-  virtual bool set_max()
-  { DBUG_ASSERT(0); return false; }
+  virtual void set_max()
+  { DBUG_ASSERT(0); }
   virtual bool is_max()
   { DBUG_ASSERT(0); return false; }
 
@@ -2129,7 +2129,7 @@ public:
     return unpack_int64(to, from, from_end);
   }
 
-  bool set_max();
+  void set_max();
   bool is_max();
 };
 
@@ -2540,7 +2540,7 @@ public:
   {
     return memcmp(a_ptr, b_ptr, pack_length());
   }
-  bool set_max();
+  void set_max();
   bool is_max();
   void store_TIME(my_time_t timestamp, ulong sec_part);
   my_time_t get_timestamp(const uchar *pos= NULL, ulong *sec_part= NULL) const;
