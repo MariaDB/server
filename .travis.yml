@@ -67,7 +67,7 @@ script:
   - export MYSQL_BUILD_CC=/usr/bin/gcc-${GCC_VERSION} MYSQL_BUILD_CXX=/usr/bin/g++-${GCC_VERSION}
   - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
   - cd "${TRAVIS_BUILD_DIR}"
-  - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
+  - env DEB_BUILD_OPTIONS="parallel=3" debian/autobake-deb.sh;
 
 notifications:
   irc:
