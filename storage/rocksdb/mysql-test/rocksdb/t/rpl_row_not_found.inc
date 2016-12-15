@@ -21,9 +21,14 @@ create table t2 (
   col1 int,
   key (kp1,kp2)
 ) engine=rocksdb;
+# Use RBR for next few statements to avoid the 
+#  'Unsafe statement written to the binary log' warnings.
+set @tmp_binlog_format=@@binlog_format;
+set @@binlog_format=ROW;
 insert into t2 select a,a,a,a from t1;
 create table t3 like t2;
 insert into t3 select * from t2;
+set binlog_format=@tmp_binlog_format;
 
 
 # For GitHub issue#166
@@ -41,7 +46,7 @@ insert into t3 select * from t2;
 
 connection slave;
 let $old_debug = `select @@global.debug`;
-set global debug= 'd,dbug.rocksdb.get_row_by_rowid';
+set global debug_dbug= 'd,dbug.rocksdb.get_row_by_rowid';
 --source include/stop_slave.inc
 --source include/start_slave.inc
 
@@ -50,7 +55,7 @@ update t2 set col1=100 where kp1 between 1 and 3 and mod(kp2,2)=0;
 
 connection slave;
 set debug_sync= 'now WAIT_FOR Reached';
-eval set global debug = '$old_debug';
+eval set global debug_dbug = '$old_debug';
 set sql_log_bin=0;
 delete from t2 where pk=2;
 delete from t2 where pk=3;
@@ -63,7 +68,7 @@ select * from t2 where pk < 5;
 
 # For GitHub issue#162 (result file must be updated after fixing #162)
 connection slave;
-set global debug= 'd,dbug.rocksdb.get_row_by_rowid';
+set global debug_dbug= 'd,dbug.rocksdb.get_row_by_rowid';
 --source include/stop_slave.inc
 --source include/start_slave.inc
 
@@ -73,7 +78,7 @@ update t3 set col1=100 where kp1 between 1 and 4 and mod(kp2,2)=0;
 connection slave;
 call mtr.add_suppression("Deadlock found when trying to get lock");
 set debug_sync= 'now WAIT_FOR Reached';
-eval set global debug = '$old_debug';
+eval set global debug_dbug = '$old_debug';
 set sql_log_bin=0;
 delete from t3 where pk=2;
 delete from t3 where pk=3;
@@ -85,6 +90,7 @@ connection slave;
 # col1 for pk=4 should be 100
 select * from t3 where pk < 5;
 
+set debug_sync='RESET';
 # Cleanup
 connection master;
 drop table t0, t1, t2, t3;
