@@ -356,7 +356,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 RENAME t2;
@@ -368,7 +368,7 @@ ERROR 42S02: Unknown table 'test.t1'
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t2;
@@ -756,7 +756,7 @@ t1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 ALTER TABLE t1 RENAME TO t2;
@@ -768,7 +768,7 @@ ERROR 42S02: Unknown table 'test.t1'
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `c2` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00'
 ) ENGINE=ENGINE DEFAULT CHARSET=latin1
 DROP TABLE t2;
