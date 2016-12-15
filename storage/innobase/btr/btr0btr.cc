@@ -1867,12 +1867,23 @@ btr_page_empty(
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
 
+	/* Preserve PAGE_ROOT_AUTO_INC when creating a clustered index
+	root page. */
+	const ib_uint64_t	autoinc
+		= dict_index_is_clust(index) && page_is_root(page)
+		? page_get_autoinc(page)
+		: 0;
+
 	if (page_zip) {
-		page_create_zip(block, index, level, 0, NULL, mtr);
+		page_create_zip(block, index, level, autoinc, NULL, mtr);
 	} else {
 		page_create(block, mtr, dict_table_is_comp(index->table),
 			    dict_index_is_spatial(index));
 		btr_page_set_level(page, NULL, level, mtr);
+		if (autoinc) {
+			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID + page,
+				       autoinc, mtr);
+		}
 	}
 }
 

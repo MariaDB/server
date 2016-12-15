@@ -488,6 +488,22 @@ page_create_zip(
 	is_spatial = index ? dict_index_is_spatial(index)
 			   : page_comp_info->type & DICT_SPATIAL;
 
+	/* PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC are always 0 for
+	temporary tables. */
+	ut_ad(!dict_table_is_temporary(index->table) || max_trx_id == 0);
+	/* In secondary indexes and the change buffer, PAGE_MAX_TRX_ID
+	must be zero on non-leaf pages. max_trx_id can be 0 when the
+	index consists of an empty root (leaf) page. */
+	ut_ad(max_trx_id == 0
+	      || level == 0
+	      || !dict_index_is_sec_or_ibuf(index)
+	      || dict_table_is_temporary(index->table));
+	/* In the clustered index, PAGE_ROOT_AUTOINC or
+	PAGE_MAX_TRX_ID must be 0 on other pages than the root. */
+	ut_ad(level == 0 || max_trx_id == 0
+	      || !dict_index_is_sec_or_ibuf(index)
+	      || dict_table_is_temporary(index->table));
+
 	page = page_create_low(block, TRUE, is_spatial);
 	mach_write_to_2(PAGE_HEADER + PAGE_LEVEL + page, level);
 	mach_write_to_8(PAGE_HEADER + PAGE_MAX_TRX_ID + page, max_trx_id);
@@ -521,8 +537,8 @@ page_create_empty(
 	dict_index_t*	index,	/*!< in: the index of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	trx_id_t	max_trx_id = 0;
-	const page_t*	page	= buf_block_get_frame(block);
+	trx_id_t	max_trx_id;
+	page_t*		page	= buf_block_get_frame(block);
 	page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
 
 	ut_ad(fil_page_index_page_check(page));
@@ -536,6 +552,11 @@ page_create_empty(
 	    && page_is_leaf(page)) {
 		max_trx_id = page_get_max_trx_id(page);
 		ut_ad(max_trx_id);
+	} else if (page_is_root(page)) {
+		/* Preserve PAGE_ROOT_AUTO_INC. */
+		max_trx_id = page_get_max_trx_id(page);
+	} else {
+		max_trx_id = 0;
 	}
 
 	if (page_zip) {
@@ -547,8 +568,8 @@ page_create_empty(
 			    dict_index_is_spatial(index));
 
 		if (max_trx_id) {
-			page_update_max_trx_id(
-				block, page_zip, max_trx_id, mtr);
+			mlog_write_ull(PAGE_HEADER + PAGE_MAX_TRX_ID + page,
+				       max_trx_id, mtr);
 		}
 	}
 }

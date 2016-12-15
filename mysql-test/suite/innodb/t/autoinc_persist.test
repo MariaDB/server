@@ -382,6 +382,23 @@ ALTER TABLE mdev6076a ADD COLUMN a SERIAL FIRST, LOCK=NONE;
 ALTER TABLE mdev6076a ADD COLUMN a SERIAL FIRST, ALGORITHM=INPLACE;
 ALTER TABLE mdev6076b ADD COLUMN a SERIAL FIRST, AUTO_INCREMENT=100,
 ALGORITHM=INPLACE;
+--echo # MDEV-6076: Test root page split and page_create_empty()
+CREATE TABLE mdev6076empty (b SERIAL, pad CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+BEGIN;
+--echo # Insert records in descending order of AUTO_INCREMENT,
+--echo # causing a page split on the very last insert.
+--echo # Without the fix in btr_page_empty() this would lose the counter value.
+--echo # Without the fix in page_create_empty() the counter value would be lost
+--echo # when ROLLBACK deletes the last row.
+--disable_query_log
+let $i= 55;
+while ($i) {
+ eval INSERT INTO mdev6076empty SET b=$i;
+ dec $i;
+}
+--enable_query_log
+ROLLBACK;
 
 --source include/kill_and_restart_mysqld.inc
 
@@ -392,7 +409,9 @@ INSERT INTO mdev6076a SET b=NULL;
 SELECT * FROM mdev6076a;
 INSERT INTO mdev6076b SET b=NULL;
 SELECT * FROM mdev6076b;
-DROP TABLE mdev6076a, mdev6076b;
+INSERT INTO mdev6076empty SET b=NULL;
+SELECT * FROM mdev6076empty;
+DROP TABLE mdev6076a, mdev6076b, mdev6076empty;
 
 INSERT INTO t3 VALUES(0), (0), (200), (210);
 
