@@ -1396,27 +1396,19 @@ String *Item_func_json_array_insert::val_str(String *str)
     item_pos= 0;
     n_item= 0;
 
-    while (json_scan_next(&je) == 0 &&
-           je.state != JST_ARRAY_END && item_pos == 0)
+    while (json_scan_next(&je) == 0 && je.state != JST_ARRAY_END)
     {
-      switch (je.state)
+      DBUG_ASSERT(je.state == JST_VALUE);
+      if (n_item == c_path->p.last_step[1].n_item)
       {
-      case JST_VALUE:
-        if (n_item == c_path->p.last_step[1].n_item)
-        {
-          item_pos= (const char *) je.s.c_str;
-          break;
-        }
-        n_item++;
-        break;
-      case JST_OBJ_START:
-      case JST_ARRAY_START:
-        if (json_skip_level(&je))
-          break;
-        break;
-      default:
+        item_pos= (const char *) je.s.c_str;
         break;
       }
+      n_item++;
+
+      if (json_read_value(&je) ||
+          (!json_value_scalar(&je) && json_skip_level(&je)))
+        goto js_error;
     }
 
     if (je.s.error)
@@ -1424,16 +1416,27 @@ String *Item_func_json_array_insert::val_str(String *str)
 
     str->length(0);
     str->set_charset(js->charset());
-    if (!item_pos)
+    if (item_pos)
+    {
+      if (append_simple(str, js->ptr(), item_pos - js->ptr()) ||
+          (n_item > 0  && str->append(" ", 1)) ||
+          append_json_value(str, args[n_arg+1], &tmp_val) ||
+          str->append(",", 1) ||
+          (n_item == 0  && str->append(" ", 1)) ||
+          append_simple(str, item_pos, js->end() - item_pos))
+        goto return_null; /* Out of memory. */
+    }
+    else
+    {
+      /* Insert position wasn't found - append to the array. */
+      DBUG_ASSERT(je.state == JST_ARRAY_END);
       item_pos= (const char *) (je.s.c_str - je.sav_c_len);
-
-    if (append_simple(str, js->ptr(), item_pos - js->ptr()) ||
-        ((je.state == JST_ARRAY_END) ?
-           (n_item > 0  && str->append(", ", 2)) : str->append(" ", 1)) ||
-        append_json_value(str, args[n_arg+1], &tmp_val) ||
-        (je.state != JST_ARRAY_END && str->append(",", 1)) ||
-        append_simple(str, item_pos, js->end() - item_pos))
-      goto return_null; /* Out of memory. */
+      if (append_simple(str, js->ptr(), item_pos - js->ptr()) ||
+          (n_item > 0  && str->append(", ", 2)) ||
+          append_json_value(str, args[n_arg+1], &tmp_val) ||
+          append_simple(str, item_pos, js->end() - item_pos))
+        goto return_null; /* Out of memory. */
+    }
 
     {
       /* Swap str and js. */

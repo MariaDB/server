@@ -75,10 +75,13 @@ json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x')
 ["a", {"b": [1, 2]}, [3, 4], "x"]
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x');
 json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x')
-["a", {"b": [ "x",1, 2]}, [3, 4]]
+["a", {"b": ["x", 1, 2]}, [3, 4]]
 select json_array_insert('true', '$', 1);
 json_array_insert('true', '$', 1)
 NULL
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y')
+["a", {"b": [1, 2]}, [3, "y", 4]]
 select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
 json_contains('{"k1":123, "k2":345}', '123', '$.k1')
 1
