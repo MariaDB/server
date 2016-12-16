@@ -41,21 +41,17 @@ eval SELECT MAX(a) AS `Expect 124` FROM $table;
 
 eval OPTIMIZE TABLE $table;
 
-eval SHOW CREATE TABLE $table;
-
---source include/restart_mysqld.inc
-
---echo # We expect the counter to still be 125
-eval SHOW CREATE TABLE $table;
-
 eval DELETE FROM $table WHERE a >= 123;
 
-eval CREATE UNIQUE INDEX idx_aa ON $table(a);
+eval CREATE TABLE i$table(a INT AUTO_INCREMENT, INDEX(a)) AUTO_INCREMENT=125 ENGINE=InnoDB;
+eval CREATE UNIQUE INDEX idx_aa ON i$table(a);
 
 --source include/restart_mysqld.inc
 
 eval INSERT INTO $table VALUES(0), (0);
+eval INSERT INTO i$table VALUES(0), (0);
 
 eval SELECT MAX(a) AS `Expect 126` FROM $table;
+eval SELECT MAX(a) AS `Expect 126` FROM i$table;
 
-eval DROP TABLE $table;
+eval DROP TABLE $table, i$table;
