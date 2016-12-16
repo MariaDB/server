@@ -5795,10 +5795,10 @@ static int write_locked_table_maps(THD *thd)
 
 static int check_wsrep_max_ws_rows();
 
-static int binlog_log_row_internal(TABLE* table,
-                                   const uchar *before_record,
-                                   const uchar *after_record,
-                                   Log_func *log_func)
+int binlog_log_row(TABLE* table,
+                          const uchar *before_record,
+                          const uchar *after_record,
+                          Log_func *log_func)
 {
   bool error= 0;
   THD *const thd= table->in_use;
@@ -5831,16 +5831,6 @@ static int binlog_log_row_internal(TABLE* table,
       error= check_wsrep_max_ws_rows();
   }
   return error ? HA_ERR_RBR_LOGGING_FAILED : 0;
-}
-
-int binlog_log_row(TABLE* table,
-                   const uchar *before_record,
-                   const uchar *after_record,
-                   Log_func *log_func)
-{
-  if (!table->file->check_table_binlog_row_based(1))
-    return 0;
-  return binlog_log_row_internal(table, before_record, after_record, log_func);
 }
 
 
@@ -5991,7 +5981,8 @@ int handler::ha_write_row(uchar *buf)
   if (likely(!error) && !row_already_logged)
   {
     rows_changed++;
-    error= binlog_log_row(table, 0, buf, log_func);
+    if (table->file->check_table_binlog_row_based(1))
+      error= binlog_log_row(table, 0, buf, log_func);
   }
   DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(error);
@@ -6012,6 +6003,9 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
 
+  // InnoDB changes sys_trx_end to curr_trx_id and we need to restore MAX_TRX
+  if (table->file->check_table_binlog_row_based(1))
+    memcpy(table->record[2], table->record[1], table->s->reclength);
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
@@ -6023,7 +6017,10 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   if (likely(!error) && !row_already_logged)
   {
     rows_changed++;
-    error= binlog_log_row(table, old_data, new_data, log_func);
+    if (table->file->check_table_binlog_row_based(1)) {
+      memcpy(table->record[1], table->record[2], table->s->reclength);
+      error= binlog_log_row(table, old_data, new_data, log_func);
+    }
   }
   return error;
 }
@@ -6072,7 +6069,8 @@ int handler::ha_delete_row(const uchar *buf)
   if (likely(!error))
   {
     rows_changed++;
-    error= binlog_log_row(table, buf, 0, log_func);
+    if (table->file->check_table_binlog_row_based(1))
+      error= binlog_log_row(table, buf, 0, log_func);
   }
   return error;
 }

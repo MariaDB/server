@@ -220,7 +220,8 @@ int ha_sequence::write_row(uchar *buf)
       sequence->copy(&tmp_seq);
     rows_changed++;
     /* We have to do the logging while we hold the sequence mutex */
-    error= binlog_log_row(table, 0, buf, log_func);
+    if (table->file->check_table_binlog_row_based(1))
+      error= binlog_log_row(table, 0, buf, log_func);
     row_already_logged= 1;
   }
 
@@ -254,7 +255,8 @@ int ha_sequence::update_row(const uchar *old_data, uchar *new_data)
     sequence->copy(&tmp_seq);
     rows_changed++;
     /* We have to do the logging while we hold the sequence mutex */
-    error= binlog_log_row(table, old_data, new_data,
+    if (table->file->check_table_binlog_row_based(1))
+      error= binlog_log_row(table, old_data, new_data,
                           Update_rows_log_event::binlog_row_logging_function);
     row_already_logged= 1;
   }
