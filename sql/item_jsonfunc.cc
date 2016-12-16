@@ -1032,8 +1032,8 @@ longlong Item_func_json_contains_path::val_int()
     {
       String *s_p= args[n_arg]->val_str(tmp_paths+(n_arg-2));
       if (s_p &&
-          path_setup_nwc(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
-                         (const uchar *) s_p->ptr() + s_p->length()))
+          json_path_setup(&c_path->p,s_p->charset(),(const uchar *) s_p->ptr(),
+                          (const uchar *) s_p->ptr() + s_p->length()))
       {
         report_path_error(s_p, &c_path->p, n_arg-2);
         goto return_null;

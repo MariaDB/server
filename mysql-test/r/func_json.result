@@ -176,6 +176,9 @@ NULL
 select json_contains_path('{ "a": true }', 'all', NULL );
 json_contains_path('{ "a": true }', 'all', NULL )
 NULL
+select json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*');
+json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*')
+1
 select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1");
 json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1")
 "asd"
