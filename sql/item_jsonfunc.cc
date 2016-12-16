@@ -1624,6 +1624,7 @@ longlong Item_func_json_depth::val_int()
     switch (je.state)
     {
     case JST_VALUE:
+    case JST_KEY:
       if (inc_depth)
       {
         c_depth++;

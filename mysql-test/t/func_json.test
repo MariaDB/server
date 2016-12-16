@@ -163,6 +163,7 @@ select cast(NULL AS JSON);
 select json_depth(cast(NULL as JSON));
 select json_depth('[[], {}]');
 select json_depth('[[[1,2,3],"s"], {}, []]');
+select json_depth('[10, {"a": 20}]');
 
 select json_length('');
 select json_length('{}');

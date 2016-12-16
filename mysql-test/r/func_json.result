@@ -405,6 +405,9 @@ json_depth('[[], {}]')
 select json_depth('[[[1,2,3],"s"], {}, []]');
 json_depth('[[[1,2,3],"s"], {}, []]')
 4
+select json_depth('[10, {"a": 20}]');
+json_depth('[10, {"a": 20}]')
+3
 select json_length('');
 json_length('')
 NULL
