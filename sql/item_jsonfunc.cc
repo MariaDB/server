@@ -796,17 +796,20 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
     {
       while (json_scan_next(js) == 0 && js->state != JST_ARRAY_END)
       {
+        json_level_t c_level;
         DBUG_ASSERT(js->state == JST_VALUE);
         if (json_read_value(js))
           return FALSE;
 
+        c_level= json_value_scalar(js) ? NULL : json_get_level(js);
         if (check_contains(js, value))
         {
           if (json_skip_level(js))
             return FALSE;
           return TRUE;
         }
-        if (value->s.error || js->s.error)
+        if (value->s.error || js->s.error ||
+            (c_level && json_skip_to_level(js, c_level)))
           return FALSE;
       }
       return FALSE;

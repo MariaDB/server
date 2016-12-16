@@ -295,13 +295,27 @@ int json_read_value(json_engine_t *j);
 int json_skip_key(json_engine_t *j);
 
 
+typedef const int *json_level_t;
+
 /*
-  json_skip_level() makes parser quickly skip the JSON content
-  to the end of the current object or array.
-  It is used when we're not interested in the rest of an array
-  or the rest of the keys of an object.
+  json_skip_to_level() makes parser quickly get out of nested
+  loops and arrays. It is used when we're not interested in what is
+  there in the rest of these structures.
+  The 'level' should be remembered in advance.
+        json_level_t level= json_get_level(j);
+        .... // getting into the nested JSON structures
+        json_skip_to_level(j, level);
 */
-int json_skip_level(json_engine_t *j);
+#define json_get_level(j) (j->stack_p)
+
+int json_skip_to_level(json_engine_t *j, json_level_t level);
+
+/*
+  json_skip_level() works as above with just current structre.
+  So it gets to the end of the current JSON array or object.
+*/
+#define json_skip_level(json_engine) \
+  json_skip_to_level((json_engine), (json_engine)->stack_p)
 
 
 #define json_skip_array_item json_skip_key

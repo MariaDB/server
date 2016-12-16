@@ -1158,25 +1158,12 @@ int json_path_setup(json_path_t *p,
 }
 
 
-int json_skip_level(json_engine_t *j)
+int json_skip_to_level(json_engine_t *j, json_level_t level)
 {
-  int ct= 0;
-
-  while (json_scan_next(j) == 0)
-  {
-    switch (j->state) {
-    case JST_OBJ_START:
-    case JST_ARRAY_START:
-      ct++;
-      break;
-    case JST_OBJ_END:
-    case JST_ARRAY_END:
-      if (ct == 0)
-        return 0;
-      ct--;
-      break;
-    }
-  }
+  do {
+    if (j->stack_p < level)
+      return 0;
+  } while (json_scan_next(j) == 0);
 
   return 1;
 }

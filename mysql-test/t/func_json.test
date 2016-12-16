@@ -53,6 +53,8 @@ select json_contains('{"b":[1,2], "a":1}', '{"a":1, "b":2}');
 select json_contains('{"a":1}', '{}');
 select json_contains('[1, {"a":1}]', '{}');
 select json_contains('[1, {"a":1}]', '{"a":1}');
+select json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]');
+select json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]');
 
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]");
