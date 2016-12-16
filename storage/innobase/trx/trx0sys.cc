@@ -983,8 +983,7 @@ trx_sys_create_noredo_rsegs(
 	Slot-1....Slot-N: reserved for temp-tablespace.
 	Slot-N+1....Slot-127: reserved for system/undo-tablespace. */
 	for (ulint i = 0; i < n_nonredo_rseg; i++) {
-		ulint space = srv_tmp_space.space_id();
-		if (trx_rseg_create(space, i) == NULL) {
+		if (trx_rseg_create(SRV_TMP_SPACE_ID, i) == NULL) {
 			break;
 		}
 		++n_created;

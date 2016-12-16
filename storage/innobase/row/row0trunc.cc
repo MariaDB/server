@@ -2278,7 +2278,7 @@ truncate_t::fixup_tables_in_non_system_tablespace()
 				"id (" << (*it)->m_space_id << ")";
 
 			/* Temp-tables in temp-tablespace are never restored.*/
-			ut_ad((*it)->m_space_id != srv_tmp_space.space_id());
+			ut_ad((*it)->m_space_id != SRV_TMP_SPACE_ID);
 
 			err = fil_recreate_table(
 				(*it)->m_space_id,

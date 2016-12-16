@@ -3727,9 +3727,10 @@ ibuf_insert(
 			    op, page_id.space(), page_id.page_no()));
 
 	ut_ad(dtuple_check_typed(entry));
-	ut_ad(page_id.space() != srv_tmp_space.space_id());
+	ut_ad(page_id.space() != SRV_TMP_SPACE_ID);
 
 	ut_a(!dict_index_is_clust(index));
+	ut_ad(!dict_table_is_temporary(index->table));
 
 	no_counter = use <= IBUF_USE_INSERT;
 

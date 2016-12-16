@@ -1123,76 +1123,67 @@ srv_start_wait_for_purge_to_start()
 
 /** Create the temporary file tablespace.
 @param[in]	create_new_db	whether we are creating a new database
-@param[in,out]	tmp_space	Shared Temporary SysTablespace
 @return DB_SUCCESS or error code. */
 static
 dberr_t
-srv_open_tmp_tablespace(
-	bool		create_new_db,
-	SysTablespace*	tmp_space)
+srv_open_tmp_tablespace(bool create_new_db)
 {
 	ulint	sum_of_new_sizes;
 
 	/* Will try to remove if there is existing file left-over by last
 	unclean shutdown */
-	tmp_space->set_sanity_check_status(true);
-	tmp_space->delete_files();
-	tmp_space->set_ignore_read_only(true);
+	srv_tmp_space.set_sanity_check_status(true);
+	srv_tmp_space.delete_files();
+	srv_tmp_space.set_ignore_read_only(true);
 
 	ib::info() << "Creating shared tablespace for temporary tables";
 
 	bool	create_new_temp_space;
-	ulint	temp_space_id = ULINT_UNDEFINED;
 
-	dict_hdr_get_new_id(NULL, NULL, &temp_space_id, NULL, true);
-
-	tmp_space->set_space_id(temp_space_id);
+	srv_tmp_space.set_space_id(SRV_TMP_SPACE_ID);
 
 	RECOVERY_CRASH(100);
 
-	dberr_t	err = tmp_space->check_file_spec(
-			&create_new_temp_space, 12 * 1024 * 1024);
+	dberr_t	err = srv_tmp_space.check_file_spec(
+		&create_new_temp_space, 12 * 1024 * 1024);
 
 	if (err == DB_FAIL) {
 
-		ib::error() << "The " << tmp_space->name()
+		ib::error() << "The " << srv_tmp_space.name()
 			<< " data file must be writable!";
 
 		err = DB_ERROR;
 
 	} else if (err != DB_SUCCESS) {
 		ib::error() << "Could not create the shared "
-			<< tmp_space->name() << ".";
+			<< srv_tmp_space.name() << ".";
 
-	} else if ((err = tmp_space->open_or_create(
+	} else if ((err = srv_tmp_space.open_or_create(
 			    true, create_new_db, &sum_of_new_sizes, NULL))
 		   != DB_SUCCESS) {
 
 		ib::error() << "Unable to create the shared "
-			<< tmp_space->name();
+			<< srv_tmp_space.name();
 
 	} else {
 
 		mtr_t	mtr;
-		ulint	size = tmp_space->get_sum_of_sizes();
-
-		ut_a(temp_space_id != ULINT_UNDEFINED);
-		ut_a(tmp_space->space_id() == temp_space_id);
+		ulint	size = srv_tmp_space.get_sum_of_sizes();
 
 		/* Open this shared temp tablespace in the fil_system so that
 		it stays open until shutdown. */
-		if (fil_space_open(tmp_space->name())) {
+		if (fil_space_open(srv_tmp_space.name())) {
 
 			/* Initialize the header page */
 			mtr_start(&mtr);
 			mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 
-			fsp_header_init(tmp_space->space_id(), size, &mtr);
+			fsp_header_init(SRV_TMP_SPACE_ID, size, &mtr);
 
 			mtr_commit(&mtr);
 		} else {
 			/* This file was just opened in the code above! */
-			ib::error() << "The " << tmp_space->name()
+			ib::error() << "The " << srv_tmp_space.name()
 				<< " data file cannot be re-opened"
 				" after check_file_spec() succeeded!";
 
@@ -2439,7 +2430,7 @@ files_checked:
 
 	/* Open temp-tablespace and keep it open until shutdown. */
 
-	err = srv_open_tmp_tablespace(create_new_db, &srv_tmp_space);
+	err = srv_open_tmp_tablespace(create_new_db);
 
 	if (err != DB_SUCCESS) {
 		return(srv_init_abort(err));
