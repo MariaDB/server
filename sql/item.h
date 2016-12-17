@@ -721,6 +721,34 @@ public:
   {
     return Type_handler::string_type_handler(max_length)->field_type();
   }
+  /*
+    Calculate the maximum length of an expression.
+    This method is used in data type aggregation for UNION, e.g.:
+      SELECT 'b' UNION SELECT COALESCE(double_10_3_field) FROM t1;
+
+    The result is usually equal to max_length, except for some numeric types.
+    In case of the INT, FLOAT, DOUBLE data types Item::max_length and
+    Item::decimals are ignored, so the returned value depends only on the
+    data type itself. E.g. for an expression of the DOUBLE(10,3) data type,
+    the result is always 53 (length 10 and precision 3 do not matter).
+
+    max_length is ignored for these numeric data types because the length limit
+    means only "expected maximum length", it is not a hard limit, so it does
+    not impose any data truncation. E.g. a column of the type INT(4) can
+    normally store big values up to 2147483647 without truncation. When we're
+    aggregating such column for UNION it's important to create a long enough
+    result column, not to lose any data.
+
+    For detailed behaviour of various data types see implementations of
+    the corresponding Type_handler_xxx::max_display_length().
+
+    Note, Item_field::max_display_length() overrides this to get
+    max_display_length() from the underlying field.
+  */
+  virtual uint32 max_display_length() const
+  {
+    return type_handler()->max_display_length(this);
+  }
   Item_cache* get_cache(THD *thd) const
   {
     return type_handler()->Item_get_cache(thd, this);
@@ -2459,7 +2487,7 @@ public:
   Item_equal *find_item_equal(COND_EQUAL *cond_equal);
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   Item *replace_equal_field(THD *thd, uchar *arg);
-  inline uint32 max_disp_length() { return field->max_display_length(); }
+  uint32 max_display_length() const { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
@@ -5545,7 +5573,6 @@ public:
   String *val_str(String*);
   bool join_types(THD *thd, Item *);
   Field *make_field_by_type(TABLE *table);
-  static uint32 display_length(Item *item);
   static enum_field_types get_real_type(Item *);
   Field::geometry_type get_geometry_type() const { return geometry_type; };
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }

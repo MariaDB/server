@@ -695,6 +695,37 @@ Field *Type_handler_set::make_conversion_table_field(TABLE *table,
 
 /*************************************************************************/
 
+uint32 Type_handler_decimal_result::max_display_length(const Item *item) const
+{
+  return item->max_length;
+}
+
+
+uint32 Type_handler_temporal_result::max_display_length(const Item *item) const
+{
+  return item->max_length;
+}
+
+
+uint32 Type_handler_string_result::max_display_length(const Item *item) const
+{
+  return item->max_length;
+}
+
+
+uint32 Type_handler_year::max_display_length(const Item *item) const
+{
+  return item->max_length;
+}
+
+
+uint32 Type_handler_bit::max_display_length(const Item *item) const
+{
+  return item->max_length;
+}
+
+/*************************************************************************/
+
 int Type_handler_time_common::Item_save_in_field(Item *item, Field *field,
                                                  bool no_conversions) const
 {

@@ -10085,12 +10085,12 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     if (collation.collation != &my_charset_bin)
     {
       max_length= MY_MAX(old_max_chars * collation.collation->mbmaxlen,
-                      display_length(item) /
+                      item->max_display_length() /
                       item->collation.collation->mbmaxlen *
                       collation.collation->mbmaxlen);
     }
     else
-      set_if_bigger(max_length, display_length(item));
+      set_if_bigger(max_length, item->max_display_length());
     break;
   }
   case REAL_RESULT:
@@ -10127,7 +10127,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     break;
   }
   default:
-    max_length= MY_MAX(max_length, display_length(item));
+    max_length= MY_MAX(max_length, item->max_display_length());
   };
   maybe_null|= item->maybe_null;
   get_full_info(item);
@@ -10137,64 +10137,6 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   DBUG_PRINT("info", ("become type: %d  len: %u  dec: %u",
                       (int) real_field_type(), max_length, (uint) decimals));
   DBUG_RETURN(FALSE);
-}
-
-/**
-  Calculate lenth for merging result for given Item type.
-
-  @param item  Item for length detection
-
-  @return
-    length
-*/
-
-uint32 Item_type_holder::display_length(Item *item)
-{
-  if (item->type() == Item::FIELD_ITEM)
-    return ((Item_field *)item)->max_disp_length();
-
-  switch (item->field_type())
-  {
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_TIMESTAMP:
-  case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_YEAR:
-  case MYSQL_TYPE_NEWDATE:
-  case MYSQL_TYPE_VARCHAR:
-  case MYSQL_TYPE_BIT:
-  case MYSQL_TYPE_NEWDECIMAL:
-  case MYSQL_TYPE_ENUM:
-  case MYSQL_TYPE_SET:
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-  case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_STRING:
-  case MYSQL_TYPE_GEOMETRY:
-    return item->max_length;
-  case MYSQL_TYPE_TINY:
-    return 4;
-  case MYSQL_TYPE_SHORT:
-    return 6;
-  case MYSQL_TYPE_LONG:
-    return MY_INT32_NUM_DECIMAL_DIGITS;
-  case MYSQL_TYPE_FLOAT:
-    return 25;
-  case MYSQL_TYPE_DOUBLE:
-    return 53;
-  case MYSQL_TYPE_NULL:
-    return 0;
-  case MYSQL_TYPE_LONGLONG:
-    return 20;
-  case MYSQL_TYPE_INT24:
-    return 8;
-  default:
-    DBUG_ASSERT(0); // we should never go there
-    return 0;
-  }
 }
 
 
