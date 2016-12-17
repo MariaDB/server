@@ -69,17 +69,26 @@ int json_read_string_const_chr(json_string_t *js);
 */
 
 
+/* Path step types - actually bitmasks to let '&' or '|' operations. */
 enum json_path_step_types
 {
-  JSON_PATH_KEY=0,
-  JSON_PATH_ARRAY=1
+  JSON_PATH_KEY_NULL=0,
+  JSON_PATH_KEY=1,   /* Must be equal to JSON_VALUE_OBJECT. */
+  JSON_PATH_ARRAY=2, /* Must be equal to JSON_VALUE_ARRAY. */
+  JSON_PATH_KEY_OR_ARRAY=3,
+  JSON_PATH_WILD=4, /* Step like .* or [*] */
+  JSON_PATH_DOUBLE_WILD=8, /* Step like **.k or **[1] */
+  JSON_PATH_KEY_WILD= 1+4,
+  JSON_PATH_KEY_DOUBLEWILD= 1+8,
+  JSON_PATH_ARRAY_WILD= 2+4,
+  JSON_PATH_ARRAY_DOUBLEWILD= 2+8
 };
 
 
 typedef struct st_json_path_step_t
 {
-  enum json_path_step_types type;  /* The type of the step - KEY or ARRAY */
-  int wild;         /* If the step is a wildcard */
+  enum json_path_step_types type;  /* The type of the step -   */
+                                   /* see json_path_step_types */
   const uchar *key; /* Pointer to the beginning of the key. */
   const uchar *key_end;  /* Pointer to the end of the key. */
   uint n_item;      /* Item number in an array. No meaning for the key step. */
@@ -93,6 +102,7 @@ typedef struct st_json_path_t
   json_path_step_t *last_step; /* Points to the last step. */
 
   int mode_strict; /* TRUE if the path specified as 'strict' */
+  enum json_path_step_types types_used; /* The '|' of all step's 'type'-s */
 } json_path_t;
 
 
@@ -162,8 +172,8 @@ enum json_states {
 
 enum json_value_types
 {
-  JSON_VALUE_OBJECT=0,
-  JSON_VALUE_ARRAY=1,
+  JSON_VALUE_OBJECT=1,
+  JSON_VALUE_ARRAY=2,
   JSON_VALUE_STRING,
   JSON_VALUE_NUMBER,
   JSON_VALUE_TRUE,
@@ -285,13 +295,27 @@ int json_read_value(json_engine_t *j);
 int json_skip_key(json_engine_t *j);
 
 
+typedef const int *json_level_t;
+
 /*
-  json_skip_level() makes parser quickly skip the JSON content
-  to the end of the current object or array.
-  It is used when we're not interested in the rest of an array
-  or the rest of the keys of an object.
+  json_skip_to_level() makes parser quickly get out of nested
+  loops and arrays. It is used when we're not interested in what is
+  there in the rest of these structures.
+  The 'level' should be remembered in advance.
+        json_level_t level= json_get_level(j);
+        .... // getting into the nested JSON structures
+        json_skip_to_level(j, level);
 */
-int json_skip_level(json_engine_t *j);
+#define json_get_level(j) (j->stack_p)
+
+int json_skip_to_level(json_engine_t *j, json_level_t level);
+
+/*
+  json_skip_level() works as above with just current structre.
+  So it gets to the end of the current JSON array or object.
+*/
+#define json_skip_level(json_engine) \
+  json_skip_to_level((json_engine), (json_engine)->stack_p)
 
 
 #define json_skip_array_item json_skip_key
@@ -301,6 +325,7 @@ int json_skip_level(json_engine_t *j);
   not an OBJECT nor ARRAY.
 */
 #define json_value_scalar(je)  ((je)->value_type > JSON_VALUE_ARRAY)
+
 
 /*
   Look for the JSON PATH in the json string.

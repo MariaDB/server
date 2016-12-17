@@ -127,13 +127,14 @@ btr_pcur_store_position(
 		ut_ad((mtr_memo_contains_flagged(
 				mtr, dict_index_get_lock(index),
 				MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK)
-		       || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_S_FIX)
-		       || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX))
+		       || mtr_memo_contains_flagged(mtr, block,
+						    MTR_MEMO_PAGE_S_FIX
+						    | MTR_MEMO_PAGE_X_FIX))
 		      && (block->page.buf_fix_count > 0));
 	} else {
-		ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_S_FIX)
-		      || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX)
-		      || dict_table_is_intrinsic(index->table));
+		ut_ad(mtr_memo_contains_flagged(mtr, block,
+						MTR_MEMO_PAGE_S_FIX
+						| MTR_MEMO_PAGE_X_FIX));
 	}
 #endif /* UNIV_DEBUG */
 
@@ -283,13 +284,11 @@ btr_pcur_restore_position_func(
 	ut_a(cursor->old_rec);
 	ut_a(cursor->old_n_fields);
 
-	/* Optimistic latching involves S/X latch not required for
-	intrinsic table instead we would prefer to search fresh. */
-	if ((latch_mode == BTR_SEARCH_LEAF
-	     || latch_mode == BTR_MODIFY_LEAF
-	     || latch_mode == BTR_SEARCH_PREV
-	     || latch_mode == BTR_MODIFY_PREV)
-            && !dict_table_is_intrinsic(cursor->btr_cur.index->table)) {
+	switch (latch_mode) {
+	case BTR_SEARCH_LEAF:
+	case BTR_MODIFY_LEAF:
+	case BTR_SEARCH_PREV:
+	case BTR_MODIFY_PREV:
 		/* Try optimistic restoration. */
 
 		if (!buf_pool_is_obsolete(cursor->withdraw_clock)
@@ -422,7 +421,6 @@ btr_pcur_move_to_next_page(
 	buf_block_t*	next_block;
 	page_t*		next_page;
 	ulint		mode;
-	dict_table_t*	table = btr_pcur_get_btr_cur(cursor)->index->table;
 
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
@@ -442,12 +440,6 @@ btr_pcur_move_to_next_page(
 		break;
 	case BTR_MODIFY_TREE:
 		mode = BTR_MODIFY_LEAF;
-	}
-
-	/* For intrinsic tables we avoid taking any latches as table is
-	accessed by only one thread at any given time. */
-	if (dict_table_is_intrinsic(table)) {
-		mode = BTR_NO_LATCHES;
 	}
 
 	buf_block_t*	block = btr_pcur_get_block(cursor);
@@ -523,32 +515,26 @@ btr_pcur_move_backward_from_page(
 
 	prev_page_no = btr_page_get_prev(page, mtr);
 
-	/* For intrinsic table we don't do optimistic restore and so there is
-	no left block that is pinned that needs to be released. */
-	if (!dict_table_is_intrinsic(
-		btr_cur_get_index(btr_pcur_get_btr_cur(cursor))->table)) {
+	if (prev_page_no == FIL_NULL) {
+	} else if (btr_pcur_is_before_first_on_page(cursor)) {
 
-		if (prev_page_no == FIL_NULL) {
-		} else if (btr_pcur_is_before_first_on_page(cursor)) {
+		prev_block = btr_pcur_get_btr_cur(cursor)->left_block;
 
-			prev_block = btr_pcur_get_btr_cur(cursor)->left_block;
+		btr_leaf_page_release(btr_pcur_get_block(cursor),
+				      latch_mode, mtr);
 
-			btr_leaf_page_release(btr_pcur_get_block(cursor),
-					latch_mode, mtr);
-
-			page_cur_set_after_last(prev_block,
+		page_cur_set_after_last(prev_block,
 					btr_pcur_get_page_cur(cursor));
-		} else {
+	} else {
 
-			/* The repositioned cursor did not end on an infimum
-			record on a page. Cursor repositioning acquired a latch
-			also on the previous page, but we do not need the latch:
-			release it. */
+		/* The repositioned cursor did not end on an infimum
+		record on a page. Cursor repositioning acquired a latch
+		also on the previous page, but we do not need the latch:
+		release it. */
 
-			prev_block = btr_pcur_get_btr_cur(cursor)->left_block;
+		prev_block = btr_pcur_get_btr_cur(cursor)->left_block;
 
-			btr_leaf_page_release(prev_block, latch_mode, mtr);
-		}
+		btr_leaf_page_release(prev_block, latch_mode, mtr);
 	}
 
 	cursor->latch_mode = latch_mode;

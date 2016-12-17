@@ -30,10 +30,6 @@ Completed by Sunny Bains and Marko Makela
 
 #include "ha_prototypes.h"
 
-#include <math.h>
-
-#include "ha_prototypes.h"
-
 #include "row0merge.h"
 #include "row0ext.h"
 #include "row0log.h"
@@ -51,7 +47,6 @@ Completed by Sunny Bains and Marko Makela
 #include "fsp0sysspace.h"
 #include "ut0new.h"
 #include "ut0stage.h"
-#include "math.h" /* log() */
 #include "fil0crypt.h"
 
 float my_log2f(float n)
@@ -660,13 +655,10 @@ row_merge_buf_add(
 		const dfield_t*		row_field;
 
 		col = ifield->col;
-
-#ifdef MYSQL_VIRTUAL_COLUMNS
 		const dict_v_col_t*	v_col = NULL;
 		if (dict_col_is_virtual(col)) {
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 		}
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 		col_no = dict_col_get_no(col);
 
@@ -692,7 +684,6 @@ row_merge_buf_add(
 		} else {
 			/* Use callback to get the virtual column value */
 			if (dict_col_is_virtual(col)) {
- #ifdef MYSQL_VIRTUAL_COLUMN
 				dict_index_t*	clust_index
 					= dict_table_get_first_index(new_table);
 
@@ -706,7 +697,6 @@ row_merge_buf_add(
 					DBUG_RETURN(0);
 				}
 				dfield_copy(field, row_field);
-#endif /* MYSQL_VIRTUAL_COLUMN */
 			} else {
 				row_field = dtuple_get_nth_field(row, col_no);
 				dfield_copy(field, row_field);
@@ -4514,9 +4504,7 @@ row_merge_create_index(
 			if (col_names && col_names[i]) {
 				name = col_names[i];
 			} else {
-				name = ifield->col_name ?
-					dict_table_get_col_name_for_mysql(table, ifield->col_name) :
-					dict_table_get_col_name(table, ifield->col_no);
+				name = dict_table_get_col_name(table, ifield->col_no);
 			}
 		}
 

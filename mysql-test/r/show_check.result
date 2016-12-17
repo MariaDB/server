@@ -342,7 +342,7 @@ t1	CREATE TABLE `t1` (
   `empty_char` char(0) DEFAULT NULL,
   `type_char` char(2) DEFAULT NULL,
   `type_varchar` varchar(10) DEFAULT NULL,
-  `type_timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `type_timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `type_date` date NOT NULL DEFAULT '0000-00-00',
   `type_time` time NOT NULL DEFAULT '00:00:00',
   `type_datetime` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
@@ -742,17 +742,17 @@ DROP VIEW v1;
 CREATE VIEW v1 AS SELECT NOW();
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select now() AS `NOW()`	binary	binary
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select current_timestamp() AS `NOW()`	binary	binary
 DROP VIEW v1;
 CREATE VIEW v1 AS SELECT SQL_CACHE NOW();
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select sql_cache now() AS `NOW()`	binary	binary
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select sql_cache current_timestamp() AS `NOW()`	binary	binary
 DROP VIEW v1;
 CREATE VIEW v1 AS SELECT SQL_NO_CACHE NOW();
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select sql_no_cache now() AS `NOW()`	binary	binary
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select sql_no_cache current_timestamp() AS `NOW()`	binary	binary
 DROP VIEW v1;
 CREATE VIEW v1 AS SELECT SQL_CACHE SQL_NO_CACHE NOW();
 ERROR HY000: Incorrect usage of SQL_CACHE and SQL_NO_CACHE
@@ -979,7 +979,7 @@ def	information_schema	COLUMNS	COLUMNS	CHARACTER_SET_NAME	CHARACTER_SET_NAME	253
 def	information_schema	COLUMNS	COLUMNS	COLLATION_NAME	COLLATION_NAME	253	96	0	Y	0	0	33
 def	information_schema	COLUMNS	COLUMNS	COLUMN_TYPE	COLUMN_TYPE	252	589815	7	N	17	0	33
 def	information_schema	COLUMNS	COLUMNS	COLUMN_KEY	COLUMN_KEY	253	9	3	N	1	0	33
-def	information_schema	COLUMNS	COLUMNS	EXTRA	EXTRA	253	81	0	N	1	0	33
+def	information_schema	COLUMNS	COLUMNS	EXTRA	EXTRA	253	90	0	N	1	0	33
 def	information_schema	COLUMNS	COLUMNS	PRIVILEGES	PRIVILEGES	253	240	31	N	1	0	33
 def	information_schema	COLUMNS	COLUMNS	COLUMN_COMMENT	COLUMN_COMMENT	253	3072	0	N	1	0	33
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT
@@ -998,7 +998,7 @@ def	information_schema	COLUMNS	COLUMNS	COLUMN_TYPE	Type	252	589815	7	N	17	0	33
 def	information_schema	COLUMNS	COLUMNS	IS_NULLABLE	Null	253	9	2	N	1	0	33
 def	information_schema	COLUMNS	COLUMNS	COLUMN_KEY	Key	253	9	3	N	1	0	33
 def	information_schema	COLUMNS	COLUMNS	COLUMN_DEFAULT	Default	252	589815	0	Y	16	0	33
-def	information_schema	COLUMNS	COLUMNS	EXTRA	Extra	253	81	0	N	1	0	33
+def	information_schema	COLUMNS	COLUMNS	EXTRA	Extra	253	90	0	N	1	0	33
 Field	Type	Null	Key	Default	Extra
 c	int(11)	NO	PRI	NULL	
 ----------------------------------------------------------------

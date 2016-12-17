@@ -623,9 +623,8 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   }
 
   if (enum open_frm_error err= open_table_from_share(thd, share, "",
-                            (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
-                                    HA_GET_INDEX | HA_TRY_READ_ONLY),
-                            READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
+                            (uint) (HA_OPEN_KEYFILE | HA_TRY_READ_ONLY),
+                            EXTRA_RECORD,
                             thd->open_options, edges, FALSE))
   {
     open_table_error(share, err, EMFILE); // NOTE - EMFILE is probably bogus, it reports as too many open files (!)

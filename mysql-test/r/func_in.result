@@ -121,9 +121,9 @@ insert into t1 values ('a','c','c');
 select * from t1 where a in (b);
 ERROR HY000: Illegal mix of collations (latin1_general_ci,IMPLICIT) and (latin1_swedish_ci,IMPLICIT) for operation '='
 select * from t1 where a in (b,c);
-ERROR HY000: Illegal mix of collations (latin1_general_ci,IMPLICIT), (latin1_swedish_ci,IMPLICIT), (latin1_danish_ci,IMPLICIT) for operation ' IN '
+ERROR HY000: Illegal mix of collations (latin1_general_ci,IMPLICIT), (latin1_swedish_ci,IMPLICIT), (latin1_danish_ci,IMPLICIT) for operation 'in'
 select * from t1 where 'a' in (a,b,c);
-ERROR HY000: Illegal mix of collations for operation ' IN '
+ERROR HY000: Illegal mix of collations for operation 'in'
 select * from t1 where 'a' in (a);
 a	b	c
 A	B	C
@@ -146,7 +146,7 @@ explain extended select * from t1 where 'a' in (a,b,c collate latin1_bin);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where ('a' in (`test`.`t1`.`a`,`test`.`t1`.`b`,(`test`.`t1`.`c` collate latin1_bin)))
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where 'a' in (`test`.`t1`.`a`,`test`.`t1`.`b`,`test`.`t1`.`c` collate latin1_bin)
 drop table t1;
 set names utf8;
 create table t1 (a char(10) character set utf8 not null);
@@ -226,7 +226,7 @@ a
 CREATE VIEW v1 AS SELECT * FROM t1 WHERE a NOT IN (45);
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` where (`t1`.`a` <> 45)	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1` where `t1`.`a` <> 45	latin1	latin1_swedish_ci
 SELECT * FROM v1;
 a
 44
@@ -841,17 +841,17 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND a IN (1,2,3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 1)
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1
 # Ok to propagate equalities into IN () list, even if multiple comparison types
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND 1 IN (1,a,'3');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 1)
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1
 # Not Ok to propagate equalities into the left IN argument in case of multiple comparison types
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND a IN (1,2,'3');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 1) and (`test`.`t1`.`a` in (1,2,'3')))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and `test`.`t1`.`a` in (1,2,'3')
 DROP TABLE t1;

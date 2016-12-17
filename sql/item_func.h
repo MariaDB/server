@@ -815,6 +815,7 @@ public:
   Item_func_plus(THD *thd, Item *a, Item *b):
     Item_func_additive_op(thd, a, b) {}
   const char *func_name() const { return "+"; }
+  enum precedence precedence() const { return ADD_PRECEDENCE; }
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
@@ -828,6 +829,7 @@ public:
   Item_func_minus(THD *thd, Item *a, Item *b):
     Item_func_additive_op(thd, a, b) {}
   const char *func_name() const { return "-"; }
+  enum precedence precedence() const { return ADD_PRECEDENCE; }
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
@@ -843,6 +845,7 @@ public:
   Item_func_mul(THD *thd, Item *a, Item *b):
     Item_num_op(thd, a, b) {}
   const char *func_name() const { return "*"; }
+  enum precedence precedence() const { return MUL_PRECEDENCE; }
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
@@ -863,6 +866,7 @@ public:
   double real_op();
   my_decimal *decimal_op(my_decimal *);
   const char *func_name() const { return "/"; }
+  enum precedence precedence() const { return MUL_PRECEDENCE; }
   void fix_length_and_dec();
   void result_precision();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -877,9 +881,9 @@ public:
   {}
   longlong val_int();
   const char *func_name() const { return "DIV"; }
+  enum precedence precedence() const { return MUL_PRECEDENCE; }
   void fix_length_and_dec();
-
-  virtual inline void print(String *str, enum_query_type query_type)
+  void print(String *str, enum_query_type query_type)
   {
     print_op(str, query_type);
   }
@@ -900,6 +904,7 @@ public:
   double real_op();
   my_decimal *decimal_op(my_decimal *);
   const char *func_name() const { return "%"; }
+  enum precedence precedence() const { return MUL_PRECEDENCE; }
   void result_precision();
   void fix_length_and_dec();
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
@@ -918,6 +923,12 @@ public:
   my_decimal *decimal_op(my_decimal *);
   const char *func_name() const { return "-"; }
   enum Functype functype() const   { return NEG_FUNC; }
+  enum precedence precedence() const { return NEG_PRECEDENCE; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(func_name());
+    args[0]->print_parenthesised(str, query_type, precedence());
+  }
   void fix_length_and_dec();
   uint decimal_precision() const { return args[0]->decimal_precision(); }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
@@ -1438,6 +1449,7 @@ public:
   Item_func_bit_or(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "|"; }
+  enum precedence precedence() const { return BITOR_PRECEDENCE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_bit_or>(thd, mem_root, this); }
 };
@@ -1448,6 +1460,7 @@ public:
   Item_func_bit_and(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "&"; }
+  enum precedence precedence() const { return BITAND_PRECEDENCE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_bit_and>(thd, mem_root, this); }
 };
@@ -1469,6 +1482,7 @@ public:
   Item_func_shift_left(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "<<"; }
+  enum precedence precedence() const { return SHIFT_PRECEDENCE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_shift_left>(thd, mem_root, this); }
 };
@@ -1479,6 +1493,7 @@ public:
   Item_func_shift_right(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return ">>"; }
+  enum precedence precedence() const { return SHIFT_PRECEDENCE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_shift_right>(thd, mem_root, this); }
 };
@@ -1489,10 +1504,11 @@ public:
   Item_func_bit_neg(THD *thd, Item *a): Item_func_bit(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "~"; }
-
-  virtual inline void print(String *str, enum_query_type query_type)
+  enum precedence precedence() const { return NEG_PRECEDENCE; }
+  void print(String *str, enum_query_type query_type)
   {
-    Item_func::print(str, query_type);
+    str->append(func_name());
+    args[0]->print_parenthesised(str, query_type, precedence());
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_bit_neg>(thd, mem_root, this); }
@@ -2002,7 +2018,8 @@ public:
   }
   bool const_item() const { return 0; }
   bool is_expensive() { return 1; }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
+  enum precedence precedence() const { return ASSIGN_PRECEDENCE; }
   void print_as_stmt(String *str, enum_query_type query_type);
   const char *func_name() const { return "set_user_var"; }
   int save_in_field(Field *field, bool no_conversions,
@@ -2240,6 +2257,7 @@ public:
   Item_func_bit_xor(THD *thd, Item *a, Item *b): Item_func_bit(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "^"; }
+  enum precedence precedence() const { return BITXOR_PRECEDENCE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_bit_xor>(thd, mem_root, this); }
 };

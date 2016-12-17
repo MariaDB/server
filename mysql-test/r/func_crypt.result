@@ -112,7 +112,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
-  `b` varchar(30) DEFAULT ENCRYPT(a,123)
+  `b` varchar(30) DEFAULT encrypt(`a`,123)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('hello');
 SELECT * FROM t1;

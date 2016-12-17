@@ -3237,7 +3237,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(
 		if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
 			ulint	curr_time = ut_time_ms();
 
-			if (curr_time > next_loop_time + 3000) {
+			if (curr_time > next_loop_time + 3000
+			    && !(test_flags & TEST_SIGINT)) {
 				if (warn_count == 0) {
 					ib::info() << "page_cleaner: 1000ms"
 						" intended loop took "

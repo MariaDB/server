@@ -790,7 +790,7 @@ int my_fprintf(FILE *stream, const char* format, ...)
   @param nr         Error number
 */
 
-void my_strerror(char *buf, size_t len, int nr)
+const char* my_strerror(char *buf, size_t len, int nr)
 {
   char *msg= NULL;
 
@@ -802,7 +802,7 @@ void my_strerror(char *buf, size_t len, int nr)
                   "Internal error/check (Not system error)" :
                   "Internal error < 0 (Not system error)"),
             len-1);
-    return;
+    return buf;
   }
 
   /*
@@ -843,4 +843,5 @@ void my_strerror(char *buf, size_t len, int nr)
   */
   if (!buf[0])
     strmake(buf, "unknown error", len - 1);
+  return buf;
 }

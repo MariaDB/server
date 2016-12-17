@@ -40,6 +40,9 @@ NULL
 select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
 json_query('{"key1":123, "key1": [1,2,3]}', '$.key1')
 [1,2,3]
+select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000)));
+json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000)))
+NULL
 select json_array();
 json_array()
 []
@@ -72,10 +75,13 @@ json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x')
 ["a", {"b": [1, 2]}, [3, 4], "x"]
 select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x');
 json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x')
-["a", {"b": [ "x",1, 2]}, [3, 4]]
+["a", {"b": ["x", 1, 2]}, [3, 4]]
 select json_array_insert('true', '$', 1);
 json_array_insert('true', '$', 1)
 NULL
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y');
+json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y')
+["a", {"b": [1, 2]}, [3, "y", 4]]
 select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
 json_contains('{"k1":123, "k2":345}', '123', '$.k1')
 1
@@ -87,6 +93,65 @@ json_contains('"youth"', '"you"')
 0
 select json_contains('[1]', '[1]', '$', '$[0]');
 ERROR 42000: Incorrect parameter count in the call to native function 'json_contains'
+select json_contains('', '', '$');
+json_contains('', '', '$')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_contains'
+select json_contains('null', 'null', '$');
+json_contains('null', 'null', '$')
+1
+select json_contains('"10"', '"10"', '$');
+json_contains('"10"', '"10"', '$')
+1
+select json_contains('"10"', '10', '$');
+json_contains('"10"', '10', '$')
+0
+select json_contains('10.1', '10', '$');
+json_contains('10.1', '10', '$')
+0
+select json_contains('10.0', '10', '$');
+json_contains('10.0', '10', '$')
+1
+select json_contains('[1]', '1');
+json_contains('[1]', '1')
+1
+select json_contains('[2, 1]', '1');
+json_contains('[2, 1]', '1')
+1
+select json_contains('[2, [2, 3], 1]', '1');
+json_contains('[2, [2, 3], 1]', '1')
+1
+select json_contains('[4, [2, 3], 1]', '2');
+json_contains('[4, [2, 3], 1]', '2')
+1
+select json_contains('[2, 1]', '[1, 2]');
+json_contains('[2, 1]', '[1, 2]')
+1
+select json_contains('[2, 1]', '[1, 0, 2]');
+json_contains('[2, 1]', '[1, 0, 2]')
+0
+select json_contains('[2, 0, 3, 1]', '[1, 2]');
+json_contains('[2, 0, 3, 1]', '[1, 2]')
+1
+select json_contains('{"b":[1,2], "a":1}', '{"a":1, "b":2}');
+json_contains('{"b":[1,2], "a":1}', '{"a":1, "b":2}')
+1
+select json_contains('{"a":1}', '{}');
+json_contains('{"a":1}', '{}')
+1
+select json_contains('[1, {"a":1}]', '{}');
+json_contains('[1, {"a":1}]', '{}')
+1
+select json_contains('[1, {"a":1}]', '{"a":1}');
+json_contains('[1, {"a":1}]', '{"a":1}')
+1
+select json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]');
+json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]')
+0
+select json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]');
+json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]')
+1
 select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
 json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]")
 1
@@ -114,6 +179,9 @@ NULL
 select json_contains_path('{ "a": true }', 'all', NULL );
 json_contains_path('{ "a": true }', 'all', NULL )
 NULL
+select json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*');
+json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*')
+1
 select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1");
 json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1")
 "asd"
@@ -138,6 +206,9 @@ json_extract('[10, 20, [30, 40]]', '$[2][*]')
 select json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]');
 json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]')
 [{"a":3}, 30, 40]
+select json_extract('1', '$');
+json_extract('1', '$')
+1
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
 json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word')
 {"a":1, "b":{"c":1, "k1":"word"}, "d":[1, 2]}
@@ -219,6 +290,8 @@ ERROR 42000: Incorrect parameter count in the call to native function 'json_merg
 select json_merge('string', 123);
 json_merge('string', 123)
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge' at position 1
 select json_merge('"string"', 123);
 json_merge('"string"', 123)
 ["string", 123]
@@ -237,6 +310,8 @@ NULL
 select json_merge('a','b');
 json_merge('a','b')
 NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge' at position 1
 select json_merge('{"a":"b"}','{"c":"d"}');
 json_merge('{"a":"b"}','{"c":"d"}')
 {"a":"b", "c":"d"}
@@ -264,6 +339,11 @@ json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a")
 select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b");
 json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b")
 NULL
+select json_keys('foo');
+json_keys('foo')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_keys' at position 1
 SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
 select json_search(@j, 'one', 'abc');
 json_search(@j, 'one', 'abc')
@@ -285,6 +365,9 @@ json_search(@j, 'all', '10', NULL, '$[*]')
 "$[1][0].k"
 select json_search(@j, 'all', '10', NULL, '$[*][0].k');
 json_search(@j, 'all', '10', NULL, '$[*][0].k')
+"$[1][0].k"
+select json_search(@j, 'all', '10', NULL, '$**.k');
+json_search(@j, 'all', '10', NULL, '$**.k')
 "$[1][0].k"
 create table t1( json_col text );
 insert into t1 values
@@ -322,9 +405,14 @@ json_depth('[[], {}]')
 select json_depth('[[[1,2,3],"s"], {}, []]');
 json_depth('[[[1,2,3],"s"], {}, []]')
 4
+select json_depth('[10, {"a": 20}]');
+json_depth('[10, {"a": 20}]')
+3
 select json_length('');
 json_length('')
 NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_length'
 select json_length('{}');
 json_length('{}')
 0

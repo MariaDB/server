@@ -71,14 +71,14 @@ drop table t1;
 
 --echo # Case 7. ALTER. Modify virtual stored -> virtual non-stored
 create table t1 (a int, b int as (a % 2) persistent);
---error ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table t1 modify b int as (a % 2);
 show create table t1;
 drop table t1;
 
 --echo # Case 8. ALTER. Modify virtual non-stored -> virtual stored
 create table t1 (a int, b int as (a % 2));
---error ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 alter table t1 modify b int as (a % 2) persistent;
 show create table t1;
 drop table t1;

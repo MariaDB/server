@@ -273,7 +273,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
            so we only need to decrease keydef->keysegs.
            (see recreate_table() in mi_check.c)
         */
-        keydef->keysegs-=sp_segs-1;
+        keydef->keysegs= 1;
       }
 
       for (j=0, keyseg=keydef->seg ; (int) j < keydef->keysegs ;
@@ -287,7 +287,8 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
           goto err_no_lock;
         }
       }
-      keydef->keysegs+=sp_segs;
+      DBUG_ASSERT(keydef->keysegs == 1);
+      keydef->keysegs= sp_segs + 1;
       key_length+=SPLEN*sp_segs;
       length++;                              /* At least one length byte */
       min_key_length_skip+=SPLEN*2*SPDIMS;

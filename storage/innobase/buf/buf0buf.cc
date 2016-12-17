@@ -1476,7 +1476,6 @@ buf_block_init(
 	ut_d(block->page.file_page_was_freed = FALSE);
 
 	block->index = NULL;
-	block->made_dirty_with_no_latch = false;
 	block->skip_flush_check = false;
 
 	ut_d(block->page.in_page_hash = FALSE);
@@ -1714,12 +1713,25 @@ buf_chunk_not_freed(
 			file pages. */
 			break;
 		case BUF_BLOCK_FILE_PAGE:
+			if (srv_read_only_mode) {
+				/* The page cleaner is disabled in
+				read-only mode.  No pages can be
+				dirtied, so all of them must be clean. */
+				ut_ad(block->page.oldest_modification
+				      == block->page.newest_modification);
+				ut_ad(block->page.oldest_modification == 0
+				      || block->page.oldest_modification
+				      == recv_sys->recovered_lsn);
+				ut_ad(block->page.buf_fix_count == 0);
+				ut_ad(block->page.io_fix == BUF_IO_NONE);
+				break;
+			}
+
 			buf_page_mutex_enter(block);
 			ready = buf_flush_ready_for_replace(&block->page);
 			buf_page_mutex_exit(block);
 
 			if (!ready) {
-
 				return(block);
 			}
 
@@ -3848,7 +3860,6 @@ buf_block_init_low(
 	buf_block_t*	block)	/*!< in: block to init */
 {
 	block->index		= NULL;
-	block->made_dirty_with_no_latch = false;
 	block->skip_flush_check = false;
 
 	block->n_hash_helps	= 0;
@@ -4117,9 +4128,6 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @param[in]	file		file name
 @param[in]	line		line where called
 @param[in]	mtr		mini-transaction
-@param[in]	dirty_with_no_latch
-				mark page as dirty even if page
-				is being pinned without any latch
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
@@ -4131,8 +4139,7 @@ buf_page_get_gen(
 	const char*		file,
 	ulint			line,
 	mtr_t*			mtr,
-	dberr_t*		err,
-	bool			dirty_with_no_latch)
+	dberr_t*		err)
 {
 	buf_block_t*	block;
 	unsigned	access_time;
@@ -4415,11 +4422,9 @@ got_block:
 		bpage = &block->page;
 		if (fsp_is_system_temporary(page_id.space())
 		    && buf_page_get_io_fix(bpage) != BUF_IO_NONE) {
-			/* This suggest that page is being flushed.
+			/* This suggests that the page is being flushed.
 			Avoid returning reference to this page.
-			Instead wait for flush action to complete.
-			For normal page this sync is done using SX
-			lock but for intrinsic there is no latching. */
+			Instead wait for the flush action to complete. */
 			buf_block_unfix(fix_block);
 			os_thread_sleep(WAIT_FOR_WRITE);
 			goto loop;
@@ -4743,17 +4748,6 @@ got_block:
 	under the protection of the hash_lock and not the block->mutex
 	and block->lock. */
 	buf_wait_for_read(fix_block);
-
-	/* Mark block as dirty if requested by caller. If not requested (false)
-	then we avoid updating the dirty state of the block and retain the
-	original one. This is reason why ?
-	Same block can be shared/pinned by 2 different mtrs. If first mtr
-	set the dirty state to true and second mtr mark it as false the last
-	updated dirty state is retained. Which means we can loose flushing of
-	a modified block. */
-	if (dirty_with_no_latch) {
-		fix_block->made_dirty_with_no_latch = dirty_with_no_latch;
-	}
 
 	mtr_memo_type_t	fix_type;
 

@@ -1783,7 +1783,7 @@ prepare stmt from "create view v1 (c) as select b+1 from t1";
 execute stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select (`t1`.`b` + 1) AS `c` from `t1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`b` + 1 AS `c` from `t1`	latin1	latin1_swedish_ci
 select * from v1;
 c
 drop view v1;
@@ -1791,7 +1791,7 @@ execute stmt;
 deallocate prepare stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select (`t1`.`b` + 1) AS `c` from `t1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`b` + 1 AS `c` from `t1`	latin1	latin1_swedish_ci
 select * from v1;
 c
 drop view v1;
@@ -1799,7 +1799,7 @@ prepare stmt from "create view v1 (c,d,e,f) as select a,b,a in (select a+2 from 
 execute stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `c`,`t1`.`b` AS `d`,`t1`.`a` in (select (`t1`.`a` + 2) from `t1`) AS `e`,`t1`.`a` = all (select `t1`.`a` from `t1`) AS `f` from `t1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `c`,`t1`.`b` AS `d`,`t1`.`a` in (select `t1`.`a` + 2 from `t1`) AS `e`,`t1`.`a` = all (select `t1`.`a` from `t1`) AS `f` from `t1`	latin1	latin1_swedish_ci
 select * from v1;
 c	d	e	f
 drop view v1;
@@ -1807,7 +1807,7 @@ execute stmt;
 deallocate prepare stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `c`,`t1`.`b` AS `d`,`t1`.`a` in (select (`t1`.`a` + 2) from `t1`) AS `e`,`t1`.`a` = all (select `t1`.`a` from `t1`) AS `f` from `t1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `c`,`t1`.`b` AS `d`,`t1`.`a` in (select `t1`.`a` + 2 from `t1`) AS `e`,`t1`.`a` = all (select `t1`.`a` from `t1`) AS `f` from `t1`	latin1	latin1_swedish_ci
 select * from v1;
 c	d	e	f
 drop view v1;
@@ -1853,7 +1853,7 @@ prepare stmt from "create view v1 (x) as select a from t1 where a > 1";
 execute stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `x` from `t1` where (`t1`.`a` > 1)	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `x` from `t1` where `t1`.`a` > 1	latin1	latin1_swedish_ci
 select * from v1;
 x
 drop view v1;
@@ -1861,7 +1861,7 @@ execute stmt;
 deallocate prepare stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `x` from `t1` where (`t1`.`a` > 1)	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `x` from `t1` where `t1`.`a` > 1	latin1	latin1_swedish_ci
 select * from v1;
 x
 drop view v1;
@@ -4067,9 +4067,9 @@ DROP TABLE t1, t2;
 #
 CREATE TABLE t1 (a INT);
 PREPARE stmt FROM "SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1";
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(18446744073709551615 + 1)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in '18446744073709551615 + 1'
 SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
-ERROR 22003: BIGINT UNSIGNED value is out of range in '(18446744073709551615 + 1)'
+ERROR 22003: BIGINT UNSIGNED value is out of range in '18446744073709551615 + 1'
 drop table t1;
 # End of 5.3 tests
 #

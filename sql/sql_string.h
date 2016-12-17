@@ -469,10 +469,8 @@ public:
   }
   bool append(const String &s);
   bool append(const char *s);
-  bool append(const LEX_STRING *ls)
-  {
-    return append(ls->str, ls->length);
-  }
+  bool append(const LEX_STRING *ls) { return append(ls->str, ls->length); }
+  bool append(const LEX_CSTRING *ls) { return append(ls->str, ls->length); }
   bool append(const char *s, uint32 arg_length);
   bool append(const char *s, uint32 arg_length, CHARSET_INFO *cs);
   bool append_ulonglong(ulonglong val);
@@ -590,6 +588,12 @@ public:
     qs_append((ulonglong)i);
   }
   void qs_append(ulonglong i);
+  void qs_append(longlong i, int radix)
+  {
+    char *buff= Ptr + str_length;
+    char *end= ll2str(i, buff, radix, 0);
+    str_length+= (int) (end-buff);
+  }
 
   /* Inline (general) functions used by the protocol functions */
 

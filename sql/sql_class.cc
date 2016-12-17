@@ -267,185 +267,6 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
 /****************************************************************************
 ** Thread specific functions
 ****************************************************************************/
-#ifdef ONLY_FOR_MYSQL_CLOSED_SOURCE_SCHEDULED
-/**
-  Get reference to scheduler data object
-
-  @param thd            THD object
-
-  @retval               Scheduler data object on THD
-*/
-void *thd_get_scheduler_data(THD *thd)
-{
-  return thd->scheduler.data;
-}
-
-/**
-  Set reference to Scheduler data object for THD object
-
-  @param thd            THD object
-  @param psi            Scheduler data object to set on THD
-*/
-void thd_set_scheduler_data(THD *thd, void *data)
-{
-  thd->scheduler.data= data;
-}
-
-/**
-  Get reference to Performance Schema object for THD object
-
-  @param thd            THD object
-
-  @retval               Performance schema object for thread on THD
-*/
-PSI_thread *thd_get_psi(THD *thd)
-{
-  return thd->scheduler.m_psi;
-}
-
-/**
-  Get net_wait_timeout for THD object
-
-  @param thd            THD object
-
-  @retval               net_wait_timeout value for thread on THD
-*/
-ulong thd_get_net_wait_timeout(THD* thd)
-{
-  return thd->variables.net_wait_timeout;
-}
-
-/**
-  Set reference to Performance Schema object for THD object
-
-  @param thd            THD object
-  @param psi            Performance schema object for thread
-*/
-void thd_set_psi(THD *thd, PSI_thread *psi)
-{
-  thd->scheduler.m_psi= psi;
-}
-
-/**
-  Set the state on connection to killed
-
-  @param thd               THD object
-*/
-void thd_set_killed(THD *thd)
-{
-  thd->killed= KILL_CONNECTION;
-}
-
-/**
-  Set thread stack in THD object
-
-  @param thd              Thread object
-  @param stack_start      Start of stack to set in THD object
-*/
-void thd_set_thread_stack(THD *thd, char *stack_start)
-{
-  thd->thread_stack= stack_start;
-}
-
-/**
-  Close the socket used by this connection
-
-  @param thd                THD object
-*/
-void thd_close_connection(THD *thd)
-{
-  if (thd->net.vio)
-    vio_close(thd->net.vio);
-}
-
-/**
-  Lock data that needs protection in THD object
-
-  @param thd                   THD object
-*/
-void thd_lock_data(THD *thd)
-{
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-}
-
-/**
-  Unlock data that needs protection in THD object
-
-  @param thd                   THD object
-*/
-void thd_unlock_data(THD *thd)
-{
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
-}
-
-/**
-  Support method to check if connection has already started transcaction
-
-  @param client_cntx    Low level client context
-
-  @retval               TRUE if connection already started transaction
-*/
-bool thd_is_transaction_active(THD *thd)
-{
-  return thd->transaction.is_active();
-}
-
-/**
-  Check if there is buffered data on the socket representing the connection
-
-  @param thd                  THD object
-*/
-int thd_connection_has_data(THD *thd)
-{
-  Vio *vio= thd->net.vio;
-  return vio->has_data(vio);
-}
-
-/**
-  Set reading/writing on socket, used by SHOW PROCESSLIST
-
-  @param thd                       THD object
-  @param val                       Value to set it to (0 or 1)
-*/
-void thd_set_net_read_write(THD *thd, uint val)
-{
-  thd->net.reading_or_writing= val;
-}
-
-/**
-  Get reading/writing on socket from THD object
-  @param thd                       THD object
-
-  @retval               net.reading_or_writing value for thread on THD.
-*/
-uint thd_get_net_read_write(THD *thd)
-{
-  return thd->net.reading_or_writing;
-}
-
-/**
-  Set reference to mysys variable in THD object
-
-  @param thd             THD object
-  @param mysys_var       Reference to set
-*/
-void thd_set_mysys_var(THD *thd, st_my_thread_var *mysys_var)
-{
-  thd->set_mysys_var(mysys_var);
-}
-
-/**
-  Get socket file descriptor for this connection
-
-  @param thd            THD object
-
-  @retval               Socket of the connection
-*/
-my_socket thd_get_fd(THD *thd)
-{
-  return mysql_socket_getfd(thd->net.vio->mysql_socket);
-}
-#endif /* ONLY_FOR_MYSQL_CLOSED_SOURCE_SCHEDULED */
 
 /**
   Get current THD object from thread local data
@@ -540,13 +361,13 @@ const char *set_thd_proc_info(THD *thd_arg, const char *info,
   PSI_stage_info old_stage;
   PSI_stage_info new_stage;
 
-  old_stage.m_key= 0;
-  old_stage.m_name= info;
+  new_stage.m_key= 0;
+  new_stage.m_name= info;
 
-  set_thd_stage_info(thd_arg, & old_stage, & new_stage,
+  set_thd_stage_info(thd_arg, & new_stage, & old_stage,
                      calling_function, calling_file, calling_line);
 
-  return new_stage.m_name;
+  return old_stage.m_name;
 }
 
 extern "C"
@@ -975,6 +796,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   mysql_audit_init_thd(this);
   net.vio=0;
   net.buff= 0;
+  net.reading_or_writing= 0;
   client_capabilities= 0;                       // minimalistic client
   system_thread= NON_SYSTEM_THREAD;
   cleanup_done= free_connection_done= abort_on_warning= 0;
@@ -4562,6 +4384,94 @@ extern "C" int thd_is_connected(MYSQL_THD thd)
 
 
 #ifdef INNODB_COMPATIBILITY_HOOKS
+
+/** open a table and add it to thd->open_tables
+
+  @note At the moment this is used in innodb background purge threads
+  *only*.There should be no table locks, because the background purge does not
+  change the table as far as LOCK TABLES is concerned. MDL locks are
+  still needed, though.
+
+  To make sure no table stays open for long, this helper allows the thread to
+  have only one table open at any given time.
+*/
+TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
+                        const char *tb, size_t tblen)
+{
+  DBUG_ENTER("open_purge_table");
+  DBUG_ASSERT(thd->open_tables == NULL);
+  DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
+
+  Open_table_context ot_ctx(thd, 0);
+  TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
+
+  tl->init_one_table(db, dblen, tb, tblen, tb, TL_READ);
+  tl->i_s_requested_object= OPEN_TABLE_ONLY;
+
+  bool error= open_table(thd, tl, &ot_ctx);
+
+  /* we don't recover here */
+  DBUG_ASSERT(!error || !ot_ctx.can_recover_from_failed_open());
+
+  if (error)
+    close_thread_tables(thd);
+
+  DBUG_RETURN(error ? NULL : tl->table);
+}
+
+/** Find an open table in the list of prelocked tabled
+
+  Used for foreign key actions, for example, in UPDATE t1 SET a=1;
+  where a child table t2 has a KB on t1.a.
+
+  But only when virtual columns are involved, otherwise InnoDB
+  does not need an open TABLE.
+*/
+TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
+                       const char *table, size_t table_len)
+{
+  for (TABLE *t= thd->open_tables; t; t= t->next)
+  {
+    if (t->s->db.length == db_len && t->s->table_name.length == table_len &&
+        !strcmp(t->s->db.str, db) && !strcmp(t->s->table_name.str, table) &&
+        t->pos_in_table_list->prelocking_placeholder == TABLE_LIST::FK)
+      return t;
+  }
+  return NULL;
+}
+
+/* the following three functions are used in background purge threads */
+
+MYSQL_THD create_thd()
+{
+  THD *thd= new THD(next_thread_id());
+  thd->thread_stack= (char*) &thd;
+  thd->store_globals();
+  thd->set_command(COM_DAEMON);
+  thd->system_thread= SYSTEM_THREAD_GENERIC;
+  thd->security_ctx->host_or_ip="";
+  add_to_active_threads(thd);
+  return thd;
+}
+
+void destroy_thd(MYSQL_THD thd)
+{
+  delete_running_thd(thd);
+}
+
+void reset_thd(MYSQL_THD thd)
+{
+  close_thread_tables(thd);
+  thd->mdl_context.release_transactional_locks();
+  thd->free_items();
+  free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
+}
+
+unsigned long long thd_get_query_id(const MYSQL_THD thd)
+{
+  return((unsigned long long)thd->query_id);
+}
+
 extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)
 {
   return(thd->charset());
@@ -5832,7 +5742,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
       replicated_tables_count++;
 
-      if (table->lock_type <= TL_READ_NO_INSERT)
+      if (table->lock_type <= TL_READ_NO_INSERT &&
+          table->prelocking_placeholder != TABLE_LIST::FK)
         has_read_tables= true;
       else if (table->table->found_next_number_field &&
                 (table->lock_type >= TL_WRITE_ALLOW_WRITE))

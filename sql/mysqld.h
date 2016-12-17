@@ -662,13 +662,15 @@ enum enum_query_type
   QT_WITHOUT_INTRODUCERS= (1 << 1),
   /// view internal representation (like QT_ORDINARY except ORDER BY clause)
   QT_VIEW_INTERNAL= (1 << 2),
-  /// If identifiers should not include database names for the current database
-  QT_ITEM_IDENT_SKIP_CURRENT_DATABASE= (1 << 3),
+  /// If identifiers should not include database names, where unambiguous
+  QT_ITEM_IDENT_SKIP_DB_NAMES= (1 << 3),
+  /// If identifiers should not include table names, where unambiguous
+  QT_ITEM_IDENT_SKIP_TABLE_NAMES= (1 << 4),
   /// If Item_cache_wrapper should not print <expr_cache>
-  QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS= (1 << 4),
+  QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS= (1 << 5),
   /// If Item_subselect should print as just "(subquery#1)"
   /// rather than display the subquery body
-  QT_ITEM_SUBSELECT_ID_ONLY= (1 << 5),
+  QT_ITEM_SUBSELECT_ID_ONLY= (1 << 6),
   /// If NULLIF(a,b) should print itself as
   /// CASE WHEN a_for_comparison=b THEN NULL ELSE a_for_return_value END
   /// when "a" was replaced to two different items
@@ -678,11 +680,11 @@ enum enum_query_type
   /// a_for_return_value is not the same as a_for_comparison.
   /// SHOW CREATE {VIEW|PROCEDURE|FUNCTION} and other cases where the
   /// original representation is required, should set this flag.
-  QT_ITEM_ORIGINAL_FUNC_NULLIF= (1 <<6),
+  QT_ITEM_ORIGINAL_FUNC_NULLIF= (1 << 7),
 
   /// This value means focus on readability, not on ability to parse back, etc.
   QT_EXPLAIN=           QT_TO_SYSTEM_CHARSET |
-                        QT_ITEM_IDENT_SKIP_CURRENT_DATABASE |
+                        QT_ITEM_IDENT_SKIP_DB_NAMES |
                         QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
                         QT_ITEM_SUBSELECT_ID_ONLY,
 

@@ -2455,16 +2455,29 @@ drop table t1,t2;
 CREATE TABLE t1 (
 id INTEGER NOT NULL AUTO_INCREMENT, PRIMARY KEY (id)
 ) ENGINE=InnoDB;
+CREATE TABLE t2 (
+id INTEGER NOT NULL,
+FOREIGN KEY (id) REFERENCES t1 (id)
+) ENGINE=InnoDB;
 INSERT INTO t1 (id) VALUES (NULL);
 SELECT * FROM t1;
 id
 1
 TRUNCATE t1;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `test`.`t1` (`id`))
 INSERT INTO t1 (id) VALUES (NULL);
 SELECT * FROM t1;
 id
 1
+2
 DELETE FROM t1;
+TRUNCATE t1;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `test`.`t1` (`id`))
+INSERT INTO t1 (id) VALUES (NULL);
+SELECT * FROM t1;
+id
+3
+DROP TABLE t2;
 TRUNCATE t1;
 INSERT INTO t1 (id) VALUES (NULL);
 SELECT * FROM t1;
@@ -2481,7 +2494,7 @@ id INT NOT NULL PRIMARY KEY,
 b INT,
 FOREIGN KEY (b) REFERENCES test.t1(id)
 ) ENGINE=InnoDB;
-Got one of the listed errors
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 DROP TABLE t1;
 create table t1 (col1 varchar(2000), index (col1(767)))
 character set = latin1 engine = innodb;
@@ -2574,7 +2587,7 @@ INSERT INTO t2 VALUES(1);
 DELETE FROM t1 WHERE id = 1;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `c1` FOREIGN KEY (`v`) REFERENCES `t1` (`id`))
 DROP TABLE t1;
-Got one of the listed errors
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `c1` FOREIGN KEY (`v`) REFERENCES `t1` (`id`))
 SET FOREIGN_KEY_CHECKS=0;
 DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=1;
@@ -3089,8 +3102,8 @@ a BIGINT(20) NOT NULL,
 b VARCHAR(128) NOT NULL,
 c TEXT NOT NULL,
 PRIMARY KEY  (a,b),
-KEY idx_t2_b_c (b,c(200)),
-CONSTRAINT t_fk FOREIGN KEY (a) REFERENCES t1 (a) 
+KEY idx_t2_b_c (b,c(100)),
+CONSTRAINT t_fk FOREIGN KEY (a) REFERENCES t1 (a)
 ON DELETE CASCADE
 ) ENGINE=INNODB DEFAULT CHARSET=UTF8;
 INSERT INTO t1 VALUES (1);

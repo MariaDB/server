@@ -1085,20 +1085,11 @@ void do_handle_bootstrap(THD *thd)
 end:
   in_bootstrap= FALSE;
   delete thd;
-  if (!opt_bootstrap)
-  {
-    /*
-      We need to wake up main thread in case of read_init_file().
-      This is not done by THD::~THD() when there are other threads running
-      (binlog background thread, for example). So do it here again.
-    */
-    mysql_mutex_lock(&LOCK_thread_count);
-    mysql_cond_broadcast(&COND_thread_count);
-    mysql_mutex_unlock(&LOCK_thread_count);
-  }
+  mysql_mutex_lock(&LOCK_thread_count);
+  mysql_cond_broadcast(&COND_thread_count);
+  mysql_mutex_unlock(&LOCK_thread_count);
 
 #ifndef EMBEDDED_LIBRARY
-  DBUG_ASSERT(!opt_bootstrap || thread_count == 0);
   my_thread_end();
   pthread_exit(0);
 #endif
@@ -4167,7 +4158,7 @@ end_with_restore_list:
     DBUG_ASSERT(select_lex->offset_limit == 0);
     unit->set_limit(select_lex);
     MYSQL_UPDATE_START(thd->query());
-    res= (up_result= mysql_update(thd, all_tables,
+    res= up_result= mysql_update(thd, all_tables,
                                   select_lex->item_list,
                                   lex->value_list,
                                   select_lex->where,
@@ -4175,7 +4166,7 @@ end_with_restore_list:
                                   select_lex->order_list.first,
                                   unit->select_limit_cnt,
                                   lex->duplicates, lex->ignore,
-                                  &found, &updated));
+                                  &found, &updated);
     MYSQL_UPDATE_DONE(res, found, updated);
     /* mysql_update return 2 if we need to switch to multi-update */
     if (up_result != 2)

@@ -2765,9 +2765,7 @@ int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name,
       {
         THD *thd= current_thd;
         if (thd)
-          my_printf_error(ER_NO_UNIQUE_LOGFILE,
-                          ER_THD(thd, ER_NO_UNIQUE_LOGFILE),
-                          MYF(ME_FATALERROR), log_name);
+          my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATALERROR), log_name);
         sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
 	return 1;
       }
@@ -5165,9 +5163,7 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
   /* handle reopening errors */
   if (error)
   {
-    my_printf_error(ER_CANT_OPEN_FILE,
-                    ER_THD_OR_DEFAULT(current_thd, ER_CANT_OPEN_FILE), 
-                    MYF(ME_FATALERROR), file_to_open, error);
+    my_error(ER_CANT_OPEN_FILE, MYF(ME_FATALERROR), file_to_open, error);
     close_on_error= TRUE;
   }
 

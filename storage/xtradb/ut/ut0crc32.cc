@@ -97,9 +97,8 @@ have support for it */
 static ib_uint32_t	ut_crc32_slice8_table[8][256];
 static ibool		ut_crc32_slice8_table_initialized = FALSE;
 
-/* Flag that tells whether the CPU supports CRC32 or not */
-UNIV_INTERN bool	ut_crc32_sse2_enabled = false;
-UNIV_INTERN bool	ut_crc32_power8_enabled = false;
+/** Text description of CRC32 implementation */
+const char *ut_crc32_implementation = NULL;
 
 /********************************************************************//**
 Initializes the table that is used to generate the CRC32 if the CPU does
@@ -213,8 +212,6 @@ ut_crc32_sse42(
 #if defined(__GNUC__) && defined(__x86_64__)
 	ib_uint64_t	crc = (ib_uint32_t) (-1);
 
-	ut_a(ut_crc32_sse2_enabled);
-
 	while (len && ((ulint) buf & 7)) {
 		ut_crc32_sse42_byte;
 	}
@@ -302,6 +299,10 @@ void
 ut_crc32_init()
 /*===========*/
 {
+	ut_crc32_slice8_table_init();
+	ut_crc32 = ut_crc32_slice8;
+	ut_crc32_implementation = "Using generic crc32 instructions";
+
 #if defined(__GNUC__) && defined(__x86_64__)
 	ib_uint32_t	vend[3];
 	ib_uint32_t	model;
@@ -329,21 +330,19 @@ ut_crc32_init()
 	probably kill your program.
 
 	*/
-#ifndef UNIV_DEBUG_VALGRIND
-	ut_crc32_sse2_enabled = (features_ecx >> 20) & 1;
-#endif /* UNIV_DEBUG_VALGRIND */
-
-#endif /* defined(__GNUC__) && defined(__x86_64__) */
-
-#ifdef HAVE_CRC32_VPMSUM
-	ut_crc32_power8_enabled = true;
-	ut_crc32 = ut_crc32_power8;
-#else
-	if (ut_crc32_sse2_enabled) {
+	if ((features_ecx >> 20) & 1) {
 		ut_crc32 = ut_crc32_sse42;
-	} else {
-		ut_crc32_slice8_table_init();
-		ut_crc32 = ut_crc32_slice8;
+		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	}
+
+#elif defined(HAVE_CRC32_VPMSUM)
+#if defined(__linux__)
+	if (getauxval(AT_HWCAP2) & PPC_FEATURE2_ARCH_2_07) {
+#endif
+		ut_crc32 = ut_crc32_power8;
+		ut_crc32_implementation = "Using POWER8 crc32 instructions";
+#if defined(__linux__)
+	}
+#endif
 #endif
 }

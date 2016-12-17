@@ -1477,6 +1477,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
   handler *save_file= file, *org_file;
   my_bool org_key_read;
   THD *thd= head->in_use;
+  MY_BITMAP * const save_vcol_set= head->vcol_set;
   MY_BITMAP * const save_read_set= head->read_set;
   MY_BITMAP * const save_write_set= head->write_set;
   DBUG_ENTER("QUICK_RANGE_SELECT::init_ror_merged_scan");
@@ -1489,7 +1490,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
     {
       DBUG_RETURN(1);
     }
-    head->column_bitmaps_set(&column_bitmap, &column_bitmap);
+    head->column_bitmaps_set(&column_bitmap, &column_bitmap, &column_bitmap);
     goto end;
   }
 
@@ -1514,7 +1515,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
     goto failure;  /* purecov: inspected */
   }
 
-  head->column_bitmaps_set(&column_bitmap, &column_bitmap);
+  head->column_bitmaps_set(&column_bitmap, &column_bitmap, &column_bitmap);
 
   if (file->ha_external_lock(thd, F_RDLCK))
     goto failure;
@@ -1568,7 +1569,7 @@ end:
   DBUG_RETURN(0);
 
 failure:
-  head->column_bitmaps_set(save_read_set, save_write_set);
+  head->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
   delete file;
   file= save_file;
   DBUG_RETURN(1);

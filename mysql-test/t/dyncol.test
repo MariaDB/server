@@ -928,6 +928,14 @@ SELECT COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL));
 --echo # Start of 10.2 tests
 --echo #
 
+#
+# Item_func_dyncol_add::print
+#
+create view v1 as select column_get(column_add(column_create(1 , 'blue' as char), 2, 'ttt'), 1 as char);
+show create view v1;
+select * from v1;
+drop view v1;
+
 --echo #
 --echo # MDEV-10134 Add full support for DEFAULT
 --echo #

@@ -94,11 +94,10 @@ int main(int argc, char **argv)
     (void) fflush(stderr);
     if ((check_param.error_printed | check_param.warning_printed) &&
 	(check_param.testflag & T_FORCE_CREATE) &&
-	(!(check_param.testflag & (T_REP | T_REP_BY_SORT | T_SORT_RECORDS |
-				   T_SORT_INDEX))))
+	(!(check_param.testflag & (T_REP_ANY | T_SORT_RECORDS | T_SORT_INDEX))))
     {
       ulonglong old_testflag=check_param.testflag;
-      if (!(check_param.testflag & T_REP))
+      if (!(check_param.testflag & T_REP_ANY))
 	check_param.testflag|= T_REP_BY_SORT;
       check_param.testflag&= ~T_EXTEND;			/* Don't needed  */
       error|=myisamchk(&check_param, argv[-1]);
@@ -820,20 +819,22 @@ static int myisamchk(HA_CHECK *param, char * filename)
   char llbuff[22],llbuff2[22];
   my_bool state_updated=0;
   MYISAM_SHARE *share;
+  int open_mode;
+  uint open_flags= HA_OPEN_FOR_REPAIR;
   DBUG_ENTER("myisamchk");
 
   param->out_flag=error=param->warning_printed=param->error_printed=
     recreate=0;
   datafile=0;
   param->isam_file_name=filename;		/* For error messages */
-  if (!(info=mi_open(filename,
-		     (param->testflag & (T_DESCRIPT | T_READONLY)) ?
-		     O_RDONLY : O_RDWR,
-		     HA_OPEN_FOR_REPAIR |
-		     ((param->testflag & T_WAIT_FOREVER) ?
-		      HA_OPEN_WAIT_IF_LOCKED :
-		      (param->testflag & T_DESCRIPT) ?
-		      HA_OPEN_IGNORE_IF_LOCKED : HA_OPEN_ABORT_IF_LOCKED))))
+  open_mode= param->testflag & (T_DESCRIPT | T_READONLY) ? O_RDONLY : O_RDWR;
+  if (param->testflag & T_WAIT_FOREVER)
+    open_flags|= HA_OPEN_WAIT_IF_LOCKED;
+  else if (param->testflag & T_DESCRIPT)
+    open_flags|= HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_FROM_SQL_LAYER;
+  else
+    open_flags|= HA_OPEN_ABORT_IF_LOCKED;
+  if (!(info=mi_open(filename, open_mode, open_flags)))
   {
     /* Avoid twice printing of isam file name */
     param->error_printed=1;
@@ -1067,7 +1068,7 @@ static int myisamchk(HA_CHECK *param, char * filename)
 
 	  error=mi_sort_records(param,info,filename,param->opt_sort_key,
                              /* what is the following parameter for ? */
-				(my_bool) !(param->testflag & T_REP),
+				(my_bool) !(param->testflag & T_REP_ANY),
 				update_index);
 	  datafile=info->dfile;	/* This is now locked */
 	  if (!error && !update_index)

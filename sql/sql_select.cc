@@ -1466,6 +1466,7 @@ JOIN::optimize_inner()
   
   /* Calculate how to do the join */
   THD_STAGE_INFO(thd, stage_statistics);
+  result->prepare_to_read_rows();
   if (make_join_statistics(this, select_lex->leaf_tables, &keyuse) ||
       thd->is_fatal_error)
   {
@@ -1926,7 +1927,7 @@ JOIN::optimize_inner()
   /*
     It's necessary to check const part of HAVING cond as
     there is a chance that some cond parts may become
-    const items after make_join_statisctics(for example
+    const items after make_join_statistics(for example
     when Item is a reference to cost table field from
     outer join).
     This check is performed only for those conditions
@@ -7490,7 +7491,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
    if (!s->keyuse)
     return sel;
 
- Item_equal *item_equal;
+  Item_equal *item_equal;
   List_iterator_fast<Item_equal> it(cond_equal->current_level);
   TABLE *table= s->table;
   table_map table_bit= table->map;
@@ -16338,7 +16339,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->in_use= thd;
   table->quick_keys.init();
   table->covering_keys.init();
-  table->merge_keys.init();
   table->intersect_keys.init();
   table->keys_in_use_for_query.init();
   table->no_rows_with_nulls= param->force_not_null_cols;
@@ -17133,7 +17133,7 @@ bool open_tmp_table(TABLE *table)
     table->db_stat= 0;
     return 1;
   }
-  table->db_stat= HA_OPEN_KEYFILE+HA_OPEN_RNDFILE;
+  table->db_stat= HA_OPEN_KEYFILE;
   (void) table->file->extra(HA_EXTRA_QUICK); /* Faster */
   if (!table->is_created())
   {
@@ -18443,9 +18443,6 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
 
   join_tab->tracker->r_rows++;
 
-  if (join_tab->table->vfield)
-    update_virtual_fields(join->thd, join_tab->table);
-
   if (select_cond)
   {
     select_cond_result= MY_TEST(select_cond->val_int());
@@ -18896,8 +18893,6 @@ join_read_system(JOIN_TAB *tab)
       empty_record(table);			// Make empty record
       return -1;
     }
-    if (table->vfield)
-      update_virtual_fields(tab->join->thd, table);
     store_record(table,record[1]);
   }
   else if (!table->status)			// Only happens with left join
@@ -18943,8 +18938,6 @@ join_read_const(JOIN_TAB *tab)
 	return report_error(table, error);
       return -1;
     }
-    if (table->vfield)
-      update_virtual_fields(tab->join->thd, table);
     store_record(table,record[1]);
   }
   else if (!(table->status & ~STATUS_NULL_ROW))	// Only happens with left join

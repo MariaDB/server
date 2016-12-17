@@ -411,7 +411,6 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
     }
     else
     {
-      (*tables)->db_stat &= ~ HA_BLOCK_LOCK;
       (*tables)->current_lock= lock_type;
     }
   }

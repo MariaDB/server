@@ -134,8 +134,7 @@ static void my_parse_error_intern(THD *thd, const char *err_text,
   /* Push an error into the error stack */
   ErrConvString err(yytext, strlen(yytext),
                     thd->variables.character_set_client);
-  my_printf_error(ER_PARSE_ERROR,  ER_THD(thd, ER_PARSE_ERROR), MYF(0),
-                  err_text, err.ptr(), lip->yylineno);
+  my_error(ER_PARSE_ERROR, MYF(0), err_text, err.ptr(), lip->yylineno);
 }
 
 
@@ -862,28 +861,15 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
        MYSQL_YYABORT;                   \
   } while(0)
 
-Virtual_column_info *add_virtual_expression(THD *thd, const char *txt,
-                                           size_t size, Item *expr)
+Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 {
-  CHARSET_INFO *cs= thd->charset();
   Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
   if (!v)
   {
      mem_alloc_error(sizeof(Virtual_column_info));
      return 0;
    }
-   /*
-     We have to remove white space as remember_cur_pos may have pointed to end
-     of previous expression.
-   */
-   while (cs->state_map[*(uchar*)txt] == MY_LEX_SKIP)
-   {
-     txt++;
-     size--;
-   }
-   v->expr_str.str= (char* ) thd->strmake(txt, size);
-   v->expr_str.length= size;
-   v->expr_item= expr;
+   v->expr= expr;
    v->utf8= 0;  /* connection charset */
    return v;
 }
@@ -953,7 +939,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, const char *txt,
   enum enum_diag_condition_item_name diag_condition_item_name;
   enum Diagnostics_information::Which_area diag_area;
   enum Field::geometry_type geom_type;
-  enum Foreign_key::fk_option m_fk_option;
+  enum enum_fk_option m_fk_option;
   enum Item_udftype udf_type;
   enum Key::Keytype key_type;
   enum Statement_information_item::Name stmt_info_item_name;
@@ -1634,7 +1620,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  UPDATE_SYM                    /* SQL-2003-R */
 %token  UPGRADE_SYM
 %token  USAGE                         /* SQL-2003-N */
-%token  USER                          /* SQL-2003-R */
+%token  USER_SYM                      /* SQL-2003-R */
 %token  USE_FRM
 %token  USE_SYM
 %token  USING                         /* SQL-2003-R */
@@ -1713,7 +1699,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_ident_opt_wild create_like
 
 %type <simple_string>
-        remember_name remember_end opt_db remember_tok_start remember_cur_pos
+        remember_name remember_end opt_db remember_tok_start
         wild_and_where
         field_length opt_field_length opt_field_length_default_1
 
@@ -1957,7 +1943,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         definer_opt no_definer definer get_diagnostics
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
-        explainable_command opt_impossible_action
+        explainable_command
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -2583,7 +2569,7 @@ create:
             Lex->create_view_suid= TRUE;
           }
           view_or_trigger_or_sp_or_event { }
-        | create_or_replace USER opt_if_not_exists clear_privileges grant_list
+        | create_or_replace USER_SYM opt_if_not_exists clear_privileges grant_list
           opt_require_clause opt_resource_options
           {
             if (Lex->set_command_with_check(SQLCOM_CREATE_USER, $1 | $3))
@@ -2626,7 +2612,7 @@ server_options_list:
         ;
 
 server_option:
-          USER TEXT_STRING_sys
+          USER_SYM TEXT_STRING_sys
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.username.str == 0);
             Lex->server_options.username= $2;
@@ -6069,10 +6055,10 @@ opt_check_constraint:
         ;
 
 check_constraint:
-          CHECK_SYM '(' remember_name expr remember_end ')'
+          CHECK_SYM '(' expr ')'
           {
             Virtual_column_info *v=
-              add_virtual_expression(thd, $3+1, (uint)($5 - $3) - 1, $4);
+              add_virtual_expression(thd, $3);
             if (!v)
             {
               MYSQL_YYABORT;
@@ -6183,7 +6169,7 @@ vcol_attribute:
         ;
 
 parse_vcol_expr:
-          PARSE_VCOL_EXPR_SYM virtual_column_func
+          PARSE_VCOL_EXPR_SYM
           {
             /*
               "PARSE_VCOL_EXPR" can only be used by the SQL server
@@ -6191,7 +6177,13 @@ parse_vcol_expr:
               Prevent the end user from invoking this command.
             */
             MYSQL_YYABORT_UNLESS(Lex->parse_vcol_expr);
-            Lex->last_field->vcol_info= $2;
+          }
+          expr
+          {
+            Virtual_column_info *v= add_virtual_expression(thd, $3);
+            if (!v)
+              MYSQL_YYABORT;
+            Lex->last_field->vcol_info= v;
           }
         ;
 
@@ -6213,10 +6205,10 @@ parenthesized_expr:
           ;
 
 virtual_column_func:
-          '(' remember_cur_pos parenthesized_expr remember_end ')'
+          '(' parenthesized_expr ')'
           {
             Virtual_column_info *v=
-              add_virtual_expression(thd, $2, (uint)($4 - $2), $3);
+              add_virtual_expression(thd, $2);
             if (!v)
             {
               MYSQL_YYABORT;
@@ -6229,18 +6221,12 @@ expr_or_literal: column_default_non_parenthesized_expr | signed_literal ;
 
 column_default_expr:
           virtual_column_func
-        | remember_name expr_or_literal opt_impossible_action remember_end
+        | expr_or_literal
           {
-            if (!($$= add_virtual_expression(thd, $1, (uint) ($4- $1), $2)))
+            if (!($$= add_virtual_expression(thd, $1)))
               MYSQL_YYABORT;
           }
         ;
-
-/* This is to force remember_end to look at next token */
-opt_impossible_action:
-        IMPOSSIBLE_ACTION {}
-        | /* empty */ {}
-
 
 field_type:
           int_type opt_field_length field_options { $$.set($1, $2); }
@@ -6825,19 +6811,19 @@ opt_on_update_delete:
           /* empty */
           {
             LEX *lex= Lex;
-            lex->fk_update_opt= Foreign_key::FK_OPTION_UNDEF;
-            lex->fk_delete_opt= Foreign_key::FK_OPTION_UNDEF;
+            lex->fk_update_opt= FK_OPTION_UNDEF;
+            lex->fk_delete_opt= FK_OPTION_UNDEF;
           }
         | ON UPDATE_SYM delete_option
           {
             LEX *lex= Lex;
             lex->fk_update_opt= $3;
-            lex->fk_delete_opt= Foreign_key::FK_OPTION_UNDEF;
+            lex->fk_delete_opt= FK_OPTION_UNDEF;
           }
         | ON DELETE_SYM delete_option
           {
             LEX *lex= Lex;
-            lex->fk_update_opt= Foreign_key::FK_OPTION_UNDEF;
+            lex->fk_update_opt= FK_OPTION_UNDEF;
             lex->fk_delete_opt= $3;
           }
         | ON UPDATE_SYM delete_option
@@ -6857,11 +6843,11 @@ opt_on_update_delete:
         ;
 
 delete_option:
-          RESTRICT      { $$= Foreign_key::FK_OPTION_RESTRICT; }
-        | CASCADE       { $$= Foreign_key::FK_OPTION_CASCADE; }
-        | SET NULL_SYM  { $$= Foreign_key::FK_OPTION_SET_NULL; }
-        | NO_SYM ACTION { $$= Foreign_key::FK_OPTION_NO_ACTION; }
-        | SET DEFAULT   { $$= Foreign_key::FK_OPTION_DEFAULT;  }
+          RESTRICT      { $$= FK_OPTION_RESTRICT; }
+        | CASCADE       { $$= FK_OPTION_CASCADE; }
+        | SET NULL_SYM  { $$= FK_OPTION_SET_NULL; }
+        | NO_SYM ACTION { $$= FK_OPTION_NO_ACTION; }
+        | SET DEFAULT   { $$= FK_OPTION_SET_DEFAULT; }
         ;
 
 constraint_key_type:
@@ -7237,7 +7223,7 @@ alter:
             lex->server_options.reset($3);
           } OPTIONS_SYM '(' server_options_list ')' { }
           /* ALTER USER foo is allowed for MySQL compatibility. */
-        | ALTER opt_if_exists USER clear_privileges grant_list
+        | ALTER opt_if_exists USER_SYM clear_privileges grant_list
           opt_require_clause opt_resource_options
           {
             Lex->create_info.set($2);
@@ -8190,7 +8176,7 @@ rename:
           }
           table_to_table_list
           {}
-        | RENAME USER clear_privileges rename_list
+        | RENAME USER_SYM clear_privileges rename_list
           {
             Lex->sql_command = SQLCOM_RENAME_USER;
           }
@@ -8696,12 +8682,6 @@ remember_tok_start:
           }
         ;
 
-remember_cur_pos:
-          {
-            $$= (char*) YYLIP->get_cpp_ptr();
-          }
-        ;
-
 remember_name:
           {
             $$= (char*) YYLIP->get_cpp_tok_start();
@@ -8964,8 +8944,7 @@ predicate:
             Item_func_in *item= new (thd->mem_root) Item_func_in(thd, *$7);
             if (item == NULL)
               MYSQL_YYABORT;
-            item->negate();
-            $$= item;
+            $$= item->neg_transformer(thd);
           }
         | bit_expr BETWEEN_SYM bit_expr AND_SYM predicate
           {
@@ -8979,8 +8958,7 @@ predicate:
             item= new (thd->mem_root) Item_func_between(thd, $1, $4, $6);
             if (item == NULL)
               MYSQL_YYABORT;
-            item->negate();
-            $$= item;
+            $$= item->neg_transformer(thd);
           }
         | bit_expr SOUNDS_SYM LIKE bit_expr
           {
@@ -9005,9 +8983,7 @@ predicate:
                                                              Lex->escape_used);
             if (item == NULL)
               MYSQL_YYABORT;
-            $$= new (thd->mem_root) Item_func_not(thd, item);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
+            $$= item->neg_transformer(thd);
           }
         | bit_expr REGEXP bit_expr
           {
@@ -9604,7 +9580,7 @@ function_call_keyword:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | USER '(' ')'
+        | USER_SYM '(' ')'
           {
             $$= new (thd->mem_root) Item_func_user(thd);
             if ($$ == NULL)
@@ -9970,15 +9946,7 @@ function_call_conflict:
           }
         | WEEK_SYM '(' expr ')'
           {
-            Item *i1;
-            LEX_STRING name= {C_STRING_WITH_LEN("default_week_format")};
-            if (!(i1= get_system_var(thd, OPT_SESSION,
-                                     name, null_lex_str)))
-              MYSQL_YYABORT;
-            i1->set_name(thd, (const char *)
-                         STRING_WITH_LEN("@@default_week_format"),
-                         system_charset_info);
-            $$= new (thd->mem_root) Item_func_week(thd, $3, i1);
+            $$= new (thd->mem_root) Item_func_week(thd, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -12147,7 +12115,7 @@ drop:
             lex->set_command(SQLCOM_DROP_PROCEDURE, $3);
             lex->spname= $4;
           }
-        | DROP USER opt_if_exists clear_privileges user_list
+        | DROP USER_SYM opt_if_exists clear_privileges user_list
           {
             Lex->set_command(SQLCOM_DROP_USER, $3);
           }
@@ -12997,14 +12965,14 @@ show_param:
             lex->sql_command= SQLCOM_SHOW_CREATE_TRIGGER;
             lex->spname= $3;
           }
-        | CREATE USER
+        | CREATE USER_SYM
           {
             Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
             if (!(Lex->grant_user= (LEX_USER*)thd->alloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user;
           }
-        | CREATE USER user
+        | CREATE USER_SYM user
           {
              Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
              Lex->grant_user= $3;
@@ -13450,7 +13418,7 @@ kill_expr:
         {
           Lex->value_list.push_front($$, thd->mem_root);
          }
-        | USER user
+        | USER_SYM user
           {
             Lex->users_list.push_back($2, thd->mem_root);
             Lex->kill_type= KILL_TYPE_USER;
@@ -14870,7 +14838,7 @@ keyword_sp:
         | UNDOFILE_SYM             {}
         | UNKNOWN_SYM              {}
         | UNTIL_SYM                {}
-        | USER                     {}
+        | USER_SYM                 {}
         | USE_FRM                  {}
         | VARIABLES                {}
         | VIEW_SYM                 {}
@@ -15775,7 +15743,7 @@ object_privilege:
         | SHOW VIEW_SYM           { Lex->grant |= SHOW_VIEW_ACL; }
         | CREATE ROUTINE_SYM      { Lex->grant |= CREATE_PROC_ACL; }
         | ALTER ROUTINE_SYM       { Lex->grant |= ALTER_PROC_ACL; }
-        | CREATE USER             { Lex->grant |= CREATE_USER_ACL; }
+        | CREATE USER_SYM         { Lex->grant |= CREATE_USER_ACL; }
         | EVENT_SYM               { Lex->grant |= EVENT_ACL;}
         | TRIGGER_SYM             { Lex->grant |= TRIGGER_ACL; }
         | CREATE TABLESPACE       { Lex->grant |= CREATE_TABLESPACE_ACL; }

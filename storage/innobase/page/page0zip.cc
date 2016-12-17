@@ -4805,10 +4805,8 @@ page_zip_copy_recs(
 	dict_index_t*		index,		/*!< in: index of the B-tree */
 	mtr_t*			mtr)		/*!< in: mini-transaction */
 {
-	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX)
-	      || dict_table_is_intrinsic(index->table));
-	ut_ad(mtr_memo_contains_page(mtr, src, MTR_MEMO_PAGE_X_FIX)
-	      || dict_table_is_intrinsic(index->table));
+	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(mtr_memo_contains_page(mtr, src, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_ibuf(index));
 #ifdef UNIV_ZIP_DEBUG
 	/* The B-tree operations that call this function may set
@@ -5243,13 +5241,15 @@ page_zip_verify_checksum(
 
 		const uint32_t calculated = page_zip_calc_checksum(
 			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
-		const uint32_t calculated1 = page_zip_calc_checksum(
-			data, size, SRV_CHECKSUM_ALGORITHM_CRC32, true);
+		uint32_t calculated1;
 
 		if (stored == calculated
-		    || stored == calculated1
 #ifdef UNIV_INNOCHECKSUM
 		    || ( encrypted == true && checksum == calculated)
+#endif
+		    || stored == (calculated1 = 
+					page_zip_calc_checksum(data, size, SRV_CHECKSUM_ALGORITHM_CRC32, true))
+#ifdef UNIV_INNOCHECKSUM
 		    || ( encrypted == true && checksum == calculated1)
 #endif
 		) {

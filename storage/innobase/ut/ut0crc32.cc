@@ -2,6 +2,7 @@
 
 Copyright (c) 2009, 2010 Facebook, Inc. All Rights Reserved.
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -82,6 +83,12 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "my_config.h"
 #include <string.h>
 
+#if defined(__linux__) && defined(HAVE_CRC32_VPMSUM)
+/* Used to detect at runtime if we have vpmsum instructions (PowerISA 2.07) */
+#include <sys/auxv.h>
+#include <bits/hwcap.h>
+#endif
+
 #include "univ.i"
 #include "ut0crc32.h"
 
@@ -95,6 +102,9 @@ ut_crc32_func_t	ut_crc32_legacy_big_endian;
 /** Pointer to CRC32-byte-by-byte calculation function (byte order agnostic,
 but very slow). */
 ut_crc32_func_t	ut_crc32_byte_by_byte;
+
+/** Text description of CRC32 implementation */
+const char*	ut_crc32_implementation;
 
 /** Swap the byte order of an 8 byte integer.
 @param[in]	i	8-byte integer
@@ -115,10 +125,6 @@ ut_crc32_swap_byteorder(
 }
 
 /* CRC32 hardware implementation. */
-
-/* Flag that tells whether the CPU supports CRC32 or not */
-bool	ut_crc32_sse2_enabled = false;
-UNIV_INTERN bool	ut_crc32_power8_enabled = false;
 
 #ifdef HAVE_CRC32_VPMSUM
 extern "C" {
@@ -284,8 +290,6 @@ ut_crc32_hw(
 {
 	uint32_t	crc = 0xFFFFFFFFU;
 
-	ut_a(ut_crc32_sse2_enabled);
-
 	/* Calculate byte-by-byte up to an 8-byte aligned address. After
 	this consume the input 8-bytes at a time. */
 	while (len > 0 && (reinterpret_cast<uintptr_t>(buf) & 7) != 0) {
@@ -375,8 +379,6 @@ ut_crc32_legacy_big_endian_hw(
 {
 	uint32_t	crc = 0xFFFFFFFFU;
 
-	ut_a(ut_crc32_sse2_enabled);
-
 	/* Calculate byte-by-byte up to an 8-byte aligned address. After
 	this consume the input 8-bytes at a time. */
 	while (len > 0 && (reinterpret_cast<uintptr_t>(buf) & 7) != 0) {
@@ -427,8 +429,6 @@ ut_crc32_byte_by_byte_hw(
 {
 	uint32_t	crc = 0xFFFFFFFFU;
 
-	ut_a(ut_crc32_sse2_enabled);
-
 	while (len > 0) {
 		ut_crc32_8_hw(&crc, &buf, &len);
 	}
@@ -452,7 +452,6 @@ void
 ut_crc32_slice8_table_init()
 /*========================*/
 {
-#ifndef HAVE_CRC32_VPMSUM
 	/* bit-reversed poly 0x1EDC6F41 (from SSE42 crc32 instruction) */
 	static const uint32_t	poly = 0x82f63b78;
 	uint32_t		n;
@@ -476,7 +475,6 @@ ut_crc32_slice8_table_init()
 	}
 
 	ut_crc32_slice8_table_initialized = true;
-#endif
 }
 
 /** Calculate CRC32 over 8-bit data using a software implementation.
@@ -706,6 +704,12 @@ void
 ut_crc32_init()
 /*===========*/
 {
+	ut_crc32_slice8_table_init();
+	ut_crc32 = ut_crc32_sw;
+	ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_sw;
+	ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_sw;
+	ut_crc32_implementation = "Using generic crc32 instructions";
+
 #if defined(__GNUC__) && defined(__x86_64__)
 	uint32_t	vend[3];
 	uint32_t	model;
@@ -733,27 +737,23 @@ ut_crc32_init()
 	probably kill your program.
 
 	*/
-#ifndef UNIV_DEBUG_VALGRIND
-	ut_crc32_sse2_enabled = (features_ecx >> 20) & 1;
-#endif /* UNIV_DEBUG_VALGRIND */
 
-	if (ut_crc32_sse2_enabled) {
+	if (features_ecx & 1 << 20) {
 		ut_crc32 = ut_crc32_hw;
 		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
 		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_hw;
+		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	}
 
-#endif /* defined(__GNUC__) && defined(__x86_64__) */
-
-#ifdef HAVE_CRC32_VPMSUM
-	ut_crc32_power8_enabled = true;
-	ut_crc32 = ut_crc32_power8;
+#elif defined(HAVE_CRC32_VPMSUM)
+#if defined(__linux__)
+	if (getauxval(AT_HWCAP2) & PPC_FEATURE2_ARCH_2_07) {
+#endif
+		ut_crc32 = ut_crc32_power8;
+		ut_crc32_implementation = "Using POWER8 crc32 instructions";
+#if defined(__linux__)
+	}
+#endif
 #endif
 
-	if (!ut_crc32_sse2_enabled && !ut_crc32_power8_enabled) {
-		ut_crc32_slice8_table_init();
-		ut_crc32 = ut_crc32_sw;
-		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_sw;
-		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_sw;
-	}
 }

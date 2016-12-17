@@ -149,7 +149,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
   "f1" int(11) NOT NULL AUTO_INCREMENT,
-  "f2" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  "f2" timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY ("f1")
 )
 set session sql_mode=no_field_options;
@@ -157,7 +157,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
-  `f2` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `f2` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`f1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;

@@ -569,6 +569,24 @@ uint Item::temporal_precision(enum_field_types type_arg)
 }
 
 
+void Item::print_parenthesised(String *str, enum_query_type query_type,
+                               enum precedence parent_prec)
+{
+  bool need_parens= precedence() < parent_prec;
+  if (need_parens)
+    str->append('(');
+  print(str, query_type);
+  if (need_parens)
+    str->append(')');
+}
+
+
+void Item::print(String *str, enum_query_type query_type)
+{
+  str->append(full_name());
+}
+
+
 void Item::print_item_w_name(String *str, enum_query_type query_type)
 {
   print(str, query_type);
@@ -901,17 +919,15 @@ bool Item_field::find_item_in_field_list_processor(void *arg)
 bool Item_field::register_field_in_read_map(void *arg)
 {
   TABLE *table= (TABLE *) arg;
+  int res= 0;
+  if (field->vcol_info &&
+      !bitmap_fast_test_and_set(field->table->vcol_set, field->field_index))
+  {
+    res= field->vcol_info->expr->walk(&Item::register_field_in_read_map,1,arg);
+  }
   if (field->table == table || !table)
     bitmap_set_bit(field->table->read_set, field->field_index);
-  if (field->vcol_info &&
-      !bitmap_is_set(field->table->vcol_set, field->field_index))
-  {
-    /* Ensure that the virtual fields is updated on read or write */
-    bitmap_set_bit(field->table->vcol_set, field->field_index);
-    return field->vcol_info->expr_item->walk(&Item::register_field_in_read_map,
-                                             1, arg);
-  }
-  return 0;
+  return res;
 }
 
 /*
@@ -950,7 +966,8 @@ bool Item_field::register_field_in_write_map(void *arg)
   - All fields that have default value as a constant are initialized first.
   - Then user-specified values from the INSERT list
   - Then all fields that has a default expression, in field_index order.
-  - Last all virtual fields, in field_index order.
+  - Then all virtual fields, in field_index order.
+  - Then auto-increment values
 
   This means:
   - For default fields we can't access the same field or a field after
@@ -958,6 +975,7 @@ bool Item_field::register_field_in_write_map(void *arg)
   - A virtual fields can't access itself or a virtual field after itself.
   - user-specified values will not see virtual fields or default expressions,
     as in INSERT t1 (a) VALUES (b);
+  - no virtual fields can access auto-increment values
 
   This is used by fix_vcol_expr() when a table is opened
 
@@ -967,11 +985,18 @@ bool Item_field::register_field_in_write_map(void *arg)
 
 bool Item_field::check_field_expression_processor(void *arg)
 {
+  Field *org_field= (Field*) arg;
   if (field->flags & NO_DEFAULT_VALUE_FLAG)
     return 0;
+  if (field->flags & AUTO_INCREMENT_FLAG)
+  {
+      my_error(ER_EXPRESSION_REFERS_TO_UNINIT_FIELD,
+               MYF(0),
+               org_field->field_name, field->field_name);
+      return 1;
+  }
   if ((field->default_value && field->default_value->flags) || field->vcol_info)
   {
-    Field *org_field= (Field*) arg;
     if (field == org_field ||
         (!org_field->vcol_info && field->vcol_info) ||
         (((field->vcol_info && org_field->vcol_info) ||
@@ -983,6 +1008,18 @@ bool Item_field::check_field_expression_processor(void *arg)
                org_field->field_name, field->field_name);
       return 1;
     }
+  }
+  return 0;
+}
+
+bool Item_field::update_vcol_processor(void *arg)
+{
+  MY_BITMAP *map= (MY_BITMAP *) arg;
+  if (field->vcol_info &&
+      !bitmap_fast_test_and_set(map, field->field_index))
+  {
+    field->vcol_info->expr->walk(&Item::update_vcol_processor, 0, arg);
+    field->vcol_info->expr->save_in_field(field, 0);
   }
   return 0;
 }
@@ -2619,16 +2656,50 @@ void Item_ident::print(String *str, enum_query_type query_type)
   THD *thd= current_thd;
   char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
   const char *d_name= db_name, *t_name= table_name;
+  bool use_table_name= table_name && table_name[0];
+  bool use_db_name= use_table_name && db_name && db_name[0] && !alias_name_used;
+
+  if (use_db_name && (query_type & QT_ITEM_IDENT_SKIP_DB_NAMES))
+    use_db_name= !thd->db || strcmp(thd->db, db_name);
+
+  if (use_db_name)
+    use_db_name= !(cached_table && cached_table->belong_to_view &&
+                   cached_table->belong_to_view->compact_view_format);
+
+  if (!use_db_name && use_table_name &&
+      (query_type & QT_ITEM_IDENT_SKIP_TABLE_NAMES))
+  {
+    /*
+      Don't print the table name if it's the only table in the context
+      XXX technically, that's a sufficient, but too strong condition
+    */
+    if (!context)
+      use_table_name= false;
+    else if (context->outer_context)
+      use_table_name= true;
+    else if (context->last_name_resolution_table == context->first_name_resolution_table)
+      use_table_name= false;
+    else if (!context->last_name_resolution_table &&
+             !context->first_name_resolution_table->next_name_resolution_table)
+      use_table_name= false;
+  }
+
+  if (!field_name || !field_name[0])
+  {
+    append_identifier(thd, str, STRING_WITH_LEN("tmp_field"));
+    return;
+  }
+
   if (lower_case_table_names== 1 ||
       (lower_case_table_names == 2 && !alias_name_used))
   {
-    if (table_name && table_name[0])
+    if (use_table_name)
     {
       strmov(t_name_buff, table_name);
       my_casedn_str(files_charset_info, t_name_buff);
       t_name= t_name_buff;
     }
-    if (db_name && db_name[0])
+    if (use_db_name)
     {
       strmov(d_name_buff, db_name);
       my_casedn_str(files_charset_info, d_name_buff);
@@ -2636,43 +2707,18 @@ void Item_ident::print(String *str, enum_query_type query_type)
     }
   }
 
-  if (!table_name || !field_name || !field_name[0])
+  if (use_db_name)
   {
-    const char *nm= (field_name && field_name[0]) ?
-                      field_name : name ? name : "tmp_field";
-    append_identifier(thd, str, nm, (uint) strlen(nm));
-    return;
-  }
-  if (db_name && db_name[0] && !alias_name_used)
-  {
-    /* 
-      When printing EXPLAIN, don't print database name when it's the same as
-      current database.
-    */
-    bool skip_db= (query_type & QT_ITEM_IDENT_SKIP_CURRENT_DATABASE) &&
-                   thd->db && !strcmp(thd->db, db_name);
-    if (!skip_db && 
-        !(cached_table && cached_table->belong_to_view &&
-          cached_table->belong_to_view->compact_view_format))
-    {
-      append_identifier(thd, str, d_name, (uint)strlen(d_name));
-      str->append('.');
-    }
-    append_identifier(thd, str, t_name, (uint)strlen(t_name));
+    append_identifier(thd, str, d_name, (uint)strlen(d_name));
     str->append('.');
-    append_identifier(thd, str, field_name, (uint)strlen(field_name));
+    DBUG_ASSERT(use_table_name);
   }
-  else
+  if (use_table_name)
   {
-    if (table_name[0])
-    {
-      append_identifier(thd, str, t_name, (uint) strlen(t_name));
-      str->append('.');
-      append_identifier(thd, str, field_name, (uint) strlen(field_name));
-    }
-    else
-      append_identifier(thd, str, field_name, (uint) strlen(field_name));
+    append_identifier(thd, str, t_name, (uint) strlen(t_name));
+    str->append('.');
   }
+  append_identifier(thd, str, field_name, (uint) strlen(field_name));
 }
 
 /* ARGSUSED */
@@ -5548,6 +5594,14 @@ bool Item_field::vcol_in_partition_func_processor(void *int_arg)
   return FALSE;
 }
 
+bool Item_field::check_valid_arguments_processor(void *bool_arg)
+{
+  Virtual_column_info *vcol= field->vcol_info;
+  if (!vcol)
+    return FALSE;
+  return vcol->expr->walk(&Item::check_partition_func_processor, 0, NULL)
+      || vcol->expr->walk(&Item::check_valid_arguments_processor, 0, NULL);
+}
 
 void Item_field::cleanup()
 {
@@ -8622,7 +8676,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   {
     fix_session_vcol_expr_for_read(thd, field, field->default_value);
     if (thd->mark_used_columns != MARK_COLUMNS_NONE)
-      field->default_value->expr_item->walk(&Item::register_field_in_read_map, 1, 0);
+      field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
     IF_DBUG(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
   }
   return FALSE;
@@ -9325,6 +9379,17 @@ int Item_cache_int::save_in_field(Field *field, bool no_conversions)
 }
 
 
+Item *Item_cache_int::convert_to_basic_const_item(THD *thd)
+{
+  Item *new_item;
+  DBUG_ASSERT(value_cached || example != 0);
+  new_item= null_value ?
+            (Item*) new (thd->mem_root) Item_null(thd) :
+	    (Item*) new (thd->mem_root) Item_int(thd, val_int(), max_length);
+  return new_item;
+} 
+
+
 Item_cache_temporal::Item_cache_temporal(THD *thd,
                                          enum_field_types field_type_arg):
   Item_cache_int(thd, field_type_arg)
@@ -9480,6 +9545,23 @@ Item *Item_cache_temporal::clone_item(THD *thd)
 }
 
 
+Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
+{
+  Item *new_item;
+  DBUG_ASSERT(value_cached || example != 0);
+  if (null_value)
+    new_item= (Item*) new (thd->mem_root) Item_null(thd);
+  else
+  {
+    MYSQL_TIME ltime;
+    unpack_time(val_datetime_packed(), &ltime);
+    new_item= (Item*) new (thd->mem_root) Item_datetime_literal(thd, &ltime,
+                                                                decimals);
+  }
+  return new_item;
+}
+
+
 bool Item_cache_real::cache_value()
 {
   if (!example)
@@ -9526,6 +9608,18 @@ my_decimal *Item_cache_real::val_decimal(my_decimal *decimal_val)
   double2my_decimal(E_DEC_FATAL_ERROR, value, decimal_val);
   return decimal_val;
 }
+
+
+Item *Item_cache_real::convert_to_basic_const_item(THD *thd)
+{
+  Item *new_item;
+  DBUG_ASSERT(value_cached || example != 0);
+  new_item= null_value ?
+            (Item*) new (thd->mem_root) Item_null(thd) :
+	    (Item*) new (thd->mem_root) Item_float(thd, val_real(),
+                                                   decimals);
+  return new_item;
+} 
 
 
 bool Item_cache_decimal::cache_value()
@@ -9577,6 +9671,19 @@ my_decimal *Item_cache_decimal::val_decimal(my_decimal *val)
     return NULL;
   return &decimal_value;
 }
+
+
+Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
+{
+  Item *new_item;
+  my_decimal decimal_value;
+  my_decimal *result= val_decimal(&decimal_value);
+  DBUG_ASSERT(value_cached || example != 0);
+  new_item= null_value ?
+            (Item*) new (thd->mem_root) Item_null(thd) :
+	    (Item*) new (thd->mem_root) Item_decimal(thd, result);
+  return new_item;
+} 
 
 
 bool Item_cache_str::cache_value()
@@ -9655,6 +9762,26 @@ bool Item_cache_row::allocate(THD *thd, uint num)
   item_count= num;
   return (!(values= 
 	    (Item_cache **) thd->calloc(sizeof(Item_cache *)*item_count)));
+}
+
+
+Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
+{
+  Item *new_item;
+  char buff[MAX_FIELD_WIDTH];
+  String tmp(buff, sizeof(buff), value->charset());
+  String *result= val_str(&tmp);
+  DBUG_ASSERT(value_cached || example != 0);
+  if (null_value)
+    new_item= (Item*) new (thd->mem_root) Item_null(thd);
+  else
+  {
+    uint length= result->length();
+    char *tmp_str= thd->strmake(result->ptr(), length);
+    new_item= new (thd->mem_root) Item_string(thd, tmp_str, length,
+                                              result->charset());
+  }
+  return new_item;
 }
 
 
@@ -9958,12 +10085,12 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     if (collation.collation != &my_charset_bin)
     {
       max_length= MY_MAX(old_max_chars * collation.collation->mbmaxlen,
-                      display_length(item) /
+                      item->max_display_length() /
                       item->collation.collation->mbmaxlen *
                       collation.collation->mbmaxlen);
     }
     else
-      set_if_bigger(max_length, display_length(item));
+      set_if_bigger(max_length, item->max_display_length());
     break;
   }
   case REAL_RESULT:
@@ -10000,7 +10127,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     break;
   }
   default:
-    max_length= MY_MAX(max_length, display_length(item));
+    max_length= MY_MAX(max_length, item->max_display_length());
   };
   maybe_null|= item->maybe_null;
   get_full_info(item);
@@ -10010,64 +10137,6 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   DBUG_PRINT("info", ("become type: %d  len: %u  dec: %u",
                       (int) real_field_type(), max_length, (uint) decimals));
   DBUG_RETURN(FALSE);
-}
-
-/**
-  Calculate lenth for merging result for given Item type.
-
-  @param item  Item for length detection
-
-  @return
-    length
-*/
-
-uint32 Item_type_holder::display_length(Item *item)
-{
-  if (item->type() == Item::FIELD_ITEM)
-    return ((Item_field *)item)->max_disp_length();
-
-  switch (item->field_type())
-  {
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_TIMESTAMP:
-  case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_YEAR:
-  case MYSQL_TYPE_NEWDATE:
-  case MYSQL_TYPE_VARCHAR:
-  case MYSQL_TYPE_BIT:
-  case MYSQL_TYPE_NEWDECIMAL:
-  case MYSQL_TYPE_ENUM:
-  case MYSQL_TYPE_SET:
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-  case MYSQL_TYPE_VAR_STRING:
-  case MYSQL_TYPE_STRING:
-  case MYSQL_TYPE_GEOMETRY:
-    return item->max_length;
-  case MYSQL_TYPE_TINY:
-    return 4;
-  case MYSQL_TYPE_SHORT:
-    return 6;
-  case MYSQL_TYPE_LONG:
-    return MY_INT32_NUM_DECIMAL_DIGITS;
-  case MYSQL_TYPE_FLOAT:
-    return 25;
-  case MYSQL_TYPE_DOUBLE:
-    return 53;
-  case MYSQL_TYPE_NULL:
-    return 0;
-  case MYSQL_TYPE_LONGLONG:
-    return 20;
-  case MYSQL_TYPE_INT24:
-    return 8;
-  default:
-    DBUG_ASSERT(0); // we should never go there
-    return 0;
-  }
 }
 
 
@@ -10395,4 +10464,15 @@ void Item::register_in(THD *thd)
 {
   next= thd->free_list;
   thd->free_list= this;
+}
+
+void Virtual_column_info::print(String *str)
+{
+  expr->print_parenthesised(str,
+                   (enum_query_type)(QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                     QT_ITEM_IDENT_SKIP_DB_NAMES |
+                                     QT_ITEM_IDENT_SKIP_TABLE_NAMES |
+                                     QT_ITEM_CACHE_WRAPPER_SKIP_DETAILS |
+                                     QT_TO_SYSTEM_CHARSET),
+                   LOWEST_PRECEDENCE);
 }

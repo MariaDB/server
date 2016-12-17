@@ -31,8 +31,8 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes
-/*!50100 PARTITION BY HASH (a)
-PARTITIONS 2 */
+ PARTITION BY HASH (a)
+PARTITIONS 2
 alter table t1 encrypted=no;
 ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
 alter table t2 encrypted=yes;

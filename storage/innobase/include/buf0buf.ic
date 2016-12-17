@@ -926,7 +926,7 @@ buf_block_modify_clock_inc(
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage((buf_page_t*) block);
 
-	/* No latch is acquired if block belongs to intrinsic table. */
+	/* No latch is acquired for the shared temporary tablespace. */
 	if (!fsp_is_system_temporary(block->page.id.space())) {
 		ut_ad((buf_pool_mutex_own(buf_pool)
 		       && (block->page.buf_fix_count == 0))
@@ -949,7 +949,7 @@ buf_block_get_modify_clock(
 	buf_block_t*	block)	/*!< in: block */
 {
 #ifdef UNIV_DEBUG
-	/* No latch is acquired if block belongs to intrinsic table. */
+	/* No latch is acquired for the shared temporary tablespace. */
 	if (!fsp_is_system_temporary(block->page.id.space())) {
 		ut_ad(rw_lock_own(&(block->lock), RW_LOCK_S)
 		      || rw_lock_own(&(block->lock), RW_LOCK_X)
@@ -1451,13 +1451,13 @@ ulint
 buf_pool_size_align(
 	ulint	size)
 {
-	const ulint	m = srv_buf_pool_instances * srv_buf_pool_chunk_unit;
+	const ib_uint64_t	m = ((ib_uint64_t)srv_buf_pool_instances) * srv_buf_pool_chunk_unit;
 	size = ut_max(size, srv_buf_pool_min_size);
 
 	if (size % m == 0) {
 		return(size);
 	} else {
-		return((size / m + 1) * m);
+		return (ulint)((size / m + 1) * m);
 	}
 }
 

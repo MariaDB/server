@@ -291,6 +291,7 @@ public:
                           const Type_std_attributes *item,
                           SORT_FIELD_ATTR *attr) const= 0;
 
+  virtual uint32 max_display_length(const Item *item) const= 0;
   virtual int Item_save_in_field(Item *item, Field *field,
                                  bool no_conversions) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
@@ -371,6 +372,11 @@ public:
                             SORT_FIELD_ATTR *attr) const
   {
     DBUG_ASSERT(0);
+  }
+  uint32 max_display_length(const Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
   }
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const
   {
@@ -493,6 +499,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  uint32 max_display_length(const Item *item) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -564,6 +571,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  uint32 max_display_length(const Item *item) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
@@ -600,6 +608,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  uint32 max_display_length(const Item *item) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
@@ -649,6 +658,7 @@ class Type_handler_tiny: public Type_handler_int_result
 public:
   virtual ~Type_handler_tiny() {}
   enum_field_types field_type() const { return MYSQL_TYPE_TINY; }
+  uint32 max_display_length(const Item *item) const { return 4; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
 };
@@ -659,6 +669,7 @@ class Type_handler_short: public Type_handler_int_result
 public:
   virtual ~Type_handler_short() {}
   enum_field_types field_type() const { return MYSQL_TYPE_SHORT; }
+  uint32 max_display_length(const Item *item) const { return 6; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
 };
@@ -669,6 +680,10 @@ class Type_handler_long: public Type_handler_int_result
 public:
   virtual ~Type_handler_long() {}
   enum_field_types field_type() const { return MYSQL_TYPE_LONG; }
+  uint32 max_display_length(const Item *item) const
+  {
+    return MY_INT32_NUM_DECIMAL_DIGITS;
+  }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
 };
@@ -679,6 +694,7 @@ class Type_handler_longlong: public Type_handler_int_result
 public:
   virtual ~Type_handler_longlong() {}
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
+  uint32 max_display_length(const Item *item) const { return 20; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
 };
@@ -689,6 +705,7 @@ class Type_handler_int24: public Type_handler_int_result
 public:
   virtual ~Type_handler_int24() {}
   enum_field_types field_type() const { return MYSQL_TYPE_INT24; }
+  uint32 max_display_length(const Item *item) const { return 8; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
@@ -699,6 +716,7 @@ class Type_handler_year: public Type_handler_int_result
 public:
   virtual ~Type_handler_year() {}
   enum_field_types field_type() const { return MYSQL_TYPE_YEAR; }
+  uint32 max_display_length(const Item *item) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
@@ -709,6 +727,7 @@ class Type_handler_bit: public Type_handler_int_result
 public:
   virtual ~Type_handler_bit() {}
   enum_field_types field_type() const { return MYSQL_TYPE_BIT; }
+  uint32 max_display_length(const Item *item) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
@@ -719,6 +738,7 @@ class Type_handler_float: public Type_handler_real_result
 public:
   virtual ~Type_handler_float() {}
   enum_field_types field_type() const { return MYSQL_TYPE_FLOAT; }
+  uint32 max_display_length(const Item *item) const { return 25; }
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -730,6 +750,7 @@ class Type_handler_double: public Type_handler_real_result
 public:
   virtual ~Type_handler_double() {}
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  uint32 max_display_length(const Item *item) const { return 53; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
@@ -860,6 +881,7 @@ class Type_handler_null: public Type_handler_string_result
 public:
   virtual ~Type_handler_null() {}
   enum_field_types field_type() const { return MYSQL_TYPE_NULL; }
+  uint32 max_display_length(const Item *item) const { return 0; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };

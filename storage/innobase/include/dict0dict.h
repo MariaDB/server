@@ -613,18 +613,6 @@ dict_table_get_col_name(
 	ulint			col_nr)	/*!< in: column number */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/**********************************************************************//**
-Returns a column's name.
-@return column name. NOTE: not guaranteed to stay valid if table is
-modified in any way (columns added, etc.). */
-UNIV_INTERN
-const char*
-dict_table_get_col_name_for_mysql(
-/*==============================*/
-	const dict_table_t*	table,	/*!< in: table */
-	const char*		col_name)/*!< in: MySQL table column name */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
 /** Returns a virtual column's name.
 @param[in]	table		table object
 @param[in]	col_nr		virtual column number(nth virtual column)
@@ -842,17 +830,6 @@ UNIV_INLINE
 ulint
 dict_table_get_n_tot_u_cols(
 	const dict_table_t*	table);
-/********************************************************************//**
-Gets the number of system columns in a table.
-For intrinsic table on ROW_ID column is added for all other
-tables TRX_ID and ROLL_PTR are all also appeneded.
-@return number of system (e.g., ROW_ID) columns of a table */
-UNIV_INLINE
-ulint
-dict_table_get_n_sys_cols(
-/*======================*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.
@@ -2016,42 +1993,12 @@ dict_table_is_encrypted(
 	const dict_table_t*	table)	/*!< in: table to check */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Check whether the table is intrinsic.
-An intrinsic table is a special kind of temporary table that
-is invisible to the end user.  It is created internally by the MySQL server
-layer or other module connected to InnoDB in order to gather and use data
-as part of a larger task.  Since access to it must be as fast as possible,
-it does not need UNDO semantics, system fields DB_TRX_ID & DB_ROLL_PTR,
-doublewrite, checksum, insert buffer, use of the shared data dictionary,
-locking, or even a transaction.  In short, these are not ACID tables at all,
-just temporary
-
-@param[in]	table	table to check
-@return true if intrinsic table flag is set. */
-UNIV_INLINE
-bool
-dict_table_is_intrinsic(
-	const dict_table_t*	table)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Check if the table is in a shared tablespace (System or General).
 @param[in]	id	Space ID to check
 @return true if id is a shared tablespace, false if not. */
 UNIV_INLINE
 bool
 dict_table_in_shared_tablespace(
-	const dict_table_t*	table)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Check whether locking is disabled for this table.
-Currently this is done for intrinsic table as their visibility is limited
-to the connection only.
-
-@param[in]	table	table to check
-@return true if locking is disabled. */
-UNIV_INLINE
-bool
-dict_table_is_locking_disabled(
 	const dict_table_t*	table)
 	MY_ATTRIBUTE((warn_unused_result));
 
@@ -2063,30 +2010,6 @@ dict_disable_redo_if_temporary(
 /*===========================*/
 	const dict_table_t*	table,	/*!< in: table to check */
 	mtr_t*			mtr);	/*!< out: mini-transaction */
-
-/** Get table session row-id and increment the row-id counter for next use.
-@param[in,out]	table	table handler
-@return next table local row-id. */
-UNIV_INLINE
-row_id_t
-dict_table_get_next_table_sess_row_id(
-	dict_table_t*		table);
-
-/** Get table session trx-id and increment the trx-id counter for next use.
-@param[in,out]	table	table handler
-@return next table local trx-id. */
-UNIV_INLINE
-trx_id_t
-dict_table_get_next_table_sess_trx_id(
-	dict_table_t*		table);
-
-/** Get current session trx-id.
-@param[in]	table	table handler
-@return table local trx-id. */
-UNIV_INLINE
-trx_id_t
-dict_table_get_curr_table_sess_trx_id(
-	const dict_table_t*	table);
 
 #ifndef UNIV_HOTBACKUP
 /*********************************************************************//**

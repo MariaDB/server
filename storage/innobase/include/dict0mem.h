@@ -337,12 +337,6 @@ use its own tablespace instead of the system tablespace. */
 index tables) of a FTS table are in HEX format. */
 #define DICT_TF2_FTS_AUX_HEX_NAME	64
 
-/** Intrinsic table bit
-Intrinsic table is table created internally by MySQL modules viz. Optimizer,
-FTS, etc.... Intrinsic table has all the properties of the normal table except
-it is not created by user and so not visible to end-user. */
-#define DICT_TF2_INTRINSIC		128
-
 /** Encryption table bit. */
 #define DICT_TF2_ENCRYPTION		256
 
@@ -859,95 +853,6 @@ struct zip_pad_info_t {
 a certain index.*/
 #define STAT_DEFRAG_DATA_SIZE_N_SAMPLE	10
 
-/** If key is fixed length key then cache the record offsets on first
-computation. This will help save computation cycle that generate same
-redundant data. */
-class rec_cache_t
-{
-public:
-	/** Constructor */
-	rec_cache_t()
-		:
-		rec_size(),
-		offsets(),
-		sz_of_offsets(),
-		fixed_len_key(),
-		offsets_cached(),
-		key_has_null_cols()
-	{
-		/* Do Nothing. */
-	}
-
-public:
-	/** Record size. (for fixed length key record size is constant) */
-	ulint		rec_size;
-
-	/** Holds reference to cached offsets for record. */
-	ulint*		offsets;
-
-	/** Size of offset array */
-	uint32_t	sz_of_offsets;
-
-	/** If true, then key is fixed length key. */
-	bool		fixed_len_key;
-
-	/** If true, then offset has been cached for re-use. */
-	bool		offsets_cached;
-
-	/** If true, then key part can have columns that can take
-	NULL values. */
-	bool		key_has_null_cols;
-};
-
-/** Cache position of last inserted or selected record by caching record
-and holding reference to the block where record resides.
-Note: We don't commit mtr and hold it beyond a transaction lifetime as this is
-a special case (intrinsic table) that are not shared accross connection. */
-class last_ops_cur_t
-{
-public:
-	/** Constructor */
-	last_ops_cur_t()
-		:
-		rec(),
-		block(),
-		mtr(),
-		disable_caching(),
-		invalid()
-	{
-		/* Do Nothing. */
-	}
-
-	/* Commit mtr and re-initialize cache record and block to NULL. */
-	void release()
-	{
-		if (mtr.is_active()) {
-			mtr_commit(&mtr);
-		}
-		rec = NULL;
-		block = NULL;
-		invalid = false;
-	}
-
-public:
-	/** last inserted/selected record. */
-	rec_t*		rec;
-
-	/** block where record reside. */
-	buf_block_t*	block;
-
-	/** active mtr that will be re-used for next insert/select. */
-	mtr_t		mtr;
-
-	/** disable caching. (disabled when table involves blob/text.) */
-	bool		disable_caching;
-
-	/** If index structure is undergoing structural change viz.
-	split then invalidate the cached position as it would be no more
-	remain valid. Will be re-cached on post-split insert. */
-	bool		invalid;
-};
-
 /** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
 system clustered index when there is no primary key. */
 const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
@@ -990,18 +895,15 @@ struct dict_index_t{
 				/*!< number of columns the user defined to
 				be in the index: in the internal
 				representation we add more columns */
-	unsigned	allow_duplicates:1;
-				/*!< if true, allow duplicate values
-				even if index is created with unique
-				constraint */
 	unsigned	nulls_equal:1;
 				/*!< if true, SQL NULL == SQL NULL */
-	unsigned	disable_ahi:1;
-				/*!< in true, then disable AHI.
-				Currently limited to intrinsic
-				temporary table as index id is not
-				unqiue for such table which is one of the
-				validation criterion for ahi. */
+#ifdef MYSQL_INDEX_DISABLE_AHI
+ 	unsigned	disable_ahi:1;
+				/*!< whether to disable the
+				adaptive hash index.
+				Maybe this could be disabled for
+				temporary tables? */
+#endif
 	unsigned	n_uniq:10;/*!< number of fields from the beginning
 				which are enough to determine an index
 				entry uniquely */
@@ -1098,19 +1000,6 @@ struct dict_index_t{
 				/* in which slot the next sample should be
 				saved. */
 	/* @} */
-	last_ops_cur_t*	last_ins_cur;
-				/*!< cache the last insert position.
-				Currently limited to auto-generated
-				clustered index on intrinsic table only. */
-	last_ops_cur_t*	last_sel_cur;
-				/*!< cache the last selected position
-				Currently limited to intrinsic table only. */
-	rec_cache_t	rec_cache;
-				/*!< cache the field that needs to be
-				re-computed on each insert.
-				Limited to intrinsic table as this is common
-				share and can't be used without protection
-				if table is accessible to multiple-threads. */
 	rtr_ssn_t	rtr_ssn;/*!< Node sequence number for RTree */
 	rtr_info_track_t*
 			rtr_track;/*!< tracking all R-Tree search cursors */
@@ -1439,14 +1328,19 @@ struct dict_vcol_templ_t {
 	/** table name */
 	std::string		tb_name;
 
-	/** share->table_name */
-	std::string		share_name;
-
 	/** MySQL record length */
 	ulint			rec_len;
 
 	/** default column value if any */
 	byte*			default_rec;
+
+	/** cached MySQL TABLE object */
+	TABLE*			mysql_table;
+
+	/** when mysql_table was cached */
+	uint64_t		mysql_table_query_id;
+
+	dict_vcol_templ_t() : vtempl(0), mysql_table_query_id(-1) {}
 };
 
 /* This flag is for sync SQL DDL and memcached DML.
@@ -1873,18 +1767,6 @@ public:
 
 	/** Timestamp of the last modification of this table. */
 	time_t					update_time;
-
-	/** row-id counter for use by intrinsic table for getting row-id.
-	Given intrinsic table semantics, row-id can be locally maintained
-	instead of getting it from central generator which involves mutex
-	locking. */
-	ib_uint64_t				sess_row_id;
-
-	/** trx_id counter for use by intrinsic table for getting trx-id.
-	Intrinsic table are not shared so don't need a central trx-id
-	but just need a increased counter to track consistent view while
-	proceeding SELECT as part of UPDATE. */
-	ib_uint64_t				sess_trx_id;
 
 #endif /* !UNIV_HOTBACKUP */
 

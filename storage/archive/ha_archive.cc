@@ -383,8 +383,7 @@ unsigned int ha_archive::pack_row_v1(uchar *record)
     uint32 length= ((Field_blob *) table->field[*blob])->get_length();
     if (length)
     {
-      uchar *data_ptr;
-      ((Field_blob *) table->field[*blob])->get_ptr(&data_ptr);
+      uchar *data_ptr= ((Field_blob *) table->field[*blob])->get_ptr();
       memcpy(pos, data_ptr, length);
       pos+= length;
     }

@@ -683,13 +683,6 @@ public:
   bool describe; /* union exec() called for EXPLAIN */
   Procedure *last_procedure;	 /* Pointer to procedure, if such exists */
 
-  /* 
-    Insert table with stored virtual columns.
-    This is used only in those rare cases 
-    when the list of inserted values is empty.
-  */
-  TABLE *insert_table_with_stored_vcol;
-
   bool columns_are_renamed;
 
   void init_query();
@@ -2683,8 +2676,8 @@ public:
   uint profile_options;
   uint grant, grant_tot_col, which_columns;
   enum Foreign_key::fk_match_opt fk_match_option;
-  enum Foreign_key::fk_option fk_update_opt;
-  enum Foreign_key::fk_option fk_delete_opt;
+  enum_fk_option fk_update_opt;
+  enum_fk_option fk_delete_opt;
   uint slave_thd_opt, start_transaction_opt;
   int nest_level;
   /*

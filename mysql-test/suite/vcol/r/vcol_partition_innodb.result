@@ -81,3 +81,9 @@ p0	1	16384
 p1	1	16384
 p2	0	16384
 drop table t1;
+create table t1 (a int, b datetime as (now())) partition by hash(b+1) partitions 3;
+ERROR HY000: Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed
+create table t1 (a int, b varchar(100) as (user())) partition by hash(b+1) partitions 3;
+ERROR HY000: Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed
+create table t1 (a int, b double as (rand())) partition by hash(b+1) partitions 3;
+ERROR HY000: Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed

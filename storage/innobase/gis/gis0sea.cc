@@ -1569,8 +1569,6 @@ rtr_copy_buf(
 	matches->block.curr_n_fields = block->curr_n_fields;
 	matches->block.curr_left_side = block->curr_left_side;
 	matches->block.index = block->index;
-	matches->block.made_dirty_with_no_latch
-		= block->made_dirty_with_no_latch;
 
 	ut_d(matches->block.debug_latch = block->debug_latch);
 

@@ -471,16 +471,14 @@ void Item_func::print_args(String *str, uint from, enum_query_type query_type)
 
 void Item_func::print_op(String *str, enum_query_type query_type)
 {
-  str->append('(');
   for (uint i=0 ; i < arg_count-1 ; i++)
   {
-    args[i]->print(str, query_type);
+    args[i]->print_parenthesised(str, query_type, precedence());
     str->append(' ');
     str->append(func_name());
     str->append(' ');
   }
-  args[arg_count-1]->print(str, query_type);
-  str->append(')');
+  args[arg_count-1]->print_parenthesised(str, query_type, precedence());
 }
 
 
@@ -968,6 +966,7 @@ double Item_func_hybrid_field_type::val_real_from_date_op()
   ltime.time_type= mysql_type_to_time_type(field_type());
   return TIME_to_double(&ltime);
 }
+
 longlong Item_func_hybrid_field_type::val_int_from_date_op()
 {
   MYSQL_TIME ltime;
@@ -4706,7 +4705,7 @@ bool Item_func_set_user_var::register_field_in_read_map(void *arg)
       bitmap_set_bit(result_field->table->read_set, result_field->field_index);
     if (result_field->vcol_info)
       return result_field->vcol_info->
-               expr_item->walk(&Item::register_field_in_read_map, 1, arg);
+               expr->walk(&Item::register_field_in_read_map, 1, arg);
   }
   return 0;
 }
@@ -5204,11 +5203,10 @@ bool Item_func_set_user_var::is_null_result()
 
 void Item_func_set_user_var::print(String *str, enum_query_type query_type)
 {
-  str->append(STRING_WITH_LEN("(@"));
+  str->append(STRING_WITH_LEN("@"));
   str->append(name.str, name.length);
   str->append(STRING_WITH_LEN(":="));
-  args[0]->print(str, query_type);
-  str->append(')');
+  args[0]->print_parenthesised(str, query_type, precedence());
 }
 
 
@@ -5218,8 +5216,7 @@ void Item_func_set_user_var::print_as_stmt(String *str,
   str->append(STRING_WITH_LEN("set @"));
   str->append(name.str, name.length);
   str->append(STRING_WITH_LEN(":="));
-  args[0]->print(str, query_type);
-  str->append(')');
+  args[0]->print_parenthesised(str, query_type, precedence());
 }
 
 bool Item_func_set_user_var::send(Protocol *protocol, String *str_arg)
@@ -5588,9 +5585,8 @@ bool Item_func_get_user_var::const_item() const
 
 void Item_func_get_user_var::print(String *str, enum_query_type query_type)
 {
-  str->append(STRING_WITH_LEN("(@"));
+  str->append(STRING_WITH_LEN("@"));
   append_identifier(current_thd, str, name.str, name.length);
-  str->append(')');
 }
 
 
@@ -5800,7 +5796,22 @@ void Item_func_get_system_var::fix_length_and_dec()
 
 void Item_func_get_system_var::print(String *str, enum_query_type query_type)
 {
-  str->append(name, name_length);
+  if (name_length)
+    str->append(name, name_length);
+  else
+  {
+    str->append(STRING_WITH_LEN("@@"));
+    if (component.length)
+    {
+      str->append(&component);
+      str->append('.');
+    }
+    else if (var_type == SHOW_OPT_GLOBAL && var->scope() != sys_var::GLOBAL)
+    {
+      str->append(STRING_WITH_LEN("global."));
+    }
+    str->append(&var->name);
+  }
 }
 
 bool Item_func_get_system_var::check_vcol_func_processor(void *arg)

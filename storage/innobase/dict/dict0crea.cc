@@ -461,7 +461,7 @@ dict_build_tablespace_for_table(
 	bool		needs_file_per_table;
 	char*		filepath;
 
-	ut_ad(mutex_own(&dict_sys->mutex) || dict_table_is_intrinsic(table));
+	ut_ad(mutex_own(&dict_sys->mutex));
 
 	needs_file_per_table
 		= DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE);
@@ -920,7 +920,7 @@ dict_build_index_def(
 	dict_index_t*		index,	/*!< in/out: index */
 	trx_t*			trx)	/*!< in/out: InnoDB transaction handle */
 {
-	ut_ad(mutex_own(&dict_sys->mutex) || dict_table_is_intrinsic(table));
+	ut_ad(mutex_own(&dict_sys->mutex));
 
 	if (trx->table_id == 0) {
 		/* Record only the first table id. */
@@ -930,18 +930,7 @@ dict_build_index_def(
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
 
-	if (!dict_table_is_intrinsic(table)) {
-		dict_hdr_get_new_id(NULL, &index->id, NULL, table, false);
-	} else {
-		/* Index are re-loaded in process of creation using id.
-		If same-id is used for all indexes only first index will always
-		be retrieved when expected is iterative return of all indexes*/
-		if (UT_LIST_GET_LEN(table->indexes) > 0) {
-			index->id = UT_LIST_GET_LAST(table->indexes)->id + 1;
-		} else {
-			index->id = 1;
-		}
-	}
+	dict_hdr_get_new_id(NULL, &index->id, NULL, table, false);
 
 	/* Inherit the space id from the table; we store all indexes of a
 	table in the same tablespace */
@@ -1061,8 +1050,7 @@ dict_create_index_tree_in_mem(
 	mtr_t		mtr;
 	ulint		page_no = FIL_NULL;
 
-	ut_ad(mutex_own(&dict_sys->mutex)
-	      || dict_table_is_intrinsic(index->table));
+	ut_ad(mutex_own(&dict_sys->mutex));
 
 	if (index->type == DICT_FTS) {
 		/* FTS index does not need an index tree */
@@ -1175,8 +1163,7 @@ dict_drop_index_tree_in_mem(
 	const dict_index_t*	index,		/*!< in: index */
 	ulint			page_no)	/*!< in: index page-no */
 {
-	ut_ad(mutex_own(&dict_sys->mutex)
-	      || dict_table_is_intrinsic(index->table));
+	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(dict_table_is_temporary(index->table));
 
 	ulint			root_page_no = page_no;
@@ -1295,8 +1282,7 @@ dict_truncate_index_tree_in_mem(
 	bool		truncate;
 	ulint		space = index->space;
 
-	ut_ad(mutex_own(&dict_sys->mutex)
-	      || dict_table_is_intrinsic(index->table));
+	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(dict_table_is_temporary(index->table));
 
 	ulint		type = index->type;
@@ -2203,7 +2189,6 @@ Add a foreign key definition to the data dictionary tables.
 dberr_t
 dict_create_add_foreign_to_dictionary(
 /*==================================*/
-	dict_table_t*		table,	/*!< in: table */
 	const char*		name,	/*!< in: table name */
 	const dict_foreign_t*	foreign,/*!< in: foreign key */
 	trx_t*			trx)	/*!< in/out: dictionary transaction */
@@ -2245,8 +2230,7 @@ dict_create_add_foreign_to_dictionary(
 			char*	fk_def;
 
 			innobase_convert_name(tablename, MAX_TABLE_NAME_LEN,
-				table->name.m_name, strlen(table->name.m_name),
-				trx->mysql_thd);
+				name, strlen(name), trx->mysql_thd);
 
 			innobase_convert_name(buf, MAX_TABLE_NAME_LEN,
 				foreign->id, strlen(foreign->id), trx->mysql_thd);
@@ -2277,8 +2261,7 @@ dict_create_add_foreign_to_dictionary(
 			char*	fk_def;
 
 			innobase_convert_name(tablename, MAX_TABLE_NAME_LEN,
-				table->name.m_name, strlen(table->name.m_name),
-				trx->mysql_thd);
+				name, strlen(name), trx->mysql_thd);
 			innobase_convert_name(buf, MAX_TABLE_NAME_LEN,
 				foreign->id, strlen(foreign->id), trx->mysql_thd);
 			fk_def = dict_foreign_def_get((dict_foreign_t*)foreign, trx);
@@ -2509,12 +2492,7 @@ dict_create_add_foreigns_to_dictionary(
 	dict_foreign_t*	foreign;
 	dberr_t		error;
 
-	ut_ad(mutex_own(&dict_sys->mutex)
-	      || dict_table_is_intrinsic(table));
-
-	if (dict_table_is_intrinsic(table)) {
-		goto exit_loop;
-	}
+	ut_ad(mutex_own(&dict_sys->mutex));
 
 	if (NULL == dict_table_get_low("SYS_FOREIGN")) {
 
@@ -2532,7 +2510,7 @@ dict_create_add_foreigns_to_dictionary(
 		ut_ad(foreign->id != NULL);
 
 		error = dict_create_add_foreign_to_dictionary(
-			(dict_table_t*)table, table->name.m_name, foreign, trx);
+			table->name.m_name, foreign, trx);
 
 		if (error != DB_SUCCESS) {
 
@@ -2540,7 +2518,6 @@ dict_create_add_foreigns_to_dictionary(
 		}
 	}
 
-exit_loop:
 	trx->op_info = "committing foreign key definitions";
 
 	if (trx_is_started(trx)) {
@@ -2796,14 +2773,6 @@ dict_table_assign_new_id(
 	dict_table_t*	table,
 	trx_t*		trx)
 {
-	if (dict_table_is_intrinsic(table)) {
-		/* There is no significance of this table->id (if table is
-		intrinsic) so assign it default instead of something meaningful
-		to avoid confusion.*/
-		table->id = ULINT_UNDEFINED;
-	} else {
-		dict_hdr_get_new_id(&table->id, NULL, NULL, table, false);
-	}
-
+	dict_hdr_get_new_id(&table->id, NULL, NULL, table, false);
 	trx->table_id = table->id;
 }

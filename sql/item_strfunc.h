@@ -1187,6 +1187,7 @@ public:
   void fix_length_and_dec();
   bool eq(const Item *item, bool binary_cmp) const;
   const char *func_name() const { return "collate"; }
+  enum precedence precedence() const { return COLLATE_PRECEDENCE; }
   enum Functype functype() const { return COLLATE_FUNC; }
   virtual void print(String *str, enum_query_type query_type);
   Item_field *field_for_view_update()
@@ -1270,6 +1271,7 @@ public:
   }
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   { return this; }
+  void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_weight_string>(thd, mem_root, this); }
 };

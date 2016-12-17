@@ -12,9 +12,25 @@ cache:
   - apt
   - ccache
 
+env:
+  matrix:
+    - GCC_VERSION=5
+    - GCC_VERSION=6
 addons:
   apt:
+    sources:
+      - ubuntu-toolchain-r-test
+# below requires https://github.com/travis-ci/apt-source-whitelist/pull/309
+#      - llvm-toolchain-trusty-3.8
+#      - llvm-toolchain-trusty-3.9
+# llvm urls awaiting fix
+# https://github.com/travis-ci/apt-source-whitelist/pull/288
+# https://github.com/travis-ci/apt-source-whitelist/pull/309
     packages: # make sure these match debian/control contents
+      - gcc-5
+      - g++-5
+      - gcc-6
+      - g++-6
       - bison
       - chrpath
       - cmake
@@ -27,9 +43,12 @@ addons:
       - libjudy-dev
       - libncurses5-dev
       - libpam0g-dev
+      - libpcre3-dev
       - libreadline-gplv2-dev
+      - libstemmer-dev
       - libssl-dev
       - libnuma-dev
+      - libxml2-dev
       - lsb-release
       - perl
       - po-debconf
@@ -39,8 +58,14 @@ addons:
       - libjemalloc-dev
       - devscripts # implicit for any build on Ubuntu
 
+# libsnappy-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3880
+# liblzma-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3879
+# libzmq-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3881
+# libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
+
 script:
-  - ${CC} --version ; ${CXX} --version
+  - export MYSQL_BUILD_CC=/usr/bin/gcc-${GCC_VERSION} MYSQL_BUILD_CXX=/usr/bin/g++-${GCC_VERSION}
+  - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
   - cd "${TRAVIS_BUILD_DIR}"
   - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
 

@@ -242,8 +242,7 @@ btr_height_get(
 	      || mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
 					   MTR_MEMO_S_LOCK
 					   | MTR_MEMO_X_LOCK
-					   | MTR_MEMO_SX_LOCK)
-	      || dict_table_is_intrinsic(index->table));
+					   | MTR_MEMO_SX_LOCK));
 
 	/* S latches the page */
 	root_block = btr_root_block_get(index, RW_S_LATCH, mtr);
@@ -560,8 +559,7 @@ btr_get_size(
 
 	ut_ad(srv_read_only_mode
 	      || mtr_memo_contains(mtr, dict_index_get_lock(index),
-				   MTR_MEMO_S_LOCK)
-	      || dict_table_is_intrinsic(index->table));
+				   MTR_MEMO_S_LOCK));
 
 	if (index->page == FIL_NULL
 	    || dict_index_is_online_ddl(index)
@@ -917,8 +915,7 @@ btr_page_get_father_node_ptr_func(
 	ut_ad(srv_read_only_mode
 	      || mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
 					   MTR_MEMO_X_LOCK
-					   | MTR_MEMO_SX_LOCK)
-	      || dict_table_is_intrinsic(index->table));
+					   | MTR_MEMO_SX_LOCK));
 
 	ut_ad(dict_index_get_page(index) != page_no);
 
@@ -929,17 +926,11 @@ btr_page_get_father_node_ptr_func(
 
 	tuple = dict_index_build_node_ptr(index, user_rec, 0, heap, level);
 	dberr_t err = DB_SUCCESS;
-	
-	if (dict_table_is_intrinsic(index->table)) {
-		err = btr_cur_search_to_nth_level_with_no_latch(
-			index, level + 1, tuple, PAGE_CUR_LE, cursor,
-			file, line, mtr);
-	} else {
-		err = btr_cur_search_to_nth_level(
-			index, level + 1, tuple,
-			PAGE_CUR_LE, latch_mode, cursor, 0,
-			file, line, mtr);
-	}
+
+	err = btr_cur_search_to_nth_level(
+		index, level + 1, tuple,
+		PAGE_CUR_LE, latch_mode, cursor, 0,
+		file, line, mtr);
 
 	if (err != DB_SUCCESS) {
 		ib::warn() << " Error code: " << err
@@ -1560,7 +1551,6 @@ btr_page_reorganize_low(
 	}
 
 #ifndef UNIV_HOTBACKUP
-	/* No locks are acquried for intrinsic tables. */
 	if (!recovery && !dict_table_is_locking_disabled(index->table)) {
 		/* Update the record lock bitmaps */
 		lock_move_reorganize_page(block, temp_block);
@@ -1824,8 +1814,7 @@ btr_root_raise_and_insert(
 #endif /* UNIV_BTR_DEBUG */
 	ut_ad(mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
 					MTR_MEMO_X_LOCK
-					| MTR_MEMO_SX_LOCK)
-	      || dict_table_is_intrinsic(index->table));
+					| MTR_MEMO_SX_LOCK));
 	ut_ad(mtr_is_block_fix(
 		mtr, root_block, MTR_MEMO_PAGE_X_FIX, index->table));
 
@@ -2311,17 +2300,10 @@ btr_insert_on_non_leaf_level_func(
 	ut_ad(level > 0);
 
 	if (!dict_index_is_spatial(index)) {
-		dberr_t err = DB_SUCCESS;
-		if (dict_table_is_intrinsic(index->table)) {
-			err = btr_cur_search_to_nth_level_with_no_latch(
-				index, level, tuple, PAGE_CUR_LE, &cursor,
-				__FILE__, __LINE__, mtr);
-		} else {
-			err = btr_cur_search_to_nth_level(
-				index, level, tuple, PAGE_CUR_LE,
-				BTR_CONT_MODIFY_TREE,
-				&cursor, 0, file, line, mtr);
-		}
+		dberr_t err = btr_cur_search_to_nth_level(
+			index, level, tuple, PAGE_CUR_LE,
+			BTR_CONT_MODIFY_TREE,
+			&cursor, 0, file, line, mtr);
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << " Error code: " << err
@@ -2593,10 +2575,9 @@ btr_insert_into_right_sibling(
 	page_t*		page = buf_block_get_frame(block);
 	ulint		next_page_no = btr_page_get_next(page, mtr);
 
-	ut_ad(dict_table_is_intrinsic(cursor->index->table)
-	      || mtr_memo_contains_flagged(
-			mtr, dict_index_get_lock(cursor->index),
-			MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
+	ut_ad(mtr_memo_contains_flagged(
+		      mtr, dict_index_get_lock(cursor->index),
+		      MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
 	ut_ad(mtr_is_block_fix(
 		mtr, block, MTR_MEMO_PAGE_X_FIX, cursor->index->table));
 	ut_ad(heap);
@@ -2769,14 +2750,12 @@ func_start:
 
 	ut_ad(mtr_memo_contains_flagged(mtr,
 					dict_index_get_lock(cursor->index),
-					MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK)
-	      || dict_table_is_intrinsic(cursor->index->table));
+					MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
 	ut_ad(!dict_index_is_online_ddl(cursor->index)
 	      || (flags & BTR_CREATE_FLAG)
 	      || dict_index_is_clust(cursor->index));
 	ut_ad(rw_lock_own_flagged(dict_index_get_lock(cursor->index),
-				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX)
-	      || dict_table_is_intrinsic(cursor->index->table));
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
 
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
@@ -2930,7 +2909,6 @@ insert_empty:
 	}
 
 	if (!srv_read_only_mode
-	    && !dict_table_is_intrinsic(cursor->index->table)
 	    && insert_will_fit
 	    && page_is_leaf(page)
 	    && !dict_index_is_online_ddl(cursor->index)) {
@@ -3559,8 +3537,7 @@ btr_compress(
 	} else {
 		ut_ad(mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
 						MTR_MEMO_X_LOCK
-						| MTR_MEMO_SX_LOCK)
-		      || dict_table_is_intrinsic(index->table));
+						| MTR_MEMO_SX_LOCK));
 	}
 #endif /* UNIV_DEBUG */
 
@@ -4152,8 +4129,7 @@ btr_discard_page(
 	ut_ad(dict_index_get_page(index) != block->page.id.page_no());
 
 	ut_ad(mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
-					MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK)
-	      || dict_table_is_intrinsic(index->table));
+					MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
 
 	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
 

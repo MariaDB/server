@@ -42,13 +42,13 @@ Note	1246	Converting column 'a' from VARCHAR to TEXT
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` mediumtext DEFAULT "hello"
+  `a` mediumtext DEFAULT 'hello'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 (a blob default "hello");
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` blob DEFAULT "hello"
+  `a` blob DEFAULT 'hello'
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1,t2;
 create table t1 (nr int(5) not null auto_increment,b blob,str char(10), primary key (nr));

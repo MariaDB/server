@@ -1244,7 +1244,7 @@ Table	Create Table
 tab	CREATE TABLE `tab` (
   `c1` point NOT NULL,
   SPATIAL KEY `idx1` (`c1`),
-  CONSTRAINT `tab_const` CHECK (c1 > 0)
+  CONSTRAINT `tab_const` CHECK (`c1` > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment

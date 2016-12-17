@@ -868,7 +868,6 @@ try_again:
 		goto err_exit;
 	}
 
-#ifdef MYSQL_VIRTUAL_COLUMNS
 	if (node->table->n_v_cols && !node->table->vc_templ
 	    && dict_table_has_indexed_v_cols(node->table)) {
 		/* Need server fully up for virtual column computation */
@@ -886,7 +885,6 @@ try_again:
 		/* Initialize the template for the table */
 		innobase_init_vc_templ(node->table);
 	}
-#endif /* MYSQL_VIRTUAL_COLUMNS */
 
 	/* Disable purging for temp-tables as they are short-lived
 	and no point in re-organzing such short lived tables */
@@ -1119,6 +1117,8 @@ row_purge_step(
 	} else {
 		row_purge_end(thr);
 	}
+
+	innobase_reset_background_thd(thr_get_trx(thr)->mysql_thd);
 
 	return(thr);
 }

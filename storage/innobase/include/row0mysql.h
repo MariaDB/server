@@ -37,7 +37,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "btr0pcur.h"
 #include "trx0types.h"
 #include "fil0crypt.h"
-#include "sess0sess.h"
 
 // Forward declaration
 struct SysIndexCallback;
@@ -292,14 +291,6 @@ row_update_for_mysql(
 	row_prebuilt_t*		prebuilt)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Delete all rows for the given table by freeing/truncating indexes.
-@param[in,out]	table	table handler
-@return error code or DB_SUCCESS */
-dberr_t
-row_delete_all_rows(
-	dict_table_t*	table)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
 session is using a READ COMMITTED or READ UNCOMMITTED isolation level.
 Before calling this function row_search_for_mysql() must have
@@ -402,13 +393,12 @@ row_create_index_for_mysql(
 	dict_index_t*	index,		/*!< in, own: index definition
 					(will be freed) */
 	trx_t*		trx,		/*!< in: transaction handle */
-	const ulint*	field_lengths,	/*!< in: if not NULL, must contain
+	const ulint*	field_lengths)	/*!< in: if not NULL, must contain
 					dict_index_get_n_fields(index)
 					actual field lengths for the
 					index columns, which are
 					then checked for not being too
 					large. */
-	dict_table_t*	handler)	/* ! in/out: table handler. */
 	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Scans a table create SQL string and adds to the data dictionary
@@ -427,8 +417,6 @@ fields than mentioned in the constraint.
 				database id the database of parameter name
 @param[in]	sql_length	length of sql_string
 @param[in]	name		table full name in normalized form
-@param[in]	is_temp_table	true if table is temporary
-@param[in,out]	handler		table handler if table is intrinsic
 @param[in]	reject_fks	if TRUE, fail with error code
 				DB_CANNOT_ADD_CONSTRAINT if any
 				foreign keys are found.
@@ -493,11 +481,9 @@ row_drop_table_for_mysql(
 	ibool		create_failed,/*!<in: TRUE=create table failed
 					because e.g. foreign key column
 					type mismatch. */
-	bool		nonatomic = true,
+	bool		nonatomic = true);
 				/*!< in: whether it is permitted
 				to release and reacquire dict_operation_lock */
-	dict_table_t*	handler = NULL);
-				/*!< in/out: table handler. */
 /*********************************************************************//**
 Drop all temporary tables during crash recovery. */
 void
@@ -898,10 +884,6 @@ struct row_prebuilt_t {
 	ulint		magic_n2;	/*!< this should be the same as
 					magic_n */
 
-	bool		ins_sel_stmt;	/*!< if true then ins_sel_statement. */
-
-	innodb_session_t*
-			session;	/*!< InnoDB session handler. */
 	byte*		srch_key_val1;  /*!< buffer used in converting
 					search key values from MySQL format
 					to InnoDB format.*/

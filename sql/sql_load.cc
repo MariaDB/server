@@ -410,8 +410,6 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
 
   table->prepare_triggers_for_insert_stmt_or_event();
   table->mark_columns_needed_for_insert();
-  if (table->s->virtual_stored_fields)
-    thd->lex->unit.insert_table_with_stored_vcol= table;
 
   uint tot_length=0;
   bool use_blobs= 0, use_vars= 0;
@@ -538,6 +536,12 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   info.escape_char= (escaped->length() && (ex->escaped_given() ||
                     !(thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)))
                     ? (*escaped)[0] : INT_MAX;
+
+  if (handle_duplicates != DUP_ERROR)
+  {
+    info.vblobs0.init(table);
+    info.vblobs1.init(table);
+  }
 
   READ_INFO read_info(thd, file, tot_length,
                       ex->cs ? ex->cs : thd->variables.collation_database,
@@ -881,7 +885,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 
   while ((sql_field= (Item_field*) it++))
   {
-    if (table->field[sql_field->field->field_index] == table->next_number_field)
+    if (sql_field->field == table->next_number_field)
       auto_increment_field_not_null= true;
   }
 

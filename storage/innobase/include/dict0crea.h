@@ -276,7 +276,6 @@ Add a foreign key definition to the data dictionary tables.
 dberr_t
 dict_create_add_foreign_to_dictionary(
 /*==================================*/
-	dict_table_t*		table,	/*!< in: table */
 	const char*		name,	/*!< in: table name */
 	const dict_foreign_t*	foreign,/*!< in: foreign key */
 	trx_t*			trx)	/*!< in/out: dictionary transaction */

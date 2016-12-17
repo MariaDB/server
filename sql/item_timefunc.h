@@ -115,15 +115,6 @@ public:
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
   bool check_partition_func_processor(void *bool_arg) { return FALSE;}
 
-  bool intro_version(void *int_arg)
-  {
-    int *input_version= (int*)int_arg;
-    /* This function was introduced in 5.5 */
-    int output_version= MY_MAX(*input_version, 50500);
-    *input_version= output_version;
-    return 0;
-  }
-
   /* Only meaningful with date part and optional time part */
   bool check_valid_arguments_processor(void *int_arg)
   {
@@ -334,6 +325,7 @@ public:
 class Item_func_week :public Item_int_func
 {
 public:
+  Item_func_week(THD *thd, Item *a): Item_int_func(thd, a) {}
   Item_func_week(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "week"; }
@@ -342,6 +334,16 @@ public:
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
     maybe_null=1;
+  }
+  bool check_vcol_func_processor(void *arg)
+  {
+    if (arg_count == 2)
+      return FALSE;
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
+  bool check_valid_arguments_processor(void *int_arg)
+  {
+    return arg_count == 2;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_week>(thd, mem_root, this); }
@@ -655,6 +657,7 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
+  void print(String *str, enum_query_type query_type);
 };
 
 
@@ -740,6 +743,7 @@ public:
     */
     return mark_unsupported_function(func_name(), "()", arg, VCOL_TIME_FUNC);
   }
+  void print(String *str, enum_query_type query_type);
 };
 
 
@@ -747,7 +751,7 @@ class Item_func_now_local :public Item_func_now
 {
 public:
   Item_func_now_local(THD *thd, uint dec): Item_func_now(thd, dec) {}
-  const char *func_name() const { return "now"; }
+  const char *func_name() const { return "current_timestamp"; }
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
   virtual enum Functype functype() const { return NOW_FUNC; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -916,6 +920,7 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
+  enum precedence precedence() const { return ADDINTERVAL_PRECEDENCE; }
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_date_add_interval>(thd, mem_root, this); }
@@ -983,7 +988,12 @@ class Item_extract :public Item_int_func
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  bool check_vcol_func_processor(void *arg) { return FALSE;}
+  bool check_vcol_func_processor(void *arg)
+  {
+    if (int_type != INTERVAL_WEEK)
+      return FALSE;
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
   bool check_valid_arguments_processor(void *int_arg)
   {
     switch (int_type) {

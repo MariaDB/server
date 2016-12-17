@@ -566,7 +566,7 @@ typedef ulong key_part_map;
 #define HA_STATE_KEY_CHANGED	128
 #define HA_STATE_WRITE_AT_END	256	/* set in _ps_find_writepos */
 #define HA_STATE_BUFF_SAVED	512	/* If current keybuff is info->buff */
-#define HA_STATE_ROW_CHANGED	1024	/* To invalide ROW cache */
+#define HA_STATE_ROW_CHANGED	1024	/* To invalidate ROW cache */
 #define HA_STATE_EXTEND_BLOCK	2048
 #define HA_STATE_RNEXT_SAME	4096	/* rnext_same occupied lastkey2 */
 

@@ -201,6 +201,99 @@ typedef struct st_user_var_events
   bool unsigned_flag;
 } BINLOG_USER_VAR_EVENT;
 
+
+/*
+  When updating a table with virtual BLOB columns, the following might happen:
+  - an old record is read from the table, it has no vcol blob.
+  - update_virtual_fields() is run, vcol blob gets its value into the
+    record. But only a pointer to the value is in the table->record[0],
+    the value is in Field_blob::value String (or, it can be elsewhere!)
+  - store_record(table,record[1]), old record now is in record[1]
+  - fill_record() prepares new values in record[0], vcol blob is updated,
+    new value replaces the old one in the Field_blob::value
+  - now both record[1] and record[0] have a pointer that points to the
+    *new* vcol blob value. Or record[1] has a pointer to nowhere if
+    Field_blob::value had to realloc.
+
+  To resolve this we unlink vcol blobs from the pointer to the
+  data (in the record[1]). The orphan memory must be freed manually
+  (but, again, only if it was owned by Field_blob::value String).
+
+  With REPLACE and INSERT ... ON DUP KEY UPATE it's even more complex.
+  There is no store_record(table,record[1]), instead the row is read
+  directly into record[1].
+*/
+struct BLOB_VALUE_ORPHANAGE {
+  MY_BITMAP map;
+  TABLE *table;
+  BLOB_VALUE_ORPHANAGE() { map.bitmap= NULL; }
+  ~BLOB_VALUE_ORPHANAGE() { free(); }
+  bool init(TABLE *table_arg)
+  {
+    table= table_arg;
+    if (table->s->virtual_fields && table->s->blob_fields)
+      return bitmap_init(&map, NULL, table->s->virtual_fields, FALSE);
+    map.bitmap= NULL;
+    return 0;
+  }
+  void free() { bitmap_free(&map); }
+
+  /** Remove blob's ownership from blob value memory
+
+    @note the memory becomes orphaned, it needs to be freed using
+    free_orphans() or re-attached back to blobs using adopt_orphans()
+  */
+  void make_orphans()
+  {
+    DBUG_ASSERT(!table || !table->s->virtual_fields || !table->s->blob_fields || map.bitmap);
+    if (!map.bitmap)
+      return;
+    for (Field **ptr=table->vfield; *ptr; ptr++)
+    {
+      Field_blob *vb= (Field_blob*)(*ptr);
+      if (!(vb->flags & BLOB_FLAG) || !vb->owns_ptr(vb->get_ptr()))
+        continue;
+      bitmap_set_bit(&map, ptr - table->vfield);
+      vb->clear_temporary();
+    }
+  }
+
+  /** Frees orphaned blob values
+
+    @note It is assumed that value pointers are in table->record[1], while
+    Field_blob::ptr's point to table->record[0] as usual
+  */
+  void free_orphans()
+  {
+    DBUG_ASSERT(!table || !table->s->virtual_fields || !table->s->blob_fields || map.bitmap);
+    if (!map.bitmap)
+      return;
+    for (Field **ptr=table->vfield; *ptr; ptr++)
+    {
+      Field_blob *vb= (Field_blob*)(*ptr);
+      if (vb->flags & BLOB_FLAG && bitmap_fast_test_and_clear(&map, ptr - table->vfield))
+        my_free(vb->get_ptr(table->s->rec_buff_length));
+    }
+    DBUG_ASSERT(bitmap_is_clear_all(&map));
+  }
+
+  /** Restores blob's ownership over previously orphaned values */
+  void adopt_orphans()
+  {
+    DBUG_ASSERT(!table || !table->s->virtual_fields || !table->s->blob_fields || map.bitmap);
+    if (!map.bitmap)
+      return;
+    for (Field **ptr=table->vfield; *ptr; ptr++)
+    {
+      Field_blob *vb= (Field_blob*)(*ptr);
+      if (vb->flags & BLOB_FLAG && bitmap_fast_test_and_clear(&map, ptr - table->vfield))
+        vb->own_value_ptr();
+    }
+    DBUG_ASSERT(bitmap_is_clear_all(&map));
+  }
+};
+
+
 /*
   The COPY_INFO structure is used by INSERT/REPLACE code.
   The schema of the row counting by the INSERT/INSERT ... ON DUPLICATE KEY
@@ -213,7 +306,7 @@ typedef struct st_user_var_events
       of the INSERT ... ON DUPLICATE KEY UPDATE no matter whether the row
       was actually changed or not.
 */
-typedef struct st_copy_info {
+struct COPY_INFO {
   ha_rows records; /**< Number of processed records */
   ha_rows deleted; /**< Number of deleted records */
   ha_rows updated; /**< Number of updated records */
@@ -229,7 +322,8 @@ typedef struct st_copy_info {
   /* for VIEW ... WITH CHECK OPTION */
   TABLE_LIST *view;
   TABLE_LIST *table_list;                       /* Normal table */
-} COPY_INFO;
+  BLOB_VALUE_ORPHANAGE vblobs0, vblobs1; // vcol blobs of record[0] and record[1]
+};
 
 
 class Key_part_spec :public Sql_alloc {
@@ -352,8 +446,6 @@ class Foreign_key: public Key {
 public:
   enum fk_match_opt { FK_MATCH_UNDEF, FK_MATCH_FULL,
 		      FK_MATCH_PARTIAL, FK_MATCH_SIMPLE};
-  enum fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
-		   FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_DEFAULT};
 
   LEX_STRING ref_db;
   LEX_STRING ref_table;
@@ -1530,7 +1622,8 @@ enum enum_thread_type
   SYSTEM_THREAD_EVENT_SCHEDULER= 8,
   SYSTEM_THREAD_EVENT_WORKER= 16,
   SYSTEM_THREAD_BINLOG_BACKGROUND= 32,
-  SYSTEM_THREAD_SLAVE_BACKGROUND= 64
+  SYSTEM_THREAD_SLAVE_BACKGROUND= 64,
+  SYSTEM_THREAD_GENERIC= 128
 };
 
 inline char const *
@@ -1991,14 +2084,14 @@ private:
   void dec_thread_count(void)
   {
     DBUG_ASSERT(thread_count > 0);
-    thread_safe_decrement32(const_cast<int32*>(&thread_count));
+    thread_safe_decrement32(&thread_count);
     signal_thd_deleted();
   }
 
 
   void inc_thread_count(void)
   {
-    thread_safe_increment32(const_cast<int32*>(&thread_count));
+    thread_safe_increment32(&thread_count);
   }
 
 public:
@@ -4455,6 +4548,9 @@ public:
 #endif
   virtual void update_used_tables() {}
 
+  /* this method is called just before the first row of the table can be read */
+  virtual void prepare_to_read_rows() {}
+
   void reset_offset_limit()
   {
     unit->offset_limit_cnt= 0;
@@ -5301,11 +5397,9 @@ public:
   int do_deletes();
   int do_table_deletes(TABLE *table, SORT_INFO *sort_info, bool ignore);
   bool send_eof();
-  inline ha_rows num_deleted()
-  {
-    return deleted;
-  }
+  inline ha_rows num_deleted() const { return deleted; }
   virtual void abort_result_set();
+  void prepare_to_read_rows();
 };
 
 
@@ -5316,6 +5410,7 @@ class multi_update :public select_result_interceptor
   TABLE_LIST *update_tables, *table_being_updated;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
+  BLOB_VALUE_ORPHANAGE *vblobs;
   ha_rows updated, found;
   List <Item> *fields, *values;
   List <Item> **fields_for_table, **values_for_table;
@@ -5349,16 +5444,11 @@ public:
   bool initialize_tables (JOIN *join);
   int  do_updates();
   bool send_eof();
-  inline ha_rows num_found()
-  {
-    return found;
-  }
-  inline ha_rows num_updated()
-  {
-    return updated;
-  }
+  inline ha_rows num_found() const { return found; }
+  inline ha_rows num_updated() const { return updated; }
   virtual void abort_result_set();
   void update_used_tables();
+  void prepare_to_read_rows();
 };
 
 class my_var : public Sql_alloc  {

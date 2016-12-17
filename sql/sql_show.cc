@@ -1635,9 +1635,11 @@ static bool print_on_update_clause(Field *field, String *val, bool lcase)
       val->append(STRING_WITH_LEN("on update "));
     else
       val->append(STRING_WITH_LEN("ON UPDATE "));
-    val->append(STRING_WITH_LEN("CURRENT_TIMESTAMP"));
+    val->append(STRING_WITH_LEN("current_timestamp"));
     if (field->decimals() > 0)
       val->append_parenthesized(field->decimals());
+    else
+      val->append(STRING_WITH_LEN("()"));
     return true;
   }
   return false;
@@ -1657,56 +1659,47 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   def_value->length(0);
   if (has_default)
   {
+    StringBuffer<MAX_FIELD_WIDTH> str(field->charset());
     if (field->default_value)
     {
-      if (field->default_value->expr_item->need_parentheses_in_default())
+      field->default_value->print(&str);
+      if (field->default_value->expr->need_parentheses_in_default())
       {
         def_value->set_charset(&my_charset_utf8mb4_general_ci);
         def_value->append('(');
-        def_value->append(field->default_value->expr_str.str,
-                          field->default_value->expr_str.length);
+        def_value->append(str);
         def_value->append(')');
       }
-      else if (field->unireg_check)
-        def_value->append(field->default_value->expr_str.str,
-                          field->default_value->expr_str.length);
       else
-        def_value->set(field->default_value->expr_str.str,
-                       field->default_value->expr_str.length,
-                       &my_charset_utf8mb4_general_ci);
+        def_value->append(str);
     }
     else if (!field->is_null())
     {                                             // Not null by default
-      char tmp[MAX_FIELD_WIDTH];
-      String type(tmp, sizeof(tmp), field->charset());
       if (field_type == MYSQL_TYPE_BIT)
       {
-        longlong dec= field->val_int();
-        char *ptr= longlong2str(dec, tmp + 2, 2);
-        uint32 length= (uint32) (ptr - tmp);
-        tmp[0]= 'b';
-        tmp[1]= '\'';
-        tmp[length]= '\'';
-        type.length(length + 1);
+        str.qs_append('b');
+        str.qs_append('\'');
+        str.qs_append(field->val_int(), 2);
+        str.qs_append('\'');
         quoted= 0;
       }
       else
       {
-        field->val_str(&type);
+        field->val_str(&str);
         if (!field->str_needs_quotes())
           quoted= 0;
       }
-      if (type.length())
+      if (str.length())
       {
-        String def_val;
+        StringBuffer<MAX_FIELD_WIDTH> def_val;
         uint dummy_errors;
         /* convert to system_charset_info == utf8 */
-        def_val.copy(type.ptr(), type.length(), field->charset(),
+        def_val.copy(str.ptr(), str.length(), field->charset(),
                      system_charset_info, &dummy_errors);
         if (quoted)
           append_unescaped(def_value, def_val.ptr(), def_val.length());
         else
-          def_value->move(def_val);
+          def_value->append(def_val);
       }
       else if (quoted)
         def_value->set(STRING_WITH_LEN("''"), system_charset_info);
@@ -1918,13 +1911,13 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
     if (field->vcol_info)
     {
-      packet->append(STRING_WITH_LEN(" AS ("));
-      packet->append(field->vcol_info->expr_str.str,
-                     field->vcol_info->expr_str.length,
-                     &my_charset_utf8mb4_general_ci);
+      StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
+      field->vcol_info->print(&str);
+      packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ("));
+      packet->append(str);
       packet->append(STRING_WITH_LEN(")"));
       if (field->vcol_info->stored_in_db)
-        packet->append(STRING_WITH_LEN(" PERSISTENT"));
+        packet->append(STRING_WITH_LEN(" STORED"));
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
     }
@@ -1961,10 +1954,10 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
     if (field->check_constraint)
     {
+      StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
+      field->check_constraint->print(&str);
       packet->append(STRING_WITH_LEN(" CHECK ("));
-      packet->append(field->check_constraint->expr_str.str,
-                     field->check_constraint->expr_str.length,
-                     &my_charset_utf8mb4_general_ci);
+      packet->append(str);
       packet->append(STRING_WITH_LEN(")"));
     }
 
@@ -2062,7 +2055,9 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     for (uint i= share->field_check_constraints;
          i < share->table_check_constraints ; i++)
     {
+      StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
       Virtual_column_info *check= table->check_constraints[i];
+      check->print(&str);
 
       packet->append(STRING_WITH_LEN(",\n  "));
       if (check->name.length)
@@ -2071,9 +2066,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         append_identifier(thd, packet, check->name.str, check->name.length);
       }
       packet->append(STRING_WITH_LEN(" CHECK ("));
-      packet->append(check->expr_str.str,
-                     check->expr_str.length,
-                     &my_charset_utf8mb4_general_ci);
+      packet->append(str);
       packet->append(STRING_WITH_LEN(")"));
     }
   }
@@ -2232,7 +2225,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       uint part_syntax_len;
       char *part_syntax;
       String comment_start;
-      table->part_info->set_show_version_string(&comment_start);
+      comment_start.append(STRING_WITH_LEN("\n"));
       if ((part_syntax= generate_partition_syntax(thd, table->part_info,
                                                   &part_syntax_len,
                                                   FALSE,
@@ -2241,8 +2234,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                                                   comment_start.c_ptr())))
       {
          packet->append(comment_start);
-         if (packet->append(part_syntax, part_syntax_len) ||
-             packet->append(STRING_WITH_LEN(" */")))
+         if (packet->append(part_syntax, part_syntax_len))
           error= 1;
          my_free(part_syntax);
       }
@@ -5516,9 +5508,9 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     if (field->vcol_info)
     {
       if (field->vcol_info->stored_in_db)
-        table->field[17]->store(STRING_WITH_LEN("PERSISTENT"), cs);
+        table->field[17]->store(STRING_WITH_LEN("STORED GENERATED"), cs);
       else
-        table->field[17]->store(STRING_WITH_LEN("VIRTUAL"), cs);
+        table->field[17]->store(STRING_WITH_LEN("VIRTUAL GENERATED"), cs);
     }
     table->field[19]->store(field->comment.str, field->comment.length, cs);
     if (schema_table_store_record(thd, table))
@@ -7366,6 +7358,7 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
                                    LEX_STRING *db_name, LEX_STRING *table_name)
 {
   CHARSET_INFO *cs= system_charset_info;
+  LEX_CSTRING *s;
   DBUG_ENTER("get_referential_constraints_record");
 
   if (res)
@@ -7410,10 +7403,10 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
       else
         table->field[5]->set_null();
       table->field[6]->store(STRING_WITH_LEN("NONE"), cs);
-      table->field[7]->store(f_key_info->update_method->str,
-                             f_key_info->update_method->length, cs);
-      table->field[8]->store(f_key_info->delete_method->str,
-                             f_key_info->delete_method->length, cs);
+      s= fk_option_name(f_key_info->update_method);
+      table->field[7]->store(s->str, s->length, cs);
+      s= fk_option_name(f_key_info->delete_method);
+      table->field[8]->store(s->str, s->length, cs);
       if (schema_table_store_record(thd, table))
         DBUG_RETURN(1);
     }
@@ -8447,7 +8440,7 @@ ST_FIELD_INFO columns_fields_info[]=
    OPEN_FRM_ONLY},
   {"COLUMN_TYPE", 65535, MYSQL_TYPE_STRING, 0, 0, "Type", OPEN_FRM_ONLY},
   {"COLUMN_KEY", 3, MYSQL_TYPE_STRING, 0, 0, "Key", OPEN_FRM_ONLY},
-  {"EXTRA", 27, MYSQL_TYPE_STRING, 0, 0, "Extra", OPEN_FRM_ONLY},
+  {"EXTRA", 30, MYSQL_TYPE_STRING, 0, 0, "Extra", OPEN_FRM_ONLY},
   {"PRIVILEGES", 80, MYSQL_TYPE_STRING, 0, 0, "Privileges", OPEN_FRM_ONLY},
   {"COLUMN_COMMENT", COLUMN_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 
    "Comment", OPEN_FRM_ONLY},

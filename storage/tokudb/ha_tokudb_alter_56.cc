@@ -216,11 +216,11 @@ static ulong fix_handler_flags(
         handler_flags &= ~Alter_inplace_info::TOKU_ALTER_RENAME;
     }
 
-    // ALTER_COLUMN_TYPE may be set when no columns have been changed,
+    // ALTER_STORED_COLUMN_TYPE may be set when no columns have been changed,
     // so turn off the flag
-    if (handler_flags & Alter_inplace_info::ALTER_COLUMN_TYPE) {
+    if (handler_flags & Alter_inplace_info::ALTER_STORED_COLUMN_TYPE) {
         if (all_fields_are_same_type(table, altered_table)) {
-            handler_flags &= ~Alter_inplace_info::ALTER_COLUMN_TYPE;
+            handler_flags &= ~Alter_inplace_info::ALTER_STORED_COLUMN_TYPE;
         }
     }
 
@@ -358,7 +358,7 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
         // but let's do some more checks
 
         // we will only allow an hcr if there are no changes
-        // in column positions (ALTER_COLUMN_ORDER is not set)
+        // in column positions (ALTER_STORED_COLUMN_ORDER is not set)
 
         // now need to verify that one and only one column
         // has changed only its name. If we find anything to
@@ -369,7 +369,7 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
                     table,
                     altered_table,
                     (ctx->handler_flags &
-                    Alter_inplace_info::ALTER_COLUMN_ORDER) != 0);
+                    Alter_inplace_info::ALTER_STORED_COLUMN_ORDER) != 0);
             if (cr_supported)
                 result = HA_ALTER_INPLACE_EXCLUSIVE_LOCK;
         }
@@ -377,7 +377,7 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
                only_flags(
                     ctx->handler_flags,
                     Alter_inplace_info::ADD_COLUMN +
-                    Alter_inplace_info::ALTER_COLUMN_ORDER) &&
+                    Alter_inplace_info::ALTER_STORED_COLUMN_ORDER) &&
                setup_kc_info(altered_table, ctx->altered_table_kc_info) == 0) {
 
         // add column
@@ -407,7 +407,7 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
                only_flags(
                     ctx->handler_flags,
                     Alter_inplace_info::DROP_COLUMN +
-                    Alter_inplace_info::ALTER_COLUMN_ORDER) &&
+                    Alter_inplace_info::ALTER_STORED_COLUMN_ORDER) &&
                setup_kc_info(altered_table, ctx->altered_table_kc_info) == 0) {
 
         // drop column
@@ -452,10 +452,10 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
                 ha_alter_info, ctx)) {
             result = HA_ALTER_INPLACE_EXCLUSIVE_LOCK;
         }
-    } else if ((ctx->handler_flags & Alter_inplace_info::ALTER_COLUMN_TYPE) &&
+    } else if ((ctx->handler_flags & Alter_inplace_info::ALTER_STORED_COLUMN_TYPE) &&
                 only_flags(
                     ctx->handler_flags,
-                    Alter_inplace_info::ALTER_COLUMN_TYPE +
+                    Alter_inplace_info::ALTER_STORED_COLUMN_TYPE +
                     Alter_inplace_info::ALTER_COLUMN_DEFAULT) &&
                 table->s->fields == altered_table->s->fields &&
                 find_changed_fields(
@@ -1578,7 +1578,7 @@ static bool change_field_type_is_supported(
             return false;
     } else if (old_type == MYSQL_TYPE_VARCHAR) {
         // varchar(X) -> varchar(Y) and varbinary(X) -> varbinary(Y) expansion
-        // where X < 256 <= Y the ALTER_COLUMN_TYPE handler flag is set for
+        // where X < 256 <= Y the ALTER_STORED_COLUMN_TYPE handler flag is set for
         // these cases
         return change_varchar_length_is_supported(
             old_field,

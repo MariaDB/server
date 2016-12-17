@@ -163,7 +163,7 @@ create table t1 (col1 date)
 partition by range(unix_timestamp(col1))
 (partition p0 values less than (10), partition p1 values less than (30));
 
--- error ER_PARSE_ERROR
+-- error ER_PARTITION_FUNCTION_IS_NOT_ALLOWED
 create table t1 (col1 datetime)
 partition by range(week(col1))
 (partition p0 values less than (10), partition p1 values less than (30));

@@ -134,12 +134,5 @@ row_search_for_mysql(
 	ulint			match_mode,
 	ulint			direction)
 {
-	if (!dict_table_is_intrinsic(prebuilt->table)) {
-		return(row_search_mvcc(
-			buf, mode, prebuilt, match_mode, direction));
-	} else {
-		return(row_search_no_mvcc(
-			buf, mode, prebuilt, match_mode, direction));
-	}
+	return(row_search_mvcc(buf, mode, prebuilt, match_mode, direction));
 }
-

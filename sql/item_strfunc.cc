@@ -3487,13 +3487,11 @@ bool Item_func_set_collation::eq(const Item *item, bool binary_cmp) const
 
 void Item_func_set_collation::print(String *str, enum_query_type query_type)
 {
-  str->append('(');
-  args[0]->print(str, query_type);
+  args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" collate "));
   DBUG_ASSERT(args[1]->basic_const_item() &&
               args[1]->type() == Item::STRING_ITEM);
   ((Item_string *)args[1])->print_value(str);
-  str->append(')');
 }
 
 String *Item_func_charset::val_str(String *str)
@@ -3618,6 +3616,21 @@ String *Item_func_weight_string::val_str(String *str)
 nl:
   null_value= 1;
   return 0;
+}
+
+
+void Item_func_weight_string::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  args[0]->print(str, query_type);
+  str->append(',');
+  str->append_ulonglong(result_length);
+  str->append(',');
+  str->append_ulonglong(nweights);
+  str->append(',');
+  str->append_ulonglong(flags);
+  str->append(')');
 }
 
 
@@ -4716,7 +4729,7 @@ void Item_func_dyncol_add::print(String *str,
                                  enum_query_type query_type)
 {
   DBUG_ASSERT((arg_count & 0x1) == 1); // odd number of arguments
-  str->append(STRING_WITH_LEN("column_create("));
+  str->append(STRING_WITH_LEN("column_add("));
   args[arg_count - 1]->print(str, query_type);
   str->append(',');
   print_arguments(str, query_type);

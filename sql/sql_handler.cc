@@ -929,9 +929,6 @@ retry:
       }
       goto ok;
     }
-    /* Generate values for virtual fields */
-    if (table->vfield)
-      update_virtual_fields(thd, table);
     if (cond && !cond->val_int())
     {
       if (thd->is_error())

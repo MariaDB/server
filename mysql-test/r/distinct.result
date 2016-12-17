@@ -920,7 +920,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	96	100.00	Using where
 Warnings:
-Note	1003	select straight_join distinct `test`.`t1`.`id` AS `id` from `test`.`t1` join `test`.`v1` join `test`.`t2` where ((`test`.`t2`.`i` = `v1`.`id`) and (`v1`.`i1` = `test`.`t1`.`i1`) and (`v1`.`id` <> 3))
+Note	1003	select straight_join distinct `test`.`t1`.`id` AS `id` from `test`.`t1` join `test`.`v1` join `test`.`t2` where `test`.`t2`.`i` = `v1`.`id` and `v1`.`i1` = `test`.`t1`.`i1` and `v1`.`id` <> 3
 set join_buffer_size=1024;
 SELECT STRAIGHT_JOIN DISTINCT t1.id  FROM
 t1, v1, t2 WHERE v1.id = t2.i AND t1.i1 = v1.i1 AND t2.i != 3;

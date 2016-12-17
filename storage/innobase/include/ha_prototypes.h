@@ -52,7 +52,6 @@ struct fts_string_t;
 #undef MYSQL_SPATIAL_INDEX
 #undef MYSQL_STORE_FTS_DOC_ID
 #undef MYSQL_TABLESPACES
-#undef MYSQL_VIRTUAL_COLUMNS
 
 /*********************************************************************//**
 Wrapper around MySQL's copy_and_convert function.
@@ -653,6 +652,21 @@ buffer pool size.
 @param[in]	buf_pool_size	given value of buffer pool size.*/
 void
 innodb_set_buf_pool_size(ulonglong buf_pool_size);
+
+/** Create a MYSQL_THD for background purge threads and mark it as such.
+@returns new MYSQL_THD */
+MYSQL_THD
+innobase_create_background_thd();
+
+/** Destroy a background purge thread THD.
+@param[in]	thd	MYSQL_THD to destroy */
+void
+innobase_destroy_background_thd(MYSQL_THD);
+
+/** Close opened tables, free memory, delete items for a MYSQL_THD.
+@param[in]	thd	MYSQL_THD to reset */
+void
+innobase_reset_background_thd(MYSQL_THD);
 
 #endif /* !UNIV_HOTBACKUP && !UNIV_INNOCHECKSUM */
 #endif /* HA_INNODB_PROTOTYPES_H */

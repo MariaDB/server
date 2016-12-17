@@ -685,7 +685,7 @@ Db	char(64)	NO	PRI
 User	char(80)	NO	PRI		
 Table_name	char(64)	NO	PRI		
 Grantor	char(141)	NO	MUL		
-Timestamp	timestamp	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+Timestamp	timestamp	NO		current_timestamp()	on update current_timestamp()
 Table_priv	set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger')	NO			
 Column_priv	set('Select','Insert','Update','References')	NO			
 use test;
@@ -1093,10 +1093,10 @@ SHOW CREATE VIEW  mysqltest2.t_nn;
 ERROR HY000: 'mysqltest2.t_nn' is not VIEW
 SHOW CREATE VIEW mysqltest2.v_yy;
 View	Create View	character_set_client	collation_connection
-v_yy	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest2`.`v_yy` AS select `mysqltest2`.`t_nn`.`c1` AS `c1` from `mysqltest2`.`t_nn` where (`mysqltest2`.`t_nn`.`c1` = 55)	latin1	latin1_swedish_ci
+v_yy	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest2`.`v_yy` AS select `mysqltest2`.`t_nn`.`c1` AS `c1` from `mysqltest2`.`t_nn` where `mysqltest2`.`t_nn`.`c1` = 55	latin1	latin1_swedish_ci
 SHOW CREATE TABLE mysqltest2.v_yy;
 View	Create View	character_set_client	collation_connection
-v_yy	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest2`.`v_yy` AS select `mysqltest2`.`t_nn`.`c1` AS `c1` from `mysqltest2`.`t_nn` where (`mysqltest2`.`t_nn`.`c1` = 55)	latin1	latin1_swedish_ci
+v_yy	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest2`.`v_yy` AS select `mysqltest2`.`t_nn`.`c1` AS `c1` from `mysqltest2`.`t_nn` where `mysqltest2`.`t_nn`.`c1` = 55	latin1	latin1_swedish_ci
 connection master;
 SHOW CREATE TABLE mysqltest2.v_nn;
 View	Create View	character_set_client	collation_connection
@@ -2675,7 +2675,7 @@ CREATE TABLE t1 (a VARCHAR(30) DEFAULT USER());
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(30) DEFAULT USER()
+  `a` varchar(30) DEFAULT user()
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ();
 GRANT ALL PRIVILEGES ON test.* TO dummy@localhost IDENTIFIED BY 'pwd';

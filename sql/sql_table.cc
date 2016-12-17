@@ -2510,8 +2510,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                          table->table ? (long) table->table->s : (long) -1));
 
     DBUG_EXECUTE_IF("bug43138",
-                    my_printf_error(ER_BAD_TABLE_ERROR,
-                                    ER_THD(thd, ER_BAD_TABLE_ERROR), MYF(0),
+                    my_error(ER_BAD_TABLE_ERROR, MYF(0),
                                     table->table_name););
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
@@ -2523,12 +2522,9 @@ err:
   {
     DBUG_ASSERT(errors);
     if (errors == 1 && was_view)
-      my_printf_error(ER_IT_IS_A_VIEW, ER_THD(thd, ER_IT_IS_A_VIEW), MYF(0),
-                      wrong_tables.c_ptr_safe());
+      my_error(ER_IT_IS_A_VIEW, MYF(0), wrong_tables.c_ptr_safe());
     else if (errors > 1 || !thd->is_error())
-      my_printf_error(ER_BAD_TABLE_ERROR, ER_THD(thd, ER_BAD_TABLE_ERROR),
-                      MYF(0),
-                      wrong_tables.c_ptr_safe());
+      my_error(ER_BAD_TABLE_ERROR, MYF(0), wrong_tables.c_ptr_safe());
     error= 1;
   }
 
@@ -2858,15 +2854,13 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
     if (charset->state & MY_CS_BINSORT)
       pack_flag|= FIELDFLAG_BINARY;
     length= 8;                        // Unireg field length
-    unireg_check= Field::BLOB_FIELD;
     (*blob_columns)++;
     break;
   case MYSQL_TYPE_GEOMETRY:
 #ifdef HAVE_SPATIAL
     if (!(table_flags & HA_CAN_GEOMETRY))
     {
-      my_printf_error(ER_CHECK_NOT_IMPLEMENTED, ER(ER_CHECK_NOT_IMPLEMENTED),
-                      MYF(0), "GEOMETRY");
+      my_error(ER_CHECK_NOT_IMPLEMENTED, MYF(0), "GEOMETRY");
       DBUG_RETURN(true);
     }
     pack_flag= FIELDFLAG_GEOM |
@@ -2874,12 +2868,11 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
     if (charset->state & MY_CS_BINSORT)
       pack_flag|= FIELDFLAG_BINARY;
     length= 8;                        // Unireg field length
-    unireg_check= Field::BLOB_FIELD;
     (*blob_columns)++;
     break;
 #else
-    my_printf_error(ER_FEATURE_DISABLED,ER(ER_FEATURE_DISABLED), MYF(0),
-                    sym_group_geom.name, sym_group_geom.needed_define);
+    my_error(ER_FEATURE_DISABLED, MYF(0),
+             sym_group_geom.name, sym_group_geom.needed_define);
     DBUG_RETURN(true);
 #endif /*HAVE_SPATIAL*/
   case MYSQL_TYPE_VARCHAR:
@@ -2891,9 +2884,8 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
       pack_length= calc_pack_length(sql_type, (uint) length);
       if ((length / charset->mbmaxlen) > MAX_FIELD_CHARLENGTH)
       {
-        my_printf_error(ER_TOO_BIG_FIELDLENGTH, ER(ER_TOO_BIG_FIELDLENGTH),
-                        MYF(0), field_name,
-                        static_cast<ulong>(MAX_FIELD_CHARLENGTH));
+        my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name,
+                 static_cast<ulong>(MAX_FIELD_CHARLENGTH));
         DBUG_RETURN(true);
       }
     }
@@ -2908,7 +2900,6 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
     pack_flag= pack_length_to_packflag(pack_length) | FIELDFLAG_INTERVAL;
     if (charset->state & MY_CS_BINSORT)
       pack_flag|= FIELDFLAG_BINARY;
-    unireg_check= Field::INTERVAL_FIELD;
     if (check_duplicates_in_interval("ENUM", field_name, interval,
                                      charset, &dup_val_count))
       DBUG_RETURN(true);
@@ -2917,7 +2908,6 @@ bool Column_definition::prepare_create_field(uint *blob_columns,
     pack_flag= pack_length_to_packflag(pack_length) | FIELDFLAG_BITFIELD;
     if (charset->state & MY_CS_BINSORT)
       pack_flag|= FIELDFLAG_BINARY;
-    unireg_check= Field::BIT_FIELD;
     if (check_duplicates_in_interval("SET", field_name, interval,
                                      charset, &dup_val_count))
       DBUG_RETURN(true);
@@ -3231,53 +3221,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (sql_field->prepare_blob_field(thd))
       DBUG_RETURN(TRUE);
 
-    if (sql_field->default_value)
-    {
-      Virtual_column_info *def= sql_field->default_value;
-
-      if (!sql_field->has_default_expression())
-        def->expr_str= null_lex_str;
-
-      if (!def->expr_item->basic_const_item() && !def->flags)
-      {
-        Item *expr= def->expr_item;
-        int err= !expr->fixed && // may be already fixed if ALTER TABLE
-                  expr->fix_fields(thd, &expr);
-        if (!err)
-        {
-          if (expr->result_type() == REAL_RESULT)
-          { // don't convert floats to string and back, it can be lossy
-            double res= expr->val_real();
-            if (expr->null_value)
-              expr= new (thd->mem_root) Item_null(thd);
-            else
-              expr= new (thd->mem_root) Item_float(thd, res, expr->decimals);
-          }
-          else
-          {
-            StringBuffer<MAX_FIELD_WIDTH> buf;
-            String *res= expr->val_str(&buf);
-            if (expr->null_value)
-              expr= new (thd->mem_root) Item_null(thd);
-            else
-            {
-              char *str= (char*) thd->strmake(res->ptr(), res->length());
-              expr= new (thd->mem_root) Item_string(thd, str, res->length(), res->charset());
-            }
-          }
-          thd->change_item_tree(&def->expr_item, expr);
-        }
-      }
-    }
-
     /*
       Convert the default value from client character
       set into the column character set if necessary.
       We can only do this for constants as we have not yet run fix_fields.
     */
     if (sql_field->default_value &&
-        sql_field->default_value->expr_item->basic_const_item() &&
-        save_cs != sql_field->default_value->expr_item->collation.collation &&
+        sql_field->default_value->expr->basic_const_item() &&
+        save_cs != sql_field->default_value->expr->collation.collation &&
         (sql_field->sql_type == MYSQL_TYPE_VAR_STRING ||
          sql_field->sql_type == MYSQL_TYPE_STRING ||
          sql_field->sql_type == MYSQL_TYPE_SET ||
@@ -3288,7 +3239,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
          sql_field->sql_type == MYSQL_TYPE_ENUM))
     {
       Item *item;
-      if (!(item= sql_field->default_value->expr_item->
+      if (!(item= sql_field->default_value->expr->
             safe_charset_converter(thd, save_cs)))
       {
         /* Could not convert */
@@ -3296,16 +3247,16 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(TRUE);
       }
       /* Fix for prepare statement */
-      thd->change_item_tree(&sql_field->default_value->expr_item, item);
+      thd->change_item_tree(&sql_field->default_value->expr, item);
     }
 
     if (sql_field->default_value &&
-        sql_field->default_value->expr_item->basic_const_item() &&
+        sql_field->default_value->expr->basic_const_item() &&
         (sql_field->sql_type == MYSQL_TYPE_SET ||
          sql_field->sql_type == MYSQL_TYPE_ENUM))
     {
       StringBuffer<MAX_FIELD_WIDTH> str;
-      String *def= sql_field->default_value->expr_item->val_str(&str);
+      String *def= sql_field->default_value->expr->val_str(&str);
       bool not_found;
       if (def == NULL) /* SQL "NULL" maps to NULL */
       {
@@ -3731,9 +3682,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         if (!my_strcasecmp(system_charset_info,
 	     	           column->field_name.str, dup_column->field_name.str))
 	{
-	  my_printf_error(ER_DUP_FIELDNAME,
-			  ER_THD(thd, ER_DUP_FIELDNAME),MYF(0),
-			  column->field_name.str);
+	  my_error(ER_DUP_FIELDNAME, MYF(0), column->field_name.str);
 	  DBUG_RETURN(TRUE);
 	}
       }
@@ -3809,16 +3758,21 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  }
 	}
 #endif
-        if (!sql_field->stored_in_db())
+        if (sql_field->vcol_info)
         {
-          /* Key fields must always be physically stored. */
-          my_error(ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN, MYF(0));
-          DBUG_RETURN(TRUE);
-        }
-        if (key->type == Key::PRIMARY && sql_field->vcol_info)
-        {
-          my_error(ER_PRIMARY_KEY_BASED_ON_VIRTUAL_COLUMN, MYF(0));
-          DBUG_RETURN(TRUE);
+          if (key->type == Key::PRIMARY)
+          {
+            my_error(ER_PRIMARY_KEY_BASED_ON_GENERATED_COLUMN, MYF(0));
+            DBUG_RETURN(TRUE);
+          }
+          if (sql_field->vcol_info->flags & VCOL_NOT_STRICTLY_DETERMINISTIC)
+          {
+            /* use check_expression() to report an error */
+            check_expression(sql_field->vcol_info, sql_field->field_name,
+                             VCOL_GENERATED_STORED);
+            DBUG_ASSERT(thd->is_error());
+            DBUG_RETURN(TRUE);
+          }
         }
 	if (!(sql_field->flags & NOT_NULL_FLAG))
 	{
@@ -4104,11 +4058,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (check_string_char_length(&check->name, 0, NAME_CHAR_LEN,
                                    system_charset_info, 1))
       {
-        my_error(ER_TOO_LONG_IDENT, MYF(0), key->name.str);
+        my_error(ER_TOO_LONG_IDENT, MYF(0), check->name.str);
         DBUG_RETURN(TRUE);
       }
-      if (check_expression(check, "CONSTRAINT CHECK",
-                           check->name.str ? check->name.str : "", 0))
+      if (check_expression(check, check->name.str, VCOL_CHECK_TABLE))
         DBUG_RETURN(TRUE);
     }
   }
@@ -6167,11 +6120,6 @@ static bool fill_alter_inplace_info(THD *thd,
                             alter_info->key_list.elements)))
     DBUG_RETURN(true);
 
-  /* First we setup ha_alter_flags based on what was detected by parser. */
-  if (alter_info->flags & Alter_info::ALTER_ADD_COLUMN)
-    ha_alter_info->handler_flags|= Alter_inplace_info::ADD_COLUMN;
-  if (alter_info->flags & Alter_info::ALTER_DROP_COLUMN)
-    ha_alter_info->handler_flags|= Alter_inplace_info::DROP_COLUMN;
   /*
     Comparing new and old default values of column is cumbersome.
     So instead of using such a comparison for detecting if default
@@ -6219,7 +6167,7 @@ static bool fill_alter_inplace_info(THD *thd,
     upgrading VARCHAR column types.
   */
   if (table->s->frm_version < FRM_VER_TRUE_VARCHAR && varchar)
-    ha_alter_info->handler_flags|=  Alter_inplace_info::ALTER_COLUMN_TYPE;
+    ha_alter_info->handler_flags|=  Alter_inplace_info::ALTER_STORED_COLUMN_TYPE;
 
   /*
     Go through fields in old version of table and detect changes to them.
@@ -6233,20 +6181,23 @@ static bool fill_alter_inplace_info(THD *thd,
        about nature of changes than those provided from parser.
   */
   bool maybe_alter_vcol= false;
-  for (f_ptr= table->field; (field= *f_ptr); f_ptr++)
+  uint field_stored_index= 0;
+  for (f_ptr= table->field; (field= *f_ptr); f_ptr++,
+                               field_stored_index+= field->stored_in_db())
   {
     /* Clear marker for renamed or dropped field
     which we are going to set later. */
     field->flags&= ~(FIELD_IS_RENAMED | FIELD_IS_DROPPED);
 
     /* Use transformed info to evaluate flags for storage engine. */
-    uint new_field_index= 0;
+    uint new_field_index= 0, new_field_stored_index= 0;
     new_field_it.init(alter_info->create_list);
     while ((new_field= new_field_it++))
     {
       if (new_field->field == field)
         break;
       new_field_index++;
+      new_field_stored_index+= new_field->stored_in_db();
     }
 
     if (new_field)
@@ -6261,7 +6212,12 @@ static bool fill_alter_inplace_info(THD *thd,
       {
       case IS_EQUAL_NO:
         /* New column type is incompatible with old one. */
-        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_TYPE;
+        if (field->stored_in_db())
+          ha_alter_info->handler_flags|=
+            Alter_inplace_info::ALTER_STORED_COLUMN_TYPE;
+        else
+          ha_alter_info->handler_flags|=
+            Alter_inplace_info::ALTER_VIRTUAL_COLUMN_TYPE;
         if (table->s->tmp_table == NO_TMP_TABLE)
         {
           delete_statistics_for_column(thd, table, field);
@@ -6306,21 +6262,59 @@ static bool fill_alter_inplace_info(THD *thd,
       default:
         DBUG_ASSERT(0);
         /* Safety. */
-        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_TYPE;
+        ha_alter_info->handler_flags|=
+          Alter_inplace_info::ALTER_STORED_COLUMN_TYPE;
       }
 
-      /*
-        Check if the column is computed and either
-        is stored or is used in the partitioning expression.
-      */
-      if (field->vcol_info && 
-          (field->stored_in_db() || field->vcol_info->is_in_partitioning_expr()))
+      if (field->vcol_info || new_field->vcol_info)
       {
-        if (is_equal == IS_EQUAL_NO ||
-            !field->vcol_info->is_equal(new_field->vcol_info))
-          ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
-        else
-          maybe_alter_vcol= true;
+        /* base <-> virtual or stored <-> virtual */
+        if (field->stored_in_db() != new_field->stored_in_db())
+          ha_alter_info->handler_flags|=
+                    Alter_inplace_info::ALTER_STORED_COLUMN_TYPE |
+                    Alter_inplace_info::ALTER_VIRTUAL_COLUMN_TYPE;
+        if (field->vcol_info && new_field->vcol_info)
+        {
+          bool value_changes= is_equal == IS_EQUAL_NO;
+          Alter_inplace_info::HA_ALTER_FLAGS alter_expr;
+          if (field->stored_in_db())
+            alter_expr= Alter_inplace_info::ALTER_STORED_GCOL_EXPR;
+          else
+            alter_expr= Alter_inplace_info::ALTER_VIRTUAL_GCOL_EXPR;
+          if (!field->vcol_info->is_equal(new_field->vcol_info))
+          {
+            ha_alter_info->handler_flags|= alter_expr;
+            value_changes= true;
+          }
+
+          if ((ha_alter_info->handler_flags & Alter_inplace_info::ALTER_COLUMN_DEFAULT)
+              && !(ha_alter_info->handler_flags & alter_expr))
+          { /*
+              a DEFAULT value of a some column was changed.  see if this vcol
+              uses DEFAULT() function. The check is kind of expensive, so don't
+              do it if ALTER_COLUMN_VCOL is already set.
+            */
+            if (field->vcol_info->expr->walk(
+                                 &Item::check_func_default_processor, 0, 0))
+            {
+              ha_alter_info->handler_flags|= alter_expr;
+              value_changes= true;
+            }
+          }
+
+          if (field->vcol_info->is_in_partitioning_expr() ||
+              field->flags & PART_KEY_FLAG)
+          {
+            if (value_changes)
+              ha_alter_info->handler_flags|=
+                Alter_inplace_info::ALTER_COLUMN_VCOL;
+            else
+              maybe_alter_vcol= true;
+          }
+        }
+        else /* base <-> stored */
+          ha_alter_info->handler_flags|=
+            Alter_inplace_info::ALTER_STORED_COLUMN_TYPE;
       }
 
       /* Check if field was renamed */
@@ -6353,8 +6347,18 @@ static bool fill_alter_inplace_info(THD *thd,
       /*
         Detect changes in column order.
       */
-      if (field->field_index != new_field_index)
-        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_ORDER;
+      if (field->stored_in_db())
+      {
+        if (field_stored_index != new_field_stored_index)
+          ha_alter_info->handler_flags|=
+            Alter_inplace_info::ALTER_STORED_COLUMN_ORDER;
+      }
+      else
+      {
+        if (field->field_index != new_field_index)
+          ha_alter_info->handler_flags|=
+            Alter_inplace_info::ALTER_VIRTUAL_COLUMN_ORDER;
+      }
 
       /* Detect changes in storage type of column */
       if (new_field->field_storage_type() != field->field_storage_type())
@@ -6377,27 +6381,28 @@ static bool fill_alter_inplace_info(THD *thd,
     }
     else
     {
-      /*
-        Field is not present in new version of table and therefore was dropped.
-        Corresponding storage engine flag should be already set.
-      */
-      DBUG_ASSERT(ha_alter_info->handler_flags & Alter_inplace_info::DROP_COLUMN);
+      // Field is not present in new version of table and therefore was dropped.
       field->flags|= FIELD_IS_DROPPED;
+      if (field->stored_in_db())
+        ha_alter_info->handler_flags|= Alter_inplace_info::DROP_STORED_COLUMN;
+      else
+        ha_alter_info->handler_flags|= Alter_inplace_info::DROP_VIRTUAL_COLUMN;
     }
   }
 
   if (maybe_alter_vcol)
   {
     /*
-      No virtual column was altered, but perhaps one of the other columns was,
-      and that column was part of the vcol expression?
-      We don't detect this correctly (FIXME), so let's just say that a vcol
-      *might* be affected if any other column was altered.
+      What if one of the normal columns was altered and it was part of the some
+      virtual column expression?  Currently we don't detect this correctly
+      (FIXME), so let's just say that a vcol *might* be affected if any other
+      column was altered.
     */
     if (ha_alter_info->handler_flags &
-          ( Alter_inplace_info::ALTER_COLUMN_TYPE
-          | Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE
-          | Alter_inplace_info::ALTER_COLUMN_OPTION ))
+                   ( Alter_inplace_info::ALTER_STORED_COLUMN_TYPE
+                   | Alter_inplace_info::ALTER_VIRTUAL_COLUMN_TYPE
+                   | Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE
+                   | Alter_inplace_info::ALTER_COLUMN_OPTION ))
       ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
   }
 
@@ -6406,17 +6411,17 @@ static bool fill_alter_inplace_info(THD *thd,
   {
     if (! new_field->field)
     {
-      /*
-        Field is not present in old version of table and therefore was added.
-        Again corresponding storage engine flag should be already set.
-      */
-      DBUG_ASSERT(ha_alter_info->handler_flags & Alter_inplace_info::ADD_COLUMN);
-
-      if (new_field->vcol_info && 
-          (new_field->stored_in_db() || new_field->vcol_info->is_in_partitioning_expr()))
-      {
-        ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_COLUMN_VCOL;
-      }
+      // Field is not present in old version of table and therefore was added.
+      if (new_field->vcol_info)
+        if (new_field->stored_in_db())
+          ha_alter_info->handler_flags|=
+            Alter_inplace_info::ADD_STORED_GENERATED_COLUMN;
+        else
+          ha_alter_info->handler_flags|=
+            Alter_inplace_info::ADD_VIRTUAL_COLUMN;
+      else
+        ha_alter_info->handler_flags|=
+          Alter_inplace_info::ADD_STORED_BASE_COLUMN;
     }
   }
 
@@ -7491,7 +7496,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       new_create_list.push_back(def, thd->mem_root);
       if (field->stored_in_db() != def->stored_in_db())
       {
-        my_error(ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN, MYF(0));
+        my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
         goto err;
       }
       if (!def->after)
@@ -9669,8 +9674,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       error= 1;
       break;
     }
-    if (from->vfield)
-      update_virtual_fields(thd, from);
     if (++thd->progress.counter >= time_to_report_progress)
     {
       time_to_report_progress+= MY_HOW_OFTEN_TO_WRITE/10;
@@ -9700,7 +9703,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (to->default_field)
       to->update_default_fields(0, ignore);
     if (to->vfield)
-      update_virtual_fields(thd, to, VCOL_UPDATE_FOR_WRITE);
+      to->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
 
     /* This will set thd->is_error() if fatal failure */
     if (to->verify_constraints(ignore) == VIEW_CHECK_SKIP)

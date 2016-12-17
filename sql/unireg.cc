@@ -42,13 +42,11 @@
 static uint pack_keys(uchar *,uint, KEY *, ulong);
 static bool pack_header(THD *, uchar *, List<Create_field> &, HA_CREATE_INFO *,
                         ulong, handler *);
+static bool pack_vcols(String *, List<Create_field> &, List<Virtual_column_info> *);
 static uint get_interval_id(uint *,List<Create_field> &, Create_field *);
 static bool pack_fields(uchar **, List<Create_field> &, HA_CREATE_INFO*,
                         ulong);
-static void pack_constraints(uchar **buff, List<Virtual_column_info> *constr);
 static size_t packed_fields_length(List<Create_field> &);
-static size_t packed_constraints_length(THD *, HA_CREATE_INFO*,
-                                        List<Virtual_column_info> *);
 static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint,
                            ulong);
 
@@ -120,6 +118,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   int error;
   uchar *frm_ptr, *pos;
   LEX_CUSTRING frm= {0,0};
+  StringBuffer<MAX_FIELD_WIDTH> vcols;
   DBUG_ENTER("build_frm_image");
 
  /* If fixed row records, we need one bit to check for deleted rows */
@@ -127,9 +126,19 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     create_info->null_bits++;
   data_offset= (create_info->null_bits + 7) / 8;
 
+  sql_mode_t save_sql_mode= thd->variables.sql_mode;
+  thd->variables.sql_mode &= ~MODE_ANSI_QUOTES;
+  error= pack_vcols(&vcols, create_fields, create_info->check_constraint_list);
+  thd->variables.sql_mode= save_sql_mode;
+
+  if (error)
+    DBUG_RETURN(frm);
+
+  if (vcols.length())
+    create_info->expression_length= vcols.length() + FRM_VCOL_NEW_BASE_SIZE;
+
   error= pack_header(thd, forminfo, create_fields, create_info,
                      data_offset, db_file);
-
   if (error)
     DBUG_RETURN(frm);
 
@@ -284,8 +293,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     DBUG_PRINT("info", ("part_db_type = %d", fileinfo[61]));
   }
 
-  int2store(fileinfo+59,db_file->extra_rec_buf_length());
-
   memcpy(frm_ptr, fileinfo, FRM_HEADER_SIZE);
 
   pos+= key_buff_length;
@@ -337,6 +344,15 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   pos= frm_ptr + filepos + 288;
   if (pack_fields(&pos, create_fields, create_info, data_offset))
     goto err;
+
+  if (vcols.length())
+  {
+    /* Store header for packed fields (extra space for future) */
+    bzero(pos, FRM_VCOL_NEW_BASE_SIZE);
+    pos+= FRM_VCOL_NEW_BASE_SIZE;
+    memcpy(pos, vcols.ptr(), vcols.length());
+    pos+= vcols.length();
+  }
 
   {
     /* 
@@ -498,92 +514,73 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
 
 
 /**
-   Calculate and check length of stored expression (virtual, def, check)
+   Pack the expression (for GENERATED ALWAYS AS, DEFAULT, CHECK)
 
-   Convert string to utf8, if it isn't already
-
-   @param thd		Thread handler. Used for memory allocation
-   @param v_col		Virtual expression. Can be 0
-   @param CREATE INFO   For characterset
-   @param length	Sum total lengths here
-
-   Note to make calls easier, one can call this with v_col == 0
+   The data is stored as:
+   1 byte      type (enum_vcol_info_type)
+   2 bytes     field_number
+   2 bytes     length of expression
+   1 byte      length of name
+   name
+   next bytes  column expression (text data)
 
    @return 0 ok
    @return 1 error (out of memory or wrong characters in expression)
 */
 
-static bool add_expr_length(THD *thd, Virtual_column_info **v_col_ptr,
-                            size_t *length)
+static bool pack_expression(String *buf, Virtual_column_info *vcol,
+                            uint field_nr, enum_vcol_info_type type)
 {
-  Virtual_column_info *v_col= *v_col_ptr;
-  if (!v_col)
-    return 0;
+  if (buf->reserve(FRM_VCOL_NEW_HEADER_SIZE + vcol->name.length))
+    return 1;
 
-  /*
-    Convert string to utf8 for storage.
-  */
-  if (!v_col->utf8)
+  buf->q_append((char) type);
+  buf->q_append2b(field_nr);
+  size_t len_off= buf->length();
+  buf->q_append2b(0); // to be added later
+  buf->q_append((char)vcol->name.length);
+  buf->q_append(vcol->name.str, vcol->name.length);
+  size_t expr_start= buf->length();
+  vcol->print(buf);
+  size_t expr_len= buf->length() - expr_start;
+  if (expr_len >= 65536)
   {
-    /*
-      This v_col comes from the parser (e.g. CREATE TABLE) or
-      from old (before 10.2.1) frm.
-
-      We have to create a new Virtual_column_info as for alter table,
-      the current one may be shared with the original table.
-    */
-    Virtual_column_info *new_vcol= new (thd->mem_root) Virtual_column_info();
-    LEX_STRING to;
-    if (thd->copy_with_error(&my_charset_utf8mb4_general_ci,
-                             &to,
-                             thd->variables.character_set_client,
-                             v_col->expr_str.str, v_col->expr_str.length))
-      return 1;
-    *new_vcol= *v_col;
-    new_vcol->expr_str= to;
-    new_vcol->utf8= 1;
-    *v_col_ptr= new_vcol;
-    v_col= new_vcol;
+    my_error(ER_EXPRESSION_IS_TOO_BIG, MYF(0), vcol_type_name(type));
+    return 1;
   }
-
-  /*
-    Sum up the length of the expression string, it's optional name
-    and the header.
-  */
-  (*length)+=  (FRM_VCOL_NEW_HEADER_SIZE + v_col->name.length +
-                v_col->expr_str.length);
+  int2store(buf->ptr() + len_off, expr_len);
   return 0;
 }
 
 
-/*
-  pack_expression
-
-  The data is stored as:
-  1 byte      type  (0 virtual, 1 virtual stored, 2 def, 3 check)
-  2 bytes     field_number
-  2 bytes     length of expression
-  1 byte      length of name
-  name
-  next bytes  column expression (text data)
-*/
-
-static void pack_expression(uchar **buff, Virtual_column_info *vcol,
-                            uint offset, uint type)
+static bool pack_vcols(String *buf, List<Create_field> &create_fields,
+                             List<Virtual_column_info> *check_constraint_list)
 {
-  (*buff)[0]= (uchar) type;
-  int2store((*buff)+1,   offset);
-  /*
-    expr_str.length < 64K as we have checked that the total size of the
-    frm file is  < 64K
-  */
-  int2store((*buff)+3, vcol->expr_str.length);
-  (*buff)[5]= vcol->name.length;
-  (*buff)+= FRM_VCOL_NEW_HEADER_SIZE;
-  memcpy((*buff), vcol->name.str, vcol->name.length);
-  (*buff)+= vcol->name.length;
-  memcpy((*buff), vcol->expr_str.str, vcol->expr_str.length);
-  (*buff)+= vcol->expr_str.length;
+  List_iterator<Create_field> it(create_fields);
+  Create_field *field;
+
+  for (uint field_nr=0; (field= it++); field_nr++)
+  {
+    if (field->vcol_info)
+      if (pack_expression(buf, field->vcol_info, field_nr,
+                          field->vcol_info->stored_in_db
+                          ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL))
+        return 1;
+    if (field->has_default_expression() && !field->has_default_now_unireg_check())
+      if (pack_expression(buf, field->default_value, field_nr, VCOL_DEFAULT))
+        return 1;
+    if (field->check_constraint)
+      if (pack_expression(buf, field->check_constraint, field_nr,
+                          VCOL_CHECK_FIELD))
+        return 1;
+  }
+
+  List_iterator<Virtual_column_info> cit(*check_constraint_list);
+  Virtual_column_info *check;
+  while ((check= cit++))
+    if (pack_expression(buf, check, UINT_MAX32, VCOL_CHECK_TABLE))
+      return 1;
+  return 0;
 }
 
 
@@ -594,10 +591,10 @@ static bool pack_header(THD *thd, uchar *forminfo,
                         HA_CREATE_INFO *create_info, ulong data_offset,
                         handler *file)
 {
-  uint length,int_count,int_length,no_empty, int_parts;
+  uint int_count,int_length, int_parts;
   uint time_stamp_pos,null_fields;
   uint table_options= create_info->table_options;
-  size_t reclength, totlength, n_length, com_length, expression_length;
+  size_t length, reclength, totlength, n_length, com_length;
   DBUG_ENTER("pack_header");
 
   if (create_fields.elements > MAX_FIELDS)
@@ -608,20 +605,10 @@ static bool pack_header(THD *thd, uchar *forminfo,
 
   totlength= 0L;
   reclength= data_offset;
-  no_empty=int_count=int_parts=int_length=time_stamp_pos=null_fields=0;
+  int_count=int_parts=int_length=time_stamp_pos=null_fields=0;
   com_length= 0;
   n_length=2L;
   create_info->field_check_constraints= 0;
-
-  if (create_info->check_constraint_list->elements)
-  {
-    expression_length= packed_constraints_length(thd, create_info,
-                                        create_info->check_constraint_list);
-    if (!expression_length)
-      DBUG_RETURN(1);                             // Wrong characterset
-  }
-  else
-    expression_length= 0;
 
   /* Check fields */
   List_iterator<Create_field> it(create_fields);
@@ -632,23 +619,8 @@ static bool pack_header(THD *thd, uchar *forminfo,
                                 ER_TOO_LONG_FIELD_COMMENT, field->field_name))
        DBUG_RETURN(1);
 
-    if (add_expr_length(thd, &field->vcol_info, &expression_length))
-      DBUG_RETURN(1);
-    if (field->default_value && field->default_value->expr_str.length)
-      if (add_expr_length(thd, &field->default_value, &expression_length))
-	DBUG_RETURN(1);
-    if (add_expr_length(thd, &field->check_constraint, &expression_length))
-      DBUG_RETURN(1);
-
     totlength+= field->length;
     com_length+= field->comment.length;
-    if (MTYP_TYPENR(field->unireg_check) == Field::NOEMPTY ||
-	field->unireg_check & MTYP_NOEMPTY_BIT)
-    {
-      field->unireg_check= (Field::utype) ((uint) field->unireg_check |
-					   MTYP_NOEMPTY_BIT);
-      no_empty++;
-    }
     /*
       We mark first TIMESTAMP field with NOW() in DEFAULT or ON UPDATE
       as auto-update field.
@@ -723,31 +695,22 @@ static bool pack_header(THD *thd, uchar *forminfo,
     DBUG_RETURN(1);
   }
 
-  if (expression_length)
-  {
-    expression_length+= FRM_VCOL_NEW_BASE_SIZE;
-    create_info->expression_length= expression_length;
-  }
-
   /* Hack to avoid bugs with small static rows in MySQL */
-  reclength=MY_MAX(file->min_record_length(table_options),reclength);
-  if ((ulong) create_fields.elements*FCOMP+FRM_FORMINFO_SIZE+
-      n_length+int_length+com_length+expression_length > 65535L ||
-      int_count > 255)
+  reclength= MY_MAX(file->min_record_length(table_options), reclength);
+  length= n_length + create_fields.elements*FCOMP + FRM_FORMINFO_SIZE +
+          int_length + com_length + create_info->expression_length;
+  if (length > 65535L || int_count > 255)
   {
     my_message(ER_TOO_MANY_FIELDS, "Table definition is too large", MYF(0));
     DBUG_RETURN(1);
   }
 
   bzero((char*)forminfo,FRM_FORMINFO_SIZE);
-  length=(create_fields.elements*FCOMP+FRM_FORMINFO_SIZE+n_length+int_length+
-	  com_length+expression_length);
   int2store(forminfo,length);
-  forminfo[256] = 0;
   int2store(forminfo+258,create_fields.elements);
-  int2store(forminfo+260,0);              // Screen length, not used anymore
+  // bytes 260-261 are unused
   int2store(forminfo+262,totlength);
-  int2store(forminfo+264,no_empty);
+  // bytes 264-265 are unused
   int2store(forminfo+266,reclength);
   int2store(forminfo+268,n_length);
   int2store(forminfo+270,int_count);
@@ -758,7 +721,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
   int2store(forminfo+280,22);			/* Rows needed */
   int2store(forminfo+282,null_fields);
   int2store(forminfo+284,com_length);
-  int2store(forminfo+286,expression_length);
+  int2store(forminfo+286,create_info->expression_length);
   DBUG_RETURN(0);
 } /* pack_header */
 
@@ -819,29 +782,6 @@ static size_t packed_fields_length(List<Create_field> &create_fields)
   length+= 2;
   DBUG_RETURN(length);
 }
-
-
-static size_t packed_constraints_length(THD *thd, HA_CREATE_INFO *info,
-                                        List<Virtual_column_info> *constr)
-{
-  List_iterator<Virtual_column_info> it(*constr);
-  size_t length= 0;
-  Virtual_column_info *check;
-
-  while ((check= it++))
-    if (add_expr_length(thd, it.ref(), &length))
-      return 0;
-  return length;
-}
-
-static void pack_constraints(uchar **buff, List<Virtual_column_info> *constr)
-{
-  List_iterator<Virtual_column_info> it(*constr);
-  Virtual_column_info *check;
-  while ((check= it++))
-    pack_expression(buff, check, UINT_MAX32, 4);
-}
-
 
 /* Save fields, fieldnames and intervals */
 
@@ -968,27 +908,6 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
       buff+= field->comment.length;
     }
   }
-
-  if (create_info->expression_length)
-  {
-    /* Store header for packed fields (extra space for future) */
-    bzero(buff, FRM_VCOL_NEW_BASE_SIZE);
-    buff+= FRM_VCOL_NEW_BASE_SIZE;
-
-    /* Store expressions */
-    it.rewind();
-    for (uint field_nr=0 ; (field= it++) ; field_nr++)
-    {
-      if (field->vcol_info)
-        pack_expression(&buff, field->vcol_info, field_nr,
-                        field->vcol_info->stored_in_db ? 1 : 0);
-      if (field->default_value && field->default_value->expr_str.length)
-        pack_expression(&buff, field->default_value, field_nr, 2);
-      if (field->check_constraint)
-        pack_expression(&buff, field->check_constraint, field_nr, 3);
-    }
-    pack_constraints(&buff, create_info->check_constraint_list);
-  }
   *buff_arg= buff;
   DBUG_RETURN(0);
 }
@@ -1000,7 +919,6 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
 			   uint reclength, ulong data_offset)
 {
   int error= 0;
-  Field::utype type;
   uint null_count;
   uchar *null_pos;
   TABLE table;
@@ -1038,12 +956,9 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
                                 field->sql_type,
                                 field->charset,
                                 field->geom_type, field->srid,
-                          field->unireg_check == Field::TIMESTAMP_DNUN_FIELD
-                          ? Field::TIMESTAMP_UN_FIELD
-                          : field->unireg_check == Field::TIMESTAMP_DN_FIELD
-                          ? Field::NONE : field->unireg_check,
-                                field->save_interval ? field->save_interval :
-                                field->interval, 
+                                field->unireg_check,
+                                field->save_interval ? field->save_interval
+                                                     : field->interval,
                                 field->field_name);
     if (!regfield)
     {
@@ -1063,11 +978,14 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     if (field->sql_type == MYSQL_TYPE_BIT && !f_bit_as_char(field->pack_flag))
       null_count+= field->length & 7;
 
-    type= (Field::utype) MTYP_TYPENR(field->unireg_check);
-
-    if (field->default_value && !field->has_default_expression())
+    if (field->default_value && !field->default_value->flags &&
+        !(field->flags & BLOB_FLAG))
     {
-      int res= field->default_value->expr_item->save_in_field(regfield, 1);
+      Item *expr= field->default_value->expr;
+      int res= !expr->fixed && // may be already fixed if ALTER TABLE
+                expr->fix_fields(thd, &expr);
+      if (!res)
+        res= expr->save_in_field(regfield, 1);
       /* If not ok or warning of level 'note' */
       if (res != 0 && res != 3)
       {
@@ -1083,12 +1001,6 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
       regfield->set_notnull();
       regfield->store((longlong) 1, TRUE);
     }
-    else if (type == Field::YES)		// Old unireg type
-      regfield->store(ER_THD(thd, ER_YES),(uint) strlen(ER_THD(thd, ER_YES)),
-                      system_charset_info);
-    else if (type == Field::NO)			// Old unireg type
-      regfield->store(ER_THD(thd, ER_NO), (uint) strlen(ER_THD(thd, ER_NO)),
-                      system_charset_info);
     else
       regfield->reset();
   }

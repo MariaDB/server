@@ -293,10 +293,10 @@ int get_parts_for_update(const uchar *old_data, uchar *new_data,
   DBUG_ENTER("get_parts_for_update");
 
   DBUG_ASSERT(new_data == rec0);             // table->record[0]
-  set_field_ptr(part_field_array, old_data, rec0);
+  part_info->table->move_fields(part_field_array, old_data, rec0);
   error= part_info->get_partition_id(part_info, old_part_id,
                                      &old_func_value);
-  set_field_ptr(part_field_array, rec0, old_data);
+  part_info->table->move_fields(part_field_array, rec0, old_data);
   if (unlikely(error))                             // Should never happen
   {
     DBUG_ASSERT(0);
@@ -321,10 +321,10 @@ int get_parts_for_update(const uchar *old_data, uchar *new_data,
       future use. It will be tested by ensuring that the above
       condition is false in one test situation before pushing the code.
     */
-    set_field_ptr(part_field_array, new_data, rec0);
+    part_info->table->move_fields(part_field_array, new_data, rec0);
     error= part_info->get_partition_id(part_info, new_part_id,
                                        new_func_value);
-    set_field_ptr(part_field_array, rec0, new_data);
+    part_info->table->move_fields(part_field_array, rec0, new_data);
     if (unlikely(error))
     {
       DBUG_RETURN(error);
@@ -375,9 +375,9 @@ int get_part_for_delete(const uchar *buf, const uchar *rec0,
   else
   {
     Field **part_field_array= part_info->full_part_field_array;
-    set_field_ptr(part_field_array, buf, rec0);
+    part_info->table->move_fields(part_field_array, buf, rec0);
     error= part_info->get_partition_id(part_info, part_id, &func_value);
-    set_field_ptr(part_field_array, rec0, buf);
+    part_info->table->move_fields(part_field_array, rec0, buf);
     if (unlikely(error))
     {
       DBUG_RETURN(error);
@@ -936,6 +936,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
 
   if (init_lex_with_single_table(thd, table, &lex))
     goto end;
+  table->get_fields_in_item_tree= true;
 
   func_expr->walk(&Item::change_context_processor, 0, &lex.select_lex.context);
   thd->where= "partition function";
@@ -3787,9 +3788,9 @@ static int get_sub_part_id_from_key(const TABLE *table,uchar *buf,
   else
   {
     Field **part_field_array= part_info->subpart_field_array;
-    set_field_ptr(part_field_array, buf, rec0);
+    part_info->table->move_fields(part_field_array, buf, rec0);
     res= part_info->get_subpartition_id(part_info, part_id);
-    set_field_ptr(part_field_array, rec0, buf);
+    part_info->table->move_fields(part_field_array, rec0, buf);
   }
   DBUG_RETURN(res);
 }
@@ -3833,10 +3834,10 @@ bool get_part_id_from_key(const TABLE *table, uchar *buf, KEY *key_info,
   else
   {
     Field **part_field_array= part_info->part_field_array;
-    set_field_ptr(part_field_array, buf, rec0);
+    part_info->table->move_fields(part_field_array, buf, rec0);
     result= part_info->get_part_partition_id(part_info, part_id,
                                              &func_value);
-    set_field_ptr(part_field_array, rec0, buf);
+    part_info->table->move_fields(part_field_array, rec0, buf);
   }
   DBUG_RETURN(result);
 }
@@ -3882,10 +3883,10 @@ void get_full_part_id_from_key(const TABLE *table, uchar *buf,
   else
   {
     Field **part_field_array= part_info->full_part_field_array;
-    set_field_ptr(part_field_array, buf, rec0);
+    part_info->table->move_fields(part_field_array, buf, rec0);
     result= part_info->get_partition_id(part_info, &part_spec->start_part,
                                         &func_value);
-    set_field_ptr(part_field_array, rec0, buf);
+    part_info->table->move_fields(part_field_array, rec0, buf);
   }
   part_spec->end_part= part_spec->start_part;
   if (unlikely(result))
@@ -3935,7 +3936,7 @@ bool verify_data_with_partition(TABLE *table, TABLE *part_table,
   bitmap_union(table->read_set, &part_info->full_part_field_set);
   old_rec= part_table->record[0];
   part_table->record[0]= table->record[0];
-  set_field_ptr(part_info->full_part_field_array, table->record[0], old_rec);
+  part_info->table->move_fields(part_info->full_part_field_array, table->record[0], old_rec);
   if ((error= file->ha_rnd_init(TRUE)))
   {
     file->print_error(error, MYF(0));
@@ -3970,7 +3971,7 @@ bool verify_data_with_partition(TABLE *table, TABLE *part_table,
   } while (TRUE);
   (void) file->ha_rnd_end();
 err:
-  set_field_ptr(part_info->full_part_field_array, old_rec,
+  part_info->table->move_fields(part_info->full_part_field_array, old_rec,
                 table->record[0]);
   part_table->record[0]= old_rec;
   if (error)
@@ -7210,39 +7211,6 @@ err:
   DBUG_RETURN(TRUE);
 }
 #endif
-
-
-/*
-  Prepare for calling val_int on partition function by setting fields to
-  point to the record where the values of the PF-fields are stored.
-
-  SYNOPSIS
-    set_field_ptr()
-    ptr                 Array of fields to change ptr
-    new_buf             New record pointer
-    old_buf             Old record pointer
-
-  DESCRIPTION
-    Set ptr in field objects of field array to refer to new_buf record
-    instead of previously old_buf. Used before calling val_int and after
-    it is used to restore pointers to table->record[0].
-    This routine is placed outside of partition code since it can be useful
-    also for other programs.
-*/
-
-void set_field_ptr(Field **ptr, const uchar *new_buf,
-                   const uchar *old_buf)
-{
-  my_ptrdiff_t diff= (new_buf - old_buf);
-  DBUG_ENTER("set_field_ptr");
-
-  do
-  {
-    (*ptr)->move_field_offset(diff);
-  } while (*(++ptr));
-  DBUG_VOID_RETURN;
-}
-
 
 /*
   Prepare for calling val_int on partition function by setting fields to

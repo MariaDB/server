@@ -31,7 +31,7 @@ EXPLAIN
             "access_type": "ALL",
             "rows": 1,
             "filtered": 100,
-            "attached_condition": "((tbl_alias1.column_name_2 is not null) and (tbl_alias1.column_name_1 is not null))"
+            "attached_condition": "tbl_alias1.column_name_2 is not null and tbl_alias1.column_name_1 is not null"
           },
           "table": {
             "table_name": "tbl_alias2",
@@ -46,7 +46,7 @@ EXPLAIN
             ],
             "rows": 1,
             "filtered": 100,
-            "attached_condition": "(tbl_alias2.c = tbl_alias1.column_name_2)",
+            "attached_condition": "tbl_alias2.c = tbl_alias1.column_name_2",
             "using_index": true
           }
         }
