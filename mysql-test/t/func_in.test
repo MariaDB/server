@@ -641,3 +641,29 @@ EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND 1 IN (1,a,'3');
 --echo # Not Ok to propagate equalities into the left IN argument in case of multiple comparison types
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND a IN (1,2,'3');
 DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-11514 IN with a mixture of TIME and DATETIME returns a wrong result
+--echo #
+
+SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32');
+PREPARE stmt FROM "SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # MDEV-11497 Wrong result for (int_expr IN (mixture of signed and unsigned expressions))
+--echo #
+CREATE TABLE t1 (a BIGINT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-9223372036854775808,18446744073709551615);
+SELECT * FROM t1 WHERE -1 IN (a,b);
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE -1 IN (a,b)';
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;

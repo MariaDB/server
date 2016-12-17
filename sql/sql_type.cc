@@ -123,6 +123,49 @@ Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
 }
 
 
+/***************************************************************************/
+
+const Type_handler *Type_handler_int_result::type_handler_for_comparison() const
+{
+  return &type_handler_longlong;
+}
+
+
+const Type_handler *Type_handler_string_result::type_handler_for_comparison() const
+{
+  return &type_handler_long_blob;
+}
+
+
+const Type_handler *Type_handler_decimal_result::type_handler_for_comparison() const
+{
+  return &type_handler_newdecimal;
+}
+
+
+const Type_handler *Type_handler_real_result::type_handler_for_comparison() const
+{
+  return &type_handler_double;
+}
+
+
+const Type_handler *Type_handler_time_common::type_handler_for_comparison() const
+{
+  return &type_handler_time;
+}
+
+const Type_handler *Type_handler_temporal_with_date::type_handler_for_comparison() const
+{
+  return &type_handler_datetime;
+}
+
+
+const Type_handler *Type_handler_row::type_handler_for_comparison() const
+{
+  return &type_handler_row;
+}
+
+
 /**
   Collect built-in data type handlers for comparison.
   This method is very similar to item_cmp_type() defined in item.cc.
@@ -135,6 +178,8 @@ Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
 void
 Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 {
+  DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
+  DBUG_ASSERT(h == h->type_handler_for_comparison());
   Item_result a= cmp_type();
   Item_result b= h->cmp_type();
   if (a == STRING_RESULT && b == STRING_RESULT)
@@ -170,8 +215,11 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
   }
   else
     m_type_handler= &type_handler_double;
+  DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
 }
 
+
+/***************************************************************************/
 
 const Type_handler *
 Type_handler::get_handler_by_field_type(enum_field_types type)
@@ -1263,6 +1311,51 @@ longlong Type_handler_decimal_result::
 
 /***************************************************************************/
 
+cmp_item *Type_handler_int_result::make_cmp_item(THD *thd,
+                                                 CHARSET_INFO *cs) const
+{
+  return new (thd->mem_root) cmp_item_int;
+}
+
+cmp_item *Type_handler_real_result::make_cmp_item(THD *thd,
+                                                 CHARSET_INFO *cs) const
+{
+  return new (thd->mem_root) cmp_item_real;
+}
+
+cmp_item *Type_handler_decimal_result::make_cmp_item(THD *thd,
+                                                     CHARSET_INFO *cs) const
+{
+  return new (thd->mem_root) cmp_item_decimal;
+}
+
+
+cmp_item *Type_handler_string_result::make_cmp_item(THD *thd,
+                                                    CHARSET_INFO *cs) const
+{
+  return new (thd->mem_root) cmp_item_sort_string(cs);
+}
+
+cmp_item *Type_handler_row::make_cmp_item(THD *thd,
+                                                    CHARSET_INFO *cs) const
+{
+  return new (thd->mem_root) cmp_item_row;
+}
+
+cmp_item *Type_handler_time_common::make_cmp_item(THD *thd,
+                                                    CHARSET_INFO *cs) const
+{
+  return new (thd->mem_root) cmp_item_time;
+}
+
+cmp_item *Type_handler_temporal_with_date::make_cmp_item(THD *thd,
+                                                    CHARSET_INFO *cs) const
+{
+  return new (thd->mem_root) cmp_item_datetime;
+}
+
+/***************************************************************************/
+
 static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
 {
   return cs->coll->strnncollsp(cs,
@@ -1342,7 +1435,8 @@ bool Type_handler_string_result::
            func->fix_for_scalar_comparison_using_bisection(thd);
   }
   return
-    func->fix_for_scalar_comparison_using_cmp_items(1U << (uint) STRING_RESULT);
+    func->fix_for_scalar_comparison_using_cmp_items(thd,
+                                                    1U << (uint) STRING_RESULT);
 }
 
 
@@ -1356,7 +1450,8 @@ bool Type_handler_int_result::
   */
   return func->compatible_types_scalar_bisection_possible() ?
     func->fix_for_scalar_comparison_using_bisection(thd) :
-    func->fix_for_scalar_comparison_using_cmp_items(1U << (uint) INT_RESULT);
+    func->fix_for_scalar_comparison_using_cmp_items(thd,
+                                                    1U << (uint) INT_RESULT);
 }
 
 
@@ -1367,7 +1462,8 @@ bool Type_handler_real_result::
   return func->compatible_types_scalar_bisection_possible() ?
     (func->value_list_convert_const_to_int(thd) ||
      func->fix_for_scalar_comparison_using_bisection(thd)) :
-    func->fix_for_scalar_comparison_using_cmp_items(1U << (uint) REAL_RESULT);
+    func->fix_for_scalar_comparison_using_cmp_items(thd,
+                                                    1U << (uint) REAL_RESULT);
 }
 
 
@@ -1378,7 +1474,8 @@ bool Type_handler_decimal_result::
   return func->compatible_types_scalar_bisection_possible() ?
     (func->value_list_convert_const_to_int(thd) ||
      func->fix_for_scalar_comparison_using_bisection(thd)) :
-    func->fix_for_scalar_comparison_using_cmp_items(1U << (uint) DECIMAL_RESULT);
+    func->fix_for_scalar_comparison_using_cmp_items(thd,
+                                                    1U << (uint) DECIMAL_RESULT);
 }
 
 
@@ -1389,7 +1486,8 @@ bool Type_handler_temporal_result::
   return func->compatible_types_scalar_bisection_possible() ?
     (func->value_list_convert_const_to_int(thd) ||
      func->fix_for_scalar_comparison_using_bisection(thd)) :
-    func->fix_for_scalar_comparison_using_cmp_items(1U << (uint) TIME_RESULT);
+    func->fix_for_scalar_comparison_using_cmp_items(thd,
+                                                    1U << (uint) TIME_RESULT);
 }
 
 

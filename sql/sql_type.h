@@ -31,6 +31,7 @@ class Item_func_hex;
 class Item_func_hybrid_field_type;
 class Item_func_between;
 class Item_func_in;
+class cmp_item;
 class in_vector;
 class Type_std_attributes;
 class Sort_param;
@@ -243,6 +244,7 @@ public:
   virtual enum_field_types real_field_type() const { return field_type(); }
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
+  virtual const Type_handler *type_handler_for_comparison() const= 0;
   virtual const Type_handler*
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const
@@ -321,6 +323,9 @@ public:
   virtual longlong
   Item_func_between_val_int(Item_func_between *func) const= 0;
 
+  virtual cmp_item *
+  make_cmp_item(THD *thd, CHARSET_INFO *cs) const= 0;
+
   virtual in_vector *
   make_in_vector(THD *thd, const Item_func_in *func, uint nargs) const= 0;
 
@@ -350,6 +355,7 @@ public:
   {
     return ROW_RESULT;
   }
+  const Type_handler *type_handler_for_comparison() const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const
   {
     DBUG_ASSERT(0);
@@ -429,6 +435,7 @@ public:
   }
 
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
@@ -457,6 +464,7 @@ public:
   Item_result result_type() const { return REAL_RESULT; }
   Item_result cmp_type() const { return REAL_RESULT; }
   virtual ~Type_handler_real_result() {}
+  const Type_handler *type_handler_for_comparison() const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
   void sortlength(THD *thd,
@@ -480,6 +488,7 @@ public:
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
@@ -493,6 +502,7 @@ public:
   Item_result result_type() const { return DECIMAL_RESULT; }
   Item_result cmp_type() const { return DECIMAL_RESULT; }
   virtual ~Type_handler_decimal_result() {};
+  const Type_handler *type_handler_for_comparison() const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
@@ -518,6 +528,7 @@ public:
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
@@ -530,6 +541,7 @@ public:
   Item_result result_type() const { return INT_RESULT; }
   Item_result cmp_type() const { return INT_RESULT; }
   virtual ~Type_handler_int_result() {}
+  const Type_handler *type_handler_for_comparison() const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
@@ -554,6 +566,7 @@ public:
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
@@ -600,6 +613,7 @@ public:
   Item_result result_type() const { return STRING_RESULT; }
   Item_result cmp_type() const { return STRING_RESULT; }
   virtual ~Type_handler_string_result() {}
+  const Type_handler *type_handler_for_comparison() const;
   const Type_handler *
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const;
@@ -627,6 +641,7 @@ public:
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
@@ -761,7 +776,9 @@ class Type_handler_time_common: public Type_handler_temporal_result
 public:
   virtual ~Type_handler_time_common() { }
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
+  const Type_handler *type_handler_for_comparison() const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
 };
 
@@ -789,7 +806,9 @@ class Type_handler_temporal_with_date: public Type_handler_temporal_result
 {
 public:
   virtual ~Type_handler_temporal_with_date() {}
+  const Type_handler *type_handler_for_comparison() const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
 };
 

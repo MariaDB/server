@@ -275,3 +275,58 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 test
 --echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-11554 Wrong result for CASE on a mixture of signed and unsigned expressions
+--echo #
+
+CREATE TABLE t1 (a BIGINT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-9223372036854775808,18446744073709551615);
+SELECT
+  CASE -1
+    WHEN -9223372036854775808 THEN 'one'
+    WHEN 18446744073709551615 THEN 'two'
+  END AS c;
+
+PREPARE stmt FROM "SELECT
+  CASE -1
+    WHEN -9223372036854775808 THEN 'one'
+    WHEN 18446744073709551615 THEN 'two'
+  END AS c";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11555 CASE with a mixture of TIME and DATETIME returns a wrong result
+--echo #
+SELECT
+  CASE TIME'10:20:30'
+    WHEN 102030 THEN 'one'
+    WHEN TIME'10:20:31' THEN 'two'
+  END AS good,
+  CASE TIME'10:20:30'
+    WHEN 102030 THEN 'one'
+    WHEN TIME'10:20:31' THEN 'two'
+    WHEN TIMESTAMP'2001-01-01 10:20:32' THEN 'three'
+  END AS was_bad_now_good;
+
+PREPARE stmt FROM "SELECT
+  CASE TIME'10:20:30'
+    WHEN 102030 THEN 'one'
+    WHEN TIME'10:20:31' THEN 'two'
+  END AS good,
+  CASE TIME'10:20:30'
+    WHEN 102030 THEN 'one'
+    WHEN TIME'10:20:31' THEN 'two'
+    WHEN TIMESTAMP'2001-01-01 10:20:32' THEN 'three'
+  END AS was_bad_now_good";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
