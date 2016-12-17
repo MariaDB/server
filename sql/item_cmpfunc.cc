@@ -4155,8 +4155,8 @@ void Item_func_in::fix_length_and_dec()
   }
 
   DBUG_EXECUTE_IF("Item_func_in",
-                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                  ER_UNKNOWN_ERROR, "types_compatible=%s bisect=%s",
+                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                  ER_UNKNOWN_ERROR, "DBUG: types_compatible=%s bisect=%s",
                   arg_types_compatible ? "yes" : "no",
                   array != NULL ? "yes" : "no"););
 }
