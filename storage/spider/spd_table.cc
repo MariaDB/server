@@ -516,15 +516,12 @@ int spider_free_share_alloc(
 ) {
   int roop_count;
   DBUG_ENTER("spider_free_share_alloc");
-  if (share->dbton_bitmap)
+  for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; roop_count--)
   {
-    for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; roop_count--)
+    if (share->dbton_share[roop_count])
     {
-      if (share->dbton_share[roop_count])
-      {
-        delete share->dbton_share[roop_count];
-        share->dbton_share[roop_count] = NULL;
-      }
+      delete share->dbton_share[roop_count];
+      share->dbton_share[roop_count] = NULL;
     }
   }
   if (share->server_names)
@@ -6278,7 +6275,7 @@ int spider_panic(
 int spider_db_init(
   void *p
 ) {
-  int error_num, roop_count;
+  int error_num = 0, roop_count;
   uint dbton_id = 0;
   handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");

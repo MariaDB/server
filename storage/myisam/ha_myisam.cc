@@ -912,61 +912,61 @@ int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
 {
   if (!file) return HA_ADMIN_INTERNAL_ERROR;
   int error;
-  HA_CHECK &param= *(HA_CHECK*) thd->alloc(sizeof(param));
+  HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof(HA_CHECK));
   MYISAM_SHARE* share = file->s;
   const char *old_proc_info=thd->proc_info;
 
-  if (!&param)
+  if (!param)
     return HA_ADMIN_INTERNAL_ERROR;
 
   thd_proc_info(thd, "Checking table");
-  myisamchk_init(&param);
-  param.thd = thd;
-  param.op_name =   "check";
-  param.db_name=    table->s->db.str;
-  param.table_name= table->alias.c_ptr();
-  param.testflag = check_opt->flags | T_CHECK | T_SILENT;
-  param.stats_method= (enum_handler_stats_method)THDVAR(thd, stats_method);
+  myisamchk_init(param);
+  param->thd = thd;
+  param->op_name =   "check";
+  param->db_name=    table->s->db.str;
+  param->table_name= table->alias.c_ptr();
+  param->testflag = check_opt->flags | T_CHECK | T_SILENT;
+  param->stats_method= (enum_handler_stats_method)THDVAR(thd, stats_method);
 
   if (!(table->db_stat & HA_READ_ONLY))
-    param.testflag|= T_STATISTICS;
-  param.using_global_keycache = 1;
+    param->testflag|= T_STATISTICS;
+  param->using_global_keycache = 1;
 
   if (!mi_is_crashed(file) &&
-      (((param.testflag & T_CHECK_ONLY_CHANGED) &&
-	!(share->state.changed & (STATE_CHANGED | STATE_CRASHED |
-				  STATE_CRASHED_ON_REPAIR)) &&
-	share->state.open_count == 0) ||
-       ((param.testflag & T_FAST) && (share->state.open_count ==
-				      (uint) (share->global_changed ? 1 : 0)))))
+      (((param->testflag & T_CHECK_ONLY_CHANGED) &&
+        !(share->state.changed &
+          (STATE_CHANGED | STATE_CRASHED | STATE_CRASHED_ON_REPAIR)) &&
+        share->state.open_count == 0) ||
+       ((param->testflag & T_FAST) &&
+        (share->state.open_count == (uint)(share->global_changed ? 1 : 0)))))
     return HA_ADMIN_ALREADY_DONE;
 
-  setup_vcols_for_repair(&param);
+  setup_vcols_for_repair(param);
 
-  error = chk_status(&param, file);		// Not fatal
-  error = chk_size(&param, file);
+  error = chk_status(param, file);		// Not fatal
+  error = chk_size(param, file);
   if (!error)
-    error |= chk_del(&param, file, param.testflag);
+    error |= chk_del(param, file, param->testflag);
   if (!error)
-    error = chk_key(&param, file);
+    error = chk_key(param, file);
   if (!error)
   {
-    if ((!(param.testflag & T_QUICK) &&
+    if ((!(param->testflag & T_QUICK) &&
 	 ((share->options &
 	   (HA_OPTION_PACK_RECORD | HA_OPTION_COMPRESS_RECORD)) ||
-	  (param.testflag & (T_EXTEND | T_MEDIUM)))) ||
+	  (param->testflag & (T_EXTEND | T_MEDIUM)))) ||
 	mi_is_crashed(file))
     {
-      ulonglong old_testflag= param.testflag;
-      param.testflag|=T_MEDIUM;
-      if (!(error= init_io_cache(&param.read_cache, file->dfile,
+      ulonglong old_testflag= param->testflag;
+      param->testflag|=T_MEDIUM;
+      if (!(error= init_io_cache(&param->read_cache, file->dfile,
                                  my_default_record_cache_size, READ_CACHE,
                                  share->pack.header_length, 1, MYF(MY_WME))))
       {
-        error= chk_data_link(&param, file, MY_TEST(param.testflag & T_EXTEND));
-        end_io_cache(&(param.read_cache));
+        error= chk_data_link(param, file, MY_TEST(param->testflag & T_EXTEND));
+        end_io_cache(&(param->read_cache));
       }
-      param.testflag= old_testflag;
+      param->testflag= old_testflag;
     }
   }
   if (!error)
@@ -974,7 +974,7 @@ int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
     if ((share->state.changed & (STATE_CHANGED |
 				 STATE_CRASHED_ON_REPAIR |
 				 STATE_CRASHED | STATE_NOT_ANALYZED)) ||
-	(param.testflag & T_STATISTICS) ||
+	(param->testflag & T_STATISTICS) ||
 	mi_is_crashed(file))
     {
       file->update|=HA_STATE_CHANGED | HA_STATE_ROW_CHANGED;
@@ -982,7 +982,7 @@ int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
       share->state.changed&= ~(STATE_CHANGED | STATE_CRASHED |
 			       STATE_CRASHED_ON_REPAIR);
       if (!(table->db_stat & HA_READ_ONLY))
-	error=update_state_info(&param,file,UPDATE_TIME | UPDATE_OPEN_COUNT |
+	error=update_state_info(param,file,UPDATE_TIME | UPDATE_OPEN_COUNT |
 				UPDATE_STAT);
       mysql_mutex_unlock(&share->intern_lock);
       info(HA_STATUS_NO_LOCK | HA_STATUS_TIME | HA_STATUS_VARIABLE |
@@ -1011,32 +1011,32 @@ int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
 int ha_myisam::analyze(THD *thd, HA_CHECK_OPT* check_opt)
 {
   int error=0;
-  HA_CHECK &param= *(HA_CHECK*) thd->alloc(sizeof(param));
+  HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof(HA_CHECK));
   MYISAM_SHARE* share = file->s;
 
-  if (!&param)
+  if (!param)
     return HA_ADMIN_INTERNAL_ERROR;
 
-  myisamchk_init(&param);
-  param.thd = thd;
-  param.op_name=    "analyze";
-  param.db_name=    table->s->db.str;
-  param.table_name= table->alias.c_ptr();
-  param.testflag= (T_FAST | T_CHECK | T_SILENT | T_STATISTICS |
+  myisamchk_init(param);
+  param->thd = thd;
+  param->op_name=    "analyze";
+  param->db_name=    table->s->db.str;
+  param->table_name= table->alias.c_ptr();
+  param->testflag= (T_FAST | T_CHECK | T_SILENT | T_STATISTICS |
                    T_DONT_CHECK_CHECKSUM);
-  param.using_global_keycache = 1;
-  param.stats_method= (enum_handler_stats_method)THDVAR(thd, stats_method);
+  param->using_global_keycache = 1;
+  param->stats_method= (enum_handler_stats_method)THDVAR(thd, stats_method);
 
   if (!(share->state.changed & STATE_NOT_ANALYZED))
     return HA_ADMIN_ALREADY_DONE;
 
-  setup_vcols_for_repair(&param);
+  setup_vcols_for_repair(param);
 
-  error = chk_key(&param, file);
+  error = chk_key(param, file);
   if (!error)
   {
     mysql_mutex_lock(&share->intern_lock);
-    error=update_state_info(&param,file,UPDATE_STAT);
+    error=update_state_info(param,file,UPDATE_STAT);
     mysql_mutex_unlock(&share->intern_lock);
   }
   else if (!mi_is_crashed(file) && !thd->killed)
@@ -1051,41 +1051,41 @@ int ha_myisam::analyze(THD *thd, HA_CHECK_OPT* check_opt)
 int ha_myisam::repair(THD* thd, HA_CHECK_OPT *check_opt)
 {
   int error;
-  HA_CHECK &param= *(HA_CHECK*) thd->alloc(sizeof(param));
+  HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof(HA_CHECK));
   ha_rows start_records;
 
-  if (!file || !&param) return HA_ADMIN_INTERNAL_ERROR;
+  if (!file || !param) return HA_ADMIN_INTERNAL_ERROR;
 
-  myisamchk_init(&param);
-  param.thd = thd;
-  param.op_name=  "repair";
-  param.testflag= ((check_opt->flags & ~(T_EXTEND)) |
-                   T_SILENT | T_FORCE_CREATE | T_CALC_CHECKSUM |
-                   (check_opt->flags & T_EXTEND ? T_REP : T_REP_BY_SORT));
-  param.tmpfile_createflag= O_RDWR | O_TRUNC;
-  param.sort_buffer_length=  THDVAR(thd, sort_buffer_size);
-  param.backup_time= check_opt->start_time;
+  myisamchk_init(param);
+  param->thd = thd;
+  param->op_name=  "repair";
+  param->testflag= ((check_opt->flags & ~(T_EXTEND)) |
+                    T_SILENT | T_FORCE_CREATE | T_CALC_CHECKSUM |
+                    (check_opt->flags & T_EXTEND ? T_REP : T_REP_BY_SORT));
+  param->tmpfile_createflag= O_RDWR | O_TRUNC;
+  param->sort_buffer_length=  THDVAR(thd, sort_buffer_size);
+  param->backup_time= check_opt->start_time;
   start_records=file->state->records;
 
-  setup_vcols_for_repair(&param);
+  setup_vcols_for_repair(param);
 
-  while ((error=repair(thd,param,0)) && param.retry_repair)
+  while ((error=repair(thd,*param,0)) && param->retry_repair)
   {
-    param.retry_repair=0;
-    if (test_all_bits(param.testflag,
+    param->retry_repair=0;
+    if (test_all_bits(param->testflag,
 		      (uint) (T_RETRY_WITHOUT_QUICK | T_QUICK)))
     {
-      param.testflag&= ~(T_RETRY_WITHOUT_QUICK | T_QUICK);
+      param->testflag&= ~(T_RETRY_WITHOUT_QUICK | T_QUICK);
       /* Ensure we don't loose any rows when retrying without quick */
-      param.testflag|= T_SAFE_REPAIR;
+      param->testflag|= T_SAFE_REPAIR;
       sql_print_information("Retrying repair of: '%s' including modifying data file",
                             table->s->path.str);
       continue;
     }
-    param.testflag&= ~T_QUICK;
-    if ((param.testflag & (T_REP_BY_SORT | T_REP_PARALLEL)))
+    param->testflag&= ~T_QUICK;
+    if ((param->testflag & (T_REP_BY_SORT | T_REP_PARALLEL)))
     {
-      param.testflag= (param.testflag & ~T_REP_ANY) | T_REP;
+      param->testflag= (param->testflag & ~T_REP_ANY) | T_REP;
       sql_print_information("Retrying repair of: '%s' with keycache",
                             table->s->path.str);
       continue;
@@ -1110,26 +1110,26 @@ int ha_myisam::repair(THD* thd, HA_CHECK_OPT *check_opt)
 int ha_myisam::optimize(THD* thd, HA_CHECK_OPT *check_opt)
 {
   int error;
-  HA_CHECK &param= *(HA_CHECK*) thd->alloc(sizeof(param));
+  HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof(HA_CHECK));
 
-  if (!file || !&param) return HA_ADMIN_INTERNAL_ERROR;
+  if (!file || !param) return HA_ADMIN_INTERNAL_ERROR;
 
-  myisamchk_init(&param);
-  param.thd = thd;
-  param.op_name= "optimize";
-  param.testflag= (check_opt->flags | T_SILENT | T_FORCE_CREATE |
-                   T_REP_BY_SORT | T_STATISTICS | T_SORT_INDEX);
-  param.tmpfile_createflag= O_RDWR | O_TRUNC;
-  param.sort_buffer_length=  THDVAR(thd, sort_buffer_size);
+  myisamchk_init(param);
+  param->thd = thd;
+  param->op_name= "optimize";
+  param->testflag= (check_opt->flags | T_SILENT | T_FORCE_CREATE |
+                    T_REP_BY_SORT | T_STATISTICS | T_SORT_INDEX);
+  param->tmpfile_createflag= O_RDWR | O_TRUNC;
+  param->sort_buffer_length=  THDVAR(thd, sort_buffer_size);
 
-  setup_vcols_for_repair(&param);
+  setup_vcols_for_repair(param);
 
-  if ((error= repair(thd,param,1)) && param.retry_repair)
+  if ((error= repair(thd,*param,1)) && param->retry_repair)
   {
     sql_print_warning("Warning: Optimize table got errno %d on %s.%s, retrying",
-                      my_errno, param.db_name, param.table_name);
-    param.testflag&= ~T_REP_BY_SORT;
-    error= repair(thd,param,1);
+                      my_errno, param->db_name, param->table_name);
+    param->testflag&= ~T_REP_BY_SORT;
+    error= repair(thd,*param,1);
   }
 
   restore_vcos_after_repair();
@@ -1337,17 +1337,17 @@ int ha_myisam::assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt)
   if (error != HA_ADMIN_OK)
   {
     /* Send error to user */
-    HA_CHECK &param= *(HA_CHECK*) thd->alloc(sizeof(param));
-    if (!&param)
+    HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof(HA_CHECK));
+    if (!param)
       return HA_ADMIN_INTERNAL_ERROR;
 
-    myisamchk_init(&param);
-    param.thd= thd;
-    param.op_name=    "assign_to_keycache";
-    param.db_name=    table->s->db.str;
-    param.table_name= table->s->table_name.str;
-    param.testflag= 0;
-    mi_check_print_error(&param, errmsg);
+    myisamchk_init(param);
+    param->thd= thd;
+    param->op_name=    "assign_to_keycache";
+    param->db_name=    table->s->db.str;
+    param->table_name= table->s->table_name.str;
+    param->testflag= 0;
+    mi_check_print_error(param, errmsg);
   }
   DBUG_RETURN(error);
 }
@@ -1404,16 +1404,16 @@ int ha_myisam::preload_keys(THD* thd, HA_CHECK_OPT *check_opt)
 
  err:
   {
-    HA_CHECK &param= *(HA_CHECK*) thd->alloc(sizeof(param));
-    if (!&param)
+    HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof(HA_CHECK));
+    if (!param)
       return HA_ADMIN_INTERNAL_ERROR;
-    myisamchk_init(&param);
-    param.thd= thd;
-    param.op_name=    "preload_keys";
-    param.db_name=    table->s->db.str;
-    param.table_name= table->s->table_name.str;
-    param.testflag=   0;
-    mi_check_print_error(&param, errmsg);
+    myisamchk_init(param);
+    param->thd= thd;
+    param->op_name=    "preload_keys";
+    param->db_name=    table->s->db.str;
+    param->table_name= table->s->table_name.str;
+    param->testflag=   0;
+    mi_check_print_error(param, errmsg);
     DBUG_RETURN(error);
   }
 }
@@ -1518,48 +1518,48 @@ int ha_myisam::enable_indexes(uint mode)
   {
     THD *thd= table->in_use;
     int was_error= thd->is_error();
-    HA_CHECK &param= *(HA_CHECK*) thd->alloc(sizeof(param));
+    HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof(HA_CHECK));
     const char *save_proc_info=thd->proc_info;
 
-    if (!&param)
+    if (!param)
       DBUG_RETURN(HA_ADMIN_INTERNAL_ERROR);
 
     thd_proc_info(thd, "Creating index");
-    myisamchk_init(&param);
-    param.op_name= "recreating_index";
-    param.testflag= (T_SILENT | T_REP_BY_SORT | T_QUICK |
-                     T_CREATE_MISSING_KEYS);
+    myisamchk_init(param);
+    param->op_name= "recreating_index";
+    param->testflag= (T_SILENT | T_REP_BY_SORT | T_QUICK |
+                      T_CREATE_MISSING_KEYS);
     /*
       Don't lock and unlock table if it's locked.
       Normally table should be locked.  This test is mostly for safety.
     */
     if (likely(file->lock_type != F_UNLCK))
-      param.testflag|= T_NO_LOCKS;
+      param->testflag|= T_NO_LOCKS;
     
     if (file->create_unique_index_by_sort)
-      param.testflag|= T_CREATE_UNIQUE_BY_SORT;
+      param->testflag|= T_CREATE_UNIQUE_BY_SORT;
 
-    param.myf_rw&= ~MY_WAIT_IF_FULL;
-    param.sort_buffer_length=  THDVAR(thd, sort_buffer_size);
-    param.stats_method= (enum_handler_stats_method)THDVAR(thd, stats_method);
-    param.tmpdir=&mysql_tmpdir_list;
+    param->myf_rw&= ~MY_WAIT_IF_FULL;
+    param->sort_buffer_length=  THDVAR(thd, sort_buffer_size);
+    param->stats_method= (enum_handler_stats_method)THDVAR(thd, stats_method);
+    param->tmpdir=&mysql_tmpdir_list;
 
-    setup_vcols_for_repair(&param);
+    setup_vcols_for_repair(param);
 
-    if ((error= (repair(thd,param,0) != HA_ADMIN_OK)) && param.retry_repair)
+    if ((error= (repair(thd,*param,0) != HA_ADMIN_OK)) && param->retry_repair)
     {
       sql_print_warning("Warning: Enabling keys got errno %d on %s.%s, retrying",
-                        my_errno, param.db_name, param.table_name);
+                        my_errno, param->db_name, param->table_name);
       /*
         Repairing by sort failed. Now try standard repair method.
         Still we want to fix only index file. If data file corruption
         was detected (T_RETRY_WITHOUT_QUICK), we shouldn't do much here.
         Let implicit repair do this job.
       */
-      if (!(param.testflag & T_RETRY_WITHOUT_QUICK))
+      if (!(param->testflag & T_RETRY_WITHOUT_QUICK))
       {
-        param.testflag&= ~T_REP_BY_SORT;
-        error= (repair(thd,param,0) != HA_ADMIN_OK);
+        param->testflag&= ~T_REP_BY_SORT;
+        error= (repair(thd,*param,0) != HA_ADMIN_OK);
       }
       /*
         If the standard repair succeeded, clear all error messages which

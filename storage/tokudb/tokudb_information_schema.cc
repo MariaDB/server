@@ -1085,7 +1085,7 @@ ST_FIELD_INFO background_job_status_field_info[] = {
     {"scheduler", 32, MYSQL_TYPE_STRING, 0, 0, NULL, SKIP_OPEN_TABLE },
     {"scheduled_time", 0, MYSQL_TYPE_DATETIME, 0, 0, NULL, SKIP_OPEN_TABLE },
     {"started_time", 0, MYSQL_TYPE_DATETIME, 0, MY_I_S_MAYBE_NULL, NULL, SKIP_OPEN_TABLE },
-    {"status", 256, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, SKIP_OPEN_TABLE },
+    {"status", 256, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, NULL, SKIP_OPEN_TABLE },
     {NULL, 0, MYSQL_TYPE_NULL, 0, 0, NULL, SKIP_OPEN_TABLE}
 };
 
