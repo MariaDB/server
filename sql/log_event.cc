@@ -12766,7 +12766,7 @@ uint8 Write_rows_log_event::get_trg_event_map()
 
   Returns TRUE if different.
 */
-static bool record_compare(TABLE *table)
+static bool record_compare(TABLE *table, bool skip_sys_start)
 {
   bool result= FALSE;
   /**
@@ -12799,7 +12799,10 @@ static bool record_compare(TABLE *table)
   /* Compare fields */
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-
+    if (skip_sys_start && *ptr == table->vers_start_field())
+    {
+      continue;
+    }
     /**
       We only compare field contents that are not null.
       NULL fields (i.e., their null bits) were compared 
@@ -12994,6 +12997,24 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   prepare_record(table, m_width, FALSE);
   error= unpack_current_row(rgi);
 
+  bool skip_sys_start= false;
+
+  if (table->versioned())
+  {
+    Field *sys_trx_end= table->vers_end_field();
+    DBUG_ASSERT(table->read_set);
+    bitmap_set_bit(table->read_set, sys_trx_end->field_index);
+    // master table is unversioned
+    if (sys_trx_end->val_int() == 0)
+    {
+      DBUG_ASSERT(table->write_set);
+      bitmap_set_bit(table->write_set, sys_trx_end->field_index);
+      sys_trx_end->set_max();
+      table->vers_start_field()->set_notnull();
+      skip_sys_start= true;
+    }
+  }
+
   DBUG_PRINT("info",("looking for the following record"));
   DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
 
@@ -13169,7 +13190,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_index_scan", abort(););
 
-    while (record_compare(table))
+    while (record_compare(table, skip_sys_start))
     {
       while ((error= table->file->ha_index_next(table->record[0])))
       {
@@ -13233,7 +13254,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
         goto end;
       }
     }
-    while (record_compare(table));
+    while (record_compare(table, skip_sys_start));
     
     /* 
       Note: above record_compare will take into accout all record fields 

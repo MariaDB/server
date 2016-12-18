@@ -6003,8 +6003,8 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
 
-  // InnoDB changes sys_trx_end to curr_trx_id and we need to restore MAX_TRX
-  if (table->file->check_table_binlog_row_based(1))
+  // it is important to keep 'old_data' intact for versioning to work correctly on slave side
+  if (table->file->check_table_binlog_row_based(1) && table->versioned())
     memcpy(table->record[2], table->record[1], table->s->reclength);
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
@@ -6017,8 +6017,10 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   if (likely(!error) && !row_already_logged)
   {
     rows_changed++;
-    if (table->file->check_table_binlog_row_based(1)) {
-      memcpy(table->record[1], table->record[2], table->s->reclength);
+    if (table->file->check_table_binlog_row_based(1))
+    {
+      if (table->versioned())
+        memcpy(table->record[1], table->record[2], table->s->reclength);
       error= binlog_log_row(table, old_data, new_data, log_func);
     }
   }

@@ -37,5 +37,77 @@ x
 3
 2
 connection master;
+create or replace table t1 (x int primary key) engine = innodb;
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1;
+x
+2
+select * from t1 for system_time all;
+x
+1
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1;
+x
+select * from t1 for system_time all;
+x
+1
+2
+connection master;
+create or replace table t1 (x int) engine = innodb;
+connection slave;
+alter table t1 with system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+connection slave;
+select * from t1;
+x
+2
+select * from t1 for system_time all;
+x
+2
+1
+connection master;
+delete from t1;
+connection slave;
+select * from t1;
+x
+select * from t1 for system_time all;
+x
+2
+1
+connection master;
+create or replace table t1 (x int primary key) with system versioning engine = innodb;
+connection slave;
+alter table t1 without system versioning;
+connection master;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+select * from t1 for system_time all;
+x
+1
+2
+connection slave;
+select * from t1;
+x
+2
+connection master;
+delete from t1;
+select * from t1 for system_time all;
+x
+1
+2
+connection slave;
+select * from t1;
+x
+connection master;
 drop table t1;
 include/rpl_end.inc
