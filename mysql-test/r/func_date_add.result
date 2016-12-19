@@ -147,4 +147,5 @@ v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 select 30 + (20010101 + interval 2 day), x from v1;
 30 + (20010101 + interval 2 day)	x
 20010133	20010133
+drop view v1;
 End of 10.2 tests
