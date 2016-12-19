@@ -3849,3 +3849,21 @@ double Histogram::point_selectivity(double pos, double avg_sel)
   return sel;
 }
 
+/*
+  Check whether the table is one of the persistent statistical tables.
+*/
+bool is_stat_table(const char *db, const char *table)
+{
+  DBUG_ASSERT(db && table);
+
+  if (!memcmp(db, stat_tables_db_name.str, stat_tables_db_name.length))
+  {
+    for (uint i= 0; i < STATISTICS_TABLES; i ++)
+    {
+      if (!memcmp(table, stat_table_name[i].str, stat_table_name[i].length))
+        return true;
+    }
+  }
+  return false;
+}
+

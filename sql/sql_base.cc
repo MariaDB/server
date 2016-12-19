@@ -4068,6 +4068,7 @@ restart:
       (*start)                                 &&
       (*start)->table                          &&
       (*start)->table->file->ht == myisam_hton &&
+      !is_stat_table((*start)->db, (*start)->alias) &&
       sqlcom_can_generate_row_events(thd)      &&
       thd->get_command() != COM_STMT_PREPARE)
   {
