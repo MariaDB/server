@@ -235,4 +235,5 @@ SET GLOBAL binlog_format=@old_format;
 connection master;
 DROP TABLE t1;
 DROP TABLE t2;
+call mtr.add_suppression("Can't find record in 't2'");
 include/rpl_end.inc

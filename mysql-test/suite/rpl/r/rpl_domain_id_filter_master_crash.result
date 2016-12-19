@@ -57,4 +57,10 @@ connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=NO;
 include/start_slave.inc
+connection master;
+call mtr.add_suppression("Table 'gtid_slave_pos' is marked as crashed and should be repaired");
+Warnings:
+Error	145	Table './mtr/test_suppressions' is marked as crashed and should be repaired
+Error	1194	Table 'test_suppressions' is marked as crashed and should be repaired
+Error	1034	1 client is using or hasn't closed the table properly
 include/rpl_end.inc

@@ -76,3 +76,5 @@ DROP TABLE t1;
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc
+
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");

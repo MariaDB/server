@@ -4382,6 +4382,7 @@ sub extract_warning_lines ($$) {
      qr|Checking table:   '\..mtr.test_suppressions'|,
      qr|Table \./test/bug53592 has a primary key in InnoDB data dictionary, but not in MySQL|,
      qr|Table '\..mtr.test_suppressions' is marked as crashed and should be repaired|,
+     qr|Table 'test_suppressions' is marked as crashed and should be repaired|,
      qr|Can't open shared library|,
      qr|Couldn't load plugin named .*EXAMPLE.*|,
      qr|InnoDB: Error: table 'test/bug39438'|,

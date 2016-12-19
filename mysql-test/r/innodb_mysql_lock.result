@@ -1,6 +1,7 @@
 set @old_innodb_lock_wait_timeout=@@global.innodb_lock_wait_timeout;
 set global innodb_lock_wait_timeout=300;
 set session innodb_lock_wait_timeout=300;
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 #
 # Bug #22876 Four-way deadlock
 #

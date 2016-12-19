@@ -598,6 +598,10 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Query	1	#	use `test`; INSERT INTO t1 VALUES (1)
 #	#	Query	1	#	COMMIT
 #	#	Gtid	1	#	BEGIN GTID 0-1-3
+#	#	Annotate_rows	1	#	BINLOG '
+3u9kSBMUAAAAKQAAAJEBAAAAABoAAAAAAAAABHRlc3QAAnQxAAEDAAA=
+3u9kSBcUAAAAIgAAALMBAAAQABoAAAAAAAEAAf/+AgAAAA==
+'
 #	#	Table_map	1	#	table_id: # (test.t1)
 #	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 #	#	Query	1	#	COMMIT

@@ -153,26 +153,22 @@ slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
 slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-25
+slave-bin.000001	#	Annotate_rows	2	#	DELETE FROM t3 WHERE a=2
 slave-bin.000001	#	Table_map	2	#	table_id: # (test1.t3)
 slave-bin.000001	#	Delete_rows_v1	2	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	2	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-25
 slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t5 (a) SELECT a.a*10000+b.a*1000+c.a*100+d.a*10 FROM t5 a, t5 b, t5 c, t5 d
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
 slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-26
 slave-bin.000001	#	Annotate_rows	1	#	INSERT INTO t3 (a) SELECT a FROM t5 WHERE a > 10
 slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t3)
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
-slave-bin.000001	#	Write_rows_v1	1	#	table_id: #
 slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	1	#	COMMIT
 slave-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-27
+slave-bin.000001	#	Annotate_rows	2	#	INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'Slave: Can\'t find record in \'t3\' Error_code: 1032' COLLATE 'latin1_swedish_ci'))
 slave-bin.000001	#	Table_map	2	#	table_id: # (mtr.test_suppressions)
 slave-bin.000001	#	Write_rows_v1	2	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	2	#	COMMIT
@@ -197,4 +193,7 @@ connection slave;
 ########################################################################
 FLUSH LOGS;
 connection master;
+use test;
+connection slave;
+call mtr.add_suppression("Can't find record in 't3'");
 include/rpl_end.inc

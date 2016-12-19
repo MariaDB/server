@@ -2371,6 +2371,94 @@ crn INT -- row number
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (
+#Q> b'0',                         -- c01
+#Q> b'0000000000000000000000000000000000000000000000000000000000000000',  -- c02
+#Q> -128,                         -- c03
+#Q> 0,                            -- c04
+#Q> 000,                          -- c05
+#Q> false,                        -- c06
+#Q> -32768,                       -- c07
+#Q> 0,                            -- c08
+#Q> 00000,                        -- c09
+#Q> -8388608,                     -- c10
+#Q> 0,                            -- c11
+#Q> 00000000,                     -- c12
+#Q> -2147483648,                  -- c13
+#Q> 0,                            -- c14
+#Q> 0000000000,                   -- c15
+#Q> -9223372036854775808,         -- c16
+#Q> 0,                            -- c17
+#Q> 00000000000000000000,         -- c18
+#Q> -3.402823466E+38,             -- c19
+#Q> 1.175494351E-38,              -- c20
+#Q> 000000000000,                 -- c21
+#Q> -1.7976931348623E+308,        -- c22 three digits cut for ps-protocol
+#Q> 2.2250738585072E-308,         -- c23 three digits cut for ps-protocol
+#Q> 0000000000000000000000,       -- c24
+#Q> -9999999999,                  -- c25
+#Q> 0,                            -- c26
+#Q> 0000000000,                   -- c27
+#Q> #
+#Q> '1000-01-01',                 -- c28
+#Q> '1000-01-01 00:00:00',        -- c29
+#Q> '1970-01-02 00:00:01',        -- c30 one day later due to timezone issues
+#Q> '-838:59:59',                 -- c31
+#Q> '1901',                       -- c32
+#Q> #
+#Q> '',                           -- c33
+#Q> '',                           -- c34
+#Q> '',                           -- c35
+#Q> '',                           -- c36
+#Q> '',                           -- c37
+#Q> '',                           -- c38
+#Q> '',                           -- c39
+#Q> '',                           -- c40
+#Q> '',                           -- c41
+#Q> '',                           -- c42
+#Q> '',                           -- c43
+#Q> '',                           -- c44
+#Q> #
+#Q> '',                           -- c45
+#Q> '',                           -- c46
+#Q> '',                           -- c47
+#Q> '',                           -- c48
+#Q> '',                           -- c49
+#Q> '',                           -- c50
+#Q> '',                           -- c51
+#Q> '',                           -- c52
+#Q> '',                           -- c53
+#Q> '',                           -- c54
+#Q> '',                           -- c55
+#Q> '',                           -- c56
+#Q> #
+#Q> '',                           -- c57
+#Q> '',                           -- c58
+#Q> '',                           -- c59
+#Q> '',                           -- c60
+#Q> #
+#Q> '',                           -- c61
+#Q> '',                           -- c62
+#Q> '',                           -- c63
+#Q> '',                           -- c64
+#Q> #
+#Q> '',                           -- c65
+#Q> '',                           -- c66
+#Q> '',                           -- c67
+#Q> '',                           -- c68
+#Q> '',                           -- c69
+#Q> '',                           -- c70
+#Q> '',                           -- c71
+#Q> '',                           -- c72
+#Q> '',                           -- c73
+#Q> '',                           -- c74
+#Q> '',                           -- c75
+#Q> '',                           -- c76
+#Q> #
+#Q> 'a',                          -- c77
+#Q> '',   
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2467,6 +2555,94 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (
+#Q> b'1',                         -- c01
+#Q> b'1111111111111111111111111111111111111111111111111111111111111111',  -- c02
+#Q> 127,                          -- c03
+#Q> 255,                          -- c04
+#Q> 255,                          -- c05
+#Q> true,                         -- c06
+#Q> 32767,                        -- c07
+#Q> 65535,                        -- c08
+#Q> 65535,                        -- c09
+#Q> 8388607,                      -- c10
+#Q> 16777215,                     -- c11
+#Q> 16777215,                     -- c12
+#Q> 2147483647,                   -- c13
+#Q> 4294967295,                   -- c14
+#Q> 4294967295,                   -- c15
+#Q> 9223372036854775807,          -- c16
+#Q> 18446744073709551615,         -- c17
+#Q> 18446744073709551615,         -- c18
+#Q> 3.402823466E+38,              -- c19
+#Q> 3.402823466E+38,              -- c20
+#Q> 3.402823466E+38,              -- c21
+#Q> 1.7976931348623E+308,         -- c22 three digits cut for ps-protocol
+#Q> 1.7976931348623E+308,         -- c23 three digits cut for ps-protocol
+#Q> 1.7976931348623E+308,         -- c24 three digits cut for ps-protocol
+#Q> 9999999999,                   -- c25
+#Q> 9999999999,                   -- c26
+#Q> 9999999999,                   -- c27
+#Q> #
+#Q> '9999-12-31',                 -- c28
+#Q> '9999-12-31 23:59:59',        -- c29
+#Q> '2038-01-08 03:14:07',        -- c30 one day earlier due to timezone issues
+#Q> '838:59:59',                  -- c31
+#Q> '2155',                       -- c32
+#Q> #
+#Q> x'ff',                        -- c33
+#Q> '',                           -- c34
+#Q> x'ff',                        -- c35
+#Q> REPEAT(x'ff',255),            -- c36
+#Q> _utf8 x'efbfbf',              -- c37
+#Q> '',                           -- c38
+#Q> _utf8 x'efbfbf',              -- c39
+#Q> REPEAT(_utf8 x'efbfbf',255),  -- c40
+#Q> _ucs2 x'ffff',                -- c41
+#Q> '',                           -- c42
+#Q> _ucs2 x'ffff',                -- c43
+#Q> REPEAT(_ucs2 x'ffff',255),    -- c44
+#Q> #
+#Q> '',                           -- c45
+#Q> x'ff',                        -- c46
+#Q> REPEAT(x'ff',255),            -- c47
+#Q> REPEAT(x'ff',261),            -- c48
+#Q> '',                           -- c49
+#Q> _utf8 x'efbfbf',              -- c50
+#Q> REPEAT(_utf8 x'efbfbf',255),  -- c51
+#Q> REPEAT(_utf8 x'efbfbf',261),  -- c52
+#Q> '',                           -- c53
+#Q> _ucs2 x'ffff',                -- c54
+#Q> REPEAT(_ucs2 x'ffff',255),    -- c55
+#Q> REPEAT(_ucs2 x'ffff',261),    -- c56
+#Q> #
+#Q> x'ff',                        -- c57
+#Q> '',                           -- c58
+#Q> x'ff',                        -- c59
+#Q> REPEAT(x'ff',255),            -- c60
+#Q> #
+#Q> '',                           -- c61
+#Q> x'ff',                        -- c62
+#Q> REPEAT(x'ff',255),            -- c63
+#Q> REPEAT(x'ff',261),            -- c64
+#Q> #
+#Q> 'tinyblob',                   -- c65 not using maximum value here
+#Q> 'tinytext',                   -- c66 not using maximum value here
+#Q> 'tinytext-ucs2',              -- c67 not using maximum value here
+#Q> 'blob',                       -- c68 not using maximum value here
+#Q> 'text',                       -- c69 not using maximum value here
+#Q> 'text-ucs2',                  -- c70 not using maximum value here
+#Q> 'mediumblob',                 -- c71 not using maximum value here
+#Q> 'mediumtext',                 -- c72 not using maximum value here
+#Q> 'mediumtext-ucs2',            -- c73 not using maximum value here
+#Q> 'longblob',                   -- c74 not using maximum value here
+#Q> 'longtext',                   -- c75 not using maximum value here
+#Q> 'longtext-ucs2',              -- c76 not using maximum value here
+#Q> #
+#Q> 'c',                          -- c77
+#Q> 'a,b,c
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2562,10 +2738,181 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (
+#Q> NULL,                         -- c01
+#Q> NULL,                         -- c02
+#Q> NULL,                         -- c03
+#Q> NULL,                         -- c04
+#Q> NULL,                         -- c05
+#Q> NULL,                         -- c06
+#Q> NULL,                         -- c07
+#Q> NULL,                         -- c08
+#Q> NULL,                         -- c09
+#Q> NULL,                         -- c10
+#Q> NULL,                         -- c11
+#Q> NULL,                         -- c12
+#Q> NULL,                         -- c13
+#Q> NULL,                         -- c14
+#Q> NULL,                         -- c15
+#Q> NULL,                         -- c16
+#Q> NULL,                         -- c17
+#Q> NULL,                         -- c18
+#Q> NULL,                         -- c19
+#Q> NULL,                         -- c20
+#Q> NULL,                         -- c21
+#Q> NULL,                         -- c22
+#Q> NULL,                         -- c23
+#Q> NULL,                         -- c24
+#Q> NULL,                         -- c25
+#Q> NULL,                         -- c26
+#Q> NULL,                         -- c27
+#Q> #
+#Q> NULL,                         -- c28
+#Q> NULL,                         -- c29
+#Q> NULL,                         -- c30
+#Q> NULL,                         -- c31
+#Q> NULL,                         -- c32
+#Q> #
+#Q> NULL,                         -- c33
+#Q> NULL,                         -- c34
+#Q> NULL,                         -- c35
+#Q> NULL,                         -- c36
+#Q> NULL,                         -- c37
+#Q> NULL,                         -- c38
+#Q> NULL,                         -- c39
+#Q> NULL,                         -- c40
+#Q> NULL,                         -- c41
+#Q> NULL,                         -- c42
+#Q> NULL,                         -- c43
+#Q> NULL,                         -- c44
+#Q> #
+#Q> NULL,                         -- c45
+#Q> NULL,                         -- c46
+#Q> NULL,                         -- c47
+#Q> NULL,                         -- c48
+#Q> NULL,                         -- c49
+#Q> NULL,                         -- c50
+#Q> NULL,                         -- c51
+#Q> NULL,                         -- c52
+#Q> NULL,                         -- c53
+#Q> NULL,                         -- c54
+#Q> NULL,                         -- c55
+#Q> NULL,                         -- c56
+#Q> #
+#Q> NULL,                         -- c57
+#Q> NULL,                         -- c58
+#Q> NULL,                         -- c59
+#Q> NULL,                         -- c60
+#Q> #
+#Q> NULL,                         -- c61
+#Q> NULL,                         -- c62
+#Q> NULL,                         -- c63
+#Q> NULL,                         -- c64
+#Q> #
+#Q> NULL,                         -- c65
+#Q> NULL,                         -- c66
+#Q> NULL,                         -- c67
+#Q> NULL,                         -- c68
+#Q> NULL,                         -- c69
+#Q> NULL,                         -- c70
+#Q> NULL,                         -- c71
+#Q> NULL,                         -- c72
+#Q> NULL,                         -- c73
+#Q> NULL,                         -- c74
+#Q> NULL,                         -- c75
+#Q> NULL,                         -- c76
+#Q> #
+#Q> NULL,                         -- c77
+#Q> NULL,                         -- c78
+#Q> #
+#Q> 3                             -- crn -- row number
+#Q> ), (
+#Q> b'1',                         -- c01
+#Q> b'1111111111111111111111111111111111111111111111111111111111111111',  -- c02
+#Q> 127,                          -- c03
+#Q> 0,                            -- c04
+#Q> 001,                          -- c05
+#Q> true,                         -- c06
+#Q> 32767,                        -- c07
+#Q> 0,                            -- c08
+#Q> 00001,                        -- c09
+#Q> 8388607,                      -- c10
+#Q> 0,                            -- c11
+#Q> 00000001,                     -- c12
+#Q> 2147483647,                   -- c13
+#Q> 0,                            -- c14
+#Q> 0000000001,                   -- c15
+#Q> 9223372036854775807,          -- c16
+#Q> 0,                            -- c17
+#Q> 00000000000000000001,         -- c18
+#Q> -1.175494351E-38,             -- c19
+#Q> 1.175494351E-38,              -- c20
+#Q> 000000000000001,              -- c21
+#Q> -2.2250738585072E-308,        -- c22
+#Q> 2.2250738585072E-308,         -- c23
+#Q> 00000000000000000000001,      -- c24
+#Q> -9999999999,                  -- c25
+#Q> 9999999999,                   -- c26
+#Q> 0000000001,                   -- c27
+#Q> #
+#Q> '2008-08-04',                 -- c28
+#Q> '2008-08-04 16:18:06',        -- c29
+#Q> '2008-08-04 16:18:24',        -- c30
+#Q> '16:18:47',                   -- c31
+#Q> '2008',                       -- c32
+#Q> #
+#Q> 'a',                          -- c33
+#Q> '',                           -- c34
+#Q> 'e',                          -- c35
+#Q> REPEAT('i',255),              -- c36
+#Q> _utf8 x'c3a4',                -- c37
+#Q> '',                           -- c38
+#Q> _utf8 x'c3b6',                -- c39
+#Q> REPEAT(_utf8 x'c3bc',255),    -- c40
+#Q> _ucs2 x'00e4',                -- c41
+#Q> '',                           -- c42
+#Q> _ucs2 x'00f6',                -- c43
+#Q> REPEAT(_ucs2 x'00fc',255),    -- c44
+#Q> #
+#Q> '',                           -- c45
+#Q> 'a',                          -- c46
+#Q> REPEAT('e',255),              -- c47
+#Q> REPEAT('i',261),              -- c48
+#Q> '',                           -- c49
+#Q> _utf8 x'c3a4',                -- c50
+#Q> REPEAT(_utf8 x'c3b6',255),    -- c51
+#Q> REPEAT(_utf8 x'c3bc',261),    -- c52
+#Q> '',                           -- c53
+#Q> _ucs2 x'00e4',                -- c54
+#Q> REPEAT(_ucs2 x'00f6',255),    -- c55
+#Q> REPEAT(_ucs2 x'00fc',261),    -- c56
+#Q> #
+#Q> '0',                          -- c57
+#Q> '',                           -- c58
+#Q> '1',                          -- c59
+#Q> REPEAT('1',255),              -- c60
+#Q> #
+#Q> '',                           -- c61
+#Q> 'b',                          -- c62
+#Q> REPEAT('c',255),              -- c63
+#Q> REPEAT('\'',261),             -- c64
+#Q>   #
+#Q>   'tinyblob',                   -- c65
+#Q>   'tinytext',                   -- c66
+#Q>   'tinytext-ucs2',              -- c67
+#Q>   'blob',                       -- c68
+#Q>   'text',                       -- c69
+#Q>   'text-ucs2',                  -- c70
+#Q>   'mediumblob',                 -- c71
+#Q>   'mediumtext',                 -- c72
+#Q>   'mediumtext-ucs2',            -- c73
+#Q>   'longblob',                   -- c74
+#Q>   'longtext',                   -- c75
+#Q>   'longtext
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
-# at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
@@ -2740,6 +3087,172 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET
+#Q> c01 = b'1',
+#Q> c02 = b'1111111111111111111111111111111111111111111111111111111111111111',
+#Q> c03 = 127,
+#Q> c04 = 255,
+#Q> c05 = 255,
+#Q> c06 = true,
+#Q> c07 = 32767,
+#Q> c08 = 65535,
+#Q> c09 = 65535,
+#Q> c10 = 8388607,
+#Q> c11 = 16777215,
+#Q> c12 = 16777215,
+#Q> c13 = 2147483647,
+#Q> c14 = 4294967295,
+#Q> c15 = 4294967295,
+#Q> c16 = 9223372036854775807,
+#Q> c17 = 18446744073709551615,
+#Q> c18 = 18446744073709551615,
+#Q> c19 = 3.402823466E+38,
+#Q> c20 = 3.402823466E+38,
+#Q> c21 = 3.402823466E+38,
+#Q> c22 = 1.7976931348623E+308,
+#Q> c23 = 1.7976931348623E+308,
+#Q> c24 = 1.7976931348623E+308,
+#Q> c25 = 9999999999,
+#Q> c26 = 9999999999,
+#Q> c27 = 9999999999,
+#Q> #
+#Q> c28 = '9999-12-31',
+#Q> c29 = '9999-12-31 23:59:59',
+#Q> c30 = '2038-01-08 03:14:07',
+#Q> c31 = '838:59:59',
+#Q> c32 = '2155',
+#Q> #
+#Q> c33 = x'ff',
+#Q> c34 = '',
+#Q> c35 = x'ff',
+#Q> c36 = REPEAT(x'ff',255),
+#Q> c37 = _utf8 x'efbfbf',
+#Q> c38 = '',
+#Q> c39 = _utf8 x'efbfbf',
+#Q> c40 = REPEAT(_utf8 x'efbfbf',255),
+#Q> c41 = _ucs2 x'ffff',
+#Q> c42 = '',
+#Q> c43 = _ucs2 x'ffff',
+#Q> c44 = REPEAT(_ucs2 x'ffff',255),
+#Q> #
+#Q> c45 = '',
+#Q> c46 = x'ff',
+#Q> c47 = REPEAT(x'ff',255),
+#Q> c48 = REPEAT(x'ff',261),
+#Q> c49 = '',
+#Q> c50 = _utf8 x'efbfbf',
+#Q> c51 = REPEAT(_utf8 x'efbfbf',255),
+#Q> c52 = REPEAT(_utf8 x'efbfbf',261),
+#Q> c53 = '',
+#Q> c54 = _ucs2 x'ffff',
+#Q> c55 = REPEAT(_ucs2 x'ffff',255),
+#Q> c56 = REPEAT(_ucs2 x'ffff',261),
+#Q> #
+#Q> c57 = x'ff',
+#Q> c58 = '',
+#Q> c59 = x'ff',
+#Q> c60 = REPEAT(x'ff',255),
+#Q> #
+#Q> c61 = '',
+#Q> c62 = x'ff',
+#Q> c63 = REPEAT(x'ff',255),
+#Q> c64 = REPEAT(x'ff',261),
+#Q> #
+#Q> c65 = 'tinyblob',
+#Q> c66 = 'tinytext',
+#Q> c67 = 'tinytext-ucs2',
+#Q> c68 = 'blob',
+#Q> c69 = 'text',
+#Q> c70 = 'text-ucs2',
+#Q> c71 = 'mediumblob',
+#Q> c72 = 'mediumtext',
+#Q> c73 = 'mediumtext-ucs2',
+#Q> c74 = 'longblob',
+#Q> c75 = 'longtext',
+#Q> c76 = 'longtext-ucs2',
+#Q> #
+#Q> c77 = 'c',
+#Q> c78 = 'a,b,c',
+#Q> #
+#Q> crn = crn
+#Q> #
+#Q> WHERE
+#Q> #
+#Q> c01 = b'0' AND
+#Q> c02 = b'0000000000000000000000000000000000000000000000000000000000000000' AND
+#Q> c03 = -128 AND
+#Q> c04 = 0 AND
+#Q> c05 = 000 AND
+#Q> c06 = false AND
+#Q> c07 = -32768 AND
+#Q> c08 = 0 AND
+#Q> c09 = 00000 AND
+#Q> c10 = -8388608 AND
+#Q> c11 = 0 AND
+#Q> c12 = 00000000 AND
+#Q> c13 = -2147483648 AND
+#Q> c14 = 0 AND
+#Q> c15 = 0000000000 AND
+#Q> c16 = -9223372036854775808 AND
+#Q> c17 = 0 AND
+#Q> c18 = 00000000000000000000 AND
+#Q> c19 < -3.402823465E+38 AND
+#Q> c20 < 1.175494352E-38 AND
+#Q> c21 = 000000000000 AND
+#Q> c22 < -1.7976931348622E+308 AND
+#Q> c23 < 2.2250738585073E-308 AND
+#Q> c24 = 0000000000000000000000 AND
+#Q> c25 = -9999999999 AND
+#Q> c26 = 0 AND
+#Q> c27 = 0000000000 AND
+#Q> #
+#Q> c28 = '1000-01-01' AND
+#Q> c29 = '1000-01-01 00:00:00' AND
+#Q> c30 = '1970-01-02 00:00:01' AND
+#Q> c31 = '-838:59:59' AND
+#Q> c32 = '1901' AND
+#Q> #
+#Q> c33 = '' AND
+#Q> c34 = '' AND
+#Q> c35 = '' AND
+#Q> c36 = '' AND
+#Q> c37 = '' AND
+#Q> c38 = '' AND
+#Q> c39 = '' AND
+#Q> c40 = '' AND
+#Q> c41 = '' AND
+#Q> c42 = '' AND
+#Q> c43 = '' AND
+#Q> c44 = '' AND
+#Q> #
+#Q> c45 = '' AND
+#Q> c46 = '' AND
+#Q> c47 = '' AND
+#Q> c48 = '' AND
+#Q> c49 = '' AND
+#Q> c50 = '' AND
+#Q> c51 = '' AND
+#Q> c52 = '' AND
+#Q> c53 = '' AND
+#Q> c54 = '' AND
+#Q> c55 = '' AND
+#Q> c56 = '' AND
+#Q> #
+#Q> # this does not reproduce the inserted value: c57 = '' AND
+#Q> c58 = '' AND
+#Q> # this does not reproduce the inserted value: c59 = '' AND
+#Q> # this does not reproduce the inserted value: c60 = '' AND
+#Q> #
+#Q> c61 = '' AND
+#Q> c62 = '' AND
+#Q> c63 = '' AND
+#Q> c64 = '' AND
+#Q> #
+#Q> c65 = '' AND
+#Q> c66 = '' AND
+#Q> c67 =
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -2915,6 +3428,177 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET
+#Q> c01 = b'0',
+#Q> c02 = b'0000000000000000000000000000000000000000000000000000000000000000',
+#Q> c03 = -128,
+#Q> c04 = 0,
+#Q> c05 = 000,
+#Q> c06 = false,
+#Q> c07 = -32768,
+#Q> c08 = 0,
+#Q> c09 = 00000,
+#Q> c10 = -8388608,
+#Q> c11 = 0,
+#Q> c12 = 00000000,
+#Q> c13 = -2147483648,
+#Q> c14 = 0,
+#Q> c15 = 0000000000,
+#Q> c16 = -9223372036854775808,
+#Q> c17 = 0,
+#Q> c18 = 00000000000000000000,
+#Q> c19 = -3.402823466E+38,
+#Q> c20 = 1.175494351E-38,
+#Q> c21 = 000000000000,
+#Q> c22 = -1.7976931348623E+308,
+#Q> c23 = 2.2250738585072E-308,
+#Q> c24 = 0000000000000000000000,
+#Q> c25 = -9999999999,
+#Q> c26 = 0,
+#Q> c27 = 0000000000,
+#Q> #
+#Q> c28 = '1000-01-01',
+#Q> c29 = '1000-01-01 00:00:00',
+#Q> c30 = '1970-01-02 00:00:01',
+#Q> c31 = '-838:59:59',
+#Q> c32 = '1901',
+#Q> #
+#Q> c33 = '',
+#Q> c34 = '',
+#Q> c35 = '',
+#Q> c36 = '',
+#Q> c37 = '',
+#Q> c38 = '',
+#Q> c39 = '',
+#Q> c40 = '',
+#Q> c41 = '',
+#Q> c42 = '',
+#Q> c43 = '',
+#Q> c44 = '',
+#Q> #
+#Q> c45 = '',
+#Q> c46 = '',
+#Q> c47 = '',
+#Q> c48 = '',
+#Q> c49 = '',
+#Q> c50 = '',
+#Q> c51 = '',
+#Q> c52 = '',
+#Q> c53 = '',
+#Q> c54 = '',
+#Q> c55 = '',
+#Q> c56 = '',
+#Q> #
+#Q> c57 = '',
+#Q> c58 = '',
+#Q> c59 = '',
+#Q> c60 = '',
+#Q> #
+#Q> c61 = '',
+#Q> c62 = '',
+#Q> c63 = '',
+#Q> c64 = '',
+#Q> #
+#Q> c65 = '',
+#Q> c66 = '',
+#Q> c67 = '',
+#Q> c68 = '',
+#Q> c69 = '',
+#Q> c70 = '',
+#Q> c71 = '',
+#Q> c72 = '',
+#Q> c73 = '',
+#Q> c74 = '',
+#Q> c75 = '',
+#Q> c76 = '',
+#Q> #
+#Q> c77 = 'a',
+#Q> c78 = '',
+#Q> #
+#Q> crn = crn
+#Q> #
+#Q> WHERE
+#Q> #
+#Q> c01 = b'1' AND
+#Q> # the below does not reproduce the inserted value:
+#Q> #c02 = b'1111111111111111111111111111111111111111111111111111111111111111' AND
+#Q> c03 = 127 AND
+#Q> c04 = 255 AND
+#Q> c05 = 255 AND
+#Q> c06 = true AND
+#Q> c07 = 32767 AND
+#Q> c08 = 65535 AND
+#Q> c09 = 65535 AND
+#Q> c10 = 8388607 AND
+#Q> c11 = 16777215 AND
+#Q> c12 = 16777215 AND
+#Q> c13 = 2147483647 AND
+#Q> c14 = 4294967295 AND
+#Q> c15 = 4294967295 AND
+#Q> c16 = 9223372036854775807 AND
+#Q> c17 = 18446744073709551615 AND
+#Q> c18 = 18446744073709551615 AND
+#Q> c19 > 3.402823465E+38 AND
+#Q> c20 > 3.402823465E+38 AND
+#Q> c21 > 3.402823465E+38 AND
+#Q> c22 > 1.7976931348622E+308 AND
+#Q> c23 > 1.7976931348622E+308 AND
+#Q> c24 > 1.7976931348622E+308 AND
+#Q> c25 = 9999999999 AND
+#Q> c26 = 9999999999 AND
+#Q> c27 = 9999999999 AND
+#Q> #
+#Q> c28 = '9999-12-31' AND
+#Q> c29 = '9999-12-31 23:59:59' AND
+#Q> c30 = '2038-01-08 03:14:07' AND
+#Q> c31 = '838:59:59' AND
+#Q> c32 = '2155' AND
+#Q> #
+#Q> c33 = x'ff' AND
+#Q> c34 = '' AND
+#Q> c35 = x'ff' AND
+#Q> c36 = REPEAT(x'ff',255) AND
+#Q> c37 = _utf8 x'efbfbf' AND
+#Q> c38 = '' AND
+#Q> c39 = _utf8 x'efbfbf' AND
+#Q> c40 = REPEAT(_utf8 x'efbfbf',255) AND
+#Q> c41 = _ucs2 x'ffff' AND
+#Q> c42 = '' AND
+#Q> c43 = _ucs2 x'ffff' AND
+#Q> c44 = REPEAT(_ucs2 x'ffff',255) AND
+#Q> #
+#Q> c45 = '' AND
+#Q> c46 = x'ff' AND
+#Q> c47 = REPEAT(x'ff',255) AND
+#Q> c48 = REPEAT(x'ff',261) AND
+#Q> c49 = '' AND
+#Q> c50 = _utf8 x'efbfbf' AND
+#Q> c51 = REPEAT(_utf8 x'efbfbf',255) AND
+#Q> c52 = REPEAT(_utf8 x'efbfbf',261) AND
+#Q> c53 = '' AND
+#Q> c54 = _ucs2 x'ffff' AND
+#Q> c55 = REPEAT(_ucs2 x'ffff',255) AND
+#Q> c56 = REPEAT(_ucs2 x'ffff',261) AND
+#Q> #
+#Q> c57 = x'ff' AND
+#Q> c58 = '' AND
+#Q> c59 = x'ff' AND
+#Q> c60 = REPEAT(x'ff',255) AND
+#Q> #
+#Q> c61 = '' AND
+#Q> c62 = x'ff' AND
+#Q> c63 = REPEAT(x'ff',255) AND
+#Q> c64 = REPEAT(x'ff',261) AND
+#Q> #
+#Q> c65 = 'tinyblob' AND
+#Q> c66 = 'tinytext' AND
+#Q> c67 = 'tinytext-ucs2' AND
+#Q> c68 = 'blob' AND
+#Q> c69 = 'text' AND
+#Q> c70 = 'text-ucs2' AND
+#Q> c71 = 'mediumblob
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -3090,6 +3774,175 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET
+#Q> c01 = b'1',
+#Q> c02 = b'1111111111111111111111111111111111111111111111111111111111111111',
+#Q> c03 = 127,
+#Q> c04 = 0,
+#Q> c05 = 001,
+#Q> c06 = true,
+#Q> c07 = 32767,
+#Q> c08 = 0,
+#Q> c09 = 00001,
+#Q> c10 = 8388607,
+#Q> c11 = 0,
+#Q> c12 = 00000001,
+#Q> c13 = 2147483647,
+#Q> c14 = 0,
+#Q> c15 = 0000000001,
+#Q> c16 = 9223372036854775807,
+#Q> c17 = 0,
+#Q> c18 = 00000000000000000001,
+#Q> c19 = -1.175494351E-38,
+#Q> c20 = 1.175494351E-38,
+#Q> c21 = 000000000000001,
+#Q> c22 = -2.2250738585072E-308,
+#Q> c23 = 2.2250738585072E-308,
+#Q> c24 = 00000000000000000000001,
+#Q> c25 = -9999999999,
+#Q> c26 = 9999999999,
+#Q> c27 = 0000000001,
+#Q> #
+#Q> c28 = '2008-08-04',
+#Q> c29 = '2008-08-04 16:18:06',
+#Q> c30 = '2008-08-04 16:18:24',
+#Q> c31 = '16:18:47',
+#Q> c32 = '2008',
+#Q> #
+#Q> c33 = 'a',
+#Q> c34 = '',
+#Q> c35 = 'e',
+#Q> c36 = REPEAT('i',255),
+#Q> c37 = _utf8 x'c3a4',
+#Q> c38 = '',
+#Q> c39 = _utf8 x'c3b6',
+#Q> c40 = REPEAT(_utf8 x'c3bc',255),
+#Q> c41 = _ucs2 x'00e4',
+#Q> c42 = '',
+#Q> c43 = _ucs2 x'00f6',
+#Q> c44 = REPEAT(_ucs2 x'00fc',255),
+#Q> #
+#Q> c45 = '',
+#Q> c46 = 'a',
+#Q> c47 = REPEAT('e',255),
+#Q> c48 = REPEAT('i',261),
+#Q> c49 = '',
+#Q> c50 = _utf8 x'c3a4',
+#Q> c51 = REPEAT(_utf8 x'c3b6',255),
+#Q> c52 = REPEAT(_utf8 x'c3bc',261),
+#Q> c53 = '',
+#Q> c54 = _ucs2 x'00e4',
+#Q> c55 = REPEAT(_ucs2 x'00f6',255),
+#Q> c56 = REPEAT(_ucs2 x'00fc',261),
+#Q> #
+#Q> c57 = '0',
+#Q> c58 = '',
+#Q> c59 = '1',
+#Q> c60 = REPEAT('1',255),
+#Q> #
+#Q> c61 = '',
+#Q> c62 = 'b',
+#Q> c63 = REPEAT('c',255),
+#Q> c64 = REPEAT('\'',261),
+#Q>   #
+#Q>   c65 = 'tinyblob',
+#Q>   c66 = 'tinytext',
+#Q>   c67 = 'tinytext-ucs2',
+#Q>   c68 = 'blob',
+#Q>   c69 = 'text',
+#Q>   c70 = 'text-ucs2',
+#Q>   c71 = 'mediumblob',
+#Q>   c72 = 'mediumtext',
+#Q>   c73 = 'mediumtext-ucs2',
+#Q>   c74 = 'longblob',
+#Q>   c75 = 'longtext',
+#Q>   c76 = 'longtext-ucs2',
+#Q>   #
+#Q>   c77 = 'b',
+#Q>   c78 = 'b,c',
+#Q>   #
+#Q>   crn = crn
+#Q>   #
+#Q>   WHERE
+#Q>   #
+#Q>   c01 IS NULL AND
+#Q>   c02 IS NULL AND
+#Q>   c03 IS NULL AND
+#Q>   c04 IS NULL AND
+#Q>   c05 IS NULL AND
+#Q>   c06 IS NULL AND
+#Q>   c07 IS NULL AND
+#Q>   c08 IS NULL AND
+#Q>   c09 IS NULL AND
+#Q>   c10 IS NULL AND
+#Q>   c11 IS NULL AND
+#Q>   c12 IS NULL AND
+#Q>   c13 IS NULL AND
+#Q>   c14 IS NULL AND
+#Q>   c15 IS NULL AND
+#Q>   c16 IS NULL AND
+#Q>   c17 IS NULL AND
+#Q>   c18 IS NULL AND
+#Q>   c19 IS NULL AND
+#Q>   c20 IS NULL AND
+#Q>   c21 IS NULL AND
+#Q>   c22 IS NULL AND
+#Q>   c23 IS NULL AND
+#Q>   c24 IS NULL AND
+#Q>   c25 IS NULL AND
+#Q>   c26 IS NULL AND
+#Q>   c27 IS NULL AND
+#Q>   #
+#Q>   c28 IS NULL AND
+#Q>   c29 IS NULL AND
+#Q>   # this got a timestamp instead of NULL: c30 IS NULL AND
+#Q>   c31 IS NULL AND
+#Q>   c32 IS NULL AND
+#Q>   #
+#Q>   c33 IS NULL AND
+#Q>   c34 IS NULL AND
+#Q>   c35 IS NULL AND
+#Q>   c36 IS NULL AND
+#Q>   c37 IS NULL AND
+#Q>   c38 IS NULL AND
+#Q>   c39 IS NULL AND
+#Q>   c40 IS NULL AND
+#Q>   c41 IS NULL AND
+#Q>   c42 IS NULL AND
+#Q>   c43 IS NULL AND
+#Q>   c44 IS NULL AND
+#Q>   #
+#Q>   c45 IS NULL AND
+#Q>   c46 IS NULL AND
+#Q>   c47 IS NULL AND
+#Q>   c48 IS NULL AND
+#Q>   c49 IS NULL AND
+#Q>   c50 IS NULL AND
+#Q>   c51 IS NULL AND
+#Q>   c52 IS NULL AND
+#Q>   c53 IS NULL AND
+#Q>   c54 IS NULL AND
+#Q>   c55 IS NULL AND
+#Q>   c56 IS NULL AND
+#Q>   #
+#Q>   c57 IS NULL AND
+#Q>   c58 IS NULL AND
+#Q>   c59 IS NULL AND
+#Q>   c60 IS NULL AND
+#Q>   #
+#Q>   c61 IS NULL AND
+#Q>   c62 IS NULL AND
+#Q>   c63 IS NULL AND
+#Q>   c64 IS NULL AND
+#Q>   #
+#Q>   c65 IS NULL AND
+#Q>   c66 IS NULL AND
+#Q>   c67 IS NULL AND
+#Q>   c68 IS NULL AND
+#Q>   c69 IS NULL AND
+#Q>   c70 IS NULL
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -3265,6 +4118,178 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET
+#Q> c01 = NULL,
+#Q> c02 = NULL,
+#Q> c03 = NULL,
+#Q> c04 = NULL,
+#Q> c05 = NULL,
+#Q> c06 = NULL,
+#Q> c07 = NULL,
+#Q> c08 = NULL,
+#Q> c09 = NULL,
+#Q> c10 = NULL,
+#Q> c11 = NULL,
+#Q> c12 = NULL,
+#Q> c13 = NULL,
+#Q> c14 = NULL,
+#Q> c15 = NULL,
+#Q> c16 = NULL,
+#Q> c17 = NULL,
+#Q> c18 = NULL,
+#Q> c19 = NULL,
+#Q> c20 = NULL,
+#Q> c21 = NULL,
+#Q> c22 = NULL,
+#Q> c23 = NULL,
+#Q> c24 = NULL,
+#Q> c25 = NULL,
+#Q> c26 = NULL,
+#Q> c27 = NULL,
+#Q> #
+#Q> c28 = NULL,
+#Q> c29 = NULL,
+#Q> c30 = NULL,
+#Q> c31 = NULL,
+#Q> c32 = NULL,
+#Q> #
+#Q> c33 = NULL,
+#Q> c34 = NULL,
+#Q> c35 = NULL,
+#Q> c36 = NULL,
+#Q> c37 = NULL,
+#Q> c38 = NULL,
+#Q> c39 = NULL,
+#Q> c40 = NULL,
+#Q> c41 = NULL,
+#Q> c42 = NULL,
+#Q> c43 = NULL,
+#Q> c44 = NULL,
+#Q> #
+#Q> c45 = NULL,
+#Q> c46 = NULL,
+#Q> c47 = NULL,
+#Q> c48 = NULL,
+#Q> c49 = NULL,
+#Q> c50 = NULL,
+#Q> c51 = NULL,
+#Q> c52 = NULL,
+#Q> c53 = NULL,
+#Q> c54 = NULL,
+#Q> c55 = NULL,
+#Q> c56 = NULL,
+#Q> #
+#Q> c57 = NULL,
+#Q> c58 = NULL,
+#Q> c59 = NULL,
+#Q> c60 = NULL,
+#Q> #
+#Q> c61 = NULL,
+#Q> c62 = NULL,
+#Q> c63 = NULL,
+#Q> c64 = NULL,
+#Q> #
+#Q> c65 = NULL,
+#Q> c66 = NULL,
+#Q> c67 = NULL,
+#Q> c68 = NULL,
+#Q> c69 = NULL,
+#Q> c70 = NULL,
+#Q> c71 = NULL,
+#Q> c72 = NULL,
+#Q> c73 = NULL,
+#Q> c74 = NULL,
+#Q> c75 = NULL,
+#Q> c76 = NULL,
+#Q> #
+#Q> c77 = NULL,
+#Q> c78 = NULL,
+#Q> #
+#Q> crn = crn
+#Q> #
+#Q> WHERE
+#Q> #
+#Q> c01 = b'1' AND
+#Q> # the below does not reproduce the inserted value:
+#Q> #c02 = b'1111111111111111111111111111111111111111111111111111111111111111' AND
+#Q> c03 = 127 AND
+#Q> c04 = 0 AND
+#Q> c05 = 001 AND
+#Q> c06 = true AND
+#Q> c07 = 32767 AND
+#Q> c08 = 0 AND
+#Q> c09 = 00001 AND
+#Q> c10 = 8388607 AND
+#Q> c11 = 0 AND
+#Q> c12 = 00000001 AND
+#Q> c13 = 2147483647 AND
+#Q> c14 = 0 AND
+#Q> c15 = 0000000001 AND
+#Q> c16 = 9223372036854775807 AND
+#Q> c17 = 0 AND
+#Q> c18 = 00000000000000000001 AND
+#Q> c19 > -1.175494352E-38 AND
+#Q> c20 < 1.175494352E-38 AND
+#Q> c21 = 000000000000001 AND
+#Q> c22 > -2.2250738585073E-308 AND
+#Q> c23 < 2.2250738585073E-308 AND
+#Q> c24 = 00000000000000000000001 AND
+#Q> c25 = -9999999999 AND
+#Q> c26 = 9999999999 AND
+#Q> c27 = 0000000001 AND
+#Q> #
+#Q> c28 = '2008-08-04' AND
+#Q> c29 = '2008-08-04 16:18:06' AND
+#Q> c30 = '2008-08-04 16:18:24' AND
+#Q> c31 = '16:18:47' AND
+#Q> c32 = '2008' AND
+#Q> #
+#Q> c33 = 'a' AND
+#Q> c34 = '' AND
+#Q> c35 = 'e' AND
+#Q> c36 = REPEAT('i',255) AND
+#Q> c37 = _utf8 x'c3a4' AND
+#Q> c38 = '' AND
+#Q> c39 = _utf8 x'c3b6' AND
+#Q> c40 = REPEAT(_utf8 x'c3bc',255) AND
+#Q> c41 = _ucs2 x'00e4' AND
+#Q> c42 = '' AND
+#Q> c43 = _ucs2 x'00f6' AND
+#Q> c44 = REPEAT(_ucs2 x'00fc',255) AND
+#Q> #
+#Q> c45 = '' AND
+#Q> c46 = 'a' AND
+#Q> c47 = REPEAT('e',255) AND
+#Q> c48 = REPEAT('i',261) AND
+#Q> c49 = '' AND
+#Q> c50 = _utf8 x'c3a4' AND
+#Q> c51 = REPEAT(_utf8 x'c3b6',255) AND
+#Q> c52 = REPEAT(_utf8 x'c3bc',261) AND
+#Q> c53 = '' AND
+#Q> c54 = _ucs2 x'00e4' AND
+#Q> c55 = REPEAT(_ucs2 x'00f6',255) AND
+#Q> c56 = REPEAT(_ucs2 x'00fc',261) AND
+#Q> #
+#Q> c57 = '0' AND
+#Q> c58 = '' AND
+#Q> c59 = '1' AND
+#Q> c60 = REPEAT('1',255) AND
+#Q> #
+#Q> c61 = '' AND
+#Q> c62 = 'b' AND
+#Q> c63 = REPEAT('c',255) AND
+#Q> c64 = REPEAT('\'',261) AND
+#Q>   #
+#Q>   c65 = 'tinyblob' AND
+#Q>   c66 = 'tinytext' AND
+#Q>   c67 = 'tinytext-ucs2' AND
+#Q>   c68 = 'blob' AND
+#Q>   c69 = 'text' AND
+#Q>   c70 = 'text-ucs2' AND
+#Q>   c71 = 'mediumblob' AND
+#Q>   c72 = 'me
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -3440,6 +4465,92 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE
+#Q> #
+#Q> c01 = b'1' AND
+#Q> # the below does not reproduce the inserted value:
+#Q> #c02 = b'1111111111111111111111111111111111111111111111111111111111111111' AND
+#Q> c03 = 127 AND
+#Q> c04 = 255 AND
+#Q> c05 = 255 AND
+#Q> c06 = true AND
+#Q> c07 = 32767 AND
+#Q> c08 = 65535 AND
+#Q> c09 = 65535 AND
+#Q> c10 = 8388607 AND
+#Q> c11 = 16777215 AND
+#Q> c12 = 16777215 AND
+#Q> c13 = 2147483647 AND
+#Q> c14 = 4294967295 AND
+#Q> c15 = 4294967295 AND
+#Q> c16 = 9223372036854775807 AND
+#Q> c17 = 18446744073709551615 AND
+#Q> c18 = 18446744073709551615 AND
+#Q> c19 > 3.402823465E+38 AND
+#Q> c20 > 3.402823465E+38 AND
+#Q> c21 > 3.402823465E+38 AND
+#Q> c22 > 1.7976931348622E+308 AND
+#Q> c23 > 1.7976931348622E+308 AND
+#Q> c24 > 1.7976931348622E+308 AND
+#Q> c25 = 9999999999 AND
+#Q> c26 = 9999999999 AND
+#Q> c27 = 9999999999 AND
+#Q> #
+#Q> c28 = '9999-12-31' AND
+#Q> c29 = '9999-12-31 23:59:59' AND
+#Q> c30 = '2038-01-08 03:14:07' AND
+#Q> c31 = '838:59:59' AND
+#Q> c32 = '2155' AND
+#Q> #
+#Q> c33 = x'ff' AND
+#Q> c34 = '' AND
+#Q> c35 = x'ff' AND
+#Q> c36 = REPEAT(x'ff',255) AND
+#Q> c37 = _utf8 x'efbfbf' AND
+#Q> c38 = '' AND
+#Q> c39 = _utf8 x'efbfbf' AND
+#Q> c40 = REPEAT(_utf8 x'efbfbf',255) AND
+#Q> c41 = _ucs2 x'ffff' AND
+#Q> c42 = '' AND
+#Q> c43 = _ucs2 x'ffff' AND
+#Q> c44 = REPEAT(_ucs2 x'ffff',255) AND
+#Q> #
+#Q> c45 = '' AND
+#Q> c46 = x'ff' AND
+#Q> c47 = REPEAT(x'ff',255) AND
+#Q> c48 = REPEAT(x'ff',261) AND
+#Q> c49 = '' AND
+#Q> c50 = _utf8 x'efbfbf' AND
+#Q> c51 = REPEAT(_utf8 x'efbfbf',255) AND
+#Q> c52 = REPEAT(_utf8 x'efbfbf',261) AND
+#Q> c53 = '' AND
+#Q> c54 = _ucs2 x'ffff' AND
+#Q> c55 = REPEAT(_ucs2 x'ffff',255) AND
+#Q> c56 = REPEAT(_ucs2 x'ffff',261) AND
+#Q> #
+#Q> c57 = x'ff' AND
+#Q> c58 = '' AND
+#Q> c59 = x'ff' AND
+#Q> c60 = REPEAT(x'ff',255) AND
+#Q> #
+#Q> c61 = '' AND
+#Q> c62 = x'ff' AND
+#Q> c63 = REPEAT(x'ff',255) AND
+#Q> c64 = REPEAT(x'ff',261) AND
+#Q> #
+#Q> c65 = 'tinyblob' AND
+#Q> c66 = 'tinytext' AND
+#Q> c67 = 'tinytext-ucs2' AND
+#Q> c68 = 'blob' AND
+#Q> c69 = 'text' AND
+#Q> c70 = 'text-ucs2' AND
+#Q> c71 = 'mediumblob' AND
+#Q> c72 = 'mediumtext' AND
+#Q> c73 = 'mediumtext-ucs2' AND
+#Q> c74 = 'longblob' AND
+#Q> c75 = '
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3535,6 +4646,89 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE
+#Q> #
+#Q> c01 = b'0' AND
+#Q> c02 = b'0000000000000000000000000000000000000000000000000000000000000000' AND
+#Q> c03 = -128 AND
+#Q> c04 = 0 AND
+#Q> c05 = 000 AND
+#Q> c06 = false AND
+#Q> c07 = -32768 AND
+#Q> c08 = 0 AND
+#Q> c09 = 00000 AND
+#Q> c10 = -8388608 AND
+#Q> c11 = 0 AND
+#Q> c12 = 00000000 AND
+#Q> c13 = -2147483648 AND
+#Q> c14 = 0 AND
+#Q> c15 = 0000000000 AND
+#Q> c16 = -9223372036854775808 AND
+#Q> c17 = 0 AND
+#Q> c18 = 00000000000000000000 AND
+#Q> c19 < -3.402823465E+38 AND
+#Q> c20 < 1.175494352E-38 AND
+#Q> c21 = 000000000000 AND
+#Q> c22 < -1.7976931348622E+308 AND
+#Q> c23 < 2.2250738585073E-308 AND
+#Q> c24 = 0000000000000000000000 AND
+#Q> c25 = -9999999999 AND
+#Q> c26 = 0 AND
+#Q> c27 = 0000000000 AND
+#Q> #
+#Q> c28 = '1000-01-01' AND
+#Q> c29 = '1000-01-01 00:00:00' AND
+#Q> c30 = '1970-01-02 00:00:01' AND
+#Q> c31 = '-838:59:59' AND
+#Q> c32 = '1901' AND
+#Q> #
+#Q> c33 = '' AND
+#Q> c34 = '' AND
+#Q> c35 = '' AND
+#Q> c36 = '' AND
+#Q> c37 = '' AND
+#Q> c38 = '' AND
+#Q> c39 = '' AND
+#Q> c40 = '' AND
+#Q> c41 = '' AND
+#Q> c42 = '' AND
+#Q> c43 = '' AND
+#Q> c44 = '' AND
+#Q> #
+#Q> c45 = '' AND
+#Q> c46 = '' AND
+#Q> c47 = '' AND
+#Q> c48 = '' AND
+#Q> c49 = '' AND
+#Q> c50 = '' AND
+#Q> c51 = '' AND
+#Q> c52 = '' AND
+#Q> c53 = '' AND
+#Q> c54 = '' AND
+#Q> c55 = '' AND
+#Q> c56 = '' AND
+#Q> #
+#Q> # this does not reproduce the inserted value: c57 = '' AND
+#Q> c58 = '' AND
+#Q> # this does not reproduce the inserted value: c59 = '' AND
+#Q> # this does not reproduce the inserted value: c60 = '' AND
+#Q> #
+#Q> c61 = '' AND
+#Q> c62 = '' AND
+#Q> c63 = '' AND
+#Q> c64 = '' AND
+#Q> #
+#Q> c65 = '' AND
+#Q> c66 = '' AND
+#Q> c67 = '' AND
+#Q> c68 = '' AND
+#Q> c69 = '' AND
+#Q> c70 = '' AND
+#Q> c71 = '' AND
+#Q> c72 = '' AND
+#Q> c73 = '' A
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3630,6 +4824,92 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE
+#Q> #
+#Q> c01 = b'1' AND
+#Q> # the below does not reproduce the inserted value:
+#Q> #c02 = b'1111111111111111111111111111111111111111111111111111111111111111' AND
+#Q> c03 = 127 AND
+#Q> c04 = 0 AND
+#Q> c05 = 001 AND
+#Q> c06 = true AND
+#Q> c07 = 32767 AND
+#Q> c08 = 0 AND
+#Q> c09 = 00001 AND
+#Q> c10 = 8388607 AND
+#Q> c11 = 0 AND
+#Q> c12 = 00000001 AND
+#Q> c13 = 2147483647 AND
+#Q> c14 = 0 AND
+#Q> c15 = 0000000001 AND
+#Q> c16 = 9223372036854775807 AND
+#Q> c17 = 0 AND
+#Q> c18 = 00000000000000000001 AND
+#Q> c19 > -1.175494352E-38 AND
+#Q> c20 < 1.175494352E-38 AND
+#Q> c21 = 000000000000001 AND
+#Q> c22 > -2.2250738585073E-308 AND
+#Q> c23 < 2.2250738585073E-308 AND
+#Q> c24 = 00000000000000000000001 AND
+#Q> c25 = -9999999999 AND
+#Q> c26 = 9999999999 AND
+#Q> c27 = 0000000001 AND
+#Q> #
+#Q> c28 = '2008-08-04' AND
+#Q> c29 = '2008-08-04 16:18:06' AND
+#Q> c30 = '2008-08-04 16:18:24' AND
+#Q> c31 = '16:18:47' AND
+#Q> c32 = '2008' AND
+#Q> #
+#Q> c33 = 'a' AND
+#Q> c34 = '' AND
+#Q> c35 = 'e' AND
+#Q> c36 = REPEAT('i',255) AND
+#Q> c37 = _utf8 x'c3a4' AND
+#Q> c38 = '' AND
+#Q> c39 = _utf8 x'c3b6' AND
+#Q> c40 = REPEAT(_utf8 x'c3bc',255) AND
+#Q> c41 = _ucs2 x'00e4' AND
+#Q> c42 = '' AND
+#Q> c43 = _ucs2 x'00f6' AND
+#Q> c44 = REPEAT(_ucs2 x'00fc',255) AND
+#Q> #
+#Q> c45 = '' AND
+#Q> c46 = 'a' AND
+#Q> c47 = REPEAT('e',255) AND
+#Q> c48 = REPEAT('i',261) AND
+#Q> c49 = '' AND
+#Q> c50 = _utf8 x'c3a4' AND
+#Q> c51 = REPEAT(_utf8 x'c3b6',255) AND
+#Q> c52 = REPEAT(_utf8 x'c3bc',261) AND
+#Q> c53 = '' AND
+#Q> c54 = _ucs2 x'00e4' AND
+#Q> c55 = REPEAT(_ucs2 x'00f6',255) AND
+#Q> c56 = REPEAT(_ucs2 x'00fc',261) AND
+#Q> #
+#Q> c57 = '0' AND
+#Q> c58 = '' AND
+#Q> c59 = '1' AND
+#Q> c60 = REPEAT('1',255) AND
+#Q> #
+#Q> c61 = '' AND
+#Q> c62 = 'b' AND
+#Q> c63 = REPEAT('c',255) AND
+#Q> c64 = REPEAT('\'',261) AND
+#Q>   #
+#Q>   c65 = 'tinyblob' AND
+#Q>   c66 = 'tinytext' AND
+#Q>   c67 = 'tinytext-ucs2' AND
+#Q>   c68 = 'blob' AND
+#Q>   c69 = 'text' AND
+#Q>   c70 = 'text-ucs2' AND
+#Q>   c71 = 'mediumblob' AND
+#Q>   c72 = 'mediumtext' AND
+#Q>   c73 = 'mediumtext-ucs2' AND
+#Q>   c74 = 'longblob' AND
+#Q>   c75 = 'longtext' 
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3725,6 +5005,90 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE
+#Q> #
+#Q> c01 IS NULL AND
+#Q> c02 IS NULL AND
+#Q> c03 IS NULL AND
+#Q> c04 IS NULL AND
+#Q> c05 IS NULL AND
+#Q> c06 IS NULL AND
+#Q> c07 IS NULL AND
+#Q> c08 IS NULL AND
+#Q> c09 IS NULL AND
+#Q> c10 IS NULL AND
+#Q> c11 IS NULL AND
+#Q> c12 IS NULL AND
+#Q> c13 IS NULL AND
+#Q> c14 IS NULL AND
+#Q> c15 IS NULL AND
+#Q> c16 IS NULL AND
+#Q> c17 IS NULL AND
+#Q> c18 IS NULL AND
+#Q> c19 IS NULL AND
+#Q> c20 IS NULL AND
+#Q> c21 IS NULL AND
+#Q> c22 IS NULL AND
+#Q> c23 IS NULL AND
+#Q> c24 IS NULL AND
+#Q> c25 IS NULL AND
+#Q> c26 IS NULL AND
+#Q> c27 IS NULL AND
+#Q> #
+#Q> c28 IS NULL AND
+#Q> c29 IS NULL AND
+#Q> # this got a timestamp instead of NULL: c30 IS NULL AND
+#Q> c31 IS NULL AND
+#Q> c32 IS NULL AND
+#Q> #
+#Q> c33 IS NULL AND
+#Q> c34 IS NULL AND
+#Q> c35 IS NULL AND
+#Q> c36 IS NULL AND
+#Q> c37 IS NULL AND
+#Q> c38 IS NULL AND
+#Q> c39 IS NULL AND
+#Q> c40 IS NULL AND
+#Q> c41 IS NULL AND
+#Q> c42 IS NULL AND
+#Q> c43 IS NULL AND
+#Q> c44 IS NULL AND
+#Q> #
+#Q> c45 IS NULL AND
+#Q> c46 IS NULL AND
+#Q> c47 IS NULL AND
+#Q> c48 IS NULL AND
+#Q> c49 IS NULL AND
+#Q> c50 IS NULL AND
+#Q> c51 IS NULL AND
+#Q> c52 IS NULL AND
+#Q> c53 IS NULL AND
+#Q> c54 IS NULL AND
+#Q> c55 IS NULL AND
+#Q> c56 IS NULL AND
+#Q> #
+#Q> c57 IS NULL AND
+#Q> c58 IS NULL AND
+#Q> c59 IS NULL AND
+#Q> c60 IS NULL AND
+#Q> #
+#Q> c61 IS NULL AND
+#Q> c62 IS NULL AND
+#Q> c63 IS NULL AND
+#Q> c64 IS NULL AND
+#Q> #
+#Q> c65 IS NULL AND
+#Q> c66 IS NULL AND
+#Q> c67 IS NULL AND
+#Q> c68 IS NULL AND
+#Q> c69 IS NULL AND
+#Q> c70 IS NULL AND
+#Q> c71 IS NULL AND
+#Q> c72 IS NULL AND
+#Q> c73 IS NULL AND
+#Q> c74 IS NUL
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3944,6 +5308,18 @@ crn INT -- row number
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES
+#Q> ('2008-08-01','VARCHAR-01',1),
+#Q> ('2008-08-02','VARCHAR-02',2),
+#Q> ('2008-08-03','VARCHAR-03',3),
+#Q> ('2008-08-04','VARCHAR-04',4),
+#Q> ('2008-08-05','VARCHAR-05',5),
+#Q> ('2008-08-06','VARCHAR-06',6),
+#Q> ('2008-08-07','VARCHAR-07',7),
+#Q> ('2008-08-08','VARCHAR-08',8),
+#Q> ('2008-08-09','VARCH
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4003,6 +5379,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c28 = ADDDATE(c28,10) WHERE crn < 8
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -4080,6 +5459,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE crn < 8
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -4353,6 +5735,18 @@ c_3_n INT -- row number
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES
+#Q> ('2008-01-01','VARCHAR-01-01',11),
+#Q> ('2008-01-02','VARCHAR-01-02',2),
+#Q> ('2008-01-03','VARCHAR-01-03',3),
+#Q> ('2008-01-04','VARCHAR-01-04',4),
+#Q> ('2008-01-05','VARCHAR-01-05',5),
+#Q> ('2008-01-06','VARCHAR-01-06',6),
+#Q> ('2008-01-07','VARCHAR-01-07',7),
+#Q> ('2008-01-08','VARCHAR-01-08',18),
+#Q> ('2008-01-09','VARCHAR-0
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4412,6 +5806,18 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t2 VALUES
+#Q> ('2008-02-01','VARCHAR-02-01',21),
+#Q> ('2008-02-02','VARCHAR-02-02',2),
+#Q> ('2008-02-03','VARCHAR-02-03',3),
+#Q> ('2008-02-04','VARCHAR-02-04',4),
+#Q> ('2008-02-05','VARCHAR-02-05',5),
+#Q> ('2008-02-06','VARCHAR-02-06',6),
+#Q> ('2008-02-07','VARCHAR-02-07',7),
+#Q> ('2008-02-08','VARCHAR-02-08',28),
+#Q> ('2008-02-09','VARCHAR-0
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4471,6 +5877,18 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t3 VALUES
+#Q> ('2008-03-01','VARCHAR-03-01',31),
+#Q> ('2008-03-02','VARCHAR-03-02',2),
+#Q> ('2008-03-03','VARCHAR-03-03',3),
+#Q> ('2008-03-04','VARCHAR-03-04',4),
+#Q> ('2008-03-05','VARCHAR-03-05',5),
+#Q> ('2008-03-06','VARCHAR-03-06',6),
+#Q> ('2008-03-07','VARCHAR-03-07',7),
+#Q> ('2008-03-08','VARCHAR-03-08',38),
+#Q> ('2008-03-09','VARCHAR-0
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t3` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4530,6 +5948,13 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1,t2,t3 SET
+#Q> c_1_1 = ADDDATE(c_1_1,INTERVAL 10 YEAR),
+#Q> c_2_1 = ADDDATE(c_2_1,INTERVAL 20 YEAR),
+#Q> c_3_1 = ADDDATE(c_3_1,INTERVAL 30 YEAR)
+#Q> WHERE c_1_n = c_2_n AND c_2_n = c
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number #
@@ -4714,6 +6139,10 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1,t2,t3 USING t1 INNER JOIN t2 INNER JOIN t3
+#Q> WHERE c_1_n = c_2_n AND c_2_n = c_3_
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number #
@@ -4925,6 +6354,11 @@ c3 VARCHAR(60)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> LOAD DATA INFILE '../../std_data/loaddata5.dat'
+#Q>   INTO TABLE t1 FIELDS TERMINATED BY '' ENCLOSED BY '' (c1,c2)
+#Q> SET c3 = 'Wo
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F

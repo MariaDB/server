@@ -377,6 +377,9 @@ CREATE TABLE t1 (c01 BIT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -394,6 +397,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (1)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -427,6 +433,9 @@ CREATE TABLE t1 (c01 BIT(7))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (1)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -444,6 +453,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (2)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -461,6 +473,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (4)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -478,6 +493,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (8)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -495,6 +513,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (16)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -512,6 +533,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (32)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -529,6 +553,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (64)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -546,6 +573,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (127)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -563,6 +593,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c01=127
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -580,6 +613,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c01=15 WHERE c01=16
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -615,6 +651,9 @@ CREATE TABLE t1 (a BIT(20), b CHAR(2))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (b'00010010010010001001', 'ab')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -649,6 +688,9 @@ CREATE TABLE t1 (c02 BIT(64))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (1)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -666,6 +708,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (2)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -683,6 +728,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (128)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -700,6 +748,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (b'1111111111111111111111111111111111111111111111111111111111111111')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -733,6 +784,9 @@ CREATE TABLE t1 (c03 TINYINT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (1),(2),(3)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -756,6 +810,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (-128)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -773,6 +830,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c03=2 WHERE c03=1
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -792,6 +852,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c03=-128
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -825,6 +888,9 @@ CREATE TABLE t1 (c04 TINYINT UNSIGNED)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (128), (255)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -845,6 +911,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c04=255
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -878,6 +947,9 @@ CREATE TABLE t1 (c06 BOOL)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (TRUE)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -895,6 +967,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c06=TRUE
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -928,6 +1003,9 @@ CREATE TABLE t1 (c07 SMALLINT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (1234)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -945,6 +1023,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c07=1234
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -978,6 +1059,9 @@ CREATE TABLE t1 (c08 SMALLINT UNSIGNED)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (32768), (65535)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -998,6 +1082,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c08=2 WHERE c08=32768
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -1017,6 +1104,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c08=65535
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1050,6 +1140,9 @@ CREATE TABLE t1 (c10 MEDIUMINT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (12345)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1067,6 +1160,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c10=12345
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1100,6 +1196,9 @@ CREATE TABLE t1 (c11 MEDIUMINT UNSIGNED)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (8388608), (16777215)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1120,6 +1219,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c11=2 WHERE c11=8388608
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -1139,6 +1241,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c11=16777215
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1172,6 +1277,9 @@ CREATE TABLE t1 (c13 INT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (123456)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1189,6 +1297,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c13=123456
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1222,6 +1333,9 @@ CREATE TABLE t1 (c14 INT UNSIGNED)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (2147483648), (4294967295)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1242,6 +1356,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c14=2 WHERE c14=2147483648
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -1261,6 +1378,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c14=4294967295
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1294,6 +1414,9 @@ CREATE TABLE t1 (c16 BIGINT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (1234567890)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1311,6 +1434,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c16=1234567890
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1344,6 +1470,9 @@ CREATE TABLE t1 (c17 BIGINT UNSIGNED)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (9223372036854775808), (18446744073709551615)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1364,6 +1493,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1 SET c17=2 WHERE c17=9223372036854775808
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Update_rows: table id # flags: STMT_END_F
@@ -1383,6 +1515,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c17=18446744073709551615
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1416,6 +1551,9 @@ CREATE TABLE t1 (c19 FLOAT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (123.2234)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1433,6 +1571,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c19>123
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1466,6 +1607,9 @@ CREATE TABLE t1 (c22 DOUBLE)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (123434.22344545)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1483,6 +1627,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c22>123434
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1516,6 +1663,9 @@ CREATE TABLE t1 (c25 DECIMAL(10,5))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (124.45)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1533,6 +1683,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (-543.21)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1550,6 +1703,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c25=124.45
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1583,6 +1739,9 @@ CREATE TABLE t1 (c28 DATE)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('2001-02-03')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1600,6 +1759,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c28='2001-02-03'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1633,6 +1795,9 @@ CREATE TABLE t1 (c29 DATETIME)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('2001-02-03 10:20:30')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1650,6 +1815,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c29='2001-02-03 10:20:30'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1683,6 +1851,9 @@ CREATE TABLE t1 (c30 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURR
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('2001-02-03 10:20:30')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1701,6 +1872,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c30='2001-02-03 10:20:30'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1734,6 +1908,9 @@ CREATE TABLE t1 (c31 TIME)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('11:22:33')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1751,6 +1928,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c31='11:22:33'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1784,6 +1964,9 @@ CREATE TABLE t1 (c32 YEAR)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('2001')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1801,6 +1984,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c32=2001
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1834,6 +2020,9 @@ CREATE TABLE t1 (c33 CHAR)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1851,6 +2040,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c33='a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1884,6 +2076,9 @@ CREATE TABLE t1 (c34 CHAR(0))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1901,6 +2096,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c34=''
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1934,6 +2132,9 @@ CREATE TABLE t1 (c35 CHAR(1))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('b')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -1951,6 +2152,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c35='b'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -1984,6 +2188,9 @@ CREATE TABLE t1 (c36 CHAR(255))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('c',255))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2001,6 +2208,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c36>'c'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2034,6 +2244,9 @@ CREATE TABLE t1 (c37 NATIONAL CHAR)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2051,6 +2264,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c37='a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2084,6 +2300,9 @@ CREATE TABLE t1 (c38 NATIONAL CHAR(0))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2101,6 +2320,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c38=''
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2134,6 +2356,9 @@ CREATE TABLE t1 (c39 NATIONAL CHAR(1))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2151,6 +2376,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c39='a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2184,6 +2412,9 @@ CREATE TABLE t1 (c40 NATIONAL CHAR(255))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('a', 255))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2201,6 +2432,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat(_latin1 0xDF, 255))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2218,6 +2452,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c40>'a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2254,6 +2491,9 @@ CREATE TABLE t1 (c41 CHAR CHARACTER SET UCS2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2271,6 +2511,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c41='a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2304,6 +2547,9 @@ CREATE TABLE t1 (c42 CHAR(0) CHARACTER SET UCS2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2321,6 +2567,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c42=''
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2354,6 +2603,9 @@ CREATE TABLE t1 (c43 CHAR(1) CHARACTER SET UCS2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2371,6 +2623,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c43='a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2404,6 +2659,9 @@ CREATE TABLE t1 (c44 CHAR(255) CHARACTER SET UCS2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('a', 255))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2421,6 +2679,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat(_latin1 0xDF, 255))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2438,10 +2699,11 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c44>'a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
-# at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
@@ -2476,6 +2738,9 @@ CREATE TABLE t1 (c45 VARCHAR(0))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2493,6 +2758,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c45=''
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2526,6 +2794,9 @@ CREATE TABLE t1 (c46 VARCHAR(1))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2543,6 +2814,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c46='a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2576,6 +2850,9 @@ CREATE TABLE t1 (c47 VARCHAR(255))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('a',255))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2593,6 +2870,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c47>'a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2626,6 +2906,9 @@ CREATE TABLE t1 (c48 VARCHAR(261))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('a',261))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2643,6 +2926,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c48>'a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2676,6 +2962,9 @@ CREATE TABLE t1 (c49 NATIONAL VARCHAR(0))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2693,6 +2982,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c49=''
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2726,6 +3018,9 @@ CREATE TABLE t1 (c50 NATIONAL VARCHAR(1))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2743,6 +3038,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c50='a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2776,6 +3074,9 @@ CREATE TABLE t1 (c51 NATIONAL VARCHAR(255))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('a',255))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2793,6 +3094,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat(_latin1 0xDF, 255))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2810,6 +3114,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c51>'a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2846,6 +3153,9 @@ CREATE TABLE t1 (c52 NATIONAL VARCHAR(261))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('a',261))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2863,6 +3173,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat(_latin1 0xDF, 261))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2880,6 +3193,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c52>'a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2916,6 +3232,9 @@ CREATE TABLE t1 (c53 VARCHAR(0) CHARACTER SET ucs2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2933,6 +3252,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c53=''
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -2966,6 +3288,9 @@ CREATE TABLE t1 (c54 VARCHAR(1) CHARACTER SET ucs2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -2983,6 +3308,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c54='a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3016,6 +3344,9 @@ CREATE TABLE t1 (c55 VARCHAR(255) CHARACTER SET ucs2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('ab', 127))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3033,6 +3364,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c55>'a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3066,6 +3400,9 @@ CREATE TABLE t1 (c56 VARCHAR(261) CHARACTER SET ucs2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('ab', 130))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3083,6 +3420,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c56>'a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3116,6 +3456,9 @@ CREATE TABLE t1 (c57 BINARY)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0x00)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3133,6 +3476,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0x02)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3150,6 +3496,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3167,6 +3516,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c57='a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3200,6 +3552,9 @@ CREATE TABLE t1 (c58 BINARY(0))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3217,6 +3572,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c58=''
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3250,6 +3608,9 @@ CREATE TABLE t1 (c59 BINARY(1))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0x00)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3267,6 +3628,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0x02)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3284,6 +3648,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3301,6 +3668,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c59='a'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3334,6 +3704,9 @@ CREATE TABLE t1 (c60 BINARY(255))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0x00)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3351,6 +3724,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0x02)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3368,6 +3744,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('a\0',120))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3385,6 +3764,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c60<0x02
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3418,6 +3800,9 @@ CREATE TABLE t1 (c61 VARBINARY(0))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3435,6 +3820,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c61=''
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3468,6 +3856,9 @@ CREATE TABLE t1 (c62 VARBINARY(1))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0x00)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3485,6 +3876,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0x02)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3502,6 +3896,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3519,6 +3916,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c62=0x02
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3552,6 +3952,9 @@ CREATE TABLE t1 (c63 VARBINARY(255))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0x00)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3569,6 +3972,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (0x02)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3586,6 +3992,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES (repeat('a\0',120))
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3603,6 +4012,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c63=0x02
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3636,6 +4048,9 @@ CREATE TABLE t1 (c65 TINYBLOB)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('tinyblob1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3653,6 +4068,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c65='tinyblob1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3686,6 +4104,9 @@ CREATE TABLE t1 (c68 BLOB)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('blob1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3703,6 +4124,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c68='blob1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3736,6 +4160,9 @@ CREATE TABLE t1 (c71 MEDIUMBLOB)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('mediumblob1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3753,6 +4180,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c71='mediumblob1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3786,6 +4216,9 @@ CREATE TABLE t1 (c74 LONGBLOB)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('longblob1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3803,6 +4236,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c74='longblob1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3836,6 +4272,9 @@ CREATE TABLE t1 (c66 TINYTEXT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('tinytext1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3853,6 +4292,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c66='tinytext1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3886,6 +4328,9 @@ CREATE TABLE t1 (c69 TEXT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('text1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3903,6 +4348,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c69='text1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3936,6 +4384,9 @@ CREATE TABLE t1 (c72 MEDIUMTEXT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('mediumtext1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -3953,6 +4404,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c72='mediumtext1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -3986,6 +4440,9 @@ CREATE TABLE t1 (c75 LONGTEXT)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('longtext1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4003,6 +4460,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c75='longtext1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -4036,6 +4496,9 @@ CREATE TABLE t1 (c67 TINYTEXT CHARACTER SET UCS2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('tinytext1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4053,6 +4516,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c67='tinytext1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -4086,6 +4552,9 @@ CREATE TABLE t1 (c70 TEXT CHARACTER SET UCS2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('text1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4103,6 +4572,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c70='text1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -4136,6 +4608,9 @@ CREATE TABLE t1 (c73 MEDIUMTEXT CHARACTER SET UCS2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('mediumtext1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4153,6 +4628,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c73='mediumtext1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -4186,6 +4664,9 @@ CREATE TABLE t1 (c76 LONGTEXT CHARACTER SET UCS2)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('longtext1')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4203,6 +4684,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c76='longtext1'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -4236,6 +4720,9 @@ CREATE TABLE t1 (c77 ENUM('a','b','c'))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('b')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4253,6 +4740,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c77='b'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -4286,6 +4776,9 @@ CREATE TABLE t1 (c78 SET('a','b','c','d','e','f'))
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a,b')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4303,6 +4796,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a,c')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4320,6 +4816,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('b,c')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4337,6 +4836,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a,b,c')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4354,6 +4856,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a,b,c,d')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4371,6 +4876,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a,b,c,d,e')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4388,6 +4896,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('a,b,c,d,e,f')
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4405,6 +4916,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> DELETE FROM t1 WHERE c78='a,b'
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Delete_rows: table id # flags: STMT_END_F
@@ -4446,6 +4960,9 @@ CREATE TABLE t2 (a int NOT NULL DEFAULT 0, b int NOT NULL DEFAULT 0)
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 SET a=1
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4464,6 +4981,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 SET b=1
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4482,6 +5002,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t2 SET a=1
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4500,6 +5023,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t2 SET b=1
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4518,6 +5044,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> UPDATE t1, t2 SET t1.a=10, t2.a=20
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t2` mapped to number #
@@ -4572,6 +5101,9 @@ DROP TABLE `t1`,`t2` /* generated by server */
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1dec102 VALUES (-999.99)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1dec102` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4588,6 +5120,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1dec102 VALUES (0)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1dec102` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -4604,6 +5139,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1dec102 VALUES (999.99)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1dec102` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F

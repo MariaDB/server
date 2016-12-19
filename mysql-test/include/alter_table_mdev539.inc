@@ -2,6 +2,8 @@
 --echo # mdev-539: fast build of unique/primary indexes for MyISAM/Aria
 --echo #
 
+call mtr.add_suppression("Can't find record in '.*'");
+
 --disable_warnings
 DROP DATABASE IF EXISTS dbt3_s001;
 --enable_warnings

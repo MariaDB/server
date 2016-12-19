@@ -4,6 +4,7 @@ select @@optimizer_switch like '%exists_to_in=off%';
 set optimizer_switch='exists_to_in=off';
 drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t11,t12;
 drop view if exists v2;
+call mtr.add_suppression("Sort aborted.*");
 set @subselect_tmp=@@optimizer_switch;
 set @@optimizer_switch=ifnull(@optimizer_switch_for_subselect_test,
 "semijoin=on,firstmatch=on,loosescan=on,semijoin_with_cache=on,partial_match_rowid_merge=off,partial_match_table_scan=off");

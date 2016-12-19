@@ -851,6 +851,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1 WHERE a = 1
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t2 WHERE b <> UUID()
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
 master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -864,10 +865,12 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 't1, text 1')
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2, UUID())
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 SELECT * FROM t1
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -887,6 +890,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	LOAD DATA INFILE 'MYSQLTEST_VARDIR/std_data/rpl_mixed.dat' INTO TABLE t1 FIELDS TERMINATED BY '|'
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -909,6 +913,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; REPLACE INTO t1 VALUES(1, 't1, text 11')
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	REPLACE INTO t1 VALUES(2, UUID())
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -1003,6 +1008,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES (5, 'before savepoint s2')
 master-bin.000001	#	Query	#	#	SAVEPOINT `s2`
 master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES (6, 'after savepoint s2')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (7, CONCAT('with UUID() ',UUID()))
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -1056,6 +1062,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT  INTO t1 VALUES(202, 'test 202')
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE t1 SET b = UUID() WHERE a = 202
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -1080,6 +1087,7 @@ FOR EACH ROW BEGIN
 INSERT INTO t2 SET a = NEW.a, b = NEW.b;
 END
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 SET a = NEW.a, b = NEW.b
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #

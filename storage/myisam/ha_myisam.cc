@@ -67,7 +67,7 @@ static MYSQL_SYSVAR_ULONGLONG(max_sort_file_size, myisam_max_temp_length,
 static MYSQL_SYSVAR_SET(recover_options, myisam_recover_options,
   PLUGIN_VAR_OPCMDARG|PLUGIN_VAR_READONLY,
   "Specifies how corrupted tables should be automatically repaired",
-  NULL, NULL, 1, &myisam_recover_typelib);
+  NULL, NULL, HA_RECOVER_BACKUP|HA_RECOVER_QUICK, &myisam_recover_typelib);
 
 static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
   "If larger than 1, when repairing a MyISAM table all indexes will be "

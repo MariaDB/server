@@ -4,6 +4,8 @@ drop table t1;
 ERROR 42S02: Unknown table 'test.t1'
 set @my_max_allowed_packet= @@max_allowed_packet;
 set global max_allowed_packet=100*@@max_allowed_packet;
+Warnings:
+Warning	1292	Truncated incorrect max_allowed_packet value: '1677721600'
 set global max_allowed_packet=@my_max_allowed_packet;
 drop table t1;
 End of 5.1 tests

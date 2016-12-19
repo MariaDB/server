@@ -6,6 +6,7 @@ insert into t2 values (@v);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into t2 values (@v)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -104,6 +105,9 @@ CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8)
 BEGIN
 /*!*/;
 # at #
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('ä(i1)')
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -121,6 +125,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('ä(i2)')
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -138,6 +145,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('ä(i3)')
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -155,6 +165,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('ä(p1)')
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -172,6 +185,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('ä(p2)')
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
@@ -189,6 +205,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at #
+# at #
+#700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Annotate_rows:
+#Q> INSERT INTO t1 VALUES ('ä(p3)')
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1` mapped to number #
 # at #
 #700101  6:46:40 server id #  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F

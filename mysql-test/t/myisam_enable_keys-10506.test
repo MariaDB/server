@@ -1,6 +1,9 @@
 #
 # MDEV-10506 Protocol::end_statement(): Assertion `0' failed upon ALTER TABLE
 #
+
+call mtr.add_suppression("Can't find record in '.*'");
+
 CREATE TABLE t1 (
     pk INT AUTO_INCREMENT,
     i INT,

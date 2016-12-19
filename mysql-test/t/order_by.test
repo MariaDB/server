@@ -2,6 +2,8 @@
 # Testing ORDER BY
 #
 
+call mtr.add_suppression("Sort aborted.*");
+
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings

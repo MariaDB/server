@@ -4,6 +4,8 @@
 --source include/not_embedded.inc
 --source include/have_csv.inc
 
+call mtr.add_suppression("options .* --log_slow_queries is not set");
+
 # Several subtests modify global variables. Save the initial values only here,
 # but reset to the initial values per subtest.
 SET @old_general_log= @@global.general_log;

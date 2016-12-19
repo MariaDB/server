@@ -3109,7 +3109,7 @@ create table t1 as select group_concat(1,2,3) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` text CHARACTER SET utf8 DEFAULT NULL
+  `c1` mediumtext CHARACTER SET utf8 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 as select 1 as c1 union select 'a';
@@ -5411,17 +5411,13 @@ SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1
 GROUP BY id
 ORDER BY l DESC;
 id	l
-a	1024
-Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+a	1401
 SELECT id, CHAR_LENGTH(GROUP_CONCAT(body)) AS l
 FROM (SELECT 'a' AS id, REPEAT('foo bar', 100) AS body
 UNION ALL
 SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1;
 id	l
-a	1024
-Warnings:
-Warning	1260	Row 2 was cut by GROUP_CONCAT()
+a	1401
 #
 # MDEV-7814 Assertion `args[0]->fixed' fails in Item_func_conv_charset::Item_func_conv_charset
 #

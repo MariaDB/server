@@ -86,4 +86,7 @@ sync_slave_with_master;
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=NO;
 --source include/start_slave.inc
 
+connection master;
+call mtr.add_suppression("Table 'gtid_slave_pos' is marked as crashed and should be repaired");
+
 --source include/rpl_end.inc

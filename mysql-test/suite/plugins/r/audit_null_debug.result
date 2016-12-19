@@ -1,5 +1,6 @@
 set @old_dbug=@@debug_dbug;
 call mtr.add_suppression("Index for table.*mysql.plugin.MYI");
+call mtr.add_suppression("Index for table 'plugin' is corrupt; try to repair it");
 SET debug_dbug='+d,myisam_pretend_crashed_table_on_usage';
 install plugin audit_null soname 'adt_null';
 ERROR HY000: Index for table './mysql/plugin.MYI' is corrupt; try to repair it

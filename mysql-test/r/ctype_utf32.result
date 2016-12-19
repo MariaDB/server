@@ -1620,9 +1620,7 @@ SELECT 'a' AS id, REPEAT('bla bla', 100) AS body) t1
 GROUP BY id
 ORDER BY l DESC;
 id	l
-a	256
-Warnings:
-Warning	1260	Row 1 was cut by GROUP_CONCAT()
+a	1401
 #
 # incorrect charset for val_str_ascii
 #

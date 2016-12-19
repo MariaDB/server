@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 *** Provoke a deadlock on the slave, check that transaction retry succeeds. ***
 connection master;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;

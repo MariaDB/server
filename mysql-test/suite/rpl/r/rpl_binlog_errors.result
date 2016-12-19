@@ -88,6 +88,7 @@ DELETE FROM t2;
 RESET MASTER;
 ###################### TEST #7
 SET GLOBAL debug_dbug="+d,error_unique_log_filename";
+SET @@binlog_annotate_row_events= 0;
 SELECT count(*) FROM t4;
 count(*)
 0

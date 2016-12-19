@@ -1,3 +1,4 @@
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 set global default_storage_engine='innodb';
 set session default_storage_engine='innodb';
 drop table if exists t1, t2;

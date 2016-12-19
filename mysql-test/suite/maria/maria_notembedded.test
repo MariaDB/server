@@ -3,6 +3,8 @@
 -- source include/not_embedded.inc
 -- source include/have_maria.inc
 
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+
 let $default_engine=`select @@session.storage_engine`;
 set session storage_engine=aria;
 

@@ -1,4 +1,5 @@
 call mtr.add_suppression("InnoDB: Table .* does not exist in the InnoDB internal data dictionary .*");
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
 #
 # Bug#11766879/Bug#60106: DIFF BETWEEN # OF INDEXES IN MYSQL VS INNODB,
 #                         PARTITONING, ON INDEX CREATE

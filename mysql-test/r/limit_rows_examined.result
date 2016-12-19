@@ -1,3 +1,4 @@
+call mtr.add_suppression("Sort aborted.*");
 set @save_join_cache_level = @@join_cache_level;
 create table t1 (c1 char(2));
 create table t2 (c2 char(2));

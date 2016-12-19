@@ -1,31 +1,31 @@
 SET @start_global_value = @@global.log_warnings;
 SELECT @start_global_value;
 @start_global_value
-1
+2
 SET @start_session_value = @@session.log_warnings;
 SELECT @start_session_value;
 @start_session_value
-1
+2
 '#--------------------FN_DYNVARS_067_01-------------------------#'
 SET @@global.log_warnings = 100;
 SET @@global.log_warnings = DEFAULT;
 SELECT @@global.log_warnings;
 @@global.log_warnings
-1
+2
 SET @@session.log_warnings = 200;
 SET @@session.log_warnings = DEFAULT;
 SELECT @@session.log_warnings;
 @@session.log_warnings
-1
+2
 '#--------------------FN_DYNVARS_067_02-------------------------#'
 SET @@global.log_warnings = DEFAULT;
 SELECT @@global.log_warnings = 1;
 @@global.log_warnings = 1
-1
+0
 SET @@session.log_warnings = DEFAULT;
 SELECT @@session.log_warnings = 1;
 @@session.log_warnings = 1
-1
+0
 '#--------------------FN_DYNVARS_067_03-------------------------#'
 SET @@global.log_warnings = 0;
 SELECT @@global.log_warnings;
@@ -158,8 +158,8 @@ ERROR 42S22: Unknown column 'log_warnings' in 'field list'
 SET @@global.log_warnings = @start_global_value;
 SELECT @@global.log_warnings;
 @@global.log_warnings
-1
+2
 SET @@session.log_warnings = @start_session_value;
 SELECT @@session.log_warnings;
 @@session.log_warnings
-1
+2

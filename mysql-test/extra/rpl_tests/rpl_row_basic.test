@@ -411,6 +411,7 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
 call mtr.add_suppression("Slave SQL.*Table definition on master and slave does not match: Column 1 size mismatch.* error.* 1535");
 call mtr.add_suppression("Slave SQL.*Could not execute Delete_rows event on table test.t1.* error.* 1032");
 call mtr.add_suppression("Slave SQL.*Column 1 of table .test.t.. cannot be converted from type.*, error.* 1677");
+call mtr.add_suppression("Can't find record in 't1'");
 
 --let $rpl_only_running_threads= 1
 --source include/rpl_reset.inc

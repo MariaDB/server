@@ -8,7 +8,7 @@ OFF
 set global aria_recover_options=default;
 select @@global.aria_recover_options;
 @@global.aria_recover_options
-NORMAL
+BACKUP,QUICK
 set global aria_recover_options=normal;
 select @@global.aria_recover_options;
 @@global.aria_recover_options

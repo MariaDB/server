@@ -65,6 +65,7 @@ master-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 master-bin.000001	#	Gtid_list	#	#	[]
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (20, REPEAT("x", 4100))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -75,6 +76,7 @@ master-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 master-bin.000002	#	Gtid_list	#	#	[#-#-#]
 master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000001
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (21, REPEAT("x", 4100))
 master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000002	#	Xid	#	#	COMMIT /* XID */

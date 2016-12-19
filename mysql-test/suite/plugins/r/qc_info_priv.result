@@ -28,7 +28,7 @@ set time_zone= @time_zone, default_week_format= @default_week_format, character_
 select * from information_schema.query_cache_info;
 STATEMENT_SCHEMA	STATEMENT_TEXT	RESULT_BLOCKS_COUNT	RESULT_BLOCKS_SIZE	RESULT_BLOCKS_SIZE_USED	LIMIT	MAX_SORT_LENGTH	GROUP_CONCAT_MAX_LENGTH	CHARACTER_SET_CLIENT	CHARACTER_SET_RESULT	COLLATION	TIMEZONE	DEFAULT_WEEK_FORMAT	DIV_PRECISION_INCREMENT	SQL_MODE	LC_TIME_NAMES	CLIENT_LONG_FLAG	CLIENT_PROTOCOL_41	PROTOCOL_TYPE	MORE_RESULTS_EXISTS	IN_TRANS	AUTOCOMMIT	PACKET_NUMBER
 test	select * from t1	1	512	#	-1	1011	513	binary	utf32	utf32_bin	Europe/Moscow	4	7	STRICT_ALL_TABLES	ar_SD	1	1	#	0	0	0	#
-test	select * from t1	1	512	#	-1	1024	1024	latin1	latin1	latin1_swedish_ci	SYSTEM	0	4	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	en_US	1	1	#	0	0	1	#
+test	select * from t1	1	512	#	-1	1024	1048576	latin1	latin1	latin1_swedish_ci	SYSTEM	0	4	NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	en_US	1	1	#	0	0	1	#
 create user mysqltest;
 connect  conn1,localhost,mysqltest,,;
 connection conn1;

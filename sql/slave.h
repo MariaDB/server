@@ -49,7 +49,7 @@
 #include "rpl_filter.h"
 #include "rpl_tblmap.h"
 
-#define SLAVE_NET_TIMEOUT  3600
+#define SLAVE_NET_TIMEOUT  60
 
 #define MAX_SLAVE_ERROR    2000
 

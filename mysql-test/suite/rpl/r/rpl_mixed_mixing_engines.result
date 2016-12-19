@@ -6630,6 +6630,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 206, 2, COUNT(*) FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (206, 4)
@@ -6639,6 +6640,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 206, 2, COUNT(*) FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (206, 4)
@@ -6655,6 +6657,7 @@ UPDATE nt_3, tt_3 SET nt_3.info= "new text 207 --> 2", tt_3.info= "new text 207 
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 207 --> 2", tt_3.info= "new text 207 --> 2" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -6677,6 +6680,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 207 --> 2", tt_3.info= "new text 207 --> 2" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -6697,6 +6701,7 @@ INSERT INTO nt_4(trans_id, stmt_id) VALUES (208, 2);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (208, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -6719,6 +6724,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (208, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -6739,6 +6745,7 @@ INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (209, 2, fc_i_tt_5_suc(209, 2))
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',209),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -6767,6 +6774,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',209),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -6806,6 +6814,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE tt_4, nt_4 SET tt_4.info= "new text 210 --> 2", nt_4.info= "new text 210 --> 2" where nt_4.trans_id = tt_4.trans_id and tt_4.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (210, 4)
@@ -6819,6 +6828,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE tt_4, nt_4 SET tt_4.info= "new text 210 --> 2", nt_4.info= "new text 210 --> 2" where nt_4.trans_id = tt_4.trans_id and tt_4.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (210, 4)
@@ -6848,6 +6858,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES (211, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (211, 4)
@@ -6861,6 +6872,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES (211, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (211, 4)
@@ -6894,6 +6906,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',212),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -6913,6 +6926,7 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',212),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -7010,6 +7024,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (215, 2), (208, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7030,6 +7045,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (215, 2), (208, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7049,6 +7065,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (216, 2, ''), (212, 2, fc_i_tt_5_suc (216, 2))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -7071,6 +7088,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (216, 2, ''), (212, 2, fc_i_tt_5_suc (216, 2))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -7240,6 +7258,7 @@ UPDATE nt_3, tt_3 SET nt_3.info= "new text 221 --> 2", tt_3.info= "new text 221 
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 221 --> 2", tt_3.info= "new text 221 --> 2" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7258,6 +7277,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 221 --> 2", tt_3.info= "new text 221 --> 2" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7273,6 +7293,7 @@ INSERT INTO nt_4(trans_id, stmt_id) VALUES (222, 2);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (222, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7291,6 +7312,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (222, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7306,6 +7328,7 @@ INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (223, 2, fc_i_tt_5_suc(223, 2))
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',223),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -7326,6 +7349,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',223),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -7516,6 +7540,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (229, 2), (222, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7534,6 +7559,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (229, 2), (222, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7550,6 +7576,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (230, 2, ''), (226, 2, fc_i_tt_5_suc (230, 2))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -7570,6 +7597,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (230, 2, ''), (226, 2, fc_i_tt_5_suc (230, 2))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -7677,6 +7705,7 @@ INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 233, 4, COUNT(*) FROM tt_1;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 233, 4, COUNT(*) FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7693,6 +7722,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 233, 4, COUNT(*) FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7720,6 +7750,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (234, 2)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 234, 4, COUNT(*) FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -7729,6 +7760,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (234, 2)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 234, 4, COUNT(*) FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -7748,6 +7780,7 @@ UPDATE nt_3, tt_3 SET nt_3.info= "new text 235 --> 4", tt_3.info= "new text 235 
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 235 --> 4", tt_3.info= "new text 235 --> 4" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7766,6 +7799,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 235 --> 4", tt_3.info= "new text 235 --> 4" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7790,6 +7824,7 @@ INSERT INTO nt_4(trans_id, stmt_id) VALUES (236, 4);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (236, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7808,6 +7843,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (236, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -7832,6 +7868,7 @@ INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (237, 4, fc_i_tt_5_suc(237, 4))
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',237),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -7856,6 +7893,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',237),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -7896,6 +7934,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (238, 2)
+master-bin.000001	#	Annotate_rows	#	#	UPDATE tt_4, nt_4 SET tt_4.info= "new text 238 --> 4", nt_4.info= "new text 238 --> 4" where nt_4.trans_id = tt_4.trans_id and tt_4.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -7909,6 +7948,7 @@ master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (238, 2)
+master-bin.000001	#	Annotate_rows	#	#	UPDATE tt_4, nt_4 SET tt_4.info= "new text 238 --> 4", nt_4.info= "new text 238 --> 4" where nt_4.trans_id = tt_4.trans_id and tt_4.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -7938,6 +7978,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (239, 2)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES (239, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -7951,6 +7992,7 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (239, 2)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES (239, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -7984,6 +8026,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (240, 2)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',240),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -8003,6 +8046,7 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (240, 2)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',240),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -8035,6 +8079,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 241, 4, COUNT(*) FROM tt_1 UNION SELECT 233, 4, COUNT(*) FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8051,6 +8096,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 241, 4, COUNT(*) FROM tt_1 UNION SELECT 233, 4, COUNT(*) FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8104,6 +8150,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (243, 4), (236, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8120,6 +8167,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (243, 4), (236, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8143,6 +8191,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (244, 4, ''), (240, 2, fc_i_tt_5_suc (244, 4))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -8161,6 +8210,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (244, 4, ''), (240, 2, fc_i_tt_5_suc (244, 4))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -8281,6 +8331,7 @@ INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 247, 4, COUNT(*) FROM tt_1;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 247, 4, COUNT(*) FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8295,6 +8346,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 247, 4, COUNT(*) FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8335,6 +8387,7 @@ UPDATE nt_3, tt_3 SET nt_3.info= "new text 249 --> 4", tt_3.info= "new text 249 
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 249 --> 4", tt_3.info= "new text 249 --> 4" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8349,6 +8402,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 249 --> 4", tt_3.info= "new text 249 --> 4" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8368,6 +8422,7 @@ INSERT INTO nt_4(trans_id, stmt_id) VALUES (250, 4);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (250, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8382,6 +8437,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (250, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8401,6 +8457,7 @@ INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (251, 4, fc_i_tt_5_suc(251, 4))
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',251),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -8417,6 +8474,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',251),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -8556,6 +8614,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 255, 4, COUNT(*) FROM tt_1 UNION SELECT 247, 4, COUNT(*) FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8570,6 +8629,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_1(trans_id, stmt_id, info) SELECT 255, 4, COUNT(*) FROM tt_1 UNION SELECT 247, 4, COUNT(*) FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8612,6 +8672,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (257, 4), (250, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8626,6 +8687,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (257, 4), (250, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8646,6 +8708,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (258, 4, ''), (254, 2, fc_i_tt_5_suc (258, 4))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -8662,6 +8725,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (258, 4, ''), (254, 2, fc_i_tt_5_suc (258, 4))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -8815,6 +8879,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 262, 2, COUNT(*) FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -8826,6 +8891,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (262, 4)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 262, 2, COUNT(*) FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -8841,6 +8907,7 @@ UPDATE nt_3, tt_3 SET nt_3.info= "new text 263 --> 2", tt_3.info= "new text 263 
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 263 --> 2", tt_3.info= "new text 263 --> 2" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8866,6 +8933,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 263 --> 2", tt_3.info= "new text 263 --> 2" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8888,6 +8956,7 @@ INSERT INTO nt_4(trans_id, stmt_id) VALUES (264, 2);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (264, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8913,6 +8982,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (264, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -8935,6 +9005,7 @@ INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (265, 2, fc_i_tt_5_suc(265, 2))
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',265),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -8966,6 +9037,7 @@ master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',265),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -9011,6 +9083,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE tt_4, nt_4 SET tt_4.info= "new text 266 --> 2", nt_4.info= "new text 266 --> 2" where nt_4.trans_id = tt_4.trans_id and tt_4.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -9026,6 +9099,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (266, 4)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE tt_4, nt_4 SET tt_4.info= "new text 266 --> 2", nt_4.info= "new text 266 --> 2" where nt_4.trans_id = tt_4.trans_id and tt_4.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -9058,6 +9132,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES (267, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -9073,6 +9148,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (267, 4)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES (267, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -9109,6 +9185,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',268),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -9130,6 +9207,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (268, 4)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',268),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -9227,6 +9305,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (271, 2), (264, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -9247,6 +9326,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (271, 2), (264, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -9266,6 +9346,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (272, 2, ''), (268, 2, fc_i_tt_5_suc (272, 2))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -9288,6 +9369,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (272, 2, ''), (268, 2, fc_i_tt_5_suc (272, 2))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -9475,6 +9557,7 @@ UPDATE nt_3, tt_3 SET nt_3.info= "new text 277 --> 2", tt_3.info= "new text 277 
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 277 --> 2", tt_3.info= "new text 277 --> 2" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -9497,6 +9580,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 277 --> 2", tt_3.info= "new text 277 --> 2" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -9515,6 +9599,7 @@ INSERT INTO nt_4(trans_id, stmt_id) VALUES (278, 2);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (278, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -9537,6 +9622,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (278, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -9555,6 +9641,7 @@ INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (279, 2, fc_i_tt_5_suc(279, 2))
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',279),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -9579,6 +9666,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',279),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -9811,6 +9899,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (285, 2), (278, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -9833,6 +9922,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (285, 2), (278, 2)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -9852,6 +9942,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (286, 2, ''), (282, 2, fc_i_tt_5_suc (286, 2))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -9876,6 +9967,7 @@ include/show_binlog_events.inc
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (286, 2, ''), (282, 2, fc_i_tt_5_suc (286, 2))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -10045,6 +10137,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 290, 4, COUNT(*) FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -10056,6 +10149,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (290, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_1(trans_id, stmt_id, info) SELECT 290, 4, COUNT(*) FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -10079,6 +10173,7 @@ UPDATE nt_3, tt_3 SET nt_3.info= "new text 291 --> 4", tt_3.info= "new text 291 
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 291 --> 4", tt_3.info= "new text 291 --> 4" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -10099,6 +10194,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (291, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 291 --> 4", tt_3.info= "new text 291 --> 4" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -10126,6 +10222,7 @@ INSERT INTO nt_4(trans_id, stmt_id) VALUES (292, 4);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (292, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -10146,6 +10243,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (292, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (292, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -10173,6 +10271,7 @@ INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (293, 4, fc_i_tt_5_suc(293, 4))
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',293),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -10199,6 +10298,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (293, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',293),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -10241,6 +10341,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE tt_4, nt_4 SET tt_4.info= "new text 294 --> 4", nt_4.info= "new text 294 --> 4" where nt_4.trans_id = tt_4.trans_id and tt_4.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -10256,6 +10357,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE tt_4, nt_4 SET tt_4.info= "new text 294 --> 4", nt_4.info= "new text 294 --> 4" where nt_4.trans_id = tt_4.trans_id and tt_4.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_4)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -10288,6 +10390,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES (295, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -10303,6 +10406,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_3(trans_id, stmt_id) VALUES (295, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -10339,6 +10443,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',296),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -10360,6 +10465,7 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',296),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -10464,6 +10570,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (299, 4), (292, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -10479,6 +10586,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (299, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (299, 4), (292, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -10503,6 +10611,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (300, 4, ''), (296, 2, fc_i_tt_5_suc (300, 4))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -10520,6 +10629,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (300, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (300, 4, ''), (296, 2, fc_i_tt_5_suc (300, 4))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -10711,6 +10821,7 @@ UPDATE nt_3, tt_3 SET nt_3.info= "new text 305 --> 4", tt_3.info= "new text 305 
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 305 --> 4", tt_3.info= "new text 305 --> 4" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -10728,6 +10839,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (305, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	UPDATE nt_3, tt_3 SET nt_3.info= "new text 305 --> 4", tt_3.info= "new text 305 --> 4" where nt_3.trans_id = tt_3.trans_id and tt_3.trans_id = 1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -10751,6 +10863,7 @@ INSERT INTO nt_4(trans_id, stmt_id) VALUES (306, 4);
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (306, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -10768,6 +10881,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (306, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (306, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -10791,6 +10905,7 @@ INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (307, 4, fc_i_tt_5_suc(307, 4))
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',307),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -10810,6 +10925,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (307, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_5(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',307),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -11046,6 +11162,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (313, 4), (306, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -11063,6 +11180,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (313, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_4(trans_id, stmt_id) VALUES (313, 4), (306, 4)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_4)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -11087,6 +11205,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (314, 4, ''), (310, 2, fc_i_tt_5_suc (314, 4))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -11106,6 +11225,7 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO nt_1(trans_id, stmt_id) VALUES (314, 2)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_5(trans_id, stmt_id, info) VALUES (314, 4, ''), (310, 2, fc_i_tt_5_suc (314, 4))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_5)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_6)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: #
@@ -11638,10 +11758,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (328, 3)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_7(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_7)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (328, 6)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -11653,10 +11771,8 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE tt_xx_7
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (328, 3)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_7(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_7)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (328, 6)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -11732,10 +11848,8 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_7(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_7)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (330, 4)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -11746,10 +11860,8 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE tt_xx_7
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_7(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_7)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (330, 4)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -11854,8 +11966,8 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (334, 3)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_8(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_8)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (334, 6)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -11867,8 +11979,8 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE tt_xx_8
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (334, 3)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_8(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_8)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (334, 6)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -11944,8 +12056,8 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_8(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_8)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (336, 4)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -11956,8 +12068,8 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE tt_xx_8
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO tt_xx_8(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_xx_8)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(trans_id, stmt_id) VALUES (336, 4)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -12053,8 +12165,8 @@ INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FR
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_9)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 -e-e-e-e-e-e-e-e-e-e-e- >> IS-N<-T << -e-e-e-e-e-e-e-e-e-e-e-
@@ -12077,8 +12189,8 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE nt_xx_9
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_9)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
@@ -12109,6 +12221,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_9)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -12132,6 +12245,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE nt_xx_9
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_9)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -12158,8 +12272,8 @@ INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FR
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_9)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 -e-e-e-e-e-e-e-e-e-e-e- >> IS-N<-T << -e-e-e-e-e-e-e-e-e-e-e-
@@ -12181,8 +12295,8 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE nt_xx_9
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_9)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
@@ -12208,6 +12322,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_9)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -12230,6 +12345,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE nt_xx_9
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_9(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM tt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_9)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -12289,10 +12405,8 @@ INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() F
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_10)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 -e-e-e-e-e-e-e-e-e-e-e- >> IS-N<-N << -e-e-e-e-e-e-e-e-e-e-e-
@@ -12315,10 +12429,8 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE nt_xx_10
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_10)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
@@ -12349,6 +12461,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_10)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -12372,6 +12485,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE nt_xx_10
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_10)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -12398,10 +12512,8 @@ INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() F
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_10)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 -e-e-e-e-e-e-e-e-e-e-e- >> IS-N<-N << -e-e-e-e-e-e-e-e-e-e-e-
@@ -12423,10 +12535,8 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE nt_xx_10
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, stmt_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_10)
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
-master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
@@ -12452,6 +12562,7 @@ Got one of the listed errors
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_10)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -12474,6 +12585,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; TRUNCATE TABLE nt_xx_10
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_xx_10(trans_id, stmt_id, info) SELECT trans_id, trans_id, USER() FROM nt_1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_xx_10)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
@@ -13040,6 +13152,7 @@ COMMIT;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',370),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; SELECT `test`.`fc_i_tt_5_suc`(370,4)
@@ -13054,6 +13167,7 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test.nt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',370),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	use `test`; SELECT `test`.`fc_i_tt_5_suc`(370,4)
@@ -13085,6 +13199,7 @@ include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; SELECT `test`.`fc_i_tt_5_suc`(371,2)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',371),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
@@ -13099,6 +13214,7 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; SELECT `test`.`fc_i_tt_5_suc`(371,2)
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO nt_3(trans_id, stmt_id) VALUES ( NAME_CONST('p_trans_id',371),  NAME_CONST('in_stmt_id',1))
 master-bin.000001	#	Table_map	#	#	table_id: # (test.tt_3)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */

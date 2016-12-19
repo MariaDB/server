@@ -317,7 +317,7 @@ aria_pagecache_buffer_size	8388608
 aria_pagecache_division_limit	100
 aria_pagecache_file_hash_size	512
 aria_page_checksum	OFF
-aria_recover_options	NORMAL
+aria_recover_options	BACKUP,QUICK
 aria_repair_threads	1
 aria_sort_buffer_size	268434432
 aria_stats_method	nulls_unequal

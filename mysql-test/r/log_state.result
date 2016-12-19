@@ -1,3 +1,4 @@
+call mtr.add_suppression("options .* --log_slow_queries is not set");
 SET @old_general_log= @@global.general_log;
 SET @old_general_log_file= @@global.general_log_file;
 SET @old_slow_query_log= @@global.slow_query_log;

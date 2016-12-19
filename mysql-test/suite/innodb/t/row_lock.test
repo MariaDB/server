@@ -45,3 +45,6 @@ commit;
 --disconnect con12
 --disconnect con11
 drop table t1,t2,t3,t4;
+
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+call mtr.add_suppression("Sort aborted.*");
