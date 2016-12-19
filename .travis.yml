@@ -14,7 +14,7 @@ cache:
 
 env:
   matrix:
-    - GCC_VERSION=5
+    - GCC_VERSION=5 CACHE_NAME=${TRAVIS_OS_NAME}-${CC}-${GCC_VERSION}
     - GCC_VERSION=6
 addons:
   apt:
