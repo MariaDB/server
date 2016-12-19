@@ -858,7 +858,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   With_element *with_elem= select_lex->get_with_element();
   if (with_elem &&
       select_lex->check_unrestricted_recursive(
-                      thd->variables.only_standards_compliant_cte))
+                      thd->variables.only_standard_compliant_cte))
     DBUG_RETURN(-1);
   select_lex->check_subqueries_with_recursive_references();
   

@@ -7355,7 +7355,7 @@ ER_UNACCEPTABLE_MUTUAL_RECURSION
         eng "Unacceptable mutual recursion with anchored table '%s'"
 ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
         eng "Reference to recursive WITH table '%s' in materialized derived"
-ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+ER_NOT_STANDARD_COMPLIANT_RECURSIVE
         eng "Restrictions imposed on recursive definitions are violated for table '%s'"R_WRONG_WINDOW_SPEC_NAME
 ER_WRONG_WINDOW_SPEC_NAME
        eng "Window specification with name '%s' is not defined"

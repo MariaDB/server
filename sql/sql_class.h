@@ -635,7 +635,7 @@ typedef struct system_variables
   my_bool old_alter_table;
   my_bool old_passwords;
   my_bool big_tables;
-  my_bool only_standards_compliant_cte;
+  my_bool only_standard_compliant_cte;
   my_bool query_cache_strip_comments;
   my_bool sql_log_slow;
   my_bool sql_log_bin;

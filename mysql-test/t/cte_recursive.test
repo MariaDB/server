@@ -787,7 +787,7 @@ as
 select * from ancestors;
 
 
---ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
 with recursive
 ancestor_ids (id, generation)
 as
@@ -805,7 +805,7 @@ as
 select generation, name from ancestor_ids a, folks
   where a.id = folks.id;
 
-set standards_compliant_cte=0;
+set standard_compliant_cte=0;
 
 --ERROR ER_WITH_COL_WRONG_LIST
 with recursive
@@ -844,9 +844,9 @@ as
 select generation, name from ancestor_ids a, folks
   where a.id = folks.id;
 
-set standards_compliant_cte=1;
+set standard_compliant_cte=1;
 
---ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
 with recursive
 coupled_ancestor_ids (id)
 as
@@ -870,7 +870,7 @@ as
 select p.* from coupled_ancestor_ids a, folks p
   where a.id = p.id;
 
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 coupled_ancestor_ids (id)
 as
@@ -894,7 +894,7 @@ as
 select p.* from coupled_ancestor_ids a, folks p
   where a.id = p.id;
 
---ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
 with recursive
 ancestor_ids (id)
 as
@@ -915,7 +915,7 @@ as
 )
 select * from ancestors;
 
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 ancestor_ids (id)
 as
@@ -958,7 +958,7 @@ as
 )
 select * from ancestors;
 
---ERROR ER_NOT_STANDARDS_COMPLIANT_RECURSIVE
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
 with recursive
 ancestor_ids (id, generation)
 as
@@ -983,7 +983,7 @@ as
 )
 select * from ancestors;
 
-set statement standards_compliant_cte=0 for
+set statement standard_compliant_cte=0 for
 with recursive
 ancestor_ids (id, generation)
 as

@@ -3186,10 +3186,10 @@ static Sys_var_charptr Sys_ssl_crlpath(
        READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
        IN_FS_CHARSET, DEFAULT(0));
 
-static Sys_var_mybool Sys_standards_compliant_cte(
-       "standards_compliant_cte",
-       "Allow only standards compiant CTE",
-       SESSION_VAR(only_standards_compliant_cte), CMD_LINE(OPT_ARG),
+static Sys_var_mybool Sys_standard_compliant_cte(
+       "standard_compliant_cte",
+       "Allow only CTEs compliant to SQL standard",
+       SESSION_VAR(only_standard_compliant_cte), CMD_LINE(OPT_ARG),
        DEFAULT(TRUE));
 
 
