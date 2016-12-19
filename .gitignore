@@ -82,6 +82,7 @@ mysql-test/mysql-test-run
 mysql-test/var
 mysql-test-gcov.err
 mysql-test-gcov.msg
+mysys/test_hash
 mysys/thr_lock
 mysys/thr_timer
 packaging/rpm-oel/mysql.spec
