@@ -1212,33 +1212,6 @@ trx_t::assign_temp_rseg()
 	return(rseg);
 }
 
-/** Functor to create trx_ids array. */
-struct copy_trx_ids
-{
-	copy_trx_ids(trx_id_t* _array, ulint& _array_size)
-		: array(_array), array_size(_array_size)
-	{
-		array_size = 0;
-	}
-
-	void operator()(trx_t* trx)
-	{
-		ut_ad(mutex_own(&trx_sys->mutex));
-		ut_ad(trx->in_rw_trx_list);
-
-		/* trx->state cannot change from or to NOT_STARTED
-		while we are holding the trx_sys->mutex. It may change
-		from ACTIVE to PREPARED or COMMITTED. */
-
-		if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)) {
-			array[array_size++] = trx->id;
-		}
-	}
-
-	trx_id_t*	array;
-	ulint&		array_size;
-};
-
 /****************************************************************//**
 Starts a transaction. */
 static
