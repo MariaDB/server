@@ -20,7 +20,7 @@ INSERT INTO t1 VALUES (2);
 
 --replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
 --replace_column 2 <Pos> 5 <End_log_pos>
-SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 249;
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
 
 DROP TABLE t1;
 
