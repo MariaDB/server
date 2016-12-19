@@ -3714,4 +3714,30 @@ deallocate prepare stmt2;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-9208: Function->Function->View = Mysqld segfault
+--echo # (Server crashes in Dependency_marker::visit_field on 2nd
+--echo # execution with merged subquery)
+--echo #
+
+CREATE TABLE t1 (i1 INT);
+insert into t1 values(1),(2);
+
+CREATE TABLE t2 (i2 INT);
+insert into t2 values(1),(2);
+
+prepare stmt from "
+  select 1 from (
+    select
+      if (i1<0, 0, 0) as f1,
+      (select f1) as f2
+    from t1, t2
+  ) sq
+";
+
+execute stmt;
+execute stmt;
+
+drop table t1,t2;
+
 --echo # End of 5.5 tests

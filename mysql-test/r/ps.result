@@ -4173,4 +4173,34 @@ Warnings:
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`c` AS `c` from `test`.`t1` where 0
 deallocate prepare stmt2;
 drop table t1;
+#
+# MDEV-9208: Function->Function->View = Mysqld segfault
+# (Server crashes in Dependency_marker::visit_field on 2nd
+# execution with merged subquery)
+#
+CREATE TABLE t1 (i1 INT);
+insert into t1 values(1),(2);
+CREATE TABLE t2 (i2 INT);
+insert into t2 values(1),(2);
+prepare stmt from "
+  select 1 from (
+    select
+      if (i1<0, 0, 0) as f1,
+      (select f1) as f2
+    from t1, t2
+  ) sq
+";
+execute stmt;
+1
+1
+1
+1
+1
+execute stmt;
+1
+1
+1
+1
+1
+drop table t1,t2;
 # End of 5.5 tests
