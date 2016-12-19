@@ -489,7 +489,7 @@ err_len:
 	}
 
 	/* This recieves a dict_foreign_t* that points to a stack variable.
-	So mem_heap_free(foreign->heap) is not used as elsewhere.
+	So dict_foreign_free(foreign) is not used as elsewhere.
 	Since the heap used here is freed elsewhere, foreign->heap
 	is not assigned. */
 	foreign->id = mem_heap_strdupl(heap, (const char*) field, len);
