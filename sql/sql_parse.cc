@@ -3350,6 +3350,10 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_STORAGE_ENGINES:
   case SQLCOM_SHOW_PROFILE:
   {
+#ifdef WITH_WSREP
+    DBUG_ASSERT(thd->wsrep_exec_mode != REPL_RECV);
+#endif /* WITH_WSREP */
+
     thd->status_var.last_query_cost= 0.0;
 
     /*
