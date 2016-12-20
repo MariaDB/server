@@ -2334,9 +2334,6 @@ struct TABLE_LIST
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
 
-  /* System Versioning */
-  bool vers_moved_to_where;
-
   /**
      @brief
        Find the bottom in the chain of embedded table VIEWs.
@@ -2534,9 +2531,6 @@ struct TABLE_LIST
   void set_lock_type(THD* thd, enum thr_lock_type lock);
   void check_pushable_cond_for_table(Item *cond);
   Item *build_pushable_cond_for_table(THD *thd, Item *cond); 
-
-  void print_system_versioning(THD *thd, table_map eliminated_tables,
-                   String *str, enum_query_type query_type);
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);

@@ -1,0 +1,25 @@
+-- source include/have_innodb.inc
+
+create table t1 (x int) with system versioning engine innodb;
+insert into t1 values (1);
+
+select now(6) into @t1;
+update t1 set x= 2;
+
+select now(6) into @t2;
+delete from t1;
+
+set @vt1= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t1, "'");
+prepare stmt from @vt1; execute stmt; drop prepare stmt;
+
+set @vt2= concat("create view vt2 as select * from t1 for system_time as of timestamp '", @t2, "'");
+prepare stmt from @vt2; execute stmt; drop prepare stmt;
+
+select * from vt1;
+select * from vt2;
+select * from t1;
+
+drop view vt1;
+drop view vt2;
+drop table t1;
+

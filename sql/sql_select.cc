@@ -899,8 +899,6 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
           *dst_cond= cond1;
         else
           thd->change_item_tree(dst_cond, cond1);
-
-        table->vers_moved_to_where= true;
       }
     } // if (... table->table->versioned())
   } // for (table= tables; ...)
@@ -25036,39 +25034,6 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
   DBUG_RETURN(res || thd->is_error());
 }
 
-void TABLE_LIST::print_system_versioning(THD *thd, table_map eliminated_tables,
-                   String *str, enum_query_type query_type)
-{
-  if (vers_moved_to_where)
-    return;
-
-  DBUG_ASSERT(select_lex);
-  // system versioning
-  if (select_lex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
-  {
-    switch (select_lex->vers_conditions.type)
-    {
-      case FOR_SYSTEM_TIME_AS_OF:
-        str->append(STRING_WITH_LEN(" for system_time as of "));
-        select_lex->vers_conditions.start->print(str, query_type);
-        break;
-      case FOR_SYSTEM_TIME_FROM_TO:
-        str->append(STRING_WITH_LEN(" for system_time from timestamp "));
-        select_lex->vers_conditions.start->print(str, query_type);
-        str->append(STRING_WITH_LEN(" to "));
-        select_lex->vers_conditions.end->print(str, query_type);
-        break;
-      case FOR_SYSTEM_TIME_BETWEEN:
-        str->append(STRING_WITH_LEN(" for system_time between timestamp "));
-        select_lex->vers_conditions.start->print(str, query_type);
-        str->append(STRING_WITH_LEN(" and "));
-        select_lex->vers_conditions.end->print(str, query_type);
-        break;
-      default:
-        DBUG_ASSERT(0);
-    }
-  }
-}
 
 static void print_table_array(THD *thd, 
                               table_map eliminated_tables,
@@ -25404,8 +25369,6 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       append_identifier(thd, str, t_alias, strlen(t_alias));
     }
 
-    print_system_versioning(thd, eliminated_tables, str, query_type);
-
     if (index_hints)
     {
       List_iterator<Index_hint> it(*index_hints);
@@ -25563,6 +25526,12 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       cur_having->print(str, query_type);
     else
       str->append(having_value != Item::COND_FALSE ? "1" : "0");
+  }
+
+  if (vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+  {
+    // versioning conditions must be already unwrapped to WHERE clause
+    str->append(STRING_WITH_LEN(" for system_time all "));
   }
 
   if (order_list.elements)
