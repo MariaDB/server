@@ -3110,7 +3110,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                                                 share->default_expressions +1)*
                                                sizeof(Field*)),
                           &check_constraint_ptr,
-                          (uint) ((share->table_check_constraints + 1)*
+                          (uint) ((share->table_check_constraints +
+                                   share->field_check_constraints + 1)*
                                   sizeof(Virtual_column_info*)),
                           NullS))
       goto err;
