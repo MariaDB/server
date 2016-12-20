@@ -123,6 +123,7 @@ select json_merge('{"1": 2}', '{"true": false}', '{"3": 4}');
 select json_merge(NULL,json_object('foo', 1));
 select json_merge('a','b');
 select json_merge('{"a":"b"}','{"c":"d"}');
+SELECT JSON_MERGE('[1, 2]', '{"id": 47}');
 
 select json_type('{"k1":123, "k2":345}');
 select json_type('[123, "k2", 345]');

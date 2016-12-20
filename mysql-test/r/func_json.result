@@ -315,6 +315,9 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge' at
 select json_merge('{"a":"b"}','{"c":"d"}');
 json_merge('{"a":"b"}','{"c":"d"}')
 {"a":"b", "c":"d"}
+SELECT JSON_MERGE('[1, 2]', '{"id": 47}');
+JSON_MERGE('[1, 2]', '{"id": 47}')
+[1, 2, {"id": 47}]
 select json_type('{"k1":123, "k2":345}');
 json_type('{"k1":123, "k2":345}')
 OBJECT

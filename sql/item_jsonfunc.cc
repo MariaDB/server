@@ -1522,12 +1522,10 @@ String *Item_func_json_merge::val_str(String *str)
       goto error_return;
 
     str->length(0);
-    if ((je1.value_type == JSON_VALUE_ARRAY &&
-         je2.value_type == JSON_VALUE_ARRAY)  ||
-        (je1.value_type == JSON_VALUE_OBJECT &&
-         je2.value_type == JSON_VALUE_OBJECT))
+    if (je1.value_type == JSON_VALUE_OBJECT &&
+        je2.value_type == JSON_VALUE_OBJECT)
     {
-      /* Merge the adjancent arrays or objects. */
+      /* Wrap as a single objects. */
       if (json_skip_level(&je1))
         goto error_return;
       if (str->append(js1->ptr(),
@@ -1539,11 +1537,35 @@ String *Item_func_json_merge::val_str(String *str)
     }
     else
     {
-      /* Wrap as an array. */
-      if (str->append("[", 1) ||
-          str->append(js1->ptr(), js1->length()) ||
-          str->append(", ", 2) ||
-          str->append(js2->ptr(), js2->length()) ||
+      const char *end1, *beg2;
+
+      /* Merge as a single array. */
+      if (je1.value_type == JSON_VALUE_ARRAY)
+      {
+        if (json_skip_level(&je1))
+          goto error_return;
+        end1= (const char *) (je1.s.c_str - je1.sav_c_len);
+      }
+      else
+      {
+        if (str->append("[", 1))
+          goto error_return;
+        end1= js1->end();
+      }
+
+      if (str->append(js1->ptr(), end1 - js1->ptr()),
+          str->append(", ", 2))
+        goto error_return;
+
+      if (je2.value_type == JSON_VALUE_ARRAY)
+        beg2= (const char *) je2.s.c_str;
+      else
+        beg2= js2->ptr();
+
+      if (str->append(beg2, js2->end() - beg2))
+        goto error_return;
+
+      if (je2.value_type != JSON_VALUE_ARRAY &&
           str->append("]", 1))
         goto error_return;
     }
