@@ -246,13 +246,13 @@ uchar* my_hash_first(const HASH *hash, const uchar *key, size_t length,
                      HASH_SEARCH_STATE *current_record)
 {
   uchar *res;
-  if (my_hash_inited(hash))
-    res= my_hash_first_from_hash_value(hash,
-                   hash->hash_function(hash->charset, key,
-                                       length ? length : hash->key_length),
-                   key, length, current_record);
-  else
-    res= 0;
+  DBUG_ASSERT(my_hash_inited(hash));
+
+  res= my_hash_first_from_hash_value(hash,
+                                     hash->hash_function(hash->charset, key,
+                                                         length ? length :
+                                                         hash->key_length),
+                                     key, length, current_record);
   return res;
 }
 

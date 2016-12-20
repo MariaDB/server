@@ -458,9 +458,10 @@ bool mysql_ha_close(THD *thd, TABLE_LIST *tables)
     my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
     DBUG_RETURN(TRUE);
   }
-  if ((handler= (SQL_HANDLER*) my_hash_search(&thd->handler_tables_hash,
-                                                 (uchar*) tables->alias,
-                                                 strlen(tables->alias) + 1)))
+  if ((my_hash_inited(&thd->handler_tables_hash)) &&
+      (handler= (SQL_HANDLER*) my_hash_search(&thd->handler_tables_hash,
+                                              (uchar*) tables->alias,
+                                              strlen(tables->alias) + 1)))
   {
     mysql_ha_close_table(handler);
     my_hash_delete(&thd->handler_tables_hash, (uchar*) handler);
@@ -497,8 +498,10 @@ bool mysql_ha_close(THD *thd, TABLE_LIST *tables)
 SQL_HANDLER *mysql_ha_find_handler(THD *thd, const char *name)
 {
   SQL_HANDLER *handler;
-  if ((handler= (SQL_HANDLER*) my_hash_search(&thd->handler_tables_hash,
-                                              (uchar*) name, strlen(name) + 1)))
+  if ((my_hash_inited(&thd->handler_tables_hash)) &&
+      (handler= (SQL_HANDLER*) my_hash_search(&thd->handler_tables_hash,
+                                              (uchar*) name,
+                                              strlen(name) + 1)))
   {
     DBUG_PRINT("info-in-hash",("'%s'.'%s' as '%s' table: %p",
                                handler->db.str,
