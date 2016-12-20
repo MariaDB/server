@@ -33,7 +33,7 @@ Created May 26, 2009 Vasil Dimov
 have a smaller fil_space_t::id. */
 #define SRV_LOG_SPACE_FIRST_ID		0xFFFFFFF0U
 /** The fil_space_t::id of the innodb_temporary tablespace. */
-#define SRV_TMP_SPACE_ID		0xFFFFFFFFU
+#define SRV_TMP_SPACE_ID		0xFFFFFFFEU
 
 #include "univ.i"
 #include "ut0byte.h"
