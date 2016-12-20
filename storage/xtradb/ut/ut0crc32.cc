@@ -336,13 +336,7 @@ ut_crc32_init()
 	}
 
 #elif defined(HAVE_CRC32_VPMSUM)
-#if defined(__linux__)
-	if (getauxval(AT_HWCAP2) & PPC_FEATURE2_ARCH_2_07) {
-#endif
-		ut_crc32 = ut_crc32_power8;
-		ut_crc32_implementation = "Using POWER8 crc32 instructions";
-#if defined(__linux__)
-	}
-#endif
+	ut_crc32 = ut_crc32_power8;
+	ut_crc32_implementation = "Using POWER8 crc32 instructions";
 #endif
 }
