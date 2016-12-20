@@ -8140,3 +8140,41 @@ EXPLAIN
   }
 }
 DROP TABLE t1,t2;
+#
+# MDEV-11593: pushdown of condition with NULLIF
+#
+CREATE TABLE t1 (i INT);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (2), (1);
+SELECT * FROM v1 WHERE NULLIF(1, i);
+i
+2
+EXPLAIN FORMAT=JSON
+SELECT * FROM v1 WHERE NULLIF(1, i);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "nullif(1,v1.i)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "attached_condition": "nullif(1,t1.i)"
+          }
+        }
+      }
+    }
+  }
+}
+DROP VIEW v1;
+DROP TABLE t1;
