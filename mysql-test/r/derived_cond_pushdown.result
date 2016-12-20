@@ -8178,3 +8178,66 @@ EXPLAIN
 }
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-11608: pushdown of the predicate with cached null value
+#
+CREATE TABLE t1 (c VARCHAR(3));
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE t2 (c VARCHAR(3));
+INSERT INTO t2 VALUES ('foo'),('xyz');
+SELECT * FROM v1 WHERE v1.c IN ( SELECT MIN(c) FROM t2 WHERE 0 );
+c
+EXPLAIN FORMAT=JSON
+SELECT * FROM v1 WHERE v1.c IN ( SELECT MIN(c) FROM t2 WHERE 0 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "system",
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "message": "Impossible WHERE"
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "v1.c = NULL",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100,
+            "attached_condition": "t1.c = NULL"
+          }
+        }
+      }
+    }
+  }
+}
+DROP VIEW v1;
+DROP TABLE t1,t2;
+CREATE TABLE t1 (d DECIMAL(10,2));
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (5.37),(1.1);
+CREATE TABLE t2 (d DECIMAL(10,2));
+INSERT INTO t2 VALUES ('1.1'),('2.23');
+SELECT * FROM v1 WHERE v1.d IN ( SELECT MIN(d) FROM t2 WHERE 0 );
+d
+DROP VIEW v1;
+DROP TABLE t1,t2;

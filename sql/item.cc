@@ -9703,12 +9703,15 @@ my_decimal *Item_cache_decimal::val_decimal(my_decimal *val)
 Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
-  my_decimal decimal_value;
-  my_decimal *result= val_decimal(&decimal_value);
   DBUG_ASSERT(value_cached || example != 0);
-  new_item= null_value ?
-            (Item*) new (thd->mem_root) Item_null(thd) :
-	    (Item*) new (thd->mem_root) Item_decimal(thd, result);
+  if (null_value)
+    new_item= (Item*) new (thd->mem_root) Item_null(thd);
+  else
+  {
+     my_decimal decimal_value;
+     my_decimal *result= val_decimal(&decimal_value);
+     new_item= (Item*) new (thd->mem_root) Item_decimal(thd, result);
+  }
   return new_item;
 } 
 
@@ -9795,14 +9798,14 @@ bool Item_cache_row::allocate(THD *thd, uint num)
 Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
-  char buff[MAX_FIELD_WIDTH];
-  String tmp(buff, sizeof(buff), value->charset());
-  String *result= val_str(&tmp);
   DBUG_ASSERT(value_cached || example != 0);
   if (null_value)
     new_item= (Item*) new (thd->mem_root) Item_null(thd);
   else
   {
+    char buff[MAX_FIELD_WIDTH];
+    String tmp(buff, sizeof(buff), value->charset());
+    String *result= val_str(&tmp);
     uint length= result->length();
     char *tmp_str= thd->strmake(result->ptr(), length);
     new_item= new (thd->mem_root) Item_string(thd, tmp_str, length,
