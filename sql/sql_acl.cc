@@ -1067,7 +1067,12 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
       make_scramble= my_make_scrambled_password;
     }
 
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
     char *buff= (char *) thd->alloc(scramble_length + 1);
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+
     if (buff == NULL)
       return true;
     make_scramble(buff, user->pwtext.str, user->pwtext.length);

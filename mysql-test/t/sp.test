@@ -9504,3 +9504,17 @@ end |
 --delimiter ;
 
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-11584: GRANT inside an SP does not work well on 2nd execution
+--echo #
+
+CREATE PROCEDURE sp1()
+  GRANT ALL PRIVILEGES ON *.* TO 'foo'@'%' IDENTIFIED BY 'pass';
+CALL sp1();
+CALL sp1();
+drop user 'foo'@'%';
+drop procedure sp1;
+
+
+--echo #End of 10.1 tests
