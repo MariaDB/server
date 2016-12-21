@@ -402,6 +402,10 @@ create or replace table t1 (x int);
 insert into t1 values (1);
 select * from t1 for system_time all;
 ERROR HY000: System Versioning required: `FOR SYSTEM_TIME` query
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 for system_time all for update;
+ERROR HY000: Wrong parameters for `FOR SYSTEM_TIME query`: write-locking of historic rows
 drop table t1;
 call verify_vtq;
 No	A	B	C	D

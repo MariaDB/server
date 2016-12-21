@@ -690,9 +690,11 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
       versioned_tables++;
   }
 
+  vers_range_type_t query_type= slex->vers_conditions.type;
+
   if (versioned_tables == 0)
   {
-    if (slex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+    if (query_type != FOR_SYSTEM_TIME_UNSPECIFIED)
     {
       my_error(ER_VERSIONING_REQUIRED, MYF(0), "`FOR SYSTEM_TIME` query");
       DBUG_RETURN(-1);
@@ -700,9 +702,27 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
     DBUG_RETURN(0);
   }
 
-  if (slex->vers_conditions.type == FOR_SYSTEM_TIME_ALL)
+  if (query_type != FOR_SYSTEM_TIME_UNSPECIFIED)
   {
-    DBUG_RETURN(0);
+    switch (slex->lock_type)
+    {
+    case TL_WRITE_ALLOW_WRITE:
+    case TL_WRITE_CONCURRENT_INSERT:
+    case TL_WRITE_DELAYED:
+    case TL_WRITE_DEFAULT:
+    case TL_WRITE_LOW_PRIORITY:
+    case TL_WRITE:
+    case TL_WRITE_ONLY:
+      my_error(ER_VERS_WRONG_PARAMS, MYF(0), "FOR SYSTEM_TIME query", "write-locking of historic rows");
+      DBUG_RETURN(-1);
+    default:
+      break;
+    }
+
+    if (query_type == FOR_SYSTEM_TIME_ALL)
+    {
+      DBUG_RETURN(0);
+    }
   }
 
   /* For prepared statements we create items on statement arena,
@@ -784,7 +804,7 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
         }
       }
       else if (vers_simple_select && slex->vers_conditions.unit == UNIT_TIMESTAMP
-          && slex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+          && query_type != FOR_SYSTEM_TIME_UNSPECIFIED)
       {
         DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
         handlerton *hton= plugin_hton(table->table->s->db_plugin);
@@ -805,7 +825,7 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
       Item *cond1= 0, *cond2= 0, *curr= 0;
       if (table->table->versioned_by_sql() || vers_simple_select)
       {
-        switch (slex->vers_conditions.type)
+        switch (query_type)
         {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
           if (table->table->versioned_by_sql())
@@ -851,7 +871,7 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
 
         Item *trx_id0, *trx_id1;
 
-        switch (slex->vers_conditions.type)
+        switch (query_type)
         {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
           curr= newx Item_int(thd, ULONGLONG_MAX);
@@ -877,7 +897,7 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
             trx_id1= slex->vers_conditions.end;
           }
 
-          cond1= slex->vers_conditions.type == FOR_SYSTEM_TIME_FROM_TO ?
+          cond1= query_type == FOR_SYSTEM_TIME_FROM_TO ?
             newx Item_func_vtq_trx_sees(thd, trx_id1, row_start) :
             newx Item_func_vtq_trx_sees_eq(thd, trx_id1, row_start);
           cond2= newx Item_func_vtq_trx_sees_eq(thd, row_end, trx_id0);
