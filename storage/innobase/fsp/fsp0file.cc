@@ -63,22 +63,17 @@ Datafile::shutdown()
 	ut_free(m_name);
 	m_name = NULL;
 
+	ut_free(m_encryption_key);
+	m_encryption_key = NULL;
+
+	/* The fil_space_t::crypt_data was freed in
+	fil_space_free_low(). Invalidate our redundant pointer. */
+	m_crypt_info = NULL;
+
+	ut_free(m_encryption_iv);
+	m_encryption_iv = NULL;
+
 	free_filepath();
-
-	if (m_encryption_key != NULL) {
-		ut_free(m_encryption_key);
-		m_encryption_key = NULL;
-	}
-
-	if (m_crypt_info) {
-		fil_space_destroy_crypt_data(&m_crypt_info);
-	}
-
-	if (m_encryption_iv != NULL) {
-		ut_free(m_encryption_iv);
-		m_encryption_iv = NULL;
-	}
-
 	free_first_page();
 }
 

@@ -97,8 +97,6 @@ extern const char general_space_name[];
 struct trx_t;
 class page_id_t;
 class truncate_t;
-struct fil_node_t;
-struct fil_space_t;
 struct btr_create_t;
 
 /* structure containing encryption specification */

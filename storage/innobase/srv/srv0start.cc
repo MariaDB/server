@@ -1226,6 +1226,7 @@ srv_shutdown_all_bg_threads()
 	ulint	i;
 
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
+	fil_crypt_threads_end();
 
 	if (!srv_start_state) {
 		return;
@@ -2769,9 +2770,6 @@ srv_shutdown_bg_undo_sources(void)
 {
 	fts_optimize_shutdown();
 	dict_stats_shutdown();
-
-	/* Shutdown key rotation threads */
-	fil_crypt_threads_end();
 }
 
 
@@ -2839,9 +2837,7 @@ innobase_shutdown_for_mysql(void)
 		}
 	}
 
-	if (!srv_read_only_mode) {
-		fil_crypt_threads_cleanup();
-	}
+	fil_crypt_threads_cleanup();
 
 	/* Cleanup data for datafile scrubbing */
 	btr_scrub_cleanup();

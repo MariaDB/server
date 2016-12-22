@@ -1199,6 +1199,7 @@ fil_space_free_low(
 	ut_ad(space->size == 0);
 
 	rw_lock_free(&space->latch);
+	fil_space_destroy_crypt_data(&space->crypt_data);
 
 	ut_free(space->name);
 	ut_free(space);
@@ -6226,6 +6227,8 @@ fil_close(void)
 
 		ut_free(fil_system);
 		fil_system = NULL;
+
+		fil_space_crypt_cleanup();
 	}
 }
 
