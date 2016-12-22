@@ -70,5 +70,8 @@ SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --connection server_1
 DROP TABLE t1, t2;
 
+--connection server_2
+call mtr.add_suppression("Deadlock found when trying to get lock.*");
+
 --source include/rpl_end.inc
 

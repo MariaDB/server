@@ -346,7 +346,7 @@ if ($CRC_RET_stmt_sidef) {
     SHOW BINLOG EVENTS;
     --die Warnings printed
   }
-  --let $event_type= query_get_value(SHOW BINLOG EVENTS, Event_type, 5)
+  --let $event_type= query_get_value(SHOW BINLOG EVENTS, Event_type, 6)
   # The first event is format_description, the second is Gtid list, the
   # third is Binlog_checkpoint, the fourth Gtid, and the fifth should be
   # our Query for 'INSERT DELAYED' unsafe_type 3, which is safe after
@@ -362,7 +362,7 @@ if ($CRC_RET_stmt_sidef) {
   # for unsafe statement.
   if (`SELECT $unsafe_type != 3 AND '$event_type' != 'Table_map'`) {
     --enable_query_log
-    --echo ******** Failure! Event number 4 was a '$event_type', not a 'Table_map'. ********
+    --echo ******** Failure! Event number 6 was a '$event_type', not a 'Table_map'. ********
     SHOW BINLOG EVENTS;
     --die Wrong events in binlog.
   }
