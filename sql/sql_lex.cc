@@ -5309,6 +5309,12 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_STRING name,
   spcont->declare_var_boundary(1);
   spvar->field_def.field_name= spvar->name.str;
   spvar->field_def.sql_type= MYSQL_TYPE_LONGLONG;
+  /*
+    The below is a simplified version of what
+    Column_definition::prepare_create_field() does for a LONGLONG field.
+  */
+  spvar->field_def.pack_flag= (FIELDFLAG_NUMBER |
+                               f_settype((uint) MYSQL_TYPE_LONGLONG));
   if (sp_variable_declarations_finalize(thd, 1, NULL, value))
     return NULL;
   return spvar;
