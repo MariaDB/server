@@ -6449,10 +6449,7 @@ fil_close(void)
 {
 	fil_space_crypt_cleanup();
 
-#ifndef UNIV_HOTBACKUP
-	/* The mutex should already have been freed. */
-	ut_ad(fil_system->mutex.magic_n == 0);
-#endif /* !UNIV_HOTBACKUP */
+	mutex_free(&fil_system->mutex);
 
 	hash_table_free(fil_system->spaces);
 

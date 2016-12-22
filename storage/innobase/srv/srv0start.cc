@@ -3244,9 +3244,9 @@ innobase_shutdown_for_mysql(void)
 	que_close();
 	row_mysql_close();
 	srv_mon_free();
+	fil_close();
 	sync_close();
 	srv_free();
-	fil_close();
 
 	/* 4. Free the os_conc_mutex and all os_events and os_mutexes */
 
