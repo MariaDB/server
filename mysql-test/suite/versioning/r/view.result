@@ -20,6 +20,10 @@ x
 2
 select * from t1;
 x
+create or replace view vt1 as select * from t1;
+show create view vt1;
+View	Create View	character_set_client	collation_connection
+vt1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vt1` AS select `t1`.`x` AS `x` from `t1` where `t1`.`sys_trx_end` = 18446744073709551615 for system_time all 	latin1	latin1_swedish_ci
 drop view vt1;
 drop view vt2;
 drop table t1;

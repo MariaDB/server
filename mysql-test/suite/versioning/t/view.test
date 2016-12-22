@@ -19,6 +19,9 @@ select * from vt1;
 select * from vt2;
 select * from t1;
 
+create or replace view vt1 as select * from t1;
+show create view vt1;
+
 drop view vt1;
 drop view vt2;
 drop table t1;

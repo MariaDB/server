@@ -721,6 +721,7 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
 
     if (query_type == FOR_SYSTEM_TIME_ALL)
     {
+      slex->vers_conditions.unwrapped= true;
       DBUG_RETURN(0);
     }
   }
@@ -927,6 +928,8 @@ vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *s
   {
     thd->restore_active_arena(arena, &backup);
   }
+
+  slex->vers_conditions.unwrapped= true;
 
   DBUG_RETURN(0);
 #undef newx
@@ -25548,9 +25551,9 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       str->append(having_value != Item::COND_FALSE ? "1" : "0");
   }
 
-  if (vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+  if (vers_conditions.unwrapped)
   {
-    // versioning conditions must be already unwrapped to WHERE clause
+    // versioning conditions are already unwrapped to WHERE clause
     str->append(STRING_WITH_LEN(" for system_time all "));
   }
 
