@@ -34,9 +34,6 @@ Created 04/01/2015 Jan Lindström
 static const unsigned char CRYPT_MAGIC[MAGIC_SZ] = {
 	's', 0xE, 0xC, 'R', 'E', 't' };
 
-static const unsigned char EMPTY_PATTERN[MAGIC_SZ] = {
-	0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-
 /* This key will be used if nothing else is given */
 #define FIL_DEFAULT_ENCRYPTION_KEY ENCRYPTION_KEY_SYSTEM_DATA
 
