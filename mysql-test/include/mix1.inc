@@ -654,9 +654,11 @@ INSERT INTO t2 VALUES (1);
 
 CONNECTION c2;
 SET AUTOCOMMIT=0;
+SET @old_lock_wait_timeout= @@lock_wait_timeout;
+SET lock_wait_timeout= 1;
 --error ER_LOCK_WAIT_TIMEOUT
 LOCK TABLES t1 READ, t2 READ;
-
+SET  @@lock_wait_timeout= @old_lock_wait_timeout;
 CONNECTION c1;
 COMMIT;
 INSERT INTO t1 VALUES (1);
