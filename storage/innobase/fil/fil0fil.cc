@@ -6685,18 +6685,18 @@ fil_tablespace_iterate(
 			iter.io_buffer = static_cast<byte*>(
 				ut_align(io_buffer, UNIV_PAGE_SIZE));
 
-			/** Add an exta buffer for encryption */
-			void* crypt_io_buffer = NULL;
-			if (iter.crypt_data != NULL) {
-				crypt_io_buffer = ut_malloc_nokey(
-					iter.n_io_buffers * UNIV_PAGE_SIZE);
-				iter.crypt_io_buffer = static_cast<byte*>(
-					crypt_io_buffer);
-			}
+			iter.crypt_io_buffer = iter.crypt_data
+				? static_cast<byte*>(
+					ut_malloc_nokey(iter.n_io_buffers
+							* UNIV_PAGE_SIZE))
+				: NULL;
 
 			err = fil_iterate(iter, block, callback);
 
 			ut_free(io_buffer);
+			ut_free(iter.crypt_io_buffer);
+
+			fil_space_destroy_crypt_data(&iter.crypt_data);
 		}
 	}
 
