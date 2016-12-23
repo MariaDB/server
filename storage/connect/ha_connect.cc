@@ -1242,8 +1242,10 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
 
   if (opval && (!stricmp(opname, "connect") 
              || !stricmp(opname, "tabname") 
-             || !stricmp(opname, "filename")))
-    opval = GetRealString(opval);
+             || !stricmp(opname, "filename")
+						 || !stricmp(opname, "optname")
+						 || !stricmp(opname, "entry")))
+						 opval = GetRealString(opval);
 
   if (!opval) {
     if (sdef && !strcmp(sdef, "*")) {

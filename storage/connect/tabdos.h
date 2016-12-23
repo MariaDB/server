@@ -28,7 +28,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   friend class TDBFIX;
   friend class TXTFAM;
   friend class DBFBASE;
-	friend class ZIPFAM;
+	friend class ZIPUTIL;
  public:
   // Constructor
   DOSDEF(void);
@@ -41,7 +41,9 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   virtual bool        IsHuge(void) {return Huge;}
   PSZ     GetFn(void) {return Fn;}
   PSZ     GetOfn(void) {return Ofn;}
-  void    SetBlock(int block) {Block = block;}
+	PSZ     GetEntry(void) {return Entry;}
+	bool    GetMul(void) {return Mulentries;}
+	void    SetBlock(int block) {Block = block;}
   int     GetBlock(void) {return Block;}
   int     GetLast(void) {return Last;}
   void    SetLast(int last) {Last = last;}
@@ -58,9 +60,9 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   int    *GetTo_Pos(void) {return To_Pos;}
 
   // Methods
-  virtual int  Indexable(void)
-          {return (!Multiple && !Zipped && Compressed != 1) ? 1 : 0;}
-  virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
+	virtual int  Indexable(void)
+  	{return (!Multiple && !Mulentries && Compressed != 1) ? 1 : 0;}
+	virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
           bool InvalidateIndex(PGLOBAL g);
@@ -78,6 +80,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   RECFM   Recfm;              /* 0:VAR, 1:FIX, 2:BIN, 3:VCT, 6:DBF     */
   bool    Mapped;             /* 0: disk file, 1: memory mapped file   */
 	bool    Zipped;             /* true for zipped table file            */
+	bool    Mulentries;         /* true for multiple entries             */
 	bool    Padded;             /* true for padded table file            */
   bool    Huge;               /* true for files larger than 2GB        */
   bool    Accept;             /* true if wrong lines are accepted      */
