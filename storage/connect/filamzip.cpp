@@ -40,19 +40,21 @@
 //#include "tabzip.h"
 #include "filamzip.h"
 
-/* -------------------------- class ZIPFAM --------------------------- */
+/* -------------------------- class ZIPUTIL -------------------------- */
 
 /***********************************************************************/
 /*  Constructors.                                                      */
 /***********************************************************************/
-ZIPFAM::ZIPFAM(PDOSDEF tdp) : MAPFAM(tdp)
+ZIPUTIL::ZIPUTIL(PSZ tgt, bool mul)
 {
 	zipfile = NULL;
-//zfn = tdp->Fn;
-	target = tdp->Entry;
-//*fn = 0;
+	target = tgt;
+	fp = NULL;
+	memory = NULL;
+	size = 0;
 	entryopen = false;
-	multiple = (target && !(strchr(target, '*') || strchr(target, '?'))) ? 0 : 1;
+	multiple = mul;
+	memset(fn, 0, sizeof(fn));
 
 	// Init the case mapping table.
 #if defined(__WIN__)
@@ -60,29 +62,30 @@ ZIPFAM::ZIPFAM(PDOSDEF tdp) : MAPFAM(tdp)
 #else
 	for (int i = 0; i < 256; ++i) mapCaseTable[i] = i;
 #endif
-} // end of ZIPFAM standard constructor
+} // end of ZIPUTIL standard constructor
 
-ZIPFAM::ZIPFAM(PZIPFAM txfp) : MAPFAM(txfp)
+#if 0
+ZIPUTIL::ZIPUTIL(PZIPUTIL zutp)
 {
-	zipfile = txfp->zipfile;
-//zfn = txfp->zfn;
-	target = txfp->target;
-//strcpy(fn, txfp->fn);
-	finfo = txfp->finfo;
-	entryopen = txfp->entryopen;
-	multiple = txfp->multiple;
-	for (int i = 0; i < 256; ++i) mapCaseTable[i] = txfp->mapCaseTable[i];
-} // end of ZIPFAM copy constructor
+	zipfile = zutp->zipfile;
+	target = zutp->target;
+	fp = zutp->fp;
+	finfo = zutp->finfo;
+	entryopen = zutp->entryopen;
+	multiple = zutp->multiple;
+	for (int i = 0; i < 256; ++i) mapCaseTable[i] = zutp->mapCaseTable[i];
+} // end of ZIPUTIL copy constructor
+#endif // 0
 
 /***********************************************************************/
 /* This code is the copyright property of Alessandro Felice Cantatore. */
 /* http://xoomer.virgilio.it/acantato/dev/wildcard/wildmatch.html			 */
 /***********************************************************************/
-bool ZIPFAM::WildMatch(PSZ pat, PSZ str) {
+bool ZIPUTIL::WildMatch(PSZ pat, PSZ str) {
 	PSZ  s, p;
 	bool star = FALSE;
 
- loopStart:
+loopStart:
 	for (s = str, p = pat; *s; ++s, ++p) {
 		switch (*p) {
 		case '?':
@@ -102,31 +105,18 @@ bool ZIPFAM::WildMatch(PSZ pat, PSZ str) {
 	if (*p == '*') ++p;
 	return (!*p);
 
- starCheck:
+starCheck:
 	if (!star) return FALSE;
 	str++;
 	goto loopStart;
 }	// end of WildMatch
 
 /***********************************************************************/
-/*  ZIP GetFileLength: returns file size in number of bytes.           */
-/***********************************************************************/
-int ZIPFAM::GetFileLength(PGLOBAL g)
-{
-	int len = (entryopen) ? Top - Memory : 100;	 // not 0 to avoid ASSERT
-
-	if (trace)
-		htrc("Zipped file length=%d\n", len);
-
-	return len;
-} // end of GetFileLength
-
-/***********************************************************************/
 /*  open a zip file.																									 */
 /*  param: filename	path and the filename of the zip file to open.		 */
 /*  return:	true if open, false otherwise.														 */
 /***********************************************************************/
-bool ZIPFAM::open(PGLOBAL g, const char *filename)
+bool ZIPUTIL::open(PGLOBAL g, char *filename)
 {
 	if (!zipfile && !(zipfile = unzOpen64(filename)))
 		sprintf(g->Message, "Zipfile open error on %s", filename);
@@ -137,7 +127,7 @@ bool ZIPFAM::open(PGLOBAL g, const char *filename)
 /***********************************************************************/
 /*  Close the zip file.																								 */
 /***********************************************************************/
-void ZIPFAM::close()
+void ZIPUTIL::close()
 {
 	if (zipfile) {
 		closeEntry();
@@ -150,10 +140,9 @@ void ZIPFAM::close()
 /***********************************************************************/
 /*  Find next entry matching target pattern.                           */
 /***********************************************************************/
-int ZIPFAM::findEntry(PGLOBAL g, bool next)
+int ZIPUTIL::findEntry(PGLOBAL g, bool next)
 {
 	int  rc;
-	char fn[FILENAME_MAX];     	 // The current entry file name
 
 	do {
 		if (next) {
@@ -188,37 +177,53 @@ int ZIPFAM::findEntry(PGLOBAL g, bool next)
 
 	strcpy(g->Message, "FindNext logical error");
 	return RC_FX;
-}	// end of FindNext
+}	// end of FindEntry
+
+
+/***********************************************************************/
+/*  Get the next used entry.                                           */
+/***********************************************************************/
+int ZIPUTIL::nextEntry(PGLOBAL g)
+{
+	if (multiple) {
+		int rc;
+
+		closeEntry();
+
+		if ((rc = findEntry(g, true)) != RC_OK)
+			return rc;
+
+		if (openEntry(g))
+			return RC_FX;
+
+		return RC_OK;
+	} else
+		return RC_EF;
+
+} // end of nextEntry
+
 
 /***********************************************************************/
 /*  OpenTableFile: Open a DOS/UNIX table file from a ZIP file.         */
 /***********************************************************************/
-bool ZIPFAM::OpenTableFile(PGLOBAL g)
+bool ZIPUTIL::OpenTable(PGLOBAL g, MODE mode, char *fn)
 {
-	char    filename[_MAX_PATH];
-	MODE    mode = Tdbp->GetMode();
-  PFBLOCK fp;
-  PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
-
 	/*********************************************************************/
 	/*  The file will be decompressed into virtual memory.               */
 	/*********************************************************************/
-	if (mode == MODE_READ) {
-		//  We used the file name relative to recorded datapath
-		PlugSetPath(filename, To_File, Tdbp->GetPath());
-
-		bool b = open(g, filename);
+	if (mode == MODE_READ || mode == MODE_ANY) {
+		bool b = open(g, fn);
 
 		if (!b) {
 			int rc;
-			
+
 			if (target && *target) {
 				if (!multiple) {
 					rc = unzLocateFile(zipfile, target, 0);
 
 					if (rc == UNZ_END_OF_LIST_OF_FILE) {
-						sprintf(g->Message, "Target file %s not in %s", target, filename);
-						return false;
+						sprintf(g->Message, "Target file %s not in %s", target, fn);
+						return true;
 					} else if (rc != UNZ_OK) {
 						sprintf(g->Message, "unzLocateFile rc=%d", rc);
 						return true;
@@ -227,9 +232,9 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 				} else {
 					if ((rc = findEntry(g, false)) == RC_FX)
 						return true;
-					else if (rc == RC_NF) {
-						sprintf(g->Message, "No match of %s in %s", target, filename);
-						return false;
+					else if (rc == RC_EF) {
+						sprintf(g->Message, "No match of %s in %s", target, fn);
+						return true;
 					} // endif rc
 
 				} // endif multiple
@@ -239,25 +244,26 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 			if (openEntry(g))
 				return true;
 
-			if (Top > Memory)	{
+			if (size > 0)	{
 				/*******************************************************************/
 				/*  Link a Fblock. This make possible to automatically close it    */
 				/*  in case of error g->jump.                                      */
 				/*******************************************************************/
+				PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
+
 				fp = (PFBLOCK)PlugSubAlloc(g, NULL, sizeof(FBLOCK));
 				fp->Type = TYPE_FB_ZIP;
-				fp->Fname = PlugDup(g, filename);
+				fp->Fname = PlugDup(g, fn);
 				fp->Next = dbuserp->Openlist;
 				dbuserp->Openlist = fp;
 				fp->Count = 1;
-				fp->Length = Top - Memory;
-				fp->Memory = Memory;
+				fp->Length = size;
+				fp->Memory = memory;
 				fp->Mode = mode;
 				fp->File = this;
 				fp->Handle = NULL;
 			} // endif fp
 
-			To_Fb = fp;                               // Useful when closing
 		} else
 			return true;
 
@@ -267,44 +273,42 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
 	}	// endif mode
 
 	return false;
-	} // end of OpenTableFile
+} // end of OpenTableFile
 
 /***********************************************************************/
 /*  Open target in zip file.						      												 */
 /***********************************************************************/
-bool ZIPFAM::openEntry(PGLOBAL g)
+bool ZIPUTIL::openEntry(PGLOBAL g)
 {
-	int  rc;
-	uint size;
+	int rc;
 
-	rc = unzGetCurrentFileInfo(zipfile, &finfo, 0, 0, 0, 0, 0, 0);
+	rc = unzGetCurrentFileInfo(zipfile, &finfo, fn, sizeof(fn),
+		NULL, 0, NULL, 0);
 
 	if (rc != UNZ_OK) {
 		sprintf(g->Message, "unzGetCurrentFileInfo64 rc=%d", rc);
 		return true;
 	} else if ((rc = unzOpenCurrentFile(zipfile)) != UNZ_OK) {
-		sprintf(g->Message, "unzOpenCurrentFile rc=%d", rc);
+		sprintf(g->Message, "unzOpen fn=%s rc=%d", fn, rc);
 		return true;
 	}	// endif rc
 
 	size = finfo.uncompressed_size;
-	Memory = new char[size];
+	memory = new char[size + 1];
 
-	if ((rc = unzReadCurrentFile(zipfile, Memory, size)) < 0) {
+	if ((rc = unzReadCurrentFile(zipfile, memory, size)) < 0) {
 		sprintf(g->Message, "unzReadCurrentFile rc = ", rc);
 		unzCloseCurrentFile(zipfile);
-		free(Memory);
+		free(memory);
+		memory = NULL;
 		entryopen = false;
 	} else {
-		// The pseudo "buffer" is here the entire real buffer
-		Fpos = Mempos = Memory;
-		Top = Memory + size;
-
-		if (trace)
-			htrc("Memory=%p size=%ud Top=%p\n", Memory, size, Top);
-
+		memory[size] = 0;    // Required by some table types (XML)
 		entryopen = true;
 	} // endif rc
+
+	if (trace)
+		htrc("Openning entry%s %s\n", fn, (entryopen) ? "oked" : "failed");
 
 	return !entryopen;
 }	// end of openEntry
@@ -312,20 +316,118 @@ bool ZIPFAM::openEntry(PGLOBAL g)
 /***********************************************************************/
 /*  Close the zip file.																								 */
 /***********************************************************************/
-void ZIPFAM::closeEntry()
+void ZIPUTIL::closeEntry()
 {
 	if (entryopen) {
 		unzCloseCurrentFile(zipfile);
 		entryopen = false;
 	}	// endif entryopen
 
-	if (Memory) {
-		free(Memory);
-		Memory = NULL;
-	}	// endif Memory
+	if (memory) {
+		free(memory);
+		memory = NULL;
+	}	// endif memory
 
 }	// end of closeEntry
 
+/* -------------------------- class ZIPFAM --------------------------- */
+
+/***********************************************************************/
+/*  Constructors.                                                      */
+/***********************************************************************/
+ZIPFAM::ZIPFAM(PDOSDEF tdp) : MAPFAM(tdp)
+{
+	zutp = NULL;
+  target = tdp->GetEntry();
+	mul = tdp->GetMul();
+} // end of ZIPFAM standard constructor
+
+ZIPFAM::ZIPFAM(PZIPFAM txfp) : MAPFAM(txfp)
+{
+	zutp = txfp->zutp;
+	target = txfp->target;
+	mul = txfp->mul;
+} // end of ZIPFAM copy constructor
+
+ZIPFAM::ZIPFAM(PDOSDEF tdp, PZPXFAM txfp) : MAPFAM(tdp)
+{
+	zutp = txfp->zutp;
+	target = txfp->target;
+	mul = txfp->mul;
+} // end of ZIPFAM constructor used in ResetTableOpt
+
+/***********************************************************************/
+/*  ZIP GetFileLength: returns file size in number of bytes.           */
+/***********************************************************************/
+int ZIPFAM::GetFileLength(PGLOBAL g)
+{
+	int len = (zutp && zutp->entryopen) ? Top - Memory
+		                                  : TXTFAM::GetFileLength(g) * 3;
+
+	if (trace)
+		htrc("Zipped file length=%d\n", len);
+
+	return len;
+} // end of GetFileLength
+
+/***********************************************************************/
+/*  ZIP Cardinality: return the number of rows if possible.            */
+/***********************************************************************/
+int ZIPFAM::Cardinality(PGLOBAL g)
+{
+	if (!g)
+		return 1;
+
+	int card = -1;
+	int len = GetFileLength(g);
+
+	card = (len / (int)Lrecl) * 2;           // Estimated ???
+	return card;
+} // end of Cardinality
+
+/***********************************************************************/
+/*  OpenTableFile: Open a DOS/UNIX table file from a ZIP file.         */
+/***********************************************************************/
+bool ZIPFAM::OpenTableFile(PGLOBAL g)
+{
+	char    filename[_MAX_PATH];
+	MODE    mode = Tdbp->GetMode();
+
+	/*********************************************************************/
+	/*  Allocate the ZIP utility class.                                  */
+	/*********************************************************************/
+	zutp = new(g) ZIPUTIL(target, mul);
+
+	//  We used the file name relative to recorded datapath
+	PlugSetPath(filename, To_File, Tdbp->GetPath());
+
+	if (!zutp->OpenTable(g, mode, filename)) {
+		// The pseudo "buffer" is here the entire real buffer
+		Fpos = Mempos = Memory = zutp->memory;
+		Top = Memory + zutp->size;
+		To_Fb = zutp->fp;                           // Useful when closing
+	} else
+		return true;
+
+	return false;
+	} // end of OpenTableFile
+
+/***********************************************************************/
+/*  GetNext: go to next entry.                                         */
+/***********************************************************************/
+int ZIPFAM::GetNext(PGLOBAL g)
+{
+	int rc = zutp->nextEntry(g);
+
+	if (rc != RC_OK)
+		return rc;
+
+	Mempos = Memory = zutp->memory;
+	Top = Memory + zutp->size;
+	return RC_OK;
+} // end of GetNext
+
+#if 0
 /***********************************************************************/
 /*  ReadBuffer: Read one line for a ZIP file.                          */
 /***********************************************************************/
@@ -335,19 +437,12 @@ int ZIPFAM::ReadBuffer(PGLOBAL g)
 
 	// Are we at the end of the memory
 	if (Mempos >= Top) {
-		if (multiple) {
-			closeEntry();
+		if ((rc = zutp->nextEntry(g)) != RC_OK)
+			return rc;
 
-			if ((rc = findEntry(g, true)) != RC_OK)
-				return rc;
-
-			if (openEntry(g))
-				return RC_FX;
-
-		} else
-			return RC_EF;
-
-	} // endif Mempos
+		Mempos = Memory = zutp->memory;
+		Top = Memory + zutp->size;
+	}	// endif Mempos
 
 #if 0
 	if (!Placed) {
@@ -399,7 +494,6 @@ int ZIPFAM::ReadBuffer(PGLOBAL g)
 	return RC_OK;
 } // end of ReadBuffer
 
-#if 0
 /***********************************************************************/
 /*  Table file close routine for MAP access method.                    */
 /***********************************************************************/
@@ -414,89 +508,115 @@ void ZIPFAM::CloseTableFile(PGLOBAL g, bool)
 /***********************************************************************/
 /*  Constructors.                                                      */
 /***********************************************************************/
-ZPXFAM::ZPXFAM(PDOSDEF tdp) : ZIPFAM(tdp)
+ZPXFAM::ZPXFAM(PDOSDEF tdp) : MPXFAM(tdp)
 {
-	Lrecl = tdp->GetLrecl();
+	zutp = NULL;
+	target = tdp->GetEntry();
+	mul = tdp->GetMul();
+	//Lrecl = tdp->GetLrecl();
 } // end of ZPXFAM standard constructor
 
-ZPXFAM::ZPXFAM(PZPXFAM txfp) : ZIPFAM(txfp)
+ZPXFAM::ZPXFAM(PZPXFAM txfp) : MPXFAM(txfp)
 {
-	Lrecl = txfp->Lrecl;
+	zutp = txfp->zutp;
+	target = txfp->target;
+	mul = txfp->mul;
+//Lrecl = txfp->Lrecl;
 } // end of ZPXFAM copy constructor
 
 /***********************************************************************/
-/*  ReadBuffer: Read one line for a fixed ZIP file.                    */
+/*  ZIP GetFileLength: returns file size in number of bytes.           */
 /***********************************************************************/
-int ZPXFAM::ReadBuffer(PGLOBAL g)
+int ZPXFAM::GetFileLength(PGLOBAL g)
 {
-	int rc, len;
+	int len;
 
-	// Are we at the end of the memory
-	if (Mempos >= Top) {
-		if (multiple) {
-			closeEntry();
+	if (!zutp && OpenTableFile(g))
+		return 0;
 
-			if ((rc = findEntry(g, true)) != RC_OK)
-				return rc;
+	if (zutp->entryopen)
+		len = zutp->size;
+	else
+		len = 0;
 
-			if (openEntry(g))
-				return RC_FX;
+	return len;
+} // end of GetFileLength
 
+/***********************************************************************/
+/*  ZIP Cardinality: return the number of rows if possible.            */
+/***********************************************************************/
+int ZPXFAM::Cardinality(PGLOBAL g)
+{
+	if (!g)
+		return 1;
+
+	int card = -1;
+	int len = GetFileLength(g);
+
+	if (!(len % Lrecl))
+		card = len / (int)Lrecl;           // Fixed length file
+	else
+		sprintf(g->Message, MSG(NOT_FIXED_LEN), zutp->fn, len, Lrecl);
+
+	// Set number of blocks for later use
+	Block = (card > 0) ? (card + Nrec - 1) / Nrec : 0;
+	return card;
+} // end of Cardinality
+
+/***********************************************************************/
+/*  OpenTableFile: Open a DOS/UNIX table file from a ZIP file.         */
+/***********************************************************************/
+bool ZPXFAM::OpenTableFile(PGLOBAL g)
+{
+	// May have been already opened in GetFileLength
+	if (!zutp || !zutp->zipfile) {
+		char    filename[_MAX_PATH];
+		MODE    mode = Tdbp->GetMode();
+
+		/*********************************************************************/
+		/*  Allocate the ZIP utility class.                                  */
+		/*********************************************************************/
+		if (!zutp)
+			zutp = new(g)ZIPUTIL(target, mul);
+
+		//  We used the file name relative to recorded datapath
+		PlugSetPath(filename, To_File, Tdbp->GetPath());
+
+		if (!zutp->OpenTable(g, mode, filename)) {
+			// The pseudo "buffer" is here the entire real buffer
+			Memory = zutp->memory;
+			Fpos = Mempos = Memory + Headlen;
+			Top = Memory + zutp->size;
+			To_Fb = zutp->fp;                           // Useful when closing
 		} else
-			return RC_EF;
-
-	} // endif Mempos
-
-#if 0
-	if (!Placed) {
-		/*******************************************************************/
-		/*  Record file position in case of UPDATE or DELETE.              */
-		/*******************************************************************/
-		int rc;
-
-	next:
-		Fpos = Mempos;
-		CurBlk = (int)Rows++;
-
-		/*******************************************************************/
-		/*  Check whether optimization on ROWID                            */
-		/*  can be done, as well as for join as for local filtering.       */
-		/*******************************************************************/
-		switch (Tdbp->TestBlock(g)) {
-		case RC_EF:
-			return RC_EF;
-		case RC_NF:
-			// Skip this record
-			if ((rc = SkipRecord(g, false)) != RC_OK)
-				return rc;
-
-			goto next;
-		} // endswitch rc
+			return true;
 
 	} else
-		Placed = false;
-#else
-	// Perhaps unuseful
-	Fpos = Mempos;
-	CurBlk = (int)Rows++;
-	Placed = false;
-#endif
+		Reset();
 
-	// Immediately calculate next position (Used by DeleteDB)
-	Mempos += Lrecl;
+	return false;
+} // end of OpenTableFile
 
-	// Set caller line buffer
-	len = Lrecl;
+/***********************************************************************/
+/*  GetNext: go to next entry.                                         */
+/***********************************************************************/
+int ZPXFAM::GetNext(PGLOBAL g)
+{
+	int rc = zutp->nextEntry(g);
 
-	// Don't rely on ENDING setting
-	if (len > 0 && *(Mempos - 1) == '\n')
-		len--;             // Line ends by LF
+	if (rc != RC_OK)
+			return rc;
 
-	if (len > 0 && *(Mempos - 2) == '\r')
-		len--;             // Line ends by CRLF
+	int len = zutp->size;
 
-	memcpy(Tdbp->GetLine(), Fpos, len);
-	Tdbp->GetLine()[len] = '\0';
+	if (len % Lrecl) {
+		sprintf(g->Message, MSG(NOT_FIXED_LEN), zutp->fn, len, Lrecl);
+		return RC_FX;
+	}	// endif size
+
+	Memory = zutp->memory;
+	Top = Memory + len;
+	Rewind();
 	return RC_OK;
-} // end of ReadBuffer
+} // end of GetNext
 

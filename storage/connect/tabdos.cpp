@@ -101,6 +101,7 @@ DOSDEF::DOSDEF(void)
   Recfm = RECFM_VAR;
   Mapped = false;
 	Zipped = false;
+	Mulentries = false;
 	Padded = false;
   Huge = false;
   Accept = false;
@@ -131,12 +132,13 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
              : (am && (*am == 'B' || *am == 'b')) ? "B"
              : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
-	if (*dfm != 'D')
-		Zipped = GetBoolCatInfo("Zipped", false);
+	if ((Zipped = GetBoolCatInfo("Zipped", false)))
+		Mulentries = ((Entry = GetStringCatInfo(g, "Entry", NULL)))
+			         ? strchr(Entry, '*') || strchr(Entry, '?')
+			         : GetBoolCatInfo("Mulentries", false);
 
   Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
   Ofn = GetStringCatInfo(g, "Optname", Fn);
-	Entry = GetStringCatInfo(g, "Entry", NULL);
   GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
           (toupper(*buf) == 'B') ? RECFM_BIN :
@@ -344,14 +346,16 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   /*********************************************************************/
 	if (Zipped) {
 #if defined(ZIP_SUPPORT)
-		if (Recfm == RECFM_VAR)
-		  txfp = new(g) ZIPFAM(this);
-		else
-			txfp = new(g) ZPXFAM(this);
+		if (Recfm == RECFM_VAR) {
+			txfp = new(g)ZIPFAM(this);
+			tdbp = new(g)TDBDOS(this, txfp);
+		} else {
+			txfp = new(g)ZPXFAM(this);
+			tdbp = new(g)TDBFIX(this, txfp);
+		} // endif Recfm
 
-		tdbp = new(g) TDBDOS(this, txfp);
 #else   // !ZIP_SUPPORT
-		strcpy(g->Message, "ZIP not supported");
+		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
 		return NULL;
 #endif  // !ZIP_SUPPORT
 	} else if (Recfm == RECFM_DBF) {
@@ -559,7 +563,7 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
         Txfp->Reset();
         ((PZLBFAM)Txfp)->SetOptimized(false);
 #endif   // GZ_SUPPORT
-      } else if (Txfp->GetAmType() == TYPE_AM_BLK)
+			} else if (Txfp->GetAmType() == TYPE_AM_BLK)
         Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
 
       Txfp->SetTdbp(this);
@@ -630,7 +634,12 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
   defp->SetOptimized(0);
 
   // Estimate the number of needed blocks
-  block = (int)((MaxSize + (int)nrec - 1) / (int)nrec);
+	if ((block = (int)((MaxSize + (int)nrec - 1) / (int)nrec)) < 2) {
+		// This may be wrong to do in some cases
+		defp->RemoveOptValues(g);
+		strcpy(g->Message, MSG(TABLE_NOT_OPT));
+		return RC_INFO;                   // Not to be optimized
+	}	// endif block
 
   // We have to use local variables because Txfp->CurBlk is set
   // to Rows+1 by unblocked variable length table access methods.
@@ -973,13 +982,14 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
   PCOLDEF    cdp;
   PDOSDEF    defp = (PDOSDEF)To_Def;
   PCATLG     cat = defp->GetCat();
+	PDBUSER    dup = PlgGetUser(g);
 
 #if 0
   if (Mode == MODE_INSERT && Txfp->GetAmType() == TYPE_AM_DOS)
     return false;
 #endif   // __WIN__
 
-  if (defp->Optimized)
+	if (defp->Optimized || !(dup->Check & CHK_OPT))
     return false;                   // Already done or to be redone
 
   if (Ftype == RECFM_VAR || defp->Compressed == 2) {

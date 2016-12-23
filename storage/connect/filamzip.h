@@ -18,66 +18,100 @@ typedef class ZIPFAM *PZIPFAM;
 typedef class ZPXFAM *PZPXFAM;
 
 /***********************************************************************/
-/*  This is the ZIP file access method.                                */
+/*  This is the ZIP utility fonctions class.                           */
 /***********************************************************************/
-class DllExport ZIPFAM : public MAPFAM {
+class DllExport ZIPUTIL : public BLOCK {
 public:
 	// Constructor
-	ZIPFAM(PDOSDEF tdp);
-	ZIPFAM(PZIPFAM txfp);
+	ZIPUTIL(PSZ tgt, bool mul);
+//ZIPUTIL(ZIPUTIL *zutp);
 
 	// Implementation
-	virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
-  virtual PTXF Duplicate(PGLOBAL g) {return (PTXF) new(g) ZIPFAM(this);}
+//PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)ZIPFAM(this); }
 
 	// Methods
-	virtual int  GetFileLength(PGLOBAL g);
-	virtual int  Cardinality(PGLOBAL g) {return (g) ? 10 : 1;}
-//virtual int  MaxBlkSize(PGLOBAL g, int s) {return s;}
-	virtual bool OpenTableFile(PGLOBAL g);
-	virtual bool DeferReading(void) {return false;}
-  virtual int  ReadBuffer(PGLOBAL g);
-//virtual int  WriteBuffer(PGLOBAL g);
-//virtual int  DeleteRecords(PGLOBAL g, int irc);
-//virtual void CloseTableFile(PGLOBAL g, bool abort);
-	        void close(void);
-
-protected:
-	bool open(PGLOBAL g, const char *filename);
+	virtual bool OpenTable(PGLOBAL g, MODE mode, char *fn);
+	bool open(PGLOBAL g, char *fn);
 	bool openEntry(PGLOBAL g);
+	void close(void);
 	void closeEntry(void);
 	bool WildMatch(PSZ pat, PSZ str);
 	int  findEntry(PGLOBAL g, bool next);
+	int  nextEntry(PGLOBAL g);
 
 	// Members
-	unzFile         zipfile;							   // The ZIP container file
-//PSZ             zfn;									   // The ZIP file name
-	PSZ             target;									 // The target file name
-	unz_file_info   finfo;									 // The current file info
-//char            fn[FILENAME_MAX];     	 // The current file name
-	bool            entryopen;							 // True when open current entry
-	int             multiple;                // Multiple targets
+	unzFile         zipfile;							// The ZIP container file
+	PSZ             target;								// The target file name
+	unz_file_info   finfo;								// The current file info
+	PFBLOCK         fp;
+	char           *memory;
+	uint            size;
+	int             multiple;             // Multiple targets
+	bool            entryopen;						// True when open current entry
+	char            fn[FILENAME_MAX];     // The current entry file name
 	char            mapCaseTable[256];
+}; // end of ZIPFAM
+
+/***********************************************************************/
+/*  This is the ZIP file access method.                                */
+/***********************************************************************/
+class DllExport ZIPFAM : public MAPFAM {
+	friend class ZPXFAM;
+public:
+	// Constructors
+	ZIPFAM(PDOSDEF tdp);
+	ZIPFAM(PZIPFAM txfp);
+	ZIPFAM(PDOSDEF tdp, PZPXFAM txfp);
+
+	// Implementation
+	virtual AMT  GetAmType(void) { return TYPE_AM_ZIP; }
+	virtual PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)ZIPFAM(this); }
+
+	// Methods
+	virtual int  Cardinality(PGLOBAL g);
+	virtual int  GetFileLength(PGLOBAL g);
+//virtual int  MaxBlkSize(PGLOBAL g, int s) {return s;}
+	virtual bool OpenTableFile(PGLOBAL g);
+	virtual bool DeferReading(void) { return false; }
+	virtual int  GetNext(PGLOBAL g);
+//virtual int  ReadBuffer(PGLOBAL g);
+//virtual int  WriteBuffer(PGLOBAL g);
+//virtual int  DeleteRecords(PGLOBAL g, int irc);
+//virtual void CloseTableFile(PGLOBAL g, bool abort);
+
+protected:
+	// Members
+	ZIPUTIL *zutp;
+	PSZ      target;
+	bool     mul;
 }; // end of ZIPFAM
 
 /***********************************************************************/
 /*  This is the fixed ZIP file access method.                          */
 /***********************************************************************/
-class DllExport ZPXFAM : public ZIPFAM {
+class DllExport ZPXFAM : public MPXFAM {
+	friend class ZIPFAM;
 public:
-	// Constructor
+	// Constructors
 	ZPXFAM(PDOSDEF tdp);
 	ZPXFAM(PZPXFAM txfp);
 
 	// Implementation
-	virtual PTXF Duplicate(PGLOBAL g) {return (PTXF) new(g) ZPXFAM(this);}
+	virtual AMT  GetAmType(void) { return TYPE_AM_ZIP; }
+	virtual PTXF Duplicate(PGLOBAL g) { return (PTXF) new(g)ZPXFAM(this); }
 
 	// Methods
-	virtual int  ReadBuffer(PGLOBAL g);
+	virtual int  GetFileLength(PGLOBAL g);
+	virtual int  Cardinality(PGLOBAL g);
+	virtual bool OpenTableFile(PGLOBAL g);
+	virtual int  GetNext(PGLOBAL g);
+//virtual int  ReadBuffer(PGLOBAL g);
 
 protected:
 	// Members
-	int Lrecl;
+	ZIPUTIL *zutp;
+	PSZ      target;
+	bool     mul;
 }; // end of ZPXFAM
 
 #endif // __FILAMZIP_H

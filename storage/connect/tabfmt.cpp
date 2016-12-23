@@ -177,9 +177,14 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, PTOS topt, bool info)
 		htrc("File %s Sep=%c Qot=%c Header=%d maxerr=%d\n",
 		SVP(tdp->Fn), tdp->Sep, tdp->Qot, tdp->Header, tdp->Maxerr);
 
-	if (tdp->Zipped)
-		tdbp = new(g) TDBCSV(tdp, new(g) ZIPFAM(tdp));
-	else
+	if (tdp->Zipped) {
+#if defined(ZIP_SUPPORT)
+		tdbp = new(g)TDBCSV(tdp, new(g)ZIPFAM(tdp));
+#else   // !ZIP_SUPPORT
+		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+		return NULL;
+#endif  // !ZIP_SUPPORT
+	} else
 		tdbp = new(g) TDBCSV(tdp, new(g) DOSFAM(tdp));
 
 	tdbp->SetMode(MODE_READ);
