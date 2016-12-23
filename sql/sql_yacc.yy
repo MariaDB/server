@@ -12998,8 +12998,9 @@ truncate:
             lex->select_lex.init_order();
             YYPS->m_lock_type= TL_WRITE;
             YYPS->m_mdl_type= MDL_EXCLUSIVE;
+            Select->vers_conditions.empty();
           }
-          table_name opt_lock_wait_timeout
+          table_name opt_for_system_time_clause opt_lock_wait_timeout
           {
             LEX* lex= thd->lex;
             DBUG_ASSERT(!lex->m_sql_cmd);

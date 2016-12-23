@@ -667,8 +667,8 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   DBUG_RETURN(res);
 }
 
-static int
-vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *slex)
+int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
+                      SELECT_LEX *slex)
 {
   DBUG_ENTER("vers_setup_select");
 #define newx new (thd->mem_root)

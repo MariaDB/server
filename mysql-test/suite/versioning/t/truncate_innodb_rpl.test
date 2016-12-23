@@ -1,0 +1,10 @@
+-- source include/have_binlog_format_row.inc
+-- source include/master-slave.inc
+-- source include/have_innodb.inc
+
+create table t (a int) with system versioning engine=innodb;
+--error ER_VERS_NOT_ALLOWED
+truncate t for system_time all;
+drop table t;
+
+-- source include/rpl_end.inc

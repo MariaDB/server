@@ -4079,7 +4079,7 @@ protected:
   virtual int delete_table(const char *name);
 
 public:
-  inline bool check_table_binlog_row_based(bool binlog_row);
+  bool check_table_binlog_row_based(bool binlog_row);
 private:
   /* Cache result to avoid extra calls */
   inline void mark_trx_read_write()

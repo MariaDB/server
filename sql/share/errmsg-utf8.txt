@@ -7522,3 +7522,6 @@ WARN_VERS_PARAMETERS
 
 WARN_VERS_PART_ROTATION
         eng "Switching from partition %`s to %`s"
+
+ER_VERS_NOT_ALLOWED
+        eng "%`s is not allowed for versioned table"

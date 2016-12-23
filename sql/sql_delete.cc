@@ -215,19 +215,13 @@ void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
 inline
 int TABLE::delete_row()
 {
-  int error;
-  if (!versioned_by_sql())
-    error= file->ha_delete_row(record[0]);
-  else
-  {
-    store_record(this, record[1]);
-    Field *sys_trx_end= vers_end_field();
-    sys_trx_end->set_time();
-    error= file->ha_update_row(record[1], record[0]);
-  }
-  return error;
-}
+  if (!versioned_by_sql() || !vers_end_field()->is_max())
+    return file->ha_delete_row(record[0]);
 
+  store_record(this, record[1]);
+  vers_end_field()->set_time();
+  return file->ha_update_row(record[1], record[0]);
+}
 
 /**
   Implement DELETE SQL word.
@@ -268,6 +262,34 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   create_explain_query(thd->lex, thd->mem_root);
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
     DBUG_RETURN(TRUE);
+
+  bool truncate_history=
+      select_lex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED;
+  if (truncate_history)
+  {
+    TABLE *table= table_list->table;
+    DBUG_ASSERT(table);
+
+    if (table->versioned_by_engine() &&
+        table->file->check_table_binlog_row_based(1))
+    {
+      my_error(ER_VERS_NOT_ALLOWED, MYF(0),
+               "TRUNCATE FOR SYSTEM_TIME with row-based replication");
+      DBUG_RETURN(TRUE);
+    }
+
+    DBUG_ASSERT(!conds);
+    if (vers_setup_select(thd, table_list, &conds, select_lex))
+      DBUG_RETURN(TRUE);
+
+    // trx_sees() in InnoDB reads sys_trx_start
+    if (!table->versioned_by_sql() &&
+        (select_lex->vers_conditions.type == FOR_SYSTEM_TIME_BETWEEN ||
+         select_lex->vers_conditions.type == FOR_SYSTEM_TIME_FROM_TO))
+    {
+      bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
+    }
+  }
 
   if (mysql_handle_list_of_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
@@ -577,9 +599,13 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   while (!(error=info.read_record(&info)) && !thd->killed &&
 	 ! thd->is_error())
   {
-    if (table->versioned() && !table->vers_end_field()->is_max())
+    if (table->versioned())
     {
-      continue;
+      bool row_is_alive= table->vers_end_field()->is_max();
+      if (truncate_history && row_is_alive)
+        continue;
+      if (!truncate_history && !row_is_alive)
+        continue;
     }
 
     explain->tracker.on_record_read();
@@ -589,7 +615,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (!select || select->skip_record(thd) > 0)
     {
       explain->tracker.on_record_after_where();
-      if (table->triggers &&
+      if (!truncate_history && table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                             TRG_ACTION_BEFORE, FALSE))
       {
@@ -607,7 +633,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       if (!error)
       {
 	deleted++;
-        if (table->triggers &&
+        if (!truncate_history && table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                               TRG_ACTION_AFTER, FALSE))
         {

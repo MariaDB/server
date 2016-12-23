@@ -5659,7 +5659,7 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
     1  Row needs to be logged
 */
 
-inline bool handler::check_table_binlog_row_based(bool binlog_row)
+bool handler::check_table_binlog_row_based(bool binlog_row)
 {
   if (unlikely((table->in_use->variables.sql_log_bin_off)))
     return 0;                            /* Called by partitioning engine */

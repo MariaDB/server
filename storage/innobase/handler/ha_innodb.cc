@@ -9644,7 +9644,11 @@ ha_innobase::delete_row(
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	error = row_update_for_mysql((byte*) record, m_prebuilt);
+	bool delete_history_row =
+		table->versioned() && !table->vers_end_field()->is_max();
+
+	error = row_update_for_mysql(
+		(byte *)record, m_prebuilt, delete_history_row);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 

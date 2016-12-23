@@ -1,0 +1,7 @@
+include/master-slave.inc
+[connection master]
+create table t (a int) with system versioning engine=innodb;
+truncate t for system_time all;
+ERROR HY000: `TRUNCATE FOR SYSTEM_TIME with row-based replication` is not allowed for versioned table
+drop table t;
+include/rpl_end.inc

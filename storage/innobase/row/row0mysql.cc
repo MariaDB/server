@@ -1859,7 +1859,8 @@ static
 dberr_t
 row_update_for_mysql_using_upd_graph(
 	const byte*	mysql_rec,
-	row_prebuilt_t*	prebuilt)
+	row_prebuilt_t*	prebuilt,
+	bool		delete_history_row)
 {
 	trx_savept_t	savept;
 	dberr_t		err;
@@ -1993,7 +1994,7 @@ row_update_for_mysql_using_upd_graph(
 
 run_again:
 	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED) &&
-		(node->is_delete || node->versioned))
+		(node->is_delete || node->versioned) && !delete_history_row)
 	{
 		/* System Versioning: modify update vector to set
 		   sys_trx_start (or sys_trx_end in case of DELETE)
@@ -2257,10 +2258,12 @@ error:
 dberr_t
 row_update_for_mysql(
 	const byte*		mysql_rec,
-	row_prebuilt_t*		prebuilt)
+	row_prebuilt_t*		prebuilt,
+	bool			delete_history_row)
 {
 	ut_a(prebuilt->template_type == ROW_MYSQL_WHOLE_ROW);
-	return(row_update_for_mysql_using_upd_graph(mysql_rec, prebuilt));
+	return (row_update_for_mysql_using_upd_graph(
+		mysql_rec, prebuilt, delete_history_row));
 }
 
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
