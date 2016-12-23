@@ -1,7 +1,7 @@
 /*************** Tabxml H Declares Source Code File (.H) ***************/
-/*  Name: TABXML.H    Version 1.6                                      */
+/*  Name: TABXML.H    Version 1.7                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2007-2015    */
+/*  (C) Copyright to the author Olivier BERTRAND          2007-2016    */
 /*                                                                     */
 /*  This file contains the XML table classes declares.                 */
 /***********************************************************************/
@@ -42,12 +42,15 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   char   *DefNs;                  /* Dummy name of default namespace   */
   char   *Attrib;                 /* Table node attributes             */
   char   *Hdattr;                 /* Header node attributes            */
-  int     Coltype;                /* Default column type               */
+	char   *Entry;						      /* Zip entry name or pattern				 */
+	int     Coltype;                /* Default column type               */
   int     Limit;                  /* Limit of multiple values          */
   int     Header;                 /* n first rows are header rows      */
   bool    Xpand;                  /* Put multiple tags in several rows */
   bool    Usedom;                 /* True: DOM, False: libxml2         */
-  }; // end of XMLDEF
+	bool    Zipped;                 /* True: Zipped XML file(s)          */
+	bool    Mulentries;             /* True: multiple entries in zip file*/
+}; // end of XMLDEF
 
 #if defined(INCLUDE_TDBXML)
 /***********************************************************************/
@@ -122,7 +125,9 @@ class DllExport TDBXML : public TDBASE {
   bool    Bufdone;                  // True when column buffers allocated
   bool    Nodedone;                 // True when column nodes allocated
   bool    Void;                     // True if the file does not exist
-  char   *Xfile;                    // The XML file
+	bool    Zipped;                   // True if Zipped XML file(s)
+	bool    Mulentries;               // True if multiple entries in zip file
+	char   *Xfile;                    // The XML file
   char   *Enc;                      // New XML table file encoding
   char   *Tabname;                  // Name of Table node
   char   *Rowname;                  // Name of first level nodes
@@ -133,7 +138,8 @@ class DllExport TDBXML : public TDBASE {
   char   *DefNs;                    // Dummy name of default namespace
   char   *Attrib;                   // Table node attribut(s)
   char   *Hdattr;                   // Header node attribut(s)
-  int     Coltype;                  // Default column type
+	char   *Entry;						        // Zip entry name or pattern
+	int     Coltype;                  // Default column type
   int     Limit;                    // Limit of multiple values
   int     Header;                   // n first rows are header rows
   int     Multiple;                 // If multiple files

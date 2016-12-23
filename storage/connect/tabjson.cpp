@@ -127,9 +127,14 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
           tdp->Fn, tdp->Objname, tdp->Pretty, lvl);
 
   if (tdp->Pretty == 2) {
-		if (tdp->Zipped)
-      tjsp = new(g) TDBJSON(tdp, new(g) ZIPFAM(tdp));
-		else
+		if (tdp->Zipped) {
+#if defined(ZIP_SUPPORT)
+			tjsp = new(g) TDBJSON(tdp, new(g) ZIPFAM(tdp));
+#else   // !ZIP_SUPPORT
+			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+			return NULL;
+#endif  // !ZIP_SUPPORT
+		} else
 		  tjsp = new(g) TDBJSON(tdp, new(g) MAPFAM(tdp));
 
     if (tjsp->MakeDocument(g))
@@ -144,9 +149,14 @@ PQRYRES JSONColumns(PGLOBAL g, char *db, PTOS topt, bool info)
 
     tdp->Ending = GetIntegerTableOption(g, topt, "Ending", CRLF);
 
-		if (tdp->Zipped)
-			tjnp = new(g) TDBJSN(tdp, new(g) ZIPFAM(tdp));
-		else
+		if (tdp->Zipped) {
+#if defined(ZIP_SUPPORT)
+			tjnp = new(g)TDBJSN(tdp, new(g)ZIPFAM(tdp));
+#else   // !ZIP_SUPPORT
+			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+			return NULL;
+#endif  // !ZIP_SUPPORT
+		} else
 			tjnp = new(g) TDBJSN(tdp, new(g) DOSFAM(tdp));
 
     tjnp->SetMode(MODE_READ);
@@ -467,9 +477,14 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 		((TDBJSN*)tdbp)->G = g;
 #endif
 	} else {
-		if (Zipped)
-			txfp = new(g) ZIPFAM(this);
-		else
+		if (Zipped)	{
+#if defined(ZIP_SUPPORT)
+			txfp = new(g)ZIPFAM(this);
+#else   // !ZIP_SUPPORT
+			sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+			return NULL;
+#endif  // !ZIP_SUPPORT
+		} else
 			txfp = new(g) MAPFAM(this);
 
     tdbp = new(g) TDBJSON(this, txfp);

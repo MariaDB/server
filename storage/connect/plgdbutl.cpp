@@ -939,7 +939,7 @@ int PlugCloseFile(PGLOBAL g __attribute__((unused)), PFBLOCK fp, bool all)
 #endif   // LIBXML2_SUPPORT
 #ifdef ZIP_SUPPORT
 		case TYPE_FB_ZIP:
-			((PZIPFAM)fp->File)->close();
+			((ZIPUTIL*)fp->File)->close();
 			fp->Memory = NULL;
 			fp->Mode = MODE_ANY;
 			fp->Count = 0;
