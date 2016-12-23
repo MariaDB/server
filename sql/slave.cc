@@ -4980,6 +4980,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   if (mi->using_parallel())
     rli->parallel.wait_for_done(thd, rli);
 
+ err:
   /* Thread stopped. Print the current replication position to the log */
   {
     StringBuffer<100> tmp;
@@ -4993,8 +4994,6 @@ pthread_handler_t handle_slave_sql(void *arg)
                           "log '%s' at position %llu%s", RPL_LOG_NAME,
                           rli->group_master_log_pos, tmp.c_ptr_safe());
   }
-
- err:
 
   /*
     Once again, in case we aborted with an error and skipped the first one.
