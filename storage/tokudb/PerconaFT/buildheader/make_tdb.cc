@@ -367,8 +367,8 @@ static void print_db_env_struct (void) {
                              "int (*checkpointing_get_period)             (DB_ENV*, uint32_t*) /* Retrieve the delay between automatic checkpoints.  0 means disabled. */",
                              "int (*cleaner_set_period)                   (DB_ENV*, uint32_t) /* Change the delay between automatic cleaner attempts.  0 means disabled. */",
                              "int (*cleaner_get_period)                   (DB_ENV*, uint32_t*) /* Retrieve the delay between automatic cleaner attempts.  0 means disabled. */",
-                             "int (*cleaner_set_iterations)               (DB_ENV*, uint32_t) /* Change the number of attempts on each cleaner invokation.  0 means disabled. */",
-                             "int (*cleaner_get_iterations)               (DB_ENV*, uint32_t*) /* Retrieve the number of attempts on each cleaner invokation.  0 means disabled. */",
+                             "int (*cleaner_set_iterations)               (DB_ENV*, uint32_t) /* Change the number of attempts on each cleaner invocation.  0 means disabled. */",
+                             "int (*cleaner_get_iterations)               (DB_ENV*, uint32_t*) /* Retrieve the number of attempts on each cleaner invocation.  0 means disabled. */",
                              "int (*evictor_set_enable_partial_eviction)  (DB_ENV*, bool) /* Enables or disabled partial eviction of nodes from cachetable. */",
                              "int (*evictor_get_enable_partial_eviction)  (DB_ENV*, bool*) /* Retrieve the status of partial eviction of nodes from cachetable. */",
                              "int (*checkpointing_postpone)               (DB_ENV*) /* Use for 'rename table' or any other operation that must be disjoint from a checkpoint */",
@@ -422,6 +422,9 @@ static void print_db_env_struct (void) {
                              "int (*set_checkpoint_pool_threads)(DB_ENV *, uint32_t)",
                              "void (*set_check_thp)(DB_ENV *, bool new_val)",
                              "bool (*get_check_thp)(DB_ENV *)",
+                             "bool (*set_dir_per_db)(DB_ENV *, bool new_val)",
+                             "bool (*get_dir_per_db)(DB_ENV *)",
+                             "const char *(*get_data_dir)(DB_ENV *env)",
                              NULL};
 
         sort_and_dump_fields("db_env", true, extra);

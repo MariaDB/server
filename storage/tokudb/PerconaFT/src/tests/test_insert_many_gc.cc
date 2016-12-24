@@ -78,7 +78,7 @@ static void test_insert_many_gc(void) {
     // from having an MVCC stack of size 'N'. At the time of this
     // writing, we run full GC on leaf-inject when the leaf is
     // 32mb or larger. A good invariant is that the max LE size
-    // never grew larger than 35mb and that the max commited xr stack
+    // never grew larger than 35mb and that the max committed xr stack
     // length never exceeded 35
     const uint64_t le_max_memsize = get_engine_status_val(env, "LE_MAX_MEMSIZE");
     const uint64_t le_max_committed_xr = get_engine_status_val(env, "LE_MAX_COMMITTED_XR");

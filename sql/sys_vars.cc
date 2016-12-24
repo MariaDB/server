@@ -4351,8 +4351,7 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
              mi->connection_name.str);
     return true;
   }
-  if (mi->using_gtid != Master_info::USE_GTID_NO &&
-      opt_slave_parallel_threads > 0)
+  if (mi->using_gtid != Master_info::USE_GTID_NO && mi->using_parallel())
   {
     ulong domain_count;
     mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);

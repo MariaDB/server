@@ -235,7 +235,7 @@ void toku_decompress (Bytef       *dest,   uLongf destLen,
         strm.zalloc = Z_NULL;
         strm.zfree = Z_NULL;
         strm.opaque = Z_NULL;
-        char windowBits = source[1];
+        int8_t windowBits = source[1];
         int r = inflateInit2(&strm, windowBits);
         lazy_assert(r == Z_OK);
         strm.next_out = dest;

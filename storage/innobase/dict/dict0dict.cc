@@ -1614,6 +1614,7 @@ struct dict_foreign_remove_partial
 		if (table != NULL) {
 			table->referenced_set.erase(foreign);
 		}
+		dict_foreign_free(foreign);
 	}
 };
 
@@ -3535,8 +3536,7 @@ dict_foreign_add_to_cache(
 	}
 
 	if (for_in_cache) {
-		/* Free the foreign object */
-		mem_heap_free(foreign->heap);
+		dict_foreign_free(foreign);
 	} else {
 		for_in_cache = foreign;
 	}
@@ -3564,7 +3564,7 @@ dict_foreign_add_to_cache(
 				" the ones in table.");
 
 			if (for_in_cache == foreign) {
-				mem_heap_free(foreign->heap);
+				dict_foreign_free(foreign);
 			}
 
 			return(DB_CANNOT_ADD_CONSTRAINT);
@@ -3620,7 +3620,7 @@ dict_foreign_add_to_cache(
 							be one */
 				}
 
-				mem_heap_free(foreign->heap);
+				dict_foreign_free(foreign);
 			}
 
 			return(DB_CANNOT_ADD_CONSTRAINT);

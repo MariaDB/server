@@ -325,6 +325,8 @@ fil_space_get_by_id(
 		    ut_ad(space->magic_n == FIL_SPACE_MAGIC_N),
 		    space->id == id);
 
+	/* The system tablespace must always be found */
+	ut_ad(space || id != 0 || srv_is_being_started);
 	return(space);
 }
 
@@ -1680,6 +1682,9 @@ fil_close_all_files(void)
 {
 	fil_space_t*	space;
 
+	// Must check both flags as it's possible for this to be called during
+	// server startup with srv_track_changed_pages == true but
+	// srv_redo_log_thread_started == false
 	if (srv_track_changed_pages && srv_redo_log_thread_started)
 		os_event_wait(srv_redo_log_tracked_event);
 
@@ -1719,6 +1724,9 @@ fil_close_log_files(
 {
 	fil_space_t*	space;
 
+	// Must check both flags as it's possible for this to be called during
+	// server startup with srv_track_changed_pages == true but
+	// srv_redo_log_thread_started == false
 	if (srv_track_changed_pages && srv_redo_log_thread_started)
 		os_event_wait(srv_redo_log_tracked_event);
 
