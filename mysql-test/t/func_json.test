@@ -170,6 +170,8 @@ select json_depth('[10, {"a": 20}]');
 select json_length('');
 select json_length('{}');
 select json_length('[1, 2, {"a": 3}]');
+select json_length('{"a": 1, "b": {"c": 30}}', '$.b');
+select json_length('{"a": 1, "b": {"c": 30}}');
 
 create table json (j INT);
 show create table json;

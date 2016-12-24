@@ -67,8 +67,8 @@ protected:
   String tmp_js, tmp_path;
 
 public:
-  Item_func_json_exists(THD *thd, Item *js, Item *path):
-    Item_int_func(thd, js, path) {}
+  Item_func_json_exists(THD *thd, Item *js, Item *i_path):
+    Item_int_func(thd, js, i_path) {}
   const char *func_name() const { return "json_exists"; }
   bool is_bool_type() { return true; }
   void fix_length_and_dec();
@@ -85,8 +85,8 @@ protected:
   String tmp_js, tmp_path;
 
 public:
-  Item_func_json_value(THD *thd, Item *js, Item *path):
-    Item_str_func(thd, js, path) {}
+  Item_func_json_value(THD *thd, Item *js, Item *i_path):
+    Item_str_func(thd, js, i_path) {}
   const char *func_name() const { return "json_value"; }
   void fix_length_and_dec();
   String *val_str(String *);
@@ -99,8 +99,8 @@ public:
 class Item_func_json_query: public Item_func_json_value
 {
 public:
-  Item_func_json_query(THD *thd, Item *js, Item *path):
-    Item_func_json_value(thd, js, path) {}
+  Item_func_json_query(THD *thd, Item *js, Item *i_path):
+    Item_func_json_value(thd, js, i_path) {}
   const char *func_name() const { return "json_query"; }
   bool check_and_get_value(json_engine_t *je, String *res, int *error);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -291,12 +291,14 @@ public:
 class Item_func_json_length: public Item_int_func
 {
 protected:
+  json_path_with_flags path;
   String tmp_js;
   String tmp_path;
 public:
   Item_func_json_length(THD *thd, List<Item> &list):
     Item_int_func(thd, list) {}
   const char *func_name() const { return "json_length"; }
+  void fix_length_and_dec();
   longlong val_int();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_length>(thd, mem_root, this); }

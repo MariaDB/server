@@ -425,6 +425,12 @@ json_length('{}')
 select json_length('[1, 2, {"a": 3}]');
 json_length('[1, 2, {"a": 3}]')
 3
+select json_length('{"a": 1, "b": {"c": 30}}', '$.b');
+json_length('{"a": 1, "b": {"c": 30}}', '$.b')
+1
+select json_length('{"a": 1, "b": {"c": 30}}');
+json_length('{"a": 1, "b": {"c": 30}}')
+2
 create table json (j INT);
 show create table json;
 Table	Create Table
