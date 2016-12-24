@@ -5875,6 +5875,30 @@ int handler::ha_reset()
 }
 
 
+static int check_wsrep_max_ws_rows()
+{
+#ifdef WITH_WSREP
+  if (wsrep_max_ws_rows)
+  {
+    THD *thd= current_thd;
+
+    if (!WSREP(thd))
+      return 0;
+
+    thd->wsrep_affected_rows++;
+    if (thd->wsrep_exec_mode != REPL_RECV &&
+        thd->wsrep_affected_rows > wsrep_max_ws_rows)
+    {
+      trans_rollback_stmt(thd) || trans_rollback(thd);
+      my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
+      return ER_ERROR_DURING_COMMIT;
+    }
+  }
+#endif /* WITH_WSREP */
+  return 0;
+}
+
+
 int handler::ha_write_row(uchar *buf)
 {
   int error;
@@ -5897,20 +5921,9 @@ int handler::ha_write_row(uchar *buf)
   rows_changed++;
   if (unlikely(error= binlog_log_row(table, 0, buf, log_func)))
     DBUG_RETURN(error); /* purecov: inspected */
-#ifdef WITH_WSREP
-  current_thd->wsrep_affected_rows++;
-  if (wsrep_max_ws_rows &&
-      current_thd->wsrep_exec_mode != REPL_RECV &&
-      current_thd->wsrep_affected_rows > wsrep_max_ws_rows)
-  {
-    trans_rollback_stmt(current_thd) || trans_rollback(current_thd);
-    my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
-    DBUG_RETURN(ER_ERROR_DURING_COMMIT);
-  }
-#endif /* WITH_WSREP */
 
   DEBUG_SYNC_C("ha_write_row_end");
-  DBUG_RETURN(0);
+  DBUG_RETURN(check_wsrep_max_ws_rows());
 }
 
 
@@ -5941,18 +5954,7 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
   rows_changed++;
   if (unlikely(error= binlog_log_row(table, old_data, new_data, log_func)))
     return error;
-#ifdef WITH_WSREP
-  current_thd->wsrep_affected_rows++;
-  if (wsrep_max_ws_rows &&
-      current_thd->wsrep_exec_mode != REPL_RECV &&
-      current_thd->wsrep_affected_rows > wsrep_max_ws_rows)
-  {
-    trans_rollback_stmt(current_thd) || trans_rollback(current_thd);
-    my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
-    return ER_ERROR_DURING_COMMIT;
-  }
-#endif /* WITH_WSREP */
-  return 0;
+  return check_wsrep_max_ws_rows();
 }
 
 int handler::ha_delete_row(const uchar *buf)
@@ -5979,18 +5981,7 @@ int handler::ha_delete_row(const uchar *buf)
   rows_changed++;
   if (unlikely(error= binlog_log_row(table, buf, 0, log_func)))
     return error;
-#ifdef WITH_WSREP
-  current_thd->wsrep_affected_rows++;
-  if (wsrep_max_ws_rows &&
-      current_thd->wsrep_exec_mode != REPL_RECV &&
-      current_thd->wsrep_affected_rows > wsrep_max_ws_rows)
-  {
-    trans_rollback_stmt(current_thd) || trans_rollback(current_thd);
-    my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
-    return ER_ERROR_DURING_COMMIT;
-  }
-#endif /* WITH_WSREP */
-  return 0;
+  return check_wsrep_max_ws_rows();
 }
 
 
@@ -6105,6 +6096,13 @@ void handler::set_lock_type(enum thr_lock_type lock)
   @note Aborting the transaction does NOT end it, it still has to
   be rolled back with hton->rollback().
 
+  @note It is safe to abort from one thread (bf_thd) the transaction,
+  running in another thread (victim_thd), because InnoDB's lock_sys and
+  trx_mutex guarantee the necessary protection. However, its not safe
+  to access victim_thd->transaction, because it's not protected from
+  concurrent accesses. And it's an overkill to take LOCK_plugin and
+  iterate the whole installed_htons[] array every time.
+
   @param bf_thd       brute force THD asking for the abort
   @param victim_thd   victim THD to be aborted
 
@@ -6121,29 +6119,16 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
     DBUG_RETURN(0);
   }
 
-  /* Try statement transaction if standard one is not set. */
-  THD_TRANS *trans= (victim_thd->transaction.all.ha_list) ?
-    &victim_thd->transaction.all : &victim_thd->transaction.stmt;
-
-  Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
-
-  for (; ha_info; ha_info= ha_info_next)
+  handlerton *hton= installed_htons[DB_TYPE_INNODB];
+  if (hton && hton->abort_transaction)
   {
-    handlerton *hton= ha_info->ht();
-    if (!hton->abort_transaction)
-    {
-      /* Skip warning for binlog & wsrep. */
-      if (hton->db_type != DB_TYPE_BINLOG && hton != wsrep_hton)
-      {
-        WSREP_WARN("Cannot abort transaction.");
-      }
-    }
-    else
-    {
-      hton->abort_transaction(hton, bf_thd, victim_thd, signal);
-    }
-    ha_info_next= ha_info->next();
+    hton->abort_transaction(hton, bf_thd, victim_thd, signal);
   }
+  else
+  {
+    WSREP_WARN("Cannot abort InnoDB transaction");
+  }
+
   DBUG_RETURN(0);
 }
 

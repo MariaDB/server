@@ -382,7 +382,7 @@ static bool binlog_format_used= false;
 LEX_STRING opt_init_connect, opt_init_slave;
 mysql_cond_t COND_thread_cache;
 static mysql_cond_t COND_flush_thread_cache;
-mysql_cond_t COND_slave_init;
+mysql_cond_t COND_slave_background;
 static DYNAMIC_ARRAY all_options;
 
 /* Global variables */
@@ -720,7 +720,7 @@ mysql_mutex_t
   LOCK_crypt,
   LOCK_global_system_variables,
   LOCK_user_conn, LOCK_slave_list, LOCK_active_mi,
-  LOCK_connection_count, LOCK_error_messages, LOCK_slave_init;
+  LOCK_connection_count, LOCK_error_messages, LOCK_slave_background;
 
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
@@ -902,7 +902,7 @@ PSI_mutex_key key_LOCK_gtid_waiting;
 
 PSI_mutex_key key_LOCK_after_binlog_sync;
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
-  key_LOCK_slave_init;
+  key_LOCK_slave_background;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
 
 static PSI_mutex_info all_server_mutexes[]=
@@ -968,7 +968,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_after_binlog_sync, "LOCK_after_binlog_sync", PSI_FLAG_GLOBAL},
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
-  { &key_LOCK_slave_init, "LOCK_slave_init", PSI_FLAG_GLOBAL},
+  { &key_LOCK_slave_background, "LOCK_slave_background", PSI_FLAG_GLOBAL},
   { &key_LOG_INFO_lock, "LOG_INFO::lock", 0},
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
@@ -1023,7 +1023,7 @@ PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
-  key_COND_prepare_ordered, key_COND_slave_init;
+  key_COND_prepare_ordered, key_COND_slave_background;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
 static PSI_cond_info all_server_conds[]=
@@ -1073,7 +1073,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
   { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
-  { &key_COND_slave_init, "COND_slave_init", 0},
+  { &key_COND_slave_background, "COND_slave_background", 0},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
   { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0}
 };
@@ -1081,7 +1081,7 @@ static PSI_cond_info all_server_conds[]=
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
-  key_thread_slave_init, key_rpl_parallel_thread;
+  key_thread_slave_background, key_rpl_parallel_thread;
 
 static PSI_thread_info all_server_threads[]=
 {
@@ -1107,7 +1107,7 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_main, "main", PSI_FLAG_GLOBAL},
   { &key_thread_one_connection, "one_connection", 0},
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
-  { &key_thread_slave_init, "slave_init", PSI_FLAG_GLOBAL},
+  { &key_thread_slave_background, "slave_background", PSI_FLAG_GLOBAL},
   { &key_rpl_parallel_thread, "rpl_parallel_thread", 0}
 };
 
@@ -2268,8 +2268,8 @@ static void clean_up_mutexes()
   mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_after_binlog_sync);
   mysql_mutex_destroy(&LOCK_commit_ordered);
-  mysql_mutex_destroy(&LOCK_slave_init);
-  mysql_cond_destroy(&COND_slave_init);
+  mysql_mutex_destroy(&LOCK_slave_background);
+  mysql_cond_destroy(&COND_slave_background);
   DBUG_VOID_RETURN;
 }
 
@@ -4096,6 +4096,7 @@ static int init_common_variables()
 
   max_system_variables.pseudo_thread_id= (ulong)~0;
   server_start_time= flush_status_time= my_time(0);
+  my_disable_copystat_in_redel= 1;
 
   global_rpl_filter= new Rpl_filter;
   binlog_filter= new Rpl_filter;
@@ -4167,6 +4168,8 @@ static int init_common_variables()
     return 1;
   }
 
+  opt_log_basename= const_cast<char *>("mysql");
+
   if (gethostname(glob_hostname,sizeof(glob_hostname)) < 0)
   {
     /*
@@ -4176,9 +4179,8 @@ static int init_common_variables()
     strmake(glob_hostname, STRING_WITH_LEN("localhost"));
     sql_print_warning("gethostname failed, using '%s' as hostname",
                         glob_hostname);
-    opt_log_basename= const_cast<char *>("mysql");
   }
-  else
+  else if (is_filename_allowed(glob_hostname, strlen(glob_hostname), FALSE))
     opt_log_basename= glob_hostname;
 
   strmake(pidfile_name, opt_log_basename, sizeof(pidfile_name)-5);
@@ -4638,9 +4640,9 @@ static int init_thread_environment()
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
-  mysql_mutex_init(key_LOCK_slave_init, &LOCK_slave_init,
+  mysql_mutex_init(key_LOCK_slave_background, &LOCK_slave_background,
                    MY_MUTEX_INIT_SLOW);
-  mysql_cond_init(key_COND_slave_init, &COND_slave_init, NULL);
+  mysql_cond_init(key_COND_slave_background, &COND_slave_background, NULL);
 
 #ifdef HAVE_OPENSSL
   mysql_mutex_init(key_LOCK_des_key_file,
@@ -5075,6 +5077,12 @@ static int init_server_components()
   }
 
   /*
+    Since some wsrep threads (THDs) are create before plugins are
+    initialized, LOCK_plugin mutex needs to be initialized here.
+  */
+  plugin_mutex_init();
+
+  /*
     Wsrep initialization must happen at this point, because:
     - opt_bin_logname must be known when starting replication
       since SST may need it
@@ -5302,6 +5310,17 @@ static int init_server_components()
 #endif
 
 #ifdef WITH_WSREP
+  /*
+    Now is the right time to initialize members of wsrep startup threads
+    that rely on plugins and other related global system variables to be
+    initialized. This initialization was not possible before, as plugins
+    (and thus some global system variables) are initialized after wsrep
+    startup threads are created.
+    Note: This only needs to be done for rsync, xtrabackup based SST methods.
+  */
+  if (wsrep_before_SE())
+    wsrep_plugins_post_init();
+
   if (WSREP_ON && !opt_bin_log)
   {
     wsrep_emulate_bin_log= 1;
@@ -5778,6 +5797,12 @@ int mysqld_main(int argc, char **argv)
       unireg_abort(1);
     setbuf(stderr, NULL);
     FreeConsole();				// Remove window
+  }
+
+  if (fileno(stdin) >= 0)
+  {
+    /* Disable CRLF translation (MDEV-9409). */
+    _setmode(fileno(stdin), O_BINARY);
   }
 #endif
 
@@ -8970,9 +8995,10 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   case (int) OPT_LOG_BASENAME:
   {
     if (opt_log_basename[0] == 0 || strchr(opt_log_basename, FN_EXTCHAR) ||
-        strchr(opt_log_basename,FN_LIBCHAR))
+        strchr(opt_log_basename,FN_LIBCHAR) ||
+        !is_filename_allowed(opt_log_basename, strlen(opt_log_basename), FALSE))
     {
-      sql_print_error("Wrong argument for --log-basename. It can't be empty or contain '.' or '" FN_DIRSEP "'");
+      sql_print_error("Wrong argument for --log-basename. It can't be empty or contain '.' or '" FN_DIRSEP "'. It must be valid filename.");
       return 1;
     }
     if (log_error_file_ptr != disabled_my_option)
@@ -9867,9 +9893,9 @@ static int test_if_case_insensitive(const char *dir_name)
   MY_STAT stat_info;
   DBUG_ENTER("test_if_case_insensitive");
 
-  fn_format(buff, glob_hostname, dir_name, ".lower-test",
+  fn_format(buff, opt_log_basename, dir_name, ".lower-test",
 	    MY_UNPACK_FILENAME | MY_REPLACE_EXT | MY_REPLACE_DIR);
-  fn_format(buff2, glob_hostname, dir_name, ".LOWER-TEST",
+  fn_format(buff2, opt_log_basename, dir_name, ".LOWER-TEST",
 	    MY_UNPACK_FILENAME | MY_REPLACE_EXT | MY_REPLACE_DIR);
   mysql_file_delete(key_file_casetest, buff2, MYF(0));
   if ((file= mysql_file_create(key_file_casetest,
@@ -10131,6 +10157,9 @@ PSI_stage_info stage_waiting_for_rpl_thread_pool= { 0, "Waiting while replicatio
 PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
 PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
 PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master connection to process GTID received on multiple master connections", 0};
+PSI_stage_info stage_slave_background_process_request= { 0, "Processing requests", 0};
+PSI_stage_info stage_slave_background_wait_request= { 0, "Waiting for requests", 0};
+PSI_stage_info stage_waiting_for_deadlock_kill= { 0, "Waiting for parallel replication deadlock handling to complete", 0};
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -10255,7 +10284,9 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_to_get_readlock,
   & stage_master_gtid_wait_primary,
   & stage_master_gtid_wait,
-  & stage_gtid_wait_other_connection
+  & stage_gtid_wait_other_connection,
+  & stage_slave_background_process_request,
+  & stage_slave_background_wait_request
 };
 
 PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;

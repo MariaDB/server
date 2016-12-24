@@ -2649,13 +2649,16 @@ mysql_execute_command(THD *thd)
     }
 
     /*
-      Bail out if DB snapshot has not been installed. We however, allow SET,
-      SHOW and SELECT queries (only if wsrep_dirty_reads is set).
+      Bail out if DB snapshot has not been installed. SET and SHOW commands,
+      however, are always allowed.
+
+      We additionally allow all other commands that do not change data in
+      case wsrep_dirty_reads is enabled.
     */
     if (lex->sql_command != SQLCOM_SET_OPTION  &&
         !wsrep_is_show_query(lex->sql_command) &&
         !(thd->variables.wsrep_dirty_reads     &&
-          lex->sql_command == SQLCOM_SELECT)   &&
+          !is_update_query(lex->sql_command))  &&
         !wsrep_node_is_ready(thd))
       goto error;
   }
@@ -2941,6 +2944,10 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_STORAGE_ENGINES:
   case SQLCOM_SHOW_PROFILE:
   {
+#ifdef WITH_WSREP
+    DBUG_ASSERT(thd->wsrep_exec_mode != REPL_RECV);
+#endif /* WITH_WSREP */
+
     thd->status_var.last_query_cost= 0.0;
 
     /*
@@ -3261,12 +3268,6 @@ mysql_execute_command(THD *thd)
       create_info.default_table_charset= create_info.table_charset;
       create_info.table_charset= 0;
     }
-
-    /*
-      For CREATE TABLE we should not open the table even if it exists.
-      If the table exists, we should either not create it or replace it
-    */
-    lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
 
     /*
       If we are a slave, we should add OR REPLACE if we don't have
@@ -8870,12 +8871,6 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
 
   if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info, create_table->db))
     goto err;
-
-  /*
-    For CREATE TABLE we should not open the table even if it exists.
-    If the table exists, we should either not create it or replace it
-  */
-  lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
 
   error= FALSE;
 

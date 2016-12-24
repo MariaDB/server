@@ -1,0 +1,20 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-9312: storage engine not enforced during galera cluster
+--echo # replication
+--echo #
+--connection node_1
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+CREATE TABLE t2(i INT) ENGINE=MYISAM;
+
+--connection node_2
+SHOW TABLES;
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo # End of tests

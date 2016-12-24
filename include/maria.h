@@ -149,7 +149,7 @@ typedef struct st_maria_create_info
   uint null_bytes;
   uint old_options;
   enum data_file_type org_data_file_type;
-  uint8 language;
+  uint16 language;
   my_bool with_auto_increment, transactional;
 } MARIA_CREATE_INFO;
 

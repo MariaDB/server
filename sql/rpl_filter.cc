@@ -282,6 +282,9 @@ Rpl_filter::parse_filter_rule(const char* spec, Add_filter add)
   int status= 0;
   char *arg, *ptr, *pstr;
 
+  if (!spec)
+    return false;
+  
   if (! (ptr= my_strdup(spec, MYF(MY_WME))))
     return true;
 

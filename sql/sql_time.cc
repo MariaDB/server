@@ -929,7 +929,10 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
     my_bool neg= 0;
     enum enum_mysql_timestamp_type time_type= ltime->time_type;
 
-    if ((ulong) interval.day > MAX_DAY_NUMBER)
+    if (((ulonglong) interval.day +
+         (ulonglong) interval.hour / 24 +
+         (ulonglong) interval.minute / 24 / 60 +
+         (ulonglong) interval.second / 24 / 60 / 60) > MAX_DAY_NUMBER)
       goto invalid_date;
 
     if (time_type != MYSQL_TIMESTAMP_TIME)

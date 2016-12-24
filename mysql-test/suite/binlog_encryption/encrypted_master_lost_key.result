@@ -1,0 +1,111 @@
+#################
+# Initialization
+#################
+include/rpl_init.inc [topology=1->2]
+connection server_2;
+include/stop_slave.inc
+#####################################################
+# Pre-test 1: Initial key value
+#####################################################
+connection server_1;
+CREATE TABLE table1_to_encrypt (
+pk INT AUTO_INCREMENT PRIMARY KEY,
+ts TIMESTAMP NULL,
+b BLOB
+) ENGINE=MyISAM;
+INSERT INTO table1_to_encrypt VALUES (NULL,NOW(),'data_to_encrypt');
+INSERT INTO table1_to_encrypt SELECT NULL,NOW(),b FROM table1_to_encrypt;
+SET binlog_format=ROW;
+INSERT INTO table1_to_encrypt SELECT NULL,NOW(),b FROM table1_to_encrypt;
+INSERT INTO table1_to_encrypt SELECT NULL,NOW(),b FROM table1_to_encrypt;
+NOT FOUND /table1_to_encrypt/ in master-bin.0*
+#######################################################
+# Pre-test 2: restart master with a different key value
+#######################################################
+connection default;
+connection server_1;
+CREATE TABLE table2_to_encrypt (
+pk INT AUTO_INCREMENT PRIMARY KEY,
+ts TIMESTAMP NULL,
+b BLOB
+) ENGINE=MyISAM;
+INSERT INTO table2_to_encrypt VALUES (NULL,NOW(),'data_to_encrypt');
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+SET binlog_format=ROW;
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+INSERT INTO table2_to_encrypt SELECT NULL,NOW(),b FROM table2_to_encrypt;
+NOT FOUND /table2_to_encrypt/ in master-bin.0*
+#####################################################
+# Pre-test 3: restart master again with the right key
+#####################################################
+connection default;
+connection server_1;
+CREATE TABLE table3_to_encrypt (
+pk INT AUTO_INCREMENT PRIMARY KEY,
+ts TIMESTAMP NULL,
+b BLOB
+) ENGINE=MyISAM;
+INSERT INTO table3_to_encrypt VALUES (NULL,NOW(),'data_to_encrypt');
+INSERT INTO table3_to_encrypt SELECT NULL,NOW(),b FROM table3_to_encrypt;
+INSERT INTO table3_to_encrypt SELECT NULL,NOW(),b FROM table3_to_encrypt;
+FLUSH BINARY LOGS;
+INSERT INTO table3_to_encrypt SELECT NULL,NOW(),b FROM table3_to_encrypt;
+#####################################################
+# Test 1: Check that if master has an encrypted
+#         binary log which it cannot decrypt, it 
+#         still feeds events to the slave, and SQL 
+#         thread produces an expected error upon 
+#         receiving these unreadable events .
+#         This behavior is confirmed in MDEV-11323
+#####################################################
+connection server_2;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+START SLAVE SQL_THREAD;
+include/wait_for_slave_sql_error.inc [errno=1594]
+SHOW TABLES;
+Tables_in_test
+table1_to_encrypt
+SELECT COUNT(*) FROM table1_to_encrypt;
+COUNT(*)
+8
+#####################################################
+# Test 2: check that replication works if it starts
+#         from a good binary log
+#####################################################
+connection server_2;
+include/stop_slave.inc
+RESET SLAVE ALL;
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=<MASTER_PORT>, MASTER_USER='root', MASTER_LOG_FILE='master-bin.000003';
+include/start_slave.inc
+SHOW TABLES;
+Tables_in_test
+table3_to_encrypt
+#####################################################
+# Test 3: check that replication works if we purge
+#         master logs up to the good one
+#####################################################
+connection server_2;
+connection server_1;
+PURGE BINARY LOGS TO 'master-bin.000003';
+connection server_2;
+include/stop_slave.inc
+RESET SLAVE ALL;
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=<MASTER_PORT>, MASTER_USER='root';
+include/start_slave.inc
+SHOW TABLES;
+Tables_in_test
+table3_to_encrypt
+##########
+# Cleanup
+##########
+connection server_1;
+DROP TABLE table1_to_encrypt, table2_to_encrypt, table3_to_encrypt;
+connection server_2;
+include/rpl_end.inc

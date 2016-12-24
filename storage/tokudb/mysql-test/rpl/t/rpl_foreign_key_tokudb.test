@@ -1,3 +1,0 @@
--- source include/have_tokudb.inc
-let $engine_type=TokuDB;
--- source extra/rpl_tests/rpl_foreign_key.test

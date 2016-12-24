@@ -341,8 +341,8 @@ extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,
-  key_thread_one_connection, key_thread_signal_hand, key_thread_slave_init,
-  key_rpl_parallel_thread;
+  key_thread_one_connection, key_thread_signal_hand,
+  key_thread_slave_background, key_rpl_parallel_thread;
 
 extern PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,
   key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
@@ -488,6 +488,9 @@ extern PSI_stage_info stage_waiting_for_rpl_thread_pool;
 extern PSI_stage_info stage_master_gtid_wait_primary;
 extern PSI_stage_info stage_master_gtid_wait;
 extern PSI_stage_info stage_gtid_wait_other_connection;
+extern PSI_stage_info stage_slave_background_process_request;
+extern PSI_stage_info stage_slave_background_wait_request;
+extern PSI_stage_info stage_waiting_for_deadlock_kill;
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**
@@ -556,7 +559,7 @@ extern mysql_mutex_t
        LOCK_slave_list, LOCK_active_mi, LOCK_manager,
        LOCK_global_system_variables, LOCK_user_conn,
        LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count,
-       LOCK_slave_init;
+       LOCK_slave_background;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
 #ifdef HAVE_OPENSSL
 extern char* des_key_file;
@@ -568,7 +571,7 @@ extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 extern mysql_rwlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count;
 extern mysql_cond_t COND_manager;
-extern mysql_cond_t COND_slave_init;
+extern mysql_cond_t COND_slave_background;
 extern int32 thread_running;
 extern int32 thread_count, service_thread_count;
 

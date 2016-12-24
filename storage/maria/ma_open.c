@@ -276,6 +276,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   uint i,j,len,errpos,head_length,base_pos,keys, realpath_err,
     key_parts,unique_key_parts,fulltext_keys,uniques;
   uint internal_table= MY_TEST(open_flags & HA_OPEN_INTERNAL_TABLE);
+  uint file_version;
   size_t info_length;
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
        data_name[FN_REFLEN];
@@ -335,8 +336,8 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     }
     share->mode=open_mode;
     errpos= 1;
-    if (mysql_file_pread(kfile,share->state.header.file_version, head_length, 0,
-                 MYF(MY_NABP)))
+    if (mysql_file_pread(kfile,share->state.header.file_version, head_length,
+                         0, MYF(MY_NABP)))
     {
       my_errno= HA_ERR_NOT_A_TABLE;
       goto err;
@@ -429,6 +430,14 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
 			    len,MARIA_BASE_INFO_SIZE));
     }
     disk_pos= _ma_base_info_read(disk_cache + base_pos, &share->base);
+    /*
+      Check if old version of Aria file. Version 0 has language
+      stored in header.not_used
+    */
+    file_version= (share->state.header.not_used == 0);
+    if (file_version == 0)
+      share->base.language= share->state.header.not_used;
+    
     share->state.state_length=base_pos;
     /* For newly opened tables we reset the error-has-been-printed flag */
     share->state.changed&= ~STATE_CRASHED_PRINTED;
@@ -1581,7 +1590,7 @@ uint _ma_base_info_write(File file, MARIA_BASE_INFO *base)
   mi_int2store(ptr,base->null_bytes);                   ptr+= 2;
   mi_int2store(ptr,base->original_null_bytes);	        ptr+= 2;
   mi_int2store(ptr,base->field_offsets);	        ptr+= 2;
-  mi_int2store(ptr,0);				        ptr+= 2; /* reserved */
+  mi_int2store(ptr,base->language);		        ptr+= 2;
   mi_int2store(ptr,base->block_size);	        	ptr+= 2;
   *ptr++= base->rec_reflength;
   *ptr++= base->key_reflength;
@@ -1624,7 +1633,7 @@ static uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
   base->null_bytes= mi_uint2korr(ptr);			ptr+= 2;
   base->original_null_bytes= mi_uint2korr(ptr);		ptr+= 2;
   base->field_offsets= mi_uint2korr(ptr);		ptr+= 2;
-                                                        ptr+= 2;
+  base->language= mi_uint2korr(ptr);		        ptr+= 2;
   base->block_size= mi_uint2korr(ptr);			ptr+= 2;
 
   base->rec_reflength= *ptr++;
@@ -1689,10 +1698,10 @@ my_bool _ma_keyseg_write(File file, const HA_KEYSEG *keyseg)
   ulong pos;
 
   *ptr++= keyseg->type;
-  *ptr++= keyseg->language;
+  *ptr++= keyseg->language & 0xFF; /* Collation ID, low byte */
   *ptr++= keyseg->null_bit;
   *ptr++= keyseg->bit_start;
-  *ptr++= keyseg->bit_end;
+  *ptr++= keyseg->language >> 8; /* Collation ID, high byte */
   *ptr++= keyseg->bit_length;
   mi_int2store(ptr,keyseg->flag);	ptr+= 2;
   mi_int2store(ptr,keyseg->length);	ptr+= 2;
@@ -1711,7 +1720,7 @@ uchar *_ma_keyseg_read(uchar *ptr, HA_KEYSEG *keyseg)
    keyseg->language	= *ptr++;
    keyseg->null_bit	= *ptr++;
    keyseg->bit_start	= *ptr++;
-   keyseg->bit_end	= *ptr++;
+   keyseg->language	+= ((uint16) (*ptr++)) << 8;
    keyseg->bit_length   = *ptr++;
    keyseg->flag		= mi_uint2korr(ptr);  ptr+= 2;
    keyseg->length	= mi_uint2korr(ptr);  ptr+= 2;

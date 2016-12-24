@@ -173,6 +173,11 @@ static my_bool does_drive_exists(char drive_letter)
   file names with a colon (:) are not allowed because such file names
   store data in Alternate Data Streams which can be used to hide 
   the data.
+  Apart from colon, other characters that are not allowed in filenames
+  on Windows are greater/less sign, double quotes, forward slash, backslash,
+  pipe and star characters.
+
+  See MSDN documentation on filename restrictions.
 
   @param name contains the file name with or without path
   @param length contains the length of file name
@@ -181,6 +186,8 @@ static my_bool does_drive_exists(char drive_letter)
  
   @return TRUE if the file name is allowed, FALSE otherwise.
 */
+#define ILLEGAL_FILENAME_CHARS "<>:\"/\\|?*"
+
 my_bool is_filename_allowed(const char *name __attribute__((unused)),
                             size_t length __attribute__((unused)),
                             my_bool allow_current_dir __attribute__((unused)))
@@ -205,6 +212,8 @@ my_bool is_filename_allowed(const char *name __attribute__((unused)),
       return (allow_current_dir && (ch - name == 1) && 
               does_drive_exists(*name));
     }
+    else if (strchr(ILLEGAL_FILENAME_CHARS, *ch))
+      return FALSE;
   }
   return TRUE;
 } /* is_filename_allowed */

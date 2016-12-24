@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation. All Rights reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -108,6 +109,7 @@ UNIV_INTERN mysql_pfs_key_t	fts_pll_tokenize_mutex_key;
 /** variable to record innodb_fts_internal_tbl_name for information
 schema table INNODB_FTS_INSERTED etc. */
 UNIV_INTERN char* fts_internal_tbl_name		= NULL;
+UNIV_INTERN char* fts_internal_tbl_name2	= NULL;
 
 /** InnoDB default stopword list:
 There are different versions of stopwords, the stop words listed
@@ -1933,6 +1935,8 @@ func_exit:
 /*************************************************************//**
 Wrapper function of fts_create_index_tables_low(), create auxiliary
 tables for an FTS index
+
+@see row_merge_create_fts_sort_index()
 @return: DB_SUCCESS or error code */
 static
 dict_table_t*
@@ -1964,13 +1968,12 @@ fts_create_one_index_table(
 		(int)(field->col->prtype & DATA_MYSQL_TYPE_MASK),
 		(uint) dtype_get_charset_coll(field->col->prtype));
 
-	if (strcmp(charset->name, "latin1_swedish_ci") == 0) {
-		dict_mem_table_add_col(new_table, heap, "word", DATA_VARCHAR,
-				       field->col->prtype, FTS_MAX_WORD_LEN);
-	} else {
-		dict_mem_table_add_col(new_table, heap, "word", DATA_VARMYSQL,
-				       field->col->prtype, FTS_MAX_WORD_LEN);
-	}
+	dict_mem_table_add_col(new_table, heap, "word",
+			       charset == &my_charset_latin1
+			       ? DATA_VARCHAR : DATA_VARMYSQL,
+			       field->col->prtype,
+			       FTS_MAX_WORD_LEN_IN_CHAR
+			       * DATA_MBMAXLEN(field->col->mbminmaxlen));
 
 	dict_mem_table_add_col(new_table, heap, "first_doc_id", DATA_INT,
 			       DATA_NOT_NULL | DATA_UNSIGNED,
@@ -6568,6 +6571,36 @@ fts_check_corrupt_index(
 
 	dict_table_close(table, true, false);
 	return(0);
+}
+
+/* Get parent table name if it's a fts aux table
+@param[in]	aux_table_name	aux table name
+@param[in]	aux_table_len	aux table length
+@return parent table name, or NULL */
+char*
+fts_get_parent_table_name(
+	const char*	aux_table_name,
+	ulint		aux_table_len)
+{
+	fts_aux_table_t	aux_table;
+	char*		parent_table_name = NULL;
+
+	if (fts_is_aux_table_name(&aux_table, aux_table_name, aux_table_len)) {
+		dict_table_t*	parent_table;
+
+		parent_table = dict_table_open_on_id(
+			aux_table.parent_id, TRUE, DICT_TABLE_OP_NORMAL);
+
+		if (parent_table != NULL) {
+			parent_table_name = mem_strdupl(
+				parent_table->name,
+				strlen(parent_table->name));
+
+			dict_table_close(parent_table, TRUE, FALSE);
+		}
+	}
+
+	return(parent_table_name);
 }
 
 /** Check the validity of the parent table.

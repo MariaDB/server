@@ -576,7 +576,8 @@ CREATE DATABASE d2 CHARSET utf8;
 USE d2;
 CREATE TABLE t1 (val TEXT);
 LOAD DATA INFILE '../../std_data/bug20683959loaddata.txt' INTO TABLE t1;
-ERROR HY000: Invalid utf8 character string: 'Ã"RT @niouzechun: \9058\221A'
+Warnings:
+Warning	1366	Incorrect string value: '\xF5\x80\x81\xAE\xE7\xB9...' for column 'val' at row 1
 DROP TABLE d1.t1, d2.t1;
 DROP DATABASE d1;
 DROP DATABASE d2;

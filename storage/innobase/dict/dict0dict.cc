@@ -1643,6 +1643,7 @@ struct dict_foreign_remove_partial
 		if (table != NULL) {
 			table->referenced_set.erase(foreign);
 		}
+		dict_foreign_free(foreign);
 	}
 };
 
@@ -3593,8 +3594,7 @@ dict_foreign_add_to_cache(
 	}
 
 	if (for_in_cache) {
-		/* Free the foreign object */
-		mem_heap_free(foreign->heap);
+		dict_foreign_free(foreign);
 	} else {
 		for_in_cache = foreign;
 	}
@@ -3622,7 +3622,7 @@ dict_foreign_add_to_cache(
 				" the ones in table.");
 
 			if (for_in_cache == foreign) {
-				mem_heap_free(foreign->heap);
+				dict_foreign_free(foreign);
 			}
 
 			return(DB_CANNOT_ADD_CONSTRAINT);
@@ -3678,7 +3678,7 @@ dict_foreign_add_to_cache(
 							be one */
 				}
 
-				mem_heap_free(foreign->heap);
+				dict_foreign_free(foreign);
 			}
 
 			return(DB_CANNOT_ADD_CONSTRAINT);
@@ -6317,15 +6317,10 @@ dict_set_corrupted_index_cache_only(
 	/* Mark the table as corrupted only if the clustered index
 	is corrupted */
 	if (dict_index_is_clust(index)) {
-		dict_table_t*	corrupt_table;
-
-		corrupt_table = (table != NULL) ? table : index->table;
 		ut_ad((index->table != NULL) || (table != NULL)
 		      || index->table  == table);
 
-		if (corrupt_table) {
-			corrupt_table->corrupted = TRUE;
-		}
+		table->corrupted = TRUE;
 	}
 
 	index->type |= DICT_CORRUPT;

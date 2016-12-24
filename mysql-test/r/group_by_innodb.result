@@ -123,6 +123,16 @@ id	xtext	optionen
 2	number	22,25
 1	select	Kabel mit Stecker 5-polig,Kabel ohne Stecker
 DROP TABLE t1, t2;
+#
+# MDEV-11162: Assertion `num_records == m_idx_array.size()' failed in Filesort_buffer::alloc_sort_buffer(uint, uint)
+#
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+SELECT ( SELECT DISTINCT GROUP_CONCAT(SLEEP(0)) FROM t1 GROUP BY i );
+( SELECT DISTINCT GROUP_CONCAT(SLEEP(0)) FROM t1 GROUP BY i )
+NULL
+SELECT i FROM t1 order by i LIMIT 1;
+i
+DROP TABLE t1;
 # Port of testcase:
 #
 # Bug#20819199 ASSERTION FAILED IN TEST_IF_SKIP_SORT_ORDER

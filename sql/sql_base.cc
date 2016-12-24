@@ -4731,13 +4731,22 @@ restart:
     }
   }
 
-  if (WSREP_ON                                 &&
-      wsrep_replicate_myisam                   &&
-      (*start)                                 &&
-      (*start)->table                          &&
-      (*start)->table->file->ht == myisam_hton &&
-      sqlcom_can_generate_row_events(thd)      &&
-      thd->get_command() != COM_STMT_PREPARE)
+  if (WSREP_ON                                         &&
+      wsrep_replicate_myisam                           &&
+      (*start)                                         &&
+      (*start)->table                                  &&
+      (*start)->table->file->ht == myisam_hton         &&
+      wsrep_thd_exec_mode(thd) == LOCAL_STATE          &&
+      !is_stat_table((*start)->db, (*start)->alias)    &&
+      thd->get_command() != COM_STMT_PREPARE           &&
+      ((thd->lex->sql_command == SQLCOM_INSERT         ||
+        thd->lex->sql_command == SQLCOM_INSERT_SELECT  ||
+        thd->lex->sql_command == SQLCOM_REPLACE        ||
+        thd->lex->sql_command == SQLCOM_REPLACE_SELECT ||
+        thd->lex->sql_command == SQLCOM_UPDATE         ||
+        thd->lex->sql_command == SQLCOM_UPDATE_MULTI   ||
+        thd->lex->sql_command == SQLCOM_LOAD           ||
+        thd->lex->sql_command == SQLCOM_DELETE)))
   {
     WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
   }
@@ -9267,6 +9276,7 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
   */
   lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
   thd->reset_n_backup_open_tables_state(backup);
+  thd->lex->sql_command= SQLCOM_SELECT;
 
   if (open_and_lock_tables(thd, table_list, FALSE,
                            MYSQL_OPEN_IGNORE_FLUSH |

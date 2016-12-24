@@ -4,7 +4,7 @@
 --echo # On node 1
 --connection node_1
 
---replace_column 1 <IDX> 5 <CLUSTER_STATE_UUID>
+--replace_column 1 <IDX> 5 <CLUSTER_STATE_UUID> 7 <CLUSTER_CONF_ID>
 SELECT * FROM INFORMATION_SCHEMA.WSREP_STATUS;
 
 --replace_column 1 <IDX> 2 <MEMBER_ID> 4 <ADDRESS>
@@ -13,7 +13,7 @@ SELECT * FROM INFORMATION_SCHEMA.WSREP_MEMBERSHIP ORDER BY NAME;
 --echo # On node 2
 --connection node_2
 
---replace_column 1 <IDX> 5 <CLUSTER_STATE_UUID>
+--replace_column 1 <IDX> 5 <CLUSTER_STATE_UUID> 7 <CLUSTER_CONF_ID>
 SELECT * FROM INFORMATION_SCHEMA.WSREP_STATUS;
 
 --replace_column 1 <IDX> 2 <MEMBER_ID> 4 <ADDRESS>

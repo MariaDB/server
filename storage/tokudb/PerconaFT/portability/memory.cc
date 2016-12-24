@@ -313,6 +313,15 @@ toku_strdup(const char *s) {
     return (char *) toku_memdup(s, strlen(s)+1);
 }
 
+char *toku_strndup(const char *s, size_t n) {
+    size_t s_size = strlen(s);
+    size_t bytes_to_copy = n > s_size ? s_size : n;
+    ++bytes_to_copy;
+    char *result = (char *)toku_memdup(s, bytes_to_copy);
+    result[bytes_to_copy - 1] = 0;
+    return result;
+}
+
 void
 toku_free(void *p) {
     if (p) {

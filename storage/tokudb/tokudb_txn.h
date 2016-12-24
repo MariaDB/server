@@ -116,7 +116,7 @@ inline int txn_begin(
     int r = env->txn_begin(env, parent, txn, flags);
     if (r == 0 && thd) {
         DB_TXN* this_txn = *txn;
-        this_txn->set_client_id(this_txn, thd_get_thread_id(thd));
+        this_txn->set_client_id(this_txn, thd_get_thread_id(thd), thd);
     }
     TOKUDB_TRACE_FOR_FLAGS(
         TOKUDB_DEBUG_TXN,

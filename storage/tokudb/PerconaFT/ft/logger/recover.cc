@@ -36,6 +36,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
+#include <memory>
 #include "ft/cachetable/cachetable.h"
 #include "ft/cachetable/checkpoint.h"
 #include "ft/ft.h"
@@ -931,6 +932,83 @@ static int toku_recover_fdelete (struct logtype_fdelete *l, RECOVER_ENV renv) {
 }
 
 static int toku_recover_backward_fdelete (struct logtype_fdelete *UU(l), RECOVER_ENV UU(renv)) {
+    // nothing
+    return 0;
+}
+
+static int toku_recover_frename(struct logtype_frename *l, RECOVER_ENV renv) {
+    assert(renv);
+    assert(renv->env);
+
+    toku_struct_stat stat;
+    const char *data_dir = renv->env->get_data_dir(renv->env);
+    bool old_exist = true;
+    bool new_exist = true;
+
+    assert(data_dir);
+
+    struct file_map_tuple *tuple;
+
+    std::unique_ptr<char[], decltype(&toku_free)> old_iname_full(
+        toku_construct_full_name(2, data_dir, l->old_iname.data), &toku_free);
+    std::unique_ptr<char[], decltype(&toku_free)> new_iname_full(
+        toku_construct_full_name(2, data_dir, l->new_iname.data), &toku_free);
+
+    if (toku_stat(old_iname_full.get(), &stat) == -1) {
+        if (ENOENT == errno)
+            old_exist = false;
+        else
+            return 1;
+    }
+
+    if (toku_stat(new_iname_full.get(), &stat) == -1) {
+        if (ENOENT == errno)
+            new_exist = false;
+        else
+            return 1;
+    }
+
+    // Both old and new files can exist if:
+    // - rename() is not completed
+    // - fcreate was replayed during recovery
+    // 'Stalled cachefiles' container cachefile_list::m_stale_fileid contains
+    // closed but not yet evicted cachefiles and the key of this container is
+    // fs-dependent file id - (device id, inode number) pair. As it is supposed
+    // new file have not yet created during recovery process the 'stalled
+    // cachefile' container can contain only cache file of old file.
+    // To preserve the old cachefile file's id and keep it in
+    // 'stalled cachefiles' container the new file is removed
+    // and the old file is renamed.
+    if (old_exist && new_exist &&
+        (toku_os_unlink(new_iname_full.get()) == -1 ||
+         toku_os_rename(old_iname_full.get(), new_iname_full.get()) == -1 ||
+         toku_fsync_directory(old_iname_full.get()) == -1 ||
+         toku_fsync_directory(new_iname_full.get()) == -1))
+        return 1;
+
+    if (old_exist && !new_exist &&
+        (toku_os_rename(old_iname_full.get(), new_iname_full.get()) == -1 ||
+         toku_fsync_directory(old_iname_full.get()) == -1 ||
+         toku_fsync_directory(new_iname_full.get()) == -1))
+        return 1;
+
+    if (file_map_find(&renv->fmap, l->old_filenum, &tuple) != DB_NOTFOUND) {
+        if (tuple->iname)
+            toku_free(tuple->iname);
+        tuple->iname = toku_xstrdup(l->new_iname.data);
+    }
+
+    TOKUTXN txn = NULL;
+    toku_txnid2txn(renv->logger, l->xid, &txn);
+
+    if (txn)
+        toku_logger_save_rollback_frename(txn, &l->old_iname, &l->new_iname);
+
+    return 0;
+}
+
+static int toku_recover_backward_frename(struct logtype_frename *UU(l),
+                                         RECOVER_ENV UU(renv)) {
     // nothing
     return 0;
 }
