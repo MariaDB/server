@@ -80,11 +80,34 @@ on delete cascade
 on update restrict
 )
 engine innodb;
-insert into parent (id) values (1);
-insert into child (x, parent_id) values (1, 1);
+insert into parent (id) values (2);
+insert into child (x, parent_id) values (2, 2);
 delete from parent;
 select * from child;
 x	parent_id
+drop table child;
+drop table parent;
+create or replace table parent (
+id int primary key
+)
+engine innodb;
+create or replace table child (
+id int primary key,
+parent_id int not null,
+constraint `parent-fk`
+  foreign key (parent_id) references parent (id)
+on delete cascade
+on update restrict
+) with system versioning
+engine innodb;
+insert into parent (id) values (3);
+insert into child (id, parent_id) values (3, 3);
+delete from parent;
+select * from child;
+id	parent_id
+select * from child for system_time all;
+id	parent_id
+3	3
 drop table child;
 drop table parent;
 create table parent(

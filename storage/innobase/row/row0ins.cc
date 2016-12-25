@@ -1686,9 +1686,21 @@ row_ins_check_foreign_constraint(
 	/* If any of the foreign key fields in entry is SQL NULL, we
 	suppress the foreign key check: this is compatible with Oracle,
 	for example */
-	for (ulint i = 0; i < foreign->n_fields; i++) {
-		if (dfield_is_null(dtuple_get_nth_field(entry, i))) {
+	for (ulint i = 0; i < entry->n_fields; i++) {
+		dfield_t* field = dtuple_get_nth_field(entry, i);
+		if (i < foreign->n_fields && dfield_is_null(field)) {
 			goto exit_func;
+		}
+		/* System Versioning: if sys_trx_end != Inf, we
+		suppress the foreign key check */
+		if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_VERSIONED) &&
+			dfield_get_type(field)->prtype & DATA_VERS_ROW_END)
+		{
+			byte* data = static_cast<byte*>(dfield_get_data(field));
+			ut_ad(data);
+			trx_id_t end_trx_id = mach_read_from_8(data);
+			if (end_trx_id != TRX_ID_MAX)
+				goto exit_func;
 		}
 	}
 
