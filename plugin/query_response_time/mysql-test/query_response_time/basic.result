@@ -24,4 +24,4 @@ PLUGIN_TYPE	AUDIT
 PLUGIN_AUTHOR	Percona and Sergey Vojtovich
 PLUGIN_DESCRIPTION	Query Response Time Distribution Audit Plugin
 PLUGIN_LICENSE	GPL
-PLUGIN_MATURITY	Gamma
+PLUGIN_MATURITY	Stable

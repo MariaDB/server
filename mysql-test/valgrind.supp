@@ -1213,6 +1213,125 @@
   fun:dlopen@@GLIBC_2.2.5
 }
 
+# 
+# MDEV-11061: OpenSSL 0.9.8 problems
+#
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   obj:*/libz.so*
+   ...
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   obj:*/libz.so*
+   ...
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   obj:*/libssl.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   obj:*/libssl.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   fun:memcpy
+   obj:*/libcrypto.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   fun:memcpy
+   obj:*/libcrypto.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   fun:is_overlap
+   fun:memcpy
+   obj:*/libcrypto.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   fun:memset
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   fun:memset
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Param
+   write(buf)
+   obj:*/libpthread-2.9.so*
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
 {
   vasprintf in OpenSuse 12.3
   Memcheck:Leak
@@ -1310,7 +1429,7 @@
 }
 
 {
-g   codership/mysql-wsrep/issues#176
+   codership/mysql-wsrep/issues#176
    Memcheck:Leak
    fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
 }

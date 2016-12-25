@@ -3030,7 +3030,36 @@ void mysql_sql_stmt_execute(THD *thd)
 
   DBUG_PRINT("info",("stmt: 0x%lx", (long) stmt));
 
+  /*
+    thd->free_list can already have some Items,
+    e.g. for a query like this:
+      PREPARE stmt FROM 'INSERT INTO t1 VALUES (@@max_sort_length)';
+      SET STATEMENT max_sort_length=2048 FOR EXECUTE stmt;
+    thd->free_list contains a pointer to Item_int corresponding to 2048.
+
+    If Prepared_statement::execute() notices that the table metadata for "t1"
+    has changed since PREPARE, it returns an error asking the calling
+    Prepared_statement::execute_loop() to re-prepare the statement.
+    Before returning the error, Prepared_statement::execute()
+    calls Prepared_statement::cleanup_stmt(),
+    which calls thd->cleanup_after_query(),
+    which calls Query_arena::free_items().
+
+    We hide "external" Items, e.g. those created while parsing the
+    "SET STATEMENT" part of the query,
+    so they don't get freed in case of re-prepare.
+    See MDEV-10702 Crash in SET STATEMENT FOR EXECUTE
+  */
+  Item *free_list_backup= thd->free_list;
+  thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
+  thd->free_items();    // Free items created by execute_loop()
+  /*
+    Now restore the "external" (e.g. "SET STATEMENT") Item list.
+    It will be freed normaly in THD::cleanup_after_query().
+  */
+  thd->free_list= free_list_backup;
+
   stmt->lex->restore_set_statement_var();
   DBUG_VOID_RETURN;
 }
@@ -3853,9 +3882,14 @@ Prepared_statement::execute_loop(String *expanded_query,
   Reprepare_observer reprepare_observer;
   bool error;
   int reprepare_attempt= 0;
-#ifndef DBUG_OFF
-  Item *free_list_state= thd->free_list;
-#endif
+
+  /*
+    - In mysql_sql_stmt_execute() we hide all "external" Items
+      e.g. those created in the "SET STATEMENT" part of the "EXECUTE" query.
+    - In case of mysqld_stmt_execute() there should not be "external" Items.
+  */
+  DBUG_ASSERT(thd->free_list == NULL);
+
   thd->select_number= select_number_after_prepare;
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
@@ -3877,12 +3911,8 @@ Prepared_statement::execute_loop(String *expanded_query,
 #endif
 
 reexecute:
-  /*
-    If the free_list is not empty, we'll wrongly free some externally
-    allocated items when cleaning up after validation of the prepared
-    statement.
-  */
-  DBUG_ASSERT(thd->free_list == free_list_state);
+  // Make sure that reprepare() did not create any new Items.
+  DBUG_ASSERT(thd->free_list == NULL);
 
   /*
     Install the metadata observer. If some metadata version is

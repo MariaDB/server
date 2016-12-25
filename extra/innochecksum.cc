@@ -639,10 +639,18 @@ print_stats()
                "\t#bytes_per_page\n");
        for (std::map<unsigned long long, per_index_stats>::const_iterator it = index_ids.begin(); it != index_ids.end(); it++) {
          const per_index_stats& index = it->second;
+	 longlong recs_per_page = index.total_n_recs;
+	 longlong bytes_per_page = index.total_data_bytes;
+	 if (index.total_n_recs && index.pages) {
+		 recs_per_page = index.total_n_recs / index.pages;
+	 }
+	 if (index.total_data_bytes && index.pages) {
+		 bytes_per_page = index.total_data_bytes / index.pages;
+	 }
          printf("%lld\t\t%lld\t\t%lld\t\t%lld\t\t%lld\n",
                 it->first, index.pages, index.leaf_pages,
-                index.total_n_recs / index.pages,
-                index.total_data_bytes / index.pages);
+		recs_per_page,
+                bytes_per_page);
        }
        printf("\n");
        printf("index_id\tpage_data_bytes_histgram(empty,...,oversized)\n");
@@ -671,10 +679,9 @@ int main(int argc, char **argv)
   time_t lastt;                  /* last time */
   ulint oldcsum, oldcsumfield, csum, csumfield, crc32, logseq, logseqfield;
                                  /* ulints for checksum storage */
-  struct stat st;                /* for stat, if you couldn't guess */
   unsigned long long int size;   /* size of file (has to be 64 bits) */
   ulint pages;                   /* number of pages in file */
-  off_t offset= 0;
+  long long offset= 0;
   int fd;
 
   printf("InnoDB offline file checksum utility.\n");
@@ -697,6 +704,47 @@ int main(int argc, char **argv)
     goto error_out;
   }
 
+#ifdef _WIN32
+  /* Switch off OS file buffering for the file. */
+
+  HANDLE h = CreateFile(filename, GENERIC_READ,
+   FILE_SHARE_READ|FILE_SHARE_WRITE, 0,
+   OPEN_EXISTING, FILE_FLAG_NO_BUFFERING, 0);
+
+  if (!h)
+  {
+    fprintf(stderr, "Error; cant open file\n");
+    goto error;
+  }
+
+  if (!GetFileSizeEx(h, (LARGE_INTEGER *)&size))
+  {
+    fprintf(stderr, "Error; GetFileSize() failed\n");
+    goto error;
+  }
+
+  fd = _open_osfhandle ((intptr_t) h, _O_RDONLY);
+  if (fd < 0)
+  {
+    fprintf(stderr, "Error; _open_osfhandle() failed\n");
+    goto error;
+  }
+
+  f = _fdopen(fd, "rb");
+  if (!f)
+  {
+    fprintf(stderr, "Error; fdopen() failed\n");
+    goto error;
+  }
+
+  /*
+    Disable stdio buffering (FILE_FLAG_NO_BUFFERING requires properly IO buffers
+    which stdio does not guarantee.
+  */
+  setvbuf(f, NULL, _IONBF, 0);
+
+#else
+  struct stat st;
   /* stat the file to get size and page count */
   if (stat(filename, &st))
   {
@@ -707,6 +755,8 @@ int main(int argc, char **argv)
 
   /* Open the file for reading */
   f= fopen(filename, "rb");
+#endif
+
   if (f == NULL)
   {
     fprintf(stderr, "Error; %s cannot be opened", filename);
@@ -764,7 +814,7 @@ int main(int argc, char **argv)
   }
   else if (verbose)
   {
-    printf("file %s = %llu bytes (%lu pages)...\n", filename, size, pages);
+    printf("file %s = %llu bytes (%lu pages)...\n", filename, size, (ulong)pages);
     if (do_one_page)
       printf("InnoChecksum; checking page %lu\n", do_page);
     else
@@ -789,9 +839,12 @@ int main(int argc, char **argv)
       goto error;
     }
 
-    offset= (off_t)start_page * (off_t)physical_page_size;
-
+    offset= (longlong)start_page * (longlong)physical_page_size;
+#ifdef _WIN32
+    if (_lseeki64(fd, offset, SEEK_SET) != offset)
+#else
     if (lseek(fd, offset, SEEK_SET) != offset)
+#endif
     {
       perror("Error; Unable to seek to necessary offset");
       goto error;

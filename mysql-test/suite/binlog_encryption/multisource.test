@@ -1,0 +1,2 @@
+--let $binlog_extra_length= 36
+--source extra/rpl_tests/multisource.inc

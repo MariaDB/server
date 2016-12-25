@@ -54,11 +54,16 @@ SELECT * FROM t1;
 
 --error ER_GET_ERRMSG
 SELECT * FROM t1;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keysbad3.txt
 -- source include/restart_mysqld.inc
+
+--replace_regex /tablespace [0-9]*/tablespace /
 DROP TABLE t1;
+--replace_regex /tablespace [0-9]*/tablespace /
+SHOW WARNINGS;
 
 #
 # MDEV-8591: Database page corruption on disk or a failed space, Assertion failure in file buf0buf.cc
@@ -79,38 +84,49 @@ INSERT INTO t2 VALUES ('foobar',1,2);
 
 --error ER_GET_ERRMSG
 SELECT * FROM t2;
---replace_regex /.*tablespace [0-9]*//
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 SELECT * FROM t2 where id = 1;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 SELECT * FROM t2 where b = 1;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 INSERT INTO t2 VALUES ('tmp',3,3);
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 DELETE FROM t2 where b = 3;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 DELETE FROM t2 where id = 3;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 UPDATE t2 set b = b +1;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 OPTIMIZE TABLE t2;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 ALTER TABLE t2 ADD COLUMN c INT;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 ANALYZE TABLE t2;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 TRUNCATE TABLE t2;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 --error ER_GET_ERRMSG
 DROP TABLE t2;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;
 
 --echo
@@ -119,4 +135,5 @@ SHOW WARNINGS;
 -- source include/restart_mysqld.inc
 
 DROP TABLE t2;
+--replace_regex /tablespace [0-9]*/tablespace /
 SHOW WARNINGS;

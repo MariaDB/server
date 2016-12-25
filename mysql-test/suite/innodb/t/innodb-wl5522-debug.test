@@ -15,6 +15,9 @@
 
 -- source include/have_innodb.inc
 
+call mtr.add_suppression("InnoDB: Page for tablespace .* ");
+FLUSH TABLES;
+
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
 let $pathfix=/: '.*test_wl5522.*t1.ibd'/: 'test_wl5522\\t1.ibd'/;

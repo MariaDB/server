@@ -1,0 +1,154 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+SHOW VARIABLES LIKE 'innodb_encrypt%';
+Variable_name	Value
+innodb_encrypt_log	OFF
+innodb_encrypt_tables	OFF
+innodb_encryption_rotate_key_age	1
+innodb_encryption_rotation_iops	100
+innodb_encryption_threads	0
+create database innodb_encrypted_1;
+use innodb_encrypted_1;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+set autocommit=0;
+set autocommit=1;
+commit work;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+# should be 100
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+100
+create database innodb_encrypted_2;
+use innodb_encrypted_2;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+set autocommit=0;
+commit work;
+set autocommit=1;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+# should be 100
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+100
+# should be 100
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+100
+create database innodb_encrypted_3;
+use innodb_encrypted_3;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+set autocommit=0;
+commit work;
+set autocommit=1;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+# should be 100
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+100
+# should be 200
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+200
+use test;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+100
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+200
+SET GLOBAL innodb_encrypt_tables = on;
+SET GLOBAL innodb_encryption_threads=4;
+# Wait until all encrypted tables have been encrypted
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+200
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+100
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+# Success!
+# Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
+# Restart Success!
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+use test;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+use innodb_encrypted_1;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+use innodb_encrypted_2;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+use innodb_encrypted_3;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+use innodb_encrypted_1;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	3
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	103
+use innodb_encrypted_2;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	103
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	203
+use innodb_encrypted_3;
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	203
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	303
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+100
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+200
+SET GLOBAL innodb_encrypt_tables = off;
+SET GLOBAL innodb_encryption_threads=4;
+# Wait until all default encrypted tables have been decrypted
+# should be 100
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+100
+# should be 200
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE 'innodb_encrypted%';
+COUNT(*)
+200
+show status like 'innodb_pages0_read%';
+Variable_name	Value
+Innodb_pages0_read	303
+use test;
+drop database innodb_encrypted_1;
+drop database innodb_encrypted_2;
+drop database innodb_encrypted_3;

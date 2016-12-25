@@ -52,6 +52,7 @@ page_align(
 {
 	return((page_t*) ut_align_down(ptr, UNIV_PAGE_SIZE));
 }
+
 #ifndef UNIV_INNOCHECKSUM
 /************************************************************//**
 Gets the offset within a page.
@@ -230,18 +231,6 @@ page_header_reset_last_insert(
 #endif /* !UNIV_HOTBACKUP */
 
 #endif /* !UNIV_INNOCHECKSUM */
-/************************************************************//**
-Determine whether the page is in new-style compact format.
-@return nonzero if the page is in compact format, zero if it is in
-old-style format */
-UNIV_INLINE
-ulint
-page_is_comp(
-/*=========*/
-	const page_t*	page)	/*!< in: index page */
-{
-	return(page_header_get_field(page, PAGE_N_HEAP) & 0x8000);
-}
 
 #ifndef UNIV_INNOCHECKSUM
 /************************************************************//**
@@ -973,6 +962,20 @@ page_rec_get_base_extra_size(
 }
 
 #endif /* !UNIV_INNOCHECKSUM */
+
+/************************************************************//**
+Determine whether the page is in new-style compact format.
+@return nonzero if the page is in compact format, zero if it is in
+old-style format */
+UNIV_INLINE
+ulint
+page_is_comp(
+/*=========*/
+	const page_t*	page)	/*!< in: index page */
+{
+	return(page_header_get_field(page, PAGE_N_HEAP) & 0x8000);
+}
+
 /************************************************************//**
 Returns the sum of the sizes of the records in the record list, excluding
 the infimum and supremum records.

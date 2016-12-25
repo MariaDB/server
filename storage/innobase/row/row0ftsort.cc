@@ -59,6 +59,8 @@ tokenized doc string. The index has three "fields":
 integer value)
 3) Word's position in original doc.
 
+@see fts_create_one_index_table()
+
 @return dict_index_t structure for the fts sort index */
 UNIV_INTERN
 dict_index_t*
@@ -98,16 +100,12 @@ row_merge_create_fts_sort_index(
 	field->prefix_len = 0;
 	field->col = static_cast<dict_col_t*>(
 		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
-	field->col->len = FTS_MAX_WORD_LEN;
-
-	if (strcmp(charset->name, "latin1_swedish_ci") == 0) {
-		field->col->mtype = DATA_VARCHAR;
-	} else {
-		field->col->mtype = DATA_VARMYSQL;
-	}
-
 	field->col->prtype = idx_field->col->prtype | DATA_NOT_NULL;
+	field->col->mtype = charset == &my_charset_latin1
+		? DATA_VARCHAR : DATA_VARMYSQL;
 	field->col->mbminmaxlen = idx_field->col->mbminmaxlen;
+	field->col->len = HA_FT_MAXCHARLEN * DATA_MBMAXLEN(field->col->mbminmaxlen);
+
 	field->fixed_len = 0;
 
 	/* Doc ID */
@@ -225,10 +223,7 @@ row_fts_psort_info_init(
 	common_info->opt_doc_id_size = opt_doc_id_size;
 	crypt_data = fil_space_get_crypt_data(new_table->space);
 
-	if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-		(srv_encrypt_tables &&
-			crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
-
+	if (crypt_data && crypt_data->should_encrypt()) {
 		common_info->crypt_data = crypt_data;
 		encrypted = true;
 	} else {
@@ -404,6 +399,7 @@ row_fts_free_pll_merge_buf(
 
 /*********************************************************************//**
 Tokenize incoming text data and add to the sort buffer.
+@see row_merge_buf_encode()
 @return	TRUE if the record passed, FALSE if out of space */
 static
 ibool
@@ -412,8 +408,6 @@ row_merge_fts_doc_tokenize(
 	row_merge_buf_t**	sort_buf,	/*!< in/out: sort buffer */
 	doc_id_t		doc_id,		/*!< in: Doc ID */
 	fts_doc_t*		doc,		/*!< in: Doc to be tokenized */
-	dtype_t*		word_dtype,	/*!< in: data structure for
-						word col */
 	merge_file_t**		merge_file,	/*!< in/out: merge file */
 	ibool			opt_doc_id_size,/*!< in: whether to use 4 bytes
 						instead of 8 bytes integer to
@@ -445,7 +439,7 @@ row_merge_fts_doc_tokenize(
 		ulint		idx = 0;
 		ib_uint32_t	position;
 		ulint           offset = 0;
-		ulint		cur_len = 0;
+		ulint		cur_len;
 		doc_id_t	write_doc_id;
 
 		inc = innobase_mysql_fts_get_token(
@@ -499,14 +493,34 @@ row_merge_fts_doc_tokenize(
 		dfield_set_data(field, t_str.f_str, t_str.f_len);
 		len = dfield_get_len(field);
 
-		field->type.mtype = word_dtype->mtype;
-		field->type.prtype = word_dtype->prtype | DATA_NOT_NULL;
+		dict_col_copy_type(dict_index_get_nth_col(buf->index, 0), &field->type);
+		field->type.prtype |= DATA_NOT_NULL;
+		ut_ad(len <= field->type.len);
 
-		/* Variable length field, set to max size. */
-		field->type.len = FTS_MAX_WORD_LEN;
-		field->type.mbminmaxlen = word_dtype->mbminmaxlen;
+		/* For the temporary file, row_merge_buf_encode() uses
+		1 byte for representing the number of extra_size bytes.
+		This number will always be 1, because for this 3-field index
+		consisting of one variable-size column, extra_size will always
+		be 1 or 2, which can be encoded in one byte.
 
-		cur_len += len;
+		The extra_size is 1 byte if the length of the
+		variable-length column is less than 128 bytes or the
+		maximum length is less than 256 bytes. */
+
+		/* One variable length column, word with its lenght less than
+		fts_max_token_size, add one extra size and one extra byte.
+
+		Since the max length for FTS token now is larger than 255,
+		so we will need to signify length byte itself, so only 1 to 128
+		bytes can be used for 1 bytes, larger than that 2 bytes. */
+		if (len < 128 || field->type.len < 256) {
+			/* Extra size is one byte. */
+			cur_len = 2 + len;
+		} else {
+			/* Extra size is two bytes. */
+			cur_len = 3 + len;
+		}
+
 		dfield_dup(field, buf->heap);
 		field++;
 
@@ -555,20 +569,6 @@ row_merge_fts_doc_tokenize(
 		field->type.mbminmaxlen = 0;
 		cur_len += len;
 		dfield_dup(field, buf->heap);
-
-		/* One variable length column, word with its lenght less than
-		fts_max_token_size, add one extra size and one extra byte.
-
-		Since the max length for FTS token now is larger than 255,
-		so we will need to signify length byte itself, so only 1 to 128
-		bytes can be used for 1 bytes, larger than that 2 bytes. */
-		if (t_str.f_len < 128) {
-			/* Extra size is one byte. */
-			cur_len += 2;
-		} else {
-			/* Extra size is two bytes. */
-			cur_len += 3;
-		}
 
 		/* Reserve one byte for the end marker of row_merge_block_t
 		and we have reserved ROW_MERGE_RESERVE_SIZE (= 4) for
@@ -665,7 +665,6 @@ fts_parallel_tokenization(
 	mem_heap_t*		blob_heap = NULL;
 	fts_doc_t		doc;
 	dict_table_t*		table = psort_info->psort_common->new_table;
-	dtype_t			word_dtype;
 	dict_field_t*		idx_field;
 	fts_tokenize_ctx_t	t_ctx;
 	ulint			retried = 0;
@@ -691,10 +690,6 @@ fts_parallel_tokenization(
 
 	idx_field = dict_index_get_nth_field(
 		psort_info->psort_common->dup->index, 0);
-	word_dtype.prtype = idx_field->col->prtype;
-	word_dtype.mbminmaxlen = idx_field->col->mbminmaxlen;
-	word_dtype.mtype = (strcmp(doc.charset->name, "latin1_swedish_ci") == 0)
-				? DATA_VARCHAR : DATA_VARMYSQL;
 
 	block = psort_info->merge_block;
 	crypt_block = psort_info->crypt_block;
@@ -747,7 +742,6 @@ loop:
 
 		processed = row_merge_fts_doc_tokenize(
 			buf, doc_item->doc_id, &doc,
-			&word_dtype,
 			merge_file, psort_info->psort_common->opt_doc_id_size,
 			&t_ctx);
 

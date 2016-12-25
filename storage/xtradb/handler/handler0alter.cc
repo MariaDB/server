@@ -22,6 +22,11 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Smart ALTER TABLE
 *******************************************************/
 
+#ifndef HAVE_PERCONA_COMPRESSED_COLUMNS
+#define COLUMN_FORMAT_TYPE_COMPRESSED                   0xBADF00D
+#define ER_COMPRESSION_DICTIONARY_DOES_NOT_EXIST        0xDEADFACE
+#endif
+
 #include <my_global.h>
 #include <unireg.h>
 #include <mysqld_error.h>
@@ -214,7 +219,10 @@ innobase_need_rebuild(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			altered_table)
 {
-	if (ha_alter_info->handler_flags
+	Alter_inplace_info::HA_ALTER_FLAGS alter_inplace_flags =
+		ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE);
+
+	if (alter_inplace_flags
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
 	    && !(ha_alter_info->create_info->used_fields
 		 & (HA_CREATE_USED_ROW_FORMAT
@@ -1205,6 +1213,15 @@ innobase_col_to_mysql(
 		field->reset();
 
 		if (field->type() == MYSQL_TYPE_VARCHAR) {
+			if (field->column_format() ==
+				COLUMN_FORMAT_TYPE_COMPRESSED) {
+				/* Skip compressed varchar column when
+				reporting an erroneous row
+				during index creation or table rebuild. */
+				field->set_null();
+				break;
+			}
+
 			/* This is a >= 5.0.3 type true VARCHAR. Store the
 			length of the data to the first byte or the first
 			two bytes of dest. */
@@ -2492,7 +2509,8 @@ innobase_build_col_map_add(
 	mem_heap_t*	heap,
 	dfield_t*	dfield,
 	const Field*	field,
-	ulint		comp)
+	ulint		comp,
+	row_prebuilt_t*	prebuilt)
 {
 	if (field->is_real_null()) {
 		dfield_set_null(dfield);
@@ -2504,7 +2522,14 @@ innobase_build_col_map_add(
 	byte*	buf	= static_cast<byte*>(mem_heap_alloc(heap, size));
 
 	row_mysql_store_col_in_innobase_format(
-		dfield, buf, TRUE, field->ptr, size, comp);
+		dfield, buf, TRUE, field->ptr, size, comp,
+#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
+		field->column_format() == COLUMN_FORMAT_TYPE_COMPRESSED,
+		reinterpret_cast<const byte*>(field->zip_dict_data.str),
+		field->zip_dict_data.length, prebuilt);
+#else
+		0,0,0, prebuilt);
+#endif
 }
 
 /** Construct the translation table for reordering, dropping or
@@ -2529,7 +2554,8 @@ innobase_build_col_map(
 	const dict_table_t*	new_table,
 	const dict_table_t*	old_table,
 	dtuple_t*		add_cols,
-	mem_heap_t*		heap)
+	mem_heap_t*		heap,
+	row_prebuilt_t*	prebuilt)
 {
         uint old_i, old_innobase_i;
 	DBUG_ENTER("innobase_build_col_map");
@@ -2580,7 +2606,7 @@ innobase_build_col_map(
 		innobase_build_col_map_add(
 			heap, dtuple_get_nth_field(add_cols, i),
 			altered_table->field[sql_idx],
-			dict_table_is_comp(new_table));
+			dict_table_is_comp(new_table), prebuilt);
 found_col:
 		i++;
                 sql_idx++;
@@ -2744,7 +2770,8 @@ prepare_inplace_alter_table_dict(
 	ulint			flags2,
 	ulint			fts_doc_id_col,
 	bool			add_fts_doc_id,
-	bool			add_fts_doc_id_idx)
+	bool			add_fts_doc_id_idx,
+	row_prebuilt_t* 	prebuilt)
 {
 	bool			dict_locked	= false;
 	ulint*			add_key_nums;	/* MySQL key numbers */
@@ -2756,6 +2783,7 @@ prepare_inplace_alter_table_dict(
 	ulint			num_fts_index;
 	ha_innobase_inplace_ctx*ctx;
         uint                    sql_idx;
+	ulint*			zip_dict_ids = 0;
 
 	DBUG_ENTER("prepare_inplace_alter_table_dict");
 
@@ -2902,6 +2930,26 @@ prepare_inplace_alter_table_dict(
 			mode = crypt_data->encryption;
 		}
 
+		zip_dict_ids = static_cast<ulint*>(
+			mem_heap_alloc(ctx->heap,
+				altered_table->s->fields * sizeof(ulint)));
+
+		/* This is currently required for valgrind because MariaDB does
+		not currently support compressed columns. */
+		for (size_t field_idx = 0;
+		     field_idx < altered_table->s->fields;
+		     ++field_idx) {
+			zip_dict_ids[field_idx] = ULINT_UNDEFINED;
+		}
+
+		const char*	err_zip_dict_name = 0;
+		if (!innobase_check_zip_dicts(altered_table, zip_dict_ids,
+			ctx->trx, &err_zip_dict_name)) {
+			my_error(ER_COMPRESSION_DICTIONARY_DOES_NOT_EXIST,
+				MYF(0), err_zip_dict_name);
+			goto new_clustered_failed;
+		}
+
 		if (innobase_check_foreigns(
 			    ha_alter_info, altered_table, old_table,
 			    user_table, ctx->drop_fk, ctx->num_to_drop_fk)) {
@@ -3008,6 +3056,12 @@ prepare_inplace_alter_table_dict(
 				}
 			}
 
+			if (field->column_format() ==
+				COLUMN_FORMAT_TYPE_COMPRESSED) {
+				field_type |= DATA_COMPRESSED;
+			}
+
+
 			if (dict_col_name_is_reserved(field->field_name)) {
 				dict_mem_table_free(ctx->new_table);
 				my_error(ER_WRONG_COLUMN_NAME, MYF(0),
@@ -3087,7 +3141,7 @@ prepare_inplace_alter_table_dict(
 		ctx->col_map = innobase_build_col_map(
 			ha_alter_info, altered_table, old_table,
 			ctx->new_table, user_table,
-			add_cols, ctx->heap);
+			add_cols, ctx->heap, prebuilt);
 		ctx->add_cols = add_cols;
 	} else {
 		DBUG_ASSERT(!innobase_need_rebuild(ha_alter_info, old_table));
@@ -3264,6 +3318,17 @@ op_ok:
 	}
 
 	DBUG_ASSERT(error == DB_SUCCESS);
+
+#ifdef HAVE_PERCONA_COMPRESSED_COLUMNS
+	/*
+	Adding compression dictionary <-> compressed table column links
+	to the SYS_ZIP_DICT_COLS table.
+	*/
+	if (zip_dict_ids != 0) {
+		innobase_create_zip_dict_references(altered_table,
+			ctx->trx->table_id, zip_dict_ids, ctx->trx);
+	}
+#endif
 
 	/* Commit the data dictionary transaction in order to release
 	the table locks on the system tables.  This means that if
@@ -3999,7 +4064,7 @@ err_exit:
 	}
 
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
-	    || (ha_alter_info->handler_flags
+	    || ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
 		== Alter_inplace_info::CHANGE_CREATE_OPTION
 		&& !innobase_need_rebuild(ha_alter_info, table))) {
 
@@ -4133,7 +4198,7 @@ found_col:
 			    table_share->table_name.str,
 			    flags, flags2,
 			    fts_doc_col_no, add_fts_doc_id,
-			    add_fts_doc_id_idx));
+			    add_fts_doc_id_idx, prebuilt));
 }
 
 /** Alter the table structure in-place with operations
@@ -4173,7 +4238,7 @@ ok_exit:
 		DBUG_RETURN(false);
 	}
 
-	if (ha_alter_info->handler_flags
+	if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
 	    == Alter_inplace_info::CHANGE_CREATE_OPTION
 	    && !innobase_need_rebuild(ha_alter_info, table)) {
 		goto ok_exit;

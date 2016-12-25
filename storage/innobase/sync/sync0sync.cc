@@ -222,9 +222,6 @@ UNIV_INTERN mysql_pfs_key_t	mutex_list_mutex_key;
 /** Latching order checks start when this is set TRUE */
 UNIV_INTERN ibool	sync_order_checks_on	= FALSE;
 
-/** Number of slots reserved for each OS thread in the sync level array */
-static const ulint SYNC_THREAD_N_LEVELS = 10000;
-
 /** Array for tracking sync levels per thread. */
 typedef std::vector<sync_level_t> sync_arr_t;
 

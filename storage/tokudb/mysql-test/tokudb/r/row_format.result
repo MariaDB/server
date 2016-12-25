@@ -1,0 +1,51 @@
+CREATE TABLE tokudb_row_format_test_1 (a INT) ENGINE=TokuDB ROW_FORMAT=TOKUDB_DEFAULT;
+CREATE TABLE tokudb_row_format_test_2 (a INT) ENGINE=TokuDB ROW_FORMAT=TOKUDB_FAST;
+CREATE TABLE tokudb_row_format_test_3 (a INT) ENGINE=TokuDB ROW_FORMAT=TOKUDB_SMALL;
+CREATE TABLE tokudb_row_format_test_4 (a INT) ENGINE=TokuDB ROW_FORMAT=TOKUDB_UNCOMPRESSED;
+CREATE TABLE tokudb_row_format_test_5 (a INT) ENGINE=TokuDB ROW_FORMAT=TOKUDB_ZLIB;
+CREATE TABLE tokudb_row_format_test_6 (a INT) ENGINE=TokuDB ROW_FORMAT=TOKUDB_LZMA;
+CREATE TABLE tokudb_row_format_test_7 (a INT) ENGINE=TokuDB ROW_FORMAT=TOKUDB_QUICKLZ;
+CREATE TABLE tokudb_row_format_test_8 (a INT) ENGINE=TokuDB ROW_FORMAT=TOKUDB_SNAPPY;
+SELECT table_name, row_format, engine FROM information_schema.tables WHERE table_name like 'tokudb_row_format_test%' ORDER BY table_name;
+table_name	row_format	engine
+tokudb_row_format_test_1	tokudb_zlib	TokuDB
+tokudb_row_format_test_2	tokudb_quicklz	TokuDB
+tokudb_row_format_test_3	tokudb_lzma	TokuDB
+tokudb_row_format_test_4	tokudb_uncompressed	TokuDB
+tokudb_row_format_test_5	tokudb_zlib	TokuDB
+tokudb_row_format_test_6	tokudb_lzma	TokuDB
+tokudb_row_format_test_7	tokudb_quicklz	TokuDB
+tokudb_row_format_test_8	tokudb_snappy	TokuDB
+ALTER TABLE tokudb_row_format_test_1 ENGINE=TokuDB ROW_FORMAT=TOKUDB_FAST;
+SELECT table_name, row_format, engine FROM information_schema.tables WHERE table_name = 'tokudb_row_format_test_1';
+table_name	row_format	engine
+tokudb_row_format_test_1	tokudb_quicklz	TokuDB
+ALTER TABLE tokudb_row_format_test_1 ENGINE=TokuDB ROW_FORMAT=TOKUDB_SMALL;
+SELECT table_name, row_format, engine FROM information_schema.tables WHERE table_name = 'tokudb_row_format_test_1';
+table_name	row_format	engine
+tokudb_row_format_test_1	tokudb_lzma	TokuDB
+ALTER TABLE tokudb_row_format_test_1 ENGINE=TokuDB ROW_FORMAT=TOKUDB_UNCOMPRESSED;
+SELECT table_name, row_format, engine FROM information_schema.tables WHERE table_name = 'tokudb_row_format_test_1';
+table_name	row_format	engine
+tokudb_row_format_test_1	tokudb_uncompressed	TokuDB
+ALTER TABLE tokudb_row_format_test_1 ENGINE=TokuDB ROW_FORMAT=TOKUDB_ZLIB;
+SELECT table_name, row_format, engine FROM information_schema.tables WHERE table_name = 'tokudb_row_format_test_1';
+table_name	row_format	engine
+tokudb_row_format_test_1	tokudb_zlib	TokuDB
+ALTER TABLE tokudb_row_format_test_1 ENGINE=TokuDB ROW_FORMAT=TOKUDB_SNAPPY;
+SELECT table_name, row_format, engine FROM information_schema.tables WHERE table_name = 'tokudb_row_format_test_1';
+table_name	row_format	engine
+tokudb_row_format_test_1	tokudb_snappy	TokuDB
+ALTER TABLE tokudb_row_format_test_1 ENGINE=TokuDB ROW_FORMAT=TOKUDB_QUICKLZ;
+SELECT table_name, row_format, engine FROM information_schema.tables WHERE table_name = 'tokudb_row_format_test_1';
+table_name	row_format	engine
+tokudb_row_format_test_1	tokudb_quicklz	TokuDB
+ALTER TABLE tokudb_row_format_test_1 ENGINE=TokuDB ROW_FORMAT=TOKUDB_LZMA;
+SELECT table_name, row_format, engine FROM information_schema.tables WHERE table_name = 'tokudb_row_format_test_1';
+table_name	row_format	engine
+tokudb_row_format_test_1	tokudb_lzma	TokuDB
+ALTER TABLE tokudb_row_format_test_1 ENGINE=TokuDB ROW_FORMAT=TOKUDB_DEFAULT;
+SELECT table_name, row_format, engine FROM information_schema.tables WHERE table_name = 'tokudb_row_format_test_1';
+table_name	row_format	engine
+tokudb_row_format_test_1	tokudb_zlib	TokuDB
+DROP TABLE tokudb_row_format_test_1, tokudb_row_format_test_2, tokudb_row_format_test_3, tokudb_row_format_test_4, tokudb_row_format_test_5, tokudb_row_format_test_6, tokudb_row_format_test_7, tokudb_row_format_test_8;

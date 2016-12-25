@@ -1,6 +1,9 @@
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
 -- source include/have_file_key_management_plugin.inc
+-- source include/big_test.inc
+# Test heavy not tested on valgrind
+-- source include/not_valgrind.inc
 
 --disable_query_log
 let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;

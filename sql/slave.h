@@ -243,13 +243,15 @@ void set_slave_thread_default_charset(THD *thd, rpl_group_info *rgi);
 int rotate_relay_log(Master_info* mi);
 int has_temporary_error(THD *thd);
 int apply_event_and_update_pos(Log_event* ev, THD* thd,
-                               struct rpl_group_info *rgi,
-                               rpl_parallel_thread *rpt);
+                               struct rpl_group_info *rgi);
+int apply_event_and_update_pos_for_parallel(Log_event* ev, THD* thd,
+                                            struct rpl_group_info *rgi);
 
 pthread_handler_t handle_slave_io(void *arg);
 void slave_output_error_info(rpl_group_info *rgi, THD *thd);
 pthread_handler_t handle_slave_sql(void *arg);
 bool net_request_file(NET* net, const char* fname);
+void slave_background_kill_request(THD *to_kill);
 
 extern bool volatile abort_loop;
 extern Master_info *active_mi; /* active_mi for multi-master */

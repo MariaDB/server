@@ -1,0 +1,478 @@
+--source include/have_tokudb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/master-slave.inc
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=TokuDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT, UNIQUE KEY (b)) ENGINE=TokuDB;
+--save_master_pos
+
+--connection slave
+--sync_with_master
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode='optimistic';
+
+
+--connection master
+
+INSERT INTO t1 VALUES(1,1);
+BEGIN;
+INSERT INTO t1 VALUES(2,2);
+INSERT INTO t1 VALUES(3,3);
+COMMIT;
+
+# Do a bunch of INSERT/DELETE on the same rows, bound to conflict.
+# We will get a lot of rollbacks, probably, but they should be handled without
+# any visible errors.
+
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,2);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,6);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,4);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,5);
+
+DELETE FROM t1 WHERE a=3;
+INSERT INTO t1 VALUES(3,3);
+DELETE FROM t1 WHERE a=1;
+INSERT INTO t1 VALUES(1,4);
+DELETE FROM t1 WHERE a=3;
+INSERT INTO t1 VALUES(3,3);
+
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,6);
+--source include/save_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+#SHOW STATUS LIKE 'Slave_retried_transactions';
+
+
+--echo *** Test a bunch of non-transactional/DDL event groups. ***
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+
+INSERT INTO t1 VALUES (4,8);
+INSERT INTO t1 VALUES (5,9);
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=TokuDB;
+INSERT INTO t2 VALUES (1);
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=MyISAM;
+ALTER TABLE t2 ADD b INT;
+INSERT INTO t2 VALUES (2,2);
+ALTER TABLE t2 DROP b;
+INSERT INTO t2 VALUES (3);
+ALTER TABLE t2 ADD c INT;
+INSERT INTO t2 VALUES (4,5);
+INSERT INTO t2 VALUES (5,5);
+INSERT INTO t3 VALUES (1);
+UPDATE t2 SET c=NULL WHERE a=4;
+ALTER TABLE t2 ADD UNIQUE (c);
+INSERT INTO t2 VALUES (6,6);
+UPDATE t2 SET c=c+100 WHERE a=2;
+INSERT INTO t3(a) VALUES (2);
+DELETE FROM t3 WHERE a=2;
+INSERT INTO t3(a) VALUES (2);
+DELETE FROM t3 WHERE a=2;
+ALTER TABLE t3 CHANGE a c INT NOT NULL;
+INSERT INTO t3(c) VALUES (2);
+DELETE FROM t3 WHERE c=2;
+INSERT INTO t3 SELECT a+200 FROM t2;
+DELETE FROM t3 WHERE c >= 200;
+INSERT INTO t3 SELECT a+200 FROM t2;
+--source include/save_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY c;
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY c;
+#SHOW STATUS LIKE 'Slave_retried_transactions';
+
+
+--echo *** Test @@skip_parallel_replication. ***
+
+--connection slave
+--source include/stop_slave.inc
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+
+--connection master
+# We do a bunch of conflicting transactions on the master with
+# skip_parallel_replication set to true, and check that we do not
+# get any retries on the slave.
+
+UPDATE t1 SET b=10 WHERE a=3;
+SET SESSION skip_parallel_replication=1;
+UPDATE t1 SET b=20 WHERE a=3;
+UPDATE t1 SET b=30 WHERE a=3;
+UPDATE t1 SET b=50 WHERE a=3;
+UPDATE t1 SET b=80 WHERE a=3;
+UPDATE t1 SET b=130 WHERE a=3;
+UPDATE t1 SET b=210 WHERE a=3;
+UPDATE t1 SET b=340 WHERE a=3;
+UPDATE t1 SET b=550 WHERE a=3;
+UPDATE t1 SET b=890 WHERE a=3;
+SET SESSION skip_parallel_replication=0;
+SELECT * FROM t1 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+--let $retry2= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--disable_query_log
+eval SELECT IF($retry1=$retry2, "Ok, no retry",
+       CONCAT("ERROR: ", $retry2-$retry1, " retries during replication (was ",
+              $retry1, " now ", $retry2, ")")) AS status;
+--enable_query_log
+
+
+--echo *** Test that we do not replicate in parallel transactions that had row lock waits on the master ***
+
+--connection slave
+--source include/stop_slave.inc
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+
+--connection master
+# Setup a bunch of transactions that all needed to wait.
+--connect (m1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+--connect (m2,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+--connect (m3,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+--connect (m4,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+--connect (m5,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+--connect (m6,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+--connect (m7,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+--connect (m8,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+
+--connection default
+BEGIN; UPDATE t1 SET b=b+1 WHERE a=3;
+
+--connection m1
+SET debug_sync='thd_report_wait_for SIGNAL waiting1';
+send UPDATE t1 SET b=1001 WHERE a=3;
+--connection default
+SET debug_sync='now WAIT_FOR waiting1';
+
+--connection m2
+BEGIN;
+UPDATE t1 SET b=1002 WHERE a=5;
+SET debug_sync='thd_report_wait_for SIGNAL waiting2';
+send UPDATE t1 SET b=102 WHERE a=3;
+--connection default
+SET debug_sync='now WAIT_FOR waiting2';
+
+UPDATE t1 SET b=1000 WHERE a=1;
+--connection m3
+SET debug_sync='thd_report_wait_for SIGNAL waiting3';
+send UPDATE t1 SET b=1003 WHERE a=5;
+--connection default
+SET debug_sync='now WAIT_FOR waiting3';
+
+--connection m4
+SET debug_sync='thd_report_wait_for SIGNAL waiting4';
+send UPDATE t1 SET b=1004 WHERE a=3;
+--connection default
+SET debug_sync='now WAIT_FOR waiting4';
+
+--connection m5
+SET debug_sync='thd_report_wait_for SIGNAL waiting5';
+send UPDATE t1 SET b=1005 WHERE a=5;
+--connection default
+SET debug_sync='now WAIT_FOR waiting5';
+
+--connection m6
+SET debug_sync='thd_report_wait_for SIGNAL waiting6';
+send UPDATE t1 SET b=1006 WHERE a=1;
+--connection default
+SET debug_sync='now WAIT_FOR waiting6';
+
+--connection m7
+SET debug_sync='thd_report_wait_for SIGNAL waiting7';
+send UPDATE t1 SET b=1007 WHERE a=5;
+--connection default
+SET debug_sync='now WAIT_FOR waiting7';
+
+--connection m8
+SET debug_sync='thd_report_wait_for SIGNAL waiting8';
+send UPDATE t1 SET b=1008 WHERE a=3;
+--connection default
+SET debug_sync='now WAIT_FOR waiting8';
+
+--connection default
+COMMIT;
+--connection m1
+REAP;
+--connection m2
+REAP;
+COMMIT;
+--connection m3
+REAP;
+--connection m4
+REAP;
+--connection m5
+REAP;
+--connection m6
+REAP;
+--connection m7
+REAP;
+--connection m8
+REAP;
+--connection default
+SET debug_sync='RESET';
+
+--source include/save_master_gtid.inc
+# It is not deterministic in which order the parallel conflicting
+# updates will run. Eg. for key a=5, we could get 1003, 1005, or
+# 1007. As long as we get the same on the slave, it is ok.
+--let $master_value= `SELECT GROUP_CONCAT(CONCAT("(", a, ",", b, ")") ORDER BY a, b SEPARATOR "/") FROM t1`
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--let $slave_value= `SELECT GROUP_CONCAT(CONCAT("(", a, ",", b, ")") ORDER BY a, b SEPARATOR "/") FROM t1`
+--disable_query_log
+eval SET @master_value="$master_value";
+eval SET @slave_value="$slave_value";
+--enable_query_log
+SELECT IF(@master_value=@slave_value, "Slave data matches master", CONCAT("ERROR: Slave had different data '", @slave_value, "' than master's '", @master_value, "'!")) as check_result;
+--let $retry2= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--disable_query_log
+eval SELECT IF($retry1=$retry2, "Ok, no retry",
+       CONCAT("ERROR: ", $retry2-$retry1, " retries during replication (was ",
+              $retry1, " now ", $retry2, ")")) AS status;
+--enable_query_log
+
+
+--echo *** Test that we replicate correctly when using READ COMMITTED and binlog_format=MIXED on the slave ***
+
+--connection slave
+--source include/stop_slave.inc
+SET @old_format= @@GLOBAL.binlog_format;
+# Use MIXED format; we cannot binlog ROW events on slave in STATEMENT format.
+SET GLOBAL binlog_format= MIXED;
+SET @old_isolation= @@GLOBAL.tx_isolation;
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
+# Reset the worker threads to make the new settings take effect.
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+
+--connection master
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=TokuDB;
+CREATE TABLE t2 (a int PRIMARY KEY, b INT) ENGINE=TokuDB;
+INSERT INTO t1 VALUES (1,0), (2,0), (3,0);
+INSERT INTO t2 VALUES (1,0), (2,0);
+INSERT INTO t1 SELECT 4, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 4, COUNT(*) FROM t1;
+
+INSERT INTO t1 SELECT 5, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 5, COUNT(*) FROM t1;
+
+INSERT INTO t2 SELECT 6, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 6, COUNT(*) FROM t2;
+
+INSERT INTO t1 SELECT 7, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 7, COUNT(*) FROM t1;
+
+INSERT INTO t2 SELECT 8, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 8, COUNT(*) FROM t2;
+
+INSERT INTO t2 SELECT 9, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 9, COUNT(*) FROM t2;
+
+INSERT INTO t1 SELECT 10, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 10, COUNT(*) FROM t1;
+
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--source include/stop_slave.inc
+SET GLOBAL binlog_format= @old_format;
+SET GLOBAL tx_isolation= @old_isolation;
+--source include/start_slave.inc
+
+
+--echo *** MDEV-7888: ANALYZE TABLE does wakeup_subsequent_commits(), causing wrong binlog order and parallel replication hang ***
+
+--connection master
+DROP TABLE t1, t2, t3;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=TokuDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=TokuDB;
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,1), (2,1), (3,1), (4,1), (5,1);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
+
+--connection master
+# The bug was that ANALYZE TABLE would call
+# wakeup_subsequent_commits() too early, allowing the following
+# transaction in the same group to run ahead and binlog and free the
+# GCO. Then we get wrong binlog order and later access freed GCO,
+# which causes lost wakeup of following GCO and thus replication hang.
+# We injected a small sleep in ANALYZE to make the race easier to hit (this
+# can only cause false negatives in versions with the bug, not false positives,
+# so sleep is ok here. And it's in general not possible to trigger reliably
+# the race with debug_sync, since the bugfix makes the race impossible).
+
+ALTER TABLE t2 COMMENT "123abc";
+ANALYZE TABLE t2;
+INSERT INTO t1 VALUES (1,2);
+INSERT INTO t1 VALUES (2,2);
+INSERT INTO t1 VALUES (3,2);
+INSERT INTO t1 VALUES (4,2);
+INSERT INTO t3 VALUES (1,3);
+ALTER TABLE t2 COMMENT "hello, world";
+BEGIN;
+INSERT INTO t1 VALUES (5,4);
+INSERT INTO t1 VALUES (6,4);
+INSERT INTO t1 VALUES (7,4);
+INSERT INTO t1 VALUES (8,4);
+INSERT INTO t1 VALUES (9,4);
+INSERT INTO t1 VALUES (10,4);
+INSERT INTO t1 VALUES (11,4);
+INSERT INTO t1 VALUES (12,4);
+INSERT INTO t1 VALUES (13,4);
+INSERT INTO t1 VALUES (14,4);
+INSERT INTO t1 VALUES (15,4);
+INSERT INTO t1 VALUES (16,4);
+INSERT INTO t1 VALUES (17,4);
+INSERT INTO t1 VALUES (18,4);
+INSERT INTO t1 VALUES (19,4);
+INSERT INTO t1 VALUES (20,4);
+COMMIT;
+INSERT INTO t1 VALUES (21,5);
+INSERT INTO t1 VALUES (22,5);
+
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_debug;
+--source include/start_slave.inc
+
+--echo *** MDEV-7929: record_gtid() for non-transactional event group calls wakeup_subsequent_commits() too early, causing slave hang. ***
+
+--connection slave
+--source include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+# The bug was that record_gtid(), when there is no existing transaction from
+# a DML event being replicated, would commit its own transaction. This wrongly
+# caused wakeup_subsequent_commits(), with similar consequences as MDEV-7888
+# above. We simulate this condition with a small sleep in record_gtid() for
+# a specific ANALYZE that we binlog with server id 100.
+SET GLOBAL debug_dbug= '+d,inject_record_gtid_serverid_100_sleep';
+
+--connection master
+
+ALTER TABLE t3 COMMENT "DDL statement 1";
+INSERT INTO t1 VALUES (30,0);
+INSERT INTO t1 VALUES (31,0);
+INSERT INTO t1 VALUES (32,0);
+INSERT INTO t1 VALUES (33,0);
+INSERT INTO t1 VALUES (34,0);
+INSERT INTO t1 VALUES (35,0);
+INSERT INTO t1 VALUES (36,0);
+SET @old_server_id= @@SESSION.server_id;
+SET SESSION server_id= 100;
+ANALYZE TABLE t2;
+SET SESSION server_id= @old_server_id;
+INSERT INTO t1 VALUES (37,0);
+ALTER TABLE t3 COMMENT "DDL statement 2";
+INSERT INTO t1 VALUES (38,0);
+INSERT INTO t1 VALUES (39,0);
+ALTER TABLE t3 COMMENT "DDL statement 3";
+
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+
+--source include/save_master_gtid.inc
+
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+
+
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_debug;
+--source include/start_slave.inc
+
+
+--echo *** MDEV-8113: ALTER TABLE causes slave hang in optimistic parallel replication ***
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+ALTER TABLE t2 ADD c INT;
+INSERT INTO t2 (a,b) VALUES (50, 0);
+INSERT INTO t2 (a,b) VALUES (51, 1);
+INSERT INTO t2 (a,b) VALUES (52, 2);
+INSERT INTO t2 (a,b) VALUES (53, 3);
+INSERT INTO t2 (a,b) VALUES (54, 4);
+INSERT INTO t2 (a,b) VALUES (55, 5);
+INSERT INTO t2 (a,b) VALUES (56, 6);
+INSERT INTO t2 (a,b) VALUES (57, 7);
+INSERT INTO t2 (a,b) VALUES (58, 8);
+INSERT INTO t2 (a,b) VALUES (59, 9);
+ALTER TABLE t2 DROP COLUMN c;
+SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
+
+
+# Clean up.
+
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1, t2, t3;
+
+--source include/rpl_end.inc

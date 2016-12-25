@@ -1,4 +1,6 @@
-call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded");
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
@@ -18,15 +20,12 @@ FLUSH TABLE t1 FOR EXPORT;
 t1.cfg
 t1.frm
 t1.ibd
+backup: t1
 UNLOCK TABLES;
-# Tablespaces should be still encrypted
-# t1 yes on expecting NOT FOUND
-NOT FOUND /foobar/ in t1.ibd
 ALTER TABLE t1 DISCARD TABLESPACE;
+restore: t1 .ibd and .cfg files
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
-# List after t1 DISCARD
-t1.frm
 ALTER TABLE t1 IMPORT TABLESPACE;
 ERROR HY000: Got error 192 'Table encrypted but decryption failed. This could be because correct encryption management plugin is not loaded, used encryption key is not available or encryption method does not match.' from InnoDB
 SHOW CREATE TABLE t1;

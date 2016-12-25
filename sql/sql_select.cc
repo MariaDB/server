@@ -3274,6 +3274,7 @@ JOIN::destroy()
     */
     tmp_table_param.cleanup();
     tmp_join->tmp_table_param.copy_field= 0;
+    cleanup(1);
     DBUG_RETURN(tmp_join->destroy());
   }
   cond_equal= 0;
@@ -9172,9 +9173,26 @@ JOIN::make_simple_join(JOIN *parent, TABLE *temp_table)
     We need to destruct the copy_field (allocated in create_tmp_table())
     before setting it to 0 if the join is not "reusable".
   */
-  if (!tmp_join || tmp_join != this) 
-    tmp_table_param.cleanup(); 
-  tmp_table_param.copy_field= tmp_table_param.copy_field_end=0;
+  if (!tmp_join || tmp_join != this)
+    tmp_table_param.cleanup();
+  else
+  {
+    /*
+      Free data buffered in copy_fields, but keep data pointed by copy_field
+      around for next iteration (possibly stored in save_copy_fields).
+
+      It would be logically simpler to not clear copy_field
+      below, but as we have loops that runs over copy_field to
+      copy_field_end that should not be done anymore, it's simpler to
+      just clear the pointers.
+
+      Another option would be to just clear copy_field_end and not run
+      the loops if this is not set or to have tmp_table_param.cleanup()
+      to run cleanup on save_copy_field if copy_field is not set.
+    */
+    tmp_table_param.free_copy_field_data();
+    tmp_table_param.copy_field= tmp_table_param.copy_field_end=0;
+  }
   first_record= sort_and_group=0;
   send_records= (ha_rows) 0;
 
@@ -11890,7 +11908,7 @@ void JOIN::join_free()
 /**
   Free resources of given join.
 
-  @param fill   true if we should free all resources, call with full==1
+  @param full   true if we should free all resources, call with full==1
                 should be last, before it this function can be called with
                 full==0
 
@@ -12010,7 +12028,7 @@ void JOIN::cleanup(bool full)
     /*
       If we have tmp_join and 'this' JOIN is not tmp_join and
       tmp_table_param.copy_field's  of them are equal then we have to remove
-      pointer to  tmp_table_param.copy_field from tmp_join, because it qill
+      pointer to  tmp_table_param.copy_field from tmp_join, because it will
       be removed in tmp_table_param.cleanup().
     */
     if (tmp_join &&
@@ -15145,20 +15163,9 @@ bool cond_is_datetime_is_null(Item *cond)
   if (cond->type() == Item::FUNC_ITEM &&
       ((Item_func*) cond)->functype() == Item_func::ISNULL_FUNC)
   {
-    Item **args= ((Item_func_isnull*) cond)->arguments();
-    if (args[0]->type() == Item::FIELD_ITEM)
-    {
-      Field *field=((Item_field*) args[0])->field;
-
-      if (((field->type() == MYSQL_TYPE_DATE) ||
-           (field->type() == MYSQL_TYPE_DATETIME)) &&
-          (field->flags & NOT_NULL_FLAG))
-      {
-        return TRUE;
-      }
-    }
+    return ((Item_func_isnull*) cond)->arg_is_datetime_notnull_field();
   }
-  return FALSE;
+  return false;
 }
 
 
@@ -16114,6 +16121,7 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
   case Item::VARBIN_ITEM:
   case Item::CACHE_ITEM:
   case Item::EXPR_CACHE_ITEM:
+  case Item::PARAM_ITEM:
     if (make_copy_field)
     {
       DBUG_ASSERT(((Item_result_field*)item)->result_field);
@@ -22917,7 +22925,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
  err:
   if (copy)
     delete [] param->copy_field;			// This is never 0
-  param->copy_field=0;
+  param->copy_field= 0;
 err2:
   DBUG_RETURN(TRUE);
 }

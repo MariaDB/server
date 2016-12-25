@@ -99,13 +99,11 @@ void toku_ft_serialize_layer_init(void) {
     num_cores = toku_os_get_number_active_processors();
     int r = toku_thread_pool_create(&ft_pool, num_cores);
     lazy_assert_zero(r);
-    block_allocator::maybe_initialize_trace();
     toku_serialize_in_parallel = false;
 }
 
 void toku_ft_serialize_layer_destroy(void) {
     toku_thread_pool_destroy(&ft_pool);
-    block_allocator::maybe_close_trace();
 }
 
 enum { FILE_CHANGE_INCREMENT = (16 << 20) };
@@ -773,19 +771,23 @@ int toku_serialize_ftnode_to_memory(FTNODE node,
     return 0;
 }
 
-int
-toku_serialize_ftnode_to (int fd, BLOCKNUM blocknum, FTNODE node, FTNODE_DISK_DATA* ndd, bool do_rebalancing, FT ft, bool for_checkpoint) {
-
+int toku_serialize_ftnode_to(int fd,
+                             BLOCKNUM blocknum,
+                             FTNODE node,
+                             FTNODE_DISK_DATA *ndd,
+                             bool do_rebalancing,
+                             FT ft,
+                             bool for_checkpoint) {
     size_t n_to_write;
     size_t n_uncompressed_bytes;
     char *compressed_buf = nullptr;
 
-    // because toku_serialize_ftnode_to is only called for 
+    // because toku_serialize_ftnode_to is only called for
     // in toku_ftnode_flush_callback, we pass false
     // for in_parallel. The reasoning is that when we write
-    // nodes to disk via toku_ftnode_flush_callback, we 
+    // nodes to disk via toku_ftnode_flush_callback, we
     // assume that it is being done on a non-critical
-    // background thread (probably for checkpointing), and therefore 
+    // background thread (probably for checkpointing), and therefore
     // should not hog CPU,
     //
     // Should the above facts change, we may want to revisit
@@ -802,32 +804,32 @@ toku_serialize_ftnode_to (int fd, BLOCKNUM blocknum, FTNODE node, FTNODE_DISK_DA
         toku_unsafe_fetch(&toku_serialize_in_parallel),
         &n_to_write,
         &n_uncompressed_bytes,
-        &compressed_buf
-        );
+        &compressed_buf);
     if (r != 0) {
         return r;
     }
 
-    // If the node has never been written, then write the whole buffer, including the zeros
-    invariant(blocknum.b>=0);
+    // If the node has never been written, then write the whole buffer,
+    // including the zeros
+    invariant(blocknum.b >= 0);
     DISKOFF offset;
 
     // Dirties the ft
-    ft->blocktable.realloc_on_disk(blocknum, n_to_write, &offset,
-                                   ft, fd, for_checkpoint,
-                                   // Allocations for nodes high in the tree are considered 'hot',
-                                   // as they are likely to move again in the next checkpoint.
-                                   node->height);
+    ft->blocktable.realloc_on_disk(
+        blocknum, n_to_write, &offset, ft, fd, for_checkpoint);
 
     tokutime_t t0 = toku_time_now();
     toku_os_full_pwrite(fd, compressed_buf, n_to_write, offset);
     tokutime_t t1 = toku_time_now();
 
     tokutime_t io_time = t1 - t0;
-    toku_ft_status_update_flush_reason(node, n_uncompressed_bytes, n_to_write, io_time, for_checkpoint);
+    toku_ft_status_update_flush_reason(
+        node, n_uncompressed_bytes, n_to_write, io_time, for_checkpoint);
 
     toku_free(compressed_buf);
-    node->dirty = 0;  // See #1957.   Must set the node to be clean after serializing it so that it doesn't get written again on the next checkpoint or eviction.
+    node->dirty = 0;  // See #1957.   Must set the node to be clean after
+                      // serializing it so that it doesn't get written again on
+                      // the next checkpoint or eviction.
     return 0;
 }
 
@@ -994,6 +996,7 @@ BASEMENTNODE toku_clone_bn(BASEMENTNODE orig_bn) {
     bn->seqinsert = orig_bn->seqinsert;
     bn->stale_ancestor_messages_applied = orig_bn->stale_ancestor_messages_applied;
     bn->stat64_delta = orig_bn->stat64_delta;
+    bn->logical_rows_delta = orig_bn->logical_rows_delta;
     bn->data_buffer.clone(&orig_bn->data_buffer);
     return bn;
 }
@@ -1004,6 +1007,7 @@ BASEMENTNODE toku_create_empty_bn_no_buffer(void) {
     bn->seqinsert = 0;
     bn->stale_ancestor_messages_applied = false;
     bn->stat64_delta = ZEROSTATS;
+    bn->logical_rows_delta = 0;
     bn->data_buffer.init_zero();
     return bn;
 }
@@ -1897,7 +1901,7 @@ read_and_decompress_block_from_fd_into_rbuf(int fd, BLOCKNUM blocknum,
                                             /* out */ int *layout_version_p);
 
 // This function upgrades a version 14 or 13 ftnode to the current
-// verison. NOTE: This code assumes the first field of the rbuf has
+// version. NOTE: This code assumes the first field of the rbuf has
 // already been read from the buffer (namely the layout_version of the
 // ftnode.)
 static int
@@ -2488,9 +2492,12 @@ toku_serialize_rollback_log_to_memory_uncompressed(ROLLBACK_LOG_NODE log, SERIAL
     serialized->blocknum = log->blocknum;
 }
 
-int
-toku_serialize_rollback_log_to (int fd, ROLLBACK_LOG_NODE log, SERIALIZED_ROLLBACK_LOG_NODE serialized_log, bool is_serialized,
-                                FT ft, bool for_checkpoint) {
+int toku_serialize_rollback_log_to(int fd,
+                                   ROLLBACK_LOG_NODE log,
+                                   SERIALIZED_ROLLBACK_LOG_NODE serialized_log,
+                                   bool is_serialized,
+                                   FT ft,
+                                   bool for_checkpoint) {
     size_t n_to_write;
     char *compressed_buf;
     struct serialized_rollback_log_node serialized_local;
@@ -2511,21 +2518,21 @@ toku_serialize_rollback_log_to (int fd, ROLLBACK_LOG_NODE log, SERIALIZED_ROLLBA
                                            serialized_log->n_sub_blocks,
                                            serialized_log->sub_block,
                                            ft->h->compression_method,
-                                           &n_to_write, &compressed_buf);
+                                           &n_to_write,
+                                           &compressed_buf);
 
     // Dirties the ft
     DISKOFF offset;
-    ft->blocktable.realloc_on_disk(blocknum, n_to_write, &offset,
-                                   ft, fd, for_checkpoint,
-                                   // We consider rollback log flushing the hottest possible allocation,
-                                   // since rollback logs are short-lived compared to FT nodes.
-                                   INT_MAX);
+    ft->blocktable.realloc_on_disk(
+        blocknum, n_to_write, &offset, ft, fd, for_checkpoint);
 
     toku_os_full_pwrite(fd, compressed_buf, n_to_write, offset);
     toku_free(compressed_buf);
     if (!is_serialized) {
         toku_static_serialized_rollback_log_destroy(&serialized_local);
-        log->dirty = 0;  // See #1957.   Must set the node to be clean after serializing it so that it doesn't get written again on the next checkpoint or eviction.
+        log->dirty = 0;  // See #1957.   Must set the node to be clean after
+                         // serializing it so that it doesn't get written again
+                         // on the next checkpoint or eviction.
     }
     return 0;
 }
@@ -2704,7 +2711,7 @@ exit:
 }
 
 static int decompress_from_raw_block_into_rbuf_versioned(uint32_t version, uint8_t *raw_block, size_t raw_block_size, struct rbuf *rb, BLOCKNUM blocknum) {
-    // This function exists solely to accomodate future changes in compression.
+    // This function exists solely to accommodate future changes in compression.
     int r = 0;
     if ((version == FT_LAYOUT_VERSION_13 || version == FT_LAYOUT_VERSION_14) ||
         (FT_LAYOUT_VERSION_25 <= version && version <= FT_LAYOUT_VERSION_27) ||

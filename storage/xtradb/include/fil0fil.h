@@ -321,13 +321,21 @@ struct fil_space_t {
 				/*!< true if this space is currently in
 				unflushed_spaces */
 	ibool		is_corrupt;
+				/*!< true if tablespace corrupted */
 	bool		printed_compression_failure;
 				/*!< true if we have already printed
 				compression failure */
+	fil_space_crypt_t* crypt_data;
+				/*!< tablespace crypt data or NULL */
+	bool		page_0_crypt_read;
+				/*!< tablespace crypt data has been
+				read */
+	ulint		file_block_size;
+				/*!< file system block size */
+
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
-        fil_space_crypt_t* crypt_data;
-	ulint		file_block_size;/*!< file system block size */
+
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 };
 
@@ -471,7 +479,8 @@ fil_space_create(
 	ulint		zip_size,/*!< in: compressed page size, or
 				0 for uncompressed tablespaces */
 	ulint		purpose, /*!< in: FIL_TABLESPACE, or FIL_LOG if log */
-	fil_space_crypt_t* crypt_data); /*!< in: crypt data */
+	fil_space_crypt_t* crypt_data, /*!< in: crypt data */
+	bool		create_table); /*!< in: true if create table */
 
 /*******************************************************************//**
 Assigns a new space id for a new single-table tablespace. This works simply by

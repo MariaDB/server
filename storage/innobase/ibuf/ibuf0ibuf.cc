@@ -915,9 +915,15 @@ ibuf_set_free_bits_low(
 	page_t*	bitmap_page;
 	ulint	space;
 	ulint	page_no;
+	buf_frame_t* frame;
 
-	if (!page_is_leaf(buf_block_get_frame(block))) {
+	if (!block) {
+		return;
+	}
 
+	frame = buf_block_get_frame(block);
+
+	if (!frame || !page_is_leaf(frame)) {
 		return;
 	}
 
@@ -1091,7 +1097,11 @@ ibuf_update_free_bits_zip(
 	page_no = buf_block_get_page_no(block);
 	zip_size = buf_block_get_zip_size(block);
 
-	ut_a(page_is_leaf(buf_block_get_frame(block)));
+	ut_a(block);
+
+	buf_frame_t* frame = buf_block_get_frame(block);
+
+	ut_a(frame && page_is_leaf(frame));
 	ut_a(zip_size);
 
 	bitmap_page = ibuf_bitmap_get_map_page(space, page_no, zip_size, mtr);
@@ -4680,8 +4690,14 @@ ibuf_merge_or_delete_for_page(
 
 			bitmap_page = ibuf_bitmap_get_map_page(space, page_no,
 							       zip_size, &mtr);
-			buf_page_print(bitmap_page, 0,
-				       BUF_PAGE_PRINT_NO_CRASH);
+			if (bitmap_page == NULL)
+			{
+				fputs("InnoDB: cannot retrieve bitmap page\n",
+				      stderr);
+			} else {
+				buf_page_print(bitmap_page, 0,
+					       BUF_PAGE_PRINT_NO_CRASH);
+			}
 			ibuf_mtr_commit(&mtr);
 
 			fputs("\nInnoDB: Dump of the page:\n", stderr);

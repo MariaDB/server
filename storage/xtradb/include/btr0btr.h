@@ -298,9 +298,17 @@ btr_block_get_func(
 @param idx	index tree, may be NULL if not the insert buffer tree
 @param mtr	mini-transaction handle
 @return the uncompressed page frame */
-# define btr_page_get(space,zip_size,page_no,mode,idx,mtr)		\
-	buf_block_get_frame(btr_block_get(space,zip_size,page_no, \
-			mode,idx,mtr))
+UNIV_INLINE
+page_t*
+btr_page_get(
+/*=========*/
+	ulint		space,
+	ulint		zip_size,
+	ulint		root_page_no,
+	ulint		mode,
+	dict_index_t*	index,
+	mtr_t*		mtr)
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 /**************************************************************//**
 Gets the index id field of a page.

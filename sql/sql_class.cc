@@ -4598,10 +4598,85 @@ thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd)
     cause replication to rollback (and later re-try) the other transaction,
     releasing the lock for this transaction so replication can proceed.
   */
-  other_rgi->killed_for_retry= true;
+  other_rgi->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
   mysql_mutex_lock(&other_thd->LOCK_thd_data);
   other_thd->awake(KILL_CONNECTION);
   mysql_mutex_unlock(&other_thd->LOCK_thd_data);
+}
+
+/*
+  Used by storage engines (currently TokuDB) to report that one transaction
+  THD is about to go to wait for a transactional lock held by another
+  transactions OTHER_THD.
+
+  This is used for parallel replication, where transactions are required to
+  commit in the same order on the slave as they did on the master. If the
+  transactions on the slave encounter lock conflicts on the slave that did not
+  exist on the master, this can cause deadlocks. This is primarily used in
+  optimistic (and aggressive) modes.
+
+  Normally, such conflicts will not occur in conservative mode, because the
+  same conflict would have prevented the two transactions from committing in
+  parallel on the master, thus preventing them from running in parallel on the
+  slave in the first place. However, it is possible in case when the optimizer
+  chooses a different plan on the slave than on the master (eg. table scan
+  instead of index scan).
+
+  InnoDB/XtraDB reports lock waits using this call. If a lock wait causes a
+  deadlock with the pre-determined commit order, we kill the later transaction,
+  and later re-try it, to resolve the deadlock.
+
+  This call need only receive reports about waits for locks that will remain
+  until the holding transaction commits. InnoDB/XtraDB auto-increment locks,
+  for example, are released earlier, and so need not be reported. (Such false
+  positives are not harmful, but could lead to unnecessary kill and retry, so
+  best avoided).
+
+  Returns 1 if the OTHER_THD will be killed to resolve deadlock, 0 if not. The
+  actual kill will happen later, asynchronously from another thread. The
+  caller does not need to take any actions on the return value if the
+  handlerton kill_query method is implemented to abort the to-be-killed
+  transaction.
+*/
+extern "C" int
+thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
+{
+  rpl_group_info *rgi;
+  rpl_group_info *other_rgi;
+
+  if (!thd)
+    return 0;
+  DEBUG_SYNC(thd, "thd_report_wait_for");
+  thd->transaction.stmt.mark_trans_did_wait();
+  if (!other_thd)
+    return 0;
+  binlog_report_wait_for(thd, other_thd);
+  rgi= thd->rgi_slave;
+  other_rgi= other_thd->rgi_slave;
+  if (!rgi || !other_rgi)
+    return 0;
+  if (!rgi->is_parallel_exec)
+    return 0;
+  if (rgi->rli != other_rgi->rli)
+    return 0;
+  if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id)
+    return 0;
+  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
+    return 0;
+  if (rgi->gtid_sub_id > other_rgi->gtid_sub_id)
+    return 0;
+  /*
+    This transaction is about to wait for another transaction that is required
+    by replication binlog order to commit after. This would cause a deadlock.
+
+    So send a kill to the other transaction, with a temporary error; this will
+    cause replication to rollback (and later re-try) the other transaction,
+    releasing the lock for this transaction so replication can proceed.
+  */
+#ifdef HAVE_REPLICATION
+  slave_background_kill_request(other_thd);
+#endif
+  return 1;
 }
 
 /*
@@ -5753,9 +5828,11 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     {
       static const char *prelocked_mode_name[] = {
         "NON_PRELOCKED",
+        "LOCK_TABLES",
         "PRELOCKED",
         "PRELOCKED_UNDER_LOCK_TABLES",
       };
+      compile_time_assert(array_elements(prelocked_mode_name) == LTM_always_last);
       DBUG_PRINT("debug", ("prelocked_mode: %s",
                            prelocked_mode_name[locked_tables_mode]));
     }

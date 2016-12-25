@@ -52,7 +52,7 @@ eval SELECT 'hello' INTO OUTFILE 'fake_file.$prefix';
 
 # Use '/' instead of '\' in the error message. On windows platform, dir is
 # formed with '\'.
---replace_regex /\\testing_1\\*/\/testing_1\// /66/39/ /17/39/ /File exists/Directory not empty/
+--replace_regex /\\testing_1\\*/\/testing_1\// /66/39/ /93/39/ /17/39/ /247/39/ /File exists/Directory not empty/
 --error 1010
 DROP DATABASE testing_1;
 let $wait_binlog_event= DROP TABLE IF EXIST;

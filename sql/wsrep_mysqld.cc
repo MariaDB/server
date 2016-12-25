@@ -36,6 +36,7 @@
 #include <cstdlib>
 #include "log_event.h"
 #include <slave.h>
+#include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 
 wsrep_t *wsrep                  = NULL;
 /*
@@ -95,6 +96,8 @@ bool wsrep_new_cluster                 = false; // Bootstrap the cluster ?
 bool wsrep_gtid_mode                   = 0;
 // gtid_domain_id for galera transactions.
 uint32 wsrep_gtid_domain_id            = 0;
+// Allow reads even if the node is not in the primary component.
+bool wsrep_dirty_reads                 = false;
 
 /*
  * End configuration options
@@ -771,7 +774,6 @@ void wsrep_thr_init()
   mysql_mutex_init(key_LOCK_wsrep_config_state, &LOCK_wsrep_config_state, MY_MUTEX_INIT_FAST);
 }
 
-
 void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
@@ -781,6 +783,17 @@ void wsrep_init_startup (bool first)
      (wsrep_abort_thd_fun)wsrep_abort_thd,
      wsrep_debug, wsrep_convert_LOCK_to_trx,
      (wsrep_on_fun)wsrep_on);
+
+  /*
+    Pre-initialize global_system_variables.table_plugin with a dummy engine
+    (placeholder) required during the initialization of wsrep threads (THDs).
+    (see: plugin_thdvar_init())
+    Note: This only needs to be done for rsync & xtrabackup based SST methods.
+    In case of mysqldump SST method, the wsrep threads are created after the
+    server plugins & global system variables are initialized.
+  */
+  if (wsrep_before_SE())
+    wsrep_plugins_pre_init();
 
   /* Skip replication start if dummy wsrep provider is loaded */
   if (!strcmp(wsrep_provider, WSREP_NONE)) return;
@@ -947,6 +960,8 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
 {
   return (thd->variables.wsrep_sync_wait & mask) &&
     thd->variables.wsrep_on &&
+    !(thd->variables.wsrep_dirty_reads &&
+      !is_update_query(thd->lex->sql_command)) &&
     !thd->in_active_multi_stmt_transaction() &&
     thd->wsrep_conflict_state != REPLAYING &&
     thd->wsrep_sync_wait_gtid.seqno == WSREP_SEQNO_UNDEFINED;

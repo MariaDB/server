@@ -1,0 +1,6 @@
+include/master-slave.inc
+[connection master]
+include/stop_slave.inc
+NOT FOUND /Error reading packet from server: Lost connection/ in slave_log.err
+include/start_slave.inc
+include/rpl_end.inc

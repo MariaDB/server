@@ -27,7 +27,7 @@ Warnings:
 Warning	1292	Truncated incorrect table_open_cache value: '1073741824'
 SELECT @@global.table_open_cache ;
 @@global.table_open_cache
-524288
+1048576
 SET @@global.table_open_cache  = 18000;
 SELECT @@global.table_open_cache ;
 @@global.table_open_cache
@@ -48,7 +48,7 @@ Warnings:
 Warning	1292	Truncated incorrect table_open_cache value: '100000000000'
 SELECT @@global.table_open_cache ;
 @@global.table_open_cache
-524288
+1048576
 SET @@global.table_open_cache = -1024;
 Warnings:
 Warning	1292	Truncated incorrect table_open_cache value: '-1024'

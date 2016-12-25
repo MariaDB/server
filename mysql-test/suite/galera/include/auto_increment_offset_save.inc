@@ -13,6 +13,8 @@
 #   Connection handle for 2nd node
 # $node_3 (optional)
 #   Connection handle for 3rd node
+# $node_4 (optional)
+#   Connection handle for 4th node
 
 if (!$node_1)
 {
@@ -33,5 +35,11 @@ if ($node_3)
 {
   --connection $node_3
   let $auto_increment_offset_node_3 = `SELECT @@global.auto_increment_offset`;
+}
+
+if ($node_4)
+{
+  --connection $node_4
+  let $auto_increment_offset_node_4 = `SELECT @@global.auto_increment_offset`;
 }
 

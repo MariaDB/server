@@ -1262,7 +1262,8 @@ enum enum_locked_tables_mode
   LTM_NONE= 0,
   LTM_LOCK_TABLES,
   LTM_PRELOCKED,
-  LTM_PRELOCKED_UNDER_LOCK_TABLES
+  LTM_PRELOCKED_UNDER_LOCK_TABLES,
+  LTM_always_last
 };
 
 
@@ -1449,7 +1450,8 @@ enum enum_thread_type
   SYSTEM_THREAD_EVENT_SCHEDULER= 8,
   SYSTEM_THREAD_EVENT_WORKER= 16,
   SYSTEM_THREAD_BINLOG_BACKGROUND= 32,
-  SYSTEM_THREAD_SLAVE_INIT= 64
+  SYSTEM_THREAD_SLAVE_INIT= 64,
+  SYSTEM_THREAD_SLAVE_BACKGROUND= 128
 };
 
 inline char const *
@@ -4608,6 +4610,11 @@ public:
       save_copy_field= copy_field= NULL;
       save_copy_field_end= copy_field_end= NULL;
     }
+  }
+  void free_copy_field_data()
+  {
+    for (Copy_field *ptr= copy_field ; ptr != copy_field_end ; ptr++)
+      ptr->tmp.free();
   }
 };
 

@@ -17,6 +17,8 @@
 # allow test to run only when innodb-page-size=16  
 --source include/have_innodb_16k.inc
 
+call mtr.add_suppression("InnoDB: Page for tablespace .* ");
+FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
@@ -752,4 +754,3 @@ call mtr.add_suppression("Could not find a valid tablespace file for 'test_wl552
 eval SET GLOBAL INNODB_FILE_PER_TABLE=$innodb_file_per_table;
 eval SET GLOBAL INNODB_FILE_FORMAT=$innodb_file_format;
 eval SET SESSION innodb_strict_mode=$innodb_strict_mode_orig;
-

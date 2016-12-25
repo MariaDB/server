@@ -181,6 +181,9 @@ extern MY_UNI_CTYPE my_uni_ctype[256];
 /* A helper macros for "need at least n bytes" */
 #define MY_CS_TOOSMALLN(n)    (-100-(n))
 
+#define MY_CS_IS_TOOSMALL(rc) ((rc) >= MY_CS_TOOSMALL6 && (rc) <= MY_CS_TOOSMALL)
+
+
 #define MY_SEQ_INTTAIL	1
 #define MY_SEQ_SPACES	2
 

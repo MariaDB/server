@@ -2822,9 +2822,6 @@ row_upd(
 {
 	dberr_t		err	= DB_SUCCESS;
 
-	ut_ad(node != NULL);
-	ut_ad(thr != NULL);
-
 	if (UNIV_LIKELY(node->in_mysql_interface)) {
 
 		/* We do not get the cmpl_info value from the MySQL

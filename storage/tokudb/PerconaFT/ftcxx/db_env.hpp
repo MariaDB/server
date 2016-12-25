@@ -202,6 +202,7 @@ namespace ftcxx {
         typedef uint64_t (*get_lock_wait_time_cb_func)(uint64_t);
         get_lock_wait_time_cb_func _get_lock_wait_time_cb;
         lock_timeout_callback _lock_timeout_callback;
+        lock_wait_callback _lock_wait_needed_callback;
         uint64_t (*_loader_memory_size_callback)(void);
 
         uint32_t _cachesize_gbytes;
@@ -231,6 +232,7 @@ namespace ftcxx {
               _lock_wait_time_msec(0),
               _get_lock_wait_time_cb(nullptr),
               _lock_timeout_callback(nullptr),
+              _lock_wait_needed_callback(nullptr),
               _loader_memory_size_callback(nullptr),
               _cachesize_gbytes(0),
               _cachesize_bytes(0),
@@ -293,6 +295,11 @@ namespace ftcxx {
 
             if (_lock_timeout_callback) {
                 r = env->set_lock_timeout_callback(env, _lock_timeout_callback);
+                handle_ft_retval(r);
+            }
+
+            if (_lock_wait_needed_callback) {
+                r = env->set_lock_wait_callback(env, _lock_wait_needed_callback);
                 handle_ft_retval(r);
             }
 
@@ -416,6 +423,11 @@ namespace ftcxx {
 
         DBEnvBuilder& set_lock_timeout_callback(lock_timeout_callback callback) {
             _lock_timeout_callback = callback;
+            return *this;
+        }
+
+        DBEnvBuilder& set_lock_wait_callback(lock_wait_callback callback) {
+            _lock_wait_needed_callback = callback;
             return *this;
         }
 
