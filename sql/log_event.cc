@@ -1794,7 +1794,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   if (fdle->crypto_data.scheme)
   {
     uchar iv[BINLOG_IV_LENGTH];
-    fdle->crypto_data.set_iv(iv, my_b_tell(file) - data_len);
+    fdle->crypto_data.set_iv(iv, (uint32) (my_b_tell(file) - data_len));
 
     char *newpkt= (char*)my_malloc(data_len + ev_offset + 1, MYF(MY_WME));
     if (!newpkt)
@@ -7058,7 +7058,7 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len=
     description_event->post_header_len[BINLOG_CHECKPOINT_EVENT-1];
-  if (event_len < header_size + post_header_len ||
+  if (event_len < (uint) header_size + (uint) post_header_len ||
       post_header_len < BINLOG_CHECKPOINT_HEADER_LEN)
     return;
   buf+= header_size;
@@ -7096,7 +7096,7 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
 {
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
-  if (event_len < header_size + post_header_len ||
+  if (event_len < (uint) header_size + (uint) post_header_len ||
       post_header_len < GTID_HEADER_LEN)
     return;
 
@@ -7421,7 +7421,7 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
   uint32 val;
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_LIST_EVENT-1];
-  if (event_len < header_size + post_header_len ||
+  if (event_len < (uint) header_size + (uint) post_header_len ||
       post_header_len < GTID_LIST_HEADER_LEN)
     return;
 
