@@ -5428,7 +5428,9 @@ end_with_restore_list:
                   (longlong) thd->thread_id);
       goto error;
     }
-    my_ok(thd);
+    /* MyRocks: hton->start_consistent_snapshot call may fail with an error */
+    if (!thd->is_error())
+      my_ok(thd);
     break;
   case SQLCOM_COMMIT:
   {
