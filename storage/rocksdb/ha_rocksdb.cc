@@ -3099,12 +3099,6 @@ static int rocksdb_start_tx_and_assign_read_view(
         THD*            thd)            /*!< in: MySQL thread handle of the
                                         user for whom the transaction should
                                         be committed */
-#ifdef MARIAROCKS_NOT_YET // consistent snapshot with binlog
-        char*           binlog_file,    /* out: binlog file for last commit */
-        ulonglong*      binlog_pos,     /* out: binlog pos for last commit */
-        char**  gtid_executed,  /* out: Gtids logged until last commit */
-        int*    gtid_executed_length)   /*out: Length of gtid_executed string */
-#endif
 {
   Rdb_perf_context_guard guard(thd);
 
@@ -3118,26 +3112,23 @@ static int rocksdb_start_tx_and_assign_read_view(
                     "in RocksDB Storage Engine.", MYF(0));
     return 1;
   }
-#ifdef MARIAROCKS_NOT_YET // consistent snapshot with binlog
-  if (binlog_file)
-  {
-    if (binlog_pos && mysql_bin_log.is_open())
-      mysql_bin_log_lock_commits();
-    else
-      return 1;
-  }
-#endif
+  /*
+    MariaDB: there is no need to call mysql_bin_log_lock_commits and then
+    unlock back.
+    SQL layer calls start_consistent_snapshot() for all engines, including the
+    binlog under LOCK_commit_ordered mutex.
+    The mutex prevents binlog commits from happening (right?) while the storage
+    engine(s) allocate read snapshots. That way, each storage engine is
+    synchronized with current binlog position.
+  */
+  mysql_mutex_assert_owner(&LOCK_commit_ordered);
+
   Rdb_transaction* tx= get_or_create_tx(thd);
   DBUG_ASSERT(!tx->has_snapshot());
   tx->set_tx_read_only(true);
   rocksdb_register_tx(hton, thd, tx);
   tx->acquire_snapshot(true);
 
-#ifdef MARIAROCKS_NOT_YET // consistent snapshot with binlog
-  if (binlog_file)
-    mysql_bin_log_unlock_commits(binlog_file, binlog_pos, gtid_executed,
-                                 gtid_executed_length);
-#endif
   return 0;
 }
 
