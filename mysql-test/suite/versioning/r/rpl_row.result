@@ -109,5 +109,18 @@ connection slave;
 select * from t1;
 x
 connection master;
+create or replace table t1 (a int) with system versioning engine = innodb;
+insert into t1 values (1);
+update t1 set a=2;
+select * from t1 for system_time all;
+a
+2
+1
+connection slave;
+select * from t1 for system_time all;
+a
+2
+1
+connection master;
 drop table t1;
 include/rpl_end.inc

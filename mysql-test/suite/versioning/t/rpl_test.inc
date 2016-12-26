@@ -86,5 +86,16 @@ select * from t1 for system_time all;
 sync_slave_with_master;
 select * from t1;
 
+# at this point in this particular test master and slave have different curr_trx_id
+# and the same rows have different sys_trx_start
+# slave should ignore sys_trx_start while searching for a record to update in a InnoDB table
+connection master;
+create or replace table t1 (a int) with system versioning engine = innodb;
+insert into t1 values (1);
+update t1 set a=2;
+select * from t1 for system_time all;
+sync_slave_with_master;
+select * from t1 for system_time all;
+
 connection master;
 drop table t1;

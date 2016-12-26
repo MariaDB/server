@@ -12766,7 +12766,7 @@ uint8 Write_rows_log_event::get_trg_event_map()
 
   Returns TRUE if different.
 */
-static bool record_compare(TABLE *table, bool skip_sys_start)
+static bool record_compare(TABLE *table)
 {
   bool result= FALSE;
   /**
@@ -12799,7 +12799,7 @@ static bool record_compare(TABLE *table, bool skip_sys_start)
   /* Compare fields */
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-    if (skip_sys_start && *ptr == table->vers_start_field())
+    if (table->versioned_by_engine() && *ptr == table->vers_start_field())
     {
       continue;
     }
@@ -12997,7 +12997,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   prepare_record(table, m_width, FALSE);
   error= unpack_current_row(rgi);
 
-  bool skip_sys_start= false;
 
   if (table->versioned())
   {
@@ -13011,7 +13010,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
       bitmap_set_bit(table->write_set, sys_trx_end->field_index);
       sys_trx_end->set_max();
       table->vers_start_field()->set_notnull();
-      skip_sys_start= true;
     }
   }
 
@@ -13190,7 +13188,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_index_scan", abort(););
 
-    while (record_compare(table, skip_sys_start))
+    while (record_compare(table))
     {
       while ((error= table->file->ha_index_next(table->record[0])))
       {
@@ -13254,7 +13252,7 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
         goto end;
       }
     }
-    while (record_compare(table, skip_sys_start));
+    while (record_compare(table));
     
     /* 
       Note: above record_compare will take into accout all record fields 
