@@ -28,6 +28,7 @@ class Item;
 class Item_cache;
 class Item_sum_hybrid;
 class Item_func_hex;
+class Item_hybrid_func;
 class Item_func_hybrid_field_type;
 class Item_func_between;
 class Item_func_in;
@@ -298,6 +299,9 @@ public:
                                  bool no_conversions) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
+  virtual bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                               Item **items,
+                                               uint nitems) const= 0;
   virtual bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const= 0;
   virtual String *Item_func_hex_val_str_ascii(Item_func_hex *item,
                                               String *str) const= 0;
@@ -391,6 +395,12 @@ public:
   }
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
   {
     DBUG_ASSERT(0);
@@ -473,6 +483,8 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
@@ -513,6 +525,8 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
@@ -551,6 +565,8 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
@@ -626,6 +642,8 @@ public:
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
@@ -778,6 +796,8 @@ public:
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   const Type_handler *type_handler_for_comparison() const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
 };
@@ -813,62 +833,85 @@ public:
 };
 
 
-class Type_handler_date: public Type_handler_temporal_with_date
+class Type_handler_date_common: public Type_handler_temporal_with_date
+{
+public:
+  virtual ~Type_handler_date_common() {}
+  enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const;
+};
+
+class Type_handler_date: public Type_handler_date_common
 {
 public:
   virtual ~Type_handler_date() {}
-  enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
 
 
-class Type_handler_newdate: public Type_handler_temporal_with_date
+class Type_handler_newdate: public Type_handler_date_common
 {
 public:
   virtual ~Type_handler_newdate() {}
-  enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
 
 
-class Type_handler_datetime: public Type_handler_temporal_with_date
+class Type_handler_datetime_common: public Type_handler_temporal_with_date
+{
+public:
+  virtual ~Type_handler_datetime_common() {}
+  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const;
+};
+
+
+class Type_handler_datetime: public Type_handler_datetime_common
 {
 public:
   virtual ~Type_handler_datetime() {}
-  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
 
 
-class Type_handler_datetime2: public Type_handler_temporal_with_date
+class Type_handler_datetime2: public Type_handler_datetime_common
 {
 public:
   virtual ~Type_handler_datetime2() {}
-  enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_DATETIME2; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
 
 
-class Type_handler_timestamp: public Type_handler_temporal_with_date
+class Type_handler_timestamp_common: public Type_handler_temporal_with_date
+{
+public:
+  virtual ~Type_handler_timestamp_common() {}
+  enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
+  bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const;
+};
+
+
+class Type_handler_timestamp: public Type_handler_timestamp_common
 {
 public:
   virtual ~Type_handler_timestamp() {}
-  enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
 };
 
 
-class Type_handler_timestamp2: public Type_handler_temporal_with_date
+class Type_handler_timestamp2: public Type_handler_timestamp_common
 {
 public:
   virtual ~Type_handler_timestamp2() {}
-  enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIMESTAMP2; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;

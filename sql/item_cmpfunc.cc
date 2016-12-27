@@ -3108,25 +3108,19 @@ void Item_func_case::fix_length_and_dec()
   
   set_handler_by_field_type(agg_field_type(agg, nagg, true));
 
-  if (Item_func_case::result_type() == STRING_RESULT)
-  {
-    if (count_string_result_length(Item_func_case::field_type(), agg, nagg))
-      return;
-    /*
-      Copy all THEN and ELSE items back to args[] array.
-      Some of the items might have been changed to Item_func_conv_charset.
-    */
-    for (nagg= 0 ; nagg < ncases / 2 ; nagg++)
-      change_item_tree_if_needed(thd, &args[nagg * 2 + 1], agg[nagg]);
+  if (fix_attributes(agg, nagg))
+    return;
 
-    if (else_expr_num != -1)
-      change_item_tree_if_needed(thd, &args[else_expr_num], agg[nagg++]);
-  }
-  else
-  {
-    fix_attributes(agg, nagg);
-  }
-  
+  /*
+    Copy all modified THEN and ELSE items back to args[] array.
+    Some of the items might have been changed to Item_func_conv_charset.
+  */
+  for (nagg= 0 ; nagg < ncases / 2 ; nagg++)
+    change_item_tree_if_needed(thd, &args[nagg * 2 + 1], agg[nagg]);
+
+  if (else_expr_num != -1)
+    change_item_tree_if_needed(thd, &args[else_expr_num], agg[nagg++]);
+
   /*
     Aggregate first expression and all WHEN expression types
     and collations when string comparison
@@ -3405,31 +3399,12 @@ my_decimal *Item_func_coalesce::decimal_op(my_decimal *decimal_value)
 }
 
 
-void Item_hybrid_func::fix_attributes(Item **items, uint nitems)
+bool Item_hybrid_func::fix_attributes(Item **items, uint nitems)
 {
-  switch (Item_hybrid_func::result_type()) {
-  case STRING_RESULT:
-    if (count_string_result_length(Item_hybrid_func::field_type(),
-                                   items, nitems))
-      return;          
-    break;
-  case DECIMAL_RESULT:
-    collation.set_numeric();
-    count_decimal_length(items, nitems);
-    break;
-  case REAL_RESULT:
-    collation.set_numeric();
-    count_real_length(items, nitems);
-    break;
-  case INT_RESULT:
-    collation.set_numeric();
-    count_only_length(items, nitems);
-    decimals= 0;
-    break;
-  case ROW_RESULT:
-  case TIME_RESULT:
-    DBUG_ASSERT(0);
-  }
+  bool rc= Item_hybrid_func::type_handler()->
+             Item_hybrid_func_fix_attributes(current_thd, this, items, nitems);
+  DBUG_ASSERT(!rc || current_thd->is_error());
+  return rc;
 }
 
 /****************************************************************************

@@ -890,6 +890,79 @@ Type_handler_temporal_result::Item_get_cache(THD *thd, const Item *item) const
 
 /*************************************************************************/
 
+bool Type_handler_int_result::
+       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+{
+  func->aggregate_attributes_int(items, nitems);
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+{
+  func->aggregate_attributes_real(items, nitems);
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+{
+  func->aggregate_attributes_decimal(items, nitems);
+  return false;
+}
+
+
+bool Type_handler_string_result::
+       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+{
+  return func->aggregate_attributes_string(items, nitems);
+}
+
+
+bool Type_handler_date_common::
+       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+{
+  func->set_attributes_temporal(MAX_DATE_WIDTH, 0);
+  return false;
+}
+
+
+bool Type_handler_time_common::
+       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+{
+  func->aggregate_attributes_temporal(MIN_TIME_WIDTH, items, nitems);
+  return false;
+}
+
+
+bool Type_handler_datetime_common::
+       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+{
+  func->aggregate_attributes_temporal(MAX_DATETIME_WIDTH, items, nitems);
+  return false;
+}
+
+
+bool Type_handler_timestamp_common::
+       Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
+                                       Item **items, uint nitems) const
+{
+  func->aggregate_attributes_temporal(MAX_DATETIME_WIDTH, items, nitems);
+  return false;
+}
+
+
+/*************************************************************************/
+
 /**
   MAX/MIN for the traditional numeric types preserve the exact data type
   from Fields, but do not preserve the exact type from Items:
