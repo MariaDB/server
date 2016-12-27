@@ -26,6 +26,10 @@ let $_slave_timeout= $slave_timeout;
 if (!$_slave_timeout)
 {
   let $_slave_timeout= 300;
+  if ($VALGRIND_TEST)
+  {
+    let $_slave_timeout= 1500;
+  }
 }
 
 --let $_master_log_file= query_get_value(SHOW SLAVE STATUS, Master_Log_File, 1)
