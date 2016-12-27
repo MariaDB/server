@@ -28,9 +28,11 @@ pk	c
 show status like 'Qcache_hits';
 Variable_name	Value
 Qcache_hits	0
+# MariaDB: Qcache_not_cached is not incremented for select sql_no_cache queries
+#          so the following query produces 2, not 3:
 show status like 'Qcache_not_cached';
 Variable_name	Value
-Qcache_not_cached	3
+Qcache_not_cached	2
 show global status like 'Qcache_hits';
 Variable_name	Value
 Qcache_hits	0
