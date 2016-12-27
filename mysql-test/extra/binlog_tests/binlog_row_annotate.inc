@@ -4,7 +4,7 @@
 # Please check all dependent tests after modifying it
 #
 # Usage:
-# --let $use_remote_mysqlbinlog= 1 # optional
+# --let use_remote_mysqlbinlog= 1 # optional
 # --source extra/binlog_tests/binlog_row_annotate.inc
 #
 # By default, the script uses mysqlbinlog both with direct access to files
@@ -35,12 +35,11 @@
 
 set @old_binlog_checksum=@@binlog_checksum;
 set global binlog_checksum=NONE;
+--let datadir= `select @@datadir`
 
 --source include/have_log_bin.inc
 --source include/binlog_start_pos.inc
 --source include/have_binlog_format_row.inc
-
---disable_query_log
 
 set sql_mode="";
 
@@ -49,14 +48,6 @@ SET timestamp=1000000000;
 
 # Delete all existing binary logs
 RESET MASTER;
-
---disable_warnings
-DROP DATABASE IF EXISTS test1;
-DROP DATABASE IF EXISTS test2;
-DROP DATABASE IF EXISTS test3;
-DROP DATABASE IF EXISTS xtest1;
-DROP DATABASE IF EXISTS xtest2;
---enable_warnings
 
 CREATE DATABASE test1;
 CREATE TABLE test1.t1(a int);
@@ -108,7 +99,6 @@ DELETE xtest1.xt1, xtest2.xt2
   WHERE xtest1.xt1.a=xtest2.xt2.a AND xtest2.xt2.a=test3.t3.a;
 
 FLUSH LOGS;
---enable_query_log
 
 --echo #####################################################################################
 --echo # The following Annotate_rows events should appear below:
@@ -119,11 +109,7 @@ FLUSH LOGS;
 --echo # - DELETE xtest1.xt1, test2.t2 FROM <...>
 --echo #####################################################################################
 
-let $start_pos= `select @binlog_start_pos`;
---replace_column 2 # 5 #
---replace_result $start_pos <start_pos>
---replace_regex /table_id: [0-9]+/table_id: #/ /\/\* xid=.* \*\//\/* xid= *\//
---eval show binlog events in 'master-bin.000001' from $start_pos
+--source include/show_binlog_events.inc
 
 if (!$use_remote_mysqlbinlog)
 {
@@ -138,9 +124,8 @@ if (!$use_remote_mysqlbinlog)
     --echo # - DELETE xtest1.xt1, test2.t2 FROM <...> (with one subsequent Table map)
     --echo #####################################################################################
 
-    let $MYSQLD_DATADIR= `select @@datadir`;
     --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/
-    --exec $MYSQL_BINLOG --base64-output=decode-rows -v -v $MYSQLD_DATADIR/master-bin.000001
+    --exec $MYSQL_BINLOG --base64-output=decode-rows -v -v $datadir/master-bin.000001
 
     --echo #
     --echo #####################################################################################
@@ -149,9 +134,8 @@ if (!$use_remote_mysqlbinlog)
     --echo # - DELETE test1.t1, test2.t2 FROM <...>
     --echo #####################################################################################
 
-    let $MYSQLD_DATADIR= `select @@datadir`;
     --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/
-    --exec $MYSQL_BINLOG --base64-output=decode-rows --database=test1 -v -v $MYSQLD_DATADIR/master-bin.000001
+    --exec $MYSQL_BINLOG --base64-output=decode-rows --database=test1 -v -v $datadir/master-bin.000001
 
     --echo #
     --echo #####################################################################################
@@ -159,11 +143,10 @@ if (!$use_remote_mysqlbinlog)
     --echo # No Annotates should appear in this output
     --echo #####################################################################################
 
-    let $MYSQLD_DATADIR= `select @@datadir`;
     --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/
-    --exec $MYSQL_BINLOG --base64-output=decode-rows --skip-annotate-row-events -v -v $MYSQLD_DATADIR/master-bin.000001
+    --exec $MYSQL_BINLOG --base64-output=decode-rows --skip-annotate-row-events -v -v $datadir/master-bin.000001
 
-    --let $use_remote_mysqlbinlog= 0
+    --let use_remote_mysqlbinlog= 0
 }
 
 --echo #
@@ -177,7 +160,6 @@ if (!$use_remote_mysqlbinlog)
 --echo # - DELETE xtest1.xt1, test2.t2 FROM <...> (with one subsequent Table map)
 --echo #####################################################################################
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/
 --exec $MYSQL_BINLOG --base64-output=decode-rows -v -v --read-from-remote-server --user=root --host=localhost --port=$MASTER_MYPORT master-bin.000001
 
@@ -188,7 +170,6 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo # - DELETE test1.t1, test2.t2 FROM <...>
 --echo #####################################################################################
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/
 --exec $MYSQL_BINLOG --base64-output=decode-rows --database=test1 -v -v --read-from-remote-server --user=root --host=localhost --port=$MASTER_MYPORT master-bin.000001
 
@@ -198,18 +179,14 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo # No Annotates should appear in this output
 --echo #####################################################################################
 
-let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/
 --exec $MYSQL_BINLOG --base64-output=decode-rows --skip-annotate-row-events -v -v --read-from-remote-server --user=root --host=localhost --port=$MASTER_MYPORT master-bin.000001
 
 # Clean-up
 
---disable_query_log
 set global binlog_checksum=@old_binlog_checksum;
 DROP DATABASE test1;
 DROP DATABASE test2;
 DROP DATABASE test3;
 DROP DATABASE xtest1;
 DROP DATABASE xtest2;
---enable_query_log
-
