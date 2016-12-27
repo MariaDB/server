@@ -1495,7 +1495,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     Note that we allow write locks on log tables as otherwise logging
     to general/slow log would be disabled in read only transactions.
   */
-  if (table_list->mdl_request.type >= MDL_SHARED_WRITE &&
+  if (table_list->mdl_request.is_write_lock_request() &&
       thd->tx_read_only &&
       !(flags & (MYSQL_LOCK_LOG_TABLE | MYSQL_OPEN_HAS_MDL_LOCK)))
   {
@@ -1654,7 +1654,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
             pre-acquiring metadata locks at the beggining of
             open_tables() call.
     */
-    if (table_list->mdl_request.type >= MDL_SHARED_WRITE &&
+    if (table_list->mdl_request.is_write_lock_request() &&
         ! (flags & (MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
                     MYSQL_OPEN_FORCE_SHARED_MDL |
                     MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |
@@ -2146,11 +2146,6 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
     request for metadata locks and TABLE_LIST elements.
   */
   reset();
-  if (thd->variables.option_bits & OPTION_AUTOCOMMIT)
-  {
-    thd->variables.option_bits&= ~(OPTION_NOT_AUTOCOMMIT);
-    thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
-  }
 }
 
 
@@ -3605,6 +3600,7 @@ lock_table_names(THD *thd, const DDL_options_st &options,
        table= table->next_global)
   {
     if (table->mdl_request.type < MDL_SHARED_UPGRADABLE ||
+        table->mdl_request.type == MDL_SHARED_READ_ONLY ||
         table->open_type == OT_TEMPORARY_ONLY ||
         (table->open_type == OT_TEMPORARY_OR_BASE && is_temporary_table(table)))
     {
@@ -3728,6 +3724,11 @@ open_tables_check_upgradable_mdl(THD *thd, TABLE_LIST *tables_start,
   for (table= tables_start; table && table != tables_end;
        table= table->next_global)
   {
+    /*
+      Check below needs to be updated if this function starts
+      called for SRO locks.
+    */
+    DBUG_ASSERT(table->mdl_request.type != MDL_SHARED_READ_ONLY);
     if (table->mdl_request.type < MDL_SHARED_UPGRADABLE ||
         table->open_type == OT_TEMPORARY_ONLY ||
         (table->open_type == OT_TEMPORARY_OR_BASE && is_temporary_table(table)))
@@ -4063,13 +4064,22 @@ restart:
     }
   }
 
-  if (WSREP_ON                                 &&
-      wsrep_replicate_myisam                   &&
-      (*start)                                 &&
-      (*start)->table                          &&
-      (*start)->table->file->ht == myisam_hton &&
-      sqlcom_can_generate_row_events(thd)      &&
-      thd->get_command() != COM_STMT_PREPARE)
+  if (WSREP_ON                                         &&
+      wsrep_replicate_myisam                           &&
+      (*start)                                         &&
+      (*start)->table                                  &&
+      (*start)->table->file->ht == myisam_hton         &&
+      wsrep_thd_exec_mode(thd) == LOCAL_STATE          &&
+      !is_stat_table((*start)->db, (*start)->alias)    &&
+      thd->get_command() != COM_STMT_PREPARE           &&
+      ((thd->lex->sql_command == SQLCOM_INSERT         ||
+        thd->lex->sql_command == SQLCOM_INSERT_SELECT  ||
+        thd->lex->sql_command == SQLCOM_REPLACE        ||
+        thd->lex->sql_command == SQLCOM_REPLACE_SELECT ||
+        thd->lex->sql_command == SQLCOM_UPDATE         ||
+        thd->lex->sql_command == SQLCOM_UPDATE_MULTI   ||
+        thd->lex->sql_command == SQLCOM_LOAD           ||
+        thd->lex->sql_command == SQLCOM_DELETE)))
   {
     WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
   }

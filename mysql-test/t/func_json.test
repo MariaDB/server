@@ -77,6 +77,7 @@ select json_extract(json_object('foo', 'foobar'),'$');
 select json_extract('[10, 20, [30, 40]]', '$[2][*]');
 select json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]');
 select json_extract('1', '$');
+select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]');
 
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3);
@@ -123,6 +124,7 @@ select json_merge('{"1": 2}', '{"true": false}', '{"3": 4}');
 select json_merge(NULL,json_object('foo', 1));
 select json_merge('a','b');
 select json_merge('{"a":"b"}','{"c":"d"}');
+SELECT JSON_MERGE('[1, 2]', '{"id": 47}');
 
 select json_type('{"k1":123, "k2":345}');
 select json_type('[123, "k2", 345]');
@@ -168,6 +170,8 @@ select json_depth('[10, {"a": 20}]');
 select json_length('');
 select json_length('{}');
 select json_length('[1, 2, {"a": 3}]');
+select json_length('{"a": 1, "b": {"c": 30}}', '$.b');
+select json_length('{"a": 1, "b": {"c": 30}}');
 
 create table json (j INT);
 show create table json;

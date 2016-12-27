@@ -29,6 +29,12 @@ Created May 26, 2009 Vasil Dimov
 
 #ifndef UNIV_INNOCHECKSUM
 
+/** The fil_space_t::id of the redo log. All persistent tablespaces
+have a smaller fil_space_t::id. */
+#define SRV_LOG_SPACE_FIRST_ID		0xFFFFFFF0U
+/** The fil_space_t::id of the innodb_temporary tablespace. */
+#define SRV_TMP_SPACE_ID		0xFFFFFFFEU
+
 #include "univ.i"
 #include "ut0byte.h"
 
@@ -196,9 +202,12 @@ fsp_flags_is_valid(
 /** Check if tablespace is system temporary.
 @param[in]      space_id        verify is checksum is enabled for given space.
 @return true if tablespace is system temporary. */
+inline
 bool
-fsp_is_system_temporary(
-	ulint	space_id);
+fsp_is_system_temporary(ulint	space_id)
+{
+	return(space_id == SRV_TMP_SPACE_ID);
+}
 
 /** Check if checksum is disabled for the given space.
 @param[in]	space_id	verify is checksum is enabled for given space.

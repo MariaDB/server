@@ -83,12 +83,6 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "my_config.h"
 #include <string.h>
 
-#if defined(__linux__) && defined(HAVE_CRC32_VPMSUM)
-/* Used to detect at runtime if we have vpmsum instructions (PowerISA 2.07) */
-#include <sys/auxv.h>
-#include <bits/hwcap.h>
-#endif
-
 #include "univ.i"
 #include "ut0crc32.h"
 
@@ -746,14 +740,8 @@ ut_crc32_init()
 	}
 
 #elif defined(HAVE_CRC32_VPMSUM)
-#if defined(__linux__)
-	if (getauxval(AT_HWCAP2) & PPC_FEATURE2_ARCH_2_07) {
-#endif
-		ut_crc32 = ut_crc32_power8;
-		ut_crc32_implementation = "Using POWER8 crc32 instructions";
-#if defined(__linux__)
-	}
-#endif
+	ut_crc32 = ut_crc32_power8;
+	ut_crc32_implementation = "Using POWER8 crc32 instructions";
 #endif
 
 }

@@ -185,7 +185,7 @@ fil_is_user_tablespace_id(
 	ulint	space_id)
 {
 	return(space_id > srv_undo_tablespaces_open
-	       && space_id != srv_tmp_space.space_id());
+	       && space_id != SRV_TMP_SPACE_ID);
 }
 
 #ifdef UNIV_DEBUG
@@ -1199,6 +1199,7 @@ fil_space_free_low(
 	ut_ad(space->size == 0);
 
 	rw_lock_free(&space->latch);
+	fil_space_destroy_crypt_data(&space->crypt_data);
 
 	ut_free(space->name);
 	ut_free(space);
@@ -1313,7 +1314,7 @@ fil_space_create(
 
 	/* This warning is not applicable while MEB scanning the redo logs */
 #ifndef UNIV_HOTBACKUP
-	if (fil_type_is_data(purpose)
+	if ((purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT)
 	    && !recv_recovery_on
 	    && id > fil_system->max_assigned_id) {
 
@@ -5104,10 +5105,13 @@ retry:
 	ulint	pages_per_mb = (1024 * 1024) / page_size;
 	ulint	size_in_pages = ((node->size / pages_per_mb) * pages_per_mb);
 
-	if (space->id == srv_sys_space.space_id()) {
+	switch (space->id) {
+	case TRX_SYS_SPACE:
 		srv_sys_space.set_last_file_size(size_in_pages);
-	} else if (space->id == srv_tmp_space.space_id()) {
+		break;
+	case SRV_TMP_SPACE_ID:
 		srv_tmp_space.set_last_file_size(size_in_pages);
+		break;
 	}
 #else
 	ib::trace() << "extended space : " << space->name << " from "
@@ -6223,6 +6227,8 @@ fil_close(void)
 
 		ut_free(fil_system);
 		fil_system = NULL;
+
+		fil_space_crypt_cleanup();
 	}
 }
 
@@ -6679,18 +6685,18 @@ fil_tablespace_iterate(
 			iter.io_buffer = static_cast<byte*>(
 				ut_align(io_buffer, UNIV_PAGE_SIZE));
 
-			/** Add an exta buffer for encryption */
-			void* crypt_io_buffer = NULL;
-			if (iter.crypt_data != NULL) {
-				crypt_io_buffer = ut_malloc_nokey(
-					iter.n_io_buffers * UNIV_PAGE_SIZE);
-				iter.crypt_io_buffer = static_cast<byte*>(
-					crypt_io_buffer);
-			}
+			iter.crypt_io_buffer = iter.crypt_data
+				? static_cast<byte*>(
+					ut_malloc_nokey(iter.n_io_buffers
+							* UNIV_PAGE_SIZE))
+				: NULL;
 
 			err = fil_iterate(iter, block, callback);
 
 			ut_free(io_buffer);
+			ut_free(iter.crypt_io_buffer);
+
+			fil_space_destroy_crypt_data(&iter.crypt_data);
 		}
 	}
 

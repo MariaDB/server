@@ -651,6 +651,28 @@ bool Drop_table_error_handler::handle_condition(THD *thd,
 
 
 /**
+  Handle an error from MDL_context::upgrade_lock() and mysql_lock_tables().
+  Ignore ER_LOCK_ABORTED and ER_LOCK_DEADLOCK errors.
+*/
+
+bool
+MDL_deadlock_and_lock_abort_error_handler::
+handle_condition(THD *thd,
+                 uint sql_errno,
+                 const char *sqlstate,
+                 Sql_condition::enum_warning_level level,
+                 const char* msg,
+                 Sql_condition **cond_hdl)
+{
+  *cond_hdl= NULL;
+  if (sql_errno == ER_LOCK_ABORTED || sql_errno == ER_LOCK_DEADLOCK)
+    m_need_reopen= true;
+
+  return m_need_reopen;
+}
+
+
+/**
    Send timeout to thread.
 
    Note that this is always safe as the thread will always remove it's
