@@ -537,12 +537,6 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
                     !(thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)))
                     ? (*escaped)[0] : INT_MAX;
 
-  if (handle_duplicates != DUP_ERROR)
-  {
-    info.vblobs0.init(table);
-    info.vblobs1.init(table);
-  }
-
   READ_INFO read_info(thd, file, tot_length,
                       ex->cs ? ex->cs : thd->variables.collation_database,
 		      *field_term,*ex->line_start, *ex->line_term, *enclosed,
