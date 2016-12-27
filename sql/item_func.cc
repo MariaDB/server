@@ -568,30 +568,6 @@ void Item_udf_func::fix_num_length_and_dec()
 
 
 /**
-  Count max_length and decimals for temporal functions.
-
-  @param item    Argument array
-  @param nitems  Number of arguments in the array.
-
-  @retval        False on success, true on error.
-*/
-void Item_func::count_datetime_length(enum_field_types field_type_arg,
-                                      Item **item, uint nitems)
-{
-  unsigned_flag= 0;
-  decimals= 0;
-  if (field_type_arg != MYSQL_TYPE_DATE)
-  {
-    for (uint i= 0; i < nitems; i++)
-      set_if_bigger(decimals, item[i]->decimals);
-  }
-  set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
-  uint len= decimals ? (decimals + 1) : 0;
-  len+= mysql_temporal_int_part_length(field_type_arg);
-  fix_char_length(len);
-}
-
-/**
   Set max_length/decimals of function if function is fixed point and
   result length/precision depends on argument ones.
 */
@@ -665,7 +641,7 @@ void Item_func::count_real_length(Item **items, uint nitems)
 
 
 /**
-  Calculate max_length and decimals for STRING_RESULT functions.
+  Calculate max_length and decimals for string functions.
 
   @param field_type  Field type.
   @param items       Argument array.
@@ -673,18 +649,13 @@ void Item_func::count_real_length(Item **items, uint nitems)
 
   @retval            False on success, true on error.
 */
-bool Item_func::count_string_result_length(enum_field_types field_type_arg,
-                                           Item **items, uint nitems)
+bool Item_func::count_string_length(Item **items, uint nitems)
 {
+  DBUG_ASSERT(!is_temporal_type(field_type()));
   if (agg_arg_charsets_for_string_result(collation, items, nitems, 1))
     return true;
-  if (is_temporal_type(field_type_arg))
-    count_datetime_length(field_type_arg, items, nitems);
-  else
-  {
-    count_only_length(items, nitems);
-    decimals= max_length ? NOT_FIXED_DEC : 0;
-  }
+  count_only_length(items, nitems);
+  decimals= max_length ? NOT_FIXED_DEC : 0;
   return false;
 }
 

@@ -45,11 +45,49 @@ protected:
   void count_only_length(Item **item, uint nitems);
   void count_real_length(Item **item, uint nitems);
   void count_decimal_length(Item **item, uint nitems);
-  void count_datetime_length(enum_field_types field_type,
-                             Item **item, uint nitems);
-  bool count_string_result_length(enum_field_types field_type,
-                                  Item **item, uint nitems);
+  bool count_string_length(Item **item, uint nitems);
+  uint count_max_decimals(Item **item, uint nitems)
+  {
+    uint res= 0;
+    for (uint i= 0; i < nitems; i++)
+      set_if_bigger(res, item[i]->decimals);
+    return res;
+  }
 public:
+  void aggregate_attributes_int(Item **items, uint nitems)
+  {
+    collation.set_numeric();
+    count_only_length(items, nitems);
+    decimals= 0;
+  }
+  void aggregate_attributes_real(Item **items, uint nitems)
+  {
+    collation.set_numeric();
+    count_real_length(items, nitems);
+  }
+  void aggregate_attributes_decimal(Item **items, uint nitems)
+  {
+    collation.set_numeric();
+    count_decimal_length(items, nitems);
+  }
+  bool aggregate_attributes_string(Item **item, uint nitems)
+  {
+    return count_string_length(item, nitems);
+  }
+  void set_attributes_temporal(uint int_part_length, uint dec)
+  {
+    collation.set_numeric();
+    unsigned_flag= 0;
+    decimals= MY_MIN(dec, TIME_SECOND_PART_DIGITS);
+    uint length= decimals + int_part_length + (dec ? 1 : 0);
+    fix_char_length(length);
+  }
+  void aggregate_attributes_temporal(uint int_part_length,
+                                     Item **item, uint nitems)
+  {
+    set_attributes_temporal(int_part_length, count_max_decimals(item, nitems));
+  }
+
   table_map not_null_tables_cache;
 
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
@@ -389,7 +427,7 @@ class Item_hybrid_func: public Item_func,
                         public Type_handler_hybrid_field_type
 {
 protected:
-  void fix_attributes(Item **item, uint nitems);
+  bool fix_attributes(Item **item, uint nitems);
 public:
   Item_hybrid_func(THD *thd): Item_func(thd) { }
   Item_hybrid_func(THD *thd, Item *a):  Item_func(thd, a) { }

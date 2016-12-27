@@ -855,3 +855,34 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and `test`.`t1`.`a` in (1,2,'3')
 DROP TABLE t1;
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-11514 IN with a mixture of TIME and DATETIME returns a wrong result
+#
+SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32');
+TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')
+1
+PREPARE stmt FROM "SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')";
+EXECUTE stmt;
+TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')
+1
+EXECUTE stmt;
+TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')
+1
+DEALLOCATE PREPARE stmt;
+#
+# MDEV-11497 Wrong result for (int_expr IN (mixture of signed and unsigned expressions))
+#
+CREATE TABLE t1 (a BIGINT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-9223372036854775808,18446744073709551615);
+SELECT * FROM t1 WHERE -1 IN (a,b);
+a	b
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE -1 IN (a,b)';
+EXECUTE stmt;
+a	b
+EXECUTE stmt;
+a	b
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;

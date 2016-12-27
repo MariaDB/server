@@ -1473,21 +1473,48 @@ public:
   If the left item is a constant one then its value is cached in the
   lval_cache variable.
 */
-class cmp_item_datetime : public cmp_item_scalar
+class cmp_item_temporal: public cmp_item_scalar
 {
+protected:
   longlong value;
+  void store_value_internal(Item *item, enum_field_types type);
 public:
   THD *thd;
-  /* Item used for issuing warnings. */
-  Item *warn_item;
   /* Cache for the left item. */
   Item *lval_cache;
 
-  cmp_item_datetime(Item *warn_item_arg)
-    :thd(current_thd), warn_item(warn_item_arg), lval_cache(0) {}
-  void store_value(Item *item);
-  int cmp(Item *arg);
+  cmp_item_temporal()
+    :thd(current_thd), lval_cache(0) {}
   int compare(cmp_item *ci);
+};
+
+
+class cmp_item_datetime: public cmp_item_temporal
+{
+public:
+  cmp_item_datetime()
+   :cmp_item_temporal()
+  { }
+  void store_value(Item *item)
+  {
+    store_value_internal(item, MYSQL_TYPE_DATETIME);
+  }
+  int cmp(Item *arg);
+  cmp_item *make_same();
+};
+
+
+class cmp_item_time: public cmp_item_temporal
+{
+public:
+  cmp_item_time()
+   :cmp_item_temporal()
+  { }
+  void store_value(Item *item)
+  {
+    store_value_internal(item, MYSQL_TYPE_TIME);
+  }
+  int cmp(Item *arg);
   cmp_item *make_same();
 };
 
@@ -1562,6 +1589,326 @@ public:
 };
 
 
+/**
+  A helper class to handle situations when some item "pred" (the predicant)
+  is consequently compared to a list of other items value0..valueN (the values).
+  Currently used to handle:
+  - <in predicate>
+    pred IN (value0, value1, value2)
+  - <simple case>
+    CASE pred WHEN value0 .. WHEN value1 .. WHEN value2 .. END
+
+  Every pair {pred,valueN} can be compared by its own Type_handler.
+  Some pairs can use the same Type_handler.
+  In cases when all pairs use exactly the same Type_handler,
+  we say "all types are compatible".
+
+  For example, for an expression
+    1 IN (1, 1e0, 1.0, 2)
+  - pred   is 1
+  - value0 is 1
+  - value1 is 1e0
+  - value2 is 1.1
+  - value3 is 2
+
+  Pairs (pred,valueN) are compared as follows:
+    N   expr1  Type
+    -   -----  ----
+    0       1   INT
+    1     1e0   DOUBLE
+    2     1.0   DECIMAL
+    3       2   INT
+
+  Types are not compatible in this example.
+
+  During add_value() calls, each pair {pred,valueN} is analysed:
+  - If valueN is an explicit NULL, it can be ignored in the caller asks to do so
+  - If valueN is not an explicit NULL (or if the caller didn't ask to skip
+    NULLs), then the value add an element in the array m_comparators[].
+
+  Every element m_comparators[] stores the following information:
+  1. m_arg_index - the position of the value expression in the original
+     argument array, e.g. in Item_func_in::args[] or Item_func_case::args[].
+
+  2. m_handler - the pointer to the data type handler that the owner
+     will use to compare the pair {args[m_predicate_index],args[m_arg_index]}.
+
+  3. m_handler_index - the index of an m_comparators[] element corresponding
+     to the leftmost pair that uses exactly the same Type_handler for
+     comparison. m_handler_index helps to maintain unique data type handlers.
+   - m_comparators[i].m_handler_index==i means that this is the
+     leftmost pair that uses the Type_handler m_handler for comparision.
+   - If m_comparators[i].m_handlex_index!=i, it means that some earlier
+     element m_comparators[j<i] is already using this Type_handler
+     pointed by m_handler.
+
+  4. m_cmp_item - the pointer to a cmp_item instance to handle comparison
+     for this pair. Only unique type handlers have m_cmp_item!=NULL.
+     Non-unique type handlers share the same cmp_item instance.
+     For all m_comparators[] elements the following assersion it true:
+       (m_handler_index==i) == (m_cmp_item!=NULL)
+*/
+class Predicant_to_list_comparator
+{
+  // Allocate memory on thd memory root for "nvalues" values.
+  bool alloc_comparators(THD *thd, uint nvalues);
+
+  /**
+    Look up m_comparators[] for a comparator using the given data type handler.
+    @param [OUT] idx     - the index of the found comparator is returned here
+    @param [IN]  handler - the data type handler to find
+    @param [IN]  count   - search in the range [0,count) only
+    @retval true         - this type handler was not found
+                           (*idx is not defined in this case).
+    @retval false        - this type handler was found (the position of the
+                           found handler is returned in idx).
+  */
+  bool find_handler(uint *idx, const Type_handler *handler, uint count)
+  {
+    DBUG_ASSERT(count < m_comparator_count);
+    for (uint i= 0 ; i < count; i++)
+    {
+      if (m_comparators[i].m_handler == handler)
+      {
+        *idx= i;
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+    Populate m_comparators[i].m_handler_index for all elements in
+    m_comparators using the information in m_comparators[i].m_handlers,
+    which was previously populated by a add_predicant() call and a number
+    of add_value() calls.
+    @param [OUT] compatible - If all comparator types are compatible,
+                              their data type handler is returned here.
+    @param [OUT] unuque_cnt - The number of unique data type handlers found.
+                              If the value returned in *unique_cnt is 0,
+                              it means all values were explicit NULLs:
+                                expr0 IN (NULL,NULL,..,NULL)
+    @param [OUT] found_type - The bit mask for all found cmp_type()'s.
+  */
+  void detect_unique_handlers(Type_handler_hybrid_field_type *compatible,
+                              uint *unique_cnt, uint *found_types);
+  /**
+    Creates a cmp_item instances for all unique handlers and stores
+    them into m_comparators[i].m_cmp_item, using the information previously
+    populated by add_predicant(), add_value(), detect_unque_handlers().
+  */
+
+  /*
+    Compare the predicant to the value pointed by m_comparators[i].
+    @param  args    - the same argument array which was previously used
+                      with add_predicant() and add_value().
+    @param  i       - which pair to check.
+    @retval true    - the predicant is not equal to the value.
+    @retval false   - the predicant is equal to the value.
+    @retval UNKNOWN - the result is uncertain yet because the predicant
+                      and/or the value returned NULL,
+                      more pairs {pred,valueN} should be checked.
+  */
+  int cmp_arg(Item_args *args, uint i)
+  {
+    Predicant_to_value_comparator *cmp=
+      &m_comparators[m_comparators[i].m_handler_index];
+    cmp_item *in_item= cmp->m_cmp_item;
+    DBUG_ASSERT(in_item);
+    /*
+      If this is the leftmost pair that uses the data type handler
+      pointed by m_comparators[i].m_handler, then we need to cache
+      the predicant value representation used by this handler.
+    */
+    if (m_comparators[i].m_handler_index == i)
+      in_item->store_value(args->arguments()[m_predicant_index]);
+    /*
+      If the predicant item has null_value==true then:
+      - In case of scalar expression we can returns UNKNOWN immediately.
+        No needs to check the result of the value item.
+      - In case of ROW, null_value==true means that *some* row elements
+        returned NULL, but *some* elements can still be non-NULL!
+        We need to get the result of the value item and test
+        if non-NULL elements in the predicant and the value produce
+        TRUE (not equal), or UNKNOWN.
+    */
+    if (args->arguments()[m_predicant_index]->null_value &&
+        m_comparators[i].m_handler != &type_handler_row)
+      return UNKNOWN;
+    return in_item->cmp(args->arguments()[m_comparators[i].m_arg_index]);
+  }
+
+  /**
+    Predicant_to_value_comparator - a comparator for one pair (pred,valueN).
+    See comments above.
+  */
+  struct Predicant_to_value_comparator
+  {
+    const Type_handler *m_handler;
+    cmp_item *m_cmp_item;
+    uint m_arg_index;
+    uint m_handler_index;
+    void cleanup()
+    {
+      if (m_cmp_item)
+        delete m_cmp_item;
+      memset(this, 0, sizeof(*this));
+    }
+  };
+
+  Predicant_to_value_comparator *m_comparators; // The comparator array
+  uint m_comparator_count;// The number of elements in m_comparators[]
+  uint m_predicant_index; // The position of the predicant in its argument list,
+                          // e.g. for Item_func_in m_predicant_index is 0,
+                          // as predicant is stored in Item_func_in::args[0].
+                          // For Item_func_case m_predicant_index is
+                          // set to Item_func_case::first_expr_num.
+
+public:
+  Predicant_to_list_comparator(THD *thd, uint nvalues)
+   :m_comparator_count(0),
+    m_predicant_index(0)
+  {
+    alloc_comparators(thd, nvalues);
+  }
+
+  uint comparator_count() const { return m_comparator_count; }
+  const Type_handler *get_comparator_type_handler(uint i) const
+  {
+    DBUG_ASSERT(i < m_comparator_count);
+    return m_comparators[i].m_handler;
+  }
+  uint get_comparator_arg_index(uint i) const
+  {
+    DBUG_ASSERT(i < m_comparator_count);
+    return m_comparators[i].m_arg_index;
+  }
+  cmp_item *get_comparator_cmp_item(uint i) const
+  {
+    DBUG_ASSERT(i < m_comparator_count);
+    return m_comparators[i].m_cmp_item;
+  }
+
+#ifndef DBUG_OFF
+  void debug_print(THD *thd)
+  {
+    for (uint i= 0; i < m_comparator_count; i++)
+    {
+      DBUG_EXECUTE_IF("Predicant_to_list_comparator",
+                      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                      ER_UNKNOWN_ERROR, "DBUG: [%d] arg=%d handler=%d", i,
+                      m_comparators[i].m_arg_index,
+                      m_comparators[i].m_handler_index););
+    }
+  }
+#endif
+
+  void add_predicant(Item_args *args, uint predicant_index)
+  {
+    DBUG_ASSERT(m_comparator_count == 0); // Set in constructor
+    DBUG_ASSERT(m_predicant_index == 0);  // Set in constructor
+    DBUG_ASSERT(predicant_index < args->argument_count());
+    m_predicant_index= predicant_index;
+  }
+  /**
+    Add a new element into m_comparators[], using a {pred,valueN} pair.
+
+    @param args            - the owner function's argument list
+    @param value_index     - the value position in args
+    @retval true           - could not add an element because of non-comparable
+                             arguments (e.g. ROWs with size)
+    @retval false          - a new element was successfully added.
+  */
+  bool add_value(Item_args *args, uint value_index);
+
+  /**
+    Add a new element into m_comparators[], ignoring explicit NULL values.
+    If the value appeared to be an explicit NULL, nulls_found[0] is set to true.
+  */
+  bool add_value_skip_null(Item_args *args, uint value_index,
+                           bool *nulls_found);
+
+  /**
+    Signal "this" that there will be no new add_value*() calls,
+    so it can prepare its internal structures for comparison.
+
+    @param [OUT] compatible - If all comparators are compatible,
+                              their data type handler is returned here.
+    @param [OUT] unuque_cnt - The number of unique data type handlers found.
+                              If the value returned in *unique_cnt is 0,
+                              it means all values were explicit NULLs:
+                                expr0 IN (NULL,NULL,..,NULL)
+    @param [OUT] found_type - The bit mask for all found cmp_type()'s.
+  */
+  void all_values_added(Type_handler_hybrid_field_type *compatible,
+                        uint *unique_cnt, uint *found_types)
+  {
+    detect_unique_handlers(compatible, unique_cnt, found_types);
+  }
+  /**
+    Creates cmp_item instances for all unique handlers and stores
+    them into m_comparators[].m_cmp_item, using the information previously
+    populated by add_predicant(), add_value() and detect_unque_handlers().
+  */
+  bool make_unique_cmp_items(THD *thd, CHARSET_INFO *cs);
+  void cleanup()
+  {
+    DBUG_ASSERT(m_comparators);
+    for (uint i= 0; i < m_comparator_count; i++)
+      m_comparators[i].cleanup();
+    memset(m_comparators, 0, sizeof(m_comparators[0]) * m_comparator_count);
+    m_comparator_count= 0;
+    m_predicant_index= 0;
+  }
+  bool init_clone(THD *thd, uint nvalues)
+  {
+    m_comparator_count= 0;
+    m_predicant_index= 0;
+    return alloc_comparators(thd, nvalues);
+  }
+  /**
+    @param [IN] args  - The argument list that was previously used with
+                        add_predicant() and add_value().
+    @param [OUT] idx  - In case if a value that is equal to the predicant
+                        was found, the index of the matching value is returned
+                        here. Otherwise, *idx is not changed.
+    @param [IN/OUT] found_unknown_values - how to handle UNKNOWN results.
+                        If found_unknown_values is NULL (e.g. Item_func_case),
+                        cmp() returns immediately when the first UNKNOWN
+                        result is found.
+                        If found_unknown_values is non-NULL (Item_func_in),
+                        cmp() does not return when an UNKNOWN result is found,
+                        sets *found_unknown_values to true, and continues
+                        to compare the remaining pairs to find FALSE
+                        (i.e. the value that is equal to the predicant).
+
+    @retval     false - Found a value that is equal to the predicant
+    @retval     true  - Didn't find an equal value
+  */
+  bool cmp(Item_args *args, uint *idx, bool *found_unknown_values)
+  {
+    for (uint i= 0 ; i < m_comparator_count ; i++)
+    {
+      DBUG_ASSERT(m_comparators[i].m_handler != NULL);
+      const int rc= cmp_arg(args, i);
+      if (rc == FALSE)
+      {
+        *idx= m_comparators[i].m_arg_index;
+        return false; // Found a matching value
+      }
+      if (rc == UNKNOWN)
+      {
+        if (!found_unknown_values)
+          return true;
+        *found_unknown_values= true;
+      }
+    }
+    return true; // Not found
+  }
+
+};
+
+
 /*
   The class Item_func_case is the CASE ... WHEN ... THEN ... END function
   implementation.
@@ -1580,18 +1927,17 @@ public:
   function and only comparators for there result types are used.
 */
 
-class Item_func_case :public Item_func_hybrid_field_type
+class Item_func_case :public Item_func_hybrid_field_type,
+                      public Predicant_to_list_comparator
 {
   int first_expr_num, else_expr_num;
   enum Item_result left_cmp_type;
   String tmp_value;
   uint ncases;
-  Item_result cmp_type;
   DTCollation cmp_collation;
-  cmp_item *cmp_items[6]; /* For all result types */
-  cmp_item *case_item;
   Item **arg_buffer;
   uint m_found_types;
+  bool prepare_predicant_and_values(THD *thd, uint *found_types);
 public:
   Item_func_case(THD *thd, List<Item> &list, Item *first_expr_arg,
                  Item *else_expr_arg);
@@ -1609,7 +1955,13 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   Item *find_item(String *str);
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
-  void cleanup();
+  void cleanup()
+  {
+    DBUG_ENTER("Item_func_case::cleanup");
+    Item_func::cleanup();
+    Predicant_to_list_comparator::cleanup();
+    DBUG_VOID_RETURN;
+  }
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond);
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1619,9 +1971,9 @@ public:
     Item_func_case *clone= (Item_func_case *) Item_func::build_clone(thd, mem_root);
     if (clone)
     {
-      clone->case_item= 0;
       clone->arg_buffer= 0;
-      bzero(&clone->cmp_items, sizeof(cmp_items));
+      if (clone->Predicant_to_list_comparator::init_clone(thd, ncases))
+        return NULL;
     }
     return clone;
   } 
@@ -1654,7 +2006,8 @@ public:
   3. UNKNOWN and FALSE are equivalent results
   4. Neither left expression nor <in value list> contain any NULL value
 */
-class Item_func_in :public Item_func_opt_neg
+class Item_func_in :public Item_func_opt_neg,
+                    public Predicant_to_list_comparator
 {
   /**
      Usable if <in value list> is made only of constants. Returns true if one
@@ -1671,6 +2024,7 @@ class Item_func_in :public Item_func_opt_neg
     }
     return true;
   }
+  bool prepare_predicant_and_values(THD *thd, uint *found_types);
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value);
@@ -1689,14 +2043,13 @@ public:
     and can be used safely as comparisons for key conditions
   */
   bool arg_types_compatible;
-  Item_result left_cmp_type;
-  cmp_item *cmp_items[6]; /* One cmp_item for each result type */
 
   Item_func_in(THD *thd, List<Item> &list):
-    Item_func_opt_neg(thd, list), array(0), have_null(0),
+    Item_func_opt_neg(thd, list),
+    Predicant_to_list_comparator(thd, arg_count - 1),
+    array(0), have_null(0),
     arg_types_compatible(FALSE)
   {
-    bzero(&cmp_items, sizeof(cmp_items));
     allowed_arg_cols= 0;  // Fetch this value from first argument
   }
   longlong val_int();
@@ -1713,7 +2066,6 @@ public:
     return all_items_are_consts(args + 1, arg_count - 1) &&   // Bisection #2
            ((is_top_level_item() && !negated) ||              // Bisection #3
             (!list_contains_null() && !args[0]->maybe_null)); // Bisection #4
-
   }
   bool agg_all_arg_charsets_for_comparison()
   {
@@ -1729,23 +2081,18 @@ public:
     fix_in_vector();
     return false;
   }
-  bool fix_for_scalar_comparison_using_cmp_items(uint found_types);
+  bool fix_for_scalar_comparison_using_cmp_items(THD *thd, uint found_types);
 
   bool fix_for_row_comparison_using_cmp_items(THD *thd);
   bool fix_for_row_comparison_using_bisection(THD *thd);
 
   void cleanup()
   {
-    uint i;
     DBUG_ENTER("Item_func_in::cleanup");
     Item_int_func::cleanup();
     delete array;
     array= 0;
-    for (i= 0; i <= (uint)TIME_RESULT; i++)
-    {
-      delete cmp_items[i];
-      cmp_items[i]= 0;
-    }
+    Predicant_to_list_comparator::cleanup();
     DBUG_VOID_RETURN;
   }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
@@ -1758,13 +2105,20 @@ public:
       will be replaced to a zero-filled Item_string.
       Such a change would require rebuilding of cmp_items.
     */
-    Context cmpctx(ANY_SUBST, m_comparator.cmp_type(),
-                   Item_func_in::compare_collation());
-    for (uint i= 0; i < arg_count; i++)
+    if (arg_types_compatible)
     {
-      if (arg_types_compatible || i > 0)
-        args[i]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
-                                                             cond, &args[i]);
+      Context cmpctx(ANY_SUBST, m_comparator.cmp_type(),
+                     Item_func_in::compare_collation());
+      args[0]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
+                                                           cond, &args[0]);
+    }
+    for (uint i= 0; i < comparator_count(); i++)
+    {
+      Context cmpctx(ANY_SUBST, get_comparator_type_handler(i)->cmp_type(),
+                     Item_func_in::compare_collation());
+      uint idx= get_comparator_arg_index(i);
+      args[idx]->propagate_equal_fields_and_change_item_tree(thd, cmpctx,
+                                                             cond, &args[idx]);
     }
     return this;
   }
@@ -1783,7 +2137,8 @@ public:
     if (clone)
     {
       clone->array= 0;
-      bzero(&clone->cmp_items, sizeof(cmp_items));
+      if (clone->Predicant_to_list_comparator::init_clone(thd, arg_count - 1))
+        return NULL;
     }
     return clone;
   }      
