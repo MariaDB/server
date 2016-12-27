@@ -1,7 +1,7 @@
 #
 # MDEV-9214 Server miscalculates the number of XA-capable engines
 #
---source include/have_xtradb.inc
+--source include/have_innodb.inc
 
 select 1;
 

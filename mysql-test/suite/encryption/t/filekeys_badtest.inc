@@ -1,5 +1,5 @@
 -- source include/not_embedded.inc
--- source include/have_xtradb.inc
+-- source include/have_innodb.inc
 -- source filekeys_plugin.inc
 
 --eval call mtr.add_suppression("$SEARCH_PATTERN")
