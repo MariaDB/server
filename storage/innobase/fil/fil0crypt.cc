@@ -251,11 +251,6 @@ fil_space_read_crypt_data(
 	const byte*	page,	/*!< in: page 0 */
 	ulint		offset)	/*!< in: offset */
 {
-	if (memcmp(page + offset, EMPTY_PATTERN, MAGIC_SZ) == 0) {
-		/* Crypt data is not stored. */
-		return NULL;
-	}
-
 	if (memcmp(page + offset, CRYPT_MAGIC, MAGIC_SZ) != 0) {
 		/* Crypt data is not stored. */
 		return NULL;
