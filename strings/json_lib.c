@@ -1270,7 +1270,7 @@ int json_find_path(json_engine_t *je,
     case JST_VALUE:
       DBUG_ASSERT(cur_step->type & JSON_PATH_ARRAY);
       if (cur_step->type & JSON_PATH_WILD ||
-          cur_step->n_item == array_counters[cur_step - p->steps])
+          cur_step->n_item == array_counters[cur_step - p->steps]++)
       {
         /* Array item matches. */
         if (cur_step == p->last_step ||
@@ -1278,10 +1278,7 @@ int json_find_path(json_engine_t *je,
           goto exit;
       }
       else
-      {
         json_skip_array_item(je);
-        array_counters[cur_step - p->steps]++;
-      }
       break;
     case JST_OBJ_END:
     case JST_ARRAY_END:

@@ -1,5 +1,4 @@
 usr/bin/mysql_config
-usr/include/mariadb
 usr/include/mysql/*.h
 usr/include/mysql/psi/*.h
 usr/lib/*/libmariadb.so

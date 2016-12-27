@@ -59,6 +59,7 @@ EOF
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 
+--replace_regex /tablespace [0-9]*/tablespace #/
 CHECK TABLE t1;
 SHOW WARNINGS;
 

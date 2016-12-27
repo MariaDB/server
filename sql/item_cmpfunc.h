@@ -1087,6 +1087,11 @@ class Item_func_nullif :public Item_func_hybrid_field_type
   */
   Item_cache *m_cache;
   int compare();
+  void reset_first_arg_if_needed()
+  { 
+    if (arg_count == 3 && args[0] != args[2])
+      args[0]= args[2];
+  }
 public:
   /*
     Here we pass three arguments to the parent constructor, as NULLIF
@@ -1137,6 +1142,12 @@ public:
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_nullif>(thd, mem_root, this); }
+  Item *derived_field_transformer_for_having(THD *thd, uchar *arg)
+  { reset_first_arg_if_needed(); return this; }
+  Item *derived_field_transformer_for_where(THD *thd, uchar *arg)
+  { reset_first_arg_if_needed(); return this; }
+  Item *derived_grouping_field_transformer_for_where(THD *thd, uchar *arg)
+  { reset_first_arg_if_needed(); return this; }
 };
 
 

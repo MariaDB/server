@@ -15386,6 +15386,9 @@ static void test_bug14169()
 
   rc= mysql_query(mysql, "drop table t1");
   myquery(rc);
+
+  rc= mysql_query(mysql, "set session group_concat_max_len=@@global.group_concat_max_len");
+  myquery(rc);
 }
 
 /*

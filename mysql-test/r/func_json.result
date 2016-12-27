@@ -209,6 +209,9 @@ json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]')
 select json_extract('1', '$');
 json_extract('1', '$')
 1
+select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]');
+json_extract('[10, 20, [30, 40], 1, 10]', '$[1]')
+20
 select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
 json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word')
 {"a":1, "b":{"c":1, "k1":"word"}, "d":[1, 2]}
@@ -315,6 +318,9 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'json_merge' at
 select json_merge('{"a":"b"}','{"c":"d"}');
 json_merge('{"a":"b"}','{"c":"d"}')
 {"a":"b", "c":"d"}
+SELECT JSON_MERGE('[1, 2]', '{"id": 47}');
+JSON_MERGE('[1, 2]', '{"id": 47}')
+[1, 2, {"id": 47}]
 select json_type('{"k1":123, "k2":345}');
 json_type('{"k1":123, "k2":345}')
 OBJECT
@@ -419,6 +425,12 @@ json_length('{}')
 select json_length('[1, 2, {"a": 3}]');
 json_length('[1, 2, {"a": 3}]')
 3
+select json_length('{"a": 1, "b": {"c": 30}}', '$.b');
+json_length('{"a": 1, "b": {"c": 30}}', '$.b')
+1
+select json_length('{"a": 1, "b": {"c": 30}}');
+json_length('{"a": 1, "b": {"c": 30}}')
+2
 create table json (j INT);
 show create table json;
 Table	Create Table

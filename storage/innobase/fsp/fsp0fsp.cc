@@ -338,16 +338,6 @@ err_exit:
 	return (false);
 }
 
-/** Check if tablespace is system temporary.
-@param[in]	space_id	tablespace ID
-@return true if tablespace is system temporary. */
-bool
-fsp_is_system_temporary(
-	ulint	space_id)
-{
-	return(space_id == srv_tmp_space.space_id());
-}
-
 /** Check if checksum is disabled for the given space.
 @param[in]	space_id	tablespace ID
 @return true if checksum is disabled for given space. */
@@ -803,8 +793,7 @@ fsp_space_modify_check(
 #ifdef UNIV_DEBUG
 		{
 			const fil_type_t	type = fil_space_get_type(id);
-			ut_a(id == srv_tmp_space.space_id()
-			     || srv_is_tablespace_truncated(id)
+			ut_a(srv_is_tablespace_truncated(id)
 			     || fil_space_is_being_truncated(id)
 			     || fil_space_get_flags(id) == ULINT_UNDEFINED
 			     || type == FIL_TYPE_TEMPORARY
@@ -814,10 +803,7 @@ fsp_space_modify_check(
 #endif /* UNIV_DEBUG */
 		return;
 	case MTR_LOG_ALL:
-		/* We must not write redo log for the shared temporary
-		tablespace. */
-		ut_ad(id != srv_tmp_space.space_id());
-		/* If we write redo log, the tablespace must exist. */
+		/* We may only write redo log for a persistent tablespace. */
 		ut_ad(fil_space_get_type(id) == FIL_TYPE_TABLESPACE);
 		ut_ad(mtr->is_named_space(id));
 		return;
@@ -1549,15 +1535,14 @@ fsp_try_extend_data_file(
 	const page_size_t	page_size(
 		mach_read_from_4(header + FSP_SPACE_FLAGS));
 
-	if (space->id == srv_sys_space.space_id()) {
-
+	switch (space->id) {
+	case TRX_SYS_SPACE:
 		size_increase = srv_sys_space.get_increment();
-
-	} else if (space->id == srv_tmp_space.space_id()) {
-
+		break;
+	case SRV_TMP_SPACE_ID:
 		size_increase = srv_tmp_space.get_increment();
-
-	} else {
+		break;
+	default:
 		ulint	extent_pages
 			= fsp_get_extent_size_in_pages(page_size);
 		if (size < extent_pages) {
@@ -1679,11 +1664,17 @@ fsp_fill_free_list(
 	const page_size_t	page_size(flags);
 
 	if (size < limit + FSP_EXTENT_SIZE * FSP_FREE_ADD) {
-		if ((!init_space && !is_system_tablespace(space->id))
-		    || (space->id == srv_sys_space.space_id()
-			&& srv_sys_space.can_auto_extend_last_file())
-		    || (space->id == srv_tmp_space.space_id()
-			&& srv_tmp_space.can_auto_extend_last_file())) {
+		bool	skip_resize	= init_space;
+		switch (space->id) {
+		case TRX_SYS_SPACE:
+			skip_resize = !srv_sys_space.can_auto_extend_last_file();
+			break;
+		case SRV_TMP_SPACE_ID:
+			skip_resize = srv_tmp_space.can_auto_extend_last_file();
+			break;
+		}
+
+		if (!skip_resize) {
 			ulint n_pages = 0;
 			fsp_try_extend_data_file(space, header, mtr, &n_pages);
 			size = space->size_in_header;
@@ -1733,7 +1724,7 @@ fsp_fill_free_list(
 			order, and we must be able to release its latch.
 			Note: Insert-Buffering is disabled for tables that
 			reside in the temp-tablespace. */
-			if (space->id != srv_tmp_space.space_id()) {
+			if (space->purpose != FIL_TYPE_TEMPORARY) {
 				mtr_t	ibuf_mtr;
 
 				mtr_start(&ibuf_mtr);
@@ -1741,9 +1732,7 @@ fsp_fill_free_list(
 
 				/* Avoid logging while truncate table
 				fix-up is active. */
-				if (space->purpose == FIL_TYPE_TEMPORARY
-				    || srv_is_tablespace_truncated(
-					    space->id)) {
+				if (srv_is_tablespace_truncated(space->id)) {
 					mtr_set_log_mode(
 						&ibuf_mtr, MTR_LOG_NO_REDO);
 				}

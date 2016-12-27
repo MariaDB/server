@@ -1097,7 +1097,7 @@ btr_free_root_check(
 	index_id_t		index_id,
 	mtr_t*			mtr)
 {
-	ut_ad(page_id.space() != srv_tmp_space.space_id());
+	ut_ad(page_id.space() != SRV_TMP_SPACE_ID);
 	ut_ad(index_id != BTR_FREED_INDEX_ID);
 
 	buf_block_t*	block = buf_page_get(

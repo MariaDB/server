@@ -7,5 +7,5 @@ SELECT @@wsrep_on;
 0
 SELECT @@GLOBAL.wsrep_provider;
 @@GLOBAL.wsrep_provider
-/usr/lib/galera/libgalera_smm.so
+libgalera_smm.so
 SET @@GLOBAL.wsrep_cluster_address='gcomm://';

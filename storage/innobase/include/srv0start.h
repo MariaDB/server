@@ -46,9 +46,6 @@ struct dict_table_t;
 } while (0)
 #endif /* DBUG_OFF */
 
-/** Log 'spaces' have id's >= this */
-#define SRV_LOG_SPACE_FIRST_ID		0xFFFFFFF0UL
-
 /** If buffer pool is less than the size,
 only one buffer pool instance is used. */
 #define BUF_POOL_SIZE_THRESHOLD		(1024 * 1024 * 1024)

@@ -6092,7 +6092,7 @@ corrupt:
 #endif /* MYSQL_COMPRESSION */
 		    && !recv_no_ibuf_operations
 		    && !Tablespace::is_undo_tablespace(bpage->id.space())
-		    && bpage->id.space() != srv_tmp_space.space_id()
+		    && bpage->id.space() != SRV_TMP_SPACE_ID
 		    && !srv_is_tablespace_truncated(bpage->id.space())
 		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
 		    && page_is_leaf(frame)) {

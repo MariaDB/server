@@ -114,7 +114,7 @@ show create table test.byrange_tbl;
 Table	byrange_tbl
 Create Table	CREATE TABLE `byrange_tbl` (
   `id` mediumint(9) NOT NULL AUTO_INCREMENT,
-  `dt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `dt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `user` char(255) DEFAULT NULL,
   `uuidf` longblob DEFAULT NULL,
   `fkid` mediumint(9) DEFAULT NULL,

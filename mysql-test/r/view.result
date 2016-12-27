@@ -4792,21 +4792,24 @@ DROP TABLE t1, t2;
 # Bug#48315 Metadata lock is not taken for merged views that
 #           use an INFORMATION_SCHEMA table
 #
-DROP TABLE IF EXISTS t1;
 DROP VIEW IF EXISTS v1;
 DROP PROCEDURE IF EXISTS p1;
 connect  con2, localhost, root;
 connect  con3, localhost, root;
 connection default;
 CREATE VIEW v1 AS SELECT schema_name FROM information_schema.schemata;
-CREATE TABLE t1 (str VARCHAR(50));
-CREATE PROCEDURE p1() INSERT INTO t1 SELECT * FROM v1;
+CREATE PROCEDURE p1() SELECT COUNT(*), GET_LOCK('blocker', 100) FROM v1;
 # CALL p1() so the view is merged.
 CALL p1();
+SELECT RELEASE_LOCK('blocker');
+RELEASE_LOCK('blocker')
+1
 connection con3;
-LOCK TABLE t1 READ;
+SELECT GET_LOCK('blocker', 100);
+GET_LOCK('blocker', 100)
+1
 connection default;
-# Try to CALL p1() again, this time it should block for t1.
+# Try to CALL p1() again, this time it should block on "blocker".
 # Sending:
 CALL p1();
 connection con2;
@@ -4815,14 +4818,18 @@ connection con2;
 DROP VIEW v1;
 connection con3;
 # Now allow CALL p1() to complete
-UNLOCK TABLES;
+SELECT RELEASE_LOCK('blocker');
+RELEASE_LOCK('blocker')
+1
 connection default;
 # Reaping: CALL p1()
+SELECT RELEASE_LOCK('blocker');
+RELEASE_LOCK('blocker')
+1
 connection con2;
 # Reaping: DROP VIEW v1
 connection default;
 DROP PROCEDURE p1;
-DROP TABLE t1;
 disconnect con2;
 disconnect con3;
 #

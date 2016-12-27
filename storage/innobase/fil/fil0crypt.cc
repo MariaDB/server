@@ -138,6 +138,8 @@ fil_space_crypt_cleanup()
 /*=====================*/
 {
 	os_event_destroy(fil_crypt_throttle_sleep_event);
+	mutex_free(&fil_crypt_key_mutex);
+	mutex_free(&crypt_stat_mutex);
 }
 
 /******************************************************************
@@ -335,15 +337,9 @@ fil_space_destroy_crypt_data(
 		and make it unawailable, this does not fully
 		avoid the race between drop table and crypt thread */
 		mutex_enter(&fil_crypt_threads_mutex);
-		mutex_enter(&(*crypt_data)->mutex);
-		(*crypt_data)->inited = false;
-		mutex_exit(&(*crypt_data)->mutex);
-		/* JAN: TODO:
-		mutex_free(& (*crypt_data)->mutex);
-		memset(*crypt_data, 0, sizeof(fil_space_crypt_t));
+		mutex_free(&(*crypt_data)->mutex);
 		free(*crypt_data);
-		(*crypt_data) = NULL;
-		*/
+		*crypt_data = NULL;
 		mutex_exit(&fil_crypt_threads_mutex);
 	}
 }
@@ -2468,6 +2464,7 @@ fil_crypt_threads_cleanup()
 {
 	os_event_destroy(fil_crypt_event);
 	os_event_destroy(fil_crypt_threads_event);
+	mutex_free(&fil_crypt_threads_mutex);
 	fil_crypt_threads_inited = false;
 }
 
