@@ -64,7 +64,6 @@ typedef struct field {
 } F;
 
 #define NULLFIELD {0,0,0}
-#define FA (F[])
 
 enum log_begin_action {
     IGNORE_LOG_BEGIN,
@@ -76,7 +75,7 @@ enum log_begin_action {
 struct logtype {
     const char *name;
     unsigned int command_and_flags;
-    struct field *fields;
+    struct field fields[11];
     enum log_begin_action log_begin_action;
 };
 
@@ -84,152 +83,150 @@ struct logtype {
 
 const struct logtype rollbacks[] = {
     //TODO: #2037 Add dname
-    {"fdelete", 'U', FA{{"FILENUM",    "filenum", 0},
-                        NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    {"fdelete", 'U', {{"FILENUM",    "filenum", 0},
+                      NULLFIELD}, LOG_BEGIN_ACTION_NA},
     //TODO: #2037 Add dname
-    {"fcreate", 'F', FA{{"FILENUM", "filenum", 0},
-                        {"BYTESTRING", "iname", 0},
-                        NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    {"fcreate", 'F', {{"FILENUM", "filenum", 0},
+                      {"BYTESTRING", "iname", 0},
+                      NULLFIELD}, LOG_BEGIN_ACTION_NA},
     // cmdinsert is used to insert a key-value pair into a DB.  For rollback we don't need the data.
-    {"cmdinsert", 'i', FA{
-                          {"FILENUM", "filenum", 0},
-                          {"BYTESTRING", "key", 0},
+    {"cmdinsert", 'i', {{"FILENUM", "filenum", 0},
+                        {"BYTESTRING", "key", 0},
+                        NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    {"cmddelete", 'd', {{"FILENUM", "filenum", 0},
+                        {"BYTESTRING", "key", 0},
+                        NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    {"rollinclude", 'r', {{"TXNID_PAIR",     "xid", 0},
+                          {"uint64_t", "num_nodes", 0},
+                          {"BLOCKNUM",  "spilled_head", 0},
+                          {"BLOCKNUM",  "spilled_tail", 0},
                           NULLFIELD}, LOG_BEGIN_ACTION_NA},
-    {"cmddelete", 'd', FA{
-                          {"FILENUM", "filenum", 0},
-                          {"BYTESTRING", "key", 0},
-                          NULLFIELD}, LOG_BEGIN_ACTION_NA},
-    {"rollinclude", 'r', FA{{"TXNID_PAIR",     "xid", 0},
-                            {"uint64_t", "num_nodes", 0},
-                            {"BLOCKNUM",  "spilled_head", 0},
-                            {"BLOCKNUM",  "spilled_tail", 0},
-                            NULLFIELD}, LOG_BEGIN_ACTION_NA},
-    {"load", 'l', FA{{"FILENUM",    "old_filenum", 0},
-                     {"BYTESTRING", "new_iname", 0},
-                     NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    {"load", 'l', {{"FILENUM",    "old_filenum", 0},
+                   {"BYTESTRING", "new_iname", 0},
+                   NULLFIELD}, LOG_BEGIN_ACTION_NA},
     // #2954
-    {"hot_index", 'h', FA{{"FILENUMS",  "hot_index_filenums", 0},
-                          NULLFIELD}, LOG_BEGIN_ACTION_NA},
-    {"dictionary_redirect", 'R', FA{{"FILENUM", "old_filenum", 0},
-                                    {"FILENUM", "new_filenum", 0},
-                                    NULLFIELD}, LOG_BEGIN_ACTION_NA},
-    {"cmdupdate", 'u', FA{{"FILENUM", "filenum", 0},
-                          {"BYTESTRING", "key", 0},
-                          NULLFIELD}, LOG_BEGIN_ACTION_NA},
-    {"cmdupdatebroadcast", 'B', FA{{"FILENUM", "filenum", 0},
-                                   {"bool",    "is_resetting_op", 0},
-                                   NULLFIELD}, LOG_BEGIN_ACTION_NA},
-    {"change_fdescriptor", 'D', FA{{"FILENUM",    "filenum", 0},
-                            {"BYTESTRING", "old_descriptor", 0},
-                            NULLFIELD}, LOG_BEGIN_ACTION_NA},
-    {0,0,FA{NULLFIELD}, LOG_BEGIN_ACTION_NA}
+    {"hot_index", 'h', {{"FILENUMS",  "hot_index_filenums", 0},
+                        NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    {"dictionary_redirect", 'R', {{"FILENUM", "old_filenum", 0},
+                                  {"FILENUM", "new_filenum", 0},
+                                  NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    {"cmdupdate", 'u', {{"FILENUM", "filenum", 0},
+                        {"BYTESTRING", "key", 0},
+                        NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    {"cmdupdatebroadcast", 'B', {{"FILENUM", "filenum", 0},
+                                 {"bool",    "is_resetting_op", 0},
+                                 NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    {"change_fdescriptor", 'D', {{"FILENUM",    "filenum", 0},
+                                 {"BYTESTRING", "old_descriptor", 0},
+                                 NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    {0,0,{NULLFIELD}, LOG_BEGIN_ACTION_NA}
 };
 
 const struct logtype logtypes[] = {
     // Records produced by checkpoints
 #if 0 // no longer used, but reserve the type
-    {"local_txn_checkpoint", 'c', FA{{"TXNID",      "xid", 0}, NULLFIELD}},
+    {"local_txn_checkpoint", 'c', {{"TXNID",      "xid", 0}, NULLFIELD}},
 #endif
-    {"begin_checkpoint", 'x', FA{{"uint64_t", "timestamp", 0}, {"TXNID", "last_xid", 0}, NULLFIELD}, IGNORE_LOG_BEGIN},
-    {"end_checkpoint",   'X', FA{{"LSN", "lsn_begin_checkpoint", 0},
-                                 {"uint64_t", "timestamp", 0},
-                                 {"uint32_t", "num_fassociate_entries", 0}, // how many files were checkpointed
-                                 {"uint32_t", "num_xstillopen_entries", 0},  // how many txns  were checkpointed
-                                 NULLFIELD}, IGNORE_LOG_BEGIN},
+    {"begin_checkpoint", 'x', {{"uint64_t", "timestamp", 0}, {"TXNID", "last_xid", 0}, NULLFIELD}, IGNORE_LOG_BEGIN},
+    {"end_checkpoint",   'X', {{"LSN", "lsn_begin_checkpoint", 0},
+                               {"uint64_t", "timestamp", 0},
+                               {"uint32_t", "num_fassociate_entries", 0}, // how many files were checkpointed
+                               {"uint32_t", "num_xstillopen_entries", 0},  // how many txns  were checkpointed
+                               NULLFIELD}, IGNORE_LOG_BEGIN},
     //TODO: #2037 Add dname
-    {"fassociate",  'f', FA{{"FILENUM", "filenum", 0},
-                            {"uint32_t",  "treeflags", 0},
-                            {"BYTESTRING", "iname", 0},   // pathname of file
-                            {"uint8_t", "unlink_on_close", 0},
-                            NULLFIELD}, IGNORE_LOG_BEGIN},
+    {"fassociate",  'f', {{"FILENUM", "filenum", 0},
+                          {"uint32_t",  "treeflags", 0},
+                          {"BYTESTRING", "iname", 0},   // pathname of file
+                          {"uint8_t", "unlink_on_close", 0},
+                          NULLFIELD}, IGNORE_LOG_BEGIN},
     //We do not use a txninfo struct since recovery log has
     //FILENUMS and TOKUTXN has FTs (for open_fts)
-    {"xstillopen", 's', FA{{"TXNID_PAIR", "xid", 0}, 
-                           {"TXNID_PAIR", "parentxid", 0}, 
-                           {"uint64_t", "rollentry_raw_count", 0}, 
-                           {"FILENUMS",  "open_filenums", 0},
-                           {"uint8_t",  "force_fsync_on_commit", 0}, 
-                           {"uint64_t", "num_rollback_nodes", 0}, 
-                           {"uint64_t", "num_rollentries", 0}, 
-                           {"BLOCKNUM",  "spilled_rollback_head", 0}, 
-                           {"BLOCKNUM",  "spilled_rollback_tail", 0}, 
-                           {"BLOCKNUM",  "current_rollback", 0}, 
-                           NULLFIELD}, ASSERT_BEGIN_WAS_LOGGED}, // record all transactions
+    {"xstillopen", 's', {{"TXNID_PAIR", "xid", 0},
+                         {"TXNID_PAIR", "parentxid", 0},
+                         {"uint64_t", "rollentry_raw_count", 0},
+                         {"FILENUMS",  "open_filenums", 0},
+                         {"uint8_t",  "force_fsync_on_commit", 0},
+                         {"uint64_t", "num_rollback_nodes", 0},
+                         {"uint64_t", "num_rollentries", 0},
+                         {"BLOCKNUM",  "spilled_rollback_head", 0},
+                         {"BLOCKNUM",  "spilled_rollback_tail", 0},
+                         {"BLOCKNUM",  "current_rollback", 0},
+                         NULLFIELD}, ASSERT_BEGIN_WAS_LOGGED}, // record all transactions
     // prepared txns need a gid
-    {"xstillopenprepared", 'p', FA{{"TXNID_PAIR", "xid", 0},
-                                   {"XIDP",  "xa_xid", 0}, // prepared transactions need a gid, and have no parentxid.
-                                   {"uint64_t", "rollentry_raw_count", 0}, 
-                                   {"FILENUMS",  "open_filenums", 0},
-                                   {"uint8_t",  "force_fsync_on_commit", 0}, 
-                                   {"uint64_t", "num_rollback_nodes", 0},
-                                   {"uint64_t", "num_rollentries", 0},
-                                   {"BLOCKNUM",  "spilled_rollback_head", 0},
-                                   {"BLOCKNUM",  "spilled_rollback_tail", 0},
-                                   {"BLOCKNUM",  "current_rollback", 0},
-                                   NULLFIELD}, ASSERT_BEGIN_WAS_LOGGED}, // record all transactions
+    {"xstillopenprepared", 'p', {{"TXNID_PAIR", "xid", 0},
+                                 {"XIDP",  "xa_xid", 0}, // prepared transactions need a gid, and have no parentxid.
+                                 {"uint64_t", "rollentry_raw_count", 0}, 
+                                 {"FILENUMS",  "open_filenums", 0},
+                                 {"uint8_t",  "force_fsync_on_commit", 0}, 
+                                 {"uint64_t", "num_rollback_nodes", 0},
+                                 {"uint64_t", "num_rollentries", 0},
+                                 {"BLOCKNUM",  "spilled_rollback_head", 0},
+                                 {"BLOCKNUM",  "spilled_rollback_tail", 0},
+                                 {"BLOCKNUM",  "current_rollback", 0},
+                                 NULLFIELD}, ASSERT_BEGIN_WAS_LOGGED}, // record all transactions
     // Records produced by transactions
-    {"xbegin", 'b', FA{{"TXNID_PAIR", "xid", 0},{"TXNID_PAIR", "parentxid", 0},NULLFIELD}, IGNORE_LOG_BEGIN},
-    {"xcommit",'C', FA{{"TXNID_PAIR", "xid", 0},NULLFIELD}, ASSERT_BEGIN_WAS_LOGGED},
-    {"xprepare",'P', FA{{"TXNID_PAIR", "xid", 0}, {"XIDP", "xa_xid", 0}, NULLFIELD}, ASSERT_BEGIN_WAS_LOGGED},
-    {"xabort", 'q', FA{{"TXNID_PAIR", "xid", 0},NULLFIELD}, ASSERT_BEGIN_WAS_LOGGED},
+    {"xbegin", 'b', {{"TXNID_PAIR", "xid", 0},{"TXNID_PAIR", "parentxid", 0},NULLFIELD}, IGNORE_LOG_BEGIN},
+    {"xcommit",'C', {{"TXNID_PAIR", "xid", 0},NULLFIELD}, ASSERT_BEGIN_WAS_LOGGED},
+    {"xprepare",'P', {{"TXNID_PAIR", "xid", 0}, {"XIDP", "xa_xid", 0}, NULLFIELD}, ASSERT_BEGIN_WAS_LOGGED},
+    {"xabort", 'q', {{"TXNID_PAIR", "xid", 0},NULLFIELD}, ASSERT_BEGIN_WAS_LOGGED},
     //TODO: #2037 Add dname
-    {"fcreate", 'F', FA{{"TXNID_PAIR",      "xid", 0},
-                        {"FILENUM",    "filenum", 0},
-                        {"BYTESTRING", "iname", 0},
-                        {"uint32_t",  "mode",  "0%o"},
-                        {"uint32_t",  "treeflags", 0},
-                        {"uint32_t", "nodesize", 0},
-                        {"uint32_t", "basementnodesize", 0},
-                        {"uint32_t", "compression_method", 0},
-                        NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"fcreate", 'F', {{"TXNID_PAIR",      "xid", 0},
+                      {"FILENUM",    "filenum", 0},
+                      {"BYTESTRING", "iname", 0},
+                      {"uint32_t",  "mode",  "0%o"},
+                      {"uint32_t",  "treeflags", 0},
+                      {"uint32_t", "nodesize", 0},
+                      {"uint32_t", "basementnodesize", 0},
+                      {"uint32_t", "compression_method", 0},
+                      NULLFIELD}, SHOULD_LOG_BEGIN},
     //TODO: #2037 Add dname
-    {"fopen",   'O', FA{{"BYTESTRING", "iname", 0},
-                        {"FILENUM",    "filenum", 0},
-                        {"uint32_t",  "treeflags", 0},
-                        NULLFIELD}, IGNORE_LOG_BEGIN},
+    {"fopen",   'O', {{"BYTESTRING", "iname", 0},
+                      {"FILENUM",    "filenum", 0},
+                      {"uint32_t",  "treeflags", 0},
+                      NULLFIELD}, IGNORE_LOG_BEGIN},
     //TODO: #2037 Add dname
-    {"fclose",   'e', FA{{"BYTESTRING", "iname", 0},
-                         {"FILENUM",    "filenum", 0},
-                         NULLFIELD}, IGNORE_LOG_BEGIN},
+    {"fclose",   'e', {{"BYTESTRING", "iname", 0},
+                       {"FILENUM",    "filenum", 0},
+                       NULLFIELD}, IGNORE_LOG_BEGIN},
     //TODO: #2037 Add dname
-    {"fdelete", 'U', FA{{"TXNID_PAIR",      "xid", 0},
-                        {"FILENUM", "filenum", 0},
-                        NULLFIELD}, SHOULD_LOG_BEGIN},
-    {"enq_insert", 'I', FA{{"FILENUM",    "filenum", 0},
-                           {"TXNID_PAIR",      "xid", 0},
-                           {"BYTESTRING", "key", 0},
-                           {"BYTESTRING", "value", 0},
-                           NULLFIELD}, SHOULD_LOG_BEGIN},
-    {"enq_insert_no_overwrite", 'i', FA{{"FILENUM",    "filenum", 0},
-                                        {"TXNID_PAIR",      "xid", 0},
-                                        {"BYTESTRING", "key", 0},
-                                        {"BYTESTRING", "value", 0},
-                                        NULLFIELD}, SHOULD_LOG_BEGIN},
-    {"enq_delete_any", 'E', FA{{"FILENUM",    "filenum", 0},
-                               {"TXNID_PAIR",      "xid", 0},
-                               {"BYTESTRING", "key", 0},
-                               NULLFIELD}, SHOULD_LOG_BEGIN},
-    {"enq_insert_multiple", 'm', FA{{"FILENUM",    "src_filenum", 0},
-                                    {"FILENUMS",   "dest_filenums", 0},
-                                    {"TXNID_PAIR",      "xid", 0},
-                                    {"BYTESTRING", "src_key", 0},
-                                    {"BYTESTRING", "src_val", 0},
-                                    NULLFIELD}, SHOULD_LOG_BEGIN},
-    {"enq_delete_multiple", 'M', FA{{"FILENUM",    "src_filenum", 0},
-                                    {"FILENUMS",   "dest_filenums", 0},
-                                    {"TXNID_PAIR",      "xid", 0},
-                                    {"BYTESTRING", "src_key", 0},
-                                    {"BYTESTRING", "src_val", 0},
-                                    NULLFIELD}, SHOULD_LOG_BEGIN},
-    {"comment", 'T', FA{{"uint64_t", "timestamp", 0},
-                        {"BYTESTRING", "comment", 0},
-                        NULLFIELD}, IGNORE_LOG_BEGIN},
+    {"fdelete", 'U', {{"TXNID_PAIR",      "xid", 0},
+                      {"FILENUM", "filenum", 0},
+                      NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"enq_insert", 'I', {{"FILENUM",    "filenum", 0},
+                         {"TXNID_PAIR",      "xid", 0},
+                         {"BYTESTRING", "key", 0},
+                         {"BYTESTRING", "value", 0},
+                         NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"enq_insert_no_overwrite", 'i', {{"FILENUM",    "filenum", 0},
+                                      {"TXNID_PAIR",      "xid", 0},
+                                      {"BYTESTRING", "key", 0},
+                                      {"BYTESTRING", "value", 0},
+                                      NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"enq_delete_any", 'E', {{"FILENUM",    "filenum", 0},
+                             {"TXNID_PAIR",      "xid", 0},
+                             {"BYTESTRING", "key", 0},
+                             NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"enq_insert_multiple", 'm', {{"FILENUM",    "src_filenum", 0},
+                                  {"FILENUMS",   "dest_filenums", 0},
+                                  {"TXNID_PAIR",      "xid", 0},
+                                  {"BYTESTRING", "src_key", 0},
+                                  {"BYTESTRING", "src_val", 0},
+                                  NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"enq_delete_multiple", 'M', {{"FILENUM",    "src_filenum", 0},
+                                  {"FILENUMS",   "dest_filenums", 0},
+                                  {"TXNID_PAIR",      "xid", 0},
+                                  {"BYTESTRING", "src_key", 0},
+                                  {"BYTESTRING", "src_val", 0},
+                                  NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"comment", 'T', {{"uint64_t", "timestamp", 0},
+                      {"BYTESTRING", "comment", 0},
+                      NULLFIELD}, IGNORE_LOG_BEGIN},
     // Note: shutdown_up_to_19 log entry is NOT ALLOWED TO BE CHANGED.
     // Do not change the letter ('Q'), do not add fields,
     // do not remove fields.
     // TODO: Kill this logentry entirely once we no longer support version 19.
-    {"shutdown_up_to_19", 'Q', FA{{"uint64_t", "timestamp", 0},
-                         NULLFIELD}, IGNORE_LOG_BEGIN},
+    {"shutdown_up_to_19", 'Q', {{"uint64_t", "timestamp", 0},
+                                NULLFIELD}, IGNORE_LOG_BEGIN},
     // Note: Shutdown log entry is NOT ALLOWED TO BE CHANGED.
     // Do not change the letter ('0'), do not add fields,
     // do not remove fields.
@@ -238,34 +235,34 @@ const struct logtype logtypes[] = {
     // This is how we detect clean shutdowns from OLDER VERSIONS.
     // This log entry must always be readable for future versions.
     // If you DO change it, you need to write a separate log upgrade mechanism.
-    {"shutdown", '0', FA{{"uint64_t", "timestamp", 0},
-                         {"TXNID", "last_xid", 0},
-                         NULLFIELD}, IGNORE_LOG_BEGIN},
-    {"load", 'l', FA{{"TXNID_PAIR",      "xid", 0},
-                     {"FILENUM",    "old_filenum", 0},
-                     {"BYTESTRING", "new_iname", 0},
-                     NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"shutdown", '0', {{"uint64_t", "timestamp", 0},
+                       {"TXNID", "last_xid", 0},
+                       NULLFIELD}, IGNORE_LOG_BEGIN},
+    {"load", 'l', {{"TXNID_PAIR",      "xid", 0},
+                   {"FILENUM",    "old_filenum", 0},
+                   {"BYTESTRING", "new_iname", 0},
+                   NULLFIELD}, SHOULD_LOG_BEGIN},
     // #2954
-    {"hot_index", 'h', FA{{"TXNID_PAIR",     "xid", 0},
-                          {"FILENUMS",  "hot_index_filenums", 0},
-                          NULLFIELD}, SHOULD_LOG_BEGIN},
-    {"enq_update", 'u', FA{{"FILENUM",    "filenum", 0},
-                           {"TXNID_PAIR",      "xid", 0},
-                           {"BYTESTRING", "key", 0},
-                           {"BYTESTRING", "extra", 0},
-                           NULLFIELD}, SHOULD_LOG_BEGIN},
-    {"enq_updatebroadcast", 'B', FA{{"FILENUM",    "filenum", 0},
-                                    {"TXNID_PAIR",      "xid", 0},
-                                    {"BYTESTRING", "extra", 0},
-                                    {"bool",       "is_resetting_op", 0},
-                                    NULLFIELD}, SHOULD_LOG_BEGIN},
-    {"change_fdescriptor", 'D', FA{{"FILENUM",    "filenum", 0},
-                            {"TXNID_PAIR",      "xid", 0},
-                            {"BYTESTRING", "old_descriptor", 0},
-                            {"BYTESTRING", "new_descriptor", 0},
-                            {"bool",       "update_cmp_descriptor", 0},
-                            NULLFIELD}, SHOULD_LOG_BEGIN},
-    {0,0,FA{NULLFIELD}, (enum log_begin_action) 0}
+    {"hot_index", 'h', {{"TXNID_PAIR",     "xid", 0},
+                        {"FILENUMS",  "hot_index_filenums", 0},
+                        NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"enq_update", 'u', {{"FILENUM",    "filenum", 0},
+                         {"TXNID_PAIR",      "xid", 0},
+                         {"BYTESTRING", "key", 0},
+                         {"BYTESTRING", "extra", 0},
+                         NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"enq_updatebroadcast", 'B', {{"FILENUM",    "filenum", 0},
+                                  {"TXNID_PAIR",      "xid", 0},
+                                  {"BYTESTRING", "extra", 0},
+                                  {"bool",       "is_resetting_op", 0},
+                                  NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"change_fdescriptor", 'D', {{"FILENUM",    "filenum", 0},
+                                 {"TXNID_PAIR",      "xid", 0},
+                                 {"BYTESTRING", "old_descriptor", 0},
+                                 {"BYTESTRING", "new_descriptor", 0},
+                                 {"bool",       "update_cmp_descriptor", 0},
+                                 NULLFIELD}, SHOULD_LOG_BEGIN},
+    {0,0,{NULLFIELD}, (enum log_begin_action) 0}
 };
 
 
@@ -282,8 +279,8 @@ const struct logtype logtypes[] = {
 #define DO_LOGTYPES_AND_ROLLBACKS(lt, body) (DO_ROLLBACKS(lt,body), DO_LOGTYPES(lt, body))
 
 #define DO_FIELDS(fld, lt, body) do { \
-    struct field *fld; \
-    for (fld=lt->fields; fld->type; fld++) { \
+    const struct field *fld; \
+    for (fld=&lt->fields[0]; fld->type; fld++) { \
         body; \
     } } while (0)
 

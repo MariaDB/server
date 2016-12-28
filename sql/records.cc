@@ -69,7 +69,7 @@ static int rr_index_desc(READ_RECORD *info);
 bool init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
                           bool print_error, uint idx, bool reverse)
 {
-  int error;
+  int error= 0;
   DBUG_ENTER("init_read_record_idx");
 
   empty_record(table);

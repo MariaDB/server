@@ -80,10 +80,6 @@ static const ulint BUF_LRU_DROP_SEARCH_SIZE = 1024;
 during LRU eviction. */
 static const ulint BUF_LRU_SEARCH_SCAN_THRESHOLD = 100;
 
-/** We scan these many blocks when looking for a clean page to evict
-during LRU eviction. */
-#define BUF_LRU_SEARCH_SCAN_THRESHOLD	100
-
 /** If we switch on the InnoDB monitor because there are too few available
 frames in the buffer pool, we set this to TRUE */
 static bool buf_lru_switched_on_innodb_mon = false;

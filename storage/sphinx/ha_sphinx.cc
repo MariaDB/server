@@ -911,7 +911,7 @@ bool sphinx_show_status ( THD * thd )
 	}
 
 	// show last error or warning (either in addition to stats, or on their own)
-	if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_tStats.m_sLastMessage && pTls->m_pHeadTable->m_tStats.m_sLastMessage[0] )
+	if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_tStats.m_sLastMessage[0] )
 	{
 		const char * sMessageType = pTls->m_pHeadTable->m_tStats.m_bLastError ? "error" : "warning";
 
@@ -2528,12 +2528,6 @@ char * ha_sphinx::UnpackString ()
 	sRes[iLen] = '\0';
 	m_pCur += iLen;
 	return sRes;
-}
-
-
-static inline const char * FixNull ( const char * s )
-{
-	return s ? s : "(null)";
 }
 
 
