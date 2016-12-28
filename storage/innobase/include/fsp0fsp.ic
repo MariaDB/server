@@ -337,15 +337,4 @@ xdes_calc_descriptor_page(
 
 	return(ut_2pow_round(offset, page_size.physical()));
 }
-
-/** Calculates the descriptor array size.
-@param[in]	page_size	page size
-@return size of descriptor array */
-UNIV_INLINE
-ulint
-xdes_arr_size(
-	const page_size_t&	page_size)
-{
-	return(page_size.physical()/FSP_EXTENT_SIZE);
-}
 #endif /* !UNIV_INNOCHECKSUM */

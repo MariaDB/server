@@ -361,6 +361,16 @@ fsp_header_get_encryption_key(
 	byte*		iv,
 	page_t*		page);
 
+/** Get the byte offset of encryption information in page 0.
+@param[in]	ps	page size
+@return	byte offset relative to FSP_HEADER_OFFSET */
+inline MY_ATTRIBUTE((pure, warn_unused_result))
+ulint
+fsp_header_get_encryption_offset(const page_size_t& ps)
+{
+	return XDES_ARR_OFFSET + XDES_SIZE * ps.physical() / FSP_EXTENT_SIZE;
+}
+
 /** Check the encryption key from the first page of a tablespace.
 @param[in]	fsp_flags	tablespace flags
 @param[in]	page		first page of a tablespace
@@ -769,20 +779,6 @@ ulint
 xdes_calc_descriptor_page(
 	const page_size_t&	page_size,
 	ulint			offset);
-
-#endif /* !UNIV_INNOCHECKSUM */
-
-/*********************************************************************//**
-@return offset into fsp header where crypt data is stored */
-UNIV_INTERN
-ulint
-fsp_header_get_crypt_offset(
-/*========================*/
-	const page_size_t&	page_size,/*!< in: page size */
-	ulint* max_size);	/*!< out: free space after offset */
-
-
-#ifndef UNIV_INNOCHECKSUM
 
 /**********************************************************************//**
 Checks if a single page is free.

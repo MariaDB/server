@@ -6661,12 +6661,11 @@ fil_tablespace_iterate(
 		iter.n_io_buffers = n_io_buffers;
 		iter.page_size = callback.get_page_size().physical();
 
-		ulint crypt_data_offset = fsp_header_get_crypt_offset(
-			callback.get_page_size(), 0);
-
 		/* read (optional) crypt data */
 		iter.crypt_data = fil_space_read_crypt_data(
-			0, page, crypt_data_offset);
+			0, page, FSP_HEADER_OFFSET
+			+ fsp_header_get_encryption_offset(
+				callback.get_page_size()));
 
 #ifdef MYSQL_ENCRYPTION
 		/* Set encryption info. */
@@ -7612,8 +7611,9 @@ fil_space_get_crypt_data(
 			fil_read(page_id_t(space_id, 0), univ_page_size, 0, univ_page_size.physical(),
 				 page);
 			ulint flags = fsp_header_get_flags(page);
-			ulint offset = fsp_header_get_crypt_offset(
-				page_size_t(flags), NULL);
+			ulint offset = FSP_HEADER_OFFSET
+				+ fsp_header_get_encryption_offset(
+					page_size_t(flags));
 			space->crypt_data = fil_space_read_crypt_data(space_id, page, offset);
 			ut_free(buf);
 

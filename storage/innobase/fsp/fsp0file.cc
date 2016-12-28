@@ -368,9 +368,10 @@ Datafile::read_first_page(bool read_only_mode)
 		m_space_id = fsp_header_get_space_id(m_first_page);
 	}
 
-	const page_size_t page_sz = fsp_header_get_page_size(m_first_page);
-	ulint offset = fsp_header_get_crypt_offset(page_sz, NULL);
-	m_crypt_info = fil_space_read_crypt_data(m_space_id, m_first_page, offset);
+	m_crypt_info = fil_space_read_crypt_data(
+		m_space_id, m_first_page,
+		FSP_HEADER_OFFSET + fsp_header_get_encryption_offset(
+			fsp_header_get_page_size(m_first_page)));
 
 	return(err);
 }

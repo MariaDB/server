@@ -1179,10 +1179,11 @@ fil_crypt_start_encrypting_space(
 
 		/* 3 - compute location to store crypt data */
 		byte* frame = buf_block_get_frame(block);
-		ulint maxsize = 0;
 		ut_ad(crypt_data);
-		crypt_data->page0_offset =
-			fsp_header_get_crypt_offset(page_size, &maxsize);
+		crypt_data->page0_offset = FSP_HEADER_OFFSET
+			+ fsp_header_get_encryption_offset(page_size);
+		const ulint maxsize = page_size.logical()
+			- crypt_data->page0_offset - FIL_PAGE_DATA_END;
 
 		/* 4 - write crypt data to page 0 */
 		fil_space_write_crypt_data_low(crypt_data,
@@ -2165,10 +2166,9 @@ fil_crypt_flush_space(
 
 		if (block && err == DB_SUCCESS) {
 			byte* frame = buf_block_get_frame(block);
-			ulint maxsize=0;
 
-			crypt_data->page0_offset =
-				fsp_header_get_crypt_offset(page_size, &maxsize);
+			crypt_data->page0_offset = FSP_HEADER_OFFSET
+				+ fsp_header_get_encryption_offset(page_size);
 
 			fil_space_write_crypt_data(space, frame,
 						crypt_data->page0_offset,
