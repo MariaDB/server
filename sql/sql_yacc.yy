@@ -4670,6 +4670,8 @@ part_name:
           {
             partition_info *part_info= Lex->part_info;
             partition_element *p_elem= part_info->curr_part_elem;
+            if (check_ident_length(&$1))
+              MYSQL_YYABORT;
             p_elem->partition_name= $1.str;
           }
         ;
@@ -4964,7 +4966,11 @@ sub_part_definition:
 
 sub_name:
           ident_or_text
-          { Lex->part_info->curr_part_elem->partition_name= $1.str; }
+          {
+            if (check_ident_length(&$1))
+              MYSQL_YYABORT;
+            Lex->part_info->curr_part_elem->partition_name= $1.str;
+          }
         ;
 
 opt_part_options:
