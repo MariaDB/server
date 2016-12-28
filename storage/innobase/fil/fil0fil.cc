@@ -921,6 +921,313 @@ fil_try_to_close_file_in_LRU(
 	return(FALSE);
 }
 
+/** Flush any writes cached by the file system.
+@param[in,out]	space	tablespace */
+static
+void
+fil_flush_low(fil_space_t* space)
+{
+	ut_ad(mutex_own(&fil_system->mutex));
+	ut_ad(space);
+	ut_ad(!space->stop_new_ops);
+
+	if (fil_buffering_disabled(space)) {
+
+		/* No need to flush. User has explicitly disabled
+		buffering. */
+		ut_ad(!space->is_in_unflushed_spaces);
+		ut_ad(fil_space_is_flushed(space));
+		ut_ad(space->n_pending_flushes == 0);
+
+#ifdef UNIV_DEBUG
+		for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
+		     node != NULL;
+		     node = UT_LIST_GET_NEXT(chain, node)) {
+			ut_ad(node->modification_counter
+			      == node->flush_counter);
+			ut_ad(node->n_pending_flushes == 0);
+		}
+#endif /* UNIV_DEBUG */
+
+		return;
+	}
+
+	/* Prevent dropping of the space while we are flushing */
+	space->n_pending_flushes++;
+
+	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
+	     node != NULL;
+	     node = UT_LIST_GET_NEXT(chain, node)) {
+
+		ib_int64_t old_mod_counter = node->modification_counter;
+
+		if (old_mod_counter <= node->flush_counter) {
+			continue;
+		}
+
+		ut_a(node->open);
+
+		if (space->purpose == FIL_TABLESPACE) {
+			fil_n_pending_tablespace_flushes++;
+		} else {
+			fil_n_pending_log_flushes++;
+			fil_n_log_flushes++;
+		}
+#ifdef __WIN__
+		if (node->is_raw_disk) {
+
+			goto skip_flush;
+		}
+#endif /* __WIN__ */
+retry:
+		if (node->n_pending_flushes > 0) {
+			/* We want to avoid calling os_file_flush() on
+			the file twice at the same time, because we do
+			not know what bugs OS's may contain in file
+			i/o */
+
+			ib_int64_t sig_count =
+				os_event_reset(node->sync_event);
+
+			mutex_exit(&fil_system->mutex);
+
+			os_event_wait_low(node->sync_event, sig_count);
+
+			mutex_enter(&fil_system->mutex);
+
+			if (node->flush_counter >= old_mod_counter) {
+
+				goto skip_flush;
+			}
+
+			goto retry;
+		}
+
+		ut_a(node->open);
+		node->n_pending_flushes++;
+
+		mutex_exit(&fil_system->mutex);
+
+		os_file_flush(node->handle);
+
+		mutex_enter(&fil_system->mutex);
+
+		os_event_set(node->sync_event);
+
+		node->n_pending_flushes--;
+skip_flush:
+		if (node->flush_counter < old_mod_counter) {
+			node->flush_counter = old_mod_counter;
+
+			if (space->is_in_unflushed_spaces
+			    && fil_space_is_flushed(space)) {
+
+				space->is_in_unflushed_spaces = false;
+
+				UT_LIST_REMOVE(
+					unflushed_spaces,
+					fil_system->unflushed_spaces,
+					space);
+			}
+		}
+
+		if (space->purpose == FIL_TABLESPACE) {
+			fil_n_pending_tablespace_flushes--;
+		} else {
+			fil_n_pending_log_flushes--;
+		}
+	}
+
+	space->n_pending_flushes--;
+}
+
+/** Try to extend a tablespace.
+@param[in,out]	space	tablespace to be extended
+@param[in,out]	node	last file of the tablespace
+@param[in]	size	desired size in number of pages
+@param[out]	success	whether the operation succeeded
+@return	whether the operation should be retried */
+static UNIV_COLD __attribute__((warn_unused_result, nonnull))
+bool
+fil_space_extend_must_retry(
+	fil_space_t*	space,
+	fil_node_t*	node,
+	ulint		size,
+	ibool*		success)
+{
+	ut_ad(mutex_own(&fil_system->mutex));
+	ut_ad(UT_LIST_GET_LAST(space->chain) == node);
+	ut_ad(size >= FIL_IBD_FILE_INITIAL_SIZE);
+
+	*success = space->size >= size;
+
+	if (*success) {
+		/* Space already big enough */
+		return(false);
+	}
+
+	if (node->being_extended) {
+		/* Another thread is currently extending the file. Wait
+		for it to finish.
+		It'd have been better to use event driven mechanism but
+		the entire module is peppered with polling stuff. */
+		mutex_exit(&fil_system->mutex);
+		os_thread_sleep(100000);
+		return(true);
+	}
+
+	node->being_extended = true;
+
+	if (!fil_node_prepare_for_io(node, fil_system, space)) {
+		/* The tablespace data file, such as .ibd file, is missing */
+		node->being_extended = false;
+		return(false);
+	}
+
+	/* At this point it is safe to release fil_system mutex. No
+	other thread can rename, delete or close the file because
+	we have set the node->being_extended flag. */
+	mutex_exit(&fil_system->mutex);
+
+	ulint	start_page_no		= space->size;
+	ulint	file_start_page_no	= start_page_no - node->size;
+
+	/* Determine correct file block size */
+	if (node->file_block_size == 0) {
+		node->file_block_size = os_file_get_block_size(
+			node->handle, node->name);
+		space->file_block_size = node->file_block_size;
+	}
+
+	ulint	page_size	= fsp_flags_get_zip_size(space->flags);
+	ulint	pages_added	= 0;
+
+	if (!page_size) {
+		page_size = UNIV_PAGE_SIZE;
+	}
+
+#ifdef HAVE_POSIX_FALLOCATE
+	/* We must complete the I/O request after invoking
+	posix_fallocate() to avoid an assertion failure at shutdown.
+	Because no actual writes were dispatched, a read operation
+	will suffice. */
+	const ulint	io_completion_type = srv_use_posix_fallocate
+		? OS_FILE_READ : OS_FILE_WRITE;
+
+	if (srv_use_posix_fallocate) {
+		const os_offset_t start_offset	= static_cast<os_offset_t>(
+			start_page_no) * page_size;
+		const os_offset_t len		= static_cast<os_offset_t>(
+			pages_added) * page_size;
+
+		*success = !posix_fallocate(node->handle, start_offset, len);
+		if (!*success) {
+			ib_logf(IB_LOG_LEVEL_ERROR, "preallocating file "
+				"space for file \'%s\' failed.  Current size "
+				INT64PF ", desired size " INT64PF,
+				node->name, start_offset, len+start_offset);
+			os_file_handle_error_no_exit(
+				node->name, "posix_fallocate",
+				FALSE, __FILE__, __LINE__);
+		}
+
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+				*success = FALSE; errno = 28;
+				os_has_said_disk_full = TRUE;);
+
+		if (*success) {
+			os_has_said_disk_full = FALSE;
+		} else {
+			pages_added = 0;
+		}
+	} else
+#else
+	const ulint io_completion_type = OS_FILE_WRITE;
+#endif
+	{
+		byte*	buf2;
+		byte*	buf;
+		ulint	buf_size;
+
+		/* Extend at most 64 pages at a time */
+		buf_size = ut_min(64, size - start_page_no)
+			* page_size;
+		buf2 = static_cast<byte*>(mem_alloc(buf_size + page_size));
+		buf = static_cast<byte*>(ut_align(buf2, page_size));
+
+		memset(buf, 0, buf_size);
+
+		while (start_page_no < size) {
+			ulint		n_pages
+				= ut_min(buf_size / page_size,
+					 size - start_page_no);
+
+			os_offset_t	offset = static_cast<os_offset_t>(
+				start_page_no - file_start_page_no)
+				* page_size;
+
+			const char* name = node->name == NULL
+				? space->name : node->name;
+
+			*success = os_aio(OS_FILE_WRITE, 0, OS_AIO_SYNC,
+					  name, node->handle, buf,
+					  offset, page_size * n_pages,
+					  page_size, node, NULL, 0);
+
+			DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+					*success = FALSE; errno = 28;
+					os_has_said_disk_full = TRUE;);
+
+			if (*success) {
+				os_has_said_disk_full = FALSE;
+			} else {
+				/* Let us measure the size of the file
+				to determine how much we were able to
+				extend it */
+				os_offset_t	size;
+
+				size = os_file_get_size(node->handle);
+				ut_a(size != (os_offset_t) -1);
+
+				n_pages = ((ulint) (size / page_size))
+					- node->size - pages_added;
+
+				pages_added += n_pages;
+				break;
+			}
+
+			start_page_no += n_pages;
+			pages_added += n_pages;
+		}
+
+		mem_free(buf2);
+	}
+
+	mutex_enter(&fil_system->mutex);
+
+	ut_a(node->being_extended);
+
+	space->size += pages_added;
+	node->size += pages_added;
+
+	fil_node_complete_io(node, fil_system, io_completion_type);
+
+	node->being_extended = FALSE;
+
+	if (space->id == 0) {
+		ulint pages_per_mb = (1024 * 1024) / page_size;
+
+		/* Keep the last data file size info up to date, rounded to
+		full megabytes */
+
+		srv_data_file_sizes[srv_n_data_files - 1]
+			= (node->size / pages_per_mb) * pages_per_mb;
+	}
+
+	fil_flush_low(space);
+	return(false);
+}
+
 /*******************************************************************//**
 Reserves the fil_system mutex and tries to make sure we can open at least one
 file while holding it. This should be called before calling
@@ -932,27 +1239,25 @@ fil_mutex_enter_and_prepare_for_io(
 	ulint	space_id)	/*!< in: space id */
 {
 	fil_space_t*	space;
-	ibool		success;
-	ibool		print_info	= FALSE;
 	ulint		count		= 0;
 	ulint		count2		= 0;
 
 retry:
 	mutex_enter(&fil_system->mutex);
 
-	if (space_id == 0 || space_id >= SRV_LOG_SPACE_FIRST_ID) {
-		/* We keep log files and system tablespace files always open;
-		this is important in preventing deadlocks in this module, as
-		a page read completion often performs another read from the
-		insert buffer. The insert buffer is in tablespace 0, and we
-		cannot end up waiting in this function. */
-
+	if (space_id >= SRV_LOG_SPACE_FIRST_ID) {
+		/* We keep log files always open. */
 		return;
 	}
 
 	space = fil_space_get_by_id(space_id);
 
-	if (space != NULL && space->stop_ios) {
+	if (space == NULL) {
+		return;
+	}
+
+	if (space->stop_ios) {
+		ut_ad(space->id != 0);
 		/* We are going to do a rename file and want to stop new i/o's
 		for a while */
 
@@ -992,76 +1297,81 @@ retry:
 		goto retry;
 	}
 
-	if (fil_system->n_open < fil_system->max_n_open) {
+	fil_node_t*	node = UT_LIST_GET_LAST(space->chain);
 
-		return;
+	ut_ad(space->id == 0 || node == UT_LIST_GET_FIRST(space->chain));
+
+	if (space->id == 0) {
+		/* We keep the system tablespace files always open;
+		this is important in preventing deadlocks in this module, as
+		a page read completion often performs another read from the
+		insert buffer. The insert buffer is in tablespace 0, and we
+		cannot end up waiting in this function. */
+	} else if (!node || node->open) {
+		/* If the file is already open, no need to do
+		anything; if the space does not exist, we handle the
+		situation in the function which called this
+		function */
+	} else {
+		/* Too many files are open, try to close some */
+		while (fil_system->n_open >= fil_system->max_n_open) {
+			if (fil_try_to_close_file_in_LRU(count > 1)) {
+				/* No problem */
+			} else if (count >= 2) {
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"innodb_open_files=%lu is exceeded"
+					" (%lu files stay open)",
+					fil_system->max_n_open,
+					fil_system->n_open);
+				break;
+			} else {
+				mutex_exit(&fil_system->mutex);
+
+				/* Wake the i/o-handler threads to
+				make sure pending i/o's are
+				performed */
+				os_aio_simulated_wake_handler_threads();
+				os_thread_sleep(20000);
+
+				/* Flush tablespaces so that we can
+				close modified files in the LRU list */
+				fil_flush_file_spaces(FIL_TABLESPACE);
+
+				count++;
+				goto retry;
+			}
+		}
 	}
 
-	/* If the file is already open, no need to do anything; if the space
-	does not exist, we handle the situation in the function which called
-	this function */
+	if (ulint size = UNIV_UNLIKELY(space->recv_size)) {
+		ut_ad(node);
+		ibool	success;
+		if (fil_space_extend_must_retry(space, node, size, &success)) {
+			goto retry;
+		}
 
-	if (!space) {
-		return;
+		ut_ad(mutex_own(&fil_system->mutex));
+		/* Crash recovery requires the file extension to succeed. */
+		ut_a(success);
+		/* InnoDB data files cannot shrink. */
+		ut_a(space->size >= size);
+
+		/* There could be multiple concurrent I/O requests for
+		this tablespace (multiple threads trying to extend
+		this tablespace).
+
+		Also, fil_space_set_recv_size() may have been invoked
+		again during the file extension while fil_system->mutex
+		was not being held by us.
+
+		Only if space->recv_size matches what we read originally,
+		reset the field. In this way, a subsequent I/O request
+		will handle any pending fil_space_set_recv_size(). */
+
+		if (size == space->recv_size) {
+			space->recv_size = 0;
+		}
 	}
-
-	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
-
-	if (!node || node->open) {
-		return;
-	}
-
-	if (count > 1) {
-		print_info = TRUE;
-	}
-
-	/* Too many files are open, try to close some */
-close_more:
-	success = fil_try_to_close_file_in_LRU(print_info);
-
-	if (success && fil_system->n_open >= fil_system->max_n_open) {
-
-		goto close_more;
-	}
-
-	if (fil_system->n_open < fil_system->max_n_open) {
-		/* Ok */
-
-		return;
-	}
-
-	if (count >= 2) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			"  InnoDB: Warning: too many (%lu) files stay open"
-			" while the maximum\n"
-			"InnoDB: allowed value would be %lu.\n"
-			"InnoDB: You may need to raise the value of"
-			" innodb_open_files in\n"
-			"InnoDB: my.cnf.\n",
-			(ulong) fil_system->n_open,
-			(ulong) fil_system->max_n_open);
-
-		return;
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-#ifndef UNIV_HOTBACKUP
-	/* Wake the i/o-handler threads to make sure pending i/o's are
-	performed */
-	os_aio_simulated_wake_handler_threads();
-
-	os_thread_sleep(20000);
-#endif
-	/* Flush tablespaces so that we can close modified files in the LRU
-	list */
-
-	fil_flush_file_spaces(FIL_TABLESPACE);
-
-	count++;
-
-	goto retry;
 }
 
 /*******************************************************************//**
@@ -1542,6 +1852,24 @@ fil_space_get_first_path(
 	mutex_exit(&fil_system->mutex);
 
 	return(path);
+}
+
+/** Set the recovered size of a tablespace in pages.
+@param id	tablespace ID
+@param size	recovered size in pages */
+UNIV_INTERN
+void
+fil_space_set_recv_size(ulint id, ulint size)
+{
+	mutex_enter(&fil_system->mutex);
+	ut_ad(size);
+	ut_ad(id < SRV_LOG_SPACE_FIRST_ID);
+
+	if (fil_space_t* space = fil_space_get_space(id)) {
+		space->recv_size = size;
+	}
+
+	mutex_exit(&fil_system->mutex);
 }
 
 /*******************************************************************//**
@@ -5226,212 +5554,23 @@ fil_extend_space_to_desired_size(
 				extension; if the current space size is bigger
 				than this already, the function does nothing */
 {
-	fil_node_t*	node;
-	fil_space_t*	space;
-	byte*		buf2;
-	byte*		buf;
-	ulint		buf_size;
-	ulint		start_page_no;
-	ulint		file_start_page_no;
-	ulint		page_size;
-	ulint		pages_added;
-	ibool		success;
-
 	ut_ad(!srv_read_only_mode);
 
-retry:
-	pages_added = 0;
-	success = TRUE;
+	for (;;) {
+		fil_mutex_enter_and_prepare_for_io(space_id);
 
-	fil_mutex_enter_and_prepare_for_io(space_id);
+		fil_space_t* space = fil_space_get_by_id(space_id);
+		ut_a(space);
+		ibool	success;
 
-	space = fil_space_get_by_id(space_id);
-	ut_a(space);
-
-	if (space->size >= size_after_extend) {
-		/* Space already big enough */
-
-		*actual_size = space->size;
-
-		mutex_exit(&fil_system->mutex);
-
-		return(TRUE);
-	}
-
-	page_size = fsp_flags_get_zip_size(space->flags);
-
-	if (!page_size) {
-		page_size = UNIV_PAGE_SIZE;
-	}
-
-	node = UT_LIST_GET_LAST(space->chain);
-
-	if (!node->being_extended) {
-		/* Mark this node as undergoing extension. This flag
-		is used by other threads to wait for the extension
-		opereation to finish. */
-		node->being_extended = TRUE;
-	} else {
-		/* Another thread is currently extending the file. Wait
-		for it to finish.
-		It'd have been better to use event driven mechanism but
-		the entire module is peppered with polling stuff. */
-		mutex_exit(&fil_system->mutex);
-		os_thread_sleep(100000);
-		goto retry;
-	}
-
-	if (!fil_node_prepare_for_io(node, fil_system, space)) {
-		/* The tablespace data file, such as .ibd file, is missing */
-		node->being_extended = false;
-		mutex_exit(&fil_system->mutex);
-
-		return(false);
-	}
-
-	/* At this point it is safe to release fil_system mutex. No
-	other thread can rename, delete or close the file because
-	we have set the node->being_extended flag. */
-	mutex_exit(&fil_system->mutex);
-
-	start_page_no = space->size;
-	file_start_page_no = space->size - node->size;
-
-	/* Determine correct file block size */
-	if (node->file_block_size == 0) {
-		node->file_block_size = os_file_get_block_size(node->handle, node->name);
-		space->file_block_size = node->file_block_size;
-	}
-
-#ifdef HAVE_POSIX_FALLOCATE
-	if (srv_use_posix_fallocate) {
-		os_offset_t	start_offset = start_page_no * page_size;
-		os_offset_t	n_pages = (size_after_extend - start_page_no);
-		os_offset_t	len = n_pages * page_size;
-
-		if (posix_fallocate(node->handle, start_offset, len) == -1) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "preallocating file "
-				"space for file \'%s\' failed.  Current size "
-				INT64PF ", desired size " INT64PF "\n",
-				node->name, start_offset, len+start_offset);
-			os_file_handle_error_no_exit(node->name, "posix_fallocate", FALSE, __FILE__, __LINE__);
-			success = FALSE;
-		} else {
-			success = TRUE;
+		if (!fil_space_extend_must_retry(
+			    space, UT_LIST_GET_LAST(space->chain),
+			    size_after_extend, &success)) {
+			*actual_size = space->size;
+			mutex_exit(&fil_system->mutex);
+			return(success);
 		}
-
-		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-			success = FALSE; errno = 28; os_has_said_disk_full = TRUE;);
-
-		mutex_enter(&fil_system->mutex);
-
-		if (success) {
-			node->size += (size_after_extend - start_page_no);
-			space->size += (size_after_extend - start_page_no);
-
-			os_has_said_disk_full = FALSE;
-		}
-
-		/* If posix_fallocate was used to extent the file space
-		we need to complete the io. Because no actual writes were
-		dispatched read operation is enough here. Without this
-		there will be assertion at shutdown indicating that
-		all IO is not completed. */
-		fil_node_complete_io(node, fil_system, OS_FILE_READ);
-		goto file_extended;
 	}
-#endif
-
-	/* Extend at most 64 pages at a time */
-	buf_size = ut_min(64, size_after_extend - start_page_no) * page_size;
-	buf2 = static_cast<byte*>(mem_alloc(buf_size + page_size));
-	buf = static_cast<byte*>(ut_align(buf2, page_size));
-
-	memset(buf, 0, buf_size);
-
-	while (start_page_no < size_after_extend) {
-		ulint		n_pages
-			= ut_min(buf_size / page_size,
-				 size_after_extend - start_page_no);
-
-		os_offset_t	offset
-			= ((os_offset_t) (start_page_no - file_start_page_no))
-			* page_size;
-
-		const char* name = node->name == NULL ? space->name : node->name;
-
-#ifdef UNIV_HOTBACKUP
-		success = os_file_write(name, node->handle, buf,
-					offset, page_size * n_pages);
-#else
-		success = os_aio(OS_FILE_WRITE, 0, OS_AIO_SYNC,
-				 name, node->handle, buf,
-			         offset, page_size * n_pages, page_size,
-			         node, NULL, 0);
-#endif /* UNIV_HOTBACKUP */
-
-
-		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-			success = FALSE; errno = 28; os_has_said_disk_full = TRUE;);
-
-		if (success) {
-			os_has_said_disk_full = FALSE;
-		} else {
-			/* Let us measure the size of the file to determine
-			how much we were able to extend it */
-			os_offset_t	size;
-
-			size = os_file_get_size(node->handle);
-			ut_a(size != (os_offset_t) -1);
-
-			n_pages = ((ulint) (size / page_size))
-				- node->size - pages_added;
-
-			pages_added += n_pages;
-			break;
-		}
-
-		start_page_no += n_pages;
-		pages_added += n_pages;
-	}
-
-	mem_free(buf2);
-
-	mutex_enter(&fil_system->mutex);
-
-	ut_a(node->being_extended);
-
-	space->size += pages_added;
-	node->size += pages_added;
-
-	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
-
-	/* At this point file has been extended */
-file_extended:
-
-	node->being_extended = FALSE;
-	*actual_size = space->size;
-
-#ifndef UNIV_HOTBACKUP
-	if (space_id == 0) {
-		ulint pages_per_mb = (1024 * 1024) / page_size;
-
-		/* Keep the last data file size info up to date, rounded to
-		full megabytes */
-
-		srv_data_file_sizes[srv_n_data_files - 1]
-			= (node->size / pages_per_mb) * pages_per_mb;
-	}
-#endif /* !UNIV_HOTBACKUP */
-
-	/*
-	printf("Extended %s to %lu, actual size %lu pages\n", space->name,
-	size_after_extend, *actual_size); */
-	mutex_exit(&fil_system->mutex);
-
-	fil_flush(space_id);
-
-	return(success);
 }
 
 #ifdef UNIV_HOTBACKUP
@@ -6123,14 +6262,9 @@ fil_flush(
 	ulint	space_id)	/*!< in: file space id (this can be a group of
 				log files or a tablespace of the database) */
 {
-	fil_space_t*	space;
-	fil_node_t*	node;
-	os_file_t	file;
-
-
 	mutex_enter(&fil_system->mutex);
 
-	space = fil_space_get_by_id(space_id);
+	fil_space_t*	space = fil_space_get_by_id(space_id);
 
 	if (!space || space->stop_new_ops) {
 		mutex_exit(&fil_system->mutex);
@@ -6138,115 +6272,7 @@ fil_flush(
 		return;
 	}
 
-	if (fil_buffering_disabled(space)) {
-
-		/* No need to flush. User has explicitly disabled
-		buffering. */
-		ut_ad(!space->is_in_unflushed_spaces);
-		ut_ad(fil_space_is_flushed(space));
-		ut_ad(space->n_pending_flushes == 0);
-
-#ifdef UNIV_DEBUG
-		for (node = UT_LIST_GET_FIRST(space->chain);
-		     node != NULL;
-		     node = UT_LIST_GET_NEXT(chain, node)) {
-			ut_ad(node->modification_counter
-			      == node->flush_counter);
-			ut_ad(node->n_pending_flushes == 0);
-		}
-#endif /* UNIV_DEBUG */
-
-		mutex_exit(&fil_system->mutex);
-		return;
-	}
-
-	space->n_pending_flushes++;	/*!< prevent dropping of the space while
-					we are flushing */
-	for (node = UT_LIST_GET_FIRST(space->chain);
-	     node != NULL;
-	     node = UT_LIST_GET_NEXT(chain, node)) {
-
-		ib_int64_t old_mod_counter = node->modification_counter;
-
-		if (old_mod_counter <= node->flush_counter) {
-			continue;
-		}
-
-		ut_a(node->open);
-
-		if (space->purpose == FIL_TABLESPACE) {
-			fil_n_pending_tablespace_flushes++;
-		} else {
-			fil_n_pending_log_flushes++;
-			fil_n_log_flushes++;
-		}
-#ifdef __WIN__
-		if (node->is_raw_disk) {
-
-			goto skip_flush;
-		}
-#endif /* __WIN__ */
-retry:
-		if (node->n_pending_flushes > 0) {
-			/* We want to avoid calling os_file_flush() on
-			the file twice at the same time, because we do
-			not know what bugs OS's may contain in file
-			i/o */
-
-			ib_int64_t sig_count =
-				os_event_reset(node->sync_event);
-
-			mutex_exit(&fil_system->mutex);
-
-			os_event_wait_low(node->sync_event, sig_count);
-
-			mutex_enter(&fil_system->mutex);
-
-			if (node->flush_counter >= old_mod_counter) {
-
-				goto skip_flush;
-			}
-
-			goto retry;
-		}
-
-		ut_a(node->open);
-		file = node->handle;
-		node->n_pending_flushes++;
-
-		mutex_exit(&fil_system->mutex);
-
-		os_file_flush(file);
-
-		mutex_enter(&fil_system->mutex);
-
-		os_event_set(node->sync_event);
-
-		node->n_pending_flushes--;
-skip_flush:
-		if (node->flush_counter < old_mod_counter) {
-			node->flush_counter = old_mod_counter;
-
-			if (space->is_in_unflushed_spaces
-			    && fil_space_is_flushed(space)) {
-
-				space->is_in_unflushed_spaces = false;
-
-				UT_LIST_REMOVE(
-					unflushed_spaces,
-					fil_system->unflushed_spaces,
-					space);
-			}
-		}
-
-		if (space->purpose == FIL_TABLESPACE) {
-			fil_n_pending_tablespace_flushes--;
-		} else {
-			fil_n_pending_log_flushes--;
-		}
-	}
-
-	space->n_pending_flushes--;
+	fil_flush_low(space);
 
 	mutex_exit(&fil_system->mutex);
 }

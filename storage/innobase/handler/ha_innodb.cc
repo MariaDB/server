@@ -3453,14 +3453,15 @@ innobase_init(
 	if (UNIV_PAGE_SIZE != UNIV_PAGE_SIZE_DEF) {
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"innodb_page_size has been "
-			"changed from default value %d to %ldd.",
+			"changed from default value %d to %ld.",
 			UNIV_PAGE_SIZE_DEF, UNIV_PAGE_SIZE);
 
 		/* There is hang on buffer pool when trying to get a new
 		page if buffer pool size is too small for large page sizes */
-		if (innobase_buffer_pool_size < (24 * 1024 * 1024)) {
-			ib_logf(IB_LOG_LEVEL_INFO,
-				"innobase_page_size %lu requires "
+		if (UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF
+		    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"innodb_page_size=%lu requires "
 				"innodb_buffer_pool_size > 24M current %lld",
 				UNIV_PAGE_SIZE, innobase_buffer_pool_size);
 			goto error;
@@ -19692,6 +19693,12 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   "but the each purges were not done yet.",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_ULONG(data_file_size_debug,
+  srv_sys_space_size_debug,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "InnoDB system tablespace size to be set in recovery.",
+  NULL, NULL, 0, 0, UINT_MAX32, 0);
+
 static MYSQL_SYSVAR_ULONG(fil_make_page_dirty_debug,
   srv_fil_make_page_dirty_debug, PLUGIN_VAR_OPCMDARG,
   "Make the first page of the given tablespace dirty.",
@@ -20043,6 +20050,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
+  MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
 #endif /* UNIV_DEBUG */

@@ -299,6 +299,10 @@ struct fil_space_t {
 				tablespace whose size we do not know yet;
 				last incomplete megabytes in data files may be
 				ignored if space == 0 */
+	ulint		recv_size;
+				/*!< recovered tablespace size in pages;
+				0 if no size change was read from the redo log,
+				or if the size change was implemented */
 	ulint		flags;	/*!< tablespace flags; see
 				fsp_flags_is_valid(),
 				fsp_flags_get_zip_size() */
@@ -500,6 +504,12 @@ char*
 fil_space_get_first_path(
 /*=====================*/
 	ulint	id);	/*!< in: space id */
+/** Set the recovered size of a tablespace in pages.
+@param id	tablespace ID
+@param size	recovered size in pages */
+UNIV_INTERN
+void
+fil_space_set_recv_size(ulint id, ulint size);
 /*******************************************************************//**
 Returns the size of the space in pages. The tablespace must be cached in the
 memory cache.

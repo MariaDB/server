@@ -626,6 +626,7 @@ extern my_bool	srv_ibuf_disable_background_merge;
 
 #ifdef UNIV_DEBUG
 extern my_bool	srv_purge_view_update_only_debug;
+extern ulong	srv_sys_space_size_debug;
 #endif /* UNIV_DEBUG */
 
 #define SRV_SEMAPHORE_WAIT_EXTENSION	7200

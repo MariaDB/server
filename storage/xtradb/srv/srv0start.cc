@@ -130,6 +130,10 @@ UNIV_INTERN ibool	srv_is_being_started = FALSE;
 UNIV_INTERN ibool	srv_was_started = FALSE;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
 static ibool		srv_start_has_been_called = FALSE;
+#ifdef UNIV_DEBUG
+/** InnoDB system tablespace to set during recovery */
+UNIV_INTERN ulong	srv_sys_space_size_debug;
+#endif /* UNIV_DEBUG */
 
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
@@ -188,9 +192,6 @@ static const ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES =
 #define SRV_N_PENDING_IOS_PER_THREAD	OS_AIO_N_PENDING_IOS_PER_THREAD
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
-/** The round off to MB is similar as done in srv_parse_megabytes() */
-#define CALC_NUMBER_OF_PAGES(size)  ((size) / (1024 * 1024)) * \
-				  ((1024 * 1024) / (UNIV_PAGE_SIZE))
 #ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 UNIV_INTERN mysql_pfs_key_t	io_handler_thread_key;
@@ -1025,15 +1026,12 @@ size_check:
 			size = os_file_get_size(files[i]);
 			ut_a(size != (os_offset_t) -1);
 
-			/* Under some error conditions like disk full
-			narios or file size reaching filesystem
-			limit the data file could contain an incomplete
-			extent at the end. When we extend a data file
-			and if some failure happens, then also the data
-			file could contain an incomplete extent.  So we
-			need to round the size downward to a megabyte.*/
+			/* If InnoDB encountered an error or was killed
+			while extending the data file, the last page
+			could be incomplete. */
 
-			rounded_size_pages = (ulint) CALC_NUMBER_OF_PAGES(size);
+			rounded_size_pages = static_cast<ulint>(
+				size >> UNIV_PAGE_SIZE_SHIFT);
 
 			if (i == srv_n_data_files - 1
 			    && srv_auto_extend_last_data_file) {
@@ -2191,9 +2189,11 @@ innobase_start_or_create_for_mysql(void)
 		sum_of_new_sizes += srv_data_file_sizes[i];
 	}
 
-	if (sum_of_new_sizes < 10485760 / UNIV_PAGE_SIZE) {
+	if (!srv_auto_extend_last_data_file && sum_of_new_sizes < 640) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Tablespace size must be at least 10 MB");
+			"Combined size in innodb_data_file_path"
+			" must be at least %u MiB",
+			640 >> (20 - UNIV_PAGE_SIZE_SHIFT));
 
 		return(DB_ERROR);
 	}
@@ -2260,6 +2260,8 @@ innobase_start_or_create_for_mysql(void)
 			return(err);
 		}
 	} else {
+		ut_d(fil_space_get(0)->recv_size = srv_sys_space_size_debug);
+
 		for (i = 0; i < SRV_N_LOG_FILES_MAX; i++) {
 			os_offset_t	size;
 			os_file_stat_t	stat_info;
