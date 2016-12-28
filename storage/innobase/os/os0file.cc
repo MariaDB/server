@@ -814,7 +814,7 @@ os_file_handle_error_cond_exit(
 		}
 
 		if (should_exit) {
-			exit(1);
+			abort();
 		}
 	}
 

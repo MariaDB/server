@@ -4618,7 +4618,7 @@ will_not_choose:
 			return;
 		}
 
-		exit(1);
+		abort();
 	}
 
 	if (def.success && remote.success) {

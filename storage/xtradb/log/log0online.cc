@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011-2012 Percona Inc. All Rights Reserved.
+Copyright (C) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -405,12 +406,11 @@ log_online_can_track_missing(
 	last_tracked_lsn = ut_max(last_tracked_lsn, MIN_TRACKED_LSN);
 
 	if (last_tracked_lsn > tracking_start_lsn) {
-		ib_logf(IB_LOG_LEVEL_ERROR,
+		ib_logf(IB_LOG_LEVEL_FATAL,
 			"last tracked LSN " LSN_PF " is ahead of tracking "
 			"start LSN " LSN_PF ".  This can be caused by "
 			"mismatched bitmap files.",
 			last_tracked_lsn, tracking_start_lsn);
-		exit(1);
 	}
 
 	return (last_tracked_lsn == tracking_start_lsn)
@@ -450,9 +450,7 @@ log_online_track_missing_on_startup(
 		log_bmp_sys->start_lsn = ut_max(last_tracked_lsn,
 						MIN_TRACKED_LSN);
 		log_set_tracked_lsn(log_bmp_sys->start_lsn);
-		if (!log_online_follow_redo_log()) {
-			exit(1);
-		}
+		ut_a(log_online_follow_redo_log());
 		ut_ad(log_bmp_sys->end_lsn >= tracking_start_lsn);
 
 		ib_logf(IB_LOG_LEVEL_INFO,
@@ -677,9 +675,8 @@ log_online_read_init(void)
 
 	if (os_file_closedir(bitmap_dir)) {
 		os_file_get_last_error(TRUE);
-		ib_logf(IB_LOG_LEVEL_ERROR, "cannot close \'%s\'",
+		ib_logf(IB_LOG_LEVEL_FATAL, "cannot close \'%s\'",
 			log_bmp_sys->bmp_file_home);
-		exit(1);
 	}
 
 	if (!log_bmp_sys->out_seq_num) {
@@ -699,9 +696,7 @@ log_online_read_init(void)
 	if (!success) {
 
 		/* New file, tracking from scratch */
-		if (!log_online_start_bitmap_file()) {
-			exit(1);
-		}
+		ut_a(log_online_start_bitmap_file());
 	}
 	else {
 
@@ -738,9 +733,7 @@ log_online_read_init(void)
 		} else {
 			file_start_lsn = tracking_start_lsn;
 		}
-		if (!log_online_rotate_bitmap_file(file_start_lsn)) {
-			exit(1);
-		}
+		ut_a(log_online_rotate_bitmap_file(file_start_lsn));
 
 		if (last_tracked_lsn < tracking_start_lsn) {
 

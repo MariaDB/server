@@ -660,9 +660,7 @@ handle_new_error:
 		      "InnoDB: lack of space. You must add"
 		      " a new data file to\n"
 		      "InnoDB: my.cnf and restart the database.\n", stderr);
-
-		ut_ad(0);
-		exit(1);
+		abort();
 
 	case DB_CORRUPTION:
 		fputs("InnoDB: We detected index corruption"

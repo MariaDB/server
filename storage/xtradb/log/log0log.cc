@@ -920,24 +920,10 @@ failure:
 	mutex_exit(&(log_sys->mutex));
 
 	if (!success) {
-		fprintf(stderr,
-			"InnoDB: Error: ib_logfiles are too small"
-			" for innodb_thread_concurrency %lu.\n"
-			"InnoDB: The combined size of ib_logfiles"
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"The combined size of ib_logfiles"
 			" should be bigger than\n"
-			"InnoDB: 200 kB * innodb_thread_concurrency.\n"
-			"InnoDB: To get mysqld to start up, set"
-			" innodb_thread_concurrency in my.cnf\n"
-			"InnoDB: to a lower value, for example, to 8."
-			" After an ERROR-FREE shutdown\n"
-			"InnoDB: of mysqld you can adjust the size of"
-			" ib_logfiles, as explained in\n"
-			"InnoDB: " REFMAN "adding-and-removing.html\n"
-			"InnoDB: Cannot continue operation."
-			" Calling exit(1).\n",
-			(ulong) srv_thread_concurrency);
-
-		exit(1);
+			"InnoDB: 200 kB * innodb_thread_concurrency.");
 	}
 
 	return(success);
@@ -2861,15 +2847,9 @@ loop:
 		}
 
 		if (!ret) {
-			fprintf(stderr,
+			ib_logf(IB_LOG_LEVEL_FATAL,
 				"InnoDB: Cannot create or open"
-				" archive log file %s.\n"
-				"InnoDB: Cannot continue operation.\n"
-				"InnoDB: Check that the log archive"
-				" directory exists,\n"
-				"InnoDB: you have access rights to it, and\n"
-				"InnoDB: there is space available.\n", name);
-			exit(1);
+				" archive log file %s.\n", name);
 		}
 
 #ifdef UNIV_DEBUG
