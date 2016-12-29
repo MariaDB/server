@@ -2279,9 +2279,12 @@ func_exit:
 	if (page_zip
 	    && !(flags & BTR_KEEP_IBUF_BITMAP)
 	    && !dict_index_is_clust(index)
-	    && page_is_leaf(buf_block_get_frame(block))) {
-		/* Update the free bits in the insert buffer. */
-		ibuf_update_free_bits_zip(block, mtr);
+	    && block) {
+		buf_frame_t* frame = buf_block_get_frame(block);
+		if (frame && page_is_leaf(frame)) {
+			/* Update the free bits in the insert buffer. */
+			ibuf_update_free_bits_zip(block, mtr);
+		}
 	}
 
 	return(err);

@@ -1213,7 +1213,7 @@ public:
     return thd ? thd->db : 0;
   }
 #else
-  Log_event() : temp_buf(0), flags(0) {}
+  Log_event() : temp_buf(0), when(0), flags(0) {}
   ha_checksum crc;
   /* print*() functions are used by mysqlbinlog */
   virtual void print(FILE* file, PRINT_EVENT_INFO* print_event_info) = 0;
@@ -3768,6 +3768,7 @@ private:
 class Unknown_log_event: public Log_event
 {
 public:
+  enum { UNKNOWN, ENCRYPTED } what;
   /*
     Even if this is an unknown event, we still pass description_event to
     Log_event's ctor, this way we can extract maximum information from the
@@ -3775,8 +3776,10 @@ public:
   */
   Unknown_log_event(const char* buf,
                     const Format_description_log_event *description_event):
-    Log_event(buf, description_event)
+    Log_event(buf, description_event), what(UNKNOWN)
   {}
+  /* constructor for hopelessly corrupted events */
+  Unknown_log_event(): Log_event(), what(ENCRYPTED) {}
   ~Unknown_log_event() {}
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
   Log_event_type get_type_code() { return UNKNOWN_EVENT;}

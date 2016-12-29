@@ -1,0 +1,10 @@
+!include my.cnf
+
+[mysqld.1]
+max_allowed_packet=1024
+net_buffer_length=1024
+
+[mysqld.2]
+max_allowed_packet=1024
+net_buffer_length=1024
+slave_max_allowed_packet=1024

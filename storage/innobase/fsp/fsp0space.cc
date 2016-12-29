@@ -150,7 +150,8 @@ Tablespace::open_or_create(bool is_temp)
 			tablespace in the tablespace manager. */
 			space = fil_space_create(
 				m_name, m_space_id, flags, is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, it->m_crypt_info);
+				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE, it->m_crypt_info,
+				false);
 		}
 
 		ut_a(fil_validate());

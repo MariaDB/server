@@ -4203,6 +4203,15 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
 }
 
 
+void Table_check_intact_log_error::report_error(uint, const char *fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  error_log_print(ERROR_LEVEL, fmt, args);
+  va_end(args);
+}
+
+
 /**
   Traverse portion of wait-for graph which is reachable through edge
   represented by this flush ticket in search for deadlocks.

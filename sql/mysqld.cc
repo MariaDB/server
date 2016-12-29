@@ -4189,6 +4189,7 @@ static int init_common_variables()
 
   max_system_variables.pseudo_thread_id= ~(my_thread_id) 0;
   server_start_time= flush_status_time= my_time(0);
+  my_disable_copystat_in_redel= 1;
 
   global_rpl_filter= new Rpl_filter;
   binlog_filter= new Rpl_filter;
@@ -4260,6 +4261,8 @@ static int init_common_variables()
     return 1;
   }
 
+  opt_log_basename= const_cast<char *>("mysql");
+
   if (gethostname(glob_hostname,sizeof(glob_hostname)) < 0)
   {
     /*
@@ -4269,9 +4272,8 @@ static int init_common_variables()
     strmake(glob_hostname, STRING_WITH_LEN("localhost"));
     sql_print_warning("gethostname failed, using '%s' as hostname",
                         glob_hostname);
-    opt_log_basename= const_cast<char *>("mysql");
   }
-  else
+  else if (is_filename_allowed(glob_hostname, strlen(glob_hostname), FALSE))
     opt_log_basename= glob_hostname;
 
   strmake(pidfile_name, opt_log_basename, sizeof(pidfile_name)-5);
@@ -5894,6 +5896,12 @@ int mysqld_main(int argc, char **argv)
       unireg_abort(1);
     setbuf(stderr, NULL);
     FreeConsole();				// Remove window
+  }
+
+  if (fileno(stdin) >= 0)
+  {
+    /* Disable CRLF translation (MDEV-9409). */
+    _setmode(fileno(stdin), O_BINARY);
   }
 #endif
 
@@ -9061,9 +9069,10 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   case (int) OPT_LOG_BASENAME:
   {
     if (opt_log_basename[0] == 0 || strchr(opt_log_basename, FN_EXTCHAR) ||
-        strchr(opt_log_basename,FN_LIBCHAR))
+        strchr(opt_log_basename,FN_LIBCHAR) ||
+        !is_filename_allowed(opt_log_basename, strlen(opt_log_basename), FALSE))
     {
-      sql_print_error("Wrong argument for --log-basename. It can't be empty or contain '.' or '" FN_DIRSEP "'");
+      sql_print_error("Wrong argument for --log-basename. It can't be empty or contain '.' or '" FN_DIRSEP "'. It must be valid filename.");
       return 1;
     }
     if (log_error_file_ptr != disabled_my_option)
@@ -9946,9 +9955,9 @@ static int test_if_case_insensitive(const char *dir_name)
   MY_STAT stat_info;
   DBUG_ENTER("test_if_case_insensitive");
 
-  fn_format(buff, glob_hostname, dir_name, ".lower-test",
+  fn_format(buff, opt_log_basename, dir_name, ".lower-test",
 	    MY_UNPACK_FILENAME | MY_REPLACE_EXT | MY_REPLACE_DIR);
-  fn_format(buff2, glob_hostname, dir_name, ".LOWER-TEST",
+  fn_format(buff2, opt_log_basename, dir_name, ".LOWER-TEST",
 	    MY_UNPACK_FILENAME | MY_REPLACE_EXT | MY_REPLACE_DIR);
   mysql_file_delete(key_file_casetest, buff2, MYF(0));
   if ((file= mysql_file_create(key_file_casetest,

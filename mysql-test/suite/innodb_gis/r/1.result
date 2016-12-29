@@ -1066,7 +1066,7 @@ col2 TIMESTAMP
 ) ENGINE=InnoDB;
 CREATE INDEX idx0 ON t1(col0);
 Warnings:
-Note	1831	Duplicate index 'idx0' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `idx0`. This is deprecated and will be disallowed in a future release
 CREATE TABLE t3 (
 col0 INTEGER NOT NULL,
 col1 POINT,

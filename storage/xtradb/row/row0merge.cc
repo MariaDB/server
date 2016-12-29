@@ -619,7 +619,12 @@ row_merge_buf_add(
 			dfield_set_len(field, len);
 		}
 
-		ut_ad(len <= col->len || col->mtype == DATA_BLOB);
+		ut_ad(len <= col->len || col->mtype == DATA_BLOB ||
+		  ((col->mtype == DATA_VARCHAR || col->mtype == DATA_BINARY
+		   || col->mtype == DATA_VARMYSQL)
+		   && (col->len == 0
+		       || len <= col->len +
+			  prtype_get_compression_extra(col->prtype))));
 
 		fixed_len = ifield->fixed_len;
 		if (fixed_len && !dict_table_is_comp(index->table)
@@ -648,7 +653,9 @@ row_merge_buf_add(
 		} else if (dfield_is_ext(field)) {
 			extra_size += 2;
 		} else if (len < 128
-			   || (col->len < 256 && col->mtype != DATA_BLOB)) {
+			   || (col->len < 256 -
+			       prtype_get_compression_extra(col->prtype)
+			       && col->mtype != DATA_BLOB)) {
 			extra_size++;
 		} else {
 			/* For variable-length columns, we look up the
@@ -2177,7 +2184,7 @@ wait_again:
 		/* Sync fts cache for other fts indexes to keep all
 		fts indexes consistent in sync_doc_id. */
 		err = fts_sync_table(const_cast<dict_table_t*>(new_table),
-				     false, true);
+				     false, true, false);
 
 		if (err == DB_SUCCESS) {
 			fts_update_next_doc_id(
@@ -3995,10 +4002,7 @@ row_merge_build_indexes(
 
 	/* If tablespace is encrypted, allocate additional buffer for
 	encryption/decryption. */
-	if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-		(srv_encrypt_tables &&
-			crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
-
+	if (crypt_data && crypt_data->should_encrypt()) {
 		crypt_block = static_cast<row_merge_block_t*>(
 			os_mem_alloc_large(&block_size));
 
@@ -4165,6 +4169,13 @@ wait_again:
 						" exited when creating FTS"
 						" index '%s'",
 						indexes[i]->name);
+				} else {
+					for (j = 0; j < FTS_NUM_AUX_INDEX;
+					     j++) {
+
+					    os_thread_join(merge_info[j]
+							   .thread_hdl);
+					}
 				}
 			} else {
 				/* This cannot report duplicates; an

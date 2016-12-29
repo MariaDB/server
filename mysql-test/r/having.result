@@ -707,3 +707,23 @@ c1	c2
 x	x
 DROP TABLE t1,t2;
 End of 10.0 tests
+#
+# MDEV-10716: Assertion `real_type() != FIELD_ITEM' failed in
+# Item_ref::build_equal_items(THD*, COND_EQUAL*, bool, COND_EQUAL**)
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT i, COUNT(*) FROM t1 GROUP BY i HAVING i<>0 AND 1;
+i	COUNT(*)
+1	1
+2	1
+SELECT i-1 A, COUNT(*) FROM t1 GROUP BY i HAVING A AND 1;
+A	COUNT(*)
+1	1
+CREATE VIEW v1 as select i, i-1 as A from t1;
+SELECT A, COUNT(*) FROM v1 GROUP BY i HAVING A AND 1;
+A	COUNT(*)
+1	1
+DROP VIEW v1;
+DROP TABLE t1;
+End of 10.1 tests

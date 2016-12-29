@@ -228,6 +228,7 @@ bool
 Item_subselect::select_transformer(JOIN *join)
 {
   DBUG_ENTER("Item_subselect::select_transformer");
+  DBUG_ASSERT(thd == join->thd);
   DBUG_RETURN(false);
 }
 
@@ -629,6 +630,7 @@ bool Item_subselect::is_expensive()
     examined_rows+= cur_join->get_examined_rows();
   }
 
+  // here we are sure that subquery is optimized so thd is set
   return !all_are_simple &&
     (examined_rows > thd->variables.expensive_subquery_limit);
 }
@@ -693,6 +695,7 @@ bool Item_subselect::exec()
   subselect_engine *org_engine= engine;
 
   DBUG_ENTER("Item_subselect::exec");
+  DBUG_ASSERT(fixed);
 
   /*
     Do not execute subselect in case of a fatal error
@@ -741,6 +744,7 @@ int Item_in_subselect::optimize(double *out_rows, double *cost)
 {
   int res;
   DBUG_ENTER("Item_in_subselect::optimize");
+  DBUG_ASSERT(fixed);
   SELECT_LEX *save_select= thd->lex->current_select;
   JOIN *join= unit->first_select()->join;
 
@@ -857,6 +861,7 @@ bool Item_in_subselect::expr_cache_is_needed(THD *thd)
 bool Item_in_subselect::exec()
 {
   DBUG_ENTER("Item_in_subselect::exec");
+  DBUG_ASSERT(fixed);
   /*
     Initialize the cache of the left predicate operand. This has to be done as
     late as now, because Cached_item directly contains a resolved field (not
@@ -911,6 +916,7 @@ table_map Item_subselect::used_tables() const
 
 bool Item_subselect::const_item() const
 {
+  DBUG_ASSERT(thd);
   return (thd->lex->context_analysis_only ?
           FALSE :
           forced_const || const_item_cache);
@@ -1112,10 +1118,11 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
   DBUG_ENTER("Item_singlerow_subselect::select_transformer");
   if (changed)
     DBUG_RETURN(false);
+  DBUG_ASSERT(join->thd == thd);
 
   SELECT_LEX *select_lex= join->select_lex;
   Query_arena *arena= thd->stmt_arena;
- 
+
   if (!select_lex->master_unit()->is_union() &&
       !select_lex->table_list.elements &&
       select_lex->item_list.elements == 1 &&
@@ -1790,6 +1797,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
 {
   SELECT_LEX *select_lex= join->select_lex;
   DBUG_ENTER("Item_in_subselect::single_value_transformer");
+  DBUG_ASSERT(thd == join->thd);
 
   /*
     Check that the right part of the subselect contains no more than one
@@ -1904,6 +1912,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
   Item **place= optimizer->arguments() + 1;
   SELECT_LEX *select_lex= join->select_lex;
   Item *subs;
+  DBUG_ASSERT(thd == join->thd);
 
   /*
   */
@@ -2012,6 +2021,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
 bool Item_in_subselect::fix_having(Item *having, SELECT_LEX *select_lex)
 {
   bool fix_res= 0;
+  DBUG_ASSERT(thd);
   if (!having->fixed)
   {
     select_lex->having_fix_field= 1;
@@ -2074,6 +2084,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
                                                    Item **having_item)
 {
   SELECT_LEX *select_lex= join->select_lex;
+  DBUG_ASSERT(thd == join->thd);
   /*
     The non-transformed HAVING clause of 'join' may be stored in two ways
     during JOIN::optimize: this->tmp_having= this->having; this->having= 0;
@@ -2215,6 +2226,7 @@ Item_in_subselect::row_value_transformer(JOIN *join)
   uint cols_num= left_expr->cols();
 
   DBUG_ENTER("Item_in_subselect::row_value_transformer");
+  DBUG_ASSERT(thd == join->thd);
 
   // psergey: duplicated_subselect_card_check
   if (select_lex->item_list.elements != cols_num)
@@ -2326,6 +2338,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                         !select_lex->table_list.elements);
 
   DBUG_ENTER("Item_in_subselect::create_row_in_to_exists_cond");
+  DBUG_ASSERT(thd == join->thd);
 
   *where_item= NULL;
   *having_item= NULL;
@@ -2571,6 +2584,7 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
   Item *having_item= join_arg->in_to_exists_having;
 
   DBUG_ENTER("Item_in_subselect::inject_in_to_exists_cond");
+  DBUG_ASSERT(thd == join_arg->thd);
 
   if (where_item)
   {
@@ -2700,8 +2714,8 @@ static bool check_equality_for_exist2in(Item_func *func,
            args[0]->all_used_tables() == OUTER_REF_TABLE_BIT)
   {
     /* It is Item_field or Item_direct_view_ref) */
-    DBUG_ASSERT(args[0]->type() == Item::FIELD_ITEM ||
-                args[0]->type() == Item::REF_ITEM);
+    DBUG_ASSERT(args[1]->type() == Item::FIELD_ITEM ||
+                args[1]->type() == Item::REF_ITEM);
     *local_field= (Item_ident *)args[1];
     *outer_exp= args[0];
     return TRUE;
@@ -3099,6 +3113,7 @@ Item_in_subselect::select_in_like_transformer(JOIN *join)
   bool result;
 
   DBUG_ENTER("Item_in_subselect::select_in_like_transformer");
+  DBUG_ASSERT(thd == join->thd);
 
   /*
     IN/SOME/ALL/ANY subqueries aren't support LIMIT clause. Without it
@@ -3309,6 +3324,7 @@ bool Item_in_subselect::setup_mat_engine()
   subselect_single_select_engine *select_engine;
 
   DBUG_ENTER("Item_in_subselect::setup_mat_engine");
+  DBUG_ASSERT(thd);
 
   /*
     The select_engine (that executes transformed IN=>EXISTS subselects) is
@@ -3347,6 +3363,7 @@ bool Item_in_subselect::setup_mat_engine()
 bool Item_in_subselect::init_left_expr_cache()
 {
   JOIN *outer_join;
+  DBUG_ASSERT(thd);
 
   outer_join= unit->outer_select()->join;
   /*
@@ -3374,6 +3391,7 @@ bool Item_in_subselect::init_left_expr_cache()
 
 bool Item_in_subselect::init_cond_guards()
 {
+  DBUG_ASSERT(thd);
   uint cols_num= left_expr->cols();
   if (!abort_on_null && left_expr->maybe_null && !pushed_cond_guards)
   {
@@ -6662,4 +6680,3 @@ void Item_subselect::init_expr_cache_tracker(THD *thd)
   DBUG_ASSERT(expr_cache->type() == Item::EXPR_CACHE_ITEM);
   node->cache_tracker= ((Item_cache_wrapper *)expr_cache)->init_tracker(qw->mem_root);
 }
-

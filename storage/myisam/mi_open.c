@@ -1189,7 +1189,6 @@ uchar *mi_keyseg_read(uchar *ptr, HA_KEYSEG *keyseg)
    keyseg->length	= mi_uint2korr(ptr);  ptr +=2;
    keyseg->start	= mi_uint4korr(ptr);  ptr +=4;
    keyseg->null_pos	= mi_uint4korr(ptr);  ptr +=4;
-   keyseg->bit_end= 0;
    keyseg->charset=0;				/* Will be filled in later */
    if (keyseg->null_bit)
      /* We adjust bit_pos if null_bit is last in the byte */

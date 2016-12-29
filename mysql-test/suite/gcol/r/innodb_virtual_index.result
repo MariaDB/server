@@ -114,7 +114,7 @@ KEY `vbidxcol_2` (`vbidxcol`),
 FULLTEXT KEY `ftsic` (`c`,`b`)
 ) ENGINE=InnoDB;
 Warnings:
-Note	1831	Duplicate index 'vbidxcol_2' defined on the table 'test.ibstd_08'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `vbidxcol_2`. This is deprecated and will be disallowed in a future release
 ALTER TABLE ibstd_08  ADD COLUMN nc07006 BIGINT  AUTO_INCREMENT NOT NULL  , ADD KEY auto_nc07006(nc07006);
 Warnings:
 Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID

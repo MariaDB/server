@@ -4588,6 +4588,80 @@ SELECT COUNT(*) FROM t1, t1 t2 GROUP BY INSERT('', t2.a, t1.a, @@global.max_binl
 COUNT(*)
 25
 DROP TABLE t1;
+# Start of func_str_ascii_checksum.inc
+#
+# MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',hex('test')), ('TEST', hex('TEST'));
+SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= hex("test") OR f2= hex("TEST"));
+f1	f2
+test	74657374
+TEST	54455354
+SELECT * FROM t1                  WHERE f1='test' AND (f2= hex("test") OR f2= hex("TEST"));
+f1	f2
+TEST	54455354
+test	74657374
+SELECT * FROM t1                  WHERE f1='test' AND (f2= hex("TEST") OR f2= hex("test"));
+f1	f2
+TEST	54455354
+test	74657374
+DROP TABLE t1;
+#
+# MDEV-10425 Assertion `collation.derivation == DERIVATION_IMPLICIT' failed in Item_func_conv_charset::fix_length_and_dec()
+#
+PREPARE stmt FROM "SELECT hex(CONVERT('foo' USING latin1))";
+EXECUTE stmt;
+hex(CONVERT('foo' USING latin1))
+666F6F
+DEALLOCATE PREPARE stmt;
+# End of func_str_ascii_checksum.inc
+# Start of func_str_ascii_checksum.inc
+#
+# MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',to_base64('test')), ('TEST', to_base64('TEST'));
+SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= to_base64("test") OR f2= to_base64("TEST"));
+f1	f2
+test	dGVzdA==
+TEST	VEVTVA==
+SELECT * FROM t1                  WHERE f1='test' AND (f2= to_base64("test") OR f2= to_base64("TEST"));
+f1	f2
+test	dGVzdA==
+TEST	VEVTVA==
+SELECT * FROM t1                  WHERE f1='test' AND (f2= to_base64("TEST") OR f2= to_base64("test"));
+f1	f2
+test	dGVzdA==
+TEST	VEVTVA==
+DROP TABLE t1;
+#
+# MDEV-10425 Assertion `collation.derivation == DERIVATION_IMPLICIT' failed in Item_func_conv_charset::fix_length_and_dec()
+#
+PREPARE stmt FROM "SELECT to_base64(CONVERT('foo' USING latin1))";
+EXECUTE stmt;
+to_base64(CONVERT('foo' USING latin1))
+Zm9v
+DEALLOCATE PREPARE stmt;
+# End of func_str_ascii_checksum.inc
+#
+# MDEV-10864 Wrong result for WHERE .. (f2=COMPRESS('test') OR f2=COMPRESS('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(128), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('YQ==',from_base64('YQ==')), ('Yq==', from_base64('Yq=='));
+SELECT f1,HEX(f2) FROM t1 ignore index(k1) WHERE f1='YQ==' AND (f2= from_base64("YQ==") OR f2= from_base64("Yq=="));
+f1	HEX(f2)
+YQ==	61
+Yq==	62
+SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("YQ==") OR f2= from_base64("Yq=="));
+f1	HEX(f2)
+YQ==	61
+Yq==	62
+SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("Yq==") OR f2= from_base64("YQ=="));
+f1	HEX(f2)
+YQ==	61
+Yq==	62
+DROP TABLE t1;
 #
 # End of 10.1 tests
 #

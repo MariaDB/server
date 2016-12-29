@@ -2538,7 +2538,7 @@ Item_func_nullif::fix_length_and_dec()
     See also class Item_func_nullif declaration.
   */
   if (arg_count == 2)
-    args[arg_count++]= args[0];
+    args[arg_count++]= m_arg0 ? m_arg0 : args[0];
 
   THD *thd= current_thd;
   /*
@@ -2689,7 +2689,47 @@ Item_func_nullif::fix_length_and_dec()
   unsigned_flag= args[2]->unsigned_flag;
   fix_char_length(args[2]->max_char_length());
   maybe_null=1;
+  m_arg0= args[0];
   setup_args_and_comparator(thd, &cmp);
+  /*
+    A special code for EXECUTE..PREPARE.
+
+    If args[0] did not change, then we don't remember it, as it can point
+    to a temporary Item object which will be destroyed between PREPARE
+    and EXECUTE. EXECUTE time fix_length_and_dec() will correctly set args[2]
+    from args[0] again.
+
+    If args[0] changed, then it can be Item_func_conv_charset() for the
+    original args[0], which was permanently installed during PREPARE time
+    into the item tree as a wrapper for args[0], using change_item_tree(), i.e.
+
+      NULLIF(latin1_field, 'a' COLLATE utf8_bin)
+
+    was "rewritten" to:
+
+      CASE WHEN CONVERT(latin1_field USING utf8) = 'a' COLLATE utf8_bin
+        THEN NULL
+        ELSE latin1_field
+
+    - m_args0 points to Item_field corresponding to latin1_field
+    - args[0] points to Item_func_conv_charset
+    - args[0]->args[0] is equal to m_args0
+    - args[1] points to Item_func_set_collation
+    - args[2] points is eqial to m_args0
+
+    In this case we remember and reuse m_arg0 during EXECUTE time as args[2].
+
+    QQ: How to make sure that m_args0 does not point
+    to something temporary which will be destoyed between PREPARE and EXECUTE.
+    The condition below should probably be more strict and somehow check that:
+    - change_item_tree() was called for the new args[0]
+    - m_args0 is referenced from inside args[0], e.g. as a function argument,
+      and therefore it is also something that won't be destroyed between
+      PREPARE and EXECUTE.
+    Any ideas?
+  */
+  if (args[0] == m_arg0)
+    m_arg0= NULL;
 }
 
 
@@ -4494,7 +4534,8 @@ Item_cond::fix_fields(THD *thd, Item **ref)
         was:    <field>
         become: <field> = 1
     */
-    if (item->type() == FIELD_ITEM)
+    Item::Type type= item->type();
+    if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
       Query_arena backup, *arena;
       Item *new_item;

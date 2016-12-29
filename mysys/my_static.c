@@ -98,6 +98,7 @@ my_bool my_disable_sync=0;
 my_bool my_disable_async_io=0;
 my_bool my_disable_flush_key_blocks=0;
 my_bool my_disable_symlinks=0;
+my_bool my_disable_copystat_in_redel=0;
 
 /* Typelib by all clients */
 const char *sql_protocol_names_lib[] =

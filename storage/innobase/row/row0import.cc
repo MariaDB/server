@@ -1852,6 +1852,11 @@ PageConverter::update_index_page(
 		row_index_t*	index = find_index(id);
 
 		if (index == 0) {
+			ib::error() << "Page for tablespace " << m_space
+				<< " is index page with id " << id
+				<< " but that index is not found from"
+				<< " configuration file. Current index name "
+				<< m_index->m_name << " and id " <<  m_index->m_id;
 			m_index = 0;
 			return(DB_CORRUPTION);
 		}

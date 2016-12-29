@@ -1372,7 +1372,8 @@ enum enum_locked_tables_mode
   LTM_NONE= 0,
   LTM_LOCK_TABLES,
   LTM_PRELOCKED,
-  LTM_PRELOCKED_UNDER_LOCK_TABLES
+  LTM_PRELOCKED_UNDER_LOCK_TABLES,
+  LTM_always_last
 };
 
 /**

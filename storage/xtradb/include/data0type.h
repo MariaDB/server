@@ -170,6 +170,9 @@ be less than 256 */
 				type when the column is true VARCHAR where
 				MySQL uses 2 bytes to store the data len;
 				for shorter VARCHARs MySQL uses only 1 byte */
+#define	DATA_COMPRESSED	16384	/* this is ORed to the precise data
+				type when the column has COLUMN_FORMAT =
+				COMPRESSED attribute*/
 /*-------------------------------------------*/
 
 /* This many bytes we need to store the type information affecting the
@@ -499,6 +502,17 @@ void
 dtype_print(
 /*========*/
 	const dtype_t*	type);	/*!< in: type */
+
+/**
+Calculates the number of extra bytes needed for compression header
+depending on precise column type.
+@reval 0 if prtype does not include DATA_COMPRESSED flag
+@reval ZIP_COLUMN_HEADER_LENGTH if prtype includes DATA_COMPRESSED flag
+*/
+UNIV_INLINE
+ulint
+prtype_get_compression_extra(
+	ulint		prtype);	/*!< in: precise type */
 
 /* Structure for an SQL data type.
 If you add fields to this structure, be sure to initialize them everywhere.

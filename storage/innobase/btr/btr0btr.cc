@@ -175,14 +175,16 @@ btr_root_block_get(
 
 
 	if (!block) {
-		index->table->is_encrypted = TRUE;
-		index->table->corrupted = FALSE;
+		if (index && index->table) {
+			index->table->is_encrypted = TRUE;
+			index->table->corrupted = FALSE;
 
-		ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
-			"Table %s in tablespace %lu is encrypted but encryption service or"
-			" used key_id is not available. "
-			" Can't continue reading table.",
-			index->table->name, space);
+			ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
+				"Table %s in tablespace %lu is encrypted but encryption service or"
+				" used key_id is not available. "
+				" Can't continue reading table.",
+				index->table->name, space);
+		}
 
 		return NULL;
 	}
@@ -1319,6 +1321,11 @@ leaf_loop:
 
 	page_t*	root = block->frame;
 
+	if (!root) {
+		mtr_commit(&mtr);
+		return;
+	}
+
 #ifdef UNIV_BTR_DEBUG
 	ut_a(btr_root_fseg_validate(FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF
 				    + root, block->page.id.space()));
@@ -1399,10 +1406,12 @@ btr_free(
 	buf_block_t*	block = buf_page_get(
 		page_id, page_size, RW_X_LATCH, &mtr);
 
-	ut_ad(page_is_root(block->frame));
+	if (block) {
+		ut_ad(page_is_root(block->frame));
 
-	btr_free_but_not_root(block, MTR_LOG_NO_REDO);
-	btr_free_root(block, &mtr);
+		btr_free_but_not_root(block, MTR_LOG_NO_REDO);
+		btr_free_root(block, &mtr);
+	}
 	mtr.commit();
 }
 #endif /* !UNIV_HOTBACKUP */

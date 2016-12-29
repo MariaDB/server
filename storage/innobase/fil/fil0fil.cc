@@ -721,6 +721,7 @@ retry:
 		success = os_file_read(
 			request,
 			node->handle, page, 0, UNIV_PAGE_SIZE);
+		srv_stats.page0_read.add(1);
 
 		space_id = fsp_header_get_space_id(page);
 		flags = fsp_header_get_flags(page);
@@ -1046,8 +1047,13 @@ fil_mutex_enter_and_prepare_for_io(
 		space does not exist, we handle the situation in the function
 		which called this function. */
 
-		if (space == NULL || UT_LIST_GET_FIRST(space->chain)->is_open) {
+		if (!space) {
+			return;
+		}
 
+		fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
+
+		if (!node || node->is_open) {
 			return;
 		}
 
@@ -1270,7 +1276,8 @@ fil_space_create(
 	ulint		id,
 	ulint		flags,
 	fil_type_t	purpose,
-	fil_space_crypt_t* crypt_data)	/*!< in: crypt data */
+	fil_space_crypt_t* crypt_data, /*!< in: crypt data */
+	bool		create_table) /*!< in: true if create table */
 {
 	fil_space_t*	space;
 
@@ -1334,6 +1341,22 @@ fil_space_create(
 
 	space->magic_n = FIL_SPACE_MAGIC_N;
 
+	space->crypt_data = crypt_data;
+
+	/* In create table we write page 0 so we have already
+	"read" it and for system tablespaces we have read
+	crypt data at startup. */
+	if (create_table || crypt_data != NULL) {
+		space->page_0_crypt_read = true;
+	}
+
+#ifdef UNIV_DEBUG
+	ib::info() << "Created tablespace for space " << space->id
+		<< " name " << space->name
+		<< " key_id " << (space->crypt_data ? space->crypt_data->key_id : 0)
+		<< " encryption " << (space->crypt_data ? space->crypt_data->encryption : 0);
+#endif
+
 	space->encryption_type = Encryption::NONE;
 
 	rw_lock_create(fil_space_latch_key, &space->latch, SYNC_FSP);
@@ -1355,8 +1378,6 @@ fil_space_create(
 
 		fil_system->max_assigned_id = id;
 	}
-
-	space->crypt_data = crypt_data;
 
 	if (crypt_data) {
 		space->read_page0 = true;
@@ -3675,7 +3696,7 @@ fil_ibd_create(
 
 	space = fil_space_create(name, space_id, flags, is_temp
 		? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
-		crypt_data);
+		crypt_data, true);
 
 	if (!fil_node_create_low(
 			path, size, space, false, punch_hole, atomic_write)) {
@@ -3833,6 +3854,7 @@ fil_ibd_open(
 		link_file_found = true;
 		if (table) {
 			table->crypt_data = df_remote.get_crypt_info();
+			table->page_0_read = true;
 		}
 	} else if (df_remote.filepath() != NULL) {
 		/* An ISL file was found but contained a bad filepath in it.
@@ -3855,6 +3877,7 @@ fil_ibd_open(
 
 				if (table) {
 					table->crypt_data = df_dict.get_crypt_info();
+					table->page_0_read = true;
 				}
 			}
 		}
@@ -3869,6 +3892,7 @@ fil_ibd_open(
 		++tablespaces_found;
 		if (table) {
 			table->crypt_data = df_default.get_crypt_info();
+			table->page_0_read = true;
 		}
 	}
 
@@ -4095,7 +4119,7 @@ skip_validate:
 			space_name, id, flags, purpose,
 			df_remote.is_open() ? df_remote.get_crypt_info() :
 			df_dict.is_open() ? df_dict.get_crypt_info() :
-			df_default.get_crypt_info());
+			df_default.get_crypt_info(), false);
 
 		/* We do not measure the size of the file, that is why
 		we pass the 0 below */
@@ -4577,7 +4601,7 @@ fil_ibd_load(
 	space = fil_space_create(
 		file.name(), space_id, file.flags(),
 		is_temp ? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
-		file.get_crypt_info());
+		file.get_crypt_info(), false);
 
 	if (space == NULL) {
 		return(FIL_LOAD_INVALID);
@@ -6358,9 +6382,7 @@ fil_iterate(
 		bool encrypted = false;
 
 		/* Use additional crypt io buffer if tablespace is encrypted */
-		if ((iter.crypt_data != NULL && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-				(srv_encrypt_tables &&
-					iter.crypt_data && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+		if (iter.crypt_data != NULL && iter.crypt_data->should_encrypt()) {
 
 			encrypted = true;
 			readptr = iter.crypt_io_buffer;
@@ -7573,11 +7595,53 @@ fil_space_get_crypt_data(
 
 	space = fil_space_get_by_id(id);
 
-	if (space != NULL) {
-		crypt_data = space->crypt_data;
-	}
-
 	mutex_exit(&fil_system->mutex);
+
+	if (space != NULL) {
+		/* If we have not yet read the page0
+		of this tablespace we will do it now. */
+		if (!space->crypt_data && !space->page_0_crypt_read) {
+			ulint space_id = space->id;
+			fil_node_t*	node;
+
+			ut_a(space->crypt_data == NULL);
+			node = UT_LIST_GET_FIRST(space->chain);
+
+			byte *buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE, PSI_INSTRUMENT_ME));
+			byte *page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+			fil_read(page_id_t(space_id, 0), univ_page_size, 0, univ_page_size.physical(),
+				 page);
+			ulint flags = fsp_header_get_flags(page);
+			ulint offset = fsp_header_get_crypt_offset(
+				page_size_t(flags), NULL);
+			space->crypt_data = fil_space_read_crypt_data(space_id, page, offset);
+			ut_free(buf);
+
+#ifdef UNIV_DEBUG
+			ib::info() << "Read page 0 from tablespace for"
+				<< "space " << space_id
+				<< " name " << space->name
+				<< " key_id " << (space->crypt_data ? space->crypt_data->key_id : 0)
+				<< " encryption " << (space->crypt_data ? space->crypt_data->encryption : 0)
+				<< " handle " << node->handle;
+#endif
+
+			ut_a(space->id == space_id);
+
+			space->page_0_crypt_read = true;
+		}
+
+		crypt_data = space->crypt_data;
+
+		if (!space->page_0_crypt_read) {
+			ib::warn() << "Space " << space->id << " name "
+				<< space->name << " contains encryption "
+				<< (space->crypt_data ? space->crypt_data->encryption : 0)
+				<< " information for key_id "
+				<< (space->crypt_data ? space->crypt_data->key_id : 0)
+				<< " but page0 is not read.";
+		}
+	}
 
 	return(crypt_data);
 }

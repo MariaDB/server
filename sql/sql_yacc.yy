@@ -15720,6 +15720,7 @@ grant_role:
             CHARSET_INFO *cs= system_charset_info;
             /* trim end spaces (as they'll be lost in mysql.user anyway) */
             $1.length= cs->cset->lengthsp(cs, $1.str, $1.length);
+            $1.str[$1.length] = '\0';
             if ($1.length == 0)
               my_yyabort_error((ER_INVALID_ROLE, MYF(0), ""));
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))

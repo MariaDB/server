@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLD_MULTI\FR" "1" "22/3/2016" "MariaDB 10\&.2" "MariaDB Database System"
+.TH "\FBMYSQLD_MULTI\FR" "1" "7 December 2016" "MariaDB 10\&.2" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -419,6 +419,21 @@ Be more verbose\&.
 .sp
 Display version information and exit\&.
 .RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqld_multi: wsrep-new-cluster option
+.\" wsrep-new-cluster option: mysqld_multi
+\fB\-\-wsrep\-new\-cluster\fR
+.sp
+Bootstrap a cluster\&.
+.RE
 .PP
 Some notes about
 \fBmysqld_multi\fR:
@@ -653,7 +668,7 @@ user       = jani
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2016 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

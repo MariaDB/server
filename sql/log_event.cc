@@ -1897,6 +1897,10 @@ err:
   if (error)
   {
     DBUG_ASSERT(!res);
+#ifdef MYSQL_CLIENT
+    if (force_opt)
+      DBUG_RETURN(new Unknown_log_event());
+#endif
     if (event.length() >= OLD_HEADER_LEN)
       sql_print_error("Error in Log_event::read_log_event(): '%s',"
                       " data_len: %lu, event_type: %d", error,
@@ -8680,8 +8684,13 @@ void Unknown_log_event::print(FILE* file_arg, PRINT_EVENT_INFO* print_event_info
 
   if (print_event_info->short_form)
     return;
-  print_header(&cache, print_event_info, FALSE);
-  my_b_printf(&cache, "\n# %s", "Unknown event\n");
+  if (what != ENCRYPTED)
+  {
+    print_header(&cache, print_event_info, FALSE);
+    my_b_printf(&cache, "\n# Unknown event\n");
+  }
+  else
+    my_b_printf(&cache, "# Encrypted event\n");
 }
 #endif  
 

@@ -105,8 +105,85 @@ SELECT OLD_PASSWORD(c1), PASSWORD(c1) FROM t1;
 OLD_PASSWORD(c1)	PASSWORD(c1)
 77023ffe214c04ff	*82E58A2C08AAFE72C8EB523069CD8ADB33F78F58
 DROP TABLE t1;
-End of 5.0 tests
-Start of 10.2 tests
+# End of 5.0 tests
+#
+# Start of 10.1 tests
+#
+# Start of func_str_ascii_checksum.inc
+#
+# MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',password('test')), ('TEST', password('TEST'));
+SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= password("test") OR f2= password("TEST"));
+f1	f2
+test	*94BDCEBE19083CE2A1F959FD02F964C7AF4CFC29
+TEST	*47A6B0EA08A36FAEBE4305B373FE37E3CF27C357
+SELECT * FROM t1                  WHERE f1='test' AND (f2= password("test") OR f2= password("TEST"));
+f1	f2
+TEST	*47A6B0EA08A36FAEBE4305B373FE37E3CF27C357
+test	*94BDCEBE19083CE2A1F959FD02F964C7AF4CFC29
+SELECT * FROM t1                  WHERE f1='test' AND (f2= password("TEST") OR f2= password("test"));
+f1	f2
+TEST	*47A6B0EA08A36FAEBE4305B373FE37E3CF27C357
+test	*94BDCEBE19083CE2A1F959FD02F964C7AF4CFC29
+DROP TABLE t1;
+#
+# MDEV-10425 Assertion `collation.derivation == DERIVATION_IMPLICIT' failed in Item_func_conv_charset::fix_length_and_dec()
+#
+PREPARE stmt FROM "SELECT password(CONVERT('foo' USING latin1))";
+EXECUTE stmt;
+password(CONVERT('foo' USING latin1))
+*F3A2A51A9B0F2BE2468926B4132313728C250DBF
+DEALLOCATE PREPARE stmt;
+# End of func_str_ascii_checksum.inc
+# Start of func_str_ascii_checksum.inc
+#
+# MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',old_password('test')), ('TEST', old_password('TEST'));
+SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= old_password("test") OR f2= old_password("TEST"));
+f1	f2
+test	378b243e220ca493
+TEST	06df397e084be793
+SELECT * FROM t1                  WHERE f1='test' AND (f2= old_password("test") OR f2= old_password("TEST"));
+f1	f2
+TEST	06df397e084be793
+test	378b243e220ca493
+SELECT * FROM t1                  WHERE f1='test' AND (f2= old_password("TEST") OR f2= old_password("test"));
+f1	f2
+TEST	06df397e084be793
+test	378b243e220ca493
+DROP TABLE t1;
+#
+# MDEV-10425 Assertion `collation.derivation == DERIVATION_IMPLICIT' failed in Item_func_conv_charset::fix_length_and_dec()
+#
+PREPARE stmt FROM "SELECT old_password(CONVERT('foo' USING latin1))";
+EXECUTE stmt;
+old_password(CONVERT('foo' USING latin1))
+7c786c222596437b
+DEALLOCATE PREPARE stmt;
+# End of func_str_ascii_checksum.inc
+#
+# MDEV-10864 Wrong result for WHERE .. (f2=COMPRESS('test') OR f2=COMPRESS('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(64), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',encrypt('test','key')), ('TEST', encrypt('TEST','key'));
+SELECT f1 FROM t1 ignore index(k1) WHERE f1='test' AND (f2= encrypt('test','key') OR f2= encrypt('TEST','key'));
+f1
+test
+TEST
+SELECT f1 FROM t1                  WHERE f1='test' AND (f2= encrypt('test','key') OR f2= encrypt('TEST','key'));
+f1
+TEST
+test
+SELECT f1 FROM t1                  WHERE f1='test' AND (f2= encrypt('TEST','key') OR f2= encrypt('test','key'));
+f1
+TEST
+test
+DROP TABLE t1;
+# Start of 10.2 tests
 CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(30) DEFAULT ENCRYPT(a,123));
 SHOW CREATE TABLE t1;
 Table	Create Table

@@ -508,10 +508,10 @@ create table t1 (a int null, primary key(a));
 alter table t1 add constraint constraint_1 unique (a);
 alter table t1 add constraint unique key_1(a);
 Warnings:
-Note	1831	Duplicate index 'key_1' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `key_1`. This is deprecated and will be disallowed in a future release
 alter table t1 add constraint constraint_2 unique key_2(a);
 Warnings:
-Note	1831	Duplicate index 'key_2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `key_2`. This is deprecated and will be disallowed in a future release
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1053,19 +1053,19 @@ Grants for user3@localhost
 GRANT USAGE ON *.* TO 'user3'@'localhost'
 GRANT SELECT ON `mysqltest`.* TO 'user3'@'localhost'
 connection con4;
-select * from information_schema.column_privileges where grantee like '%user%'
+select * from information_schema.column_privileges where grantee like '\'user%'
 order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'user1'@'localhost'	def	mysqltest	t1	f1	SELECT	NO
-select * from information_schema.table_privileges where grantee like '%user%'
+select * from information_schema.table_privileges where grantee like '\'user%'
 order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'user2'@'localhost'	def	mysqltest	t2	SELECT	NO
-select * from information_schema.schema_privileges where grantee like '%user%'
+select * from information_schema.schema_privileges where grantee like '\'user%'
 order by grantee;
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'user3'@'localhost'	def	mysqltest	SELECT	NO
-select * from information_schema.user_privileges where grantee like '%user%'
+select * from information_schema.user_privileges where grantee like '\'user%'
 order by grantee;
 GRANTEE	TABLE_CATALOG	PRIVILEGE_TYPE	IS_GRANTABLE
 'user1'@'localhost'	def	USAGE	NO

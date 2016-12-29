@@ -1123,6 +1123,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_pages_created,		  SHOW_LONG},
   {"pages_read",
   (char*) &export_vars.innodb_pages_read,		  SHOW_LONG},
+  {"pages0_read",
+  (char*) &export_vars.innodb_page0_read,		  SHOW_LONG},
   {"pages_written",
   (char*) &export_vars.innodb_pages_written,		  SHOW_LONG},
   {"row_lock_current_waits",
@@ -1271,6 +1273,8 @@ static SHOW_VAR innodb_status_variables[]= {
   {"scrub_background_page_split_failures_unknown",
    (char*) &export_vars.innodb_scrub_page_split_failures_unknown,
    SHOW_LONG},
+  {"encryption_num_key_requests",
+   (char*) &export_vars.innodb_encryption_key_requests, SHOW_LONGLONG},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -2563,7 +2567,7 @@ innobase_get_stmt_unsafe(
 	LEX_STRING* stmt;
 	const char* query=NULL;
 
-	stmt = thd_query_string(thd);
+	stmt =  thd ? thd_query_string(thd) : NULL;
 	// MySQL 5.7
 	//stmt = thd_query_unsafe(thd);
 
@@ -2596,7 +2600,7 @@ innobase_get_stmt_safe(
 
 	ut_ad(buflen > 1);
 
-	stmt = thd_query_string(thd);
+	stmt =  thd ? thd_query_string(thd) : NULL;
 
 	if (stmt && stmt->str) {
 		length = stmt->length > buflen ? buflen : stmt->length;
@@ -3217,6 +3221,20 @@ innodb_replace_trx_in_thd(
 	trx = static_cast<trx_t*>(new_trx_arg);
 }
 #endif /* MYSQL_REPLACE_TRX_IN_THD */
+
+/*************************************************************************
+Gets current trx. */
+trx_t*
+innobase_get_trx()
+{
+	THD *thd=current_thd;
+	if (likely(thd != 0)) {
+		trx_t*& trx = thd_to_trx(thd);
+		return(trx);
+	} else {
+		return(NULL);
+	}
+}
 
 /*********************************************************************//**
 Note that a transaction has been registered with MySQL.
@@ -4187,17 +4205,17 @@ innobase_init(
 	ut_new_boot();
 
 	if (UNIV_PAGE_SIZE != UNIV_PAGE_SIZE_DEF) {
-		fprintf(stderr,
-			"InnoDB: Warning: innodb_page_size has been "
-			"changed from default value %d to %ldd. (###EXPERIMENTAL### "
-			"operation)\n", UNIV_PAGE_SIZE_DEF, UNIV_PAGE_SIZE);
+		ib::info() << "innodb_page_size has been "
+			<< "changed from default value "
+			<< UNIV_PAGE_SIZE_DEF << " to " << UNIV_PAGE_SIZE;
 
 		/* There is hang on buffer pool when trying to get a new
 		page if buffer pool size is too small for large page sizes */
 		if (innobase_buffer_pool_size < (24 * 1024 * 1024)) {
-			fprintf(stderr, "InnoDB: Error: innobase_page_size %lu requires "
-				"innodb_buffer_pool_size > 24M current %lld",
-				UNIV_PAGE_SIZE, innobase_buffer_pool_size);
+			ib::info() << "innobase_page_size "
+				<< UNIV_PAGE_SIZE << " requires "
+				<< "innodb_buffer_pool_size > 24M current "
+				<< innobase_buffer_pool_size;
 			goto error;
 		}
 	}
@@ -7018,9 +7036,7 @@ ha_innobase::open(
 			bool warning_pushed = false;
 			fil_space_crypt_t* crypt_data = ib_table->crypt_data;
 
-			if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-				(srv_encrypt_tables &&
-					crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+			if (crypt_data && crypt_data->should_encrypt()) {
 
 				if (!encryption_key_id_exists(crypt_data->key_id)) {
 					push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -8274,7 +8290,62 @@ build_template_field(
 		templ->col_no = i;
 		templ->clust_rec_field_no = dict_col_get_clust_pos(
 						col, clust_index);
-		ut_a(templ->clust_rec_field_no != ULINT_UNDEFINED);
+		/* If clustered index record field is not found, lets print out
+		field names and all the rest to understand why field is not found. */
+		if (templ->clust_rec_field_no == ULINT_UNDEFINED) {
+			const char* tb_col_name = dict_table_get_col_name(clust_index->table, i);
+			dict_field_t* field=NULL;
+			size_t size = 0;
+
+			for(ulint j=0; j < clust_index->n_user_defined_cols; j++) {
+				dict_field_t* ifield = &(clust_index->fields[j]);
+				if (ifield && !memcmp(tb_col_name, ifield->name,
+						strlen(tb_col_name))) {
+					field = ifield;
+					break;
+				}
+			}
+
+			ib::info() << "Looking for field " << i << " name "
+				<< (tb_col_name ? tb_col_name : "NULL")
+				<< " from table " << clust_index->table->name;
+
+
+			for(ulint j=0; j < clust_index->n_user_defined_cols; j++) {
+				dict_field_t* ifield = &(clust_index->fields[j]);
+				ib::info() << "InnoDB Table "
+					<< clust_index->table->name
+					<< "field " << j << " name "
+					<< (ifield ? ifield->name() : "NULL");
+			}
+
+			for(ulint j=0; j < table->s->stored_fields; j++) {
+				ib::info() << "MySQL table "
+					<< table->s->table_name.str
+					<< " field " << j << " name "
+					<< table->field[j]->field_name;
+			}
+
+			ib::error() << "Clustered record field for column " << i
+				<< " not found table n_user_defined "
+				<< clust_index->n_user_defined_cols
+				<< " index n_user_defined "
+				<< clust_index->table->n_cols - DATA_N_SYS_COLS
+				<< " InnoDB table "
+				<< clust_index->table->name
+				<< " field name "
+				<< (field ? field->name() : "NULL")
+				<< " MySQL table "
+				<< table->s->table_name.str
+				<< " field name "
+				<< (tb_col_name ? tb_col_name : "NULL")
+				<< " n_fields "
+				<< table->s->stored_fields
+				<< " query "
+				<< innobase_get_stmt_unsafe(current_thd, &size);
+
+			ut_a(templ->clust_rec_field_no != ULINT_UNDEFINED);
+		}
 		templ->rec_field_is_prefix = FALSE;
 		templ->rec_prefix_field_no = ULINT_UNDEFINED;
 
@@ -16774,7 +16845,7 @@ ha_innobase::check(
 			if (!dict_index_is_clust(index)) {
 				m_prebuilt->index_usable = FALSE;
 				// row_mysql_lock_data_dictionary(m_prebuilt->trx);
-				dict_set_corrupted(index, m_prebuilt->trx, "dict_set_index_corrupted");;
+				dict_set_corrupted(index, m_prebuilt->trx, "dict_set_index_corrupted");
 				// row_mysql_unlock_data_dictionary(m_prebuilt->trx);
 			});
 
@@ -24325,20 +24396,22 @@ ib_push_warning(
 	const char	*format,/*!< in: warning message */
 	...)
 {
-	va_list args;
-	THD *thd = (THD *)trx->mysql_thd;
-	char *buf;
+	if (trx && trx->mysql_thd) {
+		THD *thd = (THD *)trx->mysql_thd;
+		va_list args;
+		char *buf;
 #define MAX_BUF_SIZE 4*1024
 
-	va_start(args, format);
-	buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
-	vsprintf(buf,format, args);
+		va_start(args, format);
+		buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+		vsprintf(buf,format, args);
 
-	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-		convert_error_code_to_mysql((dberr_t)error, 0, thd),
-		buf);
-	my_free(buf);
-	va_end(args);
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			convert_error_code_to_mysql((dberr_t)error, 0, thd),
+			buf);
+		my_free(buf);
+		va_end(args);
+	}
 }
 
 /********************************************************************//**

@@ -1,3 +1,5 @@
+set @old_binlog_checksum=@@binlog_checksum;
+set global binlog_checksum=NONE;
 #####################################################################################
 # The following Annotate_rows events should appear below:
 # - INSERT INTO test2.t2 VALUES (1), (2), (3)

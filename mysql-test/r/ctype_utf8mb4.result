@@ -3359,6 +3359,26 @@ DFFFFFDFFFFF9CFFFF9DFFFF9EFFFF
 # Start of 10.0 tests
 #
 #
+# MDEV-11343 LOAD DATA INFILE fails to load data with an escape character followed by a multi-byte character
+#
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb4);
+LOAD DATA INFILE '../../std_data/loaddata/mdev-11343.txt' INTO TABLE t1 CHARACTER SET utf8mb4;
+SELECT HEX(a) FROM t1;
+HEX(a)
+C3A4
+C3A478
+78C3A4
+78C3A478
+EA99A0
+EA99A078
+78EA99A0
+78EA99A078
+F09F988E
+F09F988E78
+78F09F988E
+78F09F988E78
+DROP TABLE t1;
+#
 # MDEV-6566 Different INSERT behaviour on bad bytes with and without character set conversion
 #
 #
@@ -3402,9 +3422,6 @@ a 😁 b	a ? b
 DROP TABLE t1;
 #
 # End of 10.0 tests
-#
-#
-# End of tests
 #
 #
 # Start of 10.1 tests

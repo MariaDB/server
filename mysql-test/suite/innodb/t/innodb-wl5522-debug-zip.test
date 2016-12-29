@@ -22,6 +22,7 @@ call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* becau
 call mtr.add_suppression("InnoDB: Error: Tablespace flags .* corrupted unused .*");
 call mtr.add_suppression("InnoDB: Tablespace flags: .* corrupted  in file: .* ");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
+call mtr.add_suppression("InnoDB: Page for tablespace .* ");
 flush tables;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -758,4 +759,3 @@ call mtr.add_suppression("Could not find a valid tablespace file for 'test_wl552
 eval SET GLOBAL INNODB_FILE_PER_TABLE=$innodb_file_per_table;
 eval SET GLOBAL INNODB_FILE_FORMAT=$innodb_file_format;
 eval SET SESSION innodb_strict_mode=$innodb_strict_mode_orig;
-

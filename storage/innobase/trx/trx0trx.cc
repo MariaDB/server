@@ -1488,6 +1488,8 @@ trx_start_low(
 
 	ut_a(trx->error_state == DB_SUCCESS);
 
+	trx->start_time_micro = clock();
+
 	MONITOR_INC(MONITOR_TRX_ACTIVE);
 }
 

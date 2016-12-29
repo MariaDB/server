@@ -2773,7 +2773,6 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   /*
     Queue the event for processing.
   */
-  rli->event_relay_log_pos= rli->future_event_relay_log_pos;
   qev->ir= rli->last_inuse_relaylog;
   ++qev->ir->queued_count;
   cur_thread->enqueue(qev);

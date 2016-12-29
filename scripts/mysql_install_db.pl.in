@@ -297,17 +297,19 @@ parse_arguments($opt, 'PICK-ARGS-FROM-ARGV', @ARGV);
 # ----------------------------------------------------------------------
 
 # FIXME $extra_bindir is not used
-my ($bindir,$extra_bindir,$mysqld,$pkgdatadir,$mysqld_opt,$scriptdir);
+my ($bindir,$extra_bindir,$mysqld,$srcpkgdatadir,$buildpkgdatadir,$mysqld_opt,
+    $scriptdir);
 
 if ( $opt->{srcdir} )
 {
-  $opt->{basedir} = $opt->{builddir};
-  $bindir         = "$opt->{basedir}/client";
-  $extra_bindir   = "$opt->{basedir}/extra";
-  $mysqld         = "$opt->{basedir}/sql/mysqld";
-  $mysqld_opt     = "--language=$opt->{srcdir}/sql/share/english";
-  $pkgdatadir     = "$opt->{srcdir}/scripts";
-  $scriptdir      = "$opt->{srcdir}/scripts";
+  $opt->{basedir}  = $opt->{builddir};
+  $bindir          = "$opt->{basedir}/client";
+  $extra_bindir    = "$opt->{basedir}/extra";
+  $mysqld          = "$opt->{basedir}/sql/mysqld";
+  $mysqld_opt      = "--language=$opt->{srcdir}/sql/share/english";
+  $srcpkgdatadir   = "$opt->{srcdir}/scripts";
+  $buildpkgdatadir = "$opt->{builddir}/scripts";
+  $scriptdir       = "$opt->{srcdir}/scripts";
 }
 elsif ( $opt->{basedir} )
 {
@@ -317,18 +319,20 @@ elsif ( $opt->{basedir} )
                                     "libexec","sbin","bin") ||  # ,"sql"
                     find_in_basedir($opt,"file","mysqld-nt",
                                   "bin");  # ,"sql"
-  $pkgdatadir     = find_in_basedir($opt,"dir","fill_help_tables.sql",
+  $srcpkgdatadir  = find_in_basedir($opt,"dir","fill_help_tables.sql",
                                     "share","share/mysql");  # ,"scripts"
+  $buildpkgdir    = $srcpkgdatadir;
   $scriptdir      = "$opt->{basedir}/scripts";
 }
 else
 {
-  $opt->{basedir} = '@prefix@';
-  $bindir         = '@bindir@';
-  $extra_bindir   = $bindir;
-  $mysqld         = '@libexecdir@/mysqld';
-  $pkgdatadir     = '@pkgdatadir@';
-  $scriptdir      = '@scriptdir@';
+  $opt->{basedir}  = '@prefix@';
+  $bindir          = '@bindir@';
+  $extra_bindir    = $bindir;
+  $mysqld          = '@libexecdir@/mysqld';
+  $srcpkgdatadir   = '@pkgdatadir@';
+  $buildpkgdatadir = '@pkgdatadir@';
+  $scriptdir       = '@scriptdir@';
 }
 
 unless ( $opt->{ldata} )
@@ -336,19 +340,15 @@ unless ( $opt->{ldata} )
   $opt->{ldata} = '@localstatedir@';
 }
 
-if ( $opt->{srcdir} )
-{
-  $pkgdatadir = "$opt->{srcdir}/scripts";
-}
 
 # ----------------------------------------------------------------------
 # Set up paths to SQL scripts required for bootstrap
 # ----------------------------------------------------------------------
 
-my $fill_help_tables     = "$pkgdatadir/fill_help_tables.sql";
-my $create_system_tables = "$pkgdatadir/mysql_system_tables.sql";
-my $fill_system_tables   = "$pkgdatadir/mysql_system_tables_data.sql";
-my $maria_add_gis_sp     = "$pkgdatadir/maria_add_gis_sp_bootstrap.sql";
+my $fill_help_tables     = "$srcpkgdatadir/fill_help_tables.sql";
+my $create_system_tables = "$srcpkgdatadir/mysql_system_tables.sql";
+my $fill_system_tables   = "$srcpkgdatadir/mysql_system_tables_data.sql";
+my $maria_add_gis_sp     = "$buildpkgdatadir/maria_add_gis_sp_bootstrap.sql";
 
 foreach my $f ( $fill_help_tables,$create_system_tables,$fill_system_tables,$maria_add_gis_sp )
 {
@@ -508,7 +508,7 @@ if ( open(PIPE, "| $mysqld_install_cmd_line") )
   # FIXME  > /dev/null ?
   if ( open(PIPE, "| $mysqld_install_cmd_line") )
   {
-    print PIPE "use test;\n";
+    print PIPE "use mysql;\n";
     while ( <SQL> )
     {
       print PIPE $_;

@@ -1267,6 +1267,9 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         goto err;
       break;
     }
+    case START_ENCRYPTION_EVENT:
+      glob_description_event->start_decryption((Start_encryption_log_event*)ev);
+      /* fall through */
     default:
       print_skip_replication_statement(print_event_info, ev);
       ev->print(result_file, print_event_info);
@@ -2839,9 +2842,16 @@ err:
 }
 
 
+uint dummy1() { return 1; }
 struct encryption_service_st encryption_handler=
 {
-  0, 0, 0, 0, 0, 0, 0
+  (uint(*)(uint))dummy1,
+  (uint(*)(uint, uint, uchar*, uint*))dummy1,
+  (uint(*)(uint, uint))dummy1,
+  (int (*)(void*, const uchar*, uint, const uchar*, uint, int, uint, uint))dummy1,
+  (int (*)(void*, const uchar*, uint, uchar*, uint*))dummy1,
+  (int (*)(void*, uchar*, uint*))dummy1,
+  (uint (*)(uint, uint, uint))dummy1
 };
 
 /*

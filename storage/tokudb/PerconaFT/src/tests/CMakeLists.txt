@@ -108,11 +108,11 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
   foreach(ov c d r)
 
     if (ov STREQUAL c)
-      set(gset 0)
       set(hset 0)
+      set(iset 0)
     else ()
-      set(gset 0 1 2 3 4 5)
-      set(hset 0 1)
+      set(hset 0 1 2 3 4 5)
+      set(iset 0 1)
     endif ()
 
     foreach(av 0 1)
@@ -130,25 +130,27 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
           foreach(dv ${dset})
             foreach(ev ${eset})
               foreach(fv 0 1)
-                foreach(gv ${gset})
+                foreach(gv 0 1)
                   foreach(hv ${hset})
-
-                    if ((NOT ov STREQUAL c) AND (NOT cv) AND ((NOT bv) OR (NOT ev) OR (dv)))
-                      set(iset 0 1)
-                    else ()
-                      set(iset 0)
-                    endif ()
-
                     foreach(iv ${iset})
-                      set(testname "ydb/recovery_fileops_unit.${ov}${av}${bv}${cv}${dv}${ev}${fv}${gv}${hv}${iv}")
-                      set(envdir "recovery_fileops_unit_dir/${ov}${av}${bv}${cv}${dv}${ev}${fv}${gv}${hv}${iv}")
-                      set(errfile "recovery_fileops_unit_dir/${ov}${av}${bv}${cv}${dv}${ev}${fv}${gv}${hv}${iv}.ctest-errors")
-                      add_test(NAME ${testname}
-                        COMMAND run_recovery_fileops_unit.sh $<TARGET_FILE:recovery_fileops_unit.tdb> ${errfile} 137
-                        -O ${ov} -A ${av} -B ${bv} -C ${cv} -D ${dv} -E ${ev} -F ${fv} -G ${gv} -H ${hv} -I ${iv}
-                        )
-                      setup_toku_test_properties(${testname} ${envdir})
-                      set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "${errfile}")
+
+                      if ((NOT ov STREQUAL c) AND (NOT cv) AND ((NOT bv) OR (NOT ev) OR (dv)))
+                        set(jset 0 1)
+                      else ()
+                        set(jset 0)
+                      endif ()
+
+                      foreach(jv ${jset})
+                        set(testname "ydb/recovery_fileops_unit.${ov}${av}${bv}${cv}${dv}${ev}${fv}${gv}${hv}${iv}${jv}")
+                        set(envdir "recovery_fileops_unit_dir/${ov}${av}${bv}${cv}${dv}${ev}${fv}${gv}${hv}${iv}${jv}")
+                        set(errfile "recovery_fileops_unit_dir/${ov}${av}${bv}${cv}${dv}${ev}${fv}${gv}${hv}${iv}${jv}.ctest-errors")
+                        add_test(NAME ${testname}
+                          COMMAND run_recovery_fileops_unit.sh $<TARGET_FILE:recovery_fileops_unit.tdb> ${errfile} 137
+                          -O ${ov} -A ${av} -B ${bv} -C ${cv} -D ${dv} -E ${ev} -F ${fv} -G ${gv} -H ${hv} -I ${iv} -J ${jv}
+                          )
+                        setup_toku_test_properties(${testname} ${envdir})
+                        set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "${errfile}")
+                      endforeach(jv)
                     endforeach(iv)
                   endforeach(hv)
                 endforeach(gv)

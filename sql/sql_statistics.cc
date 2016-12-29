@@ -130,6 +130,128 @@ inline void init_table_list_for_single_stat_table(TABLE_LIST *tbl,
 }
 
 
+static Table_check_intact_log_error stat_table_intact;
+
+static const
+TABLE_FIELD_TYPE table_stat_fields[TABLE_STAT_N_FIELDS] =
+{
+  {
+    { C_STRING_WITH_LEN("db_name") },
+    { C_STRING_WITH_LEN("varchar(64)") },
+    { C_STRING_WITH_LEN("utf8") }
+  },
+  {
+    { C_STRING_WITH_LEN("table_name") },
+    { C_STRING_WITH_LEN("varchar(64)") },
+    { C_STRING_WITH_LEN("utf8") }
+  },
+  {
+    { C_STRING_WITH_LEN("cardinality") },
+    { C_STRING_WITH_LEN("bigint(21)") },
+    { NULL, 0 }
+  },
+};
+static const uint table_stat_pk_col[]= {0,1};
+static const TABLE_FIELD_DEF
+table_stat_def= {TABLE_STAT_N_FIELDS, table_stat_fields, 2, table_stat_pk_col };
+
+static const
+TABLE_FIELD_TYPE column_stat_fields[COLUMN_STAT_N_FIELDS] =
+{
+  {
+    { C_STRING_WITH_LEN("db_name") },
+    { C_STRING_WITH_LEN("varchar(64)") },
+    { C_STRING_WITH_LEN("utf8") }
+  },
+  {
+    { C_STRING_WITH_LEN("table_name") },
+    { C_STRING_WITH_LEN("varchar(64)") },
+    { C_STRING_WITH_LEN("utf8") }
+  },
+  {
+    { C_STRING_WITH_LEN("column_name") },
+    { C_STRING_WITH_LEN("varchar(64)") },
+    { C_STRING_WITH_LEN("utf8") }
+  },
+  {
+    { C_STRING_WITH_LEN("min_value") },
+    { C_STRING_WITH_LEN("varbinary(255)") },
+    { NULL, 0 }
+  },
+  {
+    { C_STRING_WITH_LEN("max_value") },
+    { C_STRING_WITH_LEN("varbinary(255)") },
+    { NULL, 0 }
+  },
+  {
+    { C_STRING_WITH_LEN("nulls_ratio") },
+    { C_STRING_WITH_LEN("decimal(12,4)") },
+    { NULL, 0 }
+  },
+  {
+    { C_STRING_WITH_LEN("avg_length") },
+    { C_STRING_WITH_LEN("decimal(12,4)") },
+    { NULL, 0 }
+  },
+  {
+    { C_STRING_WITH_LEN("avg_frequency") },
+    { C_STRING_WITH_LEN("decimal(12,4)") },
+    { NULL, 0 }
+  },
+  {
+    { C_STRING_WITH_LEN("hist_size") },
+    { C_STRING_WITH_LEN("tinyint(3)") },
+    { NULL, 0 }
+  },
+  {
+    { C_STRING_WITH_LEN("hist_type") },
+    { C_STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')") },
+    { C_STRING_WITH_LEN("utf8") }
+  },
+  {
+    { C_STRING_WITH_LEN("histogram") },
+    { C_STRING_WITH_LEN("varbinary(255)") },
+    { NULL, 0 }
+  }
+};
+static const uint column_stat_pk_col[]= {0,1,2};
+static const TABLE_FIELD_DEF
+column_stat_def= {COLUMN_STAT_N_FIELDS, column_stat_fields, 3, column_stat_pk_col};
+
+static const
+TABLE_FIELD_TYPE index_stat_fields[INDEX_STAT_N_FIELDS] =
+{
+  {
+    { C_STRING_WITH_LEN("db_name") },
+    { C_STRING_WITH_LEN("varchar(64)") },
+    { C_STRING_WITH_LEN("utf8") }
+  },
+  {
+    { C_STRING_WITH_LEN("table_name") },
+    { C_STRING_WITH_LEN("varchar(64)") },
+    { C_STRING_WITH_LEN("utf8") }
+  },
+  {
+    { C_STRING_WITH_LEN("index") },
+    { C_STRING_WITH_LEN("varchar(64)") },
+    { C_STRING_WITH_LEN("utf8") }
+  },
+  {
+    { C_STRING_WITH_LEN("prefix_arity") },
+    { C_STRING_WITH_LEN("int(11)") },
+    { NULL, 0 }
+  },
+  {
+    { C_STRING_WITH_LEN("avg_frequency") },
+    { C_STRING_WITH_LEN("decimal(12,4)") },
+    { NULL, 0 }
+  }
+};
+static const uint index_stat_pk_col[]= {0,1,2,3};
+static const TABLE_FIELD_DEF
+index_stat_def= {INDEX_STAT_N_FIELDS, index_stat_fields, 4, index_stat_pk_col};
+
+
 /**
   @brief
   Open all statistical tables and lock them
@@ -140,10 +262,30 @@ inline int open_stat_tables(THD *thd, TABLE_LIST *tables,
                             Open_tables_backup *backup,
                             bool for_write)
 {
+  int rc;
+
+  Dummy_error_handler deh; // suppress errors
+  thd->push_internal_handler(&deh);
   init_table_list_for_stat_tables(tables, for_write);
   init_mdl_requests(tables);
-  return open_system_tables_for_read(thd, tables, backup);
-}
+  rc= open_system_tables_for_read(thd, tables, backup);
+  thd->pop_internal_handler();
+
+
+  /* If the number of tables changes, we should revise the check below. */
+  DBUG_ASSERT(STATISTICS_TABLES == 3);
+
+  if (!rc &&
+      (stat_table_intact.check(tables[TABLE_STAT].table, &table_stat_def) ||
+       stat_table_intact.check(tables[COLUMN_STAT].table, &column_stat_def) ||
+       stat_table_intact.check(tables[INDEX_STAT].table, &index_stat_def)))
+  {
+    close_system_tables(thd, backup);
+    rc= 1;
+  }
+
+  return rc;
+} 
 
 
 /**
@@ -1004,11 +1146,13 @@ public:
 
           switch (i) {
           case COLUMN_STAT_MIN_VALUE:
+	    table_field->read_stats->min_value->set_notnull();
             stat_field->val_str(&val);
             table_field->read_stats->min_value->store(val.ptr(), val.length(),
                                                       &my_charset_bin);
             break;
           case COLUMN_STAT_MAX_VALUE:
+	    table_field->read_stats->max_value->set_notnull();
             stat_field->val_str(&val);
             table_field->read_stats->max_value->store(val.ptr(), val.length(),
                                                       &my_charset_bin);
@@ -2725,10 +2869,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   DEBUG_SYNC(thd, "statistics_update_start");
 
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
-  {
-    thd->clear_error();
     DBUG_RETURN(rc);
-  }
    
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3156,10 +3297,7 @@ int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab)
   DBUG_ENTER("delete_statistics_for_table");
    
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
-  {
-    thd->clear_error();
     DBUG_RETURN(rc);
-  }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3398,10 +3536,7 @@ int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
   DBUG_ENTER("rename_table_in_stat_tables");
    
   if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
-  {
-    thd->clear_error();
-    DBUG_RETURN(rc);
-  }
+    DBUG_RETURN(0); // not an error
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -3661,17 +3796,8 @@ double get_column_range_cardinality(Field *field,
     {
       double avg_frequency= col_stats->get_avg_frequency();
       res= avg_frequency;   
-      /*
-        psergey-todo: what does check for min_value, max_value mean? 
-          min/max_value are set to NULL in alloc_statistics_for_table() and
-          alloc_statistics_for_table_share().  Both functions will immediately
-          call create_min_max_statistical_fields_for_table and 
-          create_min_max_statistical_fields_for_table_share() respectively,
-          which will set min/max_value to be valid pointers, unless OOM
-          occurs.
-      */
       if (avg_frequency > 1.0 + 0.000001 && 
-          col_stats->min_value && col_stats->max_value)
+          col_stats->min_max_values_are_provided())
       {
         Histogram *hist= &col_stats->histogram;
         if (hist->is_available())
@@ -3694,7 +3820,7 @@ double get_column_range_cardinality(Field *field,
   }  
   else 
   {
-    if (col_stats->min_value && col_stats->max_value)
+    if (col_stats->min_max_values_are_provided())
     {
       double sel, min_mp_pos, max_mp_pos;
 

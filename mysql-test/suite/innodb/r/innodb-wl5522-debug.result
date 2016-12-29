@@ -7,6 +7,8 @@ call mtr.add_suppression("InnoDB: Ignoring tablespace .* because it could not be
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .*");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
+call mtr.add_suppression("InnoDB: Page for tablespace .* ");
+flush tables;
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
 @@innodb_file_per_table
@@ -931,8 +933,4 @@ set global innodb_monitor_enable = default;
 set global innodb_monitor_disable = default;
 set global innodb_monitor_reset = default;
 set global innodb_monitor_reset_all = default;
-Warnings:
-Error	145	Table './mtr/test_suppressions' is marked as crashed and should be repaired
-Error	1194	Table 'test_suppressions' is marked as crashed and should be repaired
-Error	1034	1 client is using or hasn't closed the table properly
 SET GLOBAL INNODB_FILE_PER_TABLE=1;
