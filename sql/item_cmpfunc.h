@@ -1796,9 +1796,11 @@ public:
     {
       DBUG_EXECUTE_IF("Predicant_to_list_comparator",
                       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                      ER_UNKNOWN_ERROR, "DBUG: [%d] arg=%d handler=%d", i,
+                      ER_UNKNOWN_ERROR, "DBUG: [%d] arg=%d handler=%d (%s)", i,
                       m_comparators[i].m_arg_index,
-                      m_comparators[i].m_handler_index););
+                      m_comparators[i].m_handler_index,
+                      m_comparators[m_comparators[i].m_handler_index].
+                                    m_handler->name().ptr()););
     }
   }
 #endif
