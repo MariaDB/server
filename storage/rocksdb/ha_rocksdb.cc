@@ -2562,9 +2562,6 @@ static std::string rdb_xid_to_string(const XID& src)
   transactions.
 */
 static bool rocksdb_flush_wal(handlerton* hton __attribute__((__unused__)))
-#ifdef MARIAROCKS_NOT_YET
-                              ulonglong target_lsn __attribute__((__unused__)))
-#endif
 {
   DBUG_ASSERT(rdb != nullptr);
   rocksdb::Status s= rdb->SyncWAL();
