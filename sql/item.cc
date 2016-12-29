@@ -2397,7 +2397,6 @@ void Item_ident_for_show::make_field(THD *thd, Send_field *tmp_field)
   tmp_field->table_name= tmp_field->org_table_name= table_name;
   tmp_field->db_name= db_name;
   tmp_field->col_name= tmp_field->org_col_name= field->field_name;
-  tmp_field->charsetnr= field->charset()->number;
   tmp_field->length=field->field_length;
   tmp_field->type=field->type();
   tmp_field->flags= field->table->maybe_null ? 
@@ -2559,15 +2558,11 @@ void Item_field::set_field(Field *field_par)
 {
   field=result_field=field_par;			// for easy coding with fields
   maybe_null=field->maybe_null();
-  decimals= field->decimals();
+  Type_std_attributes::set(field_par);
   table_name= *field_par->table_name;
   field_name= field_par->field_name;
   db_name= field_par->table->s->db.str;
   alias_name_used= field_par->table->alias_name_used;
-  unsigned_flag= MY_TEST(field_par->flags & UNSIGNED_FLAG);
-  collation.set(field_par->charset(), field_par->derivation(),
-                field_par->repertoire());
-  fix_char_length(field_par->char_length());
 
   max_length= adjust_max_effective_column_length(field_par, max_length);
 
@@ -4259,7 +4254,6 @@ void Item_param::make_field(THD *thd, Send_field *field)
   field->org_col_name= m_out_param_info->org_col_name;
 
   field->length= m_out_param_info->length;
-  field->charsetnr= m_out_param_info->charsetnr;
   field->flags= m_out_param_info->flags;
   field->decimals= m_out_param_info->decimals;
   field->type= m_out_param_info->type;
@@ -5792,7 +5786,6 @@ void Item::init_make_field(Send_field *tmp_field,
   tmp_field->org_col_name=	empty_name;
   tmp_field->table_name=	empty_name;
   tmp_field->col_name=		name;
-  tmp_field->charsetnr=         collation.collation->number;
   tmp_field->flags=             (maybe_null ? 0 : NOT_NULL_FLAG) | 
                                 (my_binary_compare(charset_for_protocol()) ?
                                  BINARY_FLAG : 0);

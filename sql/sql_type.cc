@@ -56,6 +56,15 @@ Type_handler_newdecimal  type_handler_newdecimal;
 Type_handler_datetime    type_handler_datetime;
 
 
+void Type_std_attributes::set(const Field *field)
+{
+  decimals= field->decimals();
+  unsigned_flag= MY_TEST(field->flags & UNSIGNED_FLAG);
+  collation.set(field->charset(), field->derivation(), field->repertoire());
+  fix_char_length(field->char_length());
+}
+
+
 /**
   This method is used by:
   - Item_user_var_as_out_param::field_type()
@@ -98,6 +107,23 @@ Type_handler_string_result::type_handler_adjusted_to_max_octet_length(
   else if (max_octet_length >= 65536)
     return &type_handler_medium_blob;
   return &type_handler_blob;
+}
+
+
+CHARSET_INFO *Type_handler::charset_for_protocol(const Item *item) const
+{
+  /*
+    For backward compatibility, to make numeric
+    data types return "binary" charset in client-side metadata.
+  */
+  return &my_charset_bin;
+}
+
+
+CHARSET_INFO *
+Type_handler_string_result::charset_for_protocol(const Item *item) const
+{
+  return item->collation.collation;
 }
 
 

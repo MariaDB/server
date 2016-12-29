@@ -573,18 +573,6 @@ public:
   { return Type_handler_hybrid_field_type::result_type(); }
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
-  CHARSET_INFO *charset_for_protocol() const
-  {
-    /*
-      Can return TIME, DATE, DATETIME or VARCHAR depending on arguments.
-      Send using "binary" when TIME, DATE or DATETIME,
-      or using collation.collation when VARCHAR
-      (which is fixed from @@collation_connection in fix_length_and_dec).
-    */
-    DBUG_ASSERT(fixed == 1);
-    return Item_temporal_hybrid_func::field_type() == MYSQL_TYPE_STRING ?
-           collation.collation : &my_charset_bin;
-  }
   /**
     Fix the returned timestamp to match field_type(),
     which is important for val_str().

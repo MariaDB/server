@@ -1944,7 +1944,6 @@ void Field::make_field(Send_field *field)
     field->org_col_name= "";
   }
   field->col_name= field_name;
-  field->charsetnr= charset()->number;
   field->length=field_length;
   field->type=type();
   field->flags=table->maybe_null ? (flags & ~NOT_NULL_FLAG) : flags;
@@ -10747,7 +10746,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     length
 */
 
-uint32 Field_blob::char_length()
+uint32 Field_blob::char_length() const
 {
   switch (packlength)
   {
