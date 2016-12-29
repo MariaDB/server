@@ -4014,18 +4014,15 @@ row_import_for_mysql(
 	table->ibd_file_missing = false;
 	table->flags2 &= ~DICT_TF2_DISCARDED;
 
-	/* Set autoinc value read from cfg file. The value is set to zero
-	if the cfg file is missing and is initialized later from table
-	column value. */
-	ib::info() << table->name << " autoinc value set to "
-		<< autoinc;
+	/* Set autoinc value read from .cfg file, if one was specified.
+	Otherwise, keep the PAGE_ROOT_AUTO_INC as is. */
+	if (autoinc) {
+		ib::info() << table->name << " autoinc value set to "
+			<< autoinc;
 
-	dict_table_autoinc_lock(table);
-	dict_table_autoinc_initialize(table, autoinc);
-	dict_table_autoinc_unlock(table);
-
-	ut_a(err == DB_SUCCESS);
+		table->autoinc = autoinc--;
+		btr_write_autoinc(dict_table_get_first_index(table), autoinc);
+	}
 
 	return(row_import_cleanup(prebuilt, trx, err));
 }
-

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2473,6 +2474,7 @@ row_ins_clust_index_entry_low(
 	dberr_t		err		= DB_SUCCESS;
 	big_rec_t*	big_rec		= NULL;
 	mtr_t		mtr;
+	ib_uint64_t	auto_inc	= 0;
 	mem_heap_t*	offsets_heap	= NULL;
 	ulint           offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*          offsets         = offsets_;
@@ -2487,7 +2489,6 @@ row_ins_clust_index_entry_low(
 	ut_ad(!thr_get_trx(thr)->in_rollback);
 
 	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
 
 	if (dict_table_is_temporary(index->table)) {
 		/* Disable REDO logging as the lifetime of temp-tables is
@@ -2496,23 +2497,41 @@ row_ins_clust_index_entry_low(
 		Disable locking as temp-tables are local to a connection. */
 
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
+		ut_ad(!dict_index_is_online_ddl(index));
+		ut_ad(!index->table->persistent_autoinc);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-	}
+	} else {
+		mtr.set_named_space(index->space);
 
-	if (mode == BTR_MODIFY_LEAF && dict_index_is_online_ddl(index)) {
-		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		if (mode == BTR_MODIFY_LEAF
+		    && dict_index_is_online_ddl(index)) {
+			mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
+			mtr_s_lock(dict_index_get_lock(index), &mtr);
+		}
+
+		if (unsigned ai = index->table->persistent_autoinc) {
+			/* Prepare to persist the AUTO_INCREMENT value
+			from the index entry to PAGE_ROOT_AUTO_INC. */
+			const dfield_t* dfield = dtuple_get_nth_field(
+				entry, ai - 1);
+			auto_inc = dfield_is_null(dfield)
+				? 0
+				: row_parse_int(static_cast<const byte*>(
+							dfield->data),
+						dfield->len,
+						dfield->type.mtype,
+						dfield->type.prtype
+						& DATA_UNSIGNED);
+		}
 	}
 
 	/* Note that we use PAGE_CUR_LE as the search mode, because then
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
-	btr_pcur_open(index, entry, PAGE_CUR_LE, mode, &pcur, &mtr);
+	btr_pcur_open_low(index, 0, entry, PAGE_CUR_LE, mode, &pcur,
+			  __FILE__, __LINE__, auto_inc, &mtr);
 	cursor = btr_pcur_get_btr_cur(&pcur);
-
-	if (cursor) {
-		cursor->thr = thr;
-	}
+	cursor->thr = thr;
 
 #ifdef UNIV_DEBUG
 	{

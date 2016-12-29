@@ -230,15 +230,12 @@ row_search_check_if_query_cache_permitted(
 	trx_t*		trx,		/*!< in: transaction object */
 	const char*	norm_name);	/*!< in: concatenation of database name,
 					'/' char, table name */
-/*******************************************************************//**
-Read the max AUTOINC value from an index.
-@return DB_SUCCESS if all OK else error code */
-dberr_t
-row_search_max_autoinc(
-/*===================*/
-	dict_index_t*	index,		/*!< in: index to search */
-	const char*	col_name,	/*!< in: autoinc column name */
-	ib_uint64_t*	value)		/*!< out: AUTOINC value read */
+/** Read the max AUTOINC value from an index.
+@param[in] index	index starting with an AUTO_INCREMENT column
+@return	the largest AUTO_INCREMENT value
+@retval	0	if no records were found */
+ib_uint64_t
+row_search_max_autoinc(dict_index_t* index)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** A structure for caching column values for prefetched rows */

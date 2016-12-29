@@ -159,12 +159,6 @@ dict_mem_table_create(
 	/* lazy creation of table autoinc latch */
 	dict_table_autoinc_create_lazy(table);
 
-	table->autoinc = 0;
-
-	/* The number of transactions that are either waiting on the
-	AUTOINC lock or have been granted the lock. */
-	table->n_waiting_or_granted_auto_inc_locks = 0;
-
 	/* If the table has an FTS index or we are in the process
 	of building one, create the table->fts */
 	if (dict_table_has_fts_index(table)

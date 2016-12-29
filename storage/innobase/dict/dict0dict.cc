@@ -810,20 +810,6 @@ dict_index_zip_pad_lock(
 	mutex_enter(index->zip_pad.mutex);
 }
 
-
-/********************************************************************//**
-Unconditionally set the autoinc counter. */
-void
-dict_table_autoinc_initialize(
-/*==========================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	ib_uint64_t	value)	/*!< in: next value to assign to a row */
-{
-	ut_ad(dict_table_autoinc_own(table));
-
-	table->autoinc = value;
-}
-
 /** Get all the FTS indexes on a table.
 @param[in]	table	table
 @param[out]	indexes	all FTS indexes on this table
@@ -847,75 +833,6 @@ dict_table_get_all_fts_indexes(
 	}
 
 	return(ib_vector_size(indexes));
-}
-
-/** Store autoinc value when the table is evicted.
-@param[in]	table	table evicted */
-void
-dict_table_autoinc_store(
-	const dict_table_t*	table)
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	if (table->autoinc != 0) {
-		ut_ad(dict_sys->autoinc_map->find(table->id)
-		      == dict_sys->autoinc_map->end());
-
-		dict_sys->autoinc_map->insert(
-			std::pair<table_id_t, ib_uint64_t>(
-			table->id, table->autoinc));
-	}
-}
-
-/** Restore autoinc value when the table is loaded.
-@param[in]	table	table loaded */
-void
-dict_table_autoinc_restore(
-	dict_table_t*	table)
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-
-	autoinc_map_t::iterator	it;
-	it = dict_sys->autoinc_map->find(table->id);
-
-	if (it != dict_sys->autoinc_map->end()) {
-		table->autoinc = it->second;
-		ut_ad(table->autoinc != 0);
-
-		dict_sys->autoinc_map->erase(it);
-	}
-}
-
-/********************************************************************//**
-Reads the next autoinc value (== autoinc counter value), 0 if not yet
-initialized.
-@return value for a new row, or 0 */
-ib_uint64_t
-dict_table_autoinc_read(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	ut_ad(dict_table_autoinc_own(table));
-
-	return(table->autoinc);
-}
-
-/********************************************************************//**
-Updates the autoinc counter if the value supplied is greater than the
-current value. */
-void
-dict_table_autoinc_update_if_greater(
-/*=================================*/
-
-	dict_table_t*	table,	/*!< in/out: table */
-	ib_uint64_t	value)	/*!< in: value which was assigned to a row */
-{
-	ut_ad(dict_table_autoinc_own(table));
-
-	if (value > table->autoinc) {
-
-		table->autoinc = value;
-	}
 }
 
 /********************************************************************//**
@@ -1212,8 +1129,6 @@ dict_init(void)
 	}
 
 	mutex_create(LATCH_ID_DICT_FOREIGN_ERR, &dict_foreign_err_mutex);
-
-	dict_sys->autoinc_map = new autoinc_map_t();
 }
 
 /**********************************************************************//**
@@ -1476,8 +1391,6 @@ dict_table_add_to_cache(
 	} else {
 		UT_LIST_ADD_FIRST(dict_sys->table_non_LRU, table);
 	}
-
-	dict_table_autoinc_restore(table);
 
 	ut_ad(dict_lru_validate());
 
@@ -2213,10 +2126,6 @@ dict_table_remove_from_cache_low(
 	}
 
 	ut_ad(dict_lru_validate());
-
-	if (lru_evict) {
-		dict_table_autoinc_store(table);
-	}
 
 	if (lru_evict && table->drop_aborted) {
 		/* Do as dict_table_try_drop_aborted() does. */
@@ -7006,8 +6915,6 @@ dict_close(void)
 	dict_operation_lock = NULL;
 
 	mutex_free(&dict_foreign_err_mutex);
-
-	delete dict_sys->autoinc_map;
 
 	ut_ad(dict_sys->size == 0);
 

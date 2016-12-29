@@ -1705,24 +1705,18 @@ row_get_prebuilt_update_vector(
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL
 					handle */
 {
-	dict_table_t*	table	= prebuilt->table;
-	upd_node_t*	node;
-
-	ut_ad(prebuilt && table && prebuilt->trx);
-
 	if (prebuilt->upd_node == NULL) {
 
 		/* Not called before for this handle: create an update node
 		and query graph to the prebuilt struct */
 
-		node = row_create_update_node_for_mysql(table, prebuilt->heap);
-
-		prebuilt->upd_node = node;
+		prebuilt->upd_node = row_create_update_node_for_mysql(
+			prebuilt->table, prebuilt->heap);
 
 		prebuilt->upd_graph = static_cast<que_fork_t*>(
 			que_node_get_parent(
 				pars_complete_graph_for_exec(
-					static_cast<upd_node_t*>(node),
+					prebuilt->upd_node,
 					prebuilt->trx, prebuilt->heap,
 					prebuilt)));
 

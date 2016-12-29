@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -596,7 +597,7 @@ btr_pcur_open_on_user_rec_func(
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor,
-			  file, line, mtr);
+			  file, line, 0, mtr);
 
 	if ((mode == PAGE_CUR_GE) || (mode == PAGE_CUR_G)) {
 

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -106,6 +107,17 @@ page_update_max_trx_id(
 
 		page_set_max_trx_id(block, page_zip, trx_id, mtr);
 	}
+}
+
+/** Read the AUTO_INCREMENT value from a clustered index root page.
+@param[in]	page	clustered index root page
+@return	the persisted AUTO_INCREMENT value */
+UNIV_INLINE
+ib_uint64_t
+page_get_autoinc(const page_t* page)
+{
+	ut_ad(page_is_root(page));
+	return(mach_read_from_8(PAGE_HEADER + PAGE_ROOT_AUTO_INC + page));
 }
 
 /*************************************************************//**

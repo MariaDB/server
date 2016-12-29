@@ -1468,6 +1468,11 @@ struct dict_table_t {
 	/** Number of virtual columns. */
 	unsigned                                n_v_cols:10;
 
+	/** 1 + the position of autoinc counter field in clustered
+	index, or 0 if there is no persistent AUTO_INCREMENT column in
+	the table. */
+	unsigned				persistent_autoinc:10;
+
 	/** TRUE if it's not an InnoDB system table or a table that has no FK
 	relationships. */
 	unsigned				can_be_evicted:1;

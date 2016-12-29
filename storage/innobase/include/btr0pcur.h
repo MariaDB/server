@@ -114,9 +114,11 @@ btr_pcur_open_low(
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
+	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
+				(0 if none) */
 	mtr_t*		mtr);	/*!< in: mtr */
 #define btr_pcur_open(i,t,md,l,c,m)				\
-	btr_pcur_open_low(i,0,t,md,l,c,__FILE__,__LINE__,m)
+	btr_pcur_open_low(i,0,t,md,l,c,__FILE__,__LINE__,0,m)
 /**************************************************************//**
 Opens an persistent cursor to an index tree without initializing the
 cursor. */

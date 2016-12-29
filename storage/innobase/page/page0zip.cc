@@ -4753,19 +4753,19 @@ page_zip_reorganize(
 					page_get_infimum_rec(temp_page),
 					index, mtr);
 
-	/* Temp-Tables are not shared across connection and so we avoid
-	locking of temp-tables as there would be no 2 trx trying to
-	operate on same temp-table in parallel.
-	max_trx_id is use to track which all trxs wrote to the page
-	in parallel but in case of temp-table this can is not needed. */
-	if (!dict_index_is_clust(index)
-	    && !dict_table_is_temporary(index->table)
-	    && page_is_leaf(temp_page)) {
-		/* Copy max trx id to recreated page */
-		trx_id_t	max_trx_id = page_get_max_trx_id(temp_page);
-		page_set_max_trx_id(block, NULL, max_trx_id, NULL);
-		ut_ad(max_trx_id != 0);
-	}
+	/* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
+	memcpy(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
+	       temp_page + (PAGE_HEADER + PAGE_MAX_TRX_ID), 8);
+	/* PAGE_MAX_TRX_ID must be set on secondary index leaf pages. */
+	ut_ad(dict_index_is_clust(index) || !page_is_leaf(temp_page)
+	      || dict_table_is_temporary(index->table)
+	      || page_get_max_trx_id(page) != 0);
+	/* PAGE_MAX_TRX_ID must be zero on non-leaf pages other than
+	clustered index root pages. */
+	ut_ad(page_get_max_trx_id(page) == 0
+	      || (dict_index_is_clust(index)
+		  ? page_is_root(temp_page)
+		  : page_is_leaf(temp_page)));
 
 	/* Restore logging. */
 	mtr_set_log_mode(mtr, log_mode);
@@ -4821,13 +4821,6 @@ page_zip_copy_recs(
 		ut_a(dict_index_is_clust(index));
 	}
 
-	/* The PAGE_MAX_TRX_ID must be set on leaf pages of secondary
-	indexes.  It does not matter on other pages. */
-	ut_a(dict_index_is_clust(index)
-	     || dict_table_is_temporary(index->table)
-	     || !page_is_leaf(src)
-	     || page_get_max_trx_id(src));
-
 	UNIV_MEM_ASSERT_W(page, UNIV_PAGE_SIZE);
 	UNIV_MEM_ASSERT_W(page_zip->data, page_zip_get_size(page_zip));
 	UNIV_MEM_ASSERT_RW(src, UNIV_PAGE_SIZE);
@@ -4848,6 +4841,19 @@ page_zip_copy_recs(
 	       PAGE_HEADER_PRIV_END);
 	memcpy(PAGE_DATA + page_zip->data, PAGE_DATA + src_zip->data,
 	       page_zip_get_size(page_zip) - PAGE_DATA);
+
+	if (dict_index_is_clust(index)) {
+		/* Reset the PAGE_ROOT_AUTO_INC field when copying
+		from a root page. */
+		memset(PAGE_HEADER + PAGE_ROOT_AUTO_INC + page, 0, 8);
+		memset(PAGE_HEADER + PAGE_ROOT_AUTO_INC + page_zip->data,
+		       0, 8);
+	} else {
+		/* The PAGE_MAX_TRX_ID must be nonzero on leaf pages
+		of secondary indexes, and 0 on others. */
+		ut_ad(dict_table_is_temporary(index->table)
+		      || !page_is_leaf(src) == !page_get_max_trx_id(src));
+	}
 
 	/* Copy all fields of src_zip to page_zip, except the pointer
 	to the compressed data page. */
