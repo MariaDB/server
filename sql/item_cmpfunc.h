@@ -977,8 +977,8 @@ public:
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
   void fix_length_and_dec()
   {
-    set_handler_by_field_type(agg_field_type(args, arg_count, true));
-    fix_attributes(args, arg_count);
+    if (!aggregate_for_result(func_name(), args, arg_count, true))
+      fix_attributes(args, arg_count);
   }
   const char *func_name() const { return "coalesce"; }
   table_map not_null_tables() const { return 0; }
@@ -997,8 +997,8 @@ class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
 protected:
   void fix_length_and_dec2(Item **items)
   {
-    set_handler_by_field_type(agg_field_type(items, 2, true));
-    fix_attributes(items, 2);
+    if (!aggregate_for_result(func_name(), items, 2, true))
+      fix_attributes(items, 2);
   }
   uint decimal_precision2(Item **args) const;
 public:

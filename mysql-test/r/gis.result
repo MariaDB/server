@@ -2199,5 +2199,617 @@ c
 1
 DROP TABLE t1;
 #
+#
+#
+CREATE PROCEDURE p2(query TEXT)
+BEGIN
+DECLARE errcount INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+BEGIN
+SET errcount = errcount+1;
+#SHOW WARNINGS;
+GET DIAGNOSTICS CONDITION 1 @p= MESSAGE_TEXT;
+SELECT @p AS `ERROR: `;
+END;
+SELECT query AS ``;
+EXECUTE IMMEDIATE query;
+IF errcount = 0
+THEN
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END IF;
+END;
+$$
+CREATE PROCEDURE p1(query TEXT)
+BEGIN
+SELECT query AS `-------------------------------------`;
+EXECUTE IMMEDIATE query;
+CALL p2('CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1');
+CALL p2('CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1');
+CALL p2('CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1');
+CALL p2('CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1');
+CALL p2('CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1');
+DROP TABLE t1;
+END;
+$$
+-------------------------------------
+CREATE TABLE t1 (a CHAR(10), b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IF(TRUE,a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a VARCHAR(10), b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IF(TRUE,a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a TINYTEXT, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IF(TRUE,a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a TEXT, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IF(TRUE,a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a MEDIUMTEXT, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IF(TRUE,a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a LONGTEXT, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IF(TRUE,a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+-------------------------------------
+CREATE TABLE t1 (a TINYINT, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types tinyint and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a SMALLINT, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types shortint and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types shortint and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types shortint and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types shortint and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types shortint and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a MEDIUMINT, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types mediumint and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a INT, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types int and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a BIGINT, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a FLOAT, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types float and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a DOUBLE, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types double and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a DECIMAL(10,2), b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types decimal and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a BIT(8), b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types bigint and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types bit and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a TIME, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types time and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a DATE, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types date and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a DATETIME, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types datetime and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a TIMESTAMP, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types timestamp and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a YEAR, b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'case'
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'coalesce'
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'if'
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'ifnull'
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types year and geometry for operation 'UNION'
+# This creates BLOB with hybrid functions, but fails on error with UNION (MDEV-11458)
+-------------------------------------
+CREATE TABLE t1 (a ENUM(0x61), b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IF(TRUE,a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types enum and geometry for operation 'UNION'
+-------------------------------------
+CREATE TABLE t1 (a SET(0x61), b Point)
+
+CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `CASE WHEN TRUE THEN a ELSE b END` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IF(TRUE,a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `IFNULL(a,b)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
+ERROR: 
+Illegal parameter data types set and geometry for operation 'UNION'
+# This does not preserve geometry type (MDEV-9405)
+CREATE TABLE t1 AS SELECT COALESCE(NULL, Point(1,1));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `COALESCE(NULL, Point(1,1))` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT NULL UNION SELECT Point(1,1);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `NULL` geometry DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+#
 # End of 10.2 tests
 #

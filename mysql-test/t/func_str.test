@@ -1554,6 +1554,8 @@ format(rpad('111111111.1',
 # But in mysqltest --disable_prepare_warnings affects SELECT queries only
 # and can't suppress prepare time warnings for DO.
 #
+
+--error ER_CANT_AGGREGATE_2TYPES
 SELECT
 round(
   concat( (

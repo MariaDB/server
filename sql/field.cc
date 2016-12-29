@@ -82,18 +82,35 @@ const char field_separator=',';
   following #defines describe that gap and how to canculate number of fields
   and index of field in this array.
 */
-#define FIELDTYPE_TEAR_FROM (MYSQL_TYPE_BIT + 1)
-#define FIELDTYPE_TEAR_TO   (MYSQL_TYPE_NEWDECIMAL - 1)
-#define FIELDTYPE_NUM (FIELDTYPE_TEAR_FROM + (255 - FIELDTYPE_TEAR_TO))
+const int FIELDTYPE_TEAR_FROM= (MYSQL_TYPE_BIT + 1);
+const int FIELDTYPE_TEAR_TO=   (MYSQL_TYPE_NEWDECIMAL - 1);
+const int FIELDTYPE_LAST=      254;
+const int FIELDTYPE_NUM=       FIELDTYPE_TEAR_FROM + (FIELDTYPE_LAST -
+                                                      FIELDTYPE_TEAR_TO);
+
 static inline int field_type2index (enum_field_types field_type)
 {
+  DBUG_ASSERT(real_type_to_type(field_type) < FIELDTYPE_TEAR_FROM ||
+              real_type_to_type(field_type) > FIELDTYPE_TEAR_TO);
+  DBUG_ASSERT(field_type <= FIELDTYPE_LAST);
   field_type= real_type_to_type(field_type);
-  return (field_type < FIELDTYPE_TEAR_FROM ?
-          field_type :
-          ((int)FIELDTYPE_TEAR_FROM) + (field_type - FIELDTYPE_TEAR_TO) - 1);
+  if (field_type < FIELDTYPE_TEAR_FROM)
+    return field_type;
+  return FIELDTYPE_TEAR_FROM + (field_type - FIELDTYPE_TEAR_TO) - 1;
 }
 
 
+/**
+  Implements data type merge rules for the built-in traditional data types.
+  Used for operations such as:
+  - UNION
+  - CASE and its abbreviations COALESCE, IF, IFNULL
+  - LEAST/GREATEST
+
+  Given Fields A and B of real_types a and b, we find the result type of
+  COALESCE(A, B) by querying:
+    field_types_merge_rules[field_type_to_index(a)][field_type_to_index(b)].
+*/
 static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
 {
   /* MYSQL_TYPE_DECIMAL -> */
@@ -124,8 +141,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_TINY -> */
   {
@@ -155,8 +172,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_SHORT -> */
   {
@@ -186,8 +203,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_LONG -> */
   {
@@ -217,8 +234,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_FLOAT -> */
   {
@@ -248,8 +265,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_DOUBLE -> */
   {
@@ -279,8 +296,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_NULL -> */
   {
@@ -310,8 +327,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_GEOMETRY
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_TIMESTAMP -> */
   {
@@ -341,8 +358,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_LONGLONG -> */
   {
@@ -372,8 +389,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_INT24 -> */
   {
@@ -403,8 +420,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_DATE -> */
   {
@@ -434,8 +451,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_TIME -> */
   {
@@ -465,8 +482,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_DATETIME -> */
   {
@@ -496,8 +513,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_YEAR -> */
   {
@@ -527,8 +544,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_NEWDATE -> */
   {
@@ -558,8 +575,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_VARCHAR -> */
   {
@@ -589,8 +606,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_VARCHAR
   },
   /* MYSQL_TYPE_BIT -> */
   {
@@ -620,8 +637,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_NEWDECIMAL -> */
   {
@@ -651,8 +668,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_ENUM -> */
   {
@@ -682,8 +699,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_SET -> */
   {
@@ -713,8 +730,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   },
   /* MYSQL_TYPE_TINY_BLOB -> */
   {
@@ -744,8 +761,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_TINY_BLOB,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_TINY_BLOB,   MYSQL_TYPE_TINY_BLOB
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_TINY_BLOB
   },
   /* MYSQL_TYPE_MEDIUM_BLOB -> */
   {
@@ -775,8 +792,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_MEDIUM_BLOB,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_MEDIUM_BLOB
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_MEDIUM_BLOB
   },
   /* MYSQL_TYPE_LONG_BLOB -> */
   {
@@ -806,8 +823,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_LONG_BLOB,   MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_LONG_BLOB,   MYSQL_TYPE_LONG_BLOB,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_LONG_BLOB,   MYSQL_TYPE_LONG_BLOB
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_LONG_BLOB
   },
   /* MYSQL_TYPE_BLOB -> */
   {
@@ -837,8 +854,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_BLOB,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_BLOB,        MYSQL_TYPE_BLOB
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_BLOB
   },
   /* MYSQL_TYPE_VAR_STRING -> */
   {
@@ -868,8 +885,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_VARCHAR
   },
   /* MYSQL_TYPE_STRING -> */
   {
@@ -899,39 +916,8 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
     MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
   //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
     MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_STRING
-  },
-  /* MYSQL_TYPE_GEOMETRY -> */
-  {
-  //MYSQL_TYPE_DECIMAL      MYSQL_TYPE_TINY
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_SHORT        MYSQL_TYPE_LONG
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_FLOAT        MYSQL_TYPE_DOUBLE
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
-    MYSQL_TYPE_GEOMETRY,    MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_NEWDATE      MYSQL_TYPE_VARCHAR
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_BIT          <16>-<245>
-    MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_NEWDECIMAL   MYSQL_TYPE_ENUM
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_SET          MYSQL_TYPE_TINY_BLOB
-    MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_TINY_BLOB,
-  //MYSQL_TYPE_MEDIUM_BLOB  MYSQL_TYPE_LONG_BLOB
-    MYSQL_TYPE_MEDIUM_BLOB, MYSQL_TYPE_LONG_BLOB,
-  //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
-    MYSQL_TYPE_BLOB,        MYSQL_TYPE_VARCHAR,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-    MYSQL_TYPE_STRING,      MYSQL_TYPE_GEOMETRY
+  //MYSQL_TYPE_STRING
+    MYSQL_TYPE_STRING
   }
 };
 
@@ -948,46 +934,19 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
 enum_field_types Field::field_type_merge(enum_field_types a,
                                          enum_field_types b)
 {
-  DBUG_ASSERT(real_type_to_type(a) < FIELDTYPE_TEAR_FROM ||
-              real_type_to_type(a) > FIELDTYPE_TEAR_TO);
-  DBUG_ASSERT(real_type_to_type(b) < FIELDTYPE_TEAR_FROM ||
-              real_type_to_type(b) > FIELDTYPE_TEAR_TO);
   return field_types_merge_rules[field_type2index(a)]
                                 [field_type2index(b)];
 }
 
-
-static Item_result field_types_result_type [FIELDTYPE_NUM]=
+const Type_handler *
+Type_handler::aggregate_for_result_traditional(const Type_handler *a,
+                                               const Type_handler *b)
 {
-  //MYSQL_TYPE_DECIMAL      MYSQL_TYPE_TINY
-  DECIMAL_RESULT,           INT_RESULT,
-  //MYSQL_TYPE_SHORT        MYSQL_TYPE_LONG
-  INT_RESULT,               INT_RESULT,
-  //MYSQL_TYPE_FLOAT        MYSQL_TYPE_DOUBLE
-  REAL_RESULT,              REAL_RESULT,
-  //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
-  STRING_RESULT,            STRING_RESULT,
-  //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-  INT_RESULT,               INT_RESULT,
-  //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
-  STRING_RESULT,            STRING_RESULT,
-  //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
-  STRING_RESULT,            INT_RESULT,
-  //MYSQL_TYPE_NEWDATE      MYSQL_TYPE_VARCHAR
-  STRING_RESULT,            STRING_RESULT,
-  //MYSQL_TYPE_BIT          <16>-<245>
-  STRING_RESULT,
-  //MYSQL_TYPE_NEWDECIMAL   MYSQL_TYPE_ENUM
-  DECIMAL_RESULT,           STRING_RESULT,
-  //MYSQL_TYPE_SET          MYSQL_TYPE_TINY_BLOB
-  STRING_RESULT,            STRING_RESULT,
-  //MYSQL_TYPE_MEDIUM_BLOB  MYSQL_TYPE_LONG_BLOB
-  STRING_RESULT,            STRING_RESULT,
-  //MYSQL_TYPE_BLOB         MYSQL_TYPE_VAR_STRING
-  STRING_RESULT,            STRING_RESULT,
-  //MYSQL_TYPE_STRING       MYSQL_TYPE_GEOMETRY
-  STRING_RESULT,            STRING_RESULT
-};
+  enum_field_types ta= a->real_field_type();
+  enum_field_types tb= b->real_field_type();
+  return
+    Type_handler::get_handler_by_real_type(Field::field_type_merge(ta, tb));
+}
 
 
 /*
@@ -1034,21 +993,6 @@ int compare(unsigned int a, unsigned int b)
 
 CPP_UNNAMED_NS_END
 
-/**
-  Detect Item_result by given field type of UNION merge result.
-
-  @param field_type  given field type
-
-  @return
-    Item_result (type of internal MySQL expression result)
-*/
-
-Item_result Field::result_merge_type(enum_field_types field_type)
-{
-  DBUG_ASSERT(real_type_to_type(field_type) < FIELDTYPE_TEAR_FROM ||
-              real_type_to_type(field_type) > FIELDTYPE_TEAR_TO);
-  return field_types_result_type[field_type2index(field_type)];
-}
 
 /*****************************************************************************
   Static help functions

@@ -22,6 +22,7 @@
 
 
 #include "mysqld.h"
+#include "sql_array.h"
 
 class Field;
 class Item;
@@ -240,6 +241,19 @@ public:
 };
 
 
+class Name: private LEX_CSTRING
+{
+public:
+  Name(const char *str_arg, uint length_arg)
+  {
+    LEX_CSTRING::str= str_arg;
+    LEX_CSTRING::length= length_arg;
+  }
+  const char *ptr() const { return LEX_CSTRING::str; }
+  uint length() const { return LEX_CSTRING::length; }
+};
+
+
 class Type_handler
 {
 protected:
@@ -261,6 +275,11 @@ public:
     DBUG_ASSERT(type != TIME_RESULT);
     return get_handler_by_cmp_type(type);
   }
+  static const
+  Type_handler *aggregate_for_result_traditional(const Type_handler *h1,
+                                                 const Type_handler *h2);
+
+  virtual const Name name() const= 0;
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }
   virtual Item_result result_type() const= 0;
@@ -272,6 +291,14 @@ public:
                                             CHARSET_INFO *cs) const
   { return this; }
   virtual ~Type_handler() {}
+  /**
+    Determines MariaDB traditional data types that always present
+    in the server.
+  */
+  virtual bool is_traditional_type() const
+  {
+    return true;
+  }
   /**
     Makes a temporary table Field to handle numeric aggregate functions,
     e.g. SUM(DISTINCT expr), AVG(DISTINCT expr), etc.
@@ -365,8 +392,10 @@ public:
 */
 class Type_handler_row: public Type_handler
 {
+  static const Name m_name_row;
 public:
   virtual ~Type_handler_row() {}
+  const Name name() const { return m_name_row; }
   enum_field_types field_type() const
   {
     DBUG_ASSERT(0);
@@ -710,8 +739,10 @@ public:
 
 class Type_handler_tiny: public Type_handler_int_result
 {
+  static const Name m_name_tiny;
 public:
   virtual ~Type_handler_tiny() {}
+  const Name name() const { return m_name_tiny; }
   enum_field_types field_type() const { return MYSQL_TYPE_TINY; }
   uint32 max_display_length(const Item *item) const { return 4; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
@@ -721,8 +752,10 @@ public:
 
 class Type_handler_short: public Type_handler_int_result
 {
+  static const Name m_name_short;
 public:
   virtual ~Type_handler_short() {}
+  const Name name() const { return m_name_short; }
   enum_field_types field_type() const { return MYSQL_TYPE_SHORT; }
   uint32 max_display_length(const Item *item) const { return 6; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
@@ -732,8 +765,10 @@ public:
 
 class Type_handler_long: public Type_handler_int_result
 {
+  static const Name m_name_int;
 public:
   virtual ~Type_handler_long() {}
+  const Name name() const { return m_name_int; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONG; }
   uint32 max_display_length(const Item *item) const
   {
@@ -746,8 +781,10 @@ public:
 
 class Type_handler_longlong: public Type_handler_int_result
 {
+  static const Name m_name_longlong;
 public:
   virtual ~Type_handler_longlong() {}
+  const Name name() const { return m_name_longlong; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   uint32 max_display_length(const Item *item) const { return 20; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
@@ -757,8 +794,10 @@ public:
 
 class Type_handler_int24: public Type_handler_int_result
 {
+  static const Name m_name_mediumint;
 public:
   virtual ~Type_handler_int24() {}
+  const Name name() const { return m_name_mediumint; }
   enum_field_types field_type() const { return MYSQL_TYPE_INT24; }
   uint32 max_display_length(const Item *item) const { return 8; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -768,8 +807,10 @@ public:
 
 class Type_handler_year: public Type_handler_int_result
 {
+  static const Name m_name_year;
 public:
   virtual ~Type_handler_year() {}
+  const Name name() const { return m_name_year; }
   enum_field_types field_type() const { return MYSQL_TYPE_YEAR; }
   uint32 max_display_length(const Item *item) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -779,8 +820,10 @@ public:
 
 class Type_handler_bit: public Type_handler_int_result
 {
+  static const Name m_name_bit;
 public:
   virtual ~Type_handler_bit() {}
+  const Name name() const { return m_name_bit; }
   enum_field_types field_type() const { return MYSQL_TYPE_BIT; }
   uint32 max_display_length(const Item *item) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -790,8 +833,10 @@ public:
 
 class Type_handler_float: public Type_handler_real_result
 {
+  static const Name m_name_float;
 public:
   virtual ~Type_handler_float() {}
+  const Name name() const { return m_name_float; }
   enum_field_types field_type() const { return MYSQL_TYPE_FLOAT; }
   uint32 max_display_length(const Item *item) const { return 25; }
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
@@ -802,8 +847,10 @@ public:
 
 class Type_handler_double: public Type_handler_real_result
 {
+  static const Name m_name_double;
 public:
   virtual ~Type_handler_double() {}
+  const Name name() const { return m_name_double; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
   uint32 max_display_length(const Item *item) const { return 53; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -813,8 +860,10 @@ public:
 
 class Type_handler_time_common: public Type_handler_temporal_result
 {
+  static const Name m_name_time;
 public:
   virtual ~Type_handler_time_common() { }
+  const Name name() const { return m_name_time; }
   enum_field_types field_type() const { return MYSQL_TYPE_TIME; }
   const Type_handler *type_handler_for_comparison() const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
@@ -857,8 +906,10 @@ public:
 
 class Type_handler_date_common: public Type_handler_temporal_with_date
 {
+  static const Name m_name_date;
 public:
   virtual ~Type_handler_date_common() {}
+  const Name name() const { return m_name_date; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -884,8 +935,10 @@ public:
 
 class Type_handler_datetime_common: public Type_handler_temporal_with_date
 {
+  static const Name m_name_datetime;
 public:
   virtual ~Type_handler_datetime_common() {}
+  const Name name() const { return m_name_datetime; }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -913,8 +966,10 @@ public:
 
 class Type_handler_timestamp_common: public Type_handler_temporal_with_date
 {
+  static const Name m_name_timestamp;
 public:
   virtual ~Type_handler_timestamp_common() {}
+  const Name name() const { return m_name_timestamp; }
   enum_field_types field_type() const { return MYSQL_TYPE_TIMESTAMP; }
   bool Item_hybrid_func_fix_attributes(THD *thd, Item_hybrid_func *func,
                                        Item **items, uint nitems) const;
@@ -942,8 +997,10 @@ public:
 
 class Type_handler_olddecimal: public Type_handler_decimal_result
 {
+  static const Name m_name_decimal;
 public:
   virtual ~Type_handler_olddecimal() {}
+  const Name name() const { return m_name_decimal; }
   enum_field_types field_type() const { return MYSQL_TYPE_DECIMAL; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -952,8 +1009,10 @@ public:
 
 class Type_handler_newdecimal: public Type_handler_decimal_result
 {
+  static const Name m_name_decimal;
 public:
   virtual ~Type_handler_newdecimal() {}
+  const Name name() const { return m_name_decimal; }
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -962,8 +1021,10 @@ public:
 
 class Type_handler_null: public Type_handler_string_result
 {
+  static const Name m_name_null;
 public:
   virtual ~Type_handler_null() {}
+  const Name name() const { return m_name_null; }
   enum_field_types field_type() const { return MYSQL_TYPE_NULL; }
   uint32 max_display_length(const Item *item) const { return 0; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -973,8 +1034,10 @@ public:
 
 class Type_handler_string: public Type_handler_string_result
 {
+  static const Name m_name_char;
 public:
   virtual ~Type_handler_string() {}
+  const Name name() const { return m_name_char; }
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -983,8 +1046,10 @@ public:
 
 class Type_handler_varchar: public Type_handler_string_result
 {
+  static const Name m_name_varchar;
 public:
   virtual ~Type_handler_varchar() {}
+  const Name name() const { return m_name_varchar; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -993,8 +1058,10 @@ public:
 
 class Type_handler_tiny_blob: public Type_handler_string_result
 {
+  static const Name m_name_tinyblob;
 public:
   virtual ~Type_handler_tiny_blob() {}
+  const Name name() const { return m_name_tinyblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_TINY_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1003,8 +1070,10 @@ public:
 
 class Type_handler_medium_blob: public Type_handler_string_result
 {
+  static const Name m_name_mediumblob;
 public:
   virtual ~Type_handler_medium_blob() {}
+  const Name name() const { return m_name_mediumblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_MEDIUM_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1013,8 +1082,10 @@ public:
 
 class Type_handler_long_blob: public Type_handler_string_result
 {
+  static const Name m_name_longblob;
 public:
   virtual ~Type_handler_long_blob() {}
+  const Name name() const { return m_name_longblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONG_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1023,8 +1094,10 @@ public:
 
 class Type_handler_blob: public Type_handler_string_result
 {
+  static const Name m_name_blob;
 public:
   virtual ~Type_handler_blob() {}
+  const Name name() const { return m_name_blob; }
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -1034,19 +1107,27 @@ public:
 #ifdef HAVE_SPATIAL
 class Type_handler_geometry: public Type_handler_string_result
 {
+  static const Name m_name_geometry;
 public:
   virtual ~Type_handler_geometry() {}
+  const Name name() const { return m_name_geometry; }
   enum_field_types field_type() const { return MYSQL_TYPE_GEOMETRY; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool is_traditional_type() const
+  {
+    return false;
+  }
 };
 #endif
 
 
 class Type_handler_enum: public Type_handler_string_result
 {
+  static const Name m_name_enum;
 public:
   virtual ~Type_handler_enum() {}
+  const Name name() const { return m_name_enum; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -1056,8 +1137,10 @@ public:
 
 class Type_handler_set: public Type_handler_string_result
 {
+  static const Name m_name_set;
 public:
   virtual ~Type_handler_set() {}
+  const Name name() const { return m_name_set; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   virtual enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -1127,6 +1210,9 @@ public:
   }
   void aggregate_for_comparison(const Type_handler *other);
   bool aggregate_for_comparison(Item **items, uint nitems);
+  bool aggregate_for_result(const Type_handler *other);
+  bool aggregate_for_result(const char *funcname,
+                            Item **item, uint nitems, bool treat_bit_as_number);
 };
 
 
@@ -1150,5 +1236,57 @@ extern Type_handler_varchar type_handler_varchar;
 extern Type_handler_longlong type_handler_longlong;
 extern Type_handler_newdecimal type_handler_newdecimal;
 extern Type_handler_datetime type_handler_datetime;
+extern Type_handler_longlong type_handler_longlong;
+extern Type_handler_bit type_handler_bit;
+
+class Type_aggregator
+{
+  class Pair
+  {
+  public:
+    const Type_handler *m_handler1;
+    const Type_handler *m_handler2;
+    const Type_handler *m_result;
+    Pair() { }
+    Pair(const Type_handler *handler1,
+         const Type_handler *handler2,
+         const Type_handler *result)
+     :m_handler1(handler1), m_handler2(handler2), m_result(result)
+    { }
+    bool eq(const Type_handler *handler1, const Type_handler *handler2) const
+    {
+      return m_handler1 == handler1 && m_handler2 == handler2;
+    }
+  };
+  Dynamic_array<Pair> m_array;
+  const Pair* find_pair(const Type_handler *handler1,
+                        const Type_handler *handler2) const
+  {
+    for (uint i= 0; i < m_array.elements(); i++)
+    {
+      const Pair& el= m_array.at(i);
+      if (el.eq(handler1, handler2) || el.eq(handler2, handler1))
+        return &el;
+    }
+    return NULL;
+  }
+public:
+  Type_aggregator()
+  { }
+  bool add(const Type_handler *handler1,
+           const Type_handler *handler2,
+           const Type_handler *result)
+  {
+    return m_array.append(Pair(handler1, handler2, result));
+  }
+  const Type_handler *find_handler(const Type_handler *handler1,
+                                   const Type_handler *handler2) const
+  {
+    const Pair* el= find_pair(handler1, handler2);
+    return el ? el->m_result : NULL;
+  }
+};
+
+extern Type_aggregator type_aggregator_for_result;
 
 #endif /* SQL_TYPE_H_INCLUDED */

@@ -2695,6 +2695,8 @@ void Item_func_min_max::fix_length_and_dec()
     break;
 
   case STRING_RESULT:
+    if (aggregate_for_result(func_name(), args, arg_count, false))
+      return;
     /*
       All arguments are of string-alike types:
         CHAR, VARCHAR, TEXT, BINARY, VARBINARY, BLOB, SET, ENUM
@@ -2702,7 +2704,6 @@ void Item_func_min_max::fix_length_and_dec()
     */
     agg_arg_charsets_for_string_result_with_comparison(collation,
                                                        args, arg_count);
-    set_handler_by_field_type(agg_field_type(args, arg_count, false));
     break;
 
   case INT_RESULT:
@@ -2731,7 +2732,8 @@ void Item_func_min_max::fix_length_and_dec()
         Treat BIT as LONGLONG when aggregating to non-BIT types.
         Possible final type: TINY, SHORT, LONG, LONGLONG, INT24, YEAR, BIT.
       */
-      set_handler_by_field_type(agg_field_type(args, arg_count, true));
+      if (aggregate_for_result(func_name(), args, arg_count, true))
+        return;
     }
     break;
 
@@ -2754,7 +2756,7 @@ void Item_func_min_max::fix_length_and_dec()
     /*
       Set type to DOUBLE, as Item_func::create_tmp_field() does not
       distinguish between DOUBLE and FLOAT and always creates Field_double.
-      Perhaps we should eventually change this to use agg_field_type() here,
+      Perhaps we should eventually change this to use aggregate_for_result()
       and fix Item_func::create_tmp_field() to create Field_float when possible.
     */
     set_handler_by_field_type(MYSQL_TYPE_DOUBLE);

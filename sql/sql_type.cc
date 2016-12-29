@@ -25,7 +25,6 @@ static Type_handler_short       type_handler_short;
 static Type_handler_long        type_handler_long;
 static Type_handler_int24       type_handler_int24;
 static Type_handler_year        type_handler_year;
-static Type_handler_bit         type_handler_bit;
 static Type_handler_float       type_handler_float;
 static Type_handler_double      type_handler_double;
 static Type_handler_time        type_handler_time;
@@ -54,6 +53,39 @@ Type_handler_varchar     type_handler_varchar;
 Type_handler_longlong    type_handler_longlong;
 Type_handler_newdecimal  type_handler_newdecimal;
 Type_handler_datetime    type_handler_datetime;
+Type_handler_bit         type_handler_bit;
+
+
+Type_aggregator type_aggregator_for_result;
+
+
+class Static_data_initializer
+{
+public:
+  static Static_data_initializer m_singleton;
+  Static_data_initializer()
+  {
+#ifdef HAVE_SPATIAL
+    type_aggregator_for_result.add(&type_handler_geometry,
+                                   &type_handler_null,
+                                   &type_handler_geometry);
+    type_aggregator_for_result.add(&type_handler_geometry,
+                                   &type_handler_geometry,
+                                   &type_handler_geometry);
+    type_aggregator_for_result.add(&type_handler_geometry,
+                                   &type_handler_blob,
+                                   &type_handler_long_blob);
+    type_aggregator_for_result.add(&type_handler_geometry,
+                                   &type_handler_varchar,
+                                   &type_handler_long_blob);
+    type_aggregator_for_result.add(&type_handler_geometry,
+                                   &type_handler_string,
+                                   &type_handler_long_blob);
+#endif
+  }
+};
+
+Static_data_initializer Static_data_initializer::m_singleton;
 
 
 void Type_std_attributes::set(const Field *field)
@@ -150,6 +182,46 @@ Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
 
 
 /***************************************************************************/
+const Name Type_handler_row::m_name_row(C_STRING_WITH_LEN("row"));
+
+const Name Type_handler_null::m_name_null(C_STRING_WITH_LEN("null"));
+
+const Name
+  Type_handler_string::m_name_char(C_STRING_WITH_LEN("char")),
+  Type_handler_varchar::m_name_varchar(C_STRING_WITH_LEN("varchar")),
+  Type_handler_tiny_blob::m_name_tinyblob(C_STRING_WITH_LEN("tinyblob")),
+  Type_handler_medium_blob::m_name_mediumblob(C_STRING_WITH_LEN("mediumblob")),
+  Type_handler_long_blob::m_name_longblob(C_STRING_WITH_LEN("longblob")),
+  Type_handler_blob::m_name_blob(C_STRING_WITH_LEN("blob"));
+
+const Name
+  Type_handler_enum::m_name_enum(C_STRING_WITH_LEN("enum")),
+  Type_handler_set::m_name_set(C_STRING_WITH_LEN("set"));
+
+const Name
+  Type_handler_tiny::m_name_tiny(C_STRING_WITH_LEN("tinyint")),
+  Type_handler_short::m_name_short(C_STRING_WITH_LEN("shortint")),
+  Type_handler_long::m_name_int(C_STRING_WITH_LEN("int")),
+  Type_handler_longlong::m_name_longlong(C_STRING_WITH_LEN("bigint")),
+  Type_handler_int24::m_name_mediumint(C_STRING_WITH_LEN("mediumint")),
+  Type_handler_year::m_name_year(C_STRING_WITH_LEN("year")),
+  Type_handler_bit::m_name_bit(C_STRING_WITH_LEN("bit"));
+
+const Name
+  Type_handler_float::m_name_float(C_STRING_WITH_LEN("float")),
+  Type_handler_double::m_name_double(C_STRING_WITH_LEN("double"));
+
+const Name
+  Type_handler_olddecimal::m_name_decimal(C_STRING_WITH_LEN("decimal")),
+  Type_handler_newdecimal::m_name_decimal(C_STRING_WITH_LEN("decimal"));
+
+const Name
+  Type_handler_time_common::m_name_time(C_STRING_WITH_LEN("time")),
+  Type_handler_date_common::m_name_date(C_STRING_WITH_LEN("date")),
+  Type_handler_datetime_common::m_name_datetime(C_STRING_WITH_LEN("datetime")),
+  Type_handler_timestamp_common::m_name_timestamp(C_STRING_WITH_LEN("timestamp"));
+
+/***************************************************************************/
 
 const Type_handler *Type_handler_int_result::type_handler_for_comparison() const
 {
@@ -191,6 +263,113 @@ const Type_handler *Type_handler_row::type_handler_for_comparison() const
   return &type_handler_row;
 }
 
+
+/***************************************************************************/
+
+bool
+Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
+{
+  if (m_type_handler->is_traditional_type() && other->is_traditional_type())
+  {
+    m_type_handler=
+      Type_handler::aggregate_for_result_traditional(m_type_handler, other);
+    return false;
+  }
+  other= type_aggregator_for_result.find_handler(m_type_handler, other);
+  if (!other)
+    return true;
+  m_type_handler= other;
+  return false;
+}
+
+
+/**
+  @brief Aggregates field types from the array of items.
+
+  @param[in] items  array of items to aggregate the type from
+  @param[in] nitems number of items in the array
+  @param[in] treat_bit_as_number - if BIT should be aggregated to a non-BIT
+             counterpart as a LONGLONG number or as a VARBINARY string.
+
+             Currently behaviour depends on the function:
+             - LEAST/GREATEST treat BIT as VARBINARY when
+               aggregating with a non-BIT counterpart.
+               Note, UNION also works this way.
+
+             - CASE, COALESCE, IF, IFNULL treat BIT as LONGLONG when
+               aggregating with a non-BIT counterpart;
+
+             This inconsistency may be changed in the future. See MDEV-8867.
+
+             Note, independently from "treat_bit_as_number":
+             - a single BIT argument gives BIT as a result
+             - two BIT couterparts give BIT as a result
+
+  @details This function aggregates field types from the array of items.
+    Found type is supposed to be used later as the result field type
+    of a multi-argument function.
+    Aggregation itself is performed by Type_handler::aggregate_for_result().
+
+  @note The term "aggregation" is used here in the sense of inferring the
+    result type of a function from its argument types.
+
+  @retval false - on success
+  @retval true  - on error
+*/
+
+bool
+Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
+                                                     Item **items, uint nitems,
+                                                     bool treat_bit_as_number)
+{
+  if (!nitems || items[0]->result_type() == ROW_RESULT)
+  {
+    DBUG_ASSERT(0);
+    set_handler(&type_handler_null);
+    return true;
+  }
+  set_handler(items[0]->type_handler());
+  uint unsigned_count= items[0]->unsigned_flag;
+  for (uint i= 1 ; i < nitems ; i++)
+  {
+    const Type_handler *cur= items[i]->type_handler();
+    if (treat_bit_as_number &&
+        ((type_handler() == &type_handler_bit) ^ (cur == &type_handler_bit)))
+    {
+      if (type_handler() == &type_handler_bit)
+        set_handler(&type_handler_longlong); // BIT + non-BIT
+      else
+        cur= &type_handler_longlong; // non-BIT + BIT
+    }
+    if (aggregate_for_result(cur))
+    {
+      my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+               type_handler()->name().ptr(), cur->name().ptr(), funcname);
+      return true;
+    }
+    unsigned_count+= items[i]->unsigned_flag;
+  }
+  switch (field_type()) {
+  case MYSQL_TYPE_TINY:
+  case MYSQL_TYPE_SHORT:
+  case MYSQL_TYPE_LONG:
+  case MYSQL_TYPE_LONGLONG:
+  case MYSQL_TYPE_INT24:
+  case MYSQL_TYPE_YEAR:
+  case MYSQL_TYPE_BIT:
+    if (unsigned_count != 0 && unsigned_count != nitems)
+    {
+      /*
+        If all arguments are of INT-alike type but have different
+        unsigned_flag, then convert to DECIMAL.
+      */
+      set_handler(&type_handler_newdecimal);
+    }
+  default:
+    break;
+  }
+  return false;
+}
 
 /**
   Collect built-in data type handlers for comparison.
@@ -719,6 +898,8 @@ Field *Type_handler_long_blob::make_conversion_table_field(TABLE *table,
 
 
 #ifdef HAVE_SPATIAL
+const Name Type_handler_geometry::m_name_geometry(C_STRING_WITH_LEN("geometry"));
+
 Field *Type_handler_geometry::make_conversion_table_field(TABLE *table,
                                                           uint metadata,
                                                           const Field *target)

@@ -155,87 +155,6 @@ bool Type_handler_hybrid_field_type::aggregate_for_comparison(Item **items,
 }
 
 
-/**
-  @brief Aggregates field types from the array of items.
-
-  @param[in] items  array of items to aggregate the type from
-  @paran[in] nitems number of items in the array
-  @param[in] treat_bit_as_number - if BIT should be aggregated to a non-BIT
-             counterpart as a LONGLONG number or as a VARBINARY string.
-
-             Currently behaviour depends on the function:
-             - LEAST/GREATEST treat BIT as VARBINARY when
-               aggregating with a non-BIT counterpart.
-               Note, UNION also works this way.
-
-             - CASE, COALESCE, IF, IFNULL treat BIT as LONGLONG when
-               aggregating with a non-BIT counterpart;
-
-             This inconsistency may be changed in the future. See MDEV-8867.
-
-             Note, independently from "treat_bit_as_number":
-             - a single BIT argument gives BIT as a result
-             - two BIT couterparts give BIT as a result
-
-  @details This function aggregates field types from the array of items.
-    Found type is supposed to be used later as the result field type
-    of a multi-argument function.
-    Aggregation itself is performed by the Field::field_type_merge()
-    function.
-
-  @note The term "aggregation" is used here in the sense of inferring the
-    result type of a function from its argument types.
-
-  @return aggregated field type.
-*/
-
-enum_field_types agg_field_type(Item **items, uint nitems,
-                                bool treat_bit_as_number)
-{
-  uint i;
-  if (!nitems || items[0]->result_type() == ROW_RESULT)
-  {
-    DBUG_ASSERT(0);
-    return MYSQL_TYPE_NULL;
-  }
-  enum_field_types res= items[0]->field_type();
-  uint unsigned_count= items[0]->unsigned_flag;
-  for (i= 1 ; i < nitems ; i++)
-  {
-    enum_field_types cur= items[i]->field_type();
-    if (treat_bit_as_number &&
-        ((res == MYSQL_TYPE_BIT) ^ (cur == MYSQL_TYPE_BIT)))
-    {
-      if (res == MYSQL_TYPE_BIT)
-        res= MYSQL_TYPE_LONGLONG; // BIT + non-BIT
-      else
-        cur= MYSQL_TYPE_LONGLONG; // non-BIT + BIT
-    }
-    res= Field::field_type_merge(res, cur);
-    unsigned_count+= items[i]->unsigned_flag;
-  }
-  switch (res) {
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_LONGLONG:
-  case MYSQL_TYPE_INT24:
-  case MYSQL_TYPE_YEAR:
-  case MYSQL_TYPE_BIT:
-    if (unsigned_count != 0 && unsigned_count != nitems)
-    {
-      /*
-        If all arguments are of INT-alike type but have different
-        unsigned_flag, then convert to DECIMAL.
-      */
-      return MYSQL_TYPE_NEWDECIMAL;
-    }
-  default:
-    break;
-  }
-  return res;
-}
-
 /*
   Collects different types for comparison of first item with each other items
 
@@ -3105,8 +3024,9 @@ void Item_func_case::fix_length_and_dec()
   
   if (else_expr_num != -1)
     agg[nagg++]= args[else_expr_num];
-  
-  set_handler_by_field_type(agg_field_type(agg, nagg, true));
+
+  if (aggregate_for_result(func_name(), agg, nagg, true))
+    return;
 
   if (fix_attributes(agg, nagg))
     return;

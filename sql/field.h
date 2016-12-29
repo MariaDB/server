@@ -853,7 +853,6 @@ public:
   virtual Item_result cmp_type () const { return result_type(); }
   static bool type_can_have_key_part(enum_field_types);
   static enum_field_types field_type_merge(enum_field_types, enum_field_types);
-  static Item_result result_merge_type(enum_field_types);
   virtual bool eq(Field *field)
   {
     return (ptr == field->ptr && null_ptr == field->null_ptr &&

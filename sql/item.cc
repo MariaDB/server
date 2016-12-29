@@ -9900,23 +9900,8 @@ Item_type_holder::Item_type_holder(THD *thd, Item *item)
 {
   DBUG_ASSERT(item->fixed);
   maybe_null= item->maybe_null;
-  collation.set(item->collation);
   get_full_info(item);
-  /**
-    Field::result_merge_type(real_field_type()) should be equal to
-    result_type(), with one exception when "this" is a Item_field for
-    a BIT field:
-    - Field_bit::result_type() returns INT_RESULT, so does its Item_field.
-    - Field::result_merge_type(MYSQL_TYPE_BIT) returns STRING_RESULT.
-    Perhaps we need a new method in Type_handler to cover these type
-    merging rules for UNION.
-  */
-  DBUG_ASSERT(real_field_type() == MYSQL_TYPE_BIT ||
-              Item_type_holder::result_type()  ==
-              Field::result_merge_type(Item_type_holder::real_field_type()));
-  /* fix variable decimals which always is NOT_FIXED_DEC */
-  if (Field::result_merge_type(real_field_type()) == INT_RESULT)
-    decimals= 0;
+  DBUG_ASSERT(!decimals || Item_type_holder::result_type() != INT_RESULT);
   prev_decimal_int_part= item->decimal_int_part();
 #ifdef HAVE_SPATIAL
   if (item->field_type() == MYSQL_TYPE_GEOMETRY)
@@ -10030,21 +10015,37 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
   DBUG_PRINT("info:", ("in type %d len %d, dec %d",
                        get_real_type(item),
                        item->max_length, item->decimals));
-  set_handler_by_real_type(Field::field_type_merge(real_field_type(),
-                                                   get_real_type(item)));
+  const Type_handler *item_type_handler=
+    Type_handler::get_handler_by_real_type(get_real_type(item));
+  if (aggregate_for_result(item_type_handler))
   {
-    uint item_decimals= item->decimals;
-    /* fix variable decimals which always is NOT_FIXED_DEC */
-    if (Field::result_merge_type(real_field_type()) == INT_RESULT)
-      item_decimals= 0;
-    decimals= MY_MAX(decimals, item_decimals);
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
+             Item_type_holder::type_handler()->name().ptr(),
+             item_type_handler->name().ptr(),
+             "UNION");
+    DBUG_RETURN(true);
   }
+
+  /*
+    At this point non-zero decimals in combination with integer data types
+    is possible in some cases:
+      SELECT * FROM (SELECT NULL) a UNION SELECT 1;
+    In the constructor Item_type_holder::Item_type_holder() the data type
+    handler was set to type_handler_null with decimals==NOT_FIXED_DEC.
+    After the above call for aggregate_for_result() for the literal 1
+    which is on the right side of the UNION, the data type handler
+    changes to type_handler_longlong, while decimals is still NOT_FIXED_DEC.
+  */
+  if (Item_type_holder::result_type() == INT_RESULT)
+    decimals= 0;
+  else
+    decimals= MY_MAX(decimals, item->decimals);
 
   if (Item_type_holder::field_type() == FIELD_TYPE_GEOMETRY)
     geometry_type=
       Field_geom::geometry_type_merge(geometry_type, item->get_geometry_type());
 
-  if (Field::result_merge_type(real_field_type()) == DECIMAL_RESULT)
+  if (Item_type_holder::result_type() == DECIMAL_RESULT)
   {
     decimals= MY_MIN(MY_MAX(decimals, item->decimals), DECIMAL_MAX_SCALE);
     int item_int_part= item->decimal_int_part();
@@ -10056,7 +10057,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
                                                              unsigned_flag);
   }
 
-  switch (Field::result_merge_type(real_field_type()))
+  switch (Item_type_holder::result_type())
   {
   case STRING_RESULT:
   {
