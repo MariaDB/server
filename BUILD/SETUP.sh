@@ -120,10 +120,9 @@ path=`dirname $0`
 get_make_parallel_flag
 
 # SSL library to use.--with-ssl will select our bundled yaSSL
-# implementation of SSL. To use OpenSSL you will need to specify
-# the location of OpenSSL headers and libs on your system.
-# Ex --with-ssl=/usr
-SSL_LIBRARY=--with-ssl
+# implementation of SSL. --with-ssl=yes will first try system library
+# then the boundled one  --with-ssl=system will use the system library.
+SSL_LIBRARY=--with-ssl=system
 
 if [ "x$warning_mode" = "xpedantic" ]; then
   warnings="-W -Wall -ansi -pedantic -Wno-long-long -Wno-unused -D_POSIX_SOURCE"
