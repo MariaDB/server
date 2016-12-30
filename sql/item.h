@@ -96,13 +96,6 @@ enum precedence {
 
 typedef Bounds_checked_array<Item*> Ref_ptr_array;
 
-static inline uint32
-char_to_byte_length_safe(uint32 char_length_arg, uint32 mbmaxlen_arg)
-{
-   ulonglong tmp= ((ulonglong) char_length_arg) * mbmaxlen_arg;
-   return (tmp > UINT_MAX32) ? (uint32) UINT_MAX32 : (uint32) tmp;
-}
-
 bool mark_unsupported_function(const char *where, void *store, uint result);
 
 /* convenience helper for mark_unsupported_function() above */
@@ -1362,14 +1355,9 @@ public:
 
   static CHARSET_INFO *default_charset();
 
-  /*
-    For backward compatibility, to make numeric
-    data types return "binary" charset in client-side metadata.
-  */
-  virtual CHARSET_INFO *charset_for_protocol(void) const
+  CHARSET_INFO *charset_for_protocol(void) const
   {
-    return cmp_type() == STRING_RESULT ? collation.collation :
-                                         &my_charset_bin;
+    return type_handler()->charset_for_protocol(this);
   };
 
   virtual bool walk(Item_processor processor, bool walk_subquery, void *arg)
@@ -1687,20 +1675,8 @@ public:
     { return Field::GEOM_GEOMETRY; };
   String *check_well_formed_result(String *str, bool send_error= 0);
   bool eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs); 
-  uint32 max_char_length() const
-  { return max_length / collation.collation->mbmaxlen; }
   bool too_big_for_varchar() const
   { return max_char_length() > CONVERT_IF_BIGGER_TO_BLOB; }
-  void fix_length_and_charset(uint32 max_char_length_arg, CHARSET_INFO *cs)
-  {
-    max_length= char_to_byte_length_safe(max_char_length_arg, cs->mbmaxlen);
-    collation.collation= cs;
-  }
-  void fix_char_length(uint32 max_char_length_arg)
-  {
-    max_length= char_to_byte_length_safe(max_char_length_arg,
-                                         collation.collation->mbmaxlen);
-  }
   /*
     Return TRUE if the item points to a column of an outer-joined table.
   */
@@ -2319,7 +2295,9 @@ public:
   Item_ident_for_show(THD *thd, Field *par_field, const char *db_arg,
                       const char *table_name_arg):
     Item(thd), field(par_field), db_name(db_arg), table_name(table_name_arg)
-  {}
+  {
+    Type_std_attributes::set(par_field);
+  }
 
   enum Type type() const { return FIELD_ITEM; }
   double val_real() { return field->val_real(); }
@@ -2327,9 +2305,7 @@ public:
   String *val_str(String *str) { return field->val_str(str); }
   my_decimal *val_decimal(my_decimal *dec) { return field->val_decimal(dec); }
   void make_field(THD *thd, Send_field *tmp_field);
-  CHARSET_INFO *charset_for_protocol(void) const
-  { return field->charset_for_protocol(); }
-  enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
+  enum_field_types field_type() const { return field->type(); }
   Item* get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_ident_for_show>(thd, mem_root, this); }
 };
@@ -2507,8 +2483,6 @@ public:
     DBUG_ASSERT(field_type() == MYSQL_TYPE_GEOMETRY);
     return field->get_geometry_type();
   }
-  CHARSET_INFO *charset_for_protocol(void) const
-  { return field->charset_for_protocol(); }
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;

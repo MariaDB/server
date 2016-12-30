@@ -2587,8 +2587,6 @@ public:
 Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
                      LEX_STRING component);
 extern bool check_reserved_words(LEX_STRING *name);
-extern enum_field_types agg_field_type(Item **items, uint nitems,
-                                       bool treat_bit_as_number);
 Item *find_date_time_item(Item **args, uint nargs, uint col);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);

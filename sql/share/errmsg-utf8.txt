@@ -7438,3 +7438,5 @@ ER_JSON_PATH_ARRAY
         eng "JSON path should end with an array identifier in argument %d to function '%s'"
 ER_JSON_ONE_OR_ALL
         eng "Argument 2 to function '%s' must be "one" or "all"."
+ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+        eng "Illegal parameter data types %s and %s for operation '%s'"

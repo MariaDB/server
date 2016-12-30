@@ -977,8 +977,8 @@ public:
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
   void fix_length_and_dec()
   {
-    set_handler_by_field_type(agg_field_type(args, arg_count, true));
-    fix_attributes(args, arg_count);
+    if (!aggregate_for_result(func_name(), args, arg_count, true))
+      fix_attributes(args, arg_count);
   }
   const char *func_name() const { return "coalesce"; }
   table_map not_null_tables() const { return 0; }
@@ -997,8 +997,8 @@ class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
 protected:
   void fix_length_and_dec2(Item **items)
   {
-    set_handler_by_field_type(agg_field_type(items, 2, true));
-    fix_attributes(items, 2);
+    if (!aggregate_for_result(func_name(), items, 2, true))
+      fix_attributes(items, 2);
   }
   uint decimal_precision2(Item **args) const;
 public:
@@ -1796,9 +1796,11 @@ public:
     {
       DBUG_EXECUTE_IF("Predicant_to_list_comparator",
                       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                      ER_UNKNOWN_ERROR, "DBUG: [%d] arg=%d handler=%d", i,
+                      ER_UNKNOWN_ERROR, "DBUG: [%d] arg=%d handler=%d (%s)", i,
                       m_comparators[i].m_arg_index,
-                      m_comparators[i].m_handler_index););
+                      m_comparators[i].m_handler_index,
+                      m_comparators[m_comparators[i].m_handler_index].
+                                    m_handler->name().ptr()););
     }
   }
 #endif

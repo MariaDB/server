@@ -8398,6 +8398,76 @@ static void test_list_fields()
 }
 
 
+static void test_list_fields_default()
+{
+  int rc, i;
+  myheader("test_list_fields_default");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql,
+                  "CREATE TABLE t1 ("
+                  " i1 INT NOT NULL DEFAULT 0,"
+                  " i3 BIGINT UNSIGNED NOT NULL DEFAULT 0xFFFFFFFFFFFFFFFF,"
+                  " s1 VARCHAR(10) CHARACTER SET latin1 NOT NULL DEFAULT 's1def',"
+                  " d1 DECIMAL(31,1) NOT NULL DEFAULT 111111111122222222223333333333.9,"
+                  " t1 DATETIME(6) NOT NULL DEFAULT '2001-01-01 10:20:30.123456',"
+                  " e1 ENUM('a','b') NOT NULL DEFAULT 'a'"
+                  ")");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP VIEW IF EXISTS v1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE VIEW v1 AS SELECT * FROM t1");
+  myquery(rc);
+
+  /*
+    Checking that mysql_list_fields() returns the same result
+    for a TABLE and a VIEW on the same table.
+  */
+  for (i= 0; i < 2; i++)
+  {
+    const char *table_name= i == 0 ? "t1" : "v1";
+    MYSQL_RES *result= mysql_list_fields(mysql, table_name, NULL);
+    mytest(result);
+
+    rc= my_process_result_set(result);
+    DIE_UNLESS(rc == 0);
+
+    verify_prepare_field(result, 0, "i1", "i1", MYSQL_TYPE_LONG,
+                         table_name, table_name, current_db,
+                         11, "0");
+
+    verify_prepare_field(result, 1, "i3", "i3", MYSQL_TYPE_LONGLONG,
+                         table_name, table_name, current_db,
+                         20, "18446744073709551615");
+
+    verify_prepare_field(result, 2, "s1", "s1", MYSQL_TYPE_VAR_STRING,
+                         table_name, table_name, current_db,
+                         10, "s1def");
+
+    verify_prepare_field(result, 3, "d1", "d1", MYSQL_TYPE_NEWDECIMAL,
+                         table_name, table_name, current_db,
+                         33, "111111111122222222223333333333.9");
+
+    verify_prepare_field(result, 4, "t1", "t1", MYSQL_TYPE_DATETIME,
+                         table_name, table_name, current_db,
+                         26, "2001-01-01 10:20:30.123456");
+
+    verify_prepare_field(result, 5, "e1", "e1", MYSQL_TYPE_STRING,
+                         table_name, table_name, current_db,
+                         1, "a");
+
+    mysql_free_result(result);
+  }
+
+  myquery(mysql_query(mysql, "DROP VIEW v1"));
+  myquery(mysql_query(mysql, "DROP TABLE t1"));
+}
+
+
 static void test_bug19671()
 {
   MYSQL_RES *result;
@@ -19558,6 +19628,7 @@ static struct my_tests_st my_tests[]= {
   { "test_fetch_column", test_fetch_column },
   { "test_mem_overun", test_mem_overun },
   { "test_list_fields", test_list_fields },
+  { "test_list_fields_default", test_list_fields_default },
   { "test_free_result", test_free_result },
   { "test_free_store_result", test_free_store_result },
   { "test_sqlmode", test_sqlmode },
