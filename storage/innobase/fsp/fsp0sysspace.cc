@@ -364,7 +364,8 @@ SysTablespace::check_size(
 	also the data file could contain an incomplete extent.
 	So we need to round the size downward to a  megabyte.*/
 
-	ulint	rounded_size_pages = get_pages_from_size(size);
+	const ulint	rounded_size_pages = static_cast<ulint>(
+		size >> UNIV_PAGE_SIZE_SHIFT);
 
 	/* If last file */
 	if (&file == &m_files.back() && m_auto_extend_last_file) {
@@ -375,7 +376,7 @@ SysTablespace::check_size(
 			ib::error() << "The Auto-extending " << name()
 				<< " data file '" << file.filepath() << "' is"
 				" of a different size " << rounded_size_pages
-				<< " pages (rounded down to MB) than specified"
+				<< " pages than specified"
 				" in the .cnf file: initial " << file.m_size
 				<< " pages, max " << m_last_file_size_max
 				<< " (relevant if non-zero) pages!";
@@ -388,7 +389,7 @@ SysTablespace::check_size(
 	if (rounded_size_pages != file.m_size) {
 		ib::error() << "The " << name() << " data file '"
 			<< file.filepath() << "' is of a different size "
-			<< rounded_size_pages << " pages (rounded down to MB)"
+			<< rounded_size_pages << " pages"
 			" than the " << file.m_size << " pages specified in"
 			" the .cnf file!";
 		return(DB_ERROR);
@@ -779,7 +780,8 @@ SysTablespace::check_file_spec(
 		return(DB_ERROR);
 	}
 
-	if (get_sum_of_sizes() < min_expected_size / UNIV_PAGE_SIZE) {
+	if (!m_auto_extend_last_file
+	    && get_sum_of_sizes() < min_expected_size / UNIV_PAGE_SIZE) {
 
 		ib::error() << "Tablespace size must be at least "
 			<< min_expected_size / (1024 * 1024) << " MB";

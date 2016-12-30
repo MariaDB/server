@@ -3109,12 +3109,21 @@ recv_parse_log_rec(
 		return(0);
 	}
 
+	const byte*	old_ptr = new_ptr;
 	new_ptr = recv_parse_or_apply_log_rec_body(
 		*type, new_ptr, end_ptr, *space, *page_no, apply, NULL, NULL);
 
 	if (UNIV_UNLIKELY(new_ptr == NULL)) {
 
 		return(0);
+	}
+
+	if (*page_no == 0 && *type == MLOG_4BYTES
+	    && mach_read_from_2(old_ptr) == FSP_HEADER_OFFSET + FSP_SIZE) {
+		old_ptr += 2;
+		fil_space_set_recv_size(*space,
+					mach_parse_compressed(&old_ptr,
+							      end_ptr));
 	}
 
 	return(new_ptr - ptr);

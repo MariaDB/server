@@ -140,6 +140,10 @@ bool	srv_sys_tablespaces_open = false;
 ibool	srv_was_started = FALSE;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
 static ibool	srv_start_has_been_called = FALSE;
+#ifdef UNIV_DEBUG
+/** InnoDB system tablespace to set during recovery */
+UNIV_INTERN ulong	srv_sys_space_size_debug;
+#endif /* UNIV_DEBUG */
 
 /** Bit flags for tracking background thread creation. They are used to
 determine which threads need to be stopped if we need to abort during
@@ -194,9 +198,6 @@ static const ulint MIN_EXPECTED_TABLESPACE_SIZE = 5 * 1024 * 1024;
 /** */
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
-/** The round off to MB is similar as done in srv_parse_megabytes() */
-#define CALC_NUMBER_OF_PAGES(size)  ((size) / (1024 * 1024)) * \
-				  ((1024 * 1024) / (UNIV_PAGE_SIZE))
 #ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 mysql_pfs_key_t	buf_dump_thread_key;
@@ -2092,6 +2093,7 @@ files_checked:
 	shutdown */
 
 	fil_open_log_and_system_tablespace_files();
+	ut_d(fil_space_get(0)->recv_size = srv_sys_space_size_debug);
 
 	err = srv_undo_tablespaces_init(
 		create_new_db,

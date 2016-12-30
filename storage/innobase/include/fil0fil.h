@@ -182,6 +182,10 @@ struct fil_space_t {
 				/*!< length of the FSP_FREE list */
 	ulint		free_limit;
 				/*!< contents of FSP_FREE_LIMIT */
+	ulint		recv_size;
+				/*!< recovered tablespace size in pages;
+				0 if no size change was read from the redo log,
+				or if the size change was implemented */
 	ulint		flags;	/*!< tablespace flags; see
 				fsp_flags_is_valid(),
 				page_size_t(ulint) (constructor) */
@@ -237,9 +241,6 @@ struct fil_space_t {
 
 	/** tablespace crypt data has been read */
 	bool		page_0_crypt_read;
-
-	/** Space file block size */
-	ulint		file_block_size;
 
 	/** True if we have already printed compression failure */
 	bool		printed_compression_failure;
@@ -789,6 +790,12 @@ char*
 fil_space_get_first_path(
 	ulint		id);
 
+/** Set the recovered size of a tablespace in pages.
+@param id	tablespace ID
+@param size	recovered size in pages */
+UNIV_INTERN
+void
+fil_space_set_recv_size(ulint id, ulint size);
 /*******************************************************************//**
 Returns the size of the space in pages. The tablespace must be cached in the
 memory cache.
@@ -1258,15 +1265,6 @@ fil_space_for_table_exists_in_mem(
 	mem_heap_t*	heap,		/*!< in: heap memory */
 	table_id_t	table_id,	/*!< in: table id */
 	dict_table_t*	table);		/*!< in: table or NULL */
-#else /* !UNIV_HOTBACKUP */
-/********************************************************************//**
-Extends all tablespaces to the size stored in the space header. During the
-mysqlbackup --apply-log phase we extended the spaces on-demand so that log
-records could be appllied, but that may have left spaces still too small
-compared to the size stored in the space header. */
-void
-fil_extend_tablespaces_to_stored_len(void);
-/*======================================*/
 #endif /* !UNIV_HOTBACKUP */
 /** Try to extend a tablespace if it is smaller than the specified size.
 @param[in,out]	space	tablespace
