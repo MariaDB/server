@@ -2221,21 +2221,8 @@ files_checked:
 		if (err == DB_SUCCESS) {
 			/* Initialize the change buffer. */
 			err = dict_boot();
-		}
-
-		if (err != DB_SUCCESS) {
-
-			/* A tablespace was not found during recovery. The
-			user must force recovery. */
-
-			if (err == DB_TABLESPACE_NOT_FOUND) {
-
-				srv_fatal_error();
-
-				ut_error;
-			}
-
-			return(srv_init_abort(DB_ERROR));
+		} else {
+			return(srv_init_abort(err));
 		}
 
 		purge_queue = trx_sys_init_at_db_start();

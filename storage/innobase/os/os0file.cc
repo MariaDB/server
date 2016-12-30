@@ -5910,22 +5910,18 @@ os_file_get_last_error(
 	return(os_file_get_last_error_low(report_all_errors, false));
 }
 
-/** Does error handling when a file operation fails.
-Conditionally exits (calling srv_fatal_error()) based on should_exit value
-and the error type, if should_exit is true then on_error_silent is ignored.
+/** Handle errors for file operations.
 @param[in]	name		name of a file or NULL
 @param[in]	operation	operation
-@param[in]	should_exit	call srv_fatal_error() on an unknown error,
-				if this parameter is true
-@param[in]	on_error_silent	if true then don't print any message to the log
-				iff it is an unknown non-fatal error
+@param[in]	should_abort	whether to abort on an unknown error
+@param[in]	on_error_silent	whether to suppress reports of non-fatal errors
 @return true if we should retry the operation */
 static MY_ATTRIBUTE((warn_unused_result))
 bool
 os_file_handle_error_cond_exit(
 	const char*	name,
 	const char*	operation,
-	bool		should_exit,
+	bool		should_abort,
 	bool		on_error_silent)
 {
 	ulint	err;
@@ -5986,17 +5982,17 @@ os_file_handle_error_cond_exit(
 		is better to ignore on_error_silent and print an error message
 		to the log. */
 
-		if (should_exit || !on_error_silent) {
+		if (should_abort || !on_error_silent) {
 			ib::error() << "File "
 				<< (name != NULL ? name : "(unknown)")
 				<< ": '" << operation << "'"
 				" returned OS error " << err << "."
-				<< (should_exit
+				<< (should_abort
 				    ? " Cannot continue operation" : "");
 		}
 
-		if (should_exit) {
-			srv_fatal_error();
+		if (should_abort) {
+			abort();
 		}
 	}
 

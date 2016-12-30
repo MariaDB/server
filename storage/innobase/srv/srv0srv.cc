@@ -3230,19 +3230,3 @@ srv_was_tablespace_truncated(const fil_space_t* space)
 
 	return(truncate_t::was_tablespace_truncated(space->id));
 }
-
-/** Call exit(3) */
-void
-srv_fatal_error()
-{
-
-	ib::error() << "Cannot continue operation.";
-
-	fflush(stderr);
-
-	ut_d(innodb_calling_exit = true);
-
-	srv_shutdown_all_bg_threads();
-
-	exit(3);
-}

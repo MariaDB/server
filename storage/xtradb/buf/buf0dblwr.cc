@@ -224,12 +224,10 @@ start_again:
 		+ FSP_EXTENT_SIZE / 2 + 100)
 	       * UNIV_PAGE_SIZE)) {
 
-		ib_logf(IB_LOG_LEVEL_ERROR,
+		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Cannot create doublewrite buffer: you must "
 			"increase your buffer pool size. Cannot continue "
 			"operation.");
-
-		exit(EXIT_FAILURE);
 	}
 
 	block2 = fseg_create(TRX_SYS_SPACE, TRX_SYS_PAGE_NO,
@@ -242,15 +240,10 @@ start_again:
 	buf_block_dbg_add_level(block2, SYNC_NO_ORDER_CHECK);
 
 	if (block2 == NULL) {
-		ib_logf(IB_LOG_LEVEL_ERROR,
+		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Cannot create doublewrite buffer: you must "
 			"increase your tablespace size. "
 			"Cannot continue operation.");
-
-		/* We exit without committing the mtr to prevent
-		its modifications to the database getting to disk */
-
-		exit(EXIT_FAILURE);
 	}
 
 	fseg_header = doublewrite + TRX_SYS_DOUBLEWRITE_FSEG;
@@ -261,12 +254,10 @@ start_again:
 		new_block = fseg_alloc_free_page(
 			fseg_header, prev_page_no + 1, FSP_UP, &mtr);
 		if (new_block == NULL) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
+			ib_logf(IB_LOG_LEVEL_FATAL,
 				"Cannot create doublewrite buffer: you must "
 				"increase your tablespace size. "
 				"Cannot continue operation.");
-
-			exit(EXIT_FAILURE);
 		}
 
 		/* We read the allocated pages to the buffer pool;

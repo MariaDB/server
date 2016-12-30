@@ -192,11 +192,7 @@ os_thread_create_func(
 #else
 	ret = pthread_create(&pthread, &attr, func, arg);
 #endif
-	if (ret) {
-		fprintf(stderr,
-			"InnoDB: Error: pthread_create returned %d\n", ret);
-		exit(1);
-	}
+	ut_a(ret == 0);
 
 #ifndef UNIV_HPUX10
 	pthread_attr_destroy(&attr);

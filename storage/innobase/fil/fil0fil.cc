@@ -6330,11 +6330,13 @@ fil_iterate(
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 
-		byte*	io_buffer = iter.io_buffer;
+		byte*		io_buffer = iter.io_buffer;
+		const bool	row_compressed
+			= callback.get_page_size().is_compressed();
 
 		block->frame = io_buffer;
 
-		if (callback.get_page_size().is_compressed()) {
+		if (row_compressed) {
 			page_zip_des_init(&block->page.zip);
 			page_zip_set_size(&block->page.zip, iter.page_size);
 
@@ -6406,9 +6408,11 @@ fil_iterate(
 		bool		decrypted = false;
 
 		for (ulint i = 0; i < n_pages_read; ++i) {
-			ulint	size = iter.page_size;
-			byte*	src = (readptr + (i * size));
-			byte*	dst = (io_buffer + (i * size));
+			ulint 	size	= iter.page_size;
+			dberr_t	err	= DB_SUCCESS;
+			byte*	src	= readptr + (i * size);
+			byte*	dst	= io_buffer + (i * size);
+			bool	frame_changed = false;
 
 			ulint page_type = mach_read_from_2(src+FIL_PAGE_TYPE);
 
@@ -6432,9 +6436,12 @@ fil_iterate(
 
 				if (decrypted) {
 					updated = true;
+				} else if (!page_compressed
+					   && !row_compressed) {
+					block->frame = src;
+					frame_changed = true;
 				} else {
-					/* TODO: remove unnecessary memcpy's */
-					memcpy(dst, src, iter.page_size);
+					memcpy(dst, src, size);
 				}
 			}
 
@@ -6460,7 +6467,45 @@ fil_iterate(
 			buf_block_set_state(block, BUF_BLOCK_NOT_USED);
 			buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
 
-			src =  (io_buffer + (i * size));
+			/* If tablespace is encrypted we use additional
+			temporary scratch area where pages are read
+			for decrypting readptr == crypt_io_buffer != io_buffer.
+
+			Destination for decryption is a buffer pool block
+			block->frame == dst == io_buffer that is updated.
+			Pages that did not require decryption even when
+			tablespace is marked as encrypted are not copied
+			instead block->frame is set to src == readptr.
+
+			For encryption we again use temporary scratch area
+			writeptr != io_buffer == dst
+			that is then written to the tablespace
+
+			(1) For normal tables io_buffer == dst == writeptr
+			(2) For only page compressed tables
+			io_buffer == dst == writeptr
+			(3) For encrypted (and page compressed)
+			readptr != io_buffer == dst != writeptr
+			*/
+
+			ut_ad(!encrypted && !page_compressed ?
+			      src == dst && dst == writeptr + (i * size):1);
+			ut_ad(page_compressed && !encrypted ?
+			      src == dst && dst == writeptr + (i * size):1);
+			ut_ad(encrypted ?
+			      src != dst && dst != writeptr + (i * size):1);
+
+			if (encrypted) {
+				memcpy(writeptr + (i * size),
+					row_compressed ? block->page.zip.data :
+					block->frame, size);
+			}
+
+			if (frame_changed) {
+				block->frame = dst;
+			}
+
+			src =  io_buffer + (i * size);
 
 			if (page_compressed) {
 				ulint len = 0;
@@ -6481,7 +6526,7 @@ fil_iterate(
 			write it back. Note that we should not encrypt the
 			buffer that is in buffer pool. */
 			if (decrypted && encrypted) {
-				unsigned char *dest = (writeptr + (i * size));
+				byte *dest = writeptr + (i * size);
 				ulint space = mach_read_from_4(
 					src + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 				ulint offset = mach_read_from_4(src + FIL_PAGE_OFFSET);
@@ -6706,16 +6751,22 @@ fil_tablespace_iterate(
 			iter.io_buffer = static_cast<byte*>(
 				ut_align(io_buffer, UNIV_PAGE_SIZE));
 
-			iter.crypt_io_buffer = iter.crypt_data
-				? static_cast<byte*>(
-					ut_malloc_nokey(iter.n_io_buffers
-							* UNIV_PAGE_SIZE))
-				: NULL;
+			void*	crypt_io_buffer;
+			if (iter.crypt_data) {
+				crypt_io_buffer = static_cast<byte*>(
+					ut_malloc_nokey((2 + iter.n_io_buffers)
+							* UNIV_PAGE_SIZE));
+				iter.crypt_io_buffer = static_cast<byte*>(
+					ut_align(crypt_io_buffer,
+						 UNIV_PAGE_SIZE));
+			} else {
+				crypt_io_buffer = NULL;
+			}
 
 			err = fil_iterate(iter, block, callback);
 
 			ut_free(io_buffer);
-			ut_free(iter.crypt_io_buffer);
+			ut_free(crypt_io_buffer);
 
 			fil_space_destroy_crypt_data(&iter.crypt_data);
 		}

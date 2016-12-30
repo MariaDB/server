@@ -8041,6 +8041,16 @@ end |
 ERROR 0A000: Not allowed to return a result set from a function
 drop table t1,t2;
 #
+# MDEV-11584: GRANT inside an SP does not work well on 2nd execution
+#
+CREATE PROCEDURE sp1()
+GRANT ALL PRIVILEGES ON *.* TO 'foo'@'%' IDENTIFIED BY 'pass';
+CALL sp1();
+CALL sp1();
+drop user 'foo'@'%';
+drop procedure sp1;
+#End of 10.1 tests
+#
 # MDEV-11081: CURSOR for query with GROUP BY
 #
 CREATE TABLE t1 (name VARCHAR(10), value INT);
@@ -8079,12 +8089,3 @@ v_name	v_total
 c	1
 DROP PROCEDURE p1;
 DROP TABLE t1;
-#
-# MDEV-11584: GRANT inside an SP does not work well on 2nd execution
-#
-CREATE PROCEDURE sp1()
-GRANT ALL PRIVILEGES ON *.* TO 'foo'@'%' IDENTIFIED BY 'pass';
-CALL sp1();
-CALL sp1();
-drop user 'foo'@'%';
-drop procedure sp1;

@@ -630,7 +630,7 @@ create_log_file(
 		fprintf(stderr, "innodb_force_recovery_crash=%lu\n",	\
 			srv_force_recovery_crash);			\
 		fflush(stderr);						\
-		exit(3);						\
+		abort();						\
 	}								\
 } while (0)
 #endif
@@ -2948,16 +2948,7 @@ files_checked:
 	/* Check that os_fast_mutexes work as expected */
 	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &srv_os_test_mutex);
 
-	if (0 != os_fast_mutex_trylock(&srv_os_test_mutex)) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Error: pthread_mutex_trylock returns"
-			" an unexpected value on\n");
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: success! Cannot continue.\n");
-		exit(1);
-	}
+	ut_a(0 == os_fast_mutex_trylock(&srv_os_test_mutex));
 
 	os_fast_mutex_unlock(&srv_os_test_mutex);
 

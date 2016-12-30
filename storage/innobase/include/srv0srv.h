@@ -955,10 +955,6 @@ void
 srv_purge_wakeup(void);
 /*==================*/
 
-/** Call exit(3) */
-void
-srv_fatal_error();
-
 /** Check if tablespace is being truncated.
 (Ignore system-tablespace as we don't re-create the tablespace
 and so some of the action that are suppressed by this function
