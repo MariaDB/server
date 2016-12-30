@@ -681,17 +681,12 @@ srv_undo_tablespace_open(
 		os_offset_t	size;
 		fil_space_t*	space;
 
-		bool	atomic_write;
-
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
-		if (!srv_use_doublewrite_buf) {
-			atomic_write = fil_fusionio_enable_atomic_write(fh);
-		} else {
-			atomic_write = false;
-		}
+#ifdef UNIV_LINUX
+		const bool atomic_write = !srv_use_doublewrite_buf
+			&& fil_fusionio_enable_atomic_write(fh);
 #else
-		atomic_write = false;
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
+		const bool atomic_write = false;
+#endif
 
 		size = os_file_get_size(fh);
 		ut_a(size != (os_offset_t) -1);

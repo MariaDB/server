@@ -1799,14 +1799,14 @@ fil_names_clear(
 	lsn_t	lsn,
 	bool	do_write);
 
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
+#ifdef UNIV_LINUX
 /**
 Try and enable FusionIO atomic writes.
 @param[in] file		OS file handle
 @return true if successful */
 bool
 fil_fusionio_enable_atomic_write(os_file_t file);
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
+#endif /* UNIV_LINUX */
 
 /** Note that the file system where the file resides doesn't support PUNCH HOLE
 @param[in,out]	node		Node to set */

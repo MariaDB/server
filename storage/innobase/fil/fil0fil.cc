@@ -484,7 +484,7 @@ fil_space_is_flushed(
 	return(true);
 }
 
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
+#ifdef UNIV_LINUX
 
 #include <sys/ioctl.h>
 /** FusionIO atomic write control info */
@@ -511,7 +511,7 @@ fil_fusionio_enable_atomic_write(os_file_t file)
 
 	return(false);
 }
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
+#endif /* UNIV_LINUX */
 
 /** Append a file to the chain of files of a space.
 @param[in]	name		file name of a file that is not open
@@ -3520,11 +3520,10 @@ fil_ibd_create(
 		return(DB_ERROR);
 	}
 
-	bool	atomic_write;
+#ifdef UNIV_LINUX
+	const bool	atomic_write = fil_fusionio_enable_atomic_write(file);
 
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
-	if (fil_fusionio_enable_atomic_write(file)) {
-
+	if (atomic_write) {
 		/* This is required by FusionIO HW/Firmware */
 		int	ret = posix_fallocate(file, 0, size * UNIV_PAGE_SIZE);
 
@@ -3547,21 +3546,14 @@ fil_ibd_create(
 		} else {
 			success = true;
 		}
-
-		atomic_write = true;
-	} else {
-		atomic_write = false;
-
+	} else
+#else
+	const bool atomic_write = false;
+#endif /* UNIV_LINUX */
+	{
 		success = os_file_set_size(
 			path, file, size * UNIV_PAGE_SIZE, srv_read_only_mode);
 	}
-#else
-	atomic_write = false;
-
-	success = os_file_set_size(
-		path, file, size * UNIV_PAGE_SIZE, srv_read_only_mode);
-
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
 
 	if (!success) {
 		os_file_close(file);
@@ -3913,18 +3905,13 @@ fil_ibd_open(
 		df_dict.close();
 	}
 
-	bool	atomic_write;
-
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
-	if (!srv_use_doublewrite_buf && df_default.is_open()) {
-		atomic_write = fil_fusionio_enable_atomic_write(
-			df_default.handle());
-	} else {
-		atomic_write = false;
-	}
+#ifdef UNIV_LINUX
+	const bool	atomic_write = !srv_use_doublewrite_buf
+		&& df_default.is_open()
+		&& fil_fusionio_enable_atomic_write(df_default.handle());
 #else
-	atomic_write = false;
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
+	const bool	atomic_write = false;
+#endif /* UNIV_LINUX */
 
 	/*  We have now checked all possible tablespace locations and
 	have a count of how many unique files we found.  If things are
@@ -5052,7 +5039,7 @@ retry:
 		ut_ad(len > 0);
 		const char* name = node->name == NULL ? space->name : node->name;
 
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
+#ifdef UNIV_LINUX
 		/* This is required by FusionIO HW/Firmware */
 		int	ret = posix_fallocate(node->handle, node_start, len);
 
@@ -5077,7 +5064,7 @@ retry:
 
 			err = DB_IO_ERROR;
 		}
-#endif /* NO_FALLOCATE || !UNIV_LINUX */
+#endif
 
 		if (!node->atomic_write || err == DB_IO_ERROR) {
 
