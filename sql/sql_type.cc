@@ -1780,3 +1780,143 @@ bool Type_handler_row::Item_func_in_fix_comparator_compatible_types(THD *thd,
 }
 
 /***************************************************************************/
+
+String *Type_handler_string_result::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  return func->val_str_native(str);
+}
+
+
+String *Type_handler_temporal_result::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  return func->val_string_from_date(str);
+}
+
+
+String *Type_handler_int_result::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  return func->val_string_from_int(str);
+}
+
+
+String *Type_handler_decimal_result::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  return func->val_string_from_decimal(str);
+}
+
+
+String *Type_handler_real_result::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  return func->val_string_from_real(str);
+}
+
+
+double Type_handler_string_result::
+         Item_func_min_max_val_real(Item_func_min_max *func) const
+{
+  return func->val_real_native();
+}
+
+
+double Type_handler_temporal_result::
+         Item_func_min_max_val_real(Item_func_min_max *func) const
+{
+  MYSQL_TIME ltime;
+  if (func->get_date(&ltime, 0))
+    return 0;
+  return TIME_to_double(&ltime);
+}
+
+
+double Type_handler_numeric::
+         Item_func_min_max_val_real(Item_func_min_max *func) const
+{
+  return func->val_real_native();
+}
+
+
+longlong Type_handler_string_result::
+         Item_func_min_max_val_int(Item_func_min_max *func) const
+{
+  return func->val_int_native();
+}
+
+
+longlong Type_handler_temporal_result::
+         Item_func_min_max_val_int(Item_func_min_max *func) const
+{
+  MYSQL_TIME ltime;
+  if (func->get_date(&ltime, 0))
+    return 0;
+  return TIME_to_ulonglong(&ltime);
+}
+
+
+longlong Type_handler_numeric::
+         Item_func_min_max_val_int(Item_func_min_max *func) const
+{
+  return func->val_int_native();
+}
+
+
+my_decimal *Type_handler_string_result::
+            Item_func_min_max_val_decimal(Item_func_min_max *func,
+                                          my_decimal *dec) const
+{
+  return func->val_decimal_native(dec);
+}
+
+
+my_decimal *Type_handler_numeric::
+            Item_func_min_max_val_decimal(Item_func_min_max *func,
+                                          my_decimal *dec) const
+{
+  return func->val_decimal_native(dec);
+}
+
+
+my_decimal *Type_handler_temporal_result::
+            Item_func_min_max_val_decimal(Item_func_min_max *func,
+                                          my_decimal *dec) const
+{
+  MYSQL_TIME ltime;
+  if (func->get_date(&ltime, 0))
+    return 0;
+  return date2my_decimal(&ltime, dec);
+}
+
+
+bool Type_handler_string_result::
+       Item_func_min_max_get_date(Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, ulonglong fuzzydate) const
+{
+  /*
+    just like ::val_int() method of a string item can be called,
+    for example, SELECT CONCAT("10", "12") + 1,
+    ::get_date() can be called for non-temporal values,
+    for example, SELECT MONTH(GREATEST("2011-11-21", "2010-10-09"))
+  */
+  return func->Item::get_date(ltime, fuzzydate);
+}
+
+
+bool Type_handler_numeric::
+       Item_func_min_max_get_date(Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, ulonglong fuzzydate) const
+{
+  return func->Item::get_date(ltime, fuzzydate);
+}
+
+
+bool Type_handler_temporal_result::
+       Item_func_min_max_get_date(Item_func_min_max *func,
+                                  MYSQL_TIME *ltime, ulonglong fuzzydate) const
+{
+  return func->get_date_native(ltime, fuzzydate);
+}
+

@@ -184,10 +184,6 @@ handle_new_error:
                 trx_rollback_for_mysql(trx);
                 break;
 
-        case DB_MUST_GET_MORE_FILE_SPACE:
-
-                exit(1);
-
         case DB_CORRUPTION:
 	case DB_FOREIGN_EXCEED_MAX_CASCADE:
                 break;

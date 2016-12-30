@@ -457,7 +457,6 @@ protected:
 	int end_stmt();
 
 	dberr_t innobase_get_autoinc(ulonglong* value);
-	void innobase_initialize_autoinc();
 	dberr_t innobase_lock_autoinc();
 	ulonglong innobase_peek_autoinc();
 	dberr_t innobase_set_max_autoinc(ulonglong auto_inc);
@@ -1141,6 +1140,13 @@ innobase_build_v_templ_callback(
 /** Callback function definition, used by MySQL server layer to initialized
 the table virtual columns' template */
 typedef void (*my_gcolumn_templatecallback_t)(const TABLE*, void*);
+
+/** Convert MySQL column number to dict_table_t::cols[] offset.
+@param[in]	field	non-virtual column
+@return	column number relative to dict_table_t::cols[] */
+unsigned
+innodb_col_no(const Field* field)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /********************************************************************//**
 Helper function to push frm mismatch error to error log and

@@ -193,8 +193,9 @@ DWord() {}
                 "a" (a), "rm" (b) : "cc");
 
         #elif defined(__mips64)
-            __asm__("dmultu %2,%3" : "=d" (r.halfs_.high), "=l" (r.halfs_.low)
-                : "r" (a), "r" (b));
+            unsigned __int128 t = (unsigned __int128) a * b;
+            r.halfs_.high = t >> 64;
+            r.halfs_.low = (word) t;
 
         #elif defined(_M_IX86)
             // for testing

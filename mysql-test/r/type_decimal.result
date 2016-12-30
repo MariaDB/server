@@ -1013,6 +1013,9 @@ SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE
 COLUMN_NAME	DATA_TYPE	COLUMN_TYPE
 a	decimal	decimal(10,2)/*old*/
 DROP TABLE t1dec102;
+select cast('-0.0' as decimal(5,1)) < 0;
+cast('-0.0' as decimal(5,1)) < 0
+0
 #
 # End of 5.5 tests
 #

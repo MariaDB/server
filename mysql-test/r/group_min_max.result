@@ -2562,7 +2562,7 @@ a	MIN(b)	MAX(b)	AVG(b)
 DROP TABLE t1;
 create table t1 (a int, b int, key (a,b), key `index` (a,b)) engine=MyISAM;
 Warnings:
-Note	1831	Duplicate index 'index' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `index`. This is deprecated and will be disallowed in a future release
 insert into  t1 (a,b) values 
 (0,0),(0,1),(0,2),(0,3),(0,4),(0,5),(0,6),
 (0,7),(0,8),(0,9),(0,10),(0,11),(0,12),(0,13),

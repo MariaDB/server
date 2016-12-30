@@ -1120,7 +1120,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
        maria_test_if_almost_full(info) ||
        info->s->state.header.file_version[3] != maria_file_magic[3] ||
        (set_collation &&
-        set_collation->number != share->state.header.language)))
+        set_collation->number != share->base.language)))
   {
     if (set_collation)
       param->language= set_collation->number;
@@ -1507,8 +1507,8 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
   printf("Crashsafe:           %s\n",
          share->base.born_transactional ? "yes" : "no");
   printf("Character set:       %s (%d)\n",
-	 get_charset_name(share->state.header.language),
-	 share->state.header.language);
+	 get_charset_name(share->base.language),
+         (int) share->base.language);
 
   if (param->testflag & T_VERBOSE)
   {

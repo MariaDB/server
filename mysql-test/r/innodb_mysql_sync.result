@@ -327,7 +327,7 @@ SET DEBUG_SYNC= 'now SIGNAL continue3';
 connection default;
 # Reaping ALTER TABLE ...
 Warnings:
-Note	1831	Duplicate index 'i2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
 SET DEBUG_SYNC= 'RESET';
 DELETE FROM t1 WHERE a= 3;
 #
@@ -377,7 +377,7 @@ SET DEBUG_SYNC= 'now SIGNAL continue4';
 connection default;
 # Reaping ALTER TABLE ...
 Warnings:
-Note	1831	Duplicate index 'i4' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i4`. This is deprecated and will be disallowed in a future release
 SET DEBUG_SYNC= 'RESET';
 connection default;
 disconnect con1;

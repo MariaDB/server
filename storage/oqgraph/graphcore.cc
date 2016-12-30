@@ -485,7 +485,7 @@ namespace open_query
   optional<Vertex>
   oqgraph_share::find_vertex(VertexID id) const
   {
-    return ::boost::find_vertex(id, g);
+    return oqgraph3::find_vertex(id, g);
   }
 
 #if 0

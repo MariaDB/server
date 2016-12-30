@@ -1544,17 +1544,17 @@ ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= COPY;
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i3`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i4' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i4`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i5(b), ALGORITHM= INVALID;
 ERROR HY000: Unknown ALGORITHM 'INVALID'
 ALTER TABLE m1 ENABLE KEYS;
@@ -1579,17 +1579,17 @@ ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= COPY;
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i3`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i4' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i4`. This is deprecated and will be disallowed in a future release
 SET SESSION old_alter_table= 0;
 affected rows: 0
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
@@ -1611,17 +1611,17 @@ ALTER TABLE t1 ADD INDEX i2(b), LOCK= NONE;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i3(b), LOCK= SHARED;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i3`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i4(b), LOCK= EXCLUSIVE;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i4' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i4`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i5(b), LOCK= INVALID;
 ERROR HY000: Unknown LOCK type 'INVALID'
 ALTER TABLE m1 ENABLE KEYS, LOCK= DEFAULT;
@@ -1641,24 +1641,24 @@ ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= INPLACE, LOCK= SHARED;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i2' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= INPLACE, LOCK= EXCLUSIVE;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i3' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i3`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= COPY, LOCK= NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 ALTER TABLE t1 ADD INDEX i5(b), ALGORITHM= COPY, LOCK= SHARED;
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i5' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i5`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i6(b), ALGORITHM= COPY, LOCK= EXCLUSIVE;
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1831	Duplicate index 'i6' defined on the table 'test.t1'. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `i6`. This is deprecated and will be disallowed in a future release
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= NONE;
 ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= SHARED;
@@ -2034,6 +2034,64 @@ Warnings:
 Note	1061	Multiple primary key defined
 DROP TABLE t1;
 #
+# MDEV-11126 Crash while altering persistent virtual column
+#
+CREATE TABLE `tab1` (
+`id` bigint(20) NOT NULL AUTO_INCREMENT,
+`field2` set('option1','option2','option3','option4') NOT NULL,
+`field3` set('option1','option2','option3','option4','option5') NOT NULL,
+`field4` set('option1','option2','option3','option4') NOT NULL,
+`field5` varchar(32) NOT NULL,
+`field6` varchar(32) NOT NULL,
+`field7` varchar(32) NOT NULL,
+`field8` varchar(32) NOT NULL,
+`field9` int(11) NOT NULL DEFAULT '1',
+`field10` varchar(16) NOT NULL,
+`field11` enum('option1','option2','option3') NOT NULL DEFAULT 'option1',
+`v_col` varchar(128) AS (IF(field11='option1',CONCAT_WS(":","field1",field2,field3,field4,field5,field6,field7,field8,field9,field10), CONCAT_WS(":","field1",field11,field2,field3,field4,field5,field6,field7,field8,field9,field10))) PERSISTENT,
+PRIMARY KEY (`id`)
+) DEFAULT CHARSET=latin1;
+ALTER TABLE `tab1` CHANGE COLUMN v_col `v_col` varchar(128);
+SHOW CREATE TABLE `tab1`;
+Table	Create Table
+tab1	CREATE TABLE `tab1` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `field2` set('option1','option2','option3','option4') NOT NULL,
+  `field3` set('option1','option2','option3','option4','option5') NOT NULL,
+  `field4` set('option1','option2','option3','option4') NOT NULL,
+  `field5` varchar(32) NOT NULL,
+  `field6` varchar(32) NOT NULL,
+  `field7` varchar(32) NOT NULL,
+  `field8` varchar(32) NOT NULL,
+  `field9` int(11) NOT NULL DEFAULT 1,
+  `field10` varchar(16) NOT NULL,
+  `field11` enum('option1','option2','option3') NOT NULL DEFAULT 'option1',
+  `v_col` varchar(128) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE `tab1` CHANGE COLUMN v_col `v_col` varchar(128) AS (IF(field11='option1',CONCAT_WS(":","field1",field2,field3,field4,field5,field6,field7,field8,field9,field10), CONCAT_WS(":","field1",field11,field2,field3,field4,field5,field6,field7,field8,field9,field10))) PERSISTENT;
+SHOW CREATE TABLE `tab1`;
+Table	Create Table
+tab1	CREATE TABLE `tab1` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `field2` set('option1','option2','option3','option4') NOT NULL,
+  `field3` set('option1','option2','option3','option4','option5') NOT NULL,
+  `field4` set('option1','option2','option3','option4') NOT NULL,
+  `field5` varchar(32) NOT NULL,
+  `field6` varchar(32) NOT NULL,
+  `field7` varchar(32) NOT NULL,
+  `field8` varchar(32) NOT NULL,
+  `field9` int(11) NOT NULL DEFAULT 1,
+  `field10` varchar(16) NOT NULL,
+  `field11` enum('option1','option2','option3') NOT NULL DEFAULT 'option1',
+  `v_col` varchar(128) GENERATED ALWAYS AS (if(`field11` = 'option1',concat_ws(':','field1',`field2`,`field3`,`field4`,`field5`,`field6`,`field7`,`field8`,`field9`,`field10`),concat_ws(':','field1',`field11`,`field2`,`field3`,`field4`,`field5`,`field6`,`field7`,`field8`,`field9`,`field10`))) STORED,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE `tab1`;
+#
+# Start of 10.1 tests
+#
+#
 # MDEV-7374 : Losing connection to MySQL while running ALTER TABLE
 #
 CREATE TABLE t1(i INT) ENGINE=INNODB;
@@ -2041,9 +2099,6 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
 INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e;
 ALTER TABLE t1 MODIFY i FLOAT;
 DROP TABLE t1;
-#
-# Start of 10.1 tests
-#
 #
 # MDEV-7816 ALTER with DROP INDEX and ADD INDEX .. COMMENT='comment2' ignores the new comment
 #

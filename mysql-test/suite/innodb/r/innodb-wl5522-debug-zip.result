@@ -3,6 +3,7 @@ call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* becau
 call mtr.add_suppression("InnoDB: Error: Tablespace flags .* corrupted unused .*");
 call mtr.add_suppression("InnoDB: Tablespace flags: .* corrupted  in file: .* ");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
+call mtr.add_suppression("InnoDB: Page for tablespace .* ");
 flush tables;
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;

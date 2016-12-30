@@ -131,6 +131,7 @@ fil_page_type_validate(
 		page_type == FIL_PAGE_TYPE_XDES ||
 		page_type == FIL_PAGE_TYPE_BLOB ||
 		page_type == FIL_PAGE_TYPE_ZBLOB ||
+		page_type == FIL_PAGE_TYPE_ZBLOB2 ||
 		page_type == FIL_PAGE_TYPE_COMPRESSED))) {
 
 		uint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
@@ -166,6 +167,7 @@ fil_page_type_validate(
 			page_type == FIL_PAGE_TYPE_XDES ||
 			page_type == FIL_PAGE_TYPE_BLOB ||
 			page_type == FIL_PAGE_TYPE_ZBLOB ||
+			page_type == FIL_PAGE_TYPE_ZBLOB2 ||
 			page_type == FIL_PAGE_TYPE_COMPRESSED);
 		return false;
 	}

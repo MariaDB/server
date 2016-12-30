@@ -751,7 +751,9 @@ btr_cur_search_to_nth_level(
 				RW_S_LATCH, or 0 */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
-	mtr_t*		mtr)	/*!< in: mtr */
+	mtr_t*		mtr,	/*!< in: mtr */
+	ib_uint64_t	autoinc)/*!< in: PAGE_ROOT_AUTO_INC to be written
+				(0 if none) */
 {
 	page_t*		page = NULL; /* remove warning */
 	buf_block_t*	block;
@@ -888,6 +890,12 @@ btr_cur_search_to_nth_level(
 	      || latch_mode == BTR_SEARCH_TREE
 	      || latch_mode == BTR_MODIFY_LEAF);
 
+	ut_ad(autoinc == 0 || dict_index_is_clust(index));
+	ut_ad(autoinc == 0
+	      || latch_mode == BTR_MODIFY_TREE
+	      || latch_mode == BTR_MODIFY_LEAF);
+	ut_ad(autoinc == 0 || level == 0);
+
 	cursor->flag = BTR_CUR_BINARY;
 	cursor->index = index;
 
@@ -907,8 +915,7 @@ btr_cur_search_to_nth_level(
 # ifdef UNIV_SEARCH_PERF_STAT
 	info->n_searches++;
 # endif
-	if (rw_lock_get_writer(btr_get_search_latch(index))
-		== RW_LOCK_NOT_LOCKED
+	if (autoinc == 0
 	    && latch_mode <= BTR_MODIFY_LEAF
 	    && info->last_hash_succ
 # ifdef MYSQL_INDEX_DISABLE_AHI
@@ -922,8 +929,10 @@ btr_cur_search_to_nth_level(
 	    /* If !has_search_latch, we do a dirty read of
 	    btr_search_enabled below, and btr_search_guess_on_hash()
 	    will have to check it again. */
-	    && UNIV_LIKELY(btr_search_enabled)
+	    && btr_search_enabled
 	    && !modify_external
+	    && rw_lock_get_writer(btr_get_search_latch(index))
+	    == RW_LOCK_NOT_LOCKED
 	    && btr_search_guess_on_hash(index, info, tuple, mode,
 					latch_mode, cursor,
 					has_search_latch, mtr)) {
@@ -1071,16 +1080,16 @@ search_loop:
 
 	if (height != 0) {
 		/* We are about to fetch the root or a non-leaf page. */
-		if ((latch_mode != BTR_MODIFY_TREE
-		     || height == level)
+		if ((latch_mode != BTR_MODIFY_TREE || height == level)
 		    && !retrying_for_search_prev) {
 			/* If doesn't have SX or X latch of index,
 			each pages should be latched before reading. */
-			if (modify_external
-			    && height == ULINT_UNDEFINED
-			    && upper_rw_latch == RW_S_LATCH) {
+			if (height == ULINT_UNDEFINED
+			    && upper_rw_latch == RW_S_LATCH
+			    && (modify_external || autoinc)) {
 				/* needs sx-latch of root page
-				for fseg operation */
+				for fseg operation or for writing
+				PAGE_ROOT_AUTO_INC */
 				rw_latch = RW_SX_LATCH;
 			} else {
 				rw_latch = upper_rw_latch;
@@ -1271,11 +1280,13 @@ retry_page_get:
 	    && page_is_leaf(page)
 	    && rw_latch != RW_NO_LATCH
 	    && rw_latch != root_leaf_rw_latch) {
-		/* We should retry to get the page, because the root page
-		is latched with different level as a leaf page. */
+		/* The root page is also a leaf page (root_leaf).
+		We should reacquire the page, because the root page
+		is latched differently from leaf pages. */
 		ut_ad(root_leaf_rw_latch != RW_NO_LATCH);
 		ut_ad(rw_latch == RW_S_LATCH || rw_latch == RW_SX_LATCH);
-		ut_ad(rw_latch == RW_S_LATCH || modify_external);
+		ut_ad(rw_latch == RW_S_LATCH || modify_external || autoinc);
+		ut_ad(!autoinc || root_leaf_rw_latch == RW_X_LATCH);
 
 		ut_ad(n_blocks == 0);
 		mtr_release_block_at_savepoint(
@@ -1365,6 +1376,7 @@ retry_page_get:
 
 			/* release upper blocks */
 			if (retrying_for_search_prev) {
+				ut_ad(!autoinc);
 				for (;
 				     prev_n_releases < prev_n_blocks;
 				     prev_n_releases++) {
@@ -1378,8 +1390,9 @@ retry_page_get:
 			}
 
 			for (; n_releases < n_blocks; n_releases++) {
-				if (n_releases == 0 && modify_external) {
-					/* keep latch of root page */
+				if (n_releases == 0
+				    && (modify_external || autoinc)) {
+					/* keep the root page latch */
 					ut_ad(mtr_memo_contains_flagged(
 						mtr, tree_blocks[n_releases],
 						MTR_MEMO_PAGE_SX_FIX
@@ -1903,6 +1916,8 @@ need_opposite_intention:
 	}
 
 	if (level != 0) {
+		ut_ad(!autoinc);
+
 		if (upper_rw_latch == RW_NO_LATCH) {
 			/* latch the page */
 			buf_block_t*	child_block;
@@ -1950,6 +1965,11 @@ need_opposite_intention:
 		cursor->low_bytes = low_bytes;
 		cursor->up_match = up_match;
 		cursor->up_bytes = up_bytes;
+
+		if (autoinc) {
+			page_set_autoinc(tree_blocks[0],
+					 index, autoinc, mtr, false);
+		}
 
 #ifdef BTR_CUR_ADAPT
 		/* We do a dirty read of btr_search_enabled here.  We

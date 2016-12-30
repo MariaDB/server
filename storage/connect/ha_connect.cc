@@ -224,6 +224,7 @@ uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
 
+static void PopUser(PCONNECT xp);
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
 
@@ -831,34 +832,43 @@ ha_connect::~ha_connect(void)
                          table ? table->s->table_name.str : "<null>",
                          xp, xp ? xp->count : 0);
 
-  if (xp) {
-    PCONNECT p;
-
-    xp->count--;
-
-    for (p= user_connect::to_users; p; p= p->next)
-      if (p == xp)
-        break;
-
-    if (p && !p->count) {
-      if (p->next)
-        p->next->previous= p->previous;
-
-      if (p->previous)
-        p->previous->next= p->next;
-      else
-        user_connect::to_users= p->next;
-
-      } // endif p
-
-    if (!xp->count) {
-      PlugCleanup(xp->g, true);
-      delete xp;
-      } // endif count
-
-    } // endif xp
-
+	PopUser(xp);
 } // end of ha_connect destructor
+
+
+/****************************************************************************/
+/*  Check whether this user can be removed.                                 */
+/****************************************************************************/
+static void PopUser(PCONNECT xp)
+{
+	if (xp) {
+		xp->count--;
+
+		if (!xp->count) {
+			PCONNECT p;
+
+			for (p= user_connect::to_users; p; p= p->next)
+			  if (p == xp)
+				  break;
+
+		  if (p) {
+			  if (p->next)
+				  p->next->previous= p->previous;
+
+			  if (p->previous)
+				  p->previous->next= p->next;
+			  else
+				  user_connect::to_users= p->next;
+
+		  } // endif p
+
+			PlugCleanup(xp->g, true);
+			delete xp;
+		} // endif count
+
+	} // endif xp
+
+} // end of PopUser
 
 
 /****************************************************************************/
@@ -866,7 +876,7 @@ ha_connect::~ha_connect(void)
 /****************************************************************************/
 static PCONNECT GetUser(THD *thd, PCONNECT xp)
 {
-  if (!thd)
+	if (!thd)
     return NULL;
 
   if (xp && thd == xp->thdp)
@@ -889,7 +899,6 @@ static PCONNECT GetUser(THD *thd, PCONNECT xp)
 
   return xp;
 } // end of GetUser
-
 
 /****************************************************************************/
 /*  Get the global pointer of the user of this handler.                     */
@@ -5260,7 +5269,18 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   if (!(shm= (char*)db))
     db= table_s->db.str;                   // Default value
 
-  // Check table type
+	// Save stack and allocation environment and prepare error return
+	if (g->jump_level == MAX_JUMP) {
+		strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+		goto jer;
+	} // endif jump_level
+
+	if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
+		my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+		goto err;
+	} // endif rc
+
+	// Check table type
   if (ttp == TAB_UNDEF) {
     topt->type= (src) ? "MYSQL" : (tab) ? "PROXY" : "DOS";
     ttp= GetTypeID(topt->type);
@@ -5269,19 +5289,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   } else if (ttp == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", topt->type);
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-    return HA_ERR_INTERNAL_ERROR;
+		goto err;
   } // endif ttp
-
-  // Save stack and allocation environment and prepare error return
-  if (g->jump_level == MAX_JUMP) {
-    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
-    return HA_ERR_INTERNAL_ERROR;
-    } // endif jump_level
-
-  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
-    my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-    goto err;
-    } // endif rc
 
   if (!tab) {
     if (ttp == TAB_TBL) {
@@ -5842,6 +5851,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
       rc= init_table_share(thd, table_s, create_info, &sql);
 
     g->jump_level--;
+		PopUser(xp);
     return rc;
     } // endif ok
 
@@ -5849,7 +5859,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
  err:
   g->jump_level--;
-  return HA_ERR_INTERNAL_ERROR;
+ jer:
+	PopUser(xp);
+	return HA_ERR_INTERNAL_ERROR;
 } // end of connect_assisted_discovery
 
 /**

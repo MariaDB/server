@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2015, MariaDB Corporation
+Copyright (c) 2014, 2016, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -80,7 +80,7 @@ btr_corruption_report(
 			       buf_block_get_zip_size(block),
 			       BUF_PAGE_PRINT_NO_CRASH);
 	}
-	buf_page_print(buf_block_get_frame_fast(block), 0, 0);
+	buf_page_print(buf_nonnull_block_get_frame(block), 0, 0);
 }
 
 #ifndef UNIV_HOTBACKUP
@@ -743,14 +743,16 @@ btr_root_block_get(
 	block = btr_block_get(space, zip_size, root_page_no, mode, (dict_index_t*)index, mtr);
 
 	if (!block) {
-		index->table->is_encrypted = TRUE;
-		index->table->corrupted = FALSE;
+		if (index && index->table) {
+			index->table->is_encrypted = TRUE;
+			index->table->corrupted = FALSE;
 
-		ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
-			"Table %s in tablespace %lu is encrypted but encryption service or"
-			" used key_id is not available. "
-			" Can't continue reading table.",
-			index->table->name, space);
+			ib_push_warning(index->table->thd, DB_DECRYPTION_FAILED,
+				"Table %s in tablespace %lu is encrypted but encryption service or"
+				" used key_id is not available. "
+				" Can't continue reading table.",
+				index->table->name, space);
+		}
 
 		return NULL;
 	}
@@ -825,11 +827,12 @@ btr_height_get(
 
         /* S latches the page */
         root_block = btr_root_block_get(index, RW_S_LATCH, mtr);
+	ut_ad(root_block); // The index must not be corrupted
 
 	if (root_block) {
 
-		height = btr_page_get_level(buf_block_get_frame_fast(root_block), mtr);
-
+		height = btr_page_get_level(buf_nonnull_block_get_frame(root_block),
+					    mtr);
 		/* Release the S latch on the root page. */
 		mtr_memo_release(mtr, root_block, MTR_MEMO_PAGE_S_FIX);
 #ifdef UNIV_SYNC_DEBUG
@@ -1840,6 +1843,11 @@ leaf_loop:
 	root = btr_page_get(space, zip_size, root_page_no, RW_X_LATCH,
 			    NULL, &mtr);
 
+	if (!root) {
+		mtr_commit(&mtr);
+		return;
+	}
+
 	SRV_CORRUPT_TABLE_CHECK(root,
 	{
 		mtr_commit(&mtr);
@@ -1909,17 +1917,19 @@ btr_free_root(
 	block = btr_block_get(space, zip_size, root_page_no, RW_X_LATCH,
 			      NULL, mtr);
 
-	SRV_CORRUPT_TABLE_CHECK(block, return;);
+	if (block) {
+		SRV_CORRUPT_TABLE_CHECK(block, return;);
 
-	btr_search_drop_page_hash_index(block);
+		btr_search_drop_page_hash_index(block);
 
-	header = buf_block_get_frame(block) + PAGE_HEADER + PAGE_BTR_SEG_TOP;
+		header = buf_block_get_frame(block) + PAGE_HEADER + PAGE_BTR_SEG_TOP;
 #ifdef UNIV_BTR_DEBUG
-	ut_a(btr_root_fseg_validate(header, space));
+		ut_a(btr_root_fseg_validate(header, space));
 #endif /* UNIV_BTR_DEBUG */
 
-	while (!fseg_free_step(header, mtr)) {
-		/* Free the entire segment in small steps. */
+		while (!fseg_free_step(header, mtr)) {
+			/* Free the entire segment in small steps. */
+		}
 	}
 }
 #endif /* !UNIV_HOTBACKUP */
@@ -2903,7 +2913,7 @@ btr_attach_half_pages(
 	}
 
 	/* Get the level of the split pages */
-	level = btr_page_get_level(buf_block_get_frame_fast(block), mtr);
+	level = btr_page_get_level(buf_nonnull_block_get_frame(block), mtr);
 	ut_ad(level
 	      == btr_page_get_level(buf_block_get_frame(new_block), mtr));
 
@@ -4280,8 +4290,10 @@ btr_discard_page(
 
 	/* Decide the page which will inherit the locks */
 
-	left_page_no = btr_page_get_prev(buf_block_get_frame_fast(block), mtr);
-	right_page_no = btr_page_get_next(buf_block_get_frame_fast(block), mtr);
+	left_page_no = btr_page_get_prev(buf_nonnull_block_get_frame(block),
+					 mtr);
+	right_page_no = btr_page_get_next(buf_nonnull_block_get_frame(block),
+					  mtr);
 
 	if (left_page_no != FIL_NULL) {
 		merge_block = btr_block_get(space, zip_size, left_page_no,

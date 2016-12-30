@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2015, MariaDB Corporation
+Copyright (c) 2013, 2016, MariaDB Corporation
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -630,7 +630,7 @@ create_log_file(
 		fprintf(stderr, "innodb_force_recovery_crash=%lu\n",	\
 			srv_force_recovery_crash);			\
 		fflush(stderr);						\
-		exit(3);						\
+		abort();						\
 	}								\
 } while (0)
 #endif
@@ -705,7 +705,8 @@ create_log_files(
 		logfilename, SRV_LOG_SPACE_FIRST_ID,
 		fsp_flags_set_page_size(0, UNIV_PAGE_SIZE),
 		FIL_LOG,
-		NULL /* no encryption yet */);
+		NULL /* no encryption yet */,
+		true /* this is create */);
 	ut_a(fil_validate());
 
 	logfile0 = fil_node_create(
@@ -727,7 +728,7 @@ create_log_files(
 #ifdef UNIV_LOG_ARCHIVE
 	/* Create the file space object for archived logs. */
 	fil_space_create("arch_log_space", SRV_LOG_SPACE_FIRST_ID + 1,
-		0, FIL_LOG, NULL /* no encryption yet */);
+		0, FIL_LOG, NULL /* no encryption yet */, true /* create */);
 #endif
 	log_group_init(0, srv_n_log_files,
 		       srv_log_file_size * UNIV_PAGE_SIZE,
@@ -853,7 +854,7 @@ open_or_create_data_files(
 	ulint		space;
 	ulint		rounded_size_pages;
 	char		name[10000];
-	fil_space_crypt_t*    crypt_data;
+	fil_space_crypt_t*    crypt_data=NULL;
 
 	if (srv_n_data_files >= 1000) {
 
@@ -1184,18 +1185,20 @@ check_first_page:
 			}
 
 			*sum_of_new_sizes += srv_data_file_sizes[i];
-
-			crypt_data = fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 		}
 
 		ret = os_file_close(files[i]);
 		ut_a(ret);
 
 		if (i == 0) {
+			if (!crypt_data) {
+				crypt_data = fil_space_create_crypt_data(FIL_SPACE_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
+			}
+
 			flags = fsp_flags_set_page_size(0, UNIV_PAGE_SIZE);
+
 			fil_space_create(name, 0, flags, FIL_TABLESPACE,
-					 crypt_data);
-			crypt_data = NULL;
+					crypt_data, (*create_new_db) == true);
 		}
 
 		ut_a(fil_validate());
@@ -1342,7 +1345,8 @@ srv_undo_tablespace_open(
 		/* Set the compressed page size to 0 (non-compressed) */
 		flags = fsp_flags_set_page_size(0, UNIV_PAGE_SIZE);
 		fil_space_create(name, space, flags, FIL_TABLESPACE,
-				 NULL /* no encryption */);
+				NULL /* no encryption */,
+				true /* create */);
 
 		ut_a(fil_validate());
 
@@ -2340,7 +2344,8 @@ innobase_start_or_create_for_mysql(void)
 				 SRV_LOG_SPACE_FIRST_ID,
 				 fsp_flags_set_page_size(0, UNIV_PAGE_SIZE),
 				 FIL_LOG,
-				 NULL /* no encryption yet */);
+				 NULL /* no encryption yet */,
+				 true /* create */);
 
 		ut_a(fil_validate());
 
@@ -2362,7 +2367,8 @@ innobase_start_or_create_for_mysql(void)
 		/* Create the file space object for archived logs. Under
 		MySQL, no archiving ever done. */
 		fil_space_create("arch_log_space", SRV_LOG_SPACE_FIRST_ID + 1,
-			0, FIL_LOG, NULL /* no encryption yet */);
+			0, FIL_LOG, NULL /* no encryption yet */,
+			true /* create */);
 #endif /* UNIV_LOG_ARCHIVE */
 		log_group_init(0, i, srv_log_file_size * UNIV_PAGE_SIZE,
 			       SRV_LOG_SPACE_FIRST_ID,
@@ -2772,6 +2778,12 @@ files_checked:
 		}
 	}
 
+	/* Create the SYS_ZIP_DICT system table */
+	err = dict_create_or_check_sys_zip_dict();
+	if (err != DB_SUCCESS) {
+		return(err);
+	}
+
 	srv_is_being_started = FALSE;
 
 	ut_a(trx_purge_state() == PURGE_STATE_INIT);
@@ -2936,16 +2948,7 @@ files_checked:
 	/* Check that os_fast_mutexes work as expected */
 	os_fast_mutex_init(PFS_NOT_INSTRUMENTED, &srv_os_test_mutex);
 
-	if (0 != os_fast_mutex_trylock(&srv_os_test_mutex)) {
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Error: pthread_mutex_trylock returns"
-			" an unexpected value on\n");
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: success! Cannot continue.\n");
-		exit(1);
-	}
+	ut_a(0 == os_fast_mutex_trylock(&srv_os_test_mutex));
 
 	os_fast_mutex_unlock(&srv_os_test_mutex);
 

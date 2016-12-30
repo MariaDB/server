@@ -434,6 +434,8 @@ btr_pcur_open_low(
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
+	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
+				(0 if none) */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	btr_cur_t*	btr_cursor;
@@ -454,7 +456,7 @@ btr_pcur_open_low(
 
 	err = btr_cur_search_to_nth_level(
 		index, level, tuple, mode, latch_mode,
-		btr_cursor, 0, file, line, mtr);
+		btr_cursor, 0, file, line, mtr, autoinc);
 
 	if (err != DB_SUCCESS) {
 		ib::warn() << " Error code: " << err

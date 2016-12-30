@@ -6781,7 +6781,7 @@ ER_FK_COLUMN_NOT_NULL
         ger "Spalte '%-.192s' kann nicht NOT NULL sein: wird für eine Fremdschlüsselbeschränkung '%-.192s' SET NULL benötigt"
 
 ER_DUP_INDEX
-  eng "Duplicate index '%-.64s' defined on the table '%-.64s.%-.64s'. This is deprecated and will be disallowed in a future release"
+  eng "Duplicate index %`s. This is deprecated and will be disallowed in a future release"
 
 ER_FK_COLUMN_CANNOT_CHANGE
   eng "Cannot change column '%-.192s': used in a foreign key constraint '%-.192s'"

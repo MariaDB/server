@@ -4034,9 +4034,14 @@ Prepared_statement::execute_loop(String *expanded_query,
   bool error;
   int reprepare_attempt= 0;
   iterations= 0;
-#ifndef DBUG_OFF
-  Item *free_list_state= thd->free_list;
-#endif
+
+  /*
+    - In mysql_sql_stmt_execute() we hide all "external" Items
+      e.g. those created in the "SET STATEMENT" part of the "EXECUTE" query.
+    - In case of mysqld_stmt_execute() there should not be "external" Items.
+  */
+  DBUG_ASSERT(thd->free_list == NULL);
+
   thd->select_number= select_number_after_prepare;
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
@@ -4058,12 +4063,8 @@ Prepared_statement::execute_loop(String *expanded_query,
 #endif
 
 reexecute:
-  /*
-    If the free_list is not empty, we'll wrongly free some externally
-    allocated items when cleaning up after validation of the prepared
-    statement.
-  */
-  DBUG_ASSERT(thd->free_list == free_list_state);
+  // Make sure that reprepare() did not create any new Items.
+  DBUG_ASSERT(thd->free_list == NULL);
 
   /*
     Install the metadata observer. If some metadata version is

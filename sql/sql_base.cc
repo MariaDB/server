@@ -8446,6 +8446,7 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
   */
   lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
   thd->reset_n_backup_open_tables_state(backup);
+  thd->lex->sql_command= SQLCOM_SELECT;
 
   if (open_and_lock_tables(thd, table_list, FALSE,
                            MYSQL_OPEN_IGNORE_FLUSH |

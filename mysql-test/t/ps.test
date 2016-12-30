@@ -3670,8 +3670,34 @@ deallocate prepare stmt;
 SET SESSION sql_mode = @save_sql_mode;
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-8833: Crash of server on prepared statement with
+--echo # conversion to semi-join
+--echo #
 
---echo # End of 10.0 tests
+CREATE TABLE t1 (column1 INT);
+INSERT INTO t1 VALUES (3),(9);
+
+CREATE TABLE t2 (column2 INT);
+INSERT INTO t2 VALUES (1),(4);
+
+CREATE TABLE t3 (column3 INT);
+INSERT INTO t3 VALUES (6),(8);
+
+CREATE TABLE t4 (column4 INT);
+INSERT INTO t4 VALUES (2),(5);
+
+PREPARE stmt FROM "SELECT ( SELECT MAX( table1.column1 ) AS field1 
+FROM t1 AS table1
+WHERE table3.column3 IN ( SELECT table2.column2 AS field2 FROM t2 AS table2 ) 
+) AS sq
+FROM t3 AS table3, t4 AS table4";
+EXECUTE stmt;
+EXECUTE stmt;
+deallocate prepare stmt;
+drop table t1,t2,t3,t4;
+
+--echo # End of 5.5 tests
 
 --echo #
 --echo # Start of 10.2 tests
@@ -4221,7 +4247,6 @@ EXECUTE IMMEDIATE 'UPDATE t1 SET a=?+1' USING DEFAULT;
 EXECUTE IMMEDIATE 'UPDATE t1 SET a=CONCAT(?,?)' USING DEFAULT, 'test';
 DROP TABLE t1;
 
-
 # Incorrect usage in not an UPDATE/INSERT query at all
 --error ER_INVALID_DEFAULT_PARAM
 EXECUTE IMMEDIATE 'SELECT CAST(? AS SIGNED)' USING DEFAULT;
@@ -4243,7 +4268,6 @@ EXECUTE IMMEDIATE 'SELECT ?+1' USING DEFAULT;
 --error ER_INVALID_DEFAULT_PARAM
 EXECUTE IMMEDIATE 'SELECT CONCAT(?,?)' USING DEFAULT,'test';
 
-
 # Incorrect usage in the LIMIT clause
 --error ER_INVALID_DEFAULT_PARAM
 EXECUTE IMMEDIATE 'SELECT 1 LIMIT ?' USING DEFAULT;
@@ -4253,11 +4277,9 @@ INSERT INTO t1 VALUES (1),(2),(3);
 EXECUTE IMMEDIATE 'SELECT * FROM t1 LIMIT ?' USING DEFAULT;
 DROP TABLE t1;
 
-
 --echo # The output of this query in 'Note' is a syntactically incorrect query.
 --echo # But as it's never logged, it's ok. It should be human readable only.
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT ?' USING DEFAULT;
-
 
 # This tests Item_param::eq() for DEFAULT as a bound value
 CREATE TABLE t1 (a INT);

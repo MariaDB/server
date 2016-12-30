@@ -224,3 +224,9 @@ INSERT INTO table1 VALUES (1);
 ERROR 42S02: Unknown table 't.notable'
 DROP TABLE table1,table2;
 # End BUG#34750
+#
+# MDEV-11105 Table named 'db' has weird side effect.
+#
+CREATE DATABASE mysqltest;
+CREATE TABLE mysqltest.db(id INT);
+DROP DATABASE mysqltest;

@@ -153,9 +153,7 @@ os_thread_create_func(
 
 	int	ret = pthread_create(&new_thread_id, &attr, func, arg);
 
-	if (ret != 0) {
-		ib::fatal() << "pthread_create returned " << ret;
-	}
+	ut_a(ret == 0);
 
 	pthread_attr_destroy(&attr);
 

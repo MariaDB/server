@@ -525,13 +525,11 @@ static void* sst_joiner_thread (void* a)
 
       } else {
         // Scan state ID first followed by wsrep_gtid_domain_id.
-        char uuid[512];
         unsigned long int domain_id;
-        size_t len= pos - out + 1;
 
-        if (len > sizeof(uuid)) goto err;       // safety check
-        memcpy(uuid, out, len);                 // including '\0'
-        err= sst_scan_uuid_seqno (uuid, &ret_uuid, &ret_seqno);
+        // Null-terminate the state-id.
+        out[pos - out]= 0;
+        err= sst_scan_uuid_seqno (out, &ret_uuid, &ret_seqno);
 
         if (err)
         {

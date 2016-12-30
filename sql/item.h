@@ -4297,7 +4297,7 @@ public:
     if (result_type() == ROW_RESULT)
       orig_item->bring_value();
   }
-  virtual bool is_expensive() { return orig_item->is_expensive(); }
+  bool is_expensive() { return orig_item->is_expensive(); }
   bool is_expensive_processor(void *arg)
   { return orig_item->is_expensive_processor(arg); }
   bool check_vcol_func_processor(void *arg)
@@ -4962,6 +4962,8 @@ public:
     return false;
   }
   table_map used_tables() const { return (table_map)0L; }
+  Field *get_tmp_table_field() { return 0; }
+  Item *get_tmp_table_item(THD *thd) { return this; }
   Item_field *field_for_view_update() { return 0; }
   bool update_vcol_processor(void *arg) { return 0; }
   bool check_func_default_processor(void *arg) { return true; }
@@ -5037,6 +5039,8 @@ public:
    being treated as a constant and precalculated before execution
   */
   table_map used_tables() const { return RAND_TABLE_BIT; }
+
+  Item_field *field_for_view_update() { return 0; }
 
   bool walk(Item_processor processor, bool walk_subquery, void *args)
   {

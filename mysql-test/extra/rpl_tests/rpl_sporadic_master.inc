@@ -1,0 +1,32 @@
+#
+# This include file is used by more than one test suite
+# (currently rpl and binlog_encryption).
+# Please check all dependent tests after modifying it
+#
+
+# test to see if replication can continue when master sporadically fails on
+# COM_BINLOG_DUMP and additionally limits the number of events per dump
+
+source include/master-slave.inc;
+
+create table t2(n int);
+create table t1(n int not null auto_increment primary key);
+insert into t1 values (NULL),(NULL);
+truncate table t1;
+# We have to use 4 in the following to make this test work with all table types
+insert into t1 values (4),(NULL);
+sync_slave_with_master;
+--source include/stop_slave.inc
+--source include/start_slave.inc
+connection master;
+insert into t1 values (NULL),(NULL);
+flush logs;
+truncate table t1;
+insert into t1 values (10),(NULL),(NULL),(NULL),(NULL),(NULL);
+sync_slave_with_master;
+select * from t1 ORDER BY n;
+connection master;
+drop table t1,t2;
+sync_slave_with_master;
+
+--source include/rpl_end.inc

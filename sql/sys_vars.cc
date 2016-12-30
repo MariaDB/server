@@ -3236,7 +3236,7 @@ static bool fix_table_open_cache(sys_var *, THD *, enum_var_type)
 static Sys_var_ulong Sys_table_cache_size(
        "table_open_cache", "The number of cached open tables",
        GLOBAL_VAR(tc_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 512*1024), DEFAULT(TABLE_OPEN_CACHE_DEFAULT),
+       VALID_RANGE(1, 1024*1024), DEFAULT(TABLE_OPEN_CACHE_DEFAULT),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_table_open_cache));
 
@@ -5042,8 +5042,9 @@ static Sys_var_mybool Sys_wsrep_restart_slave(
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_wsrep_dirty_reads(
-       "wsrep_dirty_reads", "Do not reject SELECT queries even when the node "
-       "is not ready.", SESSION_ONLY(wsrep_dirty_reads), NO_CMD_LINE,
+       "wsrep_dirty_reads",
+       "Allow reads even when the node is not in the primary component.",
+       SESSION_VAR(wsrep_dirty_reads), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 static Sys_var_uint Sys_wsrep_gtid_domain_id(

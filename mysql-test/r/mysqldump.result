@@ -5254,9 +5254,6 @@ SET @@global.log_output="TABLE";
 SET @@global.general_log='OFF';
 SET @@global.slow_query_log='OFF';
 DROP DATABASE mysql;
-Warnings:
-Error	1146	Table 'mysql.proc' doesn't exist
-Error	1146	Table 'mysql.event' doesn't exist
 SHOW CREATE TABLE mysql.general_log;
 Table	Create Table
 general_log	CREATE TABLE `general_log` (

@@ -24,6 +24,8 @@ call mtr.add_suppression("InnoDB: Ignoring tablespace .* because it could not be
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .*");
 call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file .*");
+call mtr.add_suppression("InnoDB: Page for tablespace .* ");
+flush tables;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
@@ -1501,4 +1503,3 @@ call mtr.add_suppression("while reading index meta-data, expected to read 44 byt
 --remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd
 
 eval SET GLOBAL INNODB_FILE_PER_TABLE=$innodb_file_per_table;
-

@@ -186,6 +186,12 @@ struct srv_stats_t {
 	/** Number of lock waits that have been up to max time (i.e.) lock
 	wait timeout */
 	ulint_ctr_1_t		n_lock_max_wait_time;
+
+	/** Number of times page 0 is read from tablespace */
+	ulint_ctr_64_t		page0_read;
+
+	/** Number of encryption_get_latest_key_version calls */
+	ulint_ctr_64_t		n_key_requests;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -222,8 +228,10 @@ extern os_event_t	srv_checkpoint_completed_event;
 log tracking iteration */
 extern os_event_t	srv_redo_log_tracked_event;
 
-/** srv_redo_log_follow_thread spawn flag */
-extern bool srv_redo_log_thread_started;
+/** Whether the redo log tracker thread has been started. Does not take into
+account whether the tracking is currently enabled (see srv_track_changed_pages
+for that) */
+extern bool		srv_redo_log_thread_started;
 
 /* If the last data file is auto-extended, we add this many pages to it
 at a time */
@@ -338,6 +346,10 @@ extern char**	srv_data_file_names;
 extern ulint*	srv_data_file_sizes;
 extern ulint*	srv_data_file_is_raw_partition;
 
+
+/** Whether the redo log tracking is currently enabled. Note that it is
+possible for the log tracker thread to be running and the tracking to be
+disabled */
 extern my_bool		srv_track_changed_pages;
 extern ulonglong	srv_max_bitmap_file_size;
 
@@ -584,6 +596,9 @@ extern ibool	srv_priority_boost;
 
 extern ulint	srv_truncated_status_writes;
 extern ulint	srv_available_undo_logs;
+
+extern ulint	srv_column_compressed;
+extern ulint	srv_column_decompressed;
 
 extern	ulint	srv_mem_pool_size;
 extern	ulint	srv_lock_table_size;
@@ -1158,7 +1173,8 @@ struct export_var_t{
 	ulint innodb_os_log_pending_fsyncs;	/*!< fil_n_pending_log_flushes */
 	ulint innodb_page_size;			/*!< UNIV_PAGE_SIZE */
 	ulint innodb_pages_created;		/*!< buf_pool->stat.n_pages_created */
-	ulint innodb_pages_read;		/*!< buf_pool->stat.n_pages_read */
+	ulint innodb_pages_read;		/*!< buf_pool->stat.n_pages_read*/
+	ulint innodb_page0_read;		/*!< srv_stats.page0_read */
 	ulint innodb_pages_written;		/*!< buf_pool->stat.n_pages_written */
 	ib_int64_t innodb_purge_trx_id;
 	ib_int64_t innodb_purge_undo_no;
@@ -1212,6 +1228,8 @@ struct export_var_t{
 	ulint innodb_purge_view_trx_id_age;	/*!< rw_max_trx_id
 						- purged view's min trx_id */
 #endif /* UNIV_DEBUG */
+	ulint innodb_column_compressed;		/*!< srv_column_compressed */
+	ulint innodb_column_decompressed;	/*!< srv_column_decompressed */
 
 	ib_int64_t innodb_page_compression_saved;/*!< Number of bytes saved
 						by page compression */
@@ -1257,6 +1275,7 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_pages_modified;
 	ulint innodb_encryption_rotation_pages_flushed;
 	ulint innodb_encryption_rotation_estimated_iops;
+	ib_int64_t innodb_encryption_key_requests;
 
 	ulint innodb_scrub_page_reorganizations;
 	ulint innodb_scrub_page_splits;

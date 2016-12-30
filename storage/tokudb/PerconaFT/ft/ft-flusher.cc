@@ -1471,7 +1471,7 @@ void toku_ft_flush_some_child(FT ft, FTNODE parent, struct flusher_advice *fa)
     // It is possible after reading in the entire child,
     // that we now know that the child is not reactive
     // if so, we can unpin parent right now
-    // we wont be splitting/merging child
+    // we won't be splitting/merging child
     // and we have already replaced the bnc
     // for the root with a fresh one
     enum reactivity child_re = toku_ftnode_get_reactivity(ft, child);

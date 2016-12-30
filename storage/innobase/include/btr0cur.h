@@ -190,7 +190,10 @@ btr_cur_search_to_nth_level(
 				RW_S_LATCH, or 0 */
 	const char*	file,	/*!< in: file name */
 	ulint		line,	/*!< in: line where called */
-	mtr_t*		mtr);	/*!< in: mtr */
+	mtr_t*		mtr,	/*!< in/out: mini-transaction */
+	ib_uint64_t	autoinc = 0);
+				/*!< in: PAGE_ROOT_AUTO_INC to be written
+				(0 if none) */
 
 /*****************************************************************//**
 Opens a cursor at either end of an index.

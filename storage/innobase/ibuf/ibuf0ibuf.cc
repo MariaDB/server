@@ -862,11 +862,17 @@ ibuf_set_free_bits_low(
 	mtr_t*			mtr)	/*!< in/out: mtr */
 {
 	page_t*	bitmap_page;
+	buf_frame_t* frame;
 
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 
-	if (!page_is_leaf(buf_block_get_frame(block))) {
+	if (!block) {
+		return;
+	}
 
+	frame = buf_block_get_frame(block);
+
+	if (!frame || !page_is_leaf(frame)) {
 		return;
 	}
 
@@ -1040,7 +1046,10 @@ ibuf_update_free_bits_zip(
 	page_t*	bitmap_page;
 	ulint	after;
 
-	ut_a(page_is_leaf(buf_block_get_frame(block)));
+	ut_a(block);
+	buf_frame_t* frame = buf_block_get_frame(block);
+	ut_a(frame);
+	ut_a(page_is_leaf(frame));
 	ut_a(block->page.size.is_compressed());
 
 	bitmap_page = ibuf_bitmap_get_map_page(block->page.id,

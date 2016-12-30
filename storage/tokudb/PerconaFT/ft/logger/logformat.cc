@@ -90,6 +90,10 @@ const struct logtype rollbacks[] = {
     {"fcreate", 'F', FA{{"FILENUM", "filenum", 0},
                         {"BYTESTRING", "iname", 0},
                         NULLFIELD}, LOG_BEGIN_ACTION_NA},
+    //rename file
+    {"frename", 'n', FA{{"BYTESTRING",    "old_iname", 0},
+                        {"BYTESTRING",    "new_iname", 0},
+                        NULLFIELD}, LOG_BEGIN_ACTION_NA},
     // cmdinsert is used to insert a key-value pair into a DB.  For rollback we don't need the data.
     {"cmdinsert", 'i', FA{
                           {"FILENUM", "filenum", 0},
@@ -195,6 +199,11 @@ const struct logtype logtypes[] = {
     {"fdelete", 'U', FA{{"TXNID_PAIR",      "xid", 0},
                         {"FILENUM", "filenum", 0},
                         NULLFIELD}, SHOULD_LOG_BEGIN},
+    {"frename", 'n', FA{{"TXNID_PAIR",      "xid", 0},
+                        {"BYTESTRING",    "old_iname", 0},
+                        {"FILENUM",       "old_filenum",   0},
+                        {"BYTESTRING",    "new_iname", 0},
+                        NULLFIELD}, IGNORE_LOG_BEGIN},
     {"enq_insert", 'I', FA{{"FILENUM",    "filenum", 0},
                            {"TXNID_PAIR",      "xid", 0},
                            {"BYTESTRING", "key", 0},

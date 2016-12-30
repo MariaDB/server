@@ -442,11 +442,13 @@ void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end)
 void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
                                     size_t buf_len)
 {
+  DBUG_ENTER("wsrep_dump_rbr_buf_with_header");
+
   char filename[PATH_MAX]= {0};
   File file;
   IO_CACHE cache;
   Log_event_writer writer(&cache);
-  Format_description_log_event *ev= wsrep_get_apply_format(thd);
+  Format_description_log_event *ev;
 
   int len= my_snprintf(filename, PATH_MAX, "%s/GRA_%lld_%lld_v2.log",
                        wsrep_data_home_dir, (longlong) thd->thread_id,
@@ -455,7 +457,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
   if (len >= PATH_MAX)
   {
     WSREP_ERROR("RBR dump path too long: %d, skipping dump.", len);
-    return;
+    DBUG_VOID_RETURN;
   }
 
   if ((file= mysql_file_open(key_file_wsrep_gra_log, filename,
@@ -477,6 +479,13 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
     goto cleanup2;
   }
 
+  /*
+    Instantiate an FDLE object for non-wsrep threads (to be written
+    to the dump file).
+  */
+  ev= (thd->wsrep_applier) ? wsrep_get_apply_format(thd) :
+    (new Format_description_log_event(4));
+
   if (writer.write(ev) || my_b_write(&cache, (uchar*)rbr_buf, buf_len) ||
       flush_io_cache(&cache))
   {
@@ -489,5 +498,9 @@ cleanup2:
 
 cleanup1:
   mysql_file_close(file, MYF(MY_WME));
+
+  if (!thd->wsrep_applier) delete ev;
+
+  DBUG_VOID_RETURN;
 }
 

@@ -1705,24 +1705,18 @@ row_get_prebuilt_update_vector(
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL
 					handle */
 {
-	dict_table_t*	table	= prebuilt->table;
-	upd_node_t*	node;
-
-	ut_ad(prebuilt && table && prebuilt->trx);
-
 	if (prebuilt->upd_node == NULL) {
 
 		/* Not called before for this handle: create an update node
 		and query graph to the prebuilt struct */
 
-		node = row_create_update_node_for_mysql(table, prebuilt->heap);
-
-		prebuilt->upd_node = node;
+		prebuilt->upd_node = row_create_update_node_for_mysql(
+			prebuilt->table, prebuilt->heap);
 
 		prebuilt->upd_graph = static_cast<que_fork_t*>(
 			que_node_get_parent(
 				pars_complete_graph_for_exec(
-					static_cast<upd_node_t*>(node),
+					prebuilt->upd_node,
 					prebuilt->trx, prebuilt->heap,
 					prebuilt)));
 
@@ -3511,7 +3505,7 @@ fil_wait_crypt_bg_threads(
 	uint start = time(0);
 	uint last = start;
 	if (table->space != 0) {
-		fil_space_crypt_mark_space_closing(table->space);
+		fil_space_crypt_mark_space_closing(table->space, table->crypt_data);
 	}
 
 	while (table->get_ref_count()> 0) {
@@ -3986,6 +3980,13 @@ row_drop_table_for_mysql(
 	/* As we don't insert entries to SYSTEM TABLES for temp-tables
 	we need to avoid running removal of these entries. */
 	if (!dict_table_is_temporary(table)) {
+
+		/* If table has not yet have crypt_data, try to read it to
+		make freeing the table easier. */
+		if (!table->crypt_data) {
+			table->crypt_data = fil_space_get_crypt_data(table->space);
+		}
+
 		/* We use the private SQL parser of Innobase to generate the
 		query graphs needed in deleting the dictionary data from system
 		tables in Innobase. Deleting a row from SYS_INDEXES table also

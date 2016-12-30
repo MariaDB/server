@@ -1676,6 +1676,26 @@ analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Table is already up to date
 drop table t1;
+#
+# MDEV-10435 crash with bad stat tables
+#
+set use_stat_tables='preferably';
+call mtr.add_suppression("Column count of mysql.table_stats is wrong. Expected 3, found 1. The table is probably corrupted");
+rename table mysql.table_stats to test.table_stats;
+flush tables;
+create table t1 (a int);
+rename table t1 to t2, t3 to t4;
+ERROR 42S02: Table 'test.t3' doesn't exist
+drop table t1;
+rename table test.table_stats to mysql.table_stats;
+rename table mysql.table_stats to test.table_stats;
+create table mysql.table_stats (a int);
+flush tables;
+create table t1 (a int);
+rename table t1 to t2, t3 to t4;
+ERROR 42S02: Table 'test.t3' doesn't exist
+drop table t1, mysql.table_stats;
+rename table test.table_stats to mysql.table_stats;
 set use_stat_tables=@save_use_stat_tables;
 #
 # Start of 10.2 tests
