@@ -26,7 +26,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "data0type.h"
 #include "page0page.h"
 
-#ifndef UNIV_HOTBACKUP
 /***********************************************************************//**
 Builds a roll pointer.
 @return roll pointer */
@@ -116,7 +115,6 @@ trx_undo_trx_id_is_insert(
 #endif
 	return(static_cast<bool>(trx_id[DATA_TRX_ID_LEN] >> 7));
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*****************************************************************//**
 Writes a roll ptr to an index page. In case that the size changes in
@@ -152,8 +150,6 @@ trx_read_roll_ptr(
 #endif
 	return(mach_read_from_7(ptr));
 }
-
-#ifndef UNIV_HOTBACKUP
 
 /** Gets an undo log page and x-latches it.
 @param[in]	page_id		page id
@@ -361,4 +357,3 @@ trx_undo_page_get_first_rec(
 
 	return(undo_page + start);
 }
-#endif /* !UNIV_HOTBACKUP */

@@ -30,7 +30,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "univ.i"
 #include "ut0byte.h"
 #include "log0log.h"
-#ifndef UNIV_HOTBACKUP
 #include "buf0types.h"
 
 /** Flag indicating if the page_cleaner is in active state. */
@@ -77,7 +76,6 @@ void
 buf_flush_write_complete(
 /*=====================*/
 	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
-#endif /* !UNIV_HOTBACKUP */
 /** Initialize a page for writing to the tablespace.
 @param[in]	block		buffer block; NULL if bypassing the buffer pool
 @param[in,out]	page		page frame
@@ -92,7 +90,6 @@ buf_flush_init_for_writing(
 	lsn_t			newest_lsn,
 	bool			skip_checksum);
 
-#ifndef UNIV_HOTBACKUP
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /********************************************************************//**
 Writes a flushable page asynchronously from the buffer pool to a file.
@@ -127,7 +124,6 @@ buf_flush_do_batch(
 	ulint			min_n,
 	lsn_t			lsn_limit,
 	flush_counters_t*	n);
-
 
 /** This utility flushes dirty blocks from the end of the flush list of all
 buffer pool instances.
@@ -437,8 +433,6 @@ private:
 	/* True if the operation was interrupted. */
 	bool			m_interrupted;
 };
-
-#endif /* !UNIV_HOTBACKUP */
 
 /******************************************************************//**
 Start a buffer flush batch for LRU or flush list */

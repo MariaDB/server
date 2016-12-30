@@ -36,7 +36,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0types.h"
 #include "ut0new.h"
 
-#ifndef UNIV_HOTBACKUP
 #include "lock0types.h"
 #include "log0log.h"
 #include "usr0types.h"
@@ -421,7 +420,6 @@ trx_set_dict_operation(
 	enum trx_dict_op_t	op);	/*!< in: operation, not
 					TRX_DICT_OP_NONE */
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Determines if a transaction is in the given state.
 The caller must hold trx_sys->mutex, or it must be the thread
@@ -468,9 +466,6 @@ ibool
 trx_is_strict(
 /*==========*/
 	trx_t*	trx);	/*!< in: transaction */
-#else /* !UNIV_HOTBACKUP */
-#define trx_is_interrupted(trx) FALSE
-#endif /* !UNIV_HOTBACKUP */
 
 /*******************************************************************//**
 Calculates the "weight" of a transaction. The weight of one transaction
@@ -1613,6 +1608,5 @@ private:
 #ifndef UNIV_NONINL
 #include "trx0trx.ic"
 #endif
-#endif /* !UNIV_HOTBACKUP */
 
 #endif

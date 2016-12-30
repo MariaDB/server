@@ -250,6 +250,7 @@ values */
 static ulong	innobase_fast_shutdown			= 1;
 static my_bool	innobase_file_format_check		= TRUE;
 static my_bool	innobase_use_atomic_writes		= FALSE;
+static my_bool	innobase_use_fallocate;
 static my_bool	innobase_use_doublewrite		= TRUE;
 static my_bool	innobase_use_checksums			= TRUE;
 static my_bool	innobase_locks_unsafe_for_binlog	= FALSE;
@@ -4210,8 +4211,9 @@ innobase_init(
 
 		/* There is hang on buffer pool when trying to get a new
 		page if buffer pool size is too small for large page sizes */
-		if (innobase_buffer_pool_size < (24 * 1024 * 1024)) {
-			ib::info() << "innobase_page_size "
+		if (UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF
+		    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
+			ib::info() << "innodb_page_size="
 				<< UNIV_PAGE_SIZE << " requires "
 				<< "innodb_buffer_pool_size > 24M current "
 				<< innobase_buffer_pool_size;
@@ -4636,6 +4638,13 @@ innobase_change_buffering_inited_ok:
 	data_mysql_default_charset_coll = (ulint) default_charset_info->number;
 
 	innobase_commit_concurrency_init_default();
+
+	if (innobase_use_fallocate) {
+		ib::warn() << "innodb_use_fallocate is DEPRECATED"
+			" and has no effect in MariaDB 10.2."
+			" It will be removed in MariaDB 10.3.";
+	}
+
 	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
 	if (innobase_use_atomic_writes) {
 		fprintf(stderr, "InnoDB: using atomic writes.\n");
@@ -21946,6 +21955,11 @@ static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
   "on Linux only with FusionIO device, and directFS filesystem.",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_BOOL(use_fallocate, innobase_use_fallocate,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
+  "Use posix_fallocate() to allocate files. DEPRECATED, has no effect.",
+  NULL, NULL, FALSE);
+
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
   PLUGIN_VAR_RQCMDARG,
   "Number of IOPs the server can do. Tunes the background IO rate",
@@ -22929,6 +22943,12 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   " but the each purges were not done yet.",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_ULONG(data_file_size_debug,
+  srv_sys_space_size_debug,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "InnoDB system tablespace size to be set in recovery.",
+  NULL, NULL, 0, 0, UINT_MAX32, 0);
+
 static MYSQL_SYSVAR_ULONG(fil_make_page_dirty_debug,
   srv_fil_make_page_dirty_debug, PLUGIN_VAR_OPCMDARG,
   "Make the first page of the given tablespace dirty.",
@@ -23171,6 +23191,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_home_dir),
   MYSQL_SYSVAR(doublewrite),
   MYSQL_SYSVAR(use_atomic_writes),
+  MYSQL_SYSVAR(use_fallocate),
   MYSQL_SYSVAR(api_enable_binlog),
   MYSQL_SYSVAR(api_enable_mdl),
   MYSQL_SYSVAR(api_disable_rowlock),
@@ -23312,6 +23333,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
+  MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
   MYSQL_SYSVAR(compress_debug),

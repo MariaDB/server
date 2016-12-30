@@ -35,9 +35,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "rem0types.h"
 #include "page0types.h"
 #include "row0log.h"
-
-#ifndef UNIV_HOTBACKUP
-# include "que0types.h"
+#include "que0types.h"
 
 /***********************************************************************//**
 Copies the undo record to the heap.
@@ -276,7 +274,6 @@ trx_undo_prev_version_build(
 				into this function by purge thread or not.
 				And if we read "after image" of undo log */
 
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Parses a redo log record of adding an undo log record.
 @return end of log record or NULL */
@@ -344,8 +341,6 @@ trx_undo_read_v_idx(
 	bool*			is_undo_log,
 	ulint*			field_no);
 
-#ifndef UNIV_HOTBACKUP
-
 /* Types of an undo log record: these have to be smaller than 16, as the
 compilation info multiplied by 16 is ORed to this value in an undo log
 record */
@@ -372,7 +367,5 @@ record */
 #ifndef UNIV_NONINL
 #include "trx0rec.ic"
 #endif
-
-#endif /* !UNIV_HOTBACKUP */
 
 #endif /* trx0rec_h */

@@ -31,7 +31,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "fil0fil.h"
 #include "trx0types.h"
-#ifndef UNIV_HOTBACKUP
 #include "mem0mem.h"
 #include "mtr0mtr.h"
 #include "ut0byte.h"
@@ -367,40 +366,6 @@ Check if there are any active (non-prepared) transactions.
 ulint
 trx_sys_any_active_transactions(void);
 /*=================================*/
-#else /* !UNIV_HOTBACKUP */
-/*****************************************************************//**
-Prints to stderr the MySQL binlog info in the system header if the
-magic number shows it valid. */
-void
-trx_sys_print_mysql_binlog_offset_from_page(
-/*========================================*/
-	const byte*	page);	/*!< in: buffer containing the trx
-				system header page, i.e., page number
-				TRX_SYS_PAGE_NO in the tablespace */
-/*****************************************************************//**
-Reads the file format id from the first system table space file.
-Even if the call succeeds and returns TRUE, the returned format id
-may be ULINT_UNDEFINED signalling that the format id was not present
-in the data file.
-@return TRUE if call succeeds */
-ibool
-trx_sys_read_file_format_id(
-/*========================*/
-	const char *pathname,	/*!< in: pathname of the first system
-				table space file */
-	ulint *format_id);	/*!< out: file format of the system table
-				space */
-/*****************************************************************//**
-Reads the file format id from the given per-table data file.
-@return TRUE if call succeeds */
-ibool
-trx_sys_read_pertable_file_format_id(
-/*=================================*/
-	const char *pathname,	/*!< in: pathname of a per-table
-				datafile */
-	ulint *format_id);	/*!< out: file format of the per-table
-				data file */
-#endif /* !UNIV_HOTBACKUP */
 /*****************************************************************//**
 Get the name representation of the file format from its id.
 @return pointer to the max format name */
@@ -590,7 +555,6 @@ identifier is added to this 64-bit constant. */
 	 | TRX_SYS_FILE_FORMAT_TAG_MAGIC_N_LOW)
 /* @} */
 
-#ifndef UNIV_HOTBACKUP
 /** The transaction system central memory data structure. */
 struct trx_sys_t {
 
@@ -683,7 +647,6 @@ struct trx_sys_t {
 two) is assigned, the field TRX_SYS_TRX_ID_STORE on the transaction system
 page is updated */
 #define TRX_SYS_TRX_ID_WRITE_MARGIN	((trx_id_t) 256)
-#endif /* !UNIV_HOTBACKUP */
 
 /** Test if trx_sys->mutex is owned. */
 #define trx_sys_mutex_own() (trx_sys->mutex.is_owned())

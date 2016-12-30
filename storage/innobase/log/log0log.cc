@@ -42,7 +42,6 @@ Created 12/9/1995 Heikki Tuuri
 
 #include "mem0mem.h"
 #include "buf0buf.h"
-#ifndef UNIV_HOTBACKUP
 #include "buf0flu.h"
 #include "srv0srv.h"
 #include "log0recv.h"
@@ -56,7 +55,6 @@ Created 12/9/1995 Heikki Tuuri
 #include "trx0roll.h"
 #include "srv0mon.h"
 #include "sync0sync.h"
-#endif /* !UNIV_HOTBACKUP */
 
 /* Used for debugging */
 // #define DEBUG_CRYPT 1
@@ -144,7 +142,6 @@ void
 log_io_complete_checkpoint(void);
 /*============================*/
 
-#ifndef UNIV_HOTBACKUP
 /****************************************************************//**
 Returns the oldest modified block lsn in the pool, or log_sys->lsn if none
 exists.
@@ -167,7 +164,6 @@ log_buf_pool_get_oldest_modification(void)
 
 	return(lsn);
 }
-#endif  /* !UNIV_HOTBACKUP */
 
 /** Extends the log buffer.
 @param[in]	len	requested minimum size in bytes */
@@ -261,7 +257,6 @@ log_buffer_extend(
 		<< LOG_BUFFER_SIZE << ".";
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Calculate actual length in redo buffer and file including
 block header and trailer.
 @param[in]	len	length to write
@@ -352,7 +347,7 @@ log_margin_checkpoint_age(
 
 	return;
 }
-#endif /* !UNIV_HOTBACKUP */
+
 /** Open the log for log_write_low. The log must be closed with log_close.
 @param[in]	len	length of the data to be written
 @return start lsn of the log record */
@@ -712,7 +707,7 @@ log_group_set_fields(
 	group->lsn_offset = log_group_calc_lsn_offset(lsn, group);
 	group->lsn = lsn;
 }
-#ifndef UNIV_HOTBACKUP
+
 /*****************************************************************//**
 Calculates the recommended highest values for lsn - last_checkpoint_lsn
 and lsn - buf_get_oldest_modification().
@@ -920,7 +915,7 @@ log_group_init(
 	UT_LIST_ADD_LAST(log_sys->log_groups, group);
 	return(log_calc_max_ages());
 }
-#endif /* !UNIV_HOTBACKUP */
+
 /******************************************************//**
 Completes an i/o to a log file. */
 void
@@ -1265,7 +1260,6 @@ loop:
 	}
 
 #ifdef _WIN32
-# ifndef UNIV_HOTBACKUP
 	/* write requests during fil_flush() might not be good for Windows */
 	if (log_sys->n_pending_flushes > 0
 	    || !os_event_is_set(log_sys->flush_event)) {
@@ -1273,11 +1267,6 @@ loop:
 		os_event_wait(log_sys->flush_event);
 		goto loop;
 	}
-# else
-	if (log_sys->n_pending_flushes > 0) {
-		goto loop;
-	}
-# endif  /* !UNIV_HOTBACKUP */
 #endif /* _WIN32 */
 
 	/* If it is a write call we should just go ahead and do it
@@ -1481,7 +1470,7 @@ log_flush_margin(void)
 		log_write_up_to(lsn, false);
 	}
 }
-#ifndef UNIV_HOTBACKUP
+
 /** Advances the smallest lsn for which there are unflushed dirty blocks in the
 buffer pool.
 NOTE: this function may only be called if the calling thread owns no
@@ -1550,7 +1539,7 @@ log_preflush_pool_modified_pages(
 
 	return(success);
 }
-#endif /* !UNIV_HOTBACKUP */
+
 /******************************************************//**
 Completes a checkpoint. */
 static
@@ -1665,50 +1654,6 @@ log_group_checkpoint(
 	ut_ad(((ulint) group & 0x1UL) == 0);
 }
 
-#ifdef UNIV_HOTBACKUP
-/******************************************************//**
-Writes info to a buffer of a log group when log files are created in
-backup restoration. */
-void
-log_reset_first_header_and_checkpoint(
-/*==================================*/
-	byte*		hdr_buf,/*!< in: buffer which will be written to the
-				start of the first log file */
-	ib_uint64_t	start)	/*!< in: lsn of the start of the first log file;
-				we pretend that there is a checkpoint at
-				start + LOG_BLOCK_HDR_SIZE */
-{
-	byte*		buf;
-	ib_uint64_t	lsn;
-
-	mach_write_to_4(hdr_buf + LOG_HEADER_FORMAT,
-			LOG_HEADER_FORMAT_CURRENT);
-	mach_write_to_8(hdr_buf + LOG_HEADER_START_LSN, start);
-
-	lsn = start + LOG_BLOCK_HDR_SIZE;
-
-	/* Write the label of mysqlbackup --restore */
-	strcpy((char*)hdr_buf + LOG_HEADER_CREATOR, LOG_HEADER_CREATOR_CURRENT);
-	ut_sprintf_timestamp((char*) hdr_buf
-			     + (LOG_HEADER_CREATOR
-			     + (sizeof LOG_HEADER_CREATOR_CURRENT) - 1));
-	buf = hdr_buf + LOG_CHECKPOINT_1;
-	memset(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
-
-	/*mach_write_to_8(buf + LOG_CHECKPOINT_NO, 0);*/
-	mach_write_to_8(buf + LOG_CHECKPOINT_LSN, lsn);
-
-	log_crypt_write_checkpoint_buf(buf);
-
-	mach_write_to_8(buf + LOG_CHECKPOINT_OFFSET,
-			LOG_FILE_HDR_SIZE + LOG_BLOCK_HDR_SIZE);
-	mach_write_to_8(buf + LOG_CHECKPOINT_LOG_BUF_SIZE, 2 * 1024 * 1024);
-
-	log_block_set_checksum(buf, log_block_calc_checksum_crc32(buf));
-}
-#endif /* UNIV_HOTBACKUP */
-
-#ifndef UNIV_HOTBACKUP
 /** Read a log group header page to log_sys->checkpoint_buf.
 @param[in]	group	log group
 @param[in]	header	0 or LOG_CHEKCPOINT_1 or LOG_CHECKPOINT2 */
@@ -2675,4 +2620,3 @@ DECLARE_THREAD(log_scrub_thread)(
 
 	OS_THREAD_DUMMY_RETURN;
 }
-#endif /* !UNIV_HOTBACKUP */

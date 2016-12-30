@@ -54,17 +54,8 @@ Created 10/21/1995 Heikki Tuuri
 #ifdef HAVE_LINUX_UNISTD_H
 #include "unistd.h"
 #endif
-#ifndef UNIV_HOTBACKUP
-# include "os0event.h"
-# include "os0thread.h"
-#else /* !UNIV_HOTBACKUP */
-# ifdef _WIN32
-/* Add includes for the _stat() call to compile on Windows */
-#  include <sys/types.h>
-#  include <sys/stat.h>
-#  include <errno.h>
-# endif /* _WIN32 */
-#endif /* !UNIV_HOTBACKUP */
+#include "os0event.h"
+#include "os0thread.h"
 
 #include <vector>
 
@@ -167,8 +158,6 @@ static HANDLE	read_completion_port;
 static DWORD	fls_sync_io  = FLS_OUT_OF_INDEXES;
 #define IOCP_SHUTDOWN_KEY (ULONG_PTR)-1
 #endif /* _WIN32 */
-
-#ifndef UNIV_HOTBACKUP
 
 /** In simulated aio, merge at most this many consecutive i/os */
 static const ulint	OS_AIO_MERGE_N_CONSECUTIVE = 64;
@@ -749,7 +738,6 @@ static ulint		os_aio_n_segments = ULINT_UNDEFINED;
 /** If the following is true, read i/o handler threads try to
 wait until a batch of new read requests have been posted */
 static bool		os_aio_recommend_sleep_for_read_threads = false;
-#endif /* !UNIV_HOTBACKUP */
 
 ulint	os_n_file_reads		= 0;
 ulint	os_bytes_read_since_printout = 0;
@@ -1453,7 +1441,6 @@ os_file_compress_page(
 #endif /* MYSQL_COMPRESSION */
 
 #ifdef UNIV_DEBUG
-# ifndef UNIV_HOTBACKUP
 /** Validates the consistency the aio system some of the time.
 @return true if ok or the check was skipped */
 bool
@@ -1479,16 +1466,12 @@ os_aio_validate_skip()
 	os_aio_validate_count = OS_AIO_VALIDATE_SKIP;
 	return(os_aio_validate());
 }
-# endif /* !UNIV_HOTBACKUP */
 #endif /* UNIV_DEBUG */
 
 #undef USE_FILE_LOCK
-#define USE_FILE_LOCK
-#if defined(UNIV_HOTBACKUP) || defined(_WIN32)
-/* InnoDB Hot Backup does not lock the data files.
- * On Windows, mandatory locking is used.
- */
-# undef USE_FILE_LOCK
+#ifndef _WIN32
+/* On Windows, mandatory locking is used */
+# define USE_FILE_LOCK
 #endif
 #ifdef USE_FILE_LOCK
 /** Obtain an exclusive lock on a file.
@@ -1527,8 +1510,6 @@ os_file_lock(
 	return(0);
 }
 #endif /* USE_FILE_LOCK */
-
-#ifndef UNIV_HOTBACKUP
 
 /** Calculates local segment number and aio array from global segment number.
 @param[out]	array		aio wait array
@@ -1758,8 +1739,6 @@ os_file_io_complete(
 
 	return(DB_SUCCESS);
 }
-
-#endif /* !UNIV_HOTBACKUP */
 
 /** This function returns a new path name after replacing the basename
 in an old path with a new basename.  The old_path is a full path
@@ -4067,18 +4046,6 @@ os_file_set_eof(
 	return(!ftruncate(fileno(file), ftell(file)));
 }
 
-#ifdef UNIV_HOTBACKUP
-/** Closes a file handle.
-@param[in]	file		Handle to a file
-@return true if success */
-bool
-os_file_close_no_error_handling(
-	os_file_t	file)
-{
-	return(close(file) != -1);
-}
-#endif /* UNIV_HOTBACKUP */
-
 /** This function can be called if one wants to post a batch of reads and
 prefers an i/o-handler thread to handle them all at once later. You must
 call os_aio_simulated_wake_handler_threads later to ensure the threads
@@ -4875,9 +4842,6 @@ os_file_create_func(
 
 	DWORD		attributes = 0;
 
-#ifdef UNIV_HOTBACKUP
-	attributes |= FILE_FLAG_NO_BUFFERING;
-#else
 	if (purpose == OS_FILE_AIO) {
 
 #ifdef WIN_ASYNC_IO
@@ -4917,7 +4881,6 @@ os_file_create_func(
 	}
 #endif /* UNIV_NON_BUFFERED_IO */
 
-#endif /* UNIV_HOTBACKUP */
 	DWORD	access = GENERIC_READ;
 
 	if (!read_only) {
@@ -5084,8 +5047,9 @@ os_file_delete_if_exists_func(
 	}
 
 	for (;;) {
-		/* In Windows, deleting an .ibd file may fail if ibbackup
-		is copying it */
+		/* In Windows, deleting an .ibd file may fail if
+		the file is being accessed by an external program,
+		such as a backup tool. */
 
 		bool	ret = DeleteFile((LPCTSTR) name);
 
@@ -5136,8 +5100,9 @@ os_file_delete_func(
 	ulint	count	= 0;
 
 	for (;;) {
-		/* In Windows, deleting an .ibd file may fail if ibbackup
-		is copying it */
+		/* In Windows, deleting an .ibd file may fail if
+		the file is being accessed by an external program,
+		such as a backup tool. */
 
 		BOOL	ret = DeleteFile((LPCTSTR) name);
 
@@ -5160,8 +5125,8 @@ os_file_delete_func(
 			os_file_get_last_error(true);
 
 			ib::warn()
-				<< "Cannot delete file '" << name << "'. Are "
-				<< "you running ibbackup to back up the file?";
+				<< "Cannot delete file '" << name << "'. Is "
+				<< "another program accessing it?";
 		}
 
 		/* sleep for a second */
@@ -5469,18 +5434,6 @@ os_file_set_eof(
 
 	return(SetEndOfFile(h));
 }
-
-#ifdef UNIV_HOTBACKUP
-/** Closes a file handle.
-@param[in]	file		Handle to close
-@return true if success */
-bool
-os_file_close_no_error_handling(
-	os_file_t	file)
-{
-	return(CloseHandle(file) ? true : false);
-}
-#endif /* UNIV_HOTBACKUP */
 
 /** This function can be called if one wants to post a batch of reads and
 prefers an i/o-handler thread to handle them all at once later. You must
@@ -6136,21 +6089,8 @@ os_file_set_size(
 		dberr_t		err;
 		IORequest	request(IORequest::WRITE);
 
-#ifdef UNIV_HOTBACKUP
-
 		err = os_file_write(
 			request, name, file, buf, current_size, n_bytes);
-#else
-		/* Using OS_AIO_SYNC mode on POSIX systems will result in
-		fall back to os_file_write/read. On Windows it will use
-		special mechanism to wait before it returns back. */
-
-		err = os_aio(
-			request,
-			OS_AIO_SYNC, name,
-			file, buf, current_size, n_bytes,
-			read_only, NULL, NULL, NULL);
-#endif /* UNIV_HOTBACKUP */
 
 		if (err != DB_SUCCESS) {
 

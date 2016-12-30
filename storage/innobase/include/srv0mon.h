@@ -38,9 +38,6 @@ Created 12/15/2009	Jimmy Yang
 
 #include <stdint.h>
 
-#ifndef UNIV_HOTBACKUP
-
-
 /** Possible status values for "mon_status" in "struct monitor_value" */
 enum monitor_running_status {
 	MONITOR_STARTED = 1,	/*!< Monitor has been turned on */
@@ -899,9 +896,5 @@ srv_mon_default_on(void);
 #ifndef UNIV_NONINL
 #include "srv0mon.ic"
 #endif
-#else /* !UNIV_HOTBACKUP */
-# define MONITOR_INC(x)		((void) 0)
-# define MONITOR_DEC(x)		((void) 0)
-#endif /* !UNIV_HOTBACKUP */
 
 #endif

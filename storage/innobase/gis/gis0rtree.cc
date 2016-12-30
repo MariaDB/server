@@ -28,8 +28,6 @@ Created 2013/03/27 Allen Lai and Jimmy Yang
 #include "page0cur.h"
 #include "page0zip.h"
 #include "gis0rtree.h"
-
-#ifndef UNIV_HOTBACKUP
 #include "btr0cur.h"
 #include "btr0sea.h"
 #include "btr0pcur.h"
@@ -39,8 +37,6 @@ Created 2013/03/27 Allen Lai and Jimmy Yang
 #include "trx0trx.h"
 #include "srv0mon.h"
 #include "gis0geo.h"
-
-#endif /* UNIV_HOTBACKUP */
 
 /*************************************************************//**
 Initial split nodes info for R-tree split.

@@ -148,7 +148,6 @@ page_zip_set_size(
 	ut_ad(page_zip_get_size(page_zip) == size);
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Determine if a record is so big that it needs to be stored externally.
 @param[in]	rec_size	length of the record in bytes
 @param[in]	comp		nonzero=compact format
@@ -188,7 +187,6 @@ page_zip_rec_needs_ext(
 
 	return(rec_size >= page_get_free_space_of_empty(comp) / 2);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /**********************************************************************//**
@@ -364,9 +362,7 @@ page_zip_write_header(
 	/* ut_ad(page_zip_validate(page_zip, str - pos)); */
 
 	if (mtr) {
-#ifndef UNIV_HOTBACKUP
 		page_zip_write_header_log(str, length, mtr);
-#endif /* !UNIV_HOTBACKUP */
 	}
 }
 

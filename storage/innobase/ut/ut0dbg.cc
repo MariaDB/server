@@ -37,16 +37,8 @@ ut_dbg_assertion_failed(
 	ulint line)		/*!< in: line number of the assertion */
 {
 	ut_print_timestamp(stderr);
-#ifdef UNIV_HOTBACKUP
 	fprintf(stderr, "  InnoDB: Assertion failure in file %s line %lu\n",
 		file, line);
-#else /* UNIV_HOTBACKUP */
-	fprintf(stderr,
-		"  InnoDB: Assertion failure in thread " ULINTPF
-		" in file %s line " ULINTPF "\n",
-		os_thread_pf(os_thread_get_curr_id()),
-		innobase_basename(file), line);
-#endif /* UNIV_HOTBACKUP */
 	if (expr) {
 		fprintf(stderr,
 			"InnoDB: Failing assertion: %s\n", expr);

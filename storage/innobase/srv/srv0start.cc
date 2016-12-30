@@ -76,42 +76,39 @@ Created 2/16/1996 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "btr0defragment.h"
-
 #include "fsp0sysspace.h"
 #include "row0trunc.h"
 #include <mysql/service_wsrep.h>
-
-#ifndef UNIV_HOTBACKUP
-# include "trx0rseg.h"
-# include "os0proc.h"
-# include "buf0flu.h"
-# include "buf0rea.h"
-# include "buf0mtflu.h"
-# include "dict0boot.h"
-# include "dict0load.h"
-# include "dict0stats_bg.h"
-# include "que0que.h"
-# include "usr0sess.h"
-# include "lock0lock.h"
-# include "trx0roll.h"
-# include "trx0purge.h"
-# include "lock0lock.h"
-# include "pars0pars.h"
-# include "btr0sea.h"
-# include "rem0cmp.h"
-# include "dict0crea.h"
-# include "row0ins.h"
-# include "row0sel.h"
-# include "row0upd.h"
-# include "row0row.h"
-# include "row0mysql.h"
-# include "row0trunc.h"
-# include "btr0pcur.h"
-# include "os0event.h"
-# include "zlib.h"
-# include "ut0crc32.h"
-# include "btr0scrub.h"
-# include "ut0new.h"
+#include "trx0rseg.h"
+#include "os0proc.h"
+#include "buf0flu.h"
+#include "buf0rea.h"
+#include "buf0mtflu.h"
+#include "dict0boot.h"
+#include "dict0load.h"
+#include "dict0stats_bg.h"
+#include "que0que.h"
+#include "usr0sess.h"
+#include "lock0lock.h"
+#include "trx0roll.h"
+#include "trx0purge.h"
+#include "lock0lock.h"
+#include "pars0pars.h"
+#include "btr0sea.h"
+#include "rem0cmp.h"
+#include "dict0crea.h"
+#include "row0ins.h"
+#include "row0sel.h"
+#include "row0upd.h"
+#include "row0row.h"
+#include "row0mysql.h"
+#include "row0trunc.h"
+#include "btr0pcur.h"
+#include "os0event.h"
+#include "zlib.h"
+#include "ut0crc32.h"
+#include "btr0scrub.h"
+#include "ut0new.h"
 
 #ifdef HAVE_LZO1X
 #include <lzo/lzo1x.h>
@@ -140,6 +137,10 @@ bool	srv_sys_tablespaces_open = false;
 ibool	srv_was_started = FALSE;
 /** TRUE if innobase_start_or_create_for_mysql() has been called */
 static ibool	srv_start_has_been_called = FALSE;
+#ifdef UNIV_DEBUG
+/** InnoDB system tablespace to set during recovery */
+UNIV_INTERN ulong	srv_sys_space_size_debug;
+#endif /* UNIV_DEBUG */
 
 /** Bit flags for tracking background thread creation. They are used to
 determine which threads need to be stopped if we need to abort during
@@ -186,7 +187,6 @@ static bool		dict_stats_thread_started = false;
 static bool		buf_flush_page_cleaner_thread_started = false;
 /** Name of srv_monitor_file */
 static char*	srv_monitor_file_name;
-#endif /* !UNIV_HOTBACKUP */
 
 /** Minimum expected tablespace size. (10M) */
 static const ulint MIN_EXPECTED_TABLESPACE_SIZE = 5 * 1024 * 1024;
@@ -194,9 +194,6 @@ static const ulint MIN_EXPECTED_TABLESPACE_SIZE = 5 * 1024 * 1024;
 /** */
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
-/** The round off to MB is similar as done in srv_parse_megabytes() */
-#define CALC_NUMBER_OF_PAGES(size)  ((size) / (1024 * 1024)) * \
-				  ((1024 * 1024) / (UNIV_PAGE_SIZE))
 #ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 mysql_pfs_key_t	buf_dump_thread_key;
@@ -281,7 +278,6 @@ srv_file_check_mode(
 	return(true);
 }
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 I/o-handler thread function.
 @return OS_THREAD_DUMMY_RETURN */
@@ -340,9 +336,7 @@ DECLARE_THREAD(io_handler_thread)(
 
 	OS_THREAD_DUMMY_RETURN;
 }
-#endif /* !UNIV_HOTBACKUP */
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Creates a log file.
 @return DB_SUCCESS or error code */
@@ -1691,7 +1685,6 @@ innobase_start_or_create_for_mysql(void)
 
 	ib::info() << ut_crc32_implementation;
 
-
 	if (!srv_read_only_mode) {
 
 		mutex_create(LATCH_ID_SRV_MONITOR_FILE,
@@ -2092,6 +2085,7 @@ files_checked:
 	shutdown */
 
 	fil_open_log_and_system_tablespace_files();
+	ut_d(fil_space_get(0)->recv_size = srv_sys_space_size_debug);
 
 	err = srv_undo_tablespaces_init(
 		create_new_db,
@@ -2744,7 +2738,6 @@ srv_fts_close(void)
 }
 #endif
 
-
 /****************************************************************//**
 Shuts down background threads that can generate undo pages. */
 void
@@ -2754,7 +2747,6 @@ srv_shutdown_bg_undo_sources(void)
 	fts_optimize_shutdown();
 	dict_stats_shutdown();
 }
-
 
 /****************************************************************//**
 Shuts down the InnoDB database.
@@ -2882,8 +2874,6 @@ innobase_shutdown_for_mysql(void)
 
 	return(DB_SUCCESS);
 }
-#endif /* !UNIV_HOTBACKUP */
-
 
 /********************************************************************
 Signal all per-table background threads to shutdown, and wait for them to do

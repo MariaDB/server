@@ -34,7 +34,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "page0types.h"
 #include "trx0xa.h"
 
-#ifndef UNIV_HOTBACKUP
 /***********************************************************************//**
 Builds a roll pointer.
 @return roll pointer */
@@ -75,7 +74,6 @@ trx_undo_trx_id_is_insert(
 /*======================*/
 	const byte*	trx_id)	/*!< in: DB_TRX_ID, followed by DB_ROLL_PTR */
 	MY_ATTRIBUTE((warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /*****************************************************************//**
 Writes a roll ptr to an index page. In case that the size changes in
 some future version, this function should be used instead of
@@ -97,7 +95,6 @@ roll_ptr_t
 trx_read_roll_ptr(
 /*==============*/
 	const byte*	ptr);	/*!< in: pointer to memory from where to read */
-#ifndef UNIV_HOTBACKUP
 
 /** Gets an undo log page and x-latches it.
 @param[in]	page_id		page id
@@ -366,7 +363,6 @@ bool
 trx_undo_truncate_tablespace(
 	undo::Truncate*	undo_trunc);
 
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Parses the redo log entry of an undo log page initialization.
 @return end of log record or NULL */
@@ -427,7 +423,7 @@ trx_undo_mem_free(
 #define	TRX_UNDO_PREPARED	5	/* contains an undo log of an
 					prepared transaction */
 
-#if !defined UNIV_HOTBACKUP && !defined UNIV_INNOCHECKSUM
+#ifndef UNIV_INNOCHECKSUM
 
 /** Transaction undo log memory object; this is protected by the undo_mutex
 in the corresponding transaction object */
@@ -488,7 +484,7 @@ struct trx_undo_t {
 					/*!< undo log objects in the rollback
 					segment are chained into lists */
 };
-#endif /* !UNIV_HOTBACKUP && !UNIV_INNOCHECKSUM */
+#endif /* !UNIV_INNOCHECKSUM */
 
 /** The offset of the undo log page header on pages of the undo log */
 #define	TRX_UNDO_PAGE_HDR	FSEG_PAGE_DATA
@@ -552,7 +548,6 @@ log segment */
 /** Size of the undo log segment header */
 #define TRX_UNDO_SEG_HDR_SIZE	(4 + FSEG_HEADER_SIZE + FLST_BASE_NODE_SIZE)
 /* @} */
-
 
 /** The undo log header. There can be several undo log headers on the first
 page of an update undo log segment. */

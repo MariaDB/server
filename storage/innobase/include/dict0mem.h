@@ -35,11 +35,9 @@ Created 1/8/1996 Heikki Tuuri
 #include "row0types.h"
 #include "rem0types.h"
 #include "btr0types.h"
-#ifndef UNIV_HOTBACKUP
-# include "lock0types.h"
-# include "que0types.h"
-# include "sync0rw.h"
-#endif /* !UNIV_HOTBACKUP */
+#include "lock0types.h"
+#include "que0types.h"
+#include "sync0rw.h"
 #include "ut0mem.h"
 #include "ut0rnd.h"
 #include "ut0byte.h"
@@ -50,7 +48,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "gis0type.h"
 #include "os0once.h"
 #include "ut0new.h"
-
 #include "fil0fil.h"
 #include <my_crypt.h>
 #include "fil0crypt.h"
@@ -869,7 +866,6 @@ struct dict_index_t{
 	id_name_t	name;	/*!< index name */
 	const char*	table_name;/*!< table name */
 	dict_table_t*	table;	/*!< back pointer to table */
-#ifndef UNIV_HOTBACKUP
 	unsigned	space:32;
 				/*!< space where the index tree is placed */
 	unsigned	page:32;/*!< index tree root page number */
@@ -878,7 +874,6 @@ struct dict_index_t{
 				data size drops below this limit in percent,
 				merging it to a neighbor is tried */
 # define DICT_INDEX_MERGE_THRESHOLD_DEFAULT 50
-#endif /* !UNIV_HOTBACKUP */
 	unsigned	type:DICT_IT_BITS;
 				/*!< index type (DICT_CLUSTERED, DICT_UNIQUE,
 				DICT_IBUF, DICT_CORRUPT) */
@@ -940,7 +935,6 @@ struct dict_index_t{
 	bool		has_new_v_col;
 				/*!< whether it has a newly added virtual
 				column in ALTER */
-#ifndef UNIV_HOTBACKUP
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
 	btr_search_t*	search_info;
@@ -1028,7 +1022,6 @@ struct dict_index_t{
 		ut_ad(committed || !(type & DICT_CLUSTERED));
 		uncommitted = !committed;
 	}
-#endif /* !UNIV_HOTBACKUP */
 };
 
 /** The status of online index creation */
@@ -1514,7 +1507,6 @@ struct dict_table_t {
 				/*!< !DICT_FRM_CONSISTENT==0 if data
 				dictionary information and
 				MySQL FRM information mismatch. */
-#ifndef UNIV_HOTBACKUP
 	/** Hash chain node. */
 	hash_node_t				name_hash;
 
@@ -1774,8 +1766,6 @@ public:
 
 	/** Timestamp of the last modification of this table. */
 	time_t					update_time;
-
-#endif /* !UNIV_HOTBACKUP */
 
 	bool					is_encrypted;
 

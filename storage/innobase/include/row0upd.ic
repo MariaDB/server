@@ -24,12 +24,10 @@ Created 12/27/1996 Heikki Tuuri
 *******************************************************/
 
 #include "mtr0log.h"
-#ifndef UNIV_HOTBACKUP
-# include "trx0trx.h"
-# include "trx0undo.h"
-# include "row0row.h"
-# include "lock0lock.h"
-#endif /* !UNIV_HOTBACKUP */
+#include "trx0trx.h"
+#include "trx0undo.h"
+#include "row0row.h"
+#include "lock0lock.h"
 #include "page0zip.h"
 
 /*********************************************************************//**
@@ -87,7 +85,6 @@ upd_get_nth_field(
 }
 #endif /* UNIV_DEBUG */
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Sets an index field number to be updated by an update vector field. */
 UNIV_INLINE
@@ -220,4 +217,3 @@ row_upd_rec_sys_fields(
 		trx_write_roll_ptr(rec + offset + DATA_TRX_ID_LEN, roll_ptr);
 	}
 }
-#endif /* !UNIV_HOTBACKUP */

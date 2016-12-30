@@ -55,7 +55,6 @@ Issue a warning that the row is too big. */
 void
 ib_warn_row_too_big(const dict_table_t*	table);
 
-#ifndef UNIV_HOTBACKUP
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0sea.h"
@@ -551,7 +550,6 @@ dict_table_close(
 		}
 	}
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /********************************************************************//**
 Closes the only open handle to a table and drops a table while assuring
@@ -753,7 +751,6 @@ dict_table_get_nth_v_col_mysql(
 	return(dict_table_get_nth_v_col(table, i));
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Allocate and init the autoinc latch of a given table.
 This function must not be called concurrently on the same table object.
 @param[in,out]	table_void	table whose autoinc latch to create */
@@ -781,7 +778,6 @@ dict_index_zip_pad_alloc(
 	ut_a(index->zip_pad.mutex != NULL);
 	mutex_create(LATCH_ID_ZIP_PAD_MUTEX, index->zip_pad.mutex);
 }
-
 
 /********************************************************************//**
 Acquire the autoinc lock. */
@@ -844,7 +840,6 @@ dict_table_autoinc_unlock(
 {
 	mutex_exit(table->autoinc_mutex);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /** Looks for column n in an index.
 @param[in]	index		index
@@ -903,7 +898,6 @@ dict_index_get_nth_col_or_prefix_pos(
 	return(ULINT_UNDEFINED);
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Returns TRUE if the index contains a column or a prefix of that column.
 @param[in]	index		index
 @param[in]	n		column number
@@ -1242,7 +1236,6 @@ dict_table_open_on_name(
 
 	DBUG_RETURN(table);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
 Adds system columns to a table object. */
@@ -1292,7 +1285,6 @@ dict_table_add_system_columns(
 #endif
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Mark if table has big rows.
 @param[in,out]	table	table handler */
 void
@@ -2874,7 +2866,6 @@ found:
 
 	return(TRUE);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*******************************************************************//**
 Adds a column to index. */
@@ -2957,7 +2948,6 @@ dict_index_add_col(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*******************************************************************//**
 Copies fields contained in index2 to index1. */
 static
@@ -3170,7 +3160,6 @@ dict_index_build_internal_clust(
 	dict_index_add_col(
 		new_index, table,
 		dict_table_get_sys_col(table, DATA_TRX_ID), 0);
-
 
 	for (i = 0; i < trx_id_pos; i++) {
 
@@ -3489,7 +3478,6 @@ dict_foreign_find(
 	return(NULL);
 }
 
-
 /*********************************************************************//**
 Tries to find an index whose first fields are the columns in the array,
 in the same order and is not marked for deletion and is not the same
@@ -3674,7 +3662,6 @@ dict_foreign_add_to_cache(
 		for_in_cache = foreign;
 
 	}
-
 
 	if (ref_table && !for_in_cache->referenced_table) {
 		ulint index_error;
@@ -4051,7 +4038,6 @@ dict_scan_col(
 
 	return(ptr);
 }
-
 
 /*********************************************************************//**
 Open a table from its database and table name, this is currently used by
@@ -6348,7 +6334,6 @@ dict_set_merge_threshold_all_debug(
 }
 
 #endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
 Inits dict_ind_redundant. */
@@ -6372,7 +6357,6 @@ dict_ind_init(void)
 	dict_ind_redundant->cached = TRUE;
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Frees dict_ind_redundant. */
 static
@@ -7228,7 +7212,6 @@ dict_index_zip_failure(
 	dict_index_zip_pad_unlock(index);
 }
 
-
 /*********************************************************************//**
 Return the optimal page size, for which page will likely compress.
 @return page size beyond which page might not compress */
@@ -7444,7 +7427,6 @@ dict_space_get_id(
 
 	return(id);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /** Determine the extent size (in pages) for the given table
 @param[in]	table	the table whose extent size is being

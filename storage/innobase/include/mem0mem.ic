@@ -61,14 +61,12 @@ mem_heap_block_free(
 	mem_heap_t*	heap,	/*!< in: heap */
 	mem_block_t*	block);	/*!< in: block to free */
 
-#ifndef UNIV_HOTBACKUP
 /******************************************************************//**
 Frees the free_block field from a memory heap. */
 void
 mem_heap_free_block_free(
 /*=====================*/
 	mem_heap_t*	heap);	/*!< in: heap */
-#endif /* !UNIV_HOTBACKUP */
 
 /***************************************************************//**
 Adds a new block to a memory heap.
@@ -302,11 +300,10 @@ mem_heap_empty(
 	mem_heap_t*	heap)
 {
 	mem_heap_free_heap_top(heap, (byte*) heap + mem_block_get_start(heap));
-#ifndef UNIV_HOTBACKUP
+
 	if (heap->free_block) {
 		mem_heap_free_block_free(heap);
 	}
-#endif /* !UNIV_HOTBACKUP */
 }
 
 /** Returns a pointer to the topmost element in a memory heap.
@@ -524,11 +521,9 @@ mem_heap_free(
 
 	block = UT_LIST_GET_LAST(heap->base);
 
-#ifndef UNIV_HOTBACKUP
 	if (heap->free_block) {
 		mem_heap_free_block_free(heap);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	while (block != NULL) {
 		/* Store the contents of info before freeing current block
@@ -556,11 +551,9 @@ mem_heap_get_size(
 
 	size = heap->total_size;
 
-#ifndef UNIV_HOTBACKUP
 	if (heap->free_block) {
 		size += UNIV_PAGE_SIZE;
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	return(size);
 }

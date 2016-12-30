@@ -2254,11 +2254,19 @@ recv_parse_log_rec(
 	}
 #endif /* UNIV_LOG_LSN_DEBUG */
 
+	byte*	old_ptr = new_ptr;
 	new_ptr = recv_parse_or_apply_log_rec_body(*type, new_ptr, end_ptr,
 						   NULL, NULL, *space);
 	if (UNIV_UNLIKELY(new_ptr == NULL)) {
 
 		return(0);
+	}
+
+	if (*page_no == 0 && *type == MLOG_4BYTES
+	    && mach_read_from_2(old_ptr) == FSP_HEADER_OFFSET + FSP_SIZE) {
+		ulint	size;
+		mach_parse_compressed(old_ptr + 2, end_ptr, &size);
+		fil_space_set_recv_size(*space, size);
 	}
 
 	if (*page_no > recv_max_parsed_page_no) {

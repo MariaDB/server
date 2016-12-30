@@ -309,7 +309,7 @@ page_header_set_ptr(
 				uncompressed part will be updated, or NULL */
 	ulint		field,	/*!< in/out: PAGE_FREE, ... */
 	const byte*	ptr);	/*!< in: pointer or NULL*/
-#ifndef UNIV_HOTBACKUP
+
 /*************************************************************//**
 Resets the last insert info field in the page header. Writes to mlog
 about this operation. */
@@ -321,7 +321,6 @@ page_header_reset_last_insert(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
 				uncompressed part will be updated, or NULL */
 	mtr_t*		mtr);	/*!< in: mtr */
-#endif /* !UNIV_HOTBACKUP */
 /************************************************************//**
 Gets the offset of the first record on the page.
 @return offset of the first record in record list, relative from page */
@@ -362,7 +361,7 @@ page_rec_get_nth(
 	page_t*	page,	/*< in: page */
 	ulint	nth)	/*!< in: nth record */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#ifndef UNIV_HOTBACKUP
+
 /************************************************************//**
 Returns the middle record of the records on the page. If there is an
 even number of records in the list, returns the first record of the
@@ -374,7 +373,6 @@ page_get_middle_rec(
 /*================*/
 	page_t*	page)	/*!< in: page */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /*************************************************************//**
 Gets the page number.
 @return page number */
@@ -756,7 +754,7 @@ rec_t*
 page_rec_find_owner_rec(
 /*====================*/
 	rec_t*	rec);	/*!< in: the physical record */
-#ifndef UNIV_HOTBACKUP
+
 /***********************************************************************//**
 Write a 32-bit field in a data dictionary record. */
 UNIV_INLINE
@@ -768,7 +766,6 @@ page_rec_write_field(
 	ulint	val,	/*!< in: value to write */
 	mtr_t*	mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
-#endif /* !UNIV_HOTBACKUP */
 /************************************************************//**
 Returns the maximum combined size of records which can be inserted on top
 of record heap.
@@ -1069,7 +1066,7 @@ page_parse_create(
 	buf_block_t*	block,
 	ulint		comp,
 	bool		is_rtree);
-#ifndef UNIV_HOTBACKUP
+
 /************************************************************//**
 Prints record contents including the data relevant only in
 the index page context. */
@@ -1115,7 +1112,6 @@ page_print(
 	ulint		rn);	/*!< in: print rn first and last records
 				in directory */
 # endif /* UNIV_BTR_PRINT */
-#endif /* !UNIV_HOTBACKUP */
 /***************************************************************//**
 The following is used to validate a record on a page. This function
 differs from rec_validate as it can also check the n_owned field and

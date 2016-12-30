@@ -34,15 +34,12 @@ Created 9/11/1995 Heikki Tuuri
 #define sync0rw_h
 
 #include "univ.i"
-#ifndef UNIV_HOTBACKUP
 #include "ut0counter.h"
 #include "os0event.h"
 #include "ut0mutex.h"
 
 /** Enable semaphore request instrumentation */
 extern my_bool srv_instrument_semaphores;
-
-#endif /* !UNIV_HOTBACKUP */
 
 /** Counters for RW locks. */
 struct rw_lock_stats_t {
@@ -96,7 +93,6 @@ enum rw_lock_type_t {
 	RW_NO_LATCH = 8
 };
 
-#ifndef UNIV_HOTBACKUP
 /* We decrement lock_word by X_LOCK_DECR for each x_lock. It is also the
 start value for the lock_word, meaning that it limits the maximum number
 of concurrent read locks before the rw_lock breaks. */
@@ -897,11 +893,8 @@ pfs_rw_lock_free_func(
 	rw_lock_t*	lock);	/*!< in: rw-lock */
 #endif  /* UNIV_PFS_RWLOCK */
 
-
 #ifndef UNIV_NONINL
 #include "sync0rw.ic"
 #endif /* !UNIV_NONINL */
-
-#endif /* !UNIV_HOTBACKUP */
 
 #endif /* sync0rw.h */

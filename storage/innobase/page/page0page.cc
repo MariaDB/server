@@ -34,12 +34,10 @@ Created 2/2/1994 Heikki Tuuri
 #include "buf0buf.h"
 #include "btr0btr.h"
 #include "row0trunc.h"
-#ifndef UNIV_HOTBACKUP
-# include "srv0srv.h"
-# include "lock0lock.h"
-# include "fut0lst.h"
-# include "btr0sea.h"
-#endif /* !UNIV_HOTBACKUP */
+#include "srv0srv.h"
+#include "lock0lock.h"
+#include "fut0lst.h"
+#include "btr0sea.h"
 
 /*			THE INDEX PAGE
 			==============
@@ -205,9 +203,7 @@ page_set_max_trx_id(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction, or NULL */
 {
 	page_t*		page		= buf_block_get_frame(block);
-#ifndef UNIV_HOTBACKUP
 	ut_ad(!mtr || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-#endif /* !UNIV_HOTBACKUP */
 
 	/* It is not necessary to write this change to the redo log, as
 	during a database recovery we assume that the max trx id of every
@@ -218,11 +214,9 @@ page_set_max_trx_id(
 		page_zip_write_header(page_zip,
 				      page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
 				      8, mtr);
-#ifndef UNIV_HOTBACKUP
 	} else if (mtr) {
 		mlog_write_ull(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
 			       trx_id, mtr);
-#endif /* !UNIV_HOTBACKUP */
 	} else {
 		mach_write_to_8(page + (PAGE_HEADER + PAGE_MAX_TRX_ID), trx_id);
 	}
@@ -299,7 +293,6 @@ page_mem_alloc_heap(
 	return(NULL);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************//**
 Writes a log record of page creation. */
 UNIV_INLINE
@@ -323,9 +316,6 @@ page_create_write_log(
 
 	mlog_write_initial_log_record(frame, type, mtr);
 }
-#else /* !UNIV_HOTBACKUP */
-# define page_create_write_log(frame,mtr,comp,is_rtree) ((void) 0)
-#endif /* !UNIV_HOTBACKUP */
 
 /** The page infimum and supremum of an empty page in ROW_FORMAT=REDUNDANT */
 static const byte infimum_supremum_redundant[] = {
@@ -638,7 +628,6 @@ page_copy_rec_list_end_no_locks(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Copies records from page to new_page, from a given record onward,
 including that record. Infimum and supremum records are not copied.
@@ -978,9 +967,6 @@ page_delete_rec_list_write_log(
 		mlog_close(mtr, log_ptr + 2);
 	}
 }
-#else /* !UNIV_HOTBACKUP */
-# define page_delete_rec_list_write_log(rec,index,type,mtr) ((void) 0)
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************//**
 Parses a log record of a record list end or start deletion.
@@ -1324,7 +1310,6 @@ page_delete_rec_list_start(
 	mtr_set_log_mode(mtr, log_mode);
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Moves record list end to another page. Moved records include
 split_rec.
@@ -1415,7 +1400,6 @@ page_move_rec_list_start(
 
 	return(TRUE);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /**************************************************************//**
 Used to delete n slots from the directory. This function updates
@@ -1741,7 +1725,6 @@ page_rec_get_n_recs_before(
 	return((ulint) n);
 }
 
-#ifndef UNIV_HOTBACKUP
 /************************************************************//**
 Prints record contents including the data relevant only in
 the index page context. */
@@ -1767,7 +1750,7 @@ page_rec_print(
 	rec_validate(rec, offsets);
 }
 
-# ifdef UNIV_BTR_PRINT
+#ifdef UNIV_BTR_PRINT
 /***************************************************************//**
 This is used to print the contents of the directory for
 debugging purposes. */
@@ -1924,8 +1907,7 @@ page_print(
 	page_dir_print(page, dn);
 	page_print_list(block, index, rn);
 }
-# endif /* UNIV_BTR_PRINT */
-#endif /* !UNIV_HOTBACKUP */
+#endif /* UNIV_BTR_PRINT */
 
 /***************************************************************//**
 The following is used to validate a record on a page. This function
@@ -1972,7 +1954,6 @@ page_rec_validate(
 	return(TRUE);
 }
 
-#ifndef UNIV_HOTBACKUP
 #ifdef UNIV_DEBUG
 /***************************************************************//**
 Checks that the first directory slot points to the infimum record and
@@ -2005,7 +1986,6 @@ page_check_dir(
 	}
 }
 #endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
 
 /***************************************************************//**
 This function checks the consistency of an index page when we do not
@@ -2504,7 +2484,6 @@ page_validate(
 			goto func_exit;
 		}
 
-#ifndef UNIV_HOTBACKUP
 		/* Check that the records are in the ascending order */
 		if (count >= PAGE_HEAP_NO_USER_LOW
 		    && !page_rec_is_supremum(rec)) {
@@ -2547,7 +2526,6 @@ page_validate(
 				goto func_exit;
 			}
 		}
-#endif /* !UNIV_HOTBACKUP */
 
 		if (page_rec_is_user_rec(rec)) {
 
@@ -2711,7 +2689,6 @@ func_exit2:
 	return(ret);
 }
 
-#ifndef UNIV_HOTBACKUP
 /***************************************************************//**
 Looks in the page record list for a record with the given heap number.
 @return record, NULL if not found */
@@ -2757,7 +2734,6 @@ page_find_rec_with_heap_no(
 		}
 	}
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*******************************************************//**
 Removes the record from a leaf page. This function does not log

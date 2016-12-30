@@ -28,7 +28,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0lru.ic"
 #endif /* UNIV_NOINL */
 
-#ifndef UNIV_HOTBACKUP
 #include "ut0byte.h"
 #include "ut0rnd.h"
 #include "sync0rw.h"
@@ -2791,4 +2790,3 @@ buf_LRU_print(void)
 	}
 }
 #endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG || UNIV_BUF_DEBUG */
-#endif /* !UNIV_HOTBACKUP */

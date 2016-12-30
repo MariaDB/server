@@ -25,7 +25,6 @@ Database monitor counter interfaces
 Created 12/9/2009 Jimmy Yang
 *******************************************************/
 
-#ifndef UNIV_HOTBACKUP
 #include "buf0buf.h"
 #include "dict0mem.h"
 #include "ibuf0ibuf.h"
@@ -53,7 +52,6 @@ Created 12/9/2009 Jimmy Yang
 
 #define MONITOR_BUF_PAGE_WRITTEN(name, description, code)	\
 	 MONITOR_BUF_PAGE(name, description, code, "written", PAGE_WRITTEN)
-
 
 /** This array defines basic static information of monitor counters,
 including each monitor's name, module it belongs to, a short
@@ -2250,4 +2248,3 @@ srv_mon_default_on(void)
 		}
 	}
 }
-#endif /* !UNIV_HOTBACKUP */
