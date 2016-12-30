@@ -1717,7 +1717,11 @@ SELECT c FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # Start of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-11478 Result data type aggregation for pluggable data types
 --echo #
 
 DELIMITER $$;
@@ -1796,5 +1800,5 @@ DROP PROCEDURE p2;
 
 
 --echo #
---echo # End of 10.2 tests
+--echo # End of 10.3 tests
 --echo #

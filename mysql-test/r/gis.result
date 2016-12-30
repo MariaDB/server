@@ -2199,7 +2199,10 @@ c
 1
 DROP TABLE t1;
 #
+# Start of 10.3 tests
 #
+#
+# MDEV-11478 Result data type aggregation for pluggable data types
 #
 CREATE PROCEDURE p2(query TEXT)
 BEGIN
@@ -2451,23 +2454,23 @@ CREATE TABLE t1 (a SMALLINT, b Point)
 
 CREATE TABLE t2 AS SELECT CASE WHEN TRUE THEN a ELSE b END FROM t1
 ERROR: 
-Illegal parameter data types shortint and geometry for operation 'case'
+Illegal parameter data types smallint and geometry for operation 'case'
 
 CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1
 ERROR: 
-Illegal parameter data types shortint and geometry for operation 'coalesce'
+Illegal parameter data types smallint and geometry for operation 'coalesce'
 
 CREATE TABLE t2 AS SELECT IF(TRUE,a,b) FROM t1
 ERROR: 
-Illegal parameter data types shortint and geometry for operation 'if'
+Illegal parameter data types smallint and geometry for operation 'if'
 
 CREATE TABLE t2 AS SELECT IFNULL(a,b) FROM t1
 ERROR: 
-Illegal parameter data types shortint and geometry for operation 'ifnull'
+Illegal parameter data types smallint and geometry for operation 'ifnull'
 
 CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT b FROM t1
 ERROR: 
-Illegal parameter data types shortint and geometry for operation 'UNION'
+Illegal parameter data types smallint and geometry for operation 'UNION'
 -------------------------------------
 CREATE TABLE t1 (a MEDIUMINT, b Point)
 
@@ -2811,5 +2814,5 @@ DROP TABLE t1;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 #
-# End of 10.2 tests
+# End of 10.3 tests
 #

@@ -200,7 +200,7 @@ const Name
 
 const Name
   Type_handler_tiny::m_name_tiny(C_STRING_WITH_LEN("tinyint")),
-  Type_handler_short::m_name_short(C_STRING_WITH_LEN("shortint")),
+  Type_handler_short::m_name_short(C_STRING_WITH_LEN("smallint")),
   Type_handler_long::m_name_int(C_STRING_WITH_LEN("int")),
   Type_handler_longlong::m_name_longlong(C_STRING_WITH_LEN("bigint")),
   Type_handler_int24::m_name_mediumint(C_STRING_WITH_LEN("mediumint")),
