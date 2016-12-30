@@ -122,18 +122,12 @@ Tablespace::open_or_create(bool is_temp)
 			break;
 		}
 
-		bool	atomic_write;
-
-#if !defined(NO_FALLOCATE) && defined(UNIV_LINUX)
-		if (!srv_use_doublewrite_buf) {
-			atomic_write = fil_fusionio_enable_atomic_write(
-				it->m_handle);
-		} else {
-			atomic_write = false;
-		}
+#ifdef UNIV_LINUX
+		const bool atomic_write = fil_fusionio_enable_atomic_write(
+			it->m_handle);
 #else
-		atomic_write = false;
-#endif /* !NO_FALLOCATE && UNIV_LINUX */
+		const bool atomic_write = false;
+#endif
 
 		/* We can close the handle now and open the tablespace
 		the proper way. */
