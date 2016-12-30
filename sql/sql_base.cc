@@ -8102,6 +8102,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
+  bool all_fields_have_values= true;
   Item *value;
   Field *field;
   bool abort_on_warning_saved= thd->abort_on_warning;
@@ -8154,9 +8155,11 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     else
       if (value->save_in_field(field, 0) < 0)
         goto err;
-    field->set_explicit_default(value);
+    all_fields_have_values &= field->set_explicit_default(value);
   }
-  /* There is no default fields to update, as all fields are updated */
+  if (!all_fields_have_values && table->default_field &&
+      table->update_default_fields(0, ignore_errors))
+    goto err;
   /* Update virtual fields */
   thd->abort_on_warning= FALSE;
   if (table->vfield &&

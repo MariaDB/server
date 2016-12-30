@@ -5264,6 +5264,7 @@ int Field_timestamp::set_time()
   Mark the field as having an explicit default value.
 
   @param value  if available, the value that the field is being set to
+  @returns whether the explicit default bit was set
 
   @note
     Fields that have an explicit default value should not be updated
@@ -5279,13 +5280,14 @@ int Field_timestamp::set_time()
       This is how MySQL has worked since it's start.
 */
 
-void Field_timestamp::set_explicit_default(Item *value)
+bool Field_timestamp::set_explicit_default(Item *value)
 {
   if (((value->type() == Item::DEFAULT_VALUE_ITEM &&
         !((Item_default_value*)value)->arg) ||
        (!maybe_null() && value->null_value)))
-    return;
+    return false;
   set_has_explicit_value();
+  return true;
 }
 
 #ifdef NOT_USED
@@ -10790,12 +10792,13 @@ key_map Field::get_possible_keys()
     analyzed to check if it really should count as a value.
 */
 
-void Field::set_explicit_default(Item *value)
+bool Field::set_explicit_default(Item *value)
 {
   if (value->type() == Item::DEFAULT_VALUE_ITEM &&
       !((Item_default_value*)value)->arg)
-    return;
+    return false;
   set_has_explicit_value();
+  return true;
 }
 
 

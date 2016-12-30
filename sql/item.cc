@@ -8834,15 +8834,23 @@ bool Item_default_value::send(Protocol *protocol, String *buffer)
 int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 {
   if (arg)
-    calculate();
-  else
   {
-    return field_arg->save_in_field_default_value(context->error_processor ==
-                                                  &view_error_processor);
+    calculate();
+    return Item_field::save_in_field(field_arg, no_conversions);
   }
-  return Item_field::save_in_field(field_arg, no_conversions);
+
+  if (field_arg->default_value && field_arg->default_value->flags)
+    return 0; // defaut fields will be set later, no need to do it twice
+  return field_arg->save_in_field_default_value(context->error_processor ==
+                                                &view_error_processor);
 }
 
+table_map Item_default_value::used_tables() const
+{
+  if (field && field->default_value && field->default_value->flags)
+    return field->default_value->expr->used_tables();
+  return static_cast<table_map>(0);
+}
 
 /**
   This method like the walk method traverses the item tree, but at the

@@ -991,6 +991,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
               share->default_values[share->null_bytes - 1];
           }
         }
+        table->reset_default_fields();
         if (fill_record_n_invoke_before_triggers(thd, table,
                                                  table->field_to_fill(),
                                                  *values, 0, TRG_EVENT_INSERT))

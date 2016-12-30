@@ -1553,7 +1553,7 @@ t1	CREATE TABLE `t1` (
   `s` int(11) DEFAULT NULL,
   `b` timestamp(6) NOT NULL DEFAULT sysdate(6)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-INSERT INTO t1 VALUES (DEFAULT, SLEEP(0.1), DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT(a), SLEEP(0.1), DEFAULT(b));
 SELECT b>a FROM t1;
 b>a
 1
@@ -3316,7 +3316,6 @@ ERROR 42000: Invalid default value for 'c'
 EXECUTE stmt USING @a;
 ERROR 42000: Invalid default value for 'c'
 DEALLOCATE PREPARE stmt;
-# end of 10.2 test
 set sql_mode=ansi_quotes;
 create table t1 (a int, b int default (a+1));
 show create table t1;
@@ -3349,3 +3348,18 @@ a	b
 30	31
 drop table t1;
 set sql_mode=default;
+create table t1 (a int default b, b int default 4, t text);
+insert into t1 (b, t) values (5, '1 column is omitted');
+insert into t1 values (default, 5, '2 column gets DEFAULT, keyword');
+insert into t1 values (default(a), 5, '3 column gets DEFAULT(a), expression');
+insert into t1 values (default(a)+0, 5, '4 also expression DEFAULT(0)+0');
+insert into t1 values (b, 5, '5 the value of the DEFAULT(a), that is b');
+select * from t1 order by t;
+a	b	t
+5	5	1 column is omitted
+5	5	2 column gets DEFAULT, keyword
+4	5	3 column gets DEFAULT(a), expression
+4	5	4 also expression DEFAULT(0)+0
+4	5	5 the value of the DEFAULT(a), that is b
+drop table t1;
+# end of 10.2 test
