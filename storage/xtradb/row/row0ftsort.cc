@@ -668,7 +668,6 @@ fts_parallel_tokenization(
 	mem_heap_t*		blob_heap = NULL;
 	fts_doc_t		doc;
 	dict_table_t*		table = psort_info->psort_common->new_table;
-	dict_field_t*		idx_field;
 	fts_tokenize_ctx_t	t_ctx;
 	ulint			retried = 0;
 	dberr_t			error = DB_SUCCESS;
@@ -690,9 +689,6 @@ fts_parallel_tokenization(
 
 	doc.charset = fts_index_get_charset(
 		psort_info->psort_common->dup->index);
-
-	idx_field = dict_index_get_nth_field(
-		psort_info->psort_common->dup->index, 0);
 
 	block = psort_info->merge_block;
 	crypt_block = psort_info->crypt_block;

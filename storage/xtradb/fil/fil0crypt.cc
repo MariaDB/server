@@ -41,12 +41,12 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include <my_crypt.h>
 
 /** Mutex for keys */
-UNIV_INTERN ib_mutex_t fil_crypt_key_mutex;
+static ib_mutex_t fil_crypt_key_mutex;
 
 static bool fil_crypt_threads_inited = false;
 
 #ifdef UNIV_PFS_MUTEX
-UNIV_INTERN mysql_pfs_key_t fil_crypt_key_mutex_key;
+static mysql_pfs_key_t fil_crypt_key_mutex_key;
 #endif
 
 /** Is encryption enabled/disabled */
@@ -62,19 +62,19 @@ static uint srv_n_fil_crypt_threads_started = 0;
 UNIV_INTERN uint srv_fil_crypt_rotate_key_age = 1;
 
 /** Event to signal FROM the key rotation threads. */
-UNIV_INTERN os_event_t fil_crypt_event;
+static os_event_t fil_crypt_event;
 
 /** Event to signal TO the key rotation threads. */
-UNIV_INTERN os_event_t fil_crypt_threads_event;
+static os_event_t fil_crypt_threads_event;
 
 /** Event for waking up threads throttle */
-UNIV_INTERN os_event_t fil_crypt_throttle_sleep_event;
+static os_event_t fil_crypt_throttle_sleep_event;
 
 /** Mutex for key rotation threads */
-UNIV_INTERN ib_mutex_t fil_crypt_threads_mutex;
+static ib_mutex_t fil_crypt_threads_mutex;
 
 #ifdef UNIV_PFS_MUTEX
-UNIV_INTERN mysql_pfs_key_t fil_crypt_threads_mutex_key;
+static mysql_pfs_key_t fil_crypt_threads_mutex_key;
 #endif
 
 /** Variable ensuring only 1 thread at time does initial conversion */
@@ -96,13 +96,11 @@ static fil_crypt_stat_t crypt_stat;
 static ib_mutex_t crypt_stat_mutex;
 
 #ifdef UNIV_PFS_MUTEX
-UNIV_INTERN mysql_pfs_key_t fil_crypt_stat_mutex_key;
-#endif
+static mysql_pfs_key_t fil_crypt_stat_mutex_key;
 
 /**
  * key for crypt data mutex
 */
-#ifdef UNIV_PFS_MUTEX
 UNIV_INTERN mysql_pfs_key_t fil_crypt_data_mutex_key;
 #endif
 
@@ -140,6 +138,8 @@ fil_space_crypt_cleanup()
 /*=====================*/
 {
 	os_event_free(fil_crypt_throttle_sleep_event);
+	mutex_free(&fil_crypt_key_mutex);
+	mutex_free(&crypt_stat_mutex);
 }
 
 /**
@@ -283,11 +283,6 @@ fil_space_read_crypt_data(
 	const byte*	page,	/*!< in: page 0 */
 	ulint		offset)	/*!< in: offset */
 {
-	if (memcmp(page + offset, EMPTY_PATTERN, MAGIC_SZ) == 0) {
-		/* Crypt data is not stored. */
-		return NULL;
-	}
-
 	if (memcmp(page + offset, CRYPT_MAGIC, MAGIC_SZ) != 0) {
 		/* Crypt data is not stored. */
 		return NULL;
@@ -362,7 +357,7 @@ fil_space_destroy_crypt_data(
 		fil_space_crypt_t* c = *crypt_data;
 		c->~fil_space_crypt_struct();
 		mem_free(c);
-		(*crypt_data) = NULL;
+		*crypt_data = NULL;
 	}
 }
 
@@ -2483,6 +2478,7 @@ fil_crypt_threads_cleanup()
 {
 	os_event_free(fil_crypt_event);
 	os_event_free(fil_crypt_threads_event);
+	mutex_free(&fil_crypt_threads_mutex);
 	fil_crypt_threads_inited = false;
 }
 

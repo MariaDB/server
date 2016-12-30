@@ -41,13 +41,9 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include <my_crypt.h>
 
 /** Mutex for keys */
-UNIV_INTERN ib_mutex_t fil_crypt_key_mutex;
+static ib_mutex_t fil_crypt_key_mutex;
 
 static bool fil_crypt_threads_inited = false;
-
-#ifdef UNIV_PFS_MUTEX
-UNIV_INTERN mysql_pfs_key_t fil_crypt_key_mutex_key;
-#endif
 
 /** Is encryption enabled/disabled */
 UNIV_INTERN ulong srv_encrypt_tables = 0;
@@ -62,20 +58,16 @@ static uint srv_n_fil_crypt_threads_started = 0;
 UNIV_INTERN uint srv_fil_crypt_rotate_key_age = 1;
 
 /** Event to signal FROM the key rotation threads. */
-UNIV_INTERN os_event_t fil_crypt_event;
+static os_event_t fil_crypt_event;
 
 /** Event to signal TO the key rotation threads. */
-UNIV_INTERN os_event_t fil_crypt_threads_event;
+static os_event_t fil_crypt_threads_event;
 
 /** Event for waking up threads throttle */
-UNIV_INTERN os_event_t fil_crypt_throttle_sleep_event;
+static os_event_t fil_crypt_throttle_sleep_event;
 
 /** Mutex for key rotation threads */
-UNIV_INTERN ib_mutex_t fil_crypt_threads_mutex;
-
-#ifdef UNIV_PFS_MUTEX
-UNIV_INTERN mysql_pfs_key_t fil_crypt_threads_mutex_key;
-#endif
+static ib_mutex_t fil_crypt_threads_mutex;
 
 /** Variable ensuring only 1 thread at time does initial conversion */
 static bool fil_crypt_start_converting = false;
