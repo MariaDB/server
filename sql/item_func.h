@@ -1284,11 +1284,42 @@ public:
   Item_func_min_max(THD *thd, List<Item> &list, int cmp_sign_arg):
     Item_hybrid_func(thd, list), cmp_sign(cmp_sign_arg)
   {}
-  double val_real();
-  longlong val_int();
-  String *val_str(String *);
-  my_decimal *val_decimal(my_decimal *);
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  String *val_str_native(String *str);
+  double val_real_native();
+  longlong val_int_native();
+  my_decimal *val_decimal_native(my_decimal *);
+  bool get_date_native(MYSQL_TIME *res, ulonglong fuzzydate);
+
+  double val_real()
+  {
+    DBUG_ASSERT(fixed);
+    return Item_func_min_max::type_handler()->
+             Item_func_min_max_val_real(this);
+  }
+  longlong val_int()
+  {
+    DBUG_ASSERT(fixed);
+    return Item_func_min_max::type_handler()->
+             Item_func_min_max_val_int(this);
+  }
+  String *val_str(String *str)
+  {
+    DBUG_ASSERT(fixed);
+    return Item_func_min_max::type_handler()->
+             Item_func_min_max_val_str(this, str);
+  }
+  my_decimal *val_decimal(my_decimal *dec)
+  {
+    DBUG_ASSERT(fixed);
+    return Item_func_min_max::type_handler()->
+             Item_func_min_max_val_decimal(this, dec);
+  }
+  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
+  {
+    DBUG_ASSERT(fixed);
+    return Item_func_min_max::type_handler()->
+             Item_func_min_max_get_date(this, res, fuzzy_date);
+  }
   void fix_length_and_dec();
 };
 

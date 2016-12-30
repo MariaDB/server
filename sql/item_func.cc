@@ -2766,7 +2766,7 @@ void Item_func_min_max::fix_length_and_dec()
 
 
 /*
-  Compare item arguments in the DATETIME context.
+  Compare item arguments using DATETIME/DATE/TIME representation.
 
   DESCRIPTION
     Compare item arguments as DATETIME values and return the index of the
@@ -2779,20 +2779,10 @@ void Item_func_min_max::fix_length_and_dec()
    0    Otherwise
 */
 
-bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   longlong UNINIT_VAR(min_max);
   DBUG_ASSERT(fixed == 1);
-
-  /*
-    just like ::val_int() method of a string item can be called,
-    for example, SELECT CONCAT("10", "12") + 1,
-    ::get_date() can be called for non-temporal values,
-    for example, SELECT MONTH(GREATEST("2011-11-21", "2010-10-09"))
-
-  */
-  if (Item_func_min_max::cmp_type() != TIME_RESULT)
-    return Item_func::get_date(ltime, fuzzy_date);
 
   for (uint i=0; i < arg_count ; i++)
   {
@@ -2833,63 +2823,35 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 }
 
 
-String *Item_func_min_max::val_str(String *str)
+String *Item_func_min_max::val_str_native(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
-  if (Item_func_min_max::cmp_type() == TIME_RESULT)
-    return val_string_from_date(str);
-  switch (Item_func_min_max::result_type()) {
-  case INT_RESULT:
-    return val_string_from_int(str);
-  case DECIMAL_RESULT:
-    return val_string_from_decimal(str);
-  case REAL_RESULT:
-    return val_string_from_real(str);
-  case STRING_RESULT:
+  String *UNINIT_VAR(res);
+  for (uint i=0; i < arg_count ; i++)
   {
-    String *UNINIT_VAR(res);
-    for (uint i=0; i < arg_count ; i++)
+    if (i == 0)
+      res=args[i]->val_str(str);
+    else
     {
-      if (i == 0)
-	res=args[i]->val_str(str);
-      else
+      String *res2;
+      res2= args[i]->val_str(res == str ? &tmp_value : str);
+      if (res2)
       {
-	String *res2;
-	res2= args[i]->val_str(res == str ? &tmp_value : str);
-	if (res2)
-	{
-	  int cmp= sortcmp(res,res2,collation.collation);
-	  if ((cmp_sign < 0 ? cmp : -cmp) < 0)
-	    res=res2;
-	}
+        int cmp= sortcmp(res,res2,collation.collation);
+        if ((cmp_sign < 0 ? cmp : -cmp) < 0)
+          res=res2;
       }
-      if ((null_value= args[i]->null_value))
-        return 0;
     }
-    res->set_charset(collation.collation);
-    return res;
+    if ((null_value= args[i]->null_value))
+      return 0;
   }
-  case ROW_RESULT:
-  case TIME_RESULT:
-    DBUG_ASSERT(0);                // This case should never be chosen
-    return 0;
-  }
-  return 0;					// Keep compiler happy
+  res->set_charset(collation.collation);
+  return res;
 }
 
 
-double Item_func_min_max::val_real()
+double Item_func_min_max::val_real_native()
 {
-  DBUG_ASSERT(fixed == 1);
   double value=0.0;
-  if (Item_func_min_max::cmp_type() == TIME_RESULT)
-  {
-    MYSQL_TIME ltime;
-    if (get_date(&ltime, 0))
-      return 0;
-
-    return TIME_to_double(&ltime);
-  }
   for (uint i=0; i < arg_count ; i++)
   {
     if (i == 0)
@@ -2907,18 +2869,10 @@ double Item_func_min_max::val_real()
 }
 
 
-longlong Item_func_min_max::val_int()
+longlong Item_func_min_max::val_int_native()
 {
   DBUG_ASSERT(fixed == 1);
   longlong value=0;
-  if (Item_func_min_max::cmp_type() == TIME_RESULT)
-  {
-    MYSQL_TIME ltime;
-    if (get_date(&ltime, 0))
-      return 0;
-
-    return TIME_to_ulonglong(&ltime);
-  }
   for (uint i=0; i < arg_count ; i++)
   {
     if (i == 0)
@@ -2936,19 +2890,11 @@ longlong Item_func_min_max::val_int()
 }
 
 
-my_decimal *Item_func_min_max::val_decimal(my_decimal *dec)
+my_decimal *Item_func_min_max::val_decimal_native(my_decimal *dec)
 {
   DBUG_ASSERT(fixed == 1);
   my_decimal tmp_buf, *tmp, *UNINIT_VAR(res);
 
-  if (Item_func_min_max::cmp_type() == TIME_RESULT)
-  {
-    MYSQL_TIME ltime;
-    if (get_date(&ltime, 0))
-      return 0;
-
-    return date2my_decimal(&ltime, dec);
-  }
   for (uint i=0; i < arg_count ; i++)
   {
     if (i == 0)

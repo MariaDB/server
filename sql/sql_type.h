@@ -30,6 +30,7 @@ class Item_cache;
 class Item_sum_hybrid;
 class Item_func_hex;
 class Item_hybrid_func;
+class Item_func_min_max;
 class Item_func_hybrid_field_type;
 class Item_func_between;
 class Item_func_in;
@@ -371,7 +372,18 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const= 0;
-
+  virtual
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const= 0;
+  virtual
+  double Item_func_min_max_val_real(Item_func_min_max *) const= 0;
+  virtual
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const= 0;
+  virtual
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *) const= 0;
+  virtual
+  bool Item_func_min_max_get_date(Item_func_min_max*,
+                                  MYSQL_TIME *, ulonglong fuzzydate) const= 0;
   virtual longlong
   Item_func_between_val_int(Item_func_between *func) const= 0;
 
@@ -494,6 +506,33 @@ public:
     return true;
   }
 
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  double Item_func_min_max_val_real(Item_func_min_max *) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  bool Item_func_min_max_get_date(Item_func_min_max*,
+                                  MYSQL_TIME *, ulonglong fuzzydate) const
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
   longlong Item_func_between_val_int(Item_func_between *func) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs) const;
@@ -512,6 +551,12 @@ protected:
                                                   const Type_handler *handler)
                                                   const;
 public:
+  double Item_func_min_max_val_real(Item_func_min_max *) const;
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const;
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *) const;
+  bool Item_func_min_max_get_date(Item_func_min_max*,
+                                  MYSQL_TIME *, ulonglong fuzzydate) const;
   virtual ~Type_handler_numeric() { }
 };
 
@@ -549,6 +594,7 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
@@ -591,6 +637,7 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
@@ -631,6 +678,7 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
@@ -667,6 +715,13 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
+  double Item_func_min_max_val_real(Item_func_min_max *) const;
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const;
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *) const;
+  bool Item_func_min_max_get_date(Item_func_min_max*,
+                                  MYSQL_TIME *, ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
@@ -709,6 +764,13 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
+  double Item_func_min_max_val_real(Item_func_min_max *) const;
+  longlong Item_func_min_max_val_int(Item_func_min_max *) const;
+  my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
+                                            my_decimal *) const;
+  bool Item_func_min_max_get_date(Item_func_min_max*,
+                                  MYSQL_TIME *, ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
