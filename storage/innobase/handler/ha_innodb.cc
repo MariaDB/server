@@ -250,7 +250,6 @@ values */
 static ulong	innobase_fast_shutdown			= 1;
 static my_bool	innobase_file_format_check		= TRUE;
 static my_bool	innobase_use_atomic_writes		= FALSE;
-static my_bool	innobase_use_fallocate			= TRUE;
 static my_bool	innobase_use_doublewrite		= TRUE;
 static my_bool	innobase_use_checksums			= TRUE;
 static my_bool	innobase_locks_unsafe_for_binlog	= FALSE;
@@ -4637,9 +4636,6 @@ innobase_change_buffering_inited_ok:
 	data_mysql_default_charset_coll = (ulint) default_charset_info->number;
 
 	innobase_commit_concurrency_init_default();
-#ifdef HAVE_POSIX_FALLOCATE
-	srv_use_posix_fallocate = (ibool) innobase_use_fallocate;
-#endif
 	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
 	if (innobase_use_atomic_writes) {
 		fprintf(stderr, "InnoDB: using atomic writes.\n");
@@ -4658,13 +4654,6 @@ innobase_change_buffering_inited_ok:
 				srv_file_flush_method_str = (char*)"O_DIRECT";
 			fprintf(stderr, "InnoDB: using O_DIRECT due to atomic writes.\n");
 		}
-#endif
-#ifdef HAVE_POSIX_FALLOCATE
-		/* Due to a bug in directFS, using atomics needs
-		 * posix_fallocate to extend the file
-		 * pwrite()  past end of the file won't work
-		 */
-		srv_use_posix_fallocate = TRUE;
 #endif
 	}
 
@@ -21957,11 +21946,6 @@ static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
   "on Linux only with FusionIO device, and directFS filesystem.",
   NULL, NULL, FALSE);
 
-static MYSQL_SYSVAR_BOOL(use_fallocate, innobase_use_fallocate,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Preallocate files fast, using operating system functionality. On POSIX systems, posix_fallocate system call is used.",
-  NULL, NULL, FALSE);
-
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
   PLUGIN_VAR_RQCMDARG,
   "Number of IOPs the server can do. Tunes the background IO rate",
@@ -23187,7 +23171,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_home_dir),
   MYSQL_SYSVAR(doublewrite),
   MYSQL_SYSVAR(use_atomic_writes),
-  MYSQL_SYSVAR(use_fallocate),
   MYSQL_SYSVAR(api_enable_binlog),
   MYSQL_SYSVAR(api_enable_mdl),
   MYSQL_SYSVAR(api_disable_rowlock),
