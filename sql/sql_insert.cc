@@ -1691,8 +1691,12 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
       }
       if (table->vfield)
       {
+        /*
+          We have not yet called update_virtual_fields(VOL_UPDATE_FOR_READ)
+          in handler methods for the just read row in record[1].
+        */
         table->move_fields(table->field, table->record[1], table->record[0]);
-        table->update_virtual_fields(VCOL_UPDATE_INDEXED);
+        table->update_virtual_fields(VCOL_UPDATE_FOR_REPLACE);
         table->move_fields(table->field, table->record[0], table->record[1]);
       }
       if (info->handle_duplicates == DUP_UPDATE)
@@ -2912,6 +2916,8 @@ pthread_handler_t handle_delayed_insert(void *arg)
     thd->mdl_context.set_needs_thr_lock_abort(TRUE);
 
     di->table->mark_columns_needed_for_insert();
+    /* Mark all columns for write as we don't know which columns we get from user */
+    bitmap_set_all(di->table->write_set);
 
     /* Now wait until we get an insert or lock to handle */
     /* We will not abort as long as a client thread uses this thread */
@@ -3079,7 +3085,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
 }
 
 
-/* Remove pointers from temporary fields to allocated values */
+/* Remove all pointers to data for blob fields so that original table doesn't try to free them */
 
 static void unlink_blobs(register TABLE *table)
 {
@@ -3097,9 +3103,23 @@ static void free_delayed_insert_blobs(register TABLE *table)
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
     if ((*ptr)->flags & BLOB_FLAG)
+      ((Field_blob *) *ptr)->free();
+  }
+}
+
+
+/* set value field for blobs to point to data in record */
+
+static void set_delayed_insert_blobs(register TABLE *table)
+{
+  for (Field **ptr=table->field ; *ptr ; ptr++)
+  {
+    if ((*ptr)->flags & BLOB_FLAG)
     {
-      my_free(((Field_blob *) (*ptr))->get_ptr());
-      ((Field_blob *) (*ptr))->reset();
+      Field_blob *blob= ((Field_blob *) *ptr);
+      uchar *data= blob->get_ptr();
+      if (data)
+        blob->set_value(data);     // Set value.ptr() to point to data
     }
   }
 }
@@ -3157,6 +3177,8 @@ bool Delayed_insert::handle_inserts(void)
     stacked_inserts--;
     mysql_mutex_unlock(&mutex);
     memcpy(table->record[0],row->record,table->s->reclength);
+    if (table->s->blob_fields)
+      set_delayed_insert_blobs(table);
 
     thd.start_time=row->start_time;
     thd.query_start_used=row->query_start_used;
@@ -3227,6 +3249,16 @@ bool Delayed_insert::handle_inserts(void)
     if (info.handle_duplicates == DUP_UPDATE)
       table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
     thd.clear_error(); // reset error for binlog
+
+    if (table->vfield)
+    {
+      /*
+        Virtual fields where not calculated by caller as the temporary TABLE object used
+        had vcol_set empty. Better to calculate them here to make the caller faster.
+      */
+     table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
+    }
+
     if (write_record(&thd, table, &info))
     {
       info.error_count++;				// Ignore errors
@@ -3348,6 +3380,7 @@ bool Delayed_insert::handle_inserts(void)
     if (table->s->blob_fields)
     {
       memcpy(table->record[0],row->record,table->s->reclength);
+      set_delayed_insert_blobs(table);
       free_delayed_insert_blobs(table);
     }
     delete row;

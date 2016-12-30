@@ -8043,17 +8043,14 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
       Re-calculate virtual fields to cater for cases when base columns are
       updated by the triggers.
     */
-    List_iterator_fast<Item> f(fields);
-    Item *fld;
-    Item_field *item_field;
-    if (fields.elements)
+    if (table->vfield && fields.elements)
     {
-      fld= (Item_field*)f++;
-      item_field= fld->field_for_view_update();
-      if (item_field && table->vfield)
+      Item *fld= (Item_field*) fields.head();
+      Item_field *item_field= fld->field_for_view_update();
+      if (item_field)
       {
         DBUG_ASSERT(table == item_field->field->table);
-        result= table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
+        result|= table->update_virtual_fields(VCOL_UPDATE_FOR_WRITE);
       }
     }
   }

@@ -3176,6 +3176,12 @@ protected:
     The 'value'-object is a cache fronting the storage engine.
   */
   String value;
+  /**
+     Cache for blob values when reading a row with a virtual blob
+     field. This is needed to not destroy the old cached value when
+     updating the blob with a new value when creating the new row.
+  */
+  String read_value;
 
   static void do_copy_blob(Copy_field *copy);
   static void do_conv_blob(Copy_field *copy);
@@ -3279,7 +3285,7 @@ public:
     return (uint32) (((ulonglong) 1 << (packlength*8)) -1);
   }
   int reset(void) { bzero(ptr, packlength+sizeof(uchar*)); return 0; }
-  void reset_fields() { bzero((uchar*) &value,sizeof(value)); }
+  void reset_fields() { bzero((uchar*) &value,sizeof(value)); bzero((uchar*) &read_value,sizeof(read_value)); }
   uint32 get_field_buffer_size(void) { return value.alloced_length(); }
   void store_length(uchar *i_ptr, uint i_packlength, uint32 i_number);
   inline void store_length(uint32 number)
@@ -3332,13 +3338,41 @@ public:
     memcpy(ptr+packlength, &tmp, sizeof(char*));
     return 0;
   }
+  /* store value for the duration of the current read record */
+  inline void swap_value_and_read_value()
+  {
+    read_value.swap(value);
+  }
+  inline void set_value(uchar *data)
+  {
+    /* Set value pointer. Lengths are not important */
+    value.reset((char*) data, 1, 1, &my_charset_bin);
+  }
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,
                               const uchar *from_end, uint param_data);
   uint packed_col_length(const uchar *col_ptr, uint length);
   uint max_packed_col_length(uint max_length);
-  void free() { value.free(); }
-  inline void clear_temporary() { bzero((uchar*) &value, sizeof(value)); }
+  void free()
+  {
+    value.free();
+    read_value.free();
+  }
+  inline void clear_temporary()
+  {
+    uchar *tmp= get_ptr();
+    if (likely(value.ptr() == (char*) tmp))
+      bzero((uchar*) &value, sizeof(value));
+    else
+    {
+      /*
+        Currently read_value should never point to tmp, the following code
+        is mainly here to make things future proof.
+      */
+      if (unlikely(read_value.ptr() == (char*) tmp))
+        bzero((uchar*) &read_value, sizeof(read_value));
+    }
+  }
   uint size_of() const { return sizeof(*this); }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }

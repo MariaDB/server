@@ -618,8 +618,6 @@ int mysql_update(THD *thd,
       while (!(error=info.read_record(&info)) && !thd->killed)
       {
         explain->buf_tracker.on_record_read();
-        if (table->vfield)
-          table->update_virtual_fields(VCOL_UPDATE_FOR_READ_WRITE);
         thd->inc_examined_row_count(1);
 	if (!select || (error= select->skip_record(thd)) > 0)
 	{
@@ -735,8 +733,6 @@ int mysql_update(THD *thd,
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
     explain->tracker.on_record_read();
-    if (table->vfield)
-      table->update_virtual_fields(VCOL_UPDATE_FOR_READ_WRITE);
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
     {
@@ -2327,6 +2323,17 @@ int multi_update::do_updates()
       goto err;
     }
     table->file->extra(HA_EXTRA_NO_CACHE);
+    /*
+      We have to clear the base record, if we have virtual indexed
+      blob fields, as some storage engines will access the blob fields
+      to calculate the keys to see if they have changed. Without
+      clearing the blob pointers will contain random values which can
+      cause a crash.
+      This is a workaround for engines that access columns not present in
+      either read or write set.
+    */
+    if (table->vfield)
+      empty_record(table);
 
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)

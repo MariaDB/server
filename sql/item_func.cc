@@ -4580,7 +4580,7 @@ longlong Item_func_sleep::val_int()
 
 bool Item_func_user_var::check_vcol_func_processor(void *arg)
 {
-  return mark_unsupported_function("@", name.str, arg, VCOL_IMPOSSIBLE);
+  return mark_unsupported_function("@", name.str, arg, VCOL_NON_DETERMINISTIC);
 }
 
 #define extra_size sizeof(double)

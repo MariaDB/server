@@ -4,14 +4,14 @@ set time_zone='+10:00';
 set div_precision_increment=20;
 create table t1 (a int, b int, v decimal(20,19) as (a/3));
 create table t2 (a int, b int, v int as (a+@a));
-ERROR HY000: Function or expression '@a' cannot be used in the GENERATED ALWAYS AS clause of `v`
+drop table t2;
 create table t2 (a int, b int, v int as (a+@a) PERSISTENT);
 ERROR HY000: Function or expression '@a' cannot be used in the GENERATED ALWAYS AS clause of `v`
 create table t3_ok (a int, b int, v int as (a+@@error_count));
 create table t3 (a int, b int, v int as (a+@@error_count) PERSISTENT);
 ERROR HY000: Function or expression '@@error_count' cannot be used in the GENERATED ALWAYS AS clause of `v`
 create table t4 (a int, b int, v int as (@a:=a));
-ERROR HY000: Function or expression '@a' cannot be used in the GENERATED ALWAYS AS clause of `v`
+drop table t4;
 create table t4 (a int, b int, v int as (@a:=a) PERSISTENT);
 ERROR HY000: Function or expression '@a' cannot be used in the GENERATED ALWAYS AS clause of `v`
 create table t8 (a int, b int, v varchar(100) as (from_unixtime(a)));

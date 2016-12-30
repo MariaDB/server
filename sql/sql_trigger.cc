@@ -2266,6 +2266,7 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
 {
   int action_time;
   Item_trigger_field *trg_field;
+  DBUG_ENTER("Table_triggers_list::mark_fields_used");
 
   for (action_time= 0; action_time < (int)TRG_ACTION_MAX; action_time++)
   {
@@ -2280,14 +2281,19 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
         /* We cannot mark fields which does not present in table. */
         if (trg_field->field_idx != (uint)-1)
         {
+          DBUG_PRINT("info", ("marking field: %d", trg_field->field_idx));
           bitmap_set_bit(trigger_table->read_set, trg_field->field_idx);
           if (trg_field->get_settable_routine_parameter())
             bitmap_set_bit(trigger_table->write_set, trg_field->field_idx);
+          if (trigger_table->field[trg_field->field_idx]->vcol_info)
+            trigger_table->mark_virtual_col(trigger_table->
+                                            field[trg_field->field_idx]);
         }
       }
     }
   }
   trigger_table->file->column_bitmaps_signal();
+  DBUG_VOID_RETURN;
 }
 
 

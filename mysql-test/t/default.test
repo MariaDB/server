@@ -359,6 +359,8 @@ insert into t1 (b) values(2);
 insert into t1 (a,b) values(3,4);
 select * from t1;
 drop table t1;
+CREATE OR REPLACE TABLE t1 (a INT DEFAULT @v); drop table t1;
+CREATE TABLE t1 (a INT DEFAULT @v:=1); drop table t1;
 
 --echo #
 --echo # Error handling
@@ -406,12 +408,6 @@ CREATE TABLE t1 (a INT DEFAULT(?));
 
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 CREATE TABLE t1 (a INT DEFAULT (b), b INT DEFAULT(a));
-
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
-CREATE TABLE t1 (a INT DEFAULT @v);
-
---error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
-CREATE TABLE t1 (a INT DEFAULT @v:=1);
 
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE t1 (a INT DEFAULT(NAME_CONST('xxx', 'yyy'));
