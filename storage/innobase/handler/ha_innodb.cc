@@ -250,7 +250,6 @@ values */
 static ulong	innobase_fast_shutdown			= 1;
 static my_bool	innobase_file_format_check		= TRUE;
 static my_bool	innobase_use_atomic_writes		= FALSE;
-static my_bool	innobase_use_fallocate;
 static my_bool	innobase_use_doublewrite		= TRUE;
 static my_bool	innobase_use_checksums			= TRUE;
 static my_bool	innobase_locks_unsafe_for_binlog	= FALSE;
@@ -4638,12 +4637,6 @@ innobase_change_buffering_inited_ok:
 	data_mysql_default_charset_coll = (ulint) default_charset_info->number;
 
 	innobase_commit_concurrency_init_default();
-
-	if (innobase_use_fallocate) {
-		ib::warn() << "innodb_use_fallocate is DEPRECATED"
-			" and has no effect in MariaDB 10.2."
-			" It will be removed in MariaDB 10.3.";
-	}
 
 	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
 	if (innobase_use_atomic_writes) {
@@ -21955,11 +21948,6 @@ static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
   "on Linux only with FusionIO device, and directFS filesystem.",
   NULL, NULL, FALSE);
 
-static MYSQL_SYSVAR_BOOL(use_fallocate, innobase_use_fallocate,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Use posix_fallocate() to allocate files. DEPRECATED, has no effect.",
-  NULL, NULL, FALSE);
-
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
   PLUGIN_VAR_RQCMDARG,
   "Number of IOPs the server can do. Tunes the background IO rate",
@@ -23191,7 +23179,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_home_dir),
   MYSQL_SYSVAR(doublewrite),
   MYSQL_SYSVAR(use_atomic_writes),
-  MYSQL_SYSVAR(use_fallocate),
   MYSQL_SYSVAR(api_enable_binlog),
   MYSQL_SYSVAR(api_enable_mdl),
   MYSQL_SYSVAR(api_disable_rowlock),
