@@ -1,3 +1,4 @@
+call mtr.add_suppression("InnoDB: Warning: database page corruption or a failed");
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 connect  con1,localhost,root;

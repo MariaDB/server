@@ -164,31 +164,6 @@ String *Item_func_md5::val_str_ascii(String *str)
 }
 
 
-/*
-  The MD5()/SHA() functions treat their parameter as being a case sensitive.
-  Thus we set binary collation on it so different instances of MD5() will be
-  compared properly.
-*/
-static CHARSET_INFO *get_checksum_charset(const char *csname)
-{
-  CHARSET_INFO *cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(0));
-  if (!cs)
-  {
-    // Charset has no binary collation: use my_charset_bin.
-    cs= &my_charset_bin;
-  }
-  return cs;
-}
-
-
-void Item_func_md5::fix_length_and_dec()
-{
-  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
-  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
-  fix_length_and_charset(32, default_charset());
-}
-
-
 String *Item_func_sha::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -214,8 +189,6 @@ String *Item_func_sha::val_str_ascii(String *str)
 
 void Item_func_sha::fix_length_and_dec()
 {
-  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
-  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
   // size of hex representation of hash
   fix_length_and_charset(SHA1_HASH_SIZE * 2, default_charset());
 }
@@ -344,9 +317,6 @@ void Item_func_sha2::fix_length_and_dec()
                         ER_THD(thd, ER_WRONG_PARAMETERS_TO_NATIVE_FCT),
                         "sha2");
   }
-
-  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
-  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
 
 #else
   THD *thd= current_thd;

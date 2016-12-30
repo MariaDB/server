@@ -713,6 +713,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
 
   unit->derived= derived;
+  derived->fill_me= FALSE;
 
   if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
     DBUG_RETURN(TRUE); // out of memory

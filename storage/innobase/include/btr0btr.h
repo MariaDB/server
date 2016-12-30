@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2015, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2016, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -242,9 +242,16 @@ btr_block_get_func(
 @param index index tree, may be NULL if not the insert buffer tree
 @param mtr mini-transaction handle
 @return the uncompressed page frame */
-# define btr_page_get(page_id, page_size, mode, index, mtr)	\
-	buf_block_get_frame(btr_block_get(page_id, page_size,	\
-					  mode, index, mtr))
+UNIV_INLINE
+page_t*
+btr_page_get(
+/*=========*/
+	const page_id_t&	page_id,
+	const page_size_t&	page_size,
+	ulint			mode,
+	dict_index_t*		index,
+	mtr_t*			mtr)
+	MY_ATTRIBUTE((warn_unused_result));
 #endif /* !UNIV_HOTBACKUP */
 /**************************************************************//**
 Gets the index id field of a page.
@@ -352,6 +359,34 @@ void
 btr_free(
 	const page_id_t&	page_id,
 	const page_size_t&	page_size);
+
+/** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.
+@param[in,out]	index	clustered index
+@return	the last used AUTO_INCREMENT value
+@retval	0 on error or if no AUTO_INCREMENT value was used yet */
+ib_uint64_t
+btr_read_autoinc(dict_index_t* index)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC,
+or fall back to MAX(auto_increment_column).
+@param[in]	table	table containing an AUTO_INCREMENT column
+@param[in]	col_no	index of the AUTO_INCREMENT column
+@return	the AUTO_INCREMENT value
+@retval	0 on error or if no AUTO_INCREMENT value was used yet */
+ib_uint64_t
+btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Write the next available AUTO_INCREMENT value to PAGE_ROOT_AUTO_INC.
+@param[in,out]	index	clustered index
+@param[in]	autoinc	the AUTO_INCREMENT value
+@param[in]	reset	whether to reset the AUTO_INCREMENT
+			to a possibly smaller value than currently
+			exists in the page */
+void
+btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset = false)
+	MY_ATTRIBUTE((nonnull));
 
 /*************************************************************//**
 Makes tree one level higher by splitting the root, and inserts

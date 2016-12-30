@@ -1092,6 +1092,7 @@ class Item_func_nullif :public Item_func_hybrid_field_type
     if (arg_count == 3 && args[0] != args[2])
       args[0]= args[2];
   }
+  Item *m_arg0;
 public:
   /*
     Here we pass three arguments to the parent constructor, as NULLIF
@@ -1103,8 +1104,14 @@ public:
   */
   Item_func_nullif(THD *thd, Item *a, Item *b):
     Item_func_hybrid_field_type(thd, a, b, a),
-    m_cache(NULL)
+    m_cache(NULL),
+    m_arg0(NULL)
   { arg_count--; }
+  void cleanup()
+  {
+    Item_func_hybrid_field_type::cleanup();
+    arg_count= 2; // See the comment to the constructor
+  }
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   double real_op();
   longlong int_op();
@@ -2222,10 +2229,26 @@ public:
   const char *func_name() const { return "isnull"; }
   void print(String *str, enum_query_type query_type);
   enum precedence precedence() const { return CMP_PRECEDENCE; }
+
+  bool arg_is_datetime_notnull_field()
+  {
+    Item **args= arguments();
+    if (args[0]->type() == Item::FIELD_ITEM)
+    {
+      Field *field=((Item_field*) args[0])->field;
+
+      if (((field->type() == MYSQL_TYPE_DATE) ||
+          (field->type() == MYSQL_TYPE_DATETIME)) &&
+          (field->flags & NOT_NULL_FLAG))
+        return true;
+    }
+    return false;
+  }
+
   /* Optimize case of not_null_column IS NULL */
   virtual void update_used_tables()
   {
-    if (!args[0]->maybe_null)
+    if (!args[0]->maybe_null && !arg_is_datetime_notnull_field())
     {
       used_tables_cache= 0;			/* is always false */
       const_item_cache= 1;
@@ -3145,4 +3168,3 @@ extern Ge_creator ge_creator;
 extern Le_creator le_creator;
 
 #endif /* ITEM_CMPFUNC_INCLUDED */
-

@@ -173,8 +173,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	const dtuple_t*	add_cols;
 	/** autoinc sequence to use */
 	ib_sequence_t	sequence;
-	/** maximum auto-increment value */
-	ulonglong	max_autoinc;
 	/** temporary table name to use for old table when renaming tables */
 	const char*	tmp_name;
 	/** whether the order of the clustered index is unchanged */
@@ -224,7 +222,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		add_cols (0),
 		sequence(prebuilt->trx->mysql_thd,
 			 autoinc_col_min_value_arg, autoinc_col_max_value_arg),
-		max_autoinc (0),
 		tmp_name (0),
 		skip_pk_sort(false),
 		num_to_add_vcol(0),
@@ -4975,6 +4972,23 @@ new_clustered_failed:
 		DBUG_EXECUTE_IF("innodb_alter_table_pk_assert_no_sort",
 			DBUG_ASSERT(ctx->skip_pk_sort););
 
+		DBUG_ASSERT(!ctx->new_table->persistent_autoinc);
+		if (const Field* ai = altered_table->found_next_number_field) {
+			const unsigned	col_no = innodb_col_no(ai);
+
+			ctx->new_table->persistent_autoinc = 1
+				+ dict_table_get_nth_col_pos(
+					ctx->new_table, col_no, NULL);
+
+			/* Initialize the AUTO_INCREMENT sequence
+			to the rebuilt table from the old one. */
+			if (!old_table->found_next_number_field) {
+			} else if (ib_uint64_t autoinc
+				   = btr_read_autoinc(clust_index)) {
+				btr_write_autoinc(new_clust_index, autoinc);
+			}
+		}
+
 		if (ctx->online) {
 			/* Allocate a log for online table rebuild. */
 			rw_lock_x_lock(&clust_index->lock);
@@ -7400,83 +7414,120 @@ innobase_rename_or_enlarge_columns_cache(
 	}
 }
 
-/** Get the auto-increment value of the table on commit.
+/** Set the auto-increment value of the table on commit.
 @param ha_alter_info Data used during in-place alter
 @param ctx In-place ALTER TABLE context
 @param altered_table MySQL table that is being altered
-@param old_table MySQL table as it is before the ALTER operation
-@return the next auto-increment value (0 if not present) */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-ulonglong
-commit_get_autoinc(
-/*===============*/
+@param old_table MySQL table as it is before the ALTER operation */
+static MY_ATTRIBUTE((nonnull))
+void
+commit_set_autoinc(
 	Alter_inplace_info*	ha_alter_info,
 	ha_innobase_inplace_ctx*ctx,
 	const TABLE*		altered_table,
 	const TABLE*		old_table)
 {
-	ulonglong		max_autoinc;
-
 	DBUG_ENTER("commit_get_autoinc");
 
 	if (!altered_table->found_next_number_field) {
 		/* There is no AUTO_INCREMENT column in the table
 		after the ALTER operation. */
-		max_autoinc = 0;
 	} else if (ctx->add_autoinc != ULINT_UNDEFINED) {
+		ut_ad(ctx->need_rebuild());
 		/* An AUTO_INCREMENT column was added. Get the last
 		value from the sequence, which may be based on a
 		supplied AUTO_INCREMENT value. */
-		max_autoinc = ctx->sequence.last();
+		ib_uint64_t autoinc = ctx->sequence.last();
+		ctx->new_table->autoinc = autoinc;
+		/* Bulk index creation does not update
+		PAGE_ROOT_AUTO_INC, so we must persist the "last used"
+		value here. */
+		btr_write_autoinc(dict_table_get_first_index(ctx->new_table),
+				  autoinc - 1, true);
 	} else if ((ha_alter_info->handler_flags
 		    & Alter_inplace_info::CHANGE_CREATE_OPTION)
 		   && (ha_alter_info->create_info->used_fields
 		       & HA_CREATE_USED_AUTO)) {
-		/* An AUTO_INCREMENT value was supplied, but the table was not
-		rebuilt. Get the user-supplied value or the last value from the
-		sequence. */
-		ib_uint64_t	max_value_table;
-		dberr_t		err;
+		/* An AUTO_INCREMENT value was supplied by the user.
+		It must be persisted to the data file. */
+		const Field*	ai	= old_table->found_next_number_field;
+		ut_ad(!strcmp(dict_table_get_col_name(ctx->old_table,
+						      innodb_col_no(ai)),
+			      ai->field_name));
 
-		Field*	autoinc_field =
-			old_table->found_next_number_field;
-
-		dict_index_t*	index = dict_table_get_index_on_first_col(
-			ctx->old_table, autoinc_field->field_index,
-			autoinc_field->field_name);
-
-		max_autoinc = ha_alter_info->create_info->auto_increment_value;
-
-		dict_table_autoinc_lock(ctx->old_table);
-
-		err = row_search_max_autoinc(
-			index, autoinc_field->field_name, &max_value_table);
-
-		if (err != DB_SUCCESS) {
-			ut_ad(0);
-			max_autoinc = 0;
-		} else if (max_autoinc <= max_value_table) {
-			ulonglong	col_max_value;
-			ulonglong	offset;
-
-			col_max_value = innobase_get_int_col_max_value(autoinc_field);
-
-			offset = ctx->prebuilt->autoinc_offset;
-			max_autoinc = innobase_next_autoinc(
-				max_value_table, 1, 1, offset,
-				col_max_value);
+		ib_uint64_t	autoinc
+			= ha_alter_info->create_info->auto_increment_value;
+		if (autoinc == 0) {
+			autoinc = 1;
 		}
-		dict_table_autoinc_unlock(ctx->old_table);
-	} else {
-		/* An AUTO_INCREMENT value was not specified.
-		Read the old counter value from the table. */
-		ut_ad(old_table->found_next_number_field);
-		dict_table_autoinc_lock(ctx->old_table);
-		max_autoinc = ctx->old_table->autoinc;
-		dict_table_autoinc_unlock(ctx->old_table);
+
+		if (autoinc >= ctx->old_table->autoinc) {
+			/* Persist the predecessor of the
+			AUTO_INCREMENT value as the last used one. */
+			ctx->new_table->autoinc = autoinc--;
+		} else {
+			/* Mimic ALGORITHM=COPY in the following scenario:
+
+			CREATE TABLE t (a SERIAL);
+			INSERT INTO t SET a=100;
+			ALTER TABLE t AUTO_INCREMENT = 1;
+			INSERT INTO t SET a=NULL;
+			SELECT * FROM t;
+
+			By default, ALGORITHM=INPLACE would reset the
+			sequence to 1, while after ALGORITHM=COPY, the
+			last INSERT would use a value larger than 100.
+
+			We could only search the tree to know current
+			max counter in the table and compare. */
+			const dict_col_t*	autoinc_col
+				= dict_table_get_nth_col(ctx->old_table,
+							 innodb_col_no(ai));
+			dict_index_t*		index
+				= dict_table_get_first_index(ctx->old_table);
+			while (index != NULL
+			       && index->fields[0].col != autoinc_col) {
+				index = dict_table_get_next_index(index);
+			}
+
+			ut_ad(index);
+
+			ib_uint64_t	max_in_table = index
+				? row_search_max_autoinc(index)
+				: 0;
+
+			if (autoinc <= max_in_table) {
+				ctx->new_table->autoinc = innobase_next_autoinc(
+					max_in_table, 1,
+					ctx->prebuilt->autoinc_increment,
+					ctx->prebuilt->autoinc_offset,
+					innobase_get_int_col_max_value(ai));
+				/* Persist the maximum value as the
+				last used one. */
+				autoinc = max_in_table;
+			} else {
+				/* Persist the predecessor of the
+				AUTO_INCREMENT value as the last used one. */
+				ctx->new_table->autoinc = autoinc--;
+			}
+		}
+
+		btr_write_autoinc(dict_table_get_first_index(ctx->new_table),
+				  autoinc, true);
+	} else if (ctx->need_rebuild()) {
+		/* No AUTO_INCREMENT value was specified.
+		Copy it from the old table. */
+		ctx->new_table->autoinc = ctx->old_table->autoinc;
+		/* The persistent value was already copied in
+		prepare_inplace_alter_table_dict() when ctx->new_table
+		was created. If this was a LOCK=NONE operation, the
+		AUTO_INCREMENT values would be updated during
+		row_log_table_apply(). If this was LOCK!=NONE,
+		the table contents could not possibly have changed
+		between prepare_inplace and commit_inplace. */
 	}
 
-	DBUG_RETURN(max_autoinc);
+	DBUG_VOID_RETURN;
 }
 
 /** Add or drop foreign key constraints to the data dictionary tables,
@@ -8557,8 +8608,7 @@ ha_innobase::commit_inplace_alter_table(
 
 		DBUG_ASSERT(new_clustered == ctx->need_rebuild());
 
-		ctx->max_autoinc = commit_get_autoinc(
-			ha_alter_info, ctx, altered_table, table);
+		commit_set_autoinc(ha_alter_info, ctx, altered_table, table);
 
 		if (ctx->need_rebuild()) {
 			ctx->tmp_name = dict_mem_create_temporary_tablename(
@@ -8895,14 +8945,6 @@ foreign_fail:
 			= static_cast<ha_innobase_inplace_ctx*>
 			(*pctx);
 		DBUG_ASSERT(ctx->need_rebuild() == new_clustered);
-
-		if (altered_table->found_next_number_field) {
-			dict_table_t* t = ctx->new_table;
-
-			dict_table_autoinc_lock(t);
-			dict_table_autoinc_initialize(t, ctx->max_autoinc);
-			dict_table_autoinc_unlock(t);
-		}
 
 		bool	add_fts	= false;
 

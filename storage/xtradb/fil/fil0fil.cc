@@ -341,6 +341,8 @@ fil_space_get_by_id(
 		    ut_ad(space->magic_n == FIL_SPACE_MAGIC_N),
 		    space->id == id);
 
+	/* The system tablespace must always be found */
+	ut_ad(space || id != 0 || srv_is_being_started);
 	return(space);
 }
 
@@ -672,6 +674,7 @@ fil_node_open_file(
 		page = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
 
 		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE);
+		srv_stats.page0_read.add(1);
 
 		space_id = fsp_header_get_space_id(page);
 		flags = fsp_header_get_flags(page);
@@ -1001,8 +1004,13 @@ retry:
 	/* If the file is already open, no need to do anything; if the space
 	does not exist, we handle the situation in the function which called
 	this function */
+	if (!space) {
+		return;
+	}
 
-	if (!space || UT_LIST_GET_FIRST(space->chain)->open) {
+	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
+
+	if (!node || node->open) {
 
 		return;
 	}
@@ -1191,7 +1199,8 @@ fil_space_create(
 	ulint		id,	/*!< in: space id */
 	ulint		flags,	/*!< in: tablespace flags */
 	ulint		purpose,/*!< in: FIL_TABLESPACE, or FIL_LOG if log */
-	fil_space_crypt_t* crypt_data) /*!< in: crypt data */
+	fil_space_crypt_t* crypt_data, /*!< in: crypt data */
+	bool		create_table) /*!< in: true if create table */
 {
 	fil_space_t*	space;
 
@@ -1285,10 +1294,25 @@ fil_space_create(
 	space->is_in_unflushed_spaces = false;
 
 	space->is_corrupt = FALSE;
+	space->crypt_data = crypt_data;
+
+	/* In create table we write page 0 so we have already
+	"read" it and for system tablespaces we have read
+	crypt data at startup. */
+	if (create_table || crypt_data != NULL) {
+		space->page_0_crypt_read = true;
+	}
+
+#ifdef UNIV_DEBUG
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Created tablespace for space %lu name %s key_id %u encryption %d.",
+		space->id,
+		space->name,
+		space->crypt_data ? space->crypt_data->key_id : 0,
+		space->crypt_data ? space->crypt_data->encryption : 0);
+#endif
 
 	UT_LIST_ADD_LAST(space_list, fil_system->space_list, space);
-
-	space->crypt_data = crypt_data;
 
 	mutex_exit(&fil_system->mutex);
 
@@ -1770,6 +1794,9 @@ fil_close_all_files(void)
 {
 	fil_space_t*	space;
 
+	// Must check both flags as it's possible for this to be called during
+	// server startup with srv_track_changed_pages == true but
+	// srv_redo_log_thread_started == false
 	if (srv_track_changed_pages && srv_redo_log_thread_started)
 		os_event_wait(srv_redo_log_tracked_event);
 
@@ -1809,6 +1836,9 @@ fil_close_log_files(
 {
 	fil_space_t*	space;
 
+	// Must check both flags as it's possible for this to be called during
+	// server startup with srv_track_changed_pages == true but
+	// srv_redo_log_thread_started == false
 	if (srv_track_changed_pages && srv_redo_log_thread_started)
 		os_event_wait(srv_redo_log_tracked_event);
 
@@ -2057,6 +2087,8 @@ fil_read_first_page(
 
 	os_file_read(data_file, page, 0, UNIV_PAGE_SIZE);
 
+	srv_stats.page0_read.add(1);
+
 	/* The FSP_HEADER on page 0 is only valid for the first file
 	in a tablespace.  So if this is not the first datafile, leave
 	*flags and *space_id as they were read from the first file and
@@ -2077,6 +2109,7 @@ fil_read_first_page(
 	ulint space = fsp_header_get_space_id(page);
 	ulint offset = fsp_header_get_crypt_offset(
 		fsp_flags_get_zip_size(*flags), NULL);
+
 	cdata = fil_space_read_crypt_data(space, page, offset);
 
 	if (crypt_data) {
@@ -2085,9 +2118,7 @@ fil_read_first_page(
 
 	/* If file space is encrypted we need to have at least some
 	encryption service available where to get keys */
-	if ((cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-		(srv_encrypt_tables &&
-			cdata && cdata->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
+	if (cdata && cdata->should_encrypt()) {
 
 		if (!encryption_key_id_exists(cdata->key_id)) {
 			ib_logf(IB_LOG_LEVEL_ERROR,
@@ -3627,7 +3658,7 @@ fil_create_new_single_table_tablespace(
 	}
 
 	success = fil_space_create(tablename, space_id, flags, FIL_TABLESPACE,
-				   crypt_data);
+				   crypt_data, true);
 
 	if (!success || !fil_node_create(path, size, space_id, FALSE)) {
 		err = DB_ERROR;
@@ -3861,6 +3892,7 @@ fil_open_single_table_tablespace(
 
 		if (table) {
 			table->crypt_data = def.crypt_data;
+			table->page_0_read = true;
 		}
 
 		/* Validate this single-table-tablespace with SYS_TABLES,
@@ -3897,6 +3929,7 @@ fil_open_single_table_tablespace(
 
 		if (table) {
 			table->crypt_data = remote.crypt_data;
+			table->page_0_read = true;
 		}
 
 		/* Validate this single-table-tablespace with SYS_TABLES,
@@ -3933,6 +3966,7 @@ fil_open_single_table_tablespace(
 
 		if (table) {
 			table->crypt_data = dict.crypt_data;
+			table->page_0_read = true;
 		}
 
 		/* Validate this single-table-tablespace with SYS_TABLES,
@@ -4104,7 +4138,7 @@ skip_validate:
 	if (err != DB_SUCCESS) {
 		; // Don't load the tablespace into the cache
 	} else if (!fil_space_create(tablename, id, flags, FIL_TABLESPACE,
-				     crypt_data)) {
+				     crypt_data, false)) {
 		err = DB_ERROR;
 	} else {
 		/* We do not measure the size of the file, that is why
@@ -4584,7 +4618,7 @@ will_not_choose:
 			return;
 		}
 
-		exit(1);
+		abort();
 	}
 
 	if (def.success && remote.success) {
@@ -4710,7 +4744,7 @@ will_not_choose:
 #endif /* UNIV_HOTBACKUP */
 	ibool file_space_create_success = fil_space_create(
 		tablename, fsp->id, fsp->flags, FIL_TABLESPACE,
-		fsp->crypt_data);
+		fsp->crypt_data, false);
 
 	if (!file_space_create_success) {
 		if (srv_force_recovery > 0) {
@@ -6560,6 +6594,7 @@ fil_iterate(
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 
 		byte*		io_buffer = iter.io_buffer;
+		bool		row_compressed = false;
 
 		block->frame = io_buffer;
 
@@ -6572,6 +6607,7 @@ fil_iterate(
 
 			/* Zip IO is done in the compressed page buffer. */
 			io_buffer = block->page.zip.data;
+			row_compressed = true;
 		} else {
 			io_buffer = iter.io_buffer;
 		}
@@ -6591,10 +6627,7 @@ fil_iterate(
 		bool encrypted = false;
 
 		/* Use additional crypt io buffer if tablespace is encrypted */
-		if ((iter.crypt_data != NULL && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-				(srv_encrypt_tables &&
-					iter.crypt_data && iter.crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
-
+		if (iter.crypt_data != NULL && iter.crypt_data->should_encrypt()) {
 			encrypted = true;
 			readptr = iter.crypt_io_buffer;
 			writeptr = iter.crypt_io_buffer;
@@ -6615,8 +6648,9 @@ fil_iterate(
 		for (ulint i = 0; i < n_pages_read; ++i) {
 			ulint 	size = iter.page_size;
 			dberr_t	err = DB_SUCCESS;
-			byte*	src = (readptr + (i * size));
-			byte*	dst = (io_buffer + (i * size));
+			byte*	src = readptr + (i * size);
+			byte*	dst = io_buffer + (i * size);
+			bool frame_changed = false;
 
 			ulint page_type = mach_read_from_2(src+FIL_PAGE_TYPE);
 
@@ -6640,8 +6674,12 @@ fil_iterate(
 				if (decrypted) {
 					updated = true;
 				} else {
-					/* TODO: remove unnecessary memcpy's */
-					memcpy(dst, src, size);
+					if (!page_compressed && !row_compressed) {
+						block->frame = src;
+						frame_changed = true;
+					} else {
+						memcpy(dst, src, size);
+					}
 				}
 			}
 
@@ -6666,7 +6704,45 @@ fil_iterate(
 			buf_block_set_state(block, BUF_BLOCK_NOT_USED);
 			buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
 
-			src =  (io_buffer + (i * size));
+			/* If tablespace is encrypted we use additional
+			temporary scratch area where pages are read
+			for decrypting readptr == crypt_io_buffer != io_buffer.
+
+			Destination for decryption is a buffer pool block
+			block->frame == dst == io_buffer that is updated.
+			Pages that did not require decryption even when
+			tablespace is marked as encrypted are not copied
+			instead block->frame is set to src == readptr.
+
+			For encryption we again use temporary scratch area
+			writeptr != io_buffer == dst
+			that is then written to the tablespace
+
+			(1) For normal tables io_buffer == dst == writeptr
+			(2) For only page compressed tables
+			io_buffer == dst == writeptr
+			(3) For encrypted (and page compressed)
+			readptr != io_buffer == dst != writeptr
+			*/
+
+			ut_ad(!encrypted && !page_compressed ?
+			      src == dst && dst == writeptr + (i * size):1);
+			ut_ad(page_compressed && !encrypted ?
+			      src == dst && dst == writeptr + (i * size):1);
+			ut_ad(encrypted ?
+			      src != dst && dst != writeptr + (i * size):1);
+
+			if (encrypted) {
+				memcpy(writeptr + (i * size),
+					row_compressed ? block->page.zip.data :
+					block->frame, size);
+			}
+
+			if (frame_changed) {
+				block->frame = dst;
+			}
+
+			src =  io_buffer + (i * size);
 
 			if (page_compressed) {
 				ulint len = 0;
@@ -6687,7 +6763,7 @@ fil_iterate(
 			write it back. Note that we should not encrypt the
 			buffer that is in buffer pool. */
 			if (decrypted && encrypted) {
-				unsigned char *dest = (writeptr + (i * size));
+				byte *dest = writeptr + (i * size);
 				ulint space = mach_read_from_4(
 					src + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 				ulint offset = mach_read_from_4(src + FIL_PAGE_OFFSET);
@@ -6869,9 +6945,9 @@ fil_tablespace_iterate(
 		void* crypt_io_buffer = NULL;
 		if (iter.crypt_data != NULL) {
 			crypt_io_buffer = mem_alloc(
-				iter.n_io_buffers * UNIV_PAGE_SIZE);
+				(2 + iter.n_io_buffers) * UNIV_PAGE_SIZE);
 			iter.crypt_io_buffer = static_cast<byte*>(
-				crypt_io_buffer);
+				ut_align(crypt_io_buffer, UNIV_PAGE_SIZE));
 		}
 
 		err = fil_iterate(iter, &block, callback);
@@ -7322,11 +7398,54 @@ fil_space_get_crypt_data(
 
 	space = fil_space_get_by_id(id);
 
-	if (space != NULL) {
-		crypt_data = space->crypt_data;
-	}
-
 	mutex_exit(&fil_system->mutex);
+
+	if (space != NULL) {
+		/* If we have not yet read the page0
+		of this tablespace we will do it now. */
+		if (!space->crypt_data && !space->page_0_crypt_read) {
+			ulint space_id = space->id;
+			fil_node_t*	node;
+
+			ut_a(space->crypt_data == NULL);
+			node = UT_LIST_GET_FIRST(space->chain);
+
+			byte *buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
+			byte *page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+			fil_read(true, space_id, 0, 0, 0, UNIV_PAGE_SIZE, page,
+				NULL, NULL);
+			ulint flags = fsp_header_get_flags(page);
+			ulint offset = fsp_header_get_crypt_offset(
+				fsp_flags_get_zip_size(flags), NULL);
+			space->crypt_data = fil_space_read_crypt_data(space_id, page, offset);
+			ut_free(buf);
+
+#ifdef UNIV_DEBUG
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"Read page 0 from tablespace for space %lu name %s key_id %u encryption %d handle %d.",
+				space_id,
+				space->name,
+				space->crypt_data ? space->crypt_data->key_id : 0,
+				space->crypt_data ? space->crypt_data->encryption : 0,
+				node->handle);
+#endif
+
+			ut_a(space->id == space_id);
+
+			space->page_0_crypt_read = true;
+		}
+
+		crypt_data = space->crypt_data;
+
+		if (!space->page_0_crypt_read) {
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Space %lu name %s contains encryption %d information for key_id %u but page0 is not read.",
+				space->id,
+				space->name,
+				space->crypt_data ? space->crypt_data->encryption : 0,
+				space->crypt_data ? space->crypt_data->key_id : 0);
+		}
+	}
 
 	return(crypt_data);
 }

@@ -124,5 +124,4 @@ fil_node_get_block_size(
 /*====================*/
 	fil_node_t*	node);	/*!< in: Node where to get block
 				size */
-
 #endif

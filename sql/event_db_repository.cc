@@ -166,20 +166,8 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
 static const TABLE_FIELD_DEF
 event_table_def= {ET_FIELD_COUNT, event_table_fields, 0, (uint*) 0};
 
-class Event_db_intact : public Table_check_intact
-{
-protected:
-  void report_error(uint, const char *fmt, ...)
-  {
-    va_list args;
-    va_start(args, fmt);
-    error_log_print(ERROR_LEVEL, fmt, args);
-    va_end(args);
-  }
-};
-
 /** In case of an error, a message is printed to the error log. */
-static Event_db_intact table_intact;
+static Table_check_intact_log_error table_intact;
 
 
 /**

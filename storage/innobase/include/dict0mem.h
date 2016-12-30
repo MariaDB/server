@@ -1372,6 +1372,8 @@ struct dict_table_t {
 	inline void acquire();
 
 	void*		thd;		/*!< thd */
+	bool		page_0_read; /*!< true if page 0 has
+				     been already read */
 	fil_space_crypt_t *crypt_data; /*!< crypt data if present */
 
 	/** Release the table handle. */
@@ -1465,6 +1467,11 @@ struct dict_table_t {
 
 	/** Number of virtual columns. */
 	unsigned                                n_v_cols:10;
+
+	/** 1 + the position of autoinc counter field in clustered
+	index, or 0 if there is no persistent AUTO_INCREMENT column in
+	the table. */
+	unsigned				persistent_autoinc:10;
 
 	/** TRUE if it's not an InnoDB system table or a table that has no FK
 	relationships. */

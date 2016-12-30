@@ -455,8 +455,8 @@ create_log_files(
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID,
 		fsp_flags_set_page_size(0, univ_page_size),
 		FIL_TYPE_LOG,
-		NULL /* No encryption yet */
-		);
+		NULL, /* No encryption yet */
+		true /* this is create */);
 	ut_a(fil_validate());
 	ut_a(log_space != NULL);
 
@@ -712,7 +712,7 @@ srv_undo_tablespace_open(
 		flags = fsp_flags_init(
 			univ_page_size, false, false, false, false, false, 0, ATOMIC_WRITES_DEFAULT);
 		space = fil_space_create(
-			undo_name, space_id, flags, FIL_TYPE_TABLESPACE, NULL);
+			undo_name, space_id, flags, FIL_TYPE_TABLESPACE, NULL, true);
 
 		ut_a(fil_validate());
 		ut_a(space);
@@ -2065,7 +2065,8 @@ innobase_start_or_create_for_mysql(void)
 			SRV_LOG_SPACE_FIRST_ID,
 			fsp_flags_set_page_size(0, univ_page_size),
 			FIL_TYPE_LOG,
-			NULL /* no encryption yet */);
+			NULL /* no encryption yet */,
+			true /* create */);
 
 		ut_a(fil_validate());
 		ut_a(log_space);
@@ -2220,21 +2221,8 @@ files_checked:
 		if (err == DB_SUCCESS) {
 			/* Initialize the change buffer. */
 			err = dict_boot();
-		}
-
-		if (err != DB_SUCCESS) {
-
-			/* A tablespace was not found during recovery. The
-			user must force recovery. */
-
-			if (err == DB_TABLESPACE_NOT_FOUND) {
-
-				srv_fatal_error();
-
-				ut_error;
-			}
-
-			return(srv_init_abort(DB_ERROR));
+		} else {
+			return(srv_init_abort(err));
 		}
 
 		purge_queue = trx_sys_init_at_db_start();

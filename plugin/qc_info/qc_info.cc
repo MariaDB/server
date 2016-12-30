@@ -107,6 +107,9 @@ static ST_FIELD_INFO qc_info_fields[]=
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
 
+
+static const char unknown[]= "#UNKNOWN#";
+
 static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
                                               COND *cond)
 {
@@ -147,7 +150,8 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
 
     query_cache_block_raw = my_hash_element(queries, i);
     query_cache_block = (Query_cache_block*)query_cache_block_raw;
-    if (query_cache_block->type != Query_cache_block::QUERY)
+    if (unlikely(!query_cache_block ||
+                 query_cache_block->type != Query_cache_block::QUERY))
       continue;
 
     query_cache_query = query_cache_block->query();
@@ -170,14 +174,33 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     table->field[COLUMN_GROUP_CONCAT_MAX_LENGTH]->store(flags.group_concat_max_len, 0);
 
     cs_client= get_charset(flags.character_set_client_num, MYF(MY_WME));
-    table->field[COLUMN_CHARACTER_SET_CLIENT]->store(cs_client->csname, strlen(cs_client->csname), scs);
+    if (likely(cs_client))
+      table->field[COLUMN_CHARACTER_SET_CLIENT]->
+        store(cs_client->csname, strlen(cs_client->csname), scs);
+    else
+      table->field[COLUMN_CHARACTER_SET_CLIENT]->
+        store(STRING_WITH_LEN(unknown), scs);
+
     cs_result= get_charset(flags.character_set_results_num, MYF(MY_WME));
-    table->field[COLUMN_CHARACTER_SET_RESULT]->store(cs_result->csname, strlen(cs_result->csname), scs);
+    if (likely(cs_result))
+      table->field[COLUMN_CHARACTER_SET_RESULT]->
+        store(cs_result->csname, strlen(cs_result->csname), scs);
+    else
+      table->field[COLUMN_CHARACTER_SET_RESULT]->
+        store(STRING_WITH_LEN(unknown), scs);
+
     collation= get_charset(flags.collation_connection_num, MYF(MY_WME));
-    table->field[COLUMN_COLLATION]->store(collation->name, strlen(collation->name), scs);
+    if (likely(collation))
+      table->field[COLUMN_COLLATION]->
+        store(collation->name, strlen(collation->name), scs);
+    else
+      table->field[COLUMN_COLLATION]-> store(STRING_WITH_LEN(unknown), scs);
 
     tz= flags.time_zone->get_name();
-    table->field[COLUMN_TIMEZONE]->store(tz->ptr(), tz->length(), scs);
+    if (likely(tz))
+      table->field[COLUMN_TIMEZONE]->store(tz->ptr(), tz->length(), scs);
+    else
+      table->field[COLUMN_TIMEZONE]-> store(STRING_WITH_LEN(unknown), scs);
     table->field[COLUMN_DEFAULT_WEEK_FORMAT]->store(flags.default_week_format, 0);
     table->field[COLUMN_DIV_PRECISION_INCREMENT]->store(flags.div_precision_increment, 0);
 
@@ -205,7 +228,8 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
 
     /* If we have result blocks, process them */
     first_result_block= query_cache_query->result();
-    if(first_result_block)
+    if(query_cache_query->is_results_ready() &&
+       first_result_block)
     {
       /* initialize so we can loop over the result blocks*/
       result_block= first_result_block;
@@ -232,7 +256,8 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     }
     table->field[COLUMN_RESULT_BLOCKS_COUNT]->store(result_blocks_count, 0);
     table->field[COLUMN_RESULT_BLOCKS_SIZE]->store(result_blocks_size, 0);
-    table->field[COLUMN_RESULT_BLOCKS_SIZE_USED]->store(result_blocks_size_used, 0);
+    table->field[COLUMN_RESULT_BLOCKS_SIZE_USED]->
+      store(result_blocks_size_used, 0);
 
     if (schema_table_store_record(thd, table))
       goto cleanup;

@@ -4701,10 +4701,7 @@ row_merge_build_indexes(
 
 	/* If tablespace is encrypted, allocate additional buffer for
 	encryption/decryption. */
-	if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-		(srv_encrypt_tables &&
-			crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
-
+	if (crypt_data && crypt_data->should_encrypt()) {
 		crypt_block = static_cast<row_merge_block_t*>(
 			alloc.allocate_large(3 * srv_sort_buf_size, &crypt_pfx));
 

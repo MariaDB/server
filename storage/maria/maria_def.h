@@ -139,7 +139,7 @@ typedef struct st_maria_state_info
     uchar unique_key_parts[2];		/* Key parts + unique parts */
     uchar keys;				/* number of keys in file */
     uchar uniques;			/* number of UNIQUE definitions */
-    uchar language;			/* Language for indexes */
+    uchar not_used;			/* Language for indexes */
     uchar fulltext_keys;
     uchar data_file_type;
     /* Used by mariapack to store the original data_file_type */
@@ -209,6 +209,7 @@ typedef struct st_maria_state_info
 } MARIA_STATE_INFO;
 
 
+/* Number of bytes written be _ma_state_info_write_sub() */
 #define MARIA_STATE_INFO_SIZE	\
   (24 + 2 + LSN_STORE_SIZE*3 + 4 + 11*8 + 4*4 + 8 + 3*4 + 5*8)
 #define MARIA_FILE_OPEN_COUNT_OFFSET 0
@@ -291,6 +292,8 @@ typedef struct st_ma_base_info
   uint extra_rec_buff_size;
   /* Tuning flags that can be ignored by older Maria versions */
   uint extra_options;
+  /* default language, not really used but displayed by maria_chk */
+  uint language;
 
   /* The following are from the header */
   uint key_parts, all_key_parts;
@@ -915,7 +918,6 @@ extern mysql_mutex_t THR_LOCK_maria;
 /* Keep a small buffer for tables only using small blobs */
 #define MARIA_SMALL_BLOB_BUFFER 1024
 #define MARIA_MAX_CONTROL_FILE_LOCK_RETRY 30     /* Retry this many times */
-
 
 /* Some extern variables */
 extern LIST *maria_open_list;

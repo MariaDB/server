@@ -84,23 +84,57 @@ struct Worker_thread_context
 
   void save()
   {
-#ifdef HAVE_PSI_INTERFACE
-    psi_thread=  PSI_server?PSI_server->get_thread():0;
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    psi_thread = PSI_THREAD_CALL(get_thread)();
 #endif
     mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
   }
 
   void restore()
   {
-#ifdef HAVE_PSI_INTERFACE
-    if (PSI_server)
-      PSI_server->set_thread(psi_thread);
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    PSI_THREAD_CALL(set_thread)(psi_thread);
 #endif
     pthread_setspecific(THR_KEY_mysys,mysys_var);
     pthread_setspecific(THR_THD, 0);
   }
 };
 
+
+#ifdef HAVE_PSI_INTERFACE
+
+/*
+  The following fixes PSI "idle" psi instrumentation.
+  The server assumes that connection  becomes idle
+  just before net_read_packet() and switches to active after it.
+  In out setup, server becomes idle when async socket io is made.
+*/
+
+extern void net_before_header_psi(struct st_net *net, void *user_data, size_t);
+
+static void dummy_before_header(struct st_net *, void *, size_t)
+{
+}
+
+static void re_init_net_server_extension(THD *thd)
+{
+  thd->m_net_server_extension.m_before_header = dummy_before_header;
+}
+
+#else
+
+#define re_init_net_server_extension(thd)
+
+#endif /* HAVE_PSI_INTERFACE */
+
+
+static inline void set_thd_idle(THD *thd)
+{
+  thd->net.reading_or_writing= 1;
+#ifdef HAVE_PSI_INTERFACE
+  net_before_header_psi(&thd->net, thd, 0);
+#endif
+}
 
 /*
   Attach/associate the connection with the OS thread,
@@ -110,10 +144,10 @@ static void thread_attach(THD* thd)
   pthread_setspecific(THR_KEY_mysys,thd->mysys_var);
   thd->thread_stack=(char*)&thd;
   thd->store_globals();
-#ifdef HAVE_PSI_INTERFACE
-  if (PSI_server)
-    PSI_server->set_thread(thd->event_scheduler.m_psi);
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  PSI_THREAD_CALL(set_thread)(thd->event_scheduler.m_psi);
 #endif
+  mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
 }
 
 /*
@@ -188,8 +222,6 @@ error:
 static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
 {
   THD *thd= NULL;
-  int error=1;
-
 
   /*
     Create a new connection context: mysys_thread_var and PSI thread
@@ -222,45 +254,40 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
   thd->event_scheduler.data= scheduler_data;
 
   /* Create new PSI thread for use with the THD. */
-#ifdef HAVE_PSI_INTERFACE
-  if (PSI_server)
-  {
-    thd->event_scheduler.m_psi = 
-      PSI_server->new_thread(key_thread_one_connection, thd, thd->thread_id);
-  }
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  thd->event_scheduler.m_psi=
+    PSI_THREAD_CALL(new_thread)(key_thread_one_connection, thd, thd->thread_id);
 #endif
 
 
   /* Login. */
   thread_attach(thd);
+  re_init_net_server_extension(thd);
   ulonglong now= microsecond_interval_timer();
   thd->prior_thr_create_utime= now;
   thd->start_utime= now;
   thd->thr_create_utime= now;
 
-  if (!setup_connection_thread_globals(thd))
-  {
-    if (!thd_prepare_connection(thd))
-    {
-      
-      /* 
-        Check if THD is ok, as prepare_new_connection_state()
-        can fail, for example if init command failed.
-      */
-      if (thd_is_connection_alive(thd))
-      {
-        error= 0;
-        thd->net.reading_or_writing= 1;
-        thd->skip_wait_timeout= true;
-      }
-    }
-  }
-  if (error)
-  {
-    threadpool_remove_connection(thd);
-    thd= NULL;
-  }
+  if (setup_connection_thread_globals(thd))
+    goto end;
+
+  if (thd_prepare_connection(thd))
+    goto end;
+
+  /*
+    Check if THD is ok, as prepare_new_connection_state()
+    can fail, for example if init command failed.
+  */
+  if (!thd_is_connection_alive(thd))
+    goto end;
+
+  thd->skip_wait_timeout= true;
+  set_thd_idle(thd);
   return thd;
+
+end:
+  threadpool_remove_connection(thd);
+  return NULL;
 }
 
 
@@ -325,12 +352,13 @@ static int threadpool_process_request(THD *thd)
       goto end;
     }
 
+    set_thd_idle(thd);
+
     vio= thd->net.vio;
     if (!vio->has_data(vio))
     { 
       /* More info on this debug sync is in sql_parse.cc*/
       DEBUG_SYNC(thd, "before_do_command_net_read");
-      thd->net.reading_or_writing= 1;
       goto end;
     }
   }

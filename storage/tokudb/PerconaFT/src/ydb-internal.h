@@ -105,6 +105,7 @@ struct __toku_db_env_internal {
     TOKULOGGER logger;
     toku::locktree_manager ltm;
     lock_timeout_callback lock_wait_timeout_callback;   // Called when a lock request times out waiting for a lock.
+    lock_wait_callback lock_wait_needed_callback;       // Called when a lock request requires a wait.
 
     DB *directory;                                      // Maps dnames to inames
     DB *persistent_environment;                         // Stores environment settings, can be used for upgrade
@@ -114,7 +115,7 @@ struct __toku_db_env_internal {
 
     char *real_data_dir;                                // data dir used when the env is opened (relative to cwd, or absolute with leading /)
     char *real_log_dir;                                 // log dir used when the env is opened  (relative to cwd, or absolute with leading /)
-    char *real_tmp_dir;                                 // tmp dir used for temporary files (relative to cwd, or absoulte with leading /)
+    char *real_tmp_dir;                                 // tmp dir used for temporary files (relative to cwd, or absolute with leading /)
 
     fs_redzone_state fs_state;
     uint64_t fs_seq;                                    // how many times has fs_poller run?
@@ -132,7 +133,8 @@ struct __toku_db_env_internal {
     int datadir_lockfd;
     int logdir_lockfd;
     int tmpdir_lockfd;
-    bool check_thp;                                     // if set check if transparent huge pages are disables
+    bool check_thp;  // if set check if transparent huge pages are disabled
+    bool dir_per_db;
     uint64_t (*get_loader_memory_size_callback)(void);
     uint64_t default_lock_timeout_msec;
     uint64_t (*get_lock_timeout_callback)(uint64_t default_lock_timeout_msec);

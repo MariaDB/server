@@ -45,7 +45,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 // #5978 is fixed. Here is what we do. We have four pairs with
 // blocknums and fullhashes of 1,2,3,4. The cachetable has only
 // two bucket mutexes, so 1 and 3 share a pair mutex, as do 2 and 4.
-// We pin all four with expensive write locks. Then, on backgroud threads,
+// We pin all four with expensive write locks. Then, on background threads,
 // we call get_and_pin_nonblocking on 3, where the unlockers unpins 2, and
 // we call get_and_pin_nonblocking on 4, where the unlockers unpins 1. Run this
 // enough times, and we should see a deadlock before the fix, and no deadlock

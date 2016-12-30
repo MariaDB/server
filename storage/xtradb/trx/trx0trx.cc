@@ -1117,6 +1117,8 @@ trx_start_low(
 
 	trx->start_time = ut_time();
 
+	trx->start_time_micro = clock();
+
 	MONITOR_INC(MONITOR_TRX_ACTIVE);
 }
 

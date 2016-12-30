@@ -1245,8 +1245,8 @@ bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
 
   if (until_condition == UNTIL_MASTER_POS)
   {
-    log_name= (mi->using_parallel() ?
-               future_event_master_log_name : group_master_log_name);
+    log_name= (mi->using_parallel() ? future_event_master_log_name
+                                    : group_master_log_name);
     log_pos= master_beg_pos;
   }
   else

@@ -725,8 +725,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   mi_int2store(share.state.header.base_pos,base_pos);
   share.state.header.data_file_type= share.data_file_type= datafile_type;
   share.state.header.org_data_file_type= org_datafile_type;
-  share.state.header.language= (ci->language ?
-				ci->language : default_charset_info->number);
+  share.state.header.not_used= 0;
 
   share.state.dellink = HA_OFFSET_ERROR;
   share.state.first_bitmap_with_space= 0;
@@ -739,6 +738,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   share.options=options;
   share.base.rec_reflength=pointer;
   share.base.block_size= maria_block_size;
+  share.base.language= (ci->language ? ci->language :
+                        default_charset_info->number);
 
   /*
     Get estimate for index file length (this may be wrong for FT keys)
@@ -937,7 +938,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       sseg.language= 7;                         /* Binary */
       sseg.null_bit=0;
       sseg.bit_start=0;
-      sseg.bit_end=0;
       sseg.bit_length= 0;
       sseg.bit_pos= 0;
       sseg.length=SPLEN;

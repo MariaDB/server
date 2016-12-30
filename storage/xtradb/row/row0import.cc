@@ -1899,6 +1899,15 @@ PageConverter::update_index_page(
 		row_index_t*	index = find_index(id);
 
 		if (index == 0) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"Page for tablespace %lu is "
+				" index page with id %lu but that"
+				" index is not found from configuration file."
+				" Current index name %s and id %lu.",
+				m_space,
+				id,
+				m_index->m_name,
+				m_index->m_id);
 			m_index = 0;
 			return(DB_CORRUPTION);
 		}

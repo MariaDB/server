@@ -227,10 +227,7 @@ row_fts_psort_info_init(
 	common_info->opt_doc_id_size = opt_doc_id_size;
 	crypt_data = fil_space_get_crypt_data(new_table->space);
 
-	if ((crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_ON) ||
-		(srv_encrypt_tables &&
-			crypt_data && crypt_data->encryption == FIL_SPACE_ENCRYPTION_DEFAULT)) {
-
+	if (crypt_data && crypt_data->should_encrypt()) {
 		common_info->crypt_data = crypt_data;
 		encrypted = true;
 	} else {

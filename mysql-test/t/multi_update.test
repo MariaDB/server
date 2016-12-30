@@ -8,17 +8,6 @@ source include/have_log_bin.inc;
 
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
 
---disable_warnings
-drop table if exists t1,t2,t3;
-drop database if exists mysqltest;
-drop view if exists v1;
---error 0,ER_NONEXISTING_GRANT,ER_NONEXISTING_TABLE_GRANT
-revoke all privileges on mysqltest.t1 from mysqltest_1@localhost;
---error 0,ER_NONEXISTING_GRANT,ER_NONEXISTING_TABLE_GRANT
-revoke all privileges on mysqltest.* from mysqltest_1@localhost;
-delete from mysql.user where user=_binary'mysqltest_1';
---enable_warnings
-
 create table t1(id1 int not null auto_increment primary key, t char(12));
 create table t2(id2 int not null, t char(12));
 create table t3(id3 int not null, t char(12), index(id3));
@@ -372,9 +361,7 @@ drop table t1, t2;
 
 connect (root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 connection root;
---disable_warnings
 create database mysqltest;
---enable_warnings
 create table mysqltest.t1 (a int, b int, primary key (a));
 create table mysqltest.t2 (a int, b int, primary key (a));
 create table mysqltest.t3 (a int, b int, primary key (a));
@@ -415,22 +402,6 @@ update t1,t2 set t1.col1 = (select max(col1) from t1) where t1.col1 = t2.col1;
 delete t1 from t1,t2 where t1.col1 < (select max(col1) from t1) and t1.col1 = t2.col1;
 drop table t1,t2;
 
-# Test for Bug#5837 delete with outer join and const tables
---disable_warnings
-create table t1 (
-  aclid bigint not null primary key,
-  status tinyint(1) not null
-) engine = innodb;
-
-create table t2 (
-  refid bigint not null primary key,
-  aclid bigint, index idx_acl(aclid)
-) engine = innodb;
---enable_warnings
-insert into t2 values(1,null);
-delete t2, t1 from t2 left join t1 on (t2.aclid=t1.aclid) where t2.refid='1';
-drop table t1, t2;
-
 #
 # Bug#19225 unchecked error leads to server crash
 #
@@ -440,47 +411,6 @@ create table t2(a int);
 delete from t1,t2 using t1,t2 where t1.a=(select a from t1);
 drop table t1, t2;
 # End of 4.1 tests
-
-#
-# Test for Bug#1980.
-#
---disable_warnings
-create table t1 ( c char(8) not null ) engine=innodb;
---enable_warnings
-
-insert into t1 values ('0'),('1'),('2'),('3'),('4'),('5'),('6'),('7'),('8'),('9');
-insert into t1 values ('A'),('B'),('C'),('D'),('E'),('F');
-
-alter table t1 add b char(8) not null;
-alter table t1 add a char(8) not null;
-alter table t1 add primary key (a,b,c);
-update t1 set a=c, b=c;
-
-create table t2 like t1;
-insert into t2 select * from t1;
-
-delete t1,t2 from t2,t1 where t1.a<'B' and t2.b=t1.b;
-
-drop table t1,t2;
-
---disable_warnings
-create table t1 ( c char(8) not null ) engine=innodb;
---enable_warnings
-
-insert into t1 values ('0'),('1'),('2'),('3'),('4'),('5'),('6'),('7'),('8'),('9');
-insert into t1 values ('A'),('B'),('C'),('D'),('E'),('F');
-
-alter table t1 add b char(8) not null;
-alter table t1 add a char(8) not null;
-alter table t1 add primary key (a,b,c);
-update t1 set a=c, b=c;
-
-create table t2 like t1;
-insert into t2 select * from t1;
-
-delete t1,t2 from t2,t1 where t1.a<'B' and t2.b=t1.b;
-
-drop table t1,t2;
 
 #
 # Test alter table and a concurrent multi update
@@ -618,9 +548,6 @@ set @@session.binlog_format= @sav_binlog_format;
 #
 
 # prepare
---disable_warnings
-drop table if exists t1, t2, t3;
---enable_warnings
 CREATE TABLE t1 (a int, PRIMARY KEY (a));
 CREATE TABLE t2 (a int, PRIMARY KEY (a));
 CREATE TABLE t3 (a int, PRIMARY KEY (a)) ENGINE=MyISAM;
@@ -1057,54 +984,3 @@ deallocate prepare stmt1;
 drop view v3,v2,v1;
 drop table t1,t2,t3;
 --echo end of 5.5 tests
-
-
---source include/have_xtradb.inc
-
---echo
---echo # Bug mdev-5970
---echo # Bug#13256831 - ERROR 1032 (HY000): CAN'T FIND RECORD
---echo
-
-CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
-CREATE TABLE t2 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
-INSERT INTO t1 VALUES (5, 7);
-INSERT INTO t2 VALUES (6, 97);
-
-CREATE ALGORITHM = MERGE VIEW v1 AS 
-SELECT a2.f1 AS f1, a2.f2 AS f2
-FROM t1 AS a1 JOIN t2 AS a2 ON a1.f2 > a2.f1 
-WITH LOCAL CHECK OPTION; 
-
-SELECT * FROM v1;
-UPDATE v1 SET f1 = 1;
-SELECT * FROM v1;
-
-DROP TABLE t1, t2;
-DROP VIEW v1;
-
---echo #
---echo # MDEV-5973: MySQL  Bug#11757486:49539: NON-DESCRIPTIVE ERR (ERROR 0
---echo # FROM STORAGE ENGINE) WITH MULTI-TABLE UPDATE
---echo #
-
-CREATE TABLE table_11757486 (field1 tinyint) ENGINE=INNODB;
-INSERT INTO table_11757486 VALUES (0),(0);
-SET SESSION SQL_MODE='STRICT_ALL_TABLES';
-UPDATE IGNORE (SELECT 128 as col1) x, table_11757486 SET field1=x.col1;
-UPDATE IGNORE table_11757486 SET field1=128;
-
---error ER_WARN_DATA_OUT_OF_RANGE
-UPDATE (SELECT 128 as col1) x, table_11757486 SET field1=x.col1;
---error ER_WARN_DATA_OUT_OF_RANGE
-UPDATE table_11757486 SET field1=128;
-
-SET SESSION SQL_MODE='';
-UPDATE IGNORE (SELECT 128 as col1) x, table_11757486 SET field1=x.col1;
-UPDATE IGNORE table_11757486 SET field1=128;
-
-DROP TABLE table_11757486;
-
-SET SESSION SQL_MODE=default;
-
---echo end of 10.0 tests

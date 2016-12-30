@@ -1731,11 +1731,11 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
   while((len= my_read(fd, (uchar*)&buff,
                       sizeof(buff)-1, MYF(0))) > 0)
   {
-    char *p= buff, *start= buff;
-    while (p < buff+len)
+    char *p= buff, *start= buff,*end=buff+len;
+    while (p < end)
     {
       /* Convert cr/lf to lf */
-      if (*p == '\r' && *(p+1) && *(p+1)== '\n')
+      if (*p == '\r' && p+1 < end && *(p+1)== '\n')
       {
         /* Add fake newline instead of cr and output the line */
         *p= '\n';
@@ -3373,10 +3373,6 @@ void do_exec(struct st_command *command)
 #endif
 #endif
 
-  /* exec command is interpreted externally and will not take newlines */
-  while(replace(&ds_cmd, "\n", 1, " ", 1) == 0)
-    ;
-  
   DBUG_PRINT("info", ("Executing '%s' as '%s'",
                       command->first_argument, ds_cmd.str));
 
@@ -3395,16 +3391,32 @@ void do_exec(struct st_command *command)
     ds_result= &ds_sorted;
   }
 
+#ifdef _WIN32
+   /* Workaround for CRT bug, MDEV-9409 */
+  _setmode(fileno(res_file), O_BINARY);
+#endif
+
   while (fgets(buf, sizeof(buf), res_file))
   {
+    int len = (int)strlen(buf);
+#ifdef _WIN32
+    /* Strip '\r' off newlines. */
+    if (len > 1 && buf[len-2] == '\r' && buf[len-1] == '\n')
+    {
+      buf[len-2] = '\n';
+      buf[len-1] = 0;
+      len--;
+    }
+#endif
     if (disable_result_log)
     {
-      buf[strlen(buf)-1]=0;
+      if (len)
+        buf[len-1] = 0;
       DBUG_PRINT("exec_result",("%s", buf));
     }
     else
     {
-      replace_dynstr_append(ds_result, buf);
+      replace_dynstr_append_mem(ds_result, buf, len);
     }
   }
   error= pclose(res_file);

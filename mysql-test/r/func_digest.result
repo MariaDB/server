@@ -1427,6 +1427,35 @@ def					sha2('1',224)	253	56	56	Y	0	39	8
 sha2('1',224)
 e25388fde8290dc286a6164fa2d97e551b53498dcbf7bc378eb1f178
 #
+# Start of 10.1 tests
+#
+#
+# MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BAS E64('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(64), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',SHA2('test',224)), ('TEST', SHA2('TEST',224));
+SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= SHA2("test",224) OR f2= SHA2("TEST",224));
+f1	f2
+test	90a3ed9e32b2aaf4c61c410eb925426119e1a9dc53d4286ade99a809
+TEST	917ecca24f3e6ceaf52375d8083381f1f80a21e6e49fbadc40afeb8e
+SELECT * FROM t1                  WHERE f1='test' AND (f2= SHA2("test",224) OR f2= SHA2("TEST",224));
+f1	f2
+test	90a3ed9e32b2aaf4c61c410eb925426119e1a9dc53d4286ade99a809
+TEST	917ecca24f3e6ceaf52375d8083381f1f80a21e6e49fbadc40afeb8e
+SELECT * FROM t1                  WHERE f1='test' AND (f2= SHA2("TEST",224) OR f2= SHA2("test",224));
+f1	f2
+test	90a3ed9e32b2aaf4c61c410eb925426119e1a9dc53d4286ade99a809
+TEST	917ecca24f3e6ceaf52375d8083381f1f80a21e6e49fbadc40afeb8e
+DROP TABLE t1;
+#
+# MDEV-10425 Assertion `collation.derivation == DERIVATION_IMPLICIT' failed in Item_func_conv_charset::fix_length_and_dec()
+#
+PREPARE stmt FROM "SELECT SHA2(CONVERT('foo' USING latin1), 224)";
+EXECUTE stmt;
+SHA2(CONVERT('foo' USING latin1), 224)
+0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
+DEALLOCATE PREPARE stmt;
+#
 # Start of 10.2 tests
 #
 #

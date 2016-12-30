@@ -480,6 +480,16 @@ public:
 };
 
 
+/*
+  If the table isn't valid, report the error to the server log only.
+*/
+class Table_check_intact_log_error : public Table_check_intact
+{
+protected:
+  void report_error(uint, const char *fmt, ...);
+};
+
+
 /**
   Class representing the fact that some thread waits for table
   share to be flushed. Is used to represent information about
