@@ -25,7 +25,6 @@ Created 6/2/1994 Heikki Tuuri
 *******************************************************/
 
 #include "mach0data.h"
-#ifndef UNIV_HOTBACKUP
 #include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "page0zip.h"
@@ -132,8 +131,6 @@ btr_page_get(
 	return ((page_t*)frame);
 }
 
-#endif /* !UNIV_HOTBACKUP */
-
 /**************************************************************//**
 Gets the index id field of a page.
 @return index id */
@@ -146,7 +143,6 @@ btr_page_get_index_id(
 	return(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID));
 }
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************//**
 Gets the node level field in an index page.
 @return level, leaf level == 0 */
@@ -339,4 +335,3 @@ btr_leaf_page_release(
 
 	mtr->memo_release(block, mode);
 }
-#endif /* !UNIV_HOTBACKUP */

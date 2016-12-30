@@ -32,7 +32,6 @@ Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
 #include "mtr0mtr.h"
-#ifndef UNIV_HOTBACKUP
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "buf0rea.h"
@@ -208,7 +207,6 @@ buf_page_peek_if_too_old(
 		return(!buf_page_peek_if_young(bpage));
 	}
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Gets the state of a block.
@@ -385,7 +383,6 @@ buf_page_in_file(
 	return(FALSE);
 }
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Determines if a block should be on unzip_LRU list.
 @return TRUE if block belongs to unzip_LRU */
@@ -717,7 +714,6 @@ buf_page_get_block(
 
 	return(NULL);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
@@ -744,9 +740,7 @@ buf_block_get_frame(
 		ut_error;
 		break;
 	case BUF_BLOCK_FILE_PAGE:
-# ifndef UNIV_HOTBACKUP
 		ut_a(block->page.buf_fix_count > 0);
-# endif /* !UNIV_HOTBACKUP */
 		/* fall through */
 	case BUF_BLOCK_READY_FOR_USE:
 	case BUF_BLOCK_MEMORY:
@@ -796,7 +790,6 @@ buf_ptr_get_fsp_addr(
 	addr->boffset = ut_align_offset(ptr, UNIV_PAGE_SIZE);
 }
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Gets the hash value of the page the pointer is pointing to. This can be used
 in searches in the lock hash table.
@@ -866,7 +859,6 @@ buf_block_free(
 
 	buf_pool_mutex_exit(buf_pool);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /*********************************************************************//**
 Copies contents of a buffer frame to a given buffer.
@@ -885,7 +877,6 @@ buf_frame_copy(
 	return(buf);
 }
 
-#ifndef UNIV_HOTBACKUP
 /********************************************************************//**
 Gets the youngest modification log sequence number for a frame.
 Returns zero if not file page or no modification occurred yet.
@@ -1460,5 +1451,3 @@ buf_pool_size_align(
 		return (ulint)((size / m + 1) * m);
 	}
 }
-
-#endif /* !UNIV_HOTBACKUP */

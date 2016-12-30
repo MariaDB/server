@@ -49,7 +49,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fsp0sysspace.h"
-#ifndef UNIV_HOTBACKUP
 #include "buf0buddy.h"
 #include "lock0lock.h"
 #include "sync0rw.h"
@@ -59,7 +58,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "trx0purge.h"
 #include "log0log.h"
 #include "dict0stats_bg.h"
-#endif /* !UNIV_HOTBACKUP */
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "dict0dict.h"
@@ -323,7 +321,7 @@ that the whole area may be needed in the near future, and issue
 the read requests for the whole area.
 */
 
-#if (!(defined(UNIV_HOTBACKUP) || defined(UNIV_INNOCHECKSUM)))
+#ifndef UNIV_INNOCHECKSUM
 /** Value in microseconds */
 static const int WAIT_FOR_READ	= 100;
 static const int WAIT_FOR_WRITE = 100;
@@ -591,7 +589,7 @@ buf_block_alloc(
 
 	return(block);
 }
-#endif /* !UNIV_HOTBACKUP && !UNIV_INNOCHECKSUM */
+#endif /* !UNIV_INNOCHECKSUM */
 
 /** Checks if a page contains only zeroes.
 @param[in]	read_buf	database page
@@ -883,7 +881,7 @@ buf_page_is_corrupted(
 		return(TRUE);
 	}
 
-#if !defined(UNIV_HOTBACKUP) && !defined(UNIV_INNOCHECKSUM)
+#ifndef UNIV_INNOCHECKSUM
 	if (check_lsn && recv_lsn_checks_on) {
 		lsn_t		current_lsn;
 		const lsn_t	page_lsn
@@ -913,7 +911,7 @@ buf_page_is_corrupted(
 
 		}
 	}
-#endif /* !UNIV_HOTBACKUP && !UNIV_INNOCHECKSUM */
+#endif /* !UNIV_INNOCHECKSUM */
 
 	/* Check whether the checksum fields have correct values */
 
@@ -1264,9 +1262,7 @@ buf_page_print(
 	const page_size_t&	page_size,
 	ulint			flags)
 {
-#ifndef UNIV_HOTBACKUP
 	dict_index_t*	index;
-#endif /* !UNIV_HOTBACKUP */
 
 	if (!(flags & BUF_PAGE_PRINT_NO_FULL)) {
 
@@ -1372,7 +1368,6 @@ buf_page_print(
 				read_buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	}
 
-#ifndef UNIV_HOTBACKUP
 	if (mach_read_from_2(read_buf + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE)
 	    == TRX_UNDO_INSERT) {
 		fprintf(stderr,
@@ -1383,7 +1378,6 @@ buf_page_print(
 		fprintf(stderr,
 			"InnoDB: Page may be an update undo log page\n");
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	switch (fil_page_get_type(read_buf)) {
 		index_id_t	index_id;
@@ -1394,7 +1388,6 @@ buf_page_print(
 			"InnoDB: Page may be an index page where"
 			" index id is " << index_id;
 
-#ifndef UNIV_HOTBACKUP
 		index = dict_index_find_on_id_low(index_id);
 		if (index) {
 			ib::info()
@@ -1402,7 +1395,6 @@ buf_page_print(
 				<< " is " << index->name
 				<< " in table " << index->table->name;
 		}
-#endif /* !UNIV_HOTBACKUP */
 		break;
 	case FIL_PAGE_INODE:
 		fputs("InnoDB: Page may be an 'inode' page\n", stderr);
@@ -1448,8 +1440,6 @@ buf_page_print(
 
 	ut_ad(flags & BUF_PAGE_PRINT_NO_CRASH);
 }
-
-#ifndef UNIV_HOTBACKUP
 
 # ifdef PFS_GROUP_BUFFER_SYNC
 extern mysql_pfs_key_t	buffer_block_mutex_key;
@@ -3936,7 +3926,6 @@ buf_block_init_low(
 	block->n_bytes		= 0;
 	block->left_side	= TRUE;
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /********************************************************************//**
 Decompress a block.
@@ -4007,7 +3996,6 @@ buf_zip_decompress(
 	return(FALSE);
 }
 
-#ifndef UNIV_HOTBACKUP
 /** Get a buffer block from an adaptive hash index pointer.
 This function does not return if the block is not identified.
 @param[in]	ptr	pointer to within a page frame
@@ -7338,57 +7326,6 @@ buf_pool_check_no_pending_io(void)
 
 	return(pending_io);
 }
-
-#if 0
-Code currently not used
-/*********************************************************************//**
-Gets the current length of the free list of buffer blocks.
-@return length of the free list */
-ulint
-buf_get_free_list_len(void)
-/*=======================*/
-{
-	ulint	len;
-
-	buf_pool_mutex_enter(buf_pool);
-
-	len = UT_LIST_GET_LEN(buf_pool->free);
-
-	buf_pool_mutex_exit(buf_pool);
-
-	return(len);
-}
-#endif
-
-#else /* !UNIV_HOTBACKUP */
-
-/** Inits a page to the buffer buf_pool, for use in mysqlbackup --restore.
-@param[in]	page_id		page id
-@param[in]	page_size	page size
-@param[in,out]	block		block to init */
-void
-buf_page_init_for_backup_restore(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size,
-	buf_block_t*		block)
-{
-	block->page.state = BUF_BLOCK_FILE_PAGE;
-	block->page.id = page_id;
-	block->page.size.copy_from(page_size);
-
-	page_zip_des_init(&block->page.zip);
-
-	/* We assume that block->page.data has been allocated
-	with page_size == univ_page_size. */
-	if (page_size.is_compressed()) {
-		page_zip_set_size(&block->page.zip, page_size.physical());
-		block->page.zip.data = block->frame + page_size.logical();
-	} else {
-		page_zip_set_size(&block->page.zip, 0);
-	}
-}
-
-#endif /* !UNIV_HOTBACKUP */
 
 /** Print the given page_id_t object.
 @param[in,out]	out	the output stream

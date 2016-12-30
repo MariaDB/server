@@ -196,7 +196,7 @@ dfield_dup(
 	dfield_t*	field,	/*!< in/out: data field */
 	mem_heap_t*	heap)	/*!< in: memory heap where allocated */
 	MY_ATTRIBUTE((nonnull));
-#ifndef UNIV_HOTBACKUP
+
 /*********************************************************************//**
 Tests if two data fields are equal.
 If len==0, tests the data length and content for equality.
@@ -222,7 +222,6 @@ dfield_data_is_binary_equal(
 	ulint		len,	/*!< in: data length or UNIV_SQL_NULL */
 	const byte*	data)	/*!< in: data */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Gets number of fields in a data tuple.
 @return number of fields */
@@ -337,7 +336,6 @@ dtuple_create(
 				bytes will be allocated from this heap */
 	ulint		n_fields)/*!< in: number of fields */
 	MY_ATTRIBUTE((nonnull, malloc));
-
 
 /** Initialize the virtual field data in a dtuple_t
 @param[in,out]		vrow	dtuple contains the virtual fields */
@@ -630,7 +628,6 @@ struct dtuple_t {
 # define		DATA_TUPLE_MAGIC_N	65478679
 #endif /* UNIV_DEBUG */
 };
-
 
 /** A slot for a field in a big rec vector */
 struct big_rec_field_t {

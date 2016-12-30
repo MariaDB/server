@@ -33,12 +33,9 @@ Created 12/27/1996 Heikki Tuuri
 #include "dict0types.h"
 #include "trx0types.h"
 #include <stack>
-
-#ifndef UNIV_HOTBACKUP
-# include "btr0pcur.h"
-# include "que0types.h"
-# include "pars0types.h"
-#endif /* !UNIV_HOTBACKUP */
+#include "btr0pcur.h"
+#include "que0types.h"
+#include "pars0types.h"
 
 /** The std::deque to store cascade update nodes, that uses mem_heap_t
 as allocator. */
@@ -80,7 +77,7 @@ upd_get_nth_field(
 #else
 # define upd_get_nth_field(update, n) ((update)->fields + (n))
 #endif
-#ifndef UNIV_HOTBACKUP
+
 /*********************************************************************//**
 Sets an index field number to be updated by an update vector field. */
 UNIV_INLINE
@@ -191,7 +188,6 @@ row_upd_changes_disowned_external(
 /*==============================*/
 	const upd_t*	update)	/*!< in: update vector */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Replaces the new column values stored in the update vector to the
 record given. No field size changes are allowed. This function is
@@ -207,7 +203,7 @@ row_upd_rec_in_place(
 	const upd_t*	update,	/*!< in: update vector */
 	page_zip_des_t*	page_zip);/*!< in: compressed page with enough space
 				available, or NULL */
-#ifndef UNIV_HOTBACKUP
+
 /***************************************************************//**
 Builds an update vector from those fields which in a secondary index entry
 differ from a record that has the equal ordering fields. NOTE: we compare
@@ -403,7 +399,6 @@ que_thr_t*
 row_upd_step(
 /*=========*/
 	que_thr_t*	thr);	/*!< in: query thread */
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Parses the log data of system field values.
 @return log data end or NULL */
@@ -449,7 +444,6 @@ struct upd_field_t{
 					index. If this field is a virtual
 					column, then field_no represents
 					the nth virtual	column in the table */
-#ifndef UNIV_HOTBACKUP
 	unsigned	orig_len:16;	/*!< original length of the locally
 					stored part of an externally stored
 					column, or 0 */
@@ -457,7 +451,6 @@ struct upd_field_t{
 					value: it refers to column values and
 					constants in the symbol table of the
 					query graph */
-#endif /* !UNIV_HOTBACKUP */
 	dfield_t	new_val;	/*!< new value for the column */
 	dfield_t*	old_v_val;	/*!< old value for the virtual column */
 };
@@ -516,7 +509,6 @@ struct upd_t{
 
 };
 
-#ifndef UNIV_HOTBACKUP
 /* Update node structure which also implements the delete operation
 of a row */
 
@@ -659,7 +651,6 @@ struct upd_node_t{
 #define UPD_NODE_NO_SIZE_CHANGE	2	/* no record field size will be
 					changed in the update */
 
-#endif /* !UNIV_HOTBACKUP */
 
 #ifndef UNIV_NONINL
 #include "row0upd.ic"

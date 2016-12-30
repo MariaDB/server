@@ -50,7 +50,6 @@ Created 10/16/1994 Heikki Tuuri
 #endif
 
 #include "row0upd.h"
-#ifndef UNIV_HOTBACKUP
 #include "mtr0log.h"
 #include "page0page.h"
 #include "page0zip.h"
@@ -151,9 +150,7 @@ can be released by page reorganize, then it is reorganized */
 	  + (sample) - 1 + (ext_size) + (not_empty)) / ((sample) + (ext_size)))
 
 /* @} */
-#endif /* !UNIV_HOTBACKUP */
 
-#ifndef UNIV_HOTBACKUP
 /*******************************************************************//**
 Marks all extern fields in a record as owned by the record. This function
 should be called if the delete mark of a record is removed: a not delete
@@ -212,9 +209,7 @@ btr_rec_free_externally_stored_fields(
 	mtr_t*		mtr);	/*!< in: mini-transaction handle which contains
 				an X-latch to record page and to the index
 				tree */
-#endif /* !UNIV_HOTBACKUP */
 
-#ifndef UNIV_HOTBACKUP
 /*==================== B-TREE SEARCH =========================*/
 
 #if MTR_MEMO_PAGE_S_FIX != RW_S_LATCH
@@ -3257,7 +3252,6 @@ btr_cur_pessimistic_insert(
 	ut_ad(page_rec_get_next(btr_cur_get_rec(cursor)) == *rec
 	      || dict_index_is_spatial(index));
 
-
 	if (!(flags & BTR_NO_LOCKING_FLAG)) {
 		ut_ad(!dict_table_is_temporary(index->table));
 		if (dict_index_is_spatial(index)) {
@@ -3425,7 +3419,6 @@ btr_cur_update_in_place_log(
 
 	row_upd_index_write_log(update, log_ptr, mtr);
 }
-#endif /* UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Parses a redo log record of updating a record in-place.
@@ -3504,7 +3497,6 @@ func_exit:
 	return(ptr);
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 See if there is enough place in the page modification log to log
 an update-in-place.
@@ -4525,7 +4517,6 @@ btr_cur_del_mark_set_clust_rec_log(
 
 	mlog_close(mtr, log_ptr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /****************************************************************//**
 Parses the redo log record for delete marking or unmarking of a clustered
@@ -4607,7 +4598,6 @@ btr_cur_parse_del_mark_set_clust_rec(
 	return(ptr);
 }
 
-#ifndef UNIV_HOTBACKUP
 /***********************************************************//**
 Marks a clustered index record deleted. Writes an undo log record to
 undo log on this delete marking. Writes in the trx id field the id
@@ -4729,7 +4719,6 @@ btr_cur_del_mark_set_sec_rec_log(
 
 	mlog_close(mtr, log_ptr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /****************************************************************//**
 Parses the redo log record for delete marking or unmarking of a secondary
@@ -4774,7 +4763,6 @@ btr_cur_parse_del_mark_set_sec_rec(
 	return(ptr);
 }
 
-#ifndef UNIV_HOTBACKUP
 /***********************************************************//**
 Sets a secondary index record delete mark to TRUE or FALSE.
 @return DB_SUCCESS, DB_LOCK_WAIT, or error number */
@@ -5367,7 +5355,6 @@ btr_estimate_n_rows_in_range_on_level(
 			goto inexact;
 		}
 
-
 		page = buf_block_get_frame(block);
 
 		/* It is possible that the tree has been reorganized in the
@@ -5602,7 +5589,6 @@ btr_estimate_n_rows_in_range_low(
 				   << " table: " << index->table->name
 				   << " index: " << index->name;
 		}
-
 
 		ut_ad(page_rec_is_supremum(btr_cur_get_rec(&cursor)));
 
@@ -6089,7 +6075,6 @@ btr_estimate_number_of_different_key_vals(
 				offsets_next_rec = offsets_tmp;
 			}
 		}
-
 
 		if (n_cols == dict_index_get_n_unique_in_tree(index)) {
 
@@ -6605,7 +6590,6 @@ struct btr_blob_log_check_t {
 		      MTR_MEMO_SX_LOCK | MTR_MEMO_X_LOCK));
 	}
 };
-
 
 /*******************************************************************//**
 Stores the fields in big_rec_vec to the tablespace and puts pointers to
@@ -7790,4 +7774,3 @@ btr_rec_copy_externally_stored_field(
 	return(btr_copy_externally_stored_field(len, data,
 						page_size, local_len, heap));
 }
-#endif /* !UNIV_HOTBACKUP */

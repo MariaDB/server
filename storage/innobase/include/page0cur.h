@@ -135,7 +135,7 @@ void
 page_cur_move_to_prev(
 /*==================*/
 	page_cur_t*	cur);	/*!< in/out: cursor; not before first */
-#ifndef UNIV_HOTBACKUP
+
 /***********************************************************//**
 Inserts a record next to page cursor. Returns pointer to inserted record if
 succeed, i.e., enough space available, NULL otherwise. The cursor stays at
@@ -163,7 +163,6 @@ page_cur_tuple_insert(
 				/*!< in: if true, then use record cache to
 				hold the tuple converted record. */
 	MY_ATTRIBUTE((nonnull(1,2,3,4,5), warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Inserts a record next to page cursor. Returns pointer to inserted record if
 succeed, i.e., enough space available, NULL otherwise. The cursor stays at
@@ -248,7 +247,7 @@ page_cur_delete_rec(
 	const ulint*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
 	mtr_t*			mtr);	/*!< in: mini-transaction handle */
-#ifndef UNIV_HOTBACKUP
+
 /** Search the right position for a page cursor.
 @param[in] block buffer block
 @param[in] index index tree
@@ -331,7 +330,6 @@ page_cur_open_on_rnd_user_rec(
 /*==========================*/
 	buf_block_t*	block,	/*!< in: page */
 	page_cur_t*	cursor);/*!< out: page cursor */
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************//**
 Parses a log record of a record insert on a page.
 @return end of log record or NULL */

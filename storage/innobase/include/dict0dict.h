@@ -51,8 +51,7 @@ Created 1/8/1996 Heikki Tuuri
 extern bool innodb_table_stats_not_found;
 extern bool innodb_index_stats_not_found;
 
-#ifndef UNIV_HOTBACKUP
-# include "sync0rw.h"
+#include "sync0rw.h"
 /********************************************************************//**
 Get the database name length in a table name.
 @return database name length */
@@ -228,7 +227,6 @@ dict_max_v_field_len_store_undo(
 	dict_table_t*		table,
 	ulint			col_no);
 
-#endif /* !UNIV_HOTBACKUP */
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
 Assert that a column and a data type match.
@@ -241,7 +239,7 @@ dict_col_type_assert_equal(
 	const dtype_t*		type)	/*!< in: data type */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #endif /* UNIV_DEBUG */
-#ifndef UNIV_HOTBACKUP
+
 /***********************************************************************//**
 Returns the minimum size of the column.
 @return minimum size */
@@ -380,7 +378,6 @@ dict_table_autoinc_unlock(
 /*======================*/
 	dict_table_t*	table)	/*!< in/out: table */
 	MY_ATTRIBUTE((nonnull));
-#endif /* !UNIV_HOTBACKUP */
 /**********************************************************************//**
 Adds system columns to a table object. */
 void
@@ -389,7 +386,7 @@ dict_table_add_system_columns(
 	dict_table_t*	table,	/*!< in/out: table */
 	mem_heap_t*	heap)	/*!< in: temporary heap */
 	MY_ATTRIBUTE((nonnull));
-#ifndef UNIV_HOTBACKUP
+
 /** Mark if table has big rows.
 @param[in,out]	table	table handler */
 void
@@ -731,7 +728,6 @@ dict_table_get_next_index(
 # define dict_table_get_last_index(table) UT_LIST_GET_LAST((table)->indexes)
 # define dict_table_get_next_index(index) UT_LIST_GET_NEXT(indexes, index)
 #endif /* UNIV_DEBUG */
-#endif /* !UNIV_HOTBACKUP */
 
 /* Skip corrupted index */
 #define dict_table_skip_corrupt_index(index)			\
@@ -894,7 +890,6 @@ dict_table_n_rows_dec(
 	dict_table_t*	table)	/*!< in/out: table */
 	MY_ATTRIBUTE((nonnull));
 
-
 /** Get nth virtual column
 @param[in]	table	target table
 @param[in]	col_nr	column number in MySQL Table definition
@@ -953,7 +948,7 @@ dict_table_get_sys_col_no(
 	const dict_table_t*	table,	/*!< in: table */
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#ifndef UNIV_HOTBACKUP
+
 /********************************************************************//**
 Returns the minimum data size of an index record.
 @return minimum data size in bytes */
@@ -963,7 +958,6 @@ dict_index_get_min_size(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /********************************************************************//**
 Check whether the table uses the compact page format.
 @return TRUE if table uses the compact page format */
@@ -1076,7 +1070,6 @@ dict_table_page_size(
 	const dict_table_t*	table)
 	MY_ATTRIBUTE((warn_unused_result));
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Obtain exclusive locks on all index trees of the table. This is to prevent
 accessing index trees while InnoDB is updating internal metadata for
@@ -1206,7 +1199,6 @@ dict_index_add_to_cache_w_vcol(
 	ulint			page_no,
 	ibool			strict)
 	MY_ATTRIBUTE((warn_unused_result));
-#endif /* !UNIV_HOTBACKUP */
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.
@@ -1397,7 +1389,7 @@ dict_index_add_col(
 	dict_col_t*		col,		/*!< in: column */
 	ulint			prefix_len)	/*!< in: column prefix length */
 	MY_ATTRIBUTE((nonnull));
-#ifndef UNIV_HOTBACKUP
+
 /*******************************************************************//**
 Copies types of fields contained in index to tuple. */
 void
@@ -1408,7 +1400,6 @@ dict_index_copy_types(
 	ulint			n_fields)	/*!< in: number of
 						field types to copy */
 	MY_ATTRIBUTE((nonnull));
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Gets the field column.
 @return field->col, pointer to the table column */
@@ -1418,7 +1409,7 @@ dict_field_get_col(
 /*===============*/
 	const dict_field_t*	field)	/*!< in: index field */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#ifndef UNIV_HOTBACKUP
+
 /**********************************************************************//**
 Returns an index object if it is found in the dictionary cache.
 Assumes that dict_sys->mutex is already being held.
@@ -1789,7 +1780,6 @@ struct dict_sys_t{
 			table_non_LRU;	/*!< List of tables that can't be
 					evicted from the cache */
 };
-#endif /* !UNIV_HOTBACKUP */
 
 /** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */
 extern dict_index_t*	dict_ind_redundant;
@@ -1881,7 +1871,7 @@ Closes the data dictionary module. */
 void
 dict_close(void);
 /*============*/
-#ifndef UNIV_HOTBACKUP
+
 /**********************************************************************//**
 Check whether the table is corrupted.
 @return nonzero for corrupted table, zero for valid tables */
@@ -1902,7 +1892,6 @@ dict_index_is_corrupted(
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-#endif /* !UNIV_HOTBACKUP */
 /**********************************************************************//**
 Flags an index and table corrupted both in the data dictionary cache
 and in the system table SYS_INDEXES. */
@@ -2014,7 +2003,6 @@ dict_disable_redo_if_temporary(
 	const dict_table_t*	table,	/*!< in: table to check */
 	mtr_t*			mtr);	/*!< out: mini-transaction */
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 This function should be called whenever a page is successfully
 compressed. Updates the compression padding information. */
@@ -2114,9 +2102,6 @@ UNIV_INLINE
 bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
-
-#endif /* !UNIV_HOTBACKUP */
-
 
 #ifndef UNIV_NONINL
 #include "dict0dict.ic"

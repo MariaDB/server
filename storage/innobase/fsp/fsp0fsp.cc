@@ -31,9 +31,6 @@ Created 11/29/1995 Heikki Tuuri
 #include "fsp0fsp.ic"
 #endif
 
-#ifdef UNIV_HOTBACKUP
-# include "fut0lst.h"
-#else /* UNIV_HOTBACKUP */
 #include "buf0buf.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
@@ -215,7 +212,6 @@ fsp_flags_to_dict_tf(
 
 	return(flags);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /** Validate the tablespace flags.
 These flags are stored in the tablespace header at offset FSP_SPACE_FLAGS.
@@ -361,9 +357,7 @@ fsp_is_file_per_table(
 		&& !fsp_is_shared_tablespace(fsp_flags));
 }
 
-#ifndef UNIV_HOTBACKUP
 #ifdef UNIV_DEBUG
-
 /** Skip some of the sanity checks that are time consuming even in debug mode
 and can affect frequent verification runs that are done to ensure stability of
 the product.
@@ -375,7 +369,6 @@ fsp_skip_sanity_check(
 	return(srv_skip_temp_table_checks_debug
 	       && fsp_is_system_temporary(space_id));
 }
-
 #endif /* UNIV_DEBUG */
 
 /**********************************************************************//**
@@ -741,7 +734,6 @@ xdes_get_offset(
 	       + ((page_offset(descr) - XDES_ARR_OFFSET) / XDES_SIZE)
 	       * FSP_EXTENT_SIZE);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Inits a file page whose prior contents should be ignored. */
@@ -771,8 +763,7 @@ fsp_init_file_page_low(
 	}
 }
 
-#ifndef UNIV_HOTBACKUP
-# ifdef UNIV_DEBUG
+#ifdef UNIV_DEBUG
 /** Assert that the mini-transaction is compatible with
 updating an allocation bitmap page.
 @param[in]	id	tablespace identifier
@@ -790,7 +781,6 @@ fsp_space_modify_check(
 		when there is a higher-level redo log record written. */
 		break;
 	case MTR_LOG_NO_REDO:
-#ifdef UNIV_DEBUG
 		{
 			const fil_type_t	type = fil_space_get_type(id);
 			ut_a(srv_is_tablespace_truncated(id)
@@ -800,7 +790,6 @@ fsp_space_modify_check(
 			     || type == FIL_TYPE_IMPORT
 			     || fil_space_is_redo_skipped(id));
 		}
-#endif /* UNIV_DEBUG */
 		return;
 	case MTR_LOG_ALL:
 		/* We may only write redo log for a persistent tablespace. */
@@ -811,7 +800,7 @@ fsp_space_modify_check(
 
 	ut_ad(0);
 }
-# endif /* UNIV_DEBUG */
+#endif /* UNIV_DEBUG */
 
 /** Initialize a file page.
 @param[in,out]	block	file page
@@ -828,7 +817,6 @@ fsp_init_file_page(
 	mlog_write_initial_log_record(buf_block_get_frame(block),
 				      MLOG_INIT_FILE_PAGE2, mtr);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /***********************************************************//**
 Parses a redo log record of a file page init.
@@ -888,8 +876,6 @@ fsp_header_init_fields(
 	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page,
 			flags);
 }
-
-#ifndef UNIV_HOTBACKUP
 
 #if 0 /* MySQL 5.7 Encryption */
 /** Fill the encryption info.
@@ -1165,7 +1151,6 @@ fsp_header_init(
 
 	return(true);
 }
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************************//**
 Reads the space id from the first page of a tablespace.
@@ -1362,7 +1347,6 @@ fsp_header_get_encryption_key(
 }
 #endif /* ! */
 
-#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Increases the space size field of a space. */
 void
@@ -4273,7 +4257,6 @@ fseg_print(
 	fseg_print_low(inode, mtr);
 }
 #endif /* UNIV_BTR_PRINT */
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG
 /** Print the file segment header to the given output stream.

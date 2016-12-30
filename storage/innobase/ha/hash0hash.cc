@@ -32,8 +32,6 @@ Created 5/20/1997 Heikki Tuuri
 #include "mem0mem.h"
 #include "sync0sync.h"
 
-#ifndef UNIV_HOTBACKUP
-
 /************************************************************//**
 Reserves the mutex for a fold value in a hash table. */
 void
@@ -249,8 +247,6 @@ hash_unlock_x_all_but(
 	}
 }
 
-#endif /* !UNIV_HOTBACKUP */
-
 /*************************************************************//**
 Creates a hash table with >= n array cells. The actual number of cells is
 chosen to be a prime number slightly bigger than n.
@@ -277,14 +273,12 @@ hash_create(
 	table->type = HASH_TABLE_SYNC_NONE;
 	table->array = array;
 	table->n_cells = prime;
-#ifndef UNIV_HOTBACKUP
-# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	table->adaptive = FALSE;
-# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 	table->n_sync_obj = 0;
 	table->sync_obj.mutexes = NULL;
 	table->heaps = NULL;
-#endif /* !UNIV_HOTBACKUP */
 	table->heap = NULL;
 	ut_d(table->magic_n = HASH_TABLE_MAGIC_N);
 
@@ -307,7 +301,6 @@ hash_table_free(
 	ut_free(table);
 }
 
-#ifndef UNIV_HOTBACKUP
 /*************************************************************//**
 Creates a sync object array to protect a hash table.
 ::sync_obj can be mutexes or rw_locks depening on the type of
@@ -362,4 +355,3 @@ hash_create_sync_obj(
 
 	table->n_sync_obj = n_sync_obj;
 }
-#endif /* !UNIV_HOTBACKUP */

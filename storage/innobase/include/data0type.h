@@ -260,7 +260,6 @@ the underling datatype of GEOMETRY(not DATA_POINT) data. */
 /* Mask to get the Charset Collation number (0x7fff) */
 #define CHAR_COLL_MASK		MAX_CHAR_COLL_NUM
 
-#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Gets the MySQL type code from a dtype.
 @return MySQL type code; this is NOT an InnoDB type code! */
@@ -286,7 +285,6 @@ dtype_get_at_most_n_mbchars(
 	ulint		data_len,	/*!< in: length of str (in bytes) */
 	const char*	str);		/*!< in: the string whose prefix
 					length is being determined */
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Checks if a data main type is a string type. Also a BLOB is considered a
 string type.
@@ -350,7 +348,7 @@ ulint
 dtype_get_prtype(
 /*=============*/
 	const dtype_t*	type);	/*!< in: data type */
-#ifndef UNIV_HOTBACKUP
+
 /*********************************************************************//**
 Compute the mbminlen and mbmaxlen members of a data type structure. */
 UNIV_INLINE
@@ -391,7 +389,6 @@ ibool
 dtype_is_utf8(
 /*==========*/
 	ulint	prtype);/*!< in: precise data type */
-#endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Gets the type length.
 @return fixed length of the type, in bytes, or 0 if variable-length */
@@ -400,7 +397,7 @@ ulint
 dtype_get_len(
 /*==========*/
 	const dtype_t*	type);	/*!< in: data type */
-#ifndef UNIV_HOTBACKUP
+
 /*********************************************************************//**
 Gets the minimum length of a character, in bytes.
 @return minimum length of a char, in bytes, or 0 if this is not a
@@ -432,7 +429,6 @@ dtype_set_mbminmaxlen(
 	ulint		mbmaxlen);	/*!< in: maximum length of a char,
 					in bytes, or 0 if this is not
 					a character type */
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************************//**
 Returns the size of a fixed size data type, 0 if not a fixed size type.
 @return fixed size, or 0 */
@@ -446,7 +442,7 @@ dtype_get_fixed_size_low(
 	ulint	mbminmaxlen,	/*!< in: minimum and maximum length of a
 				multibyte character, in bytes */
 	ulint	comp);		/*!< in: nonzero=ROW_FORMAT=COMPACT  */
-#ifndef UNIV_HOTBACKUP
+
 /***********************************************************************//**
 Returns the minimum size of a data type.
 @return minimum size */
@@ -469,7 +465,6 @@ dtype_get_max_size_low(
 /*===================*/
 	ulint	mtype,		/*!< in: main type */
 	ulint	len);		/*!< in: length */
-#endif /* !UNIV_HOTBACKUP */
 /***********************************************************************//**
 Returns the ROW_FORMAT=REDUNDANT stored SQL NULL size of a type.
 For fixed length types it is the fixed length of the type, otherwise 0.
@@ -480,7 +475,7 @@ dtype_get_sql_null_size(
 /*====================*/
 	const dtype_t*	type,	/*!< in: type */
 	ulint		comp);	/*!< in: nonzero=ROW_FORMAT=COMPACT  */
-#ifndef UNIV_HOTBACKUP
+
 /**********************************************************************//**
 Reads to a type the stored information which determines its alphabetical
 ordering and the storage size of an SQL NULL value. */
@@ -528,8 +523,6 @@ dtype_sql_name(
 	char*		name,	/*!< out: SQL name */
 	unsigned	name_sz);/*!< in: size of the name buffer */
 
-#endif /* !UNIV_HOTBACKUP */
-
 /*********************************************************************//**
 Validates a data type structure.
 @return TRUE if ok */
@@ -572,13 +565,11 @@ struct dtype_t{
 					string data (in addition to
 					the string, MySQL uses 1 or 2
 					bytes to store the string length) */
-#ifndef UNIV_HOTBACKUP
 	unsigned	mbminmaxlen:5;	/*!< minimum and maximum length of a
 					character, in bytes;
 					DATA_MBMINMAXLEN(mbminlen,mbmaxlen);
 					mbminlen=DATA_MBMINLEN(mbminmaxlen);
 					mbmaxlen=DATA_MBMINLEN(mbminmaxlen) */
-#endif /* !UNIV_HOTBACKUP */
 };
 
 #ifndef UNIV_NONINL

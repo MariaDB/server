@@ -52,61 +52,60 @@ Created 1/20/1994 Heikki Tuuri
 /** Time stamp */
 typedef time_t	ib_time_t;
 
-#ifndef UNIV_HOTBACKUP
-# if defined(HAVE_PAUSE_INSTRUCTION)
+#ifdef HAVE_PAUSE_INSTRUCTION
    /* According to the gcc info page, asm volatile means that the
    instruction has important side-effects and must not be removed.
    Also asm volatile may trigger a memory barrier (spilling all registers
    to memory). */
-#  ifdef __SUNPRO_CC
-#   define UT_RELAX_CPU() asm ("pause" )
-#  else
-#   define UT_RELAX_CPU() __asm__ __volatile__ ("pause")
-#  endif /* __SUNPRO_CC */
+# ifdef __SUNPRO_CC
+#  define UT_RELAX_CPU() asm ("pause" )
+# else
+#  define UT_RELAX_CPU() __asm__ __volatile__ ("pause")
+# endif /* __SUNPRO_CC */
 
-# elif defined(HAVE_FAKE_PAUSE_INSTRUCTION)
-#  define UT_RELAX_CPU() __asm__ __volatile__ ("rep; nop")
-# elif defined _WIN32
+#elif defined(HAVE_FAKE_PAUSE_INSTRUCTION)
+# define UT_RELAX_CPU() __asm__ __volatile__ ("rep; nop")
+#elif defined _WIN32
    /* In the Win32 API, the x86 PAUSE instruction is executed by calling
    the YieldProcessor macro defined in WinNT.h. It is a CPU architecture-
    independent way by using YieldProcessor. */
-#  define UT_RELAX_CPU() YieldProcessor()
-# elif defined(__powerpc__) && defined __GLIBC__
-#include <sys/platform/ppc.h>
-#  define UT_RELAX_CPU() do { \
+# define UT_RELAX_CPU() YieldProcessor()
+#elif defined(__powerpc__) && defined __GLIBC__
+# include <sys/platform/ppc.h>
+# define UT_RELAX_CPU() do { \
      volatile lint      volatile_var = __ppc_get_timebase(); \
    } while (0)
-# else
-#  define UT_RELAX_CPU() do { \
+#else
+# define UT_RELAX_CPU() do { \
      volatile int32	volatile_var; \
      int32 oldval= 0; \
      my_atomic_cas32(&volatile_var, &oldval, 1); \
    } while (0)
-# endif
-
-#if defined (__GNUC__)
-#  define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
-#elif defined (_MSC_VER)
-#  define UT_COMPILER_BARRIER() _ReadWriteBarrier()
-#else
-#  define UT_COMPILER_BARRIER()
 #endif
 
-# if defined(HAVE_HMT_PRIORITY_INSTRUCTION)
-#include <sys/platform/ppc.h>
-#  define UT_LOW_PRIORITY_CPU() __ppc_set_ppr_low()
-#  define UT_RESUME_PRIORITY_CPU() __ppc_set_ppr_med()
-# else
-#  define UT_LOW_PRIORITY_CPU() ((void)0)
-#  define UT_RESUME_PRIORITY_CPU() ((void)0)
-# endif
+#if defined (__GNUC__)
+# define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
+#elif defined (_MSC_VER)
+# define UT_COMPILER_BARRIER() _ReadWriteBarrier()
+#else
+# define UT_COMPILER_BARRIER()
+#endif
+
+#if defined(HAVE_HMT_PRIORITY_INSTRUCTION)
+# include <sys/platform/ppc.h>
+# define UT_LOW_PRIORITY_CPU() __ppc_set_ppr_low()
+# define UT_RESUME_PRIORITY_CPU() __ppc_set_ppr_med()
+#else
+# define UT_LOW_PRIORITY_CPU() ((void)0)
+# define UT_RESUME_PRIORITY_CPU() ((void)0)
+#endif
 
 /*********************************************************************//**
 Delays execution for at most max_wait_us microseconds or returns earlier
 if cond becomes true.
 @param cond in: condition to wait for; evaluated every 2 ms
 @param max_wait_us in: maximum delay to wait, in microseconds */
-#define UT_WAIT_FOR(cond, max_wait_us)				\
+# define UT_WAIT_FOR(cond, max_wait_us)				\
 do {								\
 	uintmax_t	start_us;					\
 	start_us = ut_time_us(NULL);				\
@@ -116,7 +115,6 @@ do {								\
 		os_thread_sleep(2000 /* 2 ms */);		\
 	}							\
 } while (0)
-#endif /* !UNIV_HOTBACKUP */
 
 #define ut_max	std::max
 #define ut_min	std::min
@@ -229,7 +227,7 @@ the only way to manipulate it is to use the function ut_difftime.
 ib_time_t
 ut_time(void);
 /*=========*/
-#ifndef UNIV_HOTBACKUP
+
 /**********************************************************//**
 Returns system time.
 Upon successful completion, the value 0 is returned; otherwise the
@@ -259,7 +257,6 @@ purposes.
 ulint
 ut_time_ms(void);
 /*============*/
-#endif /* !UNIV_HOTBACKUP */
 
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
@@ -314,23 +311,6 @@ void
 ut_sprintf_timestamp(
 /*=================*/
 	char*	buf); /*!< in: buffer where to sprintf */
-#ifdef UNIV_HOTBACKUP
-/**********************************************************//**
-Sprintfs a timestamp to a buffer with no spaces and with ':' characters
-replaced by '_'. */
-void
-ut_sprintf_timestamp_without_extra_chars(
-/*=====================================*/
-	char*	buf); /*!< in: buffer where to sprintf */
-/**********************************************************//**
-Returns current year, month, day. */
-void
-ut_get_year_month_day(
-/*==================*/
-	ulint*	year,	/*!< out: current year */
-	ulint*	month,	/*!< out: month */
-	ulint*	day);	/*!< out: day */
-#else /* UNIV_HOTBACKUP */
 /*************************************************************//**
 Runs an idle loop on CPU. The argument gives the desired delay
 in microseconds on 100 MHz Pentium + Visual C++.
@@ -339,7 +319,6 @@ ulint
 ut_delay(
 /*=====*/
 	ulint	delay);	/*!< in: delay in microseconds on 100 MHz Pentium */
-#endif /* UNIV_HOTBACKUP */
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
 void
@@ -368,7 +347,6 @@ ut_print_buf(
 	ulint		len)	/*!< in: length of the buffer */
 	MY_ATTRIBUTE((nonnull));
 
-#ifndef UNIV_HOTBACKUP
 /* Forward declaration of transaction handle */
 struct trx_t;
 
@@ -418,7 +396,6 @@ ut_copy_file(
 /*=========*/
 	FILE*	dest,	/*!< in: output file */
 	FILE*	src);	/*!< in: input file to be appended to output */
-#endif /* !UNIV_HOTBACKUP */
 
 #ifdef _WIN32
 /**********************************************************************//**

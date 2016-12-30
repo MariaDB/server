@@ -32,8 +32,6 @@ Created 2011/12/19 Inaam Rana
 #include "buf0types.h"
 #include "log0recv.h"
 
-#ifndef UNIV_HOTBACKUP
-
 /** Doublewrite system */
 extern buf_dblwr_t*	buf_dblwr;
 /** Set to TRUE when the doublewrite buffer is being created */
@@ -155,8 +153,5 @@ struct buf_dblwr_t{
 				the buffer blocks which have been
 				cached to write_buf */
 };
-
-
-#endif /* UNIV_HOTBACKUP */
 
 #endif

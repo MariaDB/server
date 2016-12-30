@@ -31,7 +31,7 @@ simple headers.
 
 #include "univ.i"
 
-#if !defined UNIV_HOTBACKUP && !defined UNIV_INNOCHECKSUM
+#ifndef UNIV_INNOCHECKSUM
 
 /* Forward declarations */
 class THD;
@@ -668,5 +668,5 @@ innobase_destroy_background_thd(MYSQL_THD);
 void
 innobase_reset_background_thd(MYSQL_THD);
 
-#endif /* !UNIV_HOTBACKUP && !UNIV_INNOCHECKSUM */
+#endif /* !UNIV_INNOCHECKSUM */
 #endif /* HA_INNODB_PROTOTYPES_H */
