@@ -708,7 +708,7 @@ fsp_flags_init(
 	bool			is_temporary,
 	bool			page_compression,
 	ulint			page_compression_level,
-	ulint			atomic_writes,
+	ulint			not_used,
 	bool			is_encrypted = false);
 
 /** Convert a 32 bit integer tablespace flags to the 32 bit table flags.

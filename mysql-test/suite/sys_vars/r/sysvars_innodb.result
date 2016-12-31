@@ -2584,12 +2584,12 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	INNODB_USE_ATOMIC_WRITES
 SESSION_VALUE	NULL
-GLOBAL_VALUE	OFF
+GLOBAL_VALUE	ON
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	OFF
+DEFAULT_VALUE	ON
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Prevent partial page writes, via atomic writes.The option is used to prevent partial writes in case of a crash/poweroff, as faster alternative to doublewrite buffer.Currently this option works only on Linux only with FusionIO device, and directFS filesystem.
+VARIABLE_COMMENT	Enable atomic writes, instead of using the doublewrite buffer, for files on devices that supports atomic writes. To use this option one must use file_per_table=1, flush_method=O_DIRECT and use_fallocate=1. This option only works on Linux with either FusionIO cards using the directFS filesystem or with Shannon cards using any file system.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

@@ -62,7 +62,7 @@ Returns the atomic writes flag of the space, or false if the space
 is not using atomic writes. The tablespace must be cached in the memory cache.
 @return	atomic write table option value */
 UNIV_INLINE
-atomic_writes_t
+bool
 fil_space_get_atomic_writes(
 /*=========================*/
 	ulint	id);	/*!< in: space id */

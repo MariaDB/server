@@ -118,13 +118,6 @@ Tablespace::open_or_create(bool is_temp)
 			break;
 		}
 
-#ifdef UNIV_LINUX
-		const bool atomic_write = fil_fusionio_enable_atomic_write(
-			it->m_handle);
-#else
-		const bool atomic_write = false;
-#endif
-
 		/* We can close the handle now and open the tablespace
 		the proper way. */
 		it->close();
@@ -149,7 +142,7 @@ Tablespace::open_or_create(bool is_temp)
 		/* Create the tablespace node entry for this data file. */
 		if (!fil_node_create(
 			    it->m_filepath, it->m_size, space, false,
-			    atomic_write)) {
+			    TRUE)) {
 
 		       err = DB_ERROR;
 		       break;

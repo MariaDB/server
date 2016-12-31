@@ -200,7 +200,6 @@ fsp_flags_to_dict_tf(
 	bool	shared_space	= FSP_FLAGS_GET_SHARED(fsp_flags);
 	bool	page_compressed = FSP_FLAGS_GET_PAGE_COMPRESSION(fsp_flags);
 	ulint	comp_level	= FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(fsp_flags);
-	bool	atomic_writes	= FSP_FLAGS_GET_ATOMIC_WRITES(fsp_flags);
 
 	/* FSP_FLAGS_GET_TEMPORARY(fsp_flags) does not have an equivalent
 	flag position in the table flags. But it would go into flags2 if
@@ -208,7 +207,7 @@ fsp_flags_to_dict_tf(
 
 	ulint	flags = dict_tf_init(post_antelope | compact, zip_ssize,
 				atomic_blobs, data_dir, shared_space,
-				page_compressed, comp_level, atomic_writes);
+				page_compressed, comp_level, 0);
 
 	return(flags);
 }
@@ -235,7 +234,6 @@ fsp_flags_is_valid(
 	ulint	unused = FSP_FLAGS_GET_UNUSED(flags);
 	bool	page_compression = FSP_FLAGS_GET_PAGE_COMPRESSION(flags);
 	ulint	page_compression_level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags);
-	ulint	atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
 
 	const char *file;
 	ulint line;
@@ -301,11 +299,6 @@ fsp_flags_is_valid(
 		}
 	}
 
-	if (atomic_writes > ATOMIC_WRITES_OFF) {
-		GOTO_ERROR;
-		return (false);
-	}
-
 #if UNIV_FORMAT_MAX != UNIV_FORMAT_B
 # error UNIV_FORMAT_MAX != UNIV_FORMAT_B, Add more validations.
 #endif
@@ -329,8 +322,7 @@ err_exit:
 		    << " is_temp: " << is_temp
 		    << " is_encryption: " << is_encryption
 		    << " page_compressed: " << page_compression
-		    << " page_compression_level: " << page_compression_level
-		    << " atomic_writes: " << atomic_writes;
+		    << " page_compression_level: " << page_compression_level;
 	return (false);
 }
 

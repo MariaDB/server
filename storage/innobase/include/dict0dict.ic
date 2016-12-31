@@ -664,7 +664,6 @@ dict_tf_is_valid(
 	ulint	unused = DICT_TF_GET_UNUSED(flags);
 	bool	page_compression = DICT_TF_GET_PAGE_COMPRESSION(flags);
 	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(flags);
-	ulint	atomic_writes = DICT_TF_GET_ATOMIC_WRITES(flags);
 	bool	flags_corrupt = false;
 
 	/* Make sure there are no bits that we do not know about. */
@@ -711,12 +710,6 @@ dict_tf_is_valid(
 		}
 	}
 
-	if (atomic_writes) {
-
-		if(atomic_writes > ATOMIC_WRITES_OFF) {
-			flags_corrupt = true;
-		}
-	}
 
 	/* HAS_DATA_DIR and SHARED_SPACE are mutually exclusive. */
 	if (data_dir && shared_space) {
@@ -734,7 +727,6 @@ dict_tf_is_valid(
 			<< " zip_ssize:" << zip_ssize
 			<< " page_compression:" << page_compression
 			<< " page_compression_level:" << page_compression_level
-			<< " atomic_writes:" << atomic_writes
 			<< " shared_space:" << shared_space;
 		return (false);
 	} else {
@@ -789,9 +781,6 @@ dict_sys_tables_type_validate(
 	ulint	unused = DICT_TF_GET_UNUSED(type);
 	bool	page_compression = DICT_TF_GET_PAGE_COMPRESSION(type);
 	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type);
-	ulint	atomic_writes = DICT_TF_GET_ATOMIC_WRITES(type);
-
-	ut_a(atomic_writes <= ATOMIC_WRITES_OFF);
 
 	/* The low order bit of SYS_TABLES.TYPE is always set to 1.
 	If the format is UNIV_FORMAT_B or higher, this field is the same
@@ -875,13 +864,6 @@ dict_sys_tables_type_validate(
 		}
 	}
 
-	/* Validate that the atomic writes number is within allowed range. */
-	if (atomic_writes > ATOMIC_WRITES_OFF) {
-		ib::error() << "SYS_TABLES::TYPE=" << type
-			    << " atomic_writes:" << atomic_writes;
-			return(ULINT_UNDEFINED);
-	}
-
 	/* Return the validated SYS_TABLES.TYPE. */
 	return(type);
 }
@@ -949,11 +931,10 @@ dict_table_get_format(
 @param[in]	format		File Format
 @param[in]	zip_ssize	Zip Shift Size
 @param[in]	use_data_dir	Table uses DATA DIRECTORY
-@param[in]	atomic_writes   Does table use atomic writes
 @param[in]	shared_space	Table uses a General Shared Tablespace
 @param[in]	page_compressed Table uses page compression
 @param[in]	page_compression_level Page compression level
-@param[in]	atomic_writes	Table uses atomic writes */
+@param[in]	not_used        For future */
 UNIV_INLINE
 void
 dict_tf_set(
@@ -965,7 +946,7 @@ dict_tf_set(
 	bool		shared_space,
 	bool		page_compressed,
 	ulint		page_compression_level,
-	ulint		atomic_writes)
+	ulint		not_used)
 {
 	switch (format) {
 	case REC_FORMAT_REDUNDANT:
@@ -1005,11 +986,6 @@ dict_tf_set(
 		ut_ad(dict_tf_get_page_compression(*flags) == TRUE);
 		ut_ad(dict_tf_get_page_compression_level(*flags) == page_compression_level);
 	}
-
-	if (atomic_writes) {
-		*flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
-		ut_a(dict_tf_get_atomic_writes(*flags) == atomic_writes);
-	}
 }
 
 /** Initialize a dict_table_t::flags pointer.
@@ -1020,7 +996,7 @@ dict_tf_set(
 @param[in]	shared_space	Table uses a General Shared Tablespace
 @param[in]	page_compression Table uses page compression
 @param[in]	page_compression_level used compression level
-@param[in]	atomic_writes	Table atomic writes option */
+@param[in]	not_used         For future */
 UNIV_INLINE
 ulint
 dict_tf_init(
@@ -1031,7 +1007,7 @@ dict_tf_init(
 	bool		shared_space,
 	bool		page_compressed,
 	ulint		page_compression_level,
-	ulint		atomic_writes)
+	ulint		not_used)
 {
 	ulint	flags = 0;
 
@@ -1065,11 +1041,6 @@ dict_tf_init(
 		ut_ad(dict_tf_get_page_compression_level(flags) == page_compression_level);
 	}
 
-	if (atomic_writes) {
-		flags |= (atomic_writes << DICT_TF_POS_ATOMIC_WRITES);
-		ut_a(dict_tf_get_atomic_writes(flags) == atomic_writes);
-	}
-
 	return(flags);
 }
 
@@ -1097,13 +1068,12 @@ dict_sys_tables_type_to_tf(
 	flags = redundant ? 0 : 1;
 
 	/* ZIP_SSIZE, ATOMIC_BLOBS, DATA_DIR, PAGE_COMPRESSION,
-	PAGE_COMPRESSION_LEVEL, ATOMIC_WRITES are the same. */
+	PAGE_COMPRESSION_LEVEL are the same. */
 	flags |= type & (DICT_TF_MASK_ZIP_SSIZE
 			 | DICT_TF_MASK_ATOMIC_BLOBS
 			 | DICT_TF_MASK_DATA_DIR
 			 | DICT_TF_MASK_PAGE_COMPRESSION
 			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL
-			 | DICT_TF_MASK_ATOMIC_WRITES
 			 | DICT_TF_MASK_SHARED_SPACE);
 
 	ut_ad(!DICT_TF_GET_ZIP_SSIZE(flags) || DICT_TF_HAS_ATOMIC_BLOBS(flags));
@@ -1134,13 +1104,12 @@ dict_tf_to_sys_tables_type(
 	type = 1;
 
 	/* ZIP_SSIZE, ATOMIC_BLOBS, DATA_DIR, PAGE_COMPRESSION,
-	PAGE_COMPRESSION_LEVEL, ATOMIC_WRITES are the same. */
+	PAGE_COMPRESSION_LEVEL are the same. */
 	type |= flags & (DICT_TF_MASK_ZIP_SSIZE
 			 | DICT_TF_MASK_ATOMIC_BLOBS
 			 | DICT_TF_MASK_DATA_DIR
 			 | DICT_TF_MASK_PAGE_COMPRESSION
 			 | DICT_TF_MASK_PAGE_COMPRESSION_LEVEL
-			 | DICT_TF_MASK_ATOMIC_WRITES
 			 | DICT_TF_MASK_SHARED_SPACE);
 
 	return(type);

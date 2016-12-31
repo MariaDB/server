@@ -67,26 +67,6 @@ dict_tf_verify_flags(
 	ulint   fsp_flags)     /*!< in: fil_space_t::flags  */
 	__attribute__((const));
 
-/********************************************************************//**
-Extract the atomic writes flag from table flags.
-@return	true if atomic writes are used, false if not used  */
-UNIV_INLINE
-atomic_writes_t
-dict_tf_get_atomic_writes(
-/*======================*/
-	ulint	flags)			/*!< in: flags */
-	__attribute__((const));
-
-/********************************************************************//**
-Check whether the table uses the atomic writes.
-@return	true if atomic writes is used, false if not */
-UNIV_INLINE
-atomic_writes_t
-dict_table_get_atomic_writes(
-/*=========================*/
-	const dict_table_t* table);	/*!< in: table */
-
-
 #ifndef UNIV_NONINL
 #include "dict0pagecompress.ic"
 #endif

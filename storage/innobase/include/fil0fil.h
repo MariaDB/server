@@ -190,6 +190,14 @@ struct fil_space_t {
 	/** True if we have already printed compression failure */
 	bool		printed_compression_failure;
 
+	/** True if page 0 of tablespace is read */
+	bool		read_page0;
+
+        /** True if we have tested if this filespace supports atomic writes */
+        bool            atomic_write_tested;
+        /** True if the device this filespace is on supports atomic writes */
+        bool            atomic_write_supported;
+
 	/** Release the reserved free extents.
 	@param[in]	n_reserved	number of reserved extents */
 	void release_free_extents(ulint n_reserved);
@@ -244,7 +252,7 @@ struct fil_node_t {
 	/** block size to use for punching holes */
 	ulint		block_size;
 
-	/** whether atomic write is enabled for this file */
+	/** whether this file could use atomic write (data file) */
 	bool		atomic_write;
 
 	/** FIL_NODE_MAGIC_N */
@@ -663,7 +671,7 @@ MY_ATTRIBUTE((warn_unused_result, pure));
 @param[in]	size		file size in entire database blocks
 @param[in,out]	space		tablespace from fil_space_create()
 @param[in]	is_raw		whether this is a raw device or partition
-@param[in]	atomic_write	true if atomic write enabled
+@param[in]	atomic_write	true if atomic write could be enabled
 @param[in]	max_pages	maximum number of pages in file,
 ULINT_MAX means the file size is unlimited.
 @return pointer to the file name
@@ -1729,15 +1737,6 @@ bool
 fil_names_clear(
 	lsn_t	lsn,
 	bool	do_write);
-
-#ifdef UNIV_LINUX
-/**
-Try and enable FusionIO atomic writes.
-@param[in] file		OS file handle
-@return true if successful */
-bool
-fil_fusionio_enable_atomic_write(os_file_t file);
-#endif /* UNIV_LINUX */
 
 /** Note that the file system where the file resides doesn't support PUNCH HOLE
 @param[in,out]	node		Node to set */

@@ -249,7 +249,7 @@ values */
 
 static ulong	innobase_fast_shutdown			= 1;
 static my_bool	innobase_file_format_check		= TRUE;
-static my_bool	innobase_use_atomic_writes		= FALSE;
+static my_bool	innobase_use_atomic_writes		= TRUE;
 static my_bool	innobase_use_fallocate;
 static my_bool	innobase_use_doublewrite		= TRUE;
 static my_bool	innobase_use_checksums			= TRUE;
@@ -791,8 +791,6 @@ ha_create_table_option innodb_table_option_list[]=
   /* With this option user can set zip compression level for page
   compression for this table*/
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, 0, 1, 9, 1),
-  /* With this option user can enable atomic writes feature for this table */
-  HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
   /* With this option the user can enable encryption for the table */
   HA_TOPTION_ENUM("ENCRYPTED", encryption, "DEFAULT,YES,NO", 0),
   /* With this option the user defines the key identifier using for the encryption */
@@ -4332,7 +4330,7 @@ innobase_init(
 
 	/* Create the filespace flags. */
 	fsp_flags = fsp_flags_init(
-		univ_page_size, false, false, false, false, false, 0, ATOMIC_WRITES_DEFAULT);
+		univ_page_size, false, false, false, false, false, 0, 0);
 	srv_sys_space.set_flags(fsp_flags);
 
 	srv_sys_space.set_name(reserved_system_space_name);
@@ -4358,7 +4356,7 @@ innobase_init(
 
 	/* Create the filespace flags with the temp flag set. */
 	fsp_flags = fsp_flags_init(
-		univ_page_size, false, false, false, true, false, 0, ATOMIC_WRITES_DEFAULT);
+		univ_page_size, false, false, false, true, false, 0, 0);
 	srv_tmp_space.set_flags(fsp_flags);
 
 	if (!srv_tmp_space.parse_params(innobase_temp_data_file_path, false)) {
@@ -4647,17 +4645,20 @@ innobase_change_buffering_inited_ok:
 			" It will be removed in MariaDB 10.3.";
 	}
 
-	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
-	if (innobase_use_atomic_writes) {
-		fprintf(stderr, "InnoDB: using atomic writes.\n");
-		/* Force doublewrite buffer off, atomic writes replace it. */
-		if (srv_use_doublewrite_buf) {
-			fprintf(stderr, "InnoDB: Switching off doublewrite buffer "
-				"because of atomic writes.\n");
-				innobase_use_doublewrite = srv_use_doublewrite_buf = FALSE;
-		}
+	srv_use_atomic_writes = (ibool) (innobase_use_atomic_writes &&
+                                         my_may_have_atomic_write);
+        if (srv_use_atomic_writes && !srv_file_per_table)
+        {
+          fprintf(stderr, "InnoDB: Disabling atomic_writes as file_per_table is not used.\n");
+          srv_use_atomic_writes= 0;
+        }
 
-		/* Force O_DIRECT on Unixes (on Windows writes are always unbuffered)*/
+	if (srv_use_atomic_writes) {
+		fprintf(stderr, "InnoDB: using atomic writes.\n");
+		/*
+                  Force O_DIRECT on Unixes (on Windows writes are always
+                  unbuffered)
+                */
 #ifndef _WIN32
 		if (!innobase_file_flush_method ||
 			!strstr(innobase_file_flush_method, "O_DIRECT")) {
@@ -13153,7 +13154,6 @@ create_table_info_t::check_table_options()
 {
 	enum row_type	row_format = m_form->s->row_type;
 	ha_table_option_struct *options= m_form->s->option_struct;
-	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
 	fil_encryption_t encrypt = (fil_encryption_t)options->encryption;
 
 	if (encrypt != FIL_SPACE_ENCRYPTION_DEFAULT && !m_allow_file_per_table) {
@@ -13284,19 +13284,6 @@ create_table_info_t::check_table_options()
 			);
 			return "ENCRYPTION_KEY_ID";
 
-		}
-	}
-
-	/* Check atomic writes requirements */
-	if (awrites == ATOMIC_WRITES_ON ||
-		(awrites == ATOMIC_WRITES_DEFAULT && srv_use_atomic_writes)) {
-		if (!m_allow_file_per_table) {
-			push_warning(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: ATOMIC_WRITES requires"
-				" innodb_file_per_table.");
-			return "ATOMIC_WRITES";
 		}
 	}
 
@@ -13712,7 +13699,7 @@ index_bad:
 			options->page_compressed,
 		    	options->page_compression_level == 0 ?
 		        	default_compression_level : options->page_compression_level,
-		    	options->atomic_writes);
+		    	0);
 
 	if (m_use_file_per_table) {
 		ut_ad(!m_use_shared_space);
@@ -15032,7 +15019,7 @@ innobase_create_tablespace(
 		false,		/* Temporary General Tablespaces not allowed */
 		false,		/* Page compression is not used. */
 		0,		/* Page compression level 0 */
-		ATOMIC_WRITES_DEFAULT); /* No atomic writes yet */
+		0);
 
 	tablespace.set_flags(fsp_flags);
 
@@ -19482,8 +19469,8 @@ ha_innobase::check_if_incompatible_data(
 
 	/* Changes on engine specific table options requests a rebuild of the table. */
 	if (param_new->page_compressed != param_old->page_compressed ||
-	    param_new->page_compression_level != param_old->page_compression_level ||
-	    param_new->atomic_writes != param_old->atomic_writes) {
+	    param_new->page_compression_level != param_old->page_compression_level)
+        {
 		return(COMPATIBLE_DATA_NO);
 	}
 
@@ -21950,12 +21937,13 @@ static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
 
 static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
-  "Prevent partial page writes, via atomic writes."
-  "The option is used to prevent partial writes in case of a crash/poweroff, "
-  "as faster alternative to doublewrite buffer."
-  "Currently this option works only "
-  "on Linux only with FusionIO device, and directFS filesystem.",
-  NULL, NULL, FALSE);
+  "Enable atomic writes, instead of using the doublewrite buffer, for files "
+  "on devices that supports atomic writes. "
+  "To use this option one must use "
+  "file_per_table=1, flush_method=O_DIRECT and use_fallocate=1. "
+  "This option only works on Linux with either FusionIO cards using "
+  "the directFS filesystem or with Shannon cards using any file system.",
+  NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(use_fallocate, innobase_use_fallocate,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,

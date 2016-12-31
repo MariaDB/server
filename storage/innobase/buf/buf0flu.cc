@@ -1008,7 +1008,7 @@ buf_flush_write_block_low(
 {
 	page_t*	frame = NULL;
 	ulint space_id = bpage->id.space();
-	atomic_writes_t awrites = fil_space_get_atomic_writes(space_id);
+	bool atomic_writes = fil_space_get_atomic_writes(space_id);
 
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -1086,7 +1086,7 @@ buf_flush_write_block_low(
 	    || buf_dblwr == NULL
 	    || srv_read_only_mode
 	    || fsp_is_system_temporary(bpage->id.space())
-	    || awrites == ATOMIC_WRITES_ON) {
+	    || atomic_writes) {
 
 		ut_ad(!srv_read_only_mode
 		      || fsp_is_system_temporary(bpage->id.space()));

@@ -79,13 +79,6 @@ Created 10/21/1995 Heikki Tuuri
 bool	innodb_calling_exit;
 #endif /* UNIV_DEBUG */
 
-#if defined(UNIV_LINUX) && defined(HAVE_SYS_IOCTL_H)
-# include <sys/ioctl.h>
-# ifndef DFS_IOCTL_ATOMIC_WRITE_SET
-#  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
-# endif
-#endif
-
 #if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
 #include <sys/statvfs.h>
 #endif
@@ -3310,26 +3303,6 @@ os_file_create_simple_func(
 	}
 #endif /* USE_FILE_LOCK */
 
-	/* If we have proper file handle and atomic writes should be used,
-	try to set atomic writes and if that fails when creating a new
-	table, produce a error. If atomic writes are used on existing
-	file, ignore error and use traditional writes for that file */
-	/* JAN: TODO: ATOMIC WRITES
-	if (file != -1
-	    && (awrites == ATOMIC_WRITES_ON ||
-		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
-	    && !os_file_set_atomic_writes(name, file)) {
-		if (create_mode == OS_FILE_CREATE) {
-			fprintf(stderr, "InnoDB: Error: Can't create file using atomic writes\n");
-			close(file);
-			os_file_delete_if_exists_func(name);
-			*success = FALSE;
-			file = -1;
-		}
-	}
-	*/
-
-
 	return(file);
 }
 
@@ -3682,24 +3655,6 @@ os_file_create_func(
 	}
 #endif /* USE_FILE_LOCK */
 
-	/* If we have proper file handle and atomic writes should be used,
-	try to set atomic writes and if that fails when creating a new
-	table, produce a error. If atomic writes are used on existing
-	file, ignore error and use traditional writes for that file */
-	/* JAN: TODO: ATOMIC WRITES
-	if (file != -1 && type == OS_DATA_FILE
-	    && (awrites == ATOMIC_WRITES_ON ||
-		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
-	    && !os_file_set_atomic_writes(name, file)) {
-		if (create_mode == OS_FILE_CREATE) {
-			fprintf(stderr, "InnoDB: Error: Can't create file using atomic writes\n");
-			close(file);
-			os_file_delete_if_exists_func(name);
-			*success = FALSE;
-			file = -1;
-		}
-	}
-	*/
 	return(file);
 }
 

@@ -192,6 +192,14 @@ extern void my_large_free(uchar *ptr);
 #define my_large_free(A) my_free_lock((A))
 #endif /* HAVE_LARGE_PAGES */
 
+void my_init_atomic_write(void);
+#ifdef __linux__
+my_bool my_test_if_atomic_write(File handle, int pagesize);
+#else
+#define my_test_if_atomic_write(A, B) 0
+#endif /* __linux__ */
+extern my_bool my_may_have_atomic_write;
+
 #if defined(HAVE_ALLOCA) && !defined(HAVE_valgrind)
 #if defined(_AIX) && !defined(__GNUC__) && !defined(_AIX43)
 #pragma alloca

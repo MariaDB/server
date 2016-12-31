@@ -5862,6 +5862,9 @@ int mysqld_main(int argc, char **argv)
   if (my_setwd(mysql_real_data_home, opt_abort ? 0 : MYF(MY_WME)) && !opt_abort)
     unireg_abort(1);				/* purecov: inspected */
 
+  /* Atomic write initialization must be done as root */
+  my_init_atomic_write();
+
   if ((user_info= check_user(mysqld_user)))
   {
 #if defined(HAVE_MLOCKALL) && defined(MCL_CURRENT)

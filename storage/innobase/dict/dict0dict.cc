@@ -7273,7 +7273,6 @@ dict_tf_to_fsp_flags(
 	bool		is_shared = DICT_TF_HAS_SHARED_SPACE(table_flags);
 	bool		page_compression = DICT_TF_GET_PAGE_COMPRESSION(table_flags);
 	ulint		page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(table_flags);
-	ulint		atomic_writes = DICT_TF_GET_ATOMIC_WRITES(table_flags);
 
 	ut_ad(!page_size.is_compressed() || has_atomic_blobs);
 
@@ -7303,12 +7302,6 @@ dict_tf_to_fsp_flags(
 	if page compression is used for this table. */
 	if (page_compression && page_compression_level) {
 		fsp_flags |= FSP_FLAGS_SET_PAGE_COMPRESSION_LEVEL(fsp_flags, page_compression_level);
-	}
-
-	/* In addition, tablespace flags also contain flag if atomic writes
-	is used for this table */
-	if (atomic_writes) {
-		fsp_flags |= FSP_FLAGS_SET_ATOMIC_WRITES(fsp_flags, atomic_writes);
 	}
 
 	ut_ad(fsp_flags_is_valid(fsp_flags));

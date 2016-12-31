@@ -475,34 +475,6 @@ fil_space_is_flushed(
 	return(true);
 }
 
-#ifdef UNIV_LINUX
-
-#include <sys/ioctl.h>
-/** FusionIO atomic write control info */
-#define DFS_IOCTL_ATOMIC_WRITE_SET	_IOW(0x95, 2, uint)
-
-/**
-Try and enable FusionIO atomic writes.
-@param[in] file		OS file handle
-@return true if successful */
-bool
-fil_fusionio_enable_atomic_write(os_file_t file)
-{
-	if (srv_unix_file_flush_method == SRV_UNIX_O_DIRECT) {
-
-		uint	atomic = 1;
-
-		ut_a(file != -1);
-
-		if (ioctl(file, DFS_IOCTL_ATOMIC_WRITE_SET, &atomic) != -1) {
-
-			return(true);
-		}
-	}
-
-	return(false);
-}
-#endif /* UNIV_LINUX */
 
 /** Append a file to the chain of files of a space.
 @param[in]	name		file name of a file that is not open
@@ -510,7 +482,7 @@ fil_fusionio_enable_atomic_write(os_file_t file)
 @param[in,out]	space		tablespace from fil_space_create()
 @param[in]	is_raw		whether this is a raw device or partition
 @param[in]	punch_hole	true if supported for this node
-@param[in]	atomic_write	true if the file has atomic write enabled
+@param[in]	atomic_write	true if the file could use atomic write
 @param[in]	max_pages	maximum number of pages in file,
 ULINT_MAX means the file size is unlimited.
 @return pointer to the file name
@@ -606,7 +578,7 @@ fil_node_create_low(
 				an integer
 @param[in,out]	space		space where to append
 @param[in]	is_raw		true if a raw device or a raw disk partition
-@param[in]	atomic_write	true if the file has atomic write enabled
+@param[in]	atomic_write	true if the file could use atomic write
 @param[in]	max_pages	maximum number of pages in file,
 ULINT_MAX means the file size is unlimited.
 @return pointer to the file name
@@ -829,7 +801,27 @@ retry:
 		node->handle = os_file_create(
 			innodb_data_file_key, node->name, OS_FILE_OPEN,
 			OS_FILE_AIO, OS_DATA_FILE, read_only_mode, &success);
-	}
+
+                if (!space->atomic_write_tested)
+                {
+                  const page_size_t page_size(space->flags);
+
+                  space->atomic_write_tested= 1;
+                  /*
+                    Atomic writes is supported if the file can be used
+                    with atomic_writes (not log file), O_DIRECT is
+                    used (tested in ha_innodbc.cc) and the file is
+                    device and file system that supports atomic writes
+                    for the given block size
+                  */
+                  space->atomic_write_supported=
+                    srv_use_atomic_writes &&
+                    node->atomic_write &&
+                    my_test_if_atomic_write(node->handle,
+                                            page_size.physical()) ?
+                    true : false;
+                }
+        }
 
 	ut_a(success);
 
@@ -3855,37 +3847,34 @@ fil_ibd_create(
 		return(DB_ERROR);
 	}
 
-#ifdef UNIV_LINUX
-	const bool	atomic_write = fil_fusionio_enable_atomic_write(file);
+        success= false;
+#ifdef HAVE_POSIX_FALLOCATE
+        /*
+          Extend the file using posix_fallocate(). This is required by
+          FusionIO HW/Firmware but should also be the prefered way to extend
+          a file.
+        */
+        int	ret = posix_fallocate(file, 0, size * UNIV_PAGE_SIZE);
 
-	if (atomic_write) {
-		/* This is required by FusionIO HW/Firmware */
-		int	ret = posix_fallocate(file, 0, size * UNIV_PAGE_SIZE);
-
-		if (ret != 0) {
-
-			ib::error() <<
-				"posix_fallocate(): Failed to preallocate"
-				" data for file " << path
-				<< ", desired size "
-				<< size * UNIV_PAGE_SIZE
-				<< " Operating system error number " << ret
-				<< ". Check"
-				" that the disk is not full or a disk quota"
-				" exceeded. Make sure the file system supports"
-				" this function. Some operating system error"
-				" numbers are described at " REFMAN
-				" operating-system-error-codes.html";
-
-			success = false;
+        if (ret != 0) {
+          	ib::error() <<
+			"posix_fallocate(): Failed to preallocate"
+			" data for file " << path
+			<< ", desired size "
+			<< size * UNIV_PAGE_SIZE
+			<< " Operating system error number " << ret
+			<< ". Check"
+			" that the disk is not full or a disk quota"
+			" exceeded. Make sure the file system supports"
+			" this function. Some operating system error"
+			" numbers are described at " REFMAN
+			" operating-system-error-codes.html";
 		} else {
 			success = true;
 		}
-	} else
-#else
-	const bool atomic_write = false;
-#endif /* UNIV_LINUX */
-	{
+#endif /* HAVE_POSIX_FALLOCATE */
+        if (!success)
+        {
 		success = os_file_set_size(
 			path, file, size * UNIV_PAGE_SIZE, srv_read_only_mode);
 	}
@@ -4022,7 +4011,7 @@ fil_ibd_create(
 		crypt_data, true);
 
 	if (!fil_node_create_low(
-			path, size, space, false, punch_hole, atomic_write)) {
+			path, size, space, false, punch_hole, TRUE)) {
 
 		if (crypt_data) {
 			free(crypt_data);
@@ -4234,13 +4223,6 @@ fil_ibd_open(
 		df_dict.close();
 	}
 
-#ifdef UNIV_LINUX
-	const bool	atomic_write = !srv_use_doublewrite_buf && df_default.is_open()
-		&& fil_fusionio_enable_atomic_write(df_default.handle());
-#else
-	const bool	atomic_write = false;
-#endif /* UNIV_LINUX */
-
 	/*  We have now checked all possible tablespace locations and
 	have a count of how many unique files we found.  If things are
 	normal, we only found 1. */
@@ -4443,7 +4425,7 @@ skip_validate:
 			    df_remote.is_open() ? df_remote.filepath() :
 			    df_dict.is_open() ? df_dict.filepath() :
 			    df_default.filepath(), 0, space, false,
-			    true, atomic_write) == NULL) {
+			    true, TRUE) == NULL) {
 			err = DB_ERROR;
 		}
 
