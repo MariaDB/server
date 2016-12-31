@@ -7,7 +7,7 @@ ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(11) NOT NULL DEFAULT '0',
+  `i` int(11) NOT NULL,
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`i`),
   KEY `kj` (`j`),
@@ -19,7 +19,7 @@ ALTER TABLE t1 ADD INDEX kj(j), ADD INDEX kij(i,j), ADD INDEX kji(j,i), ALGORITH
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `i` int(11) NOT NULL DEFAULT '0',
+  `i` int(11) NOT NULL,
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`i`),
   KEY `kj` (`j`),
