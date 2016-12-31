@@ -1716,6 +1716,8 @@ bool fix_partition_func(THD *thd, TABLE *table,
     else if (part_info->part_type == VERSIONING_PARTITION)
     {
       error_str= partition_keywords[PKW_SYSTEM_TIME].str;
+      if (unlikely(part_info->check_range_constants(thd)))
+        goto end;
     }
     else
     {
@@ -2396,9 +2398,6 @@ static int add_partition_values(File fptr, partition_info *part_info,
       break;
     case partition_element::VERSIONING:
       err+= add_string(fptr, " VERSIONING");
-      DBUG_ASSERT(part_info->vers_info);
-      if (part_info->vers_info->hist_default == p_elem->id)
-        err+= add_string(fptr, " DEFAULT");
       break;
     default:
       DBUG_ASSERT(0 && "wrong p_elem->type");
@@ -3423,7 +3422,8 @@ int vers_get_partition_id(partition_info *part_info,
                           longlong *func_value)
 {
   DBUG_ENTER("vers_get_partition_id");
-  Field *sys_trx_end= part_info->part_field_array[0];
+  DBUG_ASSERT(part_info);
+  Field *sys_trx_end= part_info->part_field_array[STAT_TRX_END];
   DBUG_ASSERT(sys_trx_end);
   DBUG_ASSERT(part_info->table);
   Vers_part_info *vers_info= part_info->vers_info;
@@ -3438,7 +3438,6 @@ int vers_get_partition_id(partition_info *part_info,
   }
   else // row is historical
   {
-    partition_element *part= vers_info->hist_part;
     THD *thd= current_thd;
     TABLE *table= part_info->table;
 
@@ -3461,18 +3460,13 @@ int vers_get_partition_id(partition_info *part_info,
         mysql_mutex_unlock(&table->s->LOCK_rotation);
         if (part_info->vers_limit_exceed() || part_info->vers_interval_exceed(sys_trx_end->get_timestamp()))
         {
-          part= part_info->vers_part_rotate(thd);
+          part_info->vers_part_rotate(thd);
         }
         mysql_mutex_lock(&table->s->LOCK_rotation);
         mysql_cond_broadcast(&table->s->COND_rotation);
         table->s->busy_rotation= false;
       }
       mysql_mutex_unlock(&table->s->LOCK_rotation);
-      if (vers_info->interval)
-      {
-        DBUG_ASSERT(part->stat_trx_end);
-        part->stat_trx_end->update(sys_trx_end);
-      }
       break;
     default:
       ;
@@ -5295,6 +5289,21 @@ that are reorganised.
         partition configuration is made.
       */
       {
+        partition_element *now_part= NULL;
+        if (tab_part_info->part_type == VERSIONING_PARTITION)
+        {
+          List_iterator<partition_element> it(tab_part_info->partitions);
+          partition_element *el;
+          while ((el= it++))
+          {
+            if (el->type == partition_element::AS_OF_NOW)
+            {
+              DBUG_ASSERT(tab_part_info->vers_info && el == tab_part_info->vers_info->now_part);
+              it.remove();
+              now_part= el;
+            }
+          }
+        }
         List_iterator<partition_element> alt_it(alt_part_info->partitions);
         uint part_count= 0;
         do
@@ -5309,6 +5318,15 @@ that are reorganised.
           }
         } while (++part_count < num_new_partitions);
         tab_part_info->num_parts+= num_new_partitions;
+        if (tab_part_info->part_type == VERSIONING_PARTITION)
+        {
+          DBUG_ASSERT(now_part);
+          if (tab_part_info->partitions.push_back(now_part, thd->mem_root))
+          {
+            mem_alloc_error(1);
+            goto err;
+          }
+        }
       }
       /*
         If we specify partitions explicitly we don't use defaults anymore.
@@ -5697,6 +5715,12 @@ the generated partition syntax in a correct manner.
         tab_part_info->use_default_subpartitions= FALSE;
         tab_part_info->use_default_num_subpartitions= FALSE;
       }
+
+      if (alter_info->flags & Alter_info::ALTER_ADD_PARTITION &&
+        tab_part_info->part_type == VERSIONING_PARTITION &&
+        tab_part_info->vers_setup_1(thd, alt_part_info->partitions.elements))
+        goto err;
+
       if (tab_part_info->check_partition_info(thd, (handlerton**)NULL,
                                               table->file, 0, TRUE))
       {
@@ -7548,6 +7572,7 @@ static void set_up_range_analysis_info(partition_info *part_info)
   switch (part_info->part_type) {
   case RANGE_PARTITION:
   case LIST_PARTITION:
+  case VERSIONING_PARTITION:
     if (!part_info->column_list)
     {
       if (part_info->part_expr->get_monotonicity_info() != NON_MONOTONIC)
@@ -7848,7 +7873,7 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
   uint full_length= 0;
   DBUG_ENTER("get_part_iter_for_interval_cols_via_map");
 
-  if (part_info->part_type == RANGE_PARTITION)
+  if (part_info->part_type == RANGE_PARTITION || part_info->part_type == VERSIONING_PARTITION)
   {
     get_col_endpoint= get_partition_id_cols_range_for_endpoint;
     part_iter->get_next= get_next_partition_id_range;
@@ -7894,7 +7919,7 @@ int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
   }
   if (flags & NO_MAX_RANGE)
   {
-    if (part_info->part_type == RANGE_PARTITION)
+    if (part_info->part_type == RANGE_PARTITION || part_info->part_type == VERSIONING_PARTITION)
       part_iter->part_nums.end= part_info->num_parts;
     else /* LIST_PARTITION */
     {

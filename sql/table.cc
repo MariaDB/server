@@ -3226,6 +3226,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+  bool work_part_info_used;
   if (share->partition_info_str_len && outparam->file)
   {
   /*
@@ -3246,7 +3247,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     thd->set_n_backup_active_arena(&part_func_arena, &backup_arena);
     thd->stmt_arena= &part_func_arena;
     bool tmp;
-    bool work_part_info_used;
 
     tmp= mysql_unpack_partition(thd, share->partition_info_str,
                                 share->partition_info_str_len,
@@ -3412,12 +3412,32 @@ partititon_err:
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (outparam->part_info &&
-    outparam->part_info->part_type == VERSIONING_PARTITION &&
-    outparam->part_info->vers_setup_2(thd, is_create_table))
+    outparam->part_info->part_type == VERSIONING_PARTITION)
   {
-    error= OPEN_FRM_OPEN_ERROR;
-    error_reported= true;
-    goto err;
+    Query_arena *backup_stmt_arena_ptr= thd->stmt_arena;
+    Query_arena backup_arena;
+    Query_arena part_func_arena(&outparam->mem_root,
+                                Query_arena::STMT_INITIALIZED);
+    if (!work_part_info_used)
+    {
+      thd->set_n_backup_active_arena(&part_func_arena, &backup_arena);
+      thd->stmt_arena= &part_func_arena;
+    }
+
+    bool err= outparam->part_info->vers_setup_2(thd, is_create_table);
+
+    if (!work_part_info_used)
+    {
+      thd->stmt_arena= backup_stmt_arena_ptr;
+      thd->restore_active_arena(&part_func_arena, &backup_arena);
+    }
+
+    if (err)
+    {
+      error= OPEN_FRM_OPEN_ERROR;
+      error_reported= true;
+      goto err;
+    }
   }
 #endif
 

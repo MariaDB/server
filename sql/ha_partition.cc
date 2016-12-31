@@ -4289,6 +4289,15 @@ int ha_partition::update_row(const uchar *old_data, uchar *new_data)
     if (error)
       goto exit;
 
+    if (m_part_info->part_type == VERSIONING_PARTITION)
+    {
+      uint sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
+      DBUG_ASSERT(m_tot_parts == m_part_info->num_parts * sub_factor);
+      uint lpart_id= new_part_id / sub_factor;
+      // lpart_id is VERSIONING partition because new_part_id != old_part_id
+      m_part_info->vers_update_stats(thd, lpart_id);
+    }
+
     tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
     error= m_file[old_part_id]->ha_delete_row(old_data);
     reenable_binlog(thd);

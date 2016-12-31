@@ -1017,7 +1017,8 @@ static PSI_mutex_info all_server_mutexes[]=
 
 PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
-  key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock;
+  key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock,
+  key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial;
 
 static PSI_rwlock_info all_server_rwlocks[]=
 {
@@ -1029,7 +1030,9 @@ static PSI_rwlock_info all_server_rwlocks[]=
   { &key_rwlock_LOCK_sys_init_connect, "LOCK_sys_init_connect", PSI_FLAG_GLOBAL},
   { &key_rwlock_LOCK_sys_init_slave, "LOCK_sys_init_slave", PSI_FLAG_GLOBAL},
   { &key_rwlock_LOCK_system_variables_hash, "LOCK_system_variables_hash", PSI_FLAG_GLOBAL},
-  { &key_rwlock_query_cache_query_lock, "Query_cache_query::lock", 0}
+  { &key_rwlock_query_cache_query_lock, "Query_cache_query::lock", 0},
+  { &key_rwlock_LOCK_vers_stats, "Vers_field_stats::lock", 0},
+  { &key_rwlock_LOCK_stat_serial, "TABLE_SHARE::LOCK_stat_serial", 0}
 };
 
 #ifdef HAVE_MMAP

@@ -561,6 +561,8 @@ struct TABLE_STATISTICS_CB
   bool histograms_are_read;   
 };
 
+class Vers_field_stats;
+
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
 #endif
@@ -752,26 +754,30 @@ struct TABLE_SHARE
   uint16 row_start_field;
   uint16 row_end_field;
   uint32 hist_part_id;
-  List<void> free_parts;
-  bool free_parts_init;
+  Vers_field_stats** stat_trx;
+  ulonglong stat_serial; // guards check_range_constants() updates
+
   bool busy_rotation;
   mysql_mutex_t LOCK_rotation;
   mysql_cond_t COND_rotation;
+  mysql_rwlock_t LOCK_stat_serial;
 
   void vers_init()
   {
     hist_part_id= UINT32_MAX;
     busy_rotation= false;
-    free_parts.empty();
-    free_parts_init= true;
+    stat_trx= NULL;
+    stat_serial= 0;
     mysql_mutex_init(key_TABLE_SHARE_LOCK_rotation, &LOCK_rotation, MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_TABLE_SHARE_COND_rotation, &COND_rotation, NULL);
+    mysql_rwlock_init(key_rwlock_LOCK_stat_serial, &LOCK_stat_serial);
   }
 
   void vers_destroy()
   {
     mysql_mutex_destroy(&LOCK_rotation);
     mysql_cond_destroy(&COND_rotation);
+    mysql_rwlock_destroy(&LOCK_stat_serial);
   }
 
   Field *vers_start_field()
@@ -782,12 +788,6 @@ struct TABLE_SHARE
   Field *vers_end_field()
   {
     return field[row_end_field];
-  }
-
-  void vers_part_rotate()
-  {
-    DBUG_ASSERT(!free_parts.is_empty());
-    hist_part_id= (ulong)(void *)(free_parts.pop());
   }
 
   void vers_wait_rotation()

@@ -28,7 +28,7 @@ wait/synch/rwlock/sql/LOGGER::LOCK_logger	YES	YES
 wait/synch/rwlock/sql/MDL_context::LOCK_waiting_for	YES	YES
 wait/synch/rwlock/sql/MDL_lock::rwlock	YES	YES
 wait/synch/rwlock/sql/Query_cache_query::lock	YES	YES
-wait/synch/rwlock/sql/THR_LOCK_servers	YES	YES
+wait/synch/rwlock/sql/TABLE_SHARE::LOCK_stat_serial	YES	YES
 select * from performance_schema.setup_instruments
 where name like 'Wait/Synch/Cond/sql/%'
   and name not in (

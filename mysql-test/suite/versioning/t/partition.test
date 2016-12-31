@@ -27,15 +27,15 @@ select * from t1 partition (p1) for system_time all;
 --error ER_VERSIONING_REQUIRED
 create or replace table t1 (x int)
 partition by system_time (
-    partition p0 as of now,
-    partition p1 versioning);
+    partition p0 versioning,
+    partition pn as of now);
 
 create or replace table t1 (x int);
 --error ER_VERSIONING_REQUIRED
 alter table t1
 partition by system_time (
-    partition p0 as of now,
-    partition p1 versioning);
+    partition p0 versioning,
+    partition pn as of now);
 
 --error ER_VERS_WRONG_PARAMS
 create or replace table t1 (x int)
@@ -57,112 +57,81 @@ partition by system_time (
     partition p0 versioning,
     partition p1 versioning);
 
+--error ER_VERS_WRONG_PARAMS
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
-    partition p0 as of now,
-    partition p1 versioning);
-
-# alter table
---error ER_VERS_WRONG_PARAMS
-alter table t1 add partition (
-    partition p2 as of now);
-
-alter table t1 add partition (
-    partition p2 versioning default);
-
---error ER_VERS_WRONG_PARAMS
-alter table t1 drop partition p0;
-alter table t1 drop partition p2;
---error ER_VERS_WRONG_PARAMS
-alter table t1 drop partition p1;
-
-# insertion, deletion
-insert into t1 values (1);
-select * from t1;
-select * from t1 partition (p0);
-select * from t1 partition (p1);
-
-delete from t1;
-select * from t1 partition (p0) for system_time all;
-select * from t1 partition (p1) for system_time all;
+    partition pn as of now,
+    partition p0 versioning);
 
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
     partition p0 versioning,
+    partition pn as of now);
+
+# alter table
+--error ER_VERS_WRONG_PARAMS
+alter table t1 add partition (
     partition p1 as of now);
 
+alter table t1 add partition (
+    partition p1 versioning);
+
+show create table t1;
+
+--error ER_VERS_WRONG_PARAMS
+alter table t1 drop partition pn;
+alter table t1 drop partition p1;
+--error ER_VERS_WRONG_PARAMS
+alter table t1 drop partition p0;
+
+# insertion, deletion
 insert into t1 values (1);
 select * from t1;
 select * from t1 partition (p0);
-select * from t1 partition (p1);
+select * from t1 partition (pn);
 
 delete from t1;
 select * from t1 partition (p0) for system_time all;
-select * from t1 partition (p1) for system_time all;
+select * from t1 partition (pn) for system_time all;
 
 # rotation by LIMIT
 create or replace table t1 (x int)
 with system versioning
 engine myisam
 partition by system_time limit 1 (
-    partition p0 as of now,
+    partition p0 versioning,
     partition p1 versioning,
-    partition p2 versioning);
+    partition pn as of now);
 
 insert into t1 values (1), (2);
-select * from t1 partition (p0);
+select * from t1 partition (pn);
 delete from t1;
+select * from t1 partition (p0) for system_time all;
 select * from t1 partition (p1) for system_time all;
-select * from t1 partition (p2) for system_time all;
 
 insert into t1 values (3);
 delete from t1;
-select * from t1 partition (p2) for system_time all;
+select * from t1 partition (p1) for system_time all;
 
 # rotation by INTERVAL
 create or replace table t1 (x int)
 with system versioning
 engine myisam
 partition by system_time interval 1 second (
-    partition p0 as of now,
-    partition p1 versioning default,
-    partition p2 versioning);
+    partition p0 versioning,
+    partition p1 versioning,
+    partition pn as of now);
 
 insert into t1 values (1), (2), (3);
-select * from t1 partition (p0);
+select * from t1 partition (pn);
 delete from t1;
-select * from t1 partition (p1) for system_time all;
+select * from t1 partition (p0) for system_time all;
 
 --sleep 2
 insert into t1 values (4);
 delete from t1;
-select * from t1 partition (p2) for system_time all;
-
-# DEFAULT partition
---error ER_VERS_WRONG_PARAMS
-create or replace table t1 (x int)
-with system versioning
-engine myisam
-partition by system_time limit 1 (
-    partition p0 as of now,
-    partition p1 versioning default,
-    partition p2 versioning default);
-
-create or replace table t1 (x int)
-with system versioning
-engine myisam
-partition by system_time limit 1 (
-    partition p0 as of now,
-    partition p1 versioning,
-    partition p2 versioning default);
-
-show create table t1;
-
-insert into t1 values (4), (5);
-delete from t1;
-select * from t1 partition (p2) for system_time all;
 select * from t1 partition (p1) for system_time all;
 
 # Subpartitions
@@ -172,19 +141,19 @@ engine myisam
 partition by system_time limit 1
 subpartition by key (x)
 subpartitions 2 (
-    partition p0 as of now,
-    partition p1 versioning default,
-    partition p2 versioning);
+    partition p0 versioning,
+    partition p1 versioning,
+    partition pn as of now);
 
 insert into t1 (x) values (1), (2), (3);
-select * from t1 partition (p0sp0);
-select * from t1 partition (p0sp1);
+select * from t1 partition (pnsp0);
+select * from t1 partition (pnsp1);
 
 delete from t1;
+select * from t1 partition (p0sp0) for system_time all;
+select * from t1 partition (p0sp1) for system_time all;
 select * from t1 partition (p1sp0) for system_time all;
 select * from t1 partition (p1sp1) for system_time all;
-select * from t1 partition (p2sp0) for system_time all;
-select * from t1 partition (p2sp1) for system_time all;
 
 drop table t1;
 
