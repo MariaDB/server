@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS a;
+create table a (id int, value int,  primary key (id) comment 'cf_a') engine=rocksdb;
+set rocksdb_bulk_load=1;
+set rocksdb_commit_in_the_middle=1;
+alter table a add index v (value) COMMENT 'cf_a';
+set rocksdb_bulk_load=0;
+set rocksdb_commit_in_the_middle=0;
+select count(*) from a force index(primary);
+count(*)
+100000
+select count(*) from a force index(v);
+count(*)
+100000
+DROP TABLE a;

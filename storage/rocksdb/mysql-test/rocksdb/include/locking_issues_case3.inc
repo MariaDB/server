@@ -59,8 +59,9 @@ eval SET SESSION TRANSACTION ISOLATION LEVEL $isolation_level;
 UPDATE t0 SET VALUE=VALUE+1 WHERE id=190000;
 
 connection con1;
---error ER_LOCK_DEADLOCK
+--error 0,ER_LOCK_DEADLOCK
 reap;
+--echo ERROR: $mysql_errno
 
 connection default;
 disconnect con1;

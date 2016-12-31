@@ -91,7 +91,10 @@ struct Rdb_atomic_perf_counters
 */
 class Rdb_perf_counters
 {
+  Rdb_perf_counters(const Rdb_perf_counters&) = delete;
+  Rdb_perf_counters& operator=(const Rdb_perf_counters&) = delete;
  public:
+  Rdb_perf_counters() = default;
   uint64_t m_value[PC_MAX_IDX];
 
   void load(const Rdb_atomic_perf_counters &atomic_counters);
@@ -110,9 +113,12 @@ class Rdb_io_perf
   ha_statistics *m_stats= nullptr;
 
  public:
-  void init(Rdb_atomic_perf_counters *atomic_counters,
-            my_io_perf_atomic_t *shared_io_perf_read,
-            ha_statistics *stats)
+  Rdb_io_perf(const Rdb_io_perf&) = delete;
+  Rdb_io_perf& operator=(const Rdb_io_perf&) = delete;
+
+  void init(Rdb_atomic_perf_counters* const atomic_counters,
+            my_io_perf_atomic_t* const shared_io_perf_read,
+            ha_statistics* const stats)
   {
     DBUG_ASSERT(atomic_counters != nullptr);
     DBUG_ASSERT(shared_io_perf_read != nullptr);
@@ -123,8 +129,8 @@ class Rdb_io_perf
     m_stats= stats;
   }
 
-  bool start(uint32_t perf_context_level);
-  void end_and_record(uint32_t perf_context_level);
+  bool start(const uint32_t perf_context_level);
+  void end_and_record(const uint32_t perf_context_level);
 
   explicit Rdb_io_perf() : m_atomic_counters(nullptr),
                            m_shared_io_perf_read(nullptr),

@@ -24,10 +24,10 @@
 
 namespace myrocks {
 
-void* Rdb_thread::thread_func(void* thread_ptr)
+void* Rdb_thread::thread_func(void* const thread_ptr)
 {
   DBUG_ASSERT(thread_ptr != nullptr);
-  Rdb_thread* thread= static_cast<Rdb_thread*>(thread_ptr);
+  Rdb_thread* const thread= static_cast<Rdb_thread* const>(thread_ptr);
   if (!thread->m_run_once.exchange(true))
   {
     thread->run();
@@ -68,7 +68,7 @@ int Rdb_thread::create_thread(
 }
 
 
-void Rdb_thread::signal(bool stop_thread)
+void Rdb_thread::signal(const bool &stop_thread)
 {
   mysql_mutex_lock(&m_signal_mutex);
   if (stop_thread) {

@@ -64,8 +64,9 @@ DELETE FROM t0 WHERE id=190000;
 COMMIT;
 
 connection con1;
---error ER_LOCK_DEADLOCK
+--error 0,ER_LOCK_DEADLOCK
 reap;
+--echo ERROR: $mysql_errno
 COMMIT;
 
 connection default;

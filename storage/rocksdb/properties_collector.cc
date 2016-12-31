@@ -42,10 +42,10 @@ std::atomic<uint64_t> rocksdb_num_sst_entry_other(0);
 my_bool rocksdb_compaction_sequential_deletes_count_sd = false;
 
 Rdb_tbl_prop_coll::Rdb_tbl_prop_coll(
-  Rdb_ddl_manager* ddl_manager,
-  Rdb_compact_params params,
-  uint32_t cf_id,
-  const uint8_t table_stats_sampling_pct
+  Rdb_ddl_manager* const ddl_manager,
+  const Rdb_compact_params &params,
+  const uint32_t &cf_id,
+  const uint8_t &table_stats_sampling_pct
 ) :
     m_cf_id(cf_id),
     m_ddl_manager(ddl_manager),
@@ -56,6 +56,8 @@ Rdb_tbl_prop_coll::Rdb_tbl_prop_coll(
     m_seed(time(nullptr)),
     m_card_adj_extra(1.)
 {
+  DBUG_ASSERT(ddl_manager != nullptr);
+
   // We need to adjust the index cardinality numbers based on the sampling
   // rate so that the output of "SHOW INDEX" command will reflect reality
   // more closely. It will still be an approximation, just a better one.
@@ -97,9 +99,9 @@ void Rdb_tbl_prop_coll::AdjustDeletedRows(rocksdb::EntryType type)
     // m_rows % m_deleted_rows_window.size()
     // m_deleted_rows is the current number of 1's in the vector
     // --update the counter for the element which will be overridden
-    bool is_delete= (type == rocksdb::kEntryDelete ||
-                    (type == rocksdb::kEntrySingleDelete &&
-                     rocksdb_compaction_sequential_deletes_count_sd));
+    const bool is_delete= (type == rocksdb::kEntryDelete ||
+                          (type == rocksdb::kEntrySingleDelete &&
+                          rocksdb_compaction_sequential_deletes_count_sd));
 
     // Only make changes if the value at the current position needs to change
     if (is_delete != m_deleted_rows_window[m_window_pos])
@@ -167,9 +169,9 @@ Rdb_index_stats* Rdb_tbl_prop_coll::AccessStats(
 
 void Rdb_tbl_prop_coll::CollectStatsForRow(
   const rocksdb::Slice& key, const rocksdb::Slice& value,
-  rocksdb::EntryType type, uint64_t file_size)
+  const rocksdb::EntryType &type, const uint64_t &file_size)
 {
-  auto stats = AccessStats(key);
+  const auto stats = AccessStats(key);
 
   stats->m_data_size += key.size()+value.size();
 
@@ -241,13 +243,15 @@ const char* Rdb_tbl_prop_coll::INDEXSTATS_KEY = "__indexstats__";
 */
 rocksdb::Status
 Rdb_tbl_prop_coll::Finish(
-  rocksdb::UserCollectedProperties* properties
+  rocksdb::UserCollectedProperties* const properties
 ) {
   uint64_t num_sst_entry_put = 0;
   uint64_t num_sst_entry_delete = 0;
   uint64_t num_sst_entry_singledelete = 0;
   uint64_t num_sst_entry_merge = 0;
   uint64_t num_sst_entry_other = 0;
+
+  DBUG_ASSERT(properties != nullptr);
 
   for (auto it = m_stats.begin(); it != m_stats.end(); it++)
   {
@@ -303,7 +307,7 @@ bool Rdb_tbl_prop_coll::ShouldCollectStats() {
     return true;
   }
 
-  int val = rand_r(&m_seed) %
+  const int val = rand_r(&m_seed) %
       (RDB_TBL_STATS_SAMPLE_PCT_MAX - RDB_TBL_STATS_SAMPLE_PCT_MIN + 1) +
       RDB_TBL_STATS_SAMPLE_PCT_MIN;
 
@@ -377,11 +381,11 @@ Rdb_tbl_prop_coll::GetReadableStats(
 
 void Rdb_tbl_prop_coll::read_stats_from_tbl_props(
   const std::shared_ptr<const rocksdb::TableProperties>& table_props,
-  std::vector<Rdb_index_stats>* out_stats_vector)
+  std::vector<Rdb_index_stats>* const out_stats_vector)
 {
   DBUG_ASSERT(out_stats_vector != nullptr);
   const auto& user_properties = table_props->user_collected_properties;
-  auto it2 = user_properties.find(std::string(INDEXSTATS_KEY));
+  const auto it2 = user_properties.find(std::string(INDEXSTATS_KEY));
   if (it2 != user_properties.end())
   {
     auto result __attribute__((__unused__)) =
@@ -400,7 +404,7 @@ std::string Rdb_index_stats::materialize(
 {
   String ret;
   rdb_netstr_append_uint16(&ret, INDEX_STATS_VERSION_ENTRY_TYPES);
-  for (auto i : stats) {
+  for (const auto &i : stats) {
     rdb_netstr_append_uint32(&ret, i.m_gl_index_id.cf_id);
     rdb_netstr_append_uint32(&ret, i.m_gl_index_id.index_id);
     DBUG_ASSERT(sizeof i.m_data_size <= 8);
@@ -412,8 +416,8 @@ std::string Rdb_index_stats::materialize(
     rdb_netstr_append_uint64(&ret, i.m_entry_single_deletes);
     rdb_netstr_append_uint64(&ret, i.m_entry_merges);
     rdb_netstr_append_uint64(&ret, i.m_entry_others);
-    for (auto num_keys : i.m_distinct_keys_per_prefix) {
-      float upd_num_keys = num_keys * card_adj_extra;
+    for (const auto &num_keys : i.m_distinct_keys_per_prefix) {
+      const float upd_num_keys = num_keys * card_adj_extra;
       rdb_netstr_append_uint64(&ret, static_cast<int64_t>(upd_num_keys));
     }
   }
@@ -428,10 +432,10 @@ std::string Rdb_index_stats::materialize(
   @return 0 if completes successfully
 */
 int Rdb_index_stats::unmaterialize(
-  const std::string& s, std::vector<Rdb_index_stats>* ret)
+  const std::string& s, std::vector<Rdb_index_stats>* const ret)
 {
   const uchar* p= rdb_std_str_to_uchar_ptr(s);
-  const uchar* p2= p + s.size();
+  const uchar* const p2= p + s.size();
 
   DBUG_ASSERT(ret != nullptr);
 
@@ -440,7 +444,7 @@ int Rdb_index_stats::unmaterialize(
     return 1;
   }
 
-  int version= rdb_netbuf_read_uint16(&p);
+  const int version= rdb_netbuf_read_uint16(&p);
   Rdb_index_stats stats;
   // Make sure version is within supported range.
   if (version < INDEX_STATS_VERSION_INITIAL ||
@@ -503,9 +507,12 @@ int Rdb_index_stats::unmaterialize(
   for the index based on stats for each sst
 */
 void Rdb_index_stats::merge(
-  const Rdb_index_stats& s, bool increment, int64_t estimated_data_len)
+  const Rdb_index_stats& s, const bool &increment,
+  const int64_t &estimated_data_len)
 {
   std::size_t i;
+
+  DBUG_ASSERT(estimated_data_len >= 0);
 
   m_gl_index_id = s.m_gl_index_id;
   if (m_distinct_keys_per_prefix.size() < s.m_distinct_keys_per_prefix.size())

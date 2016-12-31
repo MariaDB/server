@@ -24,17 +24,26 @@ class Rdb_ddl_manager;
 class Rdb_event_listener : public rocksdb::EventListener
 {
  public:
-  explicit Rdb_event_listener(Rdb_ddl_manager* ddl_manager) :
+  Rdb_event_listener(const Rdb_event_listener&) = delete;
+  Rdb_event_listener& operator=(const Rdb_event_listener&) = delete;
+
+  explicit Rdb_event_listener(Rdb_ddl_manager* const ddl_manager) :
       m_ddl_manager(ddl_manager) {
   }
 
   void OnCompactionCompleted(
-    rocksdb::DB *db, const rocksdb::CompactionJobInfo& ci) override;
+    rocksdb::DB* db, const rocksdb::CompactionJobInfo& ci) override;
   void OnFlushCompleted(
     rocksdb::DB* db, const rocksdb::FlushJobInfo& flush_job_info) override;
+  void OnExternalFileIngested(
+    rocksdb::DB* db, const rocksdb::ExternalFileIngestionInfo& ingestion_info)
+    override;
 
  private:
   Rdb_ddl_manager* m_ddl_manager;
+
+  void update_index_stats(
+    const rocksdb::TableProperties& props);
 };
 
 }  // namespace myrocks

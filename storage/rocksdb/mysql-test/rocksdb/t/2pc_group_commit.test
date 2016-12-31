@@ -1,0 +1,64 @@
+--source include/have_rocksdb.inc
+--source include/have_log_bin.inc
+
+--echo # Disable for valgrind because this takes too long
+--source include/not_valgrind.inc
+
+--disable_warnings
+DROP DATABASE IF EXISTS mysqlslap;
+--enable_warnings
+
+CREATE DATABASE mysqlslap;
+USE mysqlslap;
+CREATE TABLE t1(id BIGINT AUTO_INCREMENT, value BIGINT, PRIMARY KEY(id)) ENGINE=rocksdb;
+
+--echo # 2PC enabled, MyRocks durability enabled
+SET GLOBAL rocksdb_disable_2pc=0;
+SET GLOBAL rocksdb_write_sync=1;
+
+--echo ## 2PC + durability + single thread
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+--exec $MYSQL_SLAP --silent --concurrency=1 --number-of-queries=1000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
+select case when variable_value-@c = 1000 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+
+--echo ## 2PC + durability + group commit
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=10000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
+select case when variable_value-@c > 0 and variable_value-@c < 10000 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+
+
+--echo # 2PC enabled, MyRocks durability disabled
+SET GLOBAL rocksdb_disable_2pc=0;
+SET GLOBAL rocksdb_write_sync=0;
+
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+--exec $MYSQL_SLAP --silent --concurrency=1 --number-of-queries=1000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
+select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=10000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
+select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+
+
+--echo # 2PC disabled, MyRocks durability enabled
+SET GLOBAL rocksdb_disable_2pc=1;
+SET GLOBAL rocksdb_write_sync=1;
+
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+--exec $MYSQL_SLAP --silent --concurrency=1 --number-of-queries=1000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
+select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=10000 --query="INSERT INTO t1 (id, value) VALUES(NULL, 1)"
+select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_wal_group_syncs';
+
+
+
+
+
+
+
+SET GLOBAL rocksdb_disable_2pc=1;
+SET GLOBAL rocksdb_write_sync=0;
+DROP TABLE t1;
+DROP DATABASE mysqlslap;

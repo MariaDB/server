@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS t1;
+create table t1 (a int) engine=rocksdb;
+insert into t1 values (1);
+insert into t1 values (2);
+set autocommit=0;
+select * from t1 for update;
+a
+1
+2
+select * from information_schema.rocksdb_trx;
+TRANSACTION_ID	STATE	NAME	WRITE_COUNT	LOCK_COUNT	TIMEOUT_SEC	WAITING_KEY	WAITING_COLUMN_FAMILY_ID	IS_REPLICATION	SKIP_TRX_API	READ_ONLY	HAS_DEADLOCK_DETECTION	NUM_ONGOING_BULKLOAD	THREAD_ID	QUERY
+_TRX_ID_	STARTED	_NAME_	0	2	1	_KEY_	0	0	0	0	0	0	_THREAD_ID_	select * from information_schema.rocksdb_trx
+DROP TABLE t1;

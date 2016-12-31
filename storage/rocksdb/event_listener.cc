@@ -39,13 +39,26 @@ extract_index_stats(
 ) {
   std::vector<Rdb_index_stats> ret;
   for (auto fn : files) {
-    auto it = props.find(fn);
+    const auto it = props.find(fn);
     DBUG_ASSERT(it != props.end());
     std::vector<Rdb_index_stats> stats;
     Rdb_tbl_prop_coll::read_stats_from_tbl_props(it->second, &stats);
     ret.insert(ret.end(), stats.begin(), stats.end());
   }
   return ret;
+}
+
+void Rdb_event_listener::update_index_stats(
+  const rocksdb::TableProperties& props
+) {
+  DBUG_ASSERT(m_ddl_manager != nullptr);
+  const auto tbl_props =
+    std::make_shared<const rocksdb::TableProperties>(props);
+
+  std::vector<Rdb_index_stats> stats;
+  Rdb_tbl_prop_coll::read_stats_from_tbl_props(tbl_props, &stats);
+
+  m_ddl_manager->adjust_stats(stats);
 }
 
 void Rdb_event_listener::OnCompactionCompleted(
@@ -67,14 +80,14 @@ void Rdb_event_listener::OnFlushCompleted(
   const rocksdb::FlushJobInfo& flush_job_info
 ) {
   DBUG_ASSERT(db != nullptr);
-  DBUG_ASSERT(m_ddl_manager != nullptr);
-
-  auto tbl_props = std::make_shared<const rocksdb::TableProperties>(
-    flush_job_info.table_properties);
-
-  std::vector<Rdb_index_stats> stats;
-  Rdb_tbl_prop_coll::read_stats_from_tbl_props(tbl_props, &stats);
-  m_ddl_manager->adjust_stats(stats);
+  update_index_stats(flush_job_info.table_properties);
 }
 
+void Rdb_event_listener::OnExternalFileIngested(
+  rocksdb::DB* db,
+  const rocksdb::ExternalFileIngestionInfo& info
+) {
+  DBUG_ASSERT(db != nullptr);
+  update_index_stats(info.table_properties);
+}
 }  // namespace myrocks

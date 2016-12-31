@@ -24,13 +24,15 @@
 
 /* RocksDB includes */
 #include "rocksdb/table.h"
+#include "rocksdb/utilities/transaction_db.h"
 
 namespace myrocks {
 
 enum RDB_IO_ERROR_TYPE {
   RDB_IO_ERROR_TX_COMMIT,
   RDB_IO_ERROR_DICT_COMMIT,
-  RDB_IO_ERROR_BG_THREAD
+  RDB_IO_ERROR_BG_THREAD,
+  RDB_IO_ERROR_GENERAL
 };
 
 void rdb_handle_io_error(rocksdb::Status status, RDB_IO_ERROR_TYPE err_type);
@@ -58,7 +60,7 @@ void rdb_queue_save_stats_request();
   Access to singleton objects.
 */
 
-rocksdb::DB *rdb_get_rocksdb_db();
+rocksdb::TransactionDB *rdb_get_rocksdb_db();
 
 class Rdb_cf_manager;
 Rdb_cf_manager& rdb_get_cf_manager();

@@ -1,0 +1,1 @@
+--source suite/rocksdb/t/rocksdb_deadlock_detect.inc

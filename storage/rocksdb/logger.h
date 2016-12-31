@@ -61,7 +61,7 @@ class Rdb_logger : public rocksdb::Logger
     Logv(rocksdb::InfoLogLevel::INFO_LEVEL, format, ap);
   }
 
-  void SetRocksDBLogger(std::shared_ptr<rocksdb::Logger> logger)
+  void SetRocksDBLogger(const std::shared_ptr<rocksdb::Logger> logger)
   {
     m_logger = logger;
   }

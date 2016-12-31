@@ -27,7 +27,8 @@ namespace myrocks {
   ("netstr") which stores data in Network Byte Order (Big Endian).
 */
 
-inline void rdb_netstr_append_uint64(my_core::String *out_netstr, uint64 val)
+inline void rdb_netstr_append_uint64(my_core::String* const out_netstr,
+                                     const uint64 &val)
 {
   DBUG_ASSERT(out_netstr != nullptr);
 
@@ -37,7 +38,8 @@ inline void rdb_netstr_append_uint64(my_core::String *out_netstr, uint64 val)
   out_netstr->append(reinterpret_cast<char*>(&net_val), sizeof(net_val));
 }
 
-inline void rdb_netstr_append_uint32(my_core::String *out_netstr, uint32 val)
+inline void rdb_netstr_append_uint32(my_core::String* const out_netstr,
+                                     const uint32 &val)
 {
   DBUG_ASSERT(out_netstr != nullptr);
 
@@ -47,7 +49,8 @@ inline void rdb_netstr_append_uint32(my_core::String *out_netstr, uint32 val)
   out_netstr->append(reinterpret_cast<char*>(&net_val), sizeof(net_val));
 }
 
-inline void rdb_netstr_append_uint16(my_core::String *out_netstr, uint16 val)
+inline void rdb_netstr_append_uint16(my_core::String* const out_netstr,
+                                     const uint16 &val)
 {
   DBUG_ASSERT(out_netstr != nullptr);
 
@@ -62,15 +65,17 @@ inline void rdb_netstr_append_uint16(my_core::String *out_netstr, uint16 val)
   Basic network buffer ("netbuf") write helper functions.
 */
 
-inline void rdb_netbuf_store_uint64(uchar *dst_netbuf, uint64 n)
+inline void rdb_netbuf_store_uint64(uchar* const dst_netbuf, const uint64 &n)
 {
+  DBUG_ASSERT(dst_netbuf != nullptr);
+
   // Convert from host byte order (usually Little Endian) to network byte order
   // (Big Endian).
   uint64 net_val= htobe64(n);
   memcpy(dst_netbuf, &net_val, sizeof(net_val));
 }
 
-inline void rdb_netbuf_store_uint32(uchar *dst_netbuf, uint32 n)
+inline void rdb_netbuf_store_uint32(uchar* const dst_netbuf, const uint32 &n)
 {
   DBUG_ASSERT(dst_netbuf != nullptr);
 
@@ -80,7 +85,7 @@ inline void rdb_netbuf_store_uint32(uchar *dst_netbuf, uint32 n)
   memcpy(dst_netbuf, &net_val, sizeof(net_val));
 }
 
-inline void rdb_netbuf_store_uint16(uchar *dst_netbuf, uint16 n)
+inline void rdb_netbuf_store_uint16(uchar* const dst_netbuf, const uint16 &n)
 {
   DBUG_ASSERT(dst_netbuf != nullptr);
 
@@ -90,14 +95,15 @@ inline void rdb_netbuf_store_uint16(uchar *dst_netbuf, uint16 n)
   memcpy(dst_netbuf, &net_val, sizeof(net_val));
 }
 
-inline void rdb_netbuf_store_byte(uchar *dst_netbuf, uchar c)
+inline void rdb_netbuf_store_byte(uchar* const dst_netbuf, const uchar &c)
 {
   DBUG_ASSERT(dst_netbuf != nullptr);
 
   *dst_netbuf= c;
 }
 
-inline void rdb_netbuf_store_index(uchar *dst_netbuf, uint32 number)
+inline void rdb_netbuf_store_index(uchar* const dst_netbuf,
+                                   const uint32 &number)
 {
   DBUG_ASSERT(dst_netbuf != nullptr);
 
@@ -110,7 +116,7 @@ inline void rdb_netbuf_store_index(uchar *dst_netbuf, uint32 number)
   machine byte order (usually Little Endian).
 */
 
-inline uint64 rdb_netbuf_to_uint64(const uchar *netbuf)
+inline uint64 rdb_netbuf_to_uint64(const uchar* const netbuf)
 {
   DBUG_ASSERT(netbuf != nullptr);
 
@@ -122,7 +128,7 @@ inline uint64 rdb_netbuf_to_uint64(const uchar *netbuf)
   return be64toh(net_val);
 }
 
-inline uint32 rdb_netbuf_to_uint32(const uchar *netbuf)
+inline uint32 rdb_netbuf_to_uint32(const uchar* const netbuf)
 {
   DBUG_ASSERT(netbuf != nullptr);
 
@@ -134,7 +140,7 @@ inline uint32 rdb_netbuf_to_uint32(const uchar *netbuf)
   return be32toh(net_val);
 }
 
-inline uint16 rdb_netbuf_to_uint16(const uchar *netbuf)
+inline uint16 rdb_netbuf_to_uint16(const uchar* const netbuf)
 {
   DBUG_ASSERT(netbuf != nullptr);
 
@@ -146,7 +152,7 @@ inline uint16 rdb_netbuf_to_uint16(const uchar *netbuf)
   return be16toh(net_val);
 }
 
-inline uchar rdb_netbuf_to_byte(const uchar* netbuf)
+inline uchar rdb_netbuf_to_byte(const uchar* const netbuf)
 {
   DBUG_ASSERT(netbuf != nullptr);
 
@@ -167,7 +173,7 @@ inline uint64 rdb_netbuf_read_uint64(const uchar **netbuf_ptr)
 
   // Convert from network byte order (Big Endian) to host machine byte order
   // (usually Little Endian).
-  uint64 host_val= rdb_netbuf_to_uint64(*netbuf_ptr);
+  const uint64 host_val= rdb_netbuf_to_uint64(*netbuf_ptr);
 
   // Advance pointer.
   *netbuf_ptr += sizeof(host_val);
@@ -181,7 +187,7 @@ inline uint32 rdb_netbuf_read_uint32(const uchar **netbuf_ptr)
 
   // Convert from network byte order (Big Endian) to host machine byte order
   // (usually Little Endian).
-  uint32 host_val= rdb_netbuf_to_uint32(*netbuf_ptr);
+  const uint32 host_val= rdb_netbuf_to_uint32(*netbuf_ptr);
 
   // Advance pointer.
   *netbuf_ptr += sizeof(host_val);
@@ -195,7 +201,7 @@ inline uint16 rdb_netbuf_read_uint16(const uchar **netbuf_ptr)
 
   // Convert from network byte order (Big Endian) to host machine byte order
   // (usually Little Endian).
-  uint16 host_val= rdb_netbuf_to_uint16(*netbuf_ptr);
+  const uint16 host_val= rdb_netbuf_to_uint16(*netbuf_ptr);
 
   // Advance pointer.
   *netbuf_ptr += sizeof(host_val);
@@ -204,7 +210,7 @@ inline uint16 rdb_netbuf_read_uint16(const uchar **netbuf_ptr)
 }
 
 inline void rdb_netbuf_read_gl_index(const uchar **netbuf_ptr,
-                                     GL_INDEX_ID *gl_index_id)
+                                     GL_INDEX_ID* const gl_index_id)
 {
   DBUG_ASSERT(gl_index_id != nullptr);
   DBUG_ASSERT(netbuf_ptr != nullptr);
@@ -223,7 +229,20 @@ class Rdb_string_reader
 {
   const char* m_ptr;
   uint m_len;
+ private:
+  Rdb_string_reader& operator=(const Rdb_string_reader&) = default;
  public:
+  Rdb_string_reader(const Rdb_string_reader&) = default;
+  /* named constructor */
+  static Rdb_string_reader read_or_empty(const rocksdb::Slice* const slice)
+  {
+    if (!slice) {
+      return Rdb_string_reader("");
+    } else {
+      return Rdb_string_reader(slice);
+    }
+  }
+
   explicit Rdb_string_reader(const std::string &str)
   {
     m_len= str.length();
@@ -243,7 +262,7 @@ class Rdb_string_reader
     }
   }
 
-  explicit Rdb_string_reader(const rocksdb::Slice *slice)
+  explicit Rdb_string_reader(const rocksdb::Slice* const slice)
   {
     m_ptr= slice->data();
     m_len= slice->size();
@@ -253,7 +272,7 @@ class Rdb_string_reader
     Read the next @param size bytes. Returns pointer to the bytes read, or
     nullptr if the remaining string doesn't have that many bytes.
   */
-  const char *read(uint size)
+  const char *read(const uint &size)
   {
     const char *res;
     if (m_len < size)
@@ -269,7 +288,7 @@ class Rdb_string_reader
     return res;
   }
 
-  bool read_uint8(uint* res)
+  bool read_uint8(uint* const res)
   {
     const uchar *p;
     if (!(p= reinterpret_cast<const uchar*>(read(1))))
@@ -281,7 +300,7 @@ class Rdb_string_reader
     }
   }
 
-  bool read_uint16(uint* res)
+  bool read_uint16(uint* const res)
   {
     const uchar *p;
     if (!(p= reinterpret_cast<const uchar*>(read(2))))
@@ -323,42 +342,47 @@ class Rdb_string_writer
 {
   std::vector<uchar> m_data;
  public:
+  Rdb_string_writer(const Rdb_string_writer&) = delete;
+  Rdb_string_writer& operator=(const Rdb_string_writer&) = delete;
+  Rdb_string_writer() = default;
+
   void clear() { m_data.clear(); }
-  void write_uint8(uint val)
+  void write_uint8(const uint &val)
   {
     m_data.push_back(static_cast<uchar>(val));
   }
 
-  void write_uint16(uint val)
+  void write_uint16(const uint &val)
   {
-    auto size= m_data.size();
+    const auto size= m_data.size();
     m_data.resize(size + 2);
     rdb_netbuf_store_uint16(m_data.data() + size, val);
   }
 
-  void write_uint32(uint val)
+  void write_uint32(const uint &val)
   {
-    auto size= m_data.size();
+    const auto size= m_data.size();
     m_data.resize(size + 4);
     rdb_netbuf_store_uint32(m_data.data() + size, val);
   }
 
-  void write(uchar *new_data, size_t len)
+  void write(const uchar* const new_data, const size_t &len)
   {
+    DBUG_ASSERT(new_data != nullptr);
     m_data.insert(m_data.end(), new_data, new_data + len);
   }
 
   uchar* ptr() { return m_data.data(); }
   size_t get_current_pos() const { return m_data.size(); }
 
-  void write_uint8_at(size_t pos, uint new_val)
+  void write_uint8_at(const size_t &pos, const uint &new_val)
   {
     // This function will only overwrite what was written
     DBUG_ASSERT(pos < get_current_pos());
     m_data.data()[pos]= new_val;
   }
 
-  void write_uint16_at(size_t pos, uint new_val)
+  void write_uint16_at(const size_t &pos, const uint &new_val)
   {
     // This function will only overwrite what was written
     DBUG_ASSERT(pos < get_current_pos() && (pos + 1) < get_current_pos());
@@ -378,13 +402,16 @@ class Rdb_bit_writer
   Rdb_string_writer *m_writer;
   uchar m_offset;
  public:
+  Rdb_bit_writer(const Rdb_bit_writer&) = delete;
+  Rdb_bit_writer& operator=(const Rdb_bit_writer&) = delete;
+
   explicit Rdb_bit_writer(Rdb_string_writer* writer_arg)
     : m_writer(writer_arg),
       m_offset(0)
   {
   }
 
-  void write(uint size, uint value)
+  void write(uint size, const uint &value)
   {
     DBUG_ASSERT((value & ((1 << size) - 1)) == value);
 
@@ -395,8 +422,8 @@ class Rdb_bit_writer
         m_writer->write_uint8(0);
       }
       // number of bits to put in this byte
-      uint bits = std::min(size, (uint)(8 - m_offset));
-      uchar *last_byte= m_writer->ptr() + m_writer->get_current_pos() - 1;
+      const uint bits = std::min(size, (uint)(8 - m_offset));
+      uchar* const last_byte= m_writer->ptr() + m_writer->get_current_pos() - 1;
       *last_byte |=
         (uchar) ((value >> (size - bits)) & ((1 << bits) - 1)) << m_offset;
       size -= bits;
@@ -410,9 +437,12 @@ class Rdb_bit_reader
   const uchar *m_cur;
   uchar m_offset;
   uint m_ret;
-  Rdb_string_reader *m_reader;
+  Rdb_string_reader* const m_reader;
  public:
-  explicit Rdb_bit_reader(Rdb_string_reader *reader)
+  Rdb_bit_reader(const Rdb_bit_reader&) = delete;
+  Rdb_bit_reader& operator=(const Rdb_bit_reader&) = delete;
+
+  explicit Rdb_bit_reader(Rdb_string_reader* const reader)
     : m_cur(nullptr),
       m_offset(0),
       m_reader(reader)
@@ -438,7 +468,7 @@ class Rdb_bit_reader
         }
       }
       // how many bits from the current byte?
-      uint bits = std::min((uint)(8 - m_offset), size);
+      const uint bits = std::min((uint)(8 - m_offset), size);
       m_ret <<= bits;
       m_ret |= (*m_cur >> m_offset) & ((1 << bits) - 1);
       size -= bits;

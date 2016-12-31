@@ -1,0 +1,53 @@
+#---------------------------
+# ten threads inserting simultaneously with increment > 1
+# Issue #390
+#---------------------------
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, thr INT) ENGINE=rocksdb;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 9 + 1;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 8 + 1;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 7 + 1;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 6 + 1;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 5 + 1;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 4 + 1;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 3 + 1;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 2 + 1;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 1 + 1;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 0 + 1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1000000
+SELECT thr, COUNT(pk) FROM t1 GROUP BY thr;
+thr	COUNT(pk)
+0	100000
+1	100000
+2	100000
+3	100000
+4	100000
+5	100000
+6	100000
+7	100000
+8	100000
+9	100000
+SELECT * FROM t1 ORDER BY pk INTO OUTFILE <output_file>;
+All pk values matched their expected values
+DROP TABLE t1;

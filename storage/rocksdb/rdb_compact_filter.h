@@ -35,6 +35,9 @@ namespace myrocks {
 class Rdb_compact_filter : public rocksdb::CompactionFilter
 {
  public:
+  Rdb_compact_filter(const Rdb_compact_filter&) = delete;
+  Rdb_compact_filter& operator=(const Rdb_compact_filter&) = delete;
+
   explicit Rdb_compact_filter(uint32_t _cf_id) : m_cf_id(_cf_id) {}
   ~Rdb_compact_filter() {}
 
@@ -95,6 +98,8 @@ class Rdb_compact_filter : public rocksdb::CompactionFilter
 class Rdb_compact_filter_factory : public rocksdb::CompactionFilterFactory
 {
  public:
+  Rdb_compact_filter_factory(const Rdb_compact_filter_factory&) = delete;
+  Rdb_compact_filter_factory& operator=(const Rdb_compact_filter_factory&) = delete;
   Rdb_compact_filter_factory() {}
 
   ~Rdb_compact_filter_factory() {}

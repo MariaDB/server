@@ -7,6 +7,7 @@ pk
 1
 connect  con1,localhost,root,,;
 connection con1;
+call mtr.add_suppression("Got snapshot conflict errors");
 ### Connection con1
 set @@rocksdb_lock_wait_timeout=500;
 set autocommit=0;

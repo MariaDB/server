@@ -727,9 +727,9 @@ index_name	count
 email_i	1
 drop table t;
 set @save_rocksdb_checksums_pct = @@global.rocksdb_checksums_pct;
-set @save_rocksdb_verify_checksums = @@session.rocksdb_verify_checksums;
+set @save_rocksdb_verify_row_debug_checksums = @@session.rocksdb_verify_row_debug_checksums;
 set global rocksdb_checksums_pct = 100;
-set session rocksdb_verify_checksums = on;
+set session rocksdb_verify_row_debug_checksums = on;
 create table t (id int primary key, email varchar(100), KEY email_i (email(30)));
 insert into t values (1, 'a');
 explain select 'email_i' as index_name, count(*) AS count from t force index(email_i);
@@ -740,4 +740,4 @@ index_name	count
 email_i	1
 drop table t;
 set global rocksdb_checksums_pct = @save_rocksdb_checksums_pct;
-set session rocksdb_verify_checksums = @save_rocksdb_verify_checksums;
+set session rocksdb_verify_row_debug_checksums = @save_rocksdb_verify_row_debug_checksums;

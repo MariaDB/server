@@ -16,13 +16,13 @@ pk	col1
 1	1
 2	2
 3	3
-set @tmp1=@@rocksdb_verify_checksums;
-set rocksdb_verify_checksums=1;
+set @tmp1=@@rocksdb_verify_row_debug_checksums;
+set rocksdb_verify_row_debug_checksums=1;
 set session debug= "+d,myrocks_simulate_bad_row_read1";
 select * from t1 where pk=1;
 ERROR HY000: Got error 122 from storage engine
 set session debug= "-d,myrocks_simulate_bad_row_read1";
-set rocksdb_verify_checksums=@tmp1;
+set rocksdb_verify_row_debug_checksums=@tmp1;
 select * from t1 where pk=1;
 pk	col1
 1	1

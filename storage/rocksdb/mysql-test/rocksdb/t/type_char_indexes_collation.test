@@ -1,21 +1,6 @@
 --source include/have_rocksdb.inc
 --source include/have_debug.inc
 
-# Test to see if index-only scan fails gracefully if unpack info is not
-# available.
-set session debug= '+d,MYROCKS_FORMAT_VERSION_INITIAL';
-create table t (id int not null auto_increment primary key,
-                c varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
-                key sk (c));
-set session debug= '-d,MYROCKS_FORMAT_VERSION_INITIAL';
-insert into t (c) values ('A'), ('b'), ('C');
---replace_column 9 #
-explain select c from t;
-select c from t;
-select c from t where c = 'a';
-
-drop table t;
-
 # Test if unknown collation works.
 set session debug= "+d,myrocks_enable_unknown_collation_index_only_scans";
 create table t (id int not null auto_increment primary key,
@@ -127,7 +112,7 @@ select c1 from t;
 drop table t;
 
 # Test varchar keyparts with key prefix
-set session rocksdb_verify_checksums = on;
+set session rocksdb_verify_row_debug_checksums = on;
 create table t (id int primary key, email varchar(100), KEY email_i (email(30))) engine=rocksdb default charset=latin1;
 insert into t values (1, '                                  a');
 --replace_column 9 #

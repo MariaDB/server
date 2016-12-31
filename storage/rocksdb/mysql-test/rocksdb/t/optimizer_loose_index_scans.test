@@ -1,0 +1,3 @@
+
+let $engine=rocksdb;
+--source include/loose_index_scans.inc

@@ -4,6 +4,11 @@ IF (NOT EXISTS "${CMAKE_SOURCE_DIR}/rocksdb/Makefile")
   MESSAGE(SEND_ERROR "Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
 
+CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
+IF(HAVE_SCHED_GETCPU)
+  ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1)
+ENDIF()
+
 # get a list of rocksdb library source files
 # run with env -i to avoid passing variables
 EXECUTE_PROCESS(
@@ -51,32 +56,26 @@ ENDIF()
 SET(rocksdb_static_libs )
 IF (NOT "$ENV{WITH_SNAPPY}" STREQUAL "")
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_SNAPPY}/lib/libsnappy${PIC_EXT}.a)
+  $ENV{WITH_SNAPPY}/libsnappy${PIC_EXT}.a)
   ADD_DEFINITIONS(-DSNAPPY)
-ELSE()
-  SET(rocksdb_static_libs ${rocksdb_static_libs} snappy)
 ENDIF()
 
 IF (NOT "$ENV{WITH_LZ4}" STREQUAL "")
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_LZ4}/lib/liblz4${PIC_EXT}.a)
+  $ENV{WITH_LZ4}/liblz4${PIC_EXT}.a)
   ADD_DEFINITIONS(-DLZ4)
-ELSE()
-  SET(rocksdb_static_libs ${rocksdb_static_libs} lz4)
 ENDIF()
 
 IF (NOT "$ENV{WITH_BZ2}" STREQUAL "")
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_BZ2}/lib/libbz2${PIC_EXT}.a)
+  $ENV{WITH_BZ2}/libbz2${PIC_EXT}.a)
   ADD_DEFINITIONS(-DBZIP2)
-ELSE()
-  SET(rocksdb_static_libs ${rocksdb_static_libs} bz2)
 ENDIF()
 
 # link ZSTD only if instructed
 IF (NOT "$ENV{WITH_ZSTD}" STREQUAL "")
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_ZSTD}/lib/libzstd${PIC_EXT}.a)
+  $ENV{WITH_ZSTD}/libzstd${PIC_EXT}.a)
   ADD_DEFINITIONS(-DZSTD)
 ENDIF()
 

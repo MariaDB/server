@@ -28,7 +28,7 @@
 namespace myrocks {
 
 /* Check if ColumnFamily name says it's a reverse-ordered CF */
-bool Rdb_cf_manager::is_cf_name_reverse(const char *name)
+bool Rdb_cf_manager::is_cf_name_reverse(const char* const name)
 {
   /* nullptr means the default CF is used.. (TODO: can the default CF be
    * reverse?) */
@@ -43,8 +43,8 @@ static PSI_mutex_key ex_key_cfm;
 #endif
 
 void Rdb_cf_manager::init(
-  Rdb_cf_options* cf_options,
-  std::vector<rocksdb::ColumnFamilyHandle*> *handles)
+  Rdb_cf_options* const cf_options,
+  std::vector<rocksdb::ColumnFamilyHandle*>* const handles)
 {
   mysql_mutex_init(ex_key_cfm, &m_mutex, MY_MUTEX_INIT_FAST);
 
@@ -78,8 +78,8 @@ void Rdb_cf_manager::cleanup()
 */
 
 void Rdb_cf_manager::get_per_index_cf_name(const std::string& db_table_name,
-                                           const char *index_name,
-                                           std::string *res)
+                                           const char* const index_name,
+                                           std::string* const res)
 {
   DBUG_ASSERT(index_name != nullptr);
   DBUG_ASSERT(res != nullptr);
@@ -96,11 +96,11 @@ void Rdb_cf_manager::get_per_index_cf_name(const std::string& db_table_name,
     See Rdb_cf_manager::get_cf
 */
 rocksdb::ColumnFamilyHandle*
-Rdb_cf_manager::get_or_create_cf(rocksdb::DB *rdb,
+Rdb_cf_manager::get_or_create_cf(rocksdb::DB* const rdb,
                                  const char *cf_name,
                                  const std::string& db_table_name,
-                                 const char *index_name,
-                                 bool *is_automatic)
+                                 const char* const index_name,
+                                 bool* const is_automatic)
 {
   DBUG_ASSERT(rdb != nullptr);
   DBUG_ASSERT(is_automatic != nullptr);
@@ -120,13 +120,13 @@ Rdb_cf_manager::get_or_create_cf(rocksdb::DB *rdb,
     *is_automatic= true;
   }
 
-  auto it = m_cf_name_map.find(cf_name);
+  const auto it = m_cf_name_map.find(cf_name);
   if (it != m_cf_name_map.end())
     cf_handle= it->second;
   else
   {
     /* Create a Column Family. */
-    std::string cf_name_str(cf_name);
+    const std::string cf_name_str(cf_name);
     rocksdb::ColumnFamilyOptions opts;
     m_cf_options->get_cf_options(cf_name_str, &opts);
 
@@ -135,7 +135,8 @@ Rdb_cf_manager::get_or_create_cf(rocksdb::DB *rdb,
     sql_print_information("    target_file_size_base=%" PRIu64,
                           opts.target_file_size_base);
 
-    rocksdb::Status s= rdb->CreateColumnFamily(opts, cf_name_str, &cf_handle);
+    const rocksdb::Status s=
+      rdb->CreateColumnFamily(opts, cf_name_str, &cf_handle);
     if (s.ok()) {
       m_cf_name_map[cf_handle->GetName()] = cf_handle;
       m_cf_id_map[cf_handle->GetID()] = cf_handle;
@@ -164,10 +165,9 @@ Rdb_cf_manager::get_or_create_cf(rocksdb::DB *rdb,
 rocksdb::ColumnFamilyHandle*
 Rdb_cf_manager::get_cf(const char *cf_name,
                        const std::string& db_table_name,
-                       const char *index_name,
-                       bool *is_automatic) const
+                       const char* const index_name,
+                       bool* const is_automatic) const
 {
-  DBUG_ASSERT(cf_name != nullptr);
   DBUG_ASSERT(is_automatic != nullptr);
 
   rocksdb::ColumnFamilyHandle* cf_handle;
@@ -185,7 +185,7 @@ Rdb_cf_manager::get_cf(const char *cf_name,
     *is_automatic= true;
   }
 
-  auto it = m_cf_name_map.find(cf_name);
+  const auto it = m_cf_name_map.find(cf_name);
   cf_handle = (it != m_cf_name_map.end()) ? it->second : nullptr;
 
   mysql_mutex_unlock(&m_mutex);
@@ -193,12 +193,12 @@ Rdb_cf_manager::get_cf(const char *cf_name,
   return cf_handle;
 }
 
-rocksdb::ColumnFamilyHandle* Rdb_cf_manager::get_cf(const uint32_t id) const
+rocksdb::ColumnFamilyHandle* Rdb_cf_manager::get_cf(const uint32_t &id) const
 {
   rocksdb::ColumnFamilyHandle* cf_handle = nullptr;
 
   mysql_mutex_lock(&m_mutex);
-  auto it = m_cf_id_map.find(id);
+  const auto it = m_cf_id_map.find(id);
   if (it != m_cf_id_map.end())
     cf_handle = it->second;
   mysql_mutex_unlock(&m_mutex);

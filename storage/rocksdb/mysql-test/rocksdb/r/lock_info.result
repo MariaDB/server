@@ -1,0 +1,31 @@
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+create table t1 (a int, primary key(a) comment 'lock_into_cf1') engine=rocksdb;
+insert into t1 values (1);
+insert into t1 values (2);
+create table t2 (a int, primary key(a) comment 'lock_info_cf2') engine=rocksdb;
+insert into t2 values (1);
+insert into t2 values (2);
+set autocommit=0;
+select * from t1 for update;
+a
+1
+2
+select * from t2 for update;
+a
+1
+2
+use information_schema;
+select rocksdb_ddl.cf, rocksdb_locks.transaction_id, rocksdb_locks.key
+from rocksdb_locks
+left join rocksdb_ddl
+on rocksdb_locks.column_family_id=rocksdb_ddl.column_family
+order by rocksdb_ddl.cf;
+cf	transaction_id	key
+lock_info_cf2	_txn_id_	_key_
+lock_info_cf2	_txn_id_	_key_
+lock_into_cf1	_txn_id_	_key_
+lock_into_cf1	_txn_id_	_key_
+use test;
+DROP TABLE t1;
+DROP TABLE t2;

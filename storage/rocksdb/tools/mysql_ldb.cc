@@ -8,7 +8,7 @@
 
 int main(int argc, char** argv) {
   rocksdb::Options db_options;
-  myrocks::Rdb_pk_comparator pk_comparator;
+  const myrocks::Rdb_pk_comparator pk_comparator;
   db_options.comparator= &pk_comparator;
 
   rocksdb::LDBTool tool;

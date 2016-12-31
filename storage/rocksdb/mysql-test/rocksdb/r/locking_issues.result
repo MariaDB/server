@@ -229,7 +229,7 @@ SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 SELECT * FROM t0 WHERE value > 0 FOR UPDATE;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 UPDATE t0 SET VALUE=VALUE+1 WHERE id=190000;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR: 1213
 DROP TABLE t0;
 
 -----------------------------------------------------------------------
@@ -244,7 +244,9 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SELECT * FROM t0 WHERE value > 0 FOR UPDATE;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 UPDATE t0 SET VALUE=VALUE+1 WHERE id=190000;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+id	value
+190000	1
+ERROR: 0
 DROP TABLE t0;
 
 -----------------------------------------------------------------------
@@ -293,7 +295,7 @@ SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
 DELETE FROM t0 WHERE id=190000;
 COMMIT;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR: 1213
 COMMIT;
 DROP TABLE t0;
 
@@ -313,7 +315,8 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 BEGIN;
 DELETE FROM t0 WHERE id=190000;
 COMMIT;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+id	value
+ERROR: 0
 COMMIT;
 DROP TABLE t0;
 
@@ -333,7 +336,7 @@ SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 BEGIN;
 UPDATE t0 SET id=200001 WHERE id=190000;
 COMMIT;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR: 1213
 COMMIT;
 DROP TABLE t0;
 
@@ -353,7 +356,8 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 BEGIN;
 UPDATE t0 SET id=200001 WHERE id=190000;
 COMMIT;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+id	value
+ERROR: 0
 COMMIT;
 DROP TABLE t0;
 

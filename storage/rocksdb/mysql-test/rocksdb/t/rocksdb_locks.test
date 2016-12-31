@@ -16,6 +16,7 @@ select * from t1 where pk=1 for update;
 
 --connect (con1,localhost,root,,)
 --connection con1
+call mtr.add_suppression("Got snapshot conflict errors");
 --echo ### Connection con1
 let $ID= `select connection_id()`;
 set @@rocksdb_lock_wait_timeout=500;

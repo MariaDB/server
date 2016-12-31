@@ -155,7 +155,7 @@ DROP TABLE t2;
 # test invalid regex (missing end bracket)
 --exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
 SET GLOBAL rocksdb_strict_collation_exceptions="[a-b";
---exec grep -A 1 "Invalid pattern" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--exec grep "Invalid pattern" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
 --error ER_UNKNOWN_ERROR
 CREATE TABLE a (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 SET GLOBAL rocksdb_strict_collation_exceptions="[a-b]";
@@ -168,7 +168,7 @@ DROP TABLE a, b;
 # test invalid regex (trailing escape)
 --exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
 SET GLOBAL rocksdb_strict_collation_exceptions="abc\\";
---exec grep -A 1 "Invalid pattern" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--exec grep "Invalid pattern" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
 --error ER_UNKNOWN_ERROR
 CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
 SET GLOBAL rocksdb_strict_collation_exceptions="abc";

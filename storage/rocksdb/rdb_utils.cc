@@ -32,7 +32,8 @@ namespace myrocks {
 /*
   Skip past any spaces in the input
 */
-const char* rdb_skip_spaces(struct charset_info_st* cs, const char *str)
+const char* rdb_skip_spaces(const struct charset_info_st* const cs,
+                            const char *str)
 {
   DBUG_ASSERT(cs != nullptr);
   DBUG_ASSERT(str != nullptr);
@@ -50,7 +51,7 @@ const char* rdb_skip_spaces(struct charset_info_st* cs, const char *str)
   Note that str1 can be longer but we only compare up to the number
   of characters in str2.
 */
-bool rdb_compare_strings_ic(const char *str1, const char *str2)
+bool rdb_compare_strings_ic(const char* const str1, const char* const str2)
 {
   DBUG_ASSERT(str1 != nullptr);
   DBUG_ASSERT(str2 != nullptr);
@@ -74,7 +75,7 @@ bool rdb_compare_strings_ic(const char *str1, const char *str2)
   and skipping all data enclosed in quotes.
 */
 const char* rdb_find_in_string(const char *str, const char *pattern,
-                               bool *succeeded)
+                               bool * const succeeded)
 {
   char        quote = '\0';
   bool        escape = false;
@@ -131,8 +132,9 @@ const char* rdb_find_in_string(const char *str, const char *pattern,
 /*
   See if the next valid token matches the specified string
 */
-const char* rdb_check_next_token(struct charset_info_st* cs, const char *str,
-                                 const char *pattern, bool *succeeded)
+const char* rdb_check_next_token(const struct charset_info_st* const cs,
+                                 const char *str, const char* const pattern,
+                                 bool* const succeeded)
 {
   DBUG_ASSERT(cs != nullptr);
   DBUG_ASSERT(str != nullptr);
@@ -156,8 +158,8 @@ const char* rdb_check_next_token(struct charset_info_st* cs, const char *str,
 /*
   Parse id
 */
-const char* rdb_parse_id(struct charset_info_st* cs, const char *str,
-                         std::string *id)
+const char* rdb_parse_id(const struct charset_info_st* const cs,
+                         const char *str, std::string * const id)
 {
   DBUG_ASSERT(cs != nullptr);
   DBUG_ASSERT(str != nullptr);
@@ -232,7 +234,7 @@ const char* rdb_parse_id(struct charset_info_st* cs, const char *str,
 /*
   Skip id
 */
-const char* rdb_skip_id(struct charset_info_st* cs, const char *str)
+const char* rdb_skip_id(const struct charset_info_st* const cs, const char *str)
 {
   DBUG_ASSERT(cs != nullptr);
   DBUG_ASSERT(str != nullptr);
@@ -251,8 +253,8 @@ static const std::array<char, 16> rdb_hexdigit =
   Convert data into a hex string with optional maximum length.
   If the data is larger than the maximum length trancate it and append "..".
 */
-std::string rdb_hexdump(const char *data, std::size_t data_len,
-                        std::size_t maxsize)
+std::string rdb_hexdump(const char *data, const std::size_t data_len,
+                        const std::size_t maxsize)
 {
   DBUG_ASSERT(data != nullptr);
 
@@ -296,8 +298,9 @@ std::string rdb_hexdump(const char *data, std::size_t data_len,
 */
 bool rdb_database_exists(const std::string& db_name)
 {
-  std::string dir = std::string(mysql_real_data_home) + FN_DIRSEP + db_name;
-  struct st_my_dir* dir_info = my_dir(dir.c_str(),
+  const std::string dir = std::string(mysql_real_data_home) + FN_DIRSEP
+                          + db_name;
+  struct st_my_dir* const dir_info = my_dir(dir.c_str(),
                                       MYF(MY_DONT_SORT | MY_WANT_STAT));
   if (dir_info == nullptr)
   {
