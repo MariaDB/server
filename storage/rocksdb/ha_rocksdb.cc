@@ -4799,7 +4799,6 @@ void ha_rocksdb::set_skip_unique_check_tables(const char* whitelist)
 {
   DBUG_ASSERT(whitelist != nullptr);
 
-#ifdef MARIAROCKS_NOT_YET // regex_handler
 #if defined(HAVE_PSI_INTERFACE)
   Regex_list_handler regex_handler(key_rwlock_skip_unique_check_tables);
 #else
@@ -4812,7 +4811,6 @@ void ha_rocksdb::set_skip_unique_check_tables(const char* whitelist)
   }
 
   m_skip_unique_check= regex_handler.matches(m_tbl_def->base_tablename());
-#endif
 }
 
 int ha_rocksdb::open(const char *name, int mode, uint test_if_locked)
