@@ -64,6 +64,11 @@ ADD_CONVENIENCE_LIBRARY(
   ${ROCKSDB_LIB_SOURCES}
 )
 
+# We include storage/innobase/include/ut0counter.h, which includes
+# univ.i, which includes mysqld_error.h.
+# Indicate that MyRocks is dependent on that file (just like innochecksum does)
+ADD_DEPENDENCIES(ROCKSDB_AUX_LIB GenError)
+
 SET(ROCKSDB_SOURCES
   rdb_mariadb_server_port.cc rdb_mariadb_server_port.h
   ha_rocksdb.cc ha_rocksdb.h
