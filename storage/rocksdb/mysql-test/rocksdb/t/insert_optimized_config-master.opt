@@ -3,4 +3,5 @@
 --rocksdb_override_cf_options=__system__={memtable=skip_list:16}
 --rocksdb_compaction_sequential_deletes=0
 --rocksdb_compaction_sequential_deletes_window=0
+--rocksdb_allow_concurrent_memtable_write=0
 

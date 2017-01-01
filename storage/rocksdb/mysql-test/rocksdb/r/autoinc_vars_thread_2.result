@@ -1,0 +1,96 @@
+#---------------------------
+# ten threads inserting simultaneously with increment > 1
+# Issue #390
+#---------------------------
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, thr INT) ENGINE=rocksdb;
+connect  con$i, localhost, root,,;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 9 + 1;
+connect  con$i, localhost, root,,;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 8 + 1;
+connect  con$i, localhost, root,,;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 7 + 1;
+connect  con$i, localhost, root,,;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 6 + 1;
+connect  con$i, localhost, root,,;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 5 + 1;
+connect  con$i, localhost, root,,;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 4 + 1;
+connect  con$i, localhost, root,,;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 3 + 1;
+connect  con$i, localhost, root,,;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 2 + 1;
+connect  con$i, localhost, root,,;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 1 + 1;
+connect  con$i, localhost, root,,;
+SET auto_increment_increment = 100;
+SET auto_increment_offset = 0 + 1;
+connection default;
+connection con9;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+connection con8;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+connection con7;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+connection con6;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+connection con5;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+connection con4;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+connection con3;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+connection con2;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+connection con1;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+connection con0;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+connection default;
+connection con9;
+connection con8;
+connection con7;
+connection con6;
+connection con5;
+connection con4;
+connection con3;
+connection con2;
+connection con1;
+connection con0;
+connection default;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1000000
+SELECT thr, COUNT(pk) FROM t1 GROUP BY thr;
+thr	COUNT(pk)
+0	100000
+1	100000
+2	100000
+3	100000
+4	100000
+5	100000
+6	100000
+7	100000
+8	100000
+9	100000
+disconnect con9;
+disconnect con8;
+disconnect con7;
+disconnect con6;
+disconnect con5;
+disconnect con4;
+disconnect con3;
+disconnect con2;
+disconnect con1;
+disconnect con0;
+SELECT * FROM t1 ORDER BY pk INTO OUTFILE <output_file>;
+All pk values matched their expected values
+DROP TABLE t1;

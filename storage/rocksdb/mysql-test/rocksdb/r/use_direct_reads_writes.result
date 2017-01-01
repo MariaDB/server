@@ -1,0 +1,2 @@
+ RocksDB: Can't enable both use_direct_reads and allow_mmap_reads
+ RocksDB: Can't enable both use_direct_writes and allow_mmap_writes

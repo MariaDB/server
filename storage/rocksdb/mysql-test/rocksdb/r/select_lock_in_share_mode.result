@@ -13,11 +13,10 @@ SELECT a,b FROM t1 WHERE b='a';
 a	b
 1	a
 3	a
-# 
-# Currently, SELECT ... LOCK IN SHARE MODE works like 
-#   SELECT FOR UPDATE
 SELECT a,b FROM t1 WHERE b='a' LOCK IN SHARE MODE;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+a	b
+1	a
+3	a
 UPDATE t1 SET b='c' WHERE b='a';
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection con1;

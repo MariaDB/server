@@ -875,10 +875,9 @@ rocksdb_advise_random_on_open	ON
 rocksdb_allow_concurrent_memtable_write	OFF
 rocksdb_allow_mmap_reads	OFF
 rocksdb_allow_mmap_writes	OFF
-rocksdb_allow_os_buffer	ON
 rocksdb_background_sync	OFF
 rocksdb_base_background_compactions	1
-rocksdb_block_cache_size	8388608
+rocksdb_block_cache_size	536870912
 rocksdb_block_restart_interval	16
 rocksdb_block_size	4096
 rocksdb_block_size_deviation	10
@@ -900,6 +899,7 @@ rocksdb_create_if_missing	ON
 rocksdb_create_missing_column_families	OFF
 rocksdb_datadir	./.rocksdb
 rocksdb_db_write_buffer_size	0
+rocksdb_deadlock_detect	OFF
 rocksdb_debug_optimizer_no_zero_cardinality	ON
 rocksdb_default_cf_options	
 rocksdb_delete_obsolete_files_period_micros	21600000000
@@ -938,6 +938,7 @@ rocksdb_paranoid_checks	ON
 rocksdb_pause_background_work	ON
 rocksdb_perf_context_level	0
 rocksdb_pin_l0_filter_and_index_blocks_in_cache	ON
+rocksdb_print_snapshot_conflict_queries	OFF
 rocksdb_rate_limiter_bytes_per_sec	0
 rocksdb_read_free_rpl_tables	
 rocksdb_records_in_range	50
@@ -949,16 +950,20 @@ rocksdb_skip_fill_cache	OFF
 rocksdb_skip_unique_check	OFF
 rocksdb_skip_unique_check_tables	.*
 rocksdb_stats_dump_period_sec	600
-rocksdb_store_checksums	OFF
+rocksdb_store_row_debug_checksums	OFF
 rocksdb_strict_collation_check	OFF
 rocksdb_strict_collation_exceptions	
 rocksdb_table_cache_numshardbits	6
 rocksdb_table_stats_sampling_pct	10
+rocksdb_tmpdir	
+rocksdb_trace_sst_api	OFF
 rocksdb_unsafe_for_binlog	OFF
 rocksdb_use_adaptive_mutex	OFF
+rocksdb_use_direct_reads	OFF
+rocksdb_use_direct_writes	OFF
 rocksdb_use_fsync	OFF
 rocksdb_validate_tables	1
-rocksdb_verify_checksums	OFF
+rocksdb_verify_row_debug_checksums	OFF
 rocksdb_wal_bytes_per_sync	0
 rocksdb_wal_dir	
 rocksdb_wal_recovery_mode	2
@@ -998,7 +1003,7 @@ insert into t49 values (1,10),(2,20);
 begin;
 update t49 set a = 100 where pk = 1;
 connect  con1,localhost,root,,;
-set rocksdb_lock_wait_timeout=5000;
+set rocksdb_lock_wait_timeout=60;
 set @var1= to_seconds(now());
 update t49 set a = 1000 where pk = 1;
 connect  con2,localhost,root,,;
@@ -1006,9 +1011,7 @@ kill query $con1_id;
 connection con1;
 ERROR 70100: Query execution was interrupted
 set @var2= to_seconds(now());
-"[Jay Edgar] I've updated this query to help determine why it is sometimes failing"
-"(t13541934).  If you get an error here (i.e. not 'passed') notify me."
-select if ((@var2 - @var1) < 1000, "passed", (@var2 - @var1)) as 'result';
+select if ((@var2 - @var1) < 60, "passed", (@var2 - @var1)) as 'result';
 result
 passed
 connection default;
@@ -1312,7 +1315,7 @@ insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables
 set @tmp1= @@rocksdb_max_row_locks;
 set rocksdb_max_row_locks= 20;
 update t1 set a=a+10;
-ERROR HY000: Internal error: Operation aborted: Number of locks held by the transaction exceeded @@rocksdb_max_row_locks
+ERROR HY000: Got error 197 'Number of locks held reached @@rocksdb_max_row_locks.' from ROCKSDB
 DROP TABLE t1;
 # 
 # Test AUTO_INCREMENT behavior problem,
@@ -1478,9 +1481,9 @@ Rocksdb_number_superversion_acquires	#
 Rocksdb_number_superversion_cleanups	#
 Rocksdb_number_superversion_releases	#
 Rocksdb_rate_limit_delay_millis	#
-Rocksdb_sequence_number	#
 Rocksdb_snapshot_conflict_errors	#
 Rocksdb_wal_bytes	#
+Rocksdb_wal_group_syncs	#
 Rocksdb_wal_synced	#
 Rocksdb_write_other	#
 Rocksdb_write_self	#
@@ -1548,9 +1551,9 @@ ROCKSDB_NUMBER_SUPERVERSION_ACQUIRES
 ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
 ROCKSDB_NUMBER_SUPERVERSION_RELEASES
 ROCKSDB_RATE_LIMIT_DELAY_MILLIS
-ROCKSDB_SEQUENCE_NUMBER
 ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
 ROCKSDB_WAL_BYTES
+ROCKSDB_WAL_GROUP_SYNCS
 ROCKSDB_WAL_SYNCED
 ROCKSDB_WRITE_OTHER
 ROCKSDB_WRITE_SELF
@@ -1620,9 +1623,9 @@ ROCKSDB_NUMBER_SUPERVERSION_ACQUIRES
 ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
 ROCKSDB_NUMBER_SUPERVERSION_RELEASES
 ROCKSDB_RATE_LIMIT_DELAY_MILLIS
-ROCKSDB_SEQUENCE_NUMBER
 ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
 ROCKSDB_WAL_BYTES
+ROCKSDB_WAL_GROUP_SYNCS
 ROCKSDB_WAL_SYNCED
 ROCKSDB_WRITE_OTHER
 ROCKSDB_WRITE_SELF
@@ -2464,4 +2467,24 @@ a
 10
 11
 DROP TABLE t1;
+#
+# Issue #411: Setting rocksdb_commit_in_the_middle commits transaction
+# without releasing iterator
+#
+CREATE TABLE t1 (id1 bigint(20),
+id2 bigint(20),
+id3 bigint(20),
+PRIMARY KEY (id1, id2, id3))
+DEFAULT CHARSET=latin1;
+CREATE TABLE t2 (id1 bigint(20),
+id2 bigint(20),
+PRIMARY KEY (id1, id2))
+DEFAULT CHARSET=latin1;
+set rocksdb_commit_in_the_middle=1;
+SET @save_rocksdb_bulk_load_size= @@rocksdb_bulk_load_size;
+set rocksdb_bulk_load_size = 100;
+DELETE t2, t1 FROM t2 LEFT JOIN t1 ON t2.id2 = t1.id2 AND t2.id1 = t1.id1 WHERE t2.id1 = 0;
+SET rocksdb_bulk_load_size= @save_rocksdb_bulk_load_size;
+SET rocksdb_commit_in_the_middle=0;
+DROP TABLE t1, t2;
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

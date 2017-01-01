@@ -9,10 +9,10 @@ CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
 INSERT INTO invalid_values VALUES('\'aaa\'');
 INSERT INTO invalid_values VALUES('\'bbb\'');
 
---let $sys_var=ROCKSDB_STORE_CHECKSUMS
+--let $sys_var=ROCKSDB_PRINT_SNAPSHOT_CONFLICT_QUERIES
 --let $read_only=0
---let $session=1
---source include/rocksdb_sys_var.inc
+--let $session=0
+--source suite/sys_vars/inc/rocksdb_sys_var.inc
 
 DROP TABLE valid_values;
 DROP TABLE invalid_values;

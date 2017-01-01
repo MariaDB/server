@@ -59,7 +59,10 @@ class Rdb_ddl_manager;
 class Rdb_pack_field_context
 {
  public:
-  explicit Rdb_pack_field_context(Rdb_string_writer *writer_arg) :
+  Rdb_pack_field_context(const Rdb_pack_field_context&) = delete;
+  Rdb_pack_field_context& operator=(const Rdb_pack_field_context&) = delete;
+
+  explicit Rdb_pack_field_context(Rdb_string_writer* const writer_arg) :
     writer(writer_arg)
   {}
 
@@ -164,44 +167,50 @@ class Rdb_key_def
 {
 public:
   /* Convert a key from KeyTupleFormat to mem-comparable form */
-  uint pack_index_tuple(TABLE *tbl, uchar *pack_buffer, uchar *packed_tuple,
-                        const uchar *key_tuple, key_part_map keypart_map) const;
+  uint pack_index_tuple(TABLE* const tbl, uchar* const pack_buffer,
+                        uchar* const packed_tuple,
+                        const uchar* const key_tuple,
+                        const key_part_map &keypart_map) const;
 
   /* Convert a key from Table->record format to mem-comparable form */
-  uint pack_record(const TABLE *tbl, uchar *pack_buffer, const uchar *record,
-                   uchar *packed_tuple, Rdb_string_writer *unpack_info,
-                   bool should_store_checksums,
-                   longlong hidden_pk_id= 0, uint n_key_parts= 0,
-                   uint *n_null_fields= nullptr) const;
+  uint pack_record(const TABLE* const tbl, uchar* const pack_buffer,
+                   const uchar* const record,
+                   uchar* const packed_tuple,
+                   Rdb_string_writer* const unpack_info,
+                   const bool &should_store_row_debug_checksums,
+                   const longlong &hidden_pk_id= 0, uint n_key_parts= 0,
+                   uint* const n_null_fields= nullptr) const;
   /* Pack the hidden primary key into mem-comparable form. */
-  uint pack_hidden_pk(longlong hidden_pk_id,
-                      uchar *packed_tuple) const;
-  int unpack_record(TABLE *table, uchar *buf, const rocksdb::Slice *packed_key,
-                    const rocksdb::Slice *unpack_info, bool verify_checksums)
+  uint pack_hidden_pk(const longlong &hidden_pk_id,
+                      uchar* const packed_tuple) const;
+  int unpack_record(TABLE* const table, uchar* const buf,
+                    const rocksdb::Slice* const packed_key,
+                    const rocksdb::Slice* const unpack_info,
+                    const bool &verify_row_debug_checksums)
     const;
 
   static bool unpack_info_has_checksum(const rocksdb::Slice& unpack_info);
   int compare_keys(const rocksdb::Slice *key1, const rocksdb::Slice *key2,
-                   std::size_t* column_index) const;
+                   std::size_t* const column_index) const;
 
-  size_t key_length(TABLE *table, const rocksdb::Slice &key) const;
+  size_t key_length(const TABLE* const table, const rocksdb::Slice &key) const;
 
   /* Get the key that is the "infimum" for this index */
-  inline void get_infimum_key(uchar *key, uint *size) const
+  inline void get_infimum_key(uchar* const key, uint* const size) const
   {
     rdb_netbuf_store_index(key, m_index_number);
     *size= INDEX_NUMBER_SIZE;
   }
 
   /* Get the key that is a "supremum" for this index */
-  inline void get_supremum_key(uchar *key, uint *size) const
+  inline void get_supremum_key(uchar* const key, uint* const size) const
   {
     rdb_netbuf_store_index(key, m_index_number+1);
     *size= INDEX_NUMBER_SIZE;
   }
 
   /* Make a key that is right after the given key. */
-  static int successor(uchar *packed_tuple, uint len);
+  static int successor(uchar* const packed_tuple, const uint &len);
 
   /*
     This can be used to compare prefixes.
@@ -252,14 +261,15 @@ public:
 
   GL_INDEX_ID get_gl_index_id() const
   {
-    GL_INDEX_ID gl_index_id = { m_cf_handle->GetID(), m_index_number };
+    const GL_INDEX_ID gl_index_id = { m_cf_handle->GetID(), m_index_number };
     return gl_index_id;
   }
 
   /* Must only be called for secondary keys: */
-  uint get_primary_key_tuple(TABLE *tbl,
-                             const std::shared_ptr<const Rdb_key_def>& pk_descr,
-                             const rocksdb::Slice *key, uchar *pk_buffer) const;
+  uint get_primary_key_tuple(const TABLE* const tbl,
+                             const Rdb_key_def& pk_descr,
+                             const rocksdb::Slice* const key,
+                             uchar* const pk_buffer) const;
 
   /* Return max length of mem-comparable form */
   uint max_storage_fmt_length() const
@@ -288,6 +298,7 @@ public:
     return m_name;
   }
 
+  Rdb_key_def& operator=(const Rdb_key_def&) = delete;
   Rdb_key_def(const Rdb_key_def& k);
   Rdb_key_def(uint indexnr_arg, uint keyno_arg,
               rocksdb::ColumnFamilyHandle* cf_handle_arg,
@@ -379,31 +390,31 @@ public:
     SECONDARY_FORMAT_VERSION_LATEST= SECONDARY_FORMAT_VERSION_UPDATE1,
   };
 
-  void setup(const TABLE *table, const Rdb_tbl_def *tbl_def);
+  void setup(const TABLE* const table, const Rdb_tbl_def* const tbl_def);
 
   rocksdb::ColumnFamilyHandle *get_cf() const { return m_cf_handle; }
 
   /* Check if keypart #kp can be unpacked from index tuple */
-  inline bool can_unpack(uint kp) const;
+  inline bool can_unpack(const uint &kp) const;
   /* Check if keypart #kp needs unpack info */
-  inline bool has_unpack_info(uint kp) const;
+  inline bool has_unpack_info(const uint &kp) const;
 
   /* Check if given table has a primary key */
-  static bool table_has_hidden_pk(const TABLE* table);
+  static bool table_has_hidden_pk(const TABLE* const table);
 
-  void report_checksum_mismatch(bool is_key, const char *data,
-                                size_t data_size) const;
+  void report_checksum_mismatch(const bool &is_key, const char* const data,
+                                const size_t data_size) const;
 
   /* Check if index is at least pk_min if it is a PK,
     or at least sk_min if SK.*/
-  bool index_format_min_check(int pk_min, int sk_min) const;
+  bool index_format_min_check(const int &pk_min, const int &sk_min) const;
 
 private:
 
 #ifndef DBUG_OFF
-  inline bool is_storage_available(int offset, int needed) const
+  inline bool is_storage_available(const int &offset, const int &needed) const
   {
-    int storage_length= static_cast<int>(max_storage_fmt_length());
+    const int storage_length= static_cast<int>(max_storage_fmt_length());
     return (storage_length - offset) >= needed;
   }
 #endif  // DBUG_OFF
@@ -497,6 +508,10 @@ extern std::array<const Rdb_collation_codec*, MY_ALL_CHARSETS_SIZE>
 class Rdb_field_packing
 {
 public:
+  Rdb_field_packing(const Rdb_field_packing&) = delete;
+  Rdb_field_packing& operator=(const Rdb_field_packing&) = delete;
+  Rdb_field_packing() = default;
+
   /* Length of mem-comparable image of the field, in bytes */
   int m_max_image_len;
 
@@ -577,10 +592,11 @@ private:
   uint m_keynr;
   uint m_key_part;
 public:
-  bool setup(const Rdb_key_def *key_descr, const Field *field,
-             uint keynr_arg, uint key_part_arg, uint16 key_length);
-  Field *get_field_in_table(const TABLE *tbl) const;
-  void fill_hidden_pk_val(uchar **dst, longlong hidden_pk_id) const;
+  bool setup(const Rdb_key_def* const key_descr, const Field* const field,
+             const uint &keynr_arg, const uint &key_part_arg,
+             const uint16 &key_length);
+  Field *get_field_in_table(const TABLE* const tbl) const;
+  void fill_hidden_pk_val(uchar **dst, const longlong &hidden_pk_id) const;
 };
 
 /*
@@ -593,6 +609,8 @@ public:
 class Rdb_field_encoder
 {
  public:
+  Rdb_field_encoder(const Rdb_field_encoder&) = delete;
+  Rdb_field_encoder& operator=(const Rdb_field_encoder&) = delete;
   /*
     STORE_NONE is set when a column can be decoded solely from their
     mem-comparable form.
@@ -633,13 +651,13 @@ inline Field* Rdb_key_def::get_table_field_for_part_no(TABLE *table,
   return m_pack_info[part_no].get_field_in_table(table);
 }
 
-inline bool Rdb_key_def::can_unpack(uint kp) const
+inline bool Rdb_key_def::can_unpack(const uint &kp) const
 {
   DBUG_ASSERT(kp < m_key_parts);
   return (m_pack_info[kp].m_unpack_func != nullptr);
 }
 
-inline bool Rdb_key_def::has_unpack_info(uint kp) const
+inline bool Rdb_key_def::has_unpack_info(const uint &kp) const
 {
   DBUG_ASSERT(kp < m_key_parts);
   return m_pack_info[kp].uses_unpack_info();
@@ -671,19 +689,22 @@ class Rdb_tbl_def
   void set_name(const std::string& name);
 
  public:
+  Rdb_tbl_def(const Rdb_tbl_def&) = delete;
+  Rdb_tbl_def& operator=(const Rdb_tbl_def&) = delete;
+
   explicit Rdb_tbl_def(const std::string& name) :
       m_key_descr_arr(nullptr), m_hidden_pk_val(1), m_auto_incr_val(1)
   {
     set_name(name);
   }
 
-  Rdb_tbl_def(const char* name, size_t len) :
+  Rdb_tbl_def(const char* const name, const size_t &len) :
       m_key_descr_arr(nullptr), m_hidden_pk_val(1), m_auto_incr_val(1)
   {
     set_name(std::string(name, len));
   }
 
-  explicit Rdb_tbl_def(const rocksdb::Slice& slice, size_t pos= 0) :
+  explicit Rdb_tbl_def(const rocksdb::Slice& slice, const size_t &pos= 0) :
       m_key_descr_arr(nullptr), m_hidden_pk_val(1), m_auto_incr_val(1)
   {
     set_name(std::string(slice.data() + pos, slice.size() - pos));
@@ -703,8 +724,8 @@ class Rdb_tbl_def
   /* Is this a system table */
   bool m_is_mysql_system_table;
 
-  bool put_dict(Rdb_dict_manager *dict, rocksdb::WriteBatch *batch,
-                uchar *key, size_t keylen);
+  bool put_dict(Rdb_dict_manager* const dict, rocksdb::WriteBatch* const batch,
+                uchar* const key, const size_t &keylen);
 
   const std::string& full_tablename() const { return m_dbname_tablename; }
   const std::string& base_dbname() const { return m_dbname; }
@@ -724,13 +745,17 @@ class Rdb_seq_generator
 
   mysql_mutex_t m_mutex;
 public:
-  void init(uint initial_number)
+  Rdb_seq_generator(const Rdb_seq_generator&) = delete;
+  Rdb_seq_generator& operator=(const Rdb_seq_generator&) = delete;
+  Rdb_seq_generator() = default;
+
+  void init(const uint &initial_number)
   {
     mysql_mutex_init(0 , &m_mutex, MY_MUTEX_INIT_FAST);
     m_next_number= initial_number;
   }
 
-  uint get_and_update_next_number(Rdb_dict_manager *dict);
+  uint get_and_update_next_number(Rdb_dict_manager* const dict);
 
   void cleanup()
   {
@@ -766,46 +791,54 @@ class Rdb_ddl_manager
   // It is produced by event listener (ie compaction and flush threads)
   // and consumed by the rocksdb background thread
   std::map<GL_INDEX_ID, Rdb_index_stats> m_stats2store;
+
+  const std::shared_ptr<Rdb_key_def>& find(
+      GL_INDEX_ID gl_index_id);
 public:
+  Rdb_ddl_manager(const Rdb_ddl_manager&) = delete;
+  Rdb_ddl_manager& operator=(const Rdb_ddl_manager&) = delete;
+  Rdb_ddl_manager() {}
+
   /* Load the data dictionary from on-disk storage */
-  bool init(Rdb_dict_manager *dict_arg, Rdb_cf_manager *cf_manager,
-            uint32_t validate_tables);
+  bool init(Rdb_dict_manager* const dict_arg, Rdb_cf_manager* const cf_manager,
+            const uint32_t &validate_tables);
 
   void cleanup();
 
-  Rdb_tbl_def* find(const std::string& table_name, bool lock= true);
-  const std::shared_ptr<Rdb_key_def>& find(GL_INDEX_ID gl_index_id);
-  std::shared_ptr<Rdb_key_def> safe_find(GL_INDEX_ID gl_index_id);
+  Rdb_tbl_def* find(const std::string& table_name, const bool &lock= true);
+  std::shared_ptr<const Rdb_key_def> safe_find(GL_INDEX_ID gl_index_id);
   void set_stats(
     const std::unordered_map<GL_INDEX_ID, Rdb_index_stats>& stats);
   void adjust_stats(
     const std::vector<Rdb_index_stats>& new_data,
     const std::vector<Rdb_index_stats>& deleted_data
      =std::vector<Rdb_index_stats>());
-  void persist_stats(bool sync = false);
+  void persist_stats(const bool &sync = false);
 
   /* Modify the mapping and write it to on-disk storage */
-  int put_and_write(Rdb_tbl_def *key_descr, rocksdb::WriteBatch *batch);
-  void remove(Rdb_tbl_def *rec, rocksdb::WriteBatch *batch, bool lock= true);
+  int put_and_write(Rdb_tbl_def* const key_descr,
+                    rocksdb::WriteBatch* const batch);
+  void remove(Rdb_tbl_def* const rec, rocksdb::WriteBatch* const batch,
+              const bool &lock= true);
   bool rename(const std::string& from, const std::string& to,
-              rocksdb::WriteBatch *batch);
+              rocksdb::WriteBatch* const batch);
 
-  uint get_and_update_next_number(Rdb_dict_manager *dict)
+  uint get_and_update_next_number(Rdb_dict_manager* const dict)
     { return m_sequence.get_and_update_next_number(dict); }
 
   /* Walk the data dictionary */
   int scan_for_tables(Rdb_tables_scanner* tables_scanner);
 
-  void erase_index_num(GL_INDEX_ID gl_index_id);
+  void erase_index_num(const GL_INDEX_ID &gl_index_id);
 
 private:
   /* Put the data into in-memory table (only) */
-  int put(Rdb_tbl_def *key_descr, bool lock= true);
+  int put(Rdb_tbl_def* const key_descr, const bool &lock= true);
 
   /* Helper functions to be passed to my_core::HASH object */
-  static const uchar* get_hash_key(Rdb_tbl_def *rec, size_t *length,
+  static const uchar* get_hash_key(Rdb_tbl_def* const rec, size_t* const length,
                                    my_bool not_used __attribute__((unused)));
-  static void free_hash_elem(void* data);
+  static void free_hash_elem(void* const data);
 
   bool validate_schemas();
 };
@@ -829,25 +862,32 @@ private:
 class Rdb_binlog_manager
 {
 public:
-  bool init(Rdb_dict_manager *dict);
+  Rdb_binlog_manager(const Rdb_binlog_manager&) = delete;
+  Rdb_binlog_manager& operator=(const Rdb_binlog_manager&) = delete;
+  Rdb_binlog_manager() = default;
+
+  bool init(Rdb_dict_manager* const dict);
   void cleanup();
-  void update(const char* binlog_name, const my_off_t binlog_pos,
-              const char* binlog_gtid, rocksdb::WriteBatchBase* batch);
-  bool read(char* binlog_name, my_off_t* binlog_pos, char* binlog_gtid);
-  void update_slave_gtid_info(uint id, const char* db, const char* gtid,
-                              rocksdb::WriteBatchBase *write_batch);
+  void update(const char* const binlog_name, const my_off_t binlog_pos,
+              const char* const binlog_max_gtid,
+              rocksdb::WriteBatchBase* const batch);
+  bool read(char* const binlog_name, my_off_t* const binlog_pos,
+            char* const binlog_gtid) const;
+  void update_slave_gtid_info(const uint &id, const char* const db,
+                              const char* const gtid,
+                              rocksdb::WriteBatchBase* const write_batch);
 
 private:
   Rdb_dict_manager *m_dict= nullptr;
   uchar m_key_buf[Rdb_key_def::INDEX_NUMBER_SIZE]= {0};
   rocksdb::Slice m_key_slice;
 
-  rocksdb::Slice pack_value(uchar *buf,
-                            const char *binlog_name,
-                            const my_off_t binlog_pos,
-                            const char *binlog_gtid);
-  bool unpack_value(const uchar *value, char *binlog_name,
-                    my_off_t *binlog_pos, char *binlog_gtid);
+  rocksdb::Slice pack_value(uchar* const buf,
+                            const char* const binlog_name,
+                            const my_off_t &binlog_pos,
+                            const char* const binlog_gtid) const;
+  bool unpack_value(const uchar* const value, char* const binlog_name,
+                    my_off_t* const binlog_pos, char* const binlog_gtid) const;
 
   std::atomic<Rdb_tbl_def*> m_slave_gtid_info_tbl;
 };
@@ -915,21 +955,25 @@ private:
   uchar m_key_buf_max_index_id[Rdb_key_def::INDEX_NUMBER_SIZE]= {0};
   rocksdb::Slice m_key_slice_max_index_id;
 
-  static void dump_index_id(uchar *netbuf,
+  static void dump_index_id(uchar* const netbuf,
                             Rdb_key_def::DATA_DICT_TYPE dict_type,
                             const GL_INDEX_ID &gl_index_id);
-  void delete_with_prefix(rocksdb::WriteBatch* batch,
+  void delete_with_prefix(rocksdb::WriteBatch* const batch,
                           Rdb_key_def::DATA_DICT_TYPE dict_type,
                           const GL_INDEX_ID &gl_index_id) const;
   /* Functions for fast DROP TABLE/INDEX */
-  void resume_drop_indexes();
-  void log_start_drop_table(const std::shared_ptr<Rdb_key_def>* key_descr,
-                            uint32 n_keys,
-                            const char* log_action);
+  void resume_drop_indexes() const;
+  void log_start_drop_table(const std::shared_ptr<Rdb_key_def>* const key_descr,
+                            const uint32 &n_keys,
+                            const char* const log_action) const;
   void log_start_drop_index(GL_INDEX_ID gl_index_id,
-                            const char* log_action);
+                            const char* log_action) const;
 public:
-  bool init(rocksdb::DB *rdb_dict, Rdb_cf_manager *cf_manager);
+  Rdb_dict_manager(const Rdb_dict_manager&) = delete;
+  Rdb_dict_manager& operator=(const Rdb_dict_manager&) = delete;
+  Rdb_dict_manager() = default;
+
+  bool init(rocksdb::DB* const rdb_dict, Rdb_cf_manager* const cf_manager);
 
   inline void cleanup()
   {
@@ -947,108 +991,111 @@ public:
   }
 
   /* Raw RocksDB operations */
-  std::unique_ptr<rocksdb::WriteBatch> begin();
-  int commit(rocksdb::WriteBatch *batch, bool sync = true);
+  std::unique_ptr<rocksdb::WriteBatch> begin() const;
+  int commit(rocksdb::WriteBatch* const batch, const bool &sync = true) const;
   rocksdb::Status get_value(const rocksdb::Slice& key,
-                            std::string *value) const;
-  void put_key(rocksdb::WriteBatchBase *batch, const rocksdb::Slice &key,
-               const rocksdb::Slice &value);
+                            std::string* const value) const;
+  void put_key(rocksdb::WriteBatchBase* const batch, const rocksdb::Slice &key,
+               const rocksdb::Slice &value) const;
   void delete_key(rocksdb::WriteBatchBase *batch,
                   const rocksdb::Slice &key) const;
-  rocksdb::Iterator *new_iterator();
+  rocksdb::Iterator *new_iterator() const;
 
   /* Internal Index id => CF */
   void add_or_update_index_cf_mapping(rocksdb::WriteBatch *batch,
                                       const uchar index_type,
                                       const uint16_t kv_version,
                                       const uint index_id,
-                                      const uint cf_id);
+                                      const uint cf_id) const;
   void delete_index_info(rocksdb::WriteBatch* batch,
                          const GL_INDEX_ID &index_id) const;
   bool get_index_info(const GL_INDEX_ID &gl_index_id,
                       uint16_t *index_dict_version,
-                      uchar *index_type, uint16_t *kv_version);
+                      uchar *index_type, uint16_t *kv_version) const;
 
   /* CF id => CF flags */
-  void add_cf_flags(rocksdb::WriteBatch *batch,
-                    const uint cf_id,
-                    const uint cf_flags);
-  bool get_cf_flags(const uint cf_id, uint *cf_flags);
+  void add_cf_flags(rocksdb::WriteBatch* const batch,
+                    const uint &cf_id,
+                    const uint &cf_flags) const;
+  bool get_cf_flags(const uint &cf_id, uint* const cf_flags) const;
 
   /* Functions for fast CREATE/DROP TABLE/INDEX */
   void get_ongoing_index_operation(std::vector<GL_INDEX_ID>* gl_index_ids,
-                                   Rdb_key_def::DATA_DICT_TYPE dd_type);
+                                   Rdb_key_def::DATA_DICT_TYPE dd_type) const;
   bool is_index_operation_ongoing(const GL_INDEX_ID& gl_index_id,
-                                  Rdb_key_def::DATA_DICT_TYPE dd_type);
+                                  Rdb_key_def::DATA_DICT_TYPE dd_type) const;
   void start_ongoing_index_operation(rocksdb::WriteBatch* batch,
                                      const GL_INDEX_ID& gl_index_id,
-                                     Rdb_key_def::DATA_DICT_TYPE dd_type);
-  void end_ongoing_index_operation(rocksdb::WriteBatch* batch,
+                                     Rdb_key_def::DATA_DICT_TYPE dd_type) const;
+  void end_ongoing_index_operation(rocksdb::WriteBatch* const batch,
                                    const GL_INDEX_ID& gl_index_id,
-                                   Rdb_key_def::DATA_DICT_TYPE dd_type);
-  bool is_drop_index_empty();
-  void add_drop_table(std::shared_ptr<Rdb_key_def>* key_descr, uint32 n_keys,
-                      rocksdb::WriteBatch *batch);
+                                   Rdb_key_def::DATA_DICT_TYPE dd_type) const;
+  bool is_drop_index_empty() const;
+  void add_drop_table(std::shared_ptr<Rdb_key_def>* const key_descr,
+                      const uint32 &n_keys,
+                      rocksdb::WriteBatch* const batch) const;
   void add_drop_index(const std::unordered_set<GL_INDEX_ID>& gl_index_ids,
-                      rocksdb::WriteBatch *batch);
+                      rocksdb::WriteBatch* const batch) const;
   void add_create_index(const std::unordered_set<GL_INDEX_ID>& gl_index_ids,
-                        rocksdb::WriteBatch *batch);
+                        rocksdb::WriteBatch* const batch) const;
   void finish_indexes_operation(
       const std::unordered_set<GL_INDEX_ID>& gl_index_ids,
-      Rdb_key_def::DATA_DICT_TYPE dd_type);
-  void rollback_ongoing_index_creation();
+      Rdb_key_def::DATA_DICT_TYPE dd_type) const;
+  void rollback_ongoing_index_creation() const;
 
-  inline void get_ongoing_drop_indexes(std::vector<GL_INDEX_ID>* gl_index_ids)
+  inline void
+  get_ongoing_drop_indexes(std::vector<GL_INDEX_ID>* gl_index_ids) const
   {
     get_ongoing_index_operation(gl_index_ids,
                                 Rdb_key_def::DDL_DROP_INDEX_ONGOING);
   }
-  inline void get_ongoing_create_indexes(std::vector<GL_INDEX_ID>* gl_index_ids)
+  inline void
+  get_ongoing_create_indexes(std::vector<GL_INDEX_ID>* gl_index_ids) const
   {
     get_ongoing_index_operation(gl_index_ids,
                                 Rdb_key_def::DDL_CREATE_INDEX_ONGOING);
   }
   inline void start_drop_index(rocksdb::WriteBatch *wb,
-                               const GL_INDEX_ID&  gl_index_id)
+                               const GL_INDEX_ID&  gl_index_id) const
   {
     start_ongoing_index_operation(wb, gl_index_id,
                                   Rdb_key_def::DDL_DROP_INDEX_ONGOING);
   }
   inline void start_create_index(rocksdb::WriteBatch *wb,
-                                 const GL_INDEX_ID& gl_index_id)
+                                 const GL_INDEX_ID& gl_index_id) const
   {
     start_ongoing_index_operation(wb, gl_index_id,
                                   Rdb_key_def::DDL_CREATE_INDEX_ONGOING);
   }
   inline void finish_drop_indexes(
-      const std::unordered_set<GL_INDEX_ID>& gl_index_ids)
+      const std::unordered_set<GL_INDEX_ID>& gl_index_ids) const
   {
     finish_indexes_operation(gl_index_ids,
                              Rdb_key_def::DDL_DROP_INDEX_ONGOING);
   }
   inline void finish_create_indexes(
-      const std::unordered_set<GL_INDEX_ID>& gl_index_ids)
+      const std::unordered_set<GL_INDEX_ID>& gl_index_ids) const
   {
     finish_indexes_operation(gl_index_ids,
                              Rdb_key_def::DDL_CREATE_INDEX_ONGOING);
   }
-  inline bool is_drop_index_ongoing(const GL_INDEX_ID& gl_index_id)
+  inline bool is_drop_index_ongoing(const GL_INDEX_ID& gl_index_id) const
   {
     return is_index_operation_ongoing(gl_index_id,
                                       Rdb_key_def::DDL_DROP_INDEX_ONGOING);
   }
-  inline bool is_create_index_ongoing(const GL_INDEX_ID& gl_index_id)
+  inline bool is_create_index_ongoing(const GL_INDEX_ID& gl_index_id) const
   {
     return is_index_operation_ongoing(gl_index_id,
                                       Rdb_key_def::DDL_CREATE_INDEX_ONGOING);
   }
 
-  bool get_max_index_id(uint32_t *index_id);
-  bool update_max_index_id(rocksdb::WriteBatch* batch,
-                           const uint32_t index_id);
-  void add_stats(rocksdb::WriteBatch* batch,
-                 const std::vector<Rdb_index_stats>& stats);
-  Rdb_index_stats get_stats(GL_INDEX_ID gl_index_id);
+  bool get_max_index_id(uint32_t* const index_id) const;
+  bool update_max_index_id(rocksdb::WriteBatch* const batch,
+                           const uint32_t &index_id) const;
+  void add_stats(rocksdb::WriteBatch* const batch,
+                 const std::vector<Rdb_index_stats>& stats) const;
+  Rdb_index_stats get_stats(GL_INDEX_ID gl_index_id) const;
 };
 
 }  // namespace myrocks

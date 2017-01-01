@@ -21,8 +21,8 @@ index t3_1(b) comment 'rev:cf_t4'
 ) engine=rocksdb;
 SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE() and table_name <> 't1';
 table_name	table_rows
-t2	4999
-t3	4999
+t2	1000
+t3	1000
 SELECT CASE WHEN table_rows < 100000 then 'true' else 'false' end from information_schema.tables where table_name = 't1';
 CASE WHEN table_rows < 100000 then 'true' else 'false' end
 true

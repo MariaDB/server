@@ -18,6 +18,7 @@
 #include "rdb_mariadb_port.h"
 
 /* C++ standard header files */
+#include <chrono>
 #include <string>
 
 /* MySQL header files */
@@ -103,6 +104,11 @@ namespace myrocks {
 #endif
 
 /*
+  Generic constant.
+*/
+const size_t RDB_MAX_HEXDUMP_LEN= 1000;
+
+/*
   Helper function to get an NULL terminated uchar* out of a given MySQL String.
 */
 
@@ -120,6 +126,15 @@ inline uchar* rdb_mysql_str_to_uchar_str(my_core::String *str)
 inline const uchar* rdb_std_str_to_uchar_ptr(const std::string &str)
 {
   return reinterpret_cast<const uchar*>(str.data());
+}
+
+/*
+  Helper function to convert seconds to milliseconds.
+*/
+
+constexpr int rdb_convert_sec_to_ms(int sec)
+{
+  return std::chrono::milliseconds(std::chrono::seconds(sec)).count();
 }
 
 /*
@@ -171,33 +186,35 @@ inline int purge_all_jemalloc_arenas()
   Helper functions to parse strings.
 */
 
-const char* rdb_skip_spaces(struct charset_info_st* cs, const char *str)
+const char* rdb_skip_spaces(const struct charset_info_st* const cs,
+                            const char *str)
   __attribute__((__nonnull__, __warn_unused_result__));
 
-bool rdb_compare_strings_ic(const char *str1, const char *str2)
+bool rdb_compare_strings_ic(const char* const str1, const char* const str2)
   __attribute__((__nonnull__, __warn_unused_result__));
 
 const char* rdb_find_in_string(const char *str, const char *pattern,
-                               bool *succeeded)
+                               bool * const succeeded)
   __attribute__((__nonnull__, __warn_unused_result__));
 
-const char* rdb_check_next_token(struct charset_info_st* cs, const char *str,
-                                 const char *pattern, bool *succeeded)
+const char* rdb_check_next_token(const struct charset_info_st* const cs,
+                                 const char *str, const char* const pattern,
+                                 bool * const succeeded)
   __attribute__((__nonnull__, __warn_unused_result__));
 
-const char* rdb_parse_id(struct charset_info_st* cs, const char *str,
-                         std::string *id)
+const char* rdb_parse_id(const struct charset_info_st* const cs,
+                         const char *str, std::string * const id)
   __attribute__((__nonnull__(1, 2), __warn_unused_result__));
 
-const char* rdb_skip_id(struct charset_info_st* cs, const char *str)
+const char* rdb_skip_id(const struct charset_info_st* const cs, const char *str)
   __attribute__((__nonnull__, __warn_unused_result__));
 
 /*
   Helper functions to populate strings.
 */
 
-std::string rdb_hexdump(const char *data, std::size_t data_len,
-                        std::size_t maxsize = 0)
+std::string rdb_hexdump(const char *data, const std::size_t data_len,
+                        const std::size_t maxsize = 0)
   __attribute__((__nonnull__));
 
 /*

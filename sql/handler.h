@@ -3168,7 +3168,7 @@ public:
   virtual int read_range_next();
   void set_end_range(const key_range *end_key);
   int compare_key(key_range *range);
-  int compare_key2(key_range *range);
+  int compare_key2(key_range *range) const;
   virtual int ft_init() { return HA_ERR_WRONG_COMMAND; }
   void ft_end() { ft_handler=NULL; }
   virtual FT_INFO *ft_init_ext(uint flags, uint inx,String *key)

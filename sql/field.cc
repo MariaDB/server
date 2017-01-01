@@ -8734,7 +8734,6 @@ double Field_enum::val_real(void)
 
 longlong Field_enum::val_int(void)
 {
-  ASSERT_COLUMN_MARKED_FOR_READ;
   return read_lowendian(ptr, packlength);
 }
 

@@ -7,3 +7,5 @@
 --loose-enable-rocksdb_index_file_map
 --loose-enable-rocksdb_dbstats
 --loose-enable-rocksdb_cfstats
+--loose-enable-rocksdb_lock_info
+--loose-enable-rocksdb_trx

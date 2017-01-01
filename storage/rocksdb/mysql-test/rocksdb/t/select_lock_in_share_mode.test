@@ -31,10 +31,6 @@ SET lock_wait_timeout = 1;
 --sorted_result
 SELECT a,b FROM t1 WHERE b='a';
 --sorted_result
---echo # 
---echo # Currently, SELECT ... LOCK IN SHARE MODE works like 
---echo #   SELECT FOR UPDATE
---error ER_LOCK_WAIT_TIMEOUT
 SELECT a,b FROM t1 WHERE b='a' LOCK IN SHARE MODE;
 
 --error ER_LOCK_WAIT_TIMEOUT

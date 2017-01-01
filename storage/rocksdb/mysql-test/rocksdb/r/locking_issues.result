@@ -310,7 +310,7 @@ connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 UPDATE t0 SET VALUE=VALUE+1 WHERE id=190000;
 connection con1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR: 1213
 connection default;
 disconnect con1;
 disconnect con2;
@@ -333,7 +333,9 @@ connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 UPDATE t0 SET VALUE=VALUE+1 WHERE id=190000;
 connection con1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+id	value
+190000	1
+ERROR: 0
 connection default;
 disconnect con1;
 disconnect con2;
@@ -406,7 +408,7 @@ BEGIN;
 DELETE FROM t0 WHERE id=190000;
 COMMIT;
 connection con1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR: 1213
 COMMIT;
 connection default;
 disconnect con1;
@@ -434,7 +436,8 @@ BEGIN;
 DELETE FROM t0 WHERE id=190000;
 COMMIT;
 connection con1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+id	value
+ERROR: 0
 COMMIT;
 connection default;
 disconnect con1;
@@ -462,7 +465,7 @@ BEGIN;
 UPDATE t0 SET id=200001 WHERE id=190000;
 COMMIT;
 connection con1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR: 1213
 COMMIT;
 connection default;
 disconnect con1;
@@ -490,7 +493,8 @@ BEGIN;
 UPDATE t0 SET id=200001 WHERE id=190000;
 COMMIT;
 connection con1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+id	value
+ERROR: 0
 COMMIT;
 connection default;
 disconnect con1;

@@ -43,16 +43,17 @@ Rdb_pk_comparator Rdb_cf_options::s_pk_comparator;
 Rdb_rev_comparator Rdb_cf_options::s_rev_pk_comparator;
 
 bool Rdb_cf_options::init(
-  size_t default_write_buffer_size,
   const rocksdb::BlockBasedTableOptions& table_options,
   std::shared_ptr<rocksdb::TablePropertiesCollectorFactory> prop_coll_factory,
-  const char * default_cf_options,
-  const char * override_cf_options)
+  const char* const default_cf_options,
+  const char* const override_cf_options)
 {
+  DBUG_ASSERT(default_cf_options != nullptr);
+  DBUG_ASSERT(override_cf_options != nullptr);
+
   m_default_cf_opts.comparator = &s_pk_comparator;
   m_default_cf_opts.compaction_filter_factory.reset(
     new Rdb_compact_filter_factory);
-  m_default_cf_opts.write_buffer_size = default_write_buffer_size;
 
   m_default_cf_opts.table_factory.reset(
     rocksdb::NewBlockBasedTableFactory(table_options));
@@ -71,7 +72,7 @@ bool Rdb_cf_options::init(
 }
 
 void Rdb_cf_options::get(const std::string &cf_name,
-                         rocksdb::ColumnFamilyOptions *opts)
+                         rocksdb::ColumnFamilyOptions* const opts)
 {
   DBUG_ASSERT(opts != nullptr);
 
@@ -108,7 +109,7 @@ bool Rdb_cf_options::set_default(const std::string &default_config)
 }
 
 // Skip over any spaces in the input string.
-void Rdb_cf_options::skip_spaces(const std::string& input, size_t* pos)
+void Rdb_cf_options::skip_spaces(const std::string& input, size_t* const pos)
 {
   DBUG_ASSERT(pos != nullptr);
 
@@ -119,13 +120,14 @@ void Rdb_cf_options::skip_spaces(const std::string& input, size_t* pos)
 // Find a valid column family name.  Note that all characters except a
 // semicolon are valid (should this change?) and all spaces are trimmed from
 // the beginning and end but are not removed between other characters.
-bool Rdb_cf_options::find_column_family(const std::string& input, size_t* pos,
-                                        std::string* key)
+bool Rdb_cf_options::find_column_family(const std::string& input,
+                                        size_t* const pos,
+                                        std::string* const key)
 {
   DBUG_ASSERT(pos != nullptr);
   DBUG_ASSERT(key != nullptr);
 
-  size_t beg_pos = *pos;
+  const size_t beg_pos = *pos;
   size_t end_pos = *pos - 1;
 
   // Loop through the characters in the string until we see a '='.
@@ -150,8 +152,8 @@ bool Rdb_cf_options::find_column_family(const std::string& input, size_t* pos,
 // Find a valid options portion.  Everything is deemed valid within the options
 // portion until we hit as many close curly braces as we have seen open curly
 // braces.
-bool Rdb_cf_options::find_options(const std::string& input, size_t* pos,
-                                  std::string* options)
+bool Rdb_cf_options::find_options(const std::string& input, size_t* const pos,
+                                  std::string* const options)
 {
   DBUG_ASSERT(pos != nullptr);
   DBUG_ASSERT(options != nullptr);
@@ -171,7 +173,7 @@ bool Rdb_cf_options::find_options(const std::string& input, size_t* pos,
 
   // Set up our brace_count, the begin position and current end position.
   size_t brace_count = 1;
-  size_t beg_pos = *pos;
+  const size_t beg_pos = *pos;
 
   // Loop through the characters in the string until we find the appropriate
   // number of closing curly braces.
@@ -213,9 +215,9 @@ bool Rdb_cf_options::find_options(const std::string& input, size_t* pos,
 }
 
 bool Rdb_cf_options::find_cf_options_pair(const std::string& input,
-                                          size_t* pos,
-                                          std::string* cf,
-                                          std::string* opt_str)
+                                          size_t* const pos,
+                                          std::string* const cf,
+                                          std::string* const opt_str)
 {
   DBUG_ASSERT(pos != nullptr);
   DBUG_ASSERT(cf != nullptr);
@@ -328,7 +330,7 @@ const rocksdb::Comparator* Rdb_cf_options::get_cf_comparator(
 }
 
 void Rdb_cf_options::get_cf_options(const std::string &cf_name,
-                                    rocksdb::ColumnFamilyOptions *opts)
+                                    rocksdb::ColumnFamilyOptions* const opts)
 {
   DBUG_ASSERT(opts != nullptr);
 

@@ -63,7 +63,7 @@ struct Rdb_index_stats
   static std::string materialize(const std::vector<Rdb_index_stats>& stats,
                                  const float card_adj_extra);
   static int unmaterialize(const std::string& s,
-                           std::vector<Rdb_index_stats>* ret);
+                           std::vector<Rdb_index_stats>* const ret);
 
   Rdb_index_stats() : Rdb_index_stats({0, 0}) {}
   explicit Rdb_index_stats(GL_INDEX_ID gl_index_id) :
@@ -76,8 +76,8 @@ struct Rdb_index_stats
       m_entry_merges(0),
       m_entry_others(0) {}
 
-  void merge(const Rdb_index_stats& s, bool increment = true,
-             int64_t estimated_data_len = 0);
+  void merge(const Rdb_index_stats& s, const bool &increment = true,
+             const int64_t &estimated_data_len = 0);
 };
 
 
@@ -85,10 +85,10 @@ class Rdb_tbl_prop_coll : public rocksdb::TablePropertiesCollector
 {
  public:
   Rdb_tbl_prop_coll(
-    Rdb_ddl_manager* ddl_manager,
-    Rdb_compact_params params,
-    uint32_t cf_id,
-    const uint8_t table_stats_sampling_pct
+    Rdb_ddl_manager* const ddl_manager,
+    const Rdb_compact_params &params,
+    const uint32_t &cf_id,
+    const uint8_t &table_stats_sampling_pct
   );
 
   /*
@@ -124,13 +124,14 @@ class Rdb_tbl_prop_coll : public rocksdb::TablePropertiesCollector
 
   bool ShouldCollectStats();
   void CollectStatsForRow(const rocksdb::Slice& key,
-    const rocksdb::Slice& value, rocksdb::EntryType type, uint64_t file_size);
+    const rocksdb::Slice& value, const rocksdb::EntryType &type,
+    const uint64_t &file_size);
   Rdb_index_stats* AccessStats(const rocksdb::Slice& key);
   void AdjustDeletedRows(rocksdb::EntryType type);
 
  private:
   uint32_t m_cf_id;
-  std::shared_ptr<Rdb_key_def> m_keydef;
+  std::shared_ptr<const Rdb_key_def> m_keydef;
   Rdb_ddl_manager* m_ddl_manager;
   std::vector<Rdb_index_stats> m_stats;
   Rdb_index_stats* m_last_stats;
@@ -153,6 +154,9 @@ class Rdb_tbl_prop_coll : public rocksdb::TablePropertiesCollector
 class Rdb_tbl_prop_coll_factory
     : public rocksdb::TablePropertiesCollectorFactory {
  public:
+  Rdb_tbl_prop_coll_factory(const Rdb_tbl_prop_coll_factory&) = delete;
+  Rdb_tbl_prop_coll_factory& operator=(const Rdb_tbl_prop_coll_factory&) = delete;
+
   explicit Rdb_tbl_prop_coll_factory(Rdb_ddl_manager* ddl_manager)
     : m_ddl_manager(ddl_manager) {
   }
@@ -177,12 +181,12 @@ class Rdb_tbl_prop_coll_factory
     m_params = params;
   }
 
-  void SetTableStatsSamplingPct(const uint8_t table_stats_sampling_pct) {
+  void SetTableStatsSamplingPct(const uint8_t &table_stats_sampling_pct) {
     m_table_stats_sampling_pct = table_stats_sampling_pct;
   }
 
  private:
-  Rdb_ddl_manager* m_ddl_manager;
+  Rdb_ddl_manager* const m_ddl_manager;
   Rdb_compact_params m_params;
   uint8_t m_table_stats_sampling_pct;
 };
