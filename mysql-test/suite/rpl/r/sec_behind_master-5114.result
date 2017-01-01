@@ -3,7 +3,8 @@ include/master-slave.inc
 call mtr.add_suppression("Unsafe statement written to the binary log");
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES(SLEEP(2));
-Seconds_Behind_Master: 1
+Seconds_Behind_Master_is_less_than_100
+1
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave.
 drop table t1;
