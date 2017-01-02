@@ -21,7 +21,9 @@ while ($i <= $max) {
 SELECT COUNT(*) FROM t1;
 
 # Verify the table stats are returned
+--vertical_results
 SELECT * FROM INFORMATION_SCHEMA.TABLE_STATISTICS WHERE TABLE_NAME = "t1";
+--horizontal_results
 
 #cleanup
 DROP TABLE t1;
