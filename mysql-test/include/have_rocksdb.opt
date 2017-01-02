@@ -9,3 +9,4 @@
 --loose-enable-rocksdb_cfstats
 --loose-enable-rocksdb_lock_info
 --loose-enable-rocksdb_trx
+--loose-enable-rocksdb_locks
