@@ -1,5 +1,6 @@
 --source include/have_rocksdb.inc
 --source include/have_debug.inc
+--source include/have_partition.inc
 
 --disable_warnings
 drop table if exists t1;
@@ -18,14 +19,14 @@ INSERT INTO t1 (a, b) VALUES (3, 7);
 flush logs;
 
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="+d,crash_during_online_index_creation";
+SET SESSION debug_dbug="+d,crash_during_online_index_creation";
 --error 2013
 ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
 
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-SET SESSION debug="-d,crash_during_online_index_creation";
+SET SESSION debug_dbug="-d,crash_during_online_index_creation";
 
 SHOW CREATE TABLE t1;
 CHECK TABLE t1;
@@ -51,14 +52,14 @@ while ($i <= $max) {
 flush logs;
 
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="+d,crash_during_index_creation_partition";
+SET SESSION debug_dbug="+d,crash_during_index_creation_partition";
 --error 2013
 ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
 
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-SET SESSION debug="-d,crash_during_index_creation_partition";
+SET SESSION debug_dbug="-d,crash_during_index_creation_partition";
 
 SHOW CREATE TABLE t1;
 
@@ -90,7 +91,7 @@ while ($i <= $max) {
 flush logs;
 
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-SET SESSION debug="+d,myrocks_simulate_index_create_rollback";
+SET SESSION debug_dbug="+d,myrocks_simulate_index_create_rollback";
 
 --echo # expected assertion failure from sql layer here for alter rollback
 call mtr.add_suppression("Assertion `0' failed.");
@@ -103,7 +104,7 @@ ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-SET SESSION debug="-d,myrocks_simulate_index_create_rollback";
+SET SESSION debug_dbug="-d,myrocks_simulate_index_create_rollback";
 
 SHOW CREATE TABLE t1;
 
