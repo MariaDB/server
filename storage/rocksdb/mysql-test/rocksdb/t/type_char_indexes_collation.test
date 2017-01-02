@@ -2,7 +2,7 @@
 --source include/have_debug.inc
 
 # Test if unknown collation works.
-set session debug= "+d,myrocks_enable_unknown_collation_index_only_scans";
+set session debug_dbug= "+d,myrocks_enable_unknown_collation_index_only_scans";
 create table t (id int not null auto_increment primary key,
                 c varchar(8) CHARACTER SET utf8 COLLATE utf8_general_ci,
                 key sk (c));
@@ -11,7 +11,7 @@ insert into t (c) values ('☀'), ('ß');
 explain select c from t;
 select c from t;
 drop table t;
-set session debug= "-d,myrocks_enable_unknown_collation_index_only_scans";
+set session debug_dbug= "-d,myrocks_enable_unknown_collation_index_only_scans";
 
 # Testing if all characters in latin1 charset get restored correctly. This is
 # done by comparing results from a PK scan.
@@ -44,10 +44,9 @@ explain select hex(c2) from t IGNORE INDEX (sk1) order by c2;
 
 --let $file1=$MYSQLTEST_VARDIR/tmp/filesort_order
 --let $file2=$MYSQLTEST_VARDIR/tmp/sk_order
-
 --disable_query_log
---eval select hex(c1) INTO OUTFILE '$file1' from t order by c1
---eval select hex(c1) INTO OUTFILE '$file2' from t IGNORE INDEX (sk1) order by c1
+--eval select hex(weight_string(c1)) INTO OUTFILE '$file1' from t order by c1
+--eval select hex(weight_string(c1)) INTO OUTFILE '$file2' from t IGNORE INDEX (sk1) order by c1
 --enable_query_log
 
 --diff_files $file1 $file2
@@ -55,8 +54,8 @@ explain select hex(c2) from t IGNORE INDEX (sk1) order by c2;
 --remove_file $file2
 
 --disable_query_log
---eval select hex(c2) INTO OUTFILE '$file1' from t order by c2
---eval select hex(c2) INTO OUTFILE '$file2' from t IGNORE INDEX (sk1) order by c2
+--eval select hex(weight_string(c2)) INTO OUTFILE '$file1' from t order by c2
+--eval select hex(weight_string(c2)) INTO OUTFILE '$file2' from t IGNORE INDEX (sk1) order by c2
 --enable_query_log
 
 --diff_files $file1 $file2
