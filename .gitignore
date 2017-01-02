@@ -3,6 +3,7 @@
 *.reject
 *.spec
 *.bak
+*.dgcov
 *.rpm
 .*.swp
 *.ninja
